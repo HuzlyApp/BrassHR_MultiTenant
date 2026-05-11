@@ -1,0 +1,40 @@
+.admin-recruiter-shell .fixed.inset-y-0.left-0.z-50.w-72 {
+  display: none !important;
+}
+
+.admin-recruiter-shell .lg\:pl-72 {
+  padding-left: 0 !important;
+}
+
+.admin-recruiter-shell .admin-recruiter-content header.h-16.border-b {
+  display: none !important;
+}
+
+/* Tenant branding remap for legacy utility colors in recruiter pages. */
+.admin-recruiter-shell .text-teal-700,
+.admin-recruiter-shell .text-teal-600,
+.admin-recruiter-shell .text-teal-500,
+.admin-recruiter-shell .text-\[\#0D9488\] {
+  color: var(--brand-primary) !important;
+}
+
+.admin-recruiter-shell .bg-teal-700,
+.admin-recruiter-shell .bg-teal-600,
+.admin-recruiter-shell .bg-teal-500,
+.admin-recruiter-shell .bg-\[\#0D9488\] {
+  background-color: var(--brand-primary) !important;
+}
+
+.admin-recruiter-shell .hover\:bg-teal-700:hover,
+.admin-recruiter-shell .hover\:bg-teal-600:hover,
+.admin-recruiter-shell .hover\:bg-teal-50:hover {
+  background-color: color-mix(in srgb, var(--brand-primary) 88%, white) !important;
+}
+
+.admin-recruiter-shell .border-teal-700,
+.admin-recruiter-shell .border-teal-600,
+.admin-recruiter-shell .border-teal-500,
+.admin-recruiter-shell .border-teal-200,
+.admin-recruiter-shell .border-\[\#0D9488\] {
+  border-color: var(--brand-primary) !important;
+}
