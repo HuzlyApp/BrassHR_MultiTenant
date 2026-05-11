@@ -24,7 +24,9 @@ export default function GodAdminTenantSwitcher() {
       } = await supabaseBrowser.auth.getSession();
       const accessToken = session?.access_token ?? null;
 
-      const authHeaders = accessToken ? { Authorization: `Bearer ${accessToken}` } : {};
+      const authHeaders: HeadersInit = accessToken
+        ? { Authorization: `Bearer ${accessToken}` }
+        : {};
 
       const syncRes = await fetch("/api/admin/effective-branding", {
         cache: "no-store",
