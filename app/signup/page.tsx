@@ -1,8 +1,9 @@
-"use client";
+﻿"use client";
 
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import SignupStepper from "@/app/components/SignupStepper";
 import { Check, ChevronDown, X } from "lucide-react";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { FaApple } from "react-icons/fa";
@@ -12,6 +13,15 @@ import { FcGoogle } from "react-icons/fc";
 const BRAAS_BLUE = "#104b83";
 const BRAAS_BUTTON_GRADIENT = "linear-gradient(90deg, #BC8B41 0%, #E9B771 100%)";
 const interStyle = { fontFamily: "Inter, Arial, sans-serif" };
+const inputTypographyStyle = {
+  fontFamily: "Inter, Arial, sans-serif",
+  fontSize: "16px",
+  lineHeight: "24px",
+  fontWeight: 400,
+  letterSpacing: "0",
+} as const;
+const inputTextClass =
+  "text-[16px] font-normal leading-[24px] tracking-normal placeholder:text-[16px] placeholder:leading-[24px] placeholder:font-normal";
 const TEST_TAKEN_EMAIL = "test@gmail.com";
 
 const CITY_OPTIONS = ["Los Angeles", "San Diego", "San Francisco", "Sacramento", "Phoenix", "Dallas", "Houston"];
@@ -153,7 +163,8 @@ function TextField({
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
-        className={`h-[56px] w-full rounded-[6px] border bg-white px-[14px] text-[12px] font-normal outline-none transition placeholder:text-[#b5c0cf] ${
+        style={inputTypographyStyle}
+        className={`h-[56px] w-full rounded-[6px] border bg-white px-[14px] ${inputTextClass} outline-none transition placeholder:text-[#b5c0cf] ${
           error
             ? "border-[#ff5c7a] text-[#f01846] focus:border-[#ff5c7a] focus:ring-2 focus:ring-[#ff5c7a]/20"
             : "border-[#d7e0ea] text-[#0f172a] focus:border-[#d89b35] focus:ring-2 focus:ring-[#d89b35]/20"
@@ -187,7 +198,8 @@ function PasswordField({
           type={visible ? "text" : "password"}
           value={value}
           onChange={(event) => onChange(event.target.value)}
-          className="h-[56px] w-full rounded-[6px] border border-[#d7e0ea] bg-white px-[14px] pr-12 text-[12px] font-normal text-[#0f172a] outline-none transition placeholder:text-[#b5c0cf] focus:border-[#d89b35] focus:ring-2 focus:ring-[#d89b35]/20"
+          style={inputTypographyStyle}
+          className={`h-[56px] w-full rounded-[6px] border border-[#d7e0ea] bg-white px-[14px] pr-12 ${inputTextClass} text-[#0f172a] outline-none transition placeholder:text-[#b5c0cf] focus:border-[#d89b35] focus:ring-2 focus:ring-[#d89b35]/20`}
         />
         <button
           type="button"
@@ -237,11 +249,16 @@ function SelectField({
         <select
           value={value}
           onChange={(event) => onChange(event.target.value)}
-          className="h-[56px] w-full appearance-none rounded-[6px] border border-[#d7e0ea] bg-white px-[14px] pr-9 text-[12px] font-normal text-[#64748b] outline-none transition focus:border-[#d89b35] focus:ring-2 focus:ring-[#d89b35]/20"
+          style={inputTypographyStyle}
+          className={`h-[56px] w-full appearance-none rounded-[6px] border border-[#d7e0ea] bg-white px-[14px] pr-9 ${inputTextClass} outline-none transition focus:border-[#d89b35] focus:ring-2 focus:ring-[#d89b35]/20 ${
+            value ? "text-[#0f172a]" : "text-[#64748b]"
+          }`}
         >
-          <option value="">{placeholder}</option>
+          <option value="" style={inputTypographyStyle}>
+            {placeholder}
+          </option>
           {options.map((option) => (
-            <option key={option} value={option}>
+            <option key={option} value={option} style={inputTypographyStyle}>
               {option}
             </option>
           ))}
@@ -274,57 +291,9 @@ function AddressField({
         disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
         placeholder="Address"
-        className="h-[56px] w-full rounded-[6px] border border-[#d7e0ea] bg-white px-[14px] text-[12px] text-[#0f172a] outline-none transition placeholder:text-[#b5c0cf] focus:border-[#d89b35] focus:ring-2 focus:ring-[#d89b35]/20 disabled:bg-[#f7f8fa] disabled:text-[#94a3b8]"
+        style={inputTypographyStyle}
+        className={`h-[56px] w-full rounded-[6px] border border-[#d7e0ea] bg-white px-[14px] ${inputTextClass} text-[#0f172a] outline-none transition placeholder:text-[#b5c0cf] focus:border-[#d89b35] focus:ring-2 focus:ring-[#d89b35]/20 disabled:bg-[#f7f8fa] disabled:text-[#94a3b8]`}
       />
-    </div>
-  );
-}
-
-function SignupStepper({ currentStep }: { currentStep: SignupStep }) {
-  const items = ["Sign Up", "Preparing your trial", "Account is ready"];
-  const activeStepIndex = currentStep === "password" ? 1 : 0;
-
-  return (
-    <div className="mt-[24px] h-[66px] w-[670px] max-w-full">
-      <div className="relative flex h-full items-start justify-between">
-        {items.map((item, index) => {
-          const active = index <= activeStepIndex;
-          const connectorActive = index < activeStepIndex;
-          return (
-            <div key={item} className="relative z-10 flex w-[103.666664px] flex-col items-center">
-              {index < items.length - 1 ? (
-                <>
-                  <span
-                    className="absolute left-1/2 top-[7px] h-[2px] w-[231px] translate-x-[8px] bg-[#e8edf4]"
-                    aria-hidden
-                  />
-                  {index === 0 ? (
-                    <span
-                      className={`absolute left-1/2 top-[7px] h-[2px] translate-x-[8px] bg-[#BC8B41] ${
-                        connectorActive ? "w-[231px]" : "w-[103.666664px]"
-                      }`}
-                      aria-hidden
-                    />
-                  ) : null}
-                </>
-              ) : null}
-              <span
-                className={`flex h-[16px] w-[16px] items-center justify-center rounded-full border ${
-                  active ? "border-[#d89b35] bg-[#d89b35] text-white" : "border-[#e8edf4] bg-white text-[#d7e0ea]"
-                }`}
-              >
-                {active ? <Check className="h-[10px] w-[10px]" /> : <span className="h-[5px] w-[5px] rounded-full bg-[#e8edf4]" />}
-              </span>
-              <span
-                className={`mt-[12px] text-center text-[12px] font-normal leading-[16px] tracking-normal ${active ? "text-[#0f172a]" : "text-[#94a3b8]"}`}
-                style={interStyle}
-              >
-                {item}
-              </span>
-            </div>
-          );
-        })}
-      </div>
     </div>
   );
 }
@@ -416,7 +385,7 @@ export default function SignupPage() {
       "braasOwnerSignupDraft",
       JSON.stringify({ ...form, passwordSet: true })
     );
-    router.push("/login?next=/tenant-onboarding");
+    router.push("/your-trial?created=true");
   };
 
   return (
@@ -446,21 +415,45 @@ export default function SignupPage() {
 
         @media (min-width: 1440px) {
           .signup-frame {
-            height: 1457px;
             padding: 80px;
+          }
+
+          .signup-frame--details {
+            height: auto;
+            min-height: 1024px;
+          }
+
+          .signup-frame--password {
+            height: 1457px;
           }
 
           .signup-layout {
             width: 1280px;
-            height: 1279px;
             grid-template-columns: 590px 510px;
             gap: 180px;
           }
 
+          .signup-layout--details {
+            height: auto;
+            min-height: 1279px;
+            align-items: start;
+          }
+
+          .signup-layout--password {
+            height: 1279px;
+          }
+
           .signup-art {
             width: 510px;
-            height: 1279px;
             min-height: 1279px;
+          }
+
+          .signup-art--details {
+            height: auto;
+          }
+
+          .signup-art--password {
+            height: 1279px;
           }
         }
 
@@ -489,10 +482,34 @@ export default function SignupPage() {
             gap: 28px;
           }
         }
+
+        .signup-layout--password {
+          align-items: stretch;
+        }
+
+        .signup-art.signup-art--password {
+          height: 100%;
+          min-height: 100%;
+          max-height: none;
+          aspect-ratio: unset;
+          align-self: stretch;
+        }
+
       `}</style>
-      <section className="signup-frame mx-auto min-h-screen w-full max-w-[1440px] rounded-[24px] bg-white">
-        <div className="signup-layout w-full rounded-[12px] bg-white">
-          <form onSubmit={onSubmit} className="signup-form flex h-full w-full max-w-[590px] flex-col">
+      <section
+        className={`signup-frame mx-auto min-h-screen w-full max-w-[1440px] rounded-[24px] bg-white${
+          step === "password" ? " signup-frame--password" : " signup-frame--details"
+        }`}
+      >
+        <div
+          className={`signup-layout w-full rounded-[12px] bg-white${
+            step === "password" ? " signup-layout--password" : " signup-layout--details"
+          }`}
+        >
+          <form
+            onSubmit={onSubmit}
+            className="signup-form relative z-10 flex w-full max-w-[590px] flex-col pb-[48px]"
+          >
             <Image
               src="/icons/braas-HR/BrassHR-logo.svg"
               alt="Braas HR"
@@ -502,7 +519,7 @@ export default function SignupPage() {
               className="h-[80px] w-[160px] object-contain"
             />
 
-            <SignupStepper currentStep={step} />
+            <SignupStepper phase={step === "password" ? "password" : "details"} />
 
             {step === "details" ? (
               <>
@@ -580,17 +597,18 @@ export default function SignupPage() {
               <AddressField label="Address 1" value={form.address1} onChange={(value) => update("address1", value)} />
 
               <label className="flex w-fit cursor-pointer items-center gap-[8px] text-[11px] font-normal leading-none text-[#334155]">
-                <input
-                  type="checkbox"
-                  checked={form.sameAsAddress1}
-                  onChange={(event) => update("sameAsAddress1", event.target.checked)}
-                  className="peer sr-only"
-                />
                 <span
-                  className={`flex h-[20px] w-[20px] items-center justify-center rounded-[6px] border ${
+                  className={`relative flex h-[20px] w-[20px] shrink-0 items-center justify-center rounded-[6px] border ${
                     form.sameAsAddress1 ? "border-[#BC8B41] bg-[#BC8B41]" : "border-[#d7e0ea] bg-white"
                   }`}
                 >
+                  <input
+                    type="checkbox"
+                    checked={form.sameAsAddress1}
+                    onChange={(event) => update("sameAsAddress1", event.target.checked)}
+                    className="absolute inset-0 z-10 m-0 cursor-pointer opacity-0"
+                    aria-label="Same as address 1"
+                  />
                   {form.sameAsAddress1 ? <Check className="h-[14px] w-[14px] text-white" strokeWidth={3} /> : null}
                 </span>
                 Same as address 1
@@ -607,7 +625,7 @@ export default function SignupPage() {
             <button
               type="submit"
               disabled={!canContinue}
-              className="mt-[38px] flex h-[52px] w-full items-center justify-center rounded-[8px] text-[16px] font-semibold leading-[22px] tracking-normal transition disabled:cursor-not-allowed disabled:bg-[#dddddd] disabled:text-[#c5c5c5] enabled:text-white enabled:hover:brightness-95"
+              className="relative z-20 mt-[38px] flex h-[52px] w-full shrink-0 items-center justify-center rounded-[8px] text-[16px] font-semibold leading-[22px] tracking-normal transition disabled:cursor-not-allowed disabled:bg-[#dddddd] disabled:text-[#c5c5c5] enabled:text-white enabled:hover:brightness-95"
               style={{
                 backgroundImage: canContinue ? BRAAS_BUTTON_GRADIENT : undefined,
                 fontFamily: "var(--font-geist-sans), Inter, Arial, sans-serif",
@@ -663,17 +681,18 @@ export default function SignupPage() {
                 </div>
 
                 <label className="mt-[30px] flex cursor-pointer items-start gap-[8px] text-[14px] font-normal leading-[20px] tracking-normal text-[#64748b]" style={interStyle}>
-                  <input
-                    type="checkbox"
-                    checked={termsAccepted}
-                    onChange={(event) => setTermsAccepted(event.target.checked)}
-                    className="peer sr-only"
-                  />
                   <span
-                    className={`mt-px flex h-[20px] w-[20px] shrink-0 items-center justify-center rounded-[6px] border ${
+                    className={`relative mt-px flex h-[20px] w-[20px] shrink-0 items-center justify-center rounded-[6px] border ${
                       termsAccepted ? "border-[#BC8B41] bg-[#BC8B41]" : "border-[#d7e0ea] bg-white"
                     }`}
                   >
+                    <input
+                      type="checkbox"
+                      checked={termsAccepted}
+                      onChange={(event) => setTermsAccepted(event.target.checked)}
+                      className="absolute inset-0 z-10 m-0 cursor-pointer opacity-0"
+                      aria-label="Accept terms and conditions"
+                    />
                     {termsAccepted ? <Check className="h-[14px] w-[14px] text-white" strokeWidth={3} /> : null}
                   </span>
                   <span className="whitespace-nowrap">
@@ -728,7 +747,11 @@ export default function SignupPage() {
             )}
           </form>
 
-          <aside className="signup-art relative flex w-full flex-col items-center justify-center gap-[40px] self-stretch overflow-hidden rounded-[24px] bg-[#111827] p-[30px]">
+          <aside
+            className={`signup-art relative flex w-full flex-col items-center justify-center gap-[40px] self-stretch overflow-hidden rounded-[24px] bg-[#111827] p-[30px]${
+              step === "password" ? " signup-art--password" : " signup-art--details"
+            }`}
+          >
             <Image
               src="/images/singup-bg-image.jpg"
               alt="Braas HR signup"
