@@ -596,7 +596,10 @@ export default function SignupPage() {
             <div className="mt-[30px] space-y-[26px]">
               <AddressField label="Address 1" value={form.address1} onChange={(value) => update("address1", value)} />
 
-              <label className="flex w-fit cursor-pointer items-center gap-[8px] text-[11px] font-normal leading-none text-[#334155]">
+              <label
+                className="flex w-fit cursor-pointer items-center gap-[8px] text-[14px] font-normal leading-[20px] tracking-normal text-[#334155]"
+                style={interStyle}
+              >
                 <span
                   className={`relative flex h-[20px] w-[20px] shrink-0 items-center justify-center rounded-[6px] border ${
                     form.sameAsAddress1 ? "border-[#BC8B41] bg-[#BC8B41]" : "border-[#d7e0ea] bg-white"
