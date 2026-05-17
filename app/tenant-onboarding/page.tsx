@@ -6,8 +6,12 @@ import { TenantBrandingProvider } from "@/app/components/tenant/TenantBrandingCo
 import { brandingToCssVars, defaultTenantBranding } from "@/lib/tenant/tenant-branding";
 import type { TenantBranding } from "@/lib/tenant/tenant-branding";
 import { ONBOARDING_TENANT_SLUG_COOKIE } from "@/lib/tenant/constants";
+import { subdomainErrorMessage, validateTenantSubdomainInput } from "@/lib/tenant/subdomain-validation";
+import OnboardingStepsBuilder, { createInitialBuilderSteps } from "@/app/components/onboarding/OnboardingStepsBuilder";
+import type { OnboardingStepDraft } from "@/lib/onboarding/default-onboarding-steps";
+import { withTenant } from "@/lib/tenant/with-tenant";
 
-type Step = "org" | "brand" | "preview" | "admin" | "done";
+type Step = "org" | "brand" | "onboarding" | "preview" | "admin" | "done";
 
 function PreviewCard({ b }: { b: TenantBranding }) {
   return (
@@ -51,8 +55,12 @@ export default function TenantOnboardingPage() {
   const [error, setError] = useState<string | null>(null);
 
   const [orgName, setOrgName] = useState("");
-  const [slug, setSlug] = useState("");
+  const [subdomain, setSubdomain] = useState("");
   const [logoUrl, setLogoUrl] = useState("");
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [onboardingSteps, setOnboardingSteps] = useState<OnboardingStepDraft[]>(() =>
+    createInitialBuilderSteps()
+  );
   const [primaryHex, setPrimaryHex] = useState(shell.primaryHex);
   const [secondaryHex, setSecondaryHex] = useState(shell.secondaryHex);
   const [accentHex, setAccentHex] = useState(shell.accentHex);
@@ -62,6 +70,8 @@ export default function TenantOnboardingPage() {
   const [adminEmail, setAdminEmail] = useState("");
   const [adminPassword, setAdminPassword] = useState("");
   const [createdSlug, setCreatedSlug] = useState<string | null>(null);
+  const [createdDomain, setCreatedDomain] = useState<string | null>(null);
+  const publicRootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN?.trim() ?? "";
 
   const preview = useMemo((): TenantBranding => {
     return defaultTenantBranding({
@@ -83,19 +93,18 @@ export default function TenantOnboardingPage() {
     setSubmitting(true);
     setError(null);
     try {
-      const slugBody =
-        slug.trim().length > 2
-          ? slug
-              .trim()
-              .toLowerCase()
-              .replace(/[^a-z0-9-]/g, "-")
-          : undefined;
+      const validated = validateTenantSubdomainInput(subdomain);
+      if ("failure" in validated) {
+        setError(subdomainErrorMessage(validated.failure));
+        setSubmitting(false);
+        return;
+      }
       const res = await fetch("/api/tenant-onboarding/complete", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           organizationName: orgName.trim(),
-          slug: slugBody,
+          subdomain: validated.subdomain,
           logoUrl: logoUrl.trim() || null,
           primaryColor: primaryHex,
           secondaryColor: secondaryHex,
@@ -107,14 +116,44 @@ export default function TenantOnboardingPage() {
           adminPassword,
         }),
       });
-      const payload = (await res.json().catch(() => ({}))) as { error?: string; slug?: string };
+      const payload = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        slug?: string;
+        domain?: string;
+        tenantId?: string;
+        code?: string;
+      };
       if (!res.ok) {
         setError(payload.error ?? "Something went wrong");
         setSubmitting(false);
         return;
       }
       setCreatedSlug(String(payload.slug ?? "").trim());
+      setCreatedDomain(String(payload.domain ?? "").trim());
       document.cookie = `${ONBOARDING_TENANT_SLUG_COOKIE}=${encodeURIComponent(payload.slug ?? "")}; path=/; max-age=${60 * 60 * 24 * 365}; SameSite=Lax`;
+
+      const tenantId = String(payload.tenantId ?? "").trim();
+      if (tenantId && logoFile) {
+        const fd = new FormData();
+        fd.set("tenantId", tenantId);
+        fd.set("file", logoFile);
+        await fetch("/api/tenants/logo", { method: "POST", body: fd });
+      }
+
+      if (tenantId && onboardingSteps.length) {
+        const saveRes = await fetch("/api/tenant-onboarding/save-onboarding-config", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ tenantId, steps: onboardingSteps }),
+        });
+        if (!saveRes.ok) {
+          const savePayload = (await saveRes.json().catch(() => ({}))) as { error?: string };
+          setError(savePayload.error ?? "Could not save onboarding steps");
+          setSubmitting(false);
+          return;
+        }
+      }
+
       setStep("done");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unexpected error");
@@ -145,7 +184,7 @@ export default function TenantOnboardingPage() {
           </nav>
 
           <div className="mb-6 flex gap-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
-            {(["org", "brand", "preview", "admin"] as const).map((s, i) => (
+            {(["org", "brand", "onboarding", "preview", "admin"] as const).map((s, i) => (
               <span key={s} className={step === s ? "text-slate-900" : undefined}>
                 {i + 1}. {s}
               </span>
@@ -174,21 +213,37 @@ export default function TenantOnboardingPage() {
                 />
               </label>
               <label className="block space-y-2">
-                <span className="text-sm font-medium text-slate-800">URL slug (optional)</span>
-                <input
-                  value={slug}
-                  onChange={(e) => setSlug(e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-slate-900 outline-none focus:ring-2"
-                  style={{ ["--tw-ring-color" as string]: "var(--brand-primary)" }}
-                  placeholder="acme-staff"
-                />
+                <span className="text-sm font-medium text-slate-800">Organization subdomain</span>
+                <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-slate-50/80 px-3 py-1">
+                  <input
+                    value={subdomain}
+                    onChange={(e) => setSubdomain(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))}
+                    required
+                    className="min-w-[120px] flex-1 border-0 bg-transparent px-1 py-3 text-sm text-slate-900 outline-none"
+                    placeholder="clinic1"
+                    autoCapitalize="off"
+                    autoCorrect="off"
+                    spellCheck={false}
+                  />
+                  <span className="hidden text-xs text-slate-500 sm:inline">
+                    .
+                    <span className="font-mono text-slate-700">
+                      {publicRootDomain ? publicRootDomain : "your-domain.com"}
+                    </span>
+                  </span>
+                </div>
+                <p className="text-[12px] text-slate-500">
+                  3–63 characters, letters numbers and hyphens only, cannot start or end with a hyphen. Deploy with{" "}
+                  <code className="rounded bg-slate-100 px-1 py-px">NEXT_PUBLIC_ROOT_DOMAIN</code> to preview your full host
+                  here.
+                </p>
               </label>
               <button
                 type="button"
                 className="w-full rounded-xl py-4 text-[17px] font-semibold text-white shadow-md transition-opacity hover:opacity-95 md:w-auto md:min-w-[200px]"
                 style={{ backgroundColor: "var(--brand-primary)" }}
                 onClick={() => setStep("brand")}
-                disabled={orgName.trim().length < 2}
+                disabled={orgName.trim().length < 2 || "failure" in validateTenantSubdomainInput(subdomain)}
               >
                 Continue
               </button>
@@ -198,9 +253,22 @@ export default function TenantOnboardingPage() {
           {step === "brand" ? (
             <div className="space-y-5">
               <h2 className="text-3xl font-bold text-slate-900">Logo & palette</h2>
-              <p className="text-slate-600">Paste a reachable logo URL, or skip for defaults.</p>
+              <p className="text-slate-600">Upload a logo file or paste a reachable logo URL.</p>
               <label className="block space-y-2">
-                <span className="text-sm font-medium text-slate-800">Logo URL</span>
+                <span className="text-sm font-medium text-slate-800">Logo file</span>
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0] ?? null;
+                    setLogoFile(f);
+                    if (f) setLogoUrl(URL.createObjectURL(f));
+                  }}
+                  className="w-full text-sm"
+                />
+              </label>
+              <label className="block space-y-2">
+                <span className="text-sm font-medium text-slate-800">Logo URL (optional)</span>
                 <input
                   value={logoUrl}
                   onChange={(e) => setLogoUrl(e.target.value)}
@@ -255,9 +323,33 @@ export default function TenantOnboardingPage() {
                   type="button"
                   className="rounded-xl px-5 py-3 text-sm font-semibold text-white"
                   style={{ backgroundColor: "var(--brand-primary)" }}
+                  onClick={() => setStep("onboarding")}
+                >
+                  Worker onboarding
+                </button>
+              </div>
+            </div>
+          ) : null}
+
+          {step === "onboarding" ? (
+            <div className="space-y-6">
+              <h2 className="text-3xl font-bold text-slate-900">Worker onboarding flow</h2>
+              <p className="text-slate-600">
+                Customize which steps applicants complete, their order, and required document uploads. Changes are
+                saved when you finish creating your organization.
+              </p>
+              <OnboardingStepsBuilder steps={onboardingSteps} onChange={setOnboardingSteps} />
+              <div className="flex gap-3">
+                <button type="button" className="rounded-xl border px-5 py-3 text-sm" onClick={() => setStep("brand")}>
+                  Back
+                </button>
+                <button
+                  type="button"
+                  className="rounded-xl px-5 py-3 text-sm font-semibold text-white"
+                  style={{ backgroundColor: "var(--brand-primary)" }}
                   onClick={() => setStep("preview")}
                 >
-                  Preview branding
+                  Continue
                 </button>
               </div>
             </div>
@@ -330,8 +422,12 @@ export default function TenantOnboardingPage() {
             <div className="space-y-6 text-center">
               <p className="text-4xl font-bold text-slate-900">Tenant ready!</p>
               <p className="mx-auto max-w-lg text-slate-600">
-                Tenant slug:&nbsp;<span className="font-mono">{createdSlug ?? "—"}</span>. Sign in with the recruiter you created,
-                then open the applicant onboarding link anytime.
+                Applicant portal:&nbsp;
+                <span className="font-mono text-slate-900">
+                  {createdDomain ? `https://${createdDomain}` : createdSlug ? `tenant “${createdSlug}”` : "—"}
+                </span>
+                . Sign in with the recruiter you created, then send applicants your subdomain URL or use the slug in
+                query links.
               </p>
               <div className="flex flex-wrap justify-center gap-3">
                 <Link
@@ -341,7 +437,10 @@ export default function TenantOnboardingPage() {
                 >
                   Go to recruiter login
                 </Link>
-                <Link href="/application/step-1-upload" className="inline-flex rounded-xl border px-8 py-3 text-sm font-semibold text-slate-800">
+                <Link
+                  href={withTenant("/application/step-1-upload", createdSlug)}
+                  className="inline-flex rounded-xl border px-8 py-3 text-sm font-semibold text-slate-800"
+                >
                   View applicant onboarding
                 </Link>
               </div>

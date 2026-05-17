@@ -1,5 +1,6 @@
 "use client"
 
+import { applicationPath } from "@/lib/tenant/with-tenant"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import OnboardingCheckbox from "@/app/components/OnboardingCheckbox"
@@ -57,7 +58,7 @@ export default function TermsAndConditionsPage() {
   function handleAccept() {
     if (!agreed) return
     localStorage.setItem("step1TermsAccepted", "true")
-    router.push("/application/step-1-success")
+    router.push(applicationPath("/application/step-1-success"))
   }
 
   return (

@@ -1,6 +1,7 @@
 
 "use client"
 
+import { applicationPath } from "@/lib/tenant/with-tenant"
 import { useEffect, useRef, useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
@@ -91,7 +92,7 @@ export default function Upload19FormPage() {
     }
 
     localStorage.setItem(I9_FILE_KEY, JSON.stringify(payload))
-    router.push("/application/employee-agreement")
+    router.push(applicationPath("/application/employee-agreement"))
   }
 
   const handleRemoveFile = () => {
@@ -250,7 +251,7 @@ export default function Upload19FormPage() {
 
           <div className="mt-auto flex items-center justify-end gap-4 pt-10">
             <Link
-              href="/application/employee-agreement"
+              href={applicationPath("/application/employee-agreement")}
               className="inline-flex h-10 cursor-pointer items-center justify-center rounded-xl border border-[#0D9488] px-6 text-[16px] font-semibold leading-6 text-[#0D9488] transition hover:bg-[#f0fffe]"
             >
               Back

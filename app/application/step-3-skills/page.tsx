@@ -1,6 +1,7 @@
 
 "use client"
 
+import { applicationPath } from "@/lib/tenant/with-tenant"
 import { useRouter } from "next/navigation"
 import OnboardingLayout from "@/app/components/OnboardingLayout"
 import OnboardingStepper from "@/app/components/OnboardingStepper"
@@ -52,7 +53,7 @@ export default function SkillAssessmentIntro() {
                         </h2>
                         <button
                             type="button"
-                            onClick={() => router.push("/application/step-3-assessment")}
+                            onClick={() => router.push(applicationPath("/application/step-3-assessment"))}
                             className="cursor-pointer text-[12px] font-medium leading-5 text-[#1db4a3]"
                         >
                             Skip for Now →
@@ -98,7 +99,7 @@ export default function SkillAssessmentIntro() {
                         </button>
                         <button
                             type="button"
-                            onClick={() => router.push("/application/step-3-assessment")}
+                            onClick={() => router.push(applicationPath("/application/step-3-assessment"))}
                             className="cursor-pointer rounded-md bg-[#1db4a3] px-6 py-2 text-[12px] font-medium leading-5 text-white transition hover:bg-[#189d8e]"
                         >
                             Start Skill Assessment

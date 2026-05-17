@@ -1,5 +1,6 @@
 "use client"
 
+import { applicationPath } from "@/lib/tenant/with-tenant"
 import type { HTMLAttributes, ReactNode } from "react"
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
@@ -576,7 +577,21 @@ function Step1ReviewContent() {
       )
       localStorage.setItem("step1ReviewCompleted", "true")
 
-      router.push("/application/step-2-license")
+      try {
+        await fetch("/api/onboarding/progress/step", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            applicantId,
+            stepKey: "resume_upload",
+            status: "completed",
+          }),
+        })
+      } catch {
+        /* progress is best-effort; step 2 should still open */
+      }
+
+      router.push(applicationPath("/application/step-2-license"))
 
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Failed to save data"

@@ -2,6 +2,7 @@
 
 "use client"
 
+import { applicationPath } from "@/lib/tenant/with-tenant";
 import { useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
@@ -101,7 +102,7 @@ export default function ApplicationStatusPage() {
             <div className="flex justify-end">
               {isApproved ? (
                 <Link
-                  href="/application/employee-agreement"
+                  href={applicationPath("/application/employee-agreement")}
                   className="inline-flex min-w-[185px] h-11 items-center justify-center gap-2 rounded-lg bg-[#0ea5a4] px-4 py-2.5 text-[16px] font-semibold leading-6 text-white transition hover:bg-[#0c8d8b]"
                 >
                   Sign Employee Agreement

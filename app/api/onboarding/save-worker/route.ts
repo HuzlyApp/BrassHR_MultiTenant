@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js"
 import { getSupabaseUrl } from "@/lib/supabase-env"
 import { validateStep1Form } from "@/lib/onboardingStep1Validation"
 import { resolveDefaultTenantId } from "@/lib/tenant/resolve-default-tenant-id"
+import { ensureWorkerOnboardingProgress } from "@/lib/onboarding/ensure-worker-progress"
 
 export const runtime = "nodejs"
 
@@ -187,6 +188,20 @@ export async function POST(req: NextRequest) {
         }
         const msg = [insErr.message, insErr.details, insErr.hint].filter(Boolean).join(" — ")
         return NextResponse.json({ error: msg || "Database error" }, { status: 500 })
+      }
+    }
+
+    const { data: workerAfter } = await supabase
+      .from("worker")
+      .select("id")
+      .eq("user_id", applicantId)
+      .maybeSingle()
+
+    if (workerAfter?.id) {
+      try {
+        await ensureWorkerOnboardingProgress(supabase, String(workerAfter.id), tenantId)
+      } catch (e) {
+        console.error("[onboarding/save-worker] progress init", e)
       }
     }
 

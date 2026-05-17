@@ -1,5 +1,6 @@
 "use client"
 
+import { applicationPath } from "@/lib/tenant/with-tenant"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 // import Image from "next/image"
@@ -370,7 +371,7 @@ export default function BasicCareQuiz() {
     setSaving(true)
     try {
       const ok = await persist(true)
-      if (ok) router.push("/application/step-3-assessment")
+      if (ok) router.push(applicationPath("/application/step-3-assessment"))
     } finally {
       setSaving(false)
     }
@@ -378,7 +379,7 @@ export default function BasicCareQuiz() {
 
   async function next() {
     if (questions.length === 0) {
-      router.push("/application/step-3-assessment")
+      router.push(applicationPath("/application/step-3-assessment"))
       return
     }
 
@@ -425,7 +426,7 @@ export default function BasicCareQuiz() {
         </p>
         <button
           type="button"
-          onClick={() => router.push("/application/step-3-assessment")}
+          onClick={() => router.push(applicationPath("/application/step-3-assessment"))}
           className="text-white underline"
         >
           Back to categories
@@ -464,7 +465,7 @@ export default function BasicCareQuiz() {
               <AutosaveStatus state={saveState} />
               <button
                 type="button"
-                onClick={() => router.push("/application/step-4-documents")}
+                onClick={() => router.push(applicationPath("/application/step-4-documents"))}
                 className="cursor-pointer text-[12px] font-medium leading-5 text-[#0D9488]"
               >
                 Skip for Now →
