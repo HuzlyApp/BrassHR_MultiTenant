@@ -5,28 +5,43 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type CSSProperties } from "react";
 import { TenantBrandingProvider } from "@/app/components/tenant/TenantBrandingContext";
-import { brandingToCssVars, defaultTenantBranding, type TenantBranding } from "@/lib/tenant/tenant-branding";
+import {
+  brandingToCssVars,
+  defaultTenantBranding,
+  PLATFORM_DEFAULT_TENANT_SLUG,
+  type TenantBranding,
+} from "@/lib/tenant/tenant-branding";
 import { persistOnboardingSlugCookie } from "@/lib/tenant/client-onboarding-slug";
 
 export default function Home() {
   const router = useRouter();
   const [brand, setBrand] = useState<TenantBranding>(() => defaultTenantBranding());
+  const [brandLoaded, setBrandLoaded] = useState(false);
 
   useEffect(() => {
     let alive = true;
     void (async () => {
       try {
-        const res = await fetch("/api/public/tenant", { cache: "no-store" });
+        const res = await fetch(
+          `/api/tenant-branding?slug=${encodeURIComponent(PLATFORM_DEFAULT_TENANT_SLUG)}`,
+          { cache: "no-store" }
+        );
         const payload = (await res.json()) as { branding?: TenantBranding };
         if (alive && payload.branding) setBrand(payload.branding);
       } catch {
-        /* default */
+        /* keep Braas default */
+      } finally {
+        if (alive) setBrandLoaded(true);
       }
     })();
     return () => {
       alive = false;
     };
   }, []);
+
+  if (!brandLoaded) {
+    return <div className="min-h-screen bg-white" />;
+  }
 
   const shell: CSSProperties = {
     ...brandingToCssVars(brand),

@@ -27,45 +27,100 @@ export type TenantBranding = {
   tagline: string;
 };
 
-export const FALLBACK_PRIMARY = "#0d9488";
-export const FALLBACK_SECONDARY = "#0f766e";
-export const FALLBACK_ACCENT = "#99f6e4";
+export const PLATFORM_DEFAULT_TENANT_SLUG = "braas-hr";
+
+/** Braas Figma login UI; other tenants use classic OnboardingLayout login. */
+export function usesBraasFigmaLoginUi(tenantQuery: string | null | undefined): boolean {
+  const key = tenantQuery?.trim().toLowerCase();
+  if (!key || key.length < 2) return true;
+  return key === PLATFORM_DEFAULT_TENANT_SLUG;
+}
+
+/** Braas HR platform owner UI (login, signup, tenant-onboarding shell). */
+export const BRAAS_PRIMARY = "#BC8B41";
+export const BRAAS_SECONDARY = "#104b83";
+export const BRAAS_ACCENT = "#E9B771";
+
+/** Nexus tenant defaults when DB fields are empty. */
+export const NEXUS_PRIMARY = "#0d9488";
+export const NEXUS_SECONDARY = "#0f766e";
+export const NEXUS_ACCENT = "#99f6e4";
+
+/** @deprecated Use slug-specific fallbacks via `brandingFallbackForSlug`. */
+export const FALLBACK_PRIMARY = BRAAS_PRIMARY;
+export const FALLBACK_SECONDARY = BRAAS_SECONDARY;
+export const FALLBACK_ACCENT = BRAAS_ACCENT;
 
 export function defaultTenantBranding(overrides: Partial<TenantBranding> = {}): TenantBranding {
-  const base: TenantBranding = {
-    id: null,
-    slug: null,
-    companyName: "Staffing onboarding",
-    logoUrl: "/images/new-logo-nexus.svg",
-    headline: "Join our team",
-    subtitle: "Quick pay, flexible shifts, support team",
-    loginBackgroundSrc: "/images/handshake.jpg",
-    primaryHex: FALLBACK_PRIMARY,
-    secondaryHex: FALLBACK_SECONDARY,
-    accentHex: FALLBACK_ACCENT,
-    tagline: "Connecting professionals with hiring teams.",
-  };
+  return brandingFallbackForSlug(PLATFORM_DEFAULT_TENANT_SLUG, overrides);
+}
+
+/** Per-tenant static fallbacks — never apply Braas assets to other tenants. */
+export function brandingFallbackForSlug(
+  slug: string | null | undefined,
+  overrides: Partial<TenantBranding> = {}
+): TenantBranding {
+  const key = slug?.trim().toLowerCase() ?? "";
+  const name =
+    key === "nexus"
+      ? "Nexus"
+      : key === PLATFORM_DEFAULT_TENANT_SLUG
+        ? "Braas HR"
+        : "Your organization";
+
+  const base: TenantBranding =
+    key === "nexus"
+      ? {
+          id: null,
+          slug: "nexus",
+          companyName: name,
+          logoUrl: "/images/new-logo-nexus.svg",
+          headline: `Welcome to ${name}`,
+          subtitle: "Quick pay, flexible shifts, support team",
+          loginBackgroundSrc: "/images/handshake.jpg",
+          primaryHex: NEXUS_PRIMARY,
+          secondaryHex: NEXUS_SECONDARY,
+          accentHex: NEXUS_ACCENT,
+          tagline: `Connecting Healthcare professionals — ${name}.`,
+        }
+      : {
+          id: null,
+          slug: key === PLATFORM_DEFAULT_TENANT_SLUG ? PLATFORM_DEFAULT_TENANT_SLUG : key || null,
+          companyName: name,
+          logoUrl: "/icons/braas-HR/BrassHR-logo.svg",
+          headline: `Welcome to ${name}`,
+          subtitle: "HR Simplified for growing teams",
+          loginBackgroundSrc: "/images/singup-bg-image.jpg",
+          primaryHex: BRAAS_PRIMARY,
+          secondaryHex: BRAAS_SECONDARY,
+          accentHex: BRAAS_ACCENT,
+          tagline: "HR Simplified for growing teams",
+        };
+
   return { ...base, ...overrides };
 }
 
-export function brandingFromTenantRow(row: TenantBrandingRow | null): TenantBranding {
-  if (!row) return defaultTenantBranding();
+export function brandingFromTenantRow(
+  row: TenantBrandingRow | null,
+  requestedSlug?: string | null
+): TenantBranding {
+  if (!row) return brandingFallbackForSlug(requestedSlug ?? PLATFORM_DEFAULT_TENANT_SLUG);
+  const fb = brandingFallbackForSlug(row.slug);
+  const company = row.name?.trim() || fb.companyName;
   return {
     id: row.id,
     slug: row.slug,
-    companyName: row.name?.trim() || defaultTenantBranding().companyName,
-    logoUrl: row.logo_url?.trim() || defaultTenantBranding().logoUrl,
-    headline:
-      row.welcome_headline?.trim() ||
-      `Welcome to ${row.name?.trim() || "your organization"}`,
-    subtitle: row.welcome_subtitle?.trim() || defaultTenantBranding().subtitle,
-    loginBackgroundSrc: row.auth_background_image_url?.trim() || "/images/handshake.jpg",
-    primaryHex: row.primary_color?.trim() || FALLBACK_PRIMARY,
-    secondaryHex: row.secondary_color?.trim() || FALLBACK_SECONDARY,
-    accentHex: row.accent_color?.trim() || FALLBACK_ACCENT,
+    companyName: company,
+    logoUrl: row.logo_url?.trim() || fb.logoUrl,
+    headline: row.welcome_headline?.trim() || `Welcome to ${company}`,
+    subtitle: row.welcome_subtitle?.trim() || fb.subtitle,
+    loginBackgroundSrc: row.auth_background_image_url?.trim() || fb.loginBackgroundSrc,
+    primaryHex: row.primary_color?.trim() || fb.primaryHex,
+    secondaryHex: row.secondary_color?.trim() || fb.secondaryHex,
+    accentHex: row.accent_color?.trim() || fb.accentHex,
     tagline: row.welcome_subtitle?.trim()
       ? row.welcome_subtitle.trim()
-      : `Connecting Healthcare professionals — ${row.name?.trim() || "your organization"}.`,
+      : `Connecting Healthcare professionals — ${company}.`,
   };
 }
 

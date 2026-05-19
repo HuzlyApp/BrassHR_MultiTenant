@@ -29,7 +29,7 @@ export default function ApplicationOnboardingBootstrap({ children }: { children:
         if (slug) persistOnboardingSlugCookie(slug);
 
         const [tenantRes] = await Promise.all([
-          fetch(slug ? `/api/public/tenant?slug=${encodeURIComponent(slug)}` : "/api/public/tenant", {
+          fetch(slug ? `/api/tenant-branding?slug=${encodeURIComponent(slug)}` : "/api/tenant-branding", {
             cache: "no-store",
           }).catch(() => null),
         ]);

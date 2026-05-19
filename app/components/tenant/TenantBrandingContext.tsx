@@ -10,12 +10,13 @@ export function TenantBrandingProvider({
   branding,
   children,
 }: {
-  branding: TenantBranding;
+  branding?: TenantBranding | null;
   children: React.ReactNode;
 }) {
-  const vars = brandingToCssVars(branding) as React.CSSProperties;
+  const safe = branding ?? defaultTenantBranding();
+  const vars = brandingToCssVars(safe) as React.CSSProperties;
   return (
-    <TenantBrandingContext.Provider value={branding}>
+    <TenantBrandingContext.Provider value={safe}>
       <div className="min-h-0" style={vars}>
         {children}
       </div>
