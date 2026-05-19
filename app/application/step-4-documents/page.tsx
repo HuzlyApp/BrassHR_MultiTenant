@@ -1,5 +1,6 @@
 "use client"
 
+import { applicationPath } from "@/lib/tenant/with-tenant"
 import { useEffect, useState, useCallback, useMemo, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { FileText, Trash2 } from "lucide-react"
@@ -135,7 +136,7 @@ export default function DocumentsPage() {
     if (id) {
       setApplicantId(id)
     } else {
-      router.push("/application/step-1-review")
+      router.push(applicationPath("/application/step-1-review"))
     }
   }, [router])
 
@@ -529,7 +530,7 @@ export default function DocumentsPage() {
       }
 
       await syncZoho()
-      router.push("/application/step-5-add-references")
+      router.push(applicationPath("/application/step-5-add-references"))
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : "Save failed"
       setError(message)
@@ -540,7 +541,7 @@ export default function DocumentsPage() {
 
   const handleSkipForNow = () => {
     localStorage.setItem("step4Skipped", "1")
-    router.push("/application/step-5-add-references")
+    router.push(applicationPath("/application/step-5-add-references"))
   }
 
   const openZohoDocument = useCallback(
@@ -599,7 +600,7 @@ export default function DocumentsPage() {
         </div>
         <button
           type="button"
-          onClick={() => router.push("/application/step-4-identity")}
+          onClick={() => router.push(applicationPath("/application/step-4-identity"))}
           className="p-2 text-gray-400 hover:text-red-600 rounded-lg"
           aria-label="Replace file"
         >
@@ -817,7 +818,7 @@ export default function DocumentsPage() {
               <p className="text-[15px] font-semibold text-slate-900">Add Documents</p>
               <button
                 type="button"
-                onClick={() => router.push("/application/step-4-identity")}
+                onClick={() => router.push(applicationPath("/application/step-4-identity"))}
                 className="text-[12px] font-medium text-[#0D9488]"
               >
                 Edit uploads

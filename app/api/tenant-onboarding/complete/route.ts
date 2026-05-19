@@ -1,21 +1,10 @@
 import { NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
-
-function slugify(name: string, explicit?: string | null): string {
-  const base = explicit?.trim() || "";
-  const s = (base.length > 1 ? base : name.trim().toLowerCase())
-    .replace(/[^a-z0-9\s-]/gi, " ")
-    .trim()
-    .replace(/\s+/g, "-")
-    .slice(0, 80)
-    .toLowerCase()
-    .replace(/^-+|-+$/g, "") || `org-${Date.now()}`;
-  return s;
-}
+import { validateTenantSubdomainInput, subdomainErrorMessage } from "@/lib/tenant/subdomain-validation";
 
 type Body = {
   organizationName?: string;
-  slug?: string | null;
+  subdomain?: string | null;
   logoUrl?: string | null;
   primaryColor?: string | null;
   secondaryColor?: string | null;
@@ -46,7 +35,23 @@ export async function POST(req: Request) {
   const org = String(body.organizationName ?? "").trim();
   const adminEmail = String(body.adminEmail ?? "").trim().toLowerCase();
   const adminPassword = String(body.adminPassword ?? "");
-  const slugFinal = slugify(org, body.slug ?? null);
+  const rootDomain = process.env.ROOT_DOMAIN?.trim().toLowerCase();
+  if (!rootDomain) {
+    return NextResponse.json({ error: "ROOT_DOMAIN is not configured on the server." }, { status: 503 });
+  }
+
+  const subRaw = String(body.subdomain ?? "").trim().toLowerCase();
+  const subParsed = validateTenantSubdomainInput(subRaw);
+  if ("failure" in subParsed) {
+    return NextResponse.json(
+      { error: subdomainErrorMessage(subParsed.failure), code: subParsed.failure },
+      { status: 400 }
+    );
+  }
+
+  const subdomainFinal = subParsed.subdomain;
+  const domainFinal = `${subdomainFinal}.${rootDomain}`;
+  const slugFinal = subdomainFinal;
 
   if (org.length < 2 || !adminEmail.includes("@")) {
     return NextResponse.json({ error: "Organization name and a valid admin email are required." }, { status: 400 });
@@ -55,17 +60,59 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Password must be at least 6 characters." }, { status: 400 });
   }
 
-  const { data: existingSlug, error: existingSlugErr } = await svc.from("tenants").select("id").eq("slug", slugFinal).maybeSingle();
-  if (existingSlugErr) {
-    return NextResponse.json({ error: existingSlugErr.message }, { status: 500 });
+  const { data: bySubdomain, error: bsErr } = await svc
+    .from("tenants")
+    .select("id, subdomain, slug")
+    .eq("subdomain", subdomainFinal)
+    .maybeSingle();
+
+  const { data: bySlug, error: bslugErr } = await svc
+    .from("tenants")
+    .select("id, subdomain, slug")
+    .eq("slug", slugFinal)
+    .maybeSingle();
+
+  if (bsErr || bslugErr) {
+    return NextResponse.json({ error: (bsErr || bslugErr)?.message ?? "Lookup failed." }, { status: 500 });
   }
 
-  let tenantId: string;
-  if (existingSlug?.id) {
+  if (bySlug && bySubdomain && bySlug.id !== bySubdomain.id) {
+    return NextResponse.json({ error: "Subdomain already taken" }, { status: 409 });
+  }
+
+  if (bySlug?.subdomain && bySlug.subdomain !== subdomainFinal) {
+    return NextResponse.json({ error: "Subdomain already taken" }, { status: 409 });
+  }
+
+  let tenantId: string | null = null;
+  let createdNewTenant = false;
+
+  if (bySubdomain?.id) {
+    tenantId = String(bySubdomain.id);
+  } else if (bySlug?.id) {
+    tenantId = String(bySlug.id);
+  }
+
+  const brandingRow = {
+    name: org,
+    slug: slugFinal,
+    subdomain: subdomainFinal,
+    domain: domainFinal,
+    logo_url: body.logoUrl?.trim() || null,
+    primary_color: body.primaryColor?.trim() || "#0d9488",
+    secondary_color: body.secondaryColor?.trim() || "#0f766e",
+    accent_color: body.accentColor?.trim() || "#99f6e4",
+    welcome_headline: body.welcomeHeadline?.trim() || `Welcome to ${org}`,
+    welcome_subtitle: body.welcomeSubtitle?.trim() || "Your applicant experience starts here.",
+    auth_background_image_url: body.authBackgroundImageUrl?.trim() || null,
+    is_active: true,
+  };
+
+  if (tenantId) {
     const { data: existingAdminRoles, error: rolesErr } = await svc
       .from("user_roles")
       .select("user_id")
-      .eq("tenant_id", existingSlug.id)
+      .eq("tenant_id", tenantId)
       .eq("role", "admin")
       .limit(1);
     if (rolesErr) {
@@ -73,43 +120,42 @@ export async function POST(req: Request) {
     }
 
     if ((existingAdminRoles?.length ?? 0) > 0) {
-      return NextResponse.json(
-        {
-          error: "That slug is already in use.",
-          slug: slugFinal,
-        },
-        { status: 409 }
-      );
+      return NextResponse.json({ error: "Subdomain already taken", subdomain: subdomainFinal }, { status: 409 });
     }
 
-    tenantId = String(existingSlug.id);
+    const { error: upErr } = await svc.from("tenants").update(brandingRow).eq("id", tenantId);
+    if (upErr?.code === "23505") {
+      return NextResponse.json({ error: "Subdomain already taken" }, { status: 409 });
+    }
+    if (upErr) {
+      return NextResponse.json({ error: upErr.message }, { status: 500 });
+    }
   } else {
     const { data: tenant, error: tErr } = await svc
       .from("tenants")
-      .insert({
-        name: org,
-        slug: slugFinal,
-        plan: "starter",
-        is_active: true,
-        logo_url: body.logoUrl?.trim() || null,
-        primary_color: body.primaryColor?.trim() || "#0d9488",
-        secondary_color: body.secondaryColor?.trim() || "#0f766e",
-        accent_color: body.accentColor?.trim() || "#99f6e4",
-        welcome_headline: body.welcomeHeadline?.trim() || `Welcome to ${org}`,
-        welcome_subtitle: body.welcomeSubtitle?.trim() || "Your applicant experience starts here.",
-        auth_background_image_url: body.authBackgroundImageUrl?.trim() || null,
-      })
+      .insert({ ...brandingRow, plan: "starter" })
       .select(
-        "id, name, slug, logo_url, primary_color, secondary_color, accent_color, welcome_headline, welcome_subtitle, auth_background_image_url"
+        "id, name, slug, subdomain, domain, logo_url, primary_color, secondary_color, accent_color, welcome_headline, welcome_subtitle, auth_background_image_url"
       )
       .single();
 
+    if (tErr?.code === "23505") {
+      return NextResponse.json({ error: "Subdomain already taken" }, { status: 409 });
+    }
     if (tErr || !tenant?.id) {
       console.error("[tenant-onboarding]", tErr?.message ?? tErr);
       return NextResponse.json({ error: tErr?.message || "Could not save tenant." }, { status: 500 });
     }
 
     tenantId = String((tenant as { id: string }).id);
+    createdNewTenant = true;
+
+    const { error: seedErr } = await svc.rpc("seed_default_tenant_onboarding", {
+      p_tenant_id: tenantId,
+    });
+    if (seedErr) {
+      console.error("[tenant-onboarding] seed onboarding", seedErr.message);
+    }
   }
 
   const { data: list, error: listErr } = await svc.auth.admin.listUsers({ page: 1, perPage: 200 });
@@ -135,7 +181,9 @@ export async function POST(req: Request) {
     });
     if (cuErr || !created.user?.id) {
       console.error("[tenant-onboarding] createUser", cuErr?.message);
-      await svc.from("tenants").delete().eq("id", tenantId);
+      if (createdNewTenant && tenantId) {
+        await svc.from("tenants").delete().eq("id", tenantId);
+      }
       return NextResponse.json({ error: cuErr?.message || "Could not create admin user." }, { status: 500 });
     }
     userId = created.user.id;
@@ -174,9 +222,20 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Could not save admin role.", detail: rErr.message }, { status: 500 });
   }
 
+  if (tenantId && !createdNewTenant) {
+    const { error: seedErr } = await svc.rpc("seed_default_tenant_onboarding", {
+      p_tenant_id: tenantId,
+    });
+    if (seedErr) {
+      console.error("[tenant-onboarding] seed onboarding (existing tenant)", seedErr.message);
+    }
+  }
+
   return NextResponse.json({
     ok: true,
     tenantId,
+    subdomain: subdomainFinal,
     slug: slugFinal,
+    domain: domainFinal,
   });
 }

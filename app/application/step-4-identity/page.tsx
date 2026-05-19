@@ -1,5 +1,6 @@
 "use client"
 
+import { applicationPath } from "@/lib/tenant/with-tenant"
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
@@ -75,7 +76,7 @@ export default function Step4Identity() {
     const hasExistingDocs = Boolean(ssnFile.url && licenseFile.url)
     if (!ssnFile.file || !licenseFile.file) {
       if (hasExistingDocs) {
-        router.push("/application/step-4-documents")
+        router.push(applicationPath("/application/step-4-documents"))
         return
       }
       setError("Please upload both SSN Card and Driver's License")
@@ -120,7 +121,7 @@ export default function Step4Identity() {
       )
       setSsnFile({ file: null })
       setLicenseFile({ file: null })
-      router.push("/application/step-4-documents")
+      router.push(applicationPath("/application/step-4-documents"))
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Something went wrong")
     } finally {
@@ -129,7 +130,7 @@ export default function Step4Identity() {
   }
 
   const handleSkip = () => {
-    router.push("/application/step-4-documents")
+    router.push(applicationPath("/application/step-4-documents"))
   }
 
   const UploadBox = ({

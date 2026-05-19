@@ -1,5 +1,6 @@
 "use client"
 
+import { applicationPath } from "@/lib/tenant/with-tenant"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
@@ -317,35 +318,35 @@ export default function SummaryPage() {
     incompleteSections.push({
       id: "resume",
       title: "Resume",
-      href: "/application/step-1-upload",
+      href: applicationPath("/application/step-1-upload"),
     })
   }
   if (!requirementsComplete) {
     incompleteSections.push({
       id: "requirements",
       title: "Professional License & Requirements",
-      href: "/application/step-2-license",
+      href: applicationPath("/application/step-2-license"),
     })
   }
   if (!skillComplete) {
     incompleteSections.push({
       id: "skills",
       title: "Skill Assessments",
-      href: "/application/step-3-assessment",
+      href: applicationPath("/application/step-3-assessment"),
     })
   }
   if (!authorizationsSectionComplete) {
     incompleteSections.push({
       id: "documents",
       title: "Authorizations & Documents",
-      href: "/application/step-4-documents",
+      href: applicationPath("/application/step-4-documents"),
     })
   }
   if (!referencesComplete) {
     incompleteSections.push({
       id: "references",
       title: "References",
-      href: "/application/step-5-add-references",
+      href: applicationPath("/application/step-5-add-references"),
     })
   }
 
@@ -386,7 +387,7 @@ export default function SummaryPage() {
       localStorage.removeItem("referencesCount")
       localStorage.removeItem("referenceData")
       localStorage.removeItem("referenceDataDraft")
-      router.push("/application/success")
+      router.push(applicationPath("/application/success"))
     }, 3000)
   }
 
@@ -451,7 +452,7 @@ export default function SummaryPage() {
                     : "No resume file uploaded yet"
                 }
                 complete={resumeComplete}
-                editHref="/application/step-1-upload"
+                editHref={applicationPath("/application/step-1-upload")}
               />
             </div>
 
@@ -463,7 +464,7 @@ export default function SummaryPage() {
                   title="Professional license and requirements"
                   subtitle="No documents uploaded yet"
                   complete={false}
-                  editHref="/application/step-2-license"
+                  editHref={applicationPath("/application/step-2-license")}
                 />
               ) : (
                 <div className="space-y-2">
@@ -473,7 +474,7 @@ export default function SummaryPage() {
                       title={STEP2_REQUIREMENT_LABELS[key]}
                       subtitle={[file.name, file.size].filter(Boolean).join(" · ") || file.name}
                       complete
-                      editHref="/application/step-2-license"
+                      editHref={applicationPath("/application/step-2-license")}
                     />
                   ))}
                 </div>
@@ -487,7 +488,7 @@ export default function SummaryPage() {
                 title="Skill assessments"
                 subtitle={skillProgress.label}
                 complete={skillComplete}
-                editHref="/application/step-3-assessment"
+                editHref={applicationPath("/application/step-3-assessment")}
               />
             </div>
 
@@ -499,7 +500,7 @@ export default function SummaryPage() {
                   title="Authorizations and identity documents"
                   subtitle="No signed authorization or uploaded identity documents recorded yet"
                   complete={false}
-                  editHref="/application/step-4-documents"
+                  editHref={applicationPath("/application/step-4-documents")}
                 />
               ) : (
                 <div className="space-y-2">
@@ -509,7 +510,7 @@ export default function SummaryPage() {
                       title={row.title}
                       subtitle={row.subtitle}
                       complete={row.complete}
-                      editHref="/application/step-4-documents"
+                      editHref={applicationPath("/application/step-4-documents")}
                     />
                   ))}
                 </div>
@@ -527,7 +528,7 @@ export default function SummaryPage() {
                     : `At least ${MIN_COMPLETE_REFERENCES} complete references required`
                 }
                 complete={referencesComplete}
-                editHref="/application/step-5-add-references"
+                editHref={applicationPath("/application/step-5-add-references")}
               />
             </div>
           </div>
@@ -585,7 +586,7 @@ export default function SummaryPage() {
           localStorage.removeItem("referencesCount")
           localStorage.removeItem("referenceData")
           localStorage.removeItem("referenceDataDraft")
-          router.push("/application/success")
+          router.push(applicationPath("/application/success"))
         }}
       />
     </OnboardingLayout>

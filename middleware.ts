@@ -8,6 +8,14 @@ import {
   isPlatformEnforcementEnabled,
   logAuthDebug,
 } from "@/lib/auth/platform-shared";
+import { ONBOARDING_TENANT_SLUG_COOKIE } from "@/lib/tenant/constants";
+import { lookupTenantSlugBySubdomain } from "@/lib/tenant/lookup-tenant-subdomain";
+import {
+  extractTenantSubdomainLabel,
+  forwardedHostFromHeaders,
+  getRootDomainFromEnv,
+} from "@/lib/tenant/tenant-host-resolution";
+import { ensureApplicationTenantQuery } from "@/lib/tenant/ensure-application-tenant-query";
 
 function isPublicUiPath(pathname: string): boolean {
   if (pathname === "/login" || pathname.startsWith("/login/")) return true;
@@ -49,6 +57,41 @@ export async function middleware(request: NextRequest) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
+
+  /** `{sub}.{ROOT_DOMAIN}` → onboarding cookie + fallback rewrite for applicant surfaces */
+  const rootDomain = getRootDomainFromEnv();
+  const hostNorm = forwardedHostFromHeaders(request.headers);
+  const tenantLabel =
+    rootDomain && hostNorm ? extractTenantSubdomainLabel(hostNorm, rootDomain) : null;
+  const subdomainRoutingPaths =
+    pathname === "/" ||
+    pathname.startsWith("/application") ||
+    pathname === "/login" ||
+    pathname.startsWith("/login/");
+
+  if (
+    tenantLabel &&
+    subdomainRoutingPaths &&
+    pathname !== "/tenant-host-not-found"
+  ) {
+    const slugResolved = await lookupTenantSlugBySubdomain(supabase, tenantLabel);
+    if (slugResolved) {
+      response.cookies.set(ONBOARDING_TENANT_SLUG_COOKIE, slugResolved, {
+        path: "/",
+        maxAge: 60 * 60 * 24 * 365,
+        sameSite: "lax",
+      });
+    } else {
+      const u = request.nextUrl.clone();
+      u.pathname = "/tenant-host-not-found";
+      u.searchParams.set("subdomain", tenantLabel);
+      const rew = NextResponse.rewrite(u);
+      response.cookies.getAll().forEach((cookie) => {
+        rew.cookies.set(cookie.name, cookie.value);
+      });
+      return rew;
+    }
+  }
 
   const forceOn =
     process.env.ADMIN_RBAC_ENFORCE === "true" ||
@@ -111,6 +154,7 @@ export async function middleware(request: NextRequest) {
       login.searchParams.set("error", "platform");
       return NextResponse.redirect(login);
     }
+    return ensureApplicationTenantQuery(request, response);
   }
 
   return response;
@@ -118,6 +162,10 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
+    "/",
+    "/login",
+    "/login/:path*",
+    "/tenant-host-not-found",
     "/admin_recruiter/:path*",
     "/application/:path*",
     "/api/workers",

@@ -51,6 +51,38 @@ export const FALLBACK_PRIMARY = BRAAS_PRIMARY;
 export const FALLBACK_SECONDARY = BRAAS_SECONDARY;
 export const FALLBACK_ACCENT = BRAAS_ACCENT;
 
+const DEFAULT_LOGO = "/images/new-logo-nexus.svg";
+const DEFAULT_BACKGROUND = "/images/handshake.jpg";
+
+/** Reject placeholder junk (e.g. DB value "test") and non-URL strings for next/image. */
+export function normalizeBrandingImageSrc(
+  src: string | null | undefined,
+  fallback: string,
+  options?: { allowBlob?: boolean }
+): string {
+  const raw = src?.trim();
+  if (!raw) return fallback;
+
+  if (raw.startsWith("/")) return raw;
+
+  if (raw.startsWith("blob:")) {
+    return options?.allowBlob ? raw : fallback;
+  }
+
+  try {
+    const parsed = new URL(raw);
+    if (parsed.protocol === "http:" || parsed.protocol === "https:") return raw;
+  } catch {
+    /* not an absolute URL */
+  }
+
+  return fallback;
+}
+
+export function isRemoteOrBlobImageSrc(src: string): boolean {
+  return src.startsWith("http://") || src.startsWith("https://") || src.startsWith("blob:");
+}
+
 export function defaultTenantBranding(overrides: Partial<TenantBranding> = {}): TenantBranding {
   return brandingFallbackForSlug(PLATFORM_DEFAULT_TENANT_SLUG, overrides);
 }
@@ -111,10 +143,10 @@ export function brandingFromTenantRow(
     id: row.id,
     slug: row.slug,
     companyName: company,
-    logoUrl: row.logo_url?.trim() || fb.logoUrl,
+    logoUrl: normalizeBrandingImageSrc(row.logo_url, fb.logoUrl, { allowBlob: true }),
     headline: row.welcome_headline?.trim() || `Welcome to ${company}`,
     subtitle: row.welcome_subtitle?.trim() || fb.subtitle,
-    loginBackgroundSrc: row.auth_background_image_url?.trim() || fb.loginBackgroundSrc,
+    loginBackgroundSrc: normalizeBrandingImageSrc(row.auth_background_image_url, fb.loginBackgroundSrc),
     primaryHex: row.primary_color?.trim() || fb.primaryHex,
     secondaryHex: row.secondary_color?.trim() || fb.secondaryHex,
     accentHex: row.accent_color?.trim() || fb.accentHex,

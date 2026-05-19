@@ -1,5 +1,6 @@
 "use client"
 
+import { applicationPath } from "@/lib/tenant/with-tenant"
 import { useEffect, useMemo, useState } from "react"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
@@ -113,7 +114,7 @@ export default function Step1Success() {
     localStorage.removeItem("resumeStoragePath")
     localStorage.removeItem("resumeSizeBytes")
 
-    router.push("/application/step-1-upload")
+    router.push(applicationPath("/application/step-1-upload"))
   }
 
   function handleContinue() {
@@ -144,7 +145,7 @@ export default function Step1Success() {
       setTermsRequiredError("Please accept Terms & Conditions *")
       return
     }
-    router.push("/application/step-1-review")
+    router.push(applicationPath("/application/step-1-review"))
   }
 
   return (
@@ -236,7 +237,7 @@ export default function Step1Success() {
           {!termsCheckboxVisible ? (
             <p className="mt-6 text-[14px] leading-6 text-slate-700">
               Open the{" "}
-              <Link href="/application/terms-and-conditions" className="font-semibold text-teal-600 underline">
+              <Link href={applicationPath("/application/terms-and-conditions")} className="font-semibold text-teal-600 underline">
                 Terms & Conditions
               </Link>{" "}
               to review them; the acceptance option will appear after you have reached the end of the document.
@@ -256,7 +257,7 @@ export default function Step1Success() {
               >
                 <span className="text-[14px] leading-6">
                   I accept the{" "}
-                  <Link href="/application/terms-and-conditions" className="font-semibold text-teal-600 underline">
+                  <Link href={applicationPath("/application/terms-and-conditions")} className="font-semibold text-teal-600 underline">
                     Terms & Conditions
                   </Link>
                 </span>

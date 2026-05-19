@@ -4,7 +4,11 @@ import type { CSSProperties } from "react"
 import Image from "next/image"
 import { cn } from "@/lib/cn"
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext"
-import { brandingToCssVars } from "@/lib/tenant/tenant-branding"
+import {
+  brandingToCssVars,
+  isRemoteOrBlobImageSrc,
+  normalizeBrandingImageSrc,
+} from "@/lib/tenant/tenant-branding"
 
 type Props = {
   children: React.ReactNode
@@ -34,7 +38,14 @@ export default function OnboardingLayout({
   rightPanelOverlayClassName
 }: Props) {
   const branding = useTenantBranding()
-  const panelSrc = rightPanelImageSrc ?? branding.loginBackgroundSrc
+  const panelSrc = normalizeBrandingImageSrc(
+    rightPanelImageSrc ?? branding.loginBackgroundSrc,
+    "/images/handshake.jpg"
+  )
+  const panelUseNativeImg = isRemoteOrBlobImageSrc(panelSrc)
+  const logoSrc = normalizeBrandingImageSrc(branding.logoUrl, "/images/new-logo-nexus.svg", {
+    allowBlob: true,
+  })
   const shellStyle: CSSProperties = {
     ...brandingToCssVars(branding),
     background: `linear-gradient(135deg, var(--brand-gradient-from) 0%, var(--brand-gradient-to) 100%)`,
@@ -56,14 +67,25 @@ export default function OnboardingLayout({
         </div>
 
         <div className={cn("relative hidden md:block", rightPanelClassName)}>
-          <Image
-            src={panelSrc}
-            alt={rightPanelImageAlt ?? "Applicant onboarding"}
-            fill
-            sizes="(max-width: 767px) 0px, 330px"
-            className={cn("object-cover grayscale opacity-60", rightPanelImageClassName)}
-            priority
-          />
+          {panelUseNativeImg ? (
+            <img
+              src={panelSrc}
+              alt={rightPanelImageAlt ?? "Applicant onboarding"}
+              className={cn(
+                "absolute inset-0 h-full w-full object-cover grayscale opacity-60",
+                rightPanelImageClassName
+              )}
+            />
+          ) : (
+            <Image
+              src={panelSrc}
+              alt={rightPanelImageAlt ?? "Applicant onboarding"}
+              fill
+              sizes="(max-width: 767px) 0px, 330px"
+              className={cn("object-cover grayscale opacity-60", rightPanelImageClassName)}
+              priority
+            />
+          )}
           <div
             className={cn(
               "absolute inset-0 bg-white/65",
@@ -90,7 +112,7 @@ export default function OnboardingLayout({
                 )}
               >
                 <img
-                  src={branding.logoUrl}
+                  src={logoSrc}
                   alt=""
                   width={204}
                   height={60}

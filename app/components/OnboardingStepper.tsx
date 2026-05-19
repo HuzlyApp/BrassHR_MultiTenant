@@ -2,8 +2,30 @@
 
 import Image from "next/image"
 import { Check } from "lucide-react"
-import { useEffect, useMemo, useState } from "react"
-import { usePathname, useRouter } from "next/navigation"
+import { useEffect, useMemo } from "react"
+import { usePathname } from "next/navigation"
+import { useOnboardingConfigOptional } from "@/app/components/onboarding/OnboardingConfigProvider"
+import { routeForOnboardingStep, stepIndexFromPathname } from "@/lib/onboarding/step-routes"
+import { useOnboardingTenant } from "@/lib/tenant/use-onboarding-tenant"
+import type { OnboardingStepType } from "@/lib/onboarding/types"
+
+const LEGACY_STEPS = [
+  "Add Resume",
+  "Professional\nLicense",
+  "Skill\nAssessment",
+  "Authorizations\n& Documents",
+  "Add References",
+  "Summary",
+]
+
+const LEGACY_ROUTES = [
+  "/application/step-1-upload",
+  "/application/step-2-license",
+  "/application/step-3-skills",
+  "/application/step-4-documents",
+  "/application/step-5-add-references",
+  "/application/step-6-summary",
+]
 
 interface Props {
   currentStep: number
@@ -20,101 +42,68 @@ export default function OnboardingStepper({
   titleIconSrc,
   titleIconAlt
 }: Props) {
-  const router = useRouter()
+  const { push, replace } = useOnboardingTenant()
   const pathname = usePathname()
-  const steps = [
-    "Add Resume",
-    "Professional\nLicense",
-    "Skill\nAssessment",
-    "Authorizations\n& Documents",
-    "Add References",
-    "Summary"
-  ]
-  const stepRoutes = [
-    "/application/step-1-upload",
-    "/application/step-2-license",
-    "/application/step-3-skills",
-    "/application/step-4-documents",
-    "/application/step-5-add-references",
-    "/application/step-6-summary",
-  ]
+  const onboarding = useOnboardingConfigOptional()
 
-  const requestedStep = useMemo(() => {
-    const p = pathname || ""
-    if (p.includes("/application/step-6-summary")) return 6
-    if (p.includes("/application/step-5-")) return 5
-    if (
-      p.includes("/application/step-4-") ||
-      p.includes("/application/employee-agreement") ||
-      p.includes("/application/upload-form") ||
-      p.includes("/application/upload-19-form")
-    ) return 4
-    if (p.includes("/application/step-3-")) return 3
-    if (p.includes("/application/step-2-")) return 2
-    if (p.includes("/application/step-1-")) return 1
-    return 1
-  }, [pathname])
+  const enabledSteps = useMemo(() => {
+    if (onboarding?.config?.steps?.length) {
+      return onboarding.config.steps.filter((s) => s.is_enabled)
+    }
+    return null
+  }, [onboarding?.config?.steps])
 
-  const [maxAllowedStep, setMaxAllowedStep] = useState<number>(1)
+  const steps = enabledSteps ? enabledSteps.map((s) => s.title) : LEGACY_STEPS
+
+  const stepRoutes = enabledSteps
+    ? enabledSteps.map((s) =>
+        routeForOnboardingStep(s.step_key, s.step_type as OnboardingStepType)
+      )
+    : LEGACY_ROUTES
+
+  const requestedStep = enabledSteps
+    ? stepIndexFromPathname(pathname || "", enabledSteps)
+    : (() => {
+        const p = pathname || ""
+        if (p.includes("/application/step-6-summary")) return 6
+        if (p.includes("/application/step-5-")) return 5
+        if (
+          p.includes("/application/step-4-") ||
+          p.includes("/application/employee-agreement") ||
+          p.includes("/application/upload-form") ||
+          p.includes("/application/upload-19-form")
+        ) {
+          return 4
+        }
+        if (p.includes("/application/step-3-")) return 3
+        if (p.includes("/application/step-2-")) return 2
+        if (p.includes("/application/step-1-")) return 1
+        return 1
+      })()
+
+  const maxAllowedStep = onboarding?.maxAllowedStepIndex ?? currentStep
+
+  const progressByStepId = useMemo(() => {
+    const m = new Map<string, string>()
+    for (const p of onboarding?.progress?.steps ?? []) {
+      m.set(p.onboarding_step_id, p.status)
+    }
+    return m
+  }, [onboarding?.progress?.steps])
 
   useEffect(() => {
-    if (typeof window === "undefined") return
-
-    const hasResume = Boolean(
-      localStorage.getItem("resumeName")?.trim() ||
-      localStorage.getItem("parsedResume")?.trim() ||
-      localStorage.getItem("resumeStoragePath")?.trim()
-    )
-    const step1ReviewCompletedFlag = localStorage.getItem("step1ReviewCompleted") === "true"
-    const step2FilesRaw = localStorage.getItem("step2_files")
-    let hasStep2Files = false
-    if (step2FilesRaw?.trim()) {
-      try {
-        const parsed = JSON.parse(step2FilesRaw)
-        hasStep2Files = Array.isArray(parsed) ? parsed.length > 0 : true
-      } catch {
-        hasStep2Files = true
-      }
+    if (!enabledSteps || onboarding?.loading) return
+    // Use the page's declared step so applicants aren't bounced while on the current step route.
+    if (currentStep > maxAllowedStep) {
+      const redirect = stepRoutes[Math.max(0, maxAllowedStep - 1)] ?? stepRoutes[0]
+      replace(redirect)
     }
-    const step4Done =
-      localStorage.getItem("step4Skipped") === "1" ||
-      localStorage.getItem("step4AuthorizationAgreed") === "true"
-    const step5Done = localStorage.getItem("step5Completed") === "true"
-    const step1ReviewCompleted = step1ReviewCompletedFlag || hasStep2Files
-
-    let allowedStep = 1
-    let redirectPath = "/application/step-1-upload"
-    if (hasResume) {
-      allowedStep = 2
-      redirectPath = "/application/step-1-review"
-    }
-    if (hasResume && step1ReviewCompleted) {
-      allowedStep = 3
-      redirectPath = "/application/step-2-license"
-    }
-    if (hasResume && step1ReviewCompleted && hasStep2Files) {
-      allowedStep = 4
-      redirectPath = "/application/step-3-skills"
-    }
-    if (hasResume && step1ReviewCompleted && hasStep2Files && step4Done) {
-      allowedStep = 5
-      redirectPath = "/application/step-4-documents"
-    }
-    if (hasResume && step1ReviewCompleted && hasStep2Files && step4Done && step5Done) {
-      allowedStep = 6
-      redirectPath = "/application/step-5-add-references"
-    }
-
-    setMaxAllowedStep(allowedStep)
-    if (requestedStep > allowedStep) {
-      router.replace(redirectPath)
-    }
-  }, [requestedStep, router])
+  }, [enabledSteps, onboarding?.loading, maxAllowedStep, currentStep, replace, stepRoutes])
 
   const progress =
     currentStep === steps.length
-      ? ((steps.length - 2) / (steps.length - 1)) * 100
-      : ((currentStep - 1) / (steps.length - 1)) * 100
+      ? ((steps.length - 2) / Math.max(steps.length - 1, 1)) * 100
+      : ((currentStep - 1) / Math.max(steps.length - 1, 1)) * 100
 
   return (
     <>
@@ -132,8 +121,13 @@ export default function OnboardingStepper({
           <div className="relative flex justify-between">
             {steps.map((step, index) => {
               const stepNumber = index + 1
+              const configStep = enabledSteps?.[index]
+              const dbCompleted =
+                configStep &&
+                (progressByStepId.get(configStep.id) === "completed" ||
+                  progressByStepId.get(configStep.id) === "skipped")
               const completed =
-                stepNumber <= (completedThrough ?? currentStep - 1)
+                dbCompleted || stepNumber <= (completedThrough ?? currentStep - 1)
               const active = stepNumber === currentStep
               const maxAccessibleStep = Math.min(completedThrough ?? currentStep, maxAllowedStep)
               const isClickable = stepNumber <= maxAccessibleStep
@@ -144,7 +138,7 @@ export default function OnboardingStepper({
                   type="button"
                   onClick={() => {
                     if (!isClickable) return
-                    router.push(stepRoutes[index])
+                    push(stepRoutes[index])
                   }}
                   disabled={!isClickable}
                   className={`group flex w-24 flex-col items-center rounded-lg px-1.5 py-1 text-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1db4a3]/40 ${

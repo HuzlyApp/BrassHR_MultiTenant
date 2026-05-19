@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { TenantBrandingProvider } from "@/app/components/tenant/TenantBrandingContext";
+import OnboardingConfigProvider from "@/app/components/onboarding/OnboardingConfigProvider";
 import type { TenantBranding } from "@/lib/tenant/tenant-branding";
 import { defaultTenantBranding } from "@/lib/tenant/tenant-branding";
 import { persistOnboardingSlugCookie, resolveClientOnboardingTenantSlug } from "@/lib/tenant/client-onboarding-slug";
@@ -78,5 +79,17 @@ export default function ApplicationOnboardingBootstrap({ children }: { children:
     );
   }
 
-  return <TenantBrandingProvider branding={brand}>{children}</TenantBrandingProvider>;
+  return (
+    <TenantBrandingProvider branding={brand}>
+      <Suspense
+        fallback={
+          <div className="flex min-h-[40vh] items-center justify-center text-sm text-gray-600">
+            Loading onboarding…
+          </div>
+        }
+      >
+        <OnboardingConfigProvider>{children}</OnboardingConfigProvider>
+      </Suspense>
+    </TenantBrandingProvider>
+  );
 }

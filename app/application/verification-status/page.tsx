@@ -1,5 +1,6 @@
 "use client"
 
+import { applicationPath } from "@/lib/tenant/with-tenant";
 import { Suspense } from "react"
 import Image from "next/image"
 import Link from "next/link"
@@ -151,7 +152,7 @@ function VerificationStatusContent() {
               </Link>
             ) : (
               <Link
-                href="/application/upload-form?type=files"
+                href={applicationPath("/application/upload-form?type=files")}
                 className="inline-flex h-11 min-w-[273px] items-center justify-center gap-2 rounded-lg bg-[#0D9488] px-6 text-[16px] font-semibold leading-6 text-white transition hover:bg-[#0b7a70]"
               >
                 Upload Requirements

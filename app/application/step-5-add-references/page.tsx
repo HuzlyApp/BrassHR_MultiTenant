@@ -1,5 +1,6 @@
 "use client"
 
+import { applicationPath } from "@/lib/tenant/with-tenant"
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import OnboardingLayout from "@/app/components/OnboardingLayout"
@@ -128,12 +129,12 @@ export default function ReferencesPage() {
       setSaving(false)
       return
     }
-    // router.push("/application/step-6-summary")
+    // router.push(applicationPath("/application/step-6-summary"))
     localStorage.setItem("referenceData", JSON.stringify(completeRefs))
     localStorage.removeItem("referenceDataDraft")
     localStorage.setItem("referencesCount", String(completeRefs.length))
     localStorage.setItem("step5Completed", "false")
-    router.push("/application/step-5-reference-review")
+    router.push(applicationPath("/application/step-5-reference-review"))
     setSaving(false)
   }
 

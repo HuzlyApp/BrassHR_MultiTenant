@@ -1,5 +1,6 @@
 "use client"
 
+import { applicationPath } from "@/lib/tenant/with-tenant"
 import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
@@ -157,7 +158,7 @@ export default function Step1Upload() {
           localStorage.removeItem("parsedResume")
           return
         }
-        router.push("/application/step-1-success")
+        router.push(applicationPath("/application/step-1-success"))
         return
       }
       setFileRequiredError("Please upload your resume *")
@@ -246,7 +247,7 @@ export default function Step1Upload() {
         localStorage.setItem("resumeName", uploadJson?.fileName || file.name)
         localStorage.setItem("step1TermsAccepted", "false")
         localStorage.setItem("step1ReviewCompleted", "false")
-        router.push("/application/step-1-success")
+        router.push(applicationPath("/application/step-1-success"))
       } catch (e) {
         const msg = e instanceof Error ? e.message : "Failed to parse resume"
         setParseError(msg)
