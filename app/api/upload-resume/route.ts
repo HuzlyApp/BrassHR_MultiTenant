@@ -5,6 +5,7 @@ import pdfParse from "pdf-parse"
 import mammoth from "mammoth"
 import { getSupabaseUrl } from "@/lib/supabase-env"
 import { persistWorkerResumePath } from "@/lib/onboarding/persist-worker-resume-path"
+import { persistWorkerResumeRecord } from "@/lib/onboarding/persist-worker-resume-record"
 import { WORKER_RESUMES_BUCKET } from "@/lib/supabase-storage-buckets"
 
 export const runtime = "nodejs"
@@ -88,6 +89,16 @@ export async function POST(req: Request) {
       await persistWorkerResumePath(supabase, applicantId, objectPath)
     } catch (e) {
       console.error("[upload-resume] worker_requirements resume_path", e)
+    }
+    try {
+      await persistWorkerResumeRecord(supabase, applicantId, {
+        fileUrl: objectPath,
+        originalFileName: file.name,
+        parsedData: { text },
+        parsingStatus: "completed",
+      })
+    } catch (e) {
+      console.error("[upload-resume] worker_resumes", e)
     }
   }
 

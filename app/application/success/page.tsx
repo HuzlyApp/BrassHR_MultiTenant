@@ -1,5 +1,6 @@
 "use client"
 
+import { applicationPath } from "@/lib/tenant/with-tenant";
 import Image from "next/image"
 import Link from "next/link"
 import { Check } from "lucide-react"
@@ -28,7 +29,7 @@ export default function SuccessPage() {
             </div>
 
             <Link
-              href="/application/application-status"
+              href={applicationPath("/application/application-status")}
               className="mt-10 inline-flex items-center justify-center rounded-xl bg-[#0D9488] px-8 py-3 text-[14px] font-semibold text-white transition hover:bg-[#0b7a70]"
             >
               Check Status

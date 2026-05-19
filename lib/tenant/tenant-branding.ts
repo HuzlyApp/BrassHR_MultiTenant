@@ -31,15 +31,47 @@ export const FALLBACK_PRIMARY = "#0d9488";
 export const FALLBACK_SECONDARY = "#0f766e";
 export const FALLBACK_ACCENT = "#99f6e4";
 
+const DEFAULT_LOGO = "/images/new-logo-nexus.svg";
+const DEFAULT_BACKGROUND = "/images/handshake.jpg";
+
+/** Reject placeholder junk (e.g. DB value "test") and non-URL strings for next/image. */
+export function normalizeBrandingImageSrc(
+  src: string | null | undefined,
+  fallback: string,
+  options?: { allowBlob?: boolean }
+): string {
+  const raw = src?.trim();
+  if (!raw) return fallback;
+
+  if (raw.startsWith("/")) return raw;
+
+  if (raw.startsWith("blob:")) {
+    return options?.allowBlob ? raw : fallback;
+  }
+
+  try {
+    const parsed = new URL(raw);
+    if (parsed.protocol === "http:" || parsed.protocol === "https:") return raw;
+  } catch {
+    /* not an absolute URL */
+  }
+
+  return fallback;
+}
+
+export function isRemoteOrBlobImageSrc(src: string): boolean {
+  return src.startsWith("http://") || src.startsWith("https://") || src.startsWith("blob:");
+}
+
 export function defaultTenantBranding(overrides: Partial<TenantBranding> = {}): TenantBranding {
   const base: TenantBranding = {
     id: null,
     slug: null,
     companyName: "Staffing onboarding",
-    logoUrl: "/images/new-logo-nexus.svg",
+    logoUrl: DEFAULT_LOGO,
     headline: "Join our team",
     subtitle: "Quick pay, flexible shifts, support team",
-    loginBackgroundSrc: "/images/handshake.jpg",
+    loginBackgroundSrc: DEFAULT_BACKGROUND,
     primaryHex: FALLBACK_PRIMARY,
     secondaryHex: FALLBACK_SECONDARY,
     accentHex: FALLBACK_ACCENT,
@@ -54,12 +86,12 @@ export function brandingFromTenantRow(row: TenantBrandingRow | null): TenantBran
     id: row.id,
     slug: row.slug,
     companyName: row.name?.trim() || defaultTenantBranding().companyName,
-    logoUrl: row.logo_url?.trim() || defaultTenantBranding().logoUrl,
+    logoUrl: normalizeBrandingImageSrc(row.logo_url, DEFAULT_LOGO, { allowBlob: true }),
     headline:
       row.welcome_headline?.trim() ||
       `Welcome to ${row.name?.trim() || "your organization"}`,
     subtitle: row.welcome_subtitle?.trim() || defaultTenantBranding().subtitle,
-    loginBackgroundSrc: row.auth_background_image_url?.trim() || "/images/handshake.jpg",
+    loginBackgroundSrc: normalizeBrandingImageSrc(row.auth_background_image_url, DEFAULT_BACKGROUND),
     primaryHex: row.primary_color?.trim() || FALLBACK_PRIMARY,
     secondaryHex: row.secondary_color?.trim() || FALLBACK_SECONDARY,
     accentHex: row.accent_color?.trim() || FALLBACK_ACCENT,

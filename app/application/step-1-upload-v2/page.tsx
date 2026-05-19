@@ -1,5 +1,6 @@
 "use client"
 
+import { applicationPath } from "@/lib/tenant/with-tenant"
 import { useState } from "react"
 import OnboardingLayout from "@/app/components/OnboardingLayout"
 import RightPanel from "@/app/components/RightPanel"
@@ -119,7 +120,7 @@ export default function UploadPage() {
         {isUploaded && (
           <button
             onClick={() => {
-              window.location.href = "/application/step-1-review"
+              window.location.href = applicationPath("/application/step-1-review")
             }}
             className="mt-6 px-6 py-2 bg-teal-600 text-white rounded-lg"
           >

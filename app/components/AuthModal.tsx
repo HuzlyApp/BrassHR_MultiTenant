@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { supabase } from '@/lib/supabase'
 import { useRouter } from "next/navigation"
+import { applicationPath } from "@/lib/tenant/with-tenant"
 
 type Props = {
 open:boolean
@@ -39,7 +40,7 @@ return
 
 setOpen(false)
 
-router.push("/application/step-1-upload")
+router.push(applicationPath("/application/step-1-upload"))
 
 }catch(err){
 console.log(err)

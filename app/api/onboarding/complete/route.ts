@@ -1,47 +1,56 @@
-import { NextRequest, NextResponse } from "next/server"
-import { createClient as createSbAdmin } from "@supabase/supabase-js"
-import { requireNexusSessionUser } from "@/lib/auth/api-session"
-import { getSupabaseUrl } from "@/lib/supabase-env"
+import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
+import { getSupabaseUrl } from "@/lib/supabase-env";
+import { ensureWorkerOnboardingProgress } from "@/lib/onboarding/ensure-worker-progress";
+import { resolveWorkerByApplicantId } from "@/lib/onboarding/resolve-worker-context";
+import { validateWorkerOnboardingComplete } from "@/lib/onboarding/validate-completion";
 
-export const runtime = "nodejs"
-
-type Body = { applicantId: string }
+export const runtime = "nodejs";
 
 export async function POST(req: NextRequest) {
   try {
-    const body = (await req.json()) as Body
-    const applicantId = typeof body?.applicantId === "string" ? body.applicantId.trim() : ""
+    const body = (await req.json()) as { applicantId?: string };
+    const applicantId = typeof body.applicantId === "string" ? body.applicantId.trim() : "";
     if (!applicantId) {
-      return NextResponse.json({ error: "Missing applicantId" }, { status: 400 })
+      return NextResponse.json({ error: "Missing applicantId" }, { status: 400 });
     }
 
-    // Verify the caller is the same authenticated Nexus user (prevents arbitrary role escalation).
-    const sessionUser = await requireNexusSessionUser()
-    if (sessionUser instanceof NextResponse) return sessionUser
-    if (sessionUser.id !== applicantId) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+    const url = getSupabaseUrl();
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!url || !key) {
+      return NextResponse.json({ error: "Supabase not configured" }, { status: 503 });
     }
 
-    const url = getSupabaseUrl()
-    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-    if (!url || !serviceKey) {
-      return NextResponse.json({ error: "Supabase service role not configured" }, { status: 503 })
+    const supabase = createClient(url, key);
+    const ctx = await resolveWorkerByApplicantId(supabase, applicantId);
+    if (!ctx) {
+      return NextResponse.json({ error: "Worker not found" }, { status: 404 });
     }
 
-    const admin = createSbAdmin(url, serviceKey, { auth: { persistSession: false } })
+    const progress = await ensureWorkerOnboardingProgress(supabase, ctx.workerId, ctx.tenantId);
+    const validation = await validateWorkerOnboardingComplete(
+      supabase,
+      ctx.workerId,
+      ctx.tenantId,
+      progress.steps
+    );
 
-    const { data, error } = await admin.auth.admin.updateUserById(applicantId, {
-      app_metadata: { role: "super_admin", platform: "nexus" },
-    })
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
+    if (!validation.ok) {
+      return NextResponse.json({ ok: false, missing: validation.missing }, { status: 400 });
     }
 
-    return NextResponse.json({ ok: true, user: data.user })
-  } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : "Unexpected error"
-    return NextResponse.json({ error: msg }, { status: 500 })
+    const now = new Date().toISOString();
+    const { error: upErr } = await supabase
+      .from("worker_onboarding_progress")
+      .update({ status: "completed", completed_at: now, updated_at: now })
+      .eq("id", progress.progressId);
+
+    if (upErr) throw upErr;
+
+    return NextResponse.json({ ok: true });
+  } catch (err: unknown) {
+    console.error("[onboarding/complete]", err);
+    const msg = err instanceof Error ? err.message : "Unexpected error";
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
-

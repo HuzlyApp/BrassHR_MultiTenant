@@ -1,5 +1,6 @@
 "use client"
 
+import { applicationPath } from "@/lib/tenant/with-tenant"
 import { useCallback, useEffect, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
@@ -51,7 +52,7 @@ function categoryQuizSlug(cat: Category): string | null {
 function quizHref(cat: Category): string | null {
   const slug = categoryQuizSlug(cat)
   if (!slug) return null
-  return `/application/step-3-quiz/${encodeURIComponent(slug)}`
+  return applicationPath(`/application/step-3-quiz/${encodeURIComponent(slug)}`)
 }
 
 function recordCompletedCategories(rows: { category: string }[]): Set<string> {
@@ -149,7 +150,7 @@ export default function AssessmentPage() {
             </h2>
             <button
               type="button"
-              onClick={() => router.push("/application/step-4-documents")}
+              onClick={() => router.push(applicationPath("/application/step-4-documents"))}
               className="cursor-pointer text-[12px] font-medium leading-5 text-[#0D9488] mt-1"
             >
               Skip for Now →
@@ -219,7 +220,7 @@ export default function AssessmentPage() {
             <button
               type="button"
               onClick={() => {
-                router.push("/application/step-4-documents")
+                router.push(applicationPath("/application/step-4-documents"))
               }}
               className="cursor-pointer rounded-md bg-[#0D9488] px-6 py-2 text-[12px] font-medium leading-5 text-white transition hover:bg-[#0b7a70]"
             >

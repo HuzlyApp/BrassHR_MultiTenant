@@ -1,6 +1,7 @@
 
 "use client"
 
+import { applicationPath } from "@/lib/tenant/with-tenant";
 import { useEffect, useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
@@ -217,7 +218,7 @@ export default function EmployeeAgreementPage() {
 
           <div className="mt-auto flex items-center justify-end gap-4 pt-10">
             <Link
-              href="/application/application-status"
+              href={applicationPath("/application/application-status")}
               className="inline-flex h-12 cursor-pointer items-center justify-center rounded-xl border border-[#0D9488] px-6 text-[16px] font-semibold leading-6 text-[#0D9488] transition hover:bg-[#f0fffe]"
             >
               Back
@@ -225,14 +226,14 @@ export default function EmployeeAgreementPage() {
 
             {hasUploadedI9 ? (
               <Link
-                href="/application/document-received"
+                href={applicationPath("/application/document-received")}
                 className="inline-flex h-12 cursor-pointer items-center justify-center rounded-xl bg-[#0D9488] px-6 text-[16px] font-semibold leading-6 text-white transition hover:bg-[#0b7a70]"
               >
                 Save
               </Link>
             ) : (
               <Link
-                href="/application/upload-19-form"
+                href={applicationPath("/application/upload-19-form")}
                 className="inline-flex h-12 cursor-pointer items-center justify-center rounded-xl bg-[#0D9488] px-6 text-[16px] font-semibold leading-6 text-white transition hover:bg-[#0b7a70]"
               >
                 Next

@@ -1,6 +1,7 @@
 
 "use client"
 
+import { applicationPath } from "@/lib/tenant/with-tenant"
 import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
@@ -52,7 +53,7 @@ export default function ReferenceReviewPage() {
   const hasMinimumReferences = completeCount >= MIN_COMPLETE_REFERENCES
 
   const handleEdit = () => {
-    router.push("/application/step-5-add-references")
+    router.push(applicationPath("/application/step-5-add-references"))
   }
 
   const handleContinue = () => {
@@ -64,7 +65,7 @@ export default function ReferenceReviewPage() {
       return
     }
     localStorage.setItem("step5Completed", "true")
-    router.push("/application/step-6-summary")
+    router.push(applicationPath("/application/step-6-summary"))
   }
 
   return (

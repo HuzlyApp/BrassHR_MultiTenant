@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { normalizeResumeStorageObjectPath } from "@/lib/onboarding/normalize-resume-storage-path"
+import { mapDynamicAdminOnboardingProgress } from "@/lib/onboarding/map-dynamic-admin-progress"
 
 type JsonRow = Record<string, unknown>
 
@@ -77,6 +78,44 @@ export async function mapAdminOnboardingProgress({
   zohoStatus,
   referencesCount,
 }: MapperArgs): Promise<MapperResult> {
+  const { data: workerTenant } = await supabase
+    .from("worker")
+    .select("tenant_id")
+    .eq("id", workerId)
+    .maybeSingle()
+
+  const tenantId =
+    workerTenant && typeof workerTenant === "object" && workerTenant.tenant_id != null
+      ? String((workerTenant as { tenant_id: string }).tenant_id)
+      : null
+
+  if (tenantId) {
+    try {
+      const { data: tenantRow } = await supabase
+        .from("tenants")
+        .select("onboarding_config_version")
+        .eq("id", tenantId)
+        .maybeSingle()
+      const version = (tenantRow as { onboarding_config_version?: number } | null)?.onboarding_config_version ?? 0
+      if (version >= 1) {
+        const { steps } = await mapDynamicAdminOnboardingProgress(supabase, workerId, tenantId)
+        if (steps.length > 0) {
+          return {
+            steps: steps.map((s) => ({
+              id: s.stepKey,
+              label: s.label,
+              state: s.state,
+              detail: s.detail,
+            })),
+            skillAssessments: { completed: 0, total: 0, rows: [] },
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("[admin-onboarding-progress] dynamic config fallback to legacy", e)
+    }
+  }
+
   const normalizedResumePath = resumePathRaw ? normalizeResumeStorageObjectPath(resumePathRaw) : null
   const resumeStoragePathCandidates = [
     normalizedResumePath,
