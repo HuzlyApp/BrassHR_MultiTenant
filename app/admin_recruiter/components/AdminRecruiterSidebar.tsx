@@ -46,6 +46,7 @@ export function AdminRecruiterSidebar({ isMobileOpen = false, onMobileClose }: A
   const inJobs = pathname.startsWith("/admin_recruiter/jobs");
   const inNotifications = pathname.startsWith("/admin_recruiter/notifications");
   const inSettings = pathname.startsWith("/admin_recruiter/settings");
+  const inEmailTemplates = pathname.startsWith("/admin_recruiter/email-templates");
   const inMessages = pathname.startsWith("/admin_recruiter/messages");
 
   type RailIcon = {
@@ -240,6 +241,11 @@ export function AdminRecruiterSidebar({ isMobileOpen = false, onMobileClose }: A
               { label: "Jobs / Assignments", href: "/admin_recruiter/jobs", active: inJobs },
               { label: "Messages", href: "/admin_recruiter/messages", active: inMessages },
               { label: "Notifications", href: "/admin_recruiter/notifications", active: inNotifications },
+              {
+                label: "Email Templates",
+                href: "/admin_recruiter/email-templates",
+                active: inEmailTemplates,
+              },
               { label: "Settings", href: "/admin_recruiter/settings", active: inSettings },
             ].map((item) => (
               <Link

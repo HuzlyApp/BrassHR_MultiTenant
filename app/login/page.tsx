@@ -14,6 +14,7 @@ import ClassicTenantLogin from "@/app/login/ClassicTenantLogin";
 import { LoginBrandHeader, LoginPageShell, interStyle } from "@/app/login/BraasLoginShell";
 import LoginOtpStep from "@/app/login/LoginOtpStep";
 import { isGodAdminUser } from "@/lib/auth/god-admin";
+import { resolveGodAdminClient } from "@/lib/auth/resolve-god-admin-client";
 import { isNexusPlatformUser, isPlatformEnforcementEnabled } from "@/lib/auth/platform-shared";
 import { persistOnboardingSlugCookie } from "@/lib/tenant/client-onboarding-slug";
 import {
@@ -174,39 +175,10 @@ function LoginPageContent() {
     return form.email.trim().length > 0 && form.password.length > 0 && form.agree;
   }, [form.agree, form.email, form.password]);
 
-  const handleCredentialsSubmit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!canSubmit) return;
-
-    setError(null);
-    setPendingLogin({
-      email: form.email.trim(),
-      password: form.password,
-      rememberMe: form.rememberMe,
-    });
-    setStep("otp");
-  };
-
-  const completeLogin = async (credentials?: PendingLogin) => {
-    const login = credentials ?? pendingLogin;
-    if (!login) return;
-
-    setSubmitting(true);
-    setError(null);
-
-    const { error: signInError } = await supabaseBrowser.auth.signInWithPassword({
-      email: login.email,
-      password: login.password,
-    });
-
-    if (signInError) {
-      setShowSuccess(false);
-      setStep("credentials");
-      setError(signInError.message || "Login failed");
-      setSubmitting(false);
-      return;
-    }
-
+  const finishAuthenticatedSession = async (
+    login: PendingLogin,
+    options?: { godAdmin?: boolean }
+  ) => {
     try {
       if (login.rememberMe) {
         localStorage.setItem("braasLoginEmail", login.email);
@@ -218,20 +190,28 @@ function LoginPageContent() {
     }
 
     const { data: userData } = await supabaseBrowser.auth.getUser();
+    const godAdmin =
+      options?.godAdmin === true ||
+      isGodAdminUser(userData.user) ||
+      (await resolveGodAdminClient(userData.user));
+
     if (
       isPlatformEnforcementEnabled() &&
-      (!userData.user || (!isNexusPlatformUser(userData.user) && !isGodAdminUser(userData.user)))
+      (!userData.user || (!isNexusPlatformUser(userData.user) && !godAdmin))
     ) {
       await supabaseBrowser.auth.signOut();
       setShowSuccess(false);
       setStep("credentials");
       setError("This account is not authorized for this platform.");
-      setSubmitting(false);
-      return;
+      return false;
     }
 
     const nextPath = searchParams.get("next");
-    const defaultNext = useBraasUi ? "/tenant-onboarding" : "/admin_recruiter/dashboard";
+    const defaultNext = godAdmin
+      ? "/admin_recruiter/dashboard"
+      : useBraasUi
+        ? "/tenant-onboarding"
+        : "/admin_recruiter/dashboard";
     const safeNext =
       typeof nextPath === "string" &&
       nextPath.startsWith("/") &&
@@ -242,6 +222,78 @@ function LoginPageContent() {
 
     router.push(safeNext);
     router.refresh();
+    return true;
+  };
+
+  const handleCredentialsSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!canSubmit) return;
+
+    setError(null);
+    const login: PendingLogin = {
+      email: form.email.trim(),
+      password: form.password,
+      rememberMe: form.rememberMe,
+    };
+
+    setSubmitting(true);
+    const { error: signInError, data: signInData } = await supabaseBrowser.auth.signInWithPassword({
+      email: login.email,
+      password: login.password,
+    });
+
+    if (signInError) {
+      setError(signInError.message || "Login failed");
+      setSubmitting(false);
+      return;
+    }
+
+    const godAdmin = await resolveGodAdminClient(signInData.user);
+    if (godAdmin) {
+      setPendingLogin(login);
+      const ok = await finishAuthenticatedSession(login, { godAdmin: true });
+      setSubmitting(false);
+      if (!ok) return;
+      return;
+    }
+
+    await supabaseBrowser.auth.signOut();
+    setPendingLogin(login);
+    setStep("otp");
+    setSubmitting(false);
+  };
+
+  const completeLogin = async (credentials?: PendingLogin) => {
+    const login = credentials ?? pendingLogin;
+    if (!login) return;
+
+    setSubmitting(true);
+    setError(null);
+
+    const {
+      data: { session },
+    } = await supabaseBrowser.auth.getSession();
+
+    if (!session) {
+      const { error: signInError } = await supabaseBrowser.auth.signInWithPassword({
+        email: login.email,
+        password: login.password,
+      });
+
+      if (signInError) {
+        setShowSuccess(false);
+        setStep("credentials");
+        setError(signInError.message || "Login failed");
+        setSubmitting(false);
+        return;
+      }
+    }
+
+    const ok = await finishAuthenticatedSession(login);
+    if (!ok) {
+      setSubmitting(false);
+      return;
+    }
     setSubmitting(false);
   };
 
