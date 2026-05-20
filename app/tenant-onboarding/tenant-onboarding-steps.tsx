@@ -1,0 +1,1042 @@
+"use client";
+
+import Image from "next/image";
+import Link from "next/link";
+import { Check, ChevronDown, Link2, Upload } from "lucide-react";
+import { useRef, type ChangeEvent, type DragEvent } from "react";
+import OnboardingStepsBuilder from "@/app/components/onboarding/OnboardingStepsBuilder";
+import { interStyle, primaryButtonStyle } from "@/app/tenant-onboarding/TenantOnboardingShell";
+import {
+  COMPANY_SIZE_OPTIONS,
+  INDUSTRY_OPTIONS,
+  STATE_OPTIONS,
+  TENANT_GOAL_OPTIONS,
+  brandingFontStack,
+  TENANT_BRANDING_FONT_OPTIONS,
+  type BusinessInfoForm,
+  type TenantBrandingFontId,
+  type TenantBrandingThemeMode,
+  type TenantGoalId,
+} from "@/app/tenant-onboarding/constants";
+import type { OnboardingStepDraft } from "@/lib/onboarding/default-onboarding-steps";
+import { subdomainErrorMessage, validateTenantSubdomainInput } from "@/lib/tenant/subdomain-validation";
+import type { TenantBranding } from "@/lib/tenant/tenant-branding";
+import { withTenant } from "@/lib/tenant/with-tenant";
+
+const inputTypographyStyle = {
+  fontFamily: "Inter, Arial, sans-serif",
+  fontSize: "16px",
+  lineHeight: "24px",
+  fontWeight: 400,
+  letterSpacing: "0",
+} as const;
+
+const inputTextClass =
+  "text-[16px] font-normal leading-[24px] tracking-normal placeholder:text-[16px] placeholder:leading-[24px] placeholder:font-normal";
+
+const inputFocusClass =
+  "focus:border-[color:var(--brand-primary)] focus:ring-2 focus:ring-[color:color-mix(in_srgb,var(--brand-primary)_20%,transparent)]";
+
+function FieldLabel({ children, required = true }: { children: string; required?: boolean }) {
+  return (
+    <label
+      className="mb-[8px] block text-[14px] font-normal leading-[20px] tracking-normal text-[#374151]"
+      style={interStyle}
+    >
+      {children}
+      {required ? <span className="ml-1 text-[#e11d48]">*</span> : null}
+    </label>
+  );
+}
+
+function ErrorBanner({ message }: { message: string }) {
+  return (
+    <div
+      className="mb-6 rounded-[8px] border border-[#fecaca] bg-[#fef2f2] px-[14px] py-[12px] text-[14px] leading-[20px] text-[#b91c1c]"
+      style={interStyle}
+    >
+      {message}
+    </div>
+  );
+}
+
+function ContinueButton({
+  label = "Continue",
+  disabled,
+  onClick,
+  type = "button",
+  className = "",
+}: {
+  label?: string;
+  disabled?: boolean;
+  onClick?: () => void;
+  type?: "button" | "submit";
+  className?: string;
+}) {
+  const enabled = !disabled;
+  return (
+    <button
+      type={type}
+      disabled={disabled}
+      onClick={onClick}
+      className={`flex h-[54px] w-full items-center justify-center rounded-[12px] text-[16px] font-semibold leading-[22px] tracking-normal transition disabled:cursor-not-allowed disabled:bg-[#dddddd] disabled:text-[#c5c5c5] enabled:text-white enabled:hover:brightness-95 ${className}`.trim()}
+      style={primaryButtonStyle(enabled)}
+    >
+      {label}
+    </button>
+  );
+}
+
+function BackButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="rounded-[12px] border border-[#e2e8f0] px-5 py-3 text-[14px] font-medium text-[#374151] transition hover:bg-[#f8fafc]"
+      style={interStyle}
+    >
+      Back
+    </button>
+  );
+}
+
+function StepActions({
+  onBack,
+  onContinue,
+  continueLabel = "Continue",
+  continueDisabled,
+}: {
+  onBack: () => void;
+  onContinue: () => void;
+  continueLabel?: string;
+  continueDisabled?: boolean;
+}) {
+  return (
+    <div className="mt-[32px] flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-end">
+      <BackButton onClick={onBack} />
+      <ContinueButton
+        className="sm:max-w-[280px]"
+        label={continueLabel}
+        disabled={continueDisabled}
+        onClick={onContinue}
+      />
+    </div>
+  );
+}
+
+function TextField({
+  label,
+  value,
+  onChange,
+  placeholder,
+  required = false,
+  type = "text",
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  required?: boolean;
+  type?: string;
+}) {
+  return (
+    <div>
+      <FieldLabel required={required}>{label}</FieldLabel>
+      <input
+        type={type}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        style={inputTypographyStyle}
+        className={`h-[56px] w-full rounded-[8px] border border-[#cbd5e1] bg-white px-[14px] ${inputTextClass} text-[#0f172a] outline-none transition placeholder:text-[#94a3b8] ${inputFocusClass}`}
+      />
+    </div>
+  );
+}
+
+function SelectField({
+  label,
+  value,
+  onChange,
+  placeholder,
+  options,
+  required = false,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  options: readonly string[];
+  required?: boolean;
+}) {
+  return (
+    <div>
+      <FieldLabel required={required}>{label}</FieldLabel>
+      <div className="relative">
+        <select
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          style={inputTypographyStyle}
+          className={`h-[56px] w-full appearance-none rounded-[8px] border border-[#cbd5e1] bg-white px-[14px] pr-10 ${inputTextClass} text-[#0f172a] outline-none transition ${inputFocusClass} ${
+            value ? "text-[#0f172a]" : "text-[#94a3b8]"
+          }`}
+        >
+          <option value="">{placeholder ?? "Select"}</option>
+          {options.map((opt) => (
+            <option key={opt} value={opt}>
+              {opt}
+            </option>
+          ))}
+        </select>
+        <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 text-[#64748b]" />
+      </div>
+    </div>
+  );
+}
+
+function StepHeading({ title, subtitle }: { title: string; subtitle: string }) {
+  return (
+    <div className="text-left">
+      <h2 className="text-[28px] font-semibold leading-[36px] tracking-normal text-[#0f172a] sm:text-[30px]" style={interStyle}>
+        {title}
+      </h2>
+      <p className="mt-[8px] text-[16px] font-normal leading-[24px] text-[#64748b]" style={interStyle}>
+        {subtitle}
+      </p>
+    </div>
+  );
+}
+
+type GoalCardProps = {
+  id: TenantGoalId;
+  label: string;
+  icon: string;
+  selected: boolean;
+  onToggle: (id: TenantGoalId) => void;
+};
+
+function GoalCard({ id, label, icon, selected, onToggle }: GoalCardProps) {
+  return (
+    <button
+      type="button"
+      onClick={() => onToggle(id)}
+      className={`flex w-full items-center gap-[14px] rounded-[12px] border px-[16px] py-[18px] text-left transition ${
+        selected
+          ? "border-[color:var(--brand-primary)] bg-[color:color-mix(in_srgb,var(--brand-primary)_6%,white)]"
+          : "border-[#e2e8f0] bg-white hover:border-[#cbd5e1]"
+      }`}
+    >
+      <span className="flex h-[44px] w-[44px] shrink-0 items-center justify-center rounded-[10px] bg-[#f5efe6]">
+        <Image src={icon} alt="" width={26} height={26} className="h-[26px] w-[26px]" />
+      </span>
+      <span className="flex-1 text-[15px] font-medium leading-[22px] text-[#104b83]" style={interStyle}>
+        {label}
+      </span>
+      <span
+        className={`flex h-[24px] w-[24px] shrink-0 items-center justify-center rounded-[8px] border ${
+          selected ? "border-[color:var(--brand-primary)] bg-[color:var(--brand-primary)]" : "border-[#cbd5e1] bg-white"
+        }`}
+      >
+        {selected ? <Check className="h-[14px] w-[14px] text-white" strokeWidth={3} /> : null}
+      </span>
+    </button>
+  );
+}
+
+export function GoalsStep({
+  selectedGoals,
+  onToggleGoal,
+  onContinue,
+}: {
+  selectedGoals: TenantGoalId[];
+  onToggleGoal: (id: TenantGoalId) => void;
+  onContinue: () => void;
+}) {
+  return (
+    <div>
+      <StepHeading
+        title="What brings you to brassHR"
+        subtitle="Choose what matters most to you, and we'll make sure to help you hit your goals."
+      />
+      <div className="mt-[28px] grid gap-[16px] sm:grid-cols-2">
+        {TENANT_GOAL_OPTIONS.map((goal) => (
+          <GoalCard
+            key={goal.id}
+            id={goal.id}
+            label={goal.label}
+            icon={goal.icon}
+            selected={selectedGoals.includes(goal.id)}
+            onToggle={onToggleGoal}
+          />
+        ))}
+      </div>
+      <ContinueButton className="mt-[32px]" disabled={selectedGoals.length === 0} onClick={onContinue} />
+    </div>
+  );
+}
+
+export function BusinessStep({
+  orgName,
+  businessInfo,
+  onOrgNameChange,
+  onBusinessInfoChange,
+  onContinue,
+  onBack,
+}: {
+  orgName: string;
+  businessInfo: BusinessInfoForm;
+  onOrgNameChange: (value: string) => void;
+  onBusinessInfoChange: (patch: Partial<BusinessInfoForm>) => void;
+  onContinue: () => void;
+  onBack: () => void;
+}) {
+  const canContinue =
+    orgName.trim().length >= 2 &&
+    businessInfo.industry.trim().length > 0 &&
+    businessInfo.companySize.trim().length > 0;
+
+  return (
+    <div>
+      <StepHeading
+        title="Business information"
+        subtitle="Tell us about your company so we can personalize your BrassHR workspace."
+      />
+
+      <div className="mt-[28px] space-y-[24px]">
+        <TextField
+          label="Company name"
+          required
+          value={orgName}
+          onChange={onOrgNameChange}
+          placeholder="Acme Allied Staffing"
+        />
+
+        <div className="grid gap-[24px] sm:grid-cols-2">
+          <SelectField
+            label="Industry"
+            required
+            value={businessInfo.industry}
+            onChange={(value) => onBusinessInfoChange({ industry: value })}
+            placeholder="Select industry"
+            options={INDUSTRY_OPTIONS}
+          />
+          <SelectField
+            label="Company size"
+            required
+            value={businessInfo.companySize}
+            onChange={(value) => onBusinessInfoChange({ companySize: value })}
+            placeholder="Select size"
+            options={COMPANY_SIZE_OPTIONS}
+          />
+        </div>
+
+        <div className="grid gap-[24px] sm:grid-cols-2">
+          <TextField
+            label="Phone number"
+            value={businessInfo.phone}
+            onChange={(value) => onBusinessInfoChange({ phone: value })}
+            placeholder="(555) 123-4567"
+            type="tel"
+          />
+          <TextField
+            label="Website"
+            value={businessInfo.website}
+            onChange={(value) => onBusinessInfoChange({ website: value })}
+            placeholder="www.yourcompany.com"
+            type="url"
+          />
+        </div>
+
+        <TextField
+          label="Business address"
+          value={businessInfo.address}
+          onChange={(value) => onBusinessInfoChange({ address: value })}
+          placeholder="Street address"
+        />
+
+        <div className="grid gap-[24px] sm:grid-cols-3">
+          <TextField
+            label="City"
+            value={businessInfo.city}
+            onChange={(value) => onBusinessInfoChange({ city: value })}
+            placeholder="City"
+          />
+          <SelectField
+            label="State"
+            value={businessInfo.state}
+            onChange={(value) => onBusinessInfoChange({ state: value })}
+            placeholder="Select"
+            options={STATE_OPTIONS}
+          />
+          <TextField
+            label="Zip code"
+            value={businessInfo.zipCode}
+            onChange={(value) => onBusinessInfoChange({ zipCode: value.replace(/\D/g, "").slice(0, 10) })}
+            placeholder="Code"
+          />
+        </div>
+      </div>
+
+      <StepActions
+        onBack={onBack}
+        onContinue={onContinue}
+        continueLabel="Save and Continue"
+        continueDisabled={!canContinue}
+      />
+    </div>
+  );
+}
+
+export function CompanyLogoStep({
+  logoUrl,
+  logoFile,
+  orgName,
+  logoDisplayName,
+  logoTagline,
+  onLogoFileChange,
+  onLogoUrlChange,
+  onLogoDisplayNameChange,
+  onLogoTaglineChange,
+  onContinue,
+  onBack,
+}: {
+  logoUrl: string;
+  logoFile: File | null;
+  orgName: string;
+  logoDisplayName: string;
+  logoTagline: string;
+  onLogoFileChange: (file: File | null, previewUrl: string) => void;
+  onLogoUrlChange: (value: string) => void;
+  onLogoDisplayNameChange: (value: string) => void;
+  onLogoTaglineChange: (value: string) => void;
+  onContinue: () => void;
+  onBack: () => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const handleFile = (file: File | null) => {
+    if (!file) return;
+    onLogoFileChange(file, URL.createObjectURL(file));
+  };
+
+  const onDrop = (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    handleFile(event.dataTransfer.files?.[0] ?? null);
+  };
+
+  const onFileInput = (event: ChangeEvent<HTMLInputElement>) => {
+    handleFile(event.target.files?.[0] ?? null);
+  };
+
+  return (
+    <div>
+      <StepHeading
+        title="Company logo"
+        subtitle={`Upload a logo for ${orgName.trim() || "your organization"}. Applicants and recruiters will see this across your portal.`}
+      />
+
+      <div className="mt-[28px] space-y-[24px]">
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={() => inputRef.current?.click()}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") inputRef.current?.click();
+          }}
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={onDrop}
+          className="flex cursor-pointer flex-col items-center justify-center rounded-[16px] border-2 border-dashed border-[#cbd5e1] bg-[#f8fafc] px-6 py-[48px] transition hover:border-[color:var(--brand-primary)] hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_4%,white)]"
+        >
+          {logoUrl ? (
+            <div className="flex flex-col items-center gap-4">
+              <div className="flex h-[120px] w-[120px] items-center justify-center rounded-[16px] border border-[#e2e8f0] bg-white p-4 shadow-sm">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={logoUrl} alt="" className="max-h-[96px] max-w-[96px] object-contain" />
+              </div>
+              <p className="text-[14px] font-medium text-[#0f172a]" style={interStyle}>
+                {logoFile?.name ?? "Logo uploaded"}
+              </p>
+              <p className="text-[13px] text-[#64748b]" style={interStyle}>
+                Click or drag to replace
+              </p>
+            </div>
+          ) : (
+            <>
+              <span
+                className="flex h-[56px] w-[56px] items-center justify-center rounded-full"
+                style={{ backgroundColor: "color-mix(in srgb, var(--brand-primary) 12%, white)" }}
+              >
+                <Upload className="h-[24px] w-[24px]" style={{ color: "var(--brand-primary)" }} />
+              </span>
+              <p className="mt-[16px] text-[16px] font-semibold text-[#0f172a]" style={interStyle}>
+                Upload your company logo
+              </p>
+              <p className="mt-[6px] text-[14px] text-[#64748b]" style={interStyle}>
+                Drag & drop PNG, JPG, WEBP, or SVG — or click to browse
+              </p>
+            </>
+          )}
+          <input
+            ref={inputRef}
+            type="file"
+            accept="image/png,image/jpeg,image/webp,image/svg+xml"
+            className="hidden"
+            onChange={onFileInput}
+          />
+        </div>
+
+        <div>
+          <FieldLabel required={false}>Logo URL (optional)</FieldLabel>
+          <input
+            value={logoUrl.startsWith("blob:") ? "" : logoUrl}
+            onChange={(e) => onLogoUrlChange(e.target.value)}
+            placeholder="/images/logo.svg or https://…"
+            style={inputTypographyStyle}
+            className={`h-[56px] w-full rounded-[8px] border border-[#cbd5e1] bg-white px-[14px] ${inputTextClass} text-[#0f172a] outline-none transition placeholder:text-[#94a3b8] ${inputFocusClass}`}
+          />
+        </div>
+
+        <div className="grid gap-[16px] sm:grid-cols-2">
+          <TextField
+            label="Logo display name"
+            required={false}
+            value={logoDisplayName}
+            onChange={onLogoDisplayNameChange}
+            placeholder={orgName.trim() || "Your company name"}
+          />
+          <TextField
+            label="Logo tagline"
+            required={false}
+            value={logoTagline}
+            onChange={onLogoTaglineChange}
+            placeholder="Your company tagline"
+          />
+        </div>
+      </div>
+
+      <StepActions onBack={onBack} onContinue={onContinue} continueLabel="Save and Continue" />
+    </div>
+  );
+}
+
+function SplitCircle({ left, right }: { left: string; right: string }) {
+  return (
+    <div
+      className="mx-auto flex h-[88px] w-[88px] shrink-0 overflow-hidden rounded-full border border-black/10 shadow-sm"
+      aria-hidden
+    >
+      <div className="h-full w-1/2" style={{ backgroundColor: left }} />
+      <div className="h-full w-1/2" style={{ backgroundColor: right }} />
+    </div>
+  );
+}
+
+export function BrandingStep({
+  platformColors,
+  themeMode,
+  onThemeModeChange,
+  fontId,
+  onFontChange,
+  primaryHex,
+  secondaryHex,
+  accentHex,
+  headline,
+  subtitle,
+  backgroundUrl,
+  orgName,
+  preview,
+  onPrimaryChange,
+  onSecondaryChange,
+  onAccentChange,
+  onHeadlineChange,
+  onSubtitleChange,
+  onBackgroundChange,
+  onContinue,
+  onBack,
+}: {
+  platformColors: { primary: string; secondary: string; accent: string };
+  themeMode: TenantBrandingThemeMode;
+  onThemeModeChange: (mode: TenantBrandingThemeMode) => void;
+  fontId: TenantBrandingFontId;
+  onFontChange: (id: TenantBrandingFontId) => void;
+  primaryHex: string;
+  secondaryHex: string;
+  accentHex: string;
+  headline: string;
+  subtitle: string;
+  backgroundUrl: string;
+  orgName: string;
+  preview: TenantBranding;
+  onPrimaryChange: (value: string) => void;
+  onSecondaryChange: (value: string) => void;
+  onAccentChange: (value: string) => void;
+  onHeadlineChange: (value: string) => void;
+  onSubtitleChange: (value: string) => void;
+  onBackgroundChange: (value: string) => void;
+  onContinue: () => void;
+  onBack: () => void;
+}) {
+  const previewFont = brandingFontStack(fontId);
+  const customSwatchLeft = "#94a3b8";
+  const customSwatchRight = "#e2e8f0";
+
+  return (
+    <div>
+      <div className="text-left">
+        <h2 className="text-[30px] font-semibold leading-[36px] text-[#0f172a]" style={interStyle}>
+          Branding
+        </h2>
+        <p className="mt-[8px] text-[16px] font-normal leading-[24px] text-[#64748b]" style={interStyle}>
+          Customize your company&apos;s look and feel.
+        </p>
+      </div>
+
+      <div className="mt-[28px] space-y-[28px]">
+        <section>
+          <h3 className="text-[16px] font-semibold leading-[22px] text-[#334155]" style={interStyle}>
+            Select Theme Colors
+          </h3>
+          <div className="mt-[16px] grid grid-cols-2 gap-[14px]">
+            <button
+              type="button"
+              onClick={() => onThemeModeChange("system")}
+              className={`flex flex-col items-center rounded-[14px] border-2 bg-[#f8fafc] px-[16px] py-[20px] transition ${
+                themeMode === "system"
+                  ? "border-[color:var(--brand-primary)] ring-1 ring-[color:color-mix(in_srgb,var(--brand-primary)_35%,transparent)]"
+                  : "border-transparent hover:border-[#e2e8f0]"
+              }`}
+            >
+              <SplitCircle left={platformColors.primary} right={platformColors.accent} />
+              <div className="mt-[14px] flex items-center gap-1.5">
+                {themeMode === "system" ? (
+                  <Check className="h-[16px] w-[16px] text-[color:var(--brand-secondary)]" strokeWidth={2.5} />
+                ) : null}
+                <span className="text-[14px] font-medium text-[#0f172a]" style={interStyle}>
+                  System Default
+                </span>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => onThemeModeChange("custom")}
+              className={`flex flex-col items-center rounded-[14px] border-2 bg-white px-[16px] py-[20px] transition ${
+                themeMode === "custom"
+                  ? "border-[color:var(--brand-primary)] ring-1 ring-[color:color-mix(in_srgb,var(--brand-primary)_35%,transparent)]"
+                  : "border-[#e8edf4] hover:border-[#cbd5e1]"
+              }`}
+            >
+              <SplitCircle left={customSwatchLeft} right={customSwatchRight} />
+              <span className="mt-[14px] text-[14px] font-medium text-[#0f172a]" style={interStyle}>
+                Custom Color
+              </span>
+            </button>
+          </div>
+
+          {themeMode === "custom" ? (
+            <div className="mt-[20px] grid gap-[16px] sm:grid-cols-3">
+              {[
+                { label: "Primary", value: primaryHex, onChange: onPrimaryChange },
+                { label: "Secondary", value: secondaryHex, onChange: onSecondaryChange },
+                { label: "Accent", value: accentHex, onChange: onAccentChange },
+              ].map((color) => (
+                <label key={color.label} className="block">
+                  <span className="mb-[8px] block text-[13px] font-medium text-[#475569]" style={interStyle}>
+                    {color.label}
+                  </span>
+                  <div className="flex items-center gap-3 rounded-[10px] border border-[#e2e8f0] bg-white p-3">
+                    <input
+                      type="color"
+                      value={color.value}
+                      onChange={(e) => color.onChange(e.target.value)}
+                      className="h-10 w-10 cursor-pointer rounded border-0 bg-transparent p-0"
+                    />
+                    <span className="font-mono text-[12px] text-[#64748b]">{color.value}</span>
+                  </div>
+                </label>
+              ))}
+            </div>
+          ) : null}
+        </section>
+
+        <section>
+          <h3 className="text-[16px] font-semibold leading-[22px] text-[#334155]" style={interStyle}>
+            Select Fonts
+          </h3>
+          <div className="mt-[16px] flex flex-wrap gap-[10px]">
+            {TENANT_BRANDING_FONT_OPTIONS.map((opt) => {
+              const selected = fontId === opt.id;
+              return (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => onFontChange(opt.id)}
+                  className={`flex min-w-[100px] flex-1 flex-col items-center justify-center rounded-[12px] border px-[12px] py-[18px] transition sm:min-w-[108px] ${
+                    selected
+                      ? "border-[color:var(--brand-primary)] bg-[#f8fafc]"
+                      : "border-[#e2e8f0] bg-white hover:border-[#cbd5e1]"
+                  }`}
+                >
+                  <span
+                    className="text-[18px] font-semibold leading-none text-[#0f172a]"
+                    style={{ fontFamily: opt.fontFamily }}
+                  >
+                    {opt.label}
+                  </span>
+                  {"isSystemDefault" in opt && opt.isSystemDefault ? (
+                    <span className="mt-[8px] text-[11px] text-[#64748b]" style={interStyle}>
+                      System Default
+                    </span>
+                  ) : null}
+                </button>
+              );
+            })}
+          </div>
+          <p className="mt-[14px] text-[13px] leading-[20px] text-[#64748b]" style={interStyle}>
+            Note: You can skip this step if you want to use the default theme and font.
+          </p>
+        </section>
+
+        <section className="rounded-[14px] border border-[#e8edf4] bg-[#fafafa] px-[16px] py-[18px]">
+          <p className="mb-[14px] text-[13px] font-semibold text-[#475569]" style={interStyle}>
+            Messages & background (optional)
+          </p>
+          <div className="space-y-[16px]">
+            <TextField
+              label="Welcome headline"
+              required={false}
+              value={headline}
+              onChange={onHeadlineChange}
+              placeholder={`Welcome to ${orgName.trim() || "your organization"}`}
+            />
+            <TextField
+              label="Subtitle"
+              required={false}
+              value={subtitle}
+              onChange={onSubtitleChange}
+              placeholder="HR Simplified for growing teams"
+            />
+            <TextField
+              label="Background image URL"
+              required={false}
+              value={backgroundUrl}
+              onChange={onBackgroundChange}
+              placeholder="/images/singup-bg-image.jpg"
+            />
+          </div>
+        </section>
+
+        <div className="rounded-[16px] border border-[#e2e8f0] bg-[#f8fafc] p-[16px]">
+          <p className="mb-[12px] text-[13px] font-semibold uppercase tracking-wide text-[#64748b]" style={interStyle}>
+            Live preview
+          </p>
+          <div
+            className="overflow-hidden rounded-[12px] border border-[#e2e8f0] bg-white"
+            style={{
+              background: `linear-gradient(135deg, ${preview.primaryHex}22 0%, ${preview.secondaryHex}33 100%)`,
+            }}
+          >
+            <div className="space-y-3 p-4" style={{ fontFamily: previewFont }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={preview.logoUrl} alt="" className="mx-auto h-10 max-w-[140px] object-contain" />
+              <p className="text-center text-[14px] font-semibold text-[#0f172a]">{preview.headline}</p>
+              <p className="text-center text-[12px] text-[#64748b]">{preview.subtitle}</p>
+              <button
+                type="button"
+                className="w-full rounded-[8px] py-2.5 text-[13px] font-semibold text-white"
+                style={{ backgroundColor: preview.primaryHex }}
+              >
+                Start application
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-[36px] flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <button
+          type="button"
+          onClick={onBack}
+          className="flex h-[52px] w-full items-center justify-center rounded-[12px] border-2 border-[color:var(--brand-secondary)] bg-white text-[15px] font-semibold text-[color:var(--brand-secondary)] transition hover:bg-[#f8fafc] sm:w-auto sm:min-w-[140px]"
+          style={interStyle}
+        >
+          Back
+        </button>
+        <button
+          type="button"
+          onClick={onContinue}
+          className="flex h-[52px] w-full items-center justify-center rounded-[12px] text-[15px] font-semibold text-white transition enabled:hover:brightness-95 sm:w-auto sm:min-w-[220px]"
+          style={primaryButtonStyle(true)}
+        >
+          Save and Continue
+        </button>
+      </div>
+    </div>
+  );
+}
+
+export function DomainStep({
+  subdomain,
+  publicRootDomain,
+  onSubdomainChange,
+  onContinue,
+  onBack,
+}: {
+  subdomain: string;
+  publicRootDomain: string;
+  onSubdomainChange: (value: string) => void;
+  onContinue: () => void;
+  onBack: () => void;
+}) {
+  const validation = validateTenantSubdomainInput(subdomain);
+  const canContinue = !("failure" in validation);
+  const hostPreview = publicRootDomain ? `${subdomain || "your-org"}.${publicRootDomain}` : null;
+
+  return (
+    <div>
+      <StepHeading title="Create your BrassHR Domain" subtitle="Customize your BrassHR Domain" />
+
+      <div className="mt-[28px] space-y-[24px]">
+        <div className="rounded-[12px] border border-[#b6c8de] bg-[#f8fbff] p-[18px]">
+          <div className="flex flex-wrap items-center gap-4 rounded-[12px] border border-[#d4dbe6] bg-white p-[10px]">
+            <div className="flex h-[40px] w-[40px] items-center justify-center rounded-[8px] bg-[#f8fbff] text-[#104b83]">
+              <Link2 className="h-[18px] w-[18px]" />
+            </div>
+            <input
+              value={subdomain}
+              onChange={(e) => onSubdomainChange(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))}
+              placeholder="companydomain"
+              autoCapitalize="off"
+              autoCorrect="off"
+              spellCheck={false}
+              style={inputTypographyStyle}
+              className={`min-w-[180px] flex-1 border-0 bg-transparent py-[10px] ${inputTextClass} text-[#0f172a] outline-none`}
+            />
+            <span className="text-[20px] leading-none text-[#0b3a70]">.</span>
+            <span className="text-[20px] font-semibold leading-none text-[#0b3a70]" style={interStyle}>
+              {publicRootDomain || "brasshr.com"}
+            </span>
+          </div>
+          <div className="mt-[14px] text-[16px] leading-[24px] text-[#0f172a]" style={interStyle}>
+            Domain preview:&nbsp;
+            <span className="font-semibold">{hostPreview ?? "abcccompany.brasshr.com"}</span>
+          </div>
+          {"failure" in validation && subdomain.length > 0 ? (
+            <p className="mt-2 text-[13px] text-[#b91c1c]">{subdomainErrorMessage(validation.failure)}</p>
+          ) : null}
+        </div>
+      </div>
+
+      <div className="mt-[32px] flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-end">
+        <BackButton onClick={onBack} />
+        <ContinueButton
+          className="sm:max-w-[280px]"
+          label="Save and Continue"
+          disabled={!canContinue}
+          onClick={onContinue}
+        />
+      </div>
+    </div>
+  );
+}
+
+export function WorkerOnboardingStep({
+  steps,
+  onStepsChange,
+  onContinue,
+  onBack,
+}: {
+  steps: OnboardingStepDraft[];
+  onStepsChange: (steps: OnboardingStepDraft[]) => void;
+  onContinue: () => void;
+  onBack: () => void;
+}) {
+  return (
+    <div>
+      <StepHeading
+        title="Worker onboarding flow"
+        subtitle="Choose which steps applicants complete and which documents are required."
+      />
+      <div className="mt-[28px]">
+        <OnboardingStepsBuilder steps={steps} onChange={onStepsChange} />
+      </div>
+      <div className="mt-[32px] flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-end">
+        <BackButton onClick={onBack} />
+        <ContinueButton className="sm:max-w-[280px]" onClick={onContinue} />
+      </div>
+    </div>
+  );
+}
+
+function PreviewCard({ b }: { b: TenantBranding }) {
+  return (
+    <div className="overflow-hidden rounded-[16px] border border-[#e2e8f0] bg-white shadow-sm">
+      <div
+        className="grid gap-6 p-8 md:grid-cols-[1fr_minmax(0,280px)]"
+        style={{
+          background: `linear-gradient(135deg, ${b.primaryHex}33 0%, ${b.secondaryHex}44 100%)`,
+        }}
+      >
+        <div className="space-y-4 text-left">
+          <h3 className="text-[24px] font-semibold text-[#0f172a]" style={interStyle}>
+            {b.headline}
+          </h3>
+          <p className="text-[15px] text-[#64748b]" style={interStyle}>
+            {b.subtitle}
+          </p>
+          <button
+            type="button"
+            style={{ backgroundColor: b.primaryHex }}
+            className="rounded-[10px] px-6 py-3 text-[14px] font-semibold text-white"
+          >
+            Start application (preview)
+          </button>
+        </div>
+        <div className="relative flex min-h-[200px] flex-col items-center justify-center gap-3 rounded-[12px] border border-white/60 bg-white/80 p-4 text-center backdrop-blur">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={b.logoUrl} alt="" className="h-14 max-w-[200px] object-contain" />
+          <p className="text-[12px] text-[#64748b]">{b.tagline}</p>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={b.loginBackgroundSrc}
+            alt=""
+            className="pointer-events-none absolute inset-x-4 bottom-3 h-[84px] rounded-lg object-cover opacity-60"
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function PreviewStep({
+  preview,
+  onContinue,
+  onBack,
+}: {
+  preview: TenantBranding;
+  onContinue: () => void;
+  onBack: () => void;
+}) {
+  return (
+    <div>
+      <StepHeading
+        title="Applicant preview"
+        subtitle="This is how your branding will look to applicants."
+      />
+      <div className="mt-[28px]">
+        <PreviewCard b={preview} />
+      </div>
+      <div className="mt-[32px] flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-end">
+        <BackButton onClick={onBack} />
+        <ContinueButton className="sm:max-w-[280px]" label="Continue to admin" onClick={onContinue} />
+      </div>
+    </div>
+  );
+}
+
+export function AdminStep({
+  adminEmail,
+  adminPassword,
+  submitting,
+  onEmailChange,
+  onPasswordChange,
+  onSubmit,
+  onBack,
+}: {
+  adminEmail: string;
+  adminPassword: string;
+  submitting: boolean;
+  onEmailChange: (value: string) => void;
+  onPasswordChange: (value: string) => void;
+  onSubmit: () => void;
+  onBack: () => void;
+}) {
+  const canSubmit = adminEmail.length >= 4 && adminPassword.length >= 6 && !submitting;
+
+  return (
+    <div>
+      <StepHeading
+        title="First recruiting admin"
+        subtitle="Create the recruiter account for your new organization."
+      />
+      <div className="mt-[28px] space-y-[24px]">
+        <div>
+          <FieldLabel>Admin email</FieldLabel>
+          <input
+            type="email"
+            value={adminEmail}
+            onChange={(e) => onEmailChange(e.target.value)}
+            style={inputTypographyStyle}
+            className={`h-[56px] w-full rounded-[8px] border border-[#cbd5e1] bg-white px-[14px] ${inputTextClass} text-[#0f172a] outline-none transition placeholder:text-[#94a3b8] ${inputFocusClass}`}
+            required
+          />
+        </div>
+        <div>
+          <FieldLabel>Password (min 6 chars)</FieldLabel>
+          <input
+            type="password"
+            value={adminPassword}
+            onChange={(e) => onPasswordChange(e.target.value)}
+            style={inputTypographyStyle}
+            className={`h-[56px] w-full rounded-[8px] border border-[#cbd5e1] bg-white px-[14px] ${inputTextClass} text-[#0f172a] outline-none transition placeholder:text-[#94a3b8] ${inputFocusClass}`}
+            required
+          />
+        </div>
+      </div>
+      <div className="mt-[32px] flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-end">
+        <BackButton onClick={onBack} />
+        <ContinueButton
+          className="sm:max-w-[320px]"
+          label={submitting ? "Saving..." : "Save tenant & invite admin"}
+          disabled={!canSubmit}
+          onClick={onSubmit}
+        />
+      </div>
+    </div>
+  );
+}
+
+export function DoneStep({
+  preview,
+  createdSlug,
+  createdDomain,
+}: {
+  preview: TenantBranding;
+  createdSlug: string | null;
+  createdDomain: string | null;
+}) {
+  return (
+    <div className="text-center">
+      <div className="mx-auto flex h-[72px] w-[72px] items-center justify-center rounded-full bg-[color:color-mix(in_srgb,var(--brand-primary)_15%,white)]">
+        <Check className="h-[36px] w-[36px] text-[color:var(--brand-primary)]" strokeWidth={2.5} />
+      </div>
+      <h2 className="mt-[24px] text-[30px] font-semibold leading-[36px] text-[#0f172a]" style={interStyle}>
+        Tenant ready!
+      </h2>
+      <p className="mx-auto mt-[12px] max-w-lg text-[16px] leading-[24px] text-[#64748b]" style={interStyle}>
+        Applicant portal:{" "}
+        <span className="font-mono text-[#0f172a]">
+          {createdDomain ? `https://${createdDomain}` : createdSlug ? `tenant “${createdSlug}”` : "—"}
+        </span>
+        . Sign in with the recruiter you created, then share your subdomain URL with applicants.
+      </p>
+      <div className="mt-[32px] flex flex-wrap justify-center gap-3">
+        <Link
+          href="/login"
+          className="inline-flex h-[52px] min-w-[200px] items-center justify-center rounded-[12px] px-8 text-[15px] font-semibold text-white"
+          style={primaryButtonStyle(true)}
+        >
+          Go to recruiter login
+        </Link>
+        <Link
+          href={withTenant("/application/step-1-upload", createdSlug)}
+          className="inline-flex h-[52px] min-w-[200px] items-center justify-center rounded-[12px] border border-[#e2e8f0] px-8 text-[15px] font-semibold text-[#0f172a]"
+        >
+          View applicant onboarding
+        </Link>
+      </div>
+    </div>
+  );
+}
+
+export { ErrorBanner };
