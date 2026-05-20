@@ -99,7 +99,6 @@ export default function TenantOnboardingPage() {
           setPrimaryHex(payload.branding.primaryHex);
           setSecondaryHex(payload.branding.secondaryHex);
           setAccentHex(payload.branding.accentHex);
-          setLogoUrl(payload.branding.logoUrl);
           setBackgroundUrl(payload.branding.loginBackgroundSrc);
         }
       } catch {
@@ -258,7 +257,7 @@ export default function TenantOnboardingPage() {
           logoTagline={logoTagline}
           onLogoFileChange={(file, previewUrl) => {
             setLogoFile(file);
-            if (previewUrl) setLogoUrl(previewUrl);
+            setLogoUrl(previewUrl);
           }}
           onLogoUrlChange={setLogoUrl}
           onLogoDisplayNameChange={setLogoDisplayName}

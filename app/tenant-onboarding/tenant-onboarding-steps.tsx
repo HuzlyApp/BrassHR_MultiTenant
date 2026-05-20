@@ -2,8 +2,8 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { Check, ChevronDown, Link2, Upload } from "lucide-react";
-import { useRef, type ChangeEvent, type DragEvent } from "react";
+import { Check, ChevronDown, Link2, Trash2 } from "lucide-react";
+import { useRef, useState, type ChangeEvent, type DragEvent } from "react";
 import OnboardingStepsBuilder from "@/app/components/onboarding/OnboardingStepsBuilder";
 import { interStyle, primaryButtonStyle } from "@/app/tenant-onboarding/TenantOnboardingShell";
 import {
@@ -87,12 +87,12 @@ function ContinueButton({
   );
 }
 
-function BackButton({ onClick }: { onClick: () => void }) {
+function BackButton({ onClick, className = "" }: { onClick: () => void; className?: string }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className="rounded-[12px] border border-[#e2e8f0] px-5 py-3 text-[14px] font-medium text-[#374151] transition hover:bg-[#f8fafc]"
+      className={`flex h-[54px] w-full items-center justify-center rounded-[12px] border border-[#e2e8f0] bg-white text-[16px] font-semibold leading-[22px] tracking-normal text-[#374151] transition hover:bg-[#f8fafc] ${className}`.trim()}
       style={interStyle}
     >
       Back
@@ -105,17 +105,19 @@ function StepActions({
   onContinue,
   continueLabel = "Continue",
   continueDisabled,
+  className = "",
 }: {
   onBack: () => void;
   onContinue: () => void;
   continueLabel?: string;
   continueDisabled?: boolean;
+  className?: string;
 }) {
   return (
-    <div className="mt-[32px] flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-end">
-      <BackButton onClick={onBack} />
+    <div className={`mt-[32px] flex flex-col-reverse gap-3 sm:flex-row sm:items-stretch ${className}`.trim()}>
+      <BackButton onClick={onBack} className="sm:flex-1" />
       <ContinueButton
-        className="sm:max-w-[280px]"
+        className="sm:flex-1"
         label={continueLabel}
         disabled={continueDisabled}
         onClick={onContinue}
@@ -413,9 +415,19 @@ export function CompanyLogoStep({
   onBack: () => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const hasUserLogo = Boolean(logoFile) || logoUrl.startsWith("blob:");
 
   const handleFile = (file: File | null) => {
     if (!file) return;
+
+    const maxBytes = 10 * 1024 * 1024;
+    if (file.size > maxBytes) {
+      setUploadError("Max 10 MB files are allowed");
+      return;
+    }
+
+    setUploadError(null);
     onLogoFileChange(file, URL.createObjectURL(file));
   };
 
@@ -428,6 +440,20 @@ export function CompanyLogoStep({
     handleFile(event.target.files?.[0] ?? null);
   };
 
+  const openFilePicker = () => {
+    inputRef.current?.click();
+  };
+
+  const handleRemoveLogo = () => {
+    setUploadError(null);
+    onLogoFileChange(null, "");
+    onLogoUrlChange("");
+    if (inputRef.current) inputRef.current.value = "";
+  };
+
+  const previewName = logoDisplayName.trim() || orgName.trim() || "Your company name";
+  const previewTagline = logoTagline.trim() || "Your company tagline";
+
   return (
     <div>
       <StepHeading
@@ -436,54 +462,120 @@ export function CompanyLogoStep({
       />
 
       <div className="mt-[28px] space-y-[24px]">
-        <div
-          role="button"
-          tabIndex={0}
-          onClick={() => inputRef.current?.click()}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === " ") inputRef.current?.click();
-          }}
-          onDragOver={(e) => e.preventDefault()}
-          onDrop={onDrop}
-          className="flex cursor-pointer flex-col items-center justify-center rounded-[16px] border-2 border-dashed border-[#cbd5e1] bg-[#f8fafc] px-6 py-[48px] transition hover:border-[color:var(--brand-primary)] hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_4%,white)]"
-        >
-          {logoUrl ? (
-            <div className="flex flex-col items-center gap-4">
-              <div className="flex h-[120px] w-[120px] items-center justify-center rounded-[16px] border border-[#e2e8f0] bg-white p-4 shadow-sm">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={logoUrl} alt="" className="max-h-[96px] max-w-[96px] object-contain" />
-              </div>
-              <p className="text-[14px] font-medium text-[#0f172a]" style={interStyle}>
-                {logoFile?.name ?? "Logo uploaded"}
-              </p>
-              <p className="text-[13px] text-[#64748b]" style={interStyle}>
-                Click or drag to replace
-              </p>
-            </div>
-          ) : (
-            <>
-              <span
-                className="flex h-[56px] w-[56px] items-center justify-center rounded-full"
-                style={{ backgroundColor: "color-mix(in srgb, var(--brand-primary) 12%, white)" }}
-              >
-                <Upload className="h-[24px] w-[24px]" style={{ color: "var(--brand-primary)" }} />
-              </span>
-              <p className="mt-[16px] text-[16px] font-semibold text-[#0f172a]" style={interStyle}>
-                Upload your company logo
-              </p>
-              <p className="mt-[6px] text-[14px] text-[#64748b]" style={interStyle}>
-                Drag & drop PNG, JPG, WEBP, or SVG — or click to browse
-              </p>
-            </>
-          )}
-          <input
-            ref={inputRef}
-            type="file"
-            accept="image/png,image/jpeg,image/webp,image/svg+xml"
-            className="hidden"
-            onChange={onFileInput}
+        <div className="grid gap-[16px] sm:grid-cols-2">
+          <TextField
+            label="Logo name"
+            required={false}
+            value={logoDisplayName}
+            onChange={onLogoDisplayNameChange}
+            placeholder={orgName.trim() || "Your company name"}
+          />
+          <TextField
+            label="Tagline"
+            required={false}
+            value={logoTagline}
+            onChange={onLogoTaglineChange}
+            placeholder="Your company tagline"
           />
         </div>
+
+        {hasUserLogo ? (
+          <div className="rounded-[12px] border border-[color:color-mix(in_srgb,var(--brand-primary)_35%,#e2e8f0)] bg-[#f8fafc] px-[16px] py-[14px]">
+            <div className="flex items-center gap-[14px]">
+              <div className="flex h-[56px] w-[56px] shrink-0 items-center justify-center overflow-hidden rounded-full border border-[#e2e8f0] bg-white">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={logoUrl} alt="" className="max-h-[44px] max-w-[44px] object-contain" />
+              </div>
+              <div className="min-w-0 flex-1 text-left">
+                <p className="truncate text-[16px] font-semibold leading-[22px] text-[#0f172a]" style={interStyle}>
+                  {previewName}
+                </p>
+                <p className="truncate text-[14px] leading-[20px] text-[#64748b]" style={interStyle}>
+                  {previewTagline}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleRemoveLogo}
+                className="flex h-[40px] w-[40px] shrink-0 items-center justify-center rounded-[8px] text-[color:var(--brand-primary)] transition hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_10%,white)]"
+                aria-label="Remove logo"
+              >
+                <Trash2 className="h-[20px] w-[20px]" strokeWidth={2} />
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div>
+            <h3 className="text-[16px] font-semibold leading-[24px] text-[#0f172a]" style={interStyle}>
+              Upload Logo
+            </h3>
+
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={openFilePicker}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") openFilePicker();
+              }}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={onDrop}
+              className="mt-[16px] flex cursor-pointer flex-col items-center justify-center rounded-[12px] border border-dashed border-[#64748b] bg-white px-6 py-[32px] transition hover:border-[color:var(--brand-secondary)] hover:bg-[#f8fafc]"
+            >
+              <Image
+                src="/icons/braas-HR/tenant-onboarding/upload.svg"
+                alt=""
+                width={36}
+                height={36}
+                className="h-[36px] w-[36px]"
+              />
+              <p className="mt-[16px] text-[16px] font-medium leading-[24px] text-[#104b83]" style={interStyle}>
+                Drag your file(s) to start uploading
+              </p>
+
+              <div className="my-[16px] flex w-full max-w-[320px] items-center gap-3">
+                <div className="h-px flex-1 bg-[#cbd5e1]" aria-hidden />
+                <span className="text-[14px] font-medium leading-[20px] text-[#64748b]" style={interStyle}>
+                  OR
+                </span>
+                <div className="h-px flex-1 bg-[#cbd5e1]" aria-hidden />
+              </div>
+
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  openFilePicker();
+                }}
+                className="flex h-[44px] min-w-[160px] items-center justify-center rounded-[8px] border border-[#104b83] bg-white px-6 text-[14px] font-semibold leading-[20px] text-[#104b83] transition hover:bg-[#f8fafc]"
+                style={interStyle}
+              >
+                Browse files
+              </button>
+
+              <p className="mt-[12px] text-[13px] leading-[18px] text-[#94a3b8]" style={interStyle}>
+                Max 10 MB files are allowed
+              </p>
+
+              <input
+                ref={inputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                className="hidden"
+                onChange={onFileInput}
+              />
+            </div>
+
+            {uploadError ? (
+              <p className="mt-[8px] text-[13px] leading-[18px] text-[#b91c1c]" style={interStyle}>
+                {uploadError}
+              </p>
+            ) : null}
+
+            <p className="mt-[12px] text-center text-[14px] leading-[20px] text-[#64748b]" style={interStyle}>
+              Recommended image size: 512×512 px
+            </p>
+          </div>
+        )}
 
         <div>
           <FieldLabel required={false}>Logo URL (optional)</FieldLabel>
@@ -493,23 +585,6 @@ export function CompanyLogoStep({
             placeholder="/images/logo.svg or https://…"
             style={inputTypographyStyle}
             className={`h-[56px] w-full rounded-[8px] border border-[#cbd5e1] bg-white px-[14px] ${inputTextClass} text-[#0f172a] outline-none transition placeholder:text-[#94a3b8] ${inputFocusClass}`}
-          />
-        </div>
-
-        <div className="grid gap-[16px] sm:grid-cols-2">
-          <TextField
-            label="Logo display name"
-            required={false}
-            value={logoDisplayName}
-            onChange={onLogoDisplayNameChange}
-            placeholder={orgName.trim() || "Your company name"}
-          />
-          <TextField
-            label="Logo tagline"
-            required={false}
-            value={logoTagline}
-            onChange={onLogoTaglineChange}
-            placeholder="Your company tagline"
           />
         </div>
       </div>
@@ -753,24 +828,12 @@ export function BrandingStep({
         </div>
       </div>
 
-      <div className="mt-[36px] flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <button
-          type="button"
-          onClick={onBack}
-          className="flex h-[52px] w-full items-center justify-center rounded-[12px] border-2 border-[color:var(--brand-secondary)] bg-white text-[15px] font-semibold text-[color:var(--brand-secondary)] transition hover:bg-[#f8fafc] sm:w-auto sm:min-w-[140px]"
-          style={interStyle}
-        >
-          Back
-        </button>
-        <button
-          type="button"
-          onClick={onContinue}
-          className="flex h-[52px] w-full items-center justify-center rounded-[12px] text-[15px] font-semibold text-white transition enabled:hover:brightness-95 sm:w-auto sm:min-w-[220px]"
-          style={primaryButtonStyle(true)}
-        >
-          Save and Continue
-        </button>
-      </div>
+      <StepActions
+        className="mt-[36px]"
+        onBack={onBack}
+        onContinue={onContinue}
+        continueLabel="Save and Continue"
+      />
     </div>
   );
 }
@@ -827,15 +890,12 @@ export function DomainStep({
         </div>
       </div>
 
-      <div className="mt-[32px] flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-end">
-        <BackButton onClick={onBack} />
-        <ContinueButton
-          className="sm:max-w-[280px]"
-          label="Save and Continue"
-          disabled={!canContinue}
-          onClick={onContinue}
-        />
-      </div>
+      <StepActions
+        onBack={onBack}
+        onContinue={onContinue}
+        continueLabel="Save and Continue"
+        continueDisabled={!canContinue}
+      />
     </div>
   );
 }
@@ -860,10 +920,7 @@ export function WorkerOnboardingStep({
       <div className="mt-[28px]">
         <OnboardingStepsBuilder steps={steps} onChange={onStepsChange} />
       </div>
-      <div className="mt-[32px] flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-end">
-        <BackButton onClick={onBack} />
-        <ContinueButton className="sm:max-w-[280px]" onClick={onContinue} />
-      </div>
+      <StepActions onBack={onBack} onContinue={onContinue} />
     </div>
   );
 }
@@ -926,10 +983,7 @@ export function PreviewStep({
       <div className="mt-[28px]">
         <PreviewCard b={preview} />
       </div>
-      <div className="mt-[32px] flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-end">
-        <BackButton onClick={onBack} />
-        <ContinueButton className="sm:max-w-[280px]" label="Continue to admin" onClick={onContinue} />
-      </div>
+      <StepActions onBack={onBack} onContinue={onContinue} continueLabel="Continue to admin" />
     </div>
   );
 }
@@ -983,15 +1037,12 @@ export function AdminStep({
           />
         </div>
       </div>
-      <div className="mt-[32px] flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-end">
-        <BackButton onClick={onBack} />
-        <ContinueButton
-          className="sm:max-w-[320px]"
-          label={submitting ? "Saving..." : "Save tenant & invite admin"}
-          disabled={!canSubmit}
-          onClick={onSubmit}
-        />
-      </div>
+      <StepActions
+        onBack={onBack}
+        onContinue={onSubmit}
+        continueLabel={submitting ? "Saving..." : "Save tenant & invite admin"}
+        continueDisabled={!canSubmit}
+      />
     </div>
   );
 }

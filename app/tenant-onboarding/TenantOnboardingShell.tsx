@@ -8,7 +8,19 @@ import TenantOnboardingStepper, {
 import { TenantBrandingProvider } from "@/app/components/tenant/TenantBrandingContext";
 import { brandingToCssVars, type TenantBranding } from "@/lib/tenant/tenant-branding";
 
-export const interStyle = { fontFamily: "Inter, Arial, sans-serif" };
+export const interStyle = {
+  fontFamily: "var(--font-tenant-branding-inter), Inter, Arial, sans-serif",
+};
+
+/** Shell subtitle — "Get started by following these 4 easy steps." */
+export const shellSubtitleStyle: React.CSSProperties = {
+  ...interStyle,
+  fontWeight: 600,
+  fontSize: "18px",
+  lineHeight: "28px",
+  letterSpacing: "0",
+  textAlign: "center",
+};
 
 type TenantOnboardingShellProps = {
   brand: TenantBranding;
@@ -69,17 +81,14 @@ export default function TenantOnboardingShell({
             >
               Welcome to {brand.companyName}!
             </h1>
-            <p
-              className="mt-[6px] text-[16px] font-normal leading-[24px] text-[#0f172a]"
-              style={interStyle}
-            >
+            <p className="mt-[6px] w-full text-[18px] font-semibold leading-[28px] tracking-normal text-[#0f172a]" style={shellSubtitleStyle}>
               Get started by following these 4 easy steps.
             </p>
 
             {!hideStepper ? <TenantOnboardingStepper phase={phase} className="w-full" /> : null}
           </div>
 
-          <div className="mt-[28px] w-full">{children}</div>
+          <div className={`w-full ${hideStepper ? "mt-[32px]" : "mt-[58px]"}`}>{children}</div>
         </div>
       </main>
     </TenantBrandingProvider>

@@ -20,11 +20,8 @@ export type TenantOnboardingStepperPhase =
   | "setup"
   | "done";
 
-const STEPPER_WIDTH = 620;
-const STEP_WIDTH = 155;
 const LINE_TOP = 7;
 const ICON_SIZE = 16;
-const LINE_INSET = STEP_WIDTH / 2;
 const TRACK_LINE = "#e8edf4";
 const PENDING_TEXT = "#94a3b8";
 const ACTIVE_TEXT = "#0f172a";
@@ -81,11 +78,6 @@ function getStepperConfig(phase: TenantOnboardingStepperPhase) {
   }
 }
 
-function getGoldFillPercent(connectorProgress: readonly [number, number, number]) {
-  const [first, second, third] = connectorProgress;
-  return ((first + second + third) / 3) * 100;
-}
-
 type StepIconProps = {
   isCompleted: boolean;
   isActive: boolean;
@@ -115,68 +107,72 @@ function StepIcon({ isCompleted, isActive, isPending, showCheckOnActive }: StepI
   );
 }
 
-export default function TenantOnboardingStepper({ phase, className = "" }: TenantOnboardingStepperProps) {
-  const { completedStepIndex, activeStepIndex, connectorProgress } = getStepperConfig(phase);
-  const goldFillPercent = getGoldFillPercent(connectorProgress);
-  const trackWidthExpr = `calc(100% - ${STEP_WIDTH}px)`;
+type ConnectorSegmentProps = {
+  progress: number;
+};
+
+function ConnectorSegment({ progress }: ConnectorSegmentProps) {
   const gold = "var(--brand-primary, #BC8B41)";
+  const fill = Math.min(100, Math.max(0, progress * 100));
 
   return (
-    <div className={`mt-[24px] w-full max-w-full ${className}`.trim()} style={{ maxWidth: STEPPER_WIDTH }}>
-      <div className="relative h-[66px] w-full">
-        <div
-          className="absolute h-[2px]"
-          style={{
-            top: LINE_TOP,
-            left: LINE_INSET,
-            width: trackWidthExpr,
-            backgroundColor: TRACK_LINE,
-          }}
-          aria-hidden
-        />
-        <div
-          className="absolute h-[2px]"
-          style={{
-            top: LINE_TOP,
-            left: LINE_INSET,
-            width: `calc(${trackWidthExpr} * ${goldFillPercent / 100})`,
-            backgroundColor: gold,
-          }}
-          aria-hidden
-        />
+    <div
+      className="pointer-events-none absolute z-0 h-[2px]"
+      style={{
+        top: LINE_TOP,
+        left: "50%",
+        width: "100%",
+      }}
+      aria-hidden
+    >
+      <div className="absolute inset-0" style={{ backgroundColor: TRACK_LINE }} />
+      <div
+        className="absolute inset-y-0 left-0"
+        style={{
+          width: `${fill}%`,
+          backgroundColor: gold,
+        }}
+      />
+    </div>
+  );
+}
 
-        <div className="relative flex w-full items-start justify-between">
-          {TENANT_ONBOARDING_STEPPER_ITEMS.map((item, index) => {
-            const isCompleted = index <= completedStepIndex;
-            const isActive = index === activeStepIndex;
-            const isPending = index > activeStepIndex;
+export default function TenantOnboardingStepper({ phase, className = "" }: TenantOnboardingStepperProps) {
+  const { completedStepIndex, activeStepIndex, connectorProgress } = getStepperConfig(phase);
 
-            return (
-              <div
-                key={item}
-                className="relative z-10 flex flex-col items-center px-1"
-                style={{ width: STEP_WIDTH }}
+  return (
+    <div className={`mt-[24px] w-full ${className}`.trim()}>
+      <div className="grid w-full grid-cols-4">
+        {TENANT_ONBOARDING_STEPPER_ITEMS.map((item, index) => {
+          const isCompleted = index <= completedStepIndex;
+          const isActive = index === activeStepIndex;
+          const isPending = index > activeStepIndex;
+
+          return (
+            <div key={item} className="relative flex min-w-0 flex-col items-center">
+              {index < TENANT_ONBOARDING_STEPPER_ITEMS.length - 1 ? (
+                <ConnectorSegment progress={connectorProgress[index] ?? 0} />
+              ) : null}
+
+              <StepIcon
+                isCompleted={isCompleted}
+                isActive={isActive}
+                isPending={isPending}
+                showCheckOnActive={phase === "goals" && index === 0}
+              />
+              <span
+                className="mt-[10px] w-full px-1 text-center text-[10px] font-normal leading-[12px] tracking-normal"
+                style={{
+                  ...interStyle,
+                  color: isPending ? PENDING_TEXT : ACTIVE_TEXT,
+                  fontWeight: isActive ? 600 : 400,
+                }}
               >
-                <StepIcon
-                  isCompleted={isCompleted}
-                  isActive={isActive}
-                  isPending={isPending}
-                  showCheckOnActive={phase === "goals" && index === 0}
-                />
-                <span
-                  className="mt-[10px] w-full text-center text-[10px] font-normal leading-[12px] tracking-normal"
-                  style={{
-                    ...interStyle,
-                    color: isPending ? PENDING_TEXT : ACTIVE_TEXT,
-                    fontWeight: isActive ? 600 : 400,
-                  }}
-                >
-                  {item}
-                </span>
-              </div>
-            );
-          })}
-        </div>
+                {item}
+              </span>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
