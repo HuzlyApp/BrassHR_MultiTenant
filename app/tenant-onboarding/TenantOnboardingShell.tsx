@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import type { ReactNode } from "react";
 import TenantOnboardingStepper, {
   tenantOnboardingStepToPhase,
@@ -22,6 +23,33 @@ export const shellSubtitleStyle: React.CSSProperties = {
   textAlign: "center",
 };
 
+/** Figma: fontFamilies/secondary, fontSize/xsm, lineHeights/sm, letterSpacing/md */
+export const skipForNowButtonStyle: React.CSSProperties = {
+  fontFamily: "var(--font-geist-sans), Inter, Arial, sans-serif",
+  fontWeight: 600,
+  fontSize: "12px",
+  lineHeight: "16px",
+  letterSpacing: "0.02em",
+  verticalAlign: "middle",
+  color: "#104b83",
+};
+
+function SkipForNowButton({ onClick }: { onClick: () => void }) {
+  return (
+    <div className="my-[36px] flex w-full items-center justify-end">
+      <button
+        type="button"
+        onClick={onClick}
+        className="inline-flex cursor-pointer items-center gap-[6px] transition hover:text-[#0b3a70]"
+        style={skipForNowButtonStyle}
+      >
+        Skip for Now
+        <Image src="/icons/braas-HR/skip.svg" alt="" width={5} height={8} aria-hidden />
+      </button>
+    </div>
+  );
+}
+
 type TenantOnboardingShellProps = {
   brand: TenantBranding;
   step:
@@ -39,6 +67,8 @@ type TenantOnboardingShellProps = {
   hideStepper?: boolean;
   /** Override stepper phase (e.g. extended setup steps) */
   stepperPhase?: TenantOnboardingStepperPhase;
+  /** Advance to the next step without filling the form */
+  onSkip?: () => void;
 };
 
 export function primaryButtonStyle(enabled: boolean): React.CSSProperties | undefined {
@@ -55,8 +85,10 @@ export default function TenantOnboardingShell({
   children,
   hideStepper = false,
   stepperPhase,
+  onSkip,
 }: TenantOnboardingShellProps) {
   const phase = stepperPhase ?? tenantOnboardingStepToPhase(step);
+  const showSkip = Boolean(onSkip) && step !== "done" && step !== "admin";
 
   return (
     <TenantBrandingProvider branding={brand}>
@@ -86,9 +118,12 @@ export default function TenantOnboardingShell({
             </p>
 
             {!hideStepper ? <TenantOnboardingStepper phase={phase} className="w-full" /> : null}
+            {showSkip ? <SkipForNowButton onClick={onSkip!} /> : null}
           </div>
 
-          <div className={`w-full ${hideStepper ? "mt-[32px]" : "mt-[58px]"}`}>{children}</div>
+          <div className={`w-full ${hideStepper ? "mt-[32px]" : showSkip ? "mt-0" : "mt-[58px]"}`}>
+            {children}
+          </div>
         </div>
       </main>
     </TenantBrandingProvider>

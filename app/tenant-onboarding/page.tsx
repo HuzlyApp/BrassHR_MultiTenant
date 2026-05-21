@@ -144,6 +144,20 @@ export default function TenantOnboardingPage() {
     );
   };
 
+  const handleSkip = () => {
+    const nextStep: Partial<Record<Step, Step>> = {
+      goals: "business",
+      business: "company_logo",
+      company_logo: "branding",
+      branding: "domain",
+      domain: "onboarding",
+      onboarding: "preview",
+      preview: "admin",
+    };
+    const next = nextStep[step];
+    if (next) setStep(next);
+  };
+
   const finalize = async () => {
     setSubmitting(true);
     setError(null);
@@ -226,7 +240,7 @@ export default function TenantOnboardingPage() {
   }
 
   return (
-    <TenantOnboardingShell brand={preview} step={step} hideStepper={step === "done"}>
+    <TenantOnboardingShell brand={preview} step={step} hideStepper={step === "done"} onSkip={handleSkip}>
       {error ? <ErrorBanner message={error} /> : null}
 
       {step === "goals" ? (

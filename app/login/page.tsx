@@ -29,7 +29,8 @@ import { supabaseBrowser } from "@/lib/supabase-browser";
 const inputFocusClass =
   "focus:border-[color:var(--brand-primary)] focus:ring-2 focus:ring-[color:color-mix(in_srgb,var(--brand-primary)_20%,transparent)]";
 
-const checkboxActiveClass = "border-[color:var(--brand-primary)] bg-[color:var(--brand-primary)]";
+/** Figma Brand Brass / Deep Navy — sign-in checkboxes only (not from API). */
+const checkboxActiveClass = "border-[#012352] bg-[#012352]";
 
 function primaryButtonStyle(enabled: boolean): React.CSSProperties | undefined {
   if (!enabled) return undefined;

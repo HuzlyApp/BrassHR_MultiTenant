@@ -92,7 +92,7 @@ function BackButton({ onClick, className = "" }: { onClick: () => void; classNam
     <button
       type="button"
       onClick={onClick}
-      className={`flex h-[54px] w-full items-center justify-center rounded-[12px] border border-[#e2e8f0] bg-white text-[16px] font-semibold leading-[22px] tracking-normal text-[#374151] transition hover:bg-[#f8fafc] ${className}`.trim()}
+      className={`flex h-[54px] w-full items-center justify-center rounded-[12px] border border-[#012352] bg-white text-[16px] font-semibold leading-[22px] tracking-normal text-md text-[#012352] transition hover:bg-[#f8fafc] ${className}`.trim()}
       style={interStyle}
     >
       Back

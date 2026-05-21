@@ -150,6 +150,7 @@ export function brandingFromTenantRow(
     primaryHex: row.primary_color?.trim() || fb.primaryHex,
     secondaryHex: row.secondary_color?.trim() || fb.secondaryHex,
     accentHex: row.accent_color?.trim() || fb.accentHex,
+    checkboxHex: row.checkbox_color?.trim() || fb.checkboxHex,
     tagline: row.welcome_subtitle?.trim()
       ? row.welcome_subtitle.trim()
       : `Connecting Healthcare professionals — ${company}.`,
