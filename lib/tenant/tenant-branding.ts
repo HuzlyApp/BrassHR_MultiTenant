@@ -7,6 +7,7 @@ export type TenantBrandingRow = {
   primary_color: string | null;
   secondary_color: string | null;
   accent_color: string | null;
+  checkbox_color: string | null;
   welcome_headline: string | null;
   welcome_subtitle: string | null;
   auth_background_image_url: string | null;
@@ -24,6 +25,7 @@ export type TenantBranding = {
   primaryHex: string;
   secondaryHex: string;
   accentHex: string;
+  checkboxHex: string;
   tagline: string;
 };
 
@@ -40,6 +42,8 @@ export function usesBraasFigmaLoginUi(tenantQuery: string | null | undefined): b
 export const BRAAS_PRIMARY = "#BC8B41";
 export const BRAAS_SECONDARY = "#104b83";
 export const BRAAS_ACCENT = "#E9B771";
+/** Braas Figma Deep Navy — sign-in checkboxes. */
+export const BRAAS_CHECKBOX = "#012352";
 
 /** Nexus tenant defaults when DB fields are empty. */
 export const NEXUS_PRIMARY = "#0d9488";
@@ -113,6 +117,7 @@ export function brandingFallbackForSlug(
           primaryHex: NEXUS_PRIMARY,
           secondaryHex: NEXUS_SECONDARY,
           accentHex: NEXUS_ACCENT,
+          checkboxHex: NEXUS_PRIMARY,
           tagline: `Connecting Healthcare professionals — ${name}.`,
         }
       : {
@@ -126,6 +131,7 @@ export function brandingFallbackForSlug(
           primaryHex: BRAAS_PRIMARY,
           secondaryHex: BRAAS_SECONDARY,
           accentHex: BRAAS_ACCENT,
+          checkboxHex: BRAAS_CHECKBOX,
           tagline: "HR Simplified for growing teams",
         };
 
@@ -163,6 +169,7 @@ export function brandingToCssVars(b: TenantBranding): Record<string, string> {
     "--brand-primary": b.primaryHex,
     "--brand-secondary": b.secondaryHex,
     "--brand-accent": b.accentHex,
+    "--brand-checkbox": b.checkboxHex,
     "--brand-gradient-from": lightenForGradient(b.primaryHex),
     "--brand-gradient-to": b.secondaryHex,
   };
