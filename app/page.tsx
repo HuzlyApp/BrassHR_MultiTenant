@@ -7,29 +7,39 @@ import { useEffect, useState, type CSSProperties } from "react";
 import { TenantBrandingProvider } from "@/app/components/tenant/TenantBrandingContext";
 import {
   brandingToCssVars,
-  defaultTenantBranding,
+  brandingFallbackForSlug,
   PLATFORM_DEFAULT_TENANT_SLUG,
   type TenantBranding,
 } from "@/lib/tenant/tenant-branding";
-import { persistOnboardingSlugCookie } from "@/lib/tenant/client-onboarding-slug";
+import {
+  persistOnboardingSlugCookie,
+  resolveClientOnboardingTenantSlug,
+} from "@/lib/tenant/client-onboarding-slug";
 
 export default function Home() {
   const router = useRouter();
-  const [brand, setBrand] = useState<TenantBranding>(() => defaultTenantBranding());
+  const [brand, setBrand] = useState<TenantBranding>(() =>
+    brandingFallbackForSlug(PLATFORM_DEFAULT_TENANT_SLUG)
+  );
   const [brandLoaded, setBrandLoaded] = useState(false);
+  const [isPlatformHome, setIsPlatformHome] = useState(true);
 
   useEffect(() => {
     let alive = true;
     void (async () => {
+      const slug =
+        resolveClientOnboardingTenantSlug(window.location.search) ??
+        PLATFORM_DEFAULT_TENANT_SLUG;
+      if (alive) setIsPlatformHome(slug === PLATFORM_DEFAULT_TENANT_SLUG);
+
       try {
-        const res = await fetch(
-          `/api/tenant-branding?slug=${encodeURIComponent(PLATFORM_DEFAULT_TENANT_SLUG)}`,
-          { cache: "no-store" }
-        );
+        const res = await fetch(`/api/tenant-branding?slug=${encodeURIComponent(slug)}`, {
+          cache: "no-store",
+        });
         const payload = (await res.json()) as { branding?: TenantBranding };
         if (alive && payload.branding) setBrand(payload.branding);
       } catch {
-        /* keep Braas default */
+        if (alive) setBrand(brandingFallbackForSlug(slug));
       } finally {
         if (alive) setBrandLoaded(true);
       }
@@ -85,19 +95,21 @@ export default function Home() {
               </Link>
             </p>
 
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-6 py-5 text-center text-sm text-slate-700">
-              <p className="font-semibold text-slate-900">Operate your own staffing brand?</p>
-              <p className="mt-1 text-[13px] text-slate-600">
-                Set up logos, palette, recruiter admin, and saved tenant slug.
-              </p>
-              <Link
-                href="/tenant-onboarding"
-                className="mt-4 inline-flex items-center justify-center rounded-xl px-5 py-2.5 text-sm font-semibold text-white"
-                style={{ backgroundColor: "var(--brand-secondary)" }}
-              >
-                Create your organization
-              </Link>
-            </div>
+            {isPlatformHome ? (
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-6 py-5 text-center text-sm text-slate-700">
+                <p className="font-semibold text-slate-900">Operate your own staffing brand?</p>
+                <p className="mt-1 text-[13px] text-slate-600">
+                  Set up logos, palette, recruiter admin, and saved tenant slug.
+                </p>
+                <Link
+                  href="/tenant-onboarding"
+                  className="mt-4 inline-flex items-center justify-center rounded-xl px-5 py-2.5 text-sm font-semibold text-white"
+                  style={{ backgroundColor: "var(--brand-secondary)" }}
+                >
+                  Create your organization
+                </Link>
+              </div>
+            ) : null}
           </div>
 
           <div className="relative flex min-h-[430px] items-center justify-center overflow-hidden border-t border-slate-200 md:h-[600px] md:w-[440px] md:border-l md:border-t-0">

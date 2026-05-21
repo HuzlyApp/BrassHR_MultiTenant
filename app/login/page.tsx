@@ -16,7 +16,10 @@ import LoginOtpStep from "@/app/login/LoginOtpStep";
 import { isGodAdminUser } from "@/lib/auth/god-admin";
 import { resolveGodAdminClient } from "@/lib/auth/resolve-god-admin-client";
 import { isNexusPlatformUser, isPlatformEnforcementEnabled } from "@/lib/auth/platform-shared";
-import { persistOnboardingSlugCookie } from "@/lib/tenant/client-onboarding-slug";
+import {
+  persistOnboardingSlugCookie,
+  resolveClientOnboardingTenantSlug,
+} from "@/lib/tenant/client-onboarding-slug";
 import {
   brandingFallbackForSlug,
   brandingToCssVars,
@@ -117,7 +120,12 @@ function LoginPageContent() {
       const qpRaw = searchParams.get("tenant")?.trim().toLowerCase();
       const qp = qpRaw != null && qpRaw.length >= 2 ? qpRaw : null;
       if (qp) persistOnboardingSlugCookie(qp);
-      const slug = qp ?? PLATFORM_DEFAULT_TENANT_SLUG;
+      const slug =
+        qp ??
+        resolveClientOnboardingTenantSlug(
+          typeof window !== "undefined" ? window.location.search : ""
+        ) ??
+        PLATFORM_DEFAULT_TENANT_SLUG;
 
       try {
         const res = await fetch(`/api/tenant-branding?slug=${encodeURIComponent(slug)}`, {
