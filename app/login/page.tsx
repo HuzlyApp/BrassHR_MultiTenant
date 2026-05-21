@@ -447,13 +447,13 @@ function LoginPageContent() {
                     </span>
                     Remember Me
                   </label>
-                  <a
-                    href="#"
+                  <Link
+                    href="/forgot"
                     className="text-[14px] font-normal leading-[20px] hover:underline"
                     style={{ ...interStyle, color: "var(--brand-secondary)" }}
                   >
                     Forgot Password?
-                  </a>
+                  </Link>
                 </div>
               </div>
 
