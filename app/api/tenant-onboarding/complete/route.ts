@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { validateTenantSubdomainInput, subdomainErrorMessage } from "@/lib/tenant/subdomain-validation";
+import { registerTenantDomain } from "@/lib/vercel";
 
 type Body = {
   organizationName?: string;
@@ -231,11 +232,26 @@ export async function POST(req: Request) {
     }
   }
 
+  let vercelDomainRegistered = false;
+  let vercelDomainSkipped = false;
+  try {
+    const vercel = await registerTenantDomain(subdomainFinal);
+    vercelDomainSkipped = vercel.skipped;
+    vercelDomainRegistered = !vercel.skipped;
+  } catch (err) {
+    console.error(
+      "[tenant-onboarding] Vercel domain",
+      err instanceof Error ? err.message : err
+    );
+  }
+
   return NextResponse.json({
     ok: true,
     tenantId,
     subdomain: subdomainFinal,
     slug: slugFinal,
     domain: domainFinal,
+    vercelDomainRegistered,
+    vercelDomainSkipped,
   });
 }
