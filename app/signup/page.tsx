@@ -12,6 +12,8 @@ import { FcGoogle } from "react-icons/fc";
 
 const BRAAS_BLUE = "#104b83";
 const BRAAS_BUTTON_GRADIENT = "linear-gradient(90deg, #BC8B41 0%, #E9B771 100%)";
+/** Figma Deep Navy — signup checkboxes (first screen). */
+const SIGNUP_CHECKBOX_ACTIVE_CLASS = "border-[#012352] bg-[#012352]";
 const interStyle = { fontFamily: "Inter, Arial, sans-serif" };
 const inputTypographyStyle = {
   fontFamily: "Inter, Arial, sans-serif",
@@ -596,33 +598,41 @@ export default function SignupPage() {
             <div className="mt-[30px] space-y-[26px]">
               <AddressField label="Address 1" value={form.address1} onChange={(value) => update("address1", value)} />
 
-              <label
-                className="flex w-fit cursor-pointer items-center gap-[8px] text-[14px] font-normal leading-[20px] tracking-normal text-[#334155]"
-                style={interStyle}
-              >
-                <span
-                  className={`relative flex h-[20px] w-[20px] shrink-0 items-center justify-center rounded-[6px] border ${
-                    form.sameAsAddress1 ? "border-[#BC8B41] bg-[#BC8B41]" : "border-[#d7e0ea] bg-white"
-                  }`}
-                >
-                  <input
-                    type="checkbox"
-                    checked={form.sameAsAddress1}
-                    onChange={(event) => update("sameAsAddress1", event.target.checked)}
-                    className="absolute inset-0 z-10 m-0 cursor-pointer opacity-0"
-                    aria-label="Same as address 1"
-                  />
-                  {form.sameAsAddress1 ? <Check className="h-[14px] w-[14px] text-white" strokeWidth={3} /> : null}
-                </span>
-                Same as address 1
-              </label>
-
-              <AddressField
-                label="Address 2"
-                value={form.address2}
-                onChange={(value) => update("address2", value)}
-                disabled={form.sameAsAddress1}
-              />
+              <div>
+                <div className="mb-[10px] flex items-center justify-between gap-3">
+                  <FieldLabel>Address 2</FieldLabel>
+                  <label
+                    className="flex shrink-0 cursor-pointer items-center gap-[8px] text-[14px] font-normal leading-[20px] tracking-normal text-[#334155]"
+                    style={interStyle}
+                  >
+                    <span
+                      className={`relative flex h-[20px] w-[20px] shrink-0 items-center justify-center rounded-[6px] border ${
+                        form.sameAsAddress1 ? SIGNUP_CHECKBOX_ACTIVE_CLASS : "border-[#d7e0ea] bg-white"
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={form.sameAsAddress1}
+                        onChange={(event) => update("sameAsAddress1", event.target.checked)}
+                        className="absolute inset-0 z-10 m-0 cursor-pointer opacity-0"
+                        aria-label="Same as address 1"
+                      />
+                      {form.sameAsAddress1 ? (
+                        <Check className="h-[14px] w-[14px] text-white" strokeWidth={3} />
+                      ) : null}
+                    </span>
+                    Same as address 1
+                  </label>
+                </div>
+                <input
+                  value={form.address2}
+                  disabled={form.sameAsAddress1}
+                  onChange={(event) => update("address2", event.target.value)}
+                  placeholder="Address"
+                  style={inputTypographyStyle}
+                  className={`h-[56px] w-full rounded-[6px] border border-[#d7e0ea] bg-white px-[14px] ${inputTextClass} text-[#0f172a] outline-none transition placeholder:text-[#b5c0cf] focus:border-[#d89b35] focus:ring-2 focus:ring-[#d89b35]/20 disabled:bg-[#f7f8fa] disabled:text-[#94a3b8]`}
+                />
+              </div>
             </div>
 
             <button
