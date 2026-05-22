@@ -158,7 +158,14 @@ export default function Step1Upload() {
           localStorage.removeItem("parsedResume")
           return
         }
-        router.push(applicationPath("/application/step-1-success"))
+        void (async () => {
+          const { supabaseBrowser } = await import("@/lib/supabase-browser")
+          const { ensureApplicantMatchesAuthSession } = await import(
+            "@/lib/onboarding/ensure-applicant-auth"
+          )
+          await ensureApplicantMatchesAuthSession(supabaseBrowser)
+          router.push(applicationPath("/application/step-1-success"))
+        })()
         return
       }
       setFileRequiredError("Please upload your resume *")
@@ -247,6 +254,11 @@ export default function Step1Upload() {
         localStorage.setItem("resumeName", uploadJson?.fileName || file.name)
         localStorage.setItem("step1TermsAccepted", "false")
         localStorage.setItem("step1ReviewCompleted", "false")
+        const { supabaseBrowser } = await import("@/lib/supabase-browser")
+        const { ensureApplicantMatchesAuthSession } = await import(
+          "@/lib/onboarding/ensure-applicant-auth"
+        )
+        await ensureApplicantMatchesAuthSession(supabaseBrowser)
         router.push(applicationPath("/application/step-1-success"))
       } catch (e) {
         const msg = e instanceof Error ? e.message : "Failed to parse resume"

@@ -19,7 +19,15 @@ export async function ensureApplicantMatchesAuthSession(
   }
 
   const { data: sessionData } = await supabase.auth.getSession()
-  let uid = sessionData.session?.user?.id ?? null
+  const existing = sessionData.session?.user
+
+  // Recruiter/staff logins must not reuse their auth user as applicantId.
+  if (existing && existing.is_anonymous !== true) {
+    await supabase.auth.signOut()
+  }
+
+  const { data: afterSignOut } = await supabase.auth.getSession()
+  let uid = afterSignOut.session?.user?.id ?? null
 
   if (!uid) {
     if (typeof auth.signInAnonymously !== "function") {
