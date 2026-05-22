@@ -53,6 +53,19 @@ export async function resolveEmailTemplate(
   throw new EmailTemplateError("NOT_FOUND", `Template "${params.templateKey}" not found`, 404);
 }
 
+/** Active template for one tenant only (no global fallback). */
+export async function resolveTenantOnlyEmailTemplate(
+  supabase: SupabaseClient,
+  params: { tenantId: string; templateKey: string; locale: string }
+): Promise<EmailTemplateRow | null> {
+  const chain = buildLocaleFallbackChain(params.locale);
+  for (const loc of chain) {
+    const row = await fetchActive(supabase, params.tenantId, params.templateKey, loc);
+    if (row) return row;
+  }
+  return null;
+}
+
 /** Latest tenant-owned row for editing (draft or active), not global fallback. */
 export async function fetchTenantEditableTemplate(
   supabase: SupabaseClient,

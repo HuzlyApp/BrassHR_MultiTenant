@@ -1,11 +1,32 @@
 "use client"
 
+import { useEffect, useRef } from "react"
 import { applicationPath } from "@/lib/tenant/with-tenant";
 import Image from "next/image"
 import Link from "next/link"
 import { Check } from "lucide-react"
 
 export default function SuccessPage() {
+  const emailSentRef = useRef(false)
+
+  useEffect(() => {
+    if (emailSentRef.current) return
+    const applicantId = localStorage.getItem("applicantId")?.trim()
+    if (!applicantId) return
+    emailSentRef.current = true
+
+    void fetch("/api/onboarding/send-application-emails", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        applicantId,
+        clientOrigin: typeof window !== "undefined" ? window.location.origin : undefined,
+      }),
+    }).catch(() => {
+      /* best-effort; applicant still sees success UI */
+    })
+  }, [])
+
   return (
     <div className="min-h-screen bg-[linear-gradient(135deg,#27c8c0_0%,#16a79a_100%)] flex items-center justify-center p-6 md:p-12">
       <div className="w-full max-w-[840px] min-h-[500px] h-[500px] overflow-hidden rounded-2xl bg-white shadow-[0_30px_80px_rgba(0,0,0,0.18)]">

@@ -1,4 +1,15 @@
+import { effectiveFromEmailLocalPart } from "@/lib/email-templates/from-local-part";
 import type { EmailTemplateRow, EmailTemplateVariable } from "@/lib/email-templates/types";
+
+function legacyFromEmailLocalPart(fromEmail: unknown): string | undefined {
+  if (fromEmail == null) return undefined;
+  let s = String(fromEmail).trim();
+  const angle = s.match(/<([^>]+)>/);
+  if (angle?.[1]) s = angle[1].trim();
+  const at = s.indexOf("@");
+  if (at >= 0) return s.slice(0, at).trim().toLowerCase();
+  return s.toLowerCase();
+}
 
 export function mapEmailTemplateRow(raw: Record<string, unknown>): EmailTemplateRow {
   const variablesRaw = raw.variables;
@@ -23,6 +34,12 @@ export function mapEmailTemplateRow(raw: Record<string, unknown>): EmailTemplate
     subject: String(raw.subject),
     body_html: String(raw.body_html ?? ""),
     body_text: raw.body_text == null ? null : String(raw.body_text),
+    from_email_local_part: effectiveFromEmailLocalPart(
+      raw.from_email_local_part as string | null | undefined,
+      legacyFromEmailLocalPart(raw.from_email)
+    ),
+    reply_to_email:
+      raw.reply_to_email == null ? null : String(raw.reply_to_email).trim() || null,
     variables,
     locale: String(raw.locale ?? "en"),
     status: raw.status as EmailTemplateRow["status"],

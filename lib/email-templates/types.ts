@@ -15,6 +15,8 @@ export type EmailTemplateRow = {
   subject: string;
   body_html: string;
   body_text: string | null;
+  from_email_local_part: string;
+  reply_to_email: string | null;
   variables: EmailTemplateVariable[];
   locale: string;
   status: EmailTemplateStatus;
@@ -26,6 +28,11 @@ export type EmailTemplateRow = {
   created_by: string | null;
   updated_by: string | null;
 };
+
+/** Active when status is active and this row is the published version. */
+export function isEmailTemplateActive(row: EmailTemplateRow): boolean {
+  return row.status === "active" && row.is_active_version;
+}
 
 export type TemplateResolutionSource = "tenant" | "global";
 
@@ -46,6 +53,9 @@ export type AdminEmailTemplateItem = {
   subject: string;
   body_html: string;
   body_text: string | null;
+  from_email_local_part: string;
+  reply_to_email: string | null;
   version: number;
   status: EmailTemplateStatus;
+  is_active: boolean;
 };

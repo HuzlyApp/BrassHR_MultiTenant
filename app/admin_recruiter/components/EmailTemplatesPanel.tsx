@@ -3,16 +3,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Mail } from "lucide-react";
 import { supabaseBrowser } from "@/lib/supabase-browser";
+import { EMAIL_TEMPLATE_TYPE_LABELS } from "@/lib/email-templates/template-keys";
 import type { AdminEmailTemplateItem } from "@/lib/email-templates/types";
-
-const TEMPLATE_LABELS: Record<string, string> = {
-  welcome: "Welcome email",
-  application_received: "Application received",
-  password_reset: "Password reset",
-};
 
 type LoadResponse = {
   tenantName?: string | null;
+  resendFromDomain?: string | null;
   templates?: AdminEmailTemplateItem[];
   error?: string;
   code?: string;
@@ -46,6 +42,9 @@ export default function EmailTemplatesPanel() {
   const [subject, setSubject] = useState("");
   const [bodyHtml, setBodyHtml] = useState("");
   const [bodyText, setBodyText] = useState("");
+  const [fromEmailLocalPart, setFromEmailLocalPart] = useState("notifications");
+  const [resendFromDomain, setResendFromDomain] = useState("nexusmedpro.com");
+  const [replyToEmail, setReplyToEmail] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -58,6 +57,8 @@ export default function EmailTemplatesPanel() {
     setSubject(item.subject);
     setBodyHtml(item.body_html);
     setBodyText(item.body_text ?? "");
+    setFromEmailLocalPart(item.from_email_local_part || "notifications");
+    setReplyToEmail(item.reply_to_email ?? "");
   }, []);
 
   const load = useCallback(async () => {
@@ -80,6 +81,7 @@ export default function EmailTemplatesPanel() {
         throw new Error(payload.detail ?? payload.error ?? "Could not load email templates");
       }
       setTenantName(payload.tenantName ?? null);
+      if (payload.resendFromDomain) setResendFromDomain(payload.resendFromDomain);
       const list = payload.templates ?? [];
       setTemplates(list);
       const first = list[0];
@@ -123,6 +125,8 @@ export default function EmailTemplatesPanel() {
           subject: subject.trim(),
           body_html: bodyHtml.trim(),
           body_text: bodyText.trim() || null,
+          from_email_local_part: fromEmailLocalPart.trim() || "notifications",
+          reply_to_email: replyToEmail.trim() || undefined,
         }),
       });
       const payload = (await res.json()) as {
@@ -209,7 +213,9 @@ export default function EmailTemplatesPanel() {
                 }`}
               >
                 <span className="font-medium">
-                  {TEMPLATE_LABELS[t.template_key] ?? t.template_key}
+                  {EMAIL_TEMPLATE_TYPE_LABELS[
+                    t.template_key as keyof typeof EMAIL_TEMPLATE_TYPE_LABELS
+                  ] ?? t.template_key}
                 </span>
                 {t.is_tenant_override ? (
                   <span className="mt-0.5 text-xs text-teal-700">Customized</span>
@@ -227,6 +233,41 @@ export default function EmailTemplatesPanel() {
               Use placeholders: {selected.variables.map((v) => `{{${v.key}}}`).join(", ")}
             </p>
           ) : null}
+
+          <div className="mb-4 grid gap-4 sm:grid-cols-2">
+            <label className="block sm:col-span-2">
+              <span className="mb-1 block text-sm font-medium text-[#0F172A]">From email</span>
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={fromEmailLocalPart}
+                  onChange={(e) => setFromEmailLocalPart(e.target.value)}
+                  placeholder="notifications"
+                  autoComplete="off"
+                  spellCheck={false}
+                  className="min-w-0 flex-1 rounded-lg border border-[#e2e8f0] px-3 py-2 font-mono text-sm text-[#0F172A] outline-none focus:border-[#0d9488] focus:ring-1 focus:ring-[#0d9488]"
+                  aria-label="From email local part"
+                />
+                <span className="shrink-0 text-sm font-medium text-[#64748B]">
+                  @{resendFromDomain}
+                </span>
+              </div>
+              <p className="mt-1 text-xs text-[#64748B]">
+                Only the part before @ is saved. Domain is set by{" "}
+                <code className="rounded bg-slate-100 px-1">RESEND_FROM_DOMAIN</code>.
+              </p>
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-sm font-medium text-[#0F172A]">Reply-to email</span>
+              <input
+                type="email"
+                value={replyToEmail}
+                onChange={(e) => setReplyToEmail(e.target.value)}
+                placeholder="support@yourdomain.com"
+                className="w-full rounded-lg border border-[#e2e8f0] px-3 py-2 text-sm text-[#0F172A] outline-none focus:border-[#0d9488] focus:ring-1 focus:ring-[#0d9488]"
+              />
+            </label>
+          </div>
 
           <label className="mb-4 block">
             <span className="mb-1 block text-sm font-medium text-[#0F172A]">Subject</span>

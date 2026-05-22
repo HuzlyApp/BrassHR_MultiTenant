@@ -9,6 +9,7 @@ import {
 } from "@/lib/email-templates/admin-service";
 import { EmailTemplateError } from "@/lib/email-templates/errors";
 import { resolveEffectiveAdminTenantId } from "@/lib/email-templates/resolve-effective-tenant";
+import { getResendFromDomainForUi } from "@/lib/email/from-address";
 
 function handleError(e: unknown): NextResponse {
   if (e instanceof ZodError) {
@@ -75,6 +76,7 @@ export async function GET(req: Request) {
       tenantId,
       tenantName: (tenantRow as { name?: string } | null)?.name ?? null,
       locale,
+      resendFromDomain: getResendFromDomainForUi(),
       templates,
     });
   } catch (e) {

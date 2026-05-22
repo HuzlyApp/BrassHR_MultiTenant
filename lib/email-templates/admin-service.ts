@@ -10,14 +10,23 @@ import {
   fetchTenantEditableTemplate,
   resolveEmailTemplate,
 } from "@/lib/email-templates/resolver";
+import { normalizeStoredFromEmailLocalPart } from "@/lib/email-templates/from-local-part";
 import { assertSafeEmailHtml, sanitizeEmailHtml } from "@/lib/email-templates/sanitize-html";
-import type { AdminEmailTemplateItem, EmailTemplateRow } from "@/lib/email-templates/types";
+import { ONBOARDING_EMAIL_TEMPLATE_KEYS } from "@/lib/email-templates/template-keys";
+import {
+  isEmailTemplateActive,
+  type AdminEmailTemplateItem,
+  type EmailTemplateRow,
+} from "@/lib/email-templates/types";
 
-const MANAGED_TEMPLATE_KEYS = [
-  "welcome",
-  "application_received",
-  "password_reset",
-] as const;
+const MANAGED_TEMPLATE_KEYS = ONBOARDING_EMAIL_TEMPLATE_KEYS;
+
+const optionalEmail = z
+  .string()
+  .trim()
+  .max(320)
+  .refine((v) => v === "" || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v), "Invalid email")
+  .optional();
 
 export const adminSaveEmailTemplateSchema = z.object({
   template_key: z.enum(MANAGED_TEMPLATE_KEYS),
@@ -26,6 +35,8 @@ export const adminSaveEmailTemplateSchema = z.object({
   subject: z.string().trim().min(1).max(500),
   body_html: z.string().min(1).max(200_000),
   body_text: z.string().max(200_000).nullable().optional(),
+  from_email_local_part: z.string().trim().max(64).optional(),
+  reply_to_email: optionalEmail,
 });
 
 export type AdminSaveEmailTemplateInput = z.infer<typeof adminSaveEmailTemplateSchema>;
@@ -57,19 +68,23 @@ function toAdminItem(
   resolvedFrom: "tenant" | "global",
   tenantRow: EmailTemplateRow | null
 ): AdminEmailTemplateItem {
+  const display = tenantRow ?? resolved;
   return {
     template_key: templateKey,
-    name: tenantRow?.name ?? resolved.name,
-    locale: resolved.locale,
+    name: display.name,
+    locale: display.locale,
     variables: resolved.variables,
     resolved_from: resolvedFrom,
     tenant_template_id: tenantRow?.id ?? null,
     is_tenant_override: Boolean(tenantRow),
-    subject: tenantRow?.subject ?? resolved.subject,
-    body_html: tenantRow?.body_html ?? resolved.body_html,
-    body_text: tenantRow?.body_text ?? resolved.body_text,
-    version: tenantRow?.version ?? resolved.version,
-    status: tenantRow?.status ?? resolved.status,
+    subject: display.subject,
+    body_html: display.body_html,
+    body_text: display.body_text,
+    from_email_local_part: display.from_email_local_part,
+    reply_to_email: display.reply_to_email ?? resolved.reply_to_email,
+    version: display.version,
+    status: display.status,
+    is_active: isEmailTemplateActive(display),
   };
 }
 
@@ -175,6 +190,15 @@ export async function saveAdminTenantEmailTemplate(
         ? null
         : input.body_text.trim();
 
+  const from_email_local_part =
+    input.from_email_local_part === undefined
+      ? resolved.template.from_email_local_part
+      : normalizeStoredFromEmailLocalPart(input.from_email_local_part);
+  const reply_to_email =
+    input.reply_to_email === undefined
+      ? resolved.template.reply_to_email
+      : input.reply_to_email?.trim() || null;
+
   const existing = await fetchTenantEditableTemplate(
     supabase,
     tenantId,
@@ -190,6 +214,8 @@ export async function saveAdminTenantEmailTemplate(
         subject: input.subject,
         body_html,
         body_text,
+        from_email_local_part,
+        reply_to_email,
         updated_by: userId,
       })
       .eq("id", existing.id)
@@ -218,6 +244,8 @@ export async function saveAdminTenantEmailTemplate(
       subject: input.subject,
       body_html,
       body_text,
+      from_email_local_part,
+      reply_to_email,
       variables,
       locale: input.locale,
       status: "active",
