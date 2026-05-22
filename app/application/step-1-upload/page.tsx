@@ -283,7 +283,7 @@ export default function Step1Upload() {
 
         <div className="w-full md:w-2/3 p-8 md:p-10">
 
-          <OnboardingStepper currentStep={1} />
+          <OnboardingStepper />
 
           <h2 className="text-2xl font-semibold text-gray-800 mt-6 mb-6">
             Upload your resume

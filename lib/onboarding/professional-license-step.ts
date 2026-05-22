@@ -1,6 +1,5 @@
 import type { TenantOnboardingConfig, TenantOnboardingStep, TenantRequiredDocument } from "@/lib/onboarding/types";
-import { routeForOnboardingStep } from "@/lib/onboarding/step-routes";
-import { withTenant } from "@/lib/tenant/with-tenant";
+import { adjacentStepRoute } from "@/lib/onboarding/tenant-step-navigation";
 
 /** Enabled professional-license step for the current tenant config. */
 export function findProfessionalLicenseStep(
@@ -30,12 +29,5 @@ export function nextStepRouteAfter(
   currentStep: TenantOnboardingStep | null,
   tenantSlug?: string | null
 ): string | null {
-  if (!config || !currentStep) return null;
-  const enabled = config.steps
-    .filter((s) => s.is_enabled)
-    .sort((a, b) => a.sort_order - b.sort_order);
-  const idx = enabled.findIndex((s) => s.id === currentStep.id);
-  const next = idx >= 0 ? enabled[idx + 1] : null;
-  if (!next) return null;
-  return withTenant(routeForOnboardingStep(next.step_key, next.step_type), tenantSlug);
+  return adjacentStepRoute(config, currentStep, 1, tenantSlug);
 }

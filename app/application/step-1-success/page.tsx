@@ -153,7 +153,6 @@ export default function Step1Success() {
       <div className="flex h-full flex-col">
         <div className="px-6 pt-6 sm:px-8 sm:pt-8 md:px-10 md:pt-8">
           <OnboardingStepper
-            currentStep={1}
             title="Resume Uploaded"
             // titleIconSrc="/icons/yes-sign-icon.svg"
             titleIconAlt="Resume uploaded"

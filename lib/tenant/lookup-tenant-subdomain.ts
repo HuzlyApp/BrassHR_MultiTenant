@@ -6,13 +6,23 @@ export async function lookupTenantSlugBySubdomain(
 ): Promise<string | null> {
   const label = subdomainLabel.trim().toLowerCase();
   if (!label) return null;
-  const { data, error } = await client
+  const { data: bySubdomain, error: subErr } = await client
     .from("tenants")
     .select("slug")
     .eq("subdomain", label)
     .eq("is_active", true)
     .maybeSingle();
 
-  if (error || !data?.slug) return null;
-  return String(data.slug);
+  if (subErr) return null;
+  if (bySubdomain?.slug) return String(bySubdomain.slug);
+
+  const { data: bySlug, error: slugErr } = await client
+    .from("tenants")
+    .select("slug")
+    .eq("slug", label)
+    .eq("is_active", true)
+    .maybeSingle();
+
+  if (slugErr || !bySlug?.slug) return null;
+  return String(bySlug.slug);
 }

@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
-import { requireApiSession } from "@/lib/auth/api-session";
-import { isStaffRole } from "@/lib/auth/app-role";
-import { getSupabaseUrl } from "@/lib/supabase-env";
+import { requireStaffApiSession } from "@/lib/auth/api-session";
+import { createServiceRoleClient } from "@/lib/supabase/service-role";
+import { resolveEffectiveAdminTenantId } from "@/lib/email-templates/resolve-effective-tenant";
 import {
   loadTenantOnboardingConfig,
   type OnboardingDbClient,
@@ -12,52 +11,45 @@ import { persistTenantOnboardingConfig } from "@/lib/onboarding/persist-tenant-o
 
 export const runtime = "nodejs";
 
-async function resolveStaffTenantId(
-  supabase: OnboardingDbClient,
-  userId: string
-): Promise<string | null> {
-  const { data: userRow } = await supabase
-    .from("users")
-    .select("tenant_id")
-    .eq("id", userId)
-    .maybeSingle();
-  const u = userRow as { tenant_id?: string | null } | null;
-  if (u?.tenant_id) return String(u.tenant_id);
-
-  const { data: roleRow } = await supabase
-    .from("user_roles")
-    .select("tenant_id")
-    .eq("user_id", userId)
-    .not("tenant_id", "is", null)
-    .limit(1)
-    .maybeSingle();
-  const r = roleRow as { tenant_id?: string | null } | null;
-  return r?.tenant_id ? String(r.tenant_id) : null;
+function tenantRequiredResponse(detail: string): NextResponse {
+  return NextResponse.json(
+    { error: "No tenant selected", code: "TENANT_REQUIRED", detail },
+    { status: 400 }
+  );
 }
 
 export async function GET(req: NextRequest) {
-  const auth = await requireApiSession();
+  const auth = await requireStaffApiSession();
   if (auth instanceof NextResponse) return auth;
-  if (!isStaffRole(auth.role)) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
 
-  const url = getSupabaseUrl();
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) {
+  const supabase = createServiceRoleClient();
+  if (!supabase) {
     return NextResponse.json({ error: "Supabase not configured" }, { status: 503 });
   }
 
   try {
-    const supabase = createClient(url, key) as OnboardingDbClient;
     const tenantId =
       req.nextUrl.searchParams.get("tenantId")?.trim() ||
-      (await resolveStaffTenantId(supabase, auth.userId));
+      (await resolveEffectiveAdminTenantId(supabase, {
+        userId: auth.userId,
+        authUser: auth.authUser,
+        godAdmin: auth.godAdmin,
+      }));
+
     if (!tenantId) {
-      return NextResponse.json({ error: "Tenant not resolved" }, { status: 400 });
+      return tenantRequiredResponse(
+        auth.godAdmin
+          ? "Select a tenant using the tenant switcher in the header."
+          : "Your account is not linked to a tenant. Contact an administrator."
+      );
     }
-    const config = await loadTenantOnboardingConfig(supabase, tenantId, { workerFacing: false });
-    return NextResponse.json({ config });
+
+    const config = await loadTenantOnboardingConfig(
+      supabase as OnboardingDbClient,
+      tenantId,
+      { workerFacing: false }
+    );
+    return NextResponse.json({ config, tenantId });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : "Unexpected error";
     return NextResponse.json({ error: msg }, { status: 500 });
@@ -69,15 +61,11 @@ type SaveBody = {
 };
 
 export async function PUT(req: NextRequest) {
-  const auth = await requireApiSession();
+  const auth = await requireStaffApiSession();
   if (auth instanceof NextResponse) return auth;
-  if (!isStaffRole(auth.role)) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
 
-  const url = getSupabaseUrl();
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) {
+  const supabase = createServiceRoleClient();
+  if (!supabase) {
     return NextResponse.json({ error: "Supabase not configured" }, { status: 503 });
   }
 
@@ -94,15 +82,23 @@ export async function PUT(req: NextRequest) {
   }
 
   try {
-    const supabase = createClient(url, key) as OnboardingDbClient;
-    const tenantId = await resolveStaffTenantId(supabase, auth.userId);
+    const tenantId = await resolveEffectiveAdminTenantId(supabase, {
+      userId: auth.userId,
+      authUser: auth.authUser,
+      godAdmin: auth.godAdmin,
+    });
+
     if (!tenantId) {
-      return NextResponse.json({ error: "Tenant not resolved" }, { status: 400 });
+      return tenantRequiredResponse(
+        auth.godAdmin
+          ? "Select a tenant before saving onboarding settings."
+          : "Your account is not linked to a tenant. Contact an administrator."
+      );
     }
 
-    await persistTenantOnboardingConfig(supabase, tenantId, steps);
-    const config = await loadTenantOnboardingConfig(supabase, tenantId);
-    return NextResponse.json({ config });
+    await persistTenantOnboardingConfig(supabase as OnboardingDbClient, tenantId, steps);
+    const config = await loadTenantOnboardingConfig(supabase as OnboardingDbClient, tenantId);
+    return NextResponse.json({ config, tenantId });
   } catch (err: unknown) {
     console.error("[admin/onboarding/config]", err);
     const msg = err instanceof Error ? err.message : "Unexpected error";

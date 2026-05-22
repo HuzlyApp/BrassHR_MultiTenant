@@ -12,6 +12,7 @@ export function stepIndexFromPathname(
     if (steps[i].step_key === "resume_upload" && p.includes("/application/step-1-")) return i + 1;
     if (steps[i].step_type === "professional_license" && p.includes("/application/step-2-")) return i + 1;
     if (steps[i].step_key === "professional_license" && p.includes("/application/step-2-")) return i + 1;
+    if (steps[i].step_type === "document_upload" && p.includes("/application/step-2-")) return i + 1;
     if (steps[i].step_type === "skill_assessment" && p.includes("/application/step-3-")) return i + 1;
     if (steps[i].step_key === "skill_assessment" && p.includes("/application/step-3-")) return i + 1;
     if (steps[i].step_type === "authorizations" || steps[i].step_key === "authorizations") {

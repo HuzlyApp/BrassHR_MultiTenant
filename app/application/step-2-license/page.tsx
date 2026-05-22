@@ -524,7 +524,7 @@ export default function Step2License() {
       rightPanelOverlayClassName="bg-white/70"
     >
       <div className="flex h-full flex-col px-10 pb-10 pt-8">
-        <OnboardingStepper currentStep={2} />
+        <OnboardingStepper />
 
         <div className="flex flex-1 flex-col pt-8">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">

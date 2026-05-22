@@ -235,7 +235,7 @@ export default function Step4Identity() {
       rightPanelOverlayClassName="bg-white/65"
     >
       <div className="flex h-full flex-col px-10 pb-10 pt-8">
-        <OnboardingStepper currentStep={4} completedThrough={3} />
+        <OnboardingStepper />
 
         <div className="flex flex-1 flex-col pt-8">
           {/* Header */}

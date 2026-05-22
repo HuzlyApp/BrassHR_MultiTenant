@@ -15,6 +15,10 @@ import {
   persistOnboardingSlugCookie,
   resolveClientOnboardingTenantSlug,
 } from "@/lib/tenant/client-onboarding-slug";
+import { getClientTenantHostLabel } from "@/lib/tenant/client-host-subdomain";
+import { applicationPath } from "@/lib/tenant/with-tenant";
+import { firstOnboardingStepRoute } from "@/lib/onboarding/tenant-step-navigation";
+import type { TenantOnboardingConfig } from "@/lib/onboarding/types";
 
 export default function Home() {
   const router = useRouter();
@@ -34,13 +38,20 @@ export default function Home() {
   useEffect(() => {
     let alive = true;
     void (async () => {
-      const slug =
-        resolveClientOnboardingTenantSlug(window.location.search) ??
-        PLATFORM_DEFAULT_TENANT_SLUG;
-      if (alive) setIsPlatformHome(slug === PLATFORM_DEFAULT_TENANT_SLUG);
+      const hostLabel = getClientTenantHostLabel();
+      const slugFromCookie = resolveClientOnboardingTenantSlug(window.location.search);
+      const slug = slugFromCookie ?? hostLabel ?? PLATFORM_DEFAULT_TENANT_SLUG;
+      if (alive) setIsPlatformHome(slug === PLATFORM_DEFAULT_TENANT_SLUG && !hostLabel);
+
+      if (hostLabel && !slugFromCookie) {
+        persistOnboardingSlugCookie(slug);
+      }
 
       try {
-        const res = await fetch(`/api/tenant-branding?slug=${encodeURIComponent(slug)}`, {
+        const brandingUrl = hostLabel
+          ? `/api/tenant-branding?subdomain=${encodeURIComponent(hostLabel)}`
+          : `/api/tenant-branding?slug=${encodeURIComponent(slug)}`;
+        const res = await fetch(brandingUrl, {
           cache: "no-store",
         });
         const payload = (await res.json()) as { branding?: TenantBranding };
@@ -80,10 +91,32 @@ export default function Home() {
             <button
               type="button"
               onClick={() => {
-                const slug = brand.slug?.trim();
+                const slug =
+                  brand.slug?.trim().toLowerCase() ||
+                  resolveClientOnboardingTenantSlug(window.location.search) ||
+                  getClientTenantHostLabel() ||
+                  null;
                 if (slug) persistOnboardingSlugCookie(slug);
-                const q = slug ? `?tenant=${encodeURIComponent(slug)}` : "";
-                router.push(`/application/step-1-upload${q}`);
+                void (async () => {
+                  if (!slug) {
+                    router.push(applicationPath("/application/step-1-upload", null));
+                    return;
+                  }
+                  try {
+                    const res = await fetch(
+                      `/api/onboarding/config?slug=${encodeURIComponent(slug)}`,
+                      { cache: "no-store" }
+                    );
+                    if (res.ok) {
+                      const payload = (await res.json()) as { config?: TenantOnboardingConfig };
+                      router.push(firstOnboardingStepRoute(payload.config ?? null, slug));
+                      return;
+                    }
+                  } catch {
+                    /* fall through */
+                  }
+                  router.push(applicationPath("/application/step-1-upload", slug));
+                })();
               }}
               style={{ backgroundColor: "var(--brand-primary)", boxShadow: "0 10px 20px color-mix(in srgb, var(--brand-primary) 22%, transparent)" }}
               className="inline-flex min-h-14 min-w-[210px] cursor-pointer items-center justify-center rounded-xl px-8 py-4 text-[22px] font-semibold leading-[22px] text-white transition hover:brightness-105 focus:outline-none"

@@ -1,44 +1,23 @@
 "use client"
 
 import { applicationPath } from "@/lib/tenant/with-tenant"
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { CheckCircle2, Circle, CircleAlert, Pencil } from "lucide-react"
 import OnboardingLayout from "@/app/components/OnboardingLayout"
 import OnboardingStepper from "@/app/components/OnboardingStepper"
 import OnboardingSuccessPopup from "@/app/components/OnboardingSuccessPopup"
+import { countCompleteReferencesFromStorage } from "@/lib/referencesValidation"
 import {
-  countCompleteReferencesFromStorage,
-  MIN_COMPLETE_REFERENCES,
-} from "@/lib/referencesValidation"
-import {
-  displayNameFromStoragePath,
-  isSkillQuizDoneLocal,
-  parseStep2Files,
-  quizSlugForCategory,
-  readAuthorizationSigningState,
-  readResumeFileIndicators,
-  step2HasAnyUpload,
-  STEP2_FILE_TYPES,
-  STEP2_REQUIREMENT_LABELS,
-  type SkillCategoryRow,
-  type Step2FileType,
-  type Step2UploadedFile,
-  countLocalLegacyQuizDone,
-} from "@/lib/onboardingSummaryData"
-
-type AuthSigningState = ReturnType<typeof readAuthorizationSigningState>
-
-type WorkerDocumentsApi = {
-  ssn_url?: string | null
-  drivers_license_url?: string | null
-} | null
-
-type IdentityLs = {
-  ssn?: { name?: string; url?: string }
-  license?: { name?: string; url?: string }
-} | null
+  buildApplicantSummarySections,
+  createApplicantSummarySnapshot,
+  evaluateApplicantSummaryReadiness,
+  type ApplicantSummarySnapshot,
+} from "@/lib/onboarding/applicant-summary-sections"
+import { useOnboardingStepNav } from "@/lib/onboarding/use-onboarding-step-nav"
+import type { SkillCategoryRow } from "@/lib/onboardingSummaryData"
+import { readAuthorizationSigningState } from "@/lib/onboardingSummaryData"
 
 function SummaryRow({
   title,
@@ -83,32 +62,13 @@ function SummaryRow({
   )
 }
 
-function subtitleForSsnDl(path: string | null | undefined, fallbackName?: string | null): string | null {
-  const p = path?.trim()
-  if (p) return displayNameFromStoragePath(p)
-  const n = fallbackName?.trim()
-  return n || null
-}
-
 export default function SummaryPage() {
   const router = useRouter()
+  const nav = useOnboardingStepNav()
 
-  /** SSR-safe defaults; real values load in `loadSnapshot` after mount to avoid hydration mismatch. */
-  const [resumeInfo, setResumeInfo] = useState<{ fileName: string | null; hasUploadedFile: boolean }>(() => ({
-    fileName: null,
-    hasUploadedFile: false,
-  }))
-  const [step2Files, setStep2Files] = useState<Record<Step2FileType, Step2UploadedFile | null> | null>(null)
-  const [skillCategories, setSkillCategories] = useState<SkillCategoryRow[]>([])
-  const [skillLoadError, setSkillLoadError] = useState<string | null>(null)
-  const [workerDocs, setWorkerDocs] = useState<WorkerDocumentsApi>(null)
-  const [identityLs, setIdentityLs] = useState<IdentityLs>(null)
-  const [authState, setAuthState] = useState<AuthSigningState>(() => ({
-    statusRaw: "",
-    display: "none",
-    hasActivity: false,
-  }))
-  const [referencesCount, setReferencesCount] = useState(0)
+  const [snapshot, setSnapshot] = useState<ApplicantSummarySnapshot>(() =>
+    createApplicantSummarySnapshot()
+  )
   const [submitGuardError, setSubmitGuardError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [success, setSuccess] = useState(false)
@@ -123,21 +83,20 @@ export default function SummaryPage() {
     if (typeof window === "undefined") return
 
     setSubmitGuardError(null)
-    setResumeInfo(readResumeFileIndicators())
-    setStep2Files(parseStep2Files())
-    setAuthState(readAuthorizationSigningState())
-    setReferencesCount(countCompleteReferencesFromStorage())
+    const base = createApplicantSummarySnapshot()
+    base.authState = readAuthorizationSigningState()
+    base.referencesCount = countCompleteReferencesFromStorage()
 
     try {
       const raw = localStorage.getItem("identityDocuments")
       if (raw?.trim()) {
-        const parsed = JSON.parse(raw) as IdentityLs
-        setIdentityLs(parsed && typeof parsed === "object" ? parsed : null)
+        const parsed = JSON.parse(raw) as ApplicantSummarySnapshot["identityLs"]
+        base.identityLs = parsed && typeof parsed === "object" ? parsed : null
       } else {
-        setIdentityLs(null)
+        base.identityLs = null
       }
     } catch {
-      setIdentityLs(null)
+      base.identityLs = null
     }
 
     const applicantId = localStorage.getItem("applicantId")?.trim() || ""
@@ -148,35 +107,39 @@ export default function SummaryPage() {
         )
         const json = (await res.json().catch(() => ({}))) as {
           error?: string
-          documents?: WorkerDocumentsApi
+          documents?: ApplicantSummarySnapshot["workerDocs"]
         }
         if (res.ok && json.documents) {
-          setWorkerDocs(json.documents)
+          base.workerDocs = json.documents
         } else {
-          setWorkerDocs(null)
+          base.workerDocs = null
         }
       } catch {
-        setWorkerDocs(null)
+        base.workerDocs = null
       }
     } else {
-      setWorkerDocs(null)
+      base.workerDocs = null
     }
 
     try {
       const res = await fetch("/api/skill-categories")
       const json = (await res.json().catch(() => [])) as unknown
       if (!res.ok) {
-        setSkillLoadError(typeof json === "object" && json && "error" in json ? String((json as { error: string }).error) : "Failed to load categories")
-        setSkillCategories([])
+        base.skillLoadError =
+          typeof json === "object" && json && "error" in json
+            ? String((json as { error: string }).error)
+            : "Failed to load categories"
+        base.skillCategories = []
+        setSnapshot({ ...base })
         return
       }
-      setSkillLoadError(null)
-      const rows = Array.isArray(json) ? (json as SkillCategoryRow[]) : []
-      setSkillCategories(rows)
+      base.skillLoadError = null
+      base.skillCategories = Array.isArray(json) ? (json as SkillCategoryRow[]) : []
     } catch (e) {
-      setSkillLoadError(e instanceof Error ? e.message : "Failed to load categories")
-      setSkillCategories([])
+      base.skillLoadError = e instanceof Error ? e.message : "Failed to load categories"
+      base.skillCategories = []
     }
+    setSnapshot({ ...base })
   }, [])
 
   useEffect(() => {
@@ -245,123 +208,30 @@ export default function SummaryPage() {
     }
   }, [showIncompleteWarningModal])
 
-  const skillProgress = (() => {
-    const slugs = skillCategories
-      .map((c) => quizSlugForCategory(c))
-      .filter((s): s is string => Boolean(s))
-    if (slugs.length === 0) {
-      const fb = clientStorageReady ? countLocalLegacyQuizDone() : { completed: 0, total: 0 }
-      return {
-        completed: fb.completed,
-        total: fb.total,
-        label: skillLoadError
-          ? `Could not load assessment list (${skillLoadError}). Showing progress saved on this device.`
-          : fb.total > 0
-            ? `${fb.completed} of ${fb.total} assessments completed (saved on this device)`
-            : "No skill assessments recorded yet",
-      }
-    }
-    const completed = slugs.filter((slug) => isSkillQuizDoneLocal(slug)).length
-    const total = slugs.length
-    return {
-      completed,
-      total,
-      label: `${completed} of ${total} ${total === 1 ? "assessment" : "assessments"} completed`,
-    }
-  })()
+  const summarySnapshot = useMemo(
+    () => ({ ...snapshot, clientStorageReady }),
+    [snapshot, clientStorageReady]
+  )
 
-  const ssnSubtitle = subtitleForSsnDl(workerDocs?.ssn_url, identityLs?.ssn?.name ?? null)
-  const dlSubtitle = subtitleForSsnDl(workerDocs?.drivers_license_url, identityLs?.license?.name ?? null)
-  const hasSsnDoc = Boolean(ssnSubtitle)
-  const hasDlDoc = Boolean(dlSubtitle)
+  const summarySections = useMemo(
+    () => buildApplicantSummarySections(nav.config, nav.slug, summarySnapshot),
+    [nav.config, nav.slug, summarySnapshot]
+  )
 
-  const authAgreementSubtitle = (() => {
-    if (authState.display === "signed") {
-      return authState.statusRaw ? `Signed (${authState.statusRaw})` : "Signed"
-    }
-    if (authState.display === "pending") {
-      if (authState.statusRaw === "declined") return "Declined — action needed on Step 4"
-      if (authState.statusRaw) return `Status: ${authState.statusRaw}`
-      return "Pending signature"
-    }
-    return null
-  })()
+  const { allReady: allSectionsReady, incomplete: incompleteSections } = useMemo(
+    () => evaluateApplicantSummaryReadiness(nav.config, summarySections),
+    [nav.config, summarySections]
+  )
 
-  const resumeComplete = resumeInfo.hasUploadedFile
-  const requirementsComplete = step2HasAnyUpload(step2Files)
-  const skillComplete =
-    skillProgress.total > 0 ? skillProgress.completed === skillProgress.total : false
-  const authSigned = authState.display === "signed"
-  const identityPairComplete = hasSsnDoc && hasDlDoc
-  const authorizationsSectionComplete = authSigned && identityPairComplete
-  const referencesComplete = referencesCount >= MIN_COMPLETE_REFERENCES
-
-  const completedSections = [
-    resumeComplete,
-    requirementsComplete,
-    skillComplete,
-    authorizationsSectionComplete,
-    referencesComplete,
-  ].filter(Boolean).length
-
-  const allSectionsReady =
-    resumeComplete &&
-    requirementsComplete &&
-    skillComplete &&
-    authorizationsSectionComplete &&
-    referencesComplete
+  const completedSections = summarySections.filter((s) => s.complete).length
+  const totalSections = summarySections.length
 
   submissionReadinessRef.current = allSectionsReady
-
-  const incompleteSections: { id: string; title: string; href: string }[] = []
-  if (!resumeComplete) {
-    incompleteSections.push({
-      id: "resume",
-      title: "Resume",
-      href: applicationPath("/application/step-1-upload"),
-    })
-  }
-  if (!requirementsComplete) {
-    incompleteSections.push({
-      id: "requirements",
-      title: "Professional License & Requirements",
-      href: applicationPath("/application/step-2-license"),
-    })
-  }
-  if (!skillComplete) {
-    incompleteSections.push({
-      id: "skills",
-      title: "Skill Assessments",
-      href: applicationPath("/application/step-3-assessment"),
-    })
-  }
-  if (!authorizationsSectionComplete) {
-    incompleteSections.push({
-      id: "documents",
-      title: "Authorizations & Documents",
-      href: applicationPath("/application/step-4-documents"),
-    })
-  }
-  if (!referencesComplete) {
-    incompleteSections.push({
-      id: "references",
-      title: "References",
-      href: applicationPath("/application/step-5-add-references"),
-    })
-  }
 
   const handleFinalSubmit = () => {
     setSubmitGuardError(null)
     if (!submissionReadinessRef.current) {
       setShowIncompleteWarningModal(true)
-      return
-    }
-    const n = countCompleteReferencesFromStorage()
-    setReferencesCount(n)
-    if (n < MIN_COMPLETE_REFERENCES) {
-      setSubmitGuardError(
-        `Add at least ${MIN_COMPLETE_REFERENCES} complete references before submitting. Use Edit on References to return to the previous step.`,
-      )
       return
     }
     setLoading(true)
@@ -371,14 +241,6 @@ export default function SummaryPage() {
         setSuccess(false)
         setLoading(false)
         setShowIncompleteWarningModal(true)
-        return
-      }
-      if (countCompleteReferencesFromStorage() < MIN_COMPLETE_REFERENCES) {
-        setSuccess(false)
-        setLoading(false)
-        setSubmitGuardError(
-          `Add at least ${MIN_COMPLETE_REFERENCES} complete references before submitting.`,
-        )
         return
       }
       localStorage.removeItem("parsedResume")
@@ -391,36 +253,6 @@ export default function SummaryPage() {
     }, 3000)
   }
 
-  const requirementRows: { key: Step2FileType; file: Step2UploadedFile }[] = STEP2_FILE_TYPES.filter(
-    (k) => Boolean(step2Files?.[k]?.name),
-  ).map((k) => ({ key: k, file: step2Files![k]! }))
-
-  const authRows: { key: string; title: string; subtitle: string | null; complete: boolean }[] = []
-  if (authState.hasActivity) {
-    authRows.push({
-      key: "auth",
-      title: "Authorization agreement",
-      subtitle: authAgreementSubtitle,
-      complete: authSigned,
-    })
-  }
-  if (hasSsnDoc) {
-    authRows.push({
-      key: "ssn",
-      title: "SSN card",
-      subtitle: ssnSubtitle,
-      complete: hasSsnDoc,
-    })
-  }
-  if (hasDlDoc) {
-    authRows.push({
-      key: "dl",
-      title: "Driver's license",
-      subtitle: dlSubtitle,
-      complete: hasDlDoc,
-    })
-  }
-
   return (
     <>
     <OnboardingLayout
@@ -430,107 +262,33 @@ export default function SummaryPage() {
       rightPanelOverlayClassName="bg-white/65"
     >
       <div className="flex h-full flex-col px-10 pb-10 pt-8">
-        <OnboardingStepper currentStep={6} completedThrough={6} />
+        <OnboardingStepper />
 
         <div className="flex flex-1 flex-col pt-8">
           <div className="mb-6 flex items-center justify-between">
             <h2 className="text-[24px] font-semibold leading-8 text-slate-800">Summary</h2>
             <span className="text-[12px] font-medium text-slate-500">
-              {completedSections} of 5 sections complete
+              {completedSections} of {totalSections} sections complete
             </span>
           </div>
 
           <div className="space-y-6">
-            {/* Resume — Add Resume step */}
-            <div>
-              <p className="mb-2 text-[13px] font-semibold text-slate-700">Resume uploaded</p>
-              <SummaryRow
-                title="Resume file"
-                subtitle={
-                  resumeInfo.hasUploadedFile
-                    ? resumeInfo.fileName || "File on file"
-                    : "No resume file uploaded yet"
-                }
-                complete={resumeComplete}
-                editHref={applicationPath("/application/step-1-upload")}
-              />
-            </div>
-
-            {/* Requirements — Professional license step */}
-            <div>
-              <p className="mb-2 text-[13px] font-semibold text-slate-700">Requirements</p>
-              {requirementRows.length === 0 ? (
-                <SummaryRow
-                  title="Professional license and requirements"
-                  subtitle="No documents uploaded yet"
-                  complete={false}
-                  editHref={applicationPath("/application/step-2-license")}
-                />
-              ) : (
+            {summarySections.map((section) => (
+              <div key={section.id}>
+                <p className="mb-2 text-[13px] font-semibold text-slate-700">{section.heading}</p>
                 <div className="space-y-2">
-                  {requirementRows.map(({ key, file }) => (
-                    <SummaryRow
-                      key={key}
-                      title={STEP2_REQUIREMENT_LABELS[key]}
-                      subtitle={[file.name, file.size].filter(Boolean).join(" · ") || file.name}
-                      complete
-                      editHref={applicationPath("/application/step-2-license")}
-                    />
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Skill assessment */}
-            <div>
-              <p className="mb-2 text-[13px] font-semibold text-slate-700">Skill assessment</p>
-              <SummaryRow
-                title="Skill assessments"
-                subtitle={skillProgress.label}
-                complete={skillComplete}
-                editHref={applicationPath("/application/step-3-assessment")}
-              />
-            </div>
-
-            {/* Authorizations & documents */}
-            <div>
-              <p className="mb-2 text-[13px] font-semibold text-slate-700">Authorizations and documents</p>
-              {authRows.length === 0 ? (
-                <SummaryRow
-                  title="Authorizations and identity documents"
-                  subtitle="No signed authorization or uploaded identity documents recorded yet"
-                  complete={false}
-                  editHref={applicationPath("/application/step-4-documents")}
-                />
-              ) : (
-                <div className="space-y-2">
-                  {authRows.map((row) => (
+                  {section.rows.map((row) => (
                     <SummaryRow
                       key={row.key}
                       title={row.title}
                       subtitle={row.subtitle}
                       complete={row.complete}
-                      editHref={applicationPath("/application/step-4-documents")}
+                      editHref={section.editHref}
                     />
                   ))}
                 </div>
-              )}
-            </div>
-
-            {/* References */}
-            <div>
-              <p className="mb-2 text-[13px] font-semibold text-slate-700">References</p>
-              <SummaryRow
-                title={`${referencesCount} of 3 added`}
-                subtitle={
-                  referencesComplete
-                    ? undefined
-                    : `At least ${MIN_COMPLETE_REFERENCES} complete references required`
-                }
-                complete={referencesComplete}
-                editHref={applicationPath("/application/step-5-add-references")}
-              />
-            </div>
+              </div>
+            ))}
           </div>
 
           {submitGuardError ? (
@@ -545,7 +303,7 @@ export default function SummaryPage() {
           <div className="mt-auto flex items-center justify-end gap-3 pt-8">
             <button
               type="button"
-              onClick={() => router.back()}
+              onClick={() => (nav.prevRoute ? router.push(nav.prevRoute) : router.back())}
               className="cursor-pointer rounded-md border border-[#0D9488] bg-white px-5 py-2 text-[12px] font-medium leading-5 text-[#0D9488] transition hover:bg-[#f0fffe]"
             >
               Back
@@ -570,14 +328,6 @@ export default function SummaryPage() {
             setSuccess(false)
             setLoading(false)
             setShowIncompleteWarningModal(true)
-            return
-          }
-          if (countCompleteReferencesFromStorage() < MIN_COMPLETE_REFERENCES) {
-            setSuccess(false)
-            setLoading(false)
-            setSubmitGuardError(
-              `Add at least ${MIN_COMPLETE_REFERENCES} complete references before submitting.`,
-            )
             return
           }
           localStorage.removeItem("parsedResume")

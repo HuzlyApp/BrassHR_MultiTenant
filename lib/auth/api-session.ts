@@ -145,6 +145,7 @@ export async function requireApiSession(): Promise<ApiAuthContext | NextResponse
       return jsonUnauthorized(403);
     }
     const role = await resolveAppRoleForUser(user);
+    const godAdmin = isGodAdminUser(user) || (await hasGodAdminDbFlag(user.id));
     logAuthDebug("requireApiSession:ok", {
       userId: user.id,
       platform: getUserPlatform(user),
@@ -154,7 +155,7 @@ export async function requireApiSession(): Promise<ApiAuthContext | NextResponse
       userId: user.id,
       email: typeof user.email === "string" ? user.email : null,
       role,
-      godAdmin: isGodAdminUser(user),
+      godAdmin,
       devBypass: false,
     };
   } catch (e) {

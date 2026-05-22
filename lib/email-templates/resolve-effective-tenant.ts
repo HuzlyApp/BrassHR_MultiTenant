@@ -2,7 +2,8 @@ import { cookies } from "next/headers";
 import type { User } from "@supabase/supabase-js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { tenantIdFromUser } from "@/lib/auth/staff-tenant-scope";
-import { VIEW_AS_TENANT_COOKIE } from "@/lib/tenant/constants";
+import { ONBOARDING_TENANT_SLUG_COOKIE, VIEW_AS_TENANT_COOKIE } from "@/lib/tenant/constants";
+import { resolveTenantIdBySlug } from "@/lib/tenant/resolve-tenant-id-by-slug";
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -13,10 +14,18 @@ export async function resolveEffectiveAdminTenantId(
   params: { userId: string; authUser: User; godAdmin: boolean }
 ): Promise<string | null> {
   if (params.godAdmin) {
-    const cookieId = (await cookies()).get(VIEW_AS_TENANT_COOKIE)?.value?.trim() ?? "";
+    const jar = await cookies();
+    const cookieId = jar.get(VIEW_AS_TENANT_COOKIE)?.value?.trim() ?? "";
     if (cookieId && UUID_RE.test(cookieId)) {
       return cookieId.toLowerCase();
     }
+
+    const onboardingSlug = jar.get(ONBOARDING_TENANT_SLUG_COOKIE)?.value?.trim().toLowerCase();
+    if (onboardingSlug && onboardingSlug.length >= 2) {
+      const fromSlug = await resolveTenantIdBySlug(supabase, onboardingSlug);
+      if (fromSlug) return fromSlug.toLowerCase();
+    }
+
     return null;
   }
 

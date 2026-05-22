@@ -9,6 +9,8 @@ import { WORKER_REQUIRED_FILES_BUCKET } from "@/lib/supabase-storage-buckets"
 import OnboardingLayout from "@/app/components/OnboardingLayout"
 import OnboardingStepper from "@/app/components/OnboardingStepper"
 import OnboardingCheckbox from "@/app/components/OnboardingCheckbox"
+import { useOnboardingConfigOptional } from "@/app/components/onboarding/OnboardingConfigProvider"
+import { useOnboardingStepNav } from "@/lib/onboarding/use-onboarding-step-nav"
 import AutosaveStatus from "@/app/components/AutosaveStatus"
 import DocumentFileThumbnail from "@/app/components/DocumentFileThumbnail"
 import { isPdfFile, resolveStoragePublicUrl } from "@/lib/document-upload-helpers"
@@ -35,6 +37,8 @@ function fileLabel(path: string) {
 
 export default function DocumentsPage() {
   const router = useRouter()
+  const onboarding = useOnboardingConfigOptional()
+  const nav = useOnboardingStepNav()
 
   const [mounted, setMounted] = useState(false)
   const [showAuthPdf, setShowAuthPdf] = useState(false)
@@ -530,7 +534,13 @@ export default function DocumentsPage() {
       }
 
       await syncZoho()
-      router.push(applicationPath("/application/step-5-add-references"))
+      const authStep = onboarding?.config?.steps.find(
+        (s) => s.is_enabled && (s.step_key === "authorizations" || s.step_type === "authorizations")
+      )
+      if (authStep?.step_key) {
+        await onboarding?.updateStepStatus?.(authStep.step_key, "completed")
+      }
+      if (nav.nextRoute) router.push(nav.nextRoute)
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : "Save failed"
       setError(message)
@@ -539,9 +549,15 @@ export default function DocumentsPage() {
     }
   }
 
-  const handleSkipForNow = () => {
+  const handleSkipForNow = async () => {
     localStorage.setItem("step4Skipped", "1")
-    router.push(applicationPath("/application/step-5-add-references"))
+    const authStep = onboarding?.config?.steps.find(
+      (s) => s.is_enabled && (s.step_key === "authorizations" || s.step_type === "authorizations")
+    )
+    if (authStep?.step_key) {
+      await onboarding?.updateStepStatus?.(authStep.step_key, "skipped")
+    }
+    if (nav.nextRoute) router.push(nav.nextRoute)
   }
 
   const openZohoDocument = useCallback(
@@ -651,7 +667,7 @@ export default function DocumentsPage() {
         </div>
       )}
       <div className="flex h-full flex-col px-10 pb-10 pt-8">
-        <OnboardingStepper currentStep={4} completedThrough={3} />
+        <OnboardingStepper />
 
         <div className="flex flex-1 flex-col pt-8">
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

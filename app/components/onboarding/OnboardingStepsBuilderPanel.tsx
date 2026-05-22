@@ -4,6 +4,15 @@ import { useCallback, useEffect, useState } from "react";
 import OnboardingStepsBuilder, { createInitialBuilderSteps } from "@/app/components/onboarding/OnboardingStepsBuilder";
 import type { OnboardingStepDraft } from "@/lib/onboarding/default-onboarding-steps";
 import type { TenantOnboardingConfig } from "@/lib/onboarding/types";
+import { supabaseBrowser } from "@/lib/supabase-browser";
+
+async function staffAuthHeaders(): Promise<HeadersInit> {
+  const {
+    data: { session },
+  } = await supabaseBrowser.auth.getSession();
+  const token = session?.access_token;
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
 
 function configToDrafts(config: TenantOnboardingConfig): OnboardingStepDraft[] {
   return config.steps
@@ -72,9 +81,19 @@ export default function OnboardingStepsBuilderPanel({
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch("/api/admin/onboarding/config", { cache: "no-store" });
-        const payload = (await res.json()) as { config?: TenantOnboardingConfig; error?: string };
-        if (!res.ok) throw new Error(payload.error ?? "Could not load onboarding config");
+        const res = await fetch("/api/admin/onboarding/config", {
+          cache: "no-store",
+          headers: await staffAuthHeaders(),
+        });
+        const payload = (await res.json()) as {
+          config?: TenantOnboardingConfig;
+          error?: string;
+          detail?: string;
+          code?: string;
+        };
+        if (!res.ok) {
+          throw new Error(payload.detail ?? payload.error ?? "Could not load onboarding config");
+        }
         if (alive && payload.config) {
           const drafts = configToDrafts(payload.config);
           setSteps(drafts);
@@ -111,11 +130,14 @@ export default function OnboardingStepsBuilderPanel({
 
       const res = await fetch("/api/admin/onboarding/config", {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(await staffAuthHeaders()),
+        },
         body: JSON.stringify({ steps }),
       });
-      const payload = (await res.json()) as { error?: string };
-      if (!res.ok) throw new Error(payload.error ?? "Save failed");
+      const payload = (await res.json()) as { error?: string; detail?: string };
+      if (!res.ok) throw new Error(payload.detail ?? payload.error ?? "Save failed");
       setMessage("Onboarding configuration saved.");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Save failed");
@@ -126,6 +148,22 @@ export default function OnboardingStepsBuilderPanel({
 
   if (loading) {
     return <p className="text-sm text-slate-500">Loading onboarding configuration…</p>;
+  }
+
+  if (mode === "admin-settings" && error && /staff role required/i.test(error)) {
+    return (
+      <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+        <p className="font-semibold">Recruiter sign-in required</p>
+        <p className="mt-1">
+          This page needs a recruiter or admin account. If you recently used applicant onboarding in
+          this browser, sign out and use{" "}
+          <a href="/login" className="font-semibold underline">
+            Sign in
+          </a>{" "}
+          as a recruiter, then open Settings again.
+        </p>
+      </div>
+    );
   }
 
   return (

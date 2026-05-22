@@ -145,15 +145,11 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  /** Onboarding may be anonymous; enforce platform only when a session exists. */
+  /**
+   * Applicant onboarding is public (anonymous sign-in happens client-side).
+   * Do not apply recruiter platform/auth gates here — that sent applicants to /login.
+   */
   if (pathname.startsWith("/application")) {
-    if (user && platformOn && !isNexusPlatformUser(user) && !isGodAdminUser(user)) {
-      await supabase.auth.signOut();
-      const login = new URL("/login", request.url);
-      login.searchParams.set("next", `${request.nextUrl.pathname}${request.nextUrl.search}`);
-      login.searchParams.set("error", "platform");
-      return NextResponse.redirect(login);
-    }
     return ensureApplicationTenantQuery(request, response);
   }
 
@@ -167,6 +163,7 @@ export const config = {
     "/login/:path*",
     "/tenant-host-not-found",
     "/admin_recruiter/:path*",
+    "/application",
     "/application/:path*",
     "/api/workers",
     "/api/workers/:path*",

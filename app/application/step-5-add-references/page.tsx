@@ -5,6 +5,7 @@ import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import OnboardingLayout from "@/app/components/OnboardingLayout"
 import OnboardingStepper from "@/app/components/OnboardingStepper"
+import { useOnboardingStepNav } from "@/lib/onboarding/use-onboarding-step-nav"
 import { formatPhoneNumber, normalizePhoneInput } from "@/lib/phone"
 import AutosaveStatus from "@/app/components/AutosaveStatus"
 import {
@@ -41,6 +42,7 @@ function loadRefsFromStorage(): RefRow[] {
 
 export default function ReferencesPage() {
   const router = useRouter()
+  const nav = useOnboardingStepNav()
 
   const [refs, setRefs] = useState<RefRow[]>(() => loadRefsFromStorage())
   const [error, setError] = useState("")
@@ -146,7 +148,7 @@ export default function ReferencesPage() {
       rightPanelOverlayClassName="bg-white/65"
     >
       <div className="flex h-full flex-col px-10 pb-10 pt-8">
-        <OnboardingStepper currentStep={5} completedThrough={4} />
+        <OnboardingStepper />
 
         <div className="flex flex-1 flex-col pt-8">
           {/* Header */}

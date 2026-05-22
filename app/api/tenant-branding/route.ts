@@ -15,20 +15,50 @@ export async function GET(req: Request) {
   }
 
   const { searchParams } = new URL(req.url);
-  const slug = searchParams.get("slug")?.trim();
+  const slugParam = searchParams.get("slug")?.trim();
+  const subdomainParam = searchParams.get("subdomain")?.trim().toLowerCase();
 
   const supabase = createSb(url, key);
   let row: TenantBrandingRow | null = null;
+  let resolvedSlug = slugParam ?? null;
 
-  if (slug) {
+  if (subdomainParam && !slugParam) {
+    const { data: bySub, error: subErr } = await supabase
+      .from("tenants")
+      .select(TENANT_BRANDING_SELECT)
+      .eq("subdomain", subdomainParam)
+      .eq("is_active", true)
+      .maybeSingle<TenantBrandingRow>();
+    if (subErr) {
+      console.error("[tenant-branding] subdomain lookup", subdomainParam, subErr.message);
+      return Response.json({ error: subErr.message }, { status: 500 });
+    }
+    if (bySub) {
+      row = bySub;
+      resolvedSlug = bySub.slug;
+    } else {
+      const { data: bySlug, error: slugErr } = await supabase
+        .from("tenants")
+        .select(TENANT_BRANDING_SELECT)
+        .eq("slug", subdomainParam)
+        .eq("is_active", true)
+        .maybeSingle<TenantBrandingRow>();
+      if (slugErr) {
+        console.error("[tenant-branding] subdomain-as-slug lookup", subdomainParam, slugErr.message);
+        return Response.json({ error: slugErr.message }, { status: 500 });
+      }
+      row = bySlug ?? null;
+      resolvedSlug = bySlug?.slug ?? subdomainParam;
+    }
+  } else if (slugParam) {
     const { data, error } = await supabase
       .from("tenants")
       .select(TENANT_BRANDING_SELECT)
-      .eq("slug", slug)
+      .eq("slug", slugParam)
       .eq("is_active", true)
       .maybeSingle<TenantBrandingRow>();
     if (error) {
-      console.error("[tenant-branding] slug lookup", slug, error.message);
+      console.error("[tenant-branding] slug lookup", slugParam, error.message);
       return Response.json({ error: error.message }, { status: 500 });
     }
     row = data ?? null;
@@ -61,6 +91,6 @@ export async function GET(req: Request) {
     }
   }
 
-  const resolvedSlug = slug ?? PLATFORM_DEFAULT_TENANT_SLUG;
-  return Response.json({ branding: brandingFromTenantRow(row, resolvedSlug) });
+  const brandingSlug = resolvedSlug ?? PLATFORM_DEFAULT_TENANT_SLUG;
+  return Response.json({ branding: brandingFromTenantRow(row, brandingSlug) });
 }

@@ -1,14 +1,9 @@
-import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import type { TenantBrandingRow } from "@/lib/tenant/tenant-branding";
 import { brandingFromTenantRow, defaultTenantBranding } from "@/lib/tenant/tenant-branding";
-import { VIEW_AS_TENANT_COOKIE } from "@/lib/tenant/constants";
-import { tenantIdFromUser } from "@/lib/auth/staff-tenant-scope";
 import { requireStaffApiSession } from "@/lib/auth/api-session";
-
-const UUID_RE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+import { resolveEffectiveAdminTenantId } from "@/lib/email-templates/resolve-effective-tenant";
 
 async function loadTenant(id: string): Promise<TenantBrandingRow | null> {
   const sb = createServiceRoleClient();
@@ -27,29 +22,16 @@ export async function GET() {
   const auth = await requireStaffApiSession();
   if (auth instanceof NextResponse) return auth;
 
-  let tenantId: string | null = null;
-
-  if (auth.godAdmin) {
-    const cookieId = (await cookies()).get(VIEW_AS_TENANT_COOKIE)?.value?.trim() ?? "";
-    if (cookieId && UUID_RE.test(cookieId)) {
-      tenantId = cookieId.toLowerCase();
-    }
-  } else {
-    tenantId = tenantIdFromUser(auth.authUser);
-    if (!tenantId) {
-      const sb = createServiceRoleClient();
-      if (sb) {
-        const { data } = await sb
-          .from("users")
-          .select("tenant_id")
-          .eq("id", auth.userId)
-          .maybeSingle<{ tenant_id: string | null }>();
-        if (data?.tenant_id && UUID_RE.test(data.tenant_id)) {
-          tenantId = String(data.tenant_id).toLowerCase();
-        }
-      }
-    }
+  const supabase = createServiceRoleClient();
+  if (!supabase) {
+    return NextResponse.json({ error: "Supabase not configured" }, { status: 503 });
   }
+
+  const tenantId = await resolveEffectiveAdminTenantId(supabase, {
+    userId: auth.userId,
+    authUser: auth.authUser,
+    godAdmin: auth.godAdmin,
+  });
 
   if (!tenantId) {
     return Response.json({
@@ -71,7 +53,7 @@ export async function GET() {
     });
   }
 
-  const row = await loadTenant(tenantId);
+  const row = await loadTenant(tenantId!);
   const branding = brandingFromTenantRow(row);
   return Response.json({
     branding,

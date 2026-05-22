@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { getSupabaseUrl } from "@/lib/supabase-env"
-import { resolveDefaultTenantId } from "@/lib/tenant/resolve-default-tenant-id"
+import { resolveOnboardingTenantId } from "@/lib/tenant/resolve-onboarding-tenant-id"
 
 export const runtime = "nodejs"
 
@@ -33,7 +33,9 @@ export async function POST(req: NextRequest) {
     }
 
     const supabase = createClient(url, key)
-    const tenantRes = await resolveDefaultTenantId(supabase)
+    const tenantSlug =
+      typeof body.tenantSlug === "string" ? body.tenantSlug.trim().toLowerCase() : ""
+    const tenantRes = await resolveOnboardingTenantId(supabase, tenantSlug || null)
     if (!tenantRes.ok) {
       return NextResponse.json({ error: tenantRes.error }, { status: 503 })
     }

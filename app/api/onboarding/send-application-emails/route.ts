@@ -4,7 +4,10 @@ import { z } from "zod";
 import { sendOnboardingApplicantEmail } from "@/lib/email/send-templated-email";
 import { SendEmailError } from "@/lib/email/errors";
 import { EMAIL_TEMPLATE_TYPE } from "@/lib/email-templates/template-keys";
-import { resolveWorkerByApplicantId } from "@/lib/onboarding/resolve-worker-context";
+import {
+  resolveTenantIdBySlug,
+  resolveWorkerByApplicantId,
+} from "@/lib/onboarding/resolve-worker-context";
 import { resolveAppOrigin } from "@/lib/resolve-app-origin";
 import { getSupabaseUrl } from "@/lib/supabase-env";
 
@@ -13,6 +16,8 @@ export const runtime = "nodejs";
 const bodySchema = z.object({
   applicantId: z.string().trim().min(1),
   clientOrigin: z.string().trim().optional(),
+  /** Onboarding tenant slug (`?tenant=` / subdomain); used for templates when set. */
+  tenantSlug: z.string().trim().min(2).optional(),
 });
 
 function handleError(e: unknown): NextResponse {
@@ -46,8 +51,22 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Worker not found" }, { status: 404 });
     }
 
+    let tenantId = ctx.tenantId;
+    if (parsed.tenantSlug) {
+      const fromSlug = await resolveTenantIdBySlug(supabase, parsed.tenantSlug);
+      if (fromSlug) {
+        tenantId = fromSlug.toLowerCase();
+        if (tenantId !== ctx.tenantId) {
+          await supabase
+            .from("worker")
+            .update({ tenant_id: tenantId, updated_at: new Date().toISOString() })
+            .eq("id", ctx.workerId);
+        }
+      }
+    }
+
     const result = await sendOnboardingApplicantEmail(supabase, {
-      tenantId: ctx.tenantId,
+      tenantId,
       workerId: ctx.workerId,
       templateKey: EMAIL_TEMPLATE_TYPE.APPLICATION_STATUS,
       origin,

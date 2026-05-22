@@ -8,6 +8,7 @@ import Image from "next/image"
 import { Check, ChevronRight } from "lucide-react"
 import { supabaseBrowser as supabase } from "@/lib/supabase-browser"
 import OnboardingStepper from "@/app/components/OnboardingStepper"
+import { useOnboardingStepNav } from "@/lib/onboarding/use-onboarding-step-nav"
 import OnboardingLayout from "@/app/components/OnboardingLayout"
 import OnboardingLoader from "@/app/components/OnboardingLoader"
 
@@ -66,6 +67,7 @@ function recordCompletedCategories(rows: { category: string }[]): Set<string> {
 
 export default function AssessmentPage() {
   const router = useRouter()
+  const nav = useOnboardingStepNav()
   const [categories, setCategories] = useState<Category[]>([])
   const [completedSlugs, setCompletedSlugs] = useState<Set<string>>(() => new Set())
   const [loading, setLoading] = useState(true)
@@ -140,7 +142,7 @@ export default function AssessmentPage() {
       rightPanelOverlayClassName="bg-white/65"
     >
       <div className="flex h-full flex-col px-10 pb-10 pt-8">
-        <OnboardingStepper currentStep={3} completedThrough={2} />
+        <OnboardingStepper />
 
         <div className="flex flex-1 flex-col pt-8">
           {/* Header */}
@@ -150,7 +152,7 @@ export default function AssessmentPage() {
             </h2>
             <button
               type="button"
-              onClick={() => router.push(applicationPath("/application/step-4-documents"))}
+              onClick={() => nav.nextRoute && router.push(nav.nextRoute)}
               className="cursor-pointer text-[12px] font-medium leading-5 text-[#0D9488] mt-1"
             >
               Skip for Now →
@@ -220,7 +222,7 @@ export default function AssessmentPage() {
             <button
               type="button"
               onClick={() => {
-                router.push(applicationPath("/application/step-4-documents"))
+                if (nav.nextRoute) router.push(nav.nextRoute)
               }}
               className="cursor-pointer rounded-md bg-[#0D9488] px-6 py-2 text-[12px] font-medium leading-5 text-white transition hover:bg-[#0b7a70]"
             >

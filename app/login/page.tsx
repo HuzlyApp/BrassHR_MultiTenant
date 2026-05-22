@@ -260,6 +260,26 @@ function LoginPageContent() {
         ? nextPath
         : defaultNext;
 
+    const tenantSlug = searchParams.get("tenant")?.trim().toLowerCase();
+    if (tenantSlug && tenantSlug.length >= 2) {
+      persistOnboardingSlugCookie(tenantSlug);
+      if (godAdmin) {
+        const {
+          data: { session },
+        } = await supabaseBrowser.auth.getSession();
+        await fetch("/api/admin/view-as-tenant", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(session?.access_token
+              ? { Authorization: `Bearer ${session.access_token}` }
+              : {}),
+          },
+          body: JSON.stringify({ slug: tenantSlug }),
+        });
+      }
+    }
+
     router.push(safeNext);
     router.refresh();
     return true;

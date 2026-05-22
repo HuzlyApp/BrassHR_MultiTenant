@@ -16,7 +16,10 @@ import {
   step1ZipInlineMessage,
 } from "@/lib/onboardingStep1Validation"
 import AutosaveStatus from "@/app/components/AutosaveStatus"
-import { getConfiguredDefaultTenantId } from "@/lib/tenant/resolve-default-tenant-id"
+import { resolveClientOnboardingTenantSlug } from "@/lib/tenant/client-onboarding-slug"
+import { getClientOnboardingTenantIdFallback } from "@/lib/tenant/resolve-onboarding-tenant-id"
+import { useOnboardingStepNav } from "@/lib/onboarding/use-onboarding-step-nav"
+import { adjacentStepRoute } from "@/lib/onboarding/tenant-step-navigation"
 
 type ContactConflictKind = "email" | "phone"
 
@@ -199,6 +202,7 @@ function SearchableSelect({
 function Step1ReviewContent() {
   const focusBorderClass = "focus:outline-none focus:border-[#22c7c8] focus:ring-2 focus:ring-[#22c7c8]/20"
   const router = useRouter()
+  const nav = useOnboardingStepNav()
   const searchParams = useSearchParams()
   const urlJobTitle = useMemo(() => {
     return (
@@ -420,6 +424,11 @@ function Step1ReviewContent() {
       // if (!applicantId) throw new Error("Could not generate applicant ID")
       // localStorage.setItem("applicantId", applicantId)
 
+      const tenantSlug =
+        typeof window !== "undefined"
+          ? resolveClientOnboardingTenantSlug(window.location.search)
+          : null
+
       const payload = {
         applicantId,
         firstName: form.firstName,
@@ -432,11 +441,12 @@ function Step1ReviewContent() {
         phone: form.phone,
         email: form.email,
         jobRole: form.jobRole,
+        ...(tenantSlug ? { tenantSlug } : {}),
       }
 
-      const clientTenantId = getConfiguredDefaultTenantId()
+      const clientTenantId = getClientOnboardingTenantIdFallback()
       const workerRow = {
-        ...(clientTenantId ? { tenant_id: clientTenantId } : {}),
+        ...(clientTenantId && !tenantSlug ? { tenant_id: clientTenantId } : {}),
         user_id: applicantId,
         first_name: form.firstName.trim(),
         last_name: form.lastName.trim(),
@@ -482,7 +492,11 @@ function Step1ReviewContent() {
         const emailCheck = await fetch("/api/onboarding/check-email-free", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ applicantId, email: form.email.trim() }),
+          body: JSON.stringify({
+            applicantId,
+            email: form.email.trim(),
+            ...(tenantSlug ? { tenantSlug } : {}),
+          }),
         })
         let emailCheckJson: { error?: string; code?: string } = {}
         try {
@@ -591,7 +605,14 @@ function Step1ReviewContent() {
         /* progress is best-effort; step 2 should still open */
       }
 
-      router.push(applicationPath("/application/step-2-license"))
+      const resumeStep =
+        nav.enabledSteps?.find(
+          (s) => s.step_type === "resume_upload" || s.step_key === "resume_upload"
+        ) ?? null
+      const next =
+        adjacentStepRoute(nav.config, resumeStep, 1, nav.slug) ??
+        applicationPath("/application/step-2-license")
+      router.push(next)
 
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Failed to save data"
@@ -621,7 +642,7 @@ function Step1ReviewContent() {
           <div className="min-w-0">
             <div className="overflow-x-auto -mx-1 px-1 pb-1">
               <div className="min-w-[520px] sm:min-w-0">
-                <OnboardingStepper currentStep={1} />
+                <OnboardingStepper />
               </div>
             </div>
 

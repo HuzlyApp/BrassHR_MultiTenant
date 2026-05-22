@@ -7,6 +7,7 @@ import { supabaseBrowser as supabase } from "@/lib/supabase-browser"
 import { DOCUMENTATION_CATEGORY_ID } from "@/lib/documentation-category"
 import OnboardingLayout from "@/app/components/OnboardingLayout"
 import OnboardingStepper from "@/app/components/OnboardingStepper"
+import { useOnboardingStepNav } from "@/lib/onboarding/use-onboarding-step-nav"
 import OnboardingLoader from "@/app/components/OnboardingLoader"
 import { ChevronRight } from "lucide-react"
 import {
@@ -145,6 +146,7 @@ function splitQuestionDetail(question: string, description?: string | null) {
 
 export default function DocumentationQuiz() {
   const router = useRouter()
+  const nav = useOnboardingStepNav()
   const [category, setCategory] = useState<CategoryRow | null>(null)
   const [questions, setQuestions] = useState<QuestionRow[]>([])
   const [answers, setAnswers] = useState<Record<string, number>>({})
@@ -434,7 +436,7 @@ export default function DocumentationQuiz() {
       rightPanelOverlayClassName="bg-white/65"
     >
       <div className="flex h-full flex-col px-10 pb-10 pt-8">
-        <OnboardingStepper currentStep={3} completedThrough={2} />
+        <OnboardingStepper />
 
         <div className="flex flex-1 flex-col pt-8">
           <div className="mb-1 flex items-start justify-between">
@@ -448,7 +450,7 @@ export default function DocumentationQuiz() {
               <AutosaveStatus state={saveState} />
               <button
                 type="button"
-                onClick={() => router.push(applicationPath("/application/step-4-documents"))}
+                onClick={() => nav.nextRoute && router.push(nav.nextRoute)}
                 className="cursor-pointer text-[12px] font-medium leading-5 text-[#0D9488]"
               >
                 Skip for Now →

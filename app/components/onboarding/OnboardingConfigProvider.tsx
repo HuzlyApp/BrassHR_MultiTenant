@@ -15,7 +15,8 @@ import type {
   OnboardingStepStatus,
 } from "@/lib/onboarding/types";
 import { resolveClientOnboardingTenantSlug } from "@/lib/tenant/client-onboarding-slug";
-import { useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
+import { computeMaxAllowedStepIndex } from "@/lib/onboarding/tenant-step-navigation";
 
 type Ctx = {
   config: TenantOnboardingConfig | null;
@@ -55,6 +56,7 @@ function readApplicantId(): string | null {
 }
 
 export default function OnboardingConfigProvider({ children }: { children: ReactNode }) {
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const tenantFromUrl = searchParams.get("tenant");
   const [config, setConfig] = useState<TenantOnboardingConfig | null>(null);
@@ -115,30 +117,10 @@ export default function OnboardingConfigProvider({ children }: { children: React
     [refresh]
   );
 
-  const maxAllowedStepIndex = useMemo(() => {
-    if (!config?.steps.length) return 1;
-    const enabled = config.steps.filter((s) => s.is_enabled);
-    if (!progress?.steps.length) return 1;
-
-    const statusByStepId = new Map(progress.steps.map((p) => [p.onboarding_step_id, p.status]));
-    let max = 1;
-    for (let i = 0; i < enabled.length; i++) {
-      const st = statusByStepId.get(enabled[i].id);
-      if (st === "completed" || st === "skipped") {
-        max = Math.max(max, i + 2);
-      } else if (st === "in_progress") {
-        max = Math.max(max, i + 1);
-        break;
-      } else {
-        max = Math.max(max, i + 1);
-        break;
-      }
-    }
-    if (typeof window !== "undefined" && localStorage.getItem("step1ReviewCompleted") === "true") {
-      max = Math.max(max, 2);
-    }
-    return Math.min(max, enabled.length);
-  }, [config, progress]);
+  const maxAllowedStepIndex = useMemo(
+    () => computeMaxAllowedStepIndex(config, progress, pathname),
+    [config, progress, pathname]
+  );
 
   const value = useMemo(
     () => ({

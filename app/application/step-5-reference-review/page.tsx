@@ -8,6 +8,7 @@ import Image from "next/image"
 import { Pencil, ChevronRight } from "lucide-react"
 import OnboardingLayout from "@/app/components/OnboardingLayout"
 import OnboardingStepper from "@/app/components/OnboardingStepper"
+import { useOnboardingStepNav } from "@/lib/onboarding/use-onboarding-step-nav"
 import {
   countCompleteReferences,
   MIN_COMPLETE_REFERENCES,
@@ -25,6 +26,7 @@ const emptyReference: Reference = {
 
 export default function ReferenceReviewPage() {
   const router = useRouter()
+  const nav = useOnboardingStepNav()
   const [references, setReferences] = useState<Reference[]>([])
   const [continueError, setContinueError] = useState<string | null>(null)
 
@@ -65,7 +67,8 @@ export default function ReferenceReviewPage() {
       return
     }
     localStorage.setItem("step5Completed", "true")
-    router.push(applicationPath("/application/step-6-summary"))
+    if (nav.nextRoute) router.push(nav.nextRoute)
+    else router.push(applicationPath("/application/step-6-summary"))
   }
 
   return (
@@ -76,7 +79,7 @@ export default function ReferenceReviewPage() {
       rightPanelOverlayClassName="bg-white/65"
     >
       <div className="flex h-full flex-col px-10 pb-10 pt-8">
-        <OnboardingStepper currentStep={5} completedThrough={4} />
+        <OnboardingStepper />
 
         <div className="flex flex-1 flex-col pt-8">
           <div className="flex items-center justify-between mb-4">
