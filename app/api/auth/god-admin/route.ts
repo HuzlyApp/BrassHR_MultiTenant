@@ -16,5 +16,8 @@ export async function GET() {
     }
   }
 
-  return NextResponse.json({ godAdmin });
+  return NextResponse.json({
+    godAdmin,
+    requiresOtp: !godAdmin,
+  });
 }

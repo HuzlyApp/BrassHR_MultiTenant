@@ -12,8 +12,15 @@ import VerificationSuccessModal from "@/app/components/VerificationSuccessModal"
 import { TenantBrandingProvider } from "@/app/components/tenant/TenantBrandingContext";
 import ClassicTenantLogin from "@/app/login/ClassicTenantLogin";
 import { LoginBrandHeader, LoginPageShell, interStyle } from "@/app/login/BraasLoginShell";
+import LoginFormError, { loginInputErrorClass } from "@/app/login/LoginFormError";
 import LoginOtpStep from "@/app/login/LoginOtpStep";
 import { isGodAdminUser } from "@/lib/auth/god-admin";
+import {
+  classifyAuthMessage,
+  parseLoginApiError,
+  type LoginAuthErrorPayload,
+} from "@/lib/auth/login-api-errors";
+import { toOtpVerifyError } from "@/lib/auth/login-otp";
 import { resolveGodAdminClient } from "@/lib/auth/resolve-god-admin-client";
 import { isNexusPlatformUser, isPlatformEnforcementEnabled } from "@/lib/auth/platform-shared";
 import {
@@ -104,7 +111,7 @@ function LoginPageContent() {
   const [pendingLogin, setPendingLogin] = useState<PendingLogin | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [authError, setAuthError] = useState<LoginAuthErrorPayload | null>(null);
   const [brand, setBrand] = useState<TenantBranding | null>(null);
   const [brandLoaded, setBrandLoaded] = useState(false);
   const [form, setForm] = useState({
@@ -174,11 +181,31 @@ function LoginPageContent() {
   }, [useBraasUi]);
 
   useEffect(() => {
+    if (typeof window !== "undefined" && window.location.hash.includes("error=")) {
+      const path = window.location.pathname + window.location.search;
+      window.history.replaceState(null, "", path);
+    }
+  }, []);
+
+  useEffect(() => {
     const q = searchParams.get("error");
     if (q === "platform") {
-      setError("This account is not authorized for this platform.");
+      setAuthError({
+        error: "This account is not authorized for this platform.",
+        code: "UNKNOWN",
+        field: null,
+      });
     }
   }, [searchParams]);
+
+  const clearAuthError = () => setAuthError(null);
+
+  const emailHasError =
+    authError?.field === "email" ||
+    authError?.code === "INVALID_CREDENTIALS" ||
+    authError?.code === "EMAIL_NOT_CONFIRMED";
+  const passwordHasError =
+    authError?.field === "password" || authError?.code === "INVALID_CREDENTIALS";
 
   const canSubmit = useMemo(() => {
     return form.email.trim().length > 0 && form.password.length > 0 && form.agree;
@@ -211,7 +238,11 @@ function LoginPageContent() {
       await supabaseBrowser.auth.signOut();
       setShowSuccess(false);
       setStep("credentials");
-      setError("This account is not authorized for this platform.");
+      setAuthError({
+        error: "This account is not authorized for this platform.",
+        code: "UNKNOWN",
+        field: null,
+      });
       return false;
     }
 
@@ -234,42 +265,73 @@ function LoginPageContent() {
     return true;
   };
 
+  const sendLoginOtp = async (login: PendingLogin) => {
+    const res = await fetch("/api/auth/login-otp/send", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: login.email, password: login.password }),
+    });
+    if (!res.ok) {
+      throw await parseLoginApiError(res);
+    }
+    return (await res.json()) as {
+      godAdmin?: boolean;
+      requiresOtp?: boolean;
+    };
+  };
+
   const handleCredentialsSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!canSubmit) return;
 
-    setError(null);
+    clearAuthError();
     const login: PendingLogin = {
-      email: form.email.trim(),
+      email: form.email.trim().toLowerCase(),
       password: form.password,
       rememberMe: form.rememberMe,
     };
 
     setSubmitting(true);
-    const { error: signInError, data: signInData } = await supabaseBrowser.auth.signInWithPassword({
-      email: login.email,
-      password: login.password,
-    });
-
-    if (signInError) {
-      setError(signInError.message || "Login failed");
-      setSubmitting(false);
-      return;
-    }
-
-    const godAdmin = await resolveGodAdminClient(signInData.user);
-    if (godAdmin) {
+    try {
+      const gate = await sendLoginOtp(login);
       setPendingLogin(login);
-      const ok = await finishAuthenticatedSession(login, { godAdmin: true });
-      setSubmitting(false);
-      if (!ok) return;
-      return;
-    }
 
-    await supabaseBrowser.auth.signOut();
-    setPendingLogin(login);
-    setStep("otp");
-    setSubmitting(false);
+      if (gate.godAdmin) {
+        const { error: signInError } = await supabaseBrowser.auth.signInWithPassword({
+          email: login.email,
+          password: login.password,
+        });
+        if (signInError) {
+          setAuthError(classifyAuthMessage(signInError.message));
+          setSubmitting(false);
+          return;
+        }
+        const ok = await finishAuthenticatedSession(login, { godAdmin: true });
+        setSubmitting(false);
+        if (!ok) return;
+        return;
+      }
+
+      if (gate.requiresOtp) {
+        setStep("otp");
+        setSubmitting(false);
+        return;
+      }
+
+      setAuthError({
+        error: "Login could not continue. Try again.",
+        code: "UNKNOWN",
+        field: null,
+      });
+      setSubmitting(false);
+    } catch (e) {
+      if (e && typeof e === "object" && "error" in e && "code" in e) {
+        setAuthError(e as LoginAuthErrorPayload);
+      } else {
+        setAuthError(classifyAuthMessage(e instanceof Error ? e.message : undefined));
+      }
+      setSubmitting(false);
+    }
   };
 
   const completeLogin = async (credentials?: PendingLogin) => {
@@ -277,7 +339,7 @@ function LoginPageContent() {
     if (!login) return;
 
     setSubmitting(true);
-    setError(null);
+    clearAuthError();
 
     const {
       data: { session },
@@ -291,8 +353,8 @@ function LoginPageContent() {
 
       if (signInError) {
         setShowSuccess(false);
-        setStep("credentials");
-        setError(signInError.message || "Login failed");
+        setStep(step === "otp" ? "otp" : "credentials");
+        setAuthError(classifyAuthMessage(signInError.message));
         setSubmitting(false);
         return;
       }
@@ -306,8 +368,43 @@ function LoginPageContent() {
     setSubmitting(false);
   };
 
-  const handleOtpVerify = (_code: string) => {
+  const handleOtpSendAgain = async () => {
+    const login = pendingLogin;
+    if (!login) return;
+    clearAuthError();
+    try {
+      await sendLoginOtp(login);
+    } catch (e) {
+      if (e && typeof e === "object" && "error" in e && "code" in e) {
+        setAuthError(e as LoginAuthErrorPayload);
+      } else {
+        setAuthError(classifyAuthMessage(e instanceof Error ? e.message : undefined));
+      }
+      throw e;
+    }
+  };
+
+  const handleOtpVerify = async (code: string) => {
+    const login = pendingLogin;
+    if (!login) return;
+
+    setSubmitting(true);
+    clearAuthError();
+
+    const { error: verifyError } = await supabaseBrowser.auth.verifyOtp({
+      email: login.email,
+      token: code,
+      type: "email",
+    });
+
+    if (verifyError) {
+      setAuthError(toOtpVerifyError(verifyError.message));
+      setSubmitting(false);
+      return;
+    }
+
     setShowSuccess(true);
+    setSubmitting(false);
   };
 
   const handleSuccessContinue = () => {
@@ -318,7 +415,7 @@ function LoginPageContent() {
     event.preventDefault();
     if (!form.email.trim() || !form.password || !form.agree) return;
     void completeLogin({
-      email: form.email.trim(),
+      email: form.email.trim().toLowerCase(),
       password: form.password,
       rememberMe: false,
     });
@@ -336,8 +433,11 @@ function LoginPageContent() {
           form={form}
           showPassword={showPassword}
           submitting={submitting}
-          error={error}
-          onFormChange={(patch) => setForm((prev) => ({ ...prev, ...patch }))}
+          error={authError?.error ?? null}
+          onFormChange={(patch) => {
+            clearAuthError();
+            setForm((prev) => ({ ...prev, ...patch }));
+          }}
           onTogglePassword={() => setShowPassword((current) => !current)}
           onSubmit={handleClassicSubmit}
         />
@@ -361,185 +461,193 @@ function LoginPageContent() {
         <LoginBrandHeader brand={brand} />
 
         {step === "otp" && pendingLogin ? (
-          <LoginOtpStep email={pendingLogin.email} submitting={submitting} onVerify={handleOtpVerify} />
+          <LoginOtpStep
+            email={pendingLogin.email}
+            submitting={submitting}
+            authError={authError}
+            onClearError={clearAuthError}
+            onVerify={handleOtpVerify}
+            onSendAgain={handleOtpSendAgain}
+          />
         ) : (
           <form onSubmit={handleCredentialsSubmit} className="flex flex-col gap-[40px] pt-[30px]">
             <div>
-              <h1 className="text-[30px] font-semibold leading-[36px] tracking-normal text-black" style={interStyle}>
-                Login
-              </h1>
-              <p className="mt-[8px] text-[16px] font-normal leading-[24px] text-[#6b7280]" style={interStyle}>
-                Account login
-              </p>
-            </div>
+          <h1 className="text-[30px] font-semibold leading-[36px] tracking-normal text-black" style={interStyle}>
+            Login
+          </h1>
+          <p className="mt-[8px] text-[16px] font-normal leading-[24px] text-[#6b7280]" style={interStyle}>
+            Account login
+          </p>
+        </div>
 
-            <div className="flex flex-col gap-[30px]">
-              <div className="flex flex-col gap-[20px]">
-                <div className="flex flex-col gap-[40px]">
-                  <div>
-                    <FieldLabel>Email</FieldLabel>
-                    <input
-                      id="email"
-                      name="email"
-                      type="email"
-                      value={form.email}
-                      onChange={(event) => setForm((prev) => ({ ...prev, email: event.target.value }))}
-                      placeholder="Email"
-                      autoComplete="email"
-                      style={inputTypographyStyle}
-                      className={`h-[56px] w-full rounded-[8px] border border-[#cbd5e1] bg-white px-[14px] ${inputTextClass} text-[#0f172a] outline-none transition placeholder:text-[#94a3b8] ${inputFocusClass}`}
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <FieldLabel>Password</FieldLabel>
-                    <div className="relative">
-                      <input
-                        id="password"
-                        name="password"
-                        type={showPassword ? "text" : "password"}
-                        value={form.password}
-                        onChange={(event) => setForm((prev) => ({ ...prev, password: event.target.value }))}
-                        placeholder="Password"
-                        autoComplete="current-password"
-                        style={inputTypographyStyle}
-                        className={`h-[56px] w-full rounded-[8px] border border-[#cbd5e1] bg-white px-[14px] pr-12 ${inputTextClass} text-[#0f172a] outline-none transition placeholder:text-[#94a3b8] ${inputFocusClass}`}
-                        required
-                      />
-                      <button
-                        type="button"
-                        aria-label={showPassword ? "Hide password" : "Show password"}
-                        onClick={() => setShowPassword((current) => !current)}
-                        className={`absolute right-3 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full transition ${
-                          showPassword
-                            ? "bg-[color:color-mix(in_srgb,var(--brand-primary)_12%,white)] ring-1 ring-[color:color-mix(in_srgb,var(--brand-primary)_25%,transparent)]"
-                            : "hover:bg-[#f8fafc]"
-                        }`}
-                      >
-                        <Image
-                          src="/icons/braas-HR/eye.svg"
-                          alt=""
-                          width={20}
-                          height={20}
-                          className="h-[20px] w-[20px]"
-                          style={{
-                            filter: showPassword
-                              ? "brightness(0) saturate(100%) invert(55%) sepia(33%) saturate(738%) hue-rotate(359deg) brightness(88%) contrast(86%)"
-                              : undefined,
-                          }}
-                        />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <label
-                    className="flex cursor-pointer items-center gap-[8px] text-[14px] font-normal leading-[20px] text-[#374151]"
-                    style={interStyle}
-                  >
-                    <span
-                      className={`relative flex h-[20px] w-[20px] shrink-0 items-center justify-center rounded-[6px] border ${
-                        form.rememberMe ? checkboxActiveClass : "border-[#e2e8f0] bg-white"
-                      }`}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={form.rememberMe}
-                        onChange={(event) => setForm((prev) => ({ ...prev, rememberMe: event.target.checked }))}
-                        className="absolute inset-0 z-10 m-0 cursor-pointer opacity-0"
-                        aria-label="Remember me"
-                      />
-                      {form.rememberMe ? <Check className="h-[14px] w-[14px] text-white" strokeWidth={3} /> : null}
-                    </span>
-                    Remember Me
-                  </label>
-                  <Link
-                    href="/forgot"
-                    className="text-[14px] font-normal leading-[20px] hover:underline"
-                    style={{ ...interStyle, color: "var(--brand-secondary)" }}
-                  >
-                    Forgot Password?
-                  </Link>
-                </div>
+        <div className="flex flex-col gap-[30px]">
+          <div className="flex flex-col gap-[20px]">
+            <div className="flex flex-col gap-[40px]">
+              <div>
+                <FieldLabel>Email</FieldLabel>
+                <input
+                  id="email"
+                  name="email"
+                  type="email"
+                  value={form.email}
+                  onChange={(event) => {
+                    clearAuthError();
+                    setForm((prev) => ({ ...prev, email: event.target.value }));
+                  }}
+                  placeholder="Email"
+                  autoComplete="email"
+                  aria-invalid={emailHasError}
+                  style={inputTypographyStyle}
+                  className={`h-[56px] w-full rounded-[8px] border border-[#cbd5e1] bg-white px-[14px] ${inputTextClass} text-[#0f172a] outline-none transition placeholder:text-[#94a3b8] ${inputFocusClass} ${emailHasError ? loginInputErrorClass : ""}`}
+                  required
+                />
               </div>
 
+              <div>
+                <FieldLabel>Password</FieldLabel>
+                <div className="relative">
+                  <input
+                    id="password"
+                    name="password"
+                    type={showPassword ? "text" : "password"}
+                    value={form.password}
+                    onChange={(event) => {
+                      clearAuthError();
+                      setForm((prev) => ({ ...prev, password: event.target.value }));
+                    }}
+                    placeholder="Password"
+                    autoComplete="current-password"
+                    aria-invalid={passwordHasError}
+                    style={inputTypographyStyle}
+                    className={`h-[56px] w-full rounded-[8px] border border-[#cbd5e1] bg-white px-[14px] pr-12 ${inputTextClass} text-[#0f172a] outline-none transition placeholder:text-[#94a3b8] ${inputFocusClass} ${passwordHasError ? loginInputErrorClass : ""}`}
+                    required
+                  />
+                  <button
+                    type="button"
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                    onClick={() => setShowPassword((current) => !current)}
+                    className={`absolute right-3 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full transition ${
+                      showPassword
+                        ? "bg-[color:color-mix(in_srgb,var(--brand-primary)_12%,white)] ring-1 ring-[color:color-mix(in_srgb,var(--brand-primary)_25%,transparent)]"
+                        : "hover:bg-[#f8fafc]"
+                    }`}
+                  >
+                    <Image
+                      src="/icons/braas-HR/eye.svg"
+                      alt=""
+                      width={20}
+                      height={20}
+                      className="h-[20px] w-[20px]"
+                      style={{
+                        filter: showPassword
+                          ? "brightness(0) saturate(100%) invert(55%) sepia(33%) saturate(738%) hue-rotate(359deg) brightness(88%) contrast(86%)"
+                          : undefined,
+                      }}
+                    />
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between">
               <label
-                className="flex cursor-pointer items-start gap-[8px] text-[14px] font-normal leading-[20px] text-[#4b5563]"
+                className="flex cursor-pointer items-center gap-[8px] text-[14px] font-normal leading-[20px] text-[#374151]"
                 style={interStyle}
               >
                 <span
-                  className={`relative mt-px flex h-[20px] w-[20px] shrink-0 items-center justify-center rounded-[6px] border ${
-                    form.agree ? checkboxActiveClass : "border-[#e2e8f0] bg-white"
+                  className={`relative flex h-[20px] w-[20px] shrink-0 items-center justify-center rounded-[6px] border ${
+                    form.rememberMe ? checkboxActiveClass : "border-[#e2e8f0] bg-white"
                   }`}
                 >
                   <input
                     type="checkbox"
-                    checked={form.agree}
-                    onChange={(event) => setForm((prev) => ({ ...prev, agree: event.target.checked }))}
+                    checked={form.rememberMe}
+                    onChange={(event) => setForm((prev) => ({ ...prev, rememberMe: event.target.checked }))}
                     className="absolute inset-0 z-10 m-0 cursor-pointer opacity-0"
-                    aria-label="Accept terms and conditions"
+                    aria-label="Remember me"
                   />
-                  {form.agree ? <Check className="h-[14px] w-[14px] text-white" strokeWidth={3} /> : null}
+                  {form.rememberMe ? <Check className="h-[14px] w-[14px] text-white" strokeWidth={3} /> : null}
                 </span>
-                <span>
-                  I hereby confirm that I have read and agree with the{" "}
-                  <a href="#" className="font-semibold text-black">
-                    Terms &amp; Conditions
-                  </a>{" "}
-                  and{" "}
-                  <a href="#" className="font-semibold text-black">
-                    Privacy Policy
-                  </a>
-                </span>
+                Remember Me
               </label>
-            </div>
-
-            {error ? (
-              <div
-                className="rounded-[8px] border border-[#fecaca] bg-[#fef2f2] px-[14px] py-[12px] text-[14px] leading-[20px] text-[#b91c1c]"
-                style={interStyle}
+              <Link
+                href="/forgot"
+                className="text-[14px] font-normal leading-[20px] hover:underline"
+                style={{ ...interStyle, color: "var(--brand-secondary)" }}
               >
-                {error}
-              </div>
-            ) : null}
-
-            <button
-              type="submit"
-              disabled={!canSubmit || submitting}
-              className="flex h-[54px] w-full items-center justify-center rounded-[12px] text-[16px] font-semibold leading-[22px] tracking-normal transition disabled:cursor-not-allowed disabled:bg-[#dddddd] disabled:text-[#c5c5c5] enabled:text-white enabled:hover:brightness-95"
-              style={primaryButtonStyle(canSubmit && !submitting)}
-            >
-              Log In
-            </button>
-
-            <div className="flex items-center gap-[14px]">
-              <div className="h-px flex-1 bg-[#e7edf4]" />
-              <span className="text-[12px] font-normal leading-[16px] text-[#6b7280]" style={interStyle}>
-                OR
-              </span>
-              <div className="h-px flex-1 bg-[#e7edf4]" />
-            </div>
-
-            <div className="flex justify-center gap-[15px]">
-              <SocialButton label="Continue with Google">
-                <FcGoogle />
-              </SocialButton>
-              <SocialButton label="Continue with Apple">
-                <FaApple />
-              </SocialButton>
-              <SocialButton label="Continue with X">
-                <FaXTwitter className="h-[15px] w-[15px]" />
-              </SocialButton>
-            </div>
-
-            <p className="text-center text-[14px] font-normal leading-[20px] text-[#374151]" style={interStyle}>
-              Don&apos;t have an Account?{" "}
-              <Link href="/signup" className="font-semibold text-black underline">
-                Sign Up
+                Forgot Password?
               </Link>
-            </p>
+            </div>
+          </div>
+
+          <label
+            className="flex cursor-pointer items-start gap-[8px] text-[14px] font-normal leading-[20px] text-[#4b5563]"
+            style={interStyle}
+          >
+            <span
+              className={`relative mt-px flex h-[20px] w-[20px] shrink-0 items-center justify-center rounded-[6px] border ${
+                form.agree ? checkboxActiveClass : "border-[#e2e8f0] bg-white"
+              }`}
+            >
+              <input
+                type="checkbox"
+                checked={form.agree}
+                onChange={(event) => setForm((prev) => ({ ...prev, agree: event.target.checked }))}
+                className="absolute inset-0 z-10 m-0 cursor-pointer opacity-0"
+                aria-label="Accept terms and conditions"
+              />
+              {form.agree ? <Check className="h-[14px] w-[14px] text-white" strokeWidth={3} /> : null}
+            </span>
+            <span>
+              I hereby confirm that I have read and agree with the{" "}
+              <a href="#" className="font-semibold text-black">
+                Terms &amp; Conditions
+              </a>{" "}
+              and{" "}
+              <a href="#" className="font-semibold text-black">
+                Privacy Policy
+              </a>
+            </span>
+          </label>
+        </div>
+
+        {authError ? <LoginFormError message={authError.error} code={authError.code} /> : null}
+
+        <button
+          type="submit"
+          disabled={!canSubmit || submitting}
+          className="flex h-[54px] w-full items-center justify-center rounded-[12px] text-[16px] font-semibold leading-[22px] tracking-normal transition disabled:cursor-not-allowed disabled:bg-[#dddddd] disabled:text-[#c5c5c5] enabled:text-white enabled:hover:brightness-95"
+          style={primaryButtonStyle(canSubmit && !submitting)}
+        >
+          {submitting ? "Logging in..." : "Log In"}
+        </button>
+
+        <div className="flex items-center gap-[14px]">
+          <div className="h-px flex-1 bg-[#e7edf4]" />
+          <span className="text-[12px] font-normal leading-[16px] text-[#6b7280]" style={interStyle}>
+            OR
+          </span>
+          <div className="h-px flex-1 bg-[#e7edf4]" />
+        </div>
+
+        <div className="flex justify-center gap-[15px]">
+          <SocialButton label="Continue with Google">
+            <FcGoogle />
+          </SocialButton>
+          <SocialButton label="Continue with Apple">
+            <FaApple />
+          </SocialButton>
+          <SocialButton label="Continue with X">
+            <FaXTwitter className="h-[15px] w-[15px]" />
+          </SocialButton>
+        </div>
+
+        <p className="text-center text-[14px] font-normal leading-[20px] text-[#374151]" style={interStyle}>
+          Don&apos;t have an Account?{" "}
+          <Link href="/signup" className="font-semibold text-black underline">
+            Sign Up
+          </Link>
+        </p>
           </form>
         )}
       </LoginPageShell>

@@ -25,6 +25,13 @@ export default function Home() {
   const [isPlatformHome, setIsPlatformHome] = useState(true);
 
   useEffect(() => {
+    if (typeof window !== "undefined" && window.location.hash.includes("error=")) {
+      const path = window.location.pathname + window.location.search;
+      window.history.replaceState(null, "", path);
+    }
+  }, []);
+
+  useEffect(() => {
     let alive = true;
     void (async () => {
       const slug =

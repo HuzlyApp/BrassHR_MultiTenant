@@ -2,10 +2,13 @@
 
 import { Check } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type ClipboardEvent, type FormEvent, type KeyboardEvent } from "react";
+import LoginFormError, { loginInputErrorClass } from "@/app/login/LoginFormError";
+import type { LoginAuthErrorPayload } from "@/lib/auth/login-api-errors";
+import { LOGIN_OTP_LENGTH } from "@/lib/auth/supabase-magic-link-otp-template";
 
 const interStyle = { fontFamily: "Inter, Arial, sans-serif" };
-const OTP_LENGTH = 6;
-const RESEND_SECONDS = 30;
+const OTP_LENGTH = LOGIN_OTP_LENGTH;
+const SEND_AGAIN_SECONDS = 30;
 
 const inputFocusClass =
   "focus:border-[color:var(--brand-primary)] focus:ring-2 focus:ring-[color:color-mix(in_srgb,var(--brand-primary)_20%,transparent)]";
@@ -13,7 +16,11 @@ const inputFocusClass =
 type LoginOtpStepProps = {
   email: string;
   submitting?: boolean;
-  onVerify: (code: string) => void;
+  authError?: LoginAuthErrorPayload | null;
+  onClearError?: () => void;
+  onVerify: (code: string) => void | Promise<void>;
+  /** Calls API to send a new code (Supabase OTP, not Resend email service). */
+  onSendAgain: () => void | Promise<void>;
 };
 
 function formatTimer(seconds: number) {
@@ -30,10 +37,18 @@ function verifyButtonStyle(enabled: boolean): React.CSSProperties | undefined {
   };
 }
 
-export default function LoginOtpStep({ email, submitting = false, onVerify }: LoginOtpStepProps) {
+export default function LoginOtpStep({
+  email,
+  submitting = false,
+  authError = null,
+  onClearError,
+  onVerify,
+  onSendAgain,
+}: LoginOtpStepProps) {
   const inputRefs = useRef<Array<HTMLInputElement | null>>([]);
   const [digits, setDigits] = useState<string[]>(() => Array.from({ length: OTP_LENGTH }, () => ""));
-  const [secondsLeft, setSecondsLeft] = useState(RESEND_SECONDS);
+  const [secondsLeft, setSecondsLeft] = useState(SEND_AGAIN_SECONDS);
+  const [sendingAgain, setSendingAgain] = useState(false);
 
   useEffect(() => {
     inputRefs.current[0]?.focus();
@@ -49,8 +64,10 @@ export default function LoginOtpStep({ email, submitting = false, onVerify }: Lo
 
   const code = useMemo(() => digits.join(""), [digits]);
   const isComplete = code.length === OTP_LENGTH && digits.every((digit) => digit.length === 1);
+  const otpHasError = authError != null;
 
   const updateDigit = (index: number, value: string) => {
+    onClearError?.();
     const nextDigit = value.replace(/\D/g, "").slice(-1);
     setDigits((prev) => {
       const next = [...prev];
@@ -70,6 +87,7 @@ export default function LoginOtpStep({ email, submitting = false, onVerify }: Lo
 
   const handlePaste = (event: ClipboardEvent<HTMLInputElement>) => {
     event.preventDefault();
+    onClearError?.();
     const pasted = event.clipboardData.getData("text").replace(/\D/g, "").slice(0, OTP_LENGTH);
     if (!pasted) return;
 
@@ -78,16 +96,23 @@ export default function LoginOtpStep({ email, submitting = false, onVerify }: Lo
     inputRefs.current[focusIndex]?.focus();
   };
 
-  const handleResend = () => {
-    setDigits(Array.from({ length: OTP_LENGTH }, () => ""));
-    setSecondsLeft(RESEND_SECONDS);
-    inputRefs.current[0]?.focus();
+  const handleSendAgain = async () => {
+    if (secondsLeft > 0 || sendingAgain || submitting) return;
+    setSendingAgain(true);
+    try {
+      await onSendAgain();
+      setDigits(Array.from({ length: OTP_LENGTH }, () => ""));
+      setSecondsLeft(SEND_AGAIN_SECONDS);
+      inputRefs.current[0]?.focus();
+    } finally {
+      setSendingAgain(false);
+    }
   };
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!isComplete || submitting) return;
-    onVerify(code);
+    void onVerify(code);
   };
 
   return (
@@ -98,7 +123,7 @@ export default function LoginOtpStep({ email, submitting = false, onVerify }: Lo
         </h1>
         <div className="mt-[12px] space-y-[12px]">
           <p className="text-[14px] font-normal leading-[20px] text-[#4b5563]" style={interStyle}>
-            We&apos;ve send you the verification code on this email.
+            We&apos;ve sent a verification code to this email.
           </p>
           <p className="text-[16px] font-semibold leading-[24px] text-black" style={interStyle}>
             {email}
@@ -107,7 +132,7 @@ export default function LoginOtpStep({ email, submitting = false, onVerify }: Lo
       </div>
 
       <div className="pt-[20px]">
-        {isComplete ? (
+        {isComplete && !otpHasError ? (
           <div className="mb-[20px] flex items-center gap-[8px] text-[14px] font-normal leading-[20px] text-[#374151]" style={interStyle}>
             <span
               className="flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full text-white"
@@ -141,7 +166,8 @@ export default function LoginOtpStep({ email, submitting = false, onVerify }: Lo
               onKeyDown={(event) => handleKeyDown(index, event)}
               onPaste={handlePaste}
               aria-label={`Digit ${index + 1}`}
-              className={`h-[56px] w-[56px] rounded-[8px] border border-[#94a3b8] bg-white text-center text-[20px] font-semibold leading-[24px] text-[#0f172a] outline-none transition ${inputFocusClass}`}
+              aria-invalid={otpHasError}
+              className={`h-[56px] w-[56px] rounded-[8px] border border-[#94a3b8] bg-white text-center text-[20px] font-semibold leading-[24px] text-[#0f172a] outline-none transition ${inputFocusClass} ${otpHasError ? loginInputErrorClass : ""}`}
               style={interStyle}
             />
           ))}
@@ -154,15 +180,17 @@ export default function LoginOtpStep({ email, submitting = false, onVerify }: Lo
           </span>
           <button
             type="button"
-            onClick={handleResend}
-            disabled={secondsLeft > 0}
+            onClick={() => void handleSendAgain()}
+            disabled={secondsLeft > 0 || sendingAgain || submitting}
             className="font-normal hover:underline disabled:cursor-not-allowed disabled:text-[#94a3b8] disabled:no-underline"
-            style={{ color: secondsLeft > 0 ? "#94a3b8" : "var(--brand-secondary)" }}
+            style={{ color: secondsLeft > 0 || sendingAgain ? "#94a3b8" : "var(--brand-secondary)" }}
           >
-            Resend
+            {sendingAgain ? "Sending..." : "Send again"}
           </button>
         </div>
       </div>
+
+      {authError ? <LoginFormError message={authError.error} code={authError.code} /> : null}
 
       <button
         type="submit"

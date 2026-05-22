@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { BRAAS_PRIMARY } from "@/lib/tenant/tenant-branding";
 
 const GOLD = BRAAS_PRIMARY;
@@ -126,14 +126,342 @@ function ChevronDownIcon() {
   );
 }
 
-type CreateFolderModalProps = {
+function ChevronUpIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
+      <path
+        d="M4 10L8 6L12 10"
+        stroke={TEXT_SECONDARY}
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function SearchIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
+      <circle cx="7" cy="7" r="4.25" stroke={TEXT_MUTED} strokeWidth="1.5" />
+      <path
+        d="M10 10L13 13"
+        stroke={TEXT_MUTED}
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function FlowNodeIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
+      <rect x="1.5" y="5.5" width="4" height="4" rx="1" stroke={TEXT_SECONDARY} strokeWidth="1.25" />
+      <rect x="10.5" y="1.5" width="4" height="4" rx="1" stroke={TEXT_SECONDARY} strokeWidth="1.25" />
+      <rect x="10.5" y="10.5" width="4" height="4" rx="1" stroke={TEXT_SECONDARY} strokeWidth="1.25" />
+      <path
+        d="M5.5 7.5H8M8 7.5V4.5M8 7.5V11.5"
+        stroke={TEXT_SECONDARY}
+        strokeWidth="1.25"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function CheckIcon() {
+  return (
+    <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden>
+      <path
+        d="M2 5L4.25 7.25L8 3.25"
+        stroke="white"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+type FlowOption = {
+  id: string;
+  label: string;
+};
+
+const AVAILABLE_FLOWS: FlowOption[] = [
+  { id: "pre-offer", label: "Pre Offer (ATS)" },
+  { id: "post-offer", label: "Post Offer" },
+  { id: "final-offer", label: "Final Offer" },
+  { id: "onboarding", label: "Onboarding Flow" },
+  { id: "marketing", label: "Marketing Flow" },
+];
+
+type FlowMultiSelectProps = {
+  id: string;
+  selectedIds: string[];
+  onChange: (ids: string[]) => void;
+};
+
+function FlowMultiSelect({ id, selectedIds, onChange }: FlowMultiSelectProps) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const containerRef = useRef<HTMLDivElement>(null);
+  const listboxId = useId();
+
+  useEffect(() => {
+    if (!open) return;
+    const handlePointerDown = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handlePointerDown);
+    return () => document.removeEventListener("mousedown", handlePointerDown);
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) setSearch("");
+  }, [open]);
+
+  const filteredFlows = AVAILABLE_FLOWS.filter((flow) =>
+    flow.label.toLowerCase().includes(search.trim().toLowerCase())
+  );
+
+  const toggleFlow = (flowId: string) => {
+    if (selectedIds.includes(flowId)) {
+      onChange(selectedIds.filter((id) => id !== flowId));
+    } else {
+      onChange([...selectedIds, flowId]);
+    }
+  };
+
+  const addedCount = selectedIds.length;
+
+  return (
+    <div ref={containerRef}>
+      <div className="relative">
+        <button
+          type="button"
+          id={id}
+          aria-haspopup="listbox"
+          aria-expanded={open}
+          aria-controls={listboxId}
+          onClick={() => setOpen((v) => !v)}
+          className={`flex h-11 w-full items-center justify-between rounded-lg border bg-white px-3.5 text-left text-sm outline-none transition focus:border-[#BC8B41] focus:ring-2 focus:ring-[#BC8B41]/25 ${
+            open ? "rounded-b-none border-b-0" : ""
+          }`}
+          style={{
+            borderColor: CARD_BORDER,
+            color: TEXT_MUTED,
+          }}
+        >
+          <span>Select flows</span>
+          <span className="shrink-0">{open ? <ChevronUpIcon /> : <ChevronDownIcon />}</span>
+        </button>
+
+        {open ? (
+          <div
+            className="absolute left-0 right-0 top-full z-10 overflow-hidden rounded-b-lg border border-t-0 bg-white shadow-sm"
+            style={{ borderColor: CARD_BORDER }}
+          >
+            <div className="border-b px-3 py-2.5" style={{ borderColor: CARD_BORDER }}>
+              <div className="relative">
+                <input
+                  type="search"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search flow"
+                  className="h-9 w-full rounded-md border bg-white py-2 pl-3 pr-9 text-sm outline-none transition focus:border-[#BC8B41] focus:ring-2 focus:ring-[#BC8B41]/25"
+                  style={{
+                    borderColor: CARD_BORDER,
+                    color: TEXT_PRIMARY,
+                  }}
+                  aria-label="Search flow"
+                />
+                <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2">
+                  <SearchIcon />
+                </span>
+              </div>
+            </div>
+
+            <ul
+              id={listboxId}
+              role="listbox"
+              aria-multiselectable="true"
+              aria-label="Flows"
+              className="max-h-[180px] overflow-y-auto py-1"
+            >
+              {filteredFlows.length === 0 ? (
+                <li className="px-3.5 py-3 text-sm" style={{ color: TEXT_MUTED }}>
+                  No flows found
+                </li>
+              ) : (
+                filteredFlows.map((flow) => {
+                  const checked = selectedIds.includes(flow.id);
+                  return (
+                    <li key={flow.id} role="option" aria-selected={checked}>
+                      <button
+                        type="button"
+                        onClick={() => toggleFlow(flow.id)}
+                        className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-sm transition hover:bg-[#f9fafb]"
+                        style={{
+                          backgroundColor: checked ? "#f2f4f7" : undefined,
+                          color: TEXT_PRIMARY,
+                        }}
+                      >
+                        <FlowNodeIcon />
+                        <span className="min-w-0 flex-1 truncate">{flow.label}</span>
+                        <span
+                          className={`flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-[4px] border transition ${
+                            checked ? "border-[#2e90fa] bg-[#2e90fa]" : "border-[#d0d5dd] bg-white"
+                          }`}
+                          aria-hidden
+                        >
+                          {checked ? <CheckIcon /> : null}
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })
+              )}
+            </ul>
+          </div>
+        ) : null}
+      </div>
+
+      {addedCount > 0 ? (
+        <p className="mt-1.5 text-right text-xs leading-[18px]" style={{ color: TEXT_MUTED }}>
+          {addedCount} added
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+function SuccessCheckIcon() {
+  return (
+    <svg
+      width="32"
+      height="27"
+      viewBox="0 0 32 27"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden
+    >
+      <path
+        d="M26.36 3.77333L28.2267 5.64L11.24 22.6267L3.77333 15.16L5.64 13.2933L11.24 18.8933L26.36 3.77333ZM26.36 0L11.24 15.12L5.64 9.52L0 15.16L11.24 26.4L32 5.64L26.36 0Z"
+        fill="white"
+      />
+    </svg>
+  );
+}
+
+type FolderCreatedSuccessModalProps = {
   open: boolean;
+  folderName: string;
+  folderHref?: string;
   onClose: () => void;
 };
 
-function CreateFolderModal({ open, onClose }: CreateFolderModalProps) {
+function FolderCreatedSuccessModal({
+  open,
+  folderName,
+  folderHref,
+  onClose,
+}: FolderCreatedSuccessModalProps) {
+  useEffect(() => {
+    if (!open) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", onKeyDown);
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      document.body.style.overflow = "";
+    };
+  }, [open, onClose]);
+
+  if (!open) return null;
+
+  const displayName = folderName.trim() || "Remote Onboarding";
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 py-8"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="folder-success-title"
+      onClick={onClose}
+    >
+      <div
+        className="relative w-full max-w-[400px] rounded-2xl bg-white px-8 pb-8 pt-10 shadow-xl sm:px-10"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button
+          type="button"
+          onClick={onClose}
+          className="absolute right-5 top-5 flex h-7 w-7 items-center justify-center rounded-full bg-[#101828] transition hover:brightness-110"
+          aria-label="Close"
+        >
+          <CloseIcon />
+        </button>
+
+        <div className="flex flex-col items-center text-center">
+          <div
+            className="mb-6 flex h-16 w-16 items-center justify-center rounded-full"
+            style={{ backgroundColor: GOLD }}
+          >
+            <SuccessCheckIcon />
+          </div>
+
+          <h2
+            id="folder-success-title"
+            className="text-xl font-semibold leading-7"
+            style={{ color: TEXT_PRIMARY }}
+          >
+            Success!
+          </h2>
+
+          <p className="mt-2 text-sm leading-5" style={{ color: TEXT_SECONDARY }}>
+            {displayName} has been created
+          </p>
+
+          {folderHref ? (
+            <Link
+              href={folderHref}
+              onClick={onClose}
+              className="mt-8 flex h-11 w-full items-center justify-center rounded-lg text-sm font-semibold text-white transition hover:brightness-[0.97]"
+              style={{ background: "linear-gradient(90deg, #BC8B41 0%, #E9B771 100%)" }}
+            >
+              Go to folder
+            </Link>
+          ) : (
+            <button
+              type="button"
+              onClick={onClose}
+              className="mt-8 h-11 w-full rounded-lg text-sm font-semibold text-white transition hover:brightness-[0.97]"
+              style={{ background: "linear-gradient(90deg, #BC8B41 0%, #E9B771 100%)" }}
+            >
+              Go to folder
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+type CreateFolderModalProps = {
+  open: boolean;
+  onClose: () => void;
+  onCreated: (folderName: string) => void;
+};
+
+function CreateFolderModal({ open, onClose, onCreated }: CreateFolderModalProps) {
   const [folderName, setFolderName] = useState("");
-  const [selectedFlows, setSelectedFlows] = useState("");
+  const [selectedFlowIds, setSelectedFlowIds] = useState<string[]>([]);
   const [isPrivate, setIsPrivate] = useState(true);
 
   useEffect(() => {
@@ -149,9 +477,18 @@ function CreateFolderModal({ open, onClose }: CreateFolderModalProps) {
     };
   }, [open, onClose]);
 
+  useEffect(() => {
+    if (open) return;
+    setFolderName("");
+    setSelectedFlowIds([]);
+    setIsPrivate(true);
+  }, [open]);
+
   const handleCreate = useCallback(() => {
+    const name = folderName.trim() || "Remote Onboarding";
+    onCreated(name);
     onClose();
-  }, [onClose]);
+  }, [folderName, onCreated, onClose]);
 
   if (!open) return null;
 
@@ -229,26 +566,11 @@ function CreateFolderModal({ open, onClose }: CreateFolderModalProps) {
             >
               Add flows to library
             </label>
-            <div className="relative">
-              <select
-                id="add-flows"
-                value={selectedFlows}
-                onChange={(e) => setSelectedFlows(e.target.value)}
-                className="h-11 w-full appearance-none rounded-lg border bg-white px-3.5 pr-10 text-sm outline-none transition focus:border-[#BC8B41] focus:ring-2 focus:ring-[#BC8B41]/25"
-                style={{
-                  borderColor: CARD_BORDER,
-                  color: selectedFlows ? TEXT_PRIMARY : TEXT_MUTED,
-                }}
-              >
-                <option value="">Select flows</option>
-                <option value="onboarding">Onboarding Flows</option>
-                <option value="marketing">Marketing Flows</option>
-                <option value="uncategorized">Uncategorized Flows</option>
-              </select>
-              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2">
-                <ChevronDownIcon />
-              </span>
-            </div>
+            <FlowMultiSelect
+              id="add-flows"
+              selectedIds={selectedFlowIds}
+              onChange={setSelectedFlowIds}
+            />
           </div>
 
           <div className="flex items-center gap-3">
@@ -259,7 +581,7 @@ function CreateFolderModal({ open, onClose }: CreateFolderModalProps) {
               aria-label="Set as private"
               onClick={() => setIsPrivate((v) => !v)}
               className="relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors"
-              style={{ backgroundColor: isPrivate ? "#2e90fa" : "#d0d5dd" }}
+              style={{ backgroundColor: isPrivate ? "#012352" : "#d0d5dd" }}
             >
               <span
                 className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow-sm transition-transform ${
@@ -267,7 +589,7 @@ function CreateFolderModal({ open, onClose }: CreateFolderModalProps) {
                 }`}
               />
             </button>
-            <span className="text-sm font-medium leading-5" style={{ color: TEXT_PRIMARY }}>
+            <span className="text-sm font-medium leading-5" style={{ color: "#012352" }}>
               Set as private
             </span>
           </div>
@@ -285,15 +607,23 @@ function CreateFolderModal({ open, onClose }: CreateFolderModalProps) {
   );
 }
 
+function libraryHref(id: string): string | null {
+  if (id === "onboarding") return "/braas-hr/dashboard/onboarding-flows";
+  return null;
+}
+
 function FlowLibraryCard({ library }: { library: FlowLibrary }) {
-  return (
-    <article
-      className="flex min-h-[100px] items-center gap-5 rounded-xl border bg-white px-6 py-5"
-      style={{
-        borderColor: library.active ? GOLD : CARD_BORDER,
-        boxShadow: "0 1px 2px rgba(16, 24, 40, 0.05)",
-      }}
-    >
+  const href = library.active ? libraryHref(library.id) : null;
+
+  const cardClassName =
+    "flex min-h-[100px] items-center gap-5 rounded-xl border bg-white px-6 py-5 transition";
+  const cardStyle = {
+    borderColor: library.active ? GOLD : CARD_BORDER,
+    boxShadow: "0 1px 2px rgba(16, 24, 40, 0.05)",
+  };
+
+  const inner = (
+    <>
       <div
         className="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-lg"
         style={{ backgroundColor: ICON_BOX_BG }}
@@ -314,22 +644,53 @@ function FlowLibraryCard({ library }: { library: FlowLibrary }) {
         </p>
       </div>
 
-      {library.active ? (
-        <button
-          type="button"
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition hover:brightness-95"
-          style={{ backgroundColor: GOLD }}
-          aria-label={`Open ${library.title}`}
+      {library.active && href ? (
+        <span
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full"
+          style={{ background: "linear-gradient(180deg, #012352 0%, #000C1D 100%)" }}
+          aria-hidden
         >
           <ChevronRightIcon />
-        </button>
+        </span>
       ) : null}
+    </>
+  );
+
+  if (href) {
+    return (
+      <Link
+        href={href}
+        className={`${cardClassName} hover:bg-[#fafafa] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#BC8B41]`}
+        style={cardStyle}
+        aria-label={`Open ${library.title}`}
+      >
+        {inner}
+      </Link>
+    );
+  }
+
+  return (
+    <article className={cardClassName} style={cardStyle}>
+      {inner}
     </article>
   );
 }
 
+function buildCreatedLibrary(title: string): FlowLibrary {
+  return {
+    id: `created-${Date.now()}`,
+    title,
+    published: 0,
+    unpublished: 0,
+    active: true,
+  };
+}
+
 export default function WorkflowLibraryPage() {
   const [createFlowModalOpen, setCreateFlowModalOpen] = useState(false);
+  const [successModalOpen, setSuccessModalOpen] = useState(false);
+  const [createdFolderName, setCreatedFolderName] = useState("");
+  const [createdLibraries, setCreatedLibraries] = useState<FlowLibrary[]>([]);
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: PAGE_BG }}>
@@ -374,7 +735,7 @@ export default function WorkflowLibraryPage() {
               type="button"
               onClick={() => setCreateFlowModalOpen(true)}
               className="inline-flex h-10 items-center gap-2 rounded-lg px-4 text-sm font-semibold text-white transition hover:brightness-[0.97]"
-              style={{ background: "linear-gradient(90deg, #BC8B41 0%, #E9B771 100%)" }}
+              style={{ background: "linear-gradient(180deg, #012352 0%, #000C1D 100%)" }}
             >
               <CreateFlowIcon />
               Create new flow
@@ -395,6 +756,9 @@ export default function WorkflowLibraryPage() {
           />
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            {createdLibraries.map((lib) => (
+              <FlowLibraryCard key={lib.id} library={lib} />
+            ))}
             {LIBRARIES.map((lib) => (
               <FlowLibraryCard key={lib.id} library={lib} />
             ))}
@@ -405,6 +769,18 @@ export default function WorkflowLibraryPage() {
       <CreateFolderModal
         open={createFlowModalOpen}
         onClose={() => setCreateFlowModalOpen(false)}
+        onCreated={(name) => {
+          setCreatedLibraries((prev) => [buildCreatedLibrary(name), ...prev]);
+          setCreatedFolderName(name);
+          setSuccessModalOpen(true);
+        }}
+      />
+
+      <FolderCreatedSuccessModal
+        open={successModalOpen}
+        folderName={createdFolderName}
+        folderHref="/braas-hr/dashboard/onboarding-flows"
+        onClose={() => setSuccessModalOpen(false)}
       />
     </div>
   );
