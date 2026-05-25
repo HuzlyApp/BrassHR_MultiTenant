@@ -334,38 +334,45 @@ function CreateFlowPlusIcon() {
   );
 }
 
-/** Figma: stacked rectangles flow icon in gold */
+/** Figma: stacked rounded rectangles flow icon in gold */
 function FlowListIcon() {
   return (
-    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden>
-      <rect x="5" y="3" width="10" height="4" rx="1" fill={GOLD} />
-      <rect x="5" y="9" width="10" height="4" rx="1" fill={GOLD} />
-      <rect x="5" y="15" width="10" height="2" rx="0.5" fill={GOLD} opacity="0.55" />
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M3 5C3 4.46957 3.21071 3.96086 3.58579 3.58579C3.96086 3.21071 4.46957 3 5 3H19C19.5304 3 20.0391 3.21071 20.4142 3.58579C20.7893 3.96086 21 4.46957 21 5V8C21 8.53043 20.7893 9.03914 20.4142 9.41421C20.0391 9.78929 19.5304 10 19 10H5C4.46957 10 3.96086 9.78929 3.58579 9.41421C3.21071 9.03914 3 8.53043 3 8V5ZM3 16C3 15.4696 3.21071 14.9609 3.58579 14.5858C3.96086 14.2107 4.46957 14 5 14H19C19.5304 14 20.0391 14.2107 20.4142 14.5858C20.7893 14.9609 21 15.4696 21 16V19C21 19.5304 20.7893 20.0391 20.4142 20.4142C20.0391 20.7893 19.5304 21 19 21H5C4.46957 21 3.96086 20.7893 3.58579 20.4142C3.21071 20.0391 3 19.5304 3 19V16Z"
+        stroke={GOLD}
+        strokeWidth="2"
+      />
     </svg>
   );
 }
 
 function EyeIcon() {
   return (
-    <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden>
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
       <path
-        d="M1.5 9C1.5 9 3.75 4.5 9 4.5C14.25 4.5 16.5 9 16.5 9C16.5 9 14.25 13.5 9 13.5C3.75 13.5 1.5 9 1.5 9Z"
+        d="M8.7501 7.00008C8.7501 7.96658 7.9666 8.75008 7.0001 8.75008C6.0336 8.75008 5.2501 7.96658 5.2501 7.00008C5.2501 6.03358 6.0336 5.25008 7.0001 5.25008C7.9666 5.25008 8.7501 6.03358 8.7501 7.00008Z"
         stroke={GOLD}
-        strokeWidth="1.5"
+        strokeLinecap="round"
         strokeLinejoin="round"
       />
-      <circle cx="9" cy="9" r="2.25" stroke={GOLD} strokeWidth="1.5" />
+      <path
+        d="M1.43408 7.00006C2.17741 4.63343 4.38841 2.91675 7.00036 2.91675C9.61232 2.91675 11.8233 4.63345 12.5666 7.0001C11.8233 9.36674 9.61232 11.0834 7.00037 11.0834C4.38841 11.0834 2.1774 9.36672 1.43408 7.00006Z"
+        stroke={GOLD}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
 
 function EditIcon() {
   return (
-    <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden>
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
       <path
-        d="M12.75 2.25L15.75 5.25L6 15H3V12L12.75 2.25Z"
+        d="M8.88544 3.05214L10.9478 5.11453M9.76044 2.17714C10.33 1.60762 11.2533 1.60762 11.8228 2.17714C12.3923 2.74665 12.3923 3.67002 11.8228 4.23953L3.79167 12.2707H1.75V10.1876L9.76044 2.17714Z"
         stroke={GOLD}
-        strokeWidth="1.5"
+        strokeLinecap="round"
         strokeLinejoin="round"
       />
     </svg>
@@ -377,8 +384,8 @@ function PublishedBadge() {
     <span
       className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium leading-[18px]"
       style={{
-        color: "#175CD3",
-        border: "1px solid #84ADFF",
+        color: "#012352",
+        border: "1px solid #012352",
         backgroundColor: "#ffffff",
       }}
     >
@@ -392,9 +399,9 @@ function UnpublishedBadge() {
     <span
       className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium leading-[18px]"
       style={{
-        color: TEXT_SECONDARY,
-        border: `1px solid ${CARD_BORDER}`,
-        backgroundColor: "#ffffff",
+        color: "#ffffff",
+        border: "1px solid #94A3B8",
+        backgroundColor: "#94A3B8",
       }}
     >
       Unpublished
@@ -693,17 +700,17 @@ function FlowCard({ flow }: FlowCardProps) {
         </div>
       </div>
 
-      <div className="absolute right-4 top-1/2 flex -translate-y-1/2 items-center gap-2 opacity-0 transition-opacity group-hover:opacity-100">
+      <div className="absolute right-4 top-1/2 flex h-[14px] w-[36px] -translate-y-1/2 items-center gap-2 opacity-0 transition-opacity group-hover:opacity-100">
         <button
           type="button"
-          className="flex h-8 w-8 items-center justify-center rounded-md transition hover:bg-[#faf6ef]"
+          className="flex h-[14px] w-[14px] items-center justify-center transition hover:opacity-80"
           aria-label={`View ${flow.name}`}
         >
           <EyeIcon />
         </button>
         <button
           type="button"
-          className="flex h-8 w-8 items-center justify-center rounded-md transition hover:bg-[#faf6ef]"
+          className="flex h-[14px] w-[14px] items-center justify-center transition hover:opacity-80"
           aria-label={`Edit ${flow.name}`}
         >
           <EditIcon />
