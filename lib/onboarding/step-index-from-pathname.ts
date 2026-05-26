@@ -1,5 +1,16 @@
 import type { OnboardingStepType } from "@/lib/onboarding/types";
+import { APPLICATION_ROUTE_STEP_MARKERS } from "@/lib/onboarding/application-routes";
 import { routeForOnboardingStep } from "@/lib/onboarding/step-routes";
+
+function pathnameMatchesStepGroup(
+  pathname: string,
+  step: { step_key: string; step_type: OnboardingStepType },
+  marker: (typeof APPLICATION_ROUTE_STEP_MARKERS)[number]
+): boolean {
+  if (marker.stepKey && step.step_key !== marker.stepKey) return false;
+  if (marker.stepType && step.step_type !== marker.stepType) return false;
+  return marker.pathIncludes.some((fragment) => pathname.includes(fragment));
+}
 
 export function stepIndexFromPathname(
   pathname: string,
@@ -9,23 +20,10 @@ export function stepIndexFromPathname(
   for (let i = 0; i < steps.length; i++) {
     const route = routeForOnboardingStep(steps[i].step_key, steps[i].step_type);
     if (p.startsWith(route) || p.includes(route)) return i + 1;
-    if (steps[i].step_key === "resume_upload" && p.includes("/application/step-1-")) return i + 1;
-    if (steps[i].step_type === "professional_license" && p.includes("/application/step-2-")) return i + 1;
-    if (steps[i].step_key === "professional_license" && p.includes("/application/step-2-")) return i + 1;
-    if (steps[i].step_type === "document_upload" && p.includes("/application/step-2-")) return i + 1;
-    if (steps[i].step_type === "skill_assessment" && p.includes("/application/step-3-")) return i + 1;
-    if (steps[i].step_key === "skill_assessment" && p.includes("/application/step-3-")) return i + 1;
-    if (steps[i].step_type === "authorizations" || steps[i].step_key === "authorizations") {
-      if (
-        p.includes("/application/step-4-") ||
-        p.includes("/application/employee-agreement") ||
-        p.includes("/application/upload-form")
-      ) {
-        return i + 1;
-      }
+
+    for (const marker of APPLICATION_ROUTE_STEP_MARKERS) {
+      if (pathnameMatchesStepGroup(p, steps[i], marker)) return i + 1;
     }
-    if (steps[i].step_type === "references" && p.includes("/application/step-5-")) return i + 1;
-    if (steps[i].step_type === "review_submit" && p.includes("/application/step-6-")) return i + 1;
   }
   return 1;
 }

@@ -3,6 +3,9 @@
 export const STEP1_INCOMPLETE_MESSAGE =
   "Please complete all required fields before proceeding."
 
+export const STEP1_ADDRESS_NOT_VERIFIED_MESSAGE =
+  "We couldn't verify this address. Please enter a valid address or location."
+
 export type Step1FormFields = {
   firstName: string
   lastName: string
@@ -48,16 +51,27 @@ function allRequiredTrimmedNonEmpty(b: Step1FormFields): boolean {
 }
 
 export type Step1ValidationIssue = {
-  code: "INCOMPLETE" | "ZIP" | "EMAIL" | "PHONE"
+  code: "INCOMPLETE" | "ZIP" | "EMAIL" | "PHONE" | "ADDRESS"
   message: string
+}
+
+export type Step1ValidationOptions = {
+  /** When false, address must be verified via Mapbox before continuing. */
+  addressVerified?: boolean
 }
 
 /**
  * Returns null if valid. Otherwise the first blocking issue (incomplete before format checks).
  */
-export function validateStep1Form(b: Step1FormFields): Step1ValidationIssue | null {
+export function validateStep1Form(
+  b: Step1FormFields,
+  options?: Step1ValidationOptions
+): Step1ValidationIssue | null {
   if (!allRequiredTrimmedNonEmpty(b)) {
     return { code: "INCOMPLETE", message: STEP1_INCOMPLETE_MESSAGE }
+  }
+  if (options?.addressVerified === false) {
+    return { code: "ADDRESS", message: STEP1_ADDRESS_NOT_VERIFIED_MESSAGE }
   }
   if (!isValidStep1Zip5(b.zipCode)) {
     return { code: "ZIP", message: "Enter a valid 5-digit ZIP code." }

@@ -1,21 +1,24 @@
 import type { OnboardingStepType } from "@/lib/onboarding/types";
+import { APPLICATION_ROUTES } from "@/lib/onboarding/application-routes";
+
+export { APPLICATION_ROUTES } from "@/lib/onboarding/application-routes";
 import { withTenant } from "@/lib/tenant/with-tenant";
 
-/** Maps configured step keys/types to legacy application routes during UI migration. */
+/** Maps configured step keys/types to applicant application routes. */
 export function routeForOnboardingStep(stepKey: string, stepType: OnboardingStepType): string {
   switch (stepKey) {
     case "resume_upload":
-      return "/application/step-1-upload";
+      return APPLICATION_ROUTES.addResume;
     case "professional_license":
-      return "/application/step-2-license";
+      return APPLICATION_ROUTES.professionalLicense;
     case "skill_assessment":
-      return "/application/step-3-skills";
+      return APPLICATION_ROUTES.skillsIntro;
     case "authorizations":
-      return "/application/step-4-documents";
+      return APPLICATION_ROUTES.authorizationsDocuments;
     case "references":
-      return "/application/step-5-add-references";
+      return APPLICATION_ROUTES.addReferences;
     case "review_submit":
-      return "/application/step-6-summary";
+      return APPLICATION_ROUTES.applicationSummary;
     default:
       break;
   }
@@ -23,22 +26,22 @@ export function routeForOnboardingStep(stepKey: string, stepType: OnboardingStep
   switch (stepType) {
     case "resume_upload":
     case "profile_information":
-      return "/application/step-1-upload";
+      return APPLICATION_ROUTES.addResume;
     case "professional_license":
-      return "/application/step-2-license";
+      return APPLICATION_ROUTES.professionalLicense;
     case "skill_assessment":
-      return "/application/step-3-skills";
+      return APPLICATION_ROUTES.skillsIntro;
     case "document_upload":
     case "authorizations":
-      return "/application/step-4-documents";
+      return APPLICATION_ROUTES.authorizationsDocuments;
     case "references":
-      return "/application/step-5-add-references";
+      return APPLICATION_ROUTES.addReferences;
     case "review_submit":
-      return "/application/step-6-summary";
+      return APPLICATION_ROUTES.applicationSummary;
     case "custom_question":
-      return `/application/onboarding/${stepKey}`;
+      return APPLICATION_ROUTES.customStep(stepKey);
     default:
-      return `/application/onboarding/${stepKey}`;
+      return APPLICATION_ROUTES.customStep(stepKey);
   }
 }
 

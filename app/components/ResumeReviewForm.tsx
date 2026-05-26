@@ -138,7 +138,7 @@ export default function ResumeReviewForm({ initialData = {}, onSave }: Props) {
 
     onSave?.(dataToSave);
 
-    router.push("/onboarding/skill-assessment");
+    router.push("/application/skills-intro");
   };
 
   // Optional: nice loading/fallback UI when no data

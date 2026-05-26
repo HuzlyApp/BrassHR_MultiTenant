@@ -1,0 +1,129 @@
+/**
+ * Applicant onboarding URL slugs (kebab-case, no numeric step segments).
+ * Use these constants for navigation, redirects, and pathname matching.
+ */
+export const APPLICATION_ROUTES = {
+  addResume: "/application/add-resume",
+  addResumeV2: "/application/add-resume-v2",
+  resumeUploadSuccess: "/application/resume-upload-success",
+  profileReview: "/application/profile-review",
+  parseResume: "/application/parse-resume",
+  professionalLicense: "/application/professional-license",
+  skillsIntro: "/application/skills-intro",
+  skillAssessment: "/application/skill-assessment",
+  skillQuiz: (slug: string) =>
+    `/application/skill-quiz/${encodeURIComponent(slug)}`,
+  authorizationsDocuments: "/application/authorizations-documents",
+  identityVerification: "/application/identity-verification",
+  addReferences: "/application/add-references",
+  referenceReview: "/application/reference-review",
+  applicationSummary: "/application/application-summary",
+  customStep: (stepKey: string) => `/application/custom-step/${encodeURIComponent(stepKey)}`,
+} as const;
+
+/** Pathname fragments used to resolve which configured step index the user is on. */
+export const APPLICATION_ROUTE_STEP_MARKERS: {
+  stepKey?: string;
+  stepType?: string;
+  pathIncludes: string[];
+}[] = [
+  {
+    stepKey: "resume_upload",
+    pathIncludes: [
+      APPLICATION_ROUTES.addResume,
+      APPLICATION_ROUTES.addResumeV2,
+      APPLICATION_ROUTES.resumeUploadSuccess,
+      APPLICATION_ROUTES.profileReview,
+      APPLICATION_ROUTES.parseResume,
+      "/application/step-1-",
+    ],
+  },
+  {
+    stepType: "professional_license",
+    pathIncludes: [APPLICATION_ROUTES.professionalLicense, "/application/step-2-"],
+  },
+  {
+    stepKey: "professional_license",
+    pathIncludes: [APPLICATION_ROUTES.professionalLicense, "/application/step-2-"],
+  },
+  {
+    stepType: "document_upload",
+    pathIncludes: [APPLICATION_ROUTES.professionalLicense, "/application/step-2-"],
+  },
+  {
+    stepType: "skill_assessment",
+    pathIncludes: [
+      APPLICATION_ROUTES.skillsIntro,
+      APPLICATION_ROUTES.skillAssessment,
+      "/application/skill-quiz/",
+      "/application/step-3-",
+    ],
+  },
+  {
+    stepKey: "skill_assessment",
+    pathIncludes: [
+      APPLICATION_ROUTES.skillsIntro,
+      APPLICATION_ROUTES.skillAssessment,
+      "/application/skill-quiz/",
+      "/application/step-3-",
+    ],
+  },
+  {
+    stepType: "authorizations",
+    pathIncludes: [
+      APPLICATION_ROUTES.authorizationsDocuments,
+      APPLICATION_ROUTES.identityVerification,
+      "/application/employee-agreement",
+      "/application/upload-form",
+      "/application/step-4-",
+    ],
+  },
+  {
+    stepKey: "authorizations",
+    pathIncludes: [
+      APPLICATION_ROUTES.authorizationsDocuments,
+      APPLICATION_ROUTES.identityVerification,
+      "/application/employee-agreement",
+      "/application/upload-form",
+      "/application/step-4-",
+    ],
+  },
+  {
+    stepType: "references",
+    pathIncludes: [
+      APPLICATION_ROUTES.addReferences,
+      APPLICATION_ROUTES.referenceReview,
+      "/application/step-5-",
+    ],
+  },
+  {
+    stepType: "review_submit",
+    pathIncludes: [APPLICATION_ROUTES.applicationSummary, "/application/step-6-"],
+  },
+];
+
+/** Permanent redirects from legacy numeric paths (and generic /onboarding/step-N). */
+export const LEGACY_APPLICATION_ROUTE_REDIRECTS: { source: string; destination: string }[] = [
+  { source: APPLICATION_ROUTES.addResume, destination: APPLICATION_ROUTES.addResume },
+  { source: "/application/step-1-upload-v2", destination: APPLICATION_ROUTES.addResumeV2 },
+  { source: APPLICATION_ROUTES.resumeUploadSuccess, destination: APPLICATION_ROUTES.resumeUploadSuccess },
+  { source: APPLICATION_ROUTES.profileReview, destination: APPLICATION_ROUTES.profileReview },
+  { source: "/application/step-1-parse", destination: APPLICATION_ROUTES.parseResume },
+  { source: APPLICATION_ROUTES.professionalLicense, destination: APPLICATION_ROUTES.professionalLicense },
+  { source: APPLICATION_ROUTES.skillsIntro, destination: APPLICATION_ROUTES.skillsIntro },
+  { source: APPLICATION_ROUTES.skillAssessment, destination: APPLICATION_ROUTES.skillAssessment },
+  { source: APPLICATION_ROUTES.authorizationsDocuments, destination: APPLICATION_ROUTES.authorizationsDocuments },
+  { source: APPLICATION_ROUTES.identityVerification, destination: APPLICATION_ROUTES.identityVerification },
+  { source: APPLICATION_ROUTES.addReferences, destination: APPLICATION_ROUTES.addReferences },
+  { source: APPLICATION_ROUTES.referenceReview, destination: APPLICATION_ROUTES.referenceReview },
+  { source: APPLICATION_ROUTES.applicationSummary, destination: APPLICATION_ROUTES.applicationSummary },
+  { source: "/onboarding/step-1", destination: APPLICATION_ROUTES.addResume },
+  { source: "/onboarding/step-2", destination: APPLICATION_ROUTES.professionalLicense },
+  { source: "/onboarding/step-3", destination: APPLICATION_ROUTES.skillsIntro },
+  { source: "/onboarding/step-4", destination: APPLICATION_ROUTES.authorizationsDocuments },
+  { source: "/onboarding/step-5", destination: APPLICATION_ROUTES.addReferences },
+  { source: "/onboarding/step-6", destination: APPLICATION_ROUTES.applicationSummary },
+  { source: "/onboarding/add-resume", destination: APPLICATION_ROUTES.addResume },
+  { source: "/onboarding/onboarding-steps", destination: APPLICATION_ROUTES.skillsIntro },
+  { source: "/onboarding/profile-review", destination: APPLICATION_ROUTES.profileReview },
+];

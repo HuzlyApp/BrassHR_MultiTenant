@@ -16,6 +16,7 @@ import {
   resolveClientOnboardingTenantSlug,
 } from "@/lib/tenant/client-onboarding-slug";
 import { getClientTenantHostLabel } from "@/lib/tenant/client-host-subdomain";
+import { APPLICATION_ROUTES } from "@/lib/onboarding/application-routes";
 import { applicationPath } from "@/lib/tenant/with-tenant";
 import { firstOnboardingStepRoute } from "@/lib/onboarding/tenant-step-navigation";
 import type { TenantOnboardingConfig } from "@/lib/onboarding/types";
@@ -99,7 +100,7 @@ export default function Home() {
                 if (slug) persistOnboardingSlugCookie(slug);
                 void (async () => {
                   if (!slug) {
-                    router.push(applicationPath("/application/step-1-upload", null));
+                    router.push(applicationPath(APPLICATION_ROUTES.addResume, null));
                     return;
                   }
                   try {
@@ -115,7 +116,7 @@ export default function Home() {
                   } catch {
                     /* fall through */
                   }
-                  router.push(applicationPath("/application/step-1-upload", slug));
+                  router.push(applicationPath(APPLICATION_ROUTES.addResume, slug));
                 })();
               }}
               style={{ backgroundColor: "var(--brand-primary)", boxShadow: "0 10px 20px color-mix(in srgb, var(--brand-primary) 22%, transparent)" }}

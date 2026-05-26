@@ -1,3 +1,4 @@
+import { APPLICATION_ROUTES } from "@/lib/onboarding/application-routes";
 import { routeForOnboardingStep } from "@/lib/onboarding/step-routes";
 import {
   countCompleteReferencesFromStorage,
@@ -147,7 +148,7 @@ function sectionForStep(
         id: step.step_key,
         heading: step.title,
         complete,
-        editHref: withTenant("/application/step-3-assessment", tenantSlug),
+        editHref: withTenant(APPLICATION_ROUTES.skillAssessment, tenantSlug),
         rows: [{ key: "skills", title: step.title, subtitle: label, complete }],
       };
     }

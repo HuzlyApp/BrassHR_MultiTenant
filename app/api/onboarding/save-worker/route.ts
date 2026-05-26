@@ -81,7 +81,15 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const baseRow = {
+    const addressLat = Number(body.addressLat)
+    const addressLng = Number(body.addressLng)
+    const hasGeo =
+      Number.isFinite(addressLat) &&
+      Number.isFinite(addressLng) &&
+      typeof body.addressNormalized === "string" &&
+      body.addressNormalized.trim().length > 0
+
+    const baseRow: Record<string, unknown> = {
       tenant_id: tenantId,
       user_id: applicantId,
       first_name: step1Fields.firstName.trim(),
@@ -95,6 +103,11 @@ export async function POST(req: NextRequest) {
       email: emailNorm,
       job_role: step1Fields.jobRole.trim(),
       updated_at: new Date().toISOString(),
+    }
+
+    if (hasGeo) {
+      baseRow.lat = addressLat
+      baseRow.lng = addressLng
     }
 
     if (emailNorm) {

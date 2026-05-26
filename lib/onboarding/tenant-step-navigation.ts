@@ -7,6 +7,7 @@ import type {
   TenantOnboardingStep,
   WorkerOnboardingProgressPayload,
 } from "@/lib/onboarding/types";
+import { APPLICATION_ROUTES } from "@/lib/onboarding/application-routes";
 import { withTenant } from "@/lib/tenant/with-tenant";
 
 /** Enabled steps for applicants, ordered by tenant `sort_order`. */
@@ -113,7 +114,7 @@ export function firstOnboardingStepRoute(
 ): string {
   return (
     adjacentStepRoute(config, null, 1, tenantSlug) ??
-    withTenant("/application/step-1-upload", tenantSlug)
+    withTenant(APPLICATION_ROUTES.addResume, tenantSlug)
   );
 }
 

@@ -18,6 +18,7 @@ import {
   type TenantBrandingThemeMode,
   type TenantGoalId,
 } from "@/app/tenant-onboarding/constants";
+import { APPLICATION_ROUTES } from "@/lib/onboarding/application-routes";
 import type { OnboardingStepDraft } from "@/lib/onboarding/default-onboarding-steps";
 import { subdomainErrorMessage, validateTenantSubdomainInput } from "@/lib/tenant/subdomain-validation";
 import type { TenantBranding } from "@/lib/tenant/tenant-branding";
@@ -1080,7 +1081,7 @@ export function DoneStep({
           Go to recruiter login
         </Link>
         <Link
-          href={withTenant("/application/step-1-upload", createdSlug)}
+          href={withTenant(APPLICATION_ROUTES.addResume, createdSlug)}
           className="inline-flex h-[52px] min-w-[200px] items-center justify-center rounded-[12px] border border-[#e2e8f0] px-8 text-[15px] font-semibold text-[#0f172a]"
         >
           View applicant onboarding
