@@ -2,14 +2,13 @@
 
 import { Handle, Position, type NodeProps, type Node } from "@xyflow/react";
 import { Plus, X } from "lucide-react";
-import { STEP_COLORS, GOLD } from "../constants";
+import { GOLD } from "../constants";
 import type { WorkflowNodeData } from "../types";
 
 type StepNodeType = Node<WorkflowNodeData>;
 
 export default function StepNode(props: NodeProps<StepNodeType>) {
   const { data, id, selected } = props;
-  const color = STEP_COLORS[data.color];
 
   const onDelete = data.onDelete;
   const onAddNext = data.onAddNext;
@@ -29,7 +28,7 @@ export default function StepNode(props: NodeProps<StepNodeType>) {
           type="target"
           position={Position.Top}
           style={{
-            background: color.ring,
+            // background: color.ring,
             width: 8,
             height: 8,
             border: "2px solid white",
@@ -38,12 +37,12 @@ export default function StepNode(props: NodeProps<StepNodeType>) {
 
         <div
           className="flex items-center gap-2 px-3 py-2"
-          style={{ backgroundColor: color.header, color: color.text }}
+          // style={{ backgroundColor: color.header, color: color.text }}
         >
           <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-white/20">
             {data.icon}
           </span>
-          <span className="flex-1 whitespace-normal break-words text-[11px] font-semibold leading-[14px]">
+          <span className="flex-1 whitespace-normal text-black break-words text-[11px] font-semibold leading-[14px]">
             {data.label}
           </span>
 
@@ -80,7 +79,7 @@ export default function StepNode(props: NodeProps<StepNodeType>) {
           type="source"
           position={Position.Bottom}
           style={{
-            background: color.ring,
+            // background: color.ring,
             width: 8,
             height: 8,
             border: "2px solid white",

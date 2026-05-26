@@ -26,7 +26,7 @@ export type StepDefinition = {
   id: string;
   label: string;
   icon: React.ReactNode;
-  color: StepColorKey;
+  // color: StepColorKey;
   description?: string;
 };
 
@@ -53,7 +53,6 @@ export type WorkflowNodeData = {
   stepId: string;
   label: string;
   icon: React.ReactNode;
-  color: StepColorKey;
   day: number;
   required: boolean;
   settings: StepSettings;

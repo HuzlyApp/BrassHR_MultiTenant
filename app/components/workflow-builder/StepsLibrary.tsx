@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { ChevronDown, MoreHorizontal, Plus, Search } from "lucide-react";
-import { CARD_BORDER, DRAG_DATA_TYPE, STEP_COLORS, TEXT_PRIMARY, TEXT_SECONDARY } from "./constants";
+import { CARD_BORDER, DRAG_DATA_TYPE, TEXT_PRIMARY, TEXT_SECONDARY } from "./constants";
 import type { StepCategory, StepDefinition } from "./types";
 
 type StepsLibraryProps = {
@@ -34,7 +34,7 @@ export default function StepsLibrary({
 
   return (
     <aside
-      className="flex h-full w-[280px] shrink-0 flex-col border-r bg-white"
+      className="flex h-full w-[280px] shrink-0 flex-col border-r bg-[#ECF1F9]"
       style={{ borderColor: CARD_BORDER }}
     >
       <div
@@ -118,7 +118,7 @@ export default function StepsLibrary({
 }
 
 function StepLibraryItem({ step }: { step: StepDefinition }) {
-  const color = STEP_COLORS[step.color];
+  // const color = STEP_COLORS[step.color];
 
   const handleDragStart = (e: React.DragEvent<HTMLDivElement>) => {
     e.dataTransfer.setData(DRAG_DATA_TYPE, step.id);
@@ -134,7 +134,7 @@ function StepLibraryItem({ step }: { step: StepDefinition }) {
     >
       <span
         className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-white"
-        style={{ backgroundColor: color.header }}
+        // style={{ backgroundColor: color.header }}
       >
         {step.icon}
       </span>

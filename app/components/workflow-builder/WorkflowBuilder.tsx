@@ -301,17 +301,6 @@ function WorkflowBuilderInner({
               onSelectNode={setSelectedNodeId}
             />
 
-            <button
-              type="button"
-              onClick={handleUndo}
-              disabled={history.length === 0}
-              className="absolute bottom-4 left-[68px] z-10 flex h-10 items-center gap-2 rounded-full border bg-white px-4 text-sm font-semibold shadow-md transition hover:bg-[#f9fafb] disabled:cursor-not-allowed disabled:opacity-50"
-              style={{ borderColor: "#d0d5dd", color: TEXT_PRIMARY }}
-            >
-              <Undo2 size={16} strokeWidth={2.25} />
-              Undo
-            </button>
-
             {lastUpdated ? (
               <p
                 className="absolute bottom-4 right-4 z-10 text-xs"
@@ -324,15 +313,25 @@ function WorkflowBuilderInner({
           </div>
 
           <div
-            className="flex shrink-0 items-center justify-between gap-2 border-t bg-white px-5 py-3"
-            style={{ borderColor: CARD_BORDER }}
+            className="flex shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-2 border-t bg-white px-4 py-3"
+            style={{ borderColor: "#d0d5dd" }}
           >
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={handleUndo}
+                disabled={history.length === 0}
+                className="flex h-10 shrink-0 items-center gap-2 whitespace-nowrap rounded-lg border bg-white px-3 text-sm font-medium transition hover:bg-[#fafafa] disabled:cursor-not-allowed disabled:opacity-50"
+                style={{ borderColor: "#d0d5dd", color: TEXT_PRIMARY }}
+              >
+                <Undo2 size={14} />
+                Undo
+              </button>
               <button
                 type="button"
                 onClick={onAddTrigger}
-                className="flex h-10 items-center gap-2 rounded-lg border bg-white px-3.5 text-sm font-medium transition hover:bg-[#fafafa]"
-                style={{ borderColor: CARD_BORDER, color: TEXT_PRIMARY }}
+                className="flex h-10 shrink-0 items-center gap-2 whitespace-nowrap rounded-lg border bg-white px-3 text-sm font-medium transition hover:bg-[#fafafa]"
+                style={{ borderColor: "#d0d5dd", color: TEXT_PRIMARY }}
               >
                 <Plus size={14} />
                 Add trigger
@@ -340,8 +339,8 @@ function WorkflowBuilderInner({
               <button
                 type="button"
                 onClick={() => onSaveAsTemplate?.(currentState)}
-                className="flex h-10 items-center gap-2 rounded-lg border bg-white px-3.5 text-sm font-medium transition hover:bg-[#fafafa]"
-                style={{ borderColor: CARD_BORDER, color: TEXT_PRIMARY }}
+                className="flex h-10 shrink-0 items-center gap-2 whitespace-nowrap rounded-lg border bg-white px-3 text-sm font-medium transition hover:bg-[#fafafa]"
+                style={{ borderColor: "#d0d5dd", color: TEXT_PRIMARY }}
               >
                 <Save size={14} />
                 Save as template
@@ -349,31 +348,31 @@ function WorkflowBuilderInner({
               <button
                 type="button"
                 onClick={() => onExportPDF?.(currentState)}
-                className="flex h-10 items-center gap-2 rounded-lg border bg-white px-3.5 text-sm font-medium transition hover:bg-[#fafafa]"
-                style={{ borderColor: CARD_BORDER, color: TEXT_PRIMARY }}
+                className="flex h-10 shrink-0 items-center gap-2 whitespace-nowrap rounded-lg border bg-white px-3 text-sm font-medium transition hover:bg-[#fafafa]"
+                style={{ borderColor: "#d0d5dd", color: TEXT_PRIMARY }}
               >
                 <FileText size={14} />
-                Export as PDF
+                Export PDF
               </button>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
                 onClick={() => onPreview?.(currentState)}
-                className="flex h-10 items-center gap-2 rounded-lg border bg-white px-4 text-sm font-semibold transition hover:bg-[#fafafa]"
-                style={{ borderColor: CARD_BORDER, color: TEXT_PRIMARY }}
+                className="flex h-10 shrink-0 items-center gap-2 whitespace-nowrap rounded-lg border bg-white px-3.5 text-sm font-semibold transition hover:bg-[#fafafa]"
+                style={{ borderColor: "#d0d5dd", color: TEXT_PRIMARY }}
               >
                 <Play size={14} />
-                Preview Workflow
+                Preview
               </button>
               <button
                 type="button"
                 onClick={() => onPublish?.(currentState)}
-                className="h-10 rounded-lg px-5 text-sm font-semibold text-white transition hover:brightness-[0.97]"
+                className="h-10 shrink-0 whitespace-nowrap rounded-lg px-4 text-sm font-semibold text-white transition hover:brightness-[0.97]"
                 style={{ background: GOLD_GRADIENT }}
               >
-                Publish to All New Hires
+                Publish to All
               </button>
             </div>
           </div>

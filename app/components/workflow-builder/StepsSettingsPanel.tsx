@@ -5,7 +5,6 @@ import type { Node } from "@xyflow/react";
 import {
   CARD_BORDER,
   GOLD_GRADIENT,
-  STEP_COLORS,
   TEXT_PRIMARY,
   TEXT_SECONDARY,
 } from "./constants";
@@ -26,7 +25,7 @@ export default function StepsSettingsPanel({
 }: StepsSettingsPanelProps) {
   return (
     <aside
-      className="flex h-full w-[320px] shrink-0 flex-col border-l bg-white"
+      className="flex h-full w-[320px] shrink-0 flex-col border-l bg-[#ECF1F9]"
       style={{ borderColor: CARD_BORDER }}
     >
       <div
@@ -64,8 +63,6 @@ type SettingsBodyProps = {
 };
 
 function SettingsBody({ node, onUpdate, onSaveStep, onCloneWorkflow }: SettingsBodyProps) {
-  const color = STEP_COLORS[node.data.color];
-
   const patchSettings = (patch: Partial<StepSettings>) => {
     onUpdate(node.id, {
       settings: { ...node.data.settings, ...patch },
@@ -77,7 +74,7 @@ function SettingsBody({ node, onUpdate, onSaveStep, onCloneWorkflow }: SettingsB
       <div className="flex items-center gap-2.5 px-5 py-4">
         <span
           className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-white"
-          style={{ backgroundColor: color.header }}
+          // style={{ backgroundColor: color.header }}
         >
           {node.data.icon}
         </span>
