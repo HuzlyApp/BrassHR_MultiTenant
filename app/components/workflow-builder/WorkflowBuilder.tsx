@@ -305,10 +305,10 @@ function WorkflowBuilderInner({
               type="button"
               onClick={handleUndo}
               disabled={history.length === 0}
-              className="absolute bottom-4 left-4 z-10 flex h-9 items-center gap-1.5 rounded-full border bg-white px-3.5 text-sm font-medium shadow-sm transition hover:bg-[#fafafa] disabled:cursor-not-allowed disabled:opacity-50"
-              style={{ borderColor: CARD_BORDER, color: TEXT_PRIMARY }}
+              className="absolute bottom-4 left-[68px] z-10 flex h-10 items-center gap-2 rounded-full border bg-white px-4 text-sm font-semibold shadow-md transition hover:bg-[#f9fafb] disabled:cursor-not-allowed disabled:opacity-50"
+              style={{ borderColor: "#d0d5dd", color: TEXT_PRIMARY }}
             >
-              <Undo2 size={14} />
+              <Undo2 size={16} strokeWidth={2.25} />
               Undo
             </button>
 

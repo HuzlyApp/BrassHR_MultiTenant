@@ -43,7 +43,7 @@ export default function StepNode(props: NodeProps<StepNodeType>) {
           <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-white/20">
             {data.icon}
           </span>
-          <span className="flex-1 truncate text-sm font-semibold leading-5">
+          <span className="flex-1 whitespace-normal break-words text-[11px] font-semibold leading-[14px]">
             {data.label}
           </span>
 

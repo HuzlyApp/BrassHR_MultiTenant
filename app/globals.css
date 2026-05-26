@@ -46,3 +46,54 @@ a[href] {
 .animate-fade-in {
   animation: fadeIn 0.3s ease-in-out;
 }
+
+/* React Flow canvas controls (zoom in/out, fit view) */
+.react-flow__controls {
+  box-shadow: 0 2px 8px rgba(16, 24, 40, 0.12) !important;
+  border-radius: 10px !important;
+  overflow: hidden !important;
+  border: 1px solid #d0d5dd !important;
+  background: #ffffff !important;
+}
+
+.react-flow__controls-button {
+  background: #ffffff !important;
+  border: none !important;
+  border-bottom: 1px solid #e5e7eb !important;
+  width: 36px !important;
+  height: 36px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  transition: background-color 0.15s ease;
+  color: #000000 !important;
+}
+
+.react-flow__controls-button:last-child {
+  border-bottom: none !important;
+}
+
+.react-flow__controls-button:hover {
+  background: #f9fafb !important;
+}
+
+.react-flow__controls-button svg {
+  width: 16px !important;
+  height: 16px !important;
+  max-width: 16px !important;
+  max-height: 16px !important;
+  fill: #000000 !important;
+  color: #000000 !important;
+}
+
+.react-flow__controls-button svg path,
+.react-flow__controls-button svg polyline,
+.react-flow__controls-button svg line,
+.react-flow__controls-button svg rect,
+.react-flow__controls-button svg circle {
+  fill: #000000 !important;
+}
+
+.react-flow__controls-button:disabled {
+  opacity: 0.4 !important;
+}

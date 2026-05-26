@@ -8,20 +8,19 @@ export type StepColorKey =
   | "rose"
   | "indigo"
   | "slate"
-  | "customStepColor"
-  | "resumeProfileColor"
-  | "jobApplicationColor"
-  | "skillQualificationAssessmentColor"
-  | "customApplicationFormColor"
-  | "welcomePackageColor"
-  | "rightToWorkColor"
-  | "employeeAgreementColor"
-  | "policyAcknowledgmentColor"
-  | "badgeAcknowledgmentColor"
-  | "benifitsEnrollmentColor"
-  | "safetyTrainingColor"
-  | "trainingModule";
-
+  | "denimBlue"
+  | "pureBlue"
+  | "royalPurple"
+  | "amberGold"
+  | "brightRose"
+  | "limeGreen"
+  | "slateGray"
+  | "electricBlue"
+  | "pastelPink"
+  | "safetyOrange"
+  | "neonCyan"
+  | "emeraldGreen"
+  | "tealNew";
 
 export type StepDefinition = {
   id: string;

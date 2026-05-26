@@ -67,83 +67,83 @@ export const STEP_COLORS: Record<
     text: "#ffffff",
     ring: "#475569",
   },
-  customStepColor: {
+  denimBlue: {
     header: "#4F69C6",
     body: "#ffffff",
     text: "#ffffff",
     ring: "#4F69C6",
   },
-  resumeProfileColor: {
+  pureBlue: {
     header: "#0000FF",
     body: "#ffffff",
     text: "#ffffff",
     ring: "#0000FF",
   },
-  jobApplicationColor: {
+  royalPurple: {
     header: "#660099",
     body: "#ffffff",
     text: "#ffffff",
     ring: "#660099",
   },
-  skillQualificationAssessmentColor: {
+  emeraldGreen: {
     header: "#50C878",
     body: "#ffffff",
     text: "#ffffff",
     ring: "#50C878",
   },
-  customApplicationFormColor: {
+  amberGold: {
     header: "#FFBF00",
     body: "#ffffff",
     text: "#ffffff",
     ring: "#FFBF00",
   },
-  welcomePackageColor: {
+  brightRose: {
     header: "#FF007F",
     body: "#ffffff",
     text: "#ffffff",
     ring: "#FF007F",
   },
-  rightToWorkColor: {
+  limeGreen: {
     header: "#00FF00",
     body: "#ffffff",
     text: "#ffffff",
     ring: "#00FF00",
   },
-  employeeAgreementColor: {
+  tealNew: {
     header: "#008080",
     body: "#ffffff",
     text: "#ffffff",
     ring: "#008080",
   },
-  policyAcknowledgmentColor: {
+  slateGray: {
     header: "#708090",
     body: "#ffffff",
     text: "#ffffff",
     ring: "#708090",
   },
-  badgeAcknowledgmentColor: {
+  electricBlue: {
     header: "#0066FF",
     body: "#ffffff",
     text: "#ffffff",
     ring: "#0066FF",
   },
-  benifitsEnrollmentColor: {
+  pastelPink: {
     header: "#FFC0CB",
     body: "#ffffff",
     text: "#ffffff",
     ring: "#FFC0CB",
   },
-  safetyTrainingColor: {
+  safetyOrange: {
     header: "#FF681F",
     body: "#ffffff",
     text: "#ffffff",
     ring: "#FF681F",
   },
-  trainingModule: {
-    header: "#008000",
+  neonCyan: {
+    header: "#00FFFF",
     body: "#ffffff",
-    text: "#ffffff",
-    ring: "#008000",
+    text: "#333333",
+    ring: "#00FFFF",
   },
 };
 

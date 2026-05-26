@@ -253,11 +253,7 @@ export default function StepsCanvas({
           size={1.5}
           color="#d0d5dd"
         />
-        <Controls
-          showInteractive={false}
-          className="rounded-lg! border! bg-white! shadow-sm!"
-          style={{ borderColor: CARD_BORDER }}
-        />
+        <Controls showInteractive={false} />
       </ReactFlow>
 
       {nodes.length === 0 ? (
