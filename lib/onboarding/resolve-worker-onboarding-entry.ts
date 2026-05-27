@@ -88,16 +88,6 @@ export async function resolveWorkerOnboardingEntry(
     };
   }
 
-  const builder = await loadOnboardingBuilderMeta(supabase, tenantId);
-  if (builder.publishStatus !== "published") {
-    return {
-      kind: "error",
-      code: "NOT_PUBLISHED",
-      message: "This tenant has not published an onboarding flow yet.",
-      tenantSlug: canonicalSlug,
-    };
-  }
-
   const config = await loadTenantOnboardingConfig(supabase, tenantId, { workerFacing: true });
   const enabledSteps = getEnabledTenantSteps(config);
   if (!enabledSteps.length) {
@@ -107,6 +97,15 @@ export async function resolveWorkerOnboardingEntry(
       message: "This tenant has not published an onboarding flow yet.",
       tenantSlug: canonicalSlug,
     };
+  }
+
+  const builder = await loadOnboardingBuilderMeta(supabase, tenantId);
+  if (builder.publishStatus !== "published") {
+    console.info("[worker-onboarding] serving last published steps while builder draft exists", {
+      tenantId,
+      tenantSlug: canonicalSlug,
+      enabledSteps: enabledSteps.length,
+    });
   }
 
   const firstPath = firstOnboardingStepRoute(config, canonicalSlug);

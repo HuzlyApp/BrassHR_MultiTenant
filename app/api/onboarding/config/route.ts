@@ -49,17 +49,6 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    const builder = await loadOnboardingBuilderMeta(supabase, tenantId);
-    if (builder.publishStatus !== "published") {
-      return NextResponse.json(
-        {
-          error: "This tenant has not published an onboarding flow yet.",
-          code: "NOT_PUBLISHED",
-        },
-        { status: 403 }
-      );
-    }
-
     const config = await loadTenantOnboardingConfig(supabase, tenantId, { workerFacing: true });
     if (!config) {
       return NextResponse.json({ error: "Configuration not found" }, { status: 404 });
@@ -73,6 +62,15 @@ export async function GET(req: NextRequest) {
         },
         { status: 403 }
       );
+    }
+
+    const builder = await loadOnboardingBuilderMeta(supabase, tenantId);
+    if (builder.publishStatus !== "published") {
+      console.info("[onboarding/config] serving last published steps while builder draft exists", {
+        tenantId,
+        tenantSlug: tenantRow.slug ?? slug,
+        enabledSteps: getEnabledTenantSteps(config).length,
+      });
     }
 
     return NextResponse.json({ config, tenantSlug: tenantRow.slug ?? slug });
