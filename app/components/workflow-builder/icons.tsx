@@ -1,8 +1,43 @@
 import type { SVGProps } from "react";
+import {
+  Bell,
+  Calendar,
+  Clock,
+  FileText,
+  Flag,
+  GitBranch,
+  Headphones,
+  Key,
+  Layers,
+  Mail,
+  Network,
+  Plug,
+  ShieldCheck,
+  ClipboardList,
+  UserPlus,
+  Users,
+} from "lucide-react";
 
 type IconProps = Omit<SVGProps<SVGSVGElement>, "width" | "height"> & {
   size?: number;
 };
+
+function LibraryIcon({
+  bg,
+  children,
+}: {
+  bg: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      className="flex h-[30px] w-[30px] items-center justify-center rounded-md p-1"
+      style={{ backgroundColor: bg }}
+    >
+      {children}
+    </div>
+  );
+}
 export function CustomStepIcon() {
   return (
     <div className="flex p-1 flex-col justify-center items-center gap-2 rounded-md bg-[#4F69C6] w-[30px] h-[30px] overflow-hidden">
@@ -1104,5 +1139,133 @@ export function CertificationUploadRenewalIcon() {
         </div>
       </div>
     </div>
+  );
+}
+
+export function WelcomeEmailIcon() {
+  return (
+    <LibraryIcon bg="#4F69C6">
+      <Mail size={16} className="text-white" strokeWidth={2} />
+    </LibraryIcon>
+  );
+}
+
+export function StatusUpdateNotificationIcon() {
+  return (
+    <LibraryIcon bg="#660099">
+      <Bell size={16} className="text-white" strokeWidth={2} />
+    </LibraryIcon>
+  );
+}
+
+export function ManagerWelcomeCallIcon() {
+  return (
+    <LibraryIcon bg="#4F46E5">
+      <Headphones size={16} className="text-white" strokeWidth={2} />
+    </LibraryIcon>
+  );
+}
+
+export function FinalOnboardingCallIcon() {
+  return (
+    <LibraryIcon bg="#50C878">
+      <Network size={16} className="text-white" strokeWidth={2} />
+    </LibraryIcon>
+  );
+}
+
+export function ReminderFollowUpNotificationIcon() {
+  return (
+    <LibraryIcon bg="#FFBF00">
+      <Clock size={16} className="text-white" strokeWidth={2} />
+    </LibraryIcon>
+  );
+}
+
+export function BadgeEquipmentIssuanceIcon() {
+  return (
+    <LibraryIcon bg="#50C878">
+      <UserPlus size={16} className="text-white" strokeWidth={2} />
+    </LibraryIcon>
+  );
+}
+
+export function BuddyMentorAssignmentIcon() {
+  return (
+    <LibraryIcon bg="#FF007F">
+      <Users size={16} className="text-white" strokeWidth={2} />
+    </LibraryIcon>
+  );
+}
+
+export function ScheduleAssignmentIcon() {
+  return (
+    <LibraryIcon bg="#008080">
+      <Calendar size={16} className="text-white" strokeWidth={2} />
+    </LibraryIcon>
+  );
+}
+
+export function FacilityAccessSetupIcon() {
+  return (
+    <LibraryIcon bg="#708090">
+      <Key size={16} className="text-white" strokeWidth={2} />
+    </LibraryIcon>
+  );
+}
+
+export function BenefitsConfirmationIcon() {
+  return (
+    <LibraryIcon bg="#FFC0CB">
+      <ShieldCheck size={16} className="text-[#012352]" strokeWidth={2} />
+    </LibraryIcon>
+  );
+}
+
+export function CustomFormIcon() {
+  return (
+    <LibraryIcon bg="#FF007F">
+      <FileText size={16} className="text-white" strokeWidth={2} />
+    </LibraryIcon>
+  );
+}
+
+export function ManualTaskHrActionIcon() {
+  return (
+    <LibraryIcon bg="#660099">
+      <ClipboardList size={16} className="text-white" strokeWidth={2} />
+    </LibraryIcon>
+  );
+}
+
+export function ExternalIntegrationIcon() {
+  return (
+    <LibraryIcon bg="#50C878">
+      <Plug size={16} className="text-white" strokeWidth={2} />
+    </LibraryIcon>
+  );
+}
+
+export function ConditionalLogicIcon() {
+  return (
+    <LibraryIcon bg="#4F69C6">
+      <GitBranch size={16} className="text-white" strokeWidth={2} />
+    </LibraryIcon>
+  );
+}
+
+export function ParallelStepGroupIcon() {
+  return (
+    <LibraryIcon bg="#94A3B8">
+      <Layers size={16} className="text-white" strokeWidth={2} />
+    </LibraryIcon>
+  );
+}
+
+export function CompletionMilestoneIcon() {
+  return (
+    <LibraryIcon bg="#FF681F">
+      <Flag size={16} className="text-white" strokeWidth={2} />
+    </LibraryIcon>
   );
 }

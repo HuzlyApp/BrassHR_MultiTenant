@@ -53,10 +53,10 @@ export default function StepNode(props: NodeProps<StepNodeType>) {
                 e.stopPropagation();
                 onDelete(id);
               }}
-              className="flex h-5 w-5 items-center justify-center rounded-full bg-white/25 text-white transition hover:bg-white/40"
-              aria-label="Delete step"
+              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-slate-200 bg-slate-100 text-slate-600 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600"
+              aria-label="Remove step"
             >
-              <X size={12} />
+              <X size={14} strokeWidth={2.5} />
             </button>
           ) : null}
         </div>
