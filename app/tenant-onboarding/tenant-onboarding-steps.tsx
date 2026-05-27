@@ -993,6 +993,7 @@ export function AdminStep({
   adminEmail,
   adminPassword,
   submitting,
+  passwordOptional = false,
   onEmailChange,
   onPasswordChange,
   onSubmit,
@@ -1001,12 +1002,14 @@ export function AdminStep({
   adminEmail: string;
   adminPassword: string;
   submitting: boolean;
+  passwordOptional?: boolean;
   onEmailChange: (value: string) => void;
   onPasswordChange: (value: string) => void;
   onSubmit: () => void;
   onBack: () => void;
 }) {
-  const canSubmit = adminEmail.length >= 4 && adminPassword.length >= 6 && !submitting;
+  const passwordOk = passwordOptional || adminPassword.length >= 6;
+  const canSubmit = adminEmail.length >= 4 && passwordOk && !submitting;
 
   return (
     <div>
@@ -1027,14 +1030,16 @@ export function AdminStep({
           />
         </div>
         <div>
-          <FieldLabel>Password (min 6 chars)</FieldLabel>
+          <FieldLabel>
+            {passwordOptional ? "New password (optional)" : "Password (min 6 chars)"}
+          </FieldLabel>
           <input
             type="password"
             value={adminPassword}
             onChange={(e) => onPasswordChange(e.target.value)}
             style={inputTypographyStyle}
             className={`h-[56px] w-full rounded-[8px] border border-[#cbd5e1] bg-white px-[14px] ${inputTextClass} text-[#0f172a] outline-none transition placeholder:text-[#94a3b8] ${inputFocusClass}`}
-            required
+            required={!passwordOptional}
           />
         </div>
       </div>
@@ -1074,11 +1079,11 @@ export function DoneStep({
       </p>
       <div className="mt-[32px] flex flex-wrap justify-center gap-3">
         <Link
-          href="/login"
+          href="/admin_recruiter/dashboard"
           className="inline-flex h-[52px] min-w-[200px] items-center justify-center rounded-[12px] px-8 text-[15px] font-semibold text-white"
           style={primaryButtonStyle(true)}
         >
-          Go to recruiter login
+          Go to recruiter dashboard
         </Link>
         <Link
           href={withTenant(APPLICATION_ROUTES.addResume, createdSlug)}

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { validateTenantSubdomainInput, subdomainErrorMessage } from "@/lib/tenant/subdomain-validation";
 import { registerTenantDomain } from "@/lib/vercel";
@@ -54,10 +55,27 @@ export async function POST(req: Request) {
   const domainFinal = `${subdomainFinal}.${rootDomain}`;
   const slugFinal = subdomainFinal;
 
-  if (org.length < 2 || !adminEmail.includes("@")) {
+  const authClient = await createClient();
+  const {
+    data: { user: sessionUser },
+  } = await authClient.auth.getUser();
+  const sessionUserId = sessionUser?.id;
+  const sessionEmail = sessionUser?.email?.trim().toLowerCase() ?? "";
+
+  if (sessionUserId && sessionEmail && adminEmail && adminEmail !== sessionEmail) {
+    return NextResponse.json(
+      { error: "Admin email must match your signed-in account." },
+      { status: 403 }
+    );
+  }
+
+  const effectiveAdminEmail = sessionEmail || adminEmail;
+
+  if (org.length < 2 || !effectiveAdminEmail.includes("@")) {
     return NextResponse.json({ error: "Organization name and a valid admin email are required." }, { status: 400 });
   }
-  if (adminPassword.length < 6) {
+
+  if (!sessionUserId && adminPassword.length < 6) {
     return NextResponse.json({ error: "Password must be at least 6 characters." }, { status: 400 });
   }
 
@@ -164,18 +182,26 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: listErr.message }, { status: 500 });
   }
 
-  const found = list?.users?.find((u) => (u.email || "").toLowerCase() === adminEmail);
-  let userId: string | undefined = found?.id;
+  let userId: string | undefined = sessionUserId;
+  if (!userId) {
+    const found = list?.users?.find((u) => (u.email || "").toLowerCase() === effectiveAdminEmail);
+    userId = found?.id;
+  }
 
   const appMd = {
     platform: "nexus",
     tenant_id: tenantId,
     role: "admin",
+    signup_completed: true,
+    tenant_onboarding_completed: true,
   };
 
   if (!userId) {
+    if (adminPassword.length < 6) {
+      return NextResponse.json({ error: "Password must be at least 6 characters." }, { status: 400 });
+    }
     const { data: created, error: cuErr } = await svc.auth.admin.createUser({
-      email: adminEmail,
+      email: effectiveAdminEmail,
       password: adminPassword,
       email_confirm: true,
       app_metadata: appMd,
@@ -189,24 +215,34 @@ export async function POST(req: Request) {
     }
     userId = created.user.id;
   } else {
-    const { error: updErr } = await svc.auth.admin.updateUserById(userId, {
-      password: adminPassword,
+    const updatePayload: {
+      email_confirm: boolean;
+      app_metadata: typeof appMd;
+      password?: string;
+    } = {
       email_confirm: true,
       app_metadata: appMd,
-    });
+    };
+    if (adminPassword.length >= 6) {
+      updatePayload.password = adminPassword;
+    }
+    const { error: updErr } = await svc.auth.admin.updateUserById(userId, updatePayload);
     if (updErr) {
       console.error("[tenant-onboarding] updateUser", updErr.message);
       return NextResponse.json({ error: updErr.message }, { status: 500 });
     }
   }
 
+  const completedAt = new Date().toISOString();
   const { error: uErr } = await svc.from("users").upsert(
     {
       id: userId,
       tenant_id: tenantId,
-      email: adminEmail,
+      email: effectiveAdminEmail,
       role: "admin",
       email_verified: true,
+      signup_completed_at: completedAt,
+      tenant_onboarding_completed_at: completedAt,
     },
     { onConflict: "id" }
   );

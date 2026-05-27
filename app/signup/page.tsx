@@ -2,10 +2,10 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import SignupStepper from "@/app/components/SignupStepper";
 import { Check, ChevronDown, X } from "lucide-react";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { supabaseBrowser } from "@/lib/supabase-browser";
 import { FaApple } from "react-icons/fa";
 import { FaXTwitter } from "react-icons/fa6";
 import { FcGoogle } from "react-icons/fc";
@@ -313,13 +313,14 @@ function SocialButton({ children, label }: { children: React.ReactNode; label: s
 }
 
 export default function SignupPage() {
-  const router = useRouter();
   const [form, setForm] = useState<SignupForm>(initialForm);
   const [step, setStep] = useState<SignupStep>("details");
   const [password, setPassword] = useState("");
   const [verifyPassword, setVerifyPassword] = useState("");
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [touchedEmail, setTouchedEmail] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   useEffect(() => {
     const previousHtmlBg = document.documentElement.style.backgroundColor;
@@ -381,13 +382,71 @@ export default function SignupPage() {
       return;
     }
 
-    if (!canCreateAccount) return;
+    if (!canCreateAccount || submitting) return;
 
-    localStorage.setItem(
-      "braasOwnerSignupDraft",
-      JSON.stringify({ ...form, passwordSet: true })
-    );
-    router.push("/your-trial?created=true");
+    void (async () => {
+      setSubmitting(true);
+      setSubmitError(null);
+      try {
+        const res = await fetch("/api/auth/signup", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            firstName: form.firstName,
+            lastName: form.lastName,
+            workEmail: form.workEmail,
+            jobTitle: form.jobTitle,
+            password,
+          }),
+        });
+        const payload = (await res.json().catch(() => ({}))) as {
+          error?: string;
+          code?: string;
+        };
+        if (!res.ok) {
+          setSubmitError(payload.error ?? "Could not create your account. Try again.");
+          setSubmitting(false);
+          return;
+        }
+
+        const email = form.workEmail.trim().toLowerCase();
+        const { error: signInError } = await supabaseBrowser.auth.signInWithPassword({
+          email,
+          password,
+        });
+        if (signInError) {
+          setSubmitError(
+            signInError.message ||
+              "Account created, but sign-in failed. Use Sign In to continue to tenant setup."
+          );
+          setSubmitting(false);
+          return;
+        }
+
+        const {
+          data: { session },
+        } = await supabaseBrowser.auth.getSession();
+        if (!session) {
+          setSubmitError("Account created, but your session could not be started. Try Sign In.");
+          setSubmitting(false);
+          return;
+        }
+
+        try {
+          localStorage.setItem(
+            "braasOwnerSignupDraft",
+            JSON.stringify({ ...form, passwordSet: true })
+          );
+        } catch {
+          /* ignore storage errors */
+        }
+
+        window.location.assign("/tenant-onboarding");
+      } catch {
+        setSubmitError("Something went wrong. Please try again.");
+        setSubmitting(false);
+      }
+    })();
   };
 
   return (
@@ -522,6 +581,12 @@ export default function SignupPage() {
             />
 
             <SignupStepper phase={step === "password" ? "password" : "details"} />
+
+            {submitError ? (
+              <p className="mt-[24px] rounded-[8px] border border-[#fecdd3] bg-[#fff1f2] px-[14px] py-[12px] text-[14px] leading-[20px] text-[#be123c]" style={interStyle}>
+                {submitError}
+              </p>
+            ) : null}
 
             {step === "details" ? (
               <>
@@ -667,7 +732,7 @@ export default function SignupPage() {
 
             <p className="mt-[34px] text-center text-[11px] font-normal leading-none text-[#64748b]">
               Already have an account?{" "}
-              <Link href="/login?next=/tenant-onboarding" className="font-semibold text-[#0b0f19] hover:underline">
+              <Link href="/signin?next=/tenant-onboarding" className="font-semibold text-[#0b0f19] hover:underline">
                 Sign In
               </Link>
             </p>
@@ -722,14 +787,14 @@ export default function SignupPage() {
 
                 <button
                   type="submit"
-                  disabled={!canCreateAccount}
+                  disabled={!canCreateAccount || submitting}
                   className="mt-[38px] flex h-[52px] w-full items-center justify-center rounded-[8px] align-middle text-[16px] font-semibold leading-[22px] tracking-normal transition disabled:cursor-not-allowed disabled:bg-[#dddddd] disabled:text-[#c5c5c5] enabled:text-white enabled:hover:brightness-95"
                   style={{
-                    backgroundImage: canCreateAccount ? BRAAS_BUTTON_GRADIENT : undefined,
+                    backgroundImage: canCreateAccount && !submitting ? BRAAS_BUTTON_GRADIENT : undefined,
                     fontFamily: "var(--font-geist-sans), Inter, Arial, sans-serif",
                   }}
                 >
-                  Create an account
+                  {submitting ? "Creating account…" : "Create an account"}
                 </button>
 
                 <div className="mt-[46px] flex items-center gap-[14px]">
@@ -752,7 +817,7 @@ export default function SignupPage() {
 
                 <p className="mt-[34px] text-center text-[11px] font-normal leading-none text-[#64748b]">
                   Already have an account?{" "}
-                  <Link href="/login?next=/tenant-onboarding" className="font-semibold text-[#0b0f19] hover:underline">
+                  <Link href="/signin?next=/tenant-onboarding" className="font-semibold text-[#0b0f19] hover:underline">
                     Sign In
                   </Link>
                 </p>

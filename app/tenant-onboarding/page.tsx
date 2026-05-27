@@ -1,6 +1,8 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+import { supabaseBrowser } from "@/lib/supabase-browser";
 import { createInitialBuilderSteps } from "@/app/components/onboarding/OnboardingStepsBuilder";
 import TenantOnboardingShell from "@/app/tenant-onboarding/TenantOnboardingShell";
 import {
@@ -42,6 +44,7 @@ type Step =
   | "done";
 
 export default function TenantOnboardingPage() {
+  const router = useRouter();
   const [brand, setBrand] = useState<TenantBranding>(() => defaultTenantBranding());
   const [brandLoaded, setBrandLoaded] = useState(false);
 
@@ -79,6 +82,20 @@ export default function TenantOnboardingPage() {
   const [createdDomain, setCreatedDomain] = useState<string | null>(null);
 
   const publicRootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN?.trim() ?? "";
+
+  useEffect(() => {
+    let alive = true;
+    void (async () => {
+      const { data: userData } = await supabaseBrowser.auth.getUser();
+      const email = userData.user?.email?.trim() ?? "";
+      if (alive && email) {
+        setAdminEmail(email);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   useEffect(() => {
     let alive = true;
@@ -227,7 +244,8 @@ export default function TenantOnboardingPage() {
         }
       }
 
-      setStep("done");
+      router.push("/admin_recruiter/dashboard");
+      router.refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unexpected error");
     } finally {
@@ -339,6 +357,7 @@ export default function TenantOnboardingPage() {
           adminEmail={adminEmail}
           adminPassword={adminPassword}
           submitting={submitting}
+          passwordOptional={Boolean(adminEmail.trim())}
           onEmailChange={setAdminEmail}
           onPasswordChange={setAdminPassword}
           onSubmit={() => void finalize()}

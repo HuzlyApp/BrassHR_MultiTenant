@@ -16,10 +16,6 @@ import {
   resolveClientOnboardingTenantSlug,
 } from "@/lib/tenant/client-onboarding-slug";
 import { getClientTenantHostLabel } from "@/lib/tenant/client-host-subdomain";
-import { APPLICATION_ROUTES } from "@/lib/onboarding/application-routes";
-import { applicationPath } from "@/lib/tenant/with-tenant";
-import { firstOnboardingStepRoute } from "@/lib/onboarding/tenant-step-navigation";
-import type { TenantOnboardingConfig } from "@/lib/onboarding/types";
 
 export default function Home() {
   const router = useRouter();
@@ -27,8 +23,6 @@ export default function Home() {
     brandingFallbackForSlug(PLATFORM_DEFAULT_TENANT_SLUG)
   );
   const [brandLoaded, setBrandLoaded] = useState(false);
-  const [isPlatformHome, setIsPlatformHome] = useState(true);
-
   useEffect(() => {
     if (typeof window !== "undefined" && window.location.hash.includes("error=")) {
       const path = window.location.pathname + window.location.search;
@@ -42,8 +36,6 @@ export default function Home() {
       const hostLabel = getClientTenantHostLabel();
       const slugFromCookie = resolveClientOnboardingTenantSlug(window.location.search);
       const slug = slugFromCookie ?? hostLabel ?? PLATFORM_DEFAULT_TENANT_SLUG;
-      if (alive) setIsPlatformHome(slug === PLATFORM_DEFAULT_TENANT_SLUG && !hostLabel);
-
       if (hostLabel && !slugFromCookie) {
         persistOnboardingSlugCookie(slug);
       }
@@ -91,34 +83,7 @@ export default function Home() {
 
             <button
               type="button"
-              onClick={() => {
-                const slug =
-                  brand.slug?.trim().toLowerCase() ||
-                  resolveClientOnboardingTenantSlug(window.location.search) ||
-                  getClientTenantHostLabel() ||
-                  null;
-                if (slug) persistOnboardingSlugCookie(slug);
-                void (async () => {
-                  if (!slug) {
-                    router.push(applicationPath(APPLICATION_ROUTES.addResume, null));
-                    return;
-                  }
-                  try {
-                    const res = await fetch(
-                      `/api/onboarding/config?slug=${encodeURIComponent(slug)}`,
-                      { cache: "no-store" }
-                    );
-                    if (res.ok) {
-                      const payload = (await res.json()) as { config?: TenantOnboardingConfig };
-                      router.push(firstOnboardingStepRoute(payload.config ?? null, slug));
-                      return;
-                    }
-                  } catch {
-                    /* fall through */
-                  }
-                  router.push(applicationPath(APPLICATION_ROUTES.addResume, slug));
-                })();
-              }}
+              onClick={() => router.push("/signup")}
               style={{ backgroundColor: "var(--brand-primary)", boxShadow: "0 10px 20px color-mix(in srgb, var(--brand-primary) 22%, transparent)" }}
               className="inline-flex min-h-14 min-w-[210px] cursor-pointer items-center justify-center rounded-xl px-8 py-4 text-[22px] font-semibold leading-[22px] text-white transition hover:brightness-105 focus:outline-none"
             >
@@ -136,21 +101,6 @@ export default function Home() {
               </Link>
             </p>
 
-            {isPlatformHome ? (
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-6 py-5 text-center text-sm text-slate-700">
-                <p className="font-semibold text-slate-900">Operate your own staffing brand?</p>
-                <p className="mt-1 text-[13px] text-slate-600">
-                  Set up logos, palette, recruiter admin, and saved tenant slug.
-                </p>
-                <Link
-                  href="/tenant-onboarding"
-                  className="mt-4 inline-flex items-center justify-center rounded-xl px-5 py-2.5 text-sm font-semibold text-white"
-                  style={{ backgroundColor: "var(--brand-secondary)" }}
-                >
-                  Create your organization
-                </Link>
-              </div>
-            ) : null}
           </div>
 
           <div className="relative flex min-h-[430px] items-center justify-center overflow-hidden border-t border-slate-200 md:h-[600px] md:w-[440px] md:border-l md:border-t-0">

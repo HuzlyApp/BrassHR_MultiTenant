@@ -16,9 +16,16 @@ import {
   getRootDomainFromEnv,
 } from "@/lib/tenant/tenant-host-resolution";
 import { ensureApplicationTenantQuery } from "@/lib/tenant/ensure-application-tenant-query";
+import {
+  fetchOwnerOnboardingStatus,
+  resolvePostAuthRedirect,
+  shouldBlockAdminDashboardAccess,
+  shouldBlockTenantOnboardingAccess,
+} from "@/lib/auth/owner-onboarding-status";
 
 function isPublicUiPath(pathname: string): boolean {
   if (pathname === "/login" || pathname.startsWith("/login/")) return true;
+  if (pathname === "/signin" || pathname.startsWith("/signin/")) return true;
   if (pathname === "/auth/callback" || pathname.startsWith("/auth/callback/")) return true;
   if (pathname.startsWith("/_next")) return true;
   if (pathname.startsWith("/favicon")) return true;
@@ -126,19 +133,61 @@ export async function middleware(request: NextRequest) {
     return response;
   }
 
+  const isSignupPath = pathname === "/signup";
+  const isTenantOnboardingPath =
+    pathname === "/tenant-onboarding" || pathname.startsWith("/tenant-onboarding/");
+  const isAdminRecruiterPath = pathname.startsWith("/admin_recruiter");
+  const ownerFlowPath = isSignupPath || isTenantOnboardingPath || isAdminRecruiterPath;
+
+  if (ownerFlowPath && user) {
+    const onboardingStatus = await fetchOwnerOnboardingStatus(supabase, user);
+
+    if (isSignupPath) {
+      const destination = resolvePostAuthRedirect(
+        onboardingStatus,
+        request.nextUrl.searchParams.get("next")
+      );
+      if (destination !== "/signup") {
+        return NextResponse.redirect(new URL(destination, request.url));
+      }
+    }
+
+    if (isTenantOnboardingPath && shouldBlockTenantOnboardingAccess(onboardingStatus)) {
+      const destination = resolvePostAuthRedirect(
+        onboardingStatus,
+        request.nextUrl.searchParams.get("next")
+      );
+      return NextResponse.redirect(new URL(destination, request.url));
+    }
+
+    if (isAdminRecruiterPath && shouldBlockAdminDashboardAccess(onboardingStatus)) {
+      const destination = resolvePostAuthRedirect(
+        onboardingStatus,
+        request.nextUrl.searchParams.get("next")
+      );
+      return NextResponse.redirect(new URL(destination, request.url));
+    }
+  }
+
+  if (isTenantOnboardingPath && !user) {
+    const signup = new URL("/signup", request.url);
+    signup.searchParams.set("next", `${request.nextUrl.pathname}${request.nextUrl.search}`);
+    return NextResponse.redirect(signup);
+  }
+
   if (isPublicUiPath(pathname)) {
     return response;
   }
 
-  if (enforceUi && pathname.startsWith("/admin_recruiter")) {
+  if ((enforceUi || isAdminRecruiterPath) && isAdminRecruiterPath) {
     if (!user) {
-      const login = new URL("/login", request.url);
+      const login = new URL("/signin", request.url);
       login.searchParams.set("next", `${request.nextUrl.pathname}${request.nextUrl.search}`);
       return NextResponse.redirect(login);
     }
     if (platformOn && !isNexusPlatformUser(user) && !isGodAdminUser(user)) {
       await supabase.auth.signOut();
-      const login = new URL("/login", request.url);
+      const login = new URL("/signin", request.url);
       login.searchParams.set("next", `${request.nextUrl.pathname}${request.nextUrl.search}`);
       login.searchParams.set("error", "platform");
       return NextResponse.redirect(login);
@@ -161,6 +210,11 @@ export const config = {
     "/",
     "/login",
     "/login/:path*",
+    "/signin",
+    "/signin/:path*",
+    "/signup",
+    "/tenant-onboarding",
+    "/tenant-onboarding/:path*",
     "/tenant-host-not-found",
     "/admin_recruiter/:path*",
     "/application",

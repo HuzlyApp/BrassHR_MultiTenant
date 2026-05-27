@@ -24,6 +24,10 @@ import { toOtpVerifyError } from "@/lib/auth/login-otp";
 import { resolveGodAdminClient } from "@/lib/auth/resolve-god-admin-client";
 import { isNexusPlatformUser, isPlatformEnforcementEnabled } from "@/lib/auth/platform-shared";
 import {
+  fetchOwnerOnboardingStatus,
+  resolvePostAuthRedirect,
+} from "@/lib/auth/owner-onboarding-status";
+import {
   persistOnboardingSlugCookie,
   resolveClientOnboardingTenantSlug,
 } from "@/lib/tenant/client-onboarding-slug";
@@ -247,18 +251,16 @@ function LoginPageContent() {
     }
 
     const nextPath = searchParams.get("next");
-    const defaultNext = godAdmin
-      ? "/admin_recruiter/dashboard"
-      : useBraasUi
-        ? "/tenant-onboarding"
-        : "/admin_recruiter/dashboard";
-    const safeNext =
-      typeof nextPath === "string" &&
-      nextPath.startsWith("/") &&
-      !nextPath.startsWith("//") &&
-      !nextPath.startsWith("/login")
-        ? nextPath
-        : defaultNext;
+    const onboardingStatus = userData.user
+      ? await fetchOwnerOnboardingStatus(supabaseBrowser, userData.user)
+      : null;
+    const safeNext = onboardingStatus
+      ? resolvePostAuthRedirect(onboardingStatus, nextPath)
+      : godAdmin
+        ? "/admin_recruiter/dashboard"
+        : useBraasUi
+          ? "/tenant-onboarding"
+          : "/admin_recruiter/dashboard";
 
     const tenantSlug = searchParams.get("tenant")?.trim().toLowerCase();
     if (tenantSlug && tenantSlug.length >= 2) {
