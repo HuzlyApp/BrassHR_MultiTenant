@@ -8,6 +8,7 @@ import toast from "react-hot-toast";
 import { WorkflowBuilder } from "@/app/components/workflow-builder";
 import type { StepCategory, WorkflowState } from "@/app/components/workflow-builder";
 import {
+  AdverseActionProcessIcon,
   BadgeEquipmentIssuanceIcon,
   BackgroundCheckIcon,
   BenefitsConfirmationIcon,
@@ -16,6 +17,7 @@ import {
   CertificationUploadRenewalIcon,
   CompletionMilestoneIcon,
   ComplianceTrainingIcon,
+  ConditionalBranchIcon,
   ConditionalLogicIcon,
   CredentialLicenseVerificationIcon,
   CustomApplicationFormIcon,
@@ -33,6 +35,7 @@ import {
   ManagerWelcomeCallIcon,
   ManualTaskHrActionIcon,
   OigExclusionCheckIcon,
+  OfferAcceptanceIcon,
   OrientationOnboardingVideoIcon,
   ParallelStepGroupIcon,
   ParameterizedJobApplicationIcon,
@@ -44,13 +47,15 @@ import {
   ReminderFollowUpNotificationIcon,
   ResumeBasicProfileIcon,
   RetirementEnrollmentIcon,
+  HrFinalApprovalIcon,
   SafetyTrainingIcon,
   ScheduleAssignmentIcon,
   SkillQualificationAssessmentIcon,
-  StatusUpdateNotificationIcon,
+  StatusUpdateEmailNotificationIcon,
   SsnIdentityVerificationIcon,
   TaxFormsIcon,
   TrainingModulesQuizIcon,
+  ManagerFacilityApprovalIcon,
   WelcomeEmailIcon,
   WelcomePacketESignIcon,
 } from "@/app/components/workflow-builder/icons";
@@ -238,6 +243,37 @@ const STEP_LIBRARY: StepCategory[] = [
     ],
   },
   {
+    id: "approval-decision",
+    label: "Approval & Decision Steps",
+    steps: [
+      {
+        id: "offer-acceptance",
+        label: "Offer Acceptance",
+        icon: <OfferAcceptanceIcon />,
+      },
+      {
+        id: "manager-facility-approval",
+        label: "Manager / Facility Approval",
+        icon: <ManagerFacilityApprovalIcon />,
+      },
+      {
+        id: "hr-final-approval",
+        label: "HR Final Approval",
+        icon: <HrFinalApprovalIcon />,
+      },
+      {
+        id: "conditional-branch-decision",
+        label: "Conditional Branch",
+        icon: <ConditionalBranchIcon />,
+      },
+      {
+        id: "adverse-action-process",
+        label: "Adverse Action Process",
+        icon: <AdverseActionProcessIcon />,
+      },
+    ],
+  },
+  {
     id: "communication-notification",
     label: "Communication & Notification Steps",
     steps: [
@@ -249,7 +285,7 @@ const STEP_LIBRARY: StepCategory[] = [
       {
         id: "status-update-notification",
         label: "Status Update Email / Notification",
-        icon: <StatusUpdateNotificationIcon />,
+        icon: <StatusUpdateEmailNotificationIcon />,
       },
       {
         id: "manager-welcome-call",

@@ -78,7 +78,7 @@ export default function StepsLibrary({
                   <button
                     type="button"
                     onClick={() => setCollapsed((c) => ({ ...c, [cat.id]: !isCollapsed }))}
-                    className="flex items-center gap-1 text-[13px] font-semibold leading-5"
+                    className="flex items-center gap-1 text-[13px] font-semibold leading-5 text-left"
                     style={{ color: TEXT_PRIMARY }}
                   >
                     <ChevronDown
