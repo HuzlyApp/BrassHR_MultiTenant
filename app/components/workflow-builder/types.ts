@@ -52,6 +52,7 @@ export type StepSettings = {
 export type WorkflowNodeData = {
   stepId: string;
   label: string;
+  description?: string | null;
   icon: React.ReactNode;
   day: number;
   required: boolean;

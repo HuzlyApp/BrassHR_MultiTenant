@@ -45,6 +45,10 @@ export function workflowStateToStepDrafts(
       ...base,
       step_key: stepKey,
       title: node.label.trim() || base.title,
+      description:
+        typeof node.description === "string" && node.description.trim()
+          ? node.description.trim()
+          : base.description,
       step_type: stepType,
       sort_order: (index + 1) * 10,
       is_required: node.required,

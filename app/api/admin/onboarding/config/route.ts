@@ -36,8 +36,16 @@ async function resolveTenantId(
   req: NextRequest
 ): Promise<string | null> {
   if (auth instanceof NextResponse) return null;
+  const requestedTenantId = req.nextUrl.searchParams.get("tenantId")?.trim();
+  if (requestedTenantId && !auth.godAdmin) {
+    return await resolveEffectiveAdminTenantId(supabase, {
+      userId: auth.userId,
+      authUser: auth.authUser,
+      godAdmin: auth.godAdmin,
+    });
+  }
   return (
-    req.nextUrl.searchParams.get("tenantId")?.trim() ||
+    (auth.godAdmin ? requestedTenantId : null) ||
     (await resolveEffectiveAdminTenantId(supabase, {
       userId: auth.userId,
       authUser: auth.authUser,
@@ -174,6 +182,7 @@ export async function PUT(req: NextRequest) {
       flowName: builder.flowName,
       publishStatus: builder.publishStatus,
       builderDraft: builder.builderDraft,
+      builderUpdatedAt: builder.updatedAt,
     });
   } catch (err: unknown) {
     console.error("[admin/onboarding/config]", err);

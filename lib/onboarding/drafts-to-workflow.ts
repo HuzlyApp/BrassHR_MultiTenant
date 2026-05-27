@@ -53,6 +53,7 @@ export function draftsToWorkflowNodes(
       data: {
         stepId: def.id,
         label: step.title,
+          description: step.description,
         icon: def.icon,
         day: index + 1,
         required: step.is_required,
@@ -86,6 +87,7 @@ export function hydrateWorkflowFromStorage(
         data: {
           stepId: n.stepId,
           label: n.label,
+          description: n.description ?? null,
           icon: def?.icon ?? null,
           day: n.day,
           required: n.required,

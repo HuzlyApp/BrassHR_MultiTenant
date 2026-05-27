@@ -87,6 +87,16 @@ function SettingsBody({ node, onUpdate, onSaveStep, onCloneWorkflow }: SettingsB
       </div>
 
       <div className="flex flex-col gap-3 px-5 pb-4">
+        <TextField
+          label="Step title"
+          value={node.data.label}
+          onChange={(v) => onUpdate(node.id, { label: v })}
+        />
+        <TextField
+          label="Description"
+          value={node.data.description ?? ""}
+          onChange={(v) => onUpdate(node.id, { description: v })}
+        />
         <ToggleRow
           label="Required"
           value={node.data.required}
@@ -101,7 +111,7 @@ function SettingsBody({ node, onUpdate, onSaveStep, onCloneWorkflow }: SettingsB
           onChange={(v) => patchSettings({ clientPerforms: v })}
         />
         <ToggleRow
-          label="Use braasHR partner"
+          label="Use integration partner"
           value={node.data.settings.useBraasPartner}
           onChange={(v) => patchSettings({ useBraasPartner: v })}
         />

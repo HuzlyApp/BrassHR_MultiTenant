@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ReactFlowProvider,
   useEdgesState,
@@ -58,6 +58,12 @@ export type WorkflowBuilderProps = {
   /** Renders inside admin settings (no full-viewport shell / duplicate chrome). */
   embedded?: boolean;
   publishStatusLabel?: string;
+  toolbarData?: {
+    templates: Array<{ id: string; name: string; status?: string }>;
+    myFlows: Array<{ id: string; name: string; status?: string }>;
+    library: Array<{ id: string; label: string; count: number }>;
+    settings: Array<{ label: string; value: string }>;
+  };
 };
 
 export default function WorkflowBuilder(props: WorkflowBuilderProps) {
@@ -87,6 +93,7 @@ function WorkflowBuilderInner({
   onAddTrigger,
   embedded = false,
   publishStatusLabel,
+  toolbarData,
 }: WorkflowBuilderProps) {
   const [nodes, setNodes, onNodesChange] =
     useNodesState<Node<WorkflowNodeData>>(initialNodes);
@@ -95,6 +102,10 @@ function WorkflowBuilderInner({
   const [history, setHistory] = useState<WorkflowState[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [successOpen, setSuccessOpen] = useState(false);
+  const [activeToolbar, setActiveToolbar] = useState<
+    "templates" | "flows" | "library" | "settings" | null
+  >(null);
+  const didMount = useRef(false);
 
   const selectedNode = useMemo(
     () => nodes.find((n) => n.id === selectedNodeId) ?? null,
@@ -109,6 +120,14 @@ function WorkflowBuilderInner({
   const pushHistory = useCallback(() => {
     setHistory((prev) => [...prev.slice(-19), { nodes, edges }]);
   }, [nodes, edges]);
+
+  useEffect(() => {
+    if (!didMount.current) {
+      didMount.current = true;
+      return;
+    }
+    onChange?.(currentState);
+  }, [currentState, onChange]);
 
   const handleUndo = useCallback(() => {
     setHistory((prev) => {
@@ -236,12 +255,40 @@ function WorkflowBuilderInner({
         )}
 
         <div className="flex items-center gap-1">
-          <ToolbarButton icon={<LayoutTemplate size={14} />} label="Templates" />
-          <ToolbarButton icon={<FolderOpen size={14} />} label="My Flows" />
-          <ToolbarButton icon={<Library size={14} />} label="Library" />
-          <ToolbarButton icon={<Settings size={14} />} label="Settings" />
+          <ToolbarButton
+            icon={<LayoutTemplate size={14} />}
+            label="Templates"
+            active={activeToolbar === "templates"}
+            onClick={() => setActiveToolbar((v) => (v === "templates" ? null : "templates"))}
+          />
+          <ToolbarButton
+            icon={<FolderOpen size={14} />}
+            label="My Flows"
+            active={activeToolbar === "flows"}
+            onClick={() => setActiveToolbar((v) => (v === "flows" ? null : "flows"))}
+          />
+          <ToolbarButton
+            icon={<Library size={14} />}
+            label="Library"
+            active={activeToolbar === "library"}
+            onClick={() => setActiveToolbar((v) => (v === "library" ? null : "library"))}
+          />
+          <ToolbarButton
+            icon={<Settings size={14} />}
+            label="Settings"
+            active={activeToolbar === "settings"}
+            onClick={() => setActiveToolbar((v) => (v === "settings" ? null : "settings"))}
+          />
         </div>
       </div>
+
+      {activeToolbar ? (
+        <ToolbarPanel
+          active={activeToolbar}
+          data={toolbarData}
+          publishStatusLabel={publishStatusLabel}
+        />
+      ) : null}
 
       <div className="flex flex-1 overflow-hidden">
         <StepsLibrary categories={stepLibrary} searchTerm={searchTerm} />
@@ -414,18 +461,122 @@ function WorkflowBuilderInner({
 function ToolbarButton({
   icon,
   label,
+  active,
+  onClick,
 }: {
   icon: React.ReactNode;
   label: string;
+  active?: boolean;
+  onClick?: () => void;
 }) {
   return (
     <button
       type="button"
+      onClick={onClick}
       className="flex h-8 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium transition hover:bg-[#f9fafb]"
-      style={{ color: TEXT_SECONDARY }}
+      style={{ color: active ? TEXT_PRIMARY : TEXT_SECONDARY, backgroundColor: active ? "#f9fafb" : undefined }}
     >
       {icon}
       {label}
     </button>
+  );
+}
+
+function ToolbarPanel({
+  active,
+  data,
+  publishStatusLabel,
+}: {
+  active: "templates" | "flows" | "library" | "settings";
+  data: WorkflowBuilderProps["toolbarData"];
+  publishStatusLabel?: string;
+}) {
+  const empty = (
+    <p className="text-xs" style={{ color: TEXT_SECONDARY }}>
+      No records found for the active tenant.
+    </p>
+  );
+
+  return (
+    <div className="border-b bg-white px-5 py-3" style={{ borderColor: CARD_BORDER }}>
+      {active === "templates" ? (
+        <PanelList
+          title="Templates"
+          items={data?.templates.map((t) => ({
+            id: t.id,
+            primary: t.name,
+            secondary: t.status ?? "Saved template",
+          }))}
+          empty={empty}
+        />
+      ) : null}
+      {active === "flows" ? (
+        <PanelList
+          title="My Flows"
+          items={data?.myFlows.map((f) => ({
+            id: f.id,
+            primary: f.name,
+            secondary: f.status ?? publishStatusLabel ?? "Draft",
+          }))}
+          empty={empty}
+        />
+      ) : null}
+      {active === "library" ? (
+        <PanelList
+          title="Library"
+          items={data?.library.map((l) => ({
+            id: l.id,
+            primary: l.label,
+            secondary: `${l.count} available step${l.count === 1 ? "" : "s"}`,
+          }))}
+          empty={empty}
+        />
+      ) : null}
+      {active === "settings" ? (
+        <PanelList
+          title="Settings"
+          items={data?.settings.map((s) => ({
+            id: s.label,
+            primary: s.label,
+            secondary: s.value,
+          }))}
+          empty={empty}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function PanelList({
+  title,
+  items,
+  empty,
+}: {
+  title: string;
+  items?: Array<{ id: string; primary: string; secondary: string }>;
+  empty: React.ReactNode;
+}) {
+  return (
+    <div>
+      <p className="mb-2 text-xs font-semibold uppercase tracking-wide" style={{ color: TEXT_MUTED }}>
+        {title}
+      </p>
+      {items?.length ? (
+        <div className="grid gap-2 md:grid-cols-3">
+          {items.map((item) => (
+            <div key={item.id} className="rounded-lg border px-3 py-2" style={{ borderColor: CARD_BORDER }}>
+              <p className="truncate text-xs font-semibold" style={{ color: TEXT_PRIMARY }}>
+                {item.primary}
+              </p>
+              <p className="truncate text-[11px]" style={{ color: TEXT_SECONDARY }}>
+                {item.secondary}
+              </p>
+            </div>
+          ))}
+        </div>
+      ) : (
+        empty
+      )}
+    </div>
   );
 }

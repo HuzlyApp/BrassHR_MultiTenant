@@ -6,6 +6,7 @@ export type SerializableWorkflowNode = {
   id: string;
   stepId: string;
   label: string;
+  description?: string | null;
   position: { x: number; y: number };
   day: number;
   required: boolean;
@@ -26,6 +27,7 @@ export function serializeWorkflowState(
       id: n.id,
       stepId: n.data.stepId,
       label: n.data.label,
+      description: typeof n.data.description === "string" ? n.data.description : null,
       position: { x: n.position.x, y: n.position.y },
       day: n.data.day,
       required: n.data.required,

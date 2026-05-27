@@ -91,6 +91,7 @@ export default function StepsCanvas({
         data: {
           stepId: def.id,
           label: def.label,
+          description: def.description ?? null,
           icon: def.icon,
           day: source.data.day + 1,
           required: true,
@@ -169,6 +170,7 @@ export default function StepsCanvas({
         data: {
           stepId: def.id,
           label: def.label,
+          description: def.description ?? null,
           icon: def.icon,
           day,
           required: true,

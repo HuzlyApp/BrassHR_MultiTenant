@@ -1,15 +1,18 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Edge, Node } from "@xyflow/react";
 import toast from "react-hot-toast";
 
 import { WorkflowBuilder } from "@/app/components/workflow-builder";
+import type { StepCategory } from "@/app/components/workflow-builder";
 import type { WorkflowNodeData, WorkflowState } from "@/app/components/workflow-builder";
 import {
   ONBOARDING_WORKFLOW_STEP_LIBRARY,
   buildWorkflowStepLookup,
+  hydrateWorkflowStepLibrary,
 } from "@/app/components/onboarding/workflow-step-library";
+import type { WorkflowStepLibraryCategory } from "@/lib/onboarding/workflow-step-library-data";
 import { mapConfigToDrafts } from "@/lib/onboarding/config-to-drafts";
 import { hydrateWorkflowFromStorage } from "@/lib/onboarding/drafts-to-workflow";
 import type { TenantOnboardingConfig } from "@/lib/onboarding/types";
@@ -31,32 +34,56 @@ type BuilderPayload = {
   flowName?: string;
   publishStatus?: "draft" | "published";
   builderDraft?: unknown;
+  builderUpdatedAt?: string | null;
+  tenantSlug?: string | null;
   error?: string;
   detail?: string;
   code?: string;
 };
 
 export default function TenantOnboardingWorkflowBuilder() {
-  const stepLookup = useMemo(() => buildWorkflowStepLookup(), []);
+  const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const skipNextChange = useRef(true);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [tenantId, setTenantId] = useState<string | null>(null);
+  const [tenantSlug, setTenantSlug] = useState<string | null>(null);
   const [tenantName, setTenantName] = useState<string>("");
   const [flowTitle, setFlowTitle] = useState("Worker onboarding");
   const [publishStatus, setPublishStatus] = useState<"draft" | "published">("published");
+  const [updatedAt, setUpdatedAt] = useState<string | null>(null);
+  const [stepLibrary, setStepLibrary] = useState<StepCategory[]>(ONBOARDING_WORKFLOW_STEP_LIBRARY);
   const [initialNodes, setInitialNodes] = useState<Node<WorkflowNodeData>[]>([]);
   const [initialEdges, setInitialEdges] = useState<Edge[]>([]);
   const [builderKey, setBuilderKey] = useState(0);
+  const stepLookup = useMemo(() => buildWorkflowStepLookup(stepLibrary), [stepLibrary]);
 
   const loadConfig = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/admin/onboarding/config", {
-        cache: "no-store",
-        headers: await staffAuthHeaders(),
-      });
+      const headers = await staffAuthHeaders();
+      const [libraryRes, res] = await Promise.all([
+        fetch("/api/admin/onboarding-builder/steps-library", {
+          cache: "no-store",
+          headers,
+        }),
+        fetch("/api/admin/onboarding-builder", {
+          cache: "no-store",
+          headers,
+        }),
+      ]);
+
+      if (libraryRes.ok) {
+        const libraryPayload = (await libraryRes.json()) as {
+          categories?: WorkflowStepLibraryCategory[];
+        };
+        if (libraryPayload.categories?.length) {
+          setStepLibrary(hydrateWorkflowStepLibrary(libraryPayload.categories));
+        }
+      }
+
       const payload = (await res.json()) as BuilderPayload;
       if (!res.ok) {
         throw new Error(payload.detail ?? payload.error ?? "Could not load onboarding builder");
@@ -75,11 +102,14 @@ export default function TenantOnboardingWorkflowBuilder() {
       );
 
       setTenantId(payload.tenantId);
+      setTenantSlug(payload.tenantSlug?.trim() || null);
       setTenantName(payload.tenantName?.trim() || "Your organization");
       setFlowTitle(payload.flowName?.trim() || "Worker onboarding");
       setPublishStatus(payload.publishStatus === "draft" ? "draft" : "published");
+      setUpdatedAt(payload.builderUpdatedAt ?? null);
       setInitialNodes(nodes);
       setInitialEdges(edges);
+      skipNextChange.current = true;
       setBuilderKey((k) => k + 1);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Load failed");
@@ -92,48 +122,108 @@ export default function TenantOnboardingWorkflowBuilder() {
     void loadConfig();
   }, [loadConfig]);
 
-  const persist = async (state: WorkflowState, options: { publish?: boolean; template?: boolean }) => {
-    setSaving(true);
-    setError(null);
-    try {
-      const builderDraft = serializeWorkflowState(state.nodes, state.edges);
-      const res = await fetch("/api/admin/onboarding/config", {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          ...(await staffAuthHeaders()),
+  useEffect(() => {
+    return () => {
+      if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
+    };
+  }, []);
+
+  const persist = useCallback(
+    async (
+      state: WorkflowState,
+      options: { publish?: boolean; template?: boolean; silent?: boolean }
+    ) => {
+      if (!options.silent) setSaving(true);
+      setError(null);
+      try {
+        const builderDraft = serializeWorkflowState(state.nodes, state.edges);
+        const endpoint = options.publish
+          ? "/api/admin/onboarding-builder/publish"
+          : "/api/admin/onboarding-builder/save";
+        const res = await fetch(endpoint, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(await staffAuthHeaders()),
+          },
+          body: JSON.stringify({
+            builderDraft,
+            flowName: flowTitle,
+            publish: options.publish === true,
+            saveTemplate: options.template === true,
+          }),
+        });
+        const payload = (await res.json()) as BuilderPayload;
+        if (!res.ok) {
+          throw new Error(payload.detail ?? payload.error ?? "Save failed");
+        }
+
+        if (payload.publishStatus) {
+          setPublishStatus(payload.publishStatus);
+        }
+        if (payload.builderUpdatedAt !== undefined) {
+          setUpdatedAt(payload.builderUpdatedAt ?? null);
+        }
+
+        if (!options.silent) {
+          if (options.publish) {
+            toast.success("Onboarding flow published for this tenant");
+          } else if (options.template) {
+            toast.success("Draft saved as template");
+          } else {
+            toast.success("Draft saved");
+          }
+        }
+      } catch (e) {
+        const message = e instanceof Error ? e.message : "Save failed";
+        setError(message);
+        if (!options.silent) toast.error(message);
+      } finally {
+        if (!options.silent) setSaving(false);
+      }
+    },
+    [flowTitle]
+  );
+
+  const handleDraftChange = useCallback(
+    (state: WorkflowState) => {
+      if (skipNextChange.current) {
+        skipNextChange.current = false;
+        return;
+      }
+      setPublishStatus("draft");
+      if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
+      autosaveTimer.current = setTimeout(() => {
+        void persist(state, { silent: true });
+      }, 900);
+    },
+    [persist]
+  );
+
+  const toolbarData = useMemo(
+    () => ({
+      templates: [],
+      myFlows: [
+        {
+          id: tenantId ?? "active-flow",
+          name: flowTitle,
+          status: publishStatus,
         },
-        body: JSON.stringify({
-          builderDraft,
-          flowName: flowTitle,
-          publish: options.publish === true,
-          saveTemplate: options.template === true,
-        }),
-      });
-      const payload = (await res.json()) as BuilderPayload;
-      if (!res.ok) {
-        throw new Error(payload.detail ?? payload.error ?? "Save failed");
-      }
-
-      if (payload.publishStatus) {
-        setPublishStatus(payload.publishStatus);
-      }
-
-      if (options.publish) {
-        toast.success("Onboarding flow published for this tenant");
-      } else if (options.template) {
-        toast.success("Draft saved as template");
-      } else {
-        toast.success("Draft saved");
-      }
-    } catch (e) {
-      const message = e instanceof Error ? e.message : "Save failed";
-      setError(message);
-      toast.error(message);
-    } finally {
-      setSaving(false);
-    }
-  };
+      ],
+      library: stepLibrary.map((category) => ({
+        id: category.id,
+        label: category.label,
+        count: category.steps.length,
+      })),
+      settings: [
+        { label: "Tenant", value: tenantName || "Unknown tenant" },
+        { label: "Tenant slug", value: tenantSlug ?? "Not set" },
+        { label: "Status", value: publishStatus },
+        { label: "Last saved", value: updatedAt ? new Date(updatedAt).toLocaleString() : "Not saved yet" },
+      ],
+    }),
+    [flowTitle, publishStatus, stepLibrary, tenantId, tenantName, tenantSlug, updatedAt]
+  );
 
   if (loading) {
     return <p className="text-sm text-slate-500">Loading onboarding builder…</p>;
@@ -199,10 +289,12 @@ export default function TenantOnboardingWorkflowBuilder() {
         subtitle="Applicant onboarding flow"
         productName="Onboarding Builder"
         brandName={tenantName}
-        stepLibrary={ONBOARDING_WORKFLOW_STEP_LIBRARY}
+        stepLibrary={stepLibrary}
         initialNodes={initialNodes}
         initialEdges={initialEdges}
         publishStatusLabel={publishStatus === "published" ? "Published" : "Draft"}
+        toolbarData={toolbarData}
+        onChange={handleDraftChange}
         onSaveAsTemplate={(state) => void persist(state, { template: true })}
         onPreview={() => toast("Preview uses the applicant flow for this tenant")}
         onPublish={(state) => void persist(state, { publish: true })}
