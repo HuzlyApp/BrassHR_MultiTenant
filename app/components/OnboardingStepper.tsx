@@ -60,7 +60,7 @@ export default function OnboardingStepper({
 
 }: Props) {
 
-  const { push, replace } = useOnboardingTenant()
+  const { slug, push, replace } = useOnboardingTenant()
 
   const pathname = usePathname()
 
@@ -138,15 +138,17 @@ export default function OnboardingStepper({
 
   useEffect(() => {
 
-    if (!enabledSteps?.length || onboarding?.loading) return
+    if (!enabledSteps?.length || onboarding?.loading || !slug) return
 
     const earnedThrough = completedThrough ?? 0
 
     if (currentStep > maxAllowedStep && earnedThrough < currentStep - 1) {
 
-      const redirect = stepRoutes[Math.max(0, maxAllowedStep - 1)] ?? stepRoutes[0]
+      const targetPath = stepRoutes[Math.max(0, maxAllowedStep - 1)] ?? stepRoutes[0]
 
-      replace(redirect)
+      if (!targetPath || pathname?.includes(targetPath.split("?")[0])) return
+
+      replace(targetPath)
 
     }
 
@@ -165,6 +167,10 @@ export default function OnboardingStepper({
     replace,
 
     stepRoutes,
+
+    slug,
+
+    pathname,
 
   ])
 

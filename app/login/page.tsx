@@ -23,10 +23,7 @@ import {
 import { toOtpVerifyError } from "@/lib/auth/login-otp";
 import { resolveGodAdminClient } from "@/lib/auth/resolve-god-admin-client";
 import { isNexusPlatformUser, isPlatformEnforcementEnabled } from "@/lib/auth/platform-shared";
-import {
-  fetchOwnerOnboardingStatus,
-  resolvePostAuthRedirect,
-} from "@/lib/auth/owner-onboarding-status";
+import { isRecruiterSignInRole } from "@/lib/auth/recruiter-sign-in";
 import {
   persistOnboardingSlugCookie,
   resolveClientOnboardingTenantSlug,
@@ -72,6 +69,16 @@ type PendingLogin = {
   rememberMe: boolean;
 };
 
+type RecruiterOnboardingStatusResponse = {
+  userId: string;
+  role: string | null;
+  activeTenantId: string | null;
+  requestedTenantId: string | null;
+  validTenantAccess: boolean;
+  tenantOnboardingCompleted: boolean;
+  redirectTarget: "/admin_recruiter/dashboard" | "/tenant-onboarding";
+};
+
 function FieldLabel({ children }: { children: string }) {
   return (
     <label className="mb-[8px] block text-[14px] font-normal leading-[20px] tracking-normal text-[#374151]" style={interStyle}>
@@ -109,6 +116,7 @@ function LoginPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const tenantQuery = searchParams.get("tenant");
+  const recruiterSignIn = isRecruiterSignInRole(searchParams.get("role"));
   const useBraasUi = usesBraasFigmaLoginUi(tenantQuery);
   const [step, setStep] = useState<LoginStep>("credentials");
   const [showSuccess, setShowSuccess] = useState(false);
@@ -250,18 +258,6 @@ function LoginPageContent() {
       return false;
     }
 
-    const nextPath = searchParams.get("next");
-    const onboardingStatus = userData.user
-      ? await fetchOwnerOnboardingStatus(supabaseBrowser, userData.user)
-      : null;
-    const safeNext = onboardingStatus
-      ? resolvePostAuthRedirect(onboardingStatus, nextPath)
-      : godAdmin
-        ? "/admin_recruiter/dashboard"
-        : useBraasUi
-          ? "/tenant-onboarding"
-          : "/admin_recruiter/dashboard";
-
     const tenantSlug = searchParams.get("tenant")?.trim().toLowerCase();
     if (tenantSlug && tenantSlug.length >= 2) {
       persistOnboardingSlugCookie(tenantSlug);
@@ -282,7 +278,47 @@ function LoginPageContent() {
       }
     }
 
-    router.push(safeNext);
+    const {
+      data: { session },
+    } = await supabaseBrowser.auth.getSession();
+    const statusParams = new URLSearchParams();
+    if (tenantSlug && tenantSlug.length >= 2) {
+      statusParams.set("tenant", tenantSlug);
+    }
+    const statusRes = await fetch(
+      `/api/auth/recruiter-onboarding-status${
+        statusParams.toString() ? `?${statusParams.toString()}` : ""
+      }`,
+      {
+        cache: "no-store",
+        headers: session?.access_token
+          ? { Authorization: `Bearer ${session.access_token}` }
+          : undefined,
+      }
+    );
+
+    if (!statusRes.ok) {
+      const message =
+        statusRes.status === 403
+          ? "This account does not have access to the selected tenant."
+          : "Could not verify onboarding status. Try again.";
+      setShowSuccess(false);
+      setStep("credentials");
+      setAuthError({ error: message, code: "UNKNOWN", field: null });
+      return false;
+    }
+
+    const onboardingStatus = (await statusRes.json()) as RecruiterOnboardingStatusResponse;
+    console.info("[login] recruiter redirect", {
+      userId: onboardingStatus.userId,
+      role: onboardingStatus.role,
+      activeTenantId: onboardingStatus.activeTenantId,
+      requestedTenantId: onboardingStatus.requestedTenantId,
+      tenantOnboardingCompleted: onboardingStatus.tenantOnboardingCompleted,
+      redirectTarget: onboardingStatus.redirectTarget,
+    });
+
+    router.push(onboardingStatus.redirectTarget);
     router.refresh();
     return true;
   };
@@ -367,7 +403,17 @@ function LoginPageContent() {
       data: { session },
     } = await supabaseBrowser.auth.getSession();
 
-    if (!session) {
+    const sessionUser = session?.user;
+    const sessionEmail = sessionUser?.email?.trim().toLowerCase() ?? "";
+    const sessionIsAnonymous =
+      (sessionUser as { is_anonymous?: boolean } | undefined)?.is_anonymous === true;
+    const needsPasswordSignIn =
+      !sessionUser || sessionIsAnonymous || sessionEmail !== login.email;
+
+    if (needsPasswordSignIn) {
+      if (sessionUser && (sessionIsAnonymous || sessionEmail !== login.email)) {
+        await supabaseBrowser.auth.signOut();
+      }
       const { error: signInError } = await supabaseBrowser.auth.signInWithPassword({
         email: login.email,
         password: login.password,
@@ -664,12 +710,14 @@ function LoginPageContent() {
           </SocialButton>
         </div>
 
-        <p className="text-center text-[14px] font-normal leading-[20px] text-[#374151]" style={interStyle}>
-          Don&apos;t have an Account?{" "}
-          <Link href="/signup" className="font-semibold text-black underline">
-            Sign Up
-          </Link>
-        </p>
+        {!recruiterSignIn && !tenantQuery ? (
+          <p className="text-center text-[14px] font-normal leading-[20px] text-[#374151]" style={interStyle}>
+            Don&apos;t have an Account?{" "}
+            <Link href="/signup" className="font-semibold text-black underline">
+              Sign Up
+            </Link>
+          </p>
+        ) : null}
           </form>
         )}
       </LoginPageShell>

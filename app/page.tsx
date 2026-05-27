@@ -11,6 +11,7 @@ import {
   PLATFORM_DEFAULT_TENANT_SLUG,
   type TenantBranding,
 } from "@/lib/tenant/tenant-branding";
+import { recruiterSignInHref } from "@/lib/auth/recruiter-sign-in";
 import {
   persistOnboardingSlugCookie,
   resolveClientOnboardingTenantSlug,
@@ -23,6 +24,11 @@ export default function Home() {
     brandingFallbackForSlug(PLATFORM_DEFAULT_TENANT_SLUG)
   );
   const [brandLoaded, setBrandLoaded] = useState(false);
+  const [activeTenantSlug, setActiveTenantSlug] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    return resolveClientOnboardingTenantSlug(window.location.search);
+  });
+
   useEffect(() => {
     if (typeof window !== "undefined" && window.location.hash.includes("error=")) {
       const path = window.location.pathname + window.location.search;
@@ -34,9 +40,19 @@ export default function Home() {
     let alive = true;
     void (async () => {
       const hostLabel = getClientTenantHostLabel();
-      const slugFromCookie = resolveClientOnboardingTenantSlug(window.location.search);
-      const slug = slugFromCookie ?? hostLabel ?? PLATFORM_DEFAULT_TENANT_SLUG;
-      if (hostLabel && !slugFromCookie) {
+      const slugFromQuery = resolveClientOnboardingTenantSlug(window.location.search);
+      const applicantSlug = slugFromQuery ?? hostLabel ?? null;
+      const brandingSlug = applicantSlug ?? PLATFORM_DEFAULT_TENANT_SLUG;
+
+      if (applicantSlug) {
+        persistOnboardingSlugCookie(applicantSlug);
+        if (alive) setActiveTenantSlug(applicantSlug);
+      } else if (alive) {
+        setActiveTenantSlug(null);
+      }
+
+      const slug = brandingSlug;
+      if (hostLabel && !slugFromQuery) {
         persistOnboardingSlugCookie(slug);
       }
 
@@ -69,6 +85,16 @@ export default function Home() {
     background: `linear-gradient(135deg, var(--brand-gradient-from), var(--brand-gradient-to))`,
   };
 
+  const recruiterSignInUrl = recruiterSignInHref({
+    tenant:
+      activeTenantSlug ||
+      resolveClientOnboardingTenantSlug(
+        typeof window !== "undefined" ? window.location.search : ""
+      ) ||
+      getClientTenantHostLabel() ||
+      (brand.slug && brand.slug !== PLATFORM_DEFAULT_TENANT_SLUG ? brand.slug : null),
+  });
+
   return (
     <TenantBrandingProvider branding={brand}>
       <main style={shell} className="flex min-h-screen items-center justify-center p-4 sm:p-6 lg:p-8">
@@ -83,7 +109,20 @@ export default function Home() {
 
             <button
               type="button"
-              onClick={() => router.push("/signup")}
+              onClick={() => {
+                const slug =
+                  activeTenantSlug ||
+                  resolveClientOnboardingTenantSlug(window.location.search) ||
+                  getClientTenantHostLabel() ||
+                  (brand.slug && brand.slug !== PLATFORM_DEFAULT_TENANT_SLUG ? brand.slug : null);
+
+                if (slug) {
+                  persistOnboardingSlugCookie(slug);
+                  router.push(`/worker-onboarding?tenant=${encodeURIComponent(slug)}`);
+                  return;
+                }
+                router.push("/signup");
+              }}
               style={{ backgroundColor: "var(--brand-primary)", boxShadow: "0 10px 20px color-mix(in srgb, var(--brand-primary) 22%, transparent)" }}
               className="inline-flex min-h-14 min-w-[210px] cursor-pointer items-center justify-center rounded-xl px-8 py-4 text-[22px] font-semibold leading-[22px] text-white transition hover:brightness-105 focus:outline-none"
             >
@@ -93,7 +132,7 @@ export default function Home() {
             <p className="text-center text-[14px] font-normal leading-5 tracking-normal text-slate-500">
               Need to sign in as a recruiter?{" "}
               <Link
-                href={brand.slug ? `/login?tenant=${encodeURIComponent(brand.slug)}` : "/login"}
+                href={recruiterSignInUrl}
                 style={{ color: "var(--brand-primary)" }}
                 className="text-[14px] font-semibold leading-5 underline-offset-4 hover:underline"
               >

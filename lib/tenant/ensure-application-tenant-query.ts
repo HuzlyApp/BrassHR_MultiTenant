@@ -13,7 +13,9 @@ export function ensureApplicationTenantQuery(
   response: NextResponse
 ): NextResponse {
   const pathname = request.nextUrl.pathname;
-  if (!pathname.startsWith("/application")) return response;
+  const needsTenant =
+    pathname.startsWith("/application") || pathname === "/worker-onboarding";
+  if (!needsTenant) return response;
 
   const tenantParam = request.nextUrl.searchParams.get("tenant")?.trim().toLowerCase();
   if (tenantParam && tenantParam.length >= 2) {
@@ -26,6 +28,12 @@ export function ensureApplicationTenantQuery(
 
   const url = request.nextUrl.clone();
   url.searchParams.set("tenant", cookieSlug);
+
+  if (request.nextUrl.pathname === url.pathname && request.nextUrl.search === url.search) {
+    response.cookies.set(ONBOARDING_TENANT_SLUG_COOKIE, cookieSlug, COOKIE_OPTS);
+    return response;
+  }
+
   const redirect = NextResponse.redirect(url);
   response.cookies.getAll().forEach((cookie) => {
     redirect.cookies.set(cookie.name, cookie.value, cookie);

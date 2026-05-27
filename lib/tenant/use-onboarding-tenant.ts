@@ -18,26 +18,47 @@ export function useOnboardingTenant() {
   const slug = useMemo(() => {
     const fromQuery = searchParams.get("tenant")?.trim().toLowerCase();
     if (fromQuery && fromQuery.length >= 2) return fromQuery;
-    if (typeof window !== "undefined") {
-      return resolveClientOnboardingTenantSlug(window.location.search);
-    }
-    return null;
+    const fromSearch =
+      typeof window !== "undefined"
+        ? window.location.search
+        : searchParams.toString()
+          ? `?${searchParams.toString()}`
+          : "";
+    return resolveClientOnboardingTenantSlug(fromSearch);
   }, [searchParams]);
 
   const withTenantPath = useCallback((path: string) => withTenant(path, slug), [slug]);
 
   const push = useCallback(
     (path: string) => {
-      if (slug) persistOnboardingSlugCookie(slug);
-      router.push(withTenant(path, slug));
+      const resolved =
+        slug ??
+        resolveClientOnboardingTenantSlug(
+          typeof window !== "undefined" ? window.location.search : ""
+        );
+      if (!resolved) {
+        router.push(path);
+        return;
+      }
+      persistOnboardingSlugCookie(resolved);
+      router.push(withTenant(path, resolved));
     },
     [router, slug]
   );
 
   const replace = useCallback(
     (path: string) => {
-      if (slug) persistOnboardingSlugCookie(slug);
-      router.replace(withTenant(path, slug));
+      const resolved =
+        slug ??
+        resolveClientOnboardingTenantSlug(
+          typeof window !== "undefined" ? window.location.search : ""
+        );
+      if (!resolved) {
+        router.replace(path);
+        return;
+      }
+      persistOnboardingSlugCookie(resolved);
+      router.replace(withTenant(path, resolved));
     },
     [router, slug]
   );

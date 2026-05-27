@@ -104,19 +104,8 @@ export const APPLICATION_ROUTE_STEP_MARKERS: {
 
 /** Permanent redirects from legacy numeric paths (and generic /onboarding/step-N). */
 export const LEGACY_APPLICATION_ROUTE_REDIRECTS: { source: string; destination: string }[] = [
-  { source: APPLICATION_ROUTES.addResume, destination: APPLICATION_ROUTES.addResume },
   { source: "/application/step-1-upload-v2", destination: APPLICATION_ROUTES.addResumeV2 },
-  { source: APPLICATION_ROUTES.resumeUploadSuccess, destination: APPLICATION_ROUTES.resumeUploadSuccess },
-  { source: APPLICATION_ROUTES.profileReview, destination: APPLICATION_ROUTES.profileReview },
   { source: "/application/step-1-parse", destination: APPLICATION_ROUTES.parseResume },
-  { source: APPLICATION_ROUTES.professionalLicense, destination: APPLICATION_ROUTES.professionalLicense },
-  { source: APPLICATION_ROUTES.skillsIntro, destination: APPLICATION_ROUTES.skillsIntro },
-  { source: APPLICATION_ROUTES.skillAssessment, destination: APPLICATION_ROUTES.skillAssessment },
-  { source: APPLICATION_ROUTES.authorizationsDocuments, destination: APPLICATION_ROUTES.authorizationsDocuments },
-  { source: APPLICATION_ROUTES.identityVerification, destination: APPLICATION_ROUTES.identityVerification },
-  { source: APPLICATION_ROUTES.addReferences, destination: APPLICATION_ROUTES.addReferences },
-  { source: APPLICATION_ROUTES.referenceReview, destination: APPLICATION_ROUTES.referenceReview },
-  { source: APPLICATION_ROUTES.applicationSummary, destination: APPLICATION_ROUTES.applicationSummary },
   { source: "/onboarding/step-1", destination: APPLICATION_ROUTES.addResume },
   { source: "/onboarding/step-2", destination: APPLICATION_ROUTES.professionalLicense },
   { source: "/onboarding/step-3", destination: APPLICATION_ROUTES.skillsIntro },

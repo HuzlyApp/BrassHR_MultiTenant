@@ -10,6 +10,7 @@ export type OwnerOnboardingStatus = {
 type UsersOnboardingRow = {
   signup_completed_at: string | null;
   tenant_onboarding_completed_at: string | null;
+  onboarding_completed?: boolean | null;
   god_admin?: boolean | null;
 };
 
@@ -31,7 +32,8 @@ export function parseOwnerOnboardingRow(
       (user ? readMetadataFlag(user, "signup_completed") : false),
     tenantOnboardingCompleted:
       Boolean(row?.tenant_onboarding_completed_at) ||
-      (user ? readMetadataFlag(user, "tenant_onboarding_completed") : false),
+      (user ? readMetadataFlag(user, "tenant_onboarding_completed") : false) ||
+      row?.onboarding_completed === true,
     godAdmin,
   };
 }
@@ -43,7 +45,7 @@ export async function fetchOwnerOnboardingStatus(
   const godAdminFromAuth = isGodAdminUser(user);
   const { data, error } = await supabase
     .from("users")
-    .select("signup_completed_at, tenant_onboarding_completed_at, god_admin")
+    .select("signup_completed_at, tenant_onboarding_completed_at, onboarding_completed, god_admin")
     .eq("id", user.id)
     .maybeSingle();
 
@@ -67,7 +69,8 @@ export function sanitizeAuthNextPath(next: string | null | undefined): string | 
 }
 
 /**
- * Default recruiter destination after login / onboarding, honoring optional `next`.
+ * Default recruiter destination after sign-in / onboarding, honoring optional `next`.
+ * Never returns `/signup` — that route is for new account registration only.
  */
 export function resolvePostAuthRedirect(
   status: OwnerOnboardingStatus,
@@ -76,9 +79,6 @@ export function resolvePostAuthRedirect(
   const safeNext = sanitizeAuthNextPath(next);
   if (status.godAdmin) {
     return safeNext ?? "/admin_recruiter/dashboard";
-  }
-  if (!status.signupCompleted) {
-    return "/signup";
   }
   if (!status.tenantOnboardingCompleted) {
     if (safeNext?.startsWith("/tenant-onboarding")) return safeNext;
@@ -89,14 +89,12 @@ export function resolvePostAuthRedirect(
 
 export function shouldBlockTenantOnboardingAccess(status: OwnerOnboardingStatus): boolean {
   if (status.godAdmin) return true;
-  if (!status.signupCompleted) return true;
   if (status.tenantOnboardingCompleted) return true;
   return false;
 }
 
 export function shouldBlockAdminDashboardAccess(status: OwnerOnboardingStatus): boolean {
   if (status.godAdmin) return false;
-  if (!status.signupCompleted) return true;
   if (!status.tenantOnboardingCompleted) return true;
   return false;
 }

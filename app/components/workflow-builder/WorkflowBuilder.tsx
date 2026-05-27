@@ -55,6 +55,9 @@ export type WorkflowBuilderProps = {
   onPublish?: (state: WorkflowState) => void;
   onExportPDF?: (state: WorkflowState) => void;
   onAddTrigger?: () => void;
+  /** Renders inside admin settings (no full-viewport shell / duplicate chrome). */
+  embedded?: boolean;
+  publishStatusLabel?: string;
 };
 
 export default function WorkflowBuilder(props: WorkflowBuilderProps) {
@@ -82,6 +85,8 @@ function WorkflowBuilderInner({
   onPublish,
   onExportPDF,
   onAddTrigger,
+  embedded = false,
+  publishStatusLabel,
 }: WorkflowBuilderProps) {
   const [nodes, setNodes, onNodesChange] =
     useNodesState<Node<WorkflowNodeData>>(initialNodes);
@@ -129,9 +134,12 @@ function WorkflowBuilderInner({
 
   return (
     <div
-      className="flex h-screen w-full flex-col overflow-hidden"
-      style={{ backgroundColor: PAGE_BG }}
+      className={`flex w-full flex-col overflow-hidden ${
+        embedded ? "h-[min(780px,calc(100vh-220px))] min-h-[560px] rounded-2xl border" : "h-screen"
+      }`}
+      style={{ backgroundColor: PAGE_BG, ...(embedded ? { borderColor: CARD_BORDER } : {}) }}
     >
+      {!embedded ? (
       <header
         className="flex h-[60px] shrink-0 items-center justify-between border-b bg-white px-5"
         style={{ borderColor: CARD_BORDER }}
@@ -203,12 +211,13 @@ function WorkflowBuilderInner({
           </button>
         </div>
       </header>
+      ) : null}
 
       <div
         className="flex h-[44px] shrink-0 items-center justify-between border-b bg-white px-5"
         style={{ borderColor: CARD_BORDER }}
       >
-        {onBack ? (
+        {onBack && !embedded ? (
           <button
             type="button"
             onClick={onBack}
@@ -218,6 +227,10 @@ function WorkflowBuilderInner({
             <ArrowLeft size={14} />
             Back
           </button>
+        ) : embedded ? (
+          <span className="text-xs font-medium" style={{ color: TEXT_SECONDARY }}>
+            {publishStatusLabel ?? "Draft"}
+          </span>
         ) : (
           <span />
         )}

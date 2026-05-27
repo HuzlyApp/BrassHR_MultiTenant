@@ -2,7 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { getSupabaseUrl } from "@/lib/supabase-env";
 import { loadTenantOnboardingConfig } from "@/lib/onboarding/load-tenant-config";
+import { loadOnboardingBuilderMeta } from "@/lib/onboarding/load-onboarding-builder-meta";
 import { resolveTenantIdBySlug } from "@/lib/onboarding/resolve-worker-context";
+import { getEnabledTenantSteps } from "@/lib/onboarding/tenant-step-navigation";
 
 export const runtime = "nodejs";
 
@@ -29,12 +31,51 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Missing tenant slug or tenantId" }, { status: 400 });
     }
 
+    const { data: tenantRow } = await supabase
+      .from("tenants")
+      .select("id, slug, subdomain, is_active")
+      .eq("id", tenantId)
+      .maybeSingle();
+
+    if (!tenantRow?.id || tenantRow.is_active === false) {
+      return NextResponse.json({ error: "Tenant not found" }, { status: 404 });
+    }
+
+    if (slug) {
+      const canonicalSlug = String(tenantRow.slug ?? "").toLowerCase();
+      const subdomain = String(tenantRow.subdomain ?? "").toLowerCase();
+      if (slug !== canonicalSlug && slug !== subdomain) {
+        return NextResponse.json({ error: "Tenant not found" }, { status: 404 });
+      }
+    }
+
+    const builder = await loadOnboardingBuilderMeta(supabase, tenantId);
+    if (builder.publishStatus !== "published") {
+      return NextResponse.json(
+        {
+          error: "This tenant has not published an onboarding flow yet.",
+          code: "NOT_PUBLISHED",
+        },
+        { status: 403 }
+      );
+    }
+
     const config = await loadTenantOnboardingConfig(supabase, tenantId, { workerFacing: true });
     if (!config) {
       return NextResponse.json({ error: "Configuration not found" }, { status: 404 });
     }
 
-    return NextResponse.json({ config });
+    if (!getEnabledTenantSteps(config).length) {
+      return NextResponse.json(
+        {
+          error: "This tenant has not published an onboarding flow yet.",
+          code: "NOT_PUBLISHED",
+        },
+        { status: 403 }
+      );
+    }
+
+    return NextResponse.json({ config, tenantSlug: tenantRow.slug ?? slug });
   } catch (err: unknown) {
     console.error("[onboarding/config]", err);
     const msg = err instanceof Error ? err.message : "Unexpected error";

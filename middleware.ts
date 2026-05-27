@@ -34,6 +34,10 @@ function isPublicUiPath(pathname: string): boolean {
   return false;
 }
 
+function isAnonymousAuthUser(user: { is_anonymous?: boolean } | null | undefined): boolean {
+  return user?.is_anonymous === true;
+}
+
 /**
  * Refreshes Supabase Auth cookies; enforces login + `app_metadata.platform === nexus` for protected UI/APIs.
  */
@@ -64,6 +68,7 @@ export async function middleware(request: NextRequest) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
+  const isAnonymousUser = isAnonymousAuthUser(user);
 
   /** `{sub}.{ROOT_DOMAIN}` → onboarding cookie + fallback rewrite for applicant surfaces */
   const rootDomain = getRootDomainFromEnv();
@@ -73,6 +78,7 @@ export async function middleware(request: NextRequest) {
   const subdomainRoutingPaths =
     pathname === "/" ||
     pathname.startsWith("/application") ||
+    pathname === "/worker-onboarding" ||
     pathname === "/login" ||
     pathname.startsWith("/login/");
 
@@ -139,10 +145,13 @@ export async function middleware(request: NextRequest) {
   const isAdminRecruiterPath = pathname.startsWith("/admin_recruiter");
   const ownerFlowPath = isSignupPath || isTenantOnboardingPath || isAdminRecruiterPath;
 
-  if (ownerFlowPath && user) {
+  if (ownerFlowPath && user && !isAnonymousUser) {
     const onboardingStatus = await fetchOwnerOnboardingStatus(supabase, user);
 
     if (isSignupPath) {
+      if (!onboardingStatus.signupCompleted) {
+        return response;
+      }
       const destination = resolvePostAuthRedirect(
         onboardingStatus,
         request.nextUrl.searchParams.get("next")
@@ -169,10 +178,33 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  if (isTenantOnboardingPath && !user) {
-    const signup = new URL("/signup", request.url);
-    signup.searchParams.set("next", `${request.nextUrl.pathname}${request.nextUrl.search}`);
-    return NextResponse.redirect(signup);
+  if (isTenantOnboardingPath && (!user || isAnonymousUser)) {
+    const signin = new URL("/signin", request.url);
+    signin.searchParams.set("next", `${request.nextUrl.pathname}${request.nextUrl.search}`);
+    signin.searchParams.set("role", "admin_recruiter");
+    const tenant = request.nextUrl.searchParams.get("tenant")?.trim().toLowerCase();
+    if (tenant && tenant.length >= 2) {
+      signin.searchParams.set("tenant", tenant);
+    }
+    return NextResponse.redirect(signin);
+  }
+
+  const isLoginPath =
+    pathname === "/login" ||
+    pathname.startsWith("/login/") ||
+    pathname === "/signin" ||
+    pathname.startsWith("/signin/");
+
+  if (isLoginPath && user && !isAnonymousUser) {
+    const onboardingStatus = await fetchOwnerOnboardingStatus(supabase, user);
+    const destination = resolvePostAuthRedirect(
+      onboardingStatus,
+      request.nextUrl.searchParams.get("next")
+    );
+    const destPath = destination.split("?")[0];
+    if (destPath !== pathname) {
+      return NextResponse.redirect(new URL(destination, request.url));
+    }
   }
 
   if (isPublicUiPath(pathname)) {
@@ -180,16 +212,30 @@ export async function middleware(request: NextRequest) {
   }
 
   if ((enforceUi || isAdminRecruiterPath) && isAdminRecruiterPath) {
-    if (!user) {
+    if (!user || isAnonymousUser) {
       const login = new URL("/signin", request.url);
       login.searchParams.set("next", `${request.nextUrl.pathname}${request.nextUrl.search}`);
+      login.searchParams.set("role", "admin_recruiter");
+      const tenant =
+        request.nextUrl.searchParams.get("tenant")?.trim().toLowerCase() ||
+        request.cookies.get(ONBOARDING_TENANT_SLUG_COOKIE)?.value?.trim().toLowerCase();
+      if (tenant && tenant.length >= 2) {
+        login.searchParams.set("tenant", tenant);
+      }
       return NextResponse.redirect(login);
     }
     if (platformOn && !isNexusPlatformUser(user) && !isGodAdminUser(user)) {
       await supabase.auth.signOut();
       const login = new URL("/signin", request.url);
       login.searchParams.set("next", `${request.nextUrl.pathname}${request.nextUrl.search}`);
+      login.searchParams.set("role", "admin_recruiter");
       login.searchParams.set("error", "platform");
+      const tenant =
+        request.nextUrl.searchParams.get("tenant")?.trim().toLowerCase() ||
+        request.cookies.get(ONBOARDING_TENANT_SLUG_COOKIE)?.value?.trim().toLowerCase();
+      if (tenant && tenant.length >= 2) {
+        login.searchParams.set("tenant", tenant);
+      }
       return NextResponse.redirect(login);
     }
   }
@@ -198,7 +244,7 @@ export async function middleware(request: NextRequest) {
    * Applicant onboarding is public (anonymous sign-in happens client-side).
    * Do not apply recruiter platform/auth gates here — that sent applicants to /login.
    */
-  if (pathname.startsWith("/application")) {
+  if (pathname.startsWith("/application") || pathname === "/worker-onboarding") {
     return ensureApplicationTenantQuery(request, response);
   }
 
@@ -219,6 +265,7 @@ export const config = {
     "/admin_recruiter/:path*",
     "/application",
     "/application/:path*",
+    "/worker-onboarding",
     "/api/workers",
     "/api/workers/:path*",
     "/api/search-workers",
