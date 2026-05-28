@@ -7,276 +7,273 @@ import { useEffect, useMemo, useState } from "react";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 
-const CANDIDATE_SUB = [
-  { label: "All", href: "/admin_recruiter/candidates" },
-  { label: "New", href: "/admin_recruiter/new" },
-  { label: "Pending", href: "/admin_recruiter/pending" },
-  { label: "Approved", href: "/admin_recruiter/approved" },
-  { label: "Disapproved", href: "/admin_recruiter/disapproved" },
-] as const;
-
-const WORKER_SUB = [
-  { label: "Active", href: "/admin_recruiter/workers" },
-  { label: "Inactive", href: "/admin_recruiter/workers" },
-  { label: "Cancelled", href: "/admin_recruiter/workers" },
-  { label: "Banned", href: "/admin_recruiter/workers" },
-] as const;
-
 type AdminRecruiterSidebarProps = {
   isMobileOpen?: boolean;
   onMobileClose?: () => void;
 };
 
 const DEFAULT_TENANT_LOGO = "/images/new-logo-nexus.svg";
+const DEFAULT_PROFILE_PHOTO = "https://i.pravatar.cc/128?u=admin-recruiter";
+
+type SidebarProfile = {
+  first_name: string | null;
+  last_name: string | null;
+  role: string | null;
+  profile_photo: string | null;
+  email: string | null;
+};
+
+type SidebarLink = {
+  label: string;
+  href: string;
+  matchPrefixes: string[];
+};
+
+type SidebarSection = {
+  label: string;
+  href: string;
+  icon: string;
+  matchPrefixes: string[];
+  children?: SidebarLink[];
+};
+
+const SIDEBAR_SECTIONS: SidebarSection[] = [
+  {
+    label: "Dashboard",
+    href: "/admin_recruiter/dashboard",
+    icon: "/icons/braas-HR/client-dashboard/dashboard.svg",
+    matchPrefixes: ["/admin_recruiter/dashboard"],
+    children: [
+      {
+        label: "Candidates",
+        href: "/admin_recruiter/candidates",
+        matchPrefixes: ["/admin_recruiter/candidates"],
+      },
+      { label: "New", href: "/admin_recruiter/new", matchPrefixes: ["/admin_recruiter/new"] },
+      { label: "Pending", href: "/admin_recruiter/pending", matchPrefixes: ["/admin_recruiter/pending"] },
+      { label: "Approved", href: "/admin_recruiter/approved", matchPrefixes: ["/admin_recruiter/approved"] },
+      {
+        label: "Disapproved",
+        href: "/admin_recruiter/disapproved",
+        matchPrefixes: ["/admin_recruiter/disapproved"],
+      },
+      { label: "Workers", href: "/admin_recruiter/workers", matchPrefixes: ["/admin_recruiter/workers"] },
+      {
+        label: "Email Templates",
+        href: "/admin_recruiter/email-templates",
+        matchPrefixes: ["/admin_recruiter/email-templates"],
+      },
+    ],
+  },
+  {
+    label: "Mail",
+    href: "/admin_recruiter/email-templates",
+    icon: "/icons/braas-HR/client-dashboard/mail-icon.svg",
+    matchPrefixes: ["/admin_recruiter/email-templates"],
+  },
+  {
+    label: "Tickets",
+    href: "/admin_recruiter/advanced-search",
+    icon: "/icons/braas-HR/client-dashboard/ticket-icon.svg",
+    matchPrefixes: ["/admin_recruiter/advanced-search"],
+  },
+  {
+    label: "Reports",
+    href: "/admin_recruiter/dashboard",
+    icon: "/icons/braas-HR/client-dashboard/report.svg",
+    matchPrefixes: ["/admin_recruiter/dashboard"],
+  },
+  {
+    label: "Teams",
+    href: "/admin_recruiter/workers",
+    icon: "/icons/braas-HR/client-dashboard/teams.svg",
+    matchPrefixes: ["/admin_recruiter/workers"],
+  },
+  {
+    label: "Organization",
+    href: "/admin_recruiter/settings",
+    icon: "/icons/braas-HR/client-dashboard/Organization.svg",
+    matchPrefixes: ["/admin_recruiter/settings"],
+  },
+  {
+    label: "Account",
+    href: "/admin_recruiter/settings",
+    icon: "/icons/braas-HR/client-dashboard/Account.svg",
+    matchPrefixes: ["/admin_recruiter/settings"],
+  },
+  {
+    label: "Notifications",
+    href: "/admin_recruiter/notifications",
+    icon: "/icons/braas-HR/client-dashboard/Notification.svg",
+    matchPrefixes: ["/admin_recruiter/notifications"],
+  },
+  {
+    label: "Help & Support",
+    href: "/admin_recruiter/settings",
+    icon: "/icons/braas-HR/client-dashboard/help.svg",
+    matchPrefixes: ["/admin_recruiter/settings"],
+  },
+  {
+    label: "Settings",
+    href: "/admin_recruiter/settings",
+    icon: "/icons/braas-HR/client-dashboard/settings.svg",
+    matchPrefixes: ["/admin_recruiter/settings"],
+  },
+];
 
 export function AdminRecruiterSidebar({ isMobileOpen = false, onMobileClose }: AdminRecruiterSidebarProps) {
   const branding = useTenantBranding();
   const [logoSrc, setLogoSrc] = useState(branding.logoUrl || DEFAULT_TENANT_LOGO);
+  const [profile, setProfile] = useState<SidebarProfile | null>(null);
   const pathname = usePathname() ?? "";
   const router = useRouter();
-  const inDashboard = pathname.startsWith("/admin_recruiter/dashboard");
-  const inCandidates =
-    pathname.startsWith("/admin_recruiter/candidates") ||
-    pathname.startsWith("/admin_recruiter/new") ||
-    pathname.startsWith("/admin_recruiter/pending") ||
-    pathname.startsWith("/admin_recruiter/approved") ||
-    pathname.startsWith("/admin_recruiter/disapproved");
-  const inWorkers = pathname.startsWith("/admin_recruiter/workers");
-  const inCalendar = pathname.startsWith("/admin_recruiter/calendar");
-  const inJobs = pathname.startsWith("/admin_recruiter/jobs");
-  const inNotifications = pathname.startsWith("/admin_recruiter/notifications");
-  const inSettings = pathname.startsWith("/admin_recruiter/settings");
-  const inEmailTemplates = pathname.startsWith("/admin_recruiter/email-templates");
-  const inMessages = pathname.startsWith("/admin_recruiter/messages");
 
-  type RailIcon = {
-    src: string;
-    alt: string;
-    active: boolean;
-    href?: string;
-  };
-
-  const railIcons: RailIcon[] = useMemo(
-    () => [
-      { src: "/icons/admin-recruiter/dashboard-icon.svg", alt: "Dashboard", active: inDashboard, href: "/admin_recruiter/dashboard" },
-      { src: "/icons/admin-recruiter/user-setting.svg", alt: "Candidates", active: inCandidates, href: "/admin_recruiter/candidates" },
-      { src: "/icons/admin-recruiter/groups.svg", alt: "Workers", active: inWorkers, href: "/admin_recruiter/workers" },
-      { src: "/icons/admin-recruiter/calender.svg", alt: "Calendar", active: inCalendar, href: "/admin_recruiter/calendar" },
-      { src: "/icons/admin-recruiter/switch-icon.svg", alt: "Jobs", active: inJobs, href: "/admin_recruiter/jobs" },
-      { src: "/icons/admin-recruiter/chat.svg", alt: "Messages", active: inMessages, href: "/admin_recruiter/messages" },
-      { src: "/icons/admin-recruiter/bell-02.svg", alt: "Notification", active: inNotifications, href: "/admin_recruiter/notifications" },
-      { src: "/icons/admin-recruiter/setting.svg", alt: "Setting", active: inSettings, href: "/admin_recruiter/settings" },
-    ],
-    [inCalendar, inCandidates, inDashboard, inJobs, inMessages, inNotifications, inSettings, inWorkers]
-  );
-
-  const handleNavClick = (label: string, href: string) => {
-    console.log("[AdminRecruiterSidebar] clicked sidebar item", { label, href, currentRoute: pathname });
+  const handleNavClick = () => {
     onMobileClose?.();
   };
-
-  useEffect(() => {
-    console.log("[AdminRecruiterSidebar] current route", pathname);
-  }, [pathname]);
 
   useEffect(() => {
     setLogoSrc(branding.logoUrl?.trim() || DEFAULT_TENANT_LOGO);
   }, [branding.logoUrl]);
 
+  useEffect(() => {
+    let active = true;
+    void (async () => {
+      try {
+        const res = await fetch("/api/admin/header-data", { cache: "no-store" });
+        if (!res.ok) return;
+        const payload = (await res.json()) as { profile?: SidebarProfile | null };
+        if (!active) return;
+        setProfile(payload.profile ?? null);
+      } catch {
+        /* keep fallback profile */
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
+
   const handleLogout = async () => {
-    console.log("[AdminRecruiterSidebar] clicked sidebar item", { label: "Logout", currentRoute: pathname });
     const { error } = await supabaseBrowser.auth.signOut();
-    if (error) {
-      console.error("[AdminRecruiterSidebar] Supabase logout error", error);
-      return;
-    }
+    if (error) return;
     onMobileClose?.();
     router.push("/login");
   };
 
+  const profileName =
+    [profile?.first_name, profile?.last_name].filter(Boolean).join(" ").trim() || profile?.email || "Admin user";
+  const profileRole = profile?.role || "Administrator";
+
+  const isPathActive = (prefixes: string[]) => prefixes.some((prefix) => pathname.startsWith(prefix));
+
+  const renderedSections = useMemo(
+    () =>
+      SIDEBAR_SECTIONS.map((section) => ({
+        ...section,
+        active: isPathActive(section.matchPrefixes),
+        children:
+          section.children?.map((child) => ({
+            ...child,
+            active: isPathActive(child.matchPrefixes),
+          })) ?? [],
+      })),
+    [pathname]
+  );
+
   const SidebarContent = () => (
-    <div className="relative h-full">
-      <div
-        className="absolute inset-y-0 left-0 w-20 text-[#d4efea] flex flex-col items-center py-3 pb-5"
-        style={{ backgroundColor: "var(--brand-secondary)" }}
-      >
-        <div className="mt-1 mb-6 flex h-[46px] w-[46px] items-center justify-center overflow-hidden">
-          <img
-            src={logoSrc}
-            alt={branding.companyName}
-            className="max-h-[46px] max-w-[46px] object-contain"
-            width={46}
-            height={46}
-            onError={() => setLogoSrc(DEFAULT_TENANT_LOGO)}
-          />
+    <div className="flex h-full flex-col overflow-hidden bg-[#F8FAFC]">
+      <div className="border-b border-[#E2E8F0] px-4 py-3">
+        <div className="flex items-center gap-3">
+          <div
+            className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl border bg-white"
+            style={{ borderColor: "color-mix(in srgb, var(--brand-primary) 55%, #CBD5E1)" }}
+          >
+            <img
+              src={logoSrc}
+              alt={branding.companyName}
+              className="max-h-[40px] max-w-[40px] object-contain"
+              width={40}
+              height={40}
+              onError={() => setLogoSrc(DEFAULT_TENANT_LOGO)}
+            />
+          </div>
+          <div className="min-w-0">
+            <p className="truncate text-[18px] leading-[28px] font-semibold text-[#0F3B76]">{branding.companyName}</p>
+            <p className="text-[10px] leading-[15px] font-light uppercase tracking-normal text-[#94A3B8]">Dashboard</p>
+          </div>
         </div>
-        <div className="mb-4 px-1 text-center text-[10px] leading-3 text-white/90">
-          {branding.companyName}
-        </div>
-
-        <div className="flex flex-col items-center">
-          {railIcons.map((icon) => {
-            const cls = `h-[72px] w-20 flex items-center justify-center cursor-pointer transition ${
-              icon.active ? "shadow-[inset_3px_0_0_0_var(--brand-accent)]" : ""
-            }`;
-            const iconStyle = icon.active
-              ? ({ backgroundColor: "var(--brand-primary)" } as const)
-              : ({ backgroundColor: "transparent" } as const);
-
-            if (icon.href) {
-              return (
-                <Link
-                  key={icon.src}
-                  href={icon.href}
-                  className={cls}
-                  style={iconStyle}
-                  aria-label={icon.alt}
-                  onClick={() => handleNavClick(icon.alt, icon.href ?? "")}
-                >
-                  <Image src={icon.src} alt={icon.alt} width={32} height={32} />
-                </Link>
-              );
-            }
-
-            return (
-              <div key={icon.src} className={cls} style={iconStyle}>
-                <Image src={icon.src} alt={icon.alt} width={32} height={32} />
-              </div>
-            );
-          })}
-        </div>
-
-        <button
-          type="button"
-          onClick={handleLogout}
-          className="mt-auto h-[72px] w-20 flex items-center justify-center cursor-pointer transition hover:opacity-90"
-          aria-label="Logout"
-        >
-          <Image src="/icons/admin-recruiter/logout.svg" alt="Logout" width={32} height={32} />
-        </button>
       </div>
 
-      <div className="ml-20 h-full w-[264px] flex flex-col">
-        <div className="px-5 pt-10 pb-5">
-          <p className="text-xs font-semibold leading-[18px] uppercase tracking-normal text-[#587573]">
-            {branding.companyName}
-          </p>
-        </div>
-
-        <nav className="flex-1 overflow-y-auto px-5 pb-5">
-          <div className="w-56 rounded-xl bg-transparent">
-            <div className="flex w-full items-center justify-between px-2 py-2 text-sm font-semibold text-[var(--brand-secondary)]">
-              <span className="flex items-center gap-2">
-                <Image src="/icons/admin-recruiter/Member.svg" alt="" width={18} height={18} className="shrink-0" />
-                Candidates
-              </span>
-            </div>
-            <div className="mt-1 space-y-0">
-              {CANDIDATE_SUB.map((item) => {
-                const active = pathname === item.href;
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    onClick={() => handleNavClick(`Candidates/${item.label}`, item.href)}
-                    className={`box-border flex h-8 w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs transition ${
-                      active ? "text-[#0f514e]" : "text-[#3e5d5a] hover:bg-[#f2f8f7]"
-                    }`}
-                    style={
-                      active
-                        ? {
-                            borderColor: "var(--brand-primary)",
-                            borderWidth: "1px",
-                            backgroundColor: "color-mix(in srgb, var(--brand-accent) 16%, white)",
-                          }
-                        : undefined
+      <nav className="flex-1 overflow-y-auto px-3 py-3">
+        {renderedSections.map((section) => (
+          <div key={section.label} className="mb-1">
+            <Link
+              href={section.href}
+              onClick={handleNavClick}
+              className="flex min-h-[36px] items-center gap-3 rounded-md px-2 py-1 transition hover:bg-white"
+              style={
+                section.active
+                  ? {
+                      backgroundColor: "color-mix(in srgb, var(--brand-accent) 12%, white)",
                     }
-                  >
-                    {item.label}
-                  </Link>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="mt-6 w-56 border-t border-[#d6e2df] pt-6">
-            <div className="flex w-full items-center justify-between px-2 py-2 text-sm font-semibold text-[var(--brand-secondary)]">
-              <span className="flex items-center gap-2">
-                <Image src="/icons/admin-recruiter/Member.svg" alt="" width={18} height={18} className="shrink-0" />
-                Workers
-              </span>
-            </div>
-            <div className="mt-1 flex h-[128px] w-56 flex-col gap-3">
-              {WORKER_SUB.map((item) => {
-                const onWorkers = pathname.startsWith("/admin_recruiter/workers");
-                const active = onWorkers && item.label === "Active";
-                return (
-                  <Link
-                    key={item.label}
-                    href={item.href}
-                    onClick={() => handleNavClick(`Workers/${item.label}`, item.href)}
-                    className={`box-border flex h-8 w-full items-center rounded-md px-2 py-1.5 text-xs transition ${
-                      active ? "text-[#0f514e]" : "text-[#3e5d5a] hover:bg-[#f2f8f7]"
-                    }`}
-                    style={
-                      active
-                        ? {
-                            borderColor: "var(--brand-primary)",
-                            borderWidth: "1px",
-                            backgroundColor: "color-mix(in srgb, var(--brand-accent) 16%, white)",
-                          }
-                        : undefined
-                    }
-                  >
-                    {item.label}
-                  </Link>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="mt-6 w-56 border-t border-[#d6e2df] pt-4 space-y-1">
-            {[
-              { label: "Calendar", href: "/admin_recruiter/calendar", active: inCalendar },
-              { label: "Jobs / Assignments", href: "/admin_recruiter/jobs", active: inJobs },
-              { label: "Messages", href: "/admin_recruiter/messages", active: inMessages },
-              { label: "Notifications", href: "/admin_recruiter/notifications", active: inNotifications },
-              {
-                label: "Email Templates",
-                href: "/admin_recruiter/email-templates",
-                active: inEmailTemplates,
-              },
-              { label: "Settings", href: "/admin_recruiter/settings", active: inSettings },
-            ].map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                onClick={() => handleNavClick(item.label, item.href)}
-                className={`box-border flex h-8 w-full items-center rounded-md px-2 py-1.5 text-xs transition ${
-                  item.active ? "text-[#0f514e]" : "text-[#3e5d5a] hover:bg-[#f2f8f7]"
-                }`}
-                style={
-                  item.active
-                    ? {
-                        borderColor: "var(--brand-primary)",
-                        borderWidth: "1px",
-                        backgroundColor: "color-mix(in srgb, var(--brand-accent) 16%, white)",
-                      }
-                    : undefined
-                }
-              >
-                {item.label}
-              </Link>
-            ))}
-            <button
-              type="button"
-              onClick={handleLogout}
-              className="box-border flex h-8 w-full items-center rounded-md px-2 py-1.5 text-xs text-[#3e5d5a] transition hover:bg-[#f2f8f7]"
+                  : undefined
+              }
             >
-              Logout
-            </button>
+              <Image src={section.icon} alt="" width={20} height={20} className="h-5 w-5 shrink-0" />
+              <span className="font-light text-[14px] leading-5 tracking-normal text-[#1E3A6D]">{section.label}</span>
+              {section.children?.length ? <span className="ml-auto text-[#9CA3AF]">›</span> : null}
+            </Link>
+
+            {section.children?.length ? (
+              <div className="ml-7 mt-0.5 space-y-0.5">
+                {section.children.map((child) => (
+                  <Link
+                    key={`${section.label}-${child.label}`}
+                    href={child.href}
+                    onClick={handleNavClick}
+                    className="block rounded-md px-2 py-1.5 font-light text-[14px] leading-5 tracking-normal transition"
+                    style={
+                      child.active
+                        ? {
+                            color: "var(--brand-secondary)",
+                            backgroundColor: "color-mix(in srgb, var(--brand-accent) 10%, white)",
+                          }
+                        : { color: "#1E3A6D" }
+                    }
+                  >
+                    {child.label}
+                  </Link>
+                ))}
+              </div>
+            ) : null}
           </div>
-        </nav>
+        ))}
+      </nav>
+
+      <div className="border-t border-[#E2E8F0] px-4 py-3">
+        <div className="flex items-center gap-2.5">
+          <img
+            src={profile?.profile_photo || DEFAULT_PROFILE_PHOTO}
+            alt={profileName}
+            className="h-[30px] w-[30px] rounded-full object-cover"
+            width={30}
+            height={30}
+          />
+          <div className="min-w-0">
+            <p className="truncate text-[14px] leading-5 font-semibold text-[#0F2F60]">{profileName}</p>
+            <p className="truncate text-[10px] leading-[15px] font-light text-[#94A3B8]">{profileRole}</p>
+          </div>
+          <button type="button" onClick={handleLogout} className="ml-auto rounded-md p-1 hover:bg-white/80">
+            <Image
+              src="/icons/braas-HR/client-dashboard/logout.svg"
+              alt="Logout"
+              width={20}
+              height={20}
+              className="h-5 w-5 object-contain"
+            />
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -284,8 +281,8 @@ export function AdminRecruiterSidebar({ isMobileOpen = false, onMobileClose }: A
   return (
     <>
       <aside
-        className="fixed inset-y-0 left-0 z-40 hidden w-[344px] max-w-[344px] min-w-[80px] border-r border-[#d7e4e1] lg:block"
-        style={{ backgroundColor: "color-mix(in srgb, var(--brand-accent) 22%, #e9f2f0)" }}
+        className="fixed inset-y-0 left-0 z-40 hidden w-[344px] max-w-[344px] min-w-[80px] border-r border-[#E2E8F0] lg:block"
+        style={{ boxShadow: "inset 3px 0 0 var(--brand-primary)" }}
       >
         <SidebarContent />
       </aside>
@@ -298,10 +295,10 @@ export function AdminRecruiterSidebar({ isMobileOpen = false, onMobileClose }: A
         aria-hidden={!isMobileOpen}
       >
         <aside
-          className={`h-full w-[344px] max-w-[90vw] min-w-[80px] border-r border-[#d7e4e1] transition-transform ${
+          className={`h-full w-[344px] max-w-[90vw] min-w-[80px] border-r border-[#E2E8F0] transition-transform ${
             isMobileOpen ? "translate-x-0" : "-translate-x-full"
           }`}
-          style={{ backgroundColor: "color-mix(in srgb, var(--brand-accent) 22%, #e9f2f0)" }}
+          style={{ boxShadow: "inset 3px 0 0 var(--brand-primary)" }}
           onClick={(event) => event.stopPropagation()}
         >
           <SidebarContent />
