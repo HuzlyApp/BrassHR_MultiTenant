@@ -440,6 +440,11 @@ export async function GET(req: NextRequest) {
     saCompleted = mapped.skillAssessments.completed
     saTotal = mapped.skillAssessments.total
     const onboardingSteps = mapped.steps
+    const onboardingCompletion = {
+      completedSteps: mapped.completedSteps,
+      totalSteps: mapped.totalSteps,
+      percent: mapped.completionPercent,
+    }
 
     const createdAt = w.created_at != null ? String(w.created_at) : null
     const updatedAt = w.updated_at != null ? String(w.updated_at) : createdAt
@@ -550,6 +555,7 @@ export async function GET(req: NextRequest) {
       references,
       skillAssessments: { completed: saCompleted, total: saTotal, rows: skillAssessmentRows },
       onboardingSteps,
+      onboardingCompletion,
       nursing_licenses: [
         {
           license_url: urlOrNull(docs?.nursing_license_url),

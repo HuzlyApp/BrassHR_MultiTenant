@@ -8,6 +8,7 @@ import type {
   WorkerOnboardingProgressPayload,
 } from "@/lib/onboarding/types";
 import { APPLICATION_ROUTES } from "@/lib/onboarding/application-routes";
+import { filterApplicantVisibleSteps } from "@/lib/onboarding/filter-applicant-steps";
 import { withTenant } from "@/lib/tenant/with-tenant";
 
 /** Enabled steps for applicants, ordered by tenant `sort_order`. */
@@ -15,10 +16,7 @@ export function getEnabledTenantSteps(
   config: TenantOnboardingConfig | null | undefined
 ): TenantOnboardingStep[] {
   if (!config?.steps?.length) return [];
-  return config.steps
-    .filter((s) => s.is_enabled)
-    .slice()
-    .sort((a, b) => a.sort_order - b.sort_order);
+  return filterApplicantVisibleSteps(config.steps).slice().sort((a, b) => a.sort_order - b.sort_order);
 }
 
 /** Platform default 1–6 flow when tenant config is unavailable (pre-seed / offline). */

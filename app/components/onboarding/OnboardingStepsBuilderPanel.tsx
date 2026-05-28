@@ -112,11 +112,13 @@ export default function OnboardingStepsBuilderPanel({
           "Content-Type": "application/json",
           ...(await staffAuthHeaders()),
         },
-        body: JSON.stringify({ steps }),
+        body: JSON.stringify({ steps, publish: false }),
       });
       const payload = (await res.json()) as { error?: string; detail?: string };
       if (!res.ok) throw new Error(payload.detail ?? payload.error ?? "Save failed");
-      setMessage("Onboarding configuration saved.");
+      setMessage(
+        "Draft synced to the workflow builder. Publish from the Onboarding Builder tab to make changes live for workers."
+      );
     } catch (e) {
       setError(e instanceof Error ? e.message : "Save failed");
     } finally {
@@ -146,6 +148,12 @@ export default function OnboardingStepsBuilderPanel({
 
   return (
     <div className="space-y-4">
+      {mode === "admin-settings" ? (
+        <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
+          This list editor updates the same draft as the workflow canvas. Saving here does not change
+          the applicant flow until you publish from <strong>Onboarding Builder</strong>.
+        </p>
+      ) : null}
       <OnboardingStepsBuilder steps={steps} onChange={handleChange} />
 
       {mode === "admin-settings" ? (
@@ -156,7 +164,7 @@ export default function OnboardingStepsBuilderPanel({
             onClick={() => void save()}
             className="rounded-xl bg-[#0d9488] px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
           >
-            {saving ? "Saving…" : "Save onboarding steps"}
+            {saving ? "Saving…" : "Save draft (sync to builder)"}
           </button>
           {message ? <span className="text-sm text-green-700">{message}</span> : null}
           {error ? <span className="text-sm text-red-700">{error}</span> : null}

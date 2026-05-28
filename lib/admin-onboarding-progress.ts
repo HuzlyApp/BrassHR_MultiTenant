@@ -36,6 +36,9 @@ type MapperArgs = {
 type MapperResult = {
   steps: ProgressStep[]
   skillAssessments: { completed: number; total: number; rows: JsonRow[] }
+  completedSteps: number
+  totalSteps: number
+  completionPercent: number
 }
 
 function hasUrl(v: unknown): boolean {
@@ -98,16 +101,19 @@ export async function mapAdminOnboardingProgress({
         .maybeSingle()
       const version = (tenantRow as { onboarding_config_version?: number } | null)?.onboarding_config_version ?? 0
       if (version >= 1) {
-        const { steps } = await mapDynamicAdminOnboardingProgress(supabase, workerId, tenantId)
-        if (steps.length > 0) {
+        const dynamic = await mapDynamicAdminOnboardingProgress(supabase, workerId, tenantId)
+        if (dynamic.steps.length > 0) {
           return {
-            steps: steps.map((s) => ({
-              id: s.stepKey,
+            steps: dynamic.steps.map((s) => ({
+              id: s.id,
               label: s.label,
               state: s.state,
               detail: s.detail,
             })),
             skillAssessments: { completed: 0, total: 0, rows: [] },
+            completedSteps: dynamic.completedSteps,
+            totalSteps: dynamic.totalSteps,
+            completionPercent: dynamic.completionPercent,
           }
         }
       }
@@ -360,8 +366,16 @@ export async function mapAdminOnboardingProgress({
     final_status: steps[4].state,
   })
 
+  const totalSteps = steps.length
+  const completedSteps = steps.filter((s) => s.state === "complete").length
+  const completionPercent =
+    totalSteps > 0 ? Math.round((completedSteps / totalSteps) * 100) : 0
+
   return {
     steps,
     skillAssessments: { completed: saCompleted, total: saTotal, rows: skillAssessmentRows },
+    completedSteps,
+    totalSteps,
+    completionPercent,
   }
 }

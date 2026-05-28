@@ -7,19 +7,20 @@ import {
   type OnboardingDbClient,
 } from "@/lib/onboarding/load-tenant-config";
 import type { OnboardingStepDraft } from "@/lib/onboarding/default-onboarding-steps";
-import { persistTenantOnboardingConfig } from "@/lib/onboarding/persist-tenant-onboarding-config";
 import {
   loadOnboardingBuilderMeta,
-  markOnboardingFlowPublished,
   saveOnboardingBuilderDraft,
 } from "@/lib/onboarding/load-onboarding-builder-meta";
-import { workflowStateToStepDrafts } from "@/lib/onboarding/workflow-to-drafts";
+import { stepDraftsToSerializableWorkflow } from "@/lib/onboarding/step-drafts-to-workflow-state";
+import {
+  publishOnboardingFromWorkflow,
+  syncBuilderDraftFromStepDrafts,
+} from "@/lib/onboarding/config-from-builder-draft";
 import {
   isSerializableWorkflowState,
   serializeWorkflowState,
   type SerializableWorkflowState,
 } from "@/lib/onboarding/workflow-builder-serialization";
-import { configToDrafts } from "@/lib/onboarding/config-to-drafts";
 
 export const runtime = "nodejs";
 
@@ -138,39 +139,44 @@ export async function PUT(req: NextRequest) {
       );
     }
 
-    const existingConfig = await loadTenantOnboardingConfig(
-      supabase as OnboardingDbClient,
-      tenantId,
-      { workerFacing: false }
-    );
-    const existingDrafts = existingConfig ? configToDrafts(existingConfig) : [];
-
     if (body.builderDraft && isSerializableWorkflowState(body.builderDraft)) {
-      await saveOnboardingBuilderDraft(supabase as OnboardingDbClient, tenantId, {
-        flowName: body.flowName,
-        builderDraft: body.builderDraft,
-        updatedBy: auth.userId,
-        publishStatus: body.publish ? "published" : "draft",
-      });
-    }
-
-    let stepsToPersist: OnboardingStepDraft[] | null = null;
-
-    if (body.publish && body.builderDraft && isSerializableWorkflowState(body.builderDraft)) {
-      stepsToPersist = workflowStateToStepDrafts(body.builderDraft, existingDrafts);
+      if (body.publish) {
+        await publishOnboardingFromWorkflow(
+          supabase as OnboardingDbClient,
+          tenantId,
+          body.builderDraft,
+          auth.userId,
+          body.flowName
+        );
+      } else {
+        await saveOnboardingBuilderDraft(supabase as OnboardingDbClient, tenantId, {
+          flowName: body.flowName,
+          builderDraft: body.builderDraft,
+          updatedBy: auth.userId,
+          publishStatus: "draft",
+        });
+      }
     } else if (Array.isArray(body.steps) && body.steps.length) {
-      stepsToPersist = body.steps;
+      if (body.publish) {
+        const builderDraft = stepDraftsToSerializableWorkflow(body.steps);
+        await publishOnboardingFromWorkflow(
+          supabase as OnboardingDbClient,
+          tenantId,
+          builderDraft,
+          auth.userId,
+          body.flowName
+        );
+      } else {
+        await syncBuilderDraftFromStepDrafts(
+          supabase as OnboardingDbClient,
+          tenantId,
+          body.steps,
+          auth.userId,
+          body.flowName
+        );
+      }
     } else if (body.publish && body.builderDraft) {
       return NextResponse.json({ error: "Invalid builder draft" }, { status: 400 });
-    }
-
-    if (stepsToPersist?.length) {
-      await persistTenantOnboardingConfig(
-        supabase as OnboardingDbClient,
-        tenantId,
-        stepsToPersist
-      );
-      await markOnboardingFlowPublished(supabase as OnboardingDbClient, tenantId, auth.userId);
     }
 
     const config = await loadTenantOnboardingConfig(supabase as OnboardingDbClient, tenantId);

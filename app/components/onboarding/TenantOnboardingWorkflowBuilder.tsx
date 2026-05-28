@@ -17,6 +17,10 @@ import type { WorkflowStepLibraryCategory } from "@/lib/onboarding/workflow-step
 import { mapConfigToDrafts } from "@/lib/onboarding/config-to-drafts";
 import { hydrateWorkflowFromStorage } from "@/lib/onboarding/drafts-to-workflow";
 import type { TenantOnboardingConfig } from "@/lib/onboarding/types";
+import { applyApplicantConfigFilters } from "@/lib/onboarding/filter-applicant-steps";
+import { configFromWorkflowDraft } from "@/lib/onboarding/config-from-builder-draft";
+import { writeOnboardingPreview } from "@/lib/onboarding/onboarding-preview-storage";
+import { firstOnboardingStepRoute } from "@/lib/onboarding/tenant-step-navigation";
 import { serializeWorkflowState } from "@/lib/onboarding/workflow-builder-serialization";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 
@@ -51,6 +55,7 @@ type BuilderQueryData = {
 
 const BUILDER_STALE_TIME_MS = 5 * 60 * 1000;
 const BUILDER_GC_TIME_MS = 10 * 60 * 1000;
+const BUILDER_QUERY_KEY = ["onboarding-builder", "effective-tenant"] as const;
 
 function logBuilderDiagnostic(message: string, details?: Record<string, unknown>) {
   if (process.env.NODE_ENV !== "production") {
@@ -119,11 +124,6 @@ export default function TenantOnboardingWorkflowBuilder() {
   const [activeFlowKey, setActiveFlowKey] = useState<string | null>(null);
   const [localError, setLocalError] = useState<string | null>(null);
 
-  const queryKey = useMemo(
-    () => ["onboarding-builder", tenantId ?? "effective-tenant", activeFlowKey ?? "active-flow"],
-    [activeFlowKey, tenantId]
-  );
-
   const {
     data,
     error: queryError,
@@ -131,9 +131,9 @@ export default function TenantOnboardingWorkflowBuilder() {
     isLoading,
     refetch,
   } = useQuery({
-    queryKey,
+    queryKey: BUILDER_QUERY_KEY,
     queryFn: async () => {
-      logBuilderDiagnostic("fetching builder data", { queryKey });
+      logBuilderDiagnostic("fetching builder data", { queryKey: BUILDER_QUERY_KEY });
       return loadBuilderData();
     },
     staleTime: BUILDER_STALE_TIME_MS,
@@ -159,7 +159,6 @@ export default function TenantOnboardingWorkflowBuilder() {
       isBackgroundRefresh: !isLoading,
     });
 
-    queryClient.setQueryData(["onboarding-builder", nextTenantId ?? "effective-tenant", nextFlowKey], data);
     setTenantId(nextTenantId);
     setTenantSlug(payload.tenantSlug?.trim() || null);
     setTenantName(payload.tenantName?.trim() || "Your organization");
@@ -174,7 +173,7 @@ export default function TenantOnboardingWorkflowBuilder() {
       setActiveFlowKey(nextFlowKey);
       skipNextChange.current = true;
     }
-  }, [activeFlowKey, data, isLoading, queryClient]);
+  }, [activeFlowKey, data, isLoading]);
 
   useEffect(() => {
     return () => {
@@ -219,27 +218,26 @@ export default function TenantOnboardingWorkflowBuilder() {
           setUpdatedAt(payload.builderUpdatedAt ?? null);
         }
 
-        if (tenantId) {
-          queryClient.setQueryData<BuilderQueryData>(queryKey, (current) =>
-            current
-              ? {
-                  ...current,
-                  payload: {
-                    ...current.payload,
-                    flowName: flowTitle,
-                    publishStatus: payload.publishStatus ?? current.payload.publishStatus,
-                    builderDraft,
-                    builderUpdatedAt:
-                      payload.builderUpdatedAt ?? current.payload.builderUpdatedAt ?? null,
-                  },
-                }
-              : current
-          );
-        }
+        queryClient.setQueryData<BuilderQueryData>(BUILDER_QUERY_KEY, (current) =>
+          current
+            ? {
+                ...current,
+                payload: {
+                  ...current.payload,
+                  config: payload.config ?? current.payload.config,
+                  flowName: flowTitle,
+                  publishStatus: payload.publishStatus ?? current.payload.publishStatus,
+                  builderDraft,
+                  builderUpdatedAt:
+                    payload.builderUpdatedAt ?? current.payload.builderUpdatedAt ?? null,
+                },
+              }
+            : current
+        );
 
         if (!options.silent) {
           if (options.publish) {
-            toast.success("Onboarding flow published for this tenant");
+            toast.success("Onboarding flow published — workers now see this flow");
           } else if (options.template) {
             toast.success("Draft saved as template");
           } else {
@@ -254,7 +252,34 @@ export default function TenantOnboardingWorkflowBuilder() {
         if (!options.silent) setSaving(false);
       }
     },
-    [flowTitle, queryClient, queryKey, tenantId]
+    [flowTitle, queryClient]
+  );
+
+  const handlePreview = useCallback(
+    (state: WorkflowState) => {
+      const publishedConfig = data?.payload.config;
+      if (!publishedConfig || !tenantId) {
+        toast.error("Load tenant onboarding before previewing.");
+        return;
+      }
+      const builderDraft = serializeWorkflowState(state.nodes, state.edges);
+      const previewBase = configFromWorkflowDraft(publishedConfig, builderDraft);
+      if (!previewBase) {
+        toast.error("Could not build preview from the current canvas.");
+        return;
+      }
+      const config = applyApplicantConfigFilters(previewBase);
+      writeOnboardingPreview({
+        tenantId,
+        tenantSlug,
+        config,
+      });
+      const route = firstOnboardingStepRoute(config, tenantSlug);
+      const url = `${route}${route.includes("?") ? "&" : "?"}preview=draft`;
+      window.open(url, "_blank", "noopener,noreferrer");
+      toast.success("Draft preview opened in a new tab");
+    },
+    [data?.payload.config, tenantId, tenantSlug]
   );
 
   const handleDraftChange = useCallback(
@@ -346,8 +371,24 @@ export default function TenantOnboardingWorkflowBuilder() {
     );
   }
 
+  const isDraft = publishStatus === "draft";
+
   return (
     <div className="space-y-3">
+      {isDraft ? (
+        <div
+          className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950"
+          role="status"
+        >
+          <p className="font-semibold">Draft changes are not live until published</p>
+          <p className="mt-1 text-amber-900/90">
+            Autosave keeps your workflow canvas as a draft. Applicants and recruiters still see the
+            last published flow until you click <strong>Publish to All</strong>. Use Preview to test
+            the draft in a new tab.
+          </p>
+        </div>
+      ) : null}
+
       <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-slate-600">
         <span>
           Configuring: <strong className="text-slate-900">{tenantName}</strong>
@@ -376,7 +417,7 @@ export default function TenantOnboardingWorkflowBuilder() {
         toolbarData={toolbarData}
         onChange={handleDraftChange}
         onSaveAsTemplate={(state) => void persist(state, { template: true })}
-        onPreview={() => toast("Preview uses the applicant flow for this tenant")}
+        onPreview={handlePreview}
         onPublish={(state) => void persist(state, { publish: true })}
         onExportPDF={() => toast("Export PDF coming soon")}
         onAddTrigger={() => toast("Triggers are not configured yet")}

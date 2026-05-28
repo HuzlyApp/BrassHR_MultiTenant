@@ -109,6 +109,7 @@ function WorkflowBuilderInner({
   >(null);
   const didMount = useRef(false);
   const onChangeRef = useRef(onChange);
+  const skipChangeAfterReset = useRef(false);
 
   useEffect(() => {
     onChangeRef.current = onChange;
@@ -120,6 +121,7 @@ function WorkflowBuilderInner({
     setEdges(initialEdges);
     setSelectedNodeId(null);
     setHistory([]);
+    skipChangeAfterReset.current = true;
   }, [initialEdges, initialNodes, resetKey, setEdges, setNodes]);
 
   const selectedNode = useMemo(
@@ -141,11 +143,12 @@ function WorkflowBuilderInner({
       didMount.current = true;
       return;
     }
-    if (resetKey && nodes === initialNodes && edges === initialEdges) {
+    if (skipChangeAfterReset.current) {
+      skipChangeAfterReset.current = false;
       return;
     }
     onChangeRef.current?.(currentState);
-  }, [currentState, edges, initialEdges, initialNodes, nodes, resetKey]);
+  }, [currentState]);
 
   const handleUndo = useCallback(() => {
     setHistory((prev) => {

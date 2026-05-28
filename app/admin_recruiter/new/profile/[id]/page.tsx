@@ -58,6 +58,11 @@ type ProfilePayload = {
   references: Array<{ id: string; name: string; phone: string | null; email: string | null }>;
   skillAssessments: { completed: number; total: number; rows?: Array<Record<string, unknown>> };
   onboardingSteps: OnboardingStep[];
+  onboardingCompletion?: {
+    completedSteps: number;
+    totalSteps: number;
+    percent: number;
+  };
   activity: { source: string; created_at: string | null; updated_at: string | null };
   activity_logs?: Array<{
     id: string | null;
@@ -759,6 +764,13 @@ export default function NewApplicantProfilePage() {
                       <div className="flex h-11 flex-nowrap items-center justify-between gap-2 border-b border-[#E5E7EB] px-5">
                         <div className="min-w-0 truncate whitespace-nowrap text-[18px] font-semibold leading-6 text-[#111827]">
                           Onboarding Progress
+                          {data?.onboardingCompletion?.totalSteps ? (
+                            <span className="ml-2 text-sm font-normal text-[#6B7280]">
+                              {data.onboardingCompletion.completedSteps}/
+                              {data.onboardingCompletion.totalSteps} (
+                              {data.onboardingCompletion.percent}%)
+                            </span>
+                          ) : null}
                         </div>
                         <span className={`shrink-0 whitespace-nowrap rounded-md px-3 py-1 text-[11px] font-medium text-white ${onboardingCompleted ? "bg-[#00B135]" : "bg-[#F59E0B]"}`}>
                           {onboardingCompleted ? "Completed" : "In Progress"}

@@ -12,14 +12,22 @@ export type DynamicProgressStep = {
   detail?: string;
 };
 
+export type DynamicProgressResult = {
+  steps: DynamicProgressStep[];
+  configVersion: number;
+  completedSteps: number;
+  totalSteps: number;
+  completionPercent: number;
+};
+
 export async function mapDynamicAdminOnboardingProgress(
   supabase: SupabaseClient,
   workerId: string,
   tenantId: string
-): Promise<{ steps: DynamicProgressStep[]; configVersion: number }> {
+): Promise<DynamicProgressResult> {
   const config = await loadTenantOnboardingConfig(supabase, tenantId);
   if (!config) {
-    return { steps: [], configVersion: 0 };
+    return { steps: [], configVersion: 0, completedSteps: 0, totalSteps: 0, completionPercent: 0 };
   }
 
   const progress = await ensureWorkerOnboardingProgress(supabase, workerId, tenantId);
@@ -87,5 +95,10 @@ export async function mapDynamicAdminOnboardingProgress(
     });
   }
 
-  return { steps, configVersion: config.version };
+  const totalSteps = steps.length;
+  const completedSteps = steps.filter((s) => s.state === "complete").length;
+  const completionPercent =
+    totalSteps > 0 ? Math.round((completedSteps / totalSteps) * 100) : 0;
+
+  return { steps, configVersion: config.version, completedSteps, totalSteps, completionPercent };
 }

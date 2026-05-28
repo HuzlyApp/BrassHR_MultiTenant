@@ -16,6 +16,8 @@ import type {
 } from "@/lib/onboarding/types";
 import { resolveClientOnboardingTenantSlug } from "@/lib/tenant/client-onboarding-slug";
 import { usePathname, useSearchParams } from "next/navigation";
+import { applyApplicantConfigFilters } from "@/lib/onboarding/filter-applicant-steps";
+import { readOnboardingPreview } from "@/lib/onboarding/onboarding-preview-storage";
 import { computeMaxAllowedStepIndex } from "@/lib/onboarding/tenant-step-navigation";
 
 type Ctx = {
@@ -77,11 +79,23 @@ export default function OnboardingConfigProvider({ children }: { children: React
         setProgress(null);
         return;
       }
+
+      if (searchParams.get("preview") === "draft") {
+        const preview = readOnboardingPreview(slug);
+        if (preview?.config) {
+          setConfig(applyApplicantConfigFilters(preview.config));
+          setProgress(null);
+          return;
+        }
+      }
+
       const configUrl = `/api/onboarding/config?slug=${encodeURIComponent(slug)}`;
       const configRes = await fetch(configUrl, { cache: "no-store" });
       if (configRes.ok) {
         const payload = (await configRes.json()) as { config?: TenantOnboardingConfig };
-        if (payload.config) setConfig(payload.config);
+        if (payload.config) {
+          setConfig(applyApplicantConfigFilters(payload.config));
+        }
       }
 
       if (aid) {
@@ -97,11 +111,11 @@ export default function OnboardingConfigProvider({ children }: { children: React
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [searchParams]);
 
   useEffect(() => {
     void refresh();
-  }, [refresh, tenantFromUrl]);
+  }, [refresh, tenantFromUrl, searchParams]);
 
   const updateStepStatus = useCallback(
     async (stepKey: string, status: OnboardingStepStatus, data?: Record<string, unknown>) => {

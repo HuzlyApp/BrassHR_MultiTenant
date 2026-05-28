@@ -36,6 +36,7 @@ export default function Home() {
     }
   }, []);
 
+
   useEffect(() => {
     let alive = true;
     void (async () => {
