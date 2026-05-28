@@ -1,17 +1,21 @@
 "use client";
 
-import { MoreVertical } from "lucide-react";
+import { Mail, MoreVertical } from "lucide-react";
 
 type DetailedCandidateHeaderProps = {
   name: string;
   role: string;
   loading?: boolean;
+  onMessageClick?: () => void;
+  messageDisabled?: boolean;
 };
 
 export default function DetailedCandidateHeader({
   name,
   role,
   loading = false,
+  onMessageClick,
+  messageDisabled = false,
 }: DetailedCandidateHeaderProps) {
   return (
     <div className="sticky top-0 z-20 mb-4 bg-zinc-50/95 backdrop-blur-sm py-1">
@@ -33,6 +37,17 @@ export default function DetailedCandidateHeader({
         </div>
 
         <div className="flex items-center gap-2">
+          {onMessageClick ? (
+            <button
+              type="button"
+              onClick={onMessageClick}
+              disabled={messageDisabled || loading}
+              className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-[#0D9488] bg-white px-3 text-center text-xs font-semibold leading-4 text-[#0D9488] hover:bg-teal-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <Mail className="h-3.5 w-3.5" />
+              Message
+            </button>
+          ) : null}
           <button
             type="button"
             className="inline-flex h-8 items-center justify-center rounded-md border border-[#D1D5DB] bg-white px-3 text-center text-xs font-semibold leading-4 text-[#111827] hover:bg-[#F9FAFB]"

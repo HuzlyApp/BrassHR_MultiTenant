@@ -30,6 +30,7 @@ import {
 import { renderListCell } from "./render-list-cell";
 import type { CandidateRow } from "./types";
 import AdvancedSearchModal from "../components/AdvancedSearchModal";
+import CandidateCommunicationDialog from "../components/CandidateCommunicationDialog";
 
 type WorkerProfile = {
   id: string;
@@ -175,6 +176,7 @@ export default function CandidatesPage() {
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   const [advancedSearchOpen, setAdvancedSearchOpen] = useState(false);
   const [advancedSearchParams, setAdvancedSearchParams] = useState<AdvancedSearchParams | null>(null);
+  const [commTarget, setCommTarget] = useState<CandidateRow | null>(null);
 
   const advancedSearchContext = useMemo(() => {
     if (!advancedSearchParams) {
@@ -770,6 +772,15 @@ export default function CandidatesPage() {
                             </div>
 
                             <div className="flex items-center gap-1.5 shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => setCommTarget(c)}
+                                disabled={!c.email?.trim() && !c.phone?.trim()}
+                                className="w-6 h-6 rounded-md hover:bg-teal-50 flex items-center justify-center text-[#4e6462] transition disabled:cursor-not-allowed disabled:opacity-40"
+                                aria-label="Message candidate"
+                              >
+                                <MessageCircle className="h-4 w-4" />
+                              </button>
                               <Link
                                 href={`/admin_recruiter/new/attachments/${c.id}`}
                                 className="w-6 h-6 rounded-md hover:bg-teal-50 flex items-center justify-center text-[#4e6462] transition"
@@ -879,6 +890,17 @@ export default function CandidatesPage() {
           setAdvancedSearchOpen(false);
         }}
       />
+
+      {commTarget ? (
+        <CandidateCommunicationDialog
+          open={Boolean(commTarget)}
+          onClose={() => setCommTarget(null)}
+          workerId={commTarget.id}
+          candidateName={commTarget.name || "Candidate"}
+          email={commTarget.email}
+          phone={commTarget.phone}
+        />
+      ) : null}
     </div>
   );
 }

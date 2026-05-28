@@ -27,25 +27,16 @@ type WorkerProfile = {
   job_role: string | null;
 };
 
+type AttachmentRequirement = {
+  id: string;
+  title: string;
+  url: string | null;
+  filename: string;
+};
+
 type WorkerProfileResponse = {
   worker: WorkerProfile;
-  requirements: {
-    resume_path: string | null;
-    resume_path_raw?: string | null;
-    resume_url: string | null;
-  } | null;
-  document_urls: {
-    nursing_license_url: string | null;
-    tb_test_url: string | null;
-    cpr_certification_url: string | null;
-    authorization_document_url?: string | null;
-  };
-  attachment_files?: Array<{
-    bucket: string;
-    path: string;
-    name: string;
-    url?: string | null;
-  }>;
+  attachment_requirements?: AttachmentRequirement[];
 };
 
 type AttachmentRow = {
@@ -61,23 +52,6 @@ function initials(name: string) {
   const first = parts[0]?.[0] ?? "";
   const last = parts[parts.length - 1]?.[0] ?? "";
   return (first + last).toUpperCase();
-}
-
-function basenameFromStoragePath(path: string | null | undefined): string {
-  if (!path?.trim()) return "—";
-  const parts = path.trim().split("/");
-  return parts[parts.length - 1] || "—";
-}
-
-function fileNameFromHttpUrl(url: string | null | undefined): string {
-  if (!url?.trim()) return "—";
-  try {
-    const u = new URL(url);
-    const seg = u.pathname.split("/").filter(Boolean).pop();
-    return seg ? decodeURIComponent(seg) : "—";
-  } catch {
-    return "—";
-  }
 }
 
 export default function NewApplicantAttachmentsFilledPage() {
@@ -121,57 +95,13 @@ export default function NewApplicantAttachmentsFilledPage() {
 
   const attachmentRows: AttachmentRow[] = useMemo(() => {
     if (!profile) return [];
-    const req = profile.requirements;
-    const du = profile.document_urls;
-    const resumeFileLabel = (() => {
-      if (req?.resume_path?.trim()) return basenameFromStoragePath(req.resume_path);
-      const raw = req?.resume_path_raw?.trim();
-      if (raw?.startsWith("http://") || raw?.startsWith("https://")) {
-        return fileNameFromHttpUrl(raw);
-      }
-      return basenameFromStoragePath(raw ?? null);
-    })();
-    return [
-      {
-        id: "resume",
-        title: "Resume",
-        url: req?.resume_url ?? null,
-        filename: resumeFileLabel,
-      },
-      {
-        id: "license",
-        title: "Nursing License",
-        url: du?.nursing_license_url ?? null,
-        filename: fileNameFromHttpUrl(du?.nursing_license_url ?? null),
-      },
-      {
-        id: "tb",
-        title: "TB Test",
-        url: du?.tb_test_url ?? null,
-        filename: fileNameFromHttpUrl(du?.tb_test_url ?? null),
-      },
-      {
-        id: "cpr",
-        title: "CPR Certifications",
-        url: du?.cpr_certification_url ?? null,
-        filename: fileNameFromHttpUrl(du?.cpr_certification_url ?? null),
-      },
-      {
-        id: "authorization",
-        title: "Authorization Document",
-        url: du?.authorization_document_url ?? null,
-        filename: fileNameFromHttpUrl(du?.authorization_document_url ?? null),
-      },
-      ...((profile.attachment_files ?? [])
-        .filter((f) => !["resume", "license", "tb", "cpr", "authorization"].some((k) => f.path.toLowerCase().includes(k)))
-        .slice(0, 5)
-        .map((f, idx) => ({
-          id: `extra-${idx}`,
-          title: `Other Uploaded File ${idx + 1}`,
-          url: f.url ?? null,
-          filename: f.name || basenameFromStoragePath(f.path),
-        })) as AttachmentRow[]),
-    ];
+    const fromConfig = profile.attachment_requirements ?? [];
+    return fromConfig.map((row) => ({
+      id: row.id,
+      title: row.title,
+      url: row.url,
+      filename: row.filename?.trim() ? row.filename : "—",
+    }));
   }, [profile]);
 
   const uploadedCount = useMemo(

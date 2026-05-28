@@ -78,7 +78,8 @@ export function resolvePostAuthRedirect(
 ): string {
   const safeNext = sanitizeAuthNextPath(next);
   if (status.godAdmin) {
-    return safeNext ?? "/admin_recruiter/dashboard";
+    if (safeNext?.startsWith("/godadmin")) return safeNext;
+    return safeNext ?? "/godadmin/tenants";
   }
   if (!status.tenantOnboardingCompleted) {
     if (safeNext?.startsWith("/tenant-onboarding")) return safeNext;

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import ReactQueryProvider from "@/app/components/ReactQueryProvider";
 import TenantBrandingRoot from "@/app/components/tenant/TenantBrandingRoot";
+import { Toaster } from "react-hot-toast";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -46,6 +47,7 @@ export default function RootLayout({
       >
         <ReactQueryProvider>
           <TenantBrandingRoot>{children}</TenantBrandingRoot>
+          <Toaster position="top-right" />
         </ReactQueryProvider>
       </body>
     </html>

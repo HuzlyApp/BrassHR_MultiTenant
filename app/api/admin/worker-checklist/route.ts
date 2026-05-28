@@ -6,6 +6,13 @@ import { isStaffRole } from "@/lib/auth/app-role"
 import { canAccessWorkerRecord } from "@/lib/auth/worker-record-access"
 import { getSupabaseUrl } from "@/lib/supabase-env"
 import { parseRequiredUuid } from "@/lib/validation/uuid"
+import {
+  attachmentRequirementHasUpload,
+  buildLegacyAttachmentRequirements,
+} from "@/lib/onboarding/build-admin-attachment-requirements"
+import { loadAdminAttachmentRequirements } from "@/lib/onboarding/load-admin-attachment-requirements"
+import { normalizeResumeStorageObjectPath } from "@/lib/onboarding/normalize-resume-storage-path"
+import { WORKER_RESUMES_BUCKET } from "@/lib/supabase-storage-buckets"
 
 export const runtime = "nodejs"
 
@@ -80,7 +87,9 @@ export async function GET(req: NextRequest) {
 
     const { data: worker, error: wErr } = await supabase
       .from("worker")
-      .select("id, user_id, first_name, last_name, job_role, created_at, updated_at, city, state, status")
+      .select(
+        "id, user_id, tenant_id, first_name, last_name, job_role, created_at, updated_at, city, state, status"
+      )
       .eq("id", workerId)
       .maybeSingle()
 
@@ -94,12 +103,22 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 
+    const checklistTenantId =
+      worker.tenant_id != null && String(worker.tenant_id).trim() !== ""
+        ? String(worker.tenant_id)
+        : null
+
     void writeActivityLog({
       actorUserId: auth.devBypass ? null : auth.userId,
+      tenantId: checklistTenantId,
       action: isStaffRole(auth.role) ? "worker.checklist.view" : "worker.checklist.self_view",
       entityType: "worker",
       entityId: workerId,
-      metadata: { route: "GET /api/admin/worker-checklist", staff: isStaffRole(auth.role) },
+      metadata: {
+        route: "GET /api/admin/worker-checklist",
+        staff: isStaffRole(auth.role),
+        tenant_id: checklistTenantId,
+      },
       request: req,
     })
 
@@ -114,19 +133,61 @@ export async function GET(req: NextRequest) {
 
     const docs = docRow as Record<string, unknown> | null
 
-    const documentChecks = [
-      { id: "license", ok: hasUrl(docs?.nursing_license_url) },
-      { id: "tb", ok: hasUrl(docs?.tb_test_url) },
-      { id: "cpr", ok: hasUrl(docs?.cpr_certification_url) },
-      { id: "ssn", ok: hasUrl(docs?.ssn_url) || hasUrl(docs?.drivers_license_url) },
-    ]
-    const licenseOk = documentChecks[0].ok
-    const tbOk = documentChecks[1].ok
-    const cprOk = documentChecks[2].ok
-    const ssnOk = documentChecks[3].ok
+    const { data: reqRows } = await supabase
+      .from("worker_requirements")
+      .select("resume_path")
+      .eq("worker_id", workerId)
+      .limit(1)
+    const resumePathRaw = (reqRows?.[0] as { resume_path?: string } | undefined)?.resume_path ?? null
+    const resumePath = resumePathRaw ? normalizeResumeStorageObjectPath(String(resumePathRaw)) : null
+
+    let resumeUrl: string | null = null
+    if (resumePath) {
+      const { data: signed } = await supabase.storage
+        .from(WORKER_RESUMES_BUCKET)
+        .createSignedUrl(resumePath, 3600)
+      resumeUrl = signed?.signedUrl ?? null
+    }
+
+    const legacyUrls = {
+      nursing_license_url: asTrimmedString(docs?.nursing_license_url) || null,
+      tb_test_url: asTrimmedString(docs?.tb_test_url) || null,
+      cpr_certification_url: asTrimmedString(docs?.cpr_certification_url) || null,
+      authorization_document_url: asTrimmedString(docs?.document_url) || null,
+      ssn_url: asTrimmedString(docs?.ssn_url) || null,
+      drivers_license_url: asTrimmedString(docs?.drivers_license_url) || null,
+    }
+
+    const tenantId = checklistTenantId
+
+    let attachmentRequirements = tenantId
+      ? await loadAdminAttachmentRequirements({
+          supabase,
+          workerId,
+          tenantId,
+          resumeUrl,
+          resumePath,
+          resumePathRaw: resumePathRaw ? String(resumePathRaw) : null,
+          legacyUrls,
+        }).catch(() => [] as Awaited<ReturnType<typeof loadAdminAttachmentRequirements>>)
+      : buildLegacyAttachmentRequirements({
+          config: null,
+          resumeUrl,
+          resumePath,
+          resumePathRaw: resumePathRaw ? String(resumePathRaw) : null,
+          legacyUrls,
+          submittedByRequiredId: new Map(),
+          useLegacyFallback: true,
+        })
+
+    const documentChecks = attachmentRequirements.map((req) => ({
+      id: req.id,
+      title: req.title,
+      ok: attachmentRequirementHasUpload(req),
+    }))
 
     const verifiedDone = documentChecks.filter((d) => d.ok).length
-    const verifiedTotal = documentChecks.length
+    const verifiedTotal = Math.max(documentChecks.length, 1)
 
     let completedAssessments = 0
     let totalAssessments = 0
@@ -250,34 +311,13 @@ export async function GET(req: NextRequest) {
             state: verifiedDone === verifiedTotal ? "complete" : "pending",
             badge: verifiedDone === verifiedTotal ? "Complete" : "In progress",
           },
-          {
-            id: "doc_license",
-            title: "Nursing License",
-            state: licenseOk ? "uploaded" : "pending",
-            checked: licenseOk,
-            badge: licenseOk ? "Uploaded" : "Pending",
-          },
-          {
-            id: "doc_tb",
-            title: "TB Test",
-            state: tbOk ? "uploaded" : "pending",
-            checked: tbOk,
-            badge: tbOk ? "Uploaded" : "Pending",
-          },
-          {
-            id: "doc_cpr",
-            title: "CPR Certifications",
-            state: cprOk ? "uploaded" : "pending",
-            checked: cprOk,
-            badge: cprOk ? "Uploaded" : "Pending",
-          },
-          {
-            id: "doc_ssn",
-            title: "SSN Card",
-            state: ssnOk ? "uploaded" : "pending",
-            checked: ssnOk,
-            badge: ssnOk ? "Uploaded" : "Pending",
-          },
+          ...documentChecks.map((doc) => ({
+            id: `doc_${doc.id}`,
+            title: doc.title,
+            state: doc.ok ? ("uploaded" as const) : ("pending" as const),
+            checked: doc.ok,
+            badge: doc.ok ? "Uploaded" : "Pending",
+          })),
         ],
       },
       {

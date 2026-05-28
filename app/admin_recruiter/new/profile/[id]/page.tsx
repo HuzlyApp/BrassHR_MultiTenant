@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useParams, usePathname } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+import CandidateCommunicationDialog from "../../../components/CandidateCommunicationDialog";
+import CandidateCommunicationHistory from "../../../components/CandidateCommunicationHistory";
 import DetailedCandidateHeader from "../../../components/DetailedCandidateHeader";
 import DetailedTabs from "../../../components/DetailedTabs";
 import {
@@ -194,6 +196,8 @@ export default function NewApplicantProfilePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<ProfilePayload | null>(null);
+  const [commOpen, setCommOpen] = useState(false);
+  const [commRefreshKey, setCommRefreshKey] = useState(0);
 
   useEffect(() => {
     async function run() {
@@ -395,6 +399,20 @@ export default function NewApplicantProfilePage() {
               name={candidateName}
               role={candidateRole}
               loading={loading}
+              onMessageClick={() => setCommOpen(true)}
+              messageDisabled={!w?.email?.trim() && !w?.phone?.trim()}
+            />
+            {applicantId ? (
+              <CandidateCommunicationHistory workerId={applicantId} refreshKey={commRefreshKey} />
+            ) : null}
+            <CandidateCommunicationDialog
+              open={commOpen}
+              onClose={() => setCommOpen(false)}
+              workerId={applicantId ?? ""}
+              candidateName={candidateName}
+              email={w?.email ?? null}
+              phone={w?.phone ?? null}
+              onSent={() => setCommRefreshKey((k) => k + 1)}
             />
             <DetailedTabs applicantId={applicantId} activeTab="Profile" />
             <div className="mb-1 flex justify-center">

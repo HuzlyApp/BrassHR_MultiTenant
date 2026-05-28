@@ -76,7 +76,7 @@ type RecruiterOnboardingStatusResponse = {
   requestedTenantId: string | null;
   validTenantAccess: boolean;
   tenantOnboardingCompleted: boolean;
-  redirectTarget: "/admin_recruiter/dashboard" | "/tenant-onboarding";
+  redirectTarget: "/godadmin/tenants" | "/admin_recruiter/dashboard" | "/tenant-onboarding";
 };
 
 function FieldLabel({ children }: { children: string }) {

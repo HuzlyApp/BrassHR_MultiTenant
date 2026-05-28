@@ -26,7 +26,7 @@ export type RecruiterOnboardingStatus = {
   requestedTenantId: string | null;
   validTenantAccess: boolean;
   tenantOnboardingCompleted: boolean;
-  redirectTarget: "/admin_recruiter/dashboard" | "/tenant-onboarding";
+  redirectTarget: "/godadmin/tenants" | "/admin_recruiter/dashboard" | "/tenant-onboarding";
 };
 
 function metadataFlag(user: User, key: string): boolean {
@@ -95,9 +95,11 @@ export async function resolveRecruiterOnboardingStatus(
     metadataFlag(user, "tenant_onboarding_completed") ||
     row?.onboarding_completed === true;
 
-  const redirectTarget = tenantOnboardingCompleted
-    ? "/admin_recruiter/dashboard"
-    : "/tenant-onboarding";
+  const redirectTarget = godAdmin
+    ? "/godadmin/tenants"
+    : tenantOnboardingCompleted
+      ? "/admin_recruiter/dashboard"
+      : "/tenant-onboarding";
 
   return {
     userId: user.id,

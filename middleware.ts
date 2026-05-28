@@ -143,7 +143,34 @@ export async function middleware(request: NextRequest) {
   const isTenantOnboardingPath =
     pathname === "/tenant-onboarding" || pathname.startsWith("/tenant-onboarding/");
   const isAdminRecruiterPath = pathname.startsWith("/admin_recruiter");
+  const isGodAdminPath = pathname.startsWith("/godadmin");
+  const isGodAdminApiPath = pathname.startsWith("/api/godadmin");
   const ownerFlowPath = isSignupPath || isTenantOnboardingPath || isAdminRecruiterPath;
+
+  async function requireGodAdminSession(): Promise<NextResponse | null> {
+    if (!user || isAnonymousUser) {
+      const signin = new URL("/signin", request.url);
+      signin.searchParams.set("next", `${request.nextUrl.pathname}${request.nextUrl.search}`);
+      signin.searchParams.set("role", "admin_recruiter");
+      return NextResponse.redirect(signin);
+    }
+    const onboardingStatus = await fetchOwnerOnboardingStatus(supabase, user);
+    if (!onboardingStatus.godAdmin) {
+      if (isGodAdminApiPath) {
+        return NextResponse.json({ error: "Forbidden", detail: "God Admin role required." }, { status: 403 });
+      }
+      const signin = new URL("/signin", request.url);
+      signin.searchParams.set("error", "forbidden");
+      return NextResponse.redirect(signin);
+    }
+    return null;
+  }
+
+  if (isGodAdminPath || isGodAdminApiPath) {
+    const gate = await requireGodAdminSession();
+    if (gate) return gate;
+    if (isGodAdminApiPath) return response;
+  }
 
   if (ownerFlowPath && user && !isAnonymousUser) {
     const onboardingStatus = await fetchOwnerOnboardingStatus(supabase, user);
@@ -271,5 +298,9 @@ export const config = {
     "/api/search-workers",
     "/api/search-workers/:path*",
     "/api/admin/:path*",
+    "/godadmin",
+    "/godadmin/:path*",
+    "/api/godadmin",
+    "/api/godadmin/:path*",
   ],
 };

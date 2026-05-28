@@ -5,9 +5,18 @@ export type ActivityLogInput = {
   action: string;
   entityType: string;
   entityId?: string | null;
+  /** Required for `activity_logs` table (NOT NULL tenant_id). */
+  tenantId?: string | null;
   metadata?: Record<string, unknown>;
   request?: Request;
 };
+
+function resolveTenantId(input: ActivityLogInput): string | null {
+  if (input.tenantId?.trim()) return input.tenantId.trim();
+  const fromMeta = input.metadata?.tenant_id;
+  if (typeof fromMeta === "string" && fromMeta.trim()) return fromMeta.trim();
+  return null;
+}
 
 /**
  * Best-effort audit row (service role). Never throws; failures are logged to stderr.
@@ -26,11 +35,14 @@ export async function writeActivityLog(input: ActivityLogInput): Promise<void> {
     null;
   const userAgent = headers?.get("user-agent") || null;
 
+  const tenantId = resolveTenantId(input);
+
   const payloadV1 = {
     actor_user_id: input.actorUserId,
     action: input.action,
     entity_type: input.entityType,
     entity_id: input.entityId ?? null,
+    tenant_id: tenantId,
     metadata: input.metadata ?? {},
     ip,
     user_agent: userAgent,
@@ -43,12 +55,21 @@ export async function writeActivityLog(input: ActivityLogInput): Promise<void> {
     /activity_log/i.test(error.message) &&
     /not find|does not exist|schema cache/i.test(error.message);
 
-  if (!isMissingActivityLogTable) {
+  const isMissingTenantColumn =
+    /tenant_id/i.test(error.message) &&
+    /column|schema cache/i.test(error.message);
+
+  if (!isMissingActivityLogTable && !isMissingTenantColumn) {
     console.error("[activity_log] insert failed:", error.message);
     return;
   }
 
   // Backward compatibility: some environments use `activity_logs` schema.
+  if (!tenantId) {
+    console.warn("[activity_log] skipping activity_logs insert: missing tenant_id");
+    return;
+  }
+
   const entityId =
     typeof input.entityId === "string" &&
     /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
@@ -58,6 +79,7 @@ export async function writeActivityLog(input: ActivityLogInput): Promise<void> {
       : null;
   const payloadV0 = {
     user_id: input.actorUserId,
+    tenant_id: tenantId,
     action: input.action,
     entity_type: input.entityType,
     entity_id: entityId,

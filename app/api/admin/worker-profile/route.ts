@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { writeActivityLog } from "@/lib/audit/activity-log"
 import { mapAdminOnboardingProgress } from "@/lib/admin-onboarding-progress"
+import { loadAdminAttachmentRequirements } from "@/lib/onboarding/load-admin-attachment-requirements"
 import { requireApiSession } from "@/lib/auth/api-session"
 import { isStaffRole } from "@/lib/auth/app-role"
 import { canAccessWorkerRecord } from "@/lib/auth/worker-record-access"
@@ -96,6 +97,20 @@ export async function GET(req: NextRequest) {
     }
     const userIdForLegacy =
       w.user_id != null && String(w.user_id).trim() !== "" ? String(w.user_id) : null
+    const tenantIdForWorker =
+      w.tenant_id != null && String(w.tenant_id).trim() !== "" ? String(w.tenant_id) : null
+
+    let onboardingConfigVersion = 0
+    if (tenantIdForWorker) {
+      const { data: tenantRow } = await supabase
+        .from("tenants")
+        .select("onboarding_config_version")
+        .eq("id", tenantIdForWorker)
+        .maybeSingle()
+      onboardingConfigVersion =
+        (tenantRow as { onboarding_config_version?: number } | null)?.onboarding_config_version ?? 0
+    }
+    const skipLegacyStorageScan = onboardingConfigVersion >= 1
 
     const { data: reqRows, error: reqErr } = await supabase
       .from("worker_requirements")
@@ -144,50 +159,57 @@ export async function GET(req: NextRequest) {
     const workerKeys = Array.from(
       new Set([workerId, userIdForLegacy].filter((x): x is string => Boolean(x && x.trim())))
     )
-    const { data: allBuckets } = await supabase.storage.listBuckets()
-    const bucketSet = new Set<string>((allBuckets ?? []).map((b) => b.id))
-    const candidateBuckets = Array.from(
-      new Set(["docs", "worker_required_files", "worker-onboarding", "worker-resumes"])
-    ).filter((bucket) => bucketSet.has(bucket))
-    const publicBucketSet = new Set<string>(
-      (allBuckets ?? []).filter((b) => b.public).map((b) => b.id)
-    )
 
-    const candidatePaths = Array.from(
-      new Set(
-        workerKeys.flatMap((key) => [
-          key,
-          `license/${key}`,
-          `tb/${key}`,
-          `cpr/${key}`,
-          `docs/${key}`,
-          `authorization/${key}`,
-          `agreement/${key}`,
-          `onboarding/${key}`,
-        ])
+    let candidateBuckets: string[] = []
+    let publicBucketSet = new Set<string>()
+    let listHits: StorageHit[] = []
+
+    if (!skipLegacyStorageScan) {
+      const { data: allBuckets } = await supabase.storage.listBuckets()
+      const bucketSet = new Set<string>((allBuckets ?? []).map((b) => b.id))
+      candidateBuckets = Array.from(
+        new Set(["docs", "worker_required_files", "worker-onboarding", "worker-resumes"])
+      ).filter((bucket) => bucketSet.has(bucket))
+      publicBucketSet = new Set<string>(
+        (allBuckets ?? []).filter((b) => b.public).map((b) => b.id)
       )
-    )
-    const scanTargets = candidateBuckets.flatMap((bucket) =>
-      candidatePaths.map((path) => ({ bucket, path }))
-    )
-    const listResults = await Promise.all(
-      scanTargets.map(async ({ bucket, path }) => {
-        const { data: files, error } = await supabase.storage.from(bucket).list(path, {
-          limit: 25,
-          sortBy: { column: "created_at", order: "desc" },
+
+      const candidatePaths = Array.from(
+        new Set(
+          workerKeys.flatMap((key) => [
+            key,
+            `license/${key}`,
+            `tb/${key}`,
+            `cpr/${key}`,
+            `docs/${key}`,
+            `authorization/${key}`,
+            `agreement/${key}`,
+            `onboarding/${key}`,
+          ])
+        )
+      )
+      const scanTargets = candidateBuckets.flatMap((bucket) =>
+        candidatePaths.map((path) => ({ bucket, path }))
+      )
+      const listResults = await Promise.all(
+        scanTargets.map(async ({ bucket, path }) => {
+          const { data: files, error } = await supabase.storage.from(bucket).list(path, {
+            limit: 25,
+            sortBy: { column: "created_at", order: "desc" },
+          })
+          if (error || !Array.isArray(files)) return [] as StorageHit[]
+          return files
+            .filter((f) => Boolean(f?.name) && !String(f?.name).endsWith("/"))
+            .map((f) => ({
+              bucket,
+              path: `${path}/${f.name}`,
+              name: String(f.name),
+              created_at: (f as { created_at?: string }).created_at ?? null,
+            }))
         })
-        if (error || !Array.isArray(files)) return [] as StorageHit[]
-        return files
-          .filter((f) => Boolean(f?.name) && !String(f?.name).endsWith("/"))
-          .map((f) => ({
-            bucket,
-            path: `${path}/${f.name}`,
-            name: String(f.name),
-            created_at: (f as { created_at?: string }).created_at ?? null,
-          }))
-      })
-    )
-    const listHits = listResults.flat()
+      )
+      listHits = listResults.flat()
+    }
 
     async function toAccessibleUrl(hit: StorageHit): Promise<string | null> {
       if (publicBucketSet.has(hit.bucket)) {
@@ -457,6 +479,36 @@ export async function GET(req: NextRequest) {
         ? `/api/zoho-sign/document?request_id=${encodeURIComponent(zohoSign.request_id)}&mode=preview`
         : null
     const storageAuthUrl = storageAuthUrlFromFiles ?? urlOrNull(docs?.document_url) ?? zohoAuthUrl
+
+    const legacyUrls = {
+      nursing_license_url: nursingLicenseUrl,
+      tb_test_url: tbTestUrl,
+      cpr_certification_url: cprCertUrl,
+      authorization_document_url: storageAuthUrl,
+      ssn_url: urlOrNull(docs?.ssn_url),
+      drivers_license_url: urlOrNull(docs?.drivers_license_url),
+    }
+
+    let attachmentRequirements: Awaited<ReturnType<typeof loadAdminAttachmentRequirements>> = []
+    if (tenantIdForWorker) {
+      try {
+        attachmentRequirements = await loadAdminAttachmentRequirements(
+          {
+            supabase,
+            workerId,
+            tenantId: tenantIdForWorker,
+            resumeUrl,
+            resumePath: resumePathCanonical,
+            resumePathRaw: resumePathStored,
+            legacyUrls,
+          },
+          { onboardingConfigVersion }
+        )
+      } catch (attachErr) {
+        console.warn("[admin/worker-profile] attachment requirements", attachErr)
+      }
+    }
+
     console.info("[debug-doc-upload] admin-worker-profile:attachment-mapping", {
       route: "GET /api/admin/worker-profile",
       workerId,
@@ -485,10 +537,15 @@ export async function GET(req: NextRequest) {
 
     void writeActivityLog({
       actorUserId: auth.devBypass ? null : auth.userId,
+      tenantId: tenantIdForWorker,
       action: isStaffRole(auth.role) ? "worker.profile.view" : "worker.profile.self_view",
       entityType: "worker",
       entityId: workerId,
-      metadata: { route: "GET /api/admin/worker-profile", staff: isStaffRole(auth.role) },
+      metadata: {
+        route: "GET /api/admin/worker-profile",
+        staff: isStaffRole(auth.role),
+        tenant_id: tenantIdForWorker,
+      },
       request: req,
     })
 
@@ -587,6 +644,7 @@ export async function GET(req: NextRequest) {
       facilities_assigned: facilityAssignments,
       notes: [] as Array<Record<string, unknown>>,
       attachment_files: attachmentFiles,
+      attachment_requirements: attachmentRequirements,
       activity_logs: activityLogs,
       activity_history: activityLogs,
       activity: {
