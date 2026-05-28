@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { Check, ChevronDown, Link2, Trash2 } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, Link2, Trash2 } from "lucide-react";
 import { useRef, useState, type ChangeEvent, type DragEvent } from "react";
 import OnboardingStepsBuilder from "@/app/components/onboarding/OnboardingStepsBuilder";
 import { interStyle, primaryButtonStyle } from "@/app/tenant-onboarding/TenantOnboardingShell";
@@ -84,6 +84,20 @@ function ContinueButton({
       style={primaryButtonStyle(enabled)}
     >
       {label}
+    </button>
+  );
+}
+
+function SkipForNowButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="mt-[14px] inline-flex w-full items-center justify-center gap-[6px] text-[13px] font-semibold leading-[18px] text-[#104b83] transition hover:text-[#0b3a70]"
+      style={interStyle}
+    >
+      Skip for now
+      <ChevronRight className="h-[14px] w-[14px]" strokeWidth={2.5} />
     </button>
   );
 }
@@ -250,10 +264,12 @@ export function GoalsStep({
   selectedGoals,
   onToggleGoal,
   onContinue,
+  onSkip,
 }: {
   selectedGoals: TenantGoalId[];
   onToggleGoal: (id: TenantGoalId) => void;
   onContinue: () => void;
+  onSkip: () => void;
 }) {
   return (
     <div>
@@ -274,6 +290,7 @@ export function GoalsStep({
         ))}
       </div>
       <ContinueButton className="mt-[32px]" disabled={selectedGoals.length === 0} onClick={onContinue} />
+      <SkipForNowButton onClick={onSkip} />
     </div>
   );
 }
@@ -285,6 +302,7 @@ export function BusinessStep({
   onBusinessInfoChange,
   onContinue,
   onBack,
+  onSkip,
 }: {
   orgName: string;
   businessInfo: BusinessInfoForm;
@@ -292,6 +310,7 @@ export function BusinessStep({
   onBusinessInfoChange: (patch: Partial<BusinessInfoForm>) => void;
   onContinue: () => void;
   onBack: () => void;
+  onSkip: () => void;
 }) {
   const canContinue =
     orgName.trim().length >= 2 &&
@@ -386,6 +405,7 @@ export function BusinessStep({
         continueLabel="Save and Continue"
         continueDisabled={!canContinue}
       />
+      <SkipForNowButton onClick={onSkip} />
     </div>
   );
 }
@@ -402,6 +422,7 @@ export function CompanyLogoStep({
   onLogoTaglineChange,
   onContinue,
   onBack,
+  onSkip,
 }: {
   logoUrl: string;
   logoFile: File | null;
@@ -414,6 +435,7 @@ export function CompanyLogoStep({
   onLogoTaglineChange: (value: string) => void;
   onContinue: () => void;
   onBack: () => void;
+  onSkip: () => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -591,6 +613,7 @@ export function CompanyLogoStep({
       </div>
 
       <StepActions onBack={onBack} onContinue={onContinue} continueLabel="Save and Continue" />
+      <SkipForNowButton onClick={onSkip} />
     </div>
   );
 }
@@ -629,6 +652,7 @@ export function BrandingStep({
   onBackgroundChange,
   onContinue,
   onBack,
+  onSkip,
 }: {
   platformColors: { primary: string; secondary: string; accent: string };
   themeMode: TenantBrandingThemeMode;
@@ -651,6 +675,7 @@ export function BrandingStep({
   onBackgroundChange: (value: string) => void;
   onContinue: () => void;
   onBack: () => void;
+  onSkip: () => void;
 }) {
   const previewFont = brandingFontStack(fontId);
   const customSwatchLeft = "#94a3b8";
@@ -835,6 +860,7 @@ export function BrandingStep({
         onContinue={onContinue}
         continueLabel="Save and Continue"
       />
+      <SkipForNowButton onClick={onSkip} />
     </div>
   );
 }

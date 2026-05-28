@@ -258,7 +258,7 @@ export default function TenantOnboardingPage() {
   }
 
   return (
-    <TenantOnboardingShell brand={preview} step={step} hideStepper={step === "done"} onSkip={handleSkip}>
+    <TenantOnboardingShell brand={preview} step={step} hideStepper={step === "done"}>
       {error ? <ErrorBanner message={error} /> : null}
 
       {step === "goals" ? (
@@ -266,6 +266,7 @@ export default function TenantOnboardingPage() {
           selectedGoals={selectedGoals}
           onToggleGoal={toggleGoal}
           onContinue={() => setStep("business")}
+          onSkip={handleSkip}
         />
       ) : null}
 
@@ -277,6 +278,7 @@ export default function TenantOnboardingPage() {
           onBusinessInfoChange={(patch) => setBusinessInfo((prev) => ({ ...prev, ...patch }))}
           onContinue={() => setStep("company_logo")}
           onBack={() => setStep("goals")}
+          onSkip={handleSkip}
         />
       ) : null}
 
@@ -296,6 +298,7 @@ export default function TenantOnboardingPage() {
           onLogoTaglineChange={setLogoTagline}
           onContinue={() => setStep("branding")}
           onBack={() => setStep("business")}
+          onSkip={handleSkip}
         />
       ) : null}
 
@@ -322,6 +325,7 @@ export default function TenantOnboardingPage() {
           onBackgroundChange={setBackgroundUrl}
           onContinue={() => setStep("domain")}
           onBack={() => setStep("company_logo")}
+          onSkip={handleSkip}
         />
       ) : null}
 

@@ -2,6 +2,7 @@
 
 import { Handle, Position, type NodeProps, type Node } from "@xyflow/react";
 import { Plus, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { GOLD } from "../constants";
 import type { WorkflowNodeData } from "../types";
 
@@ -9,19 +10,35 @@ type StepNodeType = Node<WorkflowNodeData>;
 
 export default function StepNode(props: NodeProps<StepNodeType>) {
   const { data, id, selected } = props;
+  const iconHostRef = useRef<HTMLSpanElement>(null);
+  const [iconBgColor, setIconBgColor] = useState<string>("#eaecf0");
 
   const onDelete = data.onDelete;
   const onAddNext = data.onAddNext;
 
+  useEffect(() => {
+    const host = iconHostRef.current;
+    if (!host) return;
+
+    const iconRoot = host.firstElementChild as HTMLElement | null;
+    if (!iconRoot) return;
+
+    const nodesToInspect: HTMLElement[] = [iconRoot, ...(Array.from(iconRoot.children) as HTMLElement[])];
+    for (const el of nodesToInspect) {
+      const bg = window.getComputedStyle(el).backgroundColor;
+      if (bg && bg !== "rgba(0, 0, 0, 0)" && bg !== "transparent") {
+        setIconBgColor(bg);
+        return;
+      }
+    }
+  }, [data.icon]);
+
   return (
     <div className="relative">
       <div
-        className="w-[230px] overflow-hidden rounded-xl bg-white shadow-sm transition"
+        className="h-[70px] w-[232px] min-h-[46px] min-w-[100px] overflow-hidden rounded-md bg-white transition"
         style={{
-          border: selected ? `2px solid ${GOLD}` : `1px solid #eaecf0`,
-          boxShadow: selected
-            ? "0 4px 16px rgba(188, 139, 65, 0.18)"
-            : "0 1px 3px rgba(16, 24, 40, 0.08)",
+          border: `1px solid ${selected ? GOLD : iconBgColor}`,
         }}
       >
         <Handle
@@ -35,44 +52,55 @@ export default function StepNode(props: NodeProps<StepNodeType>) {
           }}
         />
 
-        <div
-          className="flex items-center gap-2 px-3 py-2"
-          // style={{ backgroundColor: color.header, color: color.text }}
-        >
-          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-white/20">
-            {data.icon}
-          </span>
-          <span className="flex-1 whitespace-normal text-black break-words text-[11px] font-semibold leading-[14px]">
-            {data.label}
-          </span>
-
-          {selected && onDelete ? (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onDelete(id);
-              }}
-              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-slate-200 bg-slate-100 text-slate-600 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600"
-              aria-label="Remove step"
+        <div className="flex h-full flex-col gap-2 p-2">
+          <div className="flex items-center gap-2">
+            <span
+              ref={iconHostRef}
+              className="flex h-[30px] w-[30px] shrink-0 items-center justify-center overflow-hidden rounded-md [&>svg]:h-[18px] [&>svg]:w-[18px]"
             >
-              <X size={14} strokeWidth={2.5} />
-            </button>
-          ) : null}
-        </div>
+            {data.icon}
+            </span>
+            <span className="flex-1 whitespace-normal break-words text-black text-[11px] font-semibold leading-[14px]">
+              {data.label}
+            </span>
 
-        <div className="flex items-center gap-1.5 px-3 py-2 text-xs">
-          <span className="font-medium" style={{ color: "#101828" }}>
-            Day {data.day}
-          </span>
-          {data.required ? (
-            <>
-              <span style={{ color: "#d0d5dd" }}>•</span>
-              <span className="font-medium" style={{ color: "#DC2626" }}>
-                Required
-              </span>
-            </>
-          ) : null}
+            {selected && onDelete ? (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete(id);
+                }}
+                className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-slate-200 bg-slate-100 text-slate-600 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600"
+                aria-label="Remove step"
+              >
+                <X size={14} strokeWidth={2.5} />
+              </button>
+            ) : null}
+          </div>
+
+          <div
+            className="flex items-center gap-1.5"
+            style={{
+              fontFamily: "Inter, Arial, sans-serif",
+              fontWeight: 400,
+              fontSize: "10px",
+              lineHeight: "15px",
+              letterSpacing: "0",
+            }}
+          >
+            <span style={{ color: "#101828" }}>
+              Day {data.day}
+            </span>
+            {data.required ? (
+              <>
+                <span style={{ color: "#d0d5dd" }}>•</span>
+                <span style={{ color: "#DC2626" }}>
+                  Required
+                </span>
+              </>
+            ) : null}
+          </div>
         </div>
 
         <Handle
