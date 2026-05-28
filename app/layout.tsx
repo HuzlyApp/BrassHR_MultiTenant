@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import ReactQueryProvider from "@/app/components/ReactQueryProvider";
 import TenantBrandingRoot from "@/app/components/tenant/TenantBrandingRoot";
 import "./globals.css";
 
@@ -43,7 +44,9 @@ export default function RootLayout({
           min-h-screen
         `}
       >
-        <TenantBrandingRoot>{children}</TenantBrandingRoot>
+        <ReactQueryProvider>
+          <TenantBrandingRoot>{children}</TenantBrandingRoot>
+        </ReactQueryProvider>
       </body>
     </html>
   );

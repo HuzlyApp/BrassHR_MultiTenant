@@ -64,6 +64,7 @@ export type WorkflowBuilderProps = {
     library: Array<{ id: string; label: string; count: number }>;
     settings: Array<{ label: string; value: string }>;
   };
+  resetKey?: string;
 };
 
 export default function WorkflowBuilder(props: WorkflowBuilderProps) {
@@ -94,6 +95,7 @@ function WorkflowBuilderInner({
   embedded = false,
   publishStatusLabel,
   toolbarData,
+  resetKey,
 }: WorkflowBuilderProps) {
   const [nodes, setNodes, onNodesChange] =
     useNodesState<Node<WorkflowNodeData>>(initialNodes);
@@ -106,6 +108,19 @@ function WorkflowBuilderInner({
     "templates" | "flows" | "library" | "settings" | null
   >(null);
   const didMount = useRef(false);
+  const onChangeRef = useRef(onChange);
+
+  useEffect(() => {
+    onChangeRef.current = onChange;
+  }, [onChange]);
+
+  useEffect(() => {
+    if (!resetKey) return;
+    setNodes(initialNodes);
+    setEdges(initialEdges);
+    setSelectedNodeId(null);
+    setHistory([]);
+  }, [initialEdges, initialNodes, resetKey, setEdges, setNodes]);
 
   const selectedNode = useMemo(
     () => nodes.find((n) => n.id === selectedNodeId) ?? null,
@@ -126,8 +141,11 @@ function WorkflowBuilderInner({
       didMount.current = true;
       return;
     }
-    onChange?.(currentState);
-  }, [currentState, onChange]);
+    if (resetKey && nodes === initialNodes && edges === initialEdges) {
+      return;
+    }
+    onChangeRef.current?.(currentState);
+  }, [currentState, edges, initialEdges, initialNodes, nodes, resetKey]);
 
   const handleUndo = useCallback(() => {
     setHistory((prev) => {
