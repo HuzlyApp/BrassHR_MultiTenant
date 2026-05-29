@@ -270,6 +270,8 @@ export default function NewApplicantHistoryPage() {
           <div className="max-w-[1320px] mx-auto">
             <div className="mb-5 text-xs text-gray-600">Admin - New Applicant Detailed Page - History</div>
 
+            <DetailedTabs applicantId={applicantId} activeTab="History" />
+
             {loadError ? (
               <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
                 {loadError}
@@ -281,7 +283,6 @@ export default function NewApplicantHistoryPage() {
               role={candidateRole}
               loading={loading}
             />
-            <DetailedTabs applicantId={applicantId} activeTab="History" />
 
             <div className="mx-auto w-full max-w-[1300px] rounded-md border border-[#D1D5DB] p-5">
               <div className="flex flex-col gap-5">

@@ -353,6 +353,8 @@ export default function NewApplicantChecklistPage() {
               Admin - {isWorkerRoute ? "Worker" : "New Applicant"} Detailed Page - Checklist
             </div>
 
+            <DetailedTabs applicantId={applicantId} activeTab="Checklist" />
+
             {error ? (
               <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
                 {error}
@@ -364,7 +366,6 @@ export default function NewApplicantChecklistPage() {
               role={candidateRole}
               loading={loading}
             />
-            <DetailedTabs applicantId={applicantId} activeTab="Checklist" />
 
             <div className="mx-auto flex w-full max-w-[1300px] flex-col gap-[30px] overflow-hidden rounded-md border border-[#E5E7EB] bg-white p-5">
               <div className="hidden p-3 sm:p-4 border-b border-[#9CC3FF]/30 bg-white/40">

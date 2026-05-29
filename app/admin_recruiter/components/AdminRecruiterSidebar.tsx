@@ -97,9 +97,9 @@ const SIDEBAR_SECTIONS: SidebarSection[] = [
   },
   {
     label: "Account",
-    href: "/admin_recruiter/settings",
+    href: "/admin_recruiter/account/personal",
     icon: "/icons/braas-HR/client-dashboard/Account.svg",
-    matchPrefixes: ["/admin_recruiter/settings"],
+    matchPrefixes: ["/admin_recruiter/account"],
   },
   {
     label: "Notifications",
@@ -128,7 +128,7 @@ export function AdminRecruiterSidebar({ isMobileOpen = false, onMobileClose }: A
   const pathname = usePathname() ?? "";
   const router = useRouter();
 
-  const handleNavClick = () => {
+      const handleNavClick = () => {
     onMobileClose?.();
   };
 

@@ -229,6 +229,8 @@ export default function NewApplicantActivitiesPage() {
           <div className="max-w-[1320px] mx-auto">
             <div className="mb-5 text-xs text-gray-600">Admin - New Applicant Detailed Page - Activities</div>
 
+            <DetailedTabs applicantId={applicantId} activeTab="Activities" />
+
             {loadError ? (
               <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
                 {loadError}
@@ -240,7 +242,6 @@ export default function NewApplicantActivitiesPage() {
               role={candidateRole}
               loading={loading}
             />
-            <DetailedTabs applicantId={applicantId} activeTab="Activities" />
 
             <div className="mx-auto mb-3 flex w-full max-w-[1300px] items-center justify-center gap-2">
               {(["Calls", "Inbox", "Interview"] as const).map((t) => {

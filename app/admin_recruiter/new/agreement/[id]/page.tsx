@@ -194,6 +194,8 @@ export default function NewApplicantAgreementPage() {
               Admin - New Applicant Detailed Page - Agreement
             </div>
 
+            <DetailedTabs applicantId={applicantId} activeTab="Agreement" />
+
             {loadError ? (
               <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
                 {loadError}
@@ -205,7 +207,6 @@ export default function NewApplicantAgreementPage() {
               role={candidateRole}
               loading={loading}
             />
-            <DetailedTabs applicantId={applicantId} activeTab="Agreement" />
 
             <div className="mx-auto w-full max-w-[1300px]">
               <div className="space-y-6">

@@ -7,6 +7,7 @@ import CandidateCommunicationDialog from "../../../components/CandidateCommunica
 import CandidateCommunicationHistory from "../../../components/CandidateCommunicationHistory";
 import DetailedCandidateHeader from "../../../components/DetailedCandidateHeader";
 import DetailedTabs from "../../../components/DetailedTabs";
+import ProfileSubTabs from "../../../components/ProfileSubTabs";
 import {
   Briefcase,
   Calendar,
@@ -383,11 +384,13 @@ export default function NewApplicantProfilePage() {
           </div>
         </header>
 
-        <div className="flex-1 overflow-auto px-4 py-3 lg:px-5 lg:py-4">
-          <div className="w-full">
-            <div className="mb-2 text-xs text-gray-600">
+        <div className="flex-1 p-8 overflow-auto">
+          <div className="max-w-[1320px] mx-auto">
+            <div className="mb-5 text-xs text-gray-600">
               Admin - {isWorkerRoute ? "Worker" : "New Applicant"} Detailed Page - Details
             </div>
+
+            <DetailedTabs applicantId={applicantId} activeTab="Profile" />
 
             {error ? (
               <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
@@ -402,6 +405,7 @@ export default function NewApplicantProfilePage() {
               onMessageClick={() => setCommOpen(true)}
               messageDisabled={!w?.email?.trim() && !w?.phone?.trim()}
             />
+            <ProfileSubTabs applicantId={applicantId} activeTab="Details" />
             {applicantId ? (
               <CandidateCommunicationHistory workerId={applicantId} refreshKey={commRefreshKey} />
             ) : null}
@@ -414,33 +418,8 @@ export default function NewApplicantProfilePage() {
               phone={w?.phone ?? null}
               onSent={() => setCommRefreshKey((k) => k + 1)}
             />
-            <DetailedTabs applicantId={applicantId} activeTab="Profile" />
-            <div className="mb-1 flex justify-center">
-              <div className="h-9 w-[327px] rounded-xl bg-[#F8FAFC] p-1">
-                <div className="grid h-full grid-cols-3 gap-1">
-                  <Link
-                    href={`${base}/profile/${id}`}
-                    className="inline-flex items-center justify-center rounded-lg bg-[#0D9488] text-sm font-medium leading-5 text-white"
-                  >
-                    Details
-                  </Link>
-                  <Link
-                    href={`${base}/profile/resume/${id}`}
-                    className="inline-flex items-center justify-center rounded-lg text-sm font-medium leading-5 text-[#374151] hover:bg-white"
-                  >
-                    Resume
-                  </Link>
-                  <Link
-                    href={`${base}/profile/notes/${id}`}
-                    className="inline-flex items-center justify-center rounded-lg text-sm font-medium leading-5 text-[#374151] hover:bg-white"
-                  >
-                    Notes
-                  </Link>
-                </div>
-              </div>
-            </div>
 
-            <div className="mx-auto w-full max-w-[1298px] overflow-x-auto rounded-lg border border-[#D1D5DB] bg-white">
+            <div className="mx-auto w-full max-w-[1300px] overflow-x-auto rounded-lg border border-[#D1D5DB] bg-white">
               <div className="hidden p-6 items-start justify-between gap-6 border-b border-[#9CC3FF]/30 bg-white/40">
                 <div className="flex items-center gap-4">
                   <div className="w-12 h-12 rounded-full bg-teal-600 text-white flex items-center justify-center font-semibold text-sm">

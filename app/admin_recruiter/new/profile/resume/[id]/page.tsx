@@ -5,6 +5,7 @@ import { useParams, usePathname } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import DetailedCandidateHeader from "../../../../components/DetailedCandidateHeader";
 import DetailedTabs from "../../../../components/DetailedTabs";
+import ProfileSubTabs from "../../../../components/ProfileSubTabs";
 import {
   Briefcase,
   Calendar,
@@ -219,12 +220,7 @@ export default function NewApplicantProfileResumePage() {
             >
               <Menu className="w-5 h-5" />
             </button>
-            <div>
-              <div className="text-xs text-gray-600">
-                Admin - {isWorkerRoute ? "Worker" : "New Applicant"} Detailed Page - Resume
-              </div>
-              <div className="text-lg font-semibold text-gray-600">Candidates</div>
-            </div>
+            <div className="font-semibold text-2xl">{isWorkerRoute ? "Worker" : "New Applicant"}</div>
           </div>
 
           <div className="flex items-center gap-3">
@@ -236,41 +232,28 @@ export default function NewApplicantProfileResumePage() {
           </div>
         </header>
 
-        <div className="p-6">
-          <div className="max-w-[1320px] mx-auto mb-4">
+        <div className="flex-1 p-8 overflow-auto">
+          <div className="max-w-[1320px] mx-auto">
+            <div className="mb-5 text-xs text-gray-600">
+              Admin - {isWorkerRoute ? "Worker" : "New Applicant"} Detailed Page - Resume
+            </div>
+
+            <DetailedTabs applicantId={applicantId} activeTab="Profile" />
+
+            {error ? (
+              <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+                {error}
+              </div>
+            ) : null}
+
             <DetailedCandidateHeader
               name={candidateName}
               role={candidateRole}
               loading={loading}
             />
-            <DetailedTabs applicantId={applicantId} activeTab="Profile" />
-            <div className="mb-4 flex justify-center">
-              <div className="h-9 w-[327px] rounded-xl bg-[#F8FAFC] p-1">
-                <div className="grid h-full grid-cols-3 gap-1">
-                  <Link
-                    href={detailsHref}
-                    className="inline-flex items-center justify-center rounded-lg text-sm font-medium leading-5 text-[#374151] hover:bg-white"
-                  >
-                    Details
-                  </Link>
-                  <Link
-                    href={resumeHref}
-                    className="inline-flex items-center justify-center rounded-lg bg-[#0D9488] text-sm font-medium leading-5 text-white"
-                  >
-                    Resume
-                  </Link>
-                  <Link
-                    href={notesHref}
-                    className="inline-flex items-center justify-center rounded-lg text-sm font-medium leading-5 text-[#374151] hover:bg-white"
-                  >
-                    Notes
-                  </Link>
-                </div>
-              </div>
-            </div>
-          </div>
+            <ProfileSubTabs applicantId={applicantId} activeTab="Resume" />
 
-          <div className="relative">
+            <div className="mx-auto w-full max-w-[1300px]">
             <div className="hidden p-6 items-center justify-between">
               <div className="flex items-center gap-4">
                 <div className="w-12 h-12 rounded-2xl bg-white border border-zinc-200 grid place-items-center text-gray-600">
@@ -336,13 +319,6 @@ export default function NewApplicantProfileResumePage() {
                 </div>
               </div>
             </div>
-
-            <div className="px-0 pb-0">
-              {error ? (
-                <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
-                  {error}
-                </div>
-              ) : null}
 
               {!loading && !error && !resumePath ? (
                 <div className="rounded-2xl border border-zinc-200 bg-white/80 px-5 py-8 text-center text-sm text-gray-600">

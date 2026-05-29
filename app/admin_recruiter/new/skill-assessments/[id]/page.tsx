@@ -446,6 +446,8 @@ export default function NewApplicantSkillAssessmentsPage() {
               Admin - New Applicant Detailed Page - Skill Assessments
             </div>
 
+            <DetailedTabs applicantId={applicantId} activeTab="Skill Assessments" />
+
             {loadError ? (
               <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
                 {loadError}
@@ -462,7 +464,6 @@ export default function NewApplicantSkillAssessmentsPage() {
               role={candidateRole}
               loading={loading}
             />
-            <DetailedTabs applicantId={applicantId} activeTab="Skill Assessments" />
 
             <div className="mx-auto w-full max-w-[1300px]">
               <div className="mb-5 flex items-center justify-between">

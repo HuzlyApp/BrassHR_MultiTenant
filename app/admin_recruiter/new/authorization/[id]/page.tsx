@@ -415,6 +415,8 @@ export default function NewApplicantAuthorizationFilledPage() {
               Admin - New Applicant Detailed Page - Authorization (filled)
             </div>
 
+            <DetailedTabs applicantId={applicantId} activeTab="Authorization" />
+
             {loadError ? (
               <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
                 {loadError}
@@ -426,7 +428,6 @@ export default function NewApplicantAuthorizationFilledPage() {
               role={candidateRole}
               loading={loading}
             />
-            <DetailedTabs applicantId={applicantId} activeTab="Authorization" />
 
             <div className="mx-auto w-full max-w-[1300px]">
               <section>

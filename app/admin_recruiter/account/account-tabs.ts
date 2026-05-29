@@ -1,0 +1,17 @@
+export const ACCOUNT_TABS = [
+  { slug: "personal", label: "Personal" },
+  { slug: "business-info", label: "Business Info" },
+  { slug: "account-settings", label: "Account Settings" },
+  { slug: "security", label: "Security" },
+  { slug: "checklist", label: "Checklist" },
+] as const;
+
+export type AccountTabSlug = (typeof ACCOUNT_TABS)[number]["slug"];
+
+export function isAccountTabSlug(value: string): value is AccountTabSlug {
+  return ACCOUNT_TABS.some((tab) => tab.slug === value);
+}
+
+export function accountTabHref(slug: AccountTabSlug): string {
+  return `/admin_recruiter/account/${slug}`;
+}

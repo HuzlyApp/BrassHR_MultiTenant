@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
+import UnderlineTabBar from "../../components/UnderlineTabBar";
 import {
   Briefcase,
   Calendar,
@@ -25,9 +26,18 @@ function initials(name: string) {
   return (first + last).toUpperCase();
 }
 
+type FacilityTab = "active" | "potential" | "recent";
+
+const FACILITY_TABS = [
+  { id: "active" as const, label: "Active Facilities" },
+  { id: "potential" as const, label: "Potential Facilities" },
+  { id: "recent" as const, label: "Recent Facilities" },
+] as const;
+
 export default function NewApplicantFacilityAssignmentsDemoPage() {
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [activeFacilityTab, setActiveFacilityTab] = useState<FacilityTab>("potential");
 
   const candidateName = "John Doe";
   const candidateRole = "Licensed Practical Nurse, LPN";
@@ -187,28 +197,13 @@ export default function NewApplicantFacilityAssignmentsDemoPage() {
                 </div>
               </div>
 
-              {/* Tabs */}
-              <div className="border-b border-[#E5E7EB] px-6 py-4">
-                <div className="mx-auto flex w-full max-w-[540px] items-center gap-1">
-                  <button
-                    type="button"
-                    className="h-8 flex-1 rounded-lg bg-transparent px-4 text-base font-medium text-[#374151]"
-                  >
-                    Active Facilities
-                  </button>
-                  <button
-                    type="button"
-                    className="h-8 flex-1 rounded-lg bg-[#0D9488] px-4 text-base font-medium text-white"
-                  >
-                    Potential Facilities
-                  </button>
-                  <button
-                    type="button"
-                    className="h-8 flex-1 rounded-lg bg-transparent px-4 text-base font-medium text-[#374151]"
-                  >
-                    Recent Facilities
-                  </button>
-                </div>
+              <div className="px-6 py-4">
+                <UnderlineTabBar
+                  tabs={FACILITY_TABS}
+                  activeTab={activeFacilityTab}
+                  onTabChange={setActiveFacilityTab}
+                  ariaLabel="Facility sections"
+                />
               </div>
 
               {/* Empty state */}

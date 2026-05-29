@@ -5,6 +5,7 @@ import { useParams, usePathname } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import DetailedCandidateHeader from "../../../components/DetailedCandidateHeader";
 import DetailedTabs from "../../../components/DetailedTabs";
+import UnderlineTabBar from "../../../components/UnderlineTabBar";
 import {
   Briefcase,
   Calendar,
@@ -32,6 +33,12 @@ type WorkerProfileResponse = {
 };
 
 type FacilityTab = "active" | "potential" | "recent";
+
+const FACILITY_TABS = [
+  { id: "active" as const, label: "Active Facilities" },
+  { id: "potential" as const, label: "Potential Facilities" },
+  { id: "recent" as const, label: "Recent Facilities" },
+] as const;
 
 type PotentialFacility = {
   id: string;
@@ -263,6 +270,8 @@ export default function NewApplicantFacilityAssignmentsPage() {
               Admin - New Applicant Detailed Page - Facility Assignments
             </div>
 
+            <DetailedTabs applicantId={applicantId} activeTab="Facility Assignments" />
+
             {loadError ? (
               <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
                 {loadError}
@@ -274,7 +283,6 @@ export default function NewApplicantFacilityAssignmentsPage() {
               role={candidateRole}
               loading={loading}
             />
-            <DetailedTabs applicantId={applicantId} activeTab="Facility Assignments" />
 
             <div className="mx-auto w-full max-w-[1300px] min-h-[896px] rounded-lg border border-[#E5E7EB] bg-white p-5">
               {/* Top */}
@@ -302,43 +310,13 @@ export default function NewApplicantFacilityAssignmentsPage() {
                 </div>
               </div>
 
-              {/* Tabs */}
-              <div className="border-b border-[#E5E7EB] px-6 py-4 ">
-                <div className="mx-auto flex w-full bg-[#F8FAFC] rounded-xl py-1 max-w-[540px] items-center gap-1">
-                  <button
-                    type="button"
-                    onClick={() => setActiveFacilityTab("active")}
-                    className={`h-8 flex-1 rounded-lg px-4 text-base font-medium ${
-                      activeFacilityTab === "active"
-                        ? "bg-[#0D9488] text-white"
-                        : "bg-transparent text-[#374151]"
-                    }`}
-                  >
-                    Active Facilities
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setActiveFacilityTab("potential")}
-                    className={`h-8 flex-1 rounded-lg px-4 text-base font-medium ${
-                      activeFacilityTab === "potential"
-                        ? "bg-[#0D9488] text-white"
-                        : "bg-transparent text-[#374151]"
-                    }`}
-                  >
-                    Potential Facilities
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setActiveFacilityTab("recent")}
-                    className={`h-8 flex-1 rounded-lg px-4 text-base font-medium ${
-                      activeFacilityTab === "recent"
-                        ? "bg-[#0D9488] text-white"
-                        : "bg-transparent text-[#374151]"
-                    }`}
-                  >
-                    Recent Facilities
-                  </button>
-                </div>
+              <div className="px-6 py-4">
+                <UnderlineTabBar
+                  tabs={FACILITY_TABS}
+                  activeTab={activeFacilityTab}
+                  onTabChange={setActiveFacilityTab}
+                  ariaLabel="Facility sections"
+                />
               </div>
 
               {visibleFacilities.length === 0 ? (

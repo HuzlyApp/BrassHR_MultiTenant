@@ -68,7 +68,7 @@ export default function CandidateCommunicationHistory({ workerId, refreshKey = 0
   }, [load, refreshKey]);
 
   return (
-    <section className="mt-6 rounded-lg border border-[#D1D5DB] bg-white">
+    <section className="mx-auto mb-4 mt-0 w-full max-w-[1300px] rounded-lg border border-[#D1D5DB] bg-white">
       <div className="flex items-center justify-between border-b border-[#E5E7EB] px-5 py-3">
         <h3 className="text-[16px] font-semibold text-[#111827]">Communication history</h3>
         <button
