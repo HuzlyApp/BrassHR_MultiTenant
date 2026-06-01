@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   Background,
   BackgroundVariant,
@@ -19,8 +19,17 @@ import {
 
 import "@xyflow/react/dist/style.css";
 
+import WorkflowConnectorEdge from "./edges/WorkflowConnectorEdge";
 import StepNode from "./nodes/StepNode";
-import { CARD_BORDER, DRAG_DATA_TYPE, GOLD, TEXT_MUTED } from "./constants";
+import {
+  WORKFLOW_CONNECTOR_COLOR,
+  WORKFLOW_CONNECTOR_STROKE_WIDTH,
+  WORKFLOW_EDGE_TYPE,
+  createWorkflowEdge,
+  DRAG_DATA_TYPE,
+  GOLD,
+  TEXT_MUTED,
+} from "./constants";
 import {
   DEFAULT_STEP_SETTINGS,
   type StepCategory,
@@ -41,8 +50,31 @@ type StepsCanvasProps = {
 };
 
 const nodeTypes = { step: StepNode };
+const edgeTypes = { [WORKFLOW_EDGE_TYPE]: WorkflowConnectorEdge };
 
 const NODE_VERTICAL_SPACING = 130;
+
+function buildStepNode(
+  id: string,
+  def: StepDefinition,
+  position: { x: number; y: number },
+  day: number
+): Node<WorkflowNodeData> {
+  return {
+    id,
+    type: "step",
+    position,
+    data: {
+      stepId: def.id,
+      label: def.label,
+      description: def.description ?? null,
+      icon: def.icon,
+      day,
+      required: true,
+      settings: { ...DEFAULT_STEP_SETTINGS, datePriority: `Day ${day}` },
+    },
+  };
+}
 
 export default function StepsCanvas({
   nodes,
@@ -56,6 +88,7 @@ export default function StepsCanvas({
   onSelectNode,
 }: StepsCanvasProps) {
   const { screenToFlowPosition } = useReactFlow<Node<WorkflowNodeData>, Edge>();
+  const [edgeRemoveModeId, setEdgeRemoveModeId] = useState<string | null>(null);
 
   const stepById = useMemo(() => {
     const map = new Map<string, StepDefinition>();
@@ -63,67 +96,90 @@ export default function StepsCanvas({
     return map;
   }, [categories]);
 
+  const handleDeleteEdge = useCallback(
+    (edgeId: string) => {
+      setEdges((prev) => prev.filter((e) => e.id !== edgeId));
+      setEdgeRemoveModeId(null);
+    },
+    [setEdges]
+  );
+
   const handleDeleteNode = useCallback(
     (id: string) => {
       setNodes((prev) => prev.filter((n) => n.id !== id));
-      setEdges((prev) => prev.filter((e) => e.source !== id && e.target !== id));
+      setEdges((prev) => {
+        const incoming = prev.filter((e) => e.target === id);
+        const outgoing = prev.filter((e) => e.source === id);
+        const without = prev.filter((e) => e.source !== id && e.target !== id);
+
+        const bridges: Edge[] = [];
+        for (const inn of incoming) {
+          for (const out of outgoing) {
+            const exists = without.some(
+              (e) => e.source === inn.source && e.target === out.target
+            );
+            if (!exists && inn.source !== out.target) {
+              bridges.push(createWorkflowEdge(inn.source, out.target));
+            }
+          }
+        }
+        return [...without, ...bridges];
+      });
       if (selectedNodeId === id) onSelectNode(null);
     },
     [setNodes, setEdges, selectedNodeId, onSelectNode]
   );
 
-  const handleAddNext = useCallback(
-    (sourceId: string) => {
+  const handleInsertBetween = useCallback(
+    (sourceId: string, targetId: string) => {
       const source = nodes.find((n) => n.id === sourceId);
-      if (!source) return;
+      const target = nodes.find((n) => n.id === targetId);
+      if (!source || !target) return;
 
       const def = stepById.get(source.data.stepId);
       if (!def) return;
 
       const id = `node-${Date.now()}`;
-      const newNode: Node<WorkflowNodeData> = {
-        id,
-        type: "step",
-        position: {
-          x: source.position.x,
-          y: source.position.y + NODE_VERTICAL_SPACING,
-        },
-        data: {
-          stepId: def.id,
-          label: def.label,
-          description: def.description ?? null,
-          icon: def.icon,
-          day: source.data.day + 1,
-          required: true,
-          settings: { ...DEFAULT_STEP_SETTINGS },
-        },
-      };
-      setNodes((prev) => [...prev, newNode]);
-      setEdges((prev) => [
-        ...prev,
-        {
-          id: `e-${sourceId}-${id}`,
-          source: sourceId,
-          target: id,
-          type: "smoothstep",
-          style: { stroke: "#94A3B8", strokeWidth: 1.5 },
-        },
-      ]);
+      const insertY = target.position.y;
+
+      setNodes((prev) => {
+        const shifted = prev.map((n) => {
+          if (n.position.y >= insertY) {
+            return {
+              ...n,
+              position: { ...n.position, y: n.position.y + NODE_VERTICAL_SPACING },
+            };
+          }
+          return n;
+        });
+        return [
+          ...shifted,
+          buildStepNode(
+            id,
+            def,
+            { x: source.position.x, y: insertY },
+            source.data.day + 1
+          ),
+        ];
+      });
+
+      setEdges((prev) => {
+        const without = prev.filter(
+          (e) => !(e.source === sourceId && e.target === targetId)
+        );
+        return [...without, createWorkflowEdge(sourceId, id), createWorkflowEdge(id, targetId)];
+      });
+
+      onSelectNode(id);
     },
-    [nodes, stepById, setNodes, setEdges]
+    [nodes, stepById, setNodes, setEdges, onSelectNode]
   );
 
   const onConnect: OnConnect = useCallback(
     (connection: Connection) => {
+      if (!connection.source || !connection.target) return;
       setEdges((eds) =>
-        addEdge(
-          {
-            ...connection,
-            type: "smoothstep",
-            style: { stroke: "#94A3B8", strokeWidth: 1.5 },
-          },
-          eds
-        )
+        addEdge(createWorkflowEdge(connection.source!, connection.target!), eds)
       );
     },
     [setEdges]
@@ -163,34 +219,11 @@ export default function StepsCanvas({
         lastNodeId = lastNode.id;
       }
 
-      const newNode: Node<WorkflowNodeData> = {
-        id,
-        type: "step",
-        position,
-        data: {
-          stepId: def.id,
-          label: def.label,
-          description: def.description ?? null,
-          icon: def.icon,
-          day,
-          required: true,
-          settings: { ...DEFAULT_STEP_SETTINGS, datePriority: `Day ${day}` },
-        },
-      };
-
+      const newNode = buildStepNode(id, def, position, day);
       setNodes((prev) => [...prev, newNode]);
 
       if (lastNodeId) {
-        setEdges((prev) => [
-          ...prev,
-          {
-            id: `e-${lastNodeId}-${id}`,
-            source: lastNodeId,
-            target: id,
-            type: "smoothstep",
-            style: { stroke: "#94A3B8", strokeWidth: 1.5 },
-          },
-        ]);
+        setEdges((prev) => [...prev, createWorkflowEdge(lastNodeId!, id)]);
       }
 
       onSelectNode(id);
@@ -200,12 +233,14 @@ export default function StepsCanvas({
 
   const handleNodeClick: NodeMouseHandler<Node<WorkflowNodeData>> = useCallback(
     (_e, node) => {
+      setEdgeRemoveModeId(null);
       onSelectNode(node.id);
     },
     [onSelectNode]
   );
 
   const handlePaneClick = useCallback(() => {
+    setEdgeRemoveModeId(null);
     onSelectNode(null);
   }, [onSelectNode]);
 
@@ -217,10 +252,29 @@ export default function StepsCanvas({
         data: {
           ...n.data,
           onDelete: handleDeleteNode,
-          onAddNext: handleAddNext,
         },
       })),
-    [nodes, selectedNodeId, handleDeleteNode, handleAddNext]
+    [nodes, selectedNodeId, handleDeleteNode]
+  );
+
+  const enhancedEdges = useMemo(
+    () =>
+      edges.map((e) => ({
+        ...e,
+        type: WORKFLOW_EDGE_TYPE,
+        style: {
+          stroke: WORKFLOW_CONNECTOR_COLOR,
+          strokeWidth: WORKFLOW_CONNECTOR_STROKE_WIDTH,
+        },
+        data: {
+          removeMode: edgeRemoveModeId === e.id,
+          onEnterRemoveMode: setEdgeRemoveModeId,
+          onExitRemoveMode: () => setEdgeRemoveModeId(null),
+          onInsertBetween: handleInsertBetween,
+          onDeleteEdge: handleDeleteEdge,
+        },
+      })),
+    [edgeRemoveModeId, edges, handleInsertBetween, handleDeleteEdge]
   );
 
   return (
@@ -232,18 +286,26 @@ export default function StepsCanvas({
     >
       <ReactFlow
         nodes={enhancedNodes}
-        edges={edges}
+        edges={enhancedEdges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
         onNodeClick={handleNodeClick}
         onPaneClick={handlePaneClick}
         nodeTypes={nodeTypes}
+        edgeTypes={edgeTypes}
+        edgesFocusable
+        edgesReconnectable={false}
+        deleteKeyCode={null}
+        onPaneContextMenu={(e) => e.preventDefault()}
         fitView
         fitViewOptions={{ padding: 0.3 }}
         defaultEdgeOptions={{
-          type: "smoothstep",
-          style: { stroke: "#94A3B8", strokeWidth: 1.5 },
+          type: WORKFLOW_EDGE_TYPE,
+          style: {
+            stroke: WORKFLOW_CONNECTOR_COLOR,
+            strokeWidth: WORKFLOW_CONNECTOR_STROKE_WIDTH,
+          },
         }}
         proOptions={{ hideAttribution: true }}
       >

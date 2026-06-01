@@ -1,4 +1,5 @@
 import type { Edge, Node } from "@xyflow/react";
+import { createWorkflowEdge } from "@/app/components/workflow-builder/constants";
 import type { StepDefinition } from "@/app/components/workflow-builder/types";
 import {
   DEFAULT_STEP_SETTINGS,
@@ -62,12 +63,9 @@ export function draftsToWorkflowNodes(
     };
   });
 
-  const edges: Edge[] = nodes.slice(0, -1).map((node, i) => ({
-    id: `e-${node.id}-${nodes[i + 1].id}`,
-    source: node.id,
-    target: nodes[i + 1].id,
-    type: "smoothstep",
-  }));
+  const edges: Edge[] = nodes
+    .slice(0, -1)
+    .map((node, i) => createWorkflowEdge(node.id, nodes[i + 1].id));
 
   return { nodes, edges };
 }
@@ -97,10 +95,8 @@ export function hydrateWorkflowFromStorage(
     });
 
     const edges: Edge[] = builderDraft.edges.map((e) => ({
+      ...createWorkflowEdge(e.source, e.target),
       id: e.id,
-      source: e.source,
-      target: e.target,
-      type: "smoothstep",
     }));
 
     return { nodes, edges };

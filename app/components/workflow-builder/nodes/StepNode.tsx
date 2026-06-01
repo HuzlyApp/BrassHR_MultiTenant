@@ -1,7 +1,7 @@
 "use client";
 
 import { Handle, Position, type NodeProps, type Node } from "@xyflow/react";
-import { Plus, X } from "lucide-react";
+import { X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { GOLD } from "../constants";
 import type { WorkflowNodeData } from "../types";
@@ -14,7 +14,6 @@ export default function StepNode(props: NodeProps<StepNodeType>) {
   const [iconBgColor, setIconBgColor] = useState<string>("#eaecf0");
 
   const onDelete = data.onDelete;
-  const onAddNext = data.onAddNext;
 
   useEffect(() => {
     const host = iconHostRef.current;
@@ -114,20 +113,6 @@ export default function StepNode(props: NodeProps<StepNodeType>) {
           }}
         />
       </div>
-
-      {onAddNext ? (
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onAddNext(id);
-          }}
-          className="absolute -bottom-3 left-1/2 z-20 flex h-6 w-6 -translate-x-1/2 items-center justify-center rounded-full border-2 border-white bg-[#012352] text-white shadow-md transition hover:brightness-110"
-          aria-label="Add next step"
-        >
-          <Plus size={12} />
-        </button>
-      ) : null}
     </div>
   );
 }

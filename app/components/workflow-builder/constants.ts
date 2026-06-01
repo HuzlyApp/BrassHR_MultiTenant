@@ -1,7 +1,13 @@
 import type { StepColorKey } from "./types";
 
+import type { Edge } from "@xyflow/react";
+
 export const GOLD = "#BC8B41";
 export const NAVY = "#012352";
+/** Vertical connectors between workflow steps (Figma onboarding builder). */
+export const WORKFLOW_CONNECTOR_COLOR = NAVY;
+export const WORKFLOW_CONNECTOR_STROKE_WIDTH = 2.5;
+export const WORKFLOW_EDGE_TYPE = "workflowConnector";
 export const PAGE_BG = "#f8f8f8";
 export const CARD_BORDER = "#eaecf0";
 export const TEXT_PRIMARY = "#101828";
@@ -148,3 +154,16 @@ export const STEP_COLORS: Record<
 };
 
 export const DRAG_DATA_TYPE = "application/x-workflow-step";
+
+export function createWorkflowEdge(source: string, target: string): Edge {
+  return {
+    id: `e-${source}-${target}`,
+    source,
+    target,
+    type: WORKFLOW_EDGE_TYPE,
+    style: {
+      stroke: WORKFLOW_CONNECTOR_COLOR,
+      strokeWidth: WORKFLOW_CONNECTOR_STROKE_WIDTH,
+    },
+  };
+}

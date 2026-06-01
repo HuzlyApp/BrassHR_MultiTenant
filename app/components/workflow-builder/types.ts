@@ -58,7 +58,6 @@ export type WorkflowNodeData = {
   required: boolean;
   settings: StepSettings;
   onDelete?: (id: string) => void;
-  onAddNext?: (id: string) => void;
   [key: string]: unknown;
 };
 
