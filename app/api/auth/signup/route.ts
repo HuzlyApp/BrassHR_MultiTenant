@@ -1,13 +1,12 @@
 import { NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
-
-type SignupBody = {
-  firstName?: string;
-  lastName?: string;
-  workEmail?: string;
-  jobTitle?: string;
-  password?: string;
-};
+import {
+  buildUsersSignupRow,
+  normalizeOwnerSignupBody,
+  validateOwnerSignupDetails,
+  validateOwnerSignupPassword,
+  type OwnerSignupPayload,
+} from "@/lib/signup/owner-signup";
 
 /**
  * Creates the Braas HR owner account (auth + public.users) after the signup UI.
@@ -18,28 +17,55 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Server not configured" }, { status: 503 });
   }
 
-  let body: SignupBody = {};
+  let body: Record<string, unknown> = {};
   try {
-    body = (await req.json()) as SignupBody;
+    body = (await req.json()) as Record<string, unknown>;
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const email = String(body.workEmail ?? "")
-    .trim()
-    .toLowerCase();
-  const password = String(body.password ?? "");
-  const firstName = String(body.firstName ?? "").trim();
-  const lastName = String(body.lastName ?? "").trim();
+  const partial = normalizeOwnerSignupBody(body);
+  const detailsError = validateOwnerSignupDetails(partial);
+  if (detailsError) {
+    return NextResponse.json({ error: detailsError }, { status: 400 });
+  }
 
-  if (!email.includes("@")) {
-    return NextResponse.json({ error: "A valid work email is required." }, { status: 400 });
+  const passwordError = validateOwnerSignupPassword(partial.password ?? "");
+  if (passwordError) {
+    return NextResponse.json({ error: passwordError }, { status: 400 });
   }
-  if (password.length < 8) {
-    return NextResponse.json({ error: "Password must be at least 8 characters." }, { status: 400 });
+
+  const payload = partial as OwnerSignupPayload;
+  const completedAt = new Date().toISOString();
+
+  const { data: stateRow, error: stateErr } = await svc
+    .from("signup_us_states")
+    .select("code")
+    .eq("name", payload.state)
+    .maybeSingle();
+
+  if (stateErr) {
+    return NextResponse.json({ error: stateErr.message }, { status: 500 });
   }
-  if (!firstName || !lastName) {
-    return NextResponse.json({ error: "First and last name are required." }, { status: 400 });
+  if (!stateRow?.code) {
+    return NextResponse.json({ error: "Please select a valid state." }, { status: 400 });
+  }
+
+  const { data: existingProfile, error: profileLookupErr } = await svc
+    .from("users")
+    .select("id, signup_completed_at")
+    .eq("email", payload.workEmail)
+    .maybeSingle();
+
+  if (profileLookupErr) {
+    return NextResponse.json({ error: profileLookupErr.message }, { status: 500 });
+  }
+
+  if (existingProfile?.signup_completed_at) {
+    return NextResponse.json(
+      { error: "An account with this email already exists. Sign in instead.", code: "EMAIL_TAKEN" },
+      { status: 409 }
+    );
   }
 
   const { data: list, error: listErr } = await svc.auth.admin.listUsers({ page: 1, perPage: 200 });
@@ -47,23 +73,15 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: listErr.message }, { status: 500 });
   }
 
-  const existing = list?.users?.find((u) => (u.email || "").toLowerCase() === email);
-  if (existing?.id) {
-    const { data: profile } = await svc
-      .from("users")
-      .select("signup_completed_at")
-      .eq("id", existing.id)
-      .maybeSingle();
+  const existingAuth = list?.users?.find(
+    (u) => (u.email || "").toLowerCase() === payload.workEmail
+  );
 
-    if (profile?.signup_completed_at) {
-      return NextResponse.json(
-        { error: "An account with this email already exists. Sign in instead.", code: "EMAIL_TAKEN" },
-        { status: 409 }
-      );
-    }
+  if (existingAuth?.id) {
+    const userId = existingAuth.id;
 
-    const { error: updErr } = await svc.auth.admin.updateUserById(existing.id, {
-      password,
+    const { error: updErr } = await svc.auth.admin.updateUserById(userId, {
+      password: payload.password,
       email_confirm: true,
       app_metadata: {
         platform: "nexus",
@@ -71,31 +89,33 @@ export async function POST(req: Request) {
         signup_completed: true,
         tenant_onboarding_completed: false,
       },
+      user_metadata: {
+        first_name: payload.firstName,
+        last_name: payload.lastName,
+        job_title: payload.jobTitle || null,
+        city: payload.city,
+        state: payload.state,
+        zip_code: payload.zipCode,
+      },
     });
     if (updErr) {
       return NextResponse.json({ error: updErr.message }, { status: 500 });
     }
 
-    const { error: uErr } = await svc.from("users").upsert(
-      {
-        id: existing.id,
-        email,
-        role: "admin",
-        email_verified: true,
-        signup_completed_at: new Date().toISOString(),
-      },
-      { onConflict: "id" }
-    );
+    const { error: uErr } = await svc
+      .from("users")
+      .upsert(buildUsersSignupRow(userId, payload, completedAt), { onConflict: "id" });
+
     if (uErr) {
       return NextResponse.json({ error: uErr.message }, { status: 500 });
     }
 
-    return NextResponse.json({ ok: true, email });
+    return NextResponse.json({ ok: true, email: payload.workEmail });
   }
 
   const { data: created, error: cuErr } = await svc.auth.admin.createUser({
-    email,
-    password,
+    email: payload.workEmail,
+    password: payload.password,
     email_confirm: true,
     app_metadata: {
       platform: "nexus",
@@ -104,33 +124,33 @@ export async function POST(req: Request) {
       tenant_onboarding_completed: false,
     },
     user_metadata: {
-      first_name: firstName,
-      last_name: lastName,
-      job_title: String(body.jobTitle ?? "").trim() || null,
+      first_name: payload.firstName,
+      last_name: payload.lastName,
+      job_title: payload.jobTitle || null,
+      city: payload.city,
+      state: payload.state,
+      zip_code: payload.zipCode,
     },
   });
 
   if (cuErr || !created.user?.id) {
     const message = cuErr?.message ?? "Could not create account.";
     const status = message.toLowerCase().includes("already") ? 409 : 500;
-    return NextResponse.json({ error: message, code: status === 409 ? "EMAIL_TAKEN" : undefined }, { status });
+    return NextResponse.json(
+      { error: message, code: status === 409 ? "EMAIL_TAKEN" : undefined },
+      { status }
+    );
   }
 
   const userId = created.user.id;
-  const { error: uErr } = await svc.from("users").upsert(
-    {
-      id: userId,
-      email,
-      role: "admin",
-      email_verified: true,
-      signup_completed_at: new Date().toISOString(),
-    },
-    { onConflict: "id" }
-  );
+  const { error: uErr } = await svc
+    .from("users")
+    .upsert(buildUsersSignupRow(userId, payload, completedAt), { onConflict: "id" });
+
   if (uErr) {
     await svc.auth.admin.deleteUser(userId);
     return NextResponse.json({ error: uErr.message }, { status: 500 });
   }
 
-  return NextResponse.json({ ok: true, email });
+  return NextResponse.json({ ok: true, email: payload.workEmail });
 }

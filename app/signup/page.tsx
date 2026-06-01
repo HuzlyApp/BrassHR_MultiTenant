@@ -4,8 +4,9 @@ import Image from "next/image";
 import Link from "next/link";
 import SignupStepper from "@/app/components/SignupStepper";
 import { Check, ChevronDown, X } from "lucide-react";
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { supabaseBrowser } from "@/lib/supabase-browser";
+import type { SignupStateOption } from "@/lib/signup/owner-signup";
 import { FaApple } from "react-icons/fa";
 import { FaXTwitter } from "react-icons/fa6";
 import { FcGoogle } from "react-icons/fc";
@@ -24,11 +25,15 @@ const inputTypographyStyle = {
 } as const;
 const inputTextClass =
   "text-[16px] font-normal leading-[24px] tracking-normal placeholder:text-[16px] placeholder:leading-[24px] placeholder:font-normal";
-const TEST_TAKEN_EMAIL = "test@gmail.com";
-
-const CITY_OPTIONS = ["Los Angeles", "San Diego", "San Francisco", "Sacramento", "Phoenix", "Dallas", "Houston"];
-const STATE_OPTIONS = ["California", "Arizona", "Texas", "New York", "Florida", "Illinois"];
-
+const FALLBACK_STATE_OPTIONS = [
+  "California",
+  "Arizona",
+  "Texas",
+  "New York",
+  "Florida",
+  "Illinois",
+  "Washington",
+];
 type SignupForm = {
   firstName: string;
   lastName: string;
@@ -236,6 +241,7 @@ function SelectField({
   placeholder,
   options,
   required,
+  disabled = false,
 }: {
   label: string;
   value: string;
@@ -243,6 +249,7 @@ function SelectField({
   placeholder: string;
   options: string[];
   required?: boolean;
+  disabled?: boolean;
 }) {
   return (
     <div>
@@ -250,9 +257,10 @@ function SelectField({
       <div className="relative">
         <select
           value={value}
+          disabled={disabled}
           onChange={(event) => onChange(event.target.value)}
           style={inputTypographyStyle}
-          className={`h-[56px] w-full appearance-none rounded-[6px] border border-[#d7e0ea] bg-white px-[14px] pr-9 ${inputTextClass} outline-none transition focus:border-[#d89b35] focus:ring-2 focus:ring-[#d89b35]/20 ${
+          className={`h-[56px] w-full appearance-none rounded-[6px] border border-[#d7e0ea] bg-white px-[14px] pr-9 ${inputTextClass} outline-none transition focus:border-[#d89b35] focus:ring-2 focus:ring-[#d89b35]/20 disabled:cursor-not-allowed disabled:bg-[#f7f8fa] disabled:text-[#94a3b8] ${
             value ? "text-[#0f172a]" : "text-[#64748b]"
           }`}
         >
@@ -321,6 +329,13 @@ export default function SignupPage() {
   const [touchedEmail, setTouchedEmail] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [stateRows, setStateRows] = useState<SignupStateOption[]>([]);
+  const [stateOptions, setStateOptions] = useState<string[]>(FALLBACK_STATE_OPTIONS);
+  const [cityOptions, setCityOptions] = useState<string[]>([]);
+  const [locationLoading, setLocationLoading] = useState(true);
+  const [citiesLoading, setCitiesLoading] = useState(false);
+  const [emailCheckStatus, setEmailCheckStatus] = useState<"idle" | "checking" | "taken" | "available">("idle");
+  const emailCheckRequestId = useRef(0);
 
   useEffect(() => {
     const previousHtmlBg = document.documentElement.style.backgroundColor;
@@ -334,8 +349,97 @@ export default function SignupPage() {
     };
   }, []);
 
+  useEffect(() => {
+    let active = true;
+    void (async () => {
+      try {
+        const res = await fetch("/api/auth/signup/options");
+        if (!res.ok) return;
+        const payload = (await res.json()) as { states?: SignupStateOption[] };
+        if (!active || !payload.states?.length) return;
+        setStateRows(payload.states);
+        setStateOptions(payload.states.map((row) => row.name));
+      } finally {
+        if (active) setLocationLoading(false);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const selectedStateCode = useMemo(
+    () => stateRows.find((row) => row.name === form.state)?.code ?? "",
+    [form.state, stateRows]
+  );
+
+  useEffect(() => {
+    if (!selectedStateCode) {
+      setCityOptions([]);
+      setCitiesLoading(false);
+      return;
+    }
+
+    let active = true;
+    setCitiesLoading(true);
+    void (async () => {
+      try {
+        const res = await fetch(
+          `/api/auth/signup/options?stateCode=${encodeURIComponent(selectedStateCode)}`
+        );
+        if (!res.ok) {
+          if (active) setCityOptions([]);
+          return;
+        }
+        const payload = (await res.json()) as { cities?: Array<{ name: string }> };
+        if (!active) return;
+        const names = (payload.cities ?? []).map((row) => row.name);
+        setCityOptions(names);
+        setForm((prev) => {
+          if (prev.city && names.length > 0 && !names.includes(prev.city)) {
+            return { ...prev, city: "" };
+          }
+          return prev;
+        });
+      } catch {
+        if (active) setCityOptions([]);
+      } finally {
+        if (active) setCitiesLoading(false);
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, [selectedStateCode]);
+
+  useEffect(() => {
+    const email = form.workEmail.trim().toLowerCase();
+    if (!email || !isValidEmail(email)) {
+      setEmailCheckStatus("idle");
+      return;
+    }
+
+    const requestId = ++emailCheckRequestId.current;
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        setEmailCheckStatus("checking");
+        try {
+          const res = await fetch(`/api/auth/signup/check-email?email=${encodeURIComponent(email)}`);
+          const payload = (await res.json()) as { available?: boolean };
+          if (emailCheckRequestId.current !== requestId) return;
+          setEmailCheckStatus(payload.available === false ? "taken" : "available");
+        } catch {
+          if (emailCheckRequestId.current === requestId) setEmailCheckStatus("idle");
+        }
+      })();
+    }, 400);
+
+    return () => window.clearTimeout(timer);
+  }, [form.workEmail]);
+
   const workEmailNormalized = form.workEmail.trim().toLowerCase();
-  const emailTaken = workEmailNormalized === TEST_TAKEN_EMAIL;
+  const emailTaken = emailCheckStatus === "taken";
   const emailError = emailTaken
     ? "Email has been taken. Try another"
     : touchedEmail && form.workEmail.trim() && !isValidEmail(form.workEmail)
@@ -396,6 +500,11 @@ export default function SignupPage() {
             lastName: form.lastName,
             workEmail: form.workEmail,
             jobTitle: form.jobTitle,
+            city: form.city,
+            state: form.state,
+            zipCode: form.zipCode,
+            address1: form.address1,
+            address2: form.sameAsAddress1 ? form.address1 : form.address2,
             password,
           }),
         });
@@ -636,21 +745,42 @@ export default function SignupPage() {
 
             <div className="mt-[30px] grid grid-cols-3 gap-x-[26px]">
               <SelectField
-                label="City"
-                required
-                value={form.city}
-                onChange={(value) => update("city", value)}
-                placeholder="Select"
-                options={CITY_OPTIONS}
-              />
-              <SelectField
                 label="State"
                 required
                 value={form.state}
-                onChange={(value) => update("state", value)}
-                placeholder="Select"
-                options={STATE_OPTIONS}
+                onChange={(value) => {
+                  setForm((prev) => ({ ...prev, state: value, city: "" }));
+                }}
+                placeholder={locationLoading ? "Loading…" : "Select"}
+                options={stateOptions}
               />
+              {form.state && cityOptions.length === 0 && !citiesLoading ? (
+                <TextField
+                  label="City"
+                  required
+                  value={form.city}
+                  onChange={(value) => update("city", value)}
+                  placeholder="Enter your city"
+                />
+              ) : (
+                <SelectField
+                  label="City"
+                  required
+                  disabled={!form.state || citiesLoading}
+                  value={form.city}
+                  onChange={(value) => update("city", value)}
+                  placeholder={
+                    !form.state
+                      ? "Select state first"
+                      : citiesLoading
+                        ? "Loading…"
+                        : cityOptions.length > 0
+                          ? "Select"
+                          : "No cities listed"
+                  }
+                  options={cityOptions}
+                />
+              )}
               <TextField
                 label="Zip Code"
                 required
