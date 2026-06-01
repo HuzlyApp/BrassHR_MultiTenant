@@ -6,6 +6,13 @@
   padding-left: 0 !important;
 }
 
+@media (min-width: 1024px) {
+  .admin-recruiter-shell .admin-recruiter-main-wrap {
+    margin-left: var(--admin-sidebar-width, 344px);
+    transition: margin-left 200ms ease-in-out;
+  }
+}
+
 .admin-recruiter-shell .admin-recruiter-content header.h-16.border-b {
   display: none !important;
 }

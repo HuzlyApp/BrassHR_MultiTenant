@@ -4,6 +4,8 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { ChevronDown, ChevronLeft, Menu } from "lucide-react";
+
+const SIDEBAR_TOGGLE_ICON = "/icons/sidebar-on-off-icon.svg";
 import { useEffect, useMemo, useState } from "react";
 import GodAdminTenantSwitcher from "./GodAdminTenantSwitcher";
 import { supabaseBrowser } from "@/lib/supabase-browser";
@@ -48,11 +50,17 @@ type HeaderDataResponse = {
 
 type AdminRecruiterHeaderProps = {
   onMenuClick?: () => void;
+  sidebarCollapsed?: boolean;
+  onSidebarToggle?: () => void;
 };
 
 const DEFAULT_TENANT_LOGO = "/images/new-logo-nexus.svg";
 
-export function AdminRecruiterHeader({ onMenuClick }: AdminRecruiterHeaderProps) {
+export function AdminRecruiterHeader({
+  onMenuClick,
+  sidebarCollapsed = false,
+  onSidebarToggle,
+}: AdminRecruiterHeaderProps) {
   const branding = useTenantBranding();
   const router = useRouter();
   const pathname = usePathname();
@@ -179,6 +187,25 @@ export function AdminRecruiterHeader({ onMenuClick }: AdminRecruiterHeaderProps)
           >
             <Menu className="h-4 w-4" />
           </button>
+          {onSidebarToggle ? (
+            <button
+              type="button"
+              onClick={onSidebarToggle}
+              className="hidden h-8 w-8 items-center justify-center rounded-lg text-[#64748B] transition hover:brightness-95 lg:inline-flex"
+              style={{ backgroundColor: "color-mix(in srgb, var(--brand-accent) 30%, #E2E8F0)" }}
+              aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+              title={sidebarCollapsed ? "Expand menu" : "Collapse menu"}
+            >
+              <Image
+                src={SIDEBAR_TOGGLE_ICON}
+                alt=""
+                width={16}
+                height={16}
+                className="h-4 w-4 shrink-0"
+                aria-hidden
+              />
+            </button>
+          ) : null}
           <button
             type="button"
             onClick={() => router.back()}

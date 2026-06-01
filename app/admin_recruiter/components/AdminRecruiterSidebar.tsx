@@ -7,9 +7,13 @@ import { useEffect, useMemo, useState } from "react";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 
+const SIDEBAR_EXPANDED_WIDTH = 344;
+const SIDEBAR_COLLAPSED_WIDTH = 80;
+
 type AdminRecruiterSidebarProps = {
   isMobileOpen?: boolean;
   onMobileClose?: () => void;
+  collapsed?: boolean;
 };
 
 const DEFAULT_TENANT_LOGO = "/images/new-logo-nexus.svg";
@@ -121,14 +125,18 @@ const SIDEBAR_SECTIONS: SidebarSection[] = [
   },
 ];
 
-export function AdminRecruiterSidebar({ isMobileOpen = false, onMobileClose }: AdminRecruiterSidebarProps) {
+export function AdminRecruiterSidebar({
+  isMobileOpen = false,
+  onMobileClose,
+  collapsed = false,
+}: AdminRecruiterSidebarProps) {
   const branding = useTenantBranding();
   const [logoSrc, setLogoSrc] = useState(branding.logoUrl || DEFAULT_TENANT_LOGO);
   const [profile, setProfile] = useState<SidebarProfile | null>(null);
   const pathname = usePathname() ?? "";
   const router = useRouter();
 
-      const handleNavClick = () => {
+  const handleNavClick = () => {
     onMobileClose?.();
   };
 
@@ -181,12 +189,14 @@ export function AdminRecruiterSidebar({ isMobileOpen = false, onMobileClose }: A
     [pathname]
   );
 
-  const SidebarContent = () => (
+  const sidebarWidth = collapsed ? SIDEBAR_COLLAPSED_WIDTH : SIDEBAR_EXPANDED_WIDTH;
+
+  const SidebarContent = ({ isCollapsed }: { isCollapsed: boolean }) => (
     <div className="flex h-full flex-col overflow-hidden bg-[#F8FAFC]">
-      <div className="border-b border-[#E2E8F0] px-4 py-3">
-        <div className="flex items-center gap-3">
+      <div className={`border-b border-[#E2E8F0] ${isCollapsed ? "px-2 py-3" : "px-4 py-3"}`}>
+        <div className={`flex items-center ${isCollapsed ? "justify-center" : "gap-3"}`}>
           <div
-            className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl border bg-white"
+            className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl border bg-white"
             style={{ borderColor: "color-mix(in srgb, var(--brand-primary) 55%, #CBD5E1)" }}
           >
             <img
@@ -198,20 +208,27 @@ export function AdminRecruiterSidebar({ isMobileOpen = false, onMobileClose }: A
               onError={() => setLogoSrc(DEFAULT_TENANT_LOGO)}
             />
           </div>
-          <div className="min-w-0">
-            <p className="truncate text-[18px] leading-[28px] font-semibold text-[#0F3B76]">{branding.companyName}</p>
-            <p className="text-[10px] leading-[15px] font-light uppercase tracking-normal text-[#94A3B8]">Dashboard</p>
-          </div>
+          {!isCollapsed ? (
+            <div className="min-w-0">
+              <p className="truncate text-[18px] leading-[28px] font-semibold text-[#0F3B76]">{branding.companyName}</p>
+              <p className="text-[10px] leading-[15px] font-light uppercase tracking-normal text-[#94A3B8]">
+                Dashboard
+              </p>
+            </div>
+          ) : null}
         </div>
       </div>
 
-      <nav className="flex-1 overflow-y-auto px-3 py-3">
+      <nav className={`flex-1 overflow-y-auto overflow-x-hidden ${isCollapsed ? "px-2 py-3" : "px-3 py-3"}`}>
         {renderedSections.map((section) => (
           <div key={section.label} className="mb-1">
             <Link
               href={section.href}
               onClick={handleNavClick}
-              className="flex min-h-[36px] items-center gap-3 rounded-md px-2 py-1 transition hover:bg-white"
+              title={isCollapsed ? section.label : undefined}
+              className={`flex min-h-[36px] items-center rounded-md transition hover:bg-white ${
+                isCollapsed ? "justify-center px-2 py-2" : "gap-3 px-2 py-1"
+              }`}
               style={
                 section.active
                   ? {
@@ -221,11 +238,15 @@ export function AdminRecruiterSidebar({ isMobileOpen = false, onMobileClose }: A
               }
             >
               <Image src={section.icon} alt="" width={20} height={20} className="h-5 w-5 shrink-0" />
-              <span className="font-light text-[14px] leading-5 tracking-normal text-[#1E3A6D]">{section.label}</span>
-              {section.children?.length ? <span className="ml-auto text-[#9CA3AF]">›</span> : null}
+              {!isCollapsed ? (
+                <>
+                  <span className="font-light text-[14px] leading-5 tracking-normal text-[#1E3A6D]">{section.label}</span>
+                  {section.children?.length ? <span className="ml-auto text-[#9CA3AF]">›</span> : null}
+                </>
+              ) : null}
             </Link>
 
-            {section.children?.length ? (
+            {!isCollapsed && section.children?.length ? (
               <div className="ml-7 mt-0.5 space-y-0.5">
                 {section.children.map((child) => (
                   <Link
@@ -251,20 +272,28 @@ export function AdminRecruiterSidebar({ isMobileOpen = false, onMobileClose }: A
         ))}
       </nav>
 
-      <div className="border-t border-[#E2E8F0] px-4 py-3">
-        <div className="flex items-center gap-2.5">
+      <div className={`border-t border-[#E2E8F0] ${isCollapsed ? "px-2 py-3" : "px-4 py-3"}`}>
+        <div className={`flex items-center ${isCollapsed ? "flex-col gap-2" : "gap-2.5"}`}>
           <img
             src={profile?.profile_photo || DEFAULT_PROFILE_PHOTO}
             alt={profileName}
-            className="h-[30px] w-[30px] rounded-full object-cover"
+            title={isCollapsed ? profileName : undefined}
+            className="h-[30px] w-[30px] shrink-0 rounded-full object-cover"
             width={30}
             height={30}
           />
-          <div className="min-w-0">
-            <p className="truncate text-[14px] leading-5 font-semibold text-[#0F2F60]">{profileName}</p>
-            <p className="truncate text-[10px] leading-[15px] font-light text-[#94A3B8]">{profileRole}</p>
-          </div>
-          <button type="button" onClick={handleLogout} className="ml-auto rounded-md p-1 hover:bg-white/80">
+          {!isCollapsed ? (
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-[14px] leading-5 font-semibold text-[#0F2F60]">{profileName}</p>
+              <p className="truncate text-[10px] leading-[15px] font-light text-[#94A3B8]">{profileRole}</p>
+            </div>
+          ) : null}
+          <button
+            type="button"
+            onClick={handleLogout}
+            title="Logout"
+            className={`rounded-md p-1 hover:bg-white/80 ${isCollapsed ? "" : "ml-auto"}`}
+          >
             <Image
               src="/icons/braas-HR/client-dashboard/logout.svg"
               alt="Logout"
@@ -278,13 +307,21 @@ export function AdminRecruiterSidebar({ isMobileOpen = false, onMobileClose }: A
     </div>
   );
 
+  const asideStyle = {
+    width: sidebarWidth,
+    maxWidth: sidebarWidth,
+    minWidth: SIDEBAR_COLLAPSED_WIDTH,
+    boxShadow: "inset 3px 0 0 var(--brand-primary)",
+  };
+
   return (
     <>
       <aside
-        className="fixed inset-y-0 left-0 z-40 hidden w-[344px] max-w-[344px] min-w-[80px] border-r border-[#E2E8F0] lg:block"
-        style={{ boxShadow: "inset 3px 0 0 var(--brand-primary)" }}
+        className="admin-recruiter-sidebar fixed inset-y-0 left-0 z-40 hidden border-r border-[#E2E8F0] transition-[width] duration-200 ease-in-out lg:block"
+        style={asideStyle}
+        data-collapsed={collapsed ? "true" : "false"}
       >
-        <SidebarContent />
+        <SidebarContent isCollapsed={collapsed} />
       </aside>
 
       <div
@@ -295,15 +332,21 @@ export function AdminRecruiterSidebar({ isMobileOpen = false, onMobileClose }: A
         aria-hidden={!isMobileOpen}
       >
         <aside
-          className={`h-full w-[344px] max-w-[90vw] min-w-[80px] border-r border-[#E2E8F0] transition-transform ${
+          className={`h-full border-r border-[#E2E8F0] transition-transform ${
             isMobileOpen ? "translate-x-0" : "-translate-x-full"
           }`}
-          style={{ boxShadow: "inset 3px 0 0 var(--brand-primary)" }}
+          style={{
+            width: SIDEBAR_EXPANDED_WIDTH,
+            maxWidth: "90vw",
+            boxShadow: "inset 3px 0 0 var(--brand-primary)",
+          }}
           onClick={(event) => event.stopPropagation()}
         >
-          <SidebarContent />
+          <SidebarContent isCollapsed={false} />
         </aside>
       </div>
     </>
   );
 }
+
+export { SIDEBAR_COLLAPSED_WIDTH, SIDEBAR_EXPANDED_WIDTH };
