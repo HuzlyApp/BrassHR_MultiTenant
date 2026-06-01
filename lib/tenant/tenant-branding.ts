@@ -38,6 +38,28 @@ export function usesBraasFigmaLoginUi(tenantQuery: string | null | undefined): b
   return key === PLATFORM_DEFAULT_TENANT_SLUG;
 }
 
+/** CTA on marketing / welcome landings for tenant-owned applicant portals. */
+export const APPLICANT_PORTAL_CTA_START_APPLICATION = "Start application";
+
+/** CTA on Braas HR platform pages that onboard a new tenant (not a job application). */
+export const PLATFORM_ONBOARDING_CTA_GET_STARTED = "Get Started";
+
+/**
+ * True when `slug` identifies a real tenant applicant portal (subdomain or ?tenant=).
+ * Platform marketing (`braas-hr`) and missing slug are not applicant portals.
+ */
+export function isTenantApplicantPortalSlug(slug: string | null | undefined): boolean {
+  const key = slug?.trim().toLowerCase();
+  if (!key || key.length < 2) return false;
+  return key !== PLATFORM_DEFAULT_TENANT_SLUG;
+}
+
+export function applicantLandingCtaLabel(slug: string | null | undefined): string {
+  return isTenantApplicantPortalSlug(slug)
+    ? APPLICANT_PORTAL_CTA_START_APPLICATION
+    : PLATFORM_ONBOARDING_CTA_GET_STARTED;
+}
+
 /** Braas HR platform owner UI (login, signup, tenant-onboarding shell). */
 export const BRAAS_PRIMARY = "#BC8B41";
 export const BRAAS_SECONDARY = "#104b83";

@@ -6,8 +6,10 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState, type CSSProperties } from "react";
 import { TenantBrandingProvider } from "@/app/components/tenant/TenantBrandingContext";
 import {
+  applicantLandingCtaLabel,
   brandingToCssVars,
   brandingFallbackForSlug,
+  isTenantApplicantPortalSlug,
   PLATFORM_DEFAULT_TENANT_SLUG,
   type TenantBranding,
 } from "@/lib/tenant/tenant-branding";
@@ -42,32 +44,34 @@ export default function Home() {
     void (async () => {
       const hostLabel = getClientTenantHostLabel();
       const slugFromQuery = resolveClientOnboardingTenantSlug(window.location.search);
-      const applicantSlug = slugFromQuery ?? hostLabel ?? null;
-      const brandingSlug = applicantSlug ?? PLATFORM_DEFAULT_TENANT_SLUG;
+      const rawSlug = slugFromQuery ?? hostLabel ?? null;
+      const applicantPortalSlug = isTenantApplicantPortalSlug(rawSlug)
+        ? rawSlug!.trim().toLowerCase()
+        : null;
+      const brandingSlug = applicantPortalSlug ?? PLATFORM_DEFAULT_TENANT_SLUG;
 
-      if (applicantSlug) {
-        persistOnboardingSlugCookie(applicantSlug);
-        if (alive) setActiveTenantSlug(applicantSlug);
+      if (applicantPortalSlug) {
+        persistOnboardingSlugCookie(applicantPortalSlug);
+        if (alive) setActiveTenantSlug(applicantPortalSlug);
       } else if (alive) {
         setActiveTenantSlug(null);
       }
 
-      const slug = brandingSlug;
-      if (hostLabel && !slugFromQuery) {
-        persistOnboardingSlugCookie(slug);
+      if (hostLabel && !slugFromQuery && isTenantApplicantPortalSlug(hostLabel)) {
+        persistOnboardingSlugCookie(hostLabel);
       }
 
       try {
         const brandingUrl = hostLabel
           ? `/api/tenant-branding?subdomain=${encodeURIComponent(hostLabel)}`
-          : `/api/tenant-branding?slug=${encodeURIComponent(slug)}`;
+          : `/api/tenant-branding?slug=${encodeURIComponent(brandingSlug)}`;
         const res = await fetch(brandingUrl, {
           cache: "no-store",
         });
         const payload = (await res.json()) as { branding?: TenantBranding };
         if (alive && payload.branding) setBrand(payload.branding);
       } catch {
-        if (alive) setBrand(brandingFallbackForSlug(slug));
+        if (alive) setBrand(brandingFallbackForSlug(brandingSlug));
       } finally {
         if (alive) setBrandLoaded(true);
       }
@@ -86,15 +90,26 @@ export default function Home() {
     background: `linear-gradient(135deg, var(--brand-gradient-from), var(--brand-gradient-to))`,
   };
 
-  const recruiterSignInUrl = recruiterSignInHref({
-    tenant:
-      activeTenantSlug ||
-      resolveClientOnboardingTenantSlug(
+  const resolvedPortalSlug =
+    (activeTenantSlug && isTenantApplicantPortalSlug(activeTenantSlug)
+      ? activeTenantSlug
+      : null) ||
+    (() => {
+      const fromQuery = resolveClientOnboardingTenantSlug(
         typeof window !== "undefined" ? window.location.search : ""
-      ) ||
-      getClientTenantHostLabel() ||
-      (brand.slug && brand.slug !== PLATFORM_DEFAULT_TENANT_SLUG ? brand.slug : null),
+      );
+      return isTenantApplicantPortalSlug(fromQuery) ? fromQuery : null;
+    })() ||
+    (() => {
+      const fromHost = getClientTenantHostLabel();
+      return isTenantApplicantPortalSlug(fromHost) ? fromHost : null;
+    })();
+
+  const recruiterSignInUrl = recruiterSignInHref({
+    tenant: resolvedPortalSlug,
   });
+
+  const primaryCtaLabel = applicantLandingCtaLabel(resolvedPortalSlug);
 
   return (
     <TenantBrandingProvider branding={brand}>
@@ -111,15 +126,11 @@ export default function Home() {
             <button
               type="button"
               onClick={() => {
-                const slug =
-                  activeTenantSlug ||
-                  resolveClientOnboardingTenantSlug(window.location.search) ||
-                  getClientTenantHostLabel() ||
-                  (brand.slug && brand.slug !== PLATFORM_DEFAULT_TENANT_SLUG ? brand.slug : null);
-
-                if (slug) {
-                  persistOnboardingSlugCookie(slug);
-                  router.push(`/worker-onboarding?tenant=${encodeURIComponent(slug)}`);
+                if (resolvedPortalSlug) {
+                  persistOnboardingSlugCookie(resolvedPortalSlug);
+                  router.push(
+                    `/worker-onboarding?tenant=${encodeURIComponent(resolvedPortalSlug)}`
+                  );
                   return;
                 }
                 router.push("/signup");
@@ -127,7 +138,7 @@ export default function Home() {
               style={{ backgroundColor: "var(--brand-primary)", boxShadow: "0 10px 20px color-mix(in srgb, var(--brand-primary) 22%, transparent)" }}
               className="inline-flex min-h-14 min-w-[210px] cursor-pointer items-center justify-center rounded-xl px-8 py-4 text-[22px] font-semibold leading-[22px] text-white transition hover:brightness-105 focus:outline-none"
             >
-              Start application
+              {primaryCtaLabel}
             </button>
 
             <p className="text-center text-[14px] font-normal leading-5 tracking-normal text-slate-500">
