@@ -1,8 +1,7 @@
-import { cookies } from "next/headers";
 import type { User } from "@supabase/supabase-js";
 import { isGodAdminUser } from "@/lib/auth/god-admin";
+import { readValidatedViewAsTenantId } from "@/lib/godadmin/view-as-tenant";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
-import { VIEW_AS_TENANT_COOKIE } from "@/lib/tenant/constants";
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -52,10 +51,9 @@ async function tenantIdFromProfilesTable(userId: string): Promise<string | null>
  */
 export async function resolveStaffTenantScope(authUser: User): Promise<StaffTenantScope> {
   if (await isGodAdminMerged(authUser)) {
-    const jar = await cookies();
-    const raw = jar.get(VIEW_AS_TENANT_COOKIE)?.value?.trim() ?? "";
-    if (raw && UUID_RE.test(raw)) {
-      return { mode: "scoped", tenantId: raw.toLowerCase() };
+    const viewAsId = await readValidatedViewAsTenantId();
+    if (viewAsId) {
+      return { mode: "scoped", tenantId: viewAsId };
     }
     return { mode: "all" };
   }

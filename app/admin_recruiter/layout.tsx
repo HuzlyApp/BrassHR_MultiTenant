@@ -10,6 +10,7 @@ import {
   SIDEBAR_EXPANDED_WIDTH,
 } from "./components/AdminRecruiterSidebar";
 import { AdminRecruiterHeader } from "./components/AdminRecruiterHeader";
+import GodAdminImpersonationBanner from "./components/GodAdminImpersonationBanner";
 import "./layout.css";
 
 const SIDEBAR_COLLAPSED_STORAGE_KEY = "adminRecruiterSidebarCollapsed";
@@ -65,6 +66,7 @@ export default function AdminRecruiterLayout({ children }: { children: ReactNode
           onMobileClose={() => setMobileSidebarOpen(false)}
         />
         <div className="admin-recruiter-content admin-recruiter-main-wrap min-h-screen">
+          <GodAdminImpersonationBanner />
           <AdminRecruiterHeader
             onMenuClick={() => setMobileSidebarOpen(true)}
             sidebarCollapsed={sidebarCollapsed}

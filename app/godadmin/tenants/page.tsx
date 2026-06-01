@@ -1,6 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import SuccessModal from "@/app/components/SuccessModal";
 import {
   filterTenantConsoleRows,
@@ -27,7 +29,29 @@ function StatusBadge({ status }: { status: TenantConsoleRow["status"] }) {
   );
 }
 
+const VIEW_ERROR_MESSAGES: Record<string, string> = {
+  "invalid-tenant": "Could not open tenant view: invalid tenant id.",
+  "tenant-not-found": "Could not open tenant view: tenant not found.",
+  "tenant-inactive": "Only active tenants can be viewed.",
+  "view-failed": "Could not open tenant view. Try again.",
+};
+
 export default function TenantsConsolePage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="rounded-xl border border-slate-200 bg-white px-6 py-12 text-center text-sm text-slate-500">
+          Loading tenants…
+        </div>
+      }
+    >
+      <TenantsConsoleContent />
+    </Suspense>
+  );
+}
+
+function TenantsConsoleContent() {
+  const searchParams = useSearchParams();
   const [tenants, setTenants] = useState<TenantConsoleRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -79,6 +103,12 @@ export default function TenantsConsolePage() {
     void loadTenants();
   }, [loadTenants]);
 
+  useEffect(() => {
+    const code = searchParams.get("error")?.trim();
+    if (!code) return;
+    setError(VIEW_ERROR_MESSAGES[code] ?? VIEW_ERROR_MESSAGES["view-failed"]);
+  }, [searchParams]);
+
   const filtered = useMemo(
     () => filterTenantConsoleRows(tenants, { search, status: statusFilter }),
     [tenants, search, statusFilter]
@@ -122,7 +152,8 @@ export default function TenantsConsolePage() {
       <div>
         <h2 className="text-xl font-semibold text-slate-900">Tenants Console</h2>
         <p className="mt-1 text-sm text-slate-600">
-          View and manage all tenant accounts. Deactivation preserves data for audit and history.
+          View and manage all tenant accounts. Use View to open a tenant&apos;s Admin Recruiter
+          dashboard in read-only context. Deactivation preserves data for audit and history.
         </p>
       </div>
 
@@ -206,17 +237,27 @@ export default function TenantsConsolePage() {
                         {formatTenantConsoleTimestamp(tenant.updated_at)}
                       </td>
                       <td className="px-4 py-3 text-right">
-                        <button
-                          type="button"
-                          disabled={deactivated || deactivating}
-                          onClick={() => {
-                            setDeactivateError(null);
-                            setConfirmTenant(tenant);
-                          }}
-                          className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-400 disabled:hover:bg-transparent"
-                        >
-                          Deactivate
-                        </button>
+                        <div className="inline-flex flex-wrap items-center justify-end gap-2">
+                          {!deactivated ? (
+                            <Link
+                              href={`/godadmin/tenants/${tenant.id}/view`}
+                              className="rounded-lg border border-teal-200 bg-teal-50 px-3 py-1.5 text-xs font-medium text-teal-800 hover:bg-teal-100"
+                            >
+                              View
+                            </Link>
+                          ) : null}
+                          <button
+                            type="button"
+                            disabled={deactivated || deactivating}
+                            onClick={() => {
+                              setDeactivateError(null);
+                              setConfirmTenant(tenant);
+                            }}
+                            className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-400 disabled:hover:bg-transparent"
+                          >
+                            Deactivate
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );

@@ -2,7 +2,8 @@ import { cookies } from "next/headers";
 import type { User } from "@supabase/supabase-js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { tenantIdFromUser } from "@/lib/auth/staff-tenant-scope";
-import { ONBOARDING_TENANT_SLUG_COOKIE, VIEW_AS_TENANT_COOKIE } from "@/lib/tenant/constants";
+import { readValidatedViewAsTenantId } from "@/lib/godadmin/view-as-tenant";
+import { ONBOARDING_TENANT_SLUG_COOKIE } from "@/lib/tenant/constants";
 import { resolveTenantIdBySlug } from "@/lib/tenant/resolve-tenant-id-by-slug";
 
 const UUID_RE =
@@ -14,12 +15,12 @@ export async function resolveEffectiveAdminTenantId(
   params: { userId: string; authUser: User; godAdmin: boolean }
 ): Promise<string | null> {
   if (params.godAdmin) {
-    const jar = await cookies();
-    const cookieId = jar.get(VIEW_AS_TENANT_COOKIE)?.value?.trim() ?? "";
-    if (cookieId && UUID_RE.test(cookieId)) {
-      return cookieId.toLowerCase();
+    const viewAsId = await readValidatedViewAsTenantId();
+    if (viewAsId) {
+      return viewAsId;
     }
 
+    const jar = await cookies();
     const onboardingSlug = jar.get(ONBOARDING_TENANT_SLUG_COOKIE)?.value?.trim().toLowerCase();
     if (onboardingSlug && onboardingSlug.length >= 2) {
       const fromSlug = await resolveTenantIdBySlug(supabase, onboardingSlug);
