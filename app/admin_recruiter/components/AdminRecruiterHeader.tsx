@@ -181,27 +181,25 @@ export function AdminRecruiterHeader({
           <button
             type="button"
             onClick={onMenuClick}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[#64748B] transition hover:brightness-95 lg:hidden"
-            style={{ backgroundColor: "color-mix(in srgb, var(--brand-accent) 30%, #E2E8F0)" }}
+            className="inline-flex h-8 w-8 items-center justify-center bg-transparent text-[#64748B] transition hover:text-[#0F3B76] lg:hidden"
             aria-label="Open navigation menu"
           >
-            <Menu className="h-4 w-4" />
+            <Menu className="h-5 w-5" />
           </button>
           {onSidebarToggle ? (
             <button
               type="button"
               onClick={onSidebarToggle}
-              className="hidden h-8 w-8 items-center justify-center rounded-lg text-[#64748B] transition hover:brightness-95 lg:inline-flex"
-              style={{ backgroundColor: "color-mix(in srgb, var(--brand-accent) 30%, #E2E8F0)" }}
+              className="hidden h-8 w-8 items-center justify-center bg-transparent text-[#64748B] transition hover:text-[#0F3B76] lg:inline-flex"
               aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
               title={sidebarCollapsed ? "Expand menu" : "Collapse menu"}
             >
               <Image
                 src={SIDEBAR_TOGGLE_ICON}
                 alt=""
-                width={16}
-                height={16}
-                className="h-4 w-4 shrink-0"
+                width={20}
+                height={20}
+                className="h-5 w-5 shrink-0"
                 aria-hidden
               />
             </button>
@@ -209,11 +207,10 @@ export function AdminRecruiterHeader({
           <button
             type="button"
             onClick={() => router.back()}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[#64748B] transition hover:brightness-95"
-            style={{ backgroundColor: "color-mix(in srgb, var(--brand-accent) 30%, #E2E8F0)" }}
+            className="inline-flex h-8 w-8 items-center justify-center bg-transparent text-[#64748B] transition hover:text-[#0F3B76]"
             aria-label="Go back"
           >
-            <ChevronLeft className="h-4 w-4" />
+            <ChevronLeft className="h-5 w-5" />
           </button>
         </div>
 

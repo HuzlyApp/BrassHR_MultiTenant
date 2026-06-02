@@ -4,11 +4,14 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 
 const SIDEBAR_EXPANDED_WIDTH = 344;
 const SIDEBAR_COLLAPSED_WIDTH = 80;
+const NAVY_BLUE = "#012352";
+const ACTIVE_GOLD = "#C7922F";
 
 type AdminRecruiterSidebarProps = {
   isMobileOpen?: boolean;
@@ -31,6 +34,7 @@ type SidebarLink = {
   label: string;
   href: string;
   matchPrefixes: string[];
+  disabled?: boolean;
 };
 
 type SidebarSection = {
@@ -38,6 +42,8 @@ type SidebarSection = {
   href: string;
   icon: string;
   matchPrefixes: string[];
+  controlsActiveState?: boolean;
+  disabled?: boolean;
   children?: SidebarLink[];
 };
 
@@ -86,18 +92,49 @@ const SIDEBAR_SECTIONS: SidebarSection[] = [
     href: "/admin_recruiter/dashboard",
     icon: "/icons/braas-HR/client-dashboard/report.svg",
     matchPrefixes: ["/admin_recruiter/dashboard"],
+    disabled: true,
+  },
+  {
+    label: "Finance",
+    href: "#",
+    icon: "/icons/braas-HR/client-dashboard/finance.svg",
+    matchPrefixes: [],
+    disabled: true,
+    children: [
+      { label: "Billing", href: "#", matchPrefixes: [], disabled: true },
+      { label: "Invoices", href: "#", matchPrefixes: [], disabled: true },
+    ],
+  },
+  {
+    label: "Taskboard",
+    href: "#",
+    icon: "/icons/braas-HR/client-dashboard/task-board.svg",
+    matchPrefixes: [],
+    disabled: true,
+    children: [
+      { label: "Interviews", href: "#", matchPrefixes: [], disabled: true },
+      { label: "Onboarding", href: "#", matchPrefixes: [], disabled: true },
+    ],
   },
   {
     label: "Teams",
     href: "/admin_recruiter/workers",
     icon: "/icons/braas-HR/client-dashboard/teams.svg",
     matchPrefixes: ["/admin_recruiter/workers"],
+    disabled: true,
+    children: [
+      { label: "Admins", href: "#", matchPrefixes: [], disabled: true },
+      { label: "Managers", href: "#", matchPrefixes: [], disabled: true },
+      { label: "Workers", href: "#", matchPrefixes: [], disabled: true },
+    ],
   },
   {
     label: "Organization",
     href: "/admin_recruiter/settings",
     icon: "/icons/braas-HR/client-dashboard/Organization.svg",
     matchPrefixes: ["/admin_recruiter/settings"],
+    controlsActiveState: false,
+    disabled: true,
   },
   {
     label: "Account",
@@ -116,6 +153,7 @@ const SIDEBAR_SECTIONS: SidebarSection[] = [
     href: "/admin_recruiter/settings",
     icon: "/icons/braas-HR/client-dashboard/help.svg",
     matchPrefixes: ["/admin_recruiter/settings"],
+    controlsActiveState: false,
   },
   {
     label: "Settings",
@@ -135,6 +173,7 @@ export function AdminRecruiterSidebar({
   const [profile, setProfile] = useState<SidebarProfile | null>(null);
   const pathname = usePathname() ?? "";
   const router = useRouter();
+  const [openSectionLabels, setOpenSectionLabels] = useState<string[]>([]);
 
   const handleNavClick = () => {
     onMobileClose?.();
@@ -179,7 +218,8 @@ export function AdminRecruiterSidebar({
     () =>
       SIDEBAR_SECTIONS.map((section) => ({
         ...section,
-        active: isPathActive(section.matchPrefixes),
+        active:
+          section.controlsActiveState === false ? false : isPathActive(section.matchPrefixes),
         children:
           section.children?.map((child) => ({
             ...child,
@@ -188,6 +228,22 @@ export function AdminRecruiterSidebar({
       })),
     [pathname]
   );
+
+  useEffect(() => {
+    const activeParents = SIDEBAR_SECTIONS.filter(
+      (section) => section.children?.some((child) => isPathActive(child.matchPrefixes))
+    ).map((section) => section.label);
+    if (activeParents.length === 0) return;
+    setOpenSectionLabels((prev) => Array.from(new Set([...prev, ...activeParents])));
+  }, [pathname]);
+
+  const isSectionOpen = (section: SidebarSection) => openSectionLabels.includes(section.label);
+
+  const toggleSectionOpen = (sectionLabel: string) => {
+    setOpenSectionLabels((prev) =>
+      prev.includes(sectionLabel) ? prev.filter((label) => label !== sectionLabel) : [...prev, sectionLabel]
+    );
+  };
 
   const sidebarWidth = collapsed ? SIDEBAR_COLLAPSED_WIDTH : SIDEBAR_EXPANDED_WIDTH;
 
@@ -222,50 +278,144 @@ export function AdminRecruiterSidebar({
       <nav className={`flex-1 overflow-y-auto overflow-x-hidden ${isCollapsed ? "px-2 py-3" : "px-3 py-3"}`}>
         {renderedSections.map((section) => (
           <div key={section.label} className="mb-1">
-            <Link
-              href={section.href}
-              onClick={handleNavClick}
-              title={isCollapsed ? section.label : undefined}
-              className={`flex min-h-[36px] items-center rounded-md transition hover:bg-white ${
-                isCollapsed ? "justify-center px-2 py-2" : "gap-3 px-2 py-1"
-              }`}
-              style={
-                section.active
-                  ? {
-                      backgroundColor: "color-mix(in srgb, var(--brand-accent) 12%, white)",
-                    }
-                  : undefined
-              }
-            >
-              <Image src={section.icon} alt="" width={20} height={20} className="h-5 w-5 shrink-0" />
-              {!isCollapsed ? (
-                <>
-                  <span className="font-light text-[14px] leading-5 tracking-normal text-[#1E3A6D]">{section.label}</span>
-                  {section.children?.length ? <span className="ml-auto text-[#9CA3AF]">›</span> : null}
-                </>
-              ) : null}
-            </Link>
+            {section.children?.length && !isCollapsed ? (
+              <button
+                type="button"
+                title={section.label}
+                onClick={() => toggleSectionOpen(section.label)}
+                className={`group relative flex min-h-[36px] w-full items-center gap-3 overflow-hidden rounded-md px-2 py-1 transition hover:bg-white ${
+                  section.active ? "text-[#C7922F]" : "text-[#012352] hover:text-[#C7922F]"
+                }`}
+                style={
+                  section.active
+                    ? {
+                        backgroundColor: "color-mix(in srgb, var(--brand-accent) 14%, white)",
+                        color: ACTIVE_GOLD,
+                      }
+                    : undefined
+                }
+              >
+                <Image
+                  src={section.icon}
+                  alt=""
+                  width={20}
+                  height={20}
+                  className="h-5 w-5 shrink-0 transition"
+                  style={
+                    section.active
+                      ? { filter: "brightness(0) saturate(100%) invert(62%) sepia(40%) saturate(785%) hue-rotate(359deg)" }
+                      : undefined
+                  }
+                />
+                <span className="font-normal text-[14px] leading-5 tracking-normal transition-colors">
+                  {section.label}
+                </span>
+                <span className="ml-auto transition-colors">
+                  {isSectionOpen(section) ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                </span>
+                {section.active ? (
+                  <span
+                    aria-hidden
+                    className="absolute right-0 top-1/2 h-7 w-[2px] -translate-y-1/2 rounded-full"
+                    style={{ backgroundColor: NAVY_BLUE }}
+                  />
+                ) : null}
+              </button>
+            ) : section.disabled ? (
+              <div
+                title={`${section.label} (Coming soon)`}
+                className={`group relative flex min-h-[36px] items-center overflow-hidden rounded-md ${
+                  isCollapsed ? "justify-center px-2 py-2" : "gap-3 px-2 py-1"
+                } text-[#012352]`}
+                aria-disabled
+              >
+                <Image src={section.icon} alt="" width={20} height={20} className="h-5 w-5 shrink-0" />
+                {!isCollapsed ? (
+                  <span className="font-normal text-[14px] leading-5 tracking-normal transition-colors">{section.label}</span>
+                ) : null}
+              </div>
+            ) : (
+              <Link
+                href={section.href}
+                onClick={handleNavClick}
+                title={isCollapsed ? section.label : undefined}
+                className={`group relative flex min-h-[36px] items-center overflow-hidden rounded-md transition hover:bg-white ${
+                  isCollapsed ? "justify-center px-2 py-2" : "gap-3 px-2 py-1"
+                } ${section.active ? "text-[#C7922F]" : "text-[#012352] hover:text-[#C7922F]"}`}
+                style={
+                  section.active
+                    ? {
+                        backgroundColor: "color-mix(in srgb, var(--brand-accent) 14%, white)",
+                      }
+                    : undefined
+                }
+              >
+                <Image
+                  src={section.icon}
+                  alt=""
+                  width={20}
+                  height={20}
+                  className="h-5 w-5 shrink-0 transition"
+                  style={
+                    section.active
+                      ? { filter: "brightness(0) saturate(100%) invert(62%) sepia(40%) saturate(785%) hue-rotate(359deg)" }
+                      : undefined
+                  }
+                />
+                {!isCollapsed ? (
+                  <span className="font-normal text-[14px] leading-5 tracking-normal transition-colors">
+                    {section.label}
+                  </span>
+                ) : null}
+                {section.active ? (
+                  <span
+                    aria-hidden
+                    className="absolute right-0 top-1/2 h-7 w-[2px] -translate-y-1/2 rounded-full"
+                    style={{ backgroundColor: NAVY_BLUE }}
+                  />
+                ) : null}
+              </Link>
+            )}
 
-            {!isCollapsed && section.children?.length ? (
+            {!isCollapsed && section.children?.length && isSectionOpen(section) ? (
               <div className="ml-7 mt-0.5 space-y-0.5">
-                {section.children.map((child) => (
-                  <Link
-                    key={`${section.label}-${child.label}`}
-                    href={child.href}
-                    onClick={handleNavClick}
-                    className="block rounded-md px-2 py-1.5 font-light text-[14px] leading-5 tracking-normal transition"
-                    style={
-                      child.active
-                        ? {
-                            color: "var(--brand-secondary)",
-                            backgroundColor: "color-mix(in srgb, var(--brand-accent) 10%, white)",
-                          }
-                        : { color: "#1E3A6D" }
-                    }
-                  >
-                    {child.label}
-                  </Link>
-                ))}
+                {section.children.map((child) =>
+                  child.disabled ? (
+                    <div
+                      key={`${section.label}-${child.label}`}
+                      className="group relative block overflow-hidden rounded-md px-2 py-1.5 font-normal text-[14px] leading-5 tracking-normal text-[#012352]"
+                      aria-disabled
+                    >
+                      <span>{child.label}</span>
+                    </div>
+                  ) : (
+                    <Link
+                      key={`${section.label}-${child.label}`}
+                      href={child.href}
+                      onClick={handleNavClick}
+                      className={`group relative block overflow-hidden rounded-md px-2 py-1.5 font-normal text-[14px] leading-5 tracking-normal transition ${
+                        child.active ? "text-[#C7922F]" : "text-[#012352] hover:text-[#C7922F]"
+                      }`}
+                      style={
+                        child.active
+                          ? {
+                              color: ACTIVE_GOLD,
+                              backgroundColor: "color-mix(in srgb, var(--brand-accent) 14%, white)",
+                            }
+                          : { color: NAVY_BLUE }
+                      }
+                    >
+                      <span>{child.label}</span>
+                      {child.active ? (
+                        <span
+                          aria-hidden
+                          className="absolute right-0 top-1/2 h-7 w-[2px] -translate-y-1/2 rounded-full"
+                          style={{ backgroundColor: NAVY_BLUE }}
+                        />
+                      ) : null}
+                    </Link>
+                  )
+                )}
               </div>
             ) : null}
           </div>
