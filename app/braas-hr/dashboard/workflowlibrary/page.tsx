@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { BRAAS_PRIMARY } from "@/lib/tenant/tenant-branding";
 
@@ -314,7 +315,7 @@ function FlowMultiSelect({ id, selectedIds, onChange }: FlowMultiSelectProps) {
                         <span className="min-w-0 flex-1 truncate">{flow.label}</span>
                         <span
                           className={`flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-[4px] border transition ${
-                            checked ? "border-[#2e90fa] bg-[#2e90fa]" : "border-[#d0d5dd] bg-white"
+                            checked ? "border-[#012352] bg-[#012352]" : "border-[#d0d5dd] bg-white"
                           }`}
                           aria-hidden
                         >
@@ -607,13 +608,13 @@ function CreateFolderModal({ open, onClose, onCreated }: CreateFolderModalProps)
   );
 }
 
-function libraryHref(id: string): string | null {
-  if (id === "onboarding") return "/braas-hr/dashboard/onboarding-flows";
+function libraryHref(id: string, dashboardBasePath: string): string | null {
+  if (id === "onboarding") return `${dashboardBasePath}/onboarding-flows`;
   return null;
 }
 
-function FlowLibraryCard({ library }: { library: FlowLibrary }) {
-  const href = library.active ? libraryHref(library.id) : null;
+function FlowLibraryCard({ library, dashboardBasePath }: { library: FlowLibrary; dashboardBasePath: string }) {
+  const href = library.active ? libraryHref(library.id, dashboardBasePath) : null;
 
   const cardClassName =
     "flex min-h-[100px] items-center gap-5 rounded-xl border bg-white px-6 py-5 transition";
@@ -686,38 +687,93 @@ function buildCreatedLibrary(title: string): FlowLibrary {
   };
 }
 
-export default function WorkflowLibraryPage() {
+type WorkflowLibraryPageProps = {
+  dashboardBasePath?: string;
+  showTopTabs?: boolean;
+  /** When true, breadcrumb/tabs render in AdminRecruiter layout shell instead. */
+  embeddedInAdminShell?: boolean;
+};
+
+export function WorkflowLibraryPage({
+  dashboardBasePath = "/braas-hr/dashboard",
+  showTopTabs = false,
+  embeddedInAdminShell = false,
+}: WorkflowLibraryPageProps) {
+  const pathname = usePathname();
+  const router = useRouter();
   const [createFlowModalOpen, setCreateFlowModalOpen] = useState(false);
   const [successModalOpen, setSuccessModalOpen] = useState(false);
   const [createdFolderName, setCreatedFolderName] = useState("");
   const [createdLibraries, setCreatedLibraries] = useState<FlowLibrary[]>([]);
 
+  useEffect(() => {
+    if (pathname === "/braas-hr/dashboard/workflowlibrary") {
+      router.replace("/admin_recruiter/dashboard/workflowlibrary");
+    }
+  }, [pathname, router]);
+
+  if (pathname === "/braas-hr/dashboard/workflowlibrary") {
+    return null;
+  }
+
   return (
     <div className="min-h-screen" style={{ backgroundColor: PAGE_BG }}>
-      <div className="mx-auto w-full max-w-[1280px] px-6 py-8 sm:px-10 sm:py-10">
-        {/* Breadcrumb */}
-        <nav
-          className="mb-4 text-[13px] leading-5"
-          style={{ color: TEXT_MUTED }}
-          aria-label="Breadcrumb"
-        >
-          <Link href="/braas-hr/dashboard" className="hover:underline">
-            Dashboard
-          </Link>
-          <span className="mx-1.5">&gt;</span>
-          <span style={{ color: TEXT_SECONDARY }}>Workflow Library</span>
-        </nav>
+      <div
+        className={`mx-auto w-full max-w-[1280px] ${
+          embeddedInAdminShell ? "px-5 py-6 lg:px-8" : "px-6 py-8 sm:px-10 sm:py-10"
+        }`}
+      >
+        {/* Breadcrumb + top tabs */}
+        {!embeddedInAdminShell && showTopTabs ? (
+          <div className="mb-6 flex h-[62px] w-full items-center justify-between border border-[#E4E7EC] bg-white px-5 py-[14px]">
+            <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 text-[13px] leading-5 w-full">
+              <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 text-[#667085]">
+                <Link href={dashboardBasePath} className="hover:underline">
+                  Dashboard
+                </Link>
+                <span>&gt;</span>
+                <span className="text-[#344054]">Workflow Library</span>
+              </nav>
+              <nav className="flex flex-wrap items-center gap-6 text-sm text-[#012352]" aria-label="Workflow tabs">
+                <span className="cursor-pointer">Builder</span>
+                <Link href="/admin_recruiter/dashboard/templates" className="cursor-pointer">
+                  Templates
+                </Link>
+                <Link href="/admin_recruiter/dashboard/onboarding-flows" className="cursor-pointer">
+                  My Flows
+                </Link>
+                <Link
+                  href="/admin_recruiter/dashboard/workflowlibrary"
+                  className="cursor-pointer border-b-2 border-[#C7922F] pb-1 text-[#C7922F]"
+                >
+                  Library
+                </Link>
+              </nav>
+            </div>
+          </div>
+        ) : !embeddedInAdminShell ? (
+          <nav
+            className="mb-4 text-[13px] leading-5"
+            style={{ color: TEXT_MUTED }}
+            aria-label="Breadcrumb"
+          >
+            <Link href={dashboardBasePath} className="hover:underline">
+              Dashboard
+            </Link>
+            <span className="mx-1.5">&gt;</span>
+            <span style={{ color: TEXT_SECONDARY }}>Workflow Library</span>
+          </nav>
+        ) : null}
 
         {/* Title row + actions */}
         <header className="mb-10 flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <h1
-              className="text-[32px] font-semibold leading-[40px] tracking-[-0.02em] sm:text-[36px] sm:leading-[44px]"
-              style={{ color: TEXT_PRIMARY }}
+              className="text-[30px] font-semibold leading-[36px] tracking-normal text-[#000000]"
             >
               Workflow Library
             </h1>
-            <p className="mt-1 text-sm leading-5" style={{ color: TEXT_SECONDARY }}>
+            <p className="mt-3 text-[16px] font-normal leading-6 text-[#374151]">
               Manage workflows library
             </p>
           </div>
@@ -747,7 +803,7 @@ export default function WorkflowLibraryPage() {
         <section aria-label="Workflow libraries">
           {/* Figma: top card is left-aligned, ~half width — not full row */}
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <FlowLibraryCard library={UNCATEGORIZED} />
+            <FlowLibraryCard library={UNCATEGORIZED} dashboardBasePath={dashboardBasePath} />
           </div>
 
           <hr
@@ -757,10 +813,10 @@ export default function WorkflowLibraryPage() {
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             {createdLibraries.map((lib) => (
-              <FlowLibraryCard key={lib.id} library={lib} />
+              <FlowLibraryCard key={lib.id} library={lib} dashboardBasePath={dashboardBasePath} />
             ))}
             {LIBRARIES.map((lib) => (
-              <FlowLibraryCard key={lib.id} library={lib} />
+              <FlowLibraryCard key={lib.id} library={lib} dashboardBasePath={dashboardBasePath} />
             ))}
           </div>
         </section>
@@ -779,9 +835,13 @@ export default function WorkflowLibraryPage() {
       <FolderCreatedSuccessModal
         open={successModalOpen}
         folderName={createdFolderName}
-        folderHref="/braas-hr/dashboard/onboarding-flows"
+        folderHref={`${dashboardBasePath}/onboarding-flows`}
         onClose={() => setSuccessModalOpen(false)}
       />
     </div>
   );
+}
+
+export default function BraasWorkflowLibraryPage() {
+  return <WorkflowLibraryPage dashboardBasePath="/braas-hr/dashboard" />;
 }

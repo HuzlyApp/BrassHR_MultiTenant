@@ -1,9 +1,8 @@
 'use client';
 
-import { redirect } from "next/navigation";
-
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import toast from "react-hot-toast";
+import { useEffect } from "react";
 
 import { WorkflowBuilder } from "@/app/components/workflow-builder";
 import type { StepCategory, WorkflowState } from "@/app/components/workflow-builder";
@@ -373,8 +372,29 @@ const STEP_LIBRARY: StepCategory[] = [
   },
 ];
 
-export default function OnboardingBuilderPage() {
+type OnboardingBuilderPageProps = {
+  dashboardBasePath?: string;
+  redirectLegacyPath?: boolean;
+  hideTopChrome?: boolean;
+};
+
+export function OnboardingBuilderPage({
+  dashboardBasePath = "/braas-hr/dashboard",
+  redirectLegacyPath = true,
+  hideTopChrome = false,
+}: OnboardingBuilderPageProps) {
   const router = useRouter();
+  const pathname = usePathname() ?? "";
+
+  useEffect(() => {
+    if (redirectLegacyPath && pathname === "/braas-hr/dashboard/onboarding-builder") {
+      router.replace("/admin_recruiter/dashboard/onboarding-builder");
+    }
+  }, [pathname, redirectLegacyPath, router]);
+
+  if (redirectLegacyPath && pathname === "/braas-hr/dashboard/onboarding-builder") {
+    return null;
+  }
 
   const handleSave = (_state: WorkflowState) => {
     toast.success("Saved as template");
@@ -400,12 +420,17 @@ export default function OnboardingBuilderPage() {
       brandName="braas HR"
       stepLibrary={STEP_LIBRARY}
       lastUpdated={{ author: "Sam Smith", minutesAgo: 4 }}
-      onBack={() => router.push("/braas-hr/dashboard/onboarding-flows")}
+      onBack={() => router.push(`${dashboardBasePath}/onboarding-flows`)}
       onSaveAsTemplate={handleSave}
       onPreview={handlePreview}
       onPublish={handlePublish}
       onExportPDF={handleExport}
       onAddTrigger={() => toast("Add a trigger to start this flow")}
+      hideTopChrome={hideTopChrome}
     />
   );
+}
+
+export default function BraasOnboardingBuilderPage() {
+  return <OnboardingBuilderPage dashboardBasePath="/braas-hr/dashboard" redirectLegacyPath />;
 }

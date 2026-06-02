@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
 import {
   useCallback,
   useEffect,
@@ -310,20 +311,6 @@ function FlowChartHeaderIcon() {
   );
 }
 
-function BackArrowIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
-      <path
-        d="M10 3L5 8L10 13"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
 function CreateFlowPlusIcon() {
   return (
     <span className="flex h-5 w-5 items-center justify-center rounded-full border border-white/40">
@@ -575,8 +562,16 @@ function CreateNewFlowModal({ open, onClose, onCreated }: CreateNewFlowModalProp
                   setTemplate("");
                 }
               }}
-              className="h-4 w-4 rounded border-[#d0d5dd] accent-[#012352]"
+              className="sr-only"
             />
+            <span
+              className={`flex h-[18px] w-[18px] items-center justify-center rounded-[4px] border ${
+                createAsBlank ? "border-[#012352] bg-[#012352]" : "border-[#D0D5DD] bg-white"
+              }`}
+              aria-hidden
+            >
+              {createAsBlank ? <CheckIcon /> : null}
+            </span>
             <span className="text-sm font-medium leading-5" style={{ color: TEXT_SECONDARY }}>
               Create as blank
             </span>
@@ -720,7 +715,19 @@ function FlowCard({ flow }: FlowCardProps) {
   );
 }
 
-export default function OnboardingFlowsPage() {
+type OnboardingFlowsPageProps = {
+  dashboardBasePath?: string;
+  showTopTabs?: boolean;
+  embeddedInAdminShell?: boolean;
+};
+
+export function OnboardingFlowsPage({
+  dashboardBasePath = "/braas-hr/dashboard",
+  showTopTabs = false,
+  embeddedInAdminShell = false,
+}: OnboardingFlowsPageProps) {
+  const pathname = usePathname();
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<FilterTab>("published");
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [publishedFlows, setPublishedFlows] = useState(INITIAL_PUBLISHED);
@@ -746,27 +753,57 @@ export default function OnboardingFlowsPage() {
 
   const sectionTitle = activeTab === "published" ? "Published Flows" : "Unpublished Flows";
 
+  useEffect(() => {
+    if (pathname === "/braas-hr/dashboard/onboarding-flows") {
+      router.replace("/admin_recruiter/dashboard/onboarding-flows");
+    }
+  }, [pathname, router]);
+
+  if (pathname === "/braas-hr/dashboard/onboarding-flows") {
+    return null;
+  }
+
   return (
     <div className="min-h-screen" style={{ backgroundColor: PAGE_BG }}>
-      <div className="mx-auto w-full max-w-[1280px] px-6 py-8 sm:px-10 sm:py-10">
-        <Link
-          href="/braas-hr/dashboard/workflowlibrary"
-          className="mb-5 inline-flex items-center gap-1.5 text-sm font-medium leading-5 transition hover:opacity-80"
-          style={{ color: TEXT_SECONDARY }}
-        >
-          <BackArrowIcon />
-          Back
-        </Link>
+      <div
+        className={`mx-auto w-full max-w-[1280px] ${
+          embeddedInAdminShell ? "px-5 py-6 lg:px-8" : "px-6 py-8 sm:px-10 sm:py-10"
+        }`}
+      >
+        {!embeddedInAdminShell && showTopTabs ? (
+          <div className="mb-6 flex h-[62px] w-full items-center justify-between border border-[#E4E7EC] bg-white px-5 py-[14px]">
+            <div className="flex w-full min-w-0 flex-wrap items-center justify-between gap-3 text-[13px] leading-5">
+              <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 text-[#667085]">
+                <Link href={dashboardBasePath} className="hover:underline">
+                  Dashboard
+                </Link>
+                <span>&gt;</span>
+                <span className="text-[#344054]">Onboarding Flows</span>
+              </nav>
+              <nav className="flex flex-wrap items-center gap-6 text-sm text-[#012352]" aria-label="Workflow tabs">
+                <span className="cursor-pointer">Builder</span>
+                <Link href="/admin_recruiter/dashboard/templates" className="cursor-pointer">
+                  Templates
+                </Link>
+                <Link href="/admin_recruiter/dashboard/onboarding-flows" className="cursor-pointer border-b-2 border-[#C7922F] pb-1 text-[#C7922F]">
+                  My Flows
+                </Link>
+                <Link href="/admin_recruiter/dashboard/workflowlibrary" className="cursor-pointer">
+                  Library
+                </Link>
+              </nav>
+            </div>
+          </div>
+        ) : null}
 
         <header className="mb-8 flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <h1
-              className="text-[32px] font-semibold leading-[40px] tracking-[-0.02em] sm:text-[36px] sm:leading-[44px]"
-              style={{ color: TEXT_PRIMARY }}
+              className="text-[30px] font-semibold leading-[36px] tracking-normal text-[#000000]"
             >
               Onboarding Flows
             </h1>
-            <p className="mt-1 text-sm leading-5" style={{ color: TEXT_SECONDARY }}>
+            <p className="mt-3 text-[16px] font-normal leading-6 text-[#374151]">
               {publishedCount} Published <span className="text-[#d0d5dd]">•</span>{" "}
               {unpublishedCount} Unpublish
             </p>
@@ -851,4 +888,8 @@ export default function OnboardingFlowsPage() {
       />
     </div>
   );
+}
+
+export default function BraasOnboardingFlowsPage() {
+  return <OnboardingFlowsPage dashboardBasePath="/braas-hr/dashboard" />;
 }

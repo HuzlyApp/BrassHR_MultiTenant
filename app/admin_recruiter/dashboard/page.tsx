@@ -108,7 +108,7 @@ export default function RecruiterDashboard() {
   const recent = useMemo(() => filtered.slice(0, 6), [filtered]);
 
   return (
-    <div className="p-4 sm:p-5">
+    <div className="px-5 py-6 lg:px-8">
       <div className="w-full">
             <div className="mb-4 flex flex-col gap-1">
               <h1 className="text-4xl font-semibold leading-[42px] text-[#1d2739]">Overview</h1>

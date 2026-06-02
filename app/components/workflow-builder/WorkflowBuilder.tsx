@@ -65,6 +65,8 @@ export type WorkflowBuilderProps = {
     settings: Array<{ label: string; value: string }>;
   };
   resetKey?: string;
+  /** Hides top builder header + toolbar strip (used under recruiter dashboard tabs). */
+  hideTopChrome?: boolean;
 };
 
 export default function WorkflowBuilder(props: WorkflowBuilderProps) {
@@ -96,6 +98,7 @@ function WorkflowBuilderInner({
   publishStatusLabel,
   toolbarData,
   resetKey,
+  hideTopChrome = false,
 }: WorkflowBuilderProps) {
   const [nodes, setNodes, onNodesChange] =
     useNodesState<Node<WorkflowNodeData>>(initialNodes);
@@ -179,7 +182,7 @@ function WorkflowBuilderInner({
       }`}
       style={{ backgroundColor: PAGE_BG, ...(embedded ? { borderColor: CARD_BORDER } : {}) }}
     >
-      {!embedded ? (
+      {!embedded && !hideTopChrome ? (
       <header
         className="flex h-[60px] shrink-0 items-center justify-between border-b bg-white px-5"
         style={{ borderColor: CARD_BORDER }}
@@ -253,6 +256,7 @@ function WorkflowBuilderInner({
       </header>
       ) : null}
 
+      {!hideTopChrome ? (
       <div
         className="flex h-[44px] shrink-0 items-center justify-between border-b bg-white px-5"
         style={{ borderColor: CARD_BORDER }}
@@ -302,8 +306,9 @@ function WorkflowBuilderInner({
           />
         </div>
       </div>
+      ) : null}
 
-      {activeToolbar ? (
+      {!hideTopChrome && activeToolbar ? (
         <ToolbarPanel
           active={activeToolbar}
           data={toolbarData}
