@@ -1,10 +1,12 @@
 import type { Edge, Node } from "@xyflow/react";
 import { createWorkflowEdge } from "@/app/components/workflow-builder/constants";
 import type { StepDefinition } from "@/app/components/workflow-builder/types";
+import type { WorkflowNodeData } from "@/app/components/workflow-builder/types";
 import {
-  DEFAULT_STEP_SETTINGS,
-  type WorkflowNodeData,
-} from "@/app/components/workflow-builder/types";
+  dayFromDatePriority,
+  normalizeWorkflowNodeSettings,
+  schedulingDayFromStepMetadata,
+} from "@/lib/onboarding/normalize-workflow-settings";
 import type { OnboardingStepDraft } from "@/lib/onboarding/default-onboarding-steps";
 import {
   isSerializableWorkflowState,
@@ -43,9 +45,11 @@ export function draftsToWorkflowNodes(
         icon: null,
       } as StepDefinition);
 
-    const settings =
-      (step.metadata?.workflow_settings as WorkflowNodeData["settings"] | undefined) ??
-      DEFAULT_STEP_SETTINGS;
+    const settings = normalizeWorkflowNodeSettings(
+      step.metadata?.workflow_settings as WorkflowNodeData["settings"] | undefined,
+      { required: step.is_required, day: schedulingDayFromStepMetadata(step.metadata ?? {}) }
+    );
+    const day = schedulingDayFromStepMetadata(step.metadata ?? {}) || index + 1;
 
     return {
       id: `step-${step.step_key}`,
@@ -54,11 +58,11 @@ export function draftsToWorkflowNodes(
       data: {
         stepId: def.id,
         label: step.title,
-          description: step.description,
+        description: step.description,
         icon: def.icon,
-        day: index + 1,
+        day,
         required: step.is_required,
-        settings: { ...DEFAULT_STEP_SETTINGS, ...settings, required: step.is_required },
+        settings,
       },
     };
   });
@@ -78,6 +82,11 @@ export function hydrateWorkflowFromStorage(
   if (isSerializableWorkflowState(builderDraft) && builderDraft.nodes.length > 0) {
     const nodes: Node<WorkflowNodeData>[] = builderDraft.nodes.map((n) => {
       const def = resolveStepDefinition(n.stepId, stepById);
+      const settings = normalizeWorkflowNodeSettings(n.settings, {
+        required: n.required,
+        day: n.day,
+      });
+      const day = n.day ?? dayFromDatePriority(settings.datePriority);
       return {
         id: n.id,
         type: "step",
@@ -87,9 +96,9 @@ export function hydrateWorkflowFromStorage(
           label: n.label,
           description: n.description ?? null,
           icon: def?.icon ?? null,
-          day: n.day,
-          required: n.required,
-          settings: n.settings,
+          day,
+          required: settings.required,
+          settings,
         },
       };
     });

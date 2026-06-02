@@ -30,12 +30,8 @@ import {
   GOLD,
   TEXT_MUTED,
 } from "./constants";
-import {
-  DEFAULT_STEP_SETTINGS,
-  type StepCategory,
-  type StepDefinition,
-  type WorkflowNodeData,
-} from "./types";
+import type { StepCategory, StepDefinition, WorkflowNodeData } from "./types";
+import { normalizeWorkflowNodeSettings } from "@/lib/onboarding/normalize-workflow-settings";
 
 type StepsCanvasProps = {
   nodes: Node<WorkflowNodeData>[];
@@ -71,7 +67,10 @@ function buildStepNode(
       icon: def.icon,
       day,
       required: true,
-      settings: { ...DEFAULT_STEP_SETTINGS, datePriority: `Day ${day}` },
+      settings: normalizeWorkflowNodeSettings(undefined, {
+        required: true,
+        day,
+      }),
     },
   };
 }

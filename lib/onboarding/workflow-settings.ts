@@ -1,5 +1,6 @@
 import type { StepSettings } from "@/app/components/workflow-builder/types";
-import { defaultSerializableSettings } from "@/lib/onboarding/workflow-builder-serialization";
+import { evaluateConditionalLogic } from "@/lib/onboarding/evaluate-conditional-logic";
+import { normalizeWorkflowNodeSettings } from "@/lib/onboarding/normalize-workflow-settings";
 import type { TenantOnboardingStep } from "@/lib/onboarding/types";
 
 export type ParsedWorkflowSettings = StepSettings & {
@@ -9,16 +10,31 @@ export type ParsedWorkflowSettings = StepSettings & {
 
 export function getWorkflowSettings(step: TenantOnboardingStep): ParsedWorkflowSettings {
   const raw = step.metadata?.workflow_settings;
-  const base =
-    raw && typeof raw === "object" && !Array.isArray(raw)
-      ? ({ ...defaultSerializableSettings(), ...(raw as Partial<StepSettings>) } as StepSettings)
-      : defaultSerializableSettings();
+  const base = normalizeWorkflowNodeSettings(
+    raw && typeof raw === "object" && !Array.isArray(raw) ? (raw as Partial<StepSettings>) : null,
+    { required: step.is_required }
+  );
+
+  const conditional = evaluateConditionalLogic(base.conditionalLogic);
 
   return {
     ...base,
     required: step.is_required ?? base.required,
-    adminOnly: false,
+    adminOnly: conditional.hideFromApplicant,
   };
+}
+
+/** Integration-backed steps use the configured provider when partner mode is on. */
+export function isIntegrationPartnerStep(step: TenantOnboardingStep): boolean {
+  const settings = getWorkflowSettings(step);
+  return settings.useBraasPartner === true;
+}
+
+export function integrationProviderLabel(step: TenantOnboardingStep): string | null {
+  const settings = getWorkflowSettings(step);
+  if (!settings.useBraasPartner) return null;
+  const label = settings.provider?.trim();
+  return label || null;
 }
 
 /** Worker-facing steps must be performed by the applicant when clientPerforms is true (default). */
@@ -36,11 +52,14 @@ export function isWorkerPerformableStep(step: TenantOnboardingStep): boolean {
  */
 export function isWorkerVisibleStep(step: TenantOnboardingStep): boolean {
   const settings = getWorkflowSettings(step);
-  const logic = (settings.conditionalLogic ?? "").trim().toLowerCase();
-  if (logic.startsWith("admin only") || logic.startsWith("hide from applicant")) {
-    return false;
-  }
+  if (settings.adminOnly) return false;
   return isWorkerPerformableStep(step);
+}
+
+/** Whether conditional logic requests pausing the flow when this step fails. */
+export function shouldPauseFlowOnStepFailure(step: TenantOnboardingStep): boolean {
+  const settings = getWorkflowSettings(step);
+  return evaluateConditionalLogic(settings.conditionalLogic).pauseFlowOnFail;
 }
 
 export function workflowSettingsAdminHints(step: TenantOnboardingStep): string[] {
@@ -60,7 +79,7 @@ export function workflowSettingsAdminHints(step: TenantOnboardingStep): string[]
 
 export function listUnsupportedBuilderSettings(): string[] {
   return [
-    "Full conditional branching (use Publish, then verify worker routes).",
-    "Automatic partner triggers (stored for admin reference only).",
+    "Arbitrary conditional expressions (only admin-only / hide-from-applicant / pause-on-fail phrases).",
+    "Checker partner requires CHECKER_PARTNER_API_URL; third-party requires WORKFLOW_PARTNER_WEBHOOK_URL.",
   ];
 }

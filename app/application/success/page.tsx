@@ -16,6 +16,14 @@ export default function SuccessPage() {
     if (!applicantId) return
     emailSentRef.current = true
 
+    void fetch("/api/onboarding/continuation-session", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ completed: true }),
+    }).catch(() => {
+      /* best-effort tracking only */
+    })
+
     const tenantSlug =
       typeof window !== "undefined"
         ? resolveClientOnboardingTenantSlug(window.location.search)

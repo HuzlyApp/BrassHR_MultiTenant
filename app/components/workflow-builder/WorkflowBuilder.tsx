@@ -36,6 +36,7 @@ import {
   TEXT_PRIMARY,
   TEXT_SECONDARY,
 } from "./constants";
+import { applyWorkflowNodeDataPatch } from "@/lib/onboarding/apply-workflow-node-patch";
 import type { StepCategory, WorkflowNodeData, WorkflowState } from "./types";
 
 export type WorkflowBuilderProps = {
@@ -164,11 +165,11 @@ function WorkflowBuilderInner({
   }, [setNodes, setEdges]);
 
   const handleUpdateNode = useCallback(
-    (id: string, patch: Partial<WorkflowNodeData>) => {
-      pushHistory();
+    (id: string, patch: Partial<WorkflowNodeData>, options?: { skipHistory?: boolean }) => {
+      if (!options?.skipHistory) pushHistory();
       setNodes((prev) =>
         prev.map((n) =>
-          n.id === id ? { ...n, data: { ...n.data, ...patch } } : n
+          n.id === id ? { ...n, data: applyWorkflowNodeDataPatch(n.data, patch) } : n
         )
       );
     },

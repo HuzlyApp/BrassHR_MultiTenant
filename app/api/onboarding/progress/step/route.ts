@@ -3,6 +3,10 @@ import { createClient } from "@supabase/supabase-js";
 import { getSupabaseUrl } from "@/lib/supabase-env";
 import { ensureWorkerOnboardingProgress } from "@/lib/onboarding/ensure-worker-progress";
 import { resolveWorkerByApplicantId } from "@/lib/onboarding/resolve-worker-context";
+import { loadTenantOnboardingConfig } from "@/lib/onboarding/load-tenant-config";
+import { dispatchWorkflowIntegrationPartner } from "@/lib/onboarding/integration-partner-dispatch";
+import { notifyHrOnOnboardingStepFailure } from "@/lib/onboarding/notify-hr-on-step-failure";
+import { shouldPauseFlowOnStepFailure } from "@/lib/onboarding/workflow-settings";
 import type { OnboardingStepStatus } from "@/lib/onboarding/types";
 
 export const runtime = "nodejs";
@@ -63,12 +67,62 @@ export async function POST(req: NextRequest) {
 
     const completed_at = status === "completed" ? new Date().toISOString() : null;
 
+    const config = await loadTenantOnboardingConfig(supabase, ctx.tenantId, {
+      workerFacing: false,
+    });
+    const stepRow = config?.steps.find((s) => s.id === stepId) ?? null;
+
+    let stepData: Record<string, unknown> =
+      body.data && typeof body.data === "object" ? { ...body.data } : {};
+
+    if (status === "in_progress" && stepRow) {
+      const dispatch = await dispatchWorkflowIntegrationPartner({
+        supabase,
+        tenantId: ctx.tenantId,
+        workerId: ctx.workerId,
+        applicantId,
+        step: stepRow,
+        request: req,
+      });
+      stepData = {
+        ...stepData,
+        partner_dispatch: dispatch,
+      };
+    }
+
+    if (status === "failed" && stepRow) {
+      const failureReason =
+        typeof body.data?.failure_reason === "string"
+          ? body.data.failure_reason
+          : typeof body.data?.reason === "string"
+            ? body.data.reason
+            : null;
+
+      if (shouldPauseFlowOnStepFailure(stepRow)) {
+        stepData = {
+          ...stepData,
+          flow_paused: true,
+          pause_reason: failureReason ?? "step_failed",
+        };
+      }
+
+      await notifyHrOnOnboardingStepFailure({
+        supabase,
+        tenantId: ctx.tenantId,
+        workerId: ctx.workerId,
+        applicantId,
+        step: stepRow,
+        failureReason,
+        request: req,
+      });
+    }
+
     const { error: upErr } = await supabase
       .from("worker_onboarding_step_progress")
       .update({
         status,
         completed_at,
-        data: body.data ?? {},
+        data: stepData,
         updated_at: new Date().toISOString(),
       })
       .eq("worker_onboarding_progress_id", payload.progressId)

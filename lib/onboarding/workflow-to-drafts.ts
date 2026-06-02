@@ -5,6 +5,7 @@ import {
   orderedNodeIds,
   type SerializableWorkflowState,
 } from "@/lib/onboarding/workflow-builder-serialization";
+import { dayFromDatePriority } from "@/lib/onboarding/normalize-workflow-settings";
 import { workflowStepIdToOnboardingType } from "@/lib/onboarding/workflow-step-mapping";
 
 function uniqueStepKey(stepType: string, existingKeys: Set<string>, preferred: string): string {
@@ -57,6 +58,7 @@ export function workflowStateToStepDrafts(
         ...base.metadata,
         workflow_step_id: node.stepId,
         workflow_node_id: node.id,
+        workflow_day: node.day ?? dayFromDatePriority(node.settings.datePriority),
         workflow_settings: node.settings,
       },
     });

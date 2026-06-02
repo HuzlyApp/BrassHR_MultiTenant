@@ -9,10 +9,18 @@ import {
   TEXT_SECONDARY,
 } from "./constants";
 import type { StepSettings, WorkflowNodeData } from "./types";
+import {
+  WORKFLOW_DATE_PRIORITY_OPTIONS,
+  WORKFLOW_PROVIDER_OPTIONS,
+} from "@/lib/onboarding/normalize-workflow-settings";
 
 type StepsSettingsPanelProps = {
   node: Node<WorkflowNodeData> | null;
-  onUpdate: (id: string, patch: Partial<WorkflowNodeData>) => void;
+  onUpdate: (
+    id: string,
+    patch: Partial<WorkflowNodeData>,
+    options?: { skipHistory?: boolean }
+  ) => void;
   onSaveStep?: (id: string) => void;
   onCloneWorkflow?: () => void;
 };
@@ -45,6 +53,7 @@ export default function StepsSettingsPanel({
         </div>
       ) : (
         <SettingsBody
+          key={node.id}
           node={node}
           onUpdate={onUpdate}
           onSaveStep={onSaveStep}
@@ -63,19 +72,20 @@ type SettingsBodyProps = {
 };
 
 function SettingsBody({ node, onUpdate, onSaveStep, onCloneWorkflow }: SettingsBodyProps) {
-  const patchSettings = (patch: Partial<StepSettings>) => {
-    onUpdate(node.id, {
-      settings: { ...node.data.settings, ...patch },
-    });
+  const { settings } = node.data;
+  const integrationEnabled = settings.useBraasPartner;
+  const providerOptions = integrationEnabled
+    ? [...WORKFLOW_PROVIDER_OPTIONS]
+    : (["Manual", "Third-party API"] as const);
+
+  const patchSettings = (patch: Partial<StepSettings>, options?: { skipHistory?: boolean }) => {
+    onUpdate(node.id, { settings: { ...settings, ...patch } }, options);
   };
 
   return (
     <div className="flex flex-1 flex-col overflow-y-auto">
       <div className="flex items-center gap-2.5 px-5 py-4">
-        <span
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-white"
-          // style={{ backgroundColor: color.header }}
-        >
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-white">
           {node.data.icon}
         </span>
         <span
@@ -90,34 +100,39 @@ function SettingsBody({ node, onUpdate, onSaveStep, onCloneWorkflow }: SettingsB
         <TextField
           label="Step title"
           value={node.data.label}
-          onChange={(v) => onUpdate(node.id, { label: v })}
+          onChange={(v) => onUpdate(node.id, { label: v }, { skipHistory: true })}
+          onCommit={(v) => onUpdate(node.id, { label: v })}
         />
         <TextField
           label="Description"
           value={node.data.description ?? ""}
-          onChange={(v) => onUpdate(node.id, { description: v })}
+          onChange={(v) => onUpdate(node.id, { description: v }, { skipHistory: true })}
+          onCommit={(v) => onUpdate(node.id, { description: v })}
         />
         <ToggleRow
           label="Required"
           value={node.data.required}
-          onChange={(v) => {
-            onUpdate(node.id, { required: v });
-            patchSettings({ required: v });
-          }}
+          onChange={(v) => onUpdate(node.id, { required: v })}
         />
         <ToggleRow
           label="Client performs"
-          value={node.data.settings.clientPerforms}
+          value={settings.clientPerforms}
           onChange={(v) => patchSettings({ clientPerforms: v })}
         />
         <ToggleRow
           label="Use integration partner"
-          value={node.data.settings.useBraasPartner}
-          onChange={(v) => patchSettings({ useBraasPartner: v })}
+          value={settings.useBraasPartner}
+          onChange={(v) => {
+            const next: Partial<StepSettings> = { useBraasPartner: v };
+            if (!v && settings.provider === "Checker (connected)") {
+              next.provider = "Manual";
+            }
+            patchSettings(next);
+          }}
         />
         <CheckboxRow
           label="Notify HR on fail"
-          value={node.data.settings.notifyHrOnFail}
+          value={settings.notifyHrOnFail}
           onChange={(v) => patchSettings({ notifyHrOnFail: v })}
         />
       </div>
@@ -125,42 +140,45 @@ function SettingsBody({ node, onUpdate, onSaveStep, onCloneWorkflow }: SettingsB
       <div className="flex flex-col gap-4 border-t px-5 py-4" style={{ borderColor: CARD_BORDER }}>
         <SelectField
           label="Date Priority"
-          value={node.data.settings.datePriority}
-          options={["Day 1", "Day 2", "Day 3", "Day 5", "Day 7"]}
-          onChange={(v) => {
-            patchSettings({ datePriority: v });
-            const dayMatch = /Day (\d+)/.exec(v);
-            if (dayMatch) onUpdate(node.id, { day: Number(dayMatch[1]) });
-          }}
+          value={settings.datePriority}
+          options={[...WORKFLOW_DATE_PRIORITY_OPTIONS]}
+          onChange={(v) => patchSettings({ datePriority: v })}
         />
         <SelectField
           label="Provider"
-          value={node.data.settings.provider}
-          options={["Checker (connected)", "Manual", "Third-party API"]}
+          value={settings.provider}
+          options={[...providerOptions]}
+          disabled={!integrationEnabled}
+          hint={
+            integrationEnabled
+              ? undefined
+              : "Enable “Use integration partner” to use Checker or other connected providers."
+          }
           onChange={(v) => patchSettings({ provider: v })}
         />
         <SelectField
           label="Trigger after"
-          value={node.data.settings.triggerAfter}
+          value={settings.triggerAfter}
           options={["Offer Acceptance", "Document Upload", "Background Check", "Day 1 Start"]}
           onChange={(v) => patchSettings({ triggerAfter: v })}
         />
         <SelectField
           label="Notify"
-          value={node.data.settings.notify}
+          value={settings.notify}
           options={["HR + Recruiter", "HR Only", "Manager", "Candidate"]}
           onChange={(v) => patchSettings({ notify: v })}
         />
         <SelectField
           label="Timeline"
-          value={node.data.settings.timeline}
+          value={settings.timeline}
           options={["1 business day", "3 business days", "5 business days", "10 business days"]}
           onChange={(v) => patchSettings({ timeline: v })}
         />
         <TextField
           label="Conditional Logic"
-          value={node.data.settings.conditionalLogic}
-          onChange={(v) => patchSettings({ conditionalLogic: v })}
+          value={settings.conditionalLogic}
+          onChange={(v) => patchSettings({ conditionalLogic: v }, { skipHistory: true })}
+          onCommit={(v) => patchSettings({ conditionalLogic: v })}
         />
       </div>
 
@@ -246,11 +264,15 @@ function SelectField({
   value,
   options,
   onChange,
+  disabled,
+  hint,
 }: {
   label: string;
   value: string;
   options: string[];
   onChange: (v: string) => void;
+  disabled?: boolean;
+  hint?: string;
 }) {
   return (
     <div>
@@ -263,8 +285,9 @@ function SelectField({
       <div className="relative">
         <select
           value={value}
+          disabled={disabled}
           onChange={(e) => onChange(e.target.value)}
-          className="h-10 w-full appearance-none rounded-lg border bg-white px-3 pr-9 text-sm outline-none transition focus:border-[#BC8B41] focus:ring-2 focus:ring-[#BC8B41]/25"
+          className="h-10 w-full appearance-none rounded-lg border bg-white px-3 pr-9 text-sm outline-none transition focus:border-[#BC8B41] focus:ring-2 focus:ring-[#BC8B41]/25 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400"
           style={{ borderColor: CARD_BORDER, color: TEXT_PRIMARY }}
         >
           {options.map((opt) => (
@@ -279,6 +302,11 @@ function SelectField({
           color="#98a2b3"
         />
       </div>
+      {hint ? (
+        <p className="mt-1.5 text-[11px] leading-4" style={{ color: TEXT_SECONDARY }}>
+          {hint}
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -287,10 +315,12 @@ function TextField({
   label,
   value,
   onChange,
+  onCommit,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
+  onCommit?: (v: string) => void;
 }) {
   return (
     <div>
@@ -304,6 +334,7 @@ function TextField({
         type="text"
         value={value}
         onChange={(e) => onChange(e.target.value)}
+        onBlur={(e) => onCommit?.(e.target.value)}
         className="h-10 w-full rounded-lg border bg-white px-3 text-sm outline-none transition focus:border-[#BC8B41] focus:ring-2 focus:ring-[#BC8B41]/25"
         style={{ borderColor: CARD_BORDER, color: TEXT_PRIMARY }}
       />

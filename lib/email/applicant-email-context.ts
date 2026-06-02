@@ -1,6 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { buildApplicationStatusUrl } from "@/lib/email/application-status-url";
 import type { OnboardingEmailTemplateKey } from "@/lib/email-templates/template-keys";
+import {
+  createApplicantContinuationLink,
+  type ContinuationReason,
+} from "@/lib/onboarding/applicant-continuation-link";
 
 export type ApplicantEmailContext = {
   tenantId: string;
@@ -9,6 +13,7 @@ export type ApplicantEmailContext = {
   applicantName: string;
   applicantEmail: string;
   applicationStatusUrl: string;
+  applicantContinuationLink: string;
   supportEmail: string;
   reason?: string;
 };
@@ -18,6 +23,7 @@ export type BuildApplicantContextParams = {
   workerId: string;
   origin: string;
   reason?: string;
+  continuationReason?: ContinuationReason;
 };
 
 function formatApplicantName(first: string | null, last: string | null): string {
@@ -61,6 +67,14 @@ export async function buildApplicantEmailContext(
     origin: params.origin,
     tenantSlug: slug,
   });
+  const continuation = await createApplicantContinuationLink(supabase, {
+    tenantId,
+    workerId: String(worker.id),
+    origin: params.origin,
+    tenantSlug: slug,
+    reason: params.continuationReason ?? "onboarding_reminder",
+    markSent: true,
+  });
 
   return {
     tenantId,
@@ -72,6 +86,7 @@ export async function buildApplicantEmailContext(
     ),
     applicantEmail: String(worker.email).trim().toLowerCase(),
     applicationStatusUrl,
+    applicantContinuationLink: continuation?.url ?? applicationStatusUrl,
     supportEmail: resolveSupportEmail(slug),
     reason: params.reason?.trim() || undefined,
   };
@@ -84,6 +99,7 @@ export function contextToTemplateVariables(
     applicantName: ctx.applicantName,
     tenantName: ctx.tenantName,
     applicationStatusUrl: ctx.applicationStatusUrl,
+    applicantContinuationLink: ctx.applicantContinuationLink,
     supportEmail: ctx.supportEmail,
     ...(ctx.reason ? { reason: ctx.reason } : {}),
   };
@@ -96,4 +112,5 @@ export type SendOnboardingEmailParams = {
   origin: string;
   locale?: string;
   reason?: string;
+  continuationReason?: ContinuationReason;
 };

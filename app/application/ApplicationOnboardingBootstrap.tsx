@@ -24,7 +24,7 @@ export default function ApplicationOnboardingBootstrap({ children }: { children:
         const search = typeof window !== "undefined" ? window.location.search : "";
         const qp = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("tenant") : null;
 
-        let slug =
+        const slug =
           qp != null && qp.trim().length >= 2 ? qp.trim().toLowerCase() : resolveClientOnboardingTenantSlug(search);
 
         if (slug) persistOnboardingSlugCookie(slug);

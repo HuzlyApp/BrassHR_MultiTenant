@@ -8,6 +8,8 @@ import OnboardingPreviewBanner from "@/app/application/OnboardingPreviewBanner";
 import { useOnboardingStepNav } from "@/lib/onboarding/use-onboarding-step-nav";
 import {
   getWorkflowSettings,
+  integrationProviderLabel,
+  isIntegrationPartnerStep,
   workflowSettingsAdminHints,
 } from "@/lib/onboarding/workflow-settings";
 import { routeForOnboardingStep } from "@/lib/onboarding/step-routes";
@@ -27,6 +29,8 @@ export default function CustomOnboardingStepPage() {
 
   const settings = step ? getWorkflowSettings(step) : null;
   const adminHints = step ? workflowSettingsAdminHints(step) : [];
+  const partnerLabel = step ? integrationProviderLabel(step) : null;
+  const usesPartner = step ? isIntegrationPartnerStep(step) : false;
 
   const typedRoute =
     step &&
@@ -82,10 +86,14 @@ export default function CustomOnboardingStepPage() {
           <p className="mt-2 text-sm text-slate-600">{step.description}</p>
         ) : null}
 
-        {settings?.provider?.trim() ? (
+        {settings ? (
           <p className="mt-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
             <span className="font-semibold">Instructions: </span>
-            Complete this step{settings.provider ? ` (${settings.provider})` : ""}.
+            {usesPartner && partnerLabel
+              ? `This step is completed via ${partnerLabel}.`
+              : settings.clientPerforms
+                ? "Complete this step in the application."
+                : "Your recruiter or HR team will complete this step on your behalf."}
             {settings.timeline ? ` Expected timeline: ${settings.timeline}.` : ""}
           </p>
         ) : null}

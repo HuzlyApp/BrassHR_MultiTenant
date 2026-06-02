@@ -11,6 +11,27 @@ export type ApplicantBootstrapResult = { applicantId: string } | { error: string
 export async function ensureApplicantMatchesAuthSession(
   supabase: SupabaseClient
 ): Promise<ApplicantBootstrapResult> {
+  if (typeof window !== "undefined") {
+    try {
+      const continuationRes = await fetch("/api/onboarding/continuation-session", {
+        cache: "no-store",
+      });
+      if (continuationRes.ok) {
+        const continuation = (await continuationRes.json()) as {
+          active?: boolean;
+          applicantId?: string;
+        };
+        const applicantId = continuation.applicantId?.trim();
+        if (continuation.active === true && applicantId) {
+          localStorage.setItem("applicantId", applicantId);
+          return { applicantId };
+        }
+      }
+    } catch {
+      // Fall through to the normal anonymous session bootstrap.
+    }
+  }
+
   const auth = supabase.auth as typeof supabase.auth & {
     signInAnonymously?: () => Promise<{
       data: { session: { user: { id: string; is_anonymous?: boolean } } | null }

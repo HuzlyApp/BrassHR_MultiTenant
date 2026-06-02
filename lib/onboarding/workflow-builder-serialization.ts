@@ -1,6 +1,6 @@
 import type { Edge, Node } from "@xyflow/react";
 import type { StepSettings, WorkflowNodeData } from "@/app/components/workflow-builder/types";
-import { DEFAULT_STEP_SETTINGS } from "@/app/components/workflow-builder/types";
+import { normalizeWorkflowNodeSettings } from "@/lib/onboarding/normalize-workflow-settings";
 
 export type SerializableWorkflowNode = {
   id: string;
@@ -82,5 +82,5 @@ export function isSerializableWorkflowState(value: unknown): value is Serializab
 }
 
 export function defaultSerializableSettings(): StepSettings {
-  return { ...DEFAULT_STEP_SETTINGS };
+  return normalizeWorkflowNodeSettings(null);
 }

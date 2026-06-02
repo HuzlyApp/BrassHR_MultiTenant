@@ -17,6 +17,7 @@ import { sanitizeEmailHtml } from "@/lib/email-templates/sanitize-html";
 import type { OnboardingEmailTemplateKey } from "@/lib/email-templates/template-keys";
 import { isEmailTemplateActive } from "@/lib/email-templates/types";
 import { buildResendFromHeader } from "@/lib/email/from-address";
+import type { ContinuationReason } from "@/lib/onboarding/applicant-continuation-link";
 
 let resendClient: Resend | null = null;
 
@@ -132,11 +133,20 @@ export async function sendOnboardingApplicantEmail(
   supabase: SupabaseClient,
   params: SendOnboardingEmailParams
 ): Promise<SendTemplatedEmailResult> {
+  const continuationReason: ContinuationReason =
+    params.continuationReason ??
+    (params.templateKey === "welcome"
+      ? "welcome"
+      : params.templateKey === "application_status"
+        ? "application_status"
+        : "manual_notification");
+
   const ctx = await buildApplicantEmailContext(supabase, {
     tenantId: params.tenantId,
     workerId: params.workerId,
     origin: params.origin,
     reason: params.reason,
+    continuationReason,
   });
 
   if (!ctx) {

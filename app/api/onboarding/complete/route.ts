@@ -4,6 +4,7 @@ import { getSupabaseUrl } from "@/lib/supabase-env";
 import { ensureWorkerOnboardingProgress } from "@/lib/onboarding/ensure-worker-progress";
 import { resolveWorkerByApplicantId } from "@/lib/onboarding/resolve-worker-context";
 import { validateWorkerOnboardingComplete } from "@/lib/onboarding/validate-completion";
+import { APPLICANT_CONTINUATION_SESSION_COOKIE } from "@/lib/tenant/constants";
 
 export const runtime = "nodejs";
 
@@ -47,7 +48,23 @@ export async function POST(req: NextRequest) {
 
     if (upErr) throw upErr;
 
-    return NextResponse.json({ ok: true });
+    const continuationLinkId = req.cookies
+      .get(APPLICANT_CONTINUATION_SESSION_COOKIE)
+      ?.value?.trim();
+    if (continuationLinkId) {
+      await supabase
+        .from("applicant_continuation_links")
+        .update({ completed_at: now })
+        .eq("id", continuationLinkId)
+        .eq("worker_id", ctx.workerId)
+        .is("completed_at", null);
+    }
+
+    const res = NextResponse.json({ ok: true });
+    if (continuationLinkId) {
+      res.cookies.delete(APPLICANT_CONTINUATION_SESSION_COOKIE);
+    }
+    return res;
   } catch (err: unknown) {
     console.error("[onboarding/complete]", err);
     const msg = err instanceof Error ? err.message : "Unexpected error";
