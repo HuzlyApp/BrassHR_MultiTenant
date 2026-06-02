@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { ChevronDown, ChevronLeft, Menu } from "lucide-react";
+import { ChevronDown, Menu } from "lucide-react";
 
 const SIDEBAR_TOGGLE_ICON = "/icons/sidebar-on-off-icon.svg";
 import { useEffect, useMemo, useState } from "react";
@@ -138,36 +138,8 @@ export function AdminRecruiterHeader({
     };
   }, [pathname]);
 
-  const unreadNotifications = useMemo(
-    () => notifications.filter((item) => !item.is_read).length,
-    [notifications]
-  );
-  const unreadMessages = useMemo(
-    () => conversations.reduce((sum, c) => sum + c.unreadCount, 0),
-    [conversations]
-  );
-
-  const onOpenNotifications = async () => {
-    setShowNotifications((prev) => !prev);
-    setShowMessages(false);
-    const unreadIds = notifications.filter((n) => !n.is_read).map((n) => n.id);
-    if (!currentUserId || unreadIds.length === 0) return;
-    const response = await fetch("/api/admin/header-data", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "mark_notifications_read" }),
-    });
-    if (!response.ok) {
-      const errPayload = await response.json().catch(() => ({}));
-      console.error("[AdminRecruiterHeader] Supabase error", errPayload);
-      return;
-    }
-    setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
-  };
-
   const displayName =
     [profile?.first_name, profile?.last_name].filter(Boolean).join(" ").trim() ||
-    profile?.email ||
     "Unknown User";
   const displayRole = profile?.role ?? "User";
 
@@ -176,7 +148,7 @@ export function AdminRecruiterHeader({
       className="sticky top-0 z-40 w-full bg-white border-b border-[#E2E8F0]"
       style={{ borderColor: "color-mix(in srgb, var(--brand-accent) 35%, #E2E8F0)" }}
     >
-      <div className="flex h-[68px] w-full items-center justify-between px-5 py-4 lg:px-8">
+      <div className="flex h-[64px] w-full items-center px-5 lg:px-8">
         <div className="flex items-center gap-2">
           <button
             type="button"
@@ -204,20 +176,14 @@ export function AdminRecruiterHeader({
               />
             </button>
           ) : null}
-          <button
-            type="button"
-            onClick={() => router.back()}
-            className="inline-flex h-8 w-8 items-center justify-center bg-transparent text-[#64748B] transition hover:text-[#0F3B76]"
-            aria-label="Go back"
-          >
-            <ChevronLeft className="h-5 w-5" />
-          </button>
         </div>
 
-        <div className="flex items-center gap-4 relative">
+        <div className="flex flex-1 justify-center px-2">
           <GodAdminTenantSwitcher />
+        </div>
 
-          <div className="flex items-center gap-2">
+        <div className="relative ml-4">
+          <div className="flex items-center gap-2 rounded-xl border border-[#E5E7EB] bg-white px-2.5 py-1.5">
             <img
               src={profile?.profile_photo || "https://i.pravatar.cc/128?u=fallback-user"}
               alt={displayName}
@@ -239,93 +205,8 @@ export function AdminRecruiterHeader({
             </button>
           </div>
 
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              onClick={() => {
-                setShowMessages((prev) => !prev);
-                setShowNotifications(false);
-              }}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-md transition hover:bg-slate-100"
-              aria-label="Chat"
-            >
-              <Image src="/icons/admin-recruiter/chat.svg" alt="" width={26} height={26} className="h-[26px] w-[26px]" />
-              {unreadMessages > 0 ? (
-                <span
-                  className="absolute -mt-6 ml-6 inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] text-white"
-                  style={{ backgroundColor: "var(--brand-primary)" }}
-                >
-                  {unreadMessages > 99 ? "99+" : unreadMessages}
-                </span>
-              ) : null}
-            </button>
-            <button
-              type="button"
-              onClick={onOpenNotifications}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-md transition hover:bg-slate-100"
-              aria-label="Notifications"
-            >
-              <Image src="/icons/admin-recruiter/bell-02.svg" alt="" width={26} height={26} className="h-[26px] w-[26px]" />
-              {unreadNotifications > 0 ? (
-                <span
-                  className="absolute -mt-6 ml-6 inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] text-white"
-                  style={{ backgroundColor: "var(--brand-primary)" }}
-                >
-                  {unreadNotifications > 99 ? "99+" : unreadNotifications}
-                </span>
-              ) : null}
-            </button>
-          </div>
-
-          {showMessages ? (
-            <div className="absolute right-10 top-12 w-[360px] rounded-lg border border-[#d7e4e1] bg-white p-3 shadow-xl">
-              <p className="mb-2 text-sm font-semibold text-[#0F172A]">Messages</p>
-              {conversations.length === 0 ? (
-                <p className="py-4 text-xs text-[#64748B]">No messages yet.</p>
-              ) : (
-                <div className="max-h-[320px] overflow-y-auto">
-                  {conversations.map((conversation) => (
-                    <Link
-                      key={conversation.id}
-                      href={conversation.href}
-                      className="mb-1 block rounded-md px-2 py-2 hover:bg-[#f2f8f7]"
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="text-xs font-semibold text-[#0F172A]">{conversation.counterpartName}</p>
-                        {conversation.unreadCount > 0 ? (
-                          <span className="rounded-full bg-[#0b5551] px-1.5 py-0.5 text-[10px] text-white">
-                            {conversation.unreadCount}
-                          </span>
-                        ) : null}
-                      </div>
-                      <p className="truncate text-[11px] text-[#64748B]">{conversation.preview}</p>
-                    </Link>
-                  ))}
-                </div>
-              )}
-            </div>
-          ) : null}
-
-          {showNotifications ? (
-            <div className="absolute right-0 top-12 w-[360px] rounded-lg border border-[#d7e4e1] bg-white p-3 shadow-xl">
-              <p className="mb-2 text-sm font-semibold text-[#0F172A]">Notifications</p>
-              {notifications.length === 0 ? (
-                <p className="py-4 text-xs text-[#64748B]">No notifications yet.</p>
-              ) : (
-                <div className="max-h-[320px] overflow-y-auto">
-                  {notifications.map((item) => (
-                    <div key={item.id} className="mb-1 rounded-md px-2 py-2 hover:bg-[#f2f8f7]">
-                      <p className="text-xs font-semibold text-[#0F172A]">{item.title || item.type || "Notification"}</p>
-                      <p className="text-[11px] text-[#64748B]">{item.body || "No message body"}</p>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          ) : null}
-
           {showProfileMenu ? (
-            <div className="absolute right-[112px] top-12 w-[220px] rounded-lg border border-[#d7e4e1] bg-white p-2 shadow-xl">
+            <div className="absolute right-0 top-12 w-[220px] rounded-lg border border-[#d7e4e1] bg-white p-2 shadow-xl">
               <div className="mb-1 flex items-center gap-2 px-2">
                 <img
                   src={tenantLogoSrc}

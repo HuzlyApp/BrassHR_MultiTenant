@@ -279,11 +279,8 @@ export function AdminRecruiterSidebar({
         {renderedSections.map((section) => (
           <div key={section.label} className="mb-1">
             {section.children?.length && !isCollapsed ? (
-              <button
-                type="button"
-                title={section.label}
-                onClick={() => toggleSectionOpen(section.label)}
-                className={`group relative flex min-h-[36px] w-full items-center gap-3 overflow-hidden rounded-md px-2 py-1 transition hover:bg-white ${
+              <div
+                className={`group relative flex min-h-[36px] w-full items-center gap-2 overflow-hidden rounded-md px-2 py-1 transition hover:bg-white ${
                   section.active ? "text-[#C7922F]" : "text-[#012352] hover:text-[#C7922F]"
                 }`}
                 style={
@@ -295,24 +292,46 @@ export function AdminRecruiterSidebar({
                     : undefined
                 }
               >
-                <Image
-                  src={section.icon}
-                  alt=""
-                  width={20}
-                  height={20}
-                  className="h-5 w-5 shrink-0 transition"
-                  style={
-                    section.active
-                      ? { filter: "brightness(0) saturate(100%) invert(62%) sepia(40%) saturate(785%) hue-rotate(359deg)" }
-                      : undefined
-                  }
-                />
-                <span className="font-normal text-[14px] leading-5 tracking-normal transition-colors">
-                  {section.label}
-                </span>
-                <span className="ml-auto transition-colors">
-                  {isSectionOpen(section) ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                </span>
+                {section.disabled ? (
+                  <div title={`${section.label} (Coming soon)`} className="flex min-w-0 flex-1 items-center gap-3">
+                    <Image src={section.icon} alt="" width={20} height={20} className="h-5 w-5 shrink-0" />
+                    <span className="truncate font-normal text-[14px] leading-5 tracking-normal transition-colors">
+                      {section.label}
+                    </span>
+                  </div>
+                ) : (
+                  <Link href={section.href} onClick={handleNavClick} className="flex min-w-0 flex-1 items-center gap-3">
+                    <Image
+                      src={section.icon}
+                      alt=""
+                      width={20}
+                      height={20}
+                      className="h-5 w-5 shrink-0 transition"
+                      style={
+                        section.active
+                          ? {
+                              filter:
+                                "brightness(0) saturate(100%) invert(62%) sepia(40%) saturate(785%) hue-rotate(359deg)",
+                            }
+                          : undefined
+                      }
+                    />
+                    <span className="truncate font-normal text-[14px] leading-5 tracking-normal transition-colors">
+                      {section.label}
+                    </span>
+                  </Link>
+                )}
+                <button
+                  type="button"
+                  title={`${isSectionOpen(section) ? "Collapse" : "Expand"} ${section.label}`}
+                  onClick={() => toggleSectionOpen(section.label)}
+                  className="ml-auto flex h-6 w-6 items-center justify-center rounded-md transition hover:bg-white/70"
+                  aria-label={`${isSectionOpen(section) ? "Collapse" : "Expand"} ${section.label}`}
+                >
+                  <span className="transition-colors">
+                    {isSectionOpen(section) ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                  </span>
+                </button>
                 {section.active ? (
                   <span
                     aria-hidden
@@ -320,7 +339,7 @@ export function AdminRecruiterSidebar({
                     style={{ backgroundColor: NAVY_BLUE }}
                   />
                 ) : null}
-              </button>
+              </div>
             ) : section.disabled ? (
               <div
                 title={`${section.label} (Coming soon)`}

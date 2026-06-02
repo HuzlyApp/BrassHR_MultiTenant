@@ -53,7 +53,7 @@ export function AdminRecruiterDashboardSubNav() {
 
   return (
     <nav
-      className="sticky top-[68px] z-30 flex h-[62px] w-full items-center justify-between border-b border-[#E4E7EC] bg-white px-5 lg:px-8"
+      className="sticky top-[64px] z-30 flex h-[62px] w-full items-center justify-between border-b border-[#E4E7EC] bg-white px-5 lg:px-8"
       aria-label="Workflow dashboard navigation"
     >
       {showBreadcrumb ? (
