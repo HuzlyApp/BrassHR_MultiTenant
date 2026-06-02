@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useParams, usePathname } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+import toast from "react-hot-toast";
 import CandidateCommunicationDialog from "../../../components/CandidateCommunicationDialog";
 import CandidateCommunicationHistory from "../../../components/CandidateCommunicationHistory";
 import DetailedCandidateHeader from "../../../components/DetailedCandidateHeader";
@@ -199,6 +200,7 @@ export default function NewApplicantProfilePage() {
   const [data, setData] = useState<ProfilePayload | null>(null);
   const [commOpen, setCommOpen] = useState(false);
   const [commRefreshKey, setCommRefreshKey] = useState(0);
+  const [resendingStatusEmail, setResendingStatusEmail] = useState(false);
 
   useEffect(() => {
     async function run() {
@@ -272,6 +274,39 @@ export default function NewApplicantProfilePage() {
     () => (data?.onboardingSteps ?? []).length > 0 && (data?.onboardingSteps ?? []).every((s) => s.state === "complete"),
     [data?.onboardingSteps]
   );
+
+  const handleResendStatusEmail = async () => {
+    if (!applicantId || !w?.email?.trim()) return;
+    setResendingStatusEmail(true);
+    try {
+      const res = await fetch("/api/admin/workers/send-notification-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          workerId: applicantId,
+          templateKey: "application_status",
+          clientOrigin: window.location.origin,
+        }),
+      });
+      const json = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        skipped?: boolean;
+        messageId?: string | null;
+      };
+      if (!res.ok) {
+        throw new Error(json.error || `Failed to resend status email (${res.status})`);
+      }
+      if (json.skipped) {
+        toast("Status email skipped because email sending is not configured.");
+      } else {
+        toast.success("Application status email resent.");
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to resend status email.");
+    } finally {
+      setResendingStatusEmail(false);
+    }
+  };
 
   return (
     <div className="flex min-h-screen bg-zinc-50 overflow-hidden">
@@ -404,6 +439,9 @@ export default function NewApplicantProfilePage() {
               loading={loading}
               onMessageClick={() => setCommOpen(true)}
               messageDisabled={!w?.email?.trim() && !w?.phone?.trim()}
+              onResendStatusClick={() => void handleResendStatusEmail()}
+              resendStatusDisabled={!applicantId || !w?.email?.trim()}
+              resendingStatus={resendingStatusEmail}
             />
             <ProfileSubTabs applicantId={applicantId} activeTab="Details" />
             {applicantId ? (
