@@ -424,14 +424,15 @@ export function AdminRecruiterSidebar({
 
       <div className={`border-t border-[#E2E8F0] ${isCollapsed ? "px-2 py-3" : "px-4 py-3"}`}>
         <div className={`flex items-center ${isCollapsed ? "flex-col gap-2" : "gap-2.5"}`}>
-          <img
-            src={profile?.profile_photo || DEFAULT_PROFILE_PHOTO}
-            alt={profileName}
-            title={isCollapsed ? profileName : undefined}
-            className="h-[30px] w-[30px] shrink-0 rounded-full object-cover"
-            width={30}
-            height={30}
-          />
+          {!isCollapsed ? (
+            <img
+              src={profile?.profile_photo || DEFAULT_PROFILE_PHOTO}
+              alt={profileName}
+              className="h-[30px] w-[30px] shrink-0 rounded-full object-cover"
+              width={30}
+              height={30}
+            />
+          ) : null}
           {!isCollapsed ? (
             <div className="min-w-0 flex-1">
               <p className="truncate text-[14px] leading-5 font-semibold text-[#0F2F60]">{profileName}</p>
