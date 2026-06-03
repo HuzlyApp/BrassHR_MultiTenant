@@ -1,5 +1,4 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { buildCacheKey, CACHE_TTL_SECONDS, getOrSetCache } from "@/lib/cache";
 
 export async function lookupTenantSlugBySubdomain(
   client: SupabaseClient,
@@ -7,17 +6,7 @@ export async function lookupTenantSlugBySubdomain(
 ): Promise<string | null> {
   const label = subdomainLabel.trim().toLowerCase();
   if (!label) return null;
-  return getOrSetCache(
-    buildCacheKey("tenants", ["public", "subdomain", label], { active: true }),
-    () => lookupTenantSlugBySubdomainUncached(client, label),
-    CACHE_TTL_SECONDS.staticReference
-  );
-}
 
-async function lookupTenantSlugBySubdomainUncached(
-  client: SupabaseClient,
-  label: string
-): Promise<string | null> {
   const { data: bySubdomain, error: subErr } = await client
     .from("tenants")
     .select("slug")

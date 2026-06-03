@@ -1,5 +1,7 @@
 "use client";
 
+/* eslint-disable react-hooks/static-components */
+
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import Image from "next/image";
@@ -68,6 +70,11 @@ const SIDEBAR_SECTIONS: SidebarSection[] = [
         matchPrefixes: ["/admin_recruiter/disapproved"],
       },
       { label: "Workers", href: "/admin_recruiter/workers", matchPrefixes: ["/admin_recruiter/workers"] },
+      {
+        label: "Attendance",
+        href: "/admin_recruiter/attendance",
+        matchPrefixes: ["/admin_recruiter/attendance"],
+      },
       {
         label: "Email Templates",
         href: "/admin_recruiter/email-templates",

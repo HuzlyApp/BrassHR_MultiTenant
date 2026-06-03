@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type CSSProperties } from "react";
+import ApplicantSignInCard from "@/app/components/ApplicantSignInCard";
 import { TenantBrandingProvider } from "@/app/components/tenant/TenantBrandingContext";
 import {
   applicantLandingCtaLabel,
@@ -114,8 +115,8 @@ export default function Home() {
   return (
     <TenantBrandingProvider branding={brand}>
       <main style={shell} className="flex min-h-screen items-center justify-center p-4 sm:p-6 lg:p-8">
-        <section className="w-full overflow-hidden rounded-2xl bg-white shadow-[0_24px_70px_rgba(0,0,0,0.18)] md:h-[600px] md:w-[1060px] md:grid md:grid-cols-[620px_440px]">
-          <div className="flex min-h-[550px] flex-col items-center justify-center gap-9 px-8 py-10 text-center sm:px-10 md:h-[600px] md:px-10 md:py-10">
+        <section className="w-full overflow-hidden rounded-2xl bg-white shadow-[0_24px_70px_rgba(0,0,0,0.18)] md:min-h-[720px] md:w-[1060px] md:grid md:grid-cols-[620px_440px]">
+          <div className="flex min-h-[650px] flex-col items-center justify-center gap-7 px-8 py-10 text-center sm:px-10 md:min-h-[720px] md:px-10 md:py-10">
             <div className="space-y-3">
               <h1 className="text-[34px] font-semibold leading-[48px] tracking-normal text-slate-800 sm:text-[42px] md:text-[48px]">
                 {brand.headline}
@@ -141,6 +142,8 @@ export default function Home() {
               {primaryCtaLabel}
             </button>
 
+            {resolvedPortalSlug ? <ApplicantSignInCard tenantSlug={resolvedPortalSlug} /> : null}
+
             <p className="text-center text-[14px] font-normal leading-5 tracking-normal text-slate-500">
               Need to sign in as a recruiter?{" "}
               <Link
@@ -154,7 +157,7 @@ export default function Home() {
 
           </div>
 
-          <div className="relative flex min-h-[430px] items-center justify-center overflow-hidden border-t border-slate-200 md:h-[600px] md:w-[440px] md:border-l md:border-t-0">
+          <div className="relative flex min-h-[430px] items-center justify-center overflow-hidden border-t border-slate-200 md:min-h-[720px] md:w-[440px] md:border-l md:border-t-0">
             <Image
               src={brand.loginBackgroundSrc}
               alt=""

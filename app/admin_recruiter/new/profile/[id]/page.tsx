@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useParams, usePathname } from "next/navigation";
+import { useParams, usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import CandidateCommunicationDialog from "../../../components/CandidateCommunicationDialog";
@@ -165,12 +165,6 @@ function formatDateTimeLabel(iso: string | null | undefined) {
   return `${datePart} - ${timePart}`;
 }
 
-function stepDotClass(state: OnboardingStep["state"]) {
-  if (state === "complete") return "bg-teal-600";
-  if (state === "in_progress") return "bg-amber-500";
-  return "bg-zinc-300";
-}
-
 function isMissingValue(value: unknown) {
   if (value == null) return true;
   if (typeof value === "string") {
@@ -188,6 +182,7 @@ function isUuid(value: string) {
 
 export default function NewApplicantProfilePage() {
   const pathname = usePathname();
+  const router = useRouter();
   const params = useParams<{ id: string }>();
   const applicantId = params?.id;
 
@@ -201,6 +196,7 @@ export default function NewApplicantProfilePage() {
   const [commOpen, setCommOpen] = useState(false);
   const [commRefreshKey, setCommRefreshKey] = useState(0);
   const [resendingStatusEmail, setResendingStatusEmail] = useState(false);
+  const [approvingForWork, setApprovingForWork] = useState(false);
 
   useEffect(() => {
     async function run() {
@@ -305,6 +301,28 @@ export default function NewApplicantProfilePage() {
       toast.error(e instanceof Error ? e.message : "Failed to resend status email.");
     } finally {
       setResendingStatusEmail(false);
+    }
+  };
+
+  const handleApproveForWork = async () => {
+    if (!applicantId) return;
+    setApprovingForWork(true);
+    try {
+      const res = await fetch("/api/admin/workers/status", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ workerId: applicantId, status: "approved" }),
+      });
+      const json = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) throw new Error(json.error || "Failed to approve applicant.");
+
+      toast.success("Applicant approved for work.");
+      router.push("/admin_recruiter/approved");
+      router.refresh();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to approve applicant.");
+    } finally {
+      setApprovingForWork(false);
     }
   };
 
@@ -866,9 +884,11 @@ export default function NewApplicantProfilePage() {
                     <div className="flex flex-wrap gap-2">
                       <button
                         type="button"
-                        className="inline-flex h-9 items-center justify-center rounded-lg bg-[#0D9488] px-4 text-xs font-semibold text-white"
+                        onClick={handleApproveForWork}
+                        disabled={approvingForWork || !applicantId}
+                        className="inline-flex h-9 items-center justify-center rounded-lg bg-[#0D9488] px-4 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
                       >
-                        Approved for work
+                        {approvingForWork ? "Approving..." : "Approved for work"}
                       </button>
                       <button
                         type="button"

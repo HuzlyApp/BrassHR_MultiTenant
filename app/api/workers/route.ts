@@ -108,19 +108,19 @@ export async function GET(req: Request) {
               "id, user_id, first_name, last_name, job_role, email, phone, address1, city, state, created_at",
             ] as const);
 
-      // `worker_status_chk` is the CHECK name; the column is `worker_status` (or legacy `status`).
-      // Prefer `worker_status` first: when both columns exist, Studio / CHECK usually reflect `worker_status`;
-      // filtering `status` first can return 0 rows while `worker_status` is `new`.
-      const attempts =
-        status === "active" ||
-        status === "inactive" ||
-        status === "cancelled" ||
-        status === "banned"
-          ? [{ col: "status" as const, extra: "status" as const }]
-          : [
-              { col: "worker_status" as const, extra: "worker_status" as const },
-              { col: "status" as const, extra: "status" as const },
-            ];
+      // Applicant pipeline statuses live in text column `status`. Some databases also have an
+      // unrelated enum `worker_status`, which does not accept values like "approved".
+      const pipelineStatus =
+        status === "new" ||
+        status === "pending" ||
+        status === "approved" ||
+        status === "disapproved";
+      const attempts = pipelineStatus
+        ? [
+            { col: "status" as const, extra: "status" as const },
+            { col: "worker_status" as const, extra: "worker_status" as const },
+          ]
+        : [{ col: "worker_status" as const, extra: "worker_status" as const }];
 
       let data: unknown[] | null = null;
       let error: SbErr | null = null;
