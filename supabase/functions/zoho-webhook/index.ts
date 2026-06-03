@@ -253,7 +253,15 @@ async function verifyWebhook(req: Request, rawBody: string): Promise<{ ok: boole
     return { ok, reason: ok ? "verified by shared secret" : "invalid shared secret header" };
   }
 
-  return { ok: true, reason: "no webhook secret configured" };
+  const allowUnsigned =
+    Deno.env.get("ZOHO_ALLOW_UNSIGNED_WEBHOOKS") === "true" &&
+    Deno.env.get("ENVIRONMENT") !== "production";
+  return {
+    ok: allowUnsigned,
+    reason: allowUnsigned
+      ? "unsigned webhook allowed by non-production override"
+      : "no webhook secret configured",
+  };
 }
 
 serve(async (req) => {

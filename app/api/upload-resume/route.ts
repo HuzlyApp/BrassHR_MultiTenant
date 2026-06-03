@@ -7,8 +7,14 @@ import { getSupabaseUrl } from "@/lib/supabase-env"
 import { persistWorkerResumePath } from "@/lib/onboarding/persist-worker-resume-path"
 import { persistWorkerResumeRecord } from "@/lib/onboarding/persist-worker-resume-record"
 import { WORKER_RESUMES_BUCKET } from "@/lib/supabase-storage-buckets"
+import { enforceRateLimit, getClientIp } from "@/lib/security/rate-limit"
 
 export const runtime = "nodejs"
+const MAX_RESUME_BYTES = Number(process.env.MAX_RESUME_UPLOAD_BYTES ?? 10 * 1024 * 1024)
+const ALLOWED_RESUME_MIME = new Set([
+  "application/pdf",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+])
 
 function sanitizeFileName(name: string): string {
   return name.replace(/[/\\?%*:|"<>]/g, "_").slice(0, 200)
@@ -36,6 +42,15 @@ async function extractText(buffer: Buffer, file: File): Promise<string> {
 }
 
 export async function POST(req: Request) {
+  const limited = await enforceRateLimit(req, {
+    namespace: "upload-resume",
+    key: getClientIp(req),
+    limit: Number(process.env.RATE_LIMIT_UPLOADS_PER_HOUR ?? 20),
+    windowMs: 60 * 60 * 1000,
+    failClosed: false,
+  })
+  if (limited) return limited
+
   const formData = await req.formData()
   const file = formData.get("file") as File | null
   const applicantIdRaw = formData.get("applicantId")
@@ -44,6 +59,14 @@ export async function POST(req: Request) {
 
   if (!file) {
     return NextResponse.json({ error: "No file uploaded" }, { status: 400 })
+  }
+  const lowerName = file.name.toLowerCase()
+  const mime = (file.type || "").toLowerCase()
+  if (file.size > MAX_RESUME_BYTES) {
+    return NextResponse.json({ error: "Resume file is too large" }, { status: 400 })
+  }
+  if (!ALLOWED_RESUME_MIME.has(mime) && !lowerName.endsWith(".pdf") && !lowerName.endsWith(".docx")) {
+    return NextResponse.json({ error: "Only PDF and DOCX resumes are supported" }, { status: 400 })
   }
 
   const buffer = Buffer.from(await file.arrayBuffer())

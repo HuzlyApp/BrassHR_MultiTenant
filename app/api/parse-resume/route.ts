@@ -4,8 +4,18 @@ import {
   normalizedResumeToStoredJson,
   RESUME_PARSE_FAILED_USER_MESSAGE,
 } from "@/lib/resumeParseQuality"
+import { enforceRateLimit, getClientIp } from "@/lib/security/rate-limit"
 
 export async function POST(req: Request) {
+  const limited = await enforceRateLimit(req, {
+    namespace: "parse-resume",
+    key: getClientIp(req),
+    limit: Number(process.env.RATE_LIMIT_AI_PER_HOUR ?? 20),
+    windowMs: 60 * 60 * 1000,
+    failClosed: true,
+  })
+  if (limited) return limited
+
   const { text } = await req.json()
 
   const prompt = `

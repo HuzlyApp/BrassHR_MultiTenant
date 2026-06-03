@@ -6,6 +6,7 @@ import {
   normalizedResumeToStoredJson,
   RESUME_PARSE_FAILED_USER_MESSAGE,
 } from "@/lib/resumeParseQuality"
+import { enforceRateLimit, getClientIp } from "@/lib/security/rate-limit"
 
 const client = new OpenAI({
   apiKey: process.env.XAI_API_KEY,
@@ -13,6 +14,15 @@ const client = new OpenAI({
 })
 
 export async function POST(req: Request) {
+  const limited = await enforceRateLimit(req, {
+    namespace: "process-resume",
+    key: getClientIp(req),
+    limit: Number(process.env.RATE_LIMIT_AI_PER_HOUR ?? 20),
+    windowMs: 60 * 60 * 1000,
+    failClosed: true,
+  })
+  if (limited) return limited
+
   const body = await req.json()
 
   const completion = await client.chat.completions.create({

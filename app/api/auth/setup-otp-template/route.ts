@@ -1,10 +1,18 @@
 import { NextResponse } from "next/server";
 import { applySupabaseMagicLinkOtpTemplate } from "@/lib/auth/supabase-magic-link-otp-template";
+import { requireGodAdminApiSession } from "@/lib/auth/require-god-admin-api";
 
 export const runtime = "nodejs";
 
 /** POST /api/auth/setup-otp-template — patch Supabase Magic Link template for {{ .Token }}. */
 export async function POST() {
+  if (process.env.NODE_ENV === "production") {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  const auth = await requireGodAdminApiSession();
+  if (auth instanceof NextResponse) return auth;
+
   const result = await applySupabaseMagicLinkOtpTemplate();
   if (!result.ok) {
     return NextResponse.json(

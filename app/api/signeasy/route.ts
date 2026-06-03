@@ -1,7 +1,20 @@
 import { NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
+import { requireStaffApiSession } from "@/lib/auth/api-session"
+import { enforceRateLimit } from "@/lib/security/rate-limit"
 
 export async function POST(req: Request) {
+  const auth = await requireStaffApiSession()
+  if (auth instanceof NextResponse) return auth
+  const limited = await enforceRateLimit(req, {
+    namespace: "signeasy-create-document",
+    key: auth.userId,
+    limit: Number(process.env.RATE_LIMIT_SIGNING_PER_HOUR ?? 20),
+    windowMs: 60 * 60 * 1000,
+    failClosed: true,
+  })
+  if (limited) return limited
+
   const url = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY
   if (!url || !key) {
@@ -11,6 +24,9 @@ export async function POST(req: Request) {
   const supabase = createClient(url, key)
 
 const { workerId,email } = await req.json()
+if (typeof workerId !== "string" || !workerId.trim() || typeof email !== "string" || !email.includes("@")) {
+  return NextResponse.json({ error: "Invalid workerId or email" }, { status: 400 })
+}
 
 const response = await fetch(
 "https://api.signeasy.com/v1/documents",

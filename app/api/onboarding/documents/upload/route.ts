@@ -4,6 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 import { getSupabaseUrl } from "@/lib/supabase-env";
 import { resolveWorkerByApplicantId } from "@/lib/onboarding/resolve-worker-context";
 import { WORKER_REQUIRED_FILES_BUCKET } from "@/lib/supabase-storage-buckets";
+import { enforceRateLimit, getClientIp } from "@/lib/security/rate-limit";
 
 export const runtime = "nodejs";
 
@@ -13,6 +14,15 @@ function sanitizeFileName(name: string): string {
 
 export async function POST(req: NextRequest) {
   try {
+    const limited = await enforceRateLimit(req, {
+      namespace: "onboarding-documents-upload",
+      key: getClientIp(req),
+      limit: Number(process.env.RATE_LIMIT_UPLOADS_PER_HOUR ?? 20),
+      windowMs: 60 * 60 * 1000,
+      failClosed: false,
+    });
+    if (limited) return limited;
+
     const formData = await req.formData();
     const file = formData.get("file") as File | null;
     const applicantId = String(formData.get("applicantId") ?? "").trim();

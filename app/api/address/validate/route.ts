@@ -6,6 +6,7 @@ import {
 } from "@/lib/mapbox/address-validation"
 import type { AddressQueryParts } from "@/lib/mapbox/address-validation-types"
 import type { MapboxGeocodeFeature } from "@/lib/mapbox/parse-mapbox-feature"
+import { enforceRateLimit, getClientIp } from "@/lib/security/rate-limit"
 
 export const runtime = "nodejs"
 
@@ -34,6 +35,15 @@ function parseQueryParts(body: Record<string, unknown>): AddressQueryParts {
 
 export async function POST(req: Request) {
   try {
+    const limited = await enforceRateLimit(req, {
+      namespace: "address-validate",
+      key: getClientIp(req),
+      limit: Number(process.env.RATE_LIMIT_PUBLIC_API_PER_MINUTE ?? 60),
+      windowMs: 60 * 1000,
+      failClosed: false,
+    })
+    if (limited) return limited
+
     const body = (await req.json()) as Record<string, unknown>
     const queryFromBody =
       typeof body.query === "string" ? body.query.trim() : ""

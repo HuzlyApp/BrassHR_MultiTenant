@@ -3,6 +3,7 @@ import twilio from "twilio";
 import { recordCandidateCommunication } from "@/lib/communication/record";
 import { normalizePhoneToE164 } from "@/lib/communication/phone";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
+import { enforceRateLimit, getClientIp } from "@/lib/security/rate-limit";
 
 export const runtime = "nodejs";
 
@@ -41,8 +42,14 @@ function paramsObject(form: FormData): Record<string, string> {
 function isValidTwilioRequest(req: Request, params: Record<string, string>): boolean {
   const authToken = process.env.TWILIO_AUTH_TOKEN?.trim();
   if (!authToken) {
-    console.warn("[twilio/inbound] TWILIO_AUTH_TOKEN missing; skipping signature validation");
-    return true;
+    const allowUnsigned =
+      process.env.NODE_ENV !== "production" && process.env.TWILIO_ALLOW_UNSIGNED_WEBHOOKS === "true";
+    if (allowUnsigned) {
+      console.warn("[twilio/inbound] unsigned webhook allowed by local override");
+      return true;
+    }
+    console.warn("[twilio/inbound] TWILIO_AUTH_TOKEN missing; rejecting webhook");
+    return false;
   }
 
   const signature = req.headers.get("x-twilio-signature") ?? "";
@@ -96,6 +103,15 @@ async function recordInboundMessage(params: TwilioInboundParams) {
 }
 
 export async function POST(req: Request) {
+  const limited = await enforceRateLimit(req, {
+    namespace: "twilio-inbound",
+    key: getClientIp(req),
+    limit: Number(process.env.RATE_LIMIT_WEBHOOKS_PER_MINUTE ?? 120),
+    windowMs: 60 * 1000,
+    failClosed: false,
+  });
+  if (limited) return limited;
+
   let form: FormData;
   try {
     form = await req.formData();

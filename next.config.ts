@@ -28,6 +28,35 @@ const nextConfig: NextConfig = {
   async redirects() {
     return legacyOnboardingRedirects;
   },
+  async headers() {
+    const securityHeaders = [
+      { key: "X-Content-Type-Options", value: "nosniff" },
+      { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+      { key: "X-Frame-Options", value: "SAMEORIGIN" },
+      { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(self)" },
+      {
+        key: "Content-Security-Policy",
+        value: [
+          "default-src 'self'",
+          "base-uri 'self'",
+          "frame-ancestors 'self'",
+          "object-src 'none'",
+          "img-src 'self' data: blob: https:",
+          "font-src 'self' data:",
+          "style-src 'self' 'unsafe-inline'",
+          "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+          "connect-src 'self' https:",
+          "frame-src 'self' https:",
+        ].join("; "),
+      },
+    ];
+    return [
+      {
+        source: "/:path*",
+        headers: securityHeaders,
+      },
+    ];
+  },
   // Mirror Expo-style vars so the browser bundle gets Supabase URL/anon key (Next only inlines NEXT_PUBLIC_*).
   env: {
     NEXT_PUBLIC_SUPABASE_URL:

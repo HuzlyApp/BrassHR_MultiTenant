@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { getSupabaseUrl } from "@/lib/supabase-env"
 import { resolveOnboardingTenantId } from "@/lib/tenant/resolve-onboarding-tenant-id"
+import { enforceRateLimit, getClientIp } from "@/lib/security/rate-limit"
 
 export const runtime = "nodejs"
 
@@ -14,6 +15,15 @@ export async function POST(req: NextRequest) {
     const body = await req.json()
     const applicantId = typeof body.applicantId === "string" ? body.applicantId.trim() : ""
     const emailRaw = typeof body.email === "string" ? body.email.trim() : ""
+    const limited = await enforceRateLimit(req, {
+      namespace: "onboarding-check-email",
+      key: `${getClientIp(req)}:${emailRaw.toLowerCase() || "missing"}`,
+      limit: Number(process.env.RATE_LIMIT_EMAIL_CHECK_PER_HOUR ?? 30),
+      windowMs: 60 * 60 * 1000,
+      failClosed: false,
+    })
+    if (limited) return limited
+
     if (!applicantId) {
       return NextResponse.json({ error: "Missing applicantId" }, { status: 400 })
     }

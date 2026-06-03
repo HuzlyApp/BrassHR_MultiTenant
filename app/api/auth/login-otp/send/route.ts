@@ -6,6 +6,7 @@ import {
 import { resolveGodAdminServer } from "@/lib/auth/resolve-god-admin-server";
 import { sendSupabaseLoginOtp } from "@/lib/auth/send-login-otp-email";
 import { createEphemeralAuthClient } from "@/lib/supabase/ephemeral-auth-client";
+import { enforceRateLimit, getClientIp } from "@/lib/security/rate-limit";
 
 export const runtime = "nodejs";
 
@@ -18,6 +19,14 @@ export async function POST(req: NextRequest) {
     const body = (await req.json()) as { email?: string; password?: string };
     const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
     const password = typeof body.password === "string" ? body.password : "";
+    const limited = await enforceRateLimit(req, {
+      namespace: "auth-login-otp",
+      key: `${getClientIp(req)}:${email || "missing"}`,
+      limit: Number(process.env.RATE_LIMIT_AUTH_PER_15_MIN ?? 10),
+      windowMs: 15 * 60 * 1000,
+      failClosed: true,
+    });
+    if (limited) return limited;
 
     if (!email && !password) {
       return loginAuthErrorResponse("Email and password are required.", "VALIDATION_ERROR", 400);

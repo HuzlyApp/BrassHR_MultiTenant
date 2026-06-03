@@ -3,8 +3,11 @@ import { NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { getSupabaseUrl } from "@/lib/supabase-env"
 import { WORKER_REQUIRED_FILES_BUCKET } from "@/lib/supabase-storage-buckets"
+import { enforceRateLimit, getClientIp } from "@/lib/security/rate-limit"
 
 export const runtime = "nodejs"
+const MAX_UPLOAD_BYTES = Number(process.env.MAX_REQUIRED_FILE_UPLOAD_BYTES ?? 10 * 1024 * 1024)
+const ALLOWED_UPLOAD_MIME = new Set(["application/pdf", "image/jpeg", "image/png"])
 
 function sanitizeFileName(name: string): string {
   return name.replace(/[/\\?%*:|"<>]/g, "_").slice(0, 200)
@@ -12,6 +15,15 @@ function sanitizeFileName(name: string): string {
 
 export async function POST(req: Request) {
   try {
+    const limited = await enforceRateLimit(req, {
+      namespace: "upload-required-file",
+      key: getClientIp(req),
+      limit: Number(process.env.RATE_LIMIT_UPLOADS_PER_HOUR ?? 20),
+      windowMs: 60 * 60 * 1000,
+      failClosed: false,
+    })
+    if (limited) return limited
+
     const formData = await req.formData()
     const file = formData.get("file") as File | null
     const folderRaw = formData.get("folder")
@@ -28,6 +40,13 @@ export async function POST(req: Request) {
     }
     if (!applicantId) {
       return NextResponse.json({ error: "Missing applicantId" }, { status: 400 })
+    }
+    if (file.size > MAX_UPLOAD_BYTES) {
+      return NextResponse.json({ error: "File is too large" }, { status: 400 })
+    }
+    const mime = (file.type || "").toLowerCase()
+    if (mime && !ALLOWED_UPLOAD_MIME.has(mime)) {
+      return NextResponse.json({ error: "File type not allowed" }, { status: 400 })
     }
 
     const allowedFolder = /^(ssn|license|tb|cpr|other)$/

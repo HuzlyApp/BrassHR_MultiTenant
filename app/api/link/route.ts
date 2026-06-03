@@ -1,13 +1,26 @@
 import { NextResponse } from "next/server"
 import axios, { AxiosError } from "axios"
+import { requireStaffApiSession } from "@/lib/auth/api-session"
+import { enforceRateLimit } from "@/lib/security/rate-limit"
 
 export async function POST(req: Request) {
   try {
+    const auth = await requireStaffApiSession()
+    if (auth instanceof NextResponse) return auth
+    const limited = await enforceRateLimit(req, {
+      namespace: "signeasy-link",
+      key: auth.userId,
+      limit: Number(process.env.RATE_LIMIT_SIGNING_PER_HOUR ?? 20),
+      windowMs: 60 * 60 * 1000,
+      failClosed: true,
+    })
+    if (limited) return limited
+
     const { requestId } = await req.json()
 
-    if (!requestId) {
+    if (typeof requestId !== "string" || !/^[A-Za-z0-9_-]{3,120}$/.test(requestId)) {
       return NextResponse.json(
-        { error: "requestId is required" },
+        { error: "Invalid requestId" },
         { status: 400 }
       )
     }

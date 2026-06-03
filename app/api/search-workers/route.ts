@@ -5,6 +5,7 @@ import { resolveStaffTenantScope } from "@/lib/auth/staff-tenant-scope"
 import { getSupabaseUrl } from "@/lib/supabase-env"
 import { narrowWorkerRowsByTenant } from "@/lib/workers/tenant-query"
 import { buildCacheKey, CACHE_TTL_SECONDS, getOrSetCache } from "@/lib/cache"
+import { enforceRateLimit } from "@/lib/security/rate-limit"
 
 type RpcRow = Record<string, unknown>
 type ContactLookupRow = { id: string | null; email: string | null; phone: string | null }
@@ -128,6 +129,14 @@ function mapWorkerRow(
 export async function POST(req: Request) {
   const auth = await requireStaffApiSession()
   if (auth instanceof NextResponse) return auth
+  const limited = await enforceRateLimit(req, {
+    namespace: "worker-search",
+    key: auth.userId,
+    limit: Number(process.env.RATE_LIMIT_SEARCH_PER_MINUTE ?? 60),
+    windowMs: 60 * 1000,
+    failClosed: false,
+  })
+  if (limited) return limited
 
   const tenantScope = await resolveStaffTenantScope(auth.authUser)
 
