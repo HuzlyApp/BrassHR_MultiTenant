@@ -61,22 +61,84 @@ export function SelectField({
   );
 }
 
+export function TextField({
+  label,
+  defaultValue,
+  required,
+  type = "text",
+  placeholder,
+}: {
+  label: string;
+  defaultValue?: string;
+  required?: boolean;
+  type?: string;
+  placeholder?: string;
+}) {
+  return (
+    <label className="block">
+      <FieldLabel required={required}>{label}</FieldLabel>
+      <input
+        type={type}
+        defaultValue={defaultValue}
+        placeholder={placeholder}
+        className={FIELD}
+      />
+    </label>
+  );
+}
+
 export function AddressField({
   label,
   helperText = "Building, Floor, etc.",
   defaultValue,
+  required,
 }: {
   label: string;
   helperText?: string;
   defaultValue: string;
+  required?: boolean;
 }) {
   return (
     <label className="block">
       <div className="mb-2 flex items-center justify-between gap-2">
-        <span className="text-sm text-[#6B7280]">{label}</span>
-        <span className="text-xs text-[#9CA3AF]">{helperText}</span>
+        <span className="text-sm text-[#6B7280]">
+          {label}
+          {required ? <span className="text-red-500"> *</span> : null}
+        </span>
+        {helperText ? (
+          <span className="shrink-0 text-xs text-[#9CA3AF]">{helperText}</span>
+        ) : null}
       </div>
       <input type="text" defaultValue={defaultValue} className={FIELD} />
     </label>
   );
 }
+
+export const INDUSTRY_OPTIONS = [
+  "Staffing",
+  "Healthcare",
+  "Home Care",
+  "Allied Health",
+  "Technology",
+  "Other",
+] as const;
+
+export const EMPLOYEE_COUNT_OPTIONS = [
+  "1-10",
+  "10-30",
+  "30-50",
+  "50-100",
+  "100+",
+] as const;
+
+export const CITY_OPTIONS = [
+  "Los Angeles",
+  "San Francisco",
+  "San Diego",
+  "Phoenix",
+  "Houston",
+  "Chicago",
+  "New York",
+  "Miami",
+  "Other",
+] as const;

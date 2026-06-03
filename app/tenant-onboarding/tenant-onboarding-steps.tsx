@@ -3,10 +3,11 @@
 import Image from "next/image";
 import Link from "next/link";
 import { Check, ChevronDown, ChevronRight, Link2, Trash2 } from "lucide-react";
-import { useRef, useState, type ChangeEvent, type DragEvent } from "react";
+import { useEffect, useRef, useState, type ChangeEvent, type DragEvent } from "react";
 import OnboardingStepsBuilder from "@/app/components/onboarding/OnboardingStepsBuilder";
 import { interStyle, primaryButtonStyle } from "@/app/tenant-onboarding/TenantOnboardingShell";
 import {
+  CITY_OPTIONS,
   COMPANY_SIZE_OPTIONS,
   INDUSTRY_OPTIONS,
   STATE_OPTIONS,
@@ -211,6 +212,46 @@ function SelectField({
   );
 }
 
+function AddressField({
+  label,
+  value,
+  onChange,
+  placeholder,
+  required = true,
+  helperText = "Building, Floor, etc.",
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  required?: boolean;
+  helperText?: string;
+}) {
+  return (
+    <div>
+      <div className="mb-[8px] flex items-center justify-between gap-2">
+        <FieldLabel required={required}>{label}</FieldLabel>
+        {helperText ? (
+          <span
+            className="shrink-0 text-[12px] font-normal leading-[16px] text-[#94a3b8]"
+            style={interStyle}
+          >
+            {helperText}
+          </span>
+        ) : null}
+      </div>
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        style={inputTypographyStyle}
+        className={`h-[56px] w-full rounded-[8px] border border-[#cbd5e1] bg-white px-[14px] ${inputTextClass} text-[#0f172a] outline-none transition placeholder:text-[#94a3b8] ${inputFocusClass}`}
+      />
+    </div>
+  );
+}
+
 function StepHeading({ title, subtitle }: { title: string; subtitle: string }) {
   return (
     <div className="text-left">
@@ -315,22 +356,26 @@ export function BusinessStep({
   const canContinue =
     orgName.trim().length >= 2 &&
     businessInfo.industry.trim().length > 0 &&
-    businessInfo.companySize.trim().length > 0;
+    businessInfo.companySize.trim().length > 0 &&
+    businessInfo.city.trim().length > 0 &&
+    businessInfo.state.trim().length > 0 &&
+    businessInfo.address.trim().length > 0 &&
+    businessInfo.zipCode.trim().length >= 5;
 
   return (
     <div>
       <StepHeading
-        title="Business information"
-        subtitle="Tell us about your company so we can personalize your BrassHR workspace."
+        title="Business Information"
+        subtitle="Add your business info."
       />
 
       <div className="mt-[28px] space-y-[24px]">
         <TextField
-          label="Company name"
+          label="Company Name"
           required
           value={orgName}
           onChange={onOrgNameChange}
-          placeholder="Acme Allied Staffing"
+          placeholder="ABC Company"
         />
 
         <div className="grid gap-[24px] sm:grid-cols-2">
@@ -343,7 +388,7 @@ export function BusinessStep({
             options={INDUSTRY_OPTIONS}
           />
           <SelectField
-            label="Company size"
+            label="Number of Employees"
             required
             value={businessInfo.companySize}
             onChange={(value) => onBusinessInfoChange({ companySize: value })}
@@ -353,48 +398,67 @@ export function BusinessStep({
         </div>
 
         <div className="grid gap-[24px] sm:grid-cols-2">
-          <TextField
-            label="Phone number"
-            value={businessInfo.phone}
-            onChange={(value) => onBusinessInfoChange({ phone: value })}
-            placeholder="(555) 123-4567"
-            type="tel"
-          />
-          <TextField
-            label="Website"
-            value={businessInfo.website}
-            onChange={(value) => onBusinessInfoChange({ website: value })}
-            placeholder="www.yourcompany.com"
-            type="url"
-          />
-        </div>
-
-        <TextField
-          label="Business address"
-          value={businessInfo.address}
-          onChange={(value) => onBusinessInfoChange({ address: value })}
-          placeholder="Street address"
-        />
-
-        <div className="grid gap-[24px] sm:grid-cols-3">
-          <TextField
+          <SelectField
             label="City"
+            required
             value={businessInfo.city}
             onChange={(value) => onBusinessInfoChange({ city: value })}
-            placeholder="City"
+            placeholder="Select city"
+            options={CITY_OPTIONS}
           />
           <SelectField
             label="State"
+            required
             value={businessInfo.state}
             onChange={(value) => onBusinessInfoChange({ state: value })}
-            placeholder="Select"
+            placeholder="Select state"
             options={STATE_OPTIONS}
           />
+        </div>
+
+        <AddressField
+          label="Business Address"
+          required
+          value={businessInfo.address}
+          onChange={(value) => onBusinessInfoChange({ address: value })}
+          placeholder="123 Maple Street, Springfield, IL 62704, USA"
+        />
+
+        <div className="grid gap-[24px] sm:grid-cols-2">
           <TextField
-            label="Zip code"
+            label="Business Phone"
+            required={false}
+            value={businessInfo.phone}
+            onChange={(value) => onBusinessInfoChange({ phone: value })}
+            placeholder="(201) 512-2366"
+            type="tel"
+          />
+          <TextField
+            label="Business Email Address"
+            required={false}
+            value={businessInfo.email}
+            onChange={(value) => onBusinessInfoChange({ email: value })}
+            placeholder="info@abccompany.com"
+            type="email"
+          />
+        </div>
+
+        <div className="grid gap-[24px] sm:grid-cols-2">
+          <TextField
+            label="Zip Code"
+            required
             value={businessInfo.zipCode}
-            onChange={(value) => onBusinessInfoChange({ zipCode: value.replace(/\D/g, "").slice(0, 10) })}
-            placeholder="Code"
+            onChange={(value) =>
+              onBusinessInfoChange({ zipCode: value.replace(/\D/g, "").slice(0, 10) })
+            }
+            placeholder="40170"
+          />
+          <TextField
+            label="EIN Number"
+            required={false}
+            value={businessInfo.ein}
+            onChange={(value) => onBusinessInfoChange({ ein: value })}
+            placeholder="902231829"
           />
         </div>
       </div>
@@ -408,6 +472,20 @@ export function BusinessStep({
       <SkipForNowButton onClick={onSkip} />
     </div>
   );
+}
+
+const LOGO_ACCEPT = "image/png,image/jpeg,image/jpg,.png,.jpg,.jpeg";
+
+function isAllowedLogoFile(file: File): boolean {
+  const allowed = new Set([
+    "image/png",
+    "image/jpeg",
+    "image/jpg",
+    "image/pjpeg",
+  ]);
+  if (file.type && allowed.has(file.type)) return true;
+  const ext = file.name.split(".").pop()?.toLowerCase();
+  return ext === "png" || ext === "jpg" || ext === "jpeg";
 }
 
 export function CompanyLogoStep({
@@ -439,10 +517,40 @@ export function CompanyLogoStep({
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
-  const hasUserLogo = Boolean(logoFile) || logoUrl.startsWith("blob:");
+  const [transparentBackground, setTransparentBackground] = useState(false);
+  const [previewSrc, setPreviewSrc] = useState("");
+
+  useEffect(() => {
+    if (logoFile) {
+      const objectUrl = URL.createObjectURL(logoFile);
+      setPreviewSrc(objectUrl);
+      return () => URL.revokeObjectURL(objectUrl);
+    }
+
+    const external = logoUrl.trim();
+    if (external.startsWith("blob:") || external.startsWith("data:") || external.startsWith("http")) {
+      setPreviewSrc(external);
+      return;
+    }
+
+    setPreviewSrc("");
+  }, [logoFile, logoUrl]);
+
+  const hasUserLogo = Boolean(logoFile) || previewSrc.length > 0;
+
+  const previewName = logoDisplayName.trim() || orgName.trim() || "Your company name";
+  const previewTagline = logoTagline.trim() || "Your company tagline";
+
+  const canContinue =
+    logoDisplayName.trim().length >= 1 && logoTagline.trim().length >= 1;
 
   const handleFile = (file: File | null) => {
     if (!file) return;
+
+    if (!isAllowedLogoFile(file)) {
+      setUploadError("Only support png, jpg files");
+      return;
+    }
 
     const maxBytes = 10 * 1024 * 1024;
     if (file.size > maxBytes) {
@@ -451,7 +559,9 @@ export function CompanyLogoStep({
     }
 
     setUploadError(null);
-    onLogoFileChange(file, URL.createObjectURL(file));
+    const objectUrl = URL.createObjectURL(file);
+    onLogoFileChange(file, objectUrl);
+    onLogoUrlChange(objectUrl);
   };
 
   const onDrop = (event: DragEvent<HTMLDivElement>) => {
@@ -467,69 +577,93 @@ export function CompanyLogoStep({
     inputRef.current?.click();
   };
 
-  const handleRemoveLogo = () => {
+  const handleRemoveLogo = (event: React.MouseEvent) => {
+    event.stopPropagation();
     setUploadError(null);
+    setTransparentBackground(false);
     onLogoFileChange(null, "");
     onLogoUrlChange("");
     if (inputRef.current) inputRef.current.value = "";
   };
 
-  const previewName = logoDisplayName.trim() || orgName.trim() || "Your company name";
-  const previewTagline = logoTagline.trim() || "Your company tagline";
-
   return (
     <div>
-      <StepHeading
-        title="Company logo"
-        subtitle={`Upload a logo for ${orgName.trim() || "your organization"}. Applicants and recruiters will see this across your portal.`}
-      />
+      <StepHeading title="Company Logo" subtitle="Customize your company logo" />
 
       <div className="mt-[28px] space-y-[24px]">
-        <div className="grid gap-[16px] sm:grid-cols-2">
-          <TextField
-            label="Logo name"
-            required={false}
-            value={logoDisplayName}
-            onChange={onLogoDisplayNameChange}
-            placeholder={orgName.trim() || "Your company name"}
-          />
-          <TextField
-            label="Tagline"
-            required={false}
-            value={logoTagline}
-            onChange={onLogoTaglineChange}
-            placeholder="Your company tagline"
-          />
-        </div>
+        <TextField
+          label="Logo Name"
+          required
+          value={logoDisplayName}
+          onChange={onLogoDisplayNameChange}
+          placeholder="Logo name"
+        />
+        <TextField
+          label="Tagline"
+          required
+          value={logoTagline}
+          onChange={onLogoTaglineChange}
+          placeholder="Tagline"
+        />
 
         {hasUserLogo ? (
-          <div className="rounded-[12px] border border-[color:color-mix(in_srgb,var(--brand-primary)_35%,#e2e8f0)] bg-[#f8fafc] px-[16px] py-[14px]">
-            <div className="flex items-center gap-[14px]">
-              <div className="flex h-[56px] w-[56px] shrink-0 items-center justify-center overflow-hidden rounded-full border border-[#e2e8f0] bg-white">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={logoUrl} alt="" className="max-h-[44px] max-w-[44px] object-contain" />
+          <>
+            <div className="flex items-center gap-[14px] rounded-[12px] border border-[color:var(--brand-primary)] bg-[#F4F4F4] px-[16px] py-[14px]">
+              <div className="flex h-[56px] w-[56px] shrink-0 items-center justify-center overflow-hidden rounded-full border border-[#e2e8f0] bg-white p-1">
+                {previewSrc ? (
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img
+                    src={previewSrc}
+                    alt=""
+                    className="h-full w-full rounded-full object-contain"
+                  />
+                ) : null}
               </div>
               <div className="min-w-0 flex-1 text-left">
-                <p className="truncate text-[16px] font-semibold leading-[22px] text-[#0f172a]" style={interStyle}>
+                <p
+                  className="truncate text-[16px] font-semibold leading-[22px] text-[#374151]"
+                  style={interStyle}
+                >
                   {previewName}
                 </p>
-                <p className="truncate text-[14px] leading-[20px] text-[#64748b]" style={interStyle}>
+                <p
+                  className="truncate text-[14px] font-normal leading-[20px] text-[#94a3b8]"
+                  style={interStyle}
+                >
                   {previewTagline}
                 </p>
               </div>
               <button
                 type="button"
                 onClick={handleRemoveLogo}
-                className="flex h-[40px] w-[40px] shrink-0 items-center justify-center rounded-[8px] text-[color:var(--brand-primary)] transition hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_10%,white)]"
+                className="flex h-[40px] w-[40px] shrink-0 items-center justify-center rounded-[8px] text-[color:var(--brand-primary)] transition hover:bg-white/80"
                 aria-label="Remove logo"
               >
                 <Trash2 className="h-[20px] w-[20px]" strokeWidth={2} />
               </button>
             </div>
-          </div>
+
+            <label className="flex cursor-pointer items-start gap-[10px]">
+              <input
+                type="checkbox"
+                checked={transparentBackground}
+                onChange={(e) => setTransparentBackground(e.target.checked)}
+                className="mt-[2px] h-[18px] w-[18px] shrink-0 rounded-[4px] border border-[#cbd5e1] accent-[color:var(--brand-primary)]"
+              />
+              <span
+                className="text-[14px] font-normal leading-[20px] text-[#94a3b8]"
+                style={interStyle}
+              >
+                Make the white background on my logo transparent
+              </span>
+            </label>
+          </>
         ) : (
           <div>
-            <h3 className="text-[16px] font-semibold leading-[24px] text-[#0f172a]" style={interStyle}>
+            <h3
+              className="text-[16px] font-semibold leading-[24px] text-[#0f172a]"
+              style={interStyle}
+            >
               Upload Logo
             </h3>
 
@@ -542,7 +676,7 @@ export function CompanyLogoStep({
               }}
               onDragOver={(e) => e.preventDefault()}
               onDrop={onDrop}
-              className="mt-[16px] flex cursor-pointer flex-col items-center justify-center rounded-[12px] border border-dashed border-[#64748b] bg-white px-6 py-[32px] transition hover:border-[color:var(--brand-secondary)] hover:bg-[#f8fafc]"
+              className="mt-[16px] flex cursor-pointer flex-col items-center justify-center rounded-[10px] border-2 border-dashed border-[#94a3b8] bg-white px-6 py-[28px] transition hover:border-[#64748b] hover:bg-[#fafafa]"
             >
               <Image
                 src="/icons/braas-HR/tenant-onboarding/upload.svg"
@@ -551,13 +685,20 @@ export function CompanyLogoStep({
                 height={36}
                 className="h-[36px] w-[36px]"
               />
-              <p className="mt-[16px] text-[16px] font-medium leading-[24px] text-[#104b83]" style={interStyle}>
+
+              <p
+                className="mt-[16px] text-[16px] font-medium leading-[24px] text-[#104b83]"
+                style={interStyle}
+              >
                 Drag your file(s) to start uploading
               </p>
 
               <div className="my-[16px] flex w-full max-w-[320px] items-center gap-3">
                 <div className="h-px flex-1 bg-[#cbd5e1]" aria-hidden />
-                <span className="text-[14px] font-medium leading-[20px] text-[#64748b]" style={interStyle}>
+                <span
+                  className="text-[14px] font-medium leading-[20px] text-[#64748b]"
+                  style={interStyle}
+                >
                   OR
                 </span>
                 <div className="h-px flex-1 bg-[#cbd5e1]" aria-hidden />
@@ -575,17 +716,19 @@ export function CompanyLogoStep({
                 Browse files
               </button>
 
-              <p className="mt-[12px] text-[13px] leading-[18px] text-[#94a3b8]" style={interStyle}>
+              <p
+                className="mt-[12px] text-[13px] leading-[18px] text-[#94a3b8]"
+                style={interStyle}
+              >
                 Max 10 MB files are allowed
               </p>
 
-              <input
-                ref={inputRef}
-                type="file"
-                accept="image/png,image/jpeg,image/webp,image/svg+xml"
-                className="hidden"
-                onChange={onFileInput}
-              />
+              <p
+                className="mt-[16px] text-[14px] leading-[20px] text-[#64748b]"
+                style={interStyle}
+              >
+                Recommended image size: 512×512 px
+              </p>
             </div>
 
             {uploadError ? (
@@ -594,25 +737,27 @@ export function CompanyLogoStep({
               </p>
             ) : null}
 
-            <p className="mt-[12px] text-center text-[14px] leading-[20px] text-[#64748b]" style={interStyle}>
-              Recommended image size: 512×512 px
+            <p className="mt-[12px] text-[13px] leading-[18px] text-[#94a3b8]" style={interStyle}>
+              Only support png, jpg files
             </p>
           </div>
         )}
 
-        <div>
-          <FieldLabel required={false}>Logo URL (optional)</FieldLabel>
-          <input
-            value={logoUrl.startsWith("blob:") ? "" : logoUrl}
-            onChange={(e) => onLogoUrlChange(e.target.value)}
-            placeholder="/images/logo.svg or https://…"
-            style={inputTypographyStyle}
-            className={`h-[56px] w-full rounded-[8px] border border-[#cbd5e1] bg-white px-[14px] ${inputTextClass} text-[#0f172a] outline-none transition placeholder:text-[#94a3b8] ${inputFocusClass}`}
-          />
-        </div>
+        <input
+          ref={inputRef}
+          type="file"
+          accept={LOGO_ACCEPT}
+          className="hidden"
+          onChange={onFileInput}
+        />
       </div>
 
-      <StepActions onBack={onBack} onContinue={onContinue} continueLabel="Save and Continue" />
+      <StepActions
+        onBack={onBack}
+        onContinue={onContinue}
+        continueLabel="Save and Continue"
+        continueDisabled={!canContinue}
+      />
       <SkipForNowButton onClick={onSkip} />
     </div>
   );

@@ -1,6 +1,6 @@
 export const INDUSTRY_OPTIONS = [
+  "Staffing",
   "Healthcare",
-  "Staffing & Recruiting",
   "Home Care",
   "Allied Health",
   "Technology",
@@ -8,20 +8,37 @@ export const INDUSTRY_OPTIONS = [
 ] as const;
 
 export const COMPANY_SIZE_OPTIONS = [
-  "1–10 employees",
-  "11–50 employees",
-  "51–200 employees",
-  "201–500 employees",
-  "500+ employees",
+  "1-10",
+  "10-30",
+  "30-50",
+  "50-100",
+  "100+",
+] as const;
+
+export const CITY_OPTIONS = [
+  "Los Angeles",
+  "San Francisco",
+  "San Diego",
+  "Phoenix",
+  "Houston",
+  "Chicago",
+  "New York",
+  "Miami",
+  "Other",
 ] as const;
 
 export const STATE_OPTIONS = [
-  "California",
+  "Alabama",
+  "Alaska",
   "Arizona",
-  "Texas",
-  "New York",
+  "California",
+  "Colorado",
   "Florida",
+  "Georgia",
   "Illinois",
+  "New York",
+  "Texas",
+  "Washington",
   "Other",
 ] as const;
 
@@ -29,23 +46,25 @@ export const STATE_OPTIONS = [
 export type BusinessInfoForm = {
   industry: string;
   companySize: string;
-  phone: string;
-  website: string;
   city: string;
   state: string;
-  zipCode: string;
   address: string;
+  phone: string;
+  email: string;
+  zipCode: string;
+  ein: string;
 };
 
 export const initialBusinessInfoForm = (): BusinessInfoForm => ({
   industry: "",
   companySize: "",
-  phone: "",
-  website: "",
   city: "",
   state: "",
-  zipCode: "",
   address: "",
+  phone: "",
+  email: "",
+  zipCode: "",
+  ein: "",
 });
 
 export const TENANT_GOAL_OPTIONS = [
