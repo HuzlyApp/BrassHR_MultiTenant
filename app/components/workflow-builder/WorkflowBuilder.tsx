@@ -37,7 +37,13 @@ import {
   TEXT_SECONDARY,
 } from "./constants";
 import { applyWorkflowNodeDataPatch } from "@/lib/onboarding/apply-workflow-node-patch";
-import type { StepCategory, WorkflowNodeData, WorkflowState } from "./types";
+import type {
+  StepCategory,
+  WorkflowCanvasNodeData,
+  WorkflowNodeData,
+  WorkflowState,
+} from "./types";
+import { withLeafDropZones } from "./workflow-canvas-utils";
 
 export type WorkflowBuilderProps = {
   title: string;
@@ -101,8 +107,13 @@ function WorkflowBuilderInner({
   resetKey,
   hideTopChrome = false,
 }: WorkflowBuilderProps) {
+  const hydratedInitial = useMemo(
+    () => withLeafDropZones(initialNodes, initialEdges),
+    [initialNodes, initialEdges]
+  );
+
   const [nodes, setNodes, onNodesChange] =
-    useNodesState<Node<WorkflowNodeData>>(initialNodes);
+    useNodesState<Node<WorkflowCanvasNodeData>>(hydratedInitial.nodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>(initialEdges);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [history, setHistory] = useState<WorkflowState[]>([]);
@@ -121,17 +132,19 @@ function WorkflowBuilderInner({
 
   useEffect(() => {
     if (!resetKey) return;
-    setNodes(initialNodes);
-    setEdges(initialEdges);
+    const hydrated = withLeafDropZones(initialNodes, initialEdges);
+    setNodes(hydrated.nodes);
+    setEdges(hydrated.edges);
     setSelectedNodeId(null);
     setHistory([]);
     skipChangeAfterReset.current = true;
   }, [initialEdges, initialNodes, resetKey, setEdges, setNodes]);
 
-  const selectedNode = useMemo(
-    () => nodes.find((n) => n.id === selectedNodeId) ?? null,
-    [nodes, selectedNodeId]
-  );
+  const selectedNode = useMemo((): Node<WorkflowNodeData> | null => {
+    const n = nodes.find((node) => node.id === selectedNodeId);
+    if (n?.type === "step") return n as Node<WorkflowNodeData>;
+    return null;
+  }, [nodes, selectedNodeId]);
 
   const currentState: WorkflowState = useMemo(
     () => ({ nodes, edges }),
@@ -168,9 +181,11 @@ function WorkflowBuilderInner({
     (id: string, patch: Partial<WorkflowNodeData>, options?: { skipHistory?: boolean }) => {
       if (!options?.skipHistory) pushHistory();
       setNodes((prev) =>
-        prev.map((n) =>
-          n.id === id ? { ...n, data: applyWorkflowNodeDataPatch(n.data, patch) } : n
-        )
+        prev.map((n) => {
+          if (n.id !== id || n.type !== "step") return n;
+          const step = n as Node<WorkflowNodeData>;
+          return { ...step, data: applyWorkflowNodeDataPatch(step.data, patch) };
+        })
       );
     },
     [pushHistory, setNodes]

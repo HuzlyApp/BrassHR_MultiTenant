@@ -1,5 +1,9 @@
 import type { Edge, Node } from "@xyflow/react";
-import type { StepSettings, WorkflowNodeData } from "@/app/components/workflow-builder/types";
+import type {
+  StepSettings,
+  WorkflowCanvasNodeData,
+  WorkflowNodeData,
+} from "@/app/components/workflow-builder/types";
 import { normalizeWorkflowNodeSettings } from "@/lib/onboarding/normalize-workflow-settings";
 
 export type SerializableWorkflowNode = {
@@ -19,11 +23,21 @@ export type SerializableWorkflowState = {
 };
 
 export function serializeWorkflowState(
-  nodes: Node<WorkflowNodeData>[],
+  nodes: Node<WorkflowCanvasNodeData>[],
   edges: Edge[]
 ): SerializableWorkflowState {
+  const stepNodes = nodes.filter(
+    (n): n is Node<WorkflowNodeData> => n.type === "step"
+  );
+  const dropZoneIds = new Set(
+    nodes.filter((n) => n.type === "dropZone").map((n) => n.id)
+  );
+  const stepEdges = edges.filter(
+    (e) => !dropZoneIds.has(e.source) && !dropZoneIds.has(e.target)
+  );
+
   return {
-    nodes: nodes.map((n) => ({
+    nodes: stepNodes.map((n) => ({
       id: n.id,
       stepId: n.data.stepId,
       label: n.data.label,
@@ -33,7 +47,7 @@ export function serializeWorkflowState(
       required: n.data.required,
       settings: n.data.settings,
     })),
-    edges: edges.map((e) => ({
+    edges: stepEdges.map((e) => ({
       id: e.id,
       source: e.source,
       target: e.target,

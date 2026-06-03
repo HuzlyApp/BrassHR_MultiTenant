@@ -61,8 +61,28 @@ export type WorkflowNodeData = {
   [key: string]: unknown;
 };
 
+/** Canvas-only placeholder; not saved to workflow config. */
+export type DropZoneNodeData = {
+  kind: "dropZone";
+  [key: string]: unknown;
+};
+
+export type WorkflowCanvasNodeData = WorkflowNodeData | DropZoneNodeData;
+
+export function isDropZoneNode(
+  node: import("@xyflow/react").Node<WorkflowCanvasNodeData>
+): node is import("@xyflow/react").Node<DropZoneNodeData> {
+  return node.type === "dropZone";
+}
+
+export function isStepNode(
+  node: import("@xyflow/react").Node<WorkflowCanvasNodeData>
+): node is import("@xyflow/react").Node<WorkflowNodeData> {
+  return node.type === "step";
+}
+
 export type WorkflowState = {
-  nodes: import("@xyflow/react").Node<WorkflowNodeData>[];
+  nodes: import("@xyflow/react").Node<WorkflowCanvasNodeData>[];
   edges: import("@xyflow/react").Edge[];
 };
 

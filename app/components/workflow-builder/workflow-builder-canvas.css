@@ -1,0 +1,9 @@
+/* Keep connector + menus above step and drop-zone nodes */
+.workflow-builder-flow .react-flow__edgelabel-renderer {
+  z-index: 1000 !important;
+  pointer-events: none;
+}
+
+.workflow-builder-flow .react-flow__edgelabel-renderer > * {
+  pointer-events: all;
+}

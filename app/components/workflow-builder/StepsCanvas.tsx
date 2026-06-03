@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo } from "react";
 import {
   Background,
   BackgroundVariant,
@@ -18,8 +18,11 @@ import {
 } from "@xyflow/react";
 
 import "@xyflow/react/dist/style.css";
+import "./workflow-builder-canvas.css";
 
+import type { ConnectorMenuAction } from "./ConnectorActionMenu";
 import WorkflowConnectorEdge from "./edges/WorkflowConnectorEdge";
+import DropZoneNode from "./nodes/DropZoneNode";
 import StepNode from "./nodes/StepNode";
 import {
   WORKFLOW_CONNECTOR_COLOR,
@@ -28,27 +31,40 @@ import {
   createWorkflowEdge,
   DRAG_DATA_TYPE,
   GOLD,
+  NODE_VERTICAL_SPACING,
   TEXT_MUTED,
 } from "./constants";
 import type { StepCategory, StepDefinition, WorkflowNodeData } from "./types";
+import {
+  isDropZoneNode,
+  isStepNode,
+  type WorkflowCanvasNodeData,
+} from "./types";
+import {
+  buildDropZoneNode,
+  createDropZoneId,
+  dropZonePositionBelow,
+  findDropZoneAtPosition,
+  countDropZoneChildren,
+  parallelDropPositions,
+  onlyStepNodes,
+} from "./workflow-canvas-utils";
 import { normalizeWorkflowNodeSettings } from "@/lib/onboarding/normalize-workflow-settings";
 
 type StepsCanvasProps = {
-  nodes: Node<WorkflowNodeData>[];
+  nodes: Node<WorkflowCanvasNodeData>[];
   edges: Edge[];
-  setNodes: React.Dispatch<React.SetStateAction<Node<WorkflowNodeData>[]>>;
+  setNodes: React.Dispatch<React.SetStateAction<Node<WorkflowCanvasNodeData>[]>>;
   setEdges: React.Dispatch<React.SetStateAction<Edge[]>>;
-  onNodesChange: (changes: NodeChange<Node<WorkflowNodeData>>[]) => void;
+  onNodesChange: (changes: NodeChange<Node<WorkflowCanvasNodeData>>[]) => void;
   onEdgesChange: (changes: EdgeChange[]) => void;
   categories: StepCategory[];
   selectedNodeId: string | null;
   onSelectNode: (id: string | null) => void;
 };
 
-const nodeTypes = { step: StepNode };
+const nodeTypes = { step: StepNode, dropZone: DropZoneNode };
 const edgeTypes = { [WORKFLOW_EDGE_TYPE]: WorkflowConnectorEdge };
-
-const NODE_VERTICAL_SPACING = 130;
 
 function buildStepNode(
   id: string,
@@ -75,6 +91,17 @@ function buildStepNode(
   };
 }
 
+function dayAfterSource(
+  nodes: Node<WorkflowCanvasNodeData>[],
+  sourceId: string
+): number {
+  const source = nodes.find((n) => n.id === sourceId);
+  if (source && isStepNode(source)) return source.data.day + 1;
+  const steps = onlyStepNodes(nodes) as Node<WorkflowNodeData>[];
+  if (!steps.length) return 1;
+  return Math.max(...steps.map((n) => n.data.day)) + 1;
+}
+
 export default function StepsCanvas({
   nodes,
   edges,
@@ -86,8 +113,10 @@ export default function StepsCanvas({
   selectedNodeId,
   onSelectNode,
 }: StepsCanvasProps) {
-  const { screenToFlowPosition } = useReactFlow<Node<WorkflowNodeData>, Edge>();
-  const [edgeRemoveModeId, setEdgeRemoveModeId] = useState<string | null>(null);
+  const { screenToFlowPosition } = useReactFlow<
+    Node<WorkflowCanvasNodeData>,
+    Edge
+  >();
 
   const stepById = useMemo(() => {
     const map = new Map<string, StepDefinition>();
@@ -95,26 +124,38 @@ export default function StepsCanvas({
     return map;
   }, [categories]);
 
-  const handleDeleteEdge = useCallback(
-    (edgeId: string) => {
-      setEdges((prev) => prev.filter((e) => e.id !== edgeId));
-      setEdgeRemoveModeId(null);
-    },
-    [setEdges]
-  );
-
   const handleDeleteNode = useCallback(
     (id: string) => {
-      setNodes((prev) => prev.filter((n) => n.id !== id));
-      setEdges((prev) => {
-        const incoming = prev.filter((e) => e.target === id);
-        const outgoing = prev.filter((e) => e.source === id);
-        const without = prev.filter((e) => e.source !== id && e.target !== id);
+      const target = nodes.find((n) => n.id === id);
+      if (!target || isDropZoneNode(target)) return;
+
+      const dropChildren = edges
+        .filter((e) => e.source === id)
+        .map((e) => nodes.find((n) => n.id === e.target))
+        .filter((n) => n && isDropZoneNode(n))
+        .map((n) => n!.id);
+
+      setNodes((prev) =>
+        prev.filter((n) => n.id !== id && !dropChildren.includes(n.id))
+      );
+
+      setEdges((edgePrev) => {
+        const incoming = edgePrev.filter((e) => e.target === id);
+        const outgoing = edgePrev.filter((e) => e.source === id);
+        const cleaned = edgePrev.filter(
+          (e) =>
+            e.source !== id &&
+            e.target !== id &&
+            !dropChildren.includes(e.source) &&
+            !dropChildren.includes(e.target)
+        );
 
         const bridges: Edge[] = [];
         for (const inn of incoming) {
           for (const out of outgoing) {
-            const exists = without.some(
+            const outTarget = nodes.find((n) => n.id === out.target);
+            if (outTarget && isDropZoneNode(outTarget)) continue;
+            const exists = cleaned.some(
               (e) => e.source === inn.source && e.target === out.target
             );
             if (!exists && inn.source !== out.target) {
@@ -122,18 +163,65 @@ export default function StepsCanvas({
             }
           }
         }
-        return [...without, ...bridges];
+        return [...cleaned, ...bridges];
       });
+
       if (selectedNodeId === id) onSelectNode(null);
     },
-    [setNodes, setEdges, selectedNodeId, onSelectNode]
+    [nodes, edges, setNodes, setEdges, selectedNodeId, onSelectNode]
+  );
+
+  const replaceDropZoneWithStep = useCallback(
+    (
+      dropZoneId: string,
+      def: StepDefinition,
+      day: number
+    ) => {
+      const dropZone = nodes.find((n) => n.id === dropZoneId);
+      if (!dropZone || !isDropZoneNode(dropZone)) return;
+
+      const incoming = edges.find((e) => e.target === dropZoneId);
+      const sourceId = incoming?.source;
+      const stepId = `node-${Date.now()}`;
+      const stepNode = buildStepNode(stepId, def, dropZone.position, day);
+      const nextDropId = createDropZoneId();
+      const nextDrop = buildDropZoneNode(
+        nextDropId,
+        dropZonePositionBelow(stepNode)
+      );
+
+      setNodes((prev) => [
+        ...prev.filter((n) => n.id !== dropZoneId),
+        stepNode,
+        nextDrop,
+      ]);
+
+      setEdges((prev) => {
+        const without = prev.filter((e) => e.target !== dropZoneId);
+        const next = [...without, createWorkflowEdge(stepId, nextDropId)];
+        if (sourceId) {
+          return [
+            ...next.filter((e) => !(e.source === sourceId && e.target === stepId)),
+            createWorkflowEdge(sourceId, stepId),
+          ];
+        }
+        return next;
+      });
+
+      onSelectNode(stepId);
+    },
+    [nodes, edges, setNodes, setEdges, onSelectNode]
   );
 
   const handleInsertBetween = useCallback(
     (sourceId: string, targetId: string) => {
       const source = nodes.find((n) => n.id === sourceId);
       const target = nodes.find((n) => n.id === targetId);
-      if (!source || !target) return;
+      if (!source || !target || !isStepNode(source)) return;
+
+      if (isDropZoneNode(target)) {
+        return;
+      }
 
       const def = stepById.get(source.data.stepId);
       if (!def) return;
@@ -166,7 +254,11 @@ export default function StepsCanvas({
         const without = prev.filter(
           (e) => !(e.source === sourceId && e.target === targetId)
         );
-        return [...without, createWorkflowEdge(sourceId, id), createWorkflowEdge(id, targetId)];
+        return [
+          ...without,
+          createWorkflowEdge(sourceId, id),
+          createWorkflowEdge(id, targetId),
+        ];
       });
 
       onSelectNode(id);
@@ -174,14 +266,120 @@ export default function StepsCanvas({
     [nodes, stepById, setNodes, setEdges, onSelectNode]
   );
 
+  const handleAddParallelFlow = useCallback(
+    (edgeId: string) => {
+      const edge = edges.find((e) => e.id === edgeId);
+      if (!edge) return;
+
+      const target = nodes.find((n) => n.id === edge.target);
+      if (!target || !isDropZoneNode(target)) return;
+
+      if (countDropZoneChildren(edge.source, nodes, edges) > 1) return;
+
+      const [leftPos, rightPos] = parallelDropPositions(target.position);
+      const leftId = createDropZoneId();
+      const rightId = createDropZoneId();
+
+      setNodes((prev) => [
+        ...prev.filter((n) => n.id !== target.id),
+        buildDropZoneNode(leftId, leftPos),
+        buildDropZoneNode(rightId, rightPos),
+      ]);
+
+      setEdges((prev) => [
+        ...prev.filter((e) => e.id !== edgeId),
+        createWorkflowEdge(edge.source, leftId),
+        createWorkflowEdge(edge.source, rightId),
+      ]);
+    },
+    [nodes, edges, setNodes, setEdges]
+  );
+
+  const handleRemoveConnector = useCallback(
+    (edgeId: string) => {
+      const edge = edges.find((e) => e.id === edgeId);
+      if (!edge) return;
+
+      const target = nodes.find((n) => n.id === edge.target);
+
+      setEdges((prev) => prev.filter((e) => e.id !== edgeId));
+
+      if (target && isDropZoneNode(target)) {
+        setNodes((prev) => prev.filter((n) => n.id !== target.id));
+      }
+    },
+    [edges, nodes, setEdges, setNodes]
+  );
+
+  const handleAddTitle = useCallback(
+    (edgeId: string) => {
+      const current = edges.find((e) => e.id === edgeId);
+      const existing =
+        typeof current?.data === "object" && current.data
+          ? (current.data as { title?: string }).title
+          : "";
+      const title = window.prompt("Connector title", existing ?? "");
+      if (title === null) return;
+
+      setEdges((prev) =>
+        prev.map((e) =>
+          e.id === edgeId
+            ? {
+                ...e,
+                data: {
+                  ...(typeof e.data === "object" ? e.data : {}),
+                  title: title.trim() || undefined,
+                },
+              }
+            : e
+        )
+      );
+    },
+    [edges, setEdges]
+  );
+
+  const handleConnectorAction = useCallback(
+    (
+      edgeId: string,
+      action: ConnectorMenuAction,
+      sourceId: string,
+      targetId: string
+    ) => {
+      switch (action) {
+        case "addParallelFlow":
+          handleAddParallelFlow(edgeId);
+          break;
+        case "addStep":
+          handleInsertBetween(sourceId, targetId);
+          break;
+        case "removeConnector":
+          handleRemoveConnector(edgeId);
+          break;
+        case "addTitle":
+          handleAddTitle(edgeId);
+          break;
+        default:
+          break;
+      }
+    },
+    [
+      handleAddParallelFlow,
+      handleInsertBetween,
+      handleRemoveConnector,
+      handleAddTitle,
+    ]
+  );
+
   const onConnect: OnConnect = useCallback(
     (connection: Connection) => {
       if (!connection.source || !connection.target) return;
+      const target = nodes.find((n) => n.id === connection.target);
+      if (target && isDropZoneNode(target)) return;
       setEdges((eds) =>
         addEdge(createWorkflowEdge(connection.source!, connection.target!), eds)
       );
     },
-    [setEdges]
+    [setEdges, nodes]
   );
 
   const onDragOver = useCallback((e: React.DragEvent<HTMLDivElement>) => {
@@ -198,18 +396,33 @@ export default function StepsCanvas({
       const def = stepById.get(stepId);
       if (!def) return;
 
+      const flowPosition = screenToFlowPosition({ x: e.clientX, y: e.clientY });
+      const hitDropZone = findDropZoneAtPosition(nodes, flowPosition);
+
+      if (hitDropZone) {
+        const incoming = edges.find((ed) => ed.target === hitDropZone.id);
+        const day = incoming
+          ? dayAfterSource(nodes, incoming.source)
+          : 1;
+        replaceDropZoneWithStep(hitDropZone.id, def, day);
+        return;
+      }
+
+      const stepOnly = onlyStepNodes(nodes);
+      const isFirstNode = stepOnly.length === 0;
       const id = `node-${Date.now()}`;
-      const isFirstNode = nodes.length === 0;
 
       let position: { x: number; y: number };
       let day = 1;
       let lastNodeId: string | null = null;
 
       if (isFirstNode) {
-        position = screenToFlowPosition({ x: e.clientX, y: e.clientY });
+        position = flowPosition;
       } else {
-        const sortedByY = [...nodes].sort((a, b) => b.position.y - a.position.y);
-        const lastNode = sortedByY[0];
+        const sortedByY = [...stepOnly].sort(
+          (a, b) => b.position.y - a.position.y
+        );
+        const lastNode = sortedByY[0] as Node<WorkflowNodeData>;
         position = {
           x: lastNode.position.x,
           y: lastNode.position.y + NODE_VERTICAL_SPACING,
@@ -219,66 +432,99 @@ export default function StepsCanvas({
       }
 
       const newNode = buildStepNode(id, def, position, day);
-      setNodes((prev) => [...prev, newNode]);
+      const dropId = createDropZoneId();
+      const dropNode = buildDropZoneNode(dropId, dropZonePositionBelow(newNode));
 
-      if (lastNodeId) {
-        setEdges((prev) => [...prev, createWorkflowEdge(lastNodeId!, id)]);
-      }
+      setNodes((prev) => [...prev, newNode, dropNode]);
+
+      setEdges((prev) => {
+        const next = [...prev, createWorkflowEdge(id, dropId)];
+        if (lastNodeId) {
+          return [...next, createWorkflowEdge(lastNodeId, id)];
+        }
+        return next;
+      });
 
       onSelectNode(id);
     },
-    [screenToFlowPosition, stepById, nodes, setNodes, setEdges, onSelectNode]
+    [
+      screenToFlowPosition,
+      stepById,
+      nodes,
+      edges,
+      setNodes,
+      setEdges,
+      onSelectNode,
+      replaceDropZoneWithStep,
+    ]
   );
 
-  const handleNodeClick: NodeMouseHandler<Node<WorkflowNodeData>> = useCallback(
-    (_e, node) => {
-      setEdgeRemoveModeId(null);
-      onSelectNode(node.id);
-    },
-    [onSelectNode]
-  );
+  const handleNodeClick: NodeMouseHandler<Node<WorkflowCanvasNodeData>> =
+    useCallback(
+      (_e, node) => {
+        if (isDropZoneNode(node)) {
+          onSelectNode(null);
+          return;
+        }
+        onSelectNode(node.id);
+      },
+      [onSelectNode]
+    );
 
   const handlePaneClick = useCallback(() => {
-    setEdgeRemoveModeId(null);
     onSelectNode(null);
   }, [onSelectNode]);
 
   const enhancedNodes = useMemo(
     () =>
-      nodes.map((n) => ({
-        ...n,
-        selected: n.id === selectedNodeId,
-        data: {
-          ...n.data,
-          onDelete: handleDeleteNode,
-        },
-      })),
+      nodes.map((n) => {
+        if (isDropZoneNode(n)) {
+          return { ...n, selected: false };
+        }
+        return {
+          ...n,
+          selected: n.id === selectedNodeId,
+          data: {
+            ...n.data,
+            onDelete: handleDeleteNode,
+          },
+        };
+      }),
     [nodes, selectedNodeId, handleDeleteNode]
   );
 
   const enhancedEdges = useMemo(
     () =>
-      edges.map((e) => ({
-        ...e,
-        type: WORKFLOW_EDGE_TYPE,
-        style: {
-          stroke: WORKFLOW_CONNECTOR_COLOR,
-          strokeWidth: WORKFLOW_CONNECTOR_STROKE_WIDTH,
-        },
-        data: {
-          removeMode: edgeRemoveModeId === e.id,
-          onEnterRemoveMode: setEdgeRemoveModeId,
-          onExitRemoveMode: () => setEdgeRemoveModeId(null),
-          onInsertBetween: handleInsertBetween,
-          onDeleteEdge: handleDeleteEdge,
-        },
-      })),
-    [edgeRemoveModeId, edges, handleInsertBetween, handleDeleteEdge]
+      edges.map((e) => {
+        const targetNode = nodes.find((n) => n.id === e.target);
+        const targetIsDropZone = targetNode ? isDropZoneNode(targetNode) : false;
+        const showParallelFlow =
+          targetIsDropZone &&
+          countDropZoneChildren(e.source, nodes, edges) === 1;
+
+        return {
+          ...e,
+          type: WORKFLOW_EDGE_TYPE,
+          style: {
+            stroke: WORKFLOW_CONNECTOR_COLOR,
+            strokeWidth: WORKFLOW_CONNECTOR_STROKE_WIDTH,
+          },
+          data: {
+            ...(typeof e.data === "object" ? e.data : {}),
+            targetIsDropZone,
+            showParallelFlow,
+            onConnectorAction: handleConnectorAction,
+          },
+        };
+      }),
+    [edges, nodes, handleConnectorAction]
   );
+
+  const hasStepNodes = onlyStepNodes(nodes).length > 0;
 
   return (
     <div
-      className="relative h-full flex-1 overflow-hidden"
+      className="workflow-builder-flow relative h-full flex-1 overflow-hidden"
       style={{ backgroundColor: "transparent" }}
       onDrop={onDrop}
       onDragOver={onDragOver}
@@ -295,6 +541,7 @@ export default function StepsCanvas({
         edgeTypes={edgeTypes}
         edgesFocusable
         edgesReconnectable={false}
+        nodesDraggable
         deleteKeyCode={null}
         onPaneContextMenu={(e) => e.preventDefault()}
         fitView
@@ -317,7 +564,7 @@ export default function StepsCanvas({
         <Controls showInteractive={false} />
       </ReactFlow>
 
-      {nodes.length === 0 ? (
+      {!hasStepNodes ? (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
           <div
             className="flex flex-col items-center gap-2 rounded-xl border-2 border-dashed bg-white/60 px-8 py-10 text-center"

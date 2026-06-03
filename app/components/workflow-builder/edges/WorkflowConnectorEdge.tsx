@@ -1,24 +1,33 @@
 "use client";
 
+import { useRef, useState } from "react";
 import {
   BaseEdge,
   EdgeLabelRenderer,
   getSmoothStepPath,
   type EdgeProps,
 } from "@xyflow/react";
-import { Plus, X } from "lucide-react";
+import { Plus } from "lucide-react";
 
+import ConnectorActionMenu, {
+  type ConnectorMenuAction,
+} from "../ConnectorActionMenu";
+import ConnectorMenuPortal from "../ConnectorMenuPortal";
 import {
   WORKFLOW_CONNECTOR_COLOR,
   WORKFLOW_CONNECTOR_STROKE_WIDTH,
 } from "../constants";
 
 export type WorkflowConnectorEdgeData = {
-  removeMode?: boolean;
-  onEnterRemoveMode?: (edgeId: string) => void;
-  onExitRemoveMode?: () => void;
-  onInsertBetween?: (sourceId: string, targetId: string) => void;
-  onDeleteEdge?: (edgeId: string) => void;
+  title?: string;
+  targetIsDropZone?: boolean;
+  showParallelFlow?: boolean;
+  onConnectorAction?: (
+    edgeId: string,
+    action: ConnectorMenuAction,
+    sourceId: string,
+    targetId: string
+  ) => void;
 };
 
 const CENTER_BUTTON_CLASS =
@@ -37,7 +46,8 @@ export default function WorkflowConnectorEdge({
   data,
 }: EdgeProps) {
   const edgeData = (data ?? {}) as WorkflowConnectorEdgeData;
-  const removeMode = edgeData.removeMode === true;
+  const [menuOpen, setMenuOpen] = useState(false);
+  const buttonRef = useRef<HTMLButtonElement>(null);
 
   const [edgePath, labelX, labelY] = getSmoothStepPath({
     sourceX,
@@ -48,22 +58,18 @@ export default function WorkflowConnectorEdge({
     targetPosition,
   });
 
-  const enterRemoveMode = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    edgeData.onEnterRemoveMode?.(id);
+  const handleAction = (action: ConnectorMenuAction) => {
+    edgeData.onConnectorAction?.(id, action, source, target);
   };
 
   return (
     <>
-      {/* Wide hit area so right-click works on the line, not only the + button */}
       <path
         d={edgePath}
         fill="none"
         stroke="transparent"
         strokeWidth={24}
         className="react-flow__edge-interaction"
-        onContextMenu={enterRemoveMode}
       />
       <BaseEdge
         id={id}
@@ -73,47 +79,63 @@ export default function WorkflowConnectorEdge({
           strokeWidth: WORKFLOW_CONNECTOR_STROKE_WIDTH,
         }}
       />
-      <EdgeLabelRenderer>
-        <div
-          className="nodrag nopan pointer-events-auto"
-          style={{
-            position: "absolute",
-            transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
-          }}
-          onContextMenu={enterRemoveMode}
-        >
-          {removeMode && edgeData.onDeleteEdge ? (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                edgeData.onDeleteEdge?.(id);
-                edgeData.onExitRemoveMode?.();
+      {edgeData.title ? (
+        <EdgeLabelRenderer>
+          <div
+            className="nodrag nopan pointer-events-none rounded bg-white/90 px-2 py-0.5 text-[10px] font-semibold shadow-sm"
+            style={{
+              position: "absolute",
+              transform: `translate(-50%, -100%) translate(${labelX}px, ${labelY - 18}px)`,
+              color: WORKFLOW_CONNECTOR_COLOR,
+            }}
+          >
+            {edgeData.title}
+          </div>
+        </EdgeLabelRenderer>
+      ) : null}
+      {edgeData.onConnectorAction ? (
+        <>
+          <EdgeLabelRenderer>
+            <div
+              className="nodrag nopan pointer-events-auto"
+              style={{
+                position: "absolute",
+                transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
+                zIndex: 1000,
               }}
-              className={CENTER_BUTTON_CLASS}
-              style={{ backgroundColor: WORKFLOW_CONNECTOR_COLOR }}
-              aria-label="Remove connection"
-              title="Remove line"
             >
-              <X size={12} strokeWidth={2.5} />
-            </button>
-          ) : edgeData.onInsertBetween ? (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                edgeData.onInsertBetween?.(source, target);
-              }}
-              className={CENTER_BUTTON_CLASS}
-              style={{ backgroundColor: WORKFLOW_CONNECTOR_COLOR }}
-              aria-label="Add step between"
-              title="Add step"
-            >
-              <Plus size={12} strokeWidth={2.5} />
-            </button>
-          ) : null}
-        </div>
-      </EdgeLabelRenderer>
+              <button
+                ref={buttonRef}
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  e.preventDefault();
+                  setMenuOpen((v) => !v);
+                }}
+                className={CENTER_BUTTON_CLASS}
+                style={{ backgroundColor: WORKFLOW_CONNECTOR_COLOR }}
+                aria-label="Connector actions"
+                aria-expanded={menuOpen}
+                title="Add or change flow"
+              >
+                <Plus size={12} strokeWidth={2.5} />
+              </button>
+            </div>
+          </EdgeLabelRenderer>
+          <ConnectorMenuPortal open={menuOpen} anchorRef={buttonRef}>
+            <ConnectorActionMenu
+              open={menuOpen}
+              onClose={() => setMenuOpen(false)}
+              onSelect={handleAction}
+              anchorEl={buttonRef.current}
+              showParallelFlow={
+                edgeData.showParallelFlow !== false &&
+                edgeData.targetIsDropZone === true
+              }
+            />
+          </ConnectorMenuPortal>
+        </>
+      ) : null}
     </>
   );
 }

@@ -155,6 +155,14 @@ export const STEP_COLORS: Record<
 
 export const DRAG_DATA_TYPE = "application/x-workflow-step";
 
+export const NODE_VERTICAL_SPACING = 130;
+export const PARALLEL_BRANCH_OFFSET = 180;
+export const STEP_NODE_WIDTH = 232;
+export const STEP_NODE_HEIGHT = 70;
+/** Match step card size so placeholders align in the flow. */
+export const DROP_ZONE_WIDTH = STEP_NODE_WIDTH;
+export const DROP_ZONE_HEIGHT = STEP_NODE_HEIGHT;
+
 export function createWorkflowEdge(source: string, target: string): Edge {
   return {
     id: `e-${source}-${target}`,
