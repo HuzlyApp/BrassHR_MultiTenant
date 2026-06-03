@@ -1,0 +1,1242 @@
+{
+  "startedAt": "2026-06-03T13:17:41.276Z",
+  "finishedAt": "2026-06-03T13:17:41.885Z",
+  "baseUrl": "http://localhost:3000",
+  "mode": "cached",
+  "endpoints": [
+    {
+      "name": "Homepage",
+      "method": "GET",
+      "path": "/",
+      "groups": [
+        "public",
+        "page",
+        "non-cacheable"
+      ],
+      "cacheable": false
+    },
+    {
+      "name": "Login page",
+      "method": "GET",
+      "path": "/login",
+      "groups": [
+        "public",
+        "page",
+        "auth"
+      ],
+      "cacheable": false
+    },
+    {
+      "name": "Signup page",
+      "method": "GET",
+      "path": "/signup",
+      "groups": [
+        "public",
+        "page",
+        "auth"
+      ],
+      "cacheable": false
+    },
+    {
+      "name": "Tenant branding",
+      "method": "GET",
+      "path": "/api/tenant-branding",
+      "groups": [
+        "public",
+        "tenant-scoped",
+        "supabase-read",
+        "cacheable"
+      ],
+      "cacheable": true
+    },
+    {
+      "name": "Skill categories",
+      "method": "GET",
+      "path": "/api/skill-categories",
+      "groups": [
+        "public",
+        "supabase-read",
+        "cacheable",
+        "reference"
+      ],
+      "cacheable": true
+    },
+    {
+      "name": "Skill questions",
+      "method": "GET",
+      "path": "/api/skill-questions",
+      "groups": [
+        "public",
+        "supabase-read",
+        "cacheable",
+        "reference"
+      ],
+      "cacheable": true
+    }
+  ],
+  "skipped": [
+    {
+      "name": "Published onboarding config",
+      "reason": "missing required PERF_* id/slug"
+    },
+    {
+      "name": "Applicant worker documents status",
+      "reason": "missing required PERF_* id/slug"
+    },
+    {
+      "name": "Applicant worker requirements status",
+      "reason": "missing required PERF_* id/slug"
+    },
+    {
+      "name": "Admin header data",
+      "reason": "missing PERF_COOKIE or PERF_BEARER_TOKEN"
+    },
+    {
+      "name": "Admin tenant list",
+      "reason": "missing PERF_COOKIE or PERF_BEARER_TOKEN"
+    },
+    {
+      "name": "Admin effective branding",
+      "reason": "missing PERF_COOKIE or PERF_BEARER_TOKEN"
+    },
+    {
+      "name": "Workers head count",
+      "reason": "missing PERF_COOKIE or PERF_BEARER_TOKEN"
+    },
+    {
+      "name": "Worker search",
+      "reason": "missing PERF_COOKIE or PERF_BEARER_TOKEN"
+    },
+    {
+      "name": "Recruiter candidate bundle",
+      "reason": "missing PERF_COOKIE or PERF_BEARER_TOKEN"
+    },
+    {
+      "name": "Admin worker profile",
+      "reason": "missing PERF_COOKIE or PERF_BEARER_TOKEN"
+    }
+  ],
+  "cacheClearResult": {
+    "attempted": false,
+    "deleted": 0,
+    "error": null
+  },
+  "scenarios": [
+    {
+      "name": "Scenario A: Cold cache",
+      "summary": {
+        "count": 6,
+        "errors": 6,
+        "errorRate": 1,
+        "min": 1.3858999999999924,
+        "max": 65.83929999999987,
+        "avg": 12.433466666666732,
+        "p50": 1.8629000000000815,
+        "p75": 2.107800000000225,
+        "p90": 65.83929999999987,
+        "p95": 65.83929999999987,
+        "p99": 65.83929999999987,
+        "rps": 80.42809192394678,
+        "hitCount": 0,
+        "missCount": 0,
+        "bypassCount": 0,
+        "cacheErrorCount": 0,
+        "cacheObserved": 0
+      },
+      "endpoints": [
+        {
+          "name": "Homepage",
+          "method": "GET",
+          "path": "/",
+          "summary": {
+            "count": 1,
+            "errors": 1,
+            "errorRate": 1,
+            "min": 65.83929999999987,
+            "max": 65.83929999999987,
+            "avg": 65.83929999999987,
+            "p50": 65.83929999999987,
+            "p75": 65.83929999999987,
+            "p90": 65.83929999999987,
+            "p95": 65.83929999999987,
+            "p99": 65.83929999999987,
+            "rps": 15.188496840033263,
+            "hitCount": 0,
+            "missCount": 0,
+            "bypassCount": 0,
+            "cacheErrorCount": 0,
+            "cacheObserved": 0
+          },
+          "statuses": {
+            "fetch failed": 1
+          }
+        },
+        {
+          "name": "Login page",
+          "method": "GET",
+          "path": "/login",
+          "summary": {
+            "count": 1,
+            "errors": 1,
+            "errorRate": 1,
+            "min": 2.107800000000225,
+            "max": 2.107800000000225,
+            "avg": 2.107800000000225,
+            "p50": 2.107800000000225,
+            "p75": 2.107800000000225,
+            "p90": 2.107800000000225,
+            "p95": 2.107800000000225,
+            "p99": 2.107800000000225,
+            "rps": 474.4283138817218,
+            "hitCount": 0,
+            "missCount": 0,
+            "bypassCount": 0,
+            "cacheErrorCount": 0,
+            "cacheObserved": 0
+          },
+          "statuses": {
+            "fetch failed": 1
+          }
+        },
+        {
+          "name": "Signup page",
+          "method": "GET",
+          "path": "/signup",
+          "summary": {
+            "count": 1,
+            "errors": 1,
+            "errorRate": 1,
+            "min": 1.5420000000001437,
+            "max": 1.5420000000001437,
+            "avg": 1.5420000000001437,
+            "p50": 1.5420000000001437,
+            "p75": 1.5420000000001437,
+            "p90": 1.5420000000001437,
+            "p95": 1.5420000000001437,
+            "p99": 1.5420000000001437,
+            "rps": 648.5084306095375,
+            "hitCount": 0,
+            "missCount": 0,
+            "bypassCount": 0,
+            "cacheErrorCount": 0,
+            "cacheObserved": 0
+          },
+          "statuses": {
+            "fetch failed": 1
+          }
+        },
+        {
+          "name": "Tenant branding",
+          "method": "GET",
+          "path": "/api/tenant-branding",
+          "summary": {
+            "count": 1,
+            "errors": 1,
+            "errorRate": 1,
+            "min": 1.8629000000000815,
+            "max": 1.8629000000000815,
+            "avg": 1.8629000000000815,
+            "p50": 1.8629000000000815,
+            "p75": 1.8629000000000815,
+            "p90": 1.8629000000000815,
+            "p95": 1.8629000000000815,
+            "p99": 1.8629000000000815,
+            "rps": 536.7974663159355,
+            "hitCount": 0,
+            "missCount": 0,
+            "bypassCount": 0,
+            "cacheErrorCount": 0,
+            "cacheObserved": 0
+          },
+          "statuses": {
+            "fetch failed": 1
+          }
+        },
+        {
+          "name": "Skill categories",
+          "method": "GET",
+          "path": "/api/skill-categories",
+          "summary": {
+            "count": 1,
+            "errors": 1,
+            "errorRate": 1,
+            "min": 1.8629000000000815,
+            "max": 1.8629000000000815,
+            "avg": 1.8629000000000815,
+            "p50": 1.8629000000000815,
+            "p75": 1.8629000000000815,
+            "p90": 1.8629000000000815,
+            "p95": 1.8629000000000815,
+            "p99": 1.8629000000000815,
+            "rps": 536.7974663159355,
+            "hitCount": 0,
+            "missCount": 0,
+            "bypassCount": 0,
+            "cacheErrorCount": 0,
+            "cacheObserved": 0
+          },
+          "statuses": {
+            "fetch failed": 1
+          }
+        },
+        {
+          "name": "Skill questions",
+          "method": "GET",
+          "path": "/api/skill-questions",
+          "summary": {
+            "count": 1,
+            "errors": 1,
+            "errorRate": 1,
+            "min": 1.3858999999999924,
+            "max": 1.3858999999999924,
+            "avg": 1.3858999999999924,
+            "p50": 1.3858999999999924,
+            "p75": 1.3858999999999924,
+            "p90": 1.3858999999999924,
+            "p95": 1.3858999999999924,
+            "p99": 1.3858999999999924,
+            "rps": 721.552781585977,
+            "hitCount": 0,
+            "missCount": 0,
+            "bypassCount": 0,
+            "cacheErrorCount": 0,
+            "cacheObserved": 0
+          },
+          "statuses": {
+            "fetch failed": 1
+          }
+        }
+      ]
+    },
+    {
+      "name": "Scenario B: Warm cache",
+      "summary": {
+        "count": 30,
+        "errors": 30,
+        "errorRate": 1,
+        "min": 0.8151000000000295,
+        "max": 1.7261999999998352,
+        "avg": 1.1156400000000075,
+        "p50": 1.0450000000000728,
+        "p75": 1.2106000000001131,
+        "p90": 1.4050000000002,
+        "p95": 1.7118000000000393,
+        "p99": 1.7261999999998352,
+        "rps": 896.3464916998254,
+        "hitCount": 0,
+        "missCount": 0,
+        "bypassCount": 0,
+        "cacheErrorCount": 0,
+        "cacheObserved": 0
+      },
+      "endpoints": [
+        {
+          "name": "Homepage",
+          "method": "GET",
+          "path": "/",
+          "summary": {
+            "count": 5,
+            "errors": 5,
+            "errorRate": 1,
+            "min": 1.0098999999997886,
+            "max": 1.2661000000000513,
+            "avg": 1.102579999999989,
+            "p50": 1.0615000000000236,
+            "p75": 1.1350000000002183,
+            "p90": 1.2661000000000513,
+            "p95": 1.2661000000000513,
+            "p99": 1.2661000000000513,
+            "rps": 906.9636670355077,
+            "hitCount": 0,
+            "missCount": 0,
+            "bypassCount": 0,
+            "cacheErrorCount": 0,
+            "cacheObserved": 0
+          },
+          "statuses": {
+            "fetch failed": 5
+          }
+        },
+        {
+          "name": "Login page",
+          "method": "GET",
+          "path": "/login",
+          "summary": {
+            "count": 5,
+            "errors": 5,
+            "errorRate": 1,
+            "min": 1.097099999999955,
+            "max": 1.7261999999998352,
+            "avg": 1.3267199999999775,
+            "p50": 1.199200000000019,
+            "p75": 1.4938999999999396,
+            "p90": 1.7261999999998352,
+            "p95": 1.7261999999998352,
+            "p99": 1.7261999999998352,
+            "rps": 753.7385431741566,
+            "hitCount": 0,
+            "missCount": 0,
+            "bypassCount": 0,
+            "cacheErrorCount": 0,
+            "cacheObserved": 0
+          },
+          "statuses": {
+            "fetch failed": 5
+          }
+        },
+        {
+          "name": "Signup page",
+          "method": "GET",
+          "path": "/signup",
+          "summary": {
+            "count": 5,
+            "errors": 5,
+            "errorRate": 1,
+            "min": 0.8452000000002045,
+            "max": 1.0217999999999847,
+            "avg": 0.9502800000000207,
+            "p50": 0.9494999999999436,
+            "p75": 1.014699999999948,
+            "p90": 1.0217999999999847,
+            "p95": 1.0217999999999847,
+            "p99": 1.0217999999999847,
+            "rps": 1052.321421054824,
+            "hitCount": 0,
+            "missCount": 0,
+            "bypassCount": 0,
+            "cacheErrorCount": 0,
+            "cacheObserved": 0
+          },
+          "statuses": {
+            "fetch failed": 5
+          }
+        },
+        {
+          "name": "Tenant branding",
+          "method": "GET",
+          "path": "/api/tenant-branding",
+          "summary": {
+            "count": 5,
+            "errors": 5,
+            "errorRate": 1,
+            "min": 0.8151000000000295,
+            "max": 1.1173000000001139,
+            "avg": 0.9327999999999974,
+            "p50": 0.9118999999998323,
+            "p75": 0.9836999999999989,
+            "p90": 1.1173000000001139,
+            "p95": 1.1173000000001139,
+            "p99": 1.1173000000001139,
+            "rps": 1072.0411663807918,
+            "hitCount": 0,
+            "missCount": 0,
+            "bypassCount": 0,
+            "cacheErrorCount": 0,
+            "cacheObserved": 0
+          },
+          "statuses": {
+            "fetch failed": 5
+          }
+        },
+        {
+          "name": "Skill categories",
+          "method": "GET",
+          "path": "/api/skill-categories",
+          "summary": {
+            "count": 5,
+            "errors": 5,
+            "errorRate": 1,
+            "min": 1.0080000000000382,
+            "max": 1.7118000000000393,
+            "avg": 1.3093400000000657,
+            "p50": 1.2112999999999374,
+            "p75": 1.4050000000002,
+            "p90": 1.7118000000000393,
+            "p95": 1.7118000000000393,
+            "p99": 1.7118000000000393,
+            "rps": 763.7435654604227,
+            "hitCount": 0,
+            "missCount": 0,
+            "bypassCount": 0,
+            "cacheErrorCount": 0,
+            "cacheObserved": 0
+          },
+          "statuses": {
+            "fetch failed": 5
+          }
+        },
+        {
+          "name": "Skill questions",
+          "method": "GET",
+          "path": "/api/skill-questions",
+          "summary": {
+            "count": 5,
+            "errors": 5,
+            "errorRate": 1,
+            "min": 0.8772999999998774,
+            "max": 1.3116999999999734,
+            "avg": 1.0721199999999953,
+            "p50": 1.0450000000000728,
+            "p75": 1.138400000000047,
+            "p90": 1.3116999999999734,
+            "p95": 1.3116999999999734,
+            "p99": 1.3116999999999734,
+            "rps": 932.7314106629896,
+            "hitCount": 0,
+            "missCount": 0,
+            "bypassCount": 0,
+            "cacheErrorCount": 0,
+            "cacheObserved": 0
+          },
+          "statuses": {
+            "fetch failed": 5
+          }
+        }
+      ]
+    },
+    {
+      "name": "Scenario B2: Repeated requests",
+      "summary": {
+        "count": 60,
+        "errors": 60,
+        "errorRate": 1,
+        "min": 0.8676000000000386,
+        "max": 2.8808000000001357,
+        "avg": 1.2992883333333414,
+        "p50": 1.184099999999944,
+        "p75": 1.4102000000000317,
+        "p90": 1.8408999999999196,
+        "p95": 1.8837999999998374,
+        "p99": 2.8808000000001357,
+        "rps": 769.6521044212617,
+        "hitCount": 0,
+        "missCount": 0,
+        "bypassCount": 0,
+        "cacheErrorCount": 0,
+        "cacheObserved": 0
+      },
+      "endpoints": [
+        {
+          "name": "Homepage",
+          "method": "GET",
+          "path": "/",
+          "summary": {
+            "count": 10,
+            "errors": 10,
+            "errorRate": 1,
+            "min": 0.9792999999999665,
+            "max": 1.8661999999999352,
+            "avg": 1.3633799999999838,
+            "p50": 1.300000000000182,
+            "p75": 1.558999999999969,
+            "p90": 1.8408999999999196,
+            "p95": 1.8661999999999352,
+            "p99": 1.8661999999999352,
+            "rps": 733.4712259238158,
+            "hitCount": 0,
+            "missCount": 0,
+            "bypassCount": 0,
+            "cacheErrorCount": 0,
+            "cacheObserved": 0
+          },
+          "statuses": {
+            "fetch failed": 10
+          }
+        },
+        {
+          "name": "Login page",
+          "method": "GET",
+          "path": "/login",
+          "summary": {
+            "count": 10,
+            "errors": 10,
+            "errorRate": 1,
+            "min": 0.9417000000000826,
+            "max": 1.6949999999999363,
+            "avg": 1.2643300000000182,
+            "p50": 1.2461000000000695,
+            "p75": 1.4347999999999956,
+            "p90": 1.4355000000000473,
+            "p95": 1.6949999999999363,
+            "p99": 1.6949999999999363,
+            "rps": 790.9327469885122,
+            "hitCount": 0,
+            "missCount": 0,
+            "bypassCount": 0,
+            "cacheErrorCount": 0,
+            "cacheObserved": 0
+          },
+          "statuses": {
+            "fetch failed": 10
+          }
+        },
+        {
+          "name": "Signup page",
+          "method": "GET",
+          "path": "/signup",
+          "summary": {
+            "count": 10,
+            "errors": 10,
+            "errorRate": 1,
+            "min": 1.036299999999983,
+            "max": 2.8808000000001357,
+            "avg": 1.545130000000063,
+            "p50": 1.1210000000000946,
+            "p75": 2.023300000000063,
+            "p90": 2.3067000000000917,
+            "p95": 2.8808000000001357,
+            "p99": 2.8808000000001357,
+            "rps": 647.1947344236144,
+            "hitCount": 0,
+            "missCount": 0,
+            "bypassCount": 0,
+            "cacheErrorCount": 0,
+            "cacheObserved": 0
+          },
+          "statuses": {
+            "fetch failed": 10
+          }
+        },
+        {
+          "name": "Tenant branding",
+          "method": "GET",
+          "path": "/api/tenant-branding",
+          "summary": {
+            "count": 10,
+            "errors": 10,
+            "errorRate": 1,
+            "min": 1.0494999999998527,
+            "max": 1.4622999999999138,
+            "avg": 1.2034299999999576,
+            "p50": 1.184099999999944,
+            "p75": 1.2764000000001943,
+            "p90": 1.3915999999999258,
+            "p95": 1.4622999999999138,
+            "p99": 1.4622999999999138,
+            "rps": 830.9581778749368,
+            "hitCount": 0,
+            "missCount": 0,
+            "bypassCount": 0,
+            "cacheErrorCount": 0,
+            "cacheObserved": 0
+          },
+          "statuses": {
+            "fetch failed": 10
+          }
+        },
+        {
+          "name": "Skill categories",
+          "method": "GET",
+          "path": "/api/skill-categories",
+          "summary": {
+            "count": 10,
+            "errors": 10,
+            "errorRate": 1,
+            "min": 0.8676000000000386,
+            "max": 1.8837999999998374,
+            "avg": 1.2369599999999992,
+            "p50": 1.102200000000039,
+            "p75": 1.310799999999972,
+            "p90": 1.8758000000000266,
+            "p95": 1.8837999999998374,
+            "p99": 1.8837999999998374,
+            "rps": 808.433579097142,
+            "hitCount": 0,
+            "missCount": 0,
+            "bypassCount": 0,
+            "cacheErrorCount": 0,
+            "cacheObserved": 0
+          },
+          "statuses": {
+            "fetch failed": 10
+          }
+        },
+        {
+          "name": "Skill questions",
+          "method": "GET",
+          "path": "/api/skill-questions",
+          "summary": {
+            "count": 10,
+            "errors": 10,
+            "errorRate": 1,
+            "min": 1.0100999999999658,
+            "max": 1.542599999999993,
+            "avg": 1.1825000000000272,
+            "p50": 1.049199999999928,
+            "p75": 1.2969000000000506,
+            "p90": 1.5339999999998781,
+            "p95": 1.542599999999993,
+            "p99": 1.542599999999993,
+            "rps": 845.6659619450122,
+            "hitCount": 0,
+            "missCount": 0,
+            "bypassCount": 0,
+            "cacheErrorCount": 0,
+            "cacheObserved": 0
+          },
+          "statuses": {
+            "fetch failed": 10
+          }
+        }
+      ]
+    },
+    {
+      "name": "Scenario C: Concurrent 10",
+      "summary": {
+        "count": 60,
+        "errors": 60,
+        "errorRate": 1,
+        "min": 4.249499999999898,
+        "max": 6.193899999999985,
+        "avg": 5.388973333333339,
+        "p50": 5.529099999999971,
+        "p75": 5.858599999999797,
+        "p90": 5.960600000000113,
+        "p95": 6.035199999999804,
+        "p99": 6.193899999999985,
+        "rps": 185.56410250066168,
+        "hitCount": 0,
+        "missCount": 0,
+        "bypassCount": 0,
+        "cacheErrorCount": 0,
+        "cacheObserved": 0
+      },
+      "endpoints": [
+        {
+          "name": "Homepage",
+          "method": "GET",
+          "path": "/",
+          "summary": {
+            "count": 10,
+            "errors": 10,
+            "errorRate": 1,
+            "min": 5.868199999999888,
+            "max": 6.193899999999985,
+            "avg": 5.980890000000045,
+            "p50": 5.9422000000001844,
+            "p75": 6.070600000000013,
+            "p90": 6.0835000000001855,
+            "p95": 6.193899999999985,
+            "p99": 6.193899999999985,
+            "rps": 167.19919610626386,
+            "hitCount": 0,
+            "missCount": 0,
+            "bypassCount": 0,
+            "cacheErrorCount": 0,
+            "cacheObserved": 0
+          },
+          "statuses": {
+            "fetch failed": 10
+          }
+        },
+        {
+          "name": "Login page",
+          "method": "GET",
+          "path": "/login",
+          "summary": {
+            "count": 10,
+            "errors": 10,
+            "errorRate": 1,
+            "min": 5.745200000000068,
+            "max": 6.029199999999946,
+            "avg": 5.88791000000001,
+            "p50": 5.858599999999797,
+            "p75": 5.940500000000156,
+            "p90": 5.972999999999956,
+            "p95": 6.029199999999946,
+            "p99": 6.029199999999946,
+            "rps": 169.8395525746824,
+            "hitCount": 0,
+            "missCount": 0,
+            "bypassCount": 0,
+            "cacheErrorCount": 0,
+            "cacheObserved": 0
+          },
+          "statuses": {
+            "fetch failed": 10
+          }
+        },
+        {
+          "name": "Signup page",
+          "method": "GET",
+          "path": "/signup",
+          "summary": {
+            "count": 10,
+            "errors": 10,
+            "errorRate": 1,
+            "min": 5.307000000000016,
+            "max": 5.547599999999875,
+            "avg": 5.456939999999941,
+            "p50": 5.481599999999844,
+            "p75": 5.529699999999821,
+            "p90": 5.531500000000051,
+            "p95": 5.547599999999875,
+            "p99": 5.547599999999875,
+            "rps": 183.2528853166813,
+            "hitCount": 0,
+            "missCount": 0,
+            "bypassCount": 0,
+            "cacheErrorCount": 0,
+            "cacheObserved": 0
+          },
+          "statuses": {
+            "fetch failed": 10
+          }
+        },
+        {
+          "name": "Tenant branding",
+          "method": "GET",
+          "path": "/api/tenant-branding",
+          "summary": {
+            "count": 10,
+            "errors": 10,
+            "errorRate": 1,
+            "min": 4.683299999999917,
+            "max": 5.3759000000000015,
+            "avg": 4.961459999999988,
+            "p50": 4.891499999999951,
+            "p75": 5.004400000000032,
+            "p90": 5.130699999999933,
+            "p95": 5.3759000000000015,
+            "p99": 5.3759000000000015,
+            "rps": 201.55357495575947,
+            "hitCount": 0,
+            "missCount": 0,
+            "bypassCount": 0,
+            "cacheErrorCount": 0,
+            "cacheObserved": 0
+          },
+          "statuses": {
+            "fetch failed": 10
+          }
+        },
+        {
+          "name": "Skill categories",
+          "method": "GET",
+          "path": "/api/skill-categories",
+          "summary": {
+            "count": 10,
+            "errors": 10,
+            "errorRate": 1,
+            "min": 5.41820000000007,
+            "max": 5.834500000000162,
+            "avg": 5.639050000000066,
+            "p50": 5.690900000000056,
+            "p75": 5.742300000000114,
+            "p90": 5.74350000000004,
+            "p95": 5.834500000000162,
+            "p99": 5.834500000000162,
+            "rps": 177.33483476826564,
+            "hitCount": 0,
+            "missCount": 0,
+            "bypassCount": 0,
+            "cacheErrorCount": 0,
+            "cacheObserved": 0
+          },
+          "statuses": {
+            "fetch failed": 10
+          }
+        },
+        {
+          "name": "Skill questions",
+          "method": "GET",
+          "path": "/api/skill-questions",
+          "summary": {
+            "count": 10,
+            "errors": 10,
+            "errorRate": 1,
+            "min": 4.249499999999898,
+            "max": 4.618399999999838,
+            "avg": 4.407589999999982,
+            "p50": 4.3711000000000695,
+            "p75": 4.4565000000000055,
+            "p90": 4.5046000000002095,
+            "p95": 4.618399999999838,
+            "p99": 4.618399999999838,
+            "rps": 226.88135693202045,
+            "hitCount": 0,
+            "missCount": 0,
+            "bypassCount": 0,
+            "cacheErrorCount": 0,
+            "cacheObserved": 0
+          },
+          "statuses": {
+            "fetch failed": 10
+          }
+        }
+      ]
+    },
+    {
+      "name": "Scenario C: Concurrent 25",
+      "summary": {
+        "count": 150,
+        "errors": 150,
+        "errorRate": 1,
+        "min": 10.651299999999992,
+        "max": 14.240499999999884,
+        "avg": 12.739909999999997,
+        "p50": 12.819299999999885,
+        "p75": 13.47479999999996,
+        "p90": 13.908100000000104,
+        "p95": 13.975399999999809,
+        "p99": 14.128200000000106,
+        "rps": 78.49349014239506,
+        "hitCount": 0,
+        "missCount": 0,
+        "bypassCount": 0,
+        "cacheErrorCount": 0,
+        "cacheObserved": 0
+      },
+      "endpoints": [
+        {
+          "name": "Homepage",
+          "method": "GET",
+          "path": "/",
+          "summary": {
+            "count": 25,
+            "errors": 25,
+            "errorRate": 1,
+            "min": 12.090400000000045,
+            "max": 13.632100000000037,
+            "avg": 12.908431999999983,
+            "p50": 13.14020000000005,
+            "p75": 13.286699999999882,
+            "p90": 13.437700000000177,
+            "p95": 13.460500000000138,
+            "p99": 13.632100000000037,
+            "rps": 77.46874291161011,
+            "hitCount": 0,
+            "missCount": 0,
+            "bypassCount": 0,
+            "cacheErrorCount": 0,
+            "cacheObserved": 0
+          },
+          "statuses": {
+            "fetch failed": 25
+          }
+        },
+        {
+          "name": "Login page",
+          "method": "GET",
+          "path": "/login",
+          "summary": {
+            "count": 25,
+            "errors": 25,
+            "errorRate": 1,
+            "min": 11.593800000000101,
+            "max": 13.490199999999959,
+            "avg": 12.695635999999968,
+            "p50": 12.926600000000008,
+            "p75": 13.228200000000015,
+            "p90": 13.383199999999988,
+            "p95": 13.447599999999966,
+            "p99": 13.490199999999959,
+            "rps": 78.76722363495634,
+            "hitCount": 0,
+            "missCount": 0,
+            "bypassCount": 0,
+            "cacheErrorCount": 0,
+            "cacheObserved": 0
+          },
+          "statuses": {
+            "fetch failed": 25
+          }
+        },
+        {
+          "name": "Signup page",
+          "method": "GET",
+          "path": "/signup",
+          "summary": {
+            "count": 25,
+            "errors": 25,
+            "errorRate": 1,
+            "min": 11.600999999999885,
+            "max": 13.155700000000024,
+            "avg": 12.337120000000004,
+            "p50": 12.285900000000083,
+            "p75": 12.773200000000088,
+            "p90": 12.901600000000144,
+            "p95": 12.978099999999813,
+            "p99": 13.155700000000024,
+            "rps": 81.05619463861903,
+            "hitCount": 0,
+            "missCount": 0,
+            "bypassCount": 0,
+            "cacheErrorCount": 0,
+            "cacheObserved": 0
+          },
+          "statuses": {
+            "fetch failed": 25
+          }
+        },
+        {
+          "name": "Tenant branding",
+          "method": "GET",
+          "path": "/api/tenant-branding",
+          "summary": {
+            "count": 25,
+            "errors": 25,
+            "errorRate": 1,
+            "min": 12.51559999999995,
+            "max": 14.240499999999884,
+            "avg": 13.502376000000021,
+            "p50": 13.477800000000116,
+            "p75": 13.839899999999943,
+            "p90": 14.081000000000131,
+            "p95": 14.128200000000106,
+            "p99": 14.240499999999884,
+            "rps": 74.06103933115166,
+            "hitCount": 0,
+            "missCount": 0,
+            "bypassCount": 0,
+            "cacheErrorCount": 0,
+            "cacheObserved": 0
+          },
+          "statuses": {
+            "fetch failed": 25
+          }
+        },
+        {
+          "name": "Skill categories",
+          "method": "GET",
+          "path": "/api/skill-categories",
+          "summary": {
+            "count": 25,
+            "errors": 25,
+            "errorRate": 1,
+            "min": 11.81919999999991,
+            "max": 14.105299999999943,
+            "avg": 13.567715999999992,
+            "p50": 13.851799999999912,
+            "p75": 13.954500000000053,
+            "p90": 14.02760000000012,
+            "p95": 14.072600000000193,
+            "p99": 14.105299999999943,
+            "rps": 73.70437293941004,
+            "hitCount": 0,
+            "missCount": 0,
+            "bypassCount": 0,
+            "cacheErrorCount": 0,
+            "cacheObserved": 0
+          },
+          "statuses": {
+            "fetch failed": 25
+          }
+        },
+        {
+          "name": "Skill questions",
+          "method": "GET",
+          "path": "/api/skill-questions",
+          "summary": {
+            "count": 25,
+            "errors": 25,
+            "errorRate": 1,
+            "min": 10.651299999999992,
+            "max": 12.71270000000004,
+            "avg": 11.428180000000012,
+            "p50": 11.297500000000127,
+            "p75": 11.884800000000041,
+            "p90": 12.44659999999999,
+            "p95": 12.497600000000148,
+            "p99": 12.71270000000004,
+            "rps": 87.50299697764639,
+            "hitCount": 0,
+            "missCount": 0,
+            "bypassCount": 0,
+            "cacheErrorCount": 0,
+            "cacheObserved": 0
+          },
+          "statuses": {
+            "fetch failed": 25
+          }
+        }
+      ]
+    },
+    {
+      "name": "Scenario C: Concurrent 50",
+      "summary": {
+        "count": 300,
+        "errors": 300,
+        "errorRate": 1,
+        "min": 21.071500000000015,
+        "max": 29.326700000000073,
+        "avg": 25.274779333333342,
+        "p50": 25.062599999999975,
+        "p75": 27.705600000000004,
+        "p90": 28.763100000000122,
+        "p95": 29.02890000000002,
+        "p99": 29.240800000000036,
+        "rps": 39.56513276779283,
+        "hitCount": 0,
+        "missCount": 0,
+        "bypassCount": 0,
+        "cacheErrorCount": 0,
+        "cacheObserved": 0
+      },
+      "endpoints": [
+        {
+          "name": "Homepage",
+          "method": "GET",
+          "path": "/",
+          "summary": {
+            "count": 50,
+            "errors": 50,
+            "errorRate": 1,
+            "min": 27.393100000000004,
+            "max": 29.326700000000073,
+            "avg": 28.077232000000024,
+            "p50": 27.837800000000016,
+            "p75": 28.648599999999988,
+            "p90": 28.80670000000009,
+            "p95": 29.16300000000001,
+            "p99": 29.326700000000073,
+            "rps": 35.61604648207484,
+            "hitCount": 0,
+            "missCount": 0,
+            "bypassCount": 0,
+            "cacheErrorCount": 0,
+            "cacheObserved": 0
+          },
+          "statuses": {
+            "fetch failed": 50
+          }
+        },
+        {
+          "name": "Login page",
+          "method": "GET",
+          "path": "/login",
+          "summary": {
+            "count": 50,
+            "errors": 50,
+            "errorRate": 1,
+            "min": 22.822000000000116,
+            "max": 25.339099999999917,
+            "avg": 23.35471800000002,
+            "p50": 23.005699999999933,
+            "p75": 23.567999999999984,
+            "p90": 24.52949999999987,
+            "p95": 24.932999999999993,
+            "p99": 25.339099999999917,
+            "rps": 42.81790086268647,
+            "hitCount": 0,
+            "missCount": 0,
+            "bypassCount": 0,
+            "cacheErrorCount": 0,
+            "cacheObserved": 0
+          },
+          "statuses": {
+            "fetch failed": 50
+          }
+        },
+        {
+          "name": "Signup page",
+          "method": "GET",
+          "path": "/signup",
+          "summary": {
+            "count": 50,
+            "errors": 50,
+            "errorRate": 1,
+            "min": 23.24720000000002,
+            "max": 26.39930000000004,
+            "avg": 24.562606000000006,
+            "p50": 23.58439999999996,
+            "p75": 26.060799999999972,
+            "p90": 26.205799999999954,
+            "p95": 26.259900000000016,
+            "p99": 26.39930000000004,
+            "rps": 40.712292498605386,
+            "hitCount": 0,
+            "missCount": 0,
+            "bypassCount": 0,
+            "cacheErrorCount": 0,
+            "cacheObserved": 0
+          },
+          "statuses": {
+            "fetch failed": 50
+          }
+        },
+        {
+          "name": "Tenant branding",
+          "method": "GET",
+          "path": "/api/tenant-branding",
+          "summary": {
+            "count": 50,
+            "errors": 50,
+            "errorRate": 1,
+            "min": 27.29169999999999,
+            "max": 29.241899999999987,
+            "avg": 28.59936200000003,
+            "p50": 28.683199999999943,
+            "p75": 29.02890000000002,
+            "p90": 29.19530000000009,
+            "p95": 29.237400000000207,
+            "p99": 29.241899999999987,
+            "rps": 34.9658149716766,
+            "hitCount": 0,
+            "missCount": 0,
+            "bypassCount": 0,
+            "cacheErrorCount": 0,
+            "cacheObserved": 0
+          },
+          "statuses": {
+            "fetch failed": 50
+          }
+        },
+        {
+          "name": "Skill categories",
+          "method": "GET",
+          "path": "/api/skill-categories",
+          "summary": {
+            "count": 50,
+            "errors": 50,
+            "errorRate": 1,
+            "min": 21.071500000000015,
+            "max": 23.593099999999822,
+            "avg": 21.978534000000018,
+            "p50": 21.724899999999934,
+            "p75": 22.54300000000012,
+            "p90": 23.087099999999964,
+            "p95": 23.268800000000056,
+            "p99": 23.593099999999822,
+            "rps": 45.49894001119452,
+            "hitCount": 0,
+            "missCount": 0,
+            "bypassCount": 0,
+            "cacheErrorCount": 0,
+            "cacheObserved": 0
+          },
+          "statuses": {
+            "fetch failed": 50
+          }
+        },
+        {
+          "name": "Skill questions",
+          "method": "GET",
+          "path": "/api/skill-questions",
+          "summary": {
+            "count": 50,
+            "errors": 50,
+            "errorRate": 1,
+            "min": 24.47160000000008,
+            "max": 25.851900000000114,
+            "avg": 25.076224000000007,
+            "p50": 25.065200000000004,
+            "p75": 25.1875,
+            "p90": 25.269399999999905,
+            "p95": 25.53410000000008,
+            "p99": 25.851900000000114,
+            "rps": 39.878412315985045,
+            "hitCount": 0,
+            "missCount": 0,
+            "bypassCount": 0,
+            "cacheErrorCount": 0,
+            "cacheObserved": 0
+          },
+          "statuses": {
+            "fetch failed": 50
+          }
+        }
+      ]
+    }
+  ]
+}

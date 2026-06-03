@@ -9,6 +9,7 @@ import type {
   TenantSkillAssessment,
   TenantSkillQuestion,
 } from "@/lib/onboarding/types";
+import { buildCacheKey, CACHE_TTL_SECONDS, getOrSetCache } from "@/lib/cache";
 
 export async function seedDefaultTenantOnboarding(
   supabase: OnboardingDbClient,
@@ -27,7 +28,19 @@ export async function loadTenantOnboardingConfig(
   options?: { workerFacing?: boolean }
 ): Promise<TenantOnboardingConfig | null> {
   const workerFacing = options?.workerFacing ?? false;
+  return getOrSetCache(
+    buildCacheKey("tenant_onboarding_configs", ["tenant", tenantId], { workerFacing }),
+    () => loadTenantOnboardingConfigUncached(supabase, tenantId, { workerFacing }),
+    CACHE_TTL_SECONDS.tenantConfig
+  );
+}
 
+async function loadTenantOnboardingConfigUncached(
+  supabase: OnboardingDbClient,
+  tenantId: string,
+  options?: { workerFacing?: boolean }
+): Promise<TenantOnboardingConfig | null> {
+  const workerFacing = options?.workerFacing ?? false;
   let configId: string | null = null;
   let version = 1;
 

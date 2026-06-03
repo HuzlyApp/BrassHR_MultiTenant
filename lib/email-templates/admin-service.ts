@@ -18,6 +18,13 @@ import {
   type AdminEmailTemplateItem,
   type EmailTemplateRow,
 } from "@/lib/email-templates/types";
+import {
+  buildCacheKey,
+  CACHE_TTL_SECONDS,
+  getOrSetCache,
+  invalidateTableCache,
+  invalidateTenantCache,
+} from "@/lib/cache";
 
 const MANAGED_TEMPLATE_KEYS = ONBOARDING_EMAIL_TEMPLATE_KEYS;
 
@@ -42,6 +49,17 @@ export const adminSaveEmailTemplateSchema = z.object({
 export type AdminSaveEmailTemplateInput = z.infer<typeof adminSaveEmailTemplateSchema>;
 
 async function listGlobalKeys(
+  supabase: SupabaseClient,
+  locale: string
+): Promise<EmailTemplateRow[]> {
+  return getOrSetCache(
+    buildCacheKey("email_templates", ["global", "managed"], { locale, keys: MANAGED_TEMPLATE_KEYS }),
+    () => listGlobalKeysUncached(supabase, locale),
+    CACHE_TTL_SECONDS.tenantConfig
+  );
+}
+
+async function listGlobalKeysUncached(
   supabase: SupabaseClient,
   locale: string
 ): Promise<EmailTemplateRow[]> {
@@ -229,6 +247,7 @@ export async function saveAdminTenantEmailTemplate(
     }
 
     const row = mapEmailTemplateRow(data as Record<string, unknown>);
+    await invalidateTenantCache("email_templates", tenantId);
     return toAdminItem(input.template_key, row, "tenant", row);
   }
 
@@ -266,5 +285,7 @@ export async function saveAdminTenantEmailTemplate(
   }
 
   const row = mapEmailTemplateRow(data as Record<string, unknown>);
+  await invalidateTenantCache("email_templates", tenantId);
+  await invalidateTableCache("email_templates");
   return toAdminItem(input.template_key, row, "tenant", row);
 }

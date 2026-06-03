@@ -4,18 +4,27 @@ import type { TenantBrandingRow } from "@/lib/tenant/tenant-branding";
 import { brandingFromTenantRow, defaultTenantBranding } from "@/lib/tenant/tenant-branding";
 import { requireStaffApiSession } from "@/lib/auth/api-session";
 import { resolveEffectiveAdminTenantId } from "@/lib/email-templates/resolve-effective-tenant";
+import { buildCacheKey, CACHE_TTL_SECONDS, getOrSetCache } from "@/lib/cache";
 
 async function loadTenant(id: string): Promise<TenantBrandingRow | null> {
-  const sb = createServiceRoleClient();
-  if (!sb) return null;
-  const { data } = await sb
-    .from("tenants")
-    .select(
-      "id, name, slug, logo_url, primary_color, secondary_color, accent_color, welcome_headline, welcome_subtitle, auth_background_image_url"
-    )
-    .eq("id", id)
-    .maybeSingle<TenantBrandingRow>();
-  return data ?? null;
+  return getOrSetCache(
+    buildCacheKey("tenants", ["tenant", id, "branding"], {
+      fields: "branding",
+    }),
+    async () => {
+      const sb = createServiceRoleClient();
+      if (!sb) return null;
+      const { data } = await sb
+        .from("tenants")
+        .select(
+          "id, name, slug, logo_url, primary_color, secondary_color, accent_color, welcome_headline, welcome_subtitle, auth_background_image_url"
+        )
+        .eq("id", id)
+        .maybeSingle<TenantBrandingRow>();
+      return data ?? null;
+    },
+    CACHE_TTL_SECONDS.tenantConfig
+  );
 }
 
 export async function GET() {

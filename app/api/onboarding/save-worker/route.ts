@@ -4,6 +4,7 @@ import { getSupabaseUrl } from "@/lib/supabase-env"
 import { validateStep1Form } from "@/lib/onboardingStep1Validation"
 import { resolveOnboardingTenantId } from "@/lib/tenant/resolve-onboarding-tenant-id"
 import { ensureWorkerOnboardingProgress } from "@/lib/onboarding/ensure-worker-progress"
+import { invalidateResourceCache, invalidateTableCache, invalidateTenantCache, invalidateUserCache } from "@/lib/cache"
 
 export const runtime = "nodejs"
 
@@ -218,7 +219,15 @@ export async function POST(req: NextRequest) {
       } catch (e) {
         console.error("[onboarding/save-worker] progress init", e)
       }
+      await invalidateResourceCache("worker", String(workerAfter.id))
     }
+
+    await Promise.all([
+      invalidateTenantCache("worker_search", tenantId),
+      invalidateTenantCache("worker", tenantId),
+      invalidateUserCache("worker", applicantId),
+      invalidateTableCache("worker_search"),
+    ])
 
     return NextResponse.json({ ok: true })
   } catch (err: unknown) {

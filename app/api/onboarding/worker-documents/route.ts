@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { getSupabaseUrl } from "@/lib/supabase-env"
+import { buildCacheKey, CACHE_TTL_SECONDS, getOrSetCache, invalidateResourceCache, invalidateTenantCache, invalidateUserCache } from "@/lib/cache"
 
 export const runtime = "nodejs"
 
@@ -58,31 +59,36 @@ export async function GET(req: NextRequest) {
 
     const supabase = createClient(url, key)
 
-    const { data: worker, error: wErr } = await supabase
-      .from("worker")
-      .select("id")
-      .eq("user_id", applicantId)
-      .maybeSingle()
+    const documents = await getOrSetCache(
+      buildCacheKey("worker_documents", ["user", applicantId], { status: true }),
+      async () => {
+        const { data: worker, error: wErr } = await supabase
+          .from("worker")
+          .select("id")
+          .eq("user_id", applicantId)
+          .maybeSingle()
 
-    if (wErr) {
-      if (isMissingRelationError(wErr)) return NextResponse.json({ documents: null })
-      throw wErr
-    }
-    if (!worker?.id) {
-      return NextResponse.json({ documents: null })
-    }
+        if (wErr) {
+          if (isMissingRelationError(wErr)) return null
+          throw wErr
+        }
+        if (!worker?.id) return null
 
-    const { data, error } = await supabase
-      .from("worker_documents")
-      .select("*")
-      .eq("worker_id", worker.id)
-      .limit(1)
+        const { data, error } = await supabase
+          .from("worker_documents")
+          .select("*")
+          .eq("worker_id", worker.id)
+          .limit(1)
 
-    if (error) {
-      if (isMissingRelationError(error)) return NextResponse.json({ documents: null })
-      throw error
-    }
-    return NextResponse.json({ documents: data?.[0] ?? null })
+        if (error) {
+          if (isMissingRelationError(error)) return null
+          throw error
+        }
+        return data?.[0] ?? null
+      },
+      CACHE_TTL_SECONDS.dashboards
+    )
+    return NextResponse.json({ documents })
   } catch (err: unknown) {
     console.error("[onboarding/worker-documents] GET", err)
     // This is a polling endpoint used by client pages; never hard-fail the UI.
@@ -198,6 +204,13 @@ export async function POST(req: NextRequest) {
         insertPayload: merged,
       })
     }
+
+    await Promise.all([
+      invalidateResourceCache("worker_documents", String(worker.id)),
+      invalidateTenantCache("worker_documents", workerTenantId),
+      invalidateUserCache("worker_documents", applicantId),
+      invalidateResourceCache("worker", String(worker.id)),
+    ])
 
     return NextResponse.json({ ok: true })
   } catch (err: unknown) {

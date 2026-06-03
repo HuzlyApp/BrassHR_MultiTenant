@@ -3,8 +3,26 @@ import { buildLocaleFallbackChain } from "@/lib/email-templates/locale-fallback"
 import { mapEmailTemplateRow } from "@/lib/email-templates/mapper";
 import { EmailTemplateError } from "@/lib/email-templates/errors";
 import type { EmailTemplateRow, ResolvedEmailTemplate } from "@/lib/email-templates/types";
+import { buildCacheKey, CACHE_TTL_SECONDS, getOrSetCache } from "@/lib/cache";
 
 async function fetchActive(
+  supabase: SupabaseClient,
+  tenantId: string | null,
+  templateKey: string,
+  locale: string
+): Promise<EmailTemplateRow | null> {
+  return getOrSetCache(
+    buildCacheKey("email_templates", tenantId ? ["tenant", tenantId] : ["global"], {
+      templateKey,
+      locale,
+      status: "active",
+    }),
+    () => fetchActiveUncached(supabase, tenantId, templateKey, locale),
+    CACHE_TTL_SECONDS.tenantConfig
+  );
+}
+
+async function fetchActiveUncached(
   supabase: SupabaseClient,
   tenantId: string | null,
   templateKey: string,
@@ -68,6 +86,19 @@ export async function resolveTenantOnlyEmailTemplate(
 
 /** Latest tenant-owned row for editing (draft or active), not global fallback. */
 export async function fetchTenantEditableTemplate(
+  supabase: SupabaseClient,
+  tenantId: string,
+  templateKey: string,
+  locale: string
+): Promise<EmailTemplateRow | null> {
+  return getOrSetCache(
+    buildCacheKey("email_templates", ["tenant", tenantId, "editable"], { templateKey, locale }),
+    () => fetchTenantEditableTemplateUncached(supabase, tenantId, templateKey, locale),
+    CACHE_TTL_SECONDS.tenantConfig
+  );
+}
+
+async function fetchTenantEditableTemplateUncached(
   supabase: SupabaseClient,
   tenantId: string,
   templateKey: string,

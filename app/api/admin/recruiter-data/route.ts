@@ -3,6 +3,7 @@ import { createClient, type PostgrestError, type SupabaseClient } from "@supabas
 import { requireApiSession } from "@/lib/auth/api-session"
 import { canAccessWorkerRecord } from "@/lib/auth/worker-record-access"
 import { getSupabaseUrl } from "@/lib/supabase-env"
+import { buildCacheKey, CACHE_TTL_SECONDS, getOrSetCache } from "@/lib/cache"
 
 export const runtime = "nodejs"
 
@@ -54,30 +55,47 @@ async function queryRows(
   runtimeId: string
 ): Promise<{ rows: Record<string, unknown>[]; error: PostgrestError | null }> {
   for (const idColumn of candidate.idColumns) {
-    let query = supabase
-      .from(candidate.table)
-      .select("*")
-      .eq(idColumn, runtimeId)
+    const cacheKey = buildCacheKey(candidate.table, ["resource", runtimeId], {
+      idColumn,
+      orderBy: candidate.orderBy,
+      ascending: candidate.ascending ?? false,
+      limit: candidate.limit,
+    })
 
-    if (candidate.orderBy) {
-      query = query.order(candidate.orderBy, { ascending: candidate.ascending ?? false })
+    try {
+      const rows = await getOrSetCache(
+        cacheKey,
+        async () => {
+          let query = supabase
+            .from(candidate.table)
+            .select("*")
+            .eq(idColumn, runtimeId)
+
+          if (candidate.orderBy) {
+            query = query.order(candidate.orderBy, { ascending: candidate.ascending ?? false })
+          }
+
+          if (typeof candidate.limit === "number") {
+            query = query.limit(candidate.limit)
+          }
+
+          const { data, error } = await query
+          if (error) throw error
+          return (data as Record<string, unknown>[] | null) ?? []
+        },
+        CACHE_TTL_SECONDS.dashboards
+      )
+      return { rows, error: null }
+    } catch (error) {
+      const postgrestError = error as PostgrestError
+
+      // Try the next candidate ID column if this one is invalid for the table.
+      if (postgrestError.code === "42703") {
+        continue
+      }
+
+      return { rows: [], error: postgrestError }
     }
-
-    if (typeof candidate.limit === "number") {
-      query = query.limit(candidate.limit)
-    }
-
-    const { data, error } = await query
-    if (!error) {
-      return { rows: (data as Record<string, unknown>[] | null) ?? [], error: null }
-    }
-
-    // Try the next candidate ID column if this one is invalid for the table.
-    if (error.code === "42703") {
-      continue
-    }
-
-    return { rows: [], error }
   }
 
   return { rows: [], error: null }

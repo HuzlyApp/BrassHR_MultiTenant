@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { getSupabaseUrl } from "@/lib/supabase-env"
+import { buildCacheKey, CACHE_TTL_SECONDS, getOrSetCache, invalidateResourceCache, invalidateTenantCache, invalidateUserCache } from "@/lib/cache"
 
 export const runtime = "nodejs"
 
@@ -67,34 +68,35 @@ export async function GET(req: NextRequest) {
 
     const supabase = createClient(url, key)
 
-    // Validate applicant has a worker row (keeps behavior aligned with other onboarding APIs)
-    const { data: worker, error: wErr } = await supabase
-      .from("worker")
-      .select("id")
-      .eq("user_id", applicantId)
-      .maybeSingle()
+    const requirements = await getOrSetCache(
+      buildCacheKey("worker_requirements", ["user", applicantId], { status: true }),
+      async () => {
+        // Validate applicant has a worker row (keeps behavior aligned with other onboarding APIs)
+        const { data: worker, error: wErr } = await supabase
+          .from("worker")
+          .select("id")
+          .eq("user_id", applicantId)
+          .maybeSingle()
 
-    if (wErr) throw wErr
-    if (!worker?.id) {
-      // This endpoint is used by the Step 4 documents page to *read* status.
-      // If the worker record hasn't been created yet, treat it as "no requirements yet"
-      // rather than hard-failing the page.
-      return NextResponse.json({ requirements: null })
-    }
+        if (wErr) throw wErr
+        if (!worker?.id) {
+          // This endpoint is used by the Step 4 documents page to *read* status.
+          return null
+        }
 
-    const { data, error } = await supabase
-      .from("worker_requirements")
-      // Use "*" so this endpoint continues to work even if the DB migration
-      // adding front/back columns hasn't been applied yet.
-      .select("*")
-      // worker_requirements.worker_id should reference worker.id.
-      // Fallback to applicantId to support legacy rows created with the wrong key.
-      .or(`worker_id.eq.${worker.id},worker_id.eq.${applicantId}`)
-      .maybeSingle()
+        const { data, error } = await supabase
+          .from("worker_requirements")
+          .select("*")
+          .or(`worker_id.eq.${worker.id},worker_id.eq.${applicantId}`)
+          .maybeSingle()
 
-    if (error) throw error
+        if (error) throw error
+        return data ?? null
+      },
+      CACHE_TTL_SECONDS.dashboards
+    )
 
-    return NextResponse.json({ requirements: data ?? null })
+    return NextResponse.json({ requirements })
   } catch (err: unknown) {
     console.error("[onboarding/worker-requirements] GET", err)
     const msg = describeErr(err)
@@ -221,6 +223,13 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: msg || "Database error" }, { status: 500 })
       }
     }
+
+    await Promise.all([
+      invalidateResourceCache("worker_requirements", String(worker.id)),
+      invalidateTenantCache("worker_requirements", workerTenantId),
+      invalidateUserCache("worker_requirements", applicantId),
+      invalidateResourceCache("worker", String(worker.id)),
+    ])
 
     return NextResponse.json({ ok: true })
   } catch (err: unknown) {

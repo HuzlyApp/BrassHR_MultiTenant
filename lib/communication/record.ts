@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { buildCacheKey, CACHE_TTL_SECONDS, getOrSetCache, invalidateResourceCache, invalidateTenantCache } from "@/lib/cache";
 
 export type CommunicationChannel = "email" | "sms";
 export type CommunicationStatus = "sent" | "failed";
@@ -57,10 +58,27 @@ export async function recordCandidateCommunication(
     return null;
   }
 
+  await Promise.all([
+    invalidateResourceCache("candidate_communications", input.workerId),
+    invalidateTenantCache("candidate_communications", input.tenantId),
+  ]);
+
   return data as CandidateCommunicationRow;
 }
 
 export async function listCandidateCommunications(
+  supabase: SupabaseClient,
+  workerId: string,
+  limit = 50
+): Promise<CandidateCommunicationRow[]> {
+  return getOrSetCache(
+    buildCacheKey("candidate_communications", ["resource", workerId], { limit }),
+    () => listCandidateCommunicationsUncached(supabase, workerId, limit),
+    CACHE_TTL_SECONDS.dashboards
+  );
+}
+
+async function listCandidateCommunicationsUncached(
   supabase: SupabaseClient,
   workerId: string,
   limit = 50

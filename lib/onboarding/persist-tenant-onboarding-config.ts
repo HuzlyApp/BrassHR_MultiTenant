@@ -4,6 +4,7 @@ import {
   reindexStepSortOrders,
   type OnboardingStepDraft,
 } from "@/lib/onboarding/default-onboarding-steps";
+import { invalidateTenantCache } from "@/lib/cache";
 
 export type PersistStepInput = OnboardingStepDraft;
 
@@ -147,6 +148,14 @@ export async function persistTenantOnboardingConfig(
       updated_at: new Date().toISOString(),
     })
     .eq("id", tenantId);
+
+  await Promise.all([
+    invalidateTenantCache("tenant_onboarding_configs", tenantId),
+    invalidateTenantCache("tenant_onboarding_steps", tenantId),
+    invalidateTenantCache("tenant_required_documents", tenantId),
+    invalidateTenantCache("tenant_skill_assessments", tenantId),
+    invalidateTenantCache("tenant_skill_assessment_questions", tenantId),
+  ]);
 
   return { configId };
 }

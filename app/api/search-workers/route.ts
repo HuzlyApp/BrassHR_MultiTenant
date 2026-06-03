@@ -4,6 +4,7 @@ import { requireStaffApiSession } from "@/lib/auth/api-session"
 import { resolveStaffTenantScope } from "@/lib/auth/staff-tenant-scope"
 import { getSupabaseUrl } from "@/lib/supabase-env"
 import { narrowWorkerRowsByTenant } from "@/lib/workers/tenant-query"
+import { buildCacheKey, CACHE_TTL_SECONDS, getOrSetCache } from "@/lib/cache"
 
 type RpcRow = Record<string, unknown>
 type ContactLookupRow = { id: string | null; email: string | null; phone: string | null }
@@ -155,102 +156,115 @@ export async function POST(req: Request) {
     return Response.json({ error: "Invalid lat/lng/radius" }, { status: 400 })
   }
 
-  let rpcRows: RpcRow[] = []
-  const { data: rpcData, error: rpcError } = await supabase.rpc("nearby_workers", {
-    lat,
-    lng,
-    radius_meters: radius * 1609.344, // miles → meters
-  })
+  const scope =
+    "tenantId" in tenantScope && tenantScope.tenantId
+      ? ["tenant", String(tenantScope.tenantId)]
+      : ["admin", auth.userId]
+  const cacheKey = buildCacheKey("worker_search", scope, { lat, lng, radius, place })
 
-  if (rpcError) {
-    // Fallback if RPC is broken/missing (e.g. function references old columns)
-    if (!place) {
-      const fallback = await fallbackNearbyWorkers(supabase, { lat, lng, radiusMiles: radius })
-      if (fallback.error) {
-        return Response.json({ error: `${rpcError.message} | Fallback failed: ${fallback.error}` }, { status: 500 })
-      }
-      rpcRows = fallback.rows
-    }
-  } else if (Array.isArray(rpcData)) {
-    rpcRows = rpcData as RpcRow[]
-  }
+  const narrowed = await getOrSetCache(
+    cacheKey,
+    async () => {
+      let rpcRows: RpcRow[] = []
+      const { data: rpcData, error: rpcError } = await supabase.rpc("nearby_workers", {
+        lat,
+        lng,
+        radius_meters: radius * 1609.344, // miles -> meters
+      })
 
-  let cityRows: RpcRow[] = []
-  if (place) {
-    // Match worker.city / state / address1 (free text often lives in address1)
-    const segment = place.split(",")[0]?.trim() || place
-    const term = segment.slice(0, 120)
-    // Keep PostgREST `or()` values simple: no commas / wildcards in the literal
-    const safe = term.replace(/[^\p{L}\p{N}\s\-]/gu, " ").replace(/\s+/g, " ").trim()
-    if (safe.length >= 2) {
-      const pattern = `%${safe}%`
-
-      const { data: wk, error: wErr } = await supabase
-        .from("worker")
-        .select("id, user_id, first_name, last_name, job_role, email, phone, city, state, address1, zip, created_at")
-        .or(`city.ilike.${pattern},state.ilike.${pattern},address1.ilike.${pattern}`)
-
-      if (wErr) {
-        return Response.json({ error: wErr.message }, { status: 500 })
+      if (rpcError) {
+        // Fallback if RPC is broken/missing (e.g. function references old columns)
+        if (!place) {
+          const fallback = await fallbackNearbyWorkers(supabase, { lat, lng, radiusMiles: radius })
+          if (fallback.error) {
+            throw new Error(`${rpcError.message} | Fallback failed: ${fallback.error}`)
+          }
+          rpcRows = fallback.rows
+        }
+      } else if (Array.isArray(rpcData)) {
+        rpcRows = rpcData as RpcRow[]
       }
 
-      cityRows = (wk ?? []).map((row) => mapWorkerRow(row as Record<string, unknown>, { lat, lng }))
-    }
-  }
+      let cityRows: RpcRow[] = []
+      if (place) {
+        // Match worker.city / state / address1 (free text often lives in address1)
+        const segment = place.split(",")[0]?.trim() || place
+        const term = segment.slice(0, 120)
+        // Keep PostgREST `or()` values simple: no commas / wildcards in the literal
+        const safe = term.replace(/[^\p{L}\p{N}\s\-]/gu, " ").replace(/\s+/g, " ").trim()
+        if (safe.length >= 2) {
+          const pattern = `%${safe}%`
 
-  const merged = mergeById(rpcRows, cityRows)
-  const workerIds = Array.from(new Set(merged.map((r) => (r.id != null ? String(r.id) : "")).filter(Boolean)))
-  const userIds = Array.from(
-    new Set(merged.map((r) => (r.user_id != null ? String(r.user_id) : "")).filter(Boolean))
+          const { data: wk, error: wErr } = await supabase
+            .from("worker")
+            .select("id, user_id, first_name, last_name, job_role, email, phone, city, state, address1, zip, created_at")
+            .or(`city.ilike.${pattern},state.ilike.${pattern},address1.ilike.${pattern}`)
+
+          if (wErr) {
+            throw new Error(wErr.message)
+          }
+
+          cityRows = (wk ?? []).map((row) => mapWorkerRow(row as Record<string, unknown>, { lat, lng }))
+        }
+      }
+
+      const merged = mergeById(rpcRows, cityRows)
+      const workerIds = Array.from(new Set(merged.map((r) => (r.id != null ? String(r.id) : "")).filter(Boolean)))
+      const userIds = Array.from(
+        new Set(merged.map((r) => (r.user_id != null ? String(r.user_id) : "")).filter(Boolean))
+      )
+
+      let usersById = new Map<string, ContactLookupRow>()
+      if (userIds.length > 0) {
+        const { data: usersData, error: usersError } = await supabase
+          .from("users")
+          .select("id, email, phone")
+          .in("id", userIds)
+        if (!usersError) {
+          usersById = new Map(
+            ((usersData as ContactLookupRow[] | null) ?? [])
+              .filter((u) => Boolean(u.id))
+              .map((u) => [String(u.id), u])
+          )
+        }
+      }
+
+      let applicantsById = new Map<string, ContactLookupRow>()
+      if (workerIds.length > 0) {
+        const { data: applicantsData, error: applicantsError } = await supabase
+          .from("applicants")
+          .select("id, email, phone")
+          .in("id", workerIds)
+        if (!applicantsError) {
+          applicantsById = new Map(
+            ((applicantsData as ContactLookupRow[] | null) ?? [])
+              .filter((a) => Boolean(a.id))
+              .map((a) => [String(a.id), a])
+          )
+        }
+      }
+
+      const enriched = merged.map((row) => {
+        const workerId = row.id != null ? String(row.id) : ""
+        const userId = row.user_id != null ? String(row.user_id) : ""
+        const userContact = userId ? usersById.get(userId) : undefined
+        const applicantContact = workerId ? applicantsById.get(workerId) : undefined
+        return {
+          ...row,
+          user_email: userContact?.email ?? null,
+          user_phone: userContact?.phone ?? null,
+          applicant_email: applicantContact?.email ?? null,
+          applicant_phone: applicantContact?.phone ?? null,
+        }
+      })
+      return narrowWorkerRowsByTenant(
+        supabase,
+        tenantScope,
+        enriched as Record<string, unknown>[]
+      )
+    },
+    CACHE_TTL_SECONDS.searchResults
   )
 
-  let usersById = new Map<string, ContactLookupRow>()
-  if (userIds.length > 0) {
-    const { data: usersData, error: usersError } = await supabase
-      .from("users")
-      .select("id, email, phone")
-      .in("id", userIds)
-    if (!usersError) {
-      usersById = new Map(
-        ((usersData as ContactLookupRow[] | null) ?? [])
-          .filter((u) => Boolean(u.id))
-          .map((u) => [String(u.id), u])
-      )
-    }
-  }
-
-  let applicantsById = new Map<string, ContactLookupRow>()
-  if (workerIds.length > 0) {
-    const { data: applicantsData, error: applicantsError } = await supabase
-      .from("applicants")
-      .select("id, email, phone")
-      .in("id", workerIds)
-    if (!applicantsError) {
-      applicantsById = new Map(
-        ((applicantsData as ContactLookupRow[] | null) ?? [])
-          .filter((a) => Boolean(a.id))
-          .map((a) => [String(a.id), a])
-      )
-    }
-  }
-
-  const enriched = merged.map((row) => {
-    const workerId = row.id != null ? String(row.id) : ""
-    const userId = row.user_id != null ? String(row.user_id) : ""
-    const userContact = userId ? usersById.get(userId) : undefined
-    const applicantContact = workerId ? applicantsById.get(workerId) : undefined
-    return {
-      ...row,
-      user_email: userContact?.email ?? null,
-      user_phone: userContact?.phone ?? null,
-      applicant_email: applicantContact?.email ?? null,
-      applicant_phone: applicantContact?.phone ?? null,
-    }
-  })
-  const narrowed = await narrowWorkerRowsByTenant(
-    supabase,
-    tenantScope,
-    enriched as Record<string, unknown>[]
-  )
   return Response.json(narrowed)
 }
