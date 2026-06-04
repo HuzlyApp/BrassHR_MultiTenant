@@ -57,6 +57,29 @@ function statusFilterValues(
   return statusVariants(s);
 }
 
+const PIPELINE_STATUSES = new Set<WorkerStatus>([
+  "new",
+  "pending",
+  "approved",
+  "disapproved",
+]);
+
+/** Prefer text `status` (recruiter pipeline); fall back to enum `worker_status`. */
+function resolveWorkerDisplayStatus(row: Record<string, unknown>): string | null {
+  const pipeline =
+    typeof row.status === "string" ? row.status.trim().toLowerCase() : "";
+  const legacy =
+    typeof row.worker_status === "string"
+      ? row.worker_status.trim().toLowerCase()
+      : "";
+
+  if (pipeline && PIPELINE_STATUSES.has(pipeline as WorkerStatus)) return pipeline;
+  if (legacy && PIPELINE_STATUSES.has(legacy as WorkerStatus)) return legacy;
+  if (pipeline) return pipeline;
+  if (legacy) return legacy;
+  return null;
+}
+
 export async function GET(req: Request) {
   try {
     const auth = await requireStaffApiSession();
@@ -120,7 +143,11 @@ export async function GET(req: Request) {
             { col: "status" as const, extra: "status" as const },
             { col: "worker_status" as const, extra: "worker_status" as const },
           ]
-        : [{ col: "worker_status" as const, extra: "worker_status" as const }];
+        : [
+            // "All" must load pipeline `status` (where approvals are stored), not only `worker_status`.
+            { col: "status" as const, extra: "status, worker_status" as const },
+            { col: "worker_status" as const, extra: "worker_status" as const },
+          ];
 
       let data: unknown[] | null = null;
       let error: SbErr | null = null;
@@ -215,11 +242,7 @@ export async function GET(req: Request) {
       if (!error) {
         const normalized = (data ?? []).map((row) => {
           const r = row as Record<string, unknown>;
-          const statusVal = (r.status ?? r.worker_status) as unknown;
-          const s =
-            typeof statusVal === "string" && statusVal.trim()
-              ? statusVal.trim().toLowerCase()
-              : statusVal;
+          const s = resolveWorkerDisplayStatus(r);
           return { ...r, status: s };
         });
 

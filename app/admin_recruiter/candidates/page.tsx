@@ -63,6 +63,14 @@ function titleCaseStatus(s: string | null | undefined) {
   return low.slice(0, 1).toUpperCase() + low.slice(1);
 }
 
+function statusBadgeClassName(status: string) {
+  const s = status.trim().toLowerCase();
+  if (s === "pending") return "border border-[#F59E0B] bg-[#F59E0B] text-white";
+  if (s === "approved") return "border border-[#22C55E] bg-[#22C55E] text-white";
+  if (s === "disapproved") return "border border-[#FB7185] bg-[#FB7185] text-white";
+  return "border border-[#0D9488] text-[#0D9488]";
+}
+
 function statusToApiParam(s: StatusFilter): string | null {
   if (s === "All") return null;
   return s.toLowerCase();
@@ -804,7 +812,9 @@ export default function CandidatesPage() {
                             <img src="/icons/admin-recruiter/calendar.svg" alt="View" className="h-4 w-4" />
                               <span>{formatDateTime(c.createdAt)}</span>
                             </div>
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-sm text-[10px] font-semibold border border-[#0D9488] text-[#0D9488] ">
+                            <span
+                              className={`inline-flex items-center px-2 py-0.5 rounded-sm text-[10px] font-semibold ${statusBadgeClassName(c.status)}`}
+                            >
                               {c.status}
                             </span>
                           </div>

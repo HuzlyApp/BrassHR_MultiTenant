@@ -13,6 +13,7 @@ export type ApplicantEmailContext = {
   applicantName: string;
   applicantEmail: string;
   applicationStatusUrl: string;
+  applicantPortalUrl: string;
   applicantContinuationLink: string;
   supportEmail: string;
   reason?: string;
@@ -67,6 +68,8 @@ export async function buildApplicantEmailContext(
     origin: params.origin,
     tenantSlug: slug,
   });
+  const normalizedOrigin = params.origin.trim().replace(/\/+$/, "");
+  const applicantPortalUrl = `${normalizedOrigin}/?tenant=${encodeURIComponent(slug)}`;
   const continuation = await createApplicantContinuationLink(supabase, {
     tenantId,
     workerId: String(worker.id),
@@ -86,6 +89,7 @@ export async function buildApplicantEmailContext(
     ),
     applicantEmail: String(worker.email).trim().toLowerCase(),
     applicationStatusUrl,
+    applicantPortalUrl,
     applicantContinuationLink: continuation?.url ?? applicationStatusUrl,
     supportEmail: resolveSupportEmail(slug),
     reason: params.reason?.trim() || undefined,
@@ -99,6 +103,7 @@ export function contextToTemplateVariables(
     applicantName: ctx.applicantName,
     tenantName: ctx.tenantName,
     applicationStatusUrl: ctx.applicationStatusUrl,
+    applicantPortalUrl: ctx.applicantPortalUrl,
     applicantContinuationLink: ctx.applicantContinuationLink,
     supportEmail: ctx.supportEmail,
     ...(ctx.reason ? { reason: ctx.reason } : {}),

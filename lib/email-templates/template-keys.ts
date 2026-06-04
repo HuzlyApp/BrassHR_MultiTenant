@@ -1,6 +1,7 @@
 /** DB `template_key` values for applicant onboarding notifications. */
 export const ONBOARDING_EMAIL_TEMPLATE_KEYS = [
   "application_status",
+  "approved",
   "welcome",
   "declined",
 ] as const;
@@ -10,6 +11,7 @@ export type OnboardingEmailTemplateKey = (typeof ONBOARDING_EMAIL_TEMPLATE_KEYS)
 /** Logical template types (map 1:1 to `template_key` in this app). */
 export const EMAIL_TEMPLATE_TYPE = {
   APPLICATION_STATUS: "application_status",
+  APPROVED: "approved",
   WELCOME: "welcome",
   DECLINED: "declined",
 } as const;
@@ -19,6 +21,7 @@ export type EmailTemplateType =
 
 export const EMAIL_TEMPLATE_TYPE_LABELS: Record<OnboardingEmailTemplateKey, string> = {
   application_status: "Application status link",
+  approved: "Applicant approved email",
   welcome: "Welcome email",
   declined: "Declined email",
 };

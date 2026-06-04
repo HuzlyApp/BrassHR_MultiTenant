@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireStaffApiSession } from "@/lib/auth/api-session";
 import { canAccessWorkerRecord } from "@/lib/auth/worker-record-access";
+import { sendOnboardingApplicantEmail } from "@/lib/email/send-templated-email";
+import { SendEmailError } from "@/lib/email/errors";
+import { EMAIL_TEMPLATE_TYPE } from "@/lib/email-templates/template-keys";
+import { resolveAppOrigin } from "@/lib/resolve-app-origin";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { parseRequiredUuid } from "@/lib/validation/uuid";
 
@@ -45,12 +49,12 @@ export async function PATCH(req: NextRequest) {
 
     const { data: worker, error: workerError } = await supabase
       .from("worker")
-      .select("id, user_id")
+      .select("id, user_id, tenant_id")
       .eq("id", idCheck.value)
       .maybeSingle();
 
     if (workerError) throw workerError;
-    if (!worker?.id) return NextResponse.json({ error: "Worker not found" }, { status: 404 });
+    if (!worker?.id || !worker.tenant_id) return NextResponse.json({ error: "Worker not found" }, { status: 404 });
     if (!canAccessWorkerRecord(auth, { id: String(worker.id), user_id: worker.user_id })) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
@@ -63,7 +67,50 @@ export async function PATCH(req: NextRequest) {
       .maybeSingle();
 
     if (updateError) throw updateError;
-    return NextResponse.json({ worker: updated });
+
+    let approvalEmail:
+      | { sent: boolean; skipped: boolean; messageId: string | null; error?: undefined }
+      | { sent: false; skipped: false; messageId: null; error: string }
+      | null = null;
+
+    if (status === "approved") {
+      try {
+        const origin = resolveAppOrigin(req);
+        if (!origin) {
+          approvalEmail = {
+            sent: false,
+            skipped: false,
+            messageId: null,
+            error: "Could not resolve app origin for approval email.",
+          };
+        } else {
+          const result = await sendOnboardingApplicantEmail(supabase, {
+            tenantId: String(worker.tenant_id),
+            workerId: String(worker.id),
+            templateKey: EMAIL_TEMPLATE_TYPE.APPROVED,
+            origin,
+          });
+          approvalEmail = {
+            sent: result.sent,
+            skipped: result.skipped ?? false,
+            messageId: result.messageId ?? null,
+          };
+        }
+      } catch (emailError) {
+        console.error("[admin/workers/status] approval email", emailError);
+        approvalEmail = {
+          sent: false,
+          skipped: false,
+          messageId: null,
+          error:
+            emailError instanceof SendEmailError || emailError instanceof Error
+              ? emailError.message
+              : "Could not send approval email.",
+        };
+      }
+    }
+
+    return NextResponse.json({ worker: updated, approvalEmail });
   } catch (err) {
     console.error("[admin/workers/status]", err);
     const message = err instanceof Error ? err.message : "Unexpected error";

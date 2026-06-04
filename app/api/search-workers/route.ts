@@ -37,6 +37,8 @@ async function fallbackNearbyWorkers(
 ): Promise<{ rows: RpcRow[]; error: string | null }> {
   const db = supabase as WorkerSelectClient
   const selectVariants = [
+    "id, user_id, first_name, last_name, job_role, email, phone, city, state, address1, zip, created_at, status, worker_status, lat, lng",
+    "id, user_id, first_name, last_name, job_role, email, phone, city, state, address1, zip, created_at, status, lat, lng",
     "id, user_id, first_name, last_name, job_role, email, phone, city, state, address1, zip, created_at, lat, lng",
     "id, user_id, first_name, last_name, job_role, email, phone, city, state, address1, zip, created_at, latitude, longitude",
   ]
@@ -120,6 +122,23 @@ function mapWorkerRow(
     zip: w.zip ?? null,
     address: (w.address1 as string) || (w.address as string) || null,
     created_at: w.created_at ?? null,
+    status: (() => {
+      const pipeline =
+        typeof w.status === "string" ? w.status.trim().toLowerCase() : "";
+      const legacy =
+        typeof w.worker_status === "string"
+          ? w.worker_status.trim().toLowerCase()
+          : "";
+      const pipelineStatuses = new Set([
+        "new",
+        "pending",
+        "approved",
+        "disapproved",
+      ]);
+      if (pipeline && pipelineStatuses.has(pipeline)) return pipeline;
+      if (legacy && pipelineStatuses.has(legacy)) return legacy;
+      return pipeline || legacy || null;
+    })(),
     lat,
     lng,
     distance_meters: null,

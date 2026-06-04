@@ -313,10 +313,25 @@ export default function NewApplicantProfilePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ workerId: applicantId, status: "approved" }),
       });
-      const json = (await res.json().catch(() => ({}))) as { error?: string };
+      const json = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        approvalEmail?: {
+          sent?: boolean;
+          skipped?: boolean;
+          error?: string;
+        } | null;
+      };
       if (!res.ok) throw new Error(json.error || "Failed to approve applicant.");
 
-      toast.success("Applicant approved for work.");
+      if (json.approvalEmail?.sent) {
+        toast.success("Applicant approved and approval email sent.");
+      } else if (json.approvalEmail?.skipped) {
+        toast("Applicant approved. Approval email skipped because email sending is not configured.");
+      } else if (json.approvalEmail?.error) {
+        toast(`Applicant approved, but email was not sent: ${json.approvalEmail.error}`);
+      } else {
+        toast.success("Applicant approved for work.");
+      }
       router.push("/admin_recruiter/approved");
       router.refresh();
     } catch (e) {

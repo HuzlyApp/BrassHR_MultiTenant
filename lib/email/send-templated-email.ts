@@ -137,7 +137,7 @@ export async function sendOnboardingApplicantEmail(
     params.continuationReason ??
     (params.templateKey === "welcome"
       ? "welcome"
-      : params.templateKey === "application_status"
+      : params.templateKey === "application_status" || params.templateKey === "approved"
         ? "application_status"
         : "manual_notification");
 
