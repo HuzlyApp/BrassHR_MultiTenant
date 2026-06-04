@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import { TenantBrandingProvider } from "@/app/components/tenant/TenantBrandingContext";
 import OnboardingConfigProvider from "@/app/components/onboarding/OnboardingConfigProvider";
 import type { TenantBranding } from "@/lib/tenant/tenant-branding";
@@ -12,6 +13,7 @@ import { persistOnboardingSlugCookie, resolveClientOnboardingTenantSlug } from "
  * and applies tenant-aware branding (`?tenant=slug`, onboarding slug cookie).
  */
 export default function ApplicationOnboardingBootstrap({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
   const [error, setError] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
   const [brand, setBrand] = useState<TenantBranding>(() => defaultTenantBranding());
@@ -40,12 +42,14 @@ export default function ApplicationOnboardingBootstrap({ children }: { children:
           if (payload.branding) setBrand(payload.branding);
         }
 
-        const { supabaseBrowser } = await import("@/lib/supabase-browser");
-        const { ensureApplicantMatchesAuthSession } = await import("@/lib/onboarding/ensure-applicant-auth");
-        const r = await ensureApplicantMatchesAuthSession(supabaseBrowser);
-        if (!alive) return;
+        if (pathname !== "/application/applicant-dashboard") {
+          const { supabaseBrowser } = await import("@/lib/supabase-browser");
+          const { ensureApplicantMatchesAuthSession } = await import("@/lib/onboarding/ensure-applicant-auth");
+          const r = await ensureApplicantMatchesAuthSession(supabaseBrowser);
+          if (!alive) return;
 
-        if ("error" in r) setError(r.error);
+          if ("error" in r) setError(r.error);
+        }
       } catch (e) {
         if (alive)
           setError(e instanceof Error ? e.message : "Could not start applicant session.");
@@ -57,7 +61,7 @@ export default function ApplicationOnboardingBootstrap({ children }: { children:
     return () => {
       alive = false;
     };
-  }, []);
+  }, [pathname]);
 
   if (!ready) {
     return (
