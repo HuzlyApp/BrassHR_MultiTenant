@@ -1,18 +1,27 @@
-import { createHash } from "node:crypto";
-import { Redis as UpstashRedis } from "@upstash/redis";
-import { createClient as createNodeRedisClient, type RedisClientType } from "redis";
+import "server-only";
 
-export const CACHE_TTL_SECONDS = {
-  searchResults: 60,
-  dashboards: 120,
-  lists: 300,
-  userScoped: 600,
-  tenantConfig: 900,
-  staticReference: 3600,
-} as const;
+import { Redis as UpstashRedis } from "@upstash/redis";
+import {
+  buildCacheKey,
+  CACHE_TTL_SECONDS,
+  hashQueryParams,
+  resourcePattern,
+  tablePattern,
+  tenantPattern,
+  userPattern,
+} from "@/lib/cache-keys";
+
+export {
+  buildCacheKey,
+  CACHE_TTL_SECONDS,
+  hashQueryParams,
+  tablePattern,
+  tenantPattern,
+  userPattern,
+  resourcePattern,
+};
 
 const DEFAULT_TTL_SECONDS = Number(process.env.CACHE_DEFAULT_TTL_SECONDS ?? 300) || 300;
-const CACHE_PREFIX = "supabase";
 
 type CacheAdapter = {
   get(key: string): Promise<string | null>;
@@ -32,50 +41,6 @@ function logCache(event: string, detail: unknown) {
   if (process.env.NODE_ENV !== "production") {
     console.debug(`[cache:${event}]`, detail);
   }
-}
-
-function stableStringify(value: unknown): string {
-  if (value === null || typeof value !== "object") return JSON.stringify(value);
-  if (Array.isArray(value)) return `[${value.map((item) => stableStringify(item)).join(",")}]`;
-  const obj = value as Record<string, unknown>;
-  return `{${Object.keys(obj)
-    .sort()
-    .map((key) => `${JSON.stringify(key)}:${stableStringify(obj[key])}`)
-    .join(",")}}`;
-}
-
-export function hashQueryParams(params: unknown): string {
-  return createHash("sha256").update(stableStringify(params)).digest("hex").slice(0, 16);
-}
-
-function scopeToParts(scope: string | string[]): string[] {
-  return Array.isArray(scope) ? scope : scope.split(":").filter(Boolean);
-}
-
-export function buildCacheKey(
-  table: string,
-  scope: string | string[],
-  params?: unknown
-): string {
-  const parts = [CACHE_PREFIX, table, ...scopeToParts(scope)];
-  if (params !== undefined) parts.push(hashQueryParams(params));
-  return parts.join(":");
-}
-
-export function tablePattern(table: string): string {
-  return `${CACHE_PREFIX}:${table}:*`;
-}
-
-export function tenantPattern(table: string, tenantId: string): string {
-  return `${CACHE_PREFIX}:${table}:tenant:${tenantId}:*`;
-}
-
-export function userPattern(table: string, userId: string): string {
-  return `${CACHE_PREFIX}:${table}:user:${userId}:*`;
-}
-
-export function resourcePattern(table: string, resourceId: string): string {
-  return `${CACHE_PREFIX}:${table}:resource:${resourceId}:*`;
 }
 
 async function createUpstashAdapter(url: string, token: string): Promise<CacheAdapter> {
@@ -103,7 +68,8 @@ async function createUpstashAdapter(url: string, token: string): Promise<CacheAd
 }
 
 async function createNodeRedisAdapter(url: string): Promise<CacheAdapter> {
-  const client: RedisClientType = createNodeRedisClient({ url });
+  const { createClient } = await import("redis");
+  const client = createClient({ url });
   client.on("error", (error) => logCache("redis-error", error));
   if (!client.isOpen) await client.connect();
 

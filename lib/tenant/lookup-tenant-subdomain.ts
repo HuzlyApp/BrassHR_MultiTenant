@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { buildCacheKey, CACHE_TTL_SECONDS, getOrSetCache } from "@/lib/cache-edge";
 
 export async function lookupTenantSlugBySubdomain(
   client: SupabaseClient,
