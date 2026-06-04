@@ -1,7 +1,8 @@
-import { createHash } from "node:crypto";
+import "server-only";
+
 import { Redis as UpstashRedis } from "@upstash/redis";
 import { NextResponse } from "next/server";
-import { createClient as createNodeRedisClient, type RedisClientType } from "redis";
+import { hashQueryParams } from "@/lib/cache-keys";
 
 type RateLimitStore = {
   increment(key: string, windowSeconds: number): Promise<number>;
@@ -29,7 +30,7 @@ const memoryBuckets = new Map<string, Bucket>();
 let storePromise: Promise<RateLimitStore | null> | null = null;
 
 function hashKey(value: string): string {
-  return createHash("sha256").update(value).digest("hex").slice(0, 32);
+  return hashQueryParams(value);
 }
 
 function rateLimitKey(namespace: string, key: string): string {
@@ -69,7 +70,8 @@ async function createUpstashStore(url: string, token: string): Promise<RateLimit
 }
 
 async function createNodeRedisStore(url: string): Promise<RateLimitStore> {
-  const client: RedisClientType = createNodeRedisClient({ url });
+  const { createClient } = await import("redis");
+  const client = createClient({ url });
   client.on("error", () => {});
   if (!client.isOpen) await client.connect();
   return {

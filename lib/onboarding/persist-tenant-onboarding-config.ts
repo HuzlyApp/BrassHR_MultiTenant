@@ -1,3 +1,5 @@
+import "server-only";
+
 import type { OnboardingDbClient } from "@/lib/onboarding/load-tenant-config";
 import { loadTenantOnboardingConfig, seedDefaultTenantOnboarding } from "@/lib/onboarding/load-tenant-config";
 import {

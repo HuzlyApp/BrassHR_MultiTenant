@@ -12,10 +12,8 @@ import {
   saveOnboardingBuilderDraft,
 } from "@/lib/onboarding/load-onboarding-builder-meta";
 import { stepDraftsToSerializableWorkflow } from "@/lib/onboarding/step-drafts-to-workflow-state";
-import {
-  publishOnboardingFromWorkflow,
-  syncBuilderDraftFromStepDrafts,
-} from "@/lib/onboarding/config-from-builder-draft";
+import { syncBuilderDraftFromStepDrafts } from "@/lib/onboarding/config-from-builder-draft";
+import { publishOnboardingFromWorkflow } from "@/lib/onboarding/publish-onboarding-from-workflow";
 import {
   isSerializableWorkflowState,
   serializeWorkflowState,
