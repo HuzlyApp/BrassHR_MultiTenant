@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown, ChevronUp, Plus, Trash2 } from "lucide-react";
+import { Check, ChevronDown, ChevronUp, Plus, Trash2 } from "lucide-react";
 import {
   createDefaultOnboardingStepDrafts,
   reindexStepSortOrders,
@@ -12,6 +12,18 @@ import {
   createStepDraftForType,
 } from "@/lib/onboarding/create-step-draft";
 import type { OnboardingStepType } from "@/lib/onboarding/types";
+
+const builderInputStyle = {
+  color: "#0f172a",
+  backgroundColor: "#ffffff",
+  WebkitTextFillColor: "#0f172a",
+} as const;
+
+const builderInputClass =
+  "tenant-onboarding-input rounded-lg border border-[#cbd5e1] bg-white px-3 py-2 text-sm text-[#0f172a] placeholder:text-[#94a3b8] outline-none";
+
+const builderInputSmClass =
+  "tenant-onboarding-input rounded border border-[#cbd5e1] bg-white px-2 py-1.5 text-sm text-[#0f172a] placeholder:text-[#94a3b8] outline-none";
 
 const STEP_TYPE_LABELS: Record<OnboardingStepType, string> = {
   resume_upload: "Resume upload",
@@ -24,6 +36,43 @@ const STEP_TYPE_LABELS: Record<OnboardingStepType, string> = {
   references: "References",
   authorizations: "Authorizations & documents",
 };
+
+function BuilderCheckbox({
+  checked,
+  disabled = false,
+  onChange,
+  label,
+}: {
+  checked: boolean;
+  disabled?: boolean;
+  onChange: (checked: boolean) => void;
+  label: string;
+}) {
+  return (
+    <label
+      className={`flex items-center gap-1.5 text-xs text-[#0f172a] ${disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}
+    >
+      <span
+        className={`relative flex h-[20px] w-[20px] shrink-0 items-center justify-center rounded-[6px] border ${
+          checked
+            ? "border-[color:var(--brand-primary)] bg-[color:var(--brand-primary)]"
+            : "border-[#cbd5e1] bg-white"
+        }`}
+      >
+        <input
+          type="checkbox"
+          checked={checked}
+          disabled={disabled}
+          onChange={(e) => onChange(e.target.checked)}
+          className="absolute inset-0 z-10 m-0 cursor-pointer opacity-0 disabled:cursor-not-allowed"
+          aria-label={label}
+        />
+        {checked ? <Check className="h-[14px] w-[14px] text-white" strokeWidth={3} /> : null}
+      </span>
+      {label}
+    </label>
+  );
+}
 
 type Props = {
   steps: OnboardingStepDraft[];
@@ -77,8 +126,8 @@ export default function OnboardingStepsBuilder({ steps, onChange }: Props) {
   const hasReviewStep = steps.some((s) => s.step_type === "review_submit");
 
   return (
-    <div className="space-y-4">
-      <p className="text-sm text-slate-600">
+    <div className="tenant-onboarding-light space-y-4 text-[#0f172a]">
+      <p className="text-sm text-[#0f172a]">
         Add, remove, and reorder steps. Edit titles and document requirements. Disabled steps are hidden
         from applicants.
       </p>
@@ -99,7 +148,7 @@ export default function OnboardingStepsBuilder({ steps, onChange }: Props) {
       {steps.map((step, index) => (
         <div
           key={step.step_key}
-          className={`rounded-xl border p-4 ${step.is_enabled ? "border-slate-200 bg-white" : "border-slate-100 bg-slate-50 opacity-80"}`}
+          className={`rounded-xl border p-4 ${step.is_enabled ? "border-[#cbd5e1] bg-white" : "border-[#e2e8f0] bg-[#f8fafc] opacity-80"}`}
         >
           <div className="flex flex-wrap items-start gap-3">
             <div className="flex flex-col gap-1">
@@ -107,7 +156,7 @@ export default function OnboardingStepsBuilder({ steps, onChange }: Props) {
                 type="button"
                 disabled={index === 0}
                 onClick={() => move(index, -1)}
-                className="rounded border border-slate-200 p-1 disabled:opacity-30"
+                className="rounded border border-[#cbd5e1] bg-white p-1 text-[#0f172a] disabled:opacity-30"
                 aria-label="Move step up"
               >
                 <ChevronUp className="h-4 w-4" />
@@ -116,7 +165,7 @@ export default function OnboardingStepsBuilder({ steps, onChange }: Props) {
                 type="button"
                 disabled={index === steps.length - 1}
                 onClick={() => move(index, 1)}
-                className="rounded border border-slate-200 p-1 disabled:opacity-30"
+                className="rounded border border-[#cbd5e1] bg-white p-1 text-[#0f172a] disabled:opacity-30"
                 aria-label="Move step down"
               >
                 <ChevronDown className="h-4 w-4" />
@@ -125,59 +174,52 @@ export default function OnboardingStepsBuilder({ steps, onChange }: Props) {
 
             <div className="min-w-0 flex-1 space-y-3">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
+                <span className="rounded-full bg-[#f1f5f9] px-2 py-0.5 text-xs font-medium text-[#0f172a]">
                   {STEP_TYPE_LABELS[step.step_type]}
                 </span>
-                <label className="flex items-center gap-1.5 text-xs text-slate-700">
-                  <input
-                    type="checkbox"
-                    checked={step.is_enabled}
-                    onChange={(e) => patchStep(index, { is_enabled: e.target.checked })}
-                  />
-                  Enabled
-                </label>
-                <label className="flex items-center gap-1.5 text-xs text-slate-700">
-                  <input
-                    type="checkbox"
-                    checked={step.is_required}
-                    disabled={!step.is_enabled}
-                    onChange={(e) => patchStep(index, { is_required: e.target.checked })}
-                  />
-                  Required
-                </label>
+                <BuilderCheckbox
+                  checked={step.is_enabled}
+                  label="Enabled"
+                  onChange={(checked) => patchStep(index, { is_enabled: checked })}
+                />
+                <BuilderCheckbox
+                  checked={step.is_required}
+                  disabled={!step.is_enabled}
+                  label="Required"
+                  onChange={(checked) => patchStep(index, { is_required: checked })}
+                />
               </div>
 
               <input
                 value={step.title}
                 onChange={(e) => patchStep(index, { title: e.target.value })}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium"
+                className={`w-full font-medium ${builderInputClass}`}
+                style={builderInputStyle}
                 placeholder="Step title"
               />
 
               <input
                 value={step.description}
                 onChange={(e) => patchStep(index, { description: e.target.value })}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                className={`w-full ${builderInputClass}`}
+                style={builderInputStyle}
                 placeholder="Short description (optional)"
               />
 
               {step.step_type === "resume_upload" ? (
-                <label className="flex items-center gap-2 text-xs text-slate-700">
-                  <input
-                    type="checkbox"
-                    checked={step.metadata.parsing_enabled !== false}
-                    onChange={(e) =>
-                      patchStep(index, {
-                        metadata: { ...step.metadata, parsing_enabled: e.target.checked },
-                      })
-                    }
-                  />
-                  Enable resume parsing
-                </label>
+                <BuilderCheckbox
+                  checked={step.metadata.parsing_enabled !== false}
+                  label="Enable resume parsing"
+                  onChange={(checked) =>
+                    patchStep(index, {
+                      metadata: { ...step.metadata, parsing_enabled: checked },
+                    })
+                  }
+                />
               ) : null}
 
               {step.step_type === "references" ? (
-                <label className="flex items-center gap-2 text-xs text-slate-700">
+                <label className="flex items-center gap-2 text-xs text-[#0f172a]">
                   Minimum references:
                   <input
                     type="number"
@@ -192,16 +234,17 @@ export default function OnboardingStepsBuilder({ steps, onChange }: Props) {
                         },
                       })
                     }
-                    className="w-14 rounded border border-slate-200 px-2 py-1 text-sm"
+                    className={`w-14 ${builderInputSmClass}`}
+                    style={builderInputStyle}
                   />
                 </label>
               ) : null}
 
               {showsDocuments(step) ? (
-                <div className="space-y-2 rounded-lg border border-dashed border-slate-200 bg-slate-50/80 p-3">
-                  <p className="text-xs font-medium text-slate-700">Required documents</p>
+                <div className="space-y-2 rounded-lg border border-dashed border-[#cbd5e1] bg-[#f8fafc] p-3">
+                  <p className="text-xs font-medium text-[#0f172a]">Required documents</p>
                   {step.required_documents.length === 0 ? (
-                    <p className="text-xs text-slate-500">No documents yet — add at least one below.</p>
+                    <p className="text-xs text-muted text-[#475569]">No documents yet — add at least one below.</p>
                   ) : null}
                   {step.required_documents.map((doc, docIdx) => (
                     <div key={docIdx} className="flex gap-2">
@@ -212,12 +255,13 @@ export default function OnboardingStepsBuilder({ steps, onChange }: Props) {
                           docs[docIdx] = { ...docs[docIdx], title: e.target.value };
                           patchStep(index, { required_documents: docs });
                         }}
-                        className="flex-1 rounded border border-slate-200 px-2 py-1.5 text-sm"
+                        className={`flex-1 ${builderInputSmClass}`}
+                        style={builderInputStyle}
                         placeholder='e.g. "Upload Government ID"'
                       />
                       <button
                         type="button"
-                        className="rounded border border-slate-200 p-2 text-slate-500 hover:text-red-600"
+                        className="rounded border border-[#cbd5e1] bg-white p-2 text-[#64748b] hover:text-red-600"
                         onClick={() => {
                           const docs = step.required_documents.filter((_, i) => i !== docIdx);
                           patchStep(index, { required_documents: docs });
@@ -230,7 +274,7 @@ export default function OnboardingStepsBuilder({ steps, onChange }: Props) {
                   ))}
                   <button
                     type="button"
-                    className="flex items-center gap-1 text-xs font-medium text-slate-700 underline"
+                    className="flex items-center gap-1 text-xs font-medium text-[color:var(--brand-primary)] underline"
                     onClick={() =>
                       patchStep(index, {
                         required_documents: [
@@ -254,7 +298,7 @@ export default function OnboardingStepsBuilder({ steps, onChange }: Props) {
             <button
               type="button"
               disabled={steps.length <= 1}
-              className="text-slate-400 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-30"
+              className="text-[#64748b] hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-30"
               onClick={() => removeStep(index)}
               aria-label="Delete step"
               title={steps.length <= 1 ? "At least one step is required" : "Delete step"}
@@ -265,13 +309,14 @@ export default function OnboardingStepsBuilder({ steps, onChange }: Props) {
         </div>
       ))}
 
-      <div className="flex flex-wrap items-end gap-2 rounded-xl border border-dashed border-slate-300 bg-slate-50/50 p-4">
+      <div className="flex flex-wrap items-end gap-2 rounded-xl border border-dashed border-[#cbd5e1] bg-[#f8fafc] p-4">
         <label className="flex min-w-[200px] flex-1 flex-col gap-1 text-sm">
-          <span className="font-medium text-slate-700">Step type</span>
+          <span className="font-medium text-[#0f172a]">Step type</span>
           <select
             value={newStepType}
             onChange={(e) => setNewStepType(e.target.value as OnboardingStepType)}
-            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
+            className={builderInputClass}
+            style={builderInputStyle}
           >
             {ADDABLE_STEP_TYPES.map((t) => (
               <option key={t} value={t}>
@@ -283,7 +328,7 @@ export default function OnboardingStepsBuilder({ steps, onChange }: Props) {
         <button
           type="button"
           onClick={addStep}
-          className="inline-flex items-center gap-2 rounded-xl bg-[#0d9488] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#0f766e]"
+          className="inline-flex items-center gap-2 rounded-xl bg-[color:var(--brand-primary)] px-4 py-2.5 text-sm font-semibold text-white hover:brightness-95"
         >
           <Plus className="h-4 w-4" />
           Add step
@@ -293,12 +338,10 @@ export default function OnboardingStepsBuilder({ steps, onChange }: Props) {
       <button
         type="button"
         onClick={() => update(createDefaultOnboardingStepDrafts())}
-        className="text-xs text-slate-500 underline"
+        className="text-xs text-[#475569] underline"
       >
         Reset to default 6-step flow
       </button>
     </div>
   );
 }
-
-

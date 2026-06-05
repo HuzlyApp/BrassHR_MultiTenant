@@ -3,14 +3,14 @@
 import Image from "next/image";
 import Link from "next/link";
 import { Check, ChevronDown, ChevronRight, Link2, Trash2 } from "lucide-react";
-import { useEffect, useRef, useState, type ChangeEvent, type DragEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type DragEvent } from "react";
+import { supabaseBrowser } from "@/lib/supabase-browser";
+import type { SignupStateOption } from "@/lib/signup/owner-signup";
 import OnboardingStepsBuilder from "@/app/components/onboarding/OnboardingStepsBuilder";
 import { interStyle, primaryButtonStyle } from "@/app/tenant-onboarding/TenantOnboardingShell";
 import {
-  CITY_OPTIONS,
   COMPANY_SIZE_OPTIONS,
   INDUSTRY_OPTIONS,
-  STATE_OPTIONS,
   TENANT_GOAL_OPTIONS,
   brandingFontStack,
   TENANT_BRANDING_FONT_OPTIONS,
@@ -37,7 +37,7 @@ const inputTextClass =
   "text-[16px] font-normal leading-[24px] tracking-normal placeholder:text-[16px] placeholder:leading-[24px] placeholder:font-normal";
 
 const inputFocusClass =
-  "focus:border-[color:var(--brand-primary)] focus:ring-2 focus:ring-[color:color-mix(in_srgb,var(--brand-primary)_20%,transparent)]";
+  "tenant-onboarding-input text-[#0f172a] placeholder:text-[#94a3b8] focus:border-[color:var(--brand-primary)] focus:ring-2 focus:ring-[color:color-mix(in_srgb,var(--brand-primary)_20%,transparent)]";
 
 function FieldLabel({ children, required = true }: { children: string; required?: boolean }) {
   return (
@@ -179,6 +179,7 @@ function SelectField({
   placeholder,
   options,
   required = false,
+  disabled = false,
 }: {
   label: string;
   value: string;
@@ -186,6 +187,7 @@ function SelectField({
   placeholder?: string;
   options: readonly string[];
   required?: boolean;
+  disabled?: boolean;
 }) {
   return (
     <div>
@@ -193,9 +195,10 @@ function SelectField({
       <div className="relative">
         <select
           value={value}
+          disabled={disabled}
           onChange={(e) => onChange(e.target.value)}
           style={inputTypographyStyle}
-          className={`h-[56px] w-full appearance-none rounded-[8px] border border-[#cbd5e1] bg-white px-[14px] pr-10 ${inputTextClass} text-[#0f172a] outline-none transition ${inputFocusClass} ${
+          className={`h-[56px] w-full appearance-none rounded-[8px] border border-[#cbd5e1] bg-white px-[14px] pr-10 ${inputTextClass} text-[#0f172a] outline-none transition disabled:cursor-not-allowed disabled:bg-[#f7f8fa] disabled:text-[#94a3b8] ${inputFocusClass} ${
             value ? "text-[#0f172a]" : "text-[#94a3b8]"
           }`}
         >
@@ -353,6 +356,82 @@ export function BusinessStep({
   onBack: () => void;
   onSkip: () => void;
 }) {
+  const [stateRows, setStateRows] = useState<SignupStateOption[]>([]);
+  const [stateOptions, setStateOptions] = useState<string[]>([]);
+  const [cityOptions, setCityOptions] = useState<string[]>([]);
+  const [locationLoading, setLocationLoading] = useState(true);
+  const [citiesLoading, setCitiesLoading] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    void (async () => {
+      try {
+        const { data, error } = await supabaseBrowser
+          .from("signup_us_states")
+          .select("code, name")
+          .order("sort_order", { ascending: true })
+          .order("name", { ascending: true });
+
+        if (!active || error || !data?.length) return;
+
+        const states = data.map((row) => ({
+          code: String(row.code),
+          name: String(row.name),
+        }));
+        setStateRows(states);
+        setStateOptions(states.map((row) => row.name));
+      } finally {
+        if (active) setLocationLoading(false);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const selectedStateCode = useMemo(
+    () => stateRows.find((row) => row.name === businessInfo.state)?.code ?? "",
+    [businessInfo.state, stateRows]
+  );
+
+  useEffect(() => {
+    if (!selectedStateCode || selectedStateCode.length !== 2) {
+      setCityOptions([]);
+      setCitiesLoading(false);
+      return;
+    }
+
+    let active = true;
+    setCitiesLoading(true);
+    void (async () => {
+      try {
+        const { data, error } = await supabaseBrowser
+          .from("signup_us_cities")
+          .select("city_name")
+          .eq("state_code", selectedStateCode)
+          .order("sort_order", { ascending: true })
+          .order("city_name", { ascending: true });
+
+        if (!active) return;
+        if (error) {
+          setCityOptions([]);
+          return;
+        }
+
+        const names = (data ?? []).map((row) => String(row.city_name));
+        setCityOptions(names);
+      } catch {
+        if (active) setCityOptions([]);
+      } finally {
+        if (active) setCitiesLoading(false);
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, [selectedStateCode]);
+
   const canContinue =
     orgName.trim().length >= 2 &&
     businessInfo.industry.trim().length > 0 &&
@@ -399,21 +478,41 @@ export function BusinessStep({
 
         <div className="grid gap-[24px] sm:grid-cols-2">
           <SelectField
-            label="City"
-            required
-            value={businessInfo.city}
-            onChange={(value) => onBusinessInfoChange({ city: value })}
-            placeholder="Select city"
-            options={CITY_OPTIONS}
-          />
-          <SelectField
             label="State"
             required
             value={businessInfo.state}
-            onChange={(value) => onBusinessInfoChange({ state: value })}
-            placeholder="Select state"
-            options={STATE_OPTIONS}
+            onChange={(value) => onBusinessInfoChange({ state: value, city: "" })}
+            placeholder={locationLoading ? "Loading…" : "Select state"}
+            options={stateOptions}
+            disabled={locationLoading}
           />
+          {businessInfo.state && cityOptions.length === 0 && !citiesLoading ? (
+            <TextField
+              label="City"
+              required
+              value={businessInfo.city}
+              onChange={(value) => onBusinessInfoChange({ city: value })}
+              placeholder="Enter your city"
+            />
+          ) : (
+            <SelectField
+              label="City"
+              required
+              disabled={!businessInfo.state || citiesLoading}
+              value={businessInfo.city}
+              onChange={(value) => onBusinessInfoChange({ city: value })}
+              placeholder={
+                !businessInfo.state
+                  ? "Select state first"
+                  : citiesLoading
+                    ? "Loading…"
+                    : cityOptions.length > 0
+                      ? "Select city"
+                      : "No cities listed"
+              }
+              options={cityOptions}
+            />
+          )}
         </div>
 
         <AddressField
@@ -644,12 +743,24 @@ export function CompanyLogoStep({
             </div>
 
             <label className="flex cursor-pointer items-start gap-[10px]">
-              <input
-                type="checkbox"
-                checked={transparentBackground}
-                onChange={(e) => setTransparentBackground(e.target.checked)}
-                className="mt-[2px] h-[18px] w-[18px] shrink-0 rounded-[4px] border border-[#cbd5e1] accent-[color:var(--brand-primary)]"
-              />
+              <span
+                className={`relative mt-[2px] flex h-[20px] w-[20px] shrink-0 items-center justify-center rounded-[6px] border ${
+                  transparentBackground
+                    ? "border-[color:var(--brand-primary)] bg-[color:var(--brand-primary)]"
+                    : "border-[#cbd5e1] bg-white"
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  checked={transparentBackground}
+                  onChange={(e) => setTransparentBackground(e.target.checked)}
+                  className="absolute inset-0 z-10 m-0 cursor-pointer opacity-0"
+                  aria-label="Make the white background on my logo transparent"
+                />
+                {transparentBackground ? (
+                  <Check className="h-[14px] w-[14px] text-white" strokeWidth={3} />
+                ) : null}
+              </span>
               <span
                 className="text-[14px] font-normal leading-[20px] text-[#94a3b8]"
                 style={interStyle}

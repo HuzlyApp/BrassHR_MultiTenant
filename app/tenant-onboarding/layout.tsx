@@ -31,7 +31,8 @@ const ubuntu = Ubuntu({
 export default function TenantOnboardingLayout({ children }: { children: ReactNode }) {
   return (
     <div
-      className={`${inter.variable} ${roboto.variable} ${poppins.variable} ${ubuntu.variable}`}
+      className={`tenant-onboarding-light min-h-screen bg-white text-[#0f172a] ${inter.variable} ${roboto.variable} ${poppins.variable} ${ubuntu.variable}`}
+      style={{ colorScheme: "light only" }}
     >
       {children}
     </div>

@@ -6,6 +6,8 @@ import { usePathname, useRouter } from "next/navigation";
 import { ChevronDown, Menu } from "lucide-react";
 
 const SIDEBAR_TOGGLE_ICON = "/icons/sidebar-on-off-icon.svg";
+const NOTIFICATION_ICON = "/icons/braas-HR/client-dashboard/notification-icon.svg";
+const MESSAGE_ICON = "/icons/braas-HR/client-dashboard/message-icon.svg";
 import { useEffect, useMemo, useState } from "react";
 import GodAdminTenantSwitcher from "./GodAdminTenantSwitcher";
 import { supabaseBrowser } from "@/lib/supabase-browser";
@@ -183,7 +185,39 @@ export function AdminRecruiterHeader({
         </div>
 
         <div className="relative ml-4">
-          <div className="flex items-center gap-2 rounded-xl border border-[#E5E7EB] bg-white px-2.5 py-1.5">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-0">
+              <button
+                type="button"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-md text-[#94A3B8] transition hover:bg-slate-100"
+                aria-label="Open messages"
+              >
+                <Image
+                  src={MESSAGE_ICON}
+                  alt=""
+                  width={20}
+                  height={20}
+                  className="h-5 w-5 shrink-0"
+                  aria-hidden
+                />
+              </button>
+              <button
+                type="button"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-md text-[#94A3B8] transition hover:bg-slate-100"
+                aria-label="Open notifications"
+              >
+                <Image
+                  src={NOTIFICATION_ICON}
+                  alt=""
+                  width={20}
+                  height={20}
+                  className="h-5 w-5 shrink-0"
+                  aria-hidden
+                />
+              </button>
+            </div>
+
+            <div className="flex items-center gap-2 rounded-xl border border-[#E5E7EB] bg-white px-2.5 py-1.5">
             <img
               src={profile?.profile_photo || "https://i.pravatar.cc/128?u=fallback-user"}
               alt={displayName}
@@ -203,6 +237,7 @@ export function AdminRecruiterHeader({
             >
               <ChevronDown className="h-4 w-4" />
             </button>
+            </div>
           </div>
 
           {showProfileMenu ? (

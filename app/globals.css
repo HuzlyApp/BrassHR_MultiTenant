@@ -31,6 +31,93 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
+/* Tenant onboarding is a light-only UI — always readable in OS dark mode */
+.tenant-onboarding-light {
+  background-color: #ffffff;
+  color: #0f172a;
+  color-scheme: light only;
+}
+
+.tenant-onboarding-light p,
+.tenant-onboarding-light span,
+.tenant-onboarding-light label,
+.tenant-onboarding-light h1,
+.tenant-onboarding-light h2,
+.tenant-onboarding-light h3,
+.tenant-onboarding-light strong,
+.tenant-onboarding-light button {
+  color: #0f172a;
+}
+
+.tenant-onboarding-light .text-muted {
+  color: #475569;
+}
+
+.tenant-onboarding-input,
+.tenant-onboarding-light input:not([type="checkbox"]):not([type="radio"]),
+.tenant-onboarding-light select,
+.tenant-onboarding-light textarea {
+  color: #0f172a !important;
+  background-color: #ffffff !important;
+  -webkit-text-fill-color: #0f172a !important;
+  caret-color: #0f172a !important;
+  color-scheme: light only;
+}
+
+.tenant-onboarding-input::placeholder,
+.tenant-onboarding-light input:not([type="checkbox"]):not([type="radio"])::placeholder,
+.tenant-onboarding-light textarea::placeholder {
+  color: #94a3b8 !important;
+  -webkit-text-fill-color: #94a3b8 !important;
+  opacity: 1;
+}
+
+.tenant-onboarding-light option {
+  color: #0f172a;
+  background-color: #ffffff;
+}
+
+@media (prefers-color-scheme: dark) {
+  .tenant-onboarding-light {
+    background-color: #ffffff !important;
+    color: #0f172a !important;
+    color-scheme: light only;
+  }
+
+  .tenant-onboarding-light p,
+  .tenant-onboarding-light span,
+  .tenant-onboarding-light label,
+  .tenant-onboarding-light h1,
+  .tenant-onboarding-light h2,
+  .tenant-onboarding-light h3,
+  .tenant-onboarding-light strong,
+  .tenant-onboarding-light button {
+    color: #0f172a !important;
+  }
+
+  .tenant-onboarding-light .text-muted {
+    color: #475569 !important;
+  }
+
+  .tenant-onboarding-input,
+  .tenant-onboarding-light input:not([type="checkbox"]):not([type="radio"]),
+  .tenant-onboarding-light select,
+  .tenant-onboarding-light textarea {
+    color: #0f172a !important;
+    background-color: #ffffff !important;
+    -webkit-text-fill-color: #0f172a !important;
+    caret-color: #0f172a !important;
+  }
+
+  .tenant-onboarding-input::placeholder,
+  .tenant-onboarding-light input:not([type="checkbox"]):not([type="radio"])::placeholder,
+  .tenant-onboarding-light textarea::placeholder {
+    color: #94a3b8 !important;
+    -webkit-text-fill-color: #94a3b8 !important;
+    opacity: 1;
+  }
+}
+
 /* Keep click targets obvious across all pages */
 button:not(:disabled),
 [role="button"]:not([aria-disabled="true"]),

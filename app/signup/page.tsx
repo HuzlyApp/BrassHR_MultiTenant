@@ -353,12 +353,20 @@ export default function SignupPage() {
     let active = true;
     void (async () => {
       try {
-        const res = await fetch("/api/auth/signup/options");
-        if (!res.ok) return;
-        const payload = (await res.json()) as { states?: SignupStateOption[] };
-        if (!active || !payload.states?.length) return;
-        setStateRows(payload.states);
-        setStateOptions(payload.states.map((row) => row.name));
+        const { data, error } = await supabaseBrowser
+          .from("signup_us_states")
+          .select("code, name")
+          .order("sort_order", { ascending: true })
+          .order("name", { ascending: true });
+
+        if (!active || error || !data?.length) return;
+
+        const states = data.map((row) => ({
+          code: String(row.code),
+          name: String(row.name),
+        }));
+        setStateRows(states);
+        setStateOptions(states.map((row) => row.name));
       } finally {
         if (active) setLocationLoading(false);
       }
@@ -374,7 +382,7 @@ export default function SignupPage() {
   );
 
   useEffect(() => {
-    if (!selectedStateCode) {
+    if (!selectedStateCode || selectedStateCode.length !== 2) {
       setCityOptions([]);
       setCitiesLoading(false);
       return;
@@ -384,16 +392,20 @@ export default function SignupPage() {
     setCitiesLoading(true);
     void (async () => {
       try {
-        const res = await fetch(
-          `/api/auth/signup/options?stateCode=${encodeURIComponent(selectedStateCode)}`
-        );
-        if (!res.ok) {
-          if (active) setCityOptions([]);
+        const { data, error } = await supabaseBrowser
+          .from("signup_us_cities")
+          .select("city_name")
+          .eq("state_code", selectedStateCode)
+          .order("sort_order", { ascending: true })
+          .order("city_name", { ascending: true });
+
+        if (!active) return;
+        if (error) {
+          setCityOptions([]);
           return;
         }
-        const payload = (await res.json()) as { cities?: Array<{ name: string }> };
-        if (!active) return;
-        const names = (payload.cities ?? []).map((row) => row.name);
+
+        const names = (data ?? []).map((row) => String(row.city_name));
         setCityOptions(names);
         setForm((prev) => {
           if (prev.city && names.length > 0 && !names.includes(prev.city)) {

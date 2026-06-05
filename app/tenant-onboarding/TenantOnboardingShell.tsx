@@ -93,8 +93,8 @@ export default function TenantOnboardingShell({
   return (
     <TenantBrandingProvider branding={brand}>
       <main
-        className="min-h-screen w-full bg-white"
-        style={brandingToCssVars(brand) as React.CSSProperties}
+        className="tenant-onboarding-light min-h-screen w-full bg-white text-[#0f172a]"
+        style={{ ...(brandingToCssVars(brand) as React.CSSProperties), colorScheme: "light only" }}
       >
         <div className="mx-auto flex min-h-[1116px] w-full max-w-[620px] flex-col items-center px-4 py-[20px]">
           <div className="flex w-full flex-col items-center text-center">
