@@ -64,7 +64,7 @@ function TrialArtPanel() {
     <aside className="trial-art relative flex w-full flex-col items-center justify-center gap-[40px] self-stretch overflow-hidden rounded-[24px] bg-[#111827] p-[30px]">
       <Image
         src="/images/singup-bg-image.jpg"
-        alt="Braas HR"
+        alt="Brass HR"
         fill
         sizes="510px"
         priority
@@ -74,7 +74,7 @@ function TrialArtPanel() {
       <div className="relative z-10 flex flex-col items-center justify-center gap-[40px] text-center">
         <Image
           src="/icons/braas-HR/white-BrassHR-logo.svg"
-          alt="Braas HR"
+          alt="Brass HR"
           width={160}
           height={80}
           priority
@@ -204,7 +204,7 @@ function YourTrialContent() {
           <div className="trial-content">
             <Image
               src="/icons/braas-HR/BrassHR-logo.svg"
-              alt="Braas HR"
+              alt="Brass HR"
               width={160}
               height={80}
               priority

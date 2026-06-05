@@ -123,7 +123,7 @@ export function brandingFallbackForSlug(
     key === "nexus"
       ? "Nexus"
       : key === PLATFORM_DEFAULT_TENANT_SLUG
-        ? "Braas HR"
+        ? "Brass HR"
         : "Your organization";
 
   const base: TenantBranding =

@@ -88,7 +88,7 @@ function WorkflowBuilderInner({
   title,
   subtitle,
   productName = "Onboarding Builder",
-  brandName = "braas HR",
+  brandName = "Brass HR",
   brandTagline,
   stepLibrary,
   initialNodes = [],

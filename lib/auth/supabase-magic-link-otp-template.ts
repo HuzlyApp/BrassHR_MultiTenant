@@ -2,9 +2,9 @@ import { getSupabaseAnonKey, getSupabaseUrl } from "@/lib/supabase-env";
 
 export const LOGIN_OTP_LENGTH = 6;
 
-export const MAGIC_LINK_OTP_SUBJECT = "Your Braas HR login code";
+export const MAGIC_LINK_OTP_SUBJECT = "Your Brass HR login code";
 
-export const MAGIC_LINK_OTP_CONTENT = `<h2>Your Braas HR login code</h2>
+export const MAGIC_LINK_OTP_CONTENT = `<h2>Your Brass HR login code</h2>
 <p>Enter this 6-digit code on the login screen:</p>
 <p style="font-size:28px;font-weight:700;letter-spacing:8px;margin:16px 0;">{{ .Token }}</p>
 <p style="color:#64748b;font-size:14px;">This code expires soon. If you did not try to log in, ignore this email.</p>`;

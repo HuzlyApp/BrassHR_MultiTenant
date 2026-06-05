@@ -694,7 +694,7 @@ export default function SignupPage() {
           >
             <Image
               src="/icons/braas-HR/BrassHR-logo.svg"
-              alt="Braas HR"
+              alt="Brass HR"
               width={160}
               height={80}
               priority
@@ -974,7 +974,7 @@ export default function SignupPage() {
           >
             <Image
               src="/images/singup-bg-image.jpg"
-              alt="Braas HR signup"
+              alt="Brass HR signup"
               fill
               sizes="510px"
               priority
@@ -984,7 +984,7 @@ export default function SignupPage() {
             <div className="relative z-10 flex flex-col items-center justify-center gap-[40px] text-center">
               <Image
                 src="/icons/braas-HR/white-BrassHR-logo.svg"
-                alt="Braas HR"
+                alt="Brass HR"
                 width={160}
                 height={80}
                 priority

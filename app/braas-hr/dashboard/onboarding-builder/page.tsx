@@ -417,7 +417,7 @@ export function OnboardingBuilderPage({
       title="Standard Hiring"
       subtitle="New Hire: Pre-Offer (ATS)"
       productName="Onboarding Builder"
-      brandName="braas HR"
+      brandName="Brass HR"
       stepLibrary={STEP_LIBRARY}
       lastUpdated={{ author: "Sam Smith", minutesAgo: 4 }}
       onBack={() => router.push(`${dashboardBasePath}/onboarding-flows`)}
