@@ -8,6 +8,12 @@ import { useEffect, useMemo, useState } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
+import { useAccountData } from "@/app/admin_recruiter/hooks/useAccountData";
+import {
+  formatRoleLabel,
+  getAccountDisplayName,
+  getOrganizationDisplayName,
+} from "@/lib/account/display-name";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 
 const SIDEBAR_EXPANDED_WIDTH = 344;
@@ -31,16 +37,6 @@ type AdminRecruiterSidebarProps = {
 };
 
 const DEFAULT_TENANT_LOGO = "/images/new-logo-nexus.svg";
-const DEFAULT_PROFILE_PHOTO = "https://i.pravatar.cc/128?u=admin-recruiter";
-
-type SidebarProfile = {
-  first_name: string | null;
-  last_name: string | null;
-  role: string | null;
-  profile_photo: string | null;
-  email: string | null;
-};
-
 type SidebarLink = {
   label: string;
   href: string;
@@ -185,8 +181,8 @@ export function AdminRecruiterSidebar({
   collapsed = false,
 }: AdminRecruiterSidebarProps) {
   const branding = useTenantBranding();
+  const { user, profile, organization } = useAccountData();
   const [logoSrc, setLogoSrc] = useState(branding.logoUrl || DEFAULT_TENANT_LOGO);
-  const [profile, setProfile] = useState<SidebarProfile | null>(null);
   const pathname = usePathname() ?? "";
   const router = useRouter();
   const [openSectionLabels, setOpenSectionLabels] = useState<string[]>([]);
@@ -199,24 +195,6 @@ export function AdminRecruiterSidebar({
     setLogoSrc(branding.logoUrl?.trim() || DEFAULT_TENANT_LOGO);
   }, [branding.logoUrl]);
 
-  useEffect(() => {
-    let active = true;
-    void (async () => {
-      try {
-        const res = await fetch("/api/admin/header-data", { cache: "no-store" });
-        if (!res.ok) return;
-        const payload = (await res.json()) as { profile?: SidebarProfile | null };
-        if (!active) return;
-        setProfile(payload.profile ?? null);
-      } catch {
-        /* keep fallback profile */
-      }
-    })();
-    return () => {
-      active = false;
-    };
-  }, []);
-
   const handleLogout = async () => {
     const { error } = await supabaseBrowser.auth.signOut();
     if (error) return;
@@ -224,9 +202,10 @@ export function AdminRecruiterSidebar({
     router.push("/login");
   };
 
-  const profileName =
-    [profile?.first_name, profile?.last_name].filter(Boolean).join(" ").trim() || profile?.email || "Admin user";
-  const profileRole = profile?.role || "Administrator";
+  const profileName = getAccountDisplayName(profile, user);
+  const profileRole = formatRoleLabel(profile?.role);
+  const sidebarCompanyName = getOrganizationDisplayName(organization, profile, user);
+  const profilePhoto = profile?.avatar_url ?? null;
 
   const isPathActive = (prefixes: string[]) => prefixes.some((prefix) => pathname.startsWith(prefix));
 
@@ -282,7 +261,9 @@ export function AdminRecruiterSidebar({
           </div>
           {!isCollapsed ? (
             <div className="min-w-0">
-              <p className="truncate text-[18px] leading-[28px] font-semibold text-[#0F3B76]">{branding.companyName}</p>
+              <p className="truncate text-[18px] leading-[28px] font-semibold text-[#0F3B76]">
+                {sidebarCompanyName || branding.companyName}
+              </p>
               <p className="text-[10px] leading-[15px] font-light uppercase tracking-normal text-[#94A3B8]">
                 Dashboard
               </p>
@@ -437,13 +418,22 @@ export function AdminRecruiterSidebar({
       <div className={`border-t border-[#E2E8F0] ${isCollapsed ? "px-2 py-3" : "px-4 py-3"}`}>
         <div className={`flex items-center ${isCollapsed ? "flex-col gap-2" : "gap-2.5"}`}>
           {!isCollapsed ? (
-            <img
-              src={profile?.profile_photo || DEFAULT_PROFILE_PHOTO}
-              alt={profileName}
-              className="h-[30px] w-[30px] shrink-0 rounded-full object-cover"
-              width={30}
-              height={30}
-            />
+            profilePhoto ? (
+              <img
+                src={profilePhoto}
+                alt={profileName}
+                className="h-[30px] w-[30px] shrink-0 rounded-full object-cover"
+                width={30}
+                height={30}
+              />
+            ) : (
+              <span
+                className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-full bg-[#E2E8F0] text-[11px] font-semibold text-[#64748B]"
+                aria-hidden
+              >
+                {profileName.charAt(0).toUpperCase()}
+              </span>
+            )
           ) : null}
           {!isCollapsed ? (
             <div className="min-w-0 flex-1">

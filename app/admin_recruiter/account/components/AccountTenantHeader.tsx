@@ -2,27 +2,40 @@
 
 import Image from "next/image";
 import { Building2, ImageIcon, Link2 } from "lucide-react";
+import { useAccountData } from "@/app/admin_recruiter/hooks/useAccountData";
+import {
+  formatAccountNumber,
+  formatRoleLabel,
+  getAccountDisplayName,
+  getOrganizationDisplayName,
+} from "@/lib/account/display-name";
 
 type AccountTenantHeaderProps = {
-  companyName?: string;
-  accountNumber?: string;
-  accountDomain?: string;
-  ownerName: string;
+  ownerName?: string;
   ownerRole?: string;
   ownerPhoto?: string | null;
   loading?: boolean;
 };
 
 export default function AccountTenantHeader({
-  companyName = "Nexus MedPro",
-  accountNumber = "785325",
-  accountDomain = "trial1821he.brasshr.com",
-  ownerName,
-  ownerRole = "Account Owner",
-  ownerPhoto,
-  loading = false,
+  ownerName: ownerNameProp,
+  ownerRole: ownerRoleProp,
+  ownerPhoto: ownerPhotoProp,
+  loading: loadingProp,
 }: AccountTenantHeaderProps) {
-  const displayName = loading ? "Loading…" : ownerName || "Mark Sutton";
+  const { user, profile, organization, loading: accountLoading } = useAccountData();
+
+  const loading = loadingProp ?? accountLoading;
+  const ownerName = ownerNameProp ?? getAccountDisplayName(profile, user);
+  const ownerRole = ownerRoleProp ?? formatRoleLabel(profile?.role);
+  const ownerPhoto = ownerPhotoProp ?? profile?.avatar_url ?? null;
+  const companyName = getOrganizationDisplayName(organization, profile, user);
+  const accountNumber = formatAccountNumber(organization?.id) ?? "—";
+  const accountDomain =
+    organization?.domain?.trim() ||
+    (organization?.subdomain ? `${organization.subdomain}.brasshr.com` : "—");
+
+  const displayName = loading ? "Loading…" : ownerName;
 
   return (
     <div className="mb-6 rounded-lg border border-[#E5E7EB] bg-white px-4 py-4 sm:px-5 sm:py-5">
@@ -50,6 +63,14 @@ export default function AccountTenantHeader({
                 width={48}
                 height={48}
                 className="h-full w-full object-cover"
+              />
+            ) : organization?.logo_url ? (
+              <Image
+                src={organization.logo_url}
+                alt=""
+                width={48}
+                height={48}
+                className="h-full w-full object-contain p-1"
               />
             ) : (
               <ImageIcon className="h-6 w-6 text-[#CBD5E1]" strokeWidth={1.5} aria-hidden />

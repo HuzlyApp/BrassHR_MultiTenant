@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { AdminTenantBrandingProvider } from "@/app/components/tenant/AdminTenantBrandingProvider";
+import { AccountDataProvider } from "@/app/admin_recruiter/account/AccountDataProvider";
 import {
   AdminRecruiterSidebar,
   SIDEBAR_COLLAPSED_WIDTH,
@@ -54,6 +55,7 @@ export default function AdminRecruiterLayout({ children }: { children: ReactNode
 
   return (
     <AdminTenantBrandingProvider>
+      <AccountDataProvider>
       <div
         className="admin-recruiter-shell min-h-screen text-gray-600"
         style={{
@@ -77,6 +79,7 @@ export default function AdminRecruiterLayout({ children }: { children: ReactNode
           {children}
         </div>
       </div>
+      </AccountDataProvider>
     </AdminTenantBrandingProvider>
   );
 }

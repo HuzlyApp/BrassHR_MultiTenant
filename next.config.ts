@@ -1,6 +1,43 @@
 import type { NextConfig } from "next";
 import { LEGACY_APPLICATION_ROUTE_REDIRECTS } from "./lib/onboarding/application-routes";
 
+function getSupabaseImageRemotePatterns(): NonNullable<NextConfig["images"]>["remotePatterns"] {
+  const patterns: NonNullable<NonNullable<NextConfig["images"]>["remotePatterns"]> = [
+    {
+      protocol: "https",
+      hostname: "**.supabase.co",
+      pathname: "/storage/v1/object/public/**",
+    },
+    {
+      protocol: "https",
+      hostname: "**.supabase.co",
+      pathname: "/storage/v1/object/sign/**",
+    },
+  ];
+
+  const supabaseUrl =
+    process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() ||
+    process.env.EXPO_PUBLIC_SUPABASE_URL?.trim() ||
+    process.env.SUPABASE_URL?.trim();
+
+  if (supabaseUrl) {
+    try {
+      const hostname = new URL(supabaseUrl).hostname;
+      if (hostname) {
+        patterns.unshift({
+          protocol: "https",
+          hostname,
+          pathname: "/storage/v1/object/**",
+        });
+      }
+    } catch {
+      /* ignore invalid URL */
+    }
+  }
+
+  return patterns;
+}
+
 const legacyOnboardingRedirects = [
   ...LEGACY_APPLICATION_ROUTE_REDIRECTS.map(({ source, destination }) => ({
     source,
@@ -25,6 +62,9 @@ const legacyOnboardingRedirects = [
 ];
 
 const nextConfig: NextConfig = {
+  images: {
+    remotePatterns: getSupabaseImageRemotePatterns(),
+  },
   async redirects() {
     return legacyOnboardingRedirects;
   },

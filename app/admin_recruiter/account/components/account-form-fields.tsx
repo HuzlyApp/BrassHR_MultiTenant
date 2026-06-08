@@ -37,11 +37,15 @@ export function FieldLabel({
 export function SelectField({
   label,
   defaultValue,
+  value,
+  onChange,
   required,
   children,
 }: {
   label: string;
-  defaultValue: string;
+  defaultValue?: string;
+  value?: string;
+  onChange?: (value: string) => void;
   required?: boolean;
   children: React.ReactNode;
 }) {
@@ -49,7 +53,12 @@ export function SelectField({
     <label className="block">
       <FieldLabel required={required}>{label}</FieldLabel>
       <div className="relative">
-        <select defaultValue={defaultValue} className={`${FIELD} appearance-none pr-9`}>
+        <select
+          value={value}
+          defaultValue={value === undefined ? defaultValue : undefined}
+          onChange={onChange ? (e) => onChange(e.target.value) : undefined}
+          className={`${FIELD} appearance-none pr-9`}
+        >
           {children}
         </select>
         <ChevronDown
@@ -64,12 +73,16 @@ export function SelectField({
 export function TextField({
   label,
   defaultValue,
+  value,
+  onChange,
   required,
   type = "text",
   placeholder,
 }: {
   label: string;
   defaultValue?: string;
+  value?: string;
+  onChange?: (value: string) => void;
   required?: boolean;
   type?: string;
   placeholder?: string;
@@ -79,7 +92,9 @@ export function TextField({
       <FieldLabel required={required}>{label}</FieldLabel>
       <input
         type={type}
-        defaultValue={defaultValue}
+        value={value}
+        defaultValue={value === undefined ? defaultValue : undefined}
+        onChange={onChange ? (e) => onChange(e.target.value) : undefined}
         placeholder={placeholder}
         className={FIELD}
       />
@@ -91,11 +106,15 @@ export function AddressField({
   label,
   helperText = "Building, Floor, etc.",
   defaultValue,
+  value,
+  onChange,
   required,
 }: {
   label: string;
   helperText?: string;
-  defaultValue: string;
+  defaultValue?: string;
+  value?: string;
+  onChange?: (value: string) => void;
   required?: boolean;
 }) {
   return (
@@ -109,7 +128,13 @@ export function AddressField({
           <span className="shrink-0 text-xs text-[#9CA3AF]">{helperText}</span>
         ) : null}
       </div>
-      <input type="text" defaultValue={defaultValue} className={FIELD} />
+      <input
+        type="text"
+        value={value}
+        defaultValue={value === undefined ? defaultValue : undefined}
+        onChange={onChange ? (e) => onChange(e.target.value) : undefined}
+        className={FIELD}
+      />
     </label>
   );
 }

@@ -10,6 +10,8 @@ const NOTIFICATION_ICON = "/icons/braas-HR/client-dashboard/notification-icon.sv
 const MESSAGE_ICON = "/icons/braas-HR/client-dashboard/message-icon.svg";
 import { useEffect, useMemo, useState } from "react";
 import GodAdminTenantSwitcher from "./GodAdminTenantSwitcher";
+import { useAccountData } from "@/app/admin_recruiter/hooks/useAccountData";
+import { formatRoleLabel, getAccountDisplayName } from "@/lib/account/display-name";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 
@@ -64,11 +66,11 @@ export function AdminRecruiterHeader({
   onSidebarToggle,
 }: AdminRecruiterHeaderProps) {
   const branding = useTenantBranding();
+  const { user, profile, loading: accountLoading } = useAccountData();
   const router = useRouter();
   const pathname = usePathname();
   const [loading, setLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const [profile, setProfile] = useState<HeaderProfile | null>(null);
   const [notifications, setNotifications] = useState<HeaderNotification[]>([]);
   const [conversations, setConversations] = useState<ConversationItem[]>([]);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -107,7 +109,6 @@ export function AdminRecruiterHeader({
         // console.error("[AdminRecruiterHeader] Supabase error", errPayload);
         if (!cancelled) {
           setCurrentUserId(null);
-          setProfile(null);
           setNotifications([]);
           setConversations([]);
           setLoading(false);
@@ -116,22 +117,15 @@ export function AdminRecruiterHeader({
       }
 
       const payload = (await response.json()) as HeaderDataResponse;
-      const profileData = payload.profile ?? null;
       const notificationsData = payload.notifications ?? [];
       const conversationData = payload.conversations ?? [];
 
       if (!cancelled) {
         setCurrentUserId(payload.userId);
-        setProfile(profileData);
         setNotifications(notificationsData);
         setConversations(conversationData);
         setLoading(false);
       }
-
-      console.log("[AdminRecruiterHeader] logged-in user ID", payload.userId);
-      console.log("[AdminRecruiterHeader] fetched profile data", profileData);
-      console.log("[AdminRecruiterHeader] fetched notifications count", notificationsData.length);
-      console.log("[AdminRecruiterHeader] fetched messages count", conversationData.length);
     };
 
     void loadHeaderData();
@@ -140,10 +134,10 @@ export function AdminRecruiterHeader({
     };
   }, [pathname]);
 
-  const displayName =
-    [profile?.first_name, profile?.last_name].filter(Boolean).join(" ").trim() ||
-    "Unknown User";
-  const displayRole = profile?.role ?? "User";
+  const displayName = getAccountDisplayName(profile, user);
+  const displayRole = formatRoleLabel(profile?.role);
+  const profilePhoto = profile?.avatar_url ?? null;
+  const headerLoading = loading || accountLoading;
 
   return (
     <header
@@ -218,15 +212,24 @@ export function AdminRecruiterHeader({
             </div>
 
             <div className="flex items-center gap-2 rounded-xl border border-[#E5E7EB] bg-white px-2.5 py-1.5">
-            <img
-              src={profile?.profile_photo || "https://i.pravatar.cc/128?u=fallback-user"}
-              alt={displayName}
-              width={30}
-              height={30}
-              className="h-[30px] w-[30px] rounded-full object-cover"
-            />
+            {profilePhoto ? (
+              <img
+                src={profilePhoto}
+                alt={displayName}
+                width={30}
+                height={30}
+                className="h-[30px] w-[30px] rounded-full object-cover"
+              />
+            ) : (
+              <span
+                className="flex h-[30px] w-[30px] items-center justify-center rounded-full bg-[#E2E8F0] text-[11px] font-semibold text-[#64748B]"
+                aria-hidden
+              >
+                {displayName.charAt(0).toUpperCase()}
+              </span>
+            )}
             <div className="leading-tight">
-              <p className="text-sm font-semibold text-[#0F172A]">{loading ? "Loading..." : displayName}</p>
+              <p className="text-sm font-semibold text-[#0F172A]">{headerLoading ? "Loading..." : displayName}</p>
               <p className="text-[11px] text-[#64748B]">{displayRole}</p>
             </div>
             <button

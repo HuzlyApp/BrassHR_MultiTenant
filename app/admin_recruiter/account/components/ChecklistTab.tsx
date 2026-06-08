@@ -1,7 +1,11 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { Eye, Pencil } from "lucide-react";
+import { useAccountData } from "@/app/admin_recruiter/hooks/useAccountData";
+import { accountTabHref } from "../account-tabs";
+import { AccountErrorBanner, AccountLoadingSkeleton } from "./AccountFormStatus";
 
 type ChecklistItemData = {
   id: string;
@@ -9,48 +13,11 @@ type ChecklistItemData = {
   title: string;
   description: string;
   completed: boolean;
+  href: string;
 };
 
-const CHECKLIST_ITEMS: ChecklistItemData[] = [
-  {
-    id: "goals",
-    step: 1,
-    title: "Select Goals",
-    description: "Choose your goals to stay focused and track progress.",
-    completed: true,
-  },
-  {
-    id: "business",
-    step: 2,
-    title: "Business Information",
-    description: "Essential details about your business and operations.",
-    completed: false,
-  },
-  {
-    id: "branding",
-    step: 3,
-    title: "Customize Branding",
-    description: "Essential details about your business and operations.",
-    completed: false,
-  },
-  {
-    id: "domain",
-    step: 4,
-    title: "Configure your Domain",
-    description: "Configure and connect your Brass domain settings.",
-    completed: false,
-  },
-  {
-    id: "workflow",
-    step: 5,
-    title: "Customized Onboarding Workflow",
-    description: "Customize your applicant onboarding flow",
-    completed: false,
-  },
-];
-
 function ChecklistRow({ item }: { item: ChecklistItemData }) {
-  const { completed, step, title, description } = item;
+  const { completed, step, title, description, href } = item;
 
   return (
     <li
@@ -95,37 +62,101 @@ function ChecklistRow({ item }: { item: ChecklistItemData }) {
         <p className="mt-1 text-sm leading-5 text-[#64748B]">{description}</p>
       </div>
 
-      {completed ? (
-        <div className="flex shrink-0 items-center gap-3">
-          <button
-            type="button"
-            className="rounded-md p-1 transition-opacity hover:opacity-80"
-            style={{ color: "var(--brand-primary)" }}
-            aria-label={`View ${title}`}
-          >
-            <Eye className="h-5 w-5" strokeWidth={1.75} />
-          </button>
-          <button
-            type="button"
-            className="rounded-md p-1 transition-opacity hover:opacity-80"
-            style={{ color: "var(--brand-primary)" }}
-            aria-label={`Edit ${title}`}
-          >
-            <Pencil className="h-5 w-5" strokeWidth={1.75} />
-          </button>
-        </div>
-      ) : null}
+      <div className="flex shrink-0 items-center gap-3">
+        <Link
+          href={href}
+          className="rounded-md p-1 transition-opacity hover:opacity-80"
+          style={{ color: "var(--brand-primary)" }}
+          aria-label={`View ${title}`}
+        >
+          <Eye className="h-5 w-5" strokeWidth={1.75} />
+        </Link>
+        <Link
+          href={href}
+          className="rounded-md p-1 transition-opacity hover:opacity-80"
+          style={{ color: "var(--brand-primary)" }}
+          aria-label={`Edit ${title}`}
+        >
+          <Pencil className="h-5 w-5" strokeWidth={1.75} />
+        </Link>
+      </div>
     </li>
   );
 }
 
 export default function ChecklistTab() {
-  const completedCount = CHECKLIST_ITEMS.filter((item) => item.completed).length;
-  const totalCount = CHECKLIST_ITEMS.length;
+  const { checklist, loading, error } = useAccountData();
+
+  const items: ChecklistItemData[] = [
+    {
+      id: "personal",
+      step: 1,
+      title: "Personal Information",
+      description: "Complete your name and contact details.",
+      completed: checklist?.profile_completed ?? false,
+      href: accountTabHref("personal"),
+    },
+    {
+      id: "business",
+      step: 2,
+      title: "Business Information",
+      description: "Essential details about your business and operations.",
+      completed: checklist?.business_info_completed ?? false,
+      href: accountTabHref("business-info"),
+    },
+    {
+      id: "settings",
+      step: 3,
+      title: "Account Settings",
+      description: "Set your timezone, language, and notification preferences.",
+      completed: checklist?.account_settings_completed ?? false,
+      href: accountTabHref("account-settings"),
+    },
+    {
+      id: "security",
+      step: 4,
+      title: "Security",
+      description: "Update your password and secure your account.",
+      completed: checklist?.security_completed ?? false,
+      href: accountTabHref("security"),
+    },
+    {
+      id: "email",
+      step: 5,
+      title: "Email Verification",
+      description: "Verify your email address with Supabase Auth.",
+      completed: checklist?.email_verified ?? false,
+      href: accountTabHref("security"),
+    },
+    {
+      id: "organization",
+      step: 6,
+      title: "Organization Setup",
+      description: "Link and configure your organization.",
+      completed: checklist?.organization_created ?? false,
+      href: accountTabHref("business-info"),
+    },
+  ];
+
+  const completedCount = items.filter((item) => item.completed).length;
+  const totalCount = items.length;
+
+  if (loading) {
+    return (
+      <div className="w-full overflow-hidden rounded-lg border border-[#E5E7EB] bg-white p-5 sm:p-6">
+        <AccountLoadingSkeleton rows={5} />
+      </div>
+    );
+  }
 
   return (
     <div className="w-full overflow-hidden rounded-lg border border-[#E5E7EB] bg-white">
-      {/* Full-width header inside main card */}
+      {error ? (
+        <div className="px-5 pt-5 sm:px-6">
+          <AccountErrorBanner message={error} />
+        </div>
+      ) : null}
+
       <div className="flex w-full items-center justify-between gap-4 border-b border-[#E5E7EB] px-5 py-4 sm:px-6 sm:py-5">
         <h2 className="text-lg font-semibold leading-7 text-[#012352]">Onboarding Checklist</h2>
         <p className="shrink-0 text-sm">
@@ -134,11 +165,10 @@ export default function ChecklistTab() {
         </p>
       </div>
 
-      {/* Checklist items — centered with border */}
       <div className="px-5 py-5 sm:px-6 sm:py-6">
         <div className="mx-auto w-full max-w-3xl rounded-lg border border-[#E5E7EB] bg-white p-4 sm:p-5">
           <ul className="flex flex-col gap-3" aria-label="Onboarding steps">
-            {CHECKLIST_ITEMS.map((item) => (
+            {items.map((item) => (
               <ChecklistRow key={item.id} item={item} />
             ))}
           </ul>
