@@ -110,7 +110,7 @@ export function EditColumnsModal({ open, onOpenChange, value, onSave }: Props) {
                 <button
                   type="button"
                   onClick={unselectAll}
-                  className="font-medium text-teal-700 hover:underline"
+                  className="font-medium text-[color:var(--brand-primary)] hover:underline"
                 >
                   Unselect All
                 </button>
@@ -139,7 +139,7 @@ export function EditColumnsModal({ open, onOpenChange, value, onSave }: Props) {
                         type="checkbox"
                         checked={checked}
                         onChange={() => toggle(col.id)}
-                        className="h-5 w-5 cursor-pointer rounded-[5px] border-2 border-slate-300 bg-white accent-teal-600"
+                        className="h-5 w-5 cursor-pointer rounded-[5px] border-2 border-slate-300 bg-white accent-[color:var(--brand-primary)]"
                       />
                       <span className="text-sm text-slate-700">{col.label}</span>
                     </label>
@@ -199,7 +199,7 @@ export function EditColumnsModal({ open, onOpenChange, value, onSave }: Props) {
                 onSave(draftOrder)
                 onOpenChange(false)
               }}
-              className="rounded-lg bg-teal-600 px-5 py-2 text-sm font-medium text-white hover:bg-teal-700"
+              className="rounded-lg bg-[color:var(--brand-primary)] px-5 py-2 text-sm font-medium text-white hover:brightness-95"
             >
               Save
             </button>

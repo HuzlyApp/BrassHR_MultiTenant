@@ -3,9 +3,9 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
-import { BRAAS_PRIMARY } from "@/lib/tenant/tenant-branding";
+import { GOLD_GRADIENT } from "../constants";
 
-const GOLD = BRAAS_PRIMARY;
+const BRAND_PRIMARY = "var(--brand-primary)";
 const PAGE_BG = "#f8f8f8";
 const CARD_BORDER = "#eaecf0";
 const TEXT_PRIMARY = "#101828";
@@ -55,7 +55,7 @@ function FolderIcon({ className = "h-7 w-7" }: { className?: string }) {
     >
       <path
         d="M4 8.5C4 7.119 5.119 6 6.5 6H11.2L13 8H21.5C22.881 8 24 9.119 24 10.5V20.5C24 21.881 22.881 23 21.5 23H6.5C5.119 23 4 21.881 4 20.5V8.5Z"
-        stroke={GOLD}
+        stroke={BRAND_PRIMARY}
         strokeWidth="1.75"
         strokeLinejoin="round"
       />
@@ -249,7 +249,7 @@ function FlowMultiSelect({ id, selectedIds, onChange }: FlowMultiSelectProps) {
           aria-expanded={open}
           aria-controls={listboxId}
           onClick={() => setOpen((v) => !v)}
-          className={`flex h-11 w-full items-center justify-between rounded-lg border bg-white px-3.5 text-left text-sm outline-none transition focus:border-[#BC8B41] focus:ring-2 focus:ring-[#BC8B41]/25 ${
+          className={`flex h-11 w-full items-center justify-between rounded-lg border bg-white px-3.5 text-left text-sm outline-none transition focus:border-[color:var(--brand-primary)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--brand-primary)_25%,transparent)] ${
             open ? "rounded-b-none border-b-0" : ""
           }`}
           style={{
@@ -273,7 +273,7 @@ function FlowMultiSelect({ id, selectedIds, onChange }: FlowMultiSelectProps) {
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="Search flow"
-                  className="h-9 w-full rounded-md border bg-white py-2 pl-3 pr-9 text-sm outline-none transition focus:border-[#BC8B41] focus:ring-2 focus:ring-[#BC8B41]/25"
+                  className="h-9 w-full rounded-md border bg-white py-2 pl-3 pr-9 text-sm outline-none transition focus:border-[color:var(--brand-primary)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--brand-primary)_25%,transparent)]"
                   style={{
                     borderColor: CARD_BORDER,
                     color: TEXT_PRIMARY,
@@ -412,7 +412,7 @@ function FolderCreatedSuccessModal({
         <div className="flex flex-col items-center text-center">
           <div
             className="mb-6 flex h-16 w-16 items-center justify-center rounded-full"
-            style={{ backgroundColor: GOLD }}
+            style={{ backgroundColor: BRAND_PRIMARY }}
           >
             <SuccessCheckIcon />
           </div>
@@ -434,7 +434,7 @@ function FolderCreatedSuccessModal({
               href={folderHref}
               onClick={onClose}
               className="mt-8 flex h-11 w-full items-center justify-center rounded-lg text-sm font-semibold text-white transition hover:brightness-[0.97]"
-              style={{ background: "linear-gradient(90deg, #BC8B41 0%, #E9B771 100%)" }}
+              style={{ background: GOLD_GRADIENT }}
             >
               Go to folder
             </Link>
@@ -443,7 +443,7 @@ function FolderCreatedSuccessModal({
               type="button"
               onClick={onClose}
               className="mt-8 h-11 w-full rounded-lg text-sm font-semibold text-white transition hover:brightness-[0.97]"
-              style={{ background: "linear-gradient(90deg, #BC8B41 0%, #E9B771 100%)" }}
+              style={{ background: GOLD_GRADIENT }}
             >
               Go to folder
             </button>
@@ -551,7 +551,7 @@ function CreateFolderModal({ open, onClose, onCreated }: CreateFolderModalProps)
               value={folderName}
               onChange={(e) => setFolderName(e.target.value)}
               placeholder="Remote Onboarding"
-              className="h-11 w-full rounded-lg border px-3.5 text-sm outline-none transition focus:border-[#BC8B41] focus:ring-2 focus:ring-[#BC8B41]/25"
+              className="h-11 w-full rounded-lg border px-3.5 text-sm outline-none transition focus:border-[color:var(--brand-primary)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--brand-primary)_25%,transparent)]"
               style={{
                 borderColor: CARD_BORDER,
                 color: TEXT_PRIMARY,
@@ -598,7 +598,7 @@ function CreateFolderModal({ open, onClose, onCreated }: CreateFolderModalProps)
           <button
             type="submit"
             className="mt-2 h-11 w-full rounded-lg text-sm font-semibold text-white transition hover:brightness-[0.97]"
-            style={{ background: "linear-gradient(90deg, #BC8B41 0%, #E9B771 100%)" }}
+            style={{ background: GOLD_GRADIENT }}
           >
             Create
           </button>
@@ -619,7 +619,7 @@ function FlowLibraryCard({ library, dashboardBasePath }: { library: FlowLibrary;
   const cardClassName =
     "flex min-h-[100px] items-center gap-5 rounded-xl border bg-white px-6 py-5 transition";
   const cardStyle = {
-    borderColor: library.active ? GOLD : CARD_BORDER,
+    borderColor: library.active ? BRAND_PRIMARY : CARD_BORDER,
     boxShadow: "0 1px 2px rgba(16, 24, 40, 0.05)",
   };
 
@@ -661,7 +661,7 @@ function FlowLibraryCard({ library, dashboardBasePath }: { library: FlowLibrary;
     return (
       <Link
         href={href}
-        className={`${cardClassName} hover:bg-[#fafafa] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#BC8B41]`}
+        className={`${cardClassName} hover:bg-[#fafafa] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--brand-primary)]`}
         style={cardStyle}
         aria-label={`Open ${library.title}`}
       >
@@ -744,7 +744,7 @@ export function WorkflowLibraryPage({
                 </Link>
                 <Link
                   href="/admin_recruiter/dashboard/workflowlibrary"
-                  className="cursor-pointer border-b-2 border-[#C7922F] pb-1 text-[#C7922F]"
+                  className="cursor-pointer border-b-2 border-[color:var(--brand-primary)] pb-1 text-[color:var(--brand-primary)]"
                 >
                   Library
                 </Link>

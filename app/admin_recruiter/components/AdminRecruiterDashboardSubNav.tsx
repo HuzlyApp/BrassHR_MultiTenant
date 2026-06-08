@@ -27,8 +27,8 @@ function getActiveTab(pathname: string): WorkflowTab | null {
 
 function tabClass(active: boolean): string {
   return active
-    ? "cursor-pointer border-b-2 border-[#C7922F] pb-1 text-[#C7922F]"
-    : "cursor-pointer text-[#012352] transition-colors hover:text-[#C7922F]";
+    ? "cursor-pointer border-b-2 border-[color:var(--brand-primary)] pb-1 text-[color:var(--brand-primary)]"
+    : "cursor-pointer text-[#012352] transition-colors hover:text-[color:var(--brand-primary)]";
 }
 
 export function AdminRecruiterDashboardSubNav() {

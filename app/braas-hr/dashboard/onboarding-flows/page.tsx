@@ -13,7 +13,6 @@ import {
 } from "react";
 import {
   CARD_BORDER,
-  GOLD,
   GOLD_GRADIENT,
   ICON_BOX_BG,
   PAGE_BG,
@@ -212,7 +211,7 @@ function SearchCheckboxSelect({
           aria-expanded={open}
           aria-controls={listboxId}
           onClick={() => !disabled && setOpen((v) => !v)}
-          className={`flex h-11 w-full items-center justify-between rounded-lg border bg-white px-3.5 text-left text-sm outline-none transition focus:border-[#BC8B41] focus:ring-2 focus:ring-[#BC8B41]/25 disabled:cursor-not-allowed disabled:opacity-60 ${
+          className={`flex h-11 w-full items-center justify-between rounded-lg border bg-white px-3.5 text-left text-sm outline-none transition focus:border-[color:var(--brand-primary)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--brand-primary)_25%,transparent)] disabled:cursor-not-allowed disabled:opacity-60 ${
             open ? "rounded-b-none border-b-0" : ""
           }`}
           style={{
@@ -303,10 +302,10 @@ function SearchCheckboxSelect({
 function FlowChartHeaderIcon() {
   return (
     <svg width="22" height="22" viewBox="0 0 22 22" fill="none" aria-hidden>
-      <rect x="1" y="8" width="6" height="6" rx="1.5" stroke={GOLD} strokeWidth="1.5" />
-      <rect x="15" y="1" width="6" height="6" rx="1.5" stroke={GOLD} strokeWidth="1.5" />
-      <rect x="15" y="15" width="6" height="6" rx="1.5" stroke={GOLD} strokeWidth="1.5" />
-      <path d="M7 11H11M11 11V4M11 11V18" stroke={GOLD} strokeWidth="1.5" strokeLinecap="round" />
+      <rect x="1" y="8" width="6" height="6" rx="1.5" stroke="var(--brand-primary)" strokeWidth="1.5" />
+      <rect x="15" y="1" width="6" height="6" rx="1.5" stroke="var(--brand-primary)" strokeWidth="1.5" />
+      <rect x="15" y="15" width="6" height="6" rx="1.5" stroke="var(--brand-primary)" strokeWidth="1.5" />
+      <path d="M7 11H11M11 11V4M11 11V18" stroke="var(--brand-primary)" strokeWidth="1.5" strokeLinecap="round" />
     </svg>
   );
 }
@@ -327,7 +326,7 @@ function FlowListIcon() {
     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden>
       <path
         d="M3 5C3 4.46957 3.21071 3.96086 3.58579 3.58579C3.96086 3.21071 4.46957 3 5 3H19C19.5304 3 20.0391 3.21071 20.4142 3.58579C20.7893 3.96086 21 4.46957 21 5V8C21 8.53043 20.7893 9.03914 20.4142 9.41421C20.0391 9.78929 19.5304 10 19 10H5C4.46957 10 3.96086 9.78929 3.58579 9.41421C3.21071 9.03914 3 8.53043 3 8V5ZM3 16C3 15.4696 3.21071 14.9609 3.58579 14.5858C3.96086 14.2107 4.46957 14 5 14H19C19.5304 14 20.0391 14.2107 20.4142 14.5858C20.7893 14.9609 21 15.4696 21 16V19C21 19.5304 20.7893 20.0391 20.4142 20.4142C20.0391 20.7893 19.5304 21 19 21H5C4.46957 21 3.96086 20.7893 3.58579 20.4142C3.21071 20.0391 3 19.5304 3 19V16Z"
-        stroke={GOLD}
+        stroke="var(--brand-primary)"
         strokeWidth="2"
       />
     </svg>
@@ -339,13 +338,13 @@ function EyeIcon() {
     <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
       <path
         d="M8.7501 7.00008C8.7501 7.96658 7.9666 8.75008 7.0001 8.75008C6.0336 8.75008 5.2501 7.96658 5.2501 7.00008C5.2501 6.03358 6.0336 5.25008 7.0001 5.25008C7.9666 5.25008 8.7501 6.03358 8.7501 7.00008Z"
-        stroke={GOLD}
+        stroke="var(--brand-primary)"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
       <path
         d="M1.43408 7.00006C2.17741 4.63343 4.38841 2.91675 7.00036 2.91675C9.61232 2.91675 11.8233 4.63345 12.5666 7.0001C11.8233 9.36674 9.61232 11.0834 7.00037 11.0834C4.38841 11.0834 2.1774 9.36672 1.43408 7.00006Z"
-        stroke={GOLD}
+        stroke="var(--brand-primary)"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
@@ -358,7 +357,7 @@ function EditIcon() {
     <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
       <path
         d="M8.88544 3.05214L10.9478 5.11453M9.76044 2.17714C10.33 1.60762 11.2533 1.60762 11.8228 2.17714C12.3923 2.74665 12.3923 3.67002 11.8228 4.23953L3.79167 12.2707H1.75V10.1876L9.76044 2.17714Z"
-        stroke={GOLD}
+        stroke="var(--brand-primary)"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
@@ -455,7 +454,7 @@ function CreateNewFlowModal({ open, onClose, onCreated }: CreateNewFlowModalProp
   if (!open) return null;
 
   const fieldClassName =
-    "h-11 w-full appearance-none rounded-lg border bg-white px-3.5 text-sm outline-none transition focus:border-[#BC8B41] focus:ring-2 focus:ring-[#BC8B41]/25";
+    "h-11 w-full appearance-none rounded-lg border bg-white px-3.5 text-sm outline-none transition focus:border-[color:var(--brand-primary)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--brand-primary)_25%,transparent)]";
   const fieldStyle = { borderColor: CARD_BORDER, color: TEXT_PRIMARY };
 
   return (
@@ -548,7 +547,7 @@ function CreateNewFlowModal({ open, onClose, onCreated }: CreateNewFlowModalProp
           <label
             className="flex h-12 w-full cursor-pointer items-center justify-center gap-2.5 rounded-lg border transition"
             style={{
-              borderColor: createAsBlank ? GOLD : CARD_BORDER,
+              borderColor: createAsBlank ? "var(--brand-primary)" : CARD_BORDER,
               backgroundColor: createAsBlank ? "#faf6ef" : undefined,
             }}
           >
@@ -670,7 +669,7 @@ function FlowCard({ flow }: FlowCardProps) {
         boxShadow: "0 1px 2px rgba(16, 24, 40, 0.05)",
       }}
       onMouseEnter={(e) => {
-        e.currentTarget.style.borderColor = GOLD;
+        e.currentTarget.style.borderColor = "var(--brand-primary)";
       }}
       onMouseLeave={(e) => {
         e.currentTarget.style.borderColor = CARD_BORDER;
@@ -785,7 +784,7 @@ export function OnboardingFlowsPage({
                 <Link href="/admin_recruiter/dashboard/templates" className="cursor-pointer">
                   Templates
                 </Link>
-                <Link href="/admin_recruiter/dashboard/onboarding-flows" className="cursor-pointer border-b-2 border-[#C7922F] pb-1 text-[#C7922F]">
+                <Link href="/admin_recruiter/dashboard/onboarding-flows" className="cursor-pointer border-b-2 border-[color:var(--brand-primary)] pb-1 text-[color:var(--brand-primary)]">
                   My Flows
                 </Link>
                 <Link href="/admin_recruiter/dashboard/workflowlibrary" className="cursor-pointer">

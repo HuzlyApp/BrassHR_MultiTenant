@@ -36,8 +36,8 @@ function subTabHref(tab: ProfileSubTab, applicantId: string, isWorkerRoute: bool
 const tabLinkClass = (isActive: boolean) =>
   `shrink-0 px-0 pb-3 pt-1 text-sm font-medium leading-5 whitespace-nowrap transition-colors ${
     isActive
-      ? "-mb-px border-b-2 border-[#BC8B41] text-[#BC8B41]"
-      : "border-b-2 border-transparent text-[#2B3D51] hover:text-[#BC8B41]"
+      ? "-mb-px border-b-2 border-[color:var(--brand-primary)] text-[color:var(--brand-primary)]"
+      : "border-b-2 border-transparent text-[#2B3D51] hover:text-[color:var(--brand-primary)]"
   }`;
 
 export default function ProfileSubTabs({ applicantId, activeTab }: ProfileSubTabsProps) {

@@ -3,9 +3,6 @@
 import Image from "next/image";
 import { Eye, Pencil } from "lucide-react";
 
-/** Figma: active card — bg-brand brass lite #F4F4F4, border outline-button-brass gold #BC8B41 */
-const BRAND_GOLD = "#BC8B41";
-
 type ChecklistItemData = {
   id: string;
   step: number;
@@ -59,19 +56,19 @@ function ChecklistRow({ item }: { item: ChecklistItemData }) {
     <li
       className={`flex items-center gap-4 rounded-lg border px-4 py-4 sm:px-5 sm:py-5 ${
         completed
-          ? "border-[#BC8B41] bg-[#F4F4F4]"
+          ? "border-[color:var(--brand-primary)] bg-[#F4F4F4]"
           : "border-[#D1D5DB] bg-white"
       }`}
     >
       {completed ? (
         <span
           className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border bg-white"
-          style={{ borderColor: BRAND_GOLD }}
+          style={{ borderColor: "var(--brand-primary)" }}
           aria-hidden
         >
           <span
             className="flex h-7 w-7 items-center justify-center rounded-full"
-            style={{ backgroundColor: BRAND_GOLD }}
+            style={{ backgroundColor: "var(--brand-primary)" }}
           >
             <Image
               src="/icons/arrow-white.svg"
@@ -86,7 +83,7 @@ function ChecklistRow({ item }: { item: ChecklistItemData }) {
       ) : (
         <span
           className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border bg-white text-sm font-semibold"
-          style={{ borderColor: BRAND_GOLD, color: BRAND_GOLD }}
+          style={{ borderColor: "var(--brand-primary)", color: "var(--brand-primary)" }}
           aria-hidden
         >
           {step}
@@ -103,7 +100,7 @@ function ChecklistRow({ item }: { item: ChecklistItemData }) {
           <button
             type="button"
             className="rounded-md p-1 transition-opacity hover:opacity-80"
-            style={{ color: BRAND_GOLD }}
+            style={{ color: "var(--brand-primary)" }}
             aria-label={`View ${title}`}
           >
             <Eye className="h-5 w-5" strokeWidth={1.75} />
@@ -111,7 +108,7 @@ function ChecklistRow({ item }: { item: ChecklistItemData }) {
           <button
             type="button"
             className="rounded-md p-1 transition-opacity hover:opacity-80"
-            style={{ color: BRAND_GOLD }}
+            style={{ color: "var(--brand-primary)" }}
             aria-label={`Edit ${title}`}
           >
             <Pencil className="h-5 w-5" strokeWidth={1.75} />

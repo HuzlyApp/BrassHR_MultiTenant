@@ -45,3 +45,87 @@
 .admin-recruiter-shell .border-\[\#0D9488\] {
   border-color: var(--brand-primary) !important;
 }
+
+/* Legacy gold/brass utility colors → tenant branding */
+.admin-recruiter-shell .text-\[\#BC8B41\],
+.admin-recruiter-shell .text-\[\#C7922F\] {
+  color: var(--brand-primary) !important;
+}
+
+.admin-recruiter-shell .bg-\[\#BC8B41\],
+.admin-recruiter-shell .bg-\[\#C7922F\] {
+  background-color: var(--brand-primary) !important;
+}
+
+.admin-recruiter-shell .border-\[\#BC8B41\],
+.admin-recruiter-shell .border-\[\#C7922F\] {
+  border-color: var(--brand-primary) !important;
+}
+
+.admin-recruiter-shell .hover\:text-\[\#BC8B41\]:hover,
+.admin-recruiter-shell .hover\:text-\[\#C7922F\]:hover {
+  color: var(--brand-primary) !important;
+}
+
+.admin-recruiter-shell .hover\:border-\[\#BC8B41\]:hover,
+.admin-recruiter-shell .group:hover .group-hover\:border-\[\#BC8B41\] {
+  border-color: var(--brand-primary) !important;
+}
+
+.admin-recruiter-shell .focus\:border-\[\#BC8B41\]:focus,
+.admin-recruiter-shell .focus\:ring-\[\#BC8B41\]\/25:focus {
+  border-color: var(--brand-primary) !important;
+  --tw-ring-color: color-mix(in srgb, var(--brand-primary) 25%, transparent) !important;
+}
+
+/* Legacy Nexus / teal hex utilities → tenant branding */
+.admin-recruiter-shell .text-\[\#0D9488\],
+.admin-recruiter-shell .text-\[\#0c918a\],
+.admin-recruiter-shell .text-\[\#0f6a65\] {
+  color: var(--brand-primary) !important;
+}
+
+.admin-recruiter-shell .bg-\[\#0D9488\],
+.admin-recruiter-shell .bg-\[\#0c918a\] {
+  background-color: var(--brand-primary) !important;
+}
+
+.admin-recruiter-shell .border-\[\#0D9488\] {
+  border-color: var(--brand-primary) !important;
+}
+
+.admin-recruiter-shell .hover\:bg-\[\#0a7b75\]:hover,
+.admin-recruiter-shell .hover\:bg-\[\#0B7F77\]:hover {
+  filter: brightness(0.95);
+}
+
+.admin-recruiter-shell .text-\[\#0d9488\],
+.admin-recruiter-shell .text-\[\#0EA5A4\],
+.admin-recruiter-shell .text-\[\#0F766E\] {
+  color: var(--brand-primary) !important;
+}
+
+.admin-recruiter-shell .bg-\[\#0d9488\],
+.admin-recruiter-shell .bg-\[\#0EA5A4\] {
+  background-color: var(--brand-primary) !important;
+}
+
+.admin-recruiter-shell .border-\[\#0d9488\] {
+  border-color: var(--brand-primary) !important;
+}
+
+.admin-recruiter-shell .focus\:border-\[\#0d9488\]:focus,
+.admin-recruiter-shell .focus\:border-\[\#0EA5A4\]:focus,
+.admin-recruiter-shell .focus\:ring-\[\#0d9488\]:focus {
+  border-color: var(--brand-primary) !important;
+  --tw-ring-color: color-mix(in srgb, var(--brand-primary) 25%, transparent) !important;
+}
+
+.admin-recruiter-shell .bg-teal-100 {
+  background-color: color-mix(in srgb, var(--brand-primary) 12%, white) !important;
+}
+
+.admin-recruiter-shell .text-teal-700,
+.admin-recruiter-shell .text-teal-800 {
+  color: var(--brand-primary) !important;
+}

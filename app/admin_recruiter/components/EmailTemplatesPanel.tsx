@@ -169,7 +169,7 @@ export default function EmailTemplatesPanel() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex items-center gap-2 text-[#0F172A]">
-          <Mail className="h-5 w-5 text-[#0d9488]" aria-hidden />
+          <Mail className="h-5 w-5 text-[color:var(--brand-primary)]" aria-hidden />
           <div>
             <p className="text-sm font-medium text-[#64748B]">Tenant</p>
             <p className="text-base font-semibold">{tenantName ?? "Current tenant"}</p>
@@ -179,7 +179,7 @@ export default function EmailTemplatesPanel() {
           <span
             className={`rounded-full px-3 py-1 text-xs font-medium ${
               selected.is_tenant_override
-                ? "bg-teal-100 text-teal-800"
+                ? "bg-[color:color-mix(in_srgb,var(--brand-primary)_12%,white)] text-[color:var(--brand-primary)]"
                 : "bg-slate-100 text-slate-700"
             }`}
           >
@@ -208,7 +208,7 @@ export default function EmailTemplatesPanel() {
                 onClick={() => setSelectedKey(t.template_key)}
                 className={`flex w-full flex-col rounded-lg px-3 py-2 text-left text-sm transition ${
                   active
-                    ? "border border-[#0d9488] bg-white text-[#0f514e] shadow-sm"
+                    ? "border border-[color:var(--brand-primary)] bg-white text-[color:var(--brand-primary)] shadow-sm"
                     : "text-[#3e5d5a] hover:bg-white/80"
                 }`}
               >
@@ -218,7 +218,7 @@ export default function EmailTemplatesPanel() {
                   ] ?? t.template_key}
                 </span>
                 {t.is_tenant_override ? (
-                  <span className="mt-0.5 text-xs text-teal-700">Customized</span>
+                  <span className="mt-0.5 text-xs text-[color:var(--brand-primary)]">Customized</span>
                 ) : (
                   <span className="mt-0.5 text-xs text-slate-500">Default</span>
                 )}
@@ -245,7 +245,7 @@ export default function EmailTemplatesPanel() {
                   placeholder="notifications"
                   autoComplete="off"
                   spellCheck={false}
-                  className="min-w-0 flex-1 rounded-lg border border-[#e2e8f0] px-3 py-2 font-mono text-sm text-[#0F172A] outline-none focus:border-[#0d9488] focus:ring-1 focus:ring-[#0d9488]"
+                  className="min-w-0 flex-1 rounded-lg border border-[#e2e8f0] px-3 py-2 font-mono text-sm text-[#0F172A] outline-none focus:border-[color:var(--brand-primary)] focus:ring-1 focus:ring-[color-mix(in_srgb,var(--brand-primary)_25%,transparent)]"
                   aria-label="From email local part"
                 />
                 <span className="shrink-0 text-sm font-medium text-[#64748B]">
@@ -264,7 +264,7 @@ export default function EmailTemplatesPanel() {
                 value={replyToEmail}
                 onChange={(e) => setReplyToEmail(e.target.value)}
                 placeholder="support@yourdomain.com"
-                className="w-full rounded-lg border border-[#e2e8f0] px-3 py-2 text-sm text-[#0F172A] outline-none focus:border-[#0d9488] focus:ring-1 focus:ring-[#0d9488]"
+                className="w-full rounded-lg border border-[#e2e8f0] px-3 py-2 text-sm text-[#0F172A] outline-none focus:border-[color:var(--brand-primary)] focus:ring-1 focus:ring-[color-mix(in_srgb,var(--brand-primary)_25%,transparent)]"
               />
             </label>
           </div>
@@ -275,7 +275,7 @@ export default function EmailTemplatesPanel() {
               type="text"
               value={subject}
               onChange={(e) => setSubject(e.target.value)}
-              className="w-full rounded-lg border border-[#e2e8f0] px-3 py-2 text-sm text-[#0F172A] outline-none focus:border-[#0d9488] focus:ring-1 focus:ring-[#0d9488]"
+              className="w-full rounded-lg border border-[#e2e8f0] px-3 py-2 text-sm text-[#0F172A] outline-none focus:border-[color:var(--brand-primary)] focus:ring-1 focus:ring-[color-mix(in_srgb,var(--brand-primary)_25%,transparent)]"
             />
           </label>
 
@@ -287,7 +287,7 @@ export default function EmailTemplatesPanel() {
               value={bodyHtml}
               onChange={(e) => setBodyHtml(e.target.value)}
               rows={12}
-              className="w-full resize-y rounded-lg border border-[#e2e8f0] px-3 py-2 font-mono text-sm text-[#0F172A] outline-none focus:border-[#0d9488] focus:ring-1 focus:ring-[#0d9488]"
+              className="w-full resize-y rounded-lg border border-[#e2e8f0] px-3 py-2 font-mono text-sm text-[#0F172A] outline-none focus:border-[color:var(--brand-primary)] focus:ring-1 focus:ring-[color-mix(in_srgb,var(--brand-primary)_25%,transparent)]"
               placeholder="<p>Hello {{first_name}},</p>"
             />
           </label>
@@ -300,7 +300,7 @@ export default function EmailTemplatesPanel() {
               value={bodyText}
               onChange={(e) => setBodyText(e.target.value)}
               rows={5}
-              className="w-full resize-y rounded-lg border border-[#e2e8f0] px-3 py-2 text-sm text-[#0F172A] outline-none focus:border-[#0d9488] focus:ring-1 focus:ring-[#0d9488]"
+              className="w-full resize-y rounded-lg border border-[#e2e8f0] px-3 py-2 text-sm text-[#0F172A] outline-none focus:border-[color:var(--brand-primary)] focus:ring-1 focus:ring-[color-mix(in_srgb,var(--brand-primary)_25%,transparent)]"
               placeholder="Hello {{first_name}},"
             />
           </label>
@@ -310,7 +310,7 @@ export default function EmailTemplatesPanel() {
               type="button"
               disabled={saving}
               onClick={() => void save()}
-              className="rounded-xl bg-[#0d9488] px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
+              className="rounded-xl bg-[color:var(--brand-primary)] px-5 py-2.5 text-sm font-semibold text-white hover:brightness-95 disabled:opacity-50"
             >
               {saving ? "Saving..." : "Save template"}
             </button>

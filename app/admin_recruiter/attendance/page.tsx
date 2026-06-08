@@ -120,18 +120,18 @@ export default function AdminApplicantAttendancePage() {
           value={q}
           onChange={(event) => setQ(event.target.value)}
           placeholder="Filter by applicant name or email"
-          className="h-11 rounded-xl border border-[#CBD5E1] px-4 text-sm text-[#0F172A] outline-none focus:border-[#0EA5A4]"
+          className="h-11 rounded-xl border border-[#CBD5E1] px-4 text-sm text-[#0F172A] outline-none focus:border-[color:var(--brand-primary)]"
         />
         <input
           type="date"
           value={date}
           onChange={(event) => setDate(event.target.value)}
-          className="h-11 rounded-xl border border-[#CBD5E1] px-4 text-sm text-[#0F172A] outline-none focus:border-[#0EA5A4]"
+          className="h-11 rounded-xl border border-[#CBD5E1] px-4 text-sm text-[#0F172A] outline-none focus:border-[color:var(--brand-primary)]"
         />
         <select
           value={status}
           onChange={(event) => setStatus(event.target.value)}
-          className="h-11 rounded-xl border border-[#CBD5E1] px-4 text-sm text-[#0F172A] outline-none focus:border-[#0EA5A4]"
+          className="h-11 rounded-xl border border-[#CBD5E1] px-4 text-sm text-[#0F172A] outline-none focus:border-[color:var(--brand-primary)]"
         >
           <option value="">All statuses</option>
           <option value="clocked_in">Clocked in</option>
@@ -139,7 +139,7 @@ export default function AdminApplicantAttendancePage() {
         </select>
         <button
           type="submit"
-          className="h-11 rounded-xl bg-[#0EA5A4] px-5 text-sm font-semibold text-white transition hover:bg-[#0C8D8B]"
+          className="h-11 rounded-xl bg-[color:var(--brand-primary)] px-5 text-sm font-semibold text-white transition hover:brightness-95"
         >
           Filter
         </button>
@@ -201,7 +201,13 @@ export default function AdminApplicantAttendancePage() {
                     {locationText(log.clock_out_address, log.clock_out_latitude, log.clock_out_longitude)}
                   </td>
                   <td className="px-4 py-3">
-                    <span className="rounded-full bg-[#ECFEFF] px-3 py-1 text-xs font-semibold text-[#0F766E]">
+                    <span
+                      className="rounded-full px-3 py-1 text-xs font-semibold"
+                      style={{
+                        backgroundColor: "color-mix(in srgb, var(--brand-primary) 12%, white)",
+                        color: "var(--brand-primary)",
+                      }}
+                    >
                       {statusLabel(log.status)}
                     </span>
                   </td>

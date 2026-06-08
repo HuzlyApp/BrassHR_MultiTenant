@@ -13,7 +13,6 @@ type BillingTab = "billing" | "subscription";
 
 /** Figma selection colors — Account settings */
 const COLORS = {
-  brandPrimary: "#BC8B41",
   headingTitleDark: "#012352",
   textLabels: "#64748B",
   warning50: "#FDF8F3",
@@ -110,7 +109,7 @@ export default function AccountSettingsBillingPanel({
               >
                 <Building2
                   className="h-4 w-4 shrink-0"
-                  style={{ color: COLORS.brandPrimary }}
+                  style={{ color: "var(--brand-primary)" }}
                   aria-hidden
                 />
                 Account #{accountNumber}
@@ -121,7 +120,7 @@ export default function AccountSettingsBillingPanel({
               >
                 <Link2
                   className="h-4 w-4 shrink-0"
-                  style={{ color: COLORS.brandPrimary }}
+                  style={{ color: "var(--brand-primary)" }}
                   aria-hidden
                 />
                 {accountDomain}
@@ -152,14 +151,14 @@ export default function AccountSettingsBillingPanel({
       <div
         className="mt-5 flex items-center gap-4 rounded-xl border px-5 py-4 sm:px-6 sm:py-5"
         style={{
-          borderColor: COLORS.brandPrimary,
+          borderColor: "var(--brand-primary)",
           backgroundColor: COLORS.warning50,
         }}
         role="status"
       >
         <div
           className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border bg-white"
-          style={{ borderColor: COLORS.brandPrimary }}
+          style={{ borderColor: "var(--brand-primary)" }}
         >
           <Image
             src="/icons/braas-HR/client-dashboard/uil_rocket.svg"
@@ -206,7 +205,7 @@ export default function AccountSettingsBillingPanel({
               }`}
               style={
                 isActive
-                  ? { backgroundColor: COLORS.brandPrimary }
+                  ? { backgroundColor: "var(--brand-primary)" }
                   : { color: COLORS.headingTitleDark }
               }
             >

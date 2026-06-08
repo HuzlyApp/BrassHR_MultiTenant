@@ -4,16 +4,25 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
+import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 
 const SIDEBAR_EXPANDED_WIDTH = 344;
 const SIDEBAR_COLLAPSED_WIDTH = 80;
-const NAVY_BLUE = "#012352";
-const ACTIVE_GOLD = "#C7922F";
+
+function SidebarNavIcon({ src }: { src: string }) {
+  const branding = useTenantBranding();
+  return (
+    <BrandedSvgIcon
+      src={src}
+      className="h-5 w-5 shrink-0"
+      color={branding.primaryHex}
+    />
+  );
+}
 
 type AdminRecruiterSidebarProps = {
   isMobileOpen?: boolean;
@@ -288,41 +297,26 @@ export function AdminRecruiterSidebar({
             {section.children?.length && !isCollapsed ? (
               <div
                 className={`group relative flex min-h-[36px] w-full items-center gap-2 overflow-hidden rounded-md px-2 py-1 transition hover:bg-white ${
-                  section.active ? "text-[#C7922F]" : "text-[#012352] hover:text-[#C7922F]"
+                  section.active
+                    ? "text-[color:var(--brand-primary)]"
+                    : "text-[#012352] hover:text-[color:var(--brand-primary)]"
                 }`}
                 style={
                   section.active
-                    ? {
-                        backgroundColor: "color-mix(in srgb, var(--brand-accent) 14%, white)",
-                        color: ACTIVE_GOLD,
-                      }
+                    ? { backgroundColor: "color-mix(in srgb, var(--brand-accent) 14%, white)" }
                     : undefined
                 }
               >
                 {section.disabled ? (
                   <div title={`${section.label} (Coming soon)`} className="flex min-w-0 flex-1 items-center gap-3">
-                    <Image src={section.icon} alt="" width={20} height={20} className="h-5 w-5 shrink-0" />
+                    <SidebarNavIcon src={section.icon} />
                     <span className="truncate font-normal text-[14px] leading-5 tracking-normal transition-colors">
                       {section.label}
                     </span>
                   </div>
                 ) : (
                   <Link href={section.href} onClick={handleNavClick} className="flex min-w-0 flex-1 items-center gap-3">
-                    <Image
-                      src={section.icon}
-                      alt=""
-                      width={20}
-                      height={20}
-                      className="h-5 w-5 shrink-0 transition"
-                      style={
-                        section.active
-                          ? {
-                              filter:
-                                "brightness(0) saturate(100%) invert(62%) sepia(40%) saturate(785%) hue-rotate(359deg)",
-                            }
-                          : undefined
-                      }
-                    />
+                    <SidebarNavIcon src={section.icon} />
                     <span className="truncate font-normal text-[14px] leading-5 tracking-normal transition-colors">
                       {section.label}
                     </span>
@@ -343,7 +337,7 @@ export function AdminRecruiterSidebar({
                   <span
                     aria-hidden
                     className="absolute right-0 top-1/2 h-7 w-[2px] -translate-y-1/2 rounded-full"
-                    style={{ backgroundColor: NAVY_BLUE }}
+                    style={{ backgroundColor: "var(--brand-secondary)" }}
                   />
                 ) : null}
               </div>
@@ -355,7 +349,7 @@ export function AdminRecruiterSidebar({
                 } text-[#012352]`}
                 aria-disabled
               >
-                <Image src={section.icon} alt="" width={20} height={20} className="h-5 w-5 shrink-0" />
+                <SidebarNavIcon src={section.icon} />
                 {!isCollapsed ? (
                   <span className="font-normal text-[14px] leading-5 tracking-normal transition-colors">{section.label}</span>
                 ) : null}
@@ -367,7 +361,11 @@ export function AdminRecruiterSidebar({
                 title={isCollapsed ? section.label : undefined}
                 className={`group relative flex min-h-[36px] items-center overflow-hidden rounded-md transition hover:bg-white ${
                   isCollapsed ? "justify-center px-2 py-2" : "gap-3 px-2 py-1"
-                } ${section.active ? "text-[#C7922F]" : "text-[#012352] hover:text-[#C7922F]"}`}
+                } ${
+                  section.active
+                    ? "text-[color:var(--brand-primary)]"
+                    : "text-[#012352] hover:text-[color:var(--brand-primary)]"
+                }`}
                 style={
                   section.active
                     ? {
@@ -376,18 +374,7 @@ export function AdminRecruiterSidebar({
                     : undefined
                 }
               >
-                <Image
-                  src={section.icon}
-                  alt=""
-                  width={20}
-                  height={20}
-                  className="h-5 w-5 shrink-0 transition"
-                  style={
-                    section.active
-                      ? { filter: "brightness(0) saturate(100%) invert(62%) sepia(40%) saturate(785%) hue-rotate(359deg)" }
-                      : undefined
-                  }
-                />
+                <SidebarNavIcon src={section.icon} />
                 {!isCollapsed ? (
                   <span className="font-normal text-[14px] leading-5 tracking-normal transition-colors">
                     {section.label}
@@ -397,7 +384,7 @@ export function AdminRecruiterSidebar({
                   <span
                     aria-hidden
                     className="absolute right-0 top-1/2 h-7 w-[2px] -translate-y-1/2 rounded-full"
-                    style={{ backgroundColor: NAVY_BLUE }}
+                    style={{ backgroundColor: "var(--brand-secondary)" }}
                   />
                 ) : null}
               </Link>
@@ -420,15 +407,14 @@ export function AdminRecruiterSidebar({
                       href={child.href}
                       onClick={handleNavClick}
                       className={`group relative block overflow-hidden rounded-md px-2 py-1.5 font-normal text-[14px] leading-5 tracking-normal transition ${
-                        child.active ? "text-[#C7922F]" : "text-[#012352] hover:text-[#C7922F]"
+                        child.active
+                          ? "text-[color:var(--brand-primary)]"
+                          : "text-[#012352] hover:text-[color:var(--brand-primary)]"
                       }`}
                       style={
                         child.active
-                          ? {
-                              color: ACTIVE_GOLD,
-                              backgroundColor: "color-mix(in srgb, var(--brand-accent) 14%, white)",
-                            }
-                          : { color: NAVY_BLUE }
+                          ? { backgroundColor: "color-mix(in srgb, var(--brand-accent) 14%, white)" }
+                          : undefined
                       }
                     >
                       <span>{child.label}</span>
@@ -436,7 +422,7 @@ export function AdminRecruiterSidebar({
                         <span
                           aria-hidden
                           className="absolute right-0 top-1/2 h-7 w-[2px] -translate-y-1/2 rounded-full"
-                          style={{ backgroundColor: NAVY_BLUE }}
+                          style={{ backgroundColor: "var(--brand-secondary)" }}
                         />
                       ) : null}
                     </Link>
@@ -471,12 +457,10 @@ export function AdminRecruiterSidebar({
             title="Logout"
             className={`rounded-md p-1 hover:bg-white/80 ${isCollapsed ? "" : "ml-auto"}`}
           >
-            <Image
+            <BrandedSvgIcon
               src="/icons/braas-HR/client-dashboard/logout.svg"
-              alt="Logout"
-              width={20}
-              height={20}
               className="h-5 w-5 object-contain"
+              color={branding.primaryHex}
             />
           </button>
         </div>

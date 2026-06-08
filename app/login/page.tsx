@@ -8,6 +8,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { FaApple } from "react-icons/fa";
 import { FaXTwitter } from "react-icons/fa6";
 import { FcGoogle } from "react-icons/fc";
+import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
 import VerificationSuccessModal from "@/app/components/VerificationSuccessModal";
 import { TenantBrandingProvider } from "@/app/components/tenant/TenantBrandingContext";
 import ClassicTenantLogin from "@/app/login/ClassicTenantLogin";
@@ -600,17 +601,10 @@ function LoginPageContent() {
                         : "hover:bg-[#f8fafc]"
                     }`}
                   >
-                    <Image
+                    <BrandedSvgIcon
                       src="/icons/braas-HR/eye.svg"
-                      alt=""
-                      width={20}
-                      height={20}
                       className="h-[20px] w-[20px]"
-                      style={{
-                        filter: showPassword
-                          ? "brightness(0) saturate(100%) invert(55%) sepia(33%) saturate(738%) hue-rotate(359deg) brightness(88%) contrast(86%)"
-                          : undefined,
-                      }}
+                      color={showPassword ? brand.primaryHex : "#94A3B8"}
                     />
                   </button>
                 </div>

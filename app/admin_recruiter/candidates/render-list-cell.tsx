@@ -1,6 +1,11 @@
 import type { ReactNode } from "react"
+import BrandedSvgIcon from "@/app/components/BrandedSvgIcon"
 import type { CandidateColumnId } from "./column-config"
 import type { CandidateRow } from "./types"
+
+const BRAND_AVATAR_GRADIENT =
+  "linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-accent) 100%)"
+const BRAND_ICON = "var(--brand-primary)"
 
 function initialsFromName(name: string) {
   const parts = name.trim().split(/\s+/).filter(Boolean)
@@ -19,13 +24,16 @@ export function renderListCell(
     case "name":
       return (
         <div className="flex items-center gap-3 min-w-0 w-full">
-          <div className="h-8 w-8 shrink-0 rounded-full bg-[linear-gradient(135deg,#27c8c0_0%,#16877f_100%)] text-white text-sm font-semibold flex items-center justify-center">
+          <div
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold text-white"
+            style={{ background: BRAND_AVATAR_GRADIENT }}
+          >
             {initialsFromName(c.name || "NA")}
           </div>
           <div className="text-sm font-medium text-black truncate">{c.name || "—"}</div>
-          <div className="ml-auto flex items-center gap-2 shrink-0">
-            <img src="/icons/admin-recruiter/save.svg" alt="Save" className="h-4 w-4" />
-            <img src="/icons/admin-recruiter/eye.svg" alt="View" className="h-4 w-4" />
+          <div className="ml-auto flex shrink-0 items-center gap-2">
+            <BrandedSvgIcon src="/icons/admin-recruiter/save.svg" className="h-4 w-4" color={BRAND_ICON} />
+            <BrandedSvgIcon src="/icons/admin-recruiter/eye.svg" className="h-4 w-4" color={BRAND_ICON} />
           </div>
         </div>
       )

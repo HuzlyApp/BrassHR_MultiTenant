@@ -2,13 +2,11 @@
 
 import Image from "next/image";
 import { useState } from "react";
-import { BRAAS_PRIMARY } from "@/lib/tenant/tenant-branding";
 import CreateTemplateModal, {
   type CreateTemplatePayload,
 } from "@/app/admin_recruiter/components/CreateTemplateModal";
 import TemplateCreateSuccessModal from "@/app/admin_recruiter/components/TemplateCreateSuccessModal";
 
-const GOLD = BRAAS_PRIMARY;
 const PAGE_BG = "#f8f8f8";
 const CARD_BORDER = "#eaecf0";
 const TEXT_PRIMARY = "#101828";
@@ -101,7 +99,7 @@ function TemplateCard({ item }: { item: TemplateItem }) {
         </button>
       </div>
       <span
-        className="pointer-events-none absolute inset-0 rounded-xl border border-transparent transition-colors group-hover:border-[#BC8B41]"
+        className="pointer-events-none absolute inset-0 rounded-xl border border-transparent transition-colors group-hover:border-[color:var(--brand-primary)]"
         aria-hidden
       />
     </article>

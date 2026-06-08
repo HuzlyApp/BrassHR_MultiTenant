@@ -153,7 +153,7 @@ export default function RecruiterDashboard() {
 
             {[
               { key: "new" as const, label: "New applicants", href: "/admin_recruiter/new", chip: "New", chipClass: "border border-[#CBD5E1] bg-[#F8FAFC] text-[#475569]" },
-              { key: "pending" as const, label: "Pending applicants", href: "/admin_recruiter/pending", chip: "Pending", chipClass: "border border-[#F59E0B] bg-[#F59E0B] text-white" },
+              { key: "pending" as const, label: "Pending applicants", href: "/admin_recruiter/pending", chip: "Pending", chipClass: "border border-[color:var(--brand-primary)] bg-[color:var(--brand-primary)] text-white" },
               { key: "approved" as const, label: "Approved applicants", href: "/admin_recruiter/approved", chip: "Approved", chipClass: "border border-[#22C55E] bg-[#22C55E] text-white" },
               { key: "disapproved" as const, label: "Disapproved applicants", href: "/admin_recruiter/disapproved", chip: "Disapproved", chipClass: "border border-[#FB7185] bg-[#FB7185] text-white" },
             ].map((c) => (

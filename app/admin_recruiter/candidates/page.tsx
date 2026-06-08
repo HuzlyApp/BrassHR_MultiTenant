@@ -3,8 +3,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import { useRouter } from "next/navigation";
+import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
 import {
   Plus,
   Mail,
@@ -54,6 +54,9 @@ type WorkerProfile = {
 };
 
 const STATUS_FILTER = ["All", "New", "Pending", "Approved", "Disapproved"] as const;
+const BRAND_AVATAR_GRADIENT =
+  "linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-accent) 100%)";
+const BRAND_ICON = "var(--brand-primary)";
 type StatusFilter = (typeof STATUS_FILTER)[number];
 
 function titleCaseStatus(s: string | null | undefined) {
@@ -68,7 +71,7 @@ function statusBadgeClassName(status: string) {
   if (s === "pending") return "border border-[#F59E0B] bg-[#F59E0B] text-white";
   if (s === "approved") return "border border-[#22C55E] bg-[#22C55E] text-white";
   if (s === "disapproved") return "border border-[#FB7185] bg-[#FB7185] text-white";
-  return "border border-[#0D9488] text-[#0D9488]";
+  return "border border-[color:var(--brand-primary)] text-[color:var(--brand-primary)]";
 }
 
 function statusToApiParam(s: StatusFilter): string | null {
@@ -456,14 +459,14 @@ export default function CandidatesPage() {
               <div className="min-h-[60px] border-b border-[#E5E7EB] p-[14px] flex flex-wrap items-center justify-between gap-3">
                 <button
                   type="button"
-                  className="h-8 inline-flex items-center gap-1.5 bg-[#0c918a] hover:bg-[#0a7b75] text-white px-3 rounded-md transition text-xs font-semibold"
+                  className="h-8 inline-flex items-center gap-1.5 bg-[color:var(--brand-primary)] text-white px-3 rounded-md transition text-xs font-semibold hover:brightness-95"
                 >
                   <Plus className="w-3.5 h-3.5" /> Create Candidate
                 </button>
 
                 <div className="flex flex-1 items-center gap-2 flex-wrap justify-start sm:justify-end">
                   <div className="flex h-8 items-center bg-white border border-[#dce6e3] rounded-md px-3 w-full min-w-[180px] sm:w-auto sm:min-w-[220px]">
-                    <Image src="/icons/admin-recruiter/candidates/search.svg" alt="" width={16} height={16} className="mr-2 shrink-0" />
+                    <BrandedSvgIcon src="/icons/admin-recruiter/candidates/search.svg" className="mr-2 h-4 w-4 shrink-0" color={BRAND_ICON} />
                     <input
                       type="search"
                       value={query}
@@ -485,7 +488,7 @@ export default function CandidatesPage() {
                     }}
                     className="h-8 inline-flex items-center gap-1.5 border border-[#dce6e3] bg-white hover:bg-zinc-50 px-3 rounded-md transition text-xs leading-4 font-semibold text-[#3d4a4a]"
                   >
-                    <Image src="/icons/admin-recruiter/candidates/refresh.svg" alt="" width={16} height={16} />
+                    <BrandedSvgIcon src="/icons/admin-recruiter/candidates/refresh.svg" className="h-4 w-4" color={BRAND_ICON} />
                     {advancedSearchContext.active ? "Reset Search" : "Refresh"}
                   </button>
 
@@ -500,7 +503,7 @@ export default function CandidatesPage() {
                     onClick={() => setShowFilterRows((v) => !v)}
                     className="h-8 inline-flex items-center gap-1.5 border border-[#dce6e3] bg-white hover:bg-zinc-50 px-3 rounded-md transition text-xs leading-4 font-semibold text-[#3d4a4a]"
                   >
-                  <Image src="/icons/admin-recruiter/candidates/filter.svg" alt="" width={16} height={16} />
+                  <BrandedSvgIcon src="/icons/admin-recruiter/candidates/filter.svg" className="h-4 w-4" color={BRAND_ICON} />
                     {showFilterRows ? "Hide View" : "View Filters"}
                   </button>
 
@@ -511,7 +514,7 @@ export default function CandidatesPage() {
                       className="flex items-center justify-center w-8 h-8 border border-[#dce6e3] bg-white hover:bg-zinc-50 rounded-md transition"
                       aria-label="More actions"
                     >
-                      <Image src="/icons/admin-recruiter/candidates/three-dot.svg" alt="" width={16} height={16} />
+                      <BrandedSvgIcon src="/icons/admin-recruiter/candidates/three-dot.svg" className="h-4 w-4" color={BRAND_ICON} />
                     </button>
                     {moreMenuOpen ? (
                       <>
@@ -544,7 +547,7 @@ export default function CandidatesPage() {
                   <div className="min-h-[60px] border-b border-[#E5E7EB] p-[14px] flex flex-wrap items-center justify-between gap-3">
                     <div className="flex w-full items-start gap-3">
                       <div className="flex items-center pt-1 text-[#9aaba9]">
-                        <Image src="/icons/admin-recruiter/candidates/filtered.svg.svg" alt="" width={20} height={20} />
+                        <BrandedSvgIcon src="/icons/admin-recruiter/candidates/filtered.svg.svg" className="h-5 w-5" color={BRAND_ICON} />
                       </div>
                       <div className="grid flex-1 min-w-0 grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4 lg:gap-3">
                       
@@ -634,7 +637,7 @@ export default function CandidatesPage() {
                     </div>
 
                     <div className="flex items-center gap-2 shrink-0">
-                      <span className={`text-[11px] font-medium ${view === "card" ? "text-[#0f6a65]" : "text-[#6f8380]"}`}>
+                      <span className={`text-[11px] font-medium ${view === "card" ? "text-[color:var(--brand-primary)]" : "text-[#6f8380]"}`}>
                         Card View
                       </span>
                       <button
@@ -644,7 +647,7 @@ export default function CandidatesPage() {
                         aria-label="Toggle list view"
                         onClick={() => setView((v) => (v === "card" ? "list" : "card"))}
                         className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
-                          view === "list" ? "bg-[#0c918a]" : "bg-zinc-300"
+                          view === "list" ? "bg-[color:var(--brand-primary)]" : "bg-zinc-300"
                         }`}
                       >
                         <span
@@ -653,7 +656,7 @@ export default function CandidatesPage() {
                           }`}
                         />
                       </button>
-                      <span className={`text-[11px] font-medium ${view === "list" ? "text-[#0f6a65]" : "text-[#6f8380]"}`}>
+                      <span className={`text-[11px] font-medium ${view === "list" ? "text-[color:var(--brand-primary)]" : "text-[#6f8380]"}`}>
                         List View
                       </span>
                       {view === "list" ? (
@@ -679,7 +682,7 @@ export default function CandidatesPage() {
                 if (loading) {
                   return (
                     <div className="flex flex-col items-center justify-center py-24 text-gray-600 gap-3">
-                      <Loader2 className="w-8 h-8 animate-spin text-teal-600" />
+                      <Loader2 className="h-8 w-8 animate-spin text-[color:var(--brand-primary)]" />
                       Loading candidates…
                     </div>
                   );
@@ -695,7 +698,7 @@ export default function CandidatesPage() {
                             applyAdvancedSearchParams(null);
                             void loadCandidates(null);
                           }}
-                          className="mt-4 inline-flex h-10 items-center justify-center rounded-md bg-[#0D9488] px-5 text-sm font-semibold text-white hover:bg-[#0B7F77]"
+                          className="mt-4 inline-flex h-10 items-center justify-center rounded-md bg-[color:var(--brand-primary)] px-5 text-sm font-semibold text-white hover:brightness-95"
                         >
                           Reset Search
                         </button>
@@ -716,7 +719,7 @@ export default function CandidatesPage() {
                                 <input
                                   type="checkbox"
                                   aria-label="Select all candidates"
-                                  className="h-5 w-5 rounded-[5px] border-2 border-[#C8D1DA] accent-[#0C9A92]"
+                                  className="h-5 w-5 rounded-[5px] border-2 border-[#C8D1DA] accent-[color:var(--brand-primary)]"
                                 />
                               </th>
                               {cols.map((colId) => (
@@ -738,7 +741,7 @@ export default function CandidatesPage() {
                                   <input
                                     type="checkbox"
                                     aria-label={`Select ${c.name || "candidate"}`}
-                                    className="h-5 w-5 rounded-[5px] border-2 border-[#C8D1DA] accent-[#0C9A92]"
+                                    className="h-5 w-5 rounded-[5px] border-2 border-[#C8D1DA] accent-[color:var(--brand-primary)]"
                                   />
                                 </td>
                                 {cols.map((colId) => (
@@ -770,7 +773,10 @@ export default function CandidatesPage() {
                         >
                           <div className="flex items-start justify-between gap-3">
                             <div className="flex items-start gap-3 min-w-0">
-                              <div className="w-8 h-8 rounded-full bg-[linear-gradient(135deg,#27c8c0_0%,#16877f_100%)] text-white text-sm font-semibold text-white flex items-center justify-center font-semibold shrink-0">
+                              <div
+                                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold text-white"
+                                style={{ background: BRAND_AVATAR_GRADIENT }}
+                              >
                                 {initialsFromName(c.name || "NA")}
                               </div>
                               <div className="min-w-0">
@@ -784,32 +790,32 @@ export default function CandidatesPage() {
                                 type="button"
                                 onClick={() => setCommTarget(c)}
                                 disabled={!c.email?.trim() && !c.phone?.trim()}
-                                className="w-6 h-6 rounded-md hover:bg-teal-50 flex items-center justify-center text-[#4e6462] transition disabled:cursor-not-allowed disabled:opacity-40"
+                                className="flex h-6 w-6 items-center justify-center rounded-md text-[#4e6462] transition hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_8%,white)] disabled:cursor-not-allowed disabled:opacity-40"
                                 aria-label="Message candidate"
                               >
                                 <MessageCircle className="h-4 w-4" />
                               </button>
                               <Link
                                 href={`/admin_recruiter/new/attachments/${c.id}`}
-                                className="w-6 h-6 rounded-md hover:bg-teal-50 flex items-center justify-center text-[#4e6462] transition"
+                                className="flex h-6 w-6 items-center justify-center rounded-md text-[#4e6462] transition hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_8%,white)]"
                                 aria-label="View document"
                               >
-                               <img src="/icons/admin-recruiter/save.svg" alt="Save" className="h-4 w-4" />
+                               <BrandedSvgIcon src="/icons/admin-recruiter/save.svg" className="h-4 w-4" color={BRAND_ICON} />
                               
                               </Link>
                               <Link
                                 href={`/admin_recruiter/new/profile/${c.id}`}
-                                className="w-6 h-6 rounded-md hover:bg-teal-50 flex items-center justify-center text-[#4e6462] transition"
+                                className="flex h-6 w-6 items-center justify-center rounded-md text-[#4e6462] transition hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_8%,white)]"
                                 aria-label="View profile"
                               >
-                                <img src="/icons/admin-recruiter/eye.svg" alt="View" className="h-4 w-4" />
+                                <BrandedSvgIcon src="/icons/admin-recruiter/eye.svg" className="h-4 w-4" color={BRAND_ICON} />
                               </Link>
                             </div>
                           </div>
 
                           <div className="mt-3 flex items-center border-b border-[#E5E7EB] pb-3 justify-between gap-2 flex-wrap">
                             <div className="flex items-center gap-1.5 text-[11px] text-[#6f8380]">
-                            <img src="/icons/admin-recruiter/calendar.svg" alt="View" className="h-4 w-4" />
+                            <BrandedSvgIcon src="/icons/admin-recruiter/calendar.svg" className="h-4 w-4" color={BRAND_ICON} />
                               <span>{formatDateTime(c.createdAt)}</span>
                             </div>
                             <span
@@ -821,15 +827,15 @@ export default function CandidatesPage() {
 
                           <div className="mt-3 space-y-1.5 text-[11px] text-[#4f6462]">
                             <div className="flex items-start gap-2.5">
-                            <img src="/icons/admin-recruiter/alternate_email.svg" alt="View" className="h-4 w-4" />
+                            <BrandedSvgIcon src="/icons/admin-recruiter/alternate_email.svg" className="h-4 w-4" color={BRAND_ICON} />
                               <span className="truncate text-black">{c.email || "—"}</span>
                             </div>
                             <div className="flex items-center gap-2.5">
-                            <img src="/icons/admin-recruiter/phone.svg" alt="View" className="h-4 w-4" />
+                            <BrandedSvgIcon src="/icons/admin-recruiter/phone.svg" className="h-4 w-4" color={BRAND_ICON} />
                               <span className="truncate text-black">{c.phone || "—"}</span>
                             </div>
                             <div className="flex items-start gap-2.5">
-                            <img src="/icons/admin-recruiter/location-marker.svg" alt="View" className="h-4 w-4" />
+                            <BrandedSvgIcon src="/icons/admin-recruiter/location-marker.svg" className="h-4 w-4" color={BRAND_ICON} />
                               <span className="leading-snug text-black">{c.address || "—"}</span>
                             </div>
                           </div>

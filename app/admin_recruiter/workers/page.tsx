@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import Image from "next/image";
+import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
 import {
   Plus,
   Search,
@@ -145,7 +145,7 @@ export default function WorkersPage() {
               className="flex items-center justify-center w-10 h-10 border border-[#dce6e3] bg-white hover:bg-zinc-50 rounded-md transition"
               aria-label="More actions"
             >
-              <Image src="/icons/admin-recruiter/candidates/three-dot.svg" alt="" width={16} height={16} />
+              <BrandedSvgIcon src="/icons/admin-recruiter/candidates/three-dot.svg" className="h-4 w-4" color="var(--brand-primary)" />
             </button>
             {moreMenuOpen ? (
               <>
@@ -190,7 +190,7 @@ export default function WorkersPage() {
               type="button"
               onClick={() => setNewOnly(false)}
               className={`h-8 px-3 rounded-md text-xs border font-semibold ${
-                !newOnly ? "bg-[#0c918a] border-[#0c918a] text-white" : "bg-white border-[#dce6e3] text-[#3d4a4a]"
+                !newOnly ? "border-[color:var(--brand-primary)] bg-[color:var(--brand-primary)] text-white" : "bg-white border-[#dce6e3] text-[#3d4a4a]"
               }`}
             >
               All workers
@@ -212,7 +212,7 @@ export default function WorkersPage() {
         <div className="bg-white overflow-hidden">
           {loading ? (
             <div className="flex items-center justify-center gap-3 py-16 text-gray-600">
-              <Loader2 className="w-6 h-6 animate-spin text-teal-600" />
+              <Loader2 className="h-6 w-6 animate-spin text-[color:var(--brand-primary)]" />
               Loading workers...
             </div>
           ) : filtered.length === 0 ? (
@@ -243,7 +243,7 @@ export default function WorkersPage() {
                       <td className="px-4 py-4 text-right">
                         <Link
                           href={`/admin_recruiter/workers/${w.id}/profile`}
-                          className="inline-flex items-center gap-1 rounded-full bg-[#0c918a] text-white px-3 py-1.5 text-xs font-semibold hover:bg-[#0a7b75]"
+                          className="inline-flex items-center gap-1 rounded-full bg-[color:var(--brand-primary)] px-3 py-1.5 text-xs font-semibold text-white hover:brightness-95"
                         >
                           Open <span aria-hidden>-&gt;</span>
                         </Link>

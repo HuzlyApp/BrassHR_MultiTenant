@@ -2,9 +2,7 @@
 
 import Link from "next/link";
 import { useEffect } from "react";
-import { BRAAS_PRIMARY } from "@/lib/tenant/tenant-branding";
 
-const GOLD = BRAAS_PRIMARY;
 const TEXT_PRIMARY = "#101828";
 const TEXT_SECONDARY = "#667085";
 
@@ -79,7 +77,7 @@ export default function TemplateCreateSuccessModal({
         <div className="flex flex-col items-center text-center">
           <div
             className="mb-6 flex h-16 w-16 items-center justify-center rounded-full"
-            style={{ backgroundColor: GOLD }}
+            style={{ backgroundColor: "var(--brand-primary)" }}
           >
             <SuccessCheckIcon />
           </div>
@@ -101,7 +99,10 @@ export default function TemplateCreateSuccessModal({
             href="/admin_recruiter/dashboard/onboarding-flows"
             onClick={onClose}
             className="mt-8 flex h-11 w-full items-center justify-center rounded-lg text-sm font-semibold text-white transition hover:brightness-[0.97]"
-            style={{ background: "linear-gradient(90deg, #BC8B41 0%, #E9B771 100%)" }}
+            style={{
+              background:
+                "linear-gradient(90deg, var(--brand-primary) 0%, color-mix(in srgb, var(--brand-primary) 70%, white) 100%)",
+            }}
           >
             Go to flow
           </Link>

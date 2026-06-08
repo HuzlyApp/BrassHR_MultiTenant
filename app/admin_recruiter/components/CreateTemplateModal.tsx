@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useMemo, useRef, useState, type FormEvent } from "react";
+import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 
 type TemplateFolder = "presets" | "saved-templates";
 
@@ -28,12 +29,12 @@ function CloseIcon() {
   );
 }
 
-function FolderIcon() {
+function FolderIcon({ color }: { color: string }) {
   return (
     <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden>
       <path
         d="M2.5 6.5C2.5 5.395 3.395 4.5 4.5 4.5H7.1L8.25 6H13.5C14.605 6 15.5 6.895 15.5 8V13.5C15.5 14.605 14.605 15.5 13.5 15.5H4.5C3.395 15.5 2.5 14.605 2.5 13.5V6.5Z"
-        stroke="#BC8B41"
+        stroke={color}
         strokeWidth="1.35"
         strokeLinejoin="round"
       />
@@ -78,6 +79,7 @@ const FOLDER_OPTIONS: Array<{ id: TemplateFolder; label: string }> = [
 ];
 
 export default function CreateTemplateModal({ open, onClose, onCreate }: CreateTemplateModalProps) {
+  const branding = useTenantBranding();
   const [templateName, setTemplateName] = useState("Remote Onboarding Template");
   const [search, setSearch] = useState("");
   const [selectedFolder, setSelectedFolder] = useState<TemplateFolder>("saved-templates");
@@ -152,7 +154,7 @@ export default function CreateTemplateModal({ open, onClose, onCreate }: CreateT
 
         <div className="mb-8 flex items-center gap-3 border-b pb-6" style={{ borderColor: "#E4E7EC" }}>
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#F2F4F7]">
-            <FolderIcon />
+            <FolderIcon color={branding.primaryHex} />
           </div>
           <h2 id="create-template-title" className="text-[24px] font-semibold leading-[32px]" style={{ color: TEXT_PRIMARY }}>
             Create New Flow Template
@@ -169,7 +171,7 @@ export default function CreateTemplateModal({ open, onClose, onCreate }: CreateT
               type="text"
               value={templateName}
               onChange={(e) => setTemplateName(e.target.value)}
-              className="h-11 w-full rounded-lg border px-3.5 text-sm outline-none focus:ring-2 focus:ring-[#BC8B41]/25"
+              className="h-11 w-full rounded-lg border px-3.5 text-sm outline-none focus:ring-2 focus:ring-[color-mix(in_srgb,var(--brand-primary)_25%,transparent)]"
               style={{ borderColor: CARD_BORDER, color: TEXT_PRIMARY }}
             />
           </div>
@@ -218,7 +220,7 @@ export default function CreateTemplateModal({ open, onClose, onCreate }: CreateT
                           style={{ backgroundColor: checked ? "#F2F4F7" : "transparent", color: TEXT_SECONDARY }}
                           onClick={() => setSelectedFolder(folder.id)}
                         >
-                          <FolderIcon />
+                          <FolderIcon color={branding.primaryHex} />
                           <span className="min-w-0 flex-1 truncate">{folder.label}</span>
                           <span
                             className={`flex h-[18px] w-[18px] items-center justify-center rounded-[4px] border ${
@@ -243,7 +245,10 @@ export default function CreateTemplateModal({ open, onClose, onCreate }: CreateT
         <button
           type="submit"
           className="mt-8 h-11 w-full rounded-lg text-sm font-semibold text-white transition hover:brightness-[0.97]"
-          style={{ background: "linear-gradient(90deg, #BC8B41 0%, #E9B771 100%)" }}
+          style={{
+            background:
+              "linear-gradient(90deg, var(--brand-primary) 0%, color-mix(in srgb, var(--brand-primary) 70%, white) 100%)",
+          }}
         >
           Create
         </button>
