@@ -10,6 +10,13 @@ import Image from "next/image"
 import { AlertTriangle, ChevronDown, Pencil, Search, X, XCircle } from "lucide-react"
 import OnboardingStepper from "@/app/components/OnboardingStepper"
 import OnboardingLoader from "@/app/components/OnboardingLoader"
+import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext"
+import {
+  brandingShellGradient,
+  brandingToCssVars,
+  isRemoteOrBlobImageSrc,
+  normalizeBrandingImageSrc,
+} from "@/lib/tenant/tenant-branding"
 import { formatPhoneNumber, normalizePhoneInput } from "@/lib/phone"
 import {
   isValidStep1Email,
@@ -123,7 +130,8 @@ function SearchableSelect({
   onChange,
   required,
 }: SearchableSelectProps) {
-  const focusBorderClass = "focus:outline-none focus:border-[#22c7c8] focus:ring-2 focus:ring-[#22c7c8]/20"
+  const focusBorderClass =
+    "focus:outline-none focus:border-[color:var(--brand-primary)] focus:ring-2 focus:ring-[color:var(--brand-primary)]/20"
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState("")
   const wrapperRef = useRef<HTMLDivElement>(null)
@@ -188,7 +196,7 @@ function SearchableSelect({
                       setOpen(false)
                       setQuery("")
                     }}
-                    className="w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-teal-50"
+                    className="w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-[color:var(--brand-primary)]/10"
                   >
                     {opt}
                   </button>
@@ -205,7 +213,19 @@ function SearchableSelect({
 }
 
 function Step1ReviewContent() {
-  const focusBorderClass = "focus:outline-none focus:border-[#22c7c8] focus:ring-2 focus:ring-[#22c7c8]/20"
+  const branding = useTenantBranding()
+  const shellStyle = {
+    ...brandingToCssVars(branding),
+    background: brandingShellGradient(branding),
+  }
+  const panelSrc = normalizeBrandingImageSrc(branding.loginBackgroundSrc, "/images/handshake.jpg")
+  const logoSrc = normalizeBrandingImageSrc(branding.logoUrl, "/images/new-logo-nexus.svg", {
+    allowBlob: true,
+  })
+  const panelUseNativeImg = isRemoteOrBlobImageSrc(panelSrc)
+  const logoUseNativeImg = isRemoteOrBlobImageSrc(logoSrc)
+  const focusBorderClass =
+    "focus:outline-none focus:border-[color:var(--brand-primary)] focus:ring-2 focus:ring-[color:var(--brand-primary)]/20"
   const router = useRouter()
   const nav = useOnboardingStepNav()
   const searchParams = useSearchParams()
@@ -778,7 +798,10 @@ function Step1ReviewContent() {
         : ""
 
   return (
-    <div className="relative min-h-screen bg-[#1db4a3] flex items-stretch sm:items-center justify-center p-3 sm:p-4 py-6 sm:py-8">
+    <div
+      className="relative flex min-h-screen items-stretch justify-center p-3 py-6 sm:items-center sm:p-4 sm:py-8"
+      style={shellStyle}
+    >
       <div
         className={`bg-white rounded-xl sm:rounded-2xl shadow-2xl overflow-hidden flex flex-col md:flex-row relative mx-auto w-full max-w-[1060px] md:min-h-[640px] min-h-0 transition-opacity ${loading ? "opacity-50" : "opacity-100"}`}
       >
@@ -852,7 +875,7 @@ function Step1ReviewContent() {
                 value={form.address2}
                 onChange={(value) => handleChange("address2", value)}
                 disabled={form.sameAsAddress1}
-                className={`w-full px-4 h-[56px] border border-gray-200 rounded-md focus:border-[#1db4a3] focus:outline-none text-[#1e293b] text-sm pr-10 ${
+                className={`w-full px-4 h-[56px] border border-gray-200 rounded-md focus:border-[color:var(--brand-primary)] focus:outline-none text-[#1e293b] text-sm pr-10 ${
                   form.sameAsAddress1 ? "bg-gray-50 text-gray-500" : "bg-white"
                 }`}
                 placeholder="Same as address 1"
@@ -1066,18 +1089,23 @@ function Step1ReviewContent() {
 
           <div className="mt-8 border-t border-slate-100 pt-6 md:hidden">
             <div className="flex flex-col items-center gap-3 text-center">
-              <Image
-                src="/images/new-logo-nexus.svg"
-                alt="Nexus MedPro Logo"
-                width={160}
-                height={48}
-                className="h-10 w-auto"
-                priority
-              />
-              <p className="max-w-xs text-sm leading-snug text-slate-600">
-                Nexus MedPro Staffing <span className="mx-0.5">–</span> Connecting Healthcare professionals with
-                service providers
-              </p>
+              {logoUseNativeImg ? (
+                <img
+                  src={logoSrc}
+                  alt={branding.companyName}
+                  className="h-10 w-auto max-w-[160px] object-contain"
+                />
+              ) : (
+                <Image
+                  src={logoSrc}
+                  alt={branding.companyName}
+                  width={160}
+                  height={48}
+                  className="h-10 w-auto"
+                  priority
+                />
+              )}
+              <p className="max-w-xs text-sm leading-snug text-slate-600">{branding.tagline}</p>
             </div>
           </div>
 
@@ -1086,7 +1114,8 @@ function Step1ReviewContent() {
             <button
               type="button"
               onClick={() => router.back()}
-              className="cursor-pointer w-full sm:w-auto px-6 py-2.5 border border-[#1db4a3] text-[#1db4a3] text-sm font-medium rounded-lg hover:bg-teal-50 transition"
+              className="cursor-pointer w-full rounded-lg border px-6 py-2.5 text-sm font-medium transition hover:opacity-90 sm:w-auto"
+              style={{ borderColor: branding.primaryHex, color: branding.primaryHex }}
             >
               Back
             </button>
@@ -1094,7 +1123,8 @@ function Step1ReviewContent() {
               type="button"
               onClick={handleSaveAndContinue}
               disabled={loading}
-              className="cursor-pointer w-full sm:w-auto px-6 py-2.5 bg-[#1db4a3] hover:bg-teal-600 text-white text-sm font-medium rounded-lg transition disabled:bg-gray-400 disabled:cursor-not-allowed"
+              className="cursor-pointer w-full rounded-lg px-6 py-2.5 text-sm font-medium text-white transition hover:brightness-90 disabled:cursor-not-allowed disabled:bg-gray-400 sm:w-auto"
+              style={{ backgroundColor: branding.primaryHex }}
             >
               {loading ? "Saving..." : "Save & continue"}
             </button>
@@ -1104,28 +1134,43 @@ function Step1ReviewContent() {
         {/* RIGHT - Branding and Image */}
         <div className="relative hidden min-h-[320px] shrink-0 bg-gray-50 md:block md:min-h-0 md:w-[35%]">
           <div className="absolute inset-0 z-0">
-            {/* You'll need to make sure the image path matches what you have or I can generate a placeholder */}
-            <Image
-              src="/images/nurse.jpg"
-              alt="Healthcare professional smiling"
-              fill
-              sizes="(max-width: 767px) 0px, 35vw"
-              className="object-cover object-top opacity-60 grayscale"
-              priority
-            />
-            <div className="absolute inset-0 bg-white/65"></div>
-          </div>
-
-          <div className="absolute inset-0 flex flex-col items-center justify-center z-10 px-10">
-            <div className="mb-6">
+            {panelUseNativeImg ? (
+              <img
+                src={panelSrc}
+                alt=""
+                className="absolute inset-0 h-full w-full object-cover object-top opacity-60 grayscale"
+              />
+            ) : (
               <Image
-                src="/images/new-logo-nexus.svg"
-                alt="Nexus MedPro Logo"
-                width={204}
-                height={60}
-                className="h-auto w-auto"
+                src={panelSrc}
+                alt=""
+                fill
+                sizes="(max-width: 767px) 0px, 35vw"
+                className="object-cover object-top opacity-60 grayscale"
                 priority
               />
+            )}
+            <div className="absolute inset-0 bg-white/65" />
+          </div>
+
+          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center px-10">
+            <div className="mb-6">
+              {logoUseNativeImg ? (
+                <img
+                  src={logoSrc}
+                  alt={branding.companyName}
+                  className="h-auto max-h-[60px] w-auto max-w-[204px] object-contain"
+                />
+              ) : (
+                <Image
+                  src={logoSrc}
+                  alt={branding.companyName}
+                  width={204}
+                  height={60}
+                  className="h-auto w-auto"
+                  priority
+                />
+              )}
             </div>
 
             <div className="w-full max-w-[280px]">
@@ -1134,17 +1179,8 @@ function Step1ReviewContent() {
                 <Image src="/icons/circle-star-icon.svg" alt="" width={24} height={24} className="h-6 w-6 flex-none" />
                 <div className="h-px flex-1 bg-slate-300/80" />
               </div>
-              <p
-                className="text-[#1e293b]"
-                style={{
-                  fontFamily: 'Inter, sans-serif',
-                  fontWeight: 400,
-                  fontSize: '16px',
-                  lineHeight: '24px',
-                  textAlign: 'center',
-                }}
-              >
-                Nexus MedPro Staffing <span className="mx-0.5">–</span> Connecting Healthcare professionals with service providers
+              <p className="text-center text-[16px] font-normal leading-6 text-[#1e293b]">
+                {branding.tagline}
               </p>
             </div>
           </div>
@@ -1152,20 +1188,26 @@ function Step1ReviewContent() {
       </div>
 
       {loading ? (
-        <OnboardingLoader
-          overlay
-          label="Saving your details..."
-          backgroundClassName="bg-[#1db4a3]"
-        />
+        <OnboardingLoader overlay label="Saving your details..." />
       ) : null}
 
     </div>
   )
 }
 
+function ProfileReviewFallback() {
+  const branding = useTenantBranding()
+  return (
+    <div
+      className="min-h-screen"
+      style={{ background: brandingShellGradient(branding) }}
+    />
+  )
+}
+
 export default function Step1Review() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-[#1db4a3]" />}>
+    <Suspense fallback={<ProfileReviewFallback />}>
       <Step1ReviewContent />
     </Suspense>
   )

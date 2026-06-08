@@ -16,6 +16,7 @@ export async function GET(req: Request) {
 
   const { searchParams } = new URL(req.url);
   const slugParam = searchParams.get("slug")?.trim();
+  const tenantIdParam = searchParams.get("tenantId")?.trim();
   const subdomainParam = searchParams.get("subdomain")?.trim().toLowerCase();
 
   const supabase = createSb(url, key);
@@ -62,6 +63,19 @@ export async function GET(req: Request) {
       return Response.json({ error: error.message }, { status: 500 });
     }
     row = data ?? null;
+  } else if (tenantIdParam) {
+    const { data, error } = await supabase
+      .from("tenants")
+      .select(TENANT_BRANDING_SELECT)
+      .eq("id", tenantIdParam)
+      .eq("is_active", true)
+      .maybeSingle<TenantBrandingRow>();
+    if (error) {
+      console.error("[tenant-branding] tenantId lookup", tenantIdParam, error.message);
+      return Response.json({ error: error.message }, { status: 500 });
+    }
+    row = data ?? null;
+    resolvedSlug = data?.slug ?? null;
   } else {
     const { data: platformDefault, error: platformErr } = await supabase
       .from("tenants")

@@ -6,6 +6,8 @@ import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import OnboardingLayout from "@/app/components/OnboardingLayout"
 import OnboardingStepper from "@/app/components/OnboardingStepper"
+import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext"
+import { brandingToCssVars } from "@/lib/tenant/tenant-branding"
 import { useOnboardingStepNav } from "@/lib/onboarding/use-onboarding-step-nav"
 import { formatPhoneNumber, normalizePhoneInput } from "@/lib/phone"
 import AutosaveStatus from "@/app/components/AutosaveStatus"
@@ -42,6 +44,7 @@ function loadRefsFromStorage(): RefRow[] {
 }
 
 export default function ReferencesPage() {
+  const branding = useTenantBranding()
   const router = useRouter()
   const nav = useOnboardingStepNav()
 
@@ -148,7 +151,7 @@ export default function ReferencesPage() {
        rightPanelImageClassName="opacity-60 object-top"
       rightPanelOverlayClassName="bg-white/65"
     >
-      <div className="flex h-full flex-col px-10 pb-10 pt-8">
+      <div className="flex h-full flex-col px-10 pb-10 pt-8" style={brandingToCssVars(branding)}>
         <OnboardingStepper />
 
         <div className="flex flex-1 flex-col pt-8">
@@ -187,7 +190,7 @@ export default function ReferencesPage() {
                     <input
                       value={r.first}
                       onChange={(e) => update(index, "first", e.target.value)}
-                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-[13px] text-slate-800 outline-none focus:border-[#0D9488] transition"
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-[13px] text-slate-800 outline-none focus:border-[color:var(--brand-primary)] transition"
                     />
                   </div>
                   <div>
@@ -195,7 +198,7 @@ export default function ReferencesPage() {
                     <input
                       value={r.last}
                       onChange={(e) => update(index, "last", e.target.value)}
-                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-[13px] text-slate-800 outline-none focus:border-[#0D9488] transition"
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-[13px] text-slate-800 outline-none focus:border-[color:var(--brand-primary)] transition"
                     />
                   </div>
                 </div>
@@ -206,7 +209,7 @@ export default function ReferencesPage() {
                     <input
                       value={formatPhoneNumber(r.phone)}
                       onChange={(e) => update(index, "phone", normalizePhoneInput(e.target.value))}
-                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-[13px] text-slate-800 outline-none focus:border-[#0D9488] transition"
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-[13px] text-slate-800 outline-none focus:border-[color:var(--brand-primary)] transition"
                       placeholder="(201) 555-5555"
                       inputMode="numeric"
                     />
@@ -216,7 +219,7 @@ export default function ReferencesPage() {
                     <input
                       value={r.email}
                       onChange={(e) => update(index, "email", e.target.value)}
-                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-[13px] text-slate-800 outline-none focus:border-[#0D9488] transition"
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-[13px] text-slate-800 outline-none focus:border-[color:var(--brand-primary)] transition"
                     />
                   </div>
                 </div>
@@ -229,7 +232,7 @@ export default function ReferencesPage() {
             <button
               type="button"
               onClick={addReference}
-              className="mt-6 w-fit rounded-md border border-[#0D9488] px-4 py-1.5 text-[12px] font-medium text-[#0D9488] transition hover:bg-[#f0fffe]"
+              className="mt-6 w-fit rounded-md border border-[color:var(--brand-primary)] px-4 py-1.5 text-[12px] font-medium text-[color:var(--brand-primary)] transition hover:bg-[color:var(--brand-primary)]/5"
             >
               + Add Reference
             </button>
@@ -242,7 +245,7 @@ export default function ReferencesPage() {
             <button
               type="button"
               onClick={() => router.back()}
-              className="cursor-pointer rounded-md border border-[#0D9488] bg-white px-5 py-2 text-[12px] font-medium leading-5 text-[#0D9488] transition hover:bg-[#f0fffe]"
+              className="cursor-pointer rounded-md border border-[color:var(--brand-primary)] bg-white px-5 py-2 text-[12px] font-medium leading-5 text-[color:var(--brand-primary)] transition hover:bg-[color:var(--brand-primary)]/5"
             >
               Back
             </button>
@@ -250,7 +253,7 @@ export default function ReferencesPage() {
               type="button"
               onClick={saveReferences}
               disabled={saving}
-              className="cursor-pointer rounded-md bg-[#0D9488] px-6 py-2 text-[12px] font-medium leading-5 text-white transition hover:bg-[#0b7a70] disabled:cursor-not-allowed disabled:opacity-70"
+              className="cursor-pointer rounded-md bg-[color:var(--brand-primary)] px-6 py-2 text-[12px] font-medium leading-5 text-white transition hover:brightness-90 disabled:cursor-not-allowed disabled:opacity-70"
             >
               Save &amp; continue
             </button>

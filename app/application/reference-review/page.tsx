@@ -9,6 +9,8 @@ import Image from "next/image"
 import { Pencil, ChevronRight } from "lucide-react"
 import OnboardingLayout from "@/app/components/OnboardingLayout"
 import OnboardingStepper from "@/app/components/OnboardingStepper"
+import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext"
+import { brandingToCssVars } from "@/lib/tenant/tenant-branding"
 import { useOnboardingStepNav } from "@/lib/onboarding/use-onboarding-step-nav"
 import {
   countCompleteReferences,
@@ -26,6 +28,7 @@ const emptyReference: Reference = {
 }
 
 export default function ReferenceReviewPage() {
+  const branding = useTenantBranding()
   const router = useRouter()
   const nav = useOnboardingStepNav()
   const [references, setReferences] = useState<Reference[]>([])
@@ -79,7 +82,7 @@ export default function ReferenceReviewPage() {
       rightPanelImageClassName="opacity-60 object-top"
       rightPanelOverlayClassName="bg-white/65"
     >
-      <div className="flex h-full flex-col px-10 pb-10 pt-8">
+      <div className="flex h-full flex-col px-10 pb-10 pt-8" style={brandingToCssVars(branding)}>
         <OnboardingStepper />
 
         <div className="flex flex-1 flex-col pt-8">
@@ -105,7 +108,7 @@ export default function ReferenceReviewPage() {
               <button
                 type="button"
                 onClick={handleEdit}
-                className="inline-flex items-center gap-2 rounded-lg border border-[#0D9488] bg-white px-5 py-2 text-[12px] font-medium text-[#0D9488] transition hover:bg-[#f0fffe]"
+                className="inline-flex items-center gap-2 rounded-lg border border-[color:var(--brand-primary)] bg-white px-5 py-2 text-[12px] font-medium text-[color:var(--brand-primary)] transition hover:bg-[color:var(--brand-primary)]/5"
               >
                 Add References
                 <ChevronRight className="h-4 w-4" />
@@ -116,7 +119,7 @@ export default function ReferenceReviewPage() {
               {slots.map((reference, index) => {
                 const isFilled = Boolean(reference.first || reference.last || reference.phone || reference.email)
                 return (
-                  <div key={index} className="rounded-2xl border border-[#0D9488] bg-white p-6 shadow-sm">
+                  <div key={index} className="rounded-2xl border border-[color:var(--brand-primary)] bg-white p-6 shadow-sm">
                     <div className="flex items-start justify-between gap-4">
                       <div>
                         <div className="flex items-center gap-2">
@@ -185,7 +188,7 @@ export default function ReferenceReviewPage() {
             <button
               type="button"
               onClick={() => router.back()}
-              className="rounded-xl border border-[#0D9488] bg-white px-6 py-2 text-[12px] font-medium text-[#0D9488] transition hover:bg-[#f0fffe]"
+              className="rounded-xl border border-[color:var(--brand-primary)] bg-white px-6 py-2 text-[12px] font-medium text-[color:var(--brand-primary)] transition hover:bg-[color:var(--brand-primary)]/5"
             >
               Back
             </button>
@@ -193,7 +196,7 @@ export default function ReferenceReviewPage() {
               type="button"
               onClick={handleContinue}
               disabled={!hasMinimumReferences}
-              className="rounded-xl bg-[#0D9488] px-6 py-2 text-[12px] font-medium text-white transition hover:bg-[#0b7a70] disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded-xl bg-[color:var(--brand-primary)] px-6 py-2 text-[12px] font-medium text-white transition hover:brightness-90 disabled:cursor-not-allowed disabled:opacity-50"
             >
               Continue
             </button>

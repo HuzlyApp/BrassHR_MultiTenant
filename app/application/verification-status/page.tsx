@@ -1,22 +1,27 @@
 "use client"
 
-import { applicationPath } from "@/lib/tenant/with-tenant";
+import type { CSSProperties } from "react"
+import { applicationPath } from "@/lib/tenant/with-tenant"
 import { Suspense } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { ChevronRight } from "lucide-react"
 import { useSearchParams } from "next/navigation"
 import OnboardingLayout from "@/app/components/OnboardingLayout"
+import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext"
+import { brandingToCssVars } from "@/lib/tenant/tenant-branding"
 
 function VerificationStatusContent() {
+  const branding = useTenantBranding()
   const searchParams = useSearchParams()
   const status = searchParams.get("status")
   const isRejected = status === "rejected"
+  const contentStyle = brandingToCssVars(branding) as CSSProperties
+  const primaryBtnStyle = { backgroundColor: branding.primaryHex } as CSSProperties
 
   return (
     <OnboardingLayout
       cardClassName="md:grid-cols-[660px_400px]"
-      rightPanelImageSrc="/images/verification-status.jpg"
       rightPanelImageClassName="object-cover object-center grayscale opacity-60"
       rightPanelOverlayClassName="bg-white/65"
       rightPanelContentClassName="p-5"
@@ -24,7 +29,7 @@ function VerificationStatusContent() {
       logoClassName="h-[72px] w-[240px]"
       taglineClassName="max-w-[300px] text-[15px] leading-8 text-slate-900"
     >
-      <div className="flex h-full flex-col px-10 pb-10 pt-14">
+      <div className="flex h-full flex-col px-10 pb-10 pt-14" style={contentStyle}>
         <div className="flex flex-1 flex-col gap-9">
           <h1 className="text-[24px] font-semibold leading-8 text-slate-800">
             Verification Status
@@ -146,14 +151,15 @@ function VerificationStatusContent() {
             {isRejected ? (
               <Link
                 href="/"
-                className="inline-flex h-11 min-w-[100px] items-center justify-center rounded-lg border border-[#0D9488] px-7 text-[16px] font-semibold leading-8 text-[#0D9488] transition hover:bg-[#f0fffe]"
+                className="inline-flex h-11 min-w-[100px] items-center justify-center rounded-lg border border-[color:var(--brand-primary)] bg-white px-7 text-[16px] font-semibold leading-8 text-[color:var(--brand-primary)] transition hover:bg-[color:var(--brand-primary)]/5"
               >
                 Exit
               </Link>
             ) : (
               <Link
                 href={applicationPath("/application/upload-form?type=files")}
-                className="inline-flex h-11 min-w-[273px] items-center justify-center gap-2 rounded-lg bg-[#0D9488] px-6 text-[16px] font-semibold leading-6 text-white transition hover:bg-[#0b7a70]"
+                className="inline-flex h-11 min-w-[273px] items-center justify-center gap-2 rounded-lg px-6 text-[16px] font-semibold leading-6 text-white transition hover:brightness-90"
+                style={primaryBtnStyle}
               >
                 Upload Requirements
                 <ChevronRight className="h-4 w-4" />

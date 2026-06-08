@@ -11,10 +11,13 @@ import { isPdfFile } from "@/lib/document-upload-helpers"
 import OnboardingLayout from "@/app/components/OnboardingLayout"
 import OnboardingStepper from "@/app/components/OnboardingStepper"
 import DocumentFileThumbnail from "@/app/components/DocumentFileThumbnail"
+import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext"
+import { brandingToCssVars } from "@/lib/tenant/tenant-branding"
 
 type UploadSlot = { file: File | null; name?: string; url?: string }
 
 export default function Step4Identity() {
+  const branding = useTenantBranding()
   const router = useRouter()
 
   const [ssnFile, setSsnFile] = useState<UploadSlot>({ file: null })
@@ -147,7 +150,7 @@ export default function Step4Identity() {
   }) => (
     <label
       htmlFor={id}
-      className="block cursor-pointer rounded-xl border border-dashed border-[#0D9488] bg-white px-6 py-8 text-center transition hover:bg-[#f0fffe]"
+      className="block cursor-pointer rounded-xl border border-dashed border-[color:var(--brand-primary)] bg-white px-6 py-8 text-center transition hover:bg-[color:var(--brand-primary)]/5"
     >
       <input
         id={id}
@@ -159,7 +162,7 @@ export default function Step4Identity() {
         }}
       />
       {slot.file || slot.name ? (
-        <div className="mx-auto flex max-w-md items-center justify-between gap-3 rounded-lg border border-[#9fded8] bg-[#ecfffd] px-4 py-3">
+        <div className="mx-auto flex max-w-md items-center justify-between gap-3 rounded-lg border border-[color:var(--brand-primary)]/40 bg-[color:var(--brand-primary)]/10 px-4 py-3">
           <div className="flex min-w-0 items-center gap-3">
             <DocumentFileThumbnail
               file={slot.file}
@@ -167,9 +170,9 @@ export default function Step4Identity() {
               fileName={slot.file?.name || slot.name || ""}
             />
             <div className="min-w-0 text-left">
-              <p className="truncate text-[13px] font-semibold text-[#0D9488]">{slot.file?.name || slot.name}</p>
+              <p className="truncate text-[13px] font-semibold text-[color:var(--brand-primary)]">{slot.file?.name || slot.name}</p>
               {isPdfFile(slot.file ?? null, slot.file?.name || slot.name || "", slot.url ?? null) && (
-                <p className="text-[10px] font-medium text-[#0f766e]">PDF Document</p>
+                <p className="text-[10px] font-medium text-[color:var(--brand-secondary)]">PDF Document</p>
               )}
               {slot.file ? (
                 <p className="text-[11px] text-slate-400">
@@ -214,12 +217,12 @@ export default function Step4Identity() {
         </div>
       ) : (
         <div className="flex flex-col items-center gap-2">
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#e6faf8]">
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[color:var(--brand-primary)]/10">
             <Image src="/images/upload.svg" alt="" width={22} height={22} />
           </div>
           <p className="text-[13px] text-slate-600">Drag your file(s) to start uploading</p>
           <p className="text-[11px] text-slate-400">OR</p>
-          <span className="rounded-md border border-[#0D9488] px-4 py-1 text-[12px] font-medium text-[#0D9488] hover:bg-[#f0fffe]">
+          <span className="rounded-md border border-[color:var(--brand-primary)] px-4 py-1 text-[12px] font-medium text-[color:var(--brand-primary)] hover:bg-[color:var(--brand-primary)]/5">
             Browse files
           </span>
           <p className="text-[10px] text-slate-400">Max 10 MB files are allowed</p>
@@ -235,7 +238,7 @@ export default function Step4Identity() {
       rightPanelImageClassName="opacity-60 object-top"
       rightPanelOverlayClassName="bg-white/65"
     >
-      <div className="flex h-full flex-col px-10 pb-10 pt-8">
+      <div className="flex h-full flex-col px-10 pb-10 pt-8" style={brandingToCssVars(branding)}>
         <OnboardingStepper />
 
         <div className="flex flex-1 flex-col pt-8">
@@ -247,7 +250,7 @@ export default function Step4Identity() {
             <button
               type="button"
               onClick={handleSkip}
-              className="cursor-pointer text-[12px] font-medium leading-5 text-[#0D9488]"
+              className="cursor-pointer text-[12px] font-medium leading-5 text-[color:var(--brand-primary)]"
             >
               Skip for Now →
             </button>
@@ -287,7 +290,7 @@ export default function Step4Identity() {
               type="button"
               onClick={() => router.back()}
               disabled={loading}
-              className="cursor-pointer rounded-md border border-[#0D9488] bg-white px-5 py-2 text-[12px] font-medium leading-5 text-[#0D9488] transition hover:bg-[#f0fffe] disabled:opacity-50"
+              className="cursor-pointer rounded-md border border-[color:var(--brand-primary)] bg-white px-5 py-2 text-[12px] font-medium leading-5 text-[color:var(--brand-primary)] transition hover:bg-[color:var(--brand-primary)]/5 disabled:opacity-50"
             >
               Back
             </button>
@@ -296,7 +299,7 @@ export default function Step4Identity() {
               onClick={handleNext}
               disabled={loading}
               className={`group inline-flex cursor-pointer items-center gap-2 rounded-md px-6 py-2 text-[12px] font-medium leading-5 text-white transition ${
-                loading ? "bg-gray-400 cursor-not-allowed" : "bg-[#0D9488] hover:bg-[#0b7a70]"
+                loading ? "bg-gray-400 cursor-not-allowed" : "bg-[color:var(--brand-primary)] hover:brightness-90"
               }`}
             >
               {loading ? "Uploading..." : "Next"}

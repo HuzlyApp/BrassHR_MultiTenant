@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { AlarmClock, Calendar, ChevronDown } from "lucide-react";
+import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import { dayLabel, formatDurationShort, formatTimeParts, formatTimer } from "./format";
 import type { AttendanceLog } from "./types";
 
@@ -10,8 +11,7 @@ type Props = {
   recentAttendance: AttendanceLog[];
 };
 
-const LEGEND = [
-  { label: "Work time", color: "#BC8B41" },
+const LEGEND_STATIC = [
   { label: "Break", color: "#0062FF" },
   { label: "Overtime", color: "#F59E0B" },
   { label: "Late", color: "#E11D48" },
@@ -20,7 +20,12 @@ const LEGEND = [
 const TIMELINE_MARKS = ["9:00", "11:00", "13:00", "15:00", "16:00", "17:00"];
 
 export function ApplicantTimesheetsTab({ todayAttendance, recentAttendance }: Props) {
+  const branding = useTenantBranding();
   const [rangeLabel] = useState("Last 7 days");
+  const legend = useMemo(
+    () => [{ label: "Work time", color: branding.primaryHex }, ...LEGEND_STATIC],
+    [branding.primaryHex]
+  );
   const logs = useMemo(() => {
     const merged = todayAttendance ? [todayAttendance, ...recentAttendance] : recentAttendance;
     const unique = new Map<string, AttendanceLog>();
@@ -63,7 +68,7 @@ export function ApplicantTimesheetsTab({ todayAttendance, recentAttendance }: Pr
 
           <div className="space-y-4 px-3.5 py-4">
             <div className="flex flex-wrap items-center justify-center gap-6 px-2 py-3">
-              {LEGEND.map((item) => (
+              {legend.map((item) => (
                 <div key={item.label} className="flex items-center gap-2 text-[12px] text-[#374151]">
                   <span className="h-3 w-3 rounded-[2px]" style={{ backgroundColor: item.color }} />
                   {item.label}
@@ -76,7 +81,7 @@ export function ApplicantTimesheetsTab({ todayAttendance, recentAttendance }: Pr
                 No timesheet entries yet. Clock in from the Schedule tab to start tracking time.
               </p>
             ) : (
-              logs.map((log) => <TimesheetRow key={log.id} log={log} />)
+              logs.map((log) => <TimesheetRow key={log.id} log={log} workBarColor={branding.primaryHex} />)
             )}
           </div>
         </div>
@@ -84,7 +89,7 @@ export function ApplicantTimesheetsTab({ todayAttendance, recentAttendance }: Pr
   );
 }
 
-function TimesheetRow({ log }: { log: AttendanceLog }) {
+function TimesheetRow({ log, workBarColor }: { log: AttendanceLog; workBarColor: string }) {
   const clockIn = formatTimeParts(log.clock_in_at);
   const clockOut = formatTimeParts(log.clock_out_at);
   const durationLabel =
@@ -124,8 +129,8 @@ function TimesheetRow({ log }: { log: AttendanceLog }) {
           <div className="relative h-[15px] rounded bg-[#ECF1F9]">
             {barWidth > 0 ? (
               <div
-                className="absolute inset-y-0 left-0 rounded bg-[#BC8B41]"
-                style={{ width: `${barWidth}%` }}
+                className="absolute inset-y-0 left-0 rounded"
+                style={{ width: `${barWidth}%`, backgroundColor: workBarColor }}
               />
             ) : null}
           </div>

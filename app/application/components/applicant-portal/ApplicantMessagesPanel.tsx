@@ -64,7 +64,9 @@ export function ApplicantMessagesPanel({
               <div
                 key={message.id}
                 className={`max-w-[85%] rounded-2xl px-4 py-3 text-[14px] leading-5 ${
-                  isApplicant ? "ml-auto bg-[#BC8B41] text-white" : "mr-auto bg-[#F1F5F9] text-[#374151]"
+                  isApplicant
+                    ? "ml-auto bg-[color:var(--brand-primary)] text-white"
+                    : "mr-auto bg-[#F1F5F9] text-[#374151]"
                 }`}
               >
                 <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.08em] opacity-75">
@@ -82,13 +84,13 @@ export function ApplicantMessagesPanel({
             onChange={(event) => onMessageBodyChange(event.target.value)}
             placeholder="Ask about your application status or required documents."
             rows={3}
-            className="w-full resize-none rounded-lg border border-[#E5E7EB] px-4 py-3 text-[14px] text-[#012352] outline-none placeholder:text-[#94A3B8] focus:border-[#BC8B41]"
+            className="w-full resize-none rounded-lg border border-[#E5E7EB] px-4 py-3 text-[14px] text-[#012352] outline-none placeholder:text-[#94A3B8] focus:border-[color:var(--brand-primary)]"
           />
           <div className="mt-3 flex justify-end">
             <button
               type="submit"
               disabled={sending || !messageBody.trim()}
-              className="inline-flex h-10 min-w-[120px] items-center justify-center rounded-lg bg-[#BC8B41] px-4 text-[14px] font-semibold text-white transition hover:bg-[#a67a38] disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex h-10 min-w-[120px] items-center justify-center rounded-lg bg-[color:var(--brand-primary)] px-4 text-[14px] font-semibold text-white transition hover:brightness-90 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {sending ? "Sending..." : "Send"}
             </button>

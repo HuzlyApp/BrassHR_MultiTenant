@@ -10,6 +10,8 @@ import OnboardingLayout from "@/app/components/OnboardingLayout"
 import OnboardingStepper from "@/app/components/OnboardingStepper"
 import { useOnboardingStepNav } from "@/lib/onboarding/use-onboarding-step-nav"
 import OnboardingLoader from "@/app/components/OnboardingLoader"
+import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext"
+import { brandingToCssVars } from "@/lib/tenant/tenant-branding"
 import { ChevronRight } from "lucide-react"
 import {
   mergeQuestionCatalogWithDb,
@@ -146,6 +148,7 @@ function splitQuestionDetail(question: string, description?: string | null) {
 }
 
 export default function DocumentationQuiz() {
+  const branding = useTenantBranding()
   const router = useRouter()
   const nav = useOnboardingStepNav()
   const [category, setCategory] = useState<CategoryRow | null>(null)
@@ -396,7 +399,10 @@ export default function DocumentationQuiz() {
 
   if (loadError) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-teal-600 text-white p-6 gap-4">
+      <div
+        className="flex min-h-screen flex-col items-center justify-center gap-4 p-6 text-white"
+        style={{ backgroundColor: branding.primaryHex }}
+      >
         <p>{loadError}</p>
         <button
           type="button"
@@ -411,7 +417,10 @@ export default function DocumentationQuiz() {
 
   if (!category) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-teal-600 p-6 text-center">
+      <div
+        className="flex min-h-screen flex-col items-center justify-center p-6 text-center text-white"
+        style={{ backgroundColor: branding.primaryHex }}
+      >
         <p className="text-white mb-4">
           No category found with id{" "}
           <code className="bg-white/10 px-1 rounded">{DOCUMENTATION_CATEGORY_ID}</code>. Add or fix the
@@ -436,7 +445,7 @@ export default function DocumentationQuiz() {
       rightPanelImageClassName="opacity-60 object-top"
       rightPanelOverlayClassName="bg-white/65"
     >
-      <div className="flex h-full flex-col px-10 pb-10 pt-8">
+      <div className="flex h-full flex-col px-10 pb-10 pt-8" style={brandingToCssVars(branding)}>
         <OnboardingStepper />
 
         <div className="flex flex-1 flex-col pt-8">
@@ -452,7 +461,7 @@ export default function DocumentationQuiz() {
               <button
                 type="button"
                 onClick={() => nav.nextRoute && router.push(nav.nextRoute)}
-                className="cursor-pointer text-[12px] font-medium leading-5 text-[#0D9488]"
+                className="cursor-pointer text-[12px] font-medium leading-5 text-[color:var(--brand-primary)]"
               >
                 Skip for Now →
               </button>
@@ -480,7 +489,7 @@ export default function DocumentationQuiz() {
               return (
                 <div key={q.id} className="flex items-center justify-between py-4">
                   <div className="flex flex-1 min-w-0 items-start gap-3 pr-6">
-                    <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-[#0D9488] text-[11px] font-semibold text-[#0D9488]">
+                    <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-[color:var(--brand-primary)] text-[11px] font-semibold text-[color:var(--brand-primary)]">
                       {index + 1}
                     </div>
                     <div>
@@ -500,8 +509,8 @@ export default function DocumentationQuiz() {
                         onClick={() => selectAnswer(q.id, n)}
                         className={`flex h-5 w-5 cursor-pointer items-center justify-center rounded-[5px] border-2 transition ${
                           answers[q.id] === n
-                            ? "border-[#0D9488] bg-[#0D9488]"
-                            : "border-slate-300 bg-white hover:border-[#0D9488]"
+                            ? "border-[color:var(--brand-primary)] bg-[color:var(--brand-primary)]"
+                            : "border-slate-300 bg-white hover:border-[color:var(--brand-primary)]"
                         }`}
                       >
                         {answers[q.id] === n && (
@@ -523,7 +532,7 @@ export default function DocumentationQuiz() {
               <button
                 type="button"
                 onClick={back}
-                className="cursor-pointer rounded-md border border-[#0D9488] bg-white px-5 py-2 text-[12px] font-medium leading-5 text-[#0D9488] transition hover:bg-[#f0fffe]"
+                className="cursor-pointer rounded-md border border-[color:var(--brand-primary)] bg-white px-5 py-2 text-[12px] font-medium leading-5 text-[color:var(--brand-primary)] transition hover:bg-[color:var(--brand-primary)]/5"
               >
                 Back
               </button>
@@ -531,7 +540,7 @@ export default function DocumentationQuiz() {
                 type="button"
                 onClick={() => void next()}
                 disabled={saving || questions.length === 0}
-                className="group inline-flex cursor-pointer items-center gap-2 rounded-md bg-[#0D9488] px-6 py-2 text-[12px] font-medium leading-5 text-white transition hover:bg-[#0b7a70] disabled:opacity-50"
+                className="group inline-flex cursor-pointer items-center gap-2 rounded-md bg-[color:var(--brand-primary)] px-6 py-2 text-[12px] font-medium leading-5 text-white transition hover:brightness-90 disabled:opacity-50"
               >
                 {saving
                   ? "Saving..."

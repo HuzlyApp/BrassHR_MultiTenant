@@ -1,14 +1,15 @@
 "use client";
 
+import type { CSSProperties } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ChevronDown, ChevronRight, Calendar } from "lucide-react";
 import { useState } from "react";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
+import { isRemoteOrBlobImageSrc, normalizeBrandingImageSrc } from "@/lib/tenant/tenant-branding";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 
-const GOLD = "#BC8B41";
 const ICON_BASE = "/icons/braas-HR/client-dashboard";
 
 type NavItem = {
@@ -40,6 +41,14 @@ export function ApplicantPortalSidebar({
   const [expanded, setExpanded] = useState<string[]>(["Finance", "Teams"]);
   const firstName = applicantName.split(" ")[0] || "Applicant";
   const initial = firstName.charAt(0).toUpperCase();
+  const logoSrc = normalizeBrandingImageSrc(branding.logoUrl, "/images/new-logo-nexus.svg", {
+    allowBlob: true,
+  });
+  const logoUseNativeImg = isRemoteOrBlobImageSrc(logoSrc);
+  const brandBorderStyle = { borderColor: branding.primaryHex } as CSSProperties;
+  const avatarStyle = { backgroundColor: branding.primaryHex } as CSSProperties;
+  const activeTextClass = "font-normal text-[color:var(--brand-primary)]";
+  const inactiveTextClass = "font-light text-[#012352]";
 
   const navItems: NavItem[] = [
     {
@@ -91,17 +100,25 @@ export function ApplicantPortalSidebar({
         <div className="flex items-center gap-2.5">
           <div
             className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg border bg-white"
-            style={{ borderColor: GOLD }}
+            style={brandBorderStyle}
           >
-            <img
-              src={branding.logoUrl || "/images/new-logo-nexus.svg"}
-              alt=""
-              className="max-h-6 max-w-6 object-contain"
-            />
+            {logoUseNativeImg ? (
+              <img src={logoSrc} alt={branding.companyName} className="max-h-6 max-w-6 object-contain" />
+            ) : (
+              <Image
+                src={logoSrc}
+                alt={branding.companyName}
+                width={24}
+                height={24}
+                className="max-h-6 max-w-6 object-contain"
+              />
+            )}
           </div>
           <div className="min-w-0">
             <p className="truncate text-[18px] font-semibold leading-7 text-[#012352]">{firstName}</p>
-            <p className="text-[10px] font-light uppercase leading-[15px] text-[#BC8B41]">Dashboard</p>
+            <p className="text-[10px] font-light uppercase leading-[15px] text-[color:var(--brand-primary)]">
+              Dashboard
+            </p>
           </div>
         </div>
       </div>
@@ -120,21 +137,13 @@ export function ApplicantPortalSidebar({
                   width={20}
                   height={20}
                   className="h-5 w-5 shrink-0"
-                  style={
-                    isGold
-                      ? {
-                          filter:
-                            "brightness(0) saturate(100%) invert(62%) sepia(40%) saturate(785%) hue-rotate(359deg)",
-                        }
-                      : undefined
-                  }
                 />
               ) : (
-                item.lucideIcon
+                <span className={isGold ? "text-[color:var(--brand-primary)]" : undefined}>
+                  {item.lucideIcon}
+                </span>
               )}
-              <span
-                className={`text-[14px] leading-5 ${isGold ? "font-normal text-[#BC8B41]" : "font-light text-[#012352]"}`}
-              >
+              <span className={`text-[14px] leading-5 ${isGold ? activeTextClass : inactiveTextClass}`}>
                 {item.label}
               </span>
             </>
@@ -144,7 +153,9 @@ export function ApplicantPortalSidebar({
             <div key={item.label}>
               {item.children?.length ? (
                 <div
-                  className={`flex items-center gap-3 rounded-md py-1 pr-3 ${isGold ? "text-[#BC8B41]" : "text-[#012352]"}`}
+                  className={`flex items-center gap-3 rounded-md py-1 pr-3 ${
+                    isGold ? "text-[color:var(--brand-primary)]" : "text-[#012352]"
+                  }`}
                 >
                   {item.disabled ? (
                     <div className="flex flex-1 items-center gap-3 opacity-70">{rowContent}</div>
@@ -173,7 +184,7 @@ export function ApplicantPortalSidebar({
                     item.onClick?.();
                     onMobileClose?.();
                   }}
-                  className="flex w-full items-center gap-3 rounded-md py-1 pr-3 text-left text-[#012352] transition hover:text-[#BC8B41]"
+                  className="flex w-full items-center gap-3 rounded-md py-1 pr-3 text-left text-[#012352] transition hover:text-[color:var(--brand-primary)]"
                 >
                   {rowContent}
                 </button>
@@ -186,7 +197,9 @@ export function ApplicantPortalSidebar({
                   href={item.href ?? "#"}
                   onClick={onMobileClose}
                   className={`flex items-center gap-3 rounded-md py-1 pr-3 transition ${
-                    isGold ? "text-[#BC8B41]" : "text-[#012352] hover:text-[#BC8B41]"
+                    isGold
+                      ? "text-[color:var(--brand-primary)]"
+                      : "text-[#012352] hover:text-[color:var(--brand-primary)]"
                   }`}
                 >
                   {rowContent}
@@ -216,7 +229,7 @@ export function ApplicantPortalSidebar({
           <div className="flex min-w-0 items-center gap-2.5">
             <div
               className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-full text-[14px] font-semibold text-white"
-              style={{ backgroundColor: GOLD }}
+              style={avatarStyle}
             >
               {initial}
             </div>

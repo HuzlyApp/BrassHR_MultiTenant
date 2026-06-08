@@ -45,6 +45,18 @@ describe("buildAddressQuery", () => {
   it("returns empty for all blank parts", () => {
     expect(buildAddressQuery({})).toBe("")
   })
+
+  it("skips address2 when it duplicates address1", () => {
+    expect(
+      buildAddressQuery({
+        address1: "1515 West Pacific Avenue",
+        address2: "1515 West Pacific Avenue",
+        city: "Los Angeles",
+        state: "CA",
+        zipCode: "90291",
+      })
+    ).toBe("1515 West Pacific Avenue, Los Angeles, CA, 90291")
+  })
 })
 
 describe("shouldValidateAddressQuery", () => {

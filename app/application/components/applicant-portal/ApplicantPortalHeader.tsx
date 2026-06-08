@@ -1,11 +1,12 @@
 "use client";
 
+import type { CSSProperties } from "react";
 import Image from "next/image";
 import { ChevronDown, Menu, Search } from "lucide-react";
 import { useState } from "react";
+import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 
 const ICON_BASE = "/icons/braas-HR/client-dashboard";
-const GOLD = "#BC8B41";
 
 type Props = {
   applicantName: string;
@@ -14,9 +15,11 @@ type Props = {
 };
 
 export function ApplicantPortalHeader({ applicantName, onMenuClick, onOpenMessages }: Props) {
+  const branding = useTenantBranding();
   const [profileOpen, setProfileOpen] = useState(false);
   const firstName = applicantName.split(" ")[0] || "Applicant";
   const initial = firstName.charAt(0).toUpperCase();
+  const avatarStyle = { backgroundColor: branding.primaryHex } as CSSProperties;
 
   return (
     <header className="sticky top-0 z-30 border-b border-[#E2E8F0] bg-white">
@@ -36,7 +39,7 @@ export function ApplicantPortalHeader({ applicantName, onMenuClick, onOpenMessag
             <input
               type="search"
               placeholder="Search anything"
-              className="h-10 w-full rounded-lg border border-[#E5E7EB] bg-white pl-10 pr-4 text-[14px] text-[#012352] outline-none placeholder:text-[#94A3B8] focus:border-[#BC8B41]"
+              className="h-10 w-full rounded-lg border border-[#E5E7EB] bg-white pl-10 pr-4 text-[14px] text-[#012352] outline-none placeholder:text-[#94A3B8] focus:border-[color:var(--brand-primary)]"
             />
           </label>
         </div>
@@ -67,7 +70,7 @@ export function ApplicantPortalHeader({ applicantName, onMenuClick, onOpenMessag
             >
               <span
                 className="flex h-[30px] w-[30px] items-center justify-center rounded-full text-[14px] font-semibold text-white"
-                style={{ backgroundColor: GOLD }}
+                style={avatarStyle}
               >
                 {initial}
               </span>

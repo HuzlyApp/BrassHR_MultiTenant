@@ -2,8 +2,6 @@
 
 import type { ApplicantPortalTab } from "./types";
 
-const GOLD = "#BC8B41";
-
 type Props = {
   activeTab: ApplicantPortalTab;
   onChange: (tab: ApplicantPortalTab) => void;
@@ -26,9 +24,11 @@ export function ApplicantPortalTabs({ activeTab, onChange }: Props) {
               type="button"
               onClick={() => onChange(tab.id)}
               className={`px-2 pb-2.5 pt-1 text-[14px] leading-5 transition ${
-                active ? "font-normal text-[#BC8B41]" : "font-normal text-[#012352]"
+                active
+                  ? "font-normal text-[color:var(--brand-primary)]"
+                  : "font-normal text-[#012352]"
               }`}
-              style={active ? { borderBottom: `1.5px solid ${GOLD}` } : undefined}
+              style={active ? { borderBottom: "1.5px solid var(--brand-primary)" } : undefined}
             >
               {tab.label}
             </button>

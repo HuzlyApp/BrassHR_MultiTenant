@@ -3,34 +3,46 @@
 import { APPLICATION_ROUTES } from "@/lib/onboarding/application-routes"
 import { applicationPath } from "@/lib/tenant/with-tenant"
 import { useEffect, useMemo, useRef, useState } from "react"
+import type { CSSProperties } from "react"
 import { useRouter } from "next/navigation"
 import OnboardingCheckbox from "@/app/components/OnboardingCheckbox"
+import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext"
+import { brandingShellGradient, brandingToCssVars } from "@/lib/tenant/tenant-branding"
 
 type TermsSection = {
   title: string
   content: string
 }
 
-const TERMS_SECTIONS: TermsSection[] = [
-  { title: "1. Acceptance", content: "By using Nexus MedPro Staffing, you agree to these Terms & Conditions." },
-  { title: "2. Eligibility", content: "You must provide true details and valid work credentials." },
-  { title: "3. Account Use", content: "Keep your login details safe. You are responsible for account activity." },
-  { title: "4. Resume Data", content: "You allow us to parse resume details and use them for onboarding." },
-  { title: "5. Background Verification", content: "Some roles may require document checks and credential verification." },
-  { title: "6. Communication", content: "You agree to receive email/SMS updates for onboarding progress." },
-  { title: "7. Privacy", content: "Your personal information is handled according to our privacy policy." },
-  { title: "8. Prohibited Conduct", content: "Do not provide fake details or misuse the platform in any way." },
-  { title: "9. Liability", content: "Nexus MedPro Staffing is not responsible for indirect or incidental damages." },
-  { title: "10. Governing Law", content: "These Terms are governed by applicable local laws." },
-]
+function buildTermsSections(companyName: string): TermsSection[] {
+  return [
+    { title: "1. Acceptance", content: `By using ${companyName}, you agree to these Terms & Conditions.` },
+    { title: "2. Eligibility", content: "You must provide true details and valid work credentials." },
+    { title: "3. Account Use", content: "Keep your login details safe. You are responsible for account activity." },
+    { title: "4. Resume Data", content: "You allow us to parse resume details and use them for onboarding." },
+    { title: "5. Background Verification", content: "Some roles may require document checks and credential verification." },
+    { title: "6. Communication", content: "You agree to receive email/SMS updates for onboarding progress." },
+    { title: "7. Privacy", content: "Your personal information is handled according to our privacy policy." },
+    { title: "8. Prohibited Conduct", content: "Do not provide fake details or misuse the platform in any way." },
+    { title: "9. Liability", content: `${companyName} is not responsible for indirect or incidental damages.` },
+    { title: "10. Governing Law", content: "These Terms are governed by applicable local laws." },
+  ]
+}
 
 export default function TermsAndConditionsPage() {
+  const branding = useTenantBranding()
   const router = useRouter()
   const scrollRef = useRef<HTMLDivElement>(null)
   const [isAtBottom, setIsAtBottom] = useState(false)
   const [agreed, setAgreed] = useState(false)
 
-  const content = useMemo(() => TERMS_SECTIONS, [])
+  const shellStyle: CSSProperties = {
+    ...brandingToCssVars(branding),
+    background: brandingShellGradient(branding),
+  }
+  const primaryBtnStyle = { backgroundColor: branding.primaryHex } as CSSProperties
+
+  const content = useMemo(() => buildTermsSections(branding.companyName), [branding.companyName])
 
   useEffect(() => {
     const el = scrollRef.current
@@ -63,8 +75,11 @@ export default function TermsAndConditionsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[linear-gradient(135deg,#19c7c0_0%,#10a58f_100%)] flex items-center justify-center p-4 md:p-8">
-      <div className="w-full max-w-4xl rounded-xl bg-white shadow-2xl p-6 md:p-8">
+    <div
+      className="flex min-h-screen items-center justify-center p-4 md:p-8"
+      style={shellStyle}
+    >
+      <div className="w-full max-w-4xl rounded-xl bg-white p-6 shadow-2xl md:p-8">
         <h1 className="text-3xl font-semibold text-slate-900">Terms & Conditions</h1>
 
         <div
@@ -100,7 +115,8 @@ export default function TermsAndConditionsPage() {
                 type="button"
                 onClick={handleAccept}
                 disabled={!agreed}
-                className="rounded-md bg-[#0D9488] px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-[#0b7c72] disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded-md px-6 py-2.5 text-sm font-semibold text-white transition hover:brightness-90 disabled:cursor-not-allowed disabled:opacity-50"
+                style={primaryBtnStyle}
               >
                 Accept and Continue
               </button>

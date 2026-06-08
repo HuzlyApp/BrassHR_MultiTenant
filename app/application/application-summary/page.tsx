@@ -7,6 +7,8 @@ import Link from "next/link"
 import { CheckCircle2, Circle, CircleAlert, Pencil } from "lucide-react"
 import OnboardingLayout from "@/app/components/OnboardingLayout"
 import OnboardingStepper from "@/app/components/OnboardingStepper"
+import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext"
+import { brandingToCssVars } from "@/lib/tenant/tenant-branding"
 import OnboardingSuccessPopup from "@/app/components/OnboardingSuccessPopup"
 import { countCompleteReferencesFromStorage } from "@/lib/referencesValidation"
 import {
@@ -33,19 +35,19 @@ function SummaryRow({
   return (
     <div
       className={`group flex items-center justify-between rounded-xl border px-4 py-3 ${
-        complete ? "border-[#0D9488] bg-[#f0fffe]" : "border-slate-200 bg-slate-50"
+        complete ? "border-[color:var(--brand-primary)] bg-[color:var(--brand-primary)]/5" : "border-slate-200 bg-slate-50"
       }`}
     >
       <div className="flex min-w-0 flex-1 items-center gap-3">
         {complete ? (
-          <CheckCircle2 className="h-5 w-5 shrink-0 text-[#0D9488]" aria-hidden />
+          <CheckCircle2 className="h-5 w-5 shrink-0 text-[color:var(--brand-primary)]" aria-hidden />
         ) : (
           <Circle className="h-5 w-5 shrink-0 text-slate-300" aria-hidden />
         )}
         <div className="min-w-0">
           <p className="text-[13px] font-semibold text-slate-800">{title}</p>
           {subtitle ? (
-            <p className={`text-[11px] ${complete ? "text-[#0D9488]" : "text-slate-500"}`}>{subtitle}</p>
+            <p className={`text-[11px] ${complete ? "text-[color:var(--brand-primary)]" : "text-slate-500"}`}>{subtitle}</p>
           ) : null}
         </div>
       </div>
@@ -63,6 +65,7 @@ function SummaryRow({
 }
 
 export default function SummaryPage() {
+  const branding = useTenantBranding()
   const router = useRouter()
   const nav = useOnboardingStepNav()
 
@@ -261,7 +264,7 @@ export default function SummaryPage() {
       rightPanelImageClassName="opacity-60 object-top"
       rightPanelOverlayClassName="bg-white/65"
     >
-      <div className="flex h-full flex-col px-10 pb-10 pt-8">
+      <div className="flex h-full flex-col px-10 pb-10 pt-8" style={brandingToCssVars(branding)}>
         <OnboardingStepper />
 
         <div className="flex flex-1 flex-col pt-8">
@@ -304,7 +307,7 @@ export default function SummaryPage() {
             <button
               type="button"
               onClick={() => (nav.prevRoute ? router.push(nav.prevRoute) : router.back())}
-              className="cursor-pointer rounded-md border border-[#0D9488] bg-white px-5 py-2 text-[12px] font-medium leading-5 text-[#0D9488] transition hover:bg-[#f0fffe]"
+              className="cursor-pointer rounded-md border border-[color:var(--brand-primary)] bg-white px-5 py-2 text-[12px] font-medium leading-5 text-[color:var(--brand-primary)] transition hover:bg-[color:var(--brand-primary)]/5"
             >
               Back
             </button>
@@ -313,7 +316,7 @@ export default function SummaryPage() {
               onClick={handleFinalSubmit}
               disabled={loading}
               className={`rounded-md px-6 py-2 text-[12px] font-medium leading-5 text-white transition ${
-                loading ? "cursor-not-allowed bg-gray-400 opacity-70" : "cursor-pointer bg-[#0D9488] hover:bg-[#0b7a70]"
+                loading ? "cursor-not-allowed bg-gray-400 opacity-70" : "cursor-pointer bg-[color:var(--brand-primary)] hover:brightness-90"
               }`}
             >
               {loading ? "Finalizing..." : "Save & continue"}
@@ -411,7 +414,7 @@ export default function SummaryPage() {
                 setShowIncompleteWarningModal(false)
                 if (first?.href) router.push(first.href)
               }}
-              style={{ backgroundColor: "#0F766E", color: "#FFFFFF" }}
+              style={{ backgroundColor: "var(--brand-primary)", color: "#FFFFFF" }}
               className="w-full rounded-lg px-4 py-2.5 text-sm font-semibold shadow-sm transition hover:brightness-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0F766E] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto sm:min-w-[10rem]"
             >
               Continue

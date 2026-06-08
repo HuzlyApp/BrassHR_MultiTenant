@@ -1,14 +1,36 @@
 "use client"
 
+import type { CSSProperties } from "react"
 import { useEffect, useRef } from "react"
 import { applicationPath } from "@/lib/tenant/with-tenant"
-import { resolveClientOnboardingTenantSlug } from "@/lib/tenant/client-onboarding-slug";
+import { resolveClientOnboardingTenantSlug } from "@/lib/tenant/client-onboarding-slug"
 import Image from "next/image"
 import Link from "next/link"
 import { Check } from "lucide-react"
+import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext"
+import {
+  brandingShellGradient,
+  brandingToCssVars,
+  isRemoteOrBlobImageSrc,
+  normalizeBrandingImageSrc,
+} from "@/lib/tenant/tenant-branding"
 
 export default function SuccessPage() {
+  const branding = useTenantBranding()
   const emailSentRef = useRef(false)
+
+  const shellStyle: CSSProperties = {
+    ...brandingToCssVars(branding),
+    background: brandingShellGradient(branding),
+  }
+  const panelSrc = normalizeBrandingImageSrc(branding.loginBackgroundSrc, "/images/handshake.jpg")
+  const logoSrc = normalizeBrandingImageSrc(branding.logoUrl, "/images/new-logo-nexus.svg", {
+    allowBlob: true,
+  })
+  const panelUseNativeImg = isRemoteOrBlobImageSrc(panelSrc)
+  const logoUseNativeImg = isRemoteOrBlobImageSrc(logoSrc)
+  const checkCircleStyle = { backgroundColor: branding.primaryHex } as CSSProperties
+  const primaryBtnStyle = { backgroundColor: branding.primaryHex } as CSSProperties
 
   useEffect(() => {
     if (emailSentRef.current) return
@@ -43,21 +65,26 @@ export default function SuccessPage() {
   }, [])
 
   return (
-    <div className="min-h-screen bg-[linear-gradient(135deg,#27c8c0_0%,#16a79a_100%)] flex items-center justify-center p-6 md:p-12">
-      <div className="w-full max-w-[840px] min-h-[500px] h-[500px] overflow-hidden rounded-2xl bg-white shadow-[0_30px_80px_rgba(0,0,0,0.18)]">
+    <div
+      style={shellStyle}
+      className="flex min-h-screen items-center justify-center p-6 md:p-12"
+    >
+      <div className="h-[500px] min-h-[500px] w-full max-w-[840px] overflow-hidden rounded-2xl bg-white shadow-[0_30px_80px_rgba(0,0,0,0.18)]">
         <div className="flex h-full">
-          <div className="w-full md:w-[510px] flex flex-col items-center justify-center px-10 pb-10 pt-[56px] text-center">
-            <div className=" flex h-[72px] w-[72px] mb-6 items-center justify-center rounded-full bg-[#28c7bf] text-white shadow-sm flex-none">
+          <div className="flex w-full flex-col items-center justify-center px-10 pb-10 pt-[56px] text-center md:w-[510px]">
+            <div
+              className="mb-6 flex h-[72px] w-[72px] flex-none items-center justify-center rounded-full text-white shadow-sm"
+              style={checkCircleStyle}
+            >
               <Check className="h-8 w-8" strokeWidth={2.5} />
             </div>
-            <div className="space-y-6 max-w-[420px] mx-auto">
-
+            <div className="mx-auto max-w-[420px] space-y-6">
               <div>
-                <h1 className="text-[32px] font-semibold text-slate-900 tracking-[-0.03em]">
+                <h1 className="text-[32px] font-semibold tracking-[-0.03em] text-slate-900">
                   Application Received
                 </h1>
                 <p className="mt-4 text-[15px] leading-7 text-slate-600">
-                  We’ll contact you within 1–3 business days.
+                  We&apos;ll contact you within 1–3 business days.
                   <br />
                   Please check your email for the latest update.
                 </p>
@@ -66,36 +93,53 @@ export default function SuccessPage() {
 
             <Link
               href={applicationPath("/application/application-status")}
-              className="mt-10 inline-flex items-center justify-center rounded-xl bg-[#0D9488] px-8 py-3 text-[14px] font-semibold text-white transition hover:bg-[#0b7a70]"
+              className="mt-10 inline-flex items-center justify-center rounded-xl px-8 py-3 text-[14px] font-semibold text-white transition hover:brightness-90"
+              style={primaryBtnStyle}
             >
               Check Status
             </Link>
           </div>
 
-          <div className="relative hidden md:flex w-[330px] h-[500px] p-[20px] flex flex-col gap-[24px] items-center justify-center overflow-hidden bg-white">
-            <Image
-              src="/images/success.jpg"
-              alt="Nurse background"
-              fill
-              className="object-cover grayscale bg-white/60 object-center opacity-60"
-              priority
-            />
+          <div className="relative hidden h-[500px] w-[330px] flex-col items-center justify-center gap-[24px] overflow-hidden bg-white p-[20px] md:flex">
+            {panelUseNativeImg ? (
+              <img
+                src={panelSrc}
+                alt=""
+                className="absolute inset-0 h-full w-full object-cover object-center bg-white/60 opacity-60 grayscale"
+              />
+            ) : (
+              <Image
+                src={panelSrc}
+                alt=""
+                fill
+                className="object-cover object-center bg-white/60 opacity-60 grayscale"
+                priority
+              />
+            )}
             <div className="absolute inset-0 bg-white/65" />
-            <div className="relative flex flex-col items-center justify-center gap-[24px] text-center w-full">
+            <div className="relative flex w-full flex-col items-center justify-center gap-[24px] text-center">
               <div className="relative h-16 w-44">
-                <Image
-                  src="/images/new-logo-nexus.svg"
-                  alt="Nexus MedPro Logo"
-                  fill
-                  className="object-contain"
-                  priority
-                />
+                {logoUseNativeImg ? (
+                  <img
+                    src={logoSrc}
+                    alt={branding.companyName}
+                    className="h-full w-full object-contain"
+                  />
+                ) : (
+                  <Image
+                    src={logoSrc}
+                    alt={branding.companyName}
+                    fill
+                    className="object-contain"
+                    priority
+                  />
+                )}
               </div>
               <div className="flex w-full items-center justify-center gap-3">
                 <div className="h-px flex-1 bg-slate-300/70" />
                 <Image
                   src="/icons/circle-star-icon.svg"
-                  alt="Star icon"
+                  alt=""
                   width={24}
                   height={24}
                   className="object-contain"
@@ -103,7 +147,7 @@ export default function SuccessPage() {
                 <div className="h-px flex-1 bg-slate-300/70" />
               </div>
               <p className="max-w-[240px] text-[14px] leading-6 text-slate-700">
-                Nexus MedPro Staffing – Connecting Healthcare professionals with service providers
+                {branding.tagline}
               </p>
             </div>
           </div>
@@ -112,5 +156,3 @@ export default function SuccessPage() {
     </div>
   )
 }
-
-

@@ -185,6 +185,22 @@ export function brandingFromTenantRow(
   };
 }
 
+/** Light tint for borders and surfaces derived from a brand hex. */
+export function hexToRgba(hex: string, alpha: number): string {
+  const h = hex.replace("#", "").trim();
+  if (h.length !== 6) return hex;
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+/** Page shell gradient used by onboarding layouts. */
+export function brandingShellGradient(b: TenantBranding): string {
+  const vars = brandingToCssVars(b);
+  return `linear-gradient(135deg, ${vars["--brand-gradient-from"]} 0%, ${vars["--brand-gradient-to"]} 100%)`;
+}
+
 /** Apply CSS variables consumed by onboarding / auth surfaces. */
 export function brandingToCssVars(b: TenantBranding): Record<string, string> {
   return {

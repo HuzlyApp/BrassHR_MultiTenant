@@ -157,7 +157,7 @@ export function ApplicantScheduleTab({
                     type="button"
                     disabled={attendanceSubmitting}
                     onClick={() => onAttendanceAction("clock_out")}
-                    className="inline-flex h-7 items-center gap-1.5 rounded bg-[#BC8B41] px-2.5 text-[12px] font-semibold text-white transition hover:bg-[#a67a38] disabled:opacity-60"
+                    className="inline-flex h-7 items-center gap-1.5 rounded bg-[color:var(--brand-primary)] px-2.5 text-[12px] font-semibold text-white transition hover:brightness-90 disabled:opacity-60"
                   >
                     <Square className="h-4 w-4" />
                     {attendanceSubmitting ? "Saving..." : "Clock Out"}
@@ -167,7 +167,7 @@ export function ApplicantScheduleTab({
                     type="button"
                     disabled={attendanceSubmitting || isCompleted}
                     onClick={() => onAttendanceAction("clock_in")}
-                    className="inline-flex h-7 items-center gap-1.5 rounded bg-[#BC8B41] px-2.5 text-[12px] font-semibold text-white transition hover:bg-[#a67a38] disabled:opacity-60"
+                    className="inline-flex h-7 items-center gap-1.5 rounded bg-[color:var(--brand-primary)] px-2.5 text-[12px] font-semibold text-white transition hover:brightness-90 disabled:opacity-60"
                   >
                     <Play className="h-4 w-4" />
                     {attendanceSubmitting ? "Verifying..." : "Start"}
@@ -279,7 +279,7 @@ export function ApplicantScheduleTab({
             <select
               value={selectedSlotId}
               onChange={(event) => onSelectedSlotIdChange(event.target.value)}
-              className="h-10 min-w-0 flex-1 rounded-lg border border-[#E5E7EB] bg-white px-3 text-[13px] text-[#012352] outline-none focus:border-[#BC8B41]"
+              className="h-10 min-w-0 flex-1 rounded-lg border border-[#E5E7EB] bg-white px-3 text-[13px] text-[#012352] outline-none focus:border-[color:var(--brand-primary)]"
             >
               <option value="">
                 {availableSlots.length > 0 ? "Choose an available time slot" : "No available time slots"}
@@ -293,7 +293,7 @@ export function ApplicantScheduleTab({
             <button
               type="submit"
               disabled={!selectedSlotId || requestingSchedule}
-              className="inline-flex h-10 min-w-[140px] items-center justify-center rounded-lg bg-[#BC8B41] px-4 text-[14px] font-semibold text-white disabled:opacity-60"
+              className="inline-flex h-10 min-w-[140px] items-center justify-center rounded-lg bg-[color:var(--brand-primary)] px-4 text-[14px] font-semibold text-white transition hover:brightness-90 disabled:opacity-60"
             >
               {requestingSchedule ? "Requesting..." : "Request Schedule"}
             </button>
@@ -316,7 +316,7 @@ export function ApplicantScheduleTab({
                     onChange={(event) => onRescheduleReasonChange(event.target.value)}
                     placeholder="Add a short reason for requesting a new schedule."
                     rows={3}
-                    className="w-full resize-none rounded-lg border border-[#E5E7EB] px-3 py-2 text-[13px] outline-none focus:border-[#BC8B41]"
+                    className="w-full resize-none rounded-lg border border-[#E5E7EB] px-3 py-2 text-[13px] outline-none focus:border-[color:var(--brand-primary)]"
                   />
                   <div className="flex justify-end gap-2">
                     <button
@@ -332,7 +332,7 @@ export function ApplicantScheduleTab({
                     <button
                       type="submit"
                       disabled={!rescheduleReason.trim() || requestingReschedule}
-                      className="inline-flex h-9 items-center rounded-lg bg-[#BC8B41] px-4 text-[13px] font-semibold text-white disabled:opacity-60"
+                      className="inline-flex h-9 items-center rounded-lg bg-[color:var(--brand-primary)] px-4 text-[13px] font-semibold text-white transition hover:brightness-90 disabled:opacity-60"
                     >
                       {requestingReschedule ? "Sending..." : "Request Reschedule"}
                     </button>
@@ -361,12 +361,12 @@ export function ApplicantScheduleTab({
               <span className="inline-flex items-center gap-1 truncate">
                 {scheduleMeetingLink ? (
                   <>
-                    <Link2 className="h-3.5 w-3.5 shrink-0 text-[#BC8B41]" />
+                    <Link2 className="h-3.5 w-3.5 shrink-0 text-[color:var(--brand-primary)]" />
                     <a
                       href={scheduleMeetingLink}
                       target="_blank"
                       rel="noreferrer"
-                      className="truncate text-[#BC8B41] underline-offset-2 hover:underline"
+                      className="truncate text-[color:var(--brand-primary)] underline-offset-2 hover:underline"
                     >
                       {scheduleMeetingLink}
                     </a>

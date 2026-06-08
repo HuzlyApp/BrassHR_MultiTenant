@@ -10,6 +10,8 @@ import { WORKER_REQUIRED_FILES_BUCKET } from "@/lib/supabase-storage-buckets"
 import OnboardingLayout from "@/app/components/OnboardingLayout"
 import OnboardingStepper from "@/app/components/OnboardingStepper"
 import OnboardingCheckbox from "@/app/components/OnboardingCheckbox"
+import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext"
+import { brandingToCssVars } from "@/lib/tenant/tenant-branding"
 import { useOnboardingConfigOptional } from "@/app/components/onboarding/OnboardingConfigProvider"
 import { useOnboardingStepNav } from "@/lib/onboarding/use-onboarding-step-nav"
 import AutosaveStatus from "@/app/components/AutosaveStatus"
@@ -37,6 +39,7 @@ function fileLabel(path: string) {
 }
 
 export default function DocumentsPage() {
+  const branding = useTenantBranding()
   const router = useRouter()
   const onboarding = useOnboardingConfigOptional()
   const nav = useOnboardingStepNav()
@@ -604,12 +607,12 @@ export default function DocumentsPage() {
     const pdf = isPdfFile(null, path, url)
 
     return (
-      <div className="rounded-xl border border-teal-200 bg-white p-3 shadow-sm flex gap-3 items-center">
+      <div className="flex items-center gap-3 rounded-xl border border-[color:var(--brand-primary)]/30 bg-white p-3 shadow-sm">
         <DocumentFileThumbnail publicUrl={url} fileName={path} />
         <div className="min-w-0 flex-1">
           <p className="text-xs text-gray-500">{subtitle}</p>
           {pdf ? (
-            <p className="text-[11px] font-medium text-teal-800">PDF Document</p>
+            <p className="text-[11px] font-medium text-[color:var(--brand-secondary)]">PDF Document</p>
           ) : null}
           <p className="text-sm font-medium text-gray-900 truncate" title={fileLabel(path)}>
             {fileLabel(path)}
@@ -667,7 +670,7 @@ export default function DocumentsPage() {
           </div>
         </div>
       )}
-      <div className="flex h-full flex-col px-10 pb-10 pt-8">
+      <div className="flex h-full flex-col px-10 pb-10 pt-8" style={brandingToCssVars(branding)}>
         <OnboardingStepper />
 
         <div className="flex flex-1 flex-col pt-8">
@@ -684,7 +687,7 @@ export default function DocumentsPage() {
               <button
                 type="button"
                 onClick={handleSkipForNow}
-                className="text-[12px] font-medium leading-5 text-[#0D9488]"
+                className="text-[12px] font-medium leading-5 text-[color:var(--brand-primary)]"
               >
                 Skip for Now →
               </button>
@@ -714,10 +717,10 @@ export default function DocumentsPage() {
             </OnboardingCheckbox>
           </div>
 
-          <div className="rounded-3xl border border-[#0D9488] bg-[#f0fffe] p-6 shadow-sm mb-8">
+          <div className="mb-8 rounded-3xl border border-[color:var(--brand-primary)] bg-[color:var(--brand-primary)]/5 p-6 shadow-sm">
             <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-4 min-w-0">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#d3f7f0] text-[#0D9488]">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[color:var(--brand-primary)]/15 text-[color:var(--brand-primary)]">
                   <FileText className="h-6 w-6" />
                 </div>
                 <div className="min-w-0">
@@ -742,7 +745,7 @@ export default function DocumentsPage() {
                   className={`rounded-xl px-5 py-2 text-[12px] font-semibold text-white transition ${
                     signingLoading || !agreed
                       ? "bg-gray-400 cursor-not-allowed"
-                      : "bg-[#0D9488] hover:bg-[#0b7a70]"
+                      : "bg-[color:var(--brand-primary)] hover:brightness-90"
                   }`}
                 >
                   {signingLoading ? "Preparing..." : "Click and Sign"}
@@ -750,7 +753,7 @@ export default function DocumentsPage() {
               )}
 
               {effectiveSigned && (
-                <span className="rounded-xl bg-[#0D9488] px-5 py-2 text-[12px] font-semibold text-white">Signed</span>
+                <span className="rounded-xl bg-[color:var(--brand-primary)] px-5 py-2 text-[12px] font-semibold text-white">Signed</span>
               )}
             </div>
 
@@ -767,14 +770,14 @@ export default function DocumentsPage() {
                 <button
                   type="button"
                   onClick={() => openZohoDocument("preview")}
-                  className="rounded-lg border border-[#0D9488] px-3 py-1.5 text-xs font-semibold text-[#0D9488] hover:bg-[#eafffd]"
+                  className="rounded-lg border border-[color:var(--brand-primary)] px-3 py-1.5 text-xs font-semibold text-[color:var(--brand-primary)] hover:bg-[color:var(--brand-primary)]/10"
                 >
                   Preview document
                 </button>
                 <button
                   type="button"
                   onClick={() => openZohoDocument("download")}
-                  className="rounded-lg border border-[#0D9488] px-3 py-1.5 text-xs font-semibold text-[#0D9488] hover:bg-[#eafffd]"
+                  className="rounded-lg border border-[color:var(--brand-primary)] px-3 py-1.5 text-xs font-semibold text-[color:var(--brand-primary)] hover:bg-[color:var(--brand-primary)]/10"
                 >
                   Download PDF
                 </button>
@@ -836,7 +839,7 @@ export default function DocumentsPage() {
               <button
                 type="button"
                 onClick={() => router.push(applicationPath(APPLICATION_ROUTES.identityVerification))}
-                className="text-[12px] font-medium text-[#0D9488]"
+                className="text-[12px] font-medium text-[color:var(--brand-primary)]"
               >
                 Edit uploads
               </button>
@@ -865,13 +868,13 @@ export default function DocumentsPage() {
           </div>
 
           {error && <p className="mb-4 text-red-600 text-sm">{error}</p>}
-          {zohoNote && <p className="mb-4 text-[#0D9488] text-sm">{zohoNote}</p>}
+          {zohoNote && <p className="mb-4 text-sm text-[color:var(--brand-primary)]">{zohoNote}</p>}
 
           <div className="mt-auto flex flex-wrap items-center justify-end gap-3 pt-2">
             <button
               type="button"
               onClick={() => router.back()}
-              className="rounded-lg border border-[#0D9488] bg-white px-6 py-2 text-[12px] font-medium text-[#0D9488] transition hover:bg-[#f0fffe]"
+              className="rounded-lg border border-[color:var(--brand-primary)] bg-white px-6 py-2 text-[12px] font-medium text-[color:var(--brand-primary)] transition hover:bg-[color:var(--brand-primary)]/5"
             >
               Back
             </button>
@@ -882,7 +885,7 @@ export default function DocumentsPage() {
               className={`rounded-lg px-6 py-2 text-[12px] font-medium text-white transition ${
                 saving || !agreed || !effectiveSigned || !identityDocsComplete
                   ? "bg-gray-400 cursor-not-allowed"
-                  : "bg-[#0D9488] hover:bg-[#0b7a70]"
+                  : "bg-[color:var(--brand-primary)] hover:brightness-90"
               }`}
             >
               {saving ? "Saving..." : "Save & Continue"}

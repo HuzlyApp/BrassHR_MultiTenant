@@ -1,10 +1,13 @@
 "use client";
 
+import type { CSSProperties } from "react";
 import { useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import OnboardingLayout from "@/app/components/OnboardingLayout";
 import OnboardingStepper from "@/app/components/OnboardingStepper";
 import OnboardingPreviewBanner from "@/app/application/OnboardingPreviewBanner";
+import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
+import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
 import { useOnboardingStepNav } from "@/lib/onboarding/use-onboarding-step-nav";
 import {
   getWorkflowSettings,
@@ -16,6 +19,9 @@ import { routeForOnboardingStep } from "@/lib/onboarding/step-routes";
 import type { OnboardingStepType } from "@/lib/onboarding/types";
 
 export default function CustomOnboardingStepPage() {
+  const branding = useTenantBranding();
+  const contentStyle = brandingToCssVars(branding) as CSSProperties;
+  const primaryBtnStyle = { backgroundColor: branding.primaryHex } as CSSProperties;
   const params = useParams();
   const stepKey = decodeURIComponent(String(params?.stepKey ?? "")).trim();
   const nav = useOnboardingStepNav();
@@ -80,7 +86,7 @@ export default function CustomOnboardingStepPage() {
     <OnboardingLayout>
       <OnboardingPreviewBanner />
       <OnboardingStepper title={step?.title ?? "Custom step"} />
-      <div className="mx-auto max-w-2xl px-4 py-8">
+      <div className="mx-auto max-w-2xl px-4 py-8" style={contentStyle}>
         <h1 className="text-xl font-semibold text-slate-900">{step?.title ?? "Custom step"}</h1>
         {step?.description ? (
           <p className="mt-2 text-sm text-slate-600">{step.description}</p>
@@ -116,7 +122,7 @@ export default function CustomOnboardingStepPage() {
               rows={5}
               value={answer}
               onChange={(e) => setAnswer(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-[color:var(--brand-primary)]"
               placeholder="Enter information for this step"
             />
           </div>
@@ -148,7 +154,8 @@ export default function CustomOnboardingStepPage() {
                 nav.push(typedRoute);
               }
             }}
-            className="rounded-lg bg-[#0d9488] px-5 py-2 text-sm font-semibold text-white disabled:opacity-50"
+            className="rounded-lg px-5 py-2 text-sm font-semibold text-white transition hover:brightness-90 disabled:opacity-50"
+            style={primaryBtnStyle}
           >
             {saving ? "Saving…" : isGenericCustom ? "Save & continue" : "Continue"}
           </button>

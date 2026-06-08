@@ -6,8 +6,11 @@ import { applicationPath } from "@/lib/tenant/with-tenant"
 import { useRouter } from "next/navigation"
 import OnboardingLayout from "@/app/components/OnboardingLayout"
 import OnboardingStepper from "@/app/components/OnboardingStepper"
+import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext"
+import { brandingToCssVars } from "@/lib/tenant/tenant-branding"
 
 export default function SkillAssessmentIntro() {
+    const branding = useTenantBranding()
     const router = useRouter()
 
     const proficiencyLevels = [
@@ -43,7 +46,7 @@ export default function SkillAssessmentIntro() {
             rightPanelImageClassName="opacity-60 object-top"
             rightPanelOverlayClassName="bg-white/65"
         >
-            <div className="flex h-full flex-col px-10 pb-10 pt-8">
+            <div className="flex h-full flex-col px-10 pb-10 pt-8" style={brandingToCssVars(branding)}>
                 <OnboardingStepper />
 
                 <div className="flex flex-1 flex-col pt-8">
@@ -55,7 +58,7 @@ export default function SkillAssessmentIntro() {
                         <button
                             type="button"
                             onClick={() => router.push(applicationPath(APPLICATION_ROUTES.skillAssessment))}
-                            className="cursor-pointer text-[12px] font-medium leading-5 text-[#1db4a3]"
+                            className="cursor-pointer text-[12px] font-medium leading-5 text-[color:var(--brand-primary)]"
                         >
                             Skip for Now →
                         </button>
@@ -81,7 +84,7 @@ export default function SkillAssessmentIntro() {
                                     {level}
                                 </span>
                                 <span className="text-slate-500 shrink-0 pt-0.5">=</span>
-                                <span className="text-[#1db4a3] font-semibold w-40 shrink-0 pt-0.5">
+                                <span className="w-40 shrink-0 pt-0.5 font-semibold text-[color:var(--brand-primary)]">
                                     {label}
                                 </span>
                                 <span className="text-slate-600 leading-5">{description}</span>
@@ -101,7 +104,7 @@ export default function SkillAssessmentIntro() {
                         <button
                             type="button"
                             onClick={() => router.push(applicationPath(APPLICATION_ROUTES.skillAssessment))}
-                            className="cursor-pointer rounded-md bg-[#1db4a3] px-6 py-2 text-[12px] font-medium leading-5 text-white transition hover:bg-[#189d8e]"
+                            className="cursor-pointer rounded-md bg-[color:var(--brand-primary)] px-6 py-2 text-[12px] font-medium leading-5 text-white transition hover:brightness-90"
                         >
                             Start Skill Assessment
                         </button>

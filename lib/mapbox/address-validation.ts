@@ -20,9 +20,25 @@ export const MAPBOX_MIN_SUGGESTION_RELEVANCE = 0.45
 /** If the top two matches are within this gap, treat as ambiguous. */
 export const MAPBOX_AMBIGUITY_RELEVANCE_GAP = 0.08
 
+function normalizeAddressPart(value: string | undefined): string {
+  return (value ?? "").trim()
+}
+
+/** Skip address2 when it repeats address1 (common when resume parsing copies the same line). */
+function address2ForQuery(address1: string, address2: string): string {
+  if (!address2) return ""
+  if (!address1) return address2
+  if (address1.localeCompare(address2, undefined, { sensitivity: "accent" }) === 0) {
+    return ""
+  }
+  return address2
+}
+
 export function buildAddressQuery(parts: AddressQueryParts): string {
-  return [parts.address1, parts.address2, parts.city, parts.state, parts.zipCode]
-    .map((s) => (s ?? "").trim())
+  const address1 = normalizeAddressPart(parts.address1)
+  const address2 = address2ForQuery(address1, normalizeAddressPart(parts.address2))
+  return [address1, address2, parts.city, parts.state, parts.zipCode]
+    .map((s) => (typeof s === "string" ? s : (s ?? "")).trim())
     .filter(Boolean)
     .join(", ")
 }

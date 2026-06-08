@@ -26,6 +26,10 @@ import { useOnboardingTenant } from "@/lib/tenant/use-onboarding-tenant"
 
 import type { OnboardingStepType } from "@/lib/onboarding/types"
 
+import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext"
+
+import { brandingToCssVars } from "@/lib/tenant/tenant-branding"
+
 
 
 interface Props {
@@ -59,6 +63,8 @@ export default function OnboardingStepper({
   titleIconAlt,
 
 }: Props) {
+
+  const branding = useTenantBranding()
 
   const { slug, push, replace } = useOnboardingTenant()
 
@@ -202,7 +208,7 @@ export default function OnboardingStepper({
 
     <>
 
-      <div className="w-full border-b border-slate-200 pb-6">
+      <div className="w-full border-b border-slate-200 pb-6" style={brandingToCssVars(branding)}>
 
         <div className="relative mx-auto mt-2 w-full max-w-3xl px-2">
 
@@ -212,7 +218,7 @@ export default function OnboardingStepper({
 
           <div
 
-            className="absolute left-10 top-3 h-[2px] bg-[#1db4a3] transition-all"
+            className="absolute left-10 top-3 h-[2px] bg-[color:var(--brand-primary)] transition-all"
 
             style={{ width: `${progress}%` }}
 
@@ -266,7 +272,7 @@ export default function OnboardingStepper({
 
                   disabled={!isClickable}
 
-                  className={`group flex w-24 flex-col items-center rounded-lg px-1.5 py-1 text-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1db4a3]/40 ${
+                  className={`group flex w-24 flex-col items-center rounded-lg px-1.5 py-1 text-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)]/40 ${
 
                     isClickable ? "cursor-pointer" : "cursor-not-allowed"
 
@@ -288,11 +294,11 @@ export default function OnboardingStepper({
 
                         completed
 
-                          ? "bg-[#1db4a3] text-white outline outline-[4px] outline-white"
+                          ? "bg-[color:var(--brand-primary)] text-white outline outline-[4px] outline-white"
 
                           : active
 
-                            ? "bg-white border-[3px] border-[#1db4a3] outline outline-[4px] outline-white"
+                            ? "bg-white border-[3px] border-[color:var(--brand-primary)] outline outline-[4px] outline-white"
 
                             : "bg-white border-[3px] border-[#f1f5f9] outline outline-[4px] outline-white"
 
@@ -308,7 +314,7 @@ export default function OnboardingStepper({
 
                     ) : active ? (
 
-                      <span className="h-2.5 w-2.5 rounded-full bg-[#1db4a3]" />
+                      <span className="h-2.5 w-2.5 rounded-full bg-[color:var(--brand-primary)]" />
 
                     ) : (
 
@@ -328,13 +334,13 @@ export default function OnboardingStepper({
 
                         active || completed
 
-                          ? "text-[#1db4a3] font-medium"
+                          ? "text-[color:var(--brand-primary)] font-medium"
 
                           : "text-gray-400"
 
                       }
 
-                    ${isClickable ? "group-hover:text-[#1db4a3] group-hover:underline" : ""}`}
+                    ${isClickable ? "group-hover:text-[color:var(--brand-primary)] group-hover:underline" : ""}`}
 
                   >
 

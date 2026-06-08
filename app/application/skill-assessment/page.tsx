@@ -12,6 +12,8 @@ import OnboardingStepper from "@/app/components/OnboardingStepper"
 import { useOnboardingStepNav } from "@/lib/onboarding/use-onboarding-step-nav"
 import OnboardingLayout from "@/app/components/OnboardingLayout"
 import OnboardingLoader from "@/app/components/OnboardingLoader"
+import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext"
+import { brandingToCssVars } from "@/lib/tenant/tenant-branding"
 
 type Category = {
   id: string
@@ -67,6 +69,7 @@ function recordCompletedCategories(rows: { category: string }[]): Set<string> {
 }
 
 export default function AssessmentPage() {
+  const branding = useTenantBranding()
   const router = useRouter()
   const nav = useOnboardingStepNav()
   const [categories, setCategories] = useState<Category[]>([])
@@ -142,7 +145,7 @@ export default function AssessmentPage() {
       rightPanelImageClassName="opacity-60 object-top"
       rightPanelOverlayClassName="bg-white/65"
     >
-      <div className="flex h-full flex-col px-10 pb-10 pt-8">
+      <div className="flex h-full flex-col px-10 pb-10 pt-8" style={brandingToCssVars(branding)}>
         <OnboardingStepper />
 
         <div className="flex flex-1 flex-col pt-8">
@@ -154,7 +157,7 @@ export default function AssessmentPage() {
             <button
               type="button"
               onClick={() => nav.nextRoute && router.push(nav.nextRoute)}
-              className="cursor-pointer text-[12px] font-medium leading-5 text-[#0D9488] mt-1"
+              className="mt-1 cursor-pointer text-[12px] font-medium leading-5 text-[color:var(--brand-primary)]"
             >
               Skip for Now →
             </button>
@@ -184,18 +187,18 @@ export default function AssessmentPage() {
                 <div
                   key={cat.id}
                   onClick={() => goToCategory(cat)}
-                  className={`flex items-center justify-between rounded-xl border px-4 py-4 cursor-pointer transition ${
+                  className={`flex cursor-pointer items-center justify-between rounded-xl border border-[color:var(--brand-primary)] px-4 py-4 transition ${
                     isCompleted
-                      ? "border-[#0D9488] bg-[#ecfffd]"
-                      : "border-[#0D9488] bg-white hover:bg-[#f0fffe]"
+                      ? "bg-[color:var(--brand-primary)]/10"
+                      : "bg-white hover:bg-[color:var(--brand-primary)]/5"
                   }`}
                 >
                   <div className="flex items-center gap-4">
                     <div
-                      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border text-[13px] font-semibold ${
+                      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[color:var(--brand-primary)] text-[13px] font-semibold ${
                         isCompleted
-                          ? "border-[#0D9488] bg-[#0D9488] text-white"
-                          : "border-[#0D9488] text-[#0D9488]"
+                          ? "bg-[color:var(--brand-primary)] text-white"
+                          : "text-[color:var(--brand-primary)]"
                       }`}
                     >
                       {isCompleted ? <Check className="h-4 w-4" /> : index + 1}
@@ -205,7 +208,7 @@ export default function AssessmentPage() {
                       <p className="text-[12px] text-slate-500">{cat.description}</p>
                     </div>
                   </div>
-                  <ChevronRight className="h-4 w-4 shrink-0 text-[#0D9488]" />
+                  <ChevronRight className="h-4 w-4 shrink-0 text-[color:var(--brand-primary)]" />
                 </div>
               )
             })}
@@ -216,7 +219,7 @@ export default function AssessmentPage() {
             <button
               type="button"
               onClick={() => router.back()}
-              className="cursor-pointer rounded-md border border-[#0D9488] bg-white px-5 py-2 text-[12px] font-medium leading-5 text-[#0D9488] transition hover:bg-[#f0fffe]"
+              className="cursor-pointer rounded-md border border-[color:var(--brand-primary)] bg-white px-5 py-2 text-[12px] font-medium leading-5 text-[color:var(--brand-primary)] transition hover:bg-[color:var(--brand-primary)]/5"
             >
               Back
             </button>
@@ -225,7 +228,7 @@ export default function AssessmentPage() {
               onClick={() => {
                 if (nav.nextRoute) router.push(nav.nextRoute)
               }}
-              className="cursor-pointer rounded-md bg-[#0D9488] px-6 py-2 text-[12px] font-medium leading-5 text-white transition hover:bg-[#0b7a70]"
+              className="cursor-pointer rounded-md bg-[color:var(--brand-primary)] px-6 py-2 text-[12px] font-medium leading-5 text-white transition hover:brightness-90"
             >
               Save &amp; continue
             </button>

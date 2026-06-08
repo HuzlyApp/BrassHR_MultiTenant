@@ -9,6 +9,8 @@ import Link from "next/link"
 import OnboardingLayout from "@/app/components/OnboardingLayout"
 import OnboardingStepper from "@/app/components/OnboardingStepper"
 import OnboardingCheckbox from "@/app/components/OnboardingCheckbox"
+import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext"
+import { hexToRgba } from "@/lib/tenant/tenant-branding"
 import {
   evaluateResumeParseQuality,
   normalizedResumeToStoredJson,
@@ -16,7 +18,20 @@ import {
 } from "@/lib/resumeParseQuality"
 
 export default function Step1Success() {
+  const branding = useTenantBranding()
   const router = useRouter()
+  const brandSurfaceStyle = {
+    borderColor: branding.primaryHex,
+    backgroundColor: hexToRgba(branding.primaryHex, 0.1),
+    color: branding.secondaryHex,
+  }
+  const fileCardStyle = {
+    borderColor: branding.primaryHex,
+    backgroundColor: hexToRgba(branding.primaryHex, 0.08),
+  }
+  const fileIconBgStyle = { backgroundColor: hexToRgba(branding.primaryHex, 0.14) }
+  const primaryBtnStyle = { backgroundColor: branding.primaryHex }
+  const linkStyle = { color: branding.primaryHex }
 
   const [fileName] = useState<string>(() => {
     if (typeof window === "undefined") return "resume.pdf"
@@ -181,7 +196,7 @@ export default function Step1Success() {
               </p>
             </div>
           ) : (
-            <div className="mt-6 flex items-start gap-3 rounded-lg border border-[#1db4a3] bg-[#ecfbf9] px-4 py-4 text-[#0f766e]">
+            <div className="mt-6 flex items-start gap-3 rounded-lg border px-4 py-4" style={brandSurfaceStyle}>
               <div className="mt-0.5 flex h-6 w-6 flex-none items-center justify-center rounded-full  text-white">
                 <Image
                   src="/icons/yes-sign-icon.svg"
@@ -198,9 +213,12 @@ export default function Step1Success() {
             </div>
           )}
 
-          <div className="mt-6 flex items-center justify-between rounded-lg border border-[#1db4a3] bg-[#f3fffd] px-5 py-4">
+          <div className="mt-6 flex items-center justify-between rounded-lg border px-5 py-4" style={fileCardStyle}>
             <div className="flex items-center gap-4">
-              <div className="flex h-12 w-12 items-center justify-center rounded-md bg-[#dff7f3]">
+              <div
+                className="flex h-12 w-12 items-center justify-center rounded-md"
+                style={fileIconBgStyle}
+              >
                 <Image
                   src="/icons/pdf-icon.svg"
                   alt="PDF"
@@ -211,7 +229,7 @@ export default function Step1Success() {
               </div>
 
               <div>
-                <p className="text-[14px] font-semibold text-[#0f766e]">
+                <p className="text-[14px] font-semibold" style={{ color: branding.secondaryHex }}>
                   {fileName}
                 </p>
                 <p className="text-xs text-gray-400">{formatBytes(fileSizeBytes)}</p>
@@ -221,7 +239,8 @@ export default function Step1Success() {
             <button
               type="button"
               onClick={removeFile}
-              className="cursor-pointer inline-flex h-10 w-10 items-center justify-center rounded-md text-[#0f766e] transition hover:bg-teal-50"
+              className="cursor-pointer inline-flex h-10 w-10 items-center justify-center rounded-md transition hover:opacity-80"
+              style={{ color: branding.secondaryHex }}
               aria-label="Remove file"
             >
               <Image
@@ -237,7 +256,11 @@ export default function Step1Success() {
           {!termsCheckboxVisible ? (
             <p className="mt-6 text-[14px] leading-6 text-slate-700">
               Open the{" "}
-              <Link href={applicationPath("/application/terms-and-conditions")} className="font-semibold text-teal-600 underline">
+              <Link
+                href={applicationPath("/application/terms-and-conditions")}
+                className="font-semibold underline"
+                style={linkStyle}
+              >
                 Terms & Conditions
               </Link>{" "}
               to review them; the acceptance option will appear after you have reached the end of the document.
@@ -257,7 +280,11 @@ export default function Step1Success() {
               >
                 <span className="text-[14px] leading-6">
                   I accept the{" "}
-                  <Link href={applicationPath("/application/terms-and-conditions")} className="font-semibold text-teal-600 underline">
+                  <Link
+                href={applicationPath("/application/terms-and-conditions")}
+                className="font-semibold underline"
+                style={linkStyle}
+              >
                     Terms & Conditions
                   </Link>
                 </span>
@@ -284,7 +311,8 @@ export default function Step1Success() {
               type="button"
               onClick={handleContinue}
               disabled={!agree || parseQualityFailed}
-              className="cursor-pointer inline-flex h-11 items-center justify-center rounded-lg bg-[#1db4a3] px-10 text-[16px] font-semibold text-white transition hover:bg-[#169b8c] disabled:cursor-not-allowed disabled:opacity-50"
+              className="cursor-pointer inline-flex h-11 items-center justify-center rounded-lg px-10 text-[16px] font-semibold text-white transition hover:brightness-90 disabled:cursor-not-allowed disabled:opacity-50"
+              style={primaryBtnStyle}
             >
               Continue
             </button>

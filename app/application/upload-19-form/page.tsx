@@ -1,12 +1,14 @@
-
 "use client"
 
+import type { CSSProperties } from "react"
 import { applicationPath } from "@/lib/tenant/with-tenant"
 import { useEffect, useRef, useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import OnboardingLayout from "@/app/components/OnboardingLayout"
+import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext"
+import { brandingToCssVars, hexToRgba } from "@/lib/tenant/tenant-branding"
 
 type UploadedFileMeta = {
   name: string
@@ -32,6 +34,7 @@ function isAllowedFile(file: File) {
 }
 
 export default function Upload19FormPage() {
+  const branding = useTenantBranding()
   const router = useRouter()
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
@@ -39,6 +42,18 @@ export default function Upload19FormPage() {
   const [storedFileMeta, setStoredFileMeta] = useState<UploadedFileMeta | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isDragging, setIsDragging] = useState(false)
+
+  const contentStyle = brandingToCssVars(branding) as CSSProperties
+  const completedSurfaceStyle = {
+    borderColor: branding.primaryHex,
+    backgroundColor: hexToRgba(branding.primaryHex, 0.08),
+  } as CSSProperties
+  const dragActiveStyle = {
+    borderColor: branding.primaryHex,
+    backgroundColor: hexToRgba(branding.primaryHex, 0.06),
+  } as CSSProperties
+  const brandSoftBgStyle = { backgroundColor: hexToRgba(branding.primaryHex, 0.06) } as CSSProperties
+  const primaryBtnStyle = { backgroundColor: branding.primaryHex } as CSSProperties
 
   useEffect(() => {
     const storedFile = localStorage.getItem(I9_FILE_KEY)
@@ -81,9 +96,9 @@ export default function Upload19FormPage() {
   const handleSave = () => {
     const payload = selectedFile
       ? {
-        name: selectedFile.name,
-        sizeLabel: formatFileSize(selectedFile.size),
-      }
+          name: selectedFile.name,
+          sizeLabel: formatFileSize(selectedFile.size),
+        }
       : storedFileMeta
 
     if (!payload) {
@@ -107,9 +122,9 @@ export default function Upload19FormPage() {
 
   const uploadedFile = selectedFile
     ? {
-      name: selectedFile.name,
-      sizeLabel: formatFileSize(selectedFile.size),
-    }
+        name: selectedFile.name,
+        sizeLabel: formatFileSize(selectedFile.size),
+      }
     : storedFileMeta
 
   const hasUploadedFile = Boolean(uploadedFile)
@@ -117,7 +132,6 @@ export default function Upload19FormPage() {
   return (
     <OnboardingLayout
       cardClassName="md:grid-cols-[660px_400px]"
-      rightPanelImageSrc="/images/verification-status.jpg"
       rightPanelImageClassName="object-cover object-center grayscale opacity-60"
       rightPanelOverlayClassName="bg-white/65"
       rightPanelContentClassName="p-5"
@@ -125,7 +139,7 @@ export default function Upload19FormPage() {
       logoClassName="h-[72px] w-[240px]"
       taglineClassName="max-w-[300px] text-[15px] leading-8 text-slate-900"
     >
-      <div className="flex h-full flex-col px-10 pb-10 pt-14">
+      <div className="flex h-full flex-col px-10 pb-10 pt-14" style={contentStyle}>
         <div className="flex flex-1 flex-col gap-9">
           <h1 className="text-[24px] font-semibold leading-8 text-slate-900">
             {hasUploadedFile ? "Upload your files" : "Upload your I9 form"}
@@ -137,7 +151,10 @@ export default function Upload19FormPage() {
                 File has been uploaded. Click submit to continue.
               </p>
 
-              <div className="flex h-[66px] w-full max-w-[580px] items-center justify-between gap-2 rounded-lg border border-[#28c7bf] bg-[#effcfb] p-4">
+              <div
+                className="flex h-[66px] w-full max-w-[580px] items-center justify-between gap-2 rounded-lg border p-4"
+                style={completedSurfaceStyle}
+              >
                 <div className="flex min-w-0 items-center gap-3">
                   <Image
                     src="/icons/pdf-icon.svg"
@@ -147,7 +164,7 @@ export default function Upload19FormPage() {
                     className="h-6 w-6 flex-none"
                   />
                   <div className="min-w-0">
-                    <p className="truncate text-[14px] font-semibold leading-5 text-[#0D9488]">
+                    <p className="truncate text-[14px] font-semibold leading-5 text-[color:var(--brand-primary)]">
                       {uploadedFile?.name}
                     </p>
                     <p className="text-[14px] font-normal leading-5 text-slate-500">
@@ -159,7 +176,8 @@ export default function Upload19FormPage() {
                 <button
                   type="button"
                   onClick={handleRemoveFile}
-                  className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-md text-[#0D9488] transition hover:bg-[#d9f7f3]"
+                  className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-md text-[color:var(--brand-primary)] transition hover:brightness-95"
+                  style={brandSoftBgStyle}
                   aria-label="Remove uploaded file"
                 >
                   <Image
@@ -175,10 +193,10 @@ export default function Upload19FormPage() {
           ) : (
             <>
               <div
-                className={`w-full max-w-[580px] rounded-2xl border border-dashed px-8 py-10 transition ${isDragging
-                    ? "border-[#0D9488] bg-[#f0fffe]"
-                    : "border-[#28c7bf] bg-white"
-                  }`}
+                className={`w-full max-w-[580px] rounded-2xl border border-dashed px-8 py-10 transition ${
+                  isDragging ? "" : "border-[color:var(--brand-primary)] bg-white"
+                }`}
+                style={isDragging ? dragActiveStyle : undefined}
                 onDragOver={(event) => {
                   event.preventDefault()
                   setIsDragging(true)
@@ -205,16 +223,14 @@ export default function Upload19FormPage() {
 
                   <div className="flex w-full max-w-[180px] items-center gap-3">
                     <div className="h-px flex-1 bg-slate-200" />
-                    <span className="text-[12px] font-normal leading-4 text-slate-500">
-                      OR
-                    </span>
+                    <span className="text-[12px] font-normal leading-4 text-slate-500">OR</span>
                     <div className="h-px flex-1 bg-slate-200" />
                   </div>
 
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
-                    className="inline-flex h-10 cursor-pointer items-center justify-center rounded-xl border border-[#28c7bf] px-4 text-[14px] font-normal leading-5 text-[#0D9488] transition hover:bg-[#f0fffe]"
+                    className="inline-flex h-10 cursor-pointer items-center justify-center rounded-xl border border-[color:var(--brand-primary)] bg-white px-4 text-[14px] font-normal leading-5 text-[color:var(--brand-primary)] transition hover:bg-[color:var(--brand-primary)]/5"
                   >
                     Browse files
                   </button>
@@ -228,9 +244,7 @@ export default function Upload19FormPage() {
                     type="file"
                     accept=".pdf,.docx"
                     className="hidden"
-                    onChange={(event) =>
-                      handleFileSelection(event.target.files?.[0] ?? null)
-                    }
+                    onChange={(event) => handleFileSelection(event.target.files?.[0] ?? null)}
                   />
                 </div>
               </div>
@@ -241,9 +255,7 @@ export default function Upload19FormPage() {
                 </p>
 
                 {error ? (
-                  <p className="text-[14px] font-normal leading-5 text-rose-600">
-                    {error}
-                  </p>
+                  <p className="text-[14px] font-normal leading-5 text-rose-600">{error}</p>
                 ) : null}
               </div>
             </>
@@ -252,14 +264,15 @@ export default function Upload19FormPage() {
           <div className="mt-auto flex items-center justify-end gap-4 pt-10">
             <Link
               href={applicationPath("/application/employee-agreement")}
-              className="inline-flex h-10 cursor-pointer items-center justify-center rounded-xl border border-[#0D9488] px-6 text-[16px] font-semibold leading-6 text-[#0D9488] transition hover:bg-[#f0fffe]"
+              className="inline-flex h-10 cursor-pointer items-center justify-center rounded-xl border border-[color:var(--brand-primary)] bg-white px-6 text-[16px] font-semibold leading-6 text-[color:var(--brand-primary)] transition hover:bg-[color:var(--brand-primary)]/5"
             >
               Back
             </Link>
             <button
               type="button"
               onClick={handleSave}
-              className="inline-flex h-10 cursor-pointer items-center justify-center rounded-xl bg-[#0D9488] px-6 text-[16px] font-semibold leading-6 text-white transition hover:bg-[#0b7a70]"
+              className="inline-flex h-10 cursor-pointer items-center justify-center rounded-xl px-6 text-[16px] font-semibold leading-6 text-white transition hover:brightness-90"
+              style={primaryBtnStyle}
             >
               {hasUploadedFile ? "Submit" : "Save"}
             </button>

@@ -3,6 +3,11 @@
 import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabase-browser";
+import OnboardingLoader from "@/app/components/OnboardingLoader";
+import {
+  TenantBrandingProvider,
+  useTenantBranding,
+} from "@/app/components/tenant/TenantBrandingContext";
 import { ApplicantPortalShell } from "@/app/application/components/applicant-portal/ApplicantPortalShell";
 import { ApplicantPortalTabs } from "@/app/application/components/applicant-portal/ApplicantPortalTabs";
 import { ApplicantScheduleTab } from "@/app/application/components/applicant-portal/ApplicantScheduleTab";
@@ -15,6 +20,8 @@ import type {
   AppointmentSlot,
   AttendanceLog,
 } from "@/app/application/components/applicant-portal/types";
+import type { TenantBranding } from "@/lib/tenant/tenant-branding";
+import { persistOnboardingSlugCookie } from "@/lib/tenant/client-onboarding-slug";
 
 type AppointmentPayload = {
   availableSlots?: AppointmentSlot[];
@@ -36,10 +43,21 @@ type BrowserLocation = {
   permissionStatus: "granted";
 };
 
+async function loadTenantBranding(tenantId: string): Promise<TenantBranding | null> {
+  const res = await fetch(`/api/tenant-branding?tenantId=${encodeURIComponent(tenantId)}`, {
+    cache: "no-store",
+  });
+  if (!res.ok) return null;
+  const payload = (await res.json().catch(() => ({}))) as { branding?: TenantBranding };
+  return payload.branding ?? null;
+}
+
 export default function ApplicantDashboardPage() {
   const router = useRouter();
+  const bootstrapBranding = useTenantBranding();
   const [activeTab, setActiveTab] = useState<ApplicantPortalTab>("schedule");
   const [session, setSession] = useState<ApplicantSession | null>(null);
+  const [portalBranding, setPortalBranding] = useState<TenantBranding | null>(null);
   const [messages, setMessages] = useState<ApplicantMessage[]>([]);
   const [availableSlots, setAvailableSlots] = useState<AppointmentSlot[]>([]);
   const [appointment, setAppointment] = useState<Appointment | null>(null);
@@ -119,6 +137,17 @@ export default function ApplicantDashboardPage() {
         if (!alive) return;
 
         setSession(payload);
+
+        const tenantId = payload.applicant?.tenantId?.trim();
+        if (tenantId) {
+          const branding = await loadTenantBranding(tenantId);
+          if (!alive) return;
+          if (branding) {
+            setPortalBranding(branding);
+            if (branding.slug) persistOnboardingSlugCookie(branding.slug);
+          }
+        }
+
         await Promise.all([loadMessages(headers), loadAppointments(headers), loadAttendance(headers)]);
       } catch (err) {
         if (alive) setError(err instanceof Error ? err.message : "Could not load applicant dashboard.");
@@ -280,32 +309,37 @@ export default function ApplicantDashboardPage() {
     }
   }
 
+  const branding = portalBranding ?? bootstrapBranding;
+
+  if (loading) {
+    return (
+      <TenantBrandingProvider branding={branding}>
+        <OnboardingLoader label="Loading dashboard..." />
+      </TenantBrandingProvider>
+    );
+  }
+
   return (
-    <ApplicantPortalShell
-      session={session}
-      messages={messages}
-      messageBody={messageBody}
-      sending={sending}
-      onMessageBodyChange={setMessageBody}
-      onSendMessage={handleSendMessage}
-    >
-      {loading ? (
-        <div className="flex min-h-[50vh] items-center justify-center px-8 text-[15px] text-[#64748B]">
-          Loading dashboard...
-        </div>
-      ) : null}
+    <TenantBrandingProvider branding={branding}>
+      <ApplicantPortalShell
+        session={session}
+        messages={messages}
+        messageBody={messageBody}
+        sending={sending}
+        onMessageBodyChange={setMessageBody}
+        onSendMessage={handleSendMessage}
+      >
+        {error ? (
+          <div className="mx-8 mt-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-[14px] font-medium text-red-700">
+            {error}
+          </div>
+        ) : null}
 
-      {error ? (
-        <div className="mx-8 mt-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-[14px] font-medium text-red-700">
-          {error}
-        </div>
-      ) : null}
-
-      {!loading && session ? (
-        <>
-          <ApplicantPortalTabs activeTab={activeTab} onChange={setActiveTab} />
-          {activeTab === "schedule" ? (
-            <ApplicantScheduleTab
+        {session ? (
+          <>
+            <ApplicantPortalTabs activeTab={activeTab} onChange={setActiveTab} />
+            {activeTab === "schedule" ? (
+              <ApplicantScheduleTab
                 todayAttendance={todayAttendance}
                 recentAttendance={recentAttendance}
                 appointment={appointment}
@@ -323,12 +357,13 @@ export default function ApplicantDashboardPage() {
                 onRequestSchedule={handleRequestSchedule}
                 onRequestReschedule={handleRequestReschedule}
                 onAttendanceAction={handleAttendanceAction}
-            />
-          ) : (
-            <ApplicantTimesheetsTab todayAttendance={todayAttendance} recentAttendance={recentAttendance} />
-          )}
-        </>
-      ) : null}
-    </ApplicantPortalShell>
+              />
+            ) : (
+              <ApplicantTimesheetsTab todayAttendance={todayAttendance} recentAttendance={recentAttendance} />
+            )}
+          </>
+        ) : null}
+      </ApplicantPortalShell>
+    </TenantBrandingProvider>
   );
 }

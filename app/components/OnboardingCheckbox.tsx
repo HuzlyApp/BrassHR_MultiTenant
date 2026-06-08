@@ -1,6 +1,7 @@
 "use client"
 
-import type { ReactNode } from "react"
+import type { CSSProperties, ReactNode } from "react"
+import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext"
 
 const box =
   "flex h-5 w-5 shrink-0 items-center justify-center rounded-[5px] border-2 transition-colors"
@@ -25,6 +26,13 @@ export default function OnboardingCheckbox({
   className,
   disabled,
 }: Props) {
+  const branding = useTenantBranding()
+  const checkboxColor = branding.checkboxHex || branding.primaryHex
+  const checkboxStyle = { accentColor: checkboxColor } as CSSProperties
+  const checkedStyle = checked
+    ? ({ borderColor: checkboxColor, backgroundColor: checkboxColor } as CSSProperties)
+    : undefined
+
   if (native && id) {
     return (
       <div className={className ?? "flex items-start gap-3"}>
@@ -34,7 +42,8 @@ export default function OnboardingCheckbox({
           checked={checked}
           disabled={disabled}
           onChange={(e) => onChange(e.target.checked)}
-          className="mt-0.5 h-5 w-5 shrink-0 cursor-pointer rounded-[5px] border-2 border-slate-300 text-teal-600 accent-[#0D9488] focus:ring-2 focus:ring-teal-500/30 disabled:cursor-not-allowed disabled:opacity-50"
+          style={checkboxStyle}
+          className="mt-0.5 h-5 w-5 shrink-0 cursor-pointer rounded-[5px] border-2 border-slate-300 focus:ring-2 focus:ring-[color:var(--brand-checkbox)]/30 disabled:cursor-not-allowed disabled:opacity-50"
         />
         {children}
       </div>
@@ -50,9 +59,8 @@ export default function OnboardingCheckbox({
       className={`flex items-start gap-3 text-left ${className ?? ""} ${disabled ? "cursor-not-allowed opacity-50" : ""}`}
     >
       <span
-        className={`${box} ${
-          checked ? "border-[#0D9488] bg-[#0D9488] text-white" : "border-slate-300 bg-white"
-        }`}
+        className={`${box} ${checked ? "text-white" : "border-slate-300 bg-white"}`}
+        style={checkedStyle}
         aria-hidden
       >
         {checked ? (

@@ -1,6 +1,9 @@
 "use client";
 
+import type { CSSProperties } from "react";
 import { useState } from "react";
+import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
+import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
 import { ApplicantPortalHeader } from "./ApplicantPortalHeader";
 import { ApplicantPortalSidebar } from "./ApplicantPortalSidebar";
 import { ApplicantMessagesPanel } from "./ApplicantMessagesPanel";
@@ -25,11 +28,13 @@ export function ApplicantPortalShell({
   onSendMessage,
   children,
 }: Props) {
+  const branding = useTenantBranding();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [messagesOpen, setMessagesOpen] = useState(false);
+  const shellStyle: CSSProperties = brandingToCssVars(branding);
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] text-[#012352]">
+    <div style={shellStyle} className="min-h-screen bg-[#F8FAFC] text-[#012352]">
       {mobileNavOpen ? (
         <button
           type="button"

@@ -11,6 +11,8 @@ import { ChevronRight } from "lucide-react";
 import OnboardingLayout from "@/app/components/OnboardingLayout";
 import OnboardingStepper from "@/app/components/OnboardingStepper";
 import OnboardingLoader from "@/app/components/OnboardingLoader";
+import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
+import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
 import { useOnboardingConfigOptional } from "@/app/components/onboarding/OnboardingConfigProvider";
 import {
   findProfessionalLicenseStep,
@@ -69,6 +71,7 @@ function readSlotsFromStorage(): Record<UploadType, UploadSlot | null> {
 const MAX_BYTES = 10 * 1024 * 1024;
 
 export default function Step2License() {
+  const branding = useTenantBranding();
   const router = useRouter();
   const onboarding = useOnboardingConfigOptional();
   const [files, setFiles] = useState<Record<UploadType, UploadSlot | null>>(emptySlots);
@@ -344,7 +347,7 @@ export default function Step2License() {
           ) : null}
         </div>
         {file ? (
-          <div className="flex items-center justify-between rounded-lg border border-[#98e1d8] bg-[#ecfffd] px-4 py-3">
+          <div className="flex items-center justify-between rounded-lg border border-[color:var(--brand-primary)]/40 bg-[color:var(--brand-primary)]/10 px-4 py-3">
             <div className="min-w-0 flex-1">
               <p className="truncate text-[13px] font-medium leading-5 text-slate-800">{file.name}</p>
               <p className="text-[11px] font-normal leading-4 text-slate-600">
@@ -364,7 +367,7 @@ export default function Step2License() {
         ) : (
           <label
             htmlFor={inputId}
-            className="block w-full min-h-[206px] cursor-pointer rounded-xl border border-dashed border-[#78d7cc] px-6 py-6 text-center transition hover:bg-slate-50"
+            className="block w-full min-h-[206px] cursor-pointer rounded-xl border border-dashed border-[color:var(--brand-primary)] px-6 py-6 text-center transition hover:bg-slate-50"
           >
             <input
               id={inputId}
@@ -383,7 +386,7 @@ export default function Step2License() {
                 Drag your file(s) to start uploading
               </p>
               <p className="text-[10px] font-normal leading-4 text-slate-400">OR</p>
-              <span className="rounded-md border border-[#1db4a3] px-4 py-1 text-[12px] font-medium leading-5 text-[#1db4a3]">
+              <span className="rounded-md border border-[color:var(--brand-primary)] px-4 py-1 text-[12px] font-medium leading-5 text-[color:var(--brand-primary)]">
                 Browse files
               </span>
               <p className="text-[10px] font-normal leading-4 text-slate-500">
@@ -410,7 +413,7 @@ export default function Step2License() {
         </div>
 
         {file ? (
-          <div className="flex items-center justify-between rounded-lg border border-[#98e1d8] bg-[#ecfffd] px-4 py-3">
+          <div className="flex items-center justify-between rounded-lg border border-[color:var(--brand-primary)]/40 bg-[color:var(--brand-primary)]/10 px-4 py-3">
             <div className="min-w-0 flex-1">
               <p className="truncate text-[13px] font-medium leading-5 text-slate-800">{file.name}</p>
               <p className="text-[11px] font-normal leading-4 text-slate-600">
@@ -430,7 +433,7 @@ export default function Step2License() {
         ) : (
           <label
             htmlFor={inputId}
-            className="block w-full cursor-pointer rounded-xl border border-dashed border-[#78d7cc] px-6 py-6 text-center transition hover:bg-slate-50 min-h-[206px]"
+            className="block w-full min-h-[206px] cursor-pointer rounded-xl border border-dashed border-[color:var(--brand-primary)] px-6 py-6 text-center transition hover:bg-slate-50"
           >
             <input
               id={inputId}
@@ -449,7 +452,7 @@ export default function Step2License() {
                 Drag your file(s) to start uploading
               </p>
               <p className="text-[10px] font-normal leading-4 text-slate-400">OR</p>
-              <span className="rounded-md border border-[#1db4a3] px-4 py-1 text-[12px] font-medium leading-5 text-[#1db4a3]">
+              <span className="rounded-md border border-[color:var(--brand-primary)] px-4 py-1 text-[12px] font-medium leading-5 text-[color:var(--brand-primary)]">
                 Browse files
               </span>
               <p className="text-[10px] font-normal leading-4 text-slate-500">Max 10 MB — PNG, JPG, or PDF</p>
@@ -524,7 +527,7 @@ export default function Step2License() {
       rightPanelImageClassName="opacity-90 object-top"
       rightPanelOverlayClassName="bg-white/70"
     >
-      <div className="flex h-full flex-col px-10 pb-10 pt-8">
+      <div className="flex h-full flex-col px-10 pb-10 pt-8" style={brandingToCssVars(branding)}>
         <OnboardingStepper />
 
         <div className="flex flex-1 flex-col pt-8">
@@ -540,7 +543,7 @@ export default function Step2License() {
                     applicationPath(APPLICATION_ROUTES.skillsIntro);
                   router.push(next);
                 }}
-                className="cursor-pointer text-[12px] font-medium leading-5 text-[#1db4a3]"
+                className="cursor-pointer text-[12px] font-medium leading-5 text-[color:var(--brand-primary)]"
               >
                 Skip for Now {"\u2192"}
               </button>
@@ -591,7 +594,7 @@ export default function Step2License() {
             <button
               type="button"
               onClick={() => router.back()}
-              className="cursor-pointer rounded-md border border-[#1db4a3] px-5 py-2 text-[12px] font-medium leading-5 text-[#1db4a3] transition hover:bg-[#ecfffd]"
+              className="cursor-pointer rounded-md border border-[color:var(--brand-primary)] px-5 py-2 text-[12px] font-medium leading-5 text-[color:var(--brand-primary)] transition hover:bg-[color:var(--brand-primary)]/10"
             >
               Back
             </button>
@@ -601,7 +604,7 @@ export default function Step2License() {
               disabled={
                 !(useTenantRequirements ? requiredUploadsMet : hasAnyUpload) || anyUploading || saving
               }
-              className="group inline-flex cursor-pointer items-center gap-2 rounded-md bg-[#1db4a3] px-6 py-2 text-[12px] font-medium leading-5 text-white transition hover:bg-[#189d8e] disabled:cursor-not-allowed disabled:opacity-50"
+              className="group inline-flex cursor-pointer items-center gap-2 rounded-md bg-[color:var(--brand-primary)] px-6 py-2 text-[12px] font-medium leading-5 text-white transition hover:brightness-90 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {saving ? "Saving…" : "Save & Continue"}
               <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />

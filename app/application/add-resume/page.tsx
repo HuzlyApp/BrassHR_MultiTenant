@@ -3,10 +3,19 @@
 import { APPLICATION_ROUTES } from "@/lib/onboarding/application-routes"
 import { applicationPath } from "@/lib/tenant/with-tenant"
 import { useEffect, useRef, useState } from "react"
+import type { CSSProperties } from "react"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
 import OnboardingStepper from "@/app/components/OnboardingStepper"
 import OnboardingLoader from "@/app/components/OnboardingLoader"
+import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext"
+import {
+  brandingShellGradient,
+  brandingToCssVars,
+  hexToRgba,
+  isRemoteOrBlobImageSrc,
+  normalizeBrandingImageSrc,
+} from "@/lib/tenant/tenant-branding"
 import {
   evaluateResumeParseQuality,
   normalizedResumeToStoredJson,
@@ -15,6 +24,23 @@ import {
 
 
 export default function Step1Upload() {
+  const branding = useTenantBranding()
+  const shellStyle: CSSProperties = {
+    ...brandingToCssVars(branding),
+    background: brandingShellGradient(branding),
+  }
+  const panelSrc = normalizeBrandingImageSrc(branding.loginBackgroundSrc, "/images/handshake.jpg")
+  const logoSrc = normalizeBrandingImageSrc(branding.logoUrl, "/images/new-logo-nexus.svg", {
+    allowBlob: true,
+  })
+  const panelUseNativeImg = isRemoteOrBlobImageSrc(panelSrc)
+  const logoUseNativeImg = isRemoteOrBlobImageSrc(logoSrc)
+  const brandBorderStyle = { borderColor: branding.primaryHex } as CSSProperties
+  const brandMutedBgStyle = { backgroundColor: hexToRgba(branding.primaryHex, 0.08) } as CSSProperties
+  const brandSoftBgStyle = { backgroundColor: hexToRgba(branding.primaryHex, 0.14) } as CSSProperties
+  const primaryBtnStyle = { backgroundColor: branding.primaryHex } as CSSProperties
+  const brandTextStyle = { color: branding.primaryHex } as CSSProperties
+  const secondaryTextStyle = { color: branding.secondaryHex } as CSSProperties
 
   const router = useRouter()
   const fileInput = useRef<HTMLInputElement>(null)
@@ -288,7 +314,10 @@ export default function Step1Upload() {
   }
 
   return (
-    <div className="relative min-h-screen bg-[linear-gradient(135deg,#19c7c0_0%,#10a58f_100%)] flex items-center justify-center p-4 md:p-8">
+    <div
+      className="relative flex min-h-screen items-center justify-center p-4 md:p-8"
+      style={shellStyle}
+    >
 
       <div
         className={`bg-white w-full max-w-5xl rounded-2xl shadow-2xl flex overflow-hidden min-h-[540px] transition-opacity ${parsing ? "opacity-50" : "opacity-100"}`}
@@ -309,14 +338,27 @@ export default function Step1Upload() {
             role="button"
             tabIndex={0}
             onClick={browse}
-            className={`border-2 border-dashed rounded-xl p-10 text-center cursor-pointer transition ${dragActive ? "border-[#0D9488] bg-teal-50" : "border-[#0D9488]"
-              }`}
+            className="cursor-pointer rounded-xl border-2 border-dashed p-10 text-center transition"
+            style={
+              dragActive
+                ? { ...brandBorderStyle, ...brandMutedBgStyle }
+                : brandBorderStyle
+            }
           >
 
             {file || savedResumeName ? (
-              <div className="mx-auto flex max-w-[540px] items-center justify-between gap-3 rounded-lg border border-[#9fded8] bg-[#ecfffd] px-4 py-3">
+              <div
+                className="mx-auto flex max-w-[540px] items-center justify-between gap-3 rounded-lg border px-4 py-3"
+                style={{
+                  borderColor: hexToRgba(branding.primaryHex, 0.35),
+                  backgroundColor: hexToRgba(branding.primaryHex, 0.1),
+                }}
+              >
                 <div className="flex min-w-0 items-center gap-3">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-md bg-[#dff7f3]">
+                  <div
+                    className="flex h-12 w-12 items-center justify-center rounded-md"
+                    style={brandSoftBgStyle}
+                  >
                     <Image
                       src="/icons/pdf-icon.svg"
                       alt="PDF"
@@ -326,7 +368,7 @@ export default function Step1Upload() {
                     />
                   </div>
                   <div className="min-w-0 text-left">
-                    <div className="truncate text-teal-700 font-semibold">
+                    <div className="truncate font-semibold" style={secondaryTextStyle}>
                       {file?.name || savedResumeName}
                     </div>
                     <div className="text-xs text-slate-500">
@@ -370,7 +412,8 @@ export default function Step1Upload() {
                     e.stopPropagation()
                     browse()
                   }}
-                  className="cursor-pointer border border-[#0D9488] text-[#0D9488] px-6 py-2 rounded-md text-sm hover:bg-teal-50"
+                  className="cursor-pointer rounded-md border px-6 py-2 text-sm transition hover:opacity-90"
+                  style={{ ...brandBorderStyle, ...brandTextStyle }}
                 >
                   Browse files
                 </button>
@@ -419,7 +462,8 @@ export default function Step1Upload() {
           <div className="flex justify-end gap-4 mt-10">
             <button
               onClick={() => router.back()}
-              className="cursor-pointer border px-6 py-2 rounded-lg text-[#0D9488] text-sm hover:bg-gray-50"
+              className="cursor-pointer rounded-lg border px-6 py-2 text-sm hover:bg-gray-50"
+              style={{ ...brandBorderStyle, ...brandTextStyle }}
             >
               Cancel
             </button>
@@ -427,8 +471,8 @@ export default function Step1Upload() {
             <button
               onClick={next}
               disabled={parsing}
-              className={`cursor-pointer bg-[#0D9488] hover:bg-teal-800 text-white px-8 py-2 rounded-lg text-sm transition ${parsing ? "opacity-70 cursor-not-allowed hover:bg-teal-700" : ""
-                }`}
+              className={`cursor-pointer rounded-lg px-8 py-2 text-sm text-white transition hover:brightness-90 ${parsing ? "cursor-not-allowed opacity-70" : ""}`}
+              style={primaryBtnStyle}
             >
               {parsing ? "Parsing..." : "Next"}
             </button>
@@ -436,38 +480,54 @@ export default function Step1Upload() {
 
         </div>
 
-        <div className="hidden md:block w-1/3 relative">
-          <Image
-            src="/images/nurse.jpg"
-            alt="nurse"
-            fill
-            sizes="(max-width: 767px) 0px, 33vw"
-            className="object-cover grayscale opacity-60"
-          />
+        <div className="relative hidden w-1/3 md:block">
+          {panelUseNativeImg ? (
+            <img
+              src={panelSrc}
+              alt=""
+              className="absolute inset-0 h-full w-full object-cover opacity-60 grayscale"
+            />
+          ) : (
+            <Image
+              src={panelSrc}
+              alt=""
+              fill
+              sizes="(max-width: 767px) 0px, 33vw"
+              className="object-cover grayscale opacity-60"
+            />
+          )}
           <div className="absolute inset-0 bg-white/65" />
           <div className="absolute inset-0 flex items-center justify-center px-8 text-center">
             <div className="flex flex-col items-center">
-              <Image
-                src="/images/new-logo-nexus.svg"
-                alt="Nexus MedPro Logo"
-                width={220}
-                height={80}
-                className="w-56 h-auto"
-                priority
-              />
-              <div className="mt-6 flex items-center justify-center w-56">
-                <div className="flex-1 h-px bg-[#94A3B8]" />
+              {logoUseNativeImg ? (
+                <img
+                  src={logoSrc}
+                  alt={branding.companyName}
+                  className="h-auto w-56 max-w-full object-contain"
+                />
+              ) : (
                 <Image
-                  src="/images/tabler_circle-asterisk.svg"
-                  alt="divider icon"
+                  src={logoSrc}
+                  alt={branding.companyName}
+                  width={220}
+                  height={80}
+                  className="h-auto w-56"
+                  priority
+                />
+              )}
+              <div className="mt-6 flex w-56 items-center justify-center">
+                <div className="h-px flex-1 bg-[#94A3B8]" />
+                <Image
+                  src="/icons/circle-star-icon.svg"
+                  alt=""
                   width={24}
                   height={24}
                   className="mx-2"
                 />
-                <div className="flex-1 h-px bg-[#94A3B8]" />
+                <div className="h-px flex-1 bg-[#94A3B8]" />
               </div>
-              <div className="mt-4 text-sm text-black text-center leading-snug">
-                Nexus MedPro Staffing – Connecting Healthcare professionals with service providers
+              <div className="mt-4 text-center text-sm leading-snug text-black">
+                {branding.tagline}
               </div>
             </div>
           </div>
@@ -476,11 +536,7 @@ export default function Step1Upload() {
       </div>
 
       {parsing ? (
-        <OnboardingLoader
-          overlay
-          label="Resume parsing..."
-          backgroundClassName="bg-[linear-gradient(135deg,#19c7c0_0%,#10a58f_100%)]"
-        />
+        <OnboardingLoader overlay label="Resume parsing..." />
       ) : null}
     </div>
   )
