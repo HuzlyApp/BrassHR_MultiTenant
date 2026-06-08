@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type CSSProperties } from "react";
 import ApplicantSignInCard from "@/app/components/ApplicantSignInCard";
+import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
 import { TenantBrandingProvider } from "@/app/components/tenant/TenantBrandingContext";
 import {
   applicantLandingCtaLabel,
@@ -176,7 +177,11 @@ export default function Home() {
               <div className="flex w-full max-w-[340px] items-center justify-center gap-4">
                 <div className="h-px flex-1 bg-slate-400/40" />
                 <div className="flex h-7 w-7 items-center justify-center">
-                  <Image src="/images/tabler_circle-asterisk.svg" alt="" width={20} height={20} className="flex-none" />
+                  <BrandedSvgIcon
+                    src="/icons/circle-star-icon.svg"
+                    className="h-5 w-5 flex-none"
+                    color={brand.primaryHex}
+                  />
                 </div>
                 <div className="h-px flex-1 bg-slate-400/40" />
               </div>
