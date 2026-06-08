@@ -27,28 +27,33 @@ function faviconType(href: string): string | undefined {
   return undefined;
 }
 
-function removeAllFaviconLinks() {
-  document
-    .querySelectorAll("link[rel]")
-    .forEach((node) => {
-      const rel = (node as HTMLLinkElement).rel?.toLowerCase() ?? "";
-      if (
-        rel === "icon" ||
-        rel === "shortcut icon" ||
-        rel.includes("apple-touch-icon")
-      ) {
-        node.remove();
-      }
-    });
+function isFaviconLink(node: Element): node is HTMLLinkElement {
+  const rel = (node as HTMLLinkElement).rel?.toLowerCase() ?? "";
+  return rel === "icon" || rel === "shortcut icon" || rel.includes("apple-touch-icon");
 }
 
-function appendFaviconLink(rel: string, href: string) {
-  const link = document.createElement("link");
-  link.rel = rel;
-  link.href = href;
+function applyFaviconAttributes(link: HTMLLinkElement, href: string) {
+  link.setAttribute("href", href);
   const type = faviconType(href);
   if (type) link.type = type;
-  document.head.appendChild(link);
+  else link.removeAttribute("type");
+}
+
+/** Update existing head links in place — never remove React/Next-managed nodes. */
+function syncFaviconLinks(href: string) {
+  const existing = Array.from(document.querySelectorAll("link[rel]")).filter(isFaviconLink);
+
+  if (existing.length > 0) {
+    for (const link of existing) applyFaviconAttributes(link, href);
+    return;
+  }
+
+  for (const rel of FAVICON_REL_VALUES) {
+    const link = document.createElement("link");
+    link.rel = rel;
+    applyFaviconAttributes(link, href);
+    document.head.appendChild(link);
+  }
 }
 
 function resolveFaviconHref(branding: TenantBranding): string {
@@ -70,10 +75,7 @@ function applyBrandingHead(branding: TenantBranding) {
   const iconSrc = resolveFaviconHref(branding);
   const cacheBust = `${iconSrc}${iconSrc.includes("?") ? "&" : "?"}v=${encodeURIComponent(branding.slug ?? "default")}`;
 
-  removeAllFaviconLinks();
-  for (const rel of FAVICON_REL_VALUES) {
-    appendFaviconLink(rel, cacheBust);
-  }
+  syncFaviconLinks(cacheBust);
 
   const company = branding.companyName?.trim();
   if (company) document.title = company;

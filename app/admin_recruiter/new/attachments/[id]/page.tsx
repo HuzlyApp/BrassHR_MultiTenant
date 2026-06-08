@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useParams, usePathname } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import DetailedCandidateHeader from "../../../components/DetailedCandidateHeader";
 import DetailedTabs from "../../../components/DetailedTabs";
 import {
@@ -20,6 +20,10 @@ import {
   Users,
   X,
 } from "lucide-react";
+import AiPreScanBanner from "@/app/components/AiPreScanBanner";
+import { scanUploadedDocument } from "@/lib/document-verification-client";
+import type { DocumentVerificationResult } from "@/lib/document-verification";
+import { isPdfFile } from "@/lib/document-upload-helpers";
 type WorkerProfile = {
   id: string;
   first_name: string | null;
@@ -32,6 +36,7 @@ type AttachmentRequirement = {
   title: string;
   url: string | null;
   filename: string;
+  required_document_id?: string | null;
 };
 
 type WorkerProfileResponse = {
@@ -44,6 +49,7 @@ type AttachmentRow = {
   title: string;
   url: string | null;
   filename: string;
+  requiredDocumentId: string | null;
 };
 
 function initials(name: string) {
@@ -63,33 +69,92 @@ export default function NewApplicantAttachmentsFilledPage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [profile, setProfile] = useState<WorkerProfileResponse | null>(null);
+  const [scanById, setScanById] = useState<
+    Record<string, { loading: boolean; result: DocumentVerificationResult | null; error: string | null }>
+  >({});
+  const [uploadingId, setUploadingId] = useState<string | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [pendingUploadRow, setPendingUploadRow] = useState<AttachmentRow | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const fetchApplicant = useCallback(async () => {
+    if (!applicantId) return;
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const res = await fetch(
+        `/api/admin/worker-profile?workerId=${encodeURIComponent(applicantId)}`
+      );
+      const json = (await res.json()) as WorkerProfileResponse & { error?: string };
+      if (!res.ok) {
+        throw new Error(json.error || `Failed to load profile (${res.status})`);
+      }
+      setProfile(json);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error("Failed to fetch applicant for attachments:", msg, e);
+      setLoadError(msg);
+      setProfile(null);
+    } finally {
+      setLoading(false);
+    }
+  }, [applicantId]);
 
   useEffect(() => {
-    async function fetchApplicant() {
-      if (!applicantId) return;
-      setLoading(true);
-      setLoadError(null);
-      try {
-        const res = await fetch(
-          `/api/admin/worker-profile?workerId=${encodeURIComponent(applicantId)}`
-        );
-        const json = (await res.json()) as WorkerProfileResponse & { error?: string };
-        if (!res.ok) {
-          throw new Error(json.error || `Failed to load profile (${res.status})`);
-        }
-        setProfile(json);
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
-        console.error("Failed to fetch applicant for attachments:", msg, e);
-        setLoadError(msg);
-        setProfile(null);
-      } finally {
-        setLoading(false);
-      }
-    }
+    void fetchApplicant();
+  }, [fetchApplicant]);
 
-    fetchApplicant();
-  }, [applicantId]);
+  const openUploadPicker = (row: AttachmentRow) => {
+    setUploadError(null);
+    setPendingUploadRow(row);
+    fileInputRef.current?.click();
+  };
+
+  const handleFileSelected = async (file: File | undefined) => {
+    const row = pendingUploadRow;
+    setPendingUploadRow(null);
+    if (!file || !row || !applicantId) return;
+
+    setUploadingId(row.id);
+    setUploadError(null);
+
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("workerId", applicantId);
+      fd.append("documentTitle", row.title);
+
+      if (row.id === "resume") {
+        fd.append("attachmentKind", "resume");
+      } else if (row.requiredDocumentId) {
+        fd.append("requiredDocumentId", row.requiredDocumentId);
+      } else {
+        throw new Error(`Upload is not configured for "${row.title}".`);
+      }
+
+      const res = await fetch("/api/admin/worker-attachment-upload", {
+        method: "POST",
+        body: fd,
+      });
+      const json = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        throw new Error(json.error || "Upload failed");
+      }
+
+      setScanById((prev) => {
+        const next = { ...prev };
+        delete next[row.id];
+        return next;
+      });
+      await fetchApplicant();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Upload failed";
+      setUploadError(msg);
+    } finally {
+      setUploadingId(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
 
   const applicant = profile?.worker ?? null;
 
@@ -101,8 +166,51 @@ export default function NewApplicantAttachmentsFilledPage() {
       title: row.title,
       url: row.url,
       filename: row.filename?.trim() ? row.filename : "—",
+      requiredDocumentId: row.required_document_id ?? null,
     }));
   }, [profile]);
+
+  useEffect(() => {
+    if (!attachmentRows.length) return;
+
+    let cancelled = false;
+
+    async function runScans() {
+      for (const row of attachmentRows) {
+        if (!row.url) continue;
+
+        setScanById((prev) => ({
+          ...prev,
+          [row.id]: { loading: true, result: null, error: null },
+        }));
+
+        try {
+          const result = await scanUploadedDocument({
+            documentType: row.title,
+            fileUrl: row.url,
+            fileName: row.filename,
+          });
+          if (cancelled) return;
+          setScanById((prev) => ({
+            ...prev,
+            [row.id]: { loading: false, result, error: null },
+          }));
+        } catch (e) {
+          if (cancelled) return;
+          const msg = e instanceof Error ? e.message : "Scan failed";
+          setScanById((prev) => ({
+            ...prev,
+            [row.id]: { loading: false, result: null, error: msg },
+          }));
+        }
+      }
+    }
+
+    void runScans();
+    return () => {
+      cancelled = true;
+    };
+  }, [attachmentRows]);
 
   const uploadedCount = useMemo(
     () => attachmentRows.filter((r) => r.url).length,
@@ -244,6 +352,23 @@ export default function NewApplicantAttachmentsFilledPage() {
               </div>
             ) : null}
 
+            {uploadError ? (
+              <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+                {uploadError}
+              </div>
+            ) : null}
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              className="hidden"
+              accept=".pdf,.png,.jpg,.jpeg,.docx,application/pdf,image/png,image/jpeg"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                void handleFileSelected(file);
+              }}
+            />
+
             <DetailedCandidateHeader
               name={candidateName}
               role={candidateRole}
@@ -310,10 +435,15 @@ export default function NewApplicantAttachmentsFilledPage() {
                     {loading ? (
                       <div className="px-4 py-4 text-sm text-[#6B7280]">Loading requirements...</div>
                     ) : (
-                      attachmentRows.map((r, idx) => (
+                      attachmentRows.map((r, idx) => {
+                        const scan = scanById[r.id];
+                        const isPdf = isPdfFile(null, r.filename, r.url);
+                        const fileIcon = isPdf ? "/icons/pdf-icon.svg" : "/icons/jpeg-icon.svg";
+
+                        return (
                         <div
                           key={r.id}
-                          className="h-[128px] w-full rounded-md border border-[#D1D5DB]"
+                          className="w-full rounded-md border border-[#D1D5DB]"
                         >
                           <div className="flex h-[44px] items-center justify-between px-5 pt-3 pb-2">
                             <div className="text-[16px] font-semibold leading-6 text-[#111827]">
@@ -347,7 +477,7 @@ export default function NewApplicantAttachmentsFilledPage() {
                           <div className="flex items-center justify-between gap-4 px-5 py-3">
                             {r.url ? (
                               <div className="flex h-[50px] w-[306px] min-w-[306px] max-w-[520px] items-center gap-2 rounded-[8px] border border-[#99D8D3] bg-[#F8FAFC] px-3 py-2">
-                                <img src="/icons/jpeg-icon.svg" alt="" className="h-6 w-6 shrink-0" />
+                                <img src={fileIcon} alt="" className="h-6 w-6 shrink-0" />
                                 <div className="min-w-0">
                                   <div className="truncate text-xs font-semibold leading-4 tracking-[0.01em] text-[#0D9488]">
                                     {r.filename}
@@ -362,9 +492,11 @@ export default function NewApplicantAttachmentsFilledPage() {
                                 <span className="text-xs text-[#6B7280]">No Document</span>
                                 <button
                                   type="button"
-                                  className="inline-flex h-8 items-center justify-center rounded-md border border-[#99D8D3] bg-white px-4 text-xs font-semibold text-[#0D9488]"
+                                  disabled={uploadingId === r.id}
+                                  onClick={() => openUploadPicker(r)}
+                                  className="inline-flex h-8 items-center justify-center rounded-md border border-[#99D8D3] bg-white px-4 text-xs font-semibold text-[#0D9488] disabled:opacity-50"
                                 >
-                                  Upload
+                                  {uploadingId === r.id ? "Uploading..." : "Upload"}
                                 </button>
                               </div>
                             )}
@@ -393,14 +525,25 @@ export default function NewApplicantAttachmentsFilledPage() {
                             ) : (
                               <button
                                 type="button"
-                                className="inline-flex h-8 items-center justify-center rounded-md bg-[#0D9488] px-5 text-xs font-semibold text-white"
+                                disabled={uploadingId === r.id}
+                                onClick={() => openUploadPicker(r)}
+                                className="inline-flex h-8 items-center justify-center rounded-md bg-[#0D9488] px-5 text-xs font-semibold text-white disabled:opacity-50"
                               >
-                                Upload
+                                {uploadingId === r.id ? "Uploading..." : "Upload"}
                               </button>
                             )}
                           </div>
+
+                          {r.url ? (
+                            <AiPreScanBanner
+                              loading={scan?.loading}
+                              result={scan?.result ?? null}
+                              error={scan?.error ?? null}
+                            />
+                          ) : null}
                         </div>
-                      ))
+                        );
+                      })
                     )}
                   </div>
                 </div>

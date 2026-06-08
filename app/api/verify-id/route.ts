@@ -34,7 +34,7 @@ return NextResponse.json({ error: "Invalid file URL" }, { status: 400 })
 const response = await axios.post(
 "https://api.x.ai/v1/chat/completions",
 {
-model:"grok-2-vision-latest",
+model: process.env.DOCUMENT_VERIFY_MODEL?.trim() || "grok-4.3",
 messages:[
 {
 role:"system",
@@ -49,7 +49,7 @@ text:"Verify if this image contains a valid government ID or driver's license."
 },
 {
 type:"image_url",
-image_url:{url:fileUrl}
+image_url:{url:fileUrl, detail:"high"}
 }
 ]
 }
@@ -57,7 +57,7 @@ image_url:{url:fileUrl}
 },
 {
 headers:{
-Authorization:`Bearer ${process.env.GROK_API_KEY}`,
+Authorization:`Bearer ${process.env.XAI_API_KEY || process.env.GROK_API_KEY}`,
 "Content-Type":"application/json"
 }
 }
