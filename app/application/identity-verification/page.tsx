@@ -4,10 +4,11 @@ import { APPLICATION_ROUTES } from "@/lib/onboarding/application-routes"
 import { applicationPath } from "@/lib/tenant/with-tenant"
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import Image from "next/image"
 import { ChevronRight } from "lucide-react"
 import { supabaseBrowser as supabase } from "@/lib/supabase-browser"
 import { isPdfFile } from "@/lib/document-upload-helpers"
+import BrandedSvgIcon from "@/app/components/BrandedSvgIcon"
+import BrandedUploadIcon from "@/app/components/BrandedUploadIcon"
 import OnboardingLayout from "@/app/components/OnboardingLayout"
 import OnboardingStepper from "@/app/components/OnboardingStepper"
 import DocumentFileThumbnail from "@/app/components/DocumentFileThumbnail"
@@ -206,19 +207,17 @@ export default function Step4Identity() {
             className="cursor-pointer p-1"
             aria-label={`Remove ${storageKey} file`}
           >
-            <Image
+            <BrandedSvgIcon
               src="/icons/delete-icon.svg"
-              alt="Delete"
-              width={28}
-              height={28}
               className="h-7 w-7"
+              color={branding.primaryHex}
             />
           </button>
         </div>
       ) : (
         <div className="flex flex-col items-center gap-2">
           <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[color:var(--brand-primary)]/10">
-            <Image src="/images/upload.svg" alt="" width={22} height={22} />
+            <BrandedUploadIcon className="h-[22px] w-[22px]" primaryHex={branding.primaryHex} />
           </div>
           <p className="text-[13px] text-slate-600">Drag your file(s) to start uploading</p>
           <p className="text-[11px] text-slate-400">OR</p>
@@ -234,7 +233,6 @@ export default function Step4Identity() {
   return (
     <OnboardingLayout
       cardClassName="md:h-auto md:min-h-[700px]"
-      rightPanelImageSrc="/images/n1.jpg"
       rightPanelImageClassName="opacity-60 object-top"
       rightPanelOverlayClassName="bg-white/65"
     >

@@ -1,12 +1,12 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import Image from "next/image"
 import { FileText } from "lucide-react"
+import BrandedSvgIcon from "@/app/components/BrandedSvgIcon"
 import { isPdfFile } from "@/lib/document-upload-helpers"
 
 const thumbClass =
-  "h-20 w-20 shrink-0 rounded-lg border border-[#c5ebe4] bg-gray-50 object-cover"
+  "h-20 w-20 shrink-0 rounded-lg border border-[color:var(--brand-primary)]/25 bg-gray-50 object-cover"
 
 type Props = {
   /** File selected locally (not yet uploaded) */
@@ -48,9 +48,15 @@ export default function DocumentFileThumbnail({ file, publicUrl, fileName }: Pro
 
   if (pdf) {
     return (
-      <div className="flex h-20 w-20 shrink-0 flex-col items-center justify-center gap-0.5 rounded-lg border border-[#c5ebe4] bg-[#ecfffd]">
-        <Image src="/icons/pdf-icon.svg" alt="" width={28} height={28} className="h-7 w-7" />
-        <span className="text-[9px] font-semibold uppercase tracking-wide text-[#0f766e]">PDF</span>
+      <div className="flex h-20 w-20 shrink-0 flex-col items-center justify-center gap-0.5 rounded-lg border border-[color:var(--brand-primary)]/25 bg-[color:var(--brand-primary)]/10">
+        <BrandedSvgIcon
+          src="/icons/pdf-icon.svg"
+          className="h-7 w-7"
+          color="var(--brand-primary)"
+        />
+        <span className="text-[9px] font-semibold uppercase tracking-wide text-[color:var(--brand-primary)]">
+          PDF
+        </span>
       </div>
     )
   }

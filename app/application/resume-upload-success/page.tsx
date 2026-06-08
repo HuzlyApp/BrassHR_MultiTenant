@@ -3,9 +3,9 @@
 import { APPLICATION_ROUTES } from "@/lib/onboarding/application-routes"
 import { applicationPath } from "@/lib/tenant/with-tenant"
 import { useEffect, useMemo, useState } from "react"
-import Image from "next/image"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
+import BrandedSvgIcon from "@/app/components/BrandedSvgIcon"
 import OnboardingLayout from "@/app/components/OnboardingLayout"
 import OnboardingStepper from "@/app/components/OnboardingStepper"
 import OnboardingCheckbox from "@/app/components/OnboardingCheckbox"
@@ -197,13 +197,11 @@ export default function Step1Success() {
             </div>
           ) : (
             <div className="mt-6 flex items-start gap-3 rounded-lg border px-4 py-4" style={brandSurfaceStyle}>
-              <div className="mt-0.5 flex h-6 w-6 flex-none items-center justify-center rounded-full  text-white">
-                <Image
+              <div className="mt-0.5 flex h-6 w-6 flex-none items-center justify-center rounded-full">
+                <BrandedSvgIcon
                   src="/icons/yes-sign-icon.svg"
-                  alt="Success"
-                  width={24}
-                  height={24}
                   className="h-6 w-6"
+                  color={branding.primaryHex}
                 />
               </div>
               <p className="text-[14px] leading-6">
@@ -219,12 +217,10 @@ export default function Step1Success() {
                 className="flex h-12 w-12 items-center justify-center rounded-md"
                 style={fileIconBgStyle}
               >
-                <Image
+                <BrandedSvgIcon
                   src="/icons/pdf-icon.svg"
-                  alt="PDF"
-                  width={24}
-                  height={24}
                   className="h-6 w-6"
+                  color={branding.primaryHex}
                 />
               </div>
 
@@ -243,12 +239,10 @@ export default function Step1Success() {
               style={{ color: branding.secondaryHex }}
               aria-label="Remove file"
             >
-              <Image
+              <BrandedSvgIcon
                 src="/icons/delete-icon.svg"
-                alt="Delete"
-                width={24}
-                height={24}
                 className="h-6 w-6"
+                color={branding.primaryHex}
               />
             </button>
           </div>

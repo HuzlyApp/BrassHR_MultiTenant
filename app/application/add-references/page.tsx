@@ -147,8 +147,7 @@ export default function ReferencesPage() {
   return (
     <OnboardingLayout
       cardClassName="md:h-auto md:min-h-[700px]"
-      rightPanelImageSrc="/images/main-doctor.jpg"
-       rightPanelImageClassName="opacity-60 object-top"
+      rightPanelImageClassName="opacity-60 object-top"
       rightPanelOverlayClassName="bg-white/65"
     >
       <div className="flex h-full flex-col px-10 pb-10 pt-8" style={brandingToCssVars(branding)}>

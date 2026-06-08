@@ -2,6 +2,7 @@
 
 import type { CSSProperties } from "react"
 import Image from "next/image"
+import BrandedSvgIcon from "@/app/components/BrandedSvgIcon"
 import { cn } from "@/lib/cn"
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext"
 import {
@@ -122,12 +123,10 @@ export default function OnboardingLayout({
 
               <div className="flex w-full items-center justify-center gap-4">
                 <div className="h-px flex-1 bg-slate-400/55" />
-                <Image
+                <BrandedSvgIcon
                   src="/icons/circle-star-icon.svg"
-                  alt=""
-                  width={24}
-                  height={24}
                   className="h-6 w-6 flex-none"
+                  color={branding.primaryHex}
                 />
                 <div className="h-px flex-1 bg-slate-400/55" />
               </div>

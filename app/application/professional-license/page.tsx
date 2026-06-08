@@ -2,12 +2,13 @@
 
 import { APPLICATION_ROUTES } from "@/lib/onboarding/application-routes"
 import { applicationPath } from "@/lib/tenant/with-tenant";
-import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import type { TenantRequiredDocument } from "@/lib/onboarding/types";
 import AutosaveStatus from "@/app/components/AutosaveStatus";
 import { ChevronRight } from "lucide-react";
+import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
+import BrandedUploadIcon from "@/app/components/BrandedUploadIcon";
 import OnboardingLayout from "@/app/components/OnboardingLayout";
 import OnboardingStepper from "@/app/components/OnboardingStepper";
 import OnboardingLoader from "@/app/components/OnboardingLoader";
@@ -361,7 +362,11 @@ export default function Step2License() {
               className="cursor-pointer rounded-md p-1 text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 disabled:opacity-40"
               aria-label={`Remove ${doc.title}`}
             >
-              <Image src="/icons/delete-icon.svg" alt="Delete" width={24} height={24} className="h-6 w-6" />
+              <BrandedSvgIcon
+                src="/icons/delete-icon.svg"
+                className="h-6 w-6"
+                color={branding.primaryHex}
+              />
             </button>
           </div>
         ) : (
@@ -381,7 +386,7 @@ export default function Step2License() {
               }}
             />
             <div className="mx-auto flex h-full max-w-[360px] flex-col items-center justify-center gap-3">
-              <Image src="/images/upload.svg" alt="" width={36} height={36} className="h-9 w-9" priority />
+              <BrandedUploadIcon className="h-9 w-9" primaryHex={branding.primaryHex} />
               <p className="text-[12px] font-normal leading-5 text-slate-800">
                 Drag your file(s) to start uploading
               </p>
@@ -427,7 +432,11 @@ export default function Step2License() {
               className="cursor-pointer rounded-md p-1 text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 disabled:opacity-40"
               aria-label={`Remove ${label}`}
             >
-              <Image src="/icons/delete-icon.svg" alt="Delete" width={24} height={24} className="h-6 w-6" />
+              <BrandedSvgIcon
+                src="/icons/delete-icon.svg"
+                className="h-6 w-6"
+                color={branding.primaryHex}
+              />
             </button>
           </div>
         ) : (
@@ -447,7 +456,7 @@ export default function Step2License() {
               }}
             />
             <div className="mx-auto flex h-full max-w-[360px] flex-col items-center justify-center gap-3">
-              <Image src="/images/upload.svg" alt="" width={36} height={36} className="h-9 w-9" priority />
+              <BrandedUploadIcon className="h-9 w-9" primaryHex={branding.primaryHex} />
               <p className="text-[12px] font-normal leading-5 text-slate-800">
                 Drag your file(s) to start uploading
               </p>
@@ -523,7 +532,6 @@ export default function Step2License() {
     <OnboardingLayout
       cardClassName="md:min-w-0 md:max-w-[950px] md:w-full md:grid-cols-[2fr_1fr] md:h-auto md:min-h-[0]"
       rightPanelContentClassName="p-5"
-      rightPanelImageSrc="/images/step-2-license-bg-image.jpg"
       rightPanelImageClassName="opacity-90 object-top"
       rightPanelOverlayClassName="bg-white/70"
     >

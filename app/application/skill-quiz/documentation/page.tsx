@@ -441,7 +441,6 @@ export default function DocumentationQuiz() {
   return (
     <OnboardingLayout
       cardClassName="md:h-auto md:min-h-[700px]"
-      rightPanelImageSrc="/images/skill-bg.jpg"
       rightPanelImageClassName="opacity-60 object-top"
       rightPanelOverlayClassName="bg-white/65"
     >

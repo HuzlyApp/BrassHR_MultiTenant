@@ -21,7 +21,8 @@ import {
   normalizedResumeToStoredJson,
   RESUME_PARSE_FAILED_USER_MESSAGE,
 } from "@/lib/resumeParseQuality"
-
+import BrandedSvgIcon from "@/app/components/BrandedSvgIcon"
+import BrandedUploadIcon from "@/app/components/BrandedUploadIcon"
 
 export default function Step1Upload() {
   const branding = useTenantBranding()
@@ -359,12 +360,10 @@ export default function Step1Upload() {
                     className="flex h-12 w-12 items-center justify-center rounded-md"
                     style={brandSoftBgStyle}
                   >
-                    <Image
+                    <BrandedSvgIcon
                       src="/icons/pdf-icon.svg"
-                      alt="PDF"
-                      width={24}
-                      height={24}
                       className="h-6 w-6"
+                      color={branding.primaryHex}
                     />
                   </div>
                   <div className="min-w-0 text-left">
@@ -382,22 +381,20 @@ export default function Step1Upload() {
                     e.stopPropagation()
                     clearSelectedResume()
                   }}
-                  className="cursor-pointer p-1"
+                  className="cursor-pointer rounded-md p-1 transition hover:bg-[color:var(--brand-primary)]/10"
                   aria-label="Remove uploaded resume"
                 >
-                  <Image
+                  <BrandedSvgIcon
                     src="/icons/delete-icon.svg"
-                    alt="Delete"
-                    width={28}
-                    height={28}
                     className="h-7 w-7"
+                    color={branding.primaryHex}
                   />
                 </button>
               </div>
             ) : (
               <>
                 <div className="mx-auto mb-4 flex items-center justify-center">
-                  <Image src="/images/upload.svg" alt="Upload" width={56} height={56} />
+                  <BrandedUploadIcon className="h-14 w-14" primaryHex={branding.primaryHex} />
                 </div>
 
                 <p className="text-black mb-4">
@@ -497,38 +494,38 @@ export default function Step1Upload() {
             />
           )}
           <div className="absolute inset-0 bg-white/65" />
-          <div className="absolute inset-0 flex items-center justify-center px-8 text-center">
-            <div className="flex flex-col items-center">
-              {logoUseNativeImg ? (
-                <img
-                  src={logoSrc}
-                  alt={branding.companyName}
-                  className="h-auto w-56 max-w-full object-contain"
-                />
-              ) : (
-                <Image
-                  src={logoSrc}
-                  alt={branding.companyName}
-                  width={220}
-                  height={80}
-                  className="h-auto w-56"
-                  priority
-                />
-              )}
-              <div className="mt-6 flex w-56 items-center justify-center">
-                <div className="h-px flex-1 bg-[#94A3B8]" />
-                <Image
+          <div className="absolute inset-0 flex items-center justify-center p-8 text-center">
+            <div className="flex w-full max-w-[270px] flex-col items-center gap-6">
+              <div className="relative flex h-[60px] min-h-[60px] w-[204px] max-w-full items-center justify-center">
+                {logoUseNativeImg ? (
+                  <img
+                    src={logoSrc}
+                    alt={branding.companyName}
+                    className="max-h-[60px] max-w-full object-contain"
+                  />
+                ) : (
+                  <Image
+                    src={logoSrc}
+                    alt={branding.companyName}
+                    width={204}
+                    height={60}
+                    className="max-h-[60px] max-w-full object-contain"
+                    priority
+                  />
+                )}
+              </div>
+              <div className="flex w-full items-center justify-center gap-4">
+                <div className="h-px flex-1 bg-slate-400/55" />
+                <BrandedSvgIcon
                   src="/icons/circle-star-icon.svg"
-                  alt=""
-                  width={24}
-                  height={24}
-                  className="mx-2"
+                  className="h-6 w-6 flex-none"
+                  color={branding.primaryHex}
                 />
-                <div className="h-px flex-1 bg-[#94A3B8]" />
+                <div className="h-px flex-1 bg-slate-400/55" />
               </div>
-              <div className="mt-4 text-center text-sm leading-snug text-black">
+              <p className="text-center text-[16px] font-normal leading-6 tracking-normal text-black">
                 {branding.tagline}
-              </div>
+              </p>
             </div>
           </div>
         </div>

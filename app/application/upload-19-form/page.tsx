@@ -3,9 +3,10 @@
 import type { CSSProperties } from "react"
 import { applicationPath } from "@/lib/tenant/with-tenant"
 import { useEffect, useRef, useState } from "react"
-import Image from "next/image"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
+import BrandedSvgIcon from "@/app/components/BrandedSvgIcon"
+import BrandedUploadIcon from "@/app/components/BrandedUploadIcon"
 import OnboardingLayout from "@/app/components/OnboardingLayout"
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext"
 import { brandingToCssVars, hexToRgba } from "@/lib/tenant/tenant-branding"
@@ -156,12 +157,10 @@ export default function Upload19FormPage() {
                 style={completedSurfaceStyle}
               >
                 <div className="flex min-w-0 items-center gap-3">
-                  <Image
+                  <BrandedSvgIcon
                     src="/icons/pdf-icon.svg"
-                    alt="PDF file"
-                    width={24}
-                    height={24}
                     className="h-6 w-6 flex-none"
+                    color={branding.primaryHex}
                   />
                   <div className="min-w-0">
                     <p className="truncate text-[14px] font-semibold leading-5 text-[color:var(--brand-primary)]">
@@ -180,12 +179,10 @@ export default function Upload19FormPage() {
                   style={brandSoftBgStyle}
                   aria-label="Remove uploaded file"
                 >
-                  <Image
+                  <BrandedSvgIcon
                     src="/icons/delete-icon.svg"
-                    alt="Delete file"
-                    width={18}
-                    height={18}
                     className="h-[18px] w-[18px]"
+                    color={branding.primaryHex}
                   />
                 </button>
               </div>
@@ -209,13 +206,7 @@ export default function Upload19FormPage() {
                 }}
               >
                 <div className="flex min-h-[168px] flex-col items-center justify-center gap-3 text-center">
-                  <Image
-                    src="/images/upload.svg"
-                    alt="Upload file"
-                    width={36}
-                    height={36}
-                    className="h-9 w-9"
-                  />
+                  <BrandedUploadIcon className="h-9 w-9" primaryHex={branding.primaryHex} />
 
                   <p className="text-[14px] font-normal leading-5 text-slate-900">
                     Drag your file(s) to start uploading

@@ -3,8 +3,8 @@
 import type { CSSProperties } from "react"
 import { applicationPath } from "@/lib/tenant/with-tenant"
 import { useEffect, useState } from "react"
-import Image from "next/image"
 import Link from "next/link"
+import BrandedSvgIcon from "@/app/components/BrandedSvgIcon"
 import OnboardingLayout from "@/app/components/OnboardingLayout"
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext"
 import { brandingToCssVars, hexToRgba } from "@/lib/tenant/tenant-branding"
@@ -21,20 +21,20 @@ function ActionFileRow({
   fileName,
   actionLabel,
   onAction,
+  primaryHex,
 }: {
   fileName: string
   actionLabel: string
   onAction?: () => void
+  primaryHex: string
 }) {
   return (
     <div className="flex h-[72px] w-full max-w-[650px] items-center justify-between gap-5 rounded-xl border border-[color:var(--brand-primary)] bg-white px-4">
       <div className="flex min-w-0 items-center gap-4">
-        <Image
+        <BrandedSvgIcon
           src="/icons/pdf-icon.svg"
-          alt="PDF file"
-          width={24}
-          height={24}
           className="h-6 w-6 flex-none"
+          color={primaryHex}
         />
         <div className="min-w-0">
           <p className="truncate text-[14px] font-normal leading-5 text-[color:var(--brand-primary)]">
@@ -60,11 +60,13 @@ function CompletedFileRow({
   secondaryText,
   rightSlot,
   completedSurfaceStyle,
+  primaryHex,
 }: {
   fileName: string
   secondaryText?: string
   rightSlot: React.ReactNode
   completedSurfaceStyle: CSSProperties
+  primaryHex: string
 }) {
   return (
     <div
@@ -72,12 +74,10 @@ function CompletedFileRow({
       style={completedSurfaceStyle}
     >
       <div className="flex min-w-0 items-center gap-3">
-        <Image
+        <BrandedSvgIcon
           src="/icons/pdf-icon.svg"
-          alt="PDF file"
-          width={20}
-          height={20}
           className="h-5 w-5 flex-none"
+          color={primaryHex}
         />
         <div className="min-w-0">
           <p className="truncate text-[14px] font-normal leading-5 text-[color:var(--brand-primary)]">
@@ -169,6 +169,7 @@ export default function EmployeeAgreementPage() {
                 <CompletedFileRow
                   fileName="Employee Agreement W2.pdf"
                   completedSurfaceStyle={completedSurfaceStyle}
+                  primaryHex={branding.primaryHex}
                   rightSlot={
                     <span
                       className="inline-flex h-7 items-center rounded-md px-3 text-[12px] font-semibold leading-4 text-white"
@@ -183,6 +184,7 @@ export default function EmployeeAgreementPage() {
                   fileName="Employee Agreement W2.pdf"
                   actionLabel="Click and Sign"
                   onAction={handleSignW2}
+                  primaryHex={branding.primaryHex}
                 />
               )}
             </div>
@@ -196,6 +198,7 @@ export default function EmployeeAgreementPage() {
                   fileName={uploadedI9.name}
                   secondaryText={uploadedI9.sizeLabel}
                   completedSurfaceStyle={completedSurfaceStyle}
+                  primaryHex={branding.primaryHex}
                   rightSlot={
                     <button
                       type="button"
@@ -204,19 +207,21 @@ export default function EmployeeAgreementPage() {
                       style={brandSoftBgStyle}
                       aria-label="Remove uploaded I9 form"
                     >
-                      <Image
+                      <BrandedSvgIcon
                         src="/icons/delete-icon.svg"
-                        alt="Delete file"
-                        width={24}
-                        height={24}
-                        className="h-[24px] w-[24px]"
+                        className="h-6 w-6"
+                        color={branding.primaryHex}
                       />
                     </button>
                   }
                 />
               ) : (
                 <>
-                  <ActionFileRow fileName="I9 Form.pdf" actionLabel="Download" />
+                  <ActionFileRow
+                    fileName="I9 Form.pdf"
+                    actionLabel="Download"
+                    primaryHex={branding.primaryHex}
+                  />
                   <p className="mt-4 text-[14px] font-normal leading-5 text-slate-500">
                     Note: Once you downloaded the form, click next to upload the signed I9 form.
                   </p>

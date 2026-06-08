@@ -8,6 +8,7 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { supabaseBrowser as supabase } from "@/lib/supabase-browser"
 import Image from "next/image"
 import { AlertTriangle, ChevronDown, Pencil, Search, X, XCircle } from "lucide-react"
+import BrandedSvgIcon from "@/app/components/BrandedSvgIcon"
 import OnboardingStepper from "@/app/components/OnboardingStepper"
 import OnboardingLoader from "@/app/components/OnboardingLoader"
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext"
@@ -1176,7 +1177,11 @@ function Step1ReviewContent() {
             <div className="w-full max-w-[280px]">
               <div className="mb-6 flex w-full items-center justify-center gap-4">
                 <div className="h-px flex-1 bg-slate-300/80" />
-                <Image src="/icons/circle-star-icon.svg" alt="" width={24} height={24} className="h-6 w-6 flex-none" />
+                <BrandedSvgIcon
+                  src="/icons/circle-star-icon.svg"
+                  className="h-6 w-6 flex-none"
+                  color={branding.primaryHex}
+                />
                 <div className="h-px flex-1 bg-slate-300/80" />
               </div>
               <p className="text-center text-[16px] font-normal leading-6 text-[#1e293b]">

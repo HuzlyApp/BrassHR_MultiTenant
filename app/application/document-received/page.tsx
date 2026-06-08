@@ -3,6 +3,7 @@
 import type { CSSProperties } from "react"
 import Image from "next/image"
 import { Check } from "lucide-react"
+import BrandedSvgIcon from "@/app/components/BrandedSvgIcon"
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext"
 import {
   brandingShellGradient,
@@ -90,12 +91,10 @@ export default function DocumentReceivedPage() {
               </div>
               <div className="flex w-full items-center justify-center gap-3">
                 <div className="h-px flex-1 bg-slate-300/70" />
-                <Image
+                <BrandedSvgIcon
                   src="/icons/circle-star-icon.svg"
-                  alt=""
-                  width={24}
-                  height={24}
-                  className="object-contain"
+                  className="h-6 w-6 flex-none object-contain"
+                  color={branding.primaryHex}
                 />
                 <div className="h-px flex-1 bg-slate-300/70" />
               </div>
