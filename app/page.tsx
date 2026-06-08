@@ -24,9 +24,15 @@ import { getClientTenantHostLabel } from "@/lib/tenant/client-host-subdomain";
 
 export default function Home() {
   const router = useRouter();
-  const [brand, setBrand] = useState<TenantBranding>(() =>
-    brandingFallbackForSlug(PLATFORM_DEFAULT_TENANT_SLUG)
-  );
+  const [brand, setBrand] = useState<TenantBranding>(() => {
+    if (typeof window === "undefined") {
+      return brandingFallbackForSlug(PLATFORM_DEFAULT_TENANT_SLUG);
+    }
+    const slug = resolveClientOnboardingTenantSlug(window.location.search);
+    return isTenantApplicantPortalSlug(slug)
+      ? brandingFallbackForSlug(slug)
+      : brandingFallbackForSlug(PLATFORM_DEFAULT_TENANT_SLUG);
+  });
   const [brandLoaded, setBrandLoaded] = useState(false);
   const [activeTenantSlug, setActiveTenantSlug] = useState<string | null>(() => {
     if (typeof window === "undefined") return null;
@@ -84,7 +90,11 @@ export default function Home() {
   }, []);
 
   if (!brandLoaded) {
-    return <div className="min-h-screen bg-white" />;
+    return (
+      <TenantBrandingProvider branding={brand}>
+        <div className="min-h-screen bg-white" />
+      </TenantBrandingProvider>
+    );
   }
 
   const shell: CSSProperties = {
