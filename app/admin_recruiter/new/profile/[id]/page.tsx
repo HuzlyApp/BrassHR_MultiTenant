@@ -7,6 +7,7 @@ import toast from "react-hot-toast";
 import CandidateCommunicationDialog from "../../../components/CandidateCommunicationDialog";
 import CandidateCommunicationHistory from "../../../components/CandidateCommunicationHistory";
 import DetailedCandidateHeader from "../../../components/DetailedCandidateHeader";
+import { useCandidateHeader } from "../../../hooks/useCandidateHeader";
 import DetailedTabs from "../../../components/DetailedTabs";
 import ProfileSubTabs from "../../../components/ProfileSubTabs";
 import {
@@ -174,12 +175,6 @@ function isMissingValue(value: unknown) {
   return false;
 }
 
-function isUuid(value: string) {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
-    value
-  );
-}
-
 export default function NewApplicantProfilePage() {
   const pathname = usePathname();
   const router = useRouter();
@@ -194,58 +189,62 @@ export default function NewApplicantProfilePage() {
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<ProfilePayload | null>(null);
   const [commOpen, setCommOpen] = useState(false);
+  const {
+    worker: headerWorker,
+    name: candidateName,
+    role: candidateRole,
+    loading: headerLoading,
+  } = useCandidateHeader(applicantId);
   const [commRefreshKey, setCommRefreshKey] = useState(0);
   const [resendingStatusEmail, setResendingStatusEmail] = useState(false);
   const [approvingForWork, setApprovingForWork] = useState(false);
 
   useEffect(() => {
+    let cancelled = false;
+
     async function run() {
-      if (!applicantId) return;
-      if (!isUuid(applicantId)) {
-        setError("Invalid workerId");
-        setData(null);
+      if (!applicantId) {
         setLoading(false);
         return;
       }
+
       setLoading(true);
       setError(null);
+
       try {
         const res = await fetch(
           `/api/admin/worker-profile?workerId=${encodeURIComponent(applicantId)}`
         );
         const json = (await res.json()) as ProfilePayload & { error?: string };
-        if (!res.ok && json?.error === "Invalid workerId") {
-          setError("Invalid workerId");
-          setData(null);
-          return;
-        }
         if (!res.ok) throw new Error(json.error || "Failed to load profile");
-        setData(json);
+        if (!cancelled) setData(json);
       } catch (e) {
         const message = e instanceof Error ? e.message : "Failed to load";
-        if (message !== "Invalid workerId") {
-          console.error(e);
+        console.error(e);
+        if (!cancelled) {
+          setError(message);
+          setData(null);
         }
-        setError(message);
-        setData(null);
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     }
-    run();
+
+    void run();
+    return () => {
+      cancelled = true;
+    };
   }, [applicantId]);
 
   const w = data?.worker;
-  const candidateName = useMemo(() => {
-    const n = `${w?.first_name ?? ""} ${w?.last_name ?? ""}`.trim();
-    return n || "Applicant";
-  }, [w?.first_name, w?.last_name]);
-
-  const candidateRole = w?.job_role || "N/A";
   const candidateLocation = useMemo(() => {
-    const parts = [w?.city ?? "", w?.state ?? "", w?.zip ?? ""].filter(Boolean);
+    const parts = [
+      w?.city ?? headerWorker?.city ?? "",
+      w?.state ?? headerWorker?.state ?? "",
+      w?.zip ?? "",
+    ].filter(Boolean);
     return parts.length ? parts.join(", ") : "—";
-  }, [w?.city, w?.state, w?.zip]);
+  }, [w?.city, w?.state, w?.zip, headerWorker?.city, headerWorker?.state]);
 
   const id = applicantId ?? "";
   const nursingLicenseRows = useMemo(() => {
@@ -469,7 +468,7 @@ export default function NewApplicantProfilePage() {
             <DetailedCandidateHeader
               name={candidateName}
               role={candidateRole}
-              loading={loading}
+              loading={headerLoading}
               onMessageClick={() => setCommOpen(true)}
               messageDisabled={!w?.email?.trim() && !w?.phone?.trim()}
               onResendStatusClick={() => void handleResendStatusEmail()}

@@ -23,6 +23,9 @@ export default function DetailedCandidateHeader({
   resendStatusDisabled = false,
   resendingStatus = false,
 }: DetailedCandidateHeaderProps) {
+  const displayName = loading ? "Loading..." : name.trim() || "Applicant";
+  const displayRole = loading ? "—" : role.trim() || "—";
+
   return (
     <div className="sticky top-0 z-20 mb-4 bg-zinc-50/95 backdrop-blur-sm py-1">
       <div className="mx-auto flex h-[92px] w-full max-w-[1300px] items-center justify-between rounded-md border border-[#D1D5DB] bg-white px-5">
@@ -33,11 +36,11 @@ export default function DetailedCandidateHeader({
             className="h-[52px] w-[52px] shrink-0"
           />
           <div>
-            <div className="text-base font-semibold leading-6 text-[#0D9488]">
-              {loading ? "John Doe" : name || "John Doe"}
+            <div className="text-base font-semibold leading-6 text-[color:var(--brand-primary)]">
+              {displayName}
             </div>
             <div className="mt-0.5 text-xs font-normal leading-4 text-[#4B5563]">
-              {role || "Licensed Practical Nurse , LPN"}
+              {displayRole}
             </div>
           </div>
         </div>

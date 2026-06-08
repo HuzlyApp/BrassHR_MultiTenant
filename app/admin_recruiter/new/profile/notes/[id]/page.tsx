@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useState } from "react";
 import {
   AlignCenter,
   AlignJustify,
@@ -22,42 +22,13 @@ import {
 import DetailedCandidateHeader from "../../../../components/DetailedCandidateHeader";
 import DetailedTabs from "../../../../components/DetailedTabs";
 import ProfileSubTabs from "../../../../components/ProfileSubTabs";
-
-type WorkerProfilePayload = {
-  worker: {
-    first_name: string | null;
-    last_name: string | null;
-    job_role: string | null;
-  };
-};
+import { useCandidateHeader } from "../../../../hooks/useCandidateHeader";
 
 export default function NewApplicantProfileNotesPage() {
   const params = useParams<{ id: string }>();
   const id = params?.id;
-  const [loading, setLoading] = useState(true);
-  const [profile, setProfile] = useState<WorkerProfilePayload | null>(null);
   const [showNotePopup, setShowNotePopup] = useState(false);
-
-  useEffect(() => {
-    async function run() {
-      if (!id) return;
-      setLoading(true);
-      try {
-        const res = await fetch(`/api/admin/worker-profile?workerId=${encodeURIComponent(id)}`);
-        const json = (await res.json()) as WorkerProfilePayload;
-        if (res.ok) setProfile(json);
-      } finally {
-        setLoading(false);
-      }
-    }
-    void run();
-  }, [id]);
-
-  const candidateName = useMemo(() => {
-    const n = `${profile?.worker?.first_name ?? ""} ${profile?.worker?.last_name ?? ""}`.trim();
-    return n || "John Doe";
-  }, [profile?.worker?.first_name, profile?.worker?.last_name]);
-  const candidateRole = profile?.worker?.job_role || "Licensed Practical Nurse , LPN";
+  const { name: candidateName, role: candidateRole, loading } = useCandidateHeader(id);
   return (
     <div className="min-h-screen bg-zinc-50 p-8">
       <div className="max-w-[1320px] mx-auto">

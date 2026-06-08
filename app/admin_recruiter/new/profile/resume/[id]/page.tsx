@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import DetailedCandidateHeader from "../../../../components/DetailedCandidateHeader";
 import DetailedTabs from "../../../../components/DetailedTabs";
 import ProfileSubTabs from "../../../../components/ProfileSubTabs";
+import { useCandidateHeader } from "../../../../hooks/useCandidateHeader";
 import {
   Briefcase,
   Calendar,
@@ -87,12 +88,11 @@ export default function NewApplicantProfileResumePage() {
   const resumePath = profile?.requirements?.resume_path ?? null;
   const resumeUrl = profile?.requirements?.resume_url ?? null;
 
-  const candidateName = useMemo(() => {
-    const n = `${w?.first_name ?? ""} ${w?.last_name ?? ""}`.trim();
-    return n || (isWorkerRoute ? "Worker" : "Applicant");
-  }, [w?.first_name, w?.last_name, isWorkerRoute]);
-
-  const candidateRole = w?.job_role || "N/A";
+  const {
+    name: candidateName,
+    role: candidateRole,
+    loading: headerLoading,
+  } = useCandidateHeader(applicantId);
   const candidateLocation = useMemo(() => {
     const parts = [w?.city ?? "", w?.state ?? ""].filter(Boolean);
     return parts.length ? parts.join(", ") : "—";
@@ -249,7 +249,7 @@ export default function NewApplicantProfileResumePage() {
             <DetailedCandidateHeader
               name={candidateName}
               role={candidateRole}
-              loading={loading}
+              loading={headerLoading}
             />
             <ProfileSubTabs applicantId={applicantId} activeTab="Resume" />
 
