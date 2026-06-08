@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import ReactQueryProvider from "@/app/components/ReactQueryProvider";
 import TenantBrandingRoot from "@/app/components/tenant/TenantBrandingRoot";
+import TenantBrandingHead from "@/app/components/tenant/TenantBrandingHead";
 import { Toaster } from "react-hot-toast";
 import "./globals.css";
 
@@ -22,9 +23,9 @@ export const metadata: Metadata = {
   },
   description: "Configurable applicant and recruiter onboarding for healthcare staffing teams.",
   icons: {
-    icon: "/icon.svg",
-    shortcut: "/icon.svg",
-    apple: "/icon.svg",
+    icon: "/icons/braas-HR/BrassHR-logo.svg",
+    shortcut: "/icons/braas-HR/BrassHR-logo.svg",
+    apple: "/icons/braas-HR/BrassHR-logo.svg",
   },
 };
 
@@ -45,6 +46,7 @@ export default function RootLayout({
           min-h-screen
         `}
       >
+        <TenantBrandingHead />
         <ReactQueryProvider>
           <TenantBrandingRoot>{children}</TenantBrandingRoot>
           <Toaster position="top-right" />
