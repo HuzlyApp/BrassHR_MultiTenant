@@ -161,7 +161,7 @@ export const CLIENT_SIDEBAR_SECTIONS: SidebarSection[] = [
     label: "Teams",
     href: "#",
     iconType: ICON.teams,
-    matchPrefixes: ["/admin_recruiter/workers"],
+    matchPrefixes: [],
     children: [
       { label: "Admins", href: "#", matchPrefixes: [], disabled: true },
       { label: "Managers", href: "#", matchPrefixes: [], disabled: true },

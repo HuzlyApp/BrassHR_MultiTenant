@@ -64,7 +64,16 @@ export default function SidebarNavIcon({ iconType, active }: SidebarNavIconProps
   }
 
   if (!markup) {
-    return <span className={`${SIDEBAR_ICON_SIZE_CLASS} shrink-0`} aria-hidden />;
+    return (
+      <img
+        src={src}
+        alt=""
+        width={20}
+        height={20}
+        className={`${SIDEBAR_ICON_SIZE_CLASS} shrink-0 object-contain`}
+        aria-hidden
+      />
+    );
   }
 
   return (

@@ -100,7 +100,9 @@ export function AdminRecruiterSidebar({
           active:
             section.controlsActiveState === false
               ? false
-              : isPathActive(section.matchPrefixes) || childActive,
+              : childActive
+                ? false
+                : isPathActive(section.matchPrefixes),
           children:
             section.children?.map((child) => ({
               ...child,

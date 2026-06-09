@@ -4,17 +4,26 @@ import type { CSSProperties } from "react";
 import Image from "next/image";
 import { ChevronDown, Menu, Search } from "lucide-react";
 import { useState } from "react";
+import SidebarNavIcon from "@/app/admin_recruiter/components/SidebarNavIcon";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 
-const ICON_BASE = "/icons/braas-HR/client-dashboard";
+const SIDEBAR_TOGGLE_ICON = "/icons/sidebar-on-off-icon.svg";
 
 type Props = {
   applicantName: string;
   onMenuClick?: () => void;
+  onSidebarToggle?: () => void;
+  sidebarCollapsed?: boolean;
   onOpenMessages?: () => void;
 };
 
-export function ApplicantPortalHeader({ applicantName, onMenuClick, onOpenMessages }: Props) {
+export function ApplicantPortalHeader({
+  applicantName,
+  onMenuClick,
+  onSidebarToggle,
+  sidebarCollapsed = false,
+  onOpenMessages,
+}: Props) {
   const branding = useTenantBranding();
   const [profileOpen, setProfileOpen] = useState(false);
   const firstName = applicantName.split(" ")[0] || "Applicant";
@@ -24,14 +33,34 @@ export function ApplicantPortalHeader({ applicantName, onMenuClick, onOpenMessag
   return (
     <header className="sticky top-0 z-30 border-b border-[#E2E8F0] bg-white">
       <div className="flex h-16 items-center gap-3 px-4 lg:px-8">
-        <button
-          type="button"
-          onClick={onMenuClick}
-          className="inline-flex h-8 w-8 items-center justify-center text-[#64748B] lg:hidden"
-          aria-label="Open navigation menu"
-        >
-          <Menu className="h-5 w-5" />
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={onMenuClick}
+            className="inline-flex h-8 w-8 items-center justify-center text-[#64748B] transition hover:text-[#0F3B76] lg:hidden"
+            aria-label="Open navigation menu"
+          >
+            <Menu className="h-5 w-5" />
+          </button>
+          {onSidebarToggle ? (
+            <button
+              type="button"
+              onClick={onSidebarToggle}
+              className="hidden h-8 w-8 items-center justify-center text-[#64748B] transition hover:text-[#0F3B76] lg:inline-flex"
+              aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+              title={sidebarCollapsed ? "Expand menu" : "Collapse menu"}
+            >
+              <Image
+                src={SIDEBAR_TOGGLE_ICON}
+                alt=""
+                width={20}
+                height={20}
+                className="h-5 w-5 shrink-0"
+                aria-hidden
+              />
+            </button>
+          ) : null}
+        </div>
 
         <div className="hidden flex-1 justify-center lg:flex">
           <label className="relative w-full max-w-[520px]">
@@ -45,22 +74,24 @@ export function ApplicantPortalHeader({ applicantName, onMenuClick, onOpenMessag
         </div>
 
         <div className="ml-auto flex items-center gap-3">
-          <button
-            type="button"
-            onClick={onOpenMessages}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-[#64748B] transition hover:bg-[#F8FAFC]"
-            aria-label="Open messages"
-          >
-            <Image src={`${ICON_BASE}/chat-icon.svg`} alt="" width={20} height={20} className="h-5 w-5" />
-          </button>
-          <button
-            type="button"
-            className="relative inline-flex h-9 w-9 items-center justify-center rounded-lg text-[#64748B] transition hover:bg-[#F8FAFC]"
-            aria-label="Notifications"
-          >
-            <Image src={`${ICON_BASE}/Notification.svg`} alt="" width={20} height={20} className="h-5 w-5" />
-            <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-[#E11D48]" />
-          </button>
+          <div className="flex items-center gap-0">
+            <button
+              type="button"
+              onClick={onOpenMessages}
+              className="inline-flex h-8 w-8 items-center justify-center rounded-md transition hover:bg-[#F8FAFC]"
+              aria-label="Open messages"
+            >
+              <SidebarNavIcon iconType="Chat" active={false} />
+            </button>
+            <button
+              type="button"
+              className="relative inline-flex h-8 w-8 items-center justify-center rounded-md transition hover:bg-[#F8FAFC]"
+              aria-label="Notifications"
+            >
+              <SidebarNavIcon iconType="Notifications" active={false} />
+              <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-[#E11D48]" />
+            </button>
+          </div>
 
           <div className="relative">
             <button

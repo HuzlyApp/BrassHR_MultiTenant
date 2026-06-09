@@ -1,0 +1,13 @@
+.applicant-portal-main {
+  transition: margin-left 200ms ease-in-out;
+}
+
+@media (min-width: 1024px) {
+  .applicant-portal-main {
+    margin-left: var(--worker-sidebar-width);
+  }
+}
+
+.applicant-portal-sidebar {
+  transition: width 200ms ease-in-out;
+}
