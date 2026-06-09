@@ -3,6 +3,17 @@
 import { FormEvent } from "react";
 import type { ApplicantMessage } from "./types";
 
+function formatMessageTime(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
 type Props = {
   open: boolean;
   onClose: () => void;
@@ -70,7 +81,7 @@ export function ApplicantMessagesPanel({
                 }`}
               >
                 <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.08em] opacity-75">
-                  {isApplicant ? "You" : "Recruiter"}
+                  {isApplicant ? "You" : "Recruiter"} · {formatMessageTime(message.created_at)}
                 </p>
                 <p>{message.body}</p>
               </div>

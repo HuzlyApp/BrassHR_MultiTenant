@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireApiSession } from "@/lib/auth/api-session";
-import { isStaffRole } from "@/lib/auth/app-role";
+import { requireStaffApiSession } from "@/lib/auth/api-session";
+import { resolveStaffTenantScope } from "@/lib/auth/staff-tenant-scope";
 import { canAccessWorkerRecord } from "@/lib/auth/worker-record-access";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { findApplicantByUserId, normalizeApplicantStatus } from "@/lib/applicant-portal";
@@ -42,11 +42,8 @@ async function resolveStaffRequest(req: NextRequest, workerIdRaw: string) {
   const idCheck = parseRequiredUuid(workerIdRaw, "workerId");
   if (!idCheck.ok) return { error: NextResponse.json({ error: idCheck.error }, { status: 400 }) };
 
-  const auth = await requireApiSession();
+  const auth = await requireStaffApiSession();
   if (auth instanceof NextResponse) return { error: auth };
-  if (!isStaffRole(auth.role)) {
-    return { error: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
-  }
 
   const supabase = createServiceRoleClient();
   if (!supabase) {
@@ -66,10 +63,16 @@ async function resolveStaffRequest(req: NextRequest, workerIdRaw: string) {
     return { error: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
   }
 
+  const tenantId = String(worker.tenant_id);
+  const scope = await resolveStaffTenantScope(auth.authUser);
+  if (scope.mode === "scoped" && scope.tenantId !== tenantId) {
+    return { error: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
+  }
+
   return {
     supabase,
     workerId: String(worker.id),
-    tenantId: String(worker.tenant_id),
+    tenantId,
     userId: auth.devBypass ? null : auth.userId,
     applicant: worker,
   };
@@ -115,16 +118,20 @@ export async function POST(req: NextRequest) {
     if ("error" in resolved) return resolved.error;
 
     const senderRole = workerIdRaw ? "recruiter" : "applicant";
-    const { error } = await resolved.supabase.from("applicant_messages").insert({
-      tenant_id: resolved.tenantId,
-      worker_id: resolved.workerId,
-      sender_role: senderRole,
-      sender_user_id: resolved.userId,
-      body: message,
-    });
+    const { data, error } = await resolved.supabase
+      .from("applicant_messages")
+      .insert({
+        tenant_id: resolved.tenantId,
+        worker_id: resolved.workerId,
+        sender_role: senderRole,
+        sender_user_id: resolved.userId,
+        body: message,
+      })
+      .select("id, sender_role, body, created_at")
+      .single();
     if (error) throw error;
 
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true, message: data as MessageRow });
   } catch (err) {
     console.error("[applicant-portal/messages:post]", err);
     const message = err instanceof Error ? err.message : "Unexpected error";

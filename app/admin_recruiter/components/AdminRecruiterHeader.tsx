@@ -8,12 +8,18 @@ import { ChevronDown, Menu } from "lucide-react";
 const SIDEBAR_TOGGLE_ICON = "/icons/sidebar-on-off-icon.svg";
 const NOTIFICATION_ICON = "/icons/braas-HR/client-dashboard/notification-icon.svg";
 const MESSAGE_ICON = "/icons/braas-HR/client-dashboard/message-icon.svg";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import GodAdminTenantSwitcher from "./GodAdminTenantSwitcher";
 import { useAccountData } from "@/app/admin_recruiter/hooks/useAccountData";
 import { formatRoleLabel, getAccountDisplayName } from "@/lib/account/display-name";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
+import {
+  formatMessageTime,
+  upsertConversationFromMessage,
+  type StaffConversation,
+} from "@/lib/messaging/staff-conversations";
+import { useApplicantConversationsRealtime } from "@/lib/messaging/useApplicantConversationsRealtime";
 
 type HeaderProfile = {
   id: string;
@@ -33,23 +39,20 @@ type HeaderNotification = {
   sent_at: string | null;
 };
 
-type ConversationItem = {
-  id: string;
-  counterpartId: string;
-  counterpartName: string;
-  preview: string;
-  sentAt: string | null;
-  unreadCount: number;
-  href: string;
-};
+type ConversationItem = StaffConversation;
 
 type HeaderDataResponse = {
   userId: string;
   profile: HeaderProfile | null;
   notifications: HeaderNotification[];
-  conversations: ConversationItem[];
   unreadNotifications: number;
-  unreadMessages: number;
+};
+
+type ConversationsResponse = {
+  conversations?: ConversationItem[];
+  tenantId?: string | null;
+  unreadMessages?: number;
+  error?: string;
 };
 
 type AdminRecruiterHeaderProps = {
@@ -73,14 +76,32 @@ export function AdminRecruiterHeader({
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [notifications, setNotifications] = useState<HeaderNotification[]>([]);
   const [conversations, setConversations] = useState<ConversationItem[]>([]);
+  const [tenantId, setTenantId] = useState<string | null>(null);
+  const [unreadMessages, setUnreadMessages] = useState(0);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showMessages, setShowMessages] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [tenantLogoSrc, setTenantLogoSrc] = useState(branding.logoUrl || DEFAULT_TENANT_LOGO);
 
-  useEffect(() => {
-    console.log("[AdminRecruiterHeader] current route", pathname);
-  }, [pathname]);
+  const loadConversations = useCallback(async () => {
+    const response = await fetch("/api/admin/messages/conversations", { cache: "no-store" });
+    if (!response.ok) return;
+    const payload = (await response.json()) as ConversationsResponse;
+    setConversations(payload.conversations ?? []);
+    setTenantId(payload.tenantId ?? null);
+    setUnreadMessages(payload.unreadMessages ?? 0);
+  }, []);
+
+  const handleConversationInsert = useCallback(
+    (message: Parameters<typeof upsertConversationFromMessage>[1]) => {
+      setConversations((current) => upsertConversationFromMessage(current, message));
+      setUnreadMessages((count) => count + (message.sender_role === "applicant" ? 1 : 0));
+      void loadConversations();
+    },
+    [loadConversations]
+  );
+
+  useApplicantConversationsRealtime(tenantId, handleConversationInsert, !loading);
 
   useEffect(() => {
     setTenantLogoSrc(branding.logoUrl?.trim() || DEFAULT_TENANT_LOGO);
@@ -118,26 +139,29 @@ export function AdminRecruiterHeader({
 
       const payload = (await response.json()) as HeaderDataResponse;
       const notificationsData = payload.notifications ?? [];
-      const conversationData = payload.conversations ?? [];
 
       if (!cancelled) {
         setCurrentUserId(payload.userId);
         setNotifications(notificationsData);
-        setConversations(conversationData);
         setLoading(false);
       }
     };
 
     void loadHeaderData();
+    void loadConversations();
     return () => {
       cancelled = true;
     };
-  }, [pathname]);
+  }, [pathname, router, loadConversations]);
 
   const displayName = getAccountDisplayName(profile, user);
   const displayRole = formatRoleLabel(profile?.role);
   const profilePhoto = profile?.avatar_url ?? null;
   const headerLoading = loading || accountLoading;
+  const unreadNotifications = useMemo(
+    () => notifications.filter((notification) => !notification.is_read).length,
+    [notifications]
+  );
 
   return (
     <header
@@ -180,10 +204,15 @@ export function AdminRecruiterHeader({
 
         <div className="relative ml-4">
           <div className="flex items-center gap-3">
-            <div className="flex items-center gap-0">
+            <div className="relative flex items-center gap-0">
               <button
                 type="button"
-                className="inline-flex h-8 w-8 items-center justify-center rounded-md text-[#94A3B8] transition hover:bg-slate-100"
+                onClick={() => {
+                  setShowMessages((prev) => !prev);
+                  setShowNotifications(false);
+                  setShowProfileMenu(false);
+                }}
+                className="relative inline-flex h-8 w-8 items-center justify-center rounded-md text-[#94A3B8] transition hover:bg-slate-100"
                 aria-label="Open messages"
               >
                 <Image
@@ -194,10 +223,20 @@ export function AdminRecruiterHeader({
                   className="h-5 w-5 shrink-0"
                   aria-hidden
                 />
+                {unreadMessages > 0 ? (
+                  <span className="absolute -right-0.5 -top-0.5 inline-flex min-h-[16px] min-w-[16px] items-center justify-center rounded-full bg-[#0EA5A4] px-1 text-[10px] font-semibold text-white">
+                    {unreadMessages > 9 ? "9+" : unreadMessages}
+                  </span>
+                ) : null}
               </button>
               <button
                 type="button"
-                className="inline-flex h-8 w-8 items-center justify-center rounded-md text-[#94A3B8] transition hover:bg-slate-100"
+                onClick={() => {
+                  setShowNotifications((prev) => !prev);
+                  setShowMessages(false);
+                  setShowProfileMenu(false);
+                }}
+                className="relative inline-flex h-8 w-8 items-center justify-center rounded-md text-[#94A3B8] transition hover:bg-slate-100"
                 aria-label="Open notifications"
               >
                 <Image
@@ -208,7 +247,61 @@ export function AdminRecruiterHeader({
                   className="h-5 w-5 shrink-0"
                   aria-hidden
                 />
+                {unreadNotifications > 0 ? (
+                  <span className="absolute -right-0.5 -top-0.5 inline-flex min-h-[16px] min-w-[16px] items-center justify-center rounded-full bg-[#0EA5A4] px-1 text-[10px] font-semibold text-white">
+                    {unreadNotifications > 9 ? "9+" : unreadNotifications}
+                  </span>
+                ) : null}
               </button>
+
+              {showMessages ? (
+                <div className="absolute right-0 top-10 z-50 w-[320px] overflow-hidden rounded-lg border border-[#d7e4e1] bg-white shadow-xl">
+                  <div className="border-b border-[#E2E8F0] px-4 py-3">
+                    <p className="text-sm font-semibold text-[#0F172A]">Messages</p>
+                    <p className="text-xs text-[#64748B]">Applicant conversations</p>
+                  </div>
+                  <div className="max-h-[320px] overflow-y-auto">
+                    {conversations.length === 0 ? (
+                      <p className="px-4 py-4 text-sm text-[#64748B]">No applicant messages yet.</p>
+                    ) : (
+                      conversations.slice(0, 8).map((conversation) => (
+                        <Link
+                          key={conversation.workerId}
+                          href={conversation.href}
+                          onClick={() => setShowMessages(false)}
+                          className="block border-b border-[#F1F5F9] px-4 py-3 transition hover:bg-[#F8FAFC]"
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-semibold text-[#0F172A]">
+                                {conversation.applicantName}
+                              </p>
+                              <p className="mt-1 truncate text-sm text-[#64748B]">{conversation.preview}</p>
+                              <p className="mt-1 text-[11px] text-[#94A3B8]">
+                                {formatMessageTime(conversation.sentAt)}
+                              </p>
+                            </div>
+                            {conversation.unreadCount > 0 ? (
+                              <span className="inline-flex min-w-[18px] items-center justify-center rounded-full bg-[#0EA5A4] px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                                {conversation.unreadCount}
+                              </span>
+                            ) : null}
+                          </div>
+                        </Link>
+                      ))
+                    )}
+                  </div>
+                  <div className="border-t border-[#E2E8F0] px-4 py-3">
+                    <Link
+                      href="/admin_recruiter/messages"
+                      onClick={() => setShowMessages(false)}
+                      className="text-sm font-medium text-[#0EA5A4] hover:underline"
+                    >
+                      View all messages
+                    </Link>
+                  </div>
+                </div>
+              ) : null}
             </div>
 
             <div className="flex items-center gap-2 rounded-xl border border-[#E5E7EB] bg-white px-2.5 py-1.5">

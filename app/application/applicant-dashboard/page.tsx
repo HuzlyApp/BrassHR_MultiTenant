@@ -22,6 +22,11 @@ import type {
 } from "@/app/application/components/applicant-portal/types";
 import type { TenantBranding } from "@/lib/tenant/tenant-branding";
 import { persistOnboardingSlugCookie } from "@/lib/tenant/client-onboarding-slug";
+import {
+  mergeApplicantMessage,
+  sortApplicantMessages,
+} from "@/lib/messaging/applicant-messages";
+import { useApplicantMessagesRealtime } from "@/lib/messaging/useApplicantMessagesRealtime";
 
 type AppointmentPayload = {
   availableSlots?: AppointmentSlot[];
@@ -91,8 +96,10 @@ export default function ApplicantDashboardPage() {
       error?: string;
     };
     if (!res.ok) throw new Error(payload.error || "Could not load messages.");
-    setMessages(payload.messages ?? []);
+    setMessages(sortApplicantMessages(payload.messages ?? []));
   }
+
+  useApplicantMessagesRealtime(session?.applicant.id, setMessages, !loading && Boolean(session?.applicant.id));
 
   async function loadAppointments(headers: { Authorization: string }) {
     const res = await fetch("/api/applicant-portal/appointments", {
@@ -176,11 +183,18 @@ export default function ApplicantDashboardPage() {
         headers: { ...headers, "Content-Type": "application/json" },
         body: JSON.stringify({ body }),
       });
-      const payload = (await res.json().catch(() => ({}))) as { error?: string };
+      const payload = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        message?: ApplicantMessage;
+      };
       if (!res.ok) throw new Error(payload.error || "Could not send message.");
 
       setMessageBody("");
-      await loadMessages(headers);
+      if (payload.message) {
+        setMessages((current) => mergeApplicantMessage(current, payload.message!));
+      } else {
+        await loadMessages(headers);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not send message.");
     } finally {

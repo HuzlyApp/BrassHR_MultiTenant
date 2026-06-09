@@ -1,16 +1,32 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
+import {
+  mergeApplicantMessage,
+  sortApplicantMessages,
+  type ApplicantMessage,
+} from "@/lib/messaging/applicant-messages";
+import { useApplicantMessagesRealtime } from "@/lib/messaging/useApplicantMessagesRealtime";
 
-type Message = {
-  id: string;
-  sender_role: "applicant" | "recruiter";
-  body: string;
-  created_at: string;
-};
+function formatMessageTime(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
 
-export default function ApplicantConversationClient({ workerId }: { workerId: string }) {
-  const [messages, setMessages] = useState<Message[]>([]);
+export default function ApplicantConversationClient({
+  workerId,
+  compact = false,
+}: {
+  workerId: string;
+  compact?: boolean;
+}) {
+  const [messages, setMessages] = useState<ApplicantMessage[]>([]);
   const [body, setBody] = useState("");
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
@@ -20,10 +36,12 @@ export default function ApplicantConversationClient({ workerId }: { workerId: st
     const res = await fetch(`/api/applicant-portal/messages?workerId=${encodeURIComponent(workerId)}`, {
       cache: "no-store",
     });
-    const payload = (await res.json().catch(() => ({}))) as { messages?: Message[]; error?: string };
+    const payload = (await res.json().catch(() => ({}))) as { messages?: ApplicantMessage[]; error?: string };
     if (!res.ok) throw new Error(payload.error || "Could not load messages.");
-    setMessages(payload.messages ?? []);
+    setMessages(sortApplicantMessages(payload.messages ?? []));
   }, [workerId]);
+
+  useApplicantMessagesRealtime(workerId, setMessages, !loading);
 
   useEffect(() => {
     let alive = true;
@@ -55,11 +73,18 @@ export default function ApplicantConversationClient({ workerId }: { workerId: st
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ workerId, body: message }),
       });
-      const payload = (await res.json().catch(() => ({}))) as { error?: string };
+      const payload = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        message?: ApplicantMessage;
+      };
       if (!res.ok) throw new Error(payload.error || "Could not send reply.");
 
       setBody("");
-      await loadMessages();
+      if (payload.message) {
+        setMessages((current) => mergeApplicantMessage(current, payload.message!));
+      } else {
+        await loadMessages();
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not send reply.");
     } finally {
@@ -68,13 +93,21 @@ export default function ApplicantConversationClient({ workerId }: { workerId: st
   }
 
   return (
-    <section className="mt-6 max-w-3xl rounded-2xl border border-[#E2E8F0] bg-white shadow-sm">
-      <div className="border-b border-[#E2E8F0] px-5 py-4">
-        <h2 className="text-lg font-semibold text-[#0F172A]">Message Tenant / Recruiter</h2>
-        <p className="mt-1 text-sm text-[#64748B]">
-          Reply to applicant questions about status, documents, approval timeline, or other concerns.
-        </p>
-      </div>
+    <section
+      className={
+        compact
+          ? "rounded-2xl border border-[#E2E8F0] bg-white"
+          : "mt-6 max-w-3xl rounded-2xl border border-[#E2E8F0] bg-white shadow-sm"
+      }
+    >
+      {!compact ? (
+        <div className="border-b border-[#E2E8F0] px-5 py-4">
+          <h2 className="text-lg font-semibold text-[#0F172A]">Message Tenant / Recruiter</h2>
+          <p className="mt-1 text-sm text-[#64748B]">
+            Reply to applicant questions about status, documents, approval timeline, or other concerns.
+          </p>
+        </div>
+      ) : null}
 
       {error ? (
         <div className="m-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
@@ -99,7 +132,7 @@ export default function ApplicantConversationClient({ workerId }: { workerId: st
               }`}
             >
               <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.08em] opacity-75">
-                {isRecruiter ? "Recruiter" : "Applicant"}
+                {isRecruiter ? "Recruiter" : "Applicant"} · {formatMessageTime(message.created_at)}
               </p>
               <p>{message.body}</p>
             </div>
