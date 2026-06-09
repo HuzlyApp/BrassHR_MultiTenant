@@ -1,5 +1,5 @@
+import { redirect } from "next/navigation";
 import WorkerOnboardingError from "@/app/worker-onboarding/WorkerOnboardingError";
-import WorkerOnboardingRedirect from "@/app/worker-onboarding/WorkerOnboardingRedirect";
 import { resolveWorkerOnboardingEntry } from "@/lib/onboarding/resolve-worker-onboarding-entry";
 
 export default async function WorkerOnboardingPage({
@@ -11,7 +11,7 @@ export default async function WorkerOnboardingPage({
   const result = await resolveWorkerOnboardingEntry(tenant);
 
   if (result.kind === "redirect") {
-    return <WorkerOnboardingRedirect url={result.url} />;
+    redirect(result.url);
   }
 
   return (

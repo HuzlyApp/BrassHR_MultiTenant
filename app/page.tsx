@@ -38,6 +38,8 @@ export default function Home() {
     if (typeof window === "undefined") return null;
     return resolveClientOnboardingTenantSlug(window.location.search);
   });
+  const [applicationEntryUrl, setApplicationEntryUrl] = useState<string | null>(null);
+  const [startingApplication, setStartingApplication] = useState(false);
 
   useEffect(() => {
     if (typeof window !== "undefined" && window.location.hash.includes("error=")) {
@@ -89,6 +91,35 @@ export default function Home() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!activeTenantSlug || !isTenantApplicantPortalSlug(activeTenantSlug)) {
+      setApplicationEntryUrl(null);
+      return;
+    }
+
+    let alive = true;
+    void (async () => {
+      try {
+        const res = await fetch(
+          `/api/worker-onboarding/entry?tenant=${encodeURIComponent(activeTenantSlug)}`,
+          { cache: "no-store" }
+        );
+        const payload = (await res.json().catch(() => ({}))) as { url?: string };
+        if (alive && res.ok && payload.url) {
+          setApplicationEntryUrl(payload.url);
+        } else if (alive) {
+          setApplicationEntryUrl(null);
+        }
+      } catch {
+        if (alive) setApplicationEntryUrl(null);
+      }
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, [activeTenantSlug]);
+
   if (!brandLoaded) {
     return (
       <TenantBrandingProvider branding={brand}>
@@ -137,20 +168,43 @@ export default function Home() {
 
             <button
               type="button"
+              disabled={startingApplication}
               onClick={() => {
                 if (resolvedPortalSlug) {
                   persistOnboardingSlugCookie(resolvedPortalSlug);
-                  router.push(
-                    `/worker-onboarding?tenant=${encodeURIComponent(resolvedPortalSlug)}`
-                  );
+                  void (async () => {
+                    if (applicationEntryUrl) {
+                      router.push(applicationEntryUrl);
+                      return;
+                    }
+                    setStartingApplication(true);
+                    try {
+                      const res = await fetch(
+                        `/api/worker-onboarding/entry?tenant=${encodeURIComponent(resolvedPortalSlug)}`,
+                        { cache: "no-store" }
+                      );
+                      const payload = (await res.json().catch(() => ({}))) as { url?: string };
+                      if (res.ok && payload.url) {
+                        router.push(payload.url);
+                        return;
+                      }
+                    } catch {
+                      /* fall through */
+                    } finally {
+                      setStartingApplication(false);
+                    }
+                    router.push(
+                      `/worker-onboarding?tenant=${encodeURIComponent(resolvedPortalSlug)}`
+                    );
+                  })();
                   return;
                 }
                 router.push("/signup");
               }}
               style={{ backgroundColor: "var(--brand-primary)", boxShadow: "0 10px 20px color-mix(in srgb, var(--brand-primary) 22%, transparent)" }}
-              className="inline-flex min-h-14 min-w-[210px] cursor-pointer items-center justify-center rounded-xl px-8 py-4 text-[22px] font-semibold leading-[22px] text-white transition hover:brightness-105 focus:outline-none"
+              className="inline-flex min-h-14 min-w-[210px] cursor-pointer items-center justify-center rounded-xl px-8 py-4 text-[22px] font-semibold leading-[22px] text-white transition hover:brightness-105 focus:outline-none disabled:cursor-wait disabled:opacity-80"
             >
-              {primaryCtaLabel}
+              {startingApplication ? "Starting…" : primaryCtaLabel}
             </button>
 
             {resolvedPortalSlug ? <ApplicantSignInCard tenantSlug={resolvedPortalSlug} /> : null}
