@@ -10,10 +10,13 @@ export default function BrandedSvgIcon({
   className?: string
   color: string
 }) {
+  // Quote + encode so commas/spaces in filenames (e.g. sidebar Figma assets) do not break CSS url().
+  const maskSrc = `url("${encodeURI(src)}")`;
+
   const maskStyle: CSSProperties = {
     backgroundColor: color,
-    WebkitMaskImage: `url(${src})`,
-    maskImage: `url(${src})`,
+    WebkitMaskImage: maskSrc,
+    maskImage: maskSrc,
     WebkitMaskSize: "contain",
     maskSize: "contain",
     WebkitMaskRepeat: "no-repeat",

@@ -6,9 +6,15 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
-import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import { useAccountData } from "@/app/admin_recruiter/hooks/useAccountData";
+import {
+  CLIENT_SIDEBAR_SECTIONS,
+  GOD_ADMIN_SIDEBAR_SECTIONS,
+  SIDEBAR_ICON_TYPES,
+  type SidebarSection,
+} from "@/app/admin_recruiter/components/sidebar-config";
+import SidebarNavIcon from "@/app/admin_recruiter/components/SidebarNavIcon";
 import {
   formatRoleLabel,
   getAccountDisplayName,
@@ -19,17 +25,6 @@ import { supabaseBrowser } from "@/lib/supabase-browser";
 const SIDEBAR_EXPANDED_WIDTH = 344;
 const SIDEBAR_COLLAPSED_WIDTH = 80;
 
-function SidebarNavIcon({ src }: { src: string }) {
-  const branding = useTenantBranding();
-  return (
-    <BrandedSvgIcon
-      src={src}
-      className="h-5 w-5 shrink-0"
-      color={branding.primaryHex}
-    />
-  );
-}
-
 type AdminRecruiterSidebarProps = {
   isMobileOpen?: boolean;
   onMobileClose?: () => void;
@@ -37,143 +32,6 @@ type AdminRecruiterSidebarProps = {
 };
 
 const DEFAULT_TENANT_LOGO = "/images/new-logo-nexus.svg";
-type SidebarLink = {
-  label: string;
-  href: string;
-  matchPrefixes: string[];
-  disabled?: boolean;
-};
-
-type SidebarSection = {
-  label: string;
-  href: string;
-  icon: string;
-  matchPrefixes: string[];
-  controlsActiveState?: boolean;
-  disabled?: boolean;
-  children?: SidebarLink[];
-};
-
-const SIDEBAR_SECTIONS: SidebarSection[] = [
-  {
-    label: "Dashboard",
-    href: "/admin_recruiter/dashboard",
-    icon: "/icons/braas-HR/client-dashboard/dashboard.svg",
-    matchPrefixes: ["/admin_recruiter/dashboard"],
-    children: [
-      {
-        label: "Candidates",
-        href: "/admin_recruiter/candidates",
-        matchPrefixes: ["/admin_recruiter/candidates"],
-      },
-      { label: "New", href: "/admin_recruiter/new", matchPrefixes: ["/admin_recruiter/new"] },
-      { label: "Pending", href: "/admin_recruiter/pending", matchPrefixes: ["/admin_recruiter/pending"] },
-      { label: "Approved", href: "/admin_recruiter/approved", matchPrefixes: ["/admin_recruiter/approved"] },
-      {
-        label: "Disapproved",
-        href: "/admin_recruiter/disapproved",
-        matchPrefixes: ["/admin_recruiter/disapproved"],
-      },
-      { label: "Workers", href: "/admin_recruiter/workers", matchPrefixes: ["/admin_recruiter/workers"] },
-      {
-        label: "Attendance",
-        href: "/admin_recruiter/attendance",
-        matchPrefixes: ["/admin_recruiter/attendance"],
-      },
-      {
-        label: "Email Templates",
-        href: "/admin_recruiter/email-templates",
-        matchPrefixes: ["/admin_recruiter/email-templates"],
-      },
-    ],
-  },
-  {
-    label: "Mail",
-    href: "/admin_recruiter/email-templates",
-    icon: "/icons/braas-HR/client-dashboard/mail-icon.svg",
-    matchPrefixes: ["/admin_recruiter/email-templates"],
-  },
-  {
-    label: "Tickets",
-    href: "/admin_recruiter/advanced-search",
-    icon: "/icons/braas-HR/client-dashboard/ticket-icon.svg",
-    matchPrefixes: ["/admin_recruiter/advanced-search"],
-  },
-  {
-    label: "Reports",
-    href: "/admin_recruiter/dashboard",
-    icon: "/icons/braas-HR/client-dashboard/report.svg",
-    matchPrefixes: ["/admin_recruiter/dashboard"],
-    disabled: true,
-  },
-  {
-    label: "Finance",
-    href: "#",
-    icon: "/icons/braas-HR/client-dashboard/finance.svg",
-    matchPrefixes: [],
-    disabled: true,
-    children: [
-      { label: "Billing", href: "#", matchPrefixes: [], disabled: true },
-      { label: "Invoices", href: "#", matchPrefixes: [], disabled: true },
-    ],
-  },
-  {
-    label: "Taskboard",
-    href: "#",
-    icon: "/icons/braas-HR/client-dashboard/task-board.svg",
-    matchPrefixes: [],
-    disabled: true,
-    children: [
-      { label: "Interviews", href: "#", matchPrefixes: [], disabled: true },
-      { label: "Onboarding", href: "#", matchPrefixes: [], disabled: true },
-    ],
-  },
-  {
-    label: "Teams",
-    href: "/admin_recruiter/workers",
-    icon: "/icons/braas-HR/client-dashboard/teams.svg",
-    matchPrefixes: ["/admin_recruiter/workers"],
-    disabled: true,
-    children: [
-      { label: "Admins", href: "#", matchPrefixes: [], disabled: true },
-      { label: "Managers", href: "#", matchPrefixes: [], disabled: true },
-      { label: "Workers", href: "#", matchPrefixes: [], disabled: true },
-    ],
-  },
-  {
-    label: "Organization",
-    href: "/admin_recruiter/settings",
-    icon: "/icons/braas-HR/client-dashboard/Organization.svg",
-    matchPrefixes: ["/admin_recruiter/settings"],
-    controlsActiveState: false,
-    disabled: true,
-  },
-  {
-    label: "Account",
-    href: "/admin_recruiter/account/personal",
-    icon: "/icons/braas-HR/client-dashboard/Account.svg",
-    matchPrefixes: ["/admin_recruiter/account"],
-  },
-  {
-    label: "Notifications",
-    href: "/admin_recruiter/notifications",
-    icon: "/icons/braas-HR/client-dashboard/Notification.svg",
-    matchPrefixes: ["/admin_recruiter/notifications"],
-  },
-  {
-    label: "Help & Support",
-    href: "/admin_recruiter/settings",
-    icon: "/icons/braas-HR/client-dashboard/help.svg",
-    matchPrefixes: ["/admin_recruiter/settings"],
-    controlsActiveState: false,
-  },
-  {
-    label: "Settings",
-    href: "/admin_recruiter/settings",
-    icon: "/icons/braas-HR/client-dashboard/settings.svg",
-    matchPrefixes: ["/admin_recruiter/settings"],
-  },
-];
 
 export function AdminRecruiterSidebar({
   isMobileOpen = false,
@@ -186,6 +44,9 @@ export function AdminRecruiterSidebar({
   const pathname = usePathname() ?? "";
   const router = useRouter();
   const [openSectionLabels, setOpenSectionLabels] = useState<string[]>([]);
+  const [isGodAdmin, setIsGodAdmin] = useState(false);
+
+  const sidebarSections = isGodAdmin ? GOD_ADMIN_SIDEBAR_SECTIONS : CLIENT_SIDEBAR_SECTIONS;
 
   const handleNavClick = () => {
     onMobileClose?.();
@@ -194,6 +55,27 @@ export function AdminRecruiterSidebar({
   useEffect(() => {
     setLogoSrc(branding.logoUrl?.trim() || DEFAULT_TENANT_LOGO);
   }, [branding.logoUrl]);
+
+  useEffect(() => {
+    let alive = true;
+    void (async () => {
+      const {
+        data: { session },
+      } = await supabaseBrowser.auth.getSession();
+      const res = await fetch("/api/admin/effective-branding", {
+        cache: "no-store",
+        headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : undefined,
+      });
+      if (!res.ok) return;
+      const payload = (await res.json().catch(() => ({}))) as {
+        viewer?: { godAdmin?: boolean };
+      };
+      if (alive) setIsGodAdmin(payload.viewer?.godAdmin === true);
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   const handleLogout = async () => {
     const { error } = await supabaseBrowser.auth.signOut();
@@ -211,26 +93,35 @@ export function AdminRecruiterSidebar({
 
   const renderedSections = useMemo(
     () =>
-      SIDEBAR_SECTIONS.map((section) => ({
-        ...section,
-        active:
-          section.controlsActiveState === false ? false : isPathActive(section.matchPrefixes),
-        children:
-          section.children?.map((child) => ({
-            ...child,
-            active: isPathActive(child.matchPrefixes),
-          })) ?? [],
-      })),
-    [pathname]
+      sidebarSections.map((section) => {
+        const childActive = section.children?.some((child) => isPathActive(child.matchPrefixes)) ?? false;
+        return {
+          ...section,
+          active:
+            section.controlsActiveState === false
+              ? false
+              : isPathActive(section.matchPrefixes) || childActive,
+          children:
+            section.children?.map((child) => ({
+              ...child,
+              active: isPathActive(child.matchPrefixes),
+            })) ?? [],
+        };
+      }),
+    [pathname, sidebarSections]
   );
 
   useEffect(() => {
-    const activeParents = SIDEBAR_SECTIONS.filter(
-      (section) => section.children?.some((child) => isPathActive(child.matchPrefixes))
-    ).map((section) => section.label);
+    const activeParents = sidebarSections
+      .filter(
+        (section) =>
+          isPathActive(section.matchPrefixes) ||
+          section.children?.some((child) => isPathActive(child.matchPrefixes))
+      )
+      .map((section) => section.label);
     if (activeParents.length === 0) return;
     setOpenSectionLabels((prev) => Array.from(new Set([...prev, ...activeParents])));
-  }, [pathname]);
+  }, [pathname, sidebarSections]);
 
   const isSectionOpen = (section: SidebarSection) => openSectionLabels.includes(section.label);
 
@@ -288,16 +179,25 @@ export function AdminRecruiterSidebar({
                     : undefined
                 }
               >
-                {section.disabled ? (
-                  <div title={`${section.label} (Coming soon)`} className="flex min-w-0 flex-1 items-center gap-3">
-                    <SidebarNavIcon src={section.icon} />
+                {section.disabled || section.href === "#" ? (
+                  <div
+                    title={section.disabled ? `${section.label} (Coming soon)` : section.label}
+                    className="flex min-w-0 flex-1 items-center gap-3"
+                  >
+                    <SidebarNavIcon
+                      iconType={section.iconType}
+                      active={!section.disabled && section.active}
+                    />
                     <span className="truncate font-normal text-[14px] leading-5 tracking-normal transition-colors">
                       {section.label}
                     </span>
                   </div>
                 ) : (
                   <Link href={section.href} onClick={handleNavClick} className="flex min-w-0 flex-1 items-center gap-3">
-                    <SidebarNavIcon src={section.icon} />
+                    <SidebarNavIcon
+                      iconType={section.iconType}
+                      active={!section.disabled && section.active}
+                    />
                     <span className="truncate font-normal text-[14px] leading-5 tracking-normal transition-colors">
                       {section.label}
                     </span>
@@ -330,7 +230,10 @@ export function AdminRecruiterSidebar({
                 } text-[#012352]`}
                 aria-disabled
               >
-                <SidebarNavIcon src={section.icon} />
+                <SidebarNavIcon
+                  iconType={section.iconType}
+                  active={!section.disabled && section.active}
+                />
                 {!isCollapsed ? (
                   <span className="font-normal text-[14px] leading-5 tracking-normal transition-colors">{section.label}</span>
                 ) : null}
@@ -355,7 +258,10 @@ export function AdminRecruiterSidebar({
                     : undefined
                 }
               >
-                <SidebarNavIcon src={section.icon} />
+                <SidebarNavIcon
+                  iconType={section.iconType}
+                  active={!section.disabled && section.active}
+                />
                 {!isCollapsed ? (
                   <span className="font-normal text-[14px] leading-5 tracking-normal transition-colors">
                     {section.label}
@@ -447,11 +353,7 @@ export function AdminRecruiterSidebar({
             title="Logout"
             className={`rounded-md p-1 hover:bg-white/80 ${isCollapsed ? "" : "ml-auto"}`}
           >
-            <BrandedSvgIcon
-              src="/icons/braas-HR/client-dashboard/logout.svg"
-              className="h-5 w-5 object-contain"
-              color={branding.primaryHex}
-            />
+            <SidebarNavIcon iconType={SIDEBAR_ICON_TYPES.logout} active={false} />
           </button>
         </div>
       </div>
