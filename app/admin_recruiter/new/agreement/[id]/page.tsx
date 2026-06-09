@@ -5,6 +5,7 @@ import { useParams, usePathname } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import DetailedCandidateHeader from "../../../components/DetailedCandidateHeader";
 import DetailedTabs from "../../../components/DetailedTabs";
+import BrandedFileTypeIcon from "../../../components/BrandedFileTypeIcon";
 import {
   Briefcase,
   Calendar,
@@ -221,26 +222,26 @@ export default function NewApplicantAgreementPage() {
                     </div>
                   </div>
                   <div className="flex items-center justify-between gap-4 px-5 py-3">
-                    <div className="flex h-[50px] w-[306px] min-w-[306px] items-center gap-2 rounded-[8px] border border-[#99D8D3] bg-[#F8FAFC] px-3 py-2">
-                      <img src="/icons/jpeg-icon.svg" alt="" className="h-6 w-6 shrink-0" />
+                    <div className="flex h-[50px] w-[306px] min-w-[306px] items-center gap-2 rounded-[8px] border border-[color:color-mix(in_srgb,var(--brand-primary)_30%,white)] bg-[#F8FAFC] px-3 py-2">
+                      <BrandedFileTypeIcon type="jpeg" className="h-6 w-6 shrink-0" />
                       <div className="min-w-0">
-                        <div className="truncate text-xs font-semibold leading-4 tracking-[0.01em] text-[#0D9488]">
+                        <div className="truncate text-xs font-semibold leading-4 tracking-[0.01em] text-[color:var(--brand-primary)]">
                           Employee Agreement W2.pdf
                         </div>
                         <div className="text-xs font-normal leading-4 tracking-[0.01em] text-[#6B7280]">
                           7.23 MB
                         </div>
                       </div>
-                      <span className="ml-auto rounded-md bg-[#7BE2DB] px-2 py-1 text-[10px] font-semibold text-[#0D9488]">
+                      <span className="ml-auto rounded-md bg-[color:color-mix(in_srgb,var(--brand-accent)_55%,white)] px-2 py-1 text-[10px] font-semibold text-[color:var(--brand-primary)]">
                         Signed
                       </span>
                     </div>
                     <div className="flex items-center gap-3">
-                      <Eye className="h-5 w-5 text-[#0D9488]" />
-                      <button className="inline-flex h-8 items-center justify-center rounded-md bg-[#0D9488] px-4 text-xs font-semibold text-white">
+                      <Eye className="h-5 w-5 text-[color:var(--brand-primary)]" />
+                      <button className="inline-flex h-8 items-center justify-center rounded-md bg-[color:var(--brand-primary)] px-4 text-xs font-semibold text-white hover:brightness-95">
                         Approved
                       </button>
-                      <button className="inline-flex h-8 items-center justify-center rounded-md border border-[#99D8D3] px-4 text-xs font-semibold text-[#0D9488]">
+                      <button className="inline-flex h-8 items-center justify-center rounded-md border border-[color:color-mix(in_srgb,var(--brand-primary)_30%,white)] px-4 text-xs font-semibold text-[color:var(--brand-primary)]">
                         Reject
                       </button>
                     </div>
@@ -260,22 +261,22 @@ export default function NewApplicantAgreementPage() {
                     <span className="ml-3">Uploaded: April 20, 2026</span>
                   </div>
                   <div className="flex items-center justify-between gap-4 px-5 py-3">
-                    <div className="flex h-[50px] w-[306px] min-w-[306px] items-center gap-2 rounded-[8px] border border-[#99D8D3] bg-[#F8FAFC] px-3 py-2">
-                      <img src="/icons/jpeg-icon.svg" alt="" className="h-6 w-6 shrink-0" />
+                    <div className="flex h-[50px] w-[306px] min-w-[306px] items-center gap-2 rounded-[8px] border border-[color:color-mix(in_srgb,var(--brand-primary)_30%,white)] bg-[#F8FAFC] px-3 py-2">
+                      <BrandedFileTypeIcon type="jpeg" className="h-6 w-6 shrink-0" />
                       <div className="min-w-0">
-                        <div className="truncate text-xs font-semibold leading-4 tracking-[0.01em] text-[#0D9488]">
+                        <div className="truncate text-xs font-semibold leading-4 tracking-[0.01em] text-[color:var(--brand-primary)]">
                           I9 Form.pdf
                         </div>
                         <div className="text-xs font-normal leading-4 tracking-[0.01em] text-[#6B7280]">5.23 MB</div>
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
-                      <Eye className="h-5 w-5 text-[#0D9488]" />
-                      <Download className="h-5 w-5 text-[#0D9488]" />
-                      <button className="inline-flex h-8 items-center justify-center rounded-md bg-[#0D9488] px-4 text-xs font-semibold text-white">
+                      <Eye className="h-5 w-5 text-[color:var(--brand-primary)]" />
+                      <Download className="h-5 w-5 text-[color:var(--brand-primary)]" />
+                      <button className="inline-flex h-8 items-center justify-center rounded-md bg-[color:var(--brand-primary)] px-4 text-xs font-semibold text-white hover:brightness-95">
                         Approved
                       </button>
-                      <button className="inline-flex h-8 items-center justify-center rounded-md border border-[#99D8D3] px-4 text-xs font-semibold text-[#0D9488]">
+                      <button className="inline-flex h-8 items-center justify-center rounded-md border border-[color:color-mix(in_srgb,var(--brand-primary)_30%,white)] px-4 text-xs font-semibold text-[color:var(--brand-primary)]">
                         Reject
                       </button>
                     </div>

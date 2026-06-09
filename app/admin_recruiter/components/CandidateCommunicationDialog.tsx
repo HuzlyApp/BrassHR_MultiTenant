@@ -146,7 +146,7 @@ export default function CandidateCommunicationDialog({
               onClick={() => setChannel("email")}
               className={`inline-flex flex-1 items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium ${
                 channel === "email"
-                  ? "border-teal-600 bg-teal-50 text-teal-800"
+                  ? "border-[color:var(--brand-primary)] bg-[color:color-mix(in_srgb,var(--brand-primary)_8%,white)] text-[color:var(--brand-primary)]"
                   : "border-slate-200 text-slate-700 hover:bg-slate-50"
               } disabled:cursor-not-allowed disabled:opacity-50`}
             >
@@ -159,7 +159,7 @@ export default function CandidateCommunicationDialog({
               onClick={() => setChannel("sms")}
               className={`inline-flex flex-1 items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium ${
                 channel === "sms"
-                  ? "border-teal-600 bg-teal-50 text-teal-800"
+                  ? "border-[color:var(--brand-primary)] bg-[color:color-mix(in_srgb,var(--brand-primary)_8%,white)] text-[color:var(--brand-primary)]"
                   : "border-slate-200 text-slate-700 hover:bg-slate-50"
               } disabled:cursor-not-allowed disabled:opacity-50`}
             >
@@ -176,7 +176,7 @@ export default function CandidateCommunicationDialog({
                 value={subject}
                 onChange={(e) => setSubject(e.target.value)}
                 disabled={sending || emailDisabled}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-teal-600 focus:outline-none focus:ring-1 focus:ring-teal-600"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[color:var(--brand-primary)] focus:outline-none focus:ring-1 focus:ring-[color:var(--brand-primary)]"
                 placeholder="Subject line"
               />
             </label>
@@ -189,7 +189,7 @@ export default function CandidateCommunicationDialog({
               onChange={(e) => setBody(e.target.value)}
               disabled={sending || (channel === "email" ? emailDisabled : smsDisabled)}
               rows={channel === "sms" ? 4 : 8}
-              className="w-full resize-y rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-teal-600 focus:outline-none focus:ring-1 focus:ring-teal-600"
+              className="w-full resize-y rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[color:var(--brand-primary)] focus:outline-none focus:ring-1 focus:ring-[color:var(--brand-primary)]"
               placeholder={channel === "sms" ? "Text message…" : "Write your message…"}
             />
             {channel === "sms" ? (
@@ -217,7 +217,7 @@ export default function CandidateCommunicationDialog({
             type="button"
             disabled={!canSend}
             onClick={() => void handleSend()}
-            className="inline-flex items-center gap-2 rounded-lg bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700 disabled:opacity-50"
+            className="inline-flex items-center gap-2 rounded-lg bg-[color:var(--brand-primary)] px-4 py-2 text-sm font-medium text-white hover:brightness-95 disabled:opacity-50"
           >
             {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
             {sending ? "Sending…" : "Send"}

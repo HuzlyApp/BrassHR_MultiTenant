@@ -101,7 +101,13 @@ export default function NewApplicantProfileNotesPage() {
                 <div>
                   <div className="mb-1 text-xs text-[#6B7280]">Relate to</div>
                   <div className="flex h-10 items-center gap-3 rounded border border-[#94A3B8] bg-[#F8FAFC] px-3 text-sm text-[#111827]">
-                    <span className="grid h-7 w-7 place-items-center rounded-full bg-[linear-gradient(135deg,#27c8c0_0%,#16877f_100%)] text-[12px] font-semibold text-white">
+                    <span
+                      className="grid h-7 w-7 place-items-center rounded-full text-[12px] font-semibold text-white"
+                      style={{
+                        background:
+                          "linear-gradient(135deg, var(--brand-gradient-from) 0%, var(--brand-gradient-to) 100%)",
+                      }}
+                    >
                       JD
                     </span>
                     <span>James Doe</span>

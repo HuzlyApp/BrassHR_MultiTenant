@@ -129,3 +129,77 @@
 .admin-recruiter-shell .text-teal-800 {
   color: var(--brand-primary) !important;
 }
+
+/* Light teal tints and secondary hex colors → tenant branding */
+.admin-recruiter-shell .border-\[\#99D8D3\] {
+  border-color: color-mix(in srgb, var(--brand-primary) 30%, white) !important;
+}
+
+.admin-recruiter-shell .bg-\[\#7BE2DB\] {
+  background-color: color-mix(in srgb, var(--brand-accent) 55%, white) !important;
+}
+
+.admin-recruiter-shell .bg-\[\#ECF4F3\] {
+  background-color: color-mix(in srgb, var(--brand-primary) 8%, white) !important;
+}
+
+.admin-recruiter-shell .text-\[\#14B8A6\] {
+  color: var(--brand-primary) !important;
+}
+
+.admin-recruiter-shell .border-\[\#14B8A6\] {
+  border-color: var(--brand-primary) !important;
+}
+
+.admin-recruiter-shell .bg-\[\#14B8A6\] {
+  background-color: var(--brand-primary) !important;
+}
+
+.admin-recruiter-shell .bg-teal-50 {
+  background-color: color-mix(in srgb, var(--brand-primary) 8%, white) !important;
+}
+
+.admin-recruiter-shell .bg-teal-50\/60 {
+  background-color: color-mix(in srgb, var(--brand-primary) 6%, white) !important;
+}
+
+.admin-recruiter-shell .bg-teal-600\/10 {
+  background-color: color-mix(in srgb, var(--brand-primary) 10%, transparent) !important;
+}
+
+.admin-recruiter-shell .text-teal-400 {
+  color: var(--brand-primary) !important;
+}
+
+.admin-recruiter-shell .text-teal-400\/70 {
+  color: color-mix(in srgb, var(--brand-primary) 70%, transparent) !important;
+}
+
+.admin-recruiter-shell .focus\:border-teal-600:focus {
+  border-color: var(--brand-primary) !important;
+}
+
+.admin-recruiter-shell .focus\:ring-teal-600:focus {
+  --tw-ring-color: var(--brand-primary) !important;
+}
+
+.admin-recruiter-shell .border-teal-600 {
+  border-color: var(--brand-primary) !important;
+}
+
+.admin-recruiter-shell .bg-teal-700 {
+  background-color: var(--brand-primary) !important;
+}
+
+.admin-recruiter-shell .text-teal-300 {
+  color: color-mix(in srgb, var(--brand-primary) 65%, white) !important;
+}
+
+.admin-recruiter-shell .hover\:bg-teal-500:hover {
+  background-color: color-mix(in srgb, var(--brand-primary) 90%, white) !important;
+}
+
+.admin-recruiter-shell .hover\:bg-\[\#0b7f75\]:hover,
+.admin-recruiter-shell .hover\:bg-\[\#0B7F77\]:hover {
+  filter: brightness(0.95);
+}

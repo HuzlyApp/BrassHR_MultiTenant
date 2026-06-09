@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useParams, usePathname } from "next/navigation";
 import DetailedCandidateHeader from "../../../components/DetailedCandidateHeader";
 import DetailedTabs from "../../../components/DetailedTabs";
+import CandidateAvatarIcon from "../../../components/CandidateAvatarIcon";
+import BrandedHistoryIcon from "../../../components/BrandedHistoryIcon";
 import {
   Briefcase,
   Calendar,
@@ -371,11 +373,7 @@ export default function NewApplicantChecklistPage() {
               <div className="hidden p-3 sm:p-4 border-b border-[#9CC3FF]/30 bg-white/40">
                 <div className="mx-auto flex h-[92px] w-full max-w-[1300px] items-center justify-between rounded-md border border-[#D1D5DB] bg-white px-5">
                   <div className="flex items-center gap-3">
-                    <img
-                      src="/icons/admin-recruiter/user.svg"
-                      alt="User"
-                      className="h-[52px] w-[52px] shrink-0"
-                    />
+                    <CandidateAvatarIcon />
                     <div>
                       <div className="text-base font-semibold leading-6 text-[#0D9488]">
                         {loading ? "John Doe" : candidateName || "John Doe"}
@@ -435,19 +433,27 @@ export default function NewApplicantChecklistPage() {
                         <div
                           key={section.id}
                           className={`rounded-lg border border-[#E5E7EB] bg-white ${
-                            sectionIndex < 2 ? "h-[426px]" : ""
+                            sectionIndex < 2 ? "min-h-[480px]" : ""
                           }`}
                         >
-                          <div className="flex h-16 items-center justify-between gap-3 border-b border-[#E5E7EB] pb-3 pl-5 pr-5 pt-5">
-                            <div className="flex items-center gap-3">
-                              <span className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-[#0D9488] bg-[#0D9488] text-sm font-semibold text-white">
+                          <div
+                            className={`flex justify-between gap-3 border-b border-[#E5E7EB] px-5 ${
+                              sectionIndex < 2
+                                ? "min-h-[88px] items-start py-4"
+                                : "h-16 items-center py-5"
+                            }`}
+                          >
+                            <div className="flex min-w-0 flex-1 items-start gap-3">
+                              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-[color:var(--brand-primary)] bg-[color:var(--brand-primary)] text-[13px] font-semibold leading-none tabular-nums text-white">
                                 {sectionIndex + 1}
                               </span>
-                              <div className="text-[18px] font-semibold leading-7 text-[#111827]">{section.title}</div>
+                              <div className="min-w-0 flex-1 pt-0.5 text-[18px] font-semibold leading-6 text-[#111827]">
+                                {section.title}
+                              </div>
                             </div>
                             <button
                               type="button"
-                              className="inline-flex h-8 w-[73px] items-center justify-center gap-1.5 rounded-[8px] border border-[#0D9488] px-4 py-2 text-xs font-semibold leading-4 text-[#0D9488]"
+                              className="inline-flex h-8 w-[73px] shrink-0 items-center justify-center gap-1.5 rounded-[8px] border border-[color:var(--brand-primary)] px-4 py-2 text-xs font-semibold leading-4 text-[color:var(--brand-primary)]"
                             >
                               Details
                             </button>
@@ -680,11 +686,7 @@ export default function NewApplicantChecklistPage() {
                             key={entry.key}
                             className="flex items-start gap-3 border-b border-[#E5E7EB] py-3 last:border-b-0"
                           >
-                            <img
-                              src="/icons/admin-recruiter/history-icon.svg"
-                              alt=""
-                              className="mt-0.5 h-[30px] w-[30px] shrink-0"
-                            />
+                            <BrandedHistoryIcon className="mt-0.5 h-[30px] w-[30px] shrink-0" />
                             <div className="min-w-0">
                               <div className="text-sm font-medium leading-5 text-[#0D9488]">{entry.title}</div>
                               <div className="text-xs leading-4 text-[#6B7280]">{entry.metaLine}</div>

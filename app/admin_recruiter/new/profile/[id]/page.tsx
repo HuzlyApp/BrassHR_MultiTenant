@@ -10,6 +10,9 @@ import DetailedCandidateHeader from "../../../components/DetailedCandidateHeader
 import { useCandidateHeader } from "../../../hooks/useCandidateHeader";
 import DetailedTabs from "../../../components/DetailedTabs";
 import ProfileSubTabs from "../../../components/ProfileSubTabs";
+import BrandedPlusIcon from "../../../components/BrandedPlusIcon";
+import BrandedHistoryIcon from "../../../components/BrandedHistoryIcon";
+import BrandedStepperCompleteIcon from "../../../components/BrandedStepperCompleteIcon";
 import {
   Briefcase,
   Calendar,
@@ -269,6 +272,12 @@ export default function NewApplicantProfilePage() {
     () => (data?.onboardingSteps ?? []).length > 0 && (data?.onboardingSteps ?? []).every((s) => s.state === "complete"),
     [data?.onboardingSteps]
   );
+
+  const onboardingSectionMinHeight = useMemo(() => {
+    const stepCount = Math.max(data?.onboardingSteps?.length ?? 0, 1);
+    const stepRowHeight = 76;
+    return 44 + 40 + stepCount * stepRowHeight;
+  }, [data?.onboardingSteps?.length]);
 
   const handleResendStatusEmail = async () => {
     if (!applicantId || !w?.email?.trim()) return;
@@ -707,11 +716,7 @@ export default function NewApplicantProfilePage() {
                             key={entry.id ?? `history-${idx}`}
                             className={`flex items-start gap-3 py-3 ${idx < (data?.activity_history ?? []).slice(0, 6).length - 1 ? "border-b border-[#E5E7EB]" : ""}`}
                           >
-                            <img
-                              src="/icons/admin-recruiter/history-icon.svg"
-                              alt=""
-                              className="mt-0.5 h-6 w-6 shrink-0"
-                            />
+                            <BrandedHistoryIcon className="mt-0.5 h-6 w-6 shrink-0" />
                             <div className="min-w-0">
                               <div className="text-sm font-medium leading-5 text-[#0D9488]">
                                 {entry.action ?? "Activity"}
@@ -732,11 +737,7 @@ export default function NewApplicantProfilePage() {
                   <div className="h-[160px] w-full bg-white pr-px">
                       <div className="flex h-11 items-center justify-between gap-2 border-b border-[#E5E7EB] px-5">
                         <div className="text-[20px] font-semibold leading-7 text-[#111827]">Education</div>
-                        <img
-                          src="/icons/admin-recruiter/plus-icon.svg"
-                          alt=""
-                          className="h-6 w-6 cursor-pointer"
-                        />
+                        <BrandedPlusIcon className="h-6 w-6 cursor-pointer" />
                       </div>
                       <div className="px-5 pt-4">
                       <div className="text-xs text-gray-600">
@@ -753,11 +754,7 @@ export default function NewApplicantProfilePage() {
                     <div className="h-[288px] w-full border-t border-[#E5E7EB] bg-white pr-px">
                       <div className="flex h-11 items-center justify-between gap-2 border-b border-[#E5E7EB] px-5">
                         <div className="text-[20px] font-semibold leading-7 text-[#111827]">Experience</div>
-                        <img
-                          src="/icons/admin-recruiter/plus-icon.svg"
-                          alt=""
-                          className="h-6 w-6 cursor-pointer"
-                        />
+                        <BrandedPlusIcon className="h-6 w-6 cursor-pointer" />
                       </div>
                       <div className="px-5 pt-4">
                       <div className="text-xs text-gray-600">Job role</div>
@@ -780,11 +777,7 @@ export default function NewApplicantProfilePage() {
                     <div className="h-[200px] min-h-[200px] w-full border-t border-[#E5E7EB] bg-white pr-px">
                       <div className="flex h-11 items-center justify-between gap-2 border-b border-[#E5E7EB] px-5">
                         <div className="text-[20px] font-semibold leading-7 text-[#111827]">Skills</div>
-                        <img
-                          src="/icons/admin-recruiter/plus-icon.svg"
-                          alt=""
-                          className="h-6 w-6 cursor-pointer"
-                        />
+                        <BrandedPlusIcon className="h-6 w-6 cursor-pointer" />
                       </div>
                       <div className="px-5 pt-4">
                       <div className="text-xs text-gray-600">
@@ -804,11 +797,7 @@ export default function NewApplicantProfilePage() {
                     <div className="h-[200px] min-h-[200px] w-full border-t border-b border-[#E5E7EB] bg-white pr-px">
                       <div className="flex h-11 items-center justify-between gap-2 border-b border-[#E5E7EB] px-5">
                         <div className="text-[20px] font-semibold leading-7 text-[#111827]">Facilities Assigned</div>
-                        <img
-                          src="/icons/admin-recruiter/plus-icon.svg"
-                          alt=""
-                          className="h-6 w-6 cursor-pointer"
-                        />
+                        <BrandedPlusIcon className="h-6 w-6 cursor-pointer" />
                       </div>
                       <div className="flex items-start justify-between px-5 pt-4">
                         <div className="text-xs text-gray-600">
@@ -827,7 +816,10 @@ export default function NewApplicantProfilePage() {
                       </div>
                     </div>
 
-                    <div className="h-[422px] min-h-[200px] w-full border-t border-r border-[#D1D5DB] bg-white pr-px">
+                    <div
+                      className="w-full border-t border-r border-[#D1D5DB] bg-white pr-px"
+                      style={{ minHeight: `${onboardingSectionMinHeight}px` }}
+                    >
                       <div className="flex h-11 flex-nowrap items-center justify-between gap-2 border-b border-[#E5E7EB] px-5">
                         <div className="min-w-0 truncate whitespace-nowrap text-[18px] font-semibold leading-6 text-[#111827]">
                           Onboarding Progress
@@ -846,23 +838,19 @@ export default function NewApplicantProfilePage() {
 
                       <div className="p-5">
                       <div className="relative space-y-0 text-xs text-gray-600">
-                        <div className="absolute left-4 top-8 bottom-8 w-[2px] -translate-x-1/2 bg-[#14B8A6]" />
+                        <div className="absolute left-4 top-8 bottom-8 w-[2px] -translate-x-1/2 bg-[color:var(--brand-primary)]" />
                         {(data?.onboardingSteps ?? []).map((s, idx) => (
-                          <div key={s.id} className="flex min-h-[66px] items-center gap-4">
-                            <div className="relative flex h-[66px] w-8 shrink-0 items-center justify-center">
+                          <div key={s.id} className="flex min-h-[76px] items-center gap-4 py-1">
+                            <div className="relative flex h-[76px] w-8 shrink-0 items-center justify-center">
                               {s.state === "complete" ? (
-                                <img
-                                  src="/icons/admin-recruiter/Stepper indicator.svg"
-                                  alt=""
-                                  className="relative z-10 h-8 w-8"
-                                />
+                                <BrandedStepperCompleteIcon className="relative z-10 h-8 w-8" />
                               ) : (
-                                <div className="relative z-10 flex h-8 w-8 items-center justify-center rounded-full border border-[#14B8A6] bg-white text-[14px] font-medium leading-none text-[#14B8A6]">
+                                <div className="relative z-10 grid h-8 w-8 place-items-center rounded-full border border-[color:var(--brand-primary)] bg-white text-[13px] font-semibold leading-none tabular-nums text-[color:var(--brand-primary)]">
                                   {idx + 1}
                                 </div>
                               )}
                             </div>
-                            <div className="flex h-[66px] w-[290px] min-w-0 flex-col justify-center gap-1">
+                            <div className="flex min-h-[76px] min-w-0 flex-1 flex-col justify-center gap-1 py-1">
                               <div className="text-[14px] font-semibold leading-5 text-[#111827]">{s.label}</div>
                               {s.detail ? (
                                 <div className="text-[12px] leading-5 text-[#6B7280]">{s.detail}</div>
@@ -912,7 +900,7 @@ export default function NewApplicantProfilePage() {
                       </button>
                       <Link
                         href="/admin_recruiter/new"
-                        className="inline-flex h-9 items-center justify-center rounded-lg bg-[#0D9488] px-4 text-xs font-semibold text-white hover:bg-teal-700 transition"
+                        className="inline-flex h-9 items-center justify-center rounded-lg bg-[color:var(--brand-primary)] px-4 text-xs font-semibold text-white hover:brightness-95 transition"
                       >
                         Back to New list
                       </Link>

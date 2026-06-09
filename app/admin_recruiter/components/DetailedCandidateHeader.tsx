@@ -1,6 +1,7 @@
 "use client";
 
 import { Mail, MoreVertical, RefreshCw } from "lucide-react";
+import CandidateAvatarIcon from "./CandidateAvatarIcon";
 
 type DetailedCandidateHeaderProps = {
   name: string;
@@ -30,11 +31,7 @@ export default function DetailedCandidateHeader({
     <div className="sticky top-0 z-20 mb-4 bg-zinc-50/95 backdrop-blur-sm py-1">
       <div className="mx-auto flex h-[92px] w-full max-w-[1300px] items-center justify-between rounded-md border border-[#D1D5DB] bg-white px-5">
         <div className="flex items-center gap-3">
-          <img
-            src="/icons/admin-recruiter/user.svg"
-            alt="User"
-            className="h-[52px] w-[52px] shrink-0"
-          />
+          <CandidateAvatarIcon />
           <div>
             <div className="text-base font-semibold leading-6 text-[color:var(--brand-primary)]">
               {displayName}
@@ -51,7 +48,7 @@ export default function DetailedCandidateHeader({
               type="button"
               onClick={onMessageClick}
               disabled={messageDisabled || loading}
-              className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-[#0D9488] bg-white px-3 text-center text-xs font-semibold leading-4 text-[#0D9488] hover:bg-teal-50 disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-[color:var(--brand-primary)] bg-white px-3 text-center text-xs font-semibold leading-4 text-[color:var(--brand-primary)] hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_8%,white)] disabled:cursor-not-allowed disabled:opacity-50"
             >
               <Mail className="h-3.5 w-3.5" />
               Message
@@ -62,7 +59,7 @@ export default function DetailedCandidateHeader({
               type="button"
               onClick={onResendStatusClick}
               disabled={resendStatusDisabled || resendingStatus || loading}
-              className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-[#0D9488] bg-[#0D9488] px-3 text-center text-xs font-semibold leading-4 text-white hover:bg-[#0b7a70] disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-[color:var(--brand-primary)] bg-[color:var(--brand-primary)] px-3 text-center text-xs font-semibold leading-4 text-white hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <RefreshCw className={`h-3.5 w-3.5 ${resendingStatus ? "animate-spin" : ""}`} />
               {resendingStatus ? "Sending..." : "Resend Status"}

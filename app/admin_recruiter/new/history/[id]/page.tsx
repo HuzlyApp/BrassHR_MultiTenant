@@ -5,6 +5,7 @@ import { usePathname, useParams } from "next/navigation";
 import { useMemo, useState, useEffect } from "react";
 import DetailedCandidateHeader from "../../../components/DetailedCandidateHeader";
 import DetailedTabs from "../../../components/DetailedTabs";
+import BrandedHistoryIcon from "../../../components/BrandedHistoryIcon";
 import {
   Briefcase,
   Calendar,
@@ -304,11 +305,7 @@ export default function NewApplicantHistoryPage() {
                         className="flex items-center justify-between border-b border-[#E5E7EB] py-4 last:border-b-0"
                       >
                         <div className="flex min-w-0 items-center gap-3">
-                          <img
-                            src="/icons/admin-recruiter/history-icon.svg"
-                            alt=""
-                            className="h-[30px] w-[30px] shrink-0"
-                          />
+                          <BrandedHistoryIcon className="h-[30px] w-[30px] shrink-0" />
                           <div className="truncate text-sm text-[#4B5563]">{h.action}</div>
                         </div>
                         <div className="shrink-0 text-xs text-[#6B7280]">

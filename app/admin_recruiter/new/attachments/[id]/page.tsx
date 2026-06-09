@@ -5,6 +5,8 @@ import { useParams, usePathname } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import DetailedCandidateHeader from "../../../components/DetailedCandidateHeader";
 import DetailedTabs from "../../../components/DetailedTabs";
+import BrandedPlusIcon from "../../../components/BrandedPlusIcon";
+import BrandedFileTypeIcon from "../../../components/BrandedFileTypeIcon";
 import {
   Briefcase,
   Calendar,
@@ -417,7 +419,7 @@ export default function NewApplicantAttachmentsFilledPage() {
                     className="inline-flex h-6 w-6 items-center justify-center"
                     aria-label="Add upload"
                   >
-                    <img src="/icons/admin-recruiter/plus-icon.svg" alt="" className="h-6 w-6" />
+                    <BrandedPlusIcon className="h-6 w-6" />
                   </button>
                 </div>
 
@@ -438,7 +440,6 @@ export default function NewApplicantAttachmentsFilledPage() {
                       attachmentRows.map((r, idx) => {
                         const scan = scanById[r.id];
                         const isPdf = isPdfFile(null, r.filename, r.url);
-                        const fileIcon = isPdf ? "/icons/pdf-icon.svg" : "/icons/jpeg-icon.svg";
 
                         return (
                         <div
@@ -454,7 +455,7 @@ export default function NewApplicantAttachmentsFilledPage() {
                                 type="button"
                                 disabled={!r.url}
                                 onClick={() => r.url && window.open(r.url, "_blank", "noopener,noreferrer")}
-                                className="inline-flex h-5 w-5 items-center justify-center text-[#0D9488] disabled:opacity-40 disabled:pointer-events-none"
+                                className="inline-flex h-5 w-5 items-center justify-center text-[color:var(--brand-primary)] disabled:opacity-40 disabled:pointer-events-none"
                                 aria-label={`View ${r.title}`}
                               >
                                 <Eye className="h-5 w-5" />
@@ -464,7 +465,7 @@ export default function NewApplicantAttachmentsFilledPage() {
                                 download
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className={`inline-flex h-5 w-5 items-center justify-center text-[#0D9488] ${
+                                className={`inline-flex h-5 w-5 items-center justify-center text-[color:var(--brand-primary)] ${
                                   !r.url ? "pointer-events-none opacity-40" : ""
                                 }`}
                                 aria-label={`Download ${r.title}`}
@@ -476,10 +477,10 @@ export default function NewApplicantAttachmentsFilledPage() {
 
                           <div className="flex items-center justify-between gap-4 px-5 py-3">
                             {r.url ? (
-                              <div className="flex h-[50px] w-[306px] min-w-[306px] max-w-[520px] items-center gap-2 rounded-[8px] border border-[#99D8D3] bg-[#F8FAFC] px-3 py-2">
-                                <img src={fileIcon} alt="" className="h-6 w-6 shrink-0" />
+                              <div className="flex h-[50px] w-[306px] min-w-[306px] max-w-[520px] items-center gap-2 rounded-[8px] border border-[color:color-mix(in_srgb,var(--brand-primary)_30%,white)] bg-[#F8FAFC] px-3 py-2">
+                                <BrandedFileTypeIcon type={isPdf ? "pdf" : "jpeg"} className="h-6 w-6 shrink-0" />
                                 <div className="min-w-0">
-                                  <div className="truncate text-xs font-semibold leading-4 tracking-[0.01em] text-[#0D9488]">
+                                  <div className="truncate text-xs font-semibold leading-4 tracking-[0.01em] text-[color:var(--brand-primary)]">
                                     {r.filename}
                                   </div>
                                   <div className="text-xs font-normal leading-4 tracking-[0.01em] text-[#6B7280]">
@@ -488,13 +489,13 @@ export default function NewApplicantAttachmentsFilledPage() {
                                 </div>
                               </div>
                             ) : (
-                              <div className="flex h-[50px] w-[306px] min-w-[306px] max-w-[520px] items-center justify-between rounded-[8px] border border-dashed border-[#99D8D3] bg-[#F8FAFC] px-3 py-2">
+                              <div className="flex h-[50px] w-[306px] min-w-[306px] max-w-[520px] items-center justify-between rounded-[8px] border border-dashed border-[color:color-mix(in_srgb,var(--brand-primary)_30%,white)] bg-[#F8FAFC] px-3 py-2">
                                 <span className="text-xs text-[#6B7280]">No Document</span>
                                 <button
                                   type="button"
                                   disabled={uploadingId === r.id}
                                   onClick={() => openUploadPicker(r)}
-                                  className="inline-flex h-8 items-center justify-center rounded-md border border-[#99D8D3] bg-white px-4 text-xs font-semibold text-[#0D9488] disabled:opacity-50"
+                                  className="inline-flex h-8 items-center justify-center rounded-md border border-[color:color-mix(in_srgb,var(--brand-primary)_30%,white)] bg-white px-4 text-xs font-semibold text-[color:var(--brand-primary)] disabled:opacity-50"
                                 >
                                   {uploadingId === r.id ? "Uploading..." : "Upload"}
                                 </button>
@@ -505,19 +506,19 @@ export default function NewApplicantAttachmentsFilledPage() {
                               <div className="flex items-center gap-2">
                                 <button
                                   type="button"
-                                  className="inline-flex h-8 items-center justify-center rounded-md bg-[#0D9488] px-4 text-xs font-semibold text-white"
+                                  className="inline-flex h-8 items-center justify-center rounded-md bg-[color:var(--brand-primary)] px-4 text-xs font-semibold text-white hover:brightness-95"
                                 >
                                   Approved
                                 </button>
                                 <button
                                   type="button"
-                                  className="inline-flex h-8 items-center justify-center rounded-md border border-[#99D8D3] px-4 text-xs font-semibold text-[#0D9488]"
+                                  className="inline-flex h-8 items-center justify-center rounded-md border border-[color:color-mix(in_srgb,var(--brand-primary)_30%,white)] px-4 text-xs font-semibold text-[color:var(--brand-primary)]"
                                 >
                                   Reject
                                 </button>
                                 <button
                                   type="button"
-                                  className="inline-flex h-8 items-center justify-center rounded-md border border-[#99D8D3] px-4 text-xs font-semibold text-[#0D9488]"
+                                  className="inline-flex h-8 items-center justify-center rounded-md border border-[color:color-mix(in_srgb,var(--brand-primary)_30%,white)] px-4 text-xs font-semibold text-[color:var(--brand-primary)]"
                                 >
                                   Request More
                                 </button>
@@ -527,7 +528,7 @@ export default function NewApplicantAttachmentsFilledPage() {
                                 type="button"
                                 disabled={uploadingId === r.id}
                                 onClick={() => openUploadPicker(r)}
-                                className="inline-flex h-8 items-center justify-center rounded-md bg-[#0D9488] px-5 text-xs font-semibold text-white disabled:opacity-50"
+                                className="inline-flex h-8 items-center justify-center rounded-md bg-[color:var(--brand-primary)] px-5 text-xs font-semibold text-white hover:brightness-95 disabled:opacity-50"
                               >
                                 {uploadingId === r.id ? "Uploading..." : "Upload"}
                               </button>

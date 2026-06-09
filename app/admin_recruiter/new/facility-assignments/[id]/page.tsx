@@ -358,7 +358,13 @@ export default function NewApplicantFacilityAssignmentsPage() {
                         className="rounded-xl border border-[#E5E7EB] bg-white p-4 shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)]"
                       >
                         <div className="mb-3 flex items-center gap-3 border-b border-[#F1F5F9] pb-3">
-                          <div className="flex h-10 w-10 items-center justify-center rounded-lg  bg-[linear-gradient(135deg,#27c8c0_0%,#16877f_100%)] ">
+                          <div
+                            className="flex h-10 w-10 items-center justify-center rounded-lg"
+                            style={{
+                              background:
+                                "linear-gradient(135deg, var(--brand-gradient-from) 0%, var(--brand-gradient-to) 100%)",
+                            }}
+                          >
                             <img
                               src="/icons/admin-recruiter/pie_chart_outlined.svg"
                               alt="Facility icon"

@@ -6,6 +6,8 @@ import { usePathname, useParams } from "next/navigation";
 import { jsPDF } from "jspdf";
 import DetailedCandidateHeader from "../../../components/DetailedCandidateHeader";
 import DetailedTabs from "../../../components/DetailedTabs";
+import BrandedStepperCompleteIcon from "../../../components/BrandedStepperCompleteIcon";
+import BrandedFileTypeIcon from "../../../components/BrandedFileTypeIcon";
 import {
   Briefcase,
   Calendar,
@@ -480,14 +482,10 @@ export default function NewApplicantSkillAssessmentsPage() {
                 {assessments.map((assessment) => (
                   <div
                     key={assessment.id}
-                    className="flex h-[84px] w-full items-center justify-between gap-5 rounded-[8px] border border-[#99D8D3] bg-[#ECF4F3] px-4 py-5"
+                    className="flex h-[84px] w-full items-center justify-between gap-5 rounded-[8px] border border-[color:color-mix(in_srgb,var(--brand-primary)_30%,white)] bg-[color:color-mix(in_srgb,var(--brand-primary)_8%,white)] px-4 py-5"
                   >
                     <div className="flex min-w-0 items-center gap-4">
-                      <img
-                        src="/icons/admin-recruiter/Stepper indicator.svg"
-                        alt=""
-                        className="h-8 w-8 shrink-0"
-                      />
+                      <BrandedStepperCompleteIcon className="h-8 w-8 shrink-0" />
                       <div className="min-w-0">
                         <div className="truncate text-[16px] font-semibold leading-6 text-[#1F2937]">
                           {assessment.title || "Untitled Assessment"}
@@ -503,16 +501,16 @@ export default function NewApplicantSkillAssessmentsPage() {
                       <button
                         onClick={() => handleSeeResults(assessment.id)}
                         disabled={busyAssessmentId === assessment.id}
-                        className="inline-flex h-10 items-center justify-center rounded-lg border border-[#0D9488] px-6 text-sm font-semibold text-[#0D9488] disabled:opacity-50"
+                        className="inline-flex h-10 items-center justify-center rounded-lg border border-[color:var(--brand-primary)] px-6 text-sm font-semibold text-[color:var(--brand-primary)] disabled:opacity-50"
                       >
                         See Results
                       </button>
                       <button
                         onClick={() => handleDownload(assessment.id)}
                         disabled={busyAssessmentId === assessment.id}
-                        className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-[#0D9488] px-4 text-sm font-semibold text-[#0D9488] disabled:opacity-50"
+                        className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-[color:var(--brand-primary)] px-4 text-sm font-semibold text-[color:var(--brand-primary)] disabled:opacity-50"
                       >
-                        <img src="/icons/pdf-icon.svg" alt="" className="h-5 w-5" />
+                        <BrandedFileTypeIcon type="pdf" className="h-5 w-5" />
                         Download
                       </button>
                     </div>
@@ -537,9 +535,9 @@ export default function NewApplicantSkillAssessmentsPage() {
                       await handleDownload(assessment.id);
                     }
                   }}
-                  className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-[#0D9488] px-6 text-sm font-semibold text-[#0D9488]"
+                  className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-[color:var(--brand-primary)] px-6 text-sm font-semibold text-[color:var(--brand-primary)]"
                 >
-                  <img src="/icons/pdf-icon.svg" alt="" className="h-4 w-4" />
+                  <BrandedFileTypeIcon type="pdf" className="h-4 w-4" />
                   Download skill assessment full results
                 </button>
               </div>
