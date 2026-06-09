@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto"
 import { NextRequest, NextResponse } from "next/server"
-import { createClient } from "@supabase/supabase-js"
+import { createClient, type SupabaseClient } from "@supabase/supabase-js"
 import { requireApiSession } from "@/lib/auth/api-session"
 import { isStaffRole } from "@/lib/auth/app-role"
 import { canAccessWorkerRecord } from "@/lib/auth/worker-record-access"
@@ -46,7 +46,7 @@ function legacyColumnForTitle(title: string): LegacyDocColumn | null {
 }
 
 async function upsertLegacyWorkerDocumentUrl(
-  supabase: ReturnType<typeof createClient>,
+  supabase: SupabaseClient,
   workerId: string,
   tenantId: string,
   column: LegacyDocColumn,
@@ -64,20 +64,25 @@ async function upsertLegacyWorkerDocumentUrl(
   const updated_at = new Date().toISOString()
 
   if (existing?.id) {
+    const updatePayload: Record<string, unknown> = {
+      updated_at,
+      [column]: publicUrl,
+    }
     const { error } = await supabase
       .from("worker_documents")
-      .update({ [column]: publicUrl, updated_at })
+      .update(updatePayload)
       .eq("id", existing.id)
     if (error) throw error
     return
   }
 
-  const { error: insErr } = await supabase.from("worker_documents").insert({
+  const insertPayload: Record<string, unknown> = {
     tenant_id: tenantId,
     worker_id: workerId,
-    [column]: publicUrl,
     updated_at,
-  })
+    [column]: publicUrl,
+  }
+  const { error: insErr } = await supabase.from("worker_documents").insert(insertPayload)
   if (insErr) throw insErr
 }
 
