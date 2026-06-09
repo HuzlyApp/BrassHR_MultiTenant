@@ -34,6 +34,9 @@ type ChecklistRow = {
   checked?: boolean;
   detailLine?: string;
   badge?: string;
+  manualCompletionEnabled?: boolean;
+  callLogCompleted?: boolean;
+  checkboxLabel?: string;
 };
 
 type ChecklistSection = {
@@ -75,6 +78,7 @@ type ChecklistPayload = {
   };
   tracker: { labels: string[]; done: boolean[] };
   sections: ChecklistSection[];
+  permissions?: { canManualCompleteScreening?: boolean; canManualCompletePipeline?: boolean };
 };
 
 function badgeClasses(state: ItemState): string {
@@ -179,6 +183,47 @@ function buildRecentHistoryRows(data: ChecklistPayload | null): RecentHistoryRow
   });
 }
 
+const MANUAL_PIPELINE_SECTION_IDS = new Set([
+  "screening",
+  "compliance",
+  "facility_req",
+  "new_hire",
+  "final",
+]);
+
+function rowIsComplete(row: ChecklistRow): boolean {
+  return (
+    row.checked === true ||
+    row.state === "answered" ||
+    row.state === "complete" ||
+    row.state === "uploaded"
+  );
+}
+
+function pipelineCheckboxText(row: ChecklistRow): string {
+  if (row.checkboxLabel?.trim()) return row.checkboxLabel.trim();
+  const subtitle = row.subtitle?.trim() ?? "";
+  if (subtitle && !subtitle.startsWith("(")) return subtitle.replace(/^\d+\.\s*/, "");
+  const cleanTitle = row.title.replace(/^\d+\.\s*/, "");
+  if (row.id === "oig") return "For Verification";
+  if (row.id === "drug") return "For Drug Test";
+  if (row.id === "bg") return "For Background Check";
+  return `For ${cleanTitle}`;
+}
+
+function pendingDetailLine(row: ChecklistRow): string | undefined {
+  if (row.id === "call_1" || row.id === "call_2") return "No call logs synced yet";
+  return undefined;
+}
+
+function completedDetailLine(row: ChecklistRow, manualOnly: boolean): string | undefined {
+  if (row.id === "call_1" || row.id === "call_2") {
+    if (row.callLogCompleted && !manualOnly) return "Completed via call log sync";
+    return "Completed manually";
+  }
+  return "Completed manually";
+}
+
 function RowBadge({ text, state }: { text: string; state: ItemState }) {
   return (
     <span
@@ -200,6 +245,102 @@ export default function NewApplicantChecklistPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<ChecklistPayload | null>(null);
+  const [pipelineSaveError, setPipelineSaveError] = useState<string | null>(null);
+  const [savingPipelineItemId, setSavingPipelineItemId] = useState<string | null>(null);
+
+  const canManualCompletePipeline =
+    data?.permissions?.canManualCompletePipeline !== false &&
+    data?.permissions?.canManualCompleteScreening !== false;
+
+  async function togglePipelineItem(row: ChecklistRow, sectionId: string) {
+    if (!applicantId || !canManualCompletePipeline) return;
+    if (!MANUAL_PIPELINE_SECTION_IDS.has(sectionId)) return;
+
+    const nextCompleted = !rowIsComplete(row);
+    const optimisticCompleted = nextCompleted || row.callLogCompleted === true;
+
+    const previousData = data;
+    setPipelineSaveError(null);
+    setSavingPipelineItemId(row.id);
+
+    setData((current) => {
+      if (!current) return current;
+      const nextState: ItemState = optimisticCompleted
+        ? "complete"
+        : row.optional
+          ? "not_applicable"
+          : "pending";
+      return {
+        ...current,
+        sections: current.sections.map((section) =>
+          section.id === sectionId
+            ? {
+                ...section,
+                rows: section.rows.map((item) =>
+                  item.id === row.id
+                    ? {
+                        ...item,
+                        checked: optimisticCompleted,
+                        state: nextState,
+                        badge: optimisticCompleted ? "Complete" : "Pending",
+                        detailLine: optimisticCompleted
+                          ? item.callLogCompleted && !nextCompleted
+                            ? completedDetailLine(item, false)
+                            : completedDetailLine(item, true)
+                          : pendingDetailLine(item),
+                      }
+                    : item
+                ),
+              }
+            : section
+        ),
+      };
+    });
+
+    try {
+      const res = await fetch("/api/admin/worker-checklist/items", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          workerId: applicantId,
+          itemKey: row.id,
+          completed: nextCompleted,
+        }),
+      });
+      const json = (await res.json()) as {
+        error?: string;
+        row?: ChecklistRow;
+        sectionId?: string;
+      };
+      if (!res.ok) throw new Error(json.error || "Failed to save checklist item");
+
+      if (json.row) {
+        const targetSectionId = json.sectionId ?? sectionId;
+        setData((current) => {
+          if (!current) return current;
+          return {
+            ...current,
+            sections: current.sections.map((section) =>
+              section.id === targetSectionId
+                ? {
+                    ...section,
+                    rows: section.rows.map((item) =>
+                      item.id === row.id ? { ...item, ...json.row } : item
+                    ),
+                  }
+                : section
+            ),
+          };
+        });
+      }
+    } catch (e) {
+      console.error(e);
+      setData(previousData);
+      setPipelineSaveError(e instanceof Error ? e.message : "Failed to save");
+    } finally {
+      setSavingPipelineItemId(null);
+    }
+  }
 
   useEffect(() => {
     async function run() {
@@ -360,6 +501,12 @@ export default function NewApplicantChecklistPage() {
             {error ? (
               <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
                 {error}
+              </div>
+            ) : null}
+
+            {pipelineSaveError ? (
+              <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+                {pipelineSaveError}
               </div>
             ) : null}
 
@@ -526,63 +673,15 @@ export default function NewApplicantChecklistPage() {
                                   </div>
                                 ) : null}
                               </>
-                            ) : sectionIndex === 1 ? (
+                            ) : MANUAL_PIPELINE_SECTION_IDS.has(section.id) ? (
                               <>
                                 {section.rows.map((row, rowIndex) => {
-                                  const isAnswered =
-                                    row.checked === true ||
-                                    row.state === "answered" ||
-                                    row.state === "complete" ||
-                                    row.state === "uploaded";
-                                  return (
-                                    <div key={row.id} className="p-0">
-                                      <div className="flex items-start justify-between gap-3">
-                                        <div className="min-w-0">
-                                          <div className="text-sm font-semibold leading-5 text-[#111827]">
-                                            {rowIndex + 1}. {row.title.replace(/^\d+\.\s*/, "")}
-                                          </div>
-                                        </div>
-                                        <RowBadge text={row.badge ?? "Pending"} state={row.state} />
-                                      </div>
-
-                                      <div className="mt-3 flex items-center gap-3 text-sm text-[#374151]">
-                                        <div
-                                          className={`h-4 w-4 rounded-[4px] border flex items-center justify-center ${
-                                            isAnswered ? "border-teal-600 bg-teal-600" : "border-zinc-300 bg-white"
-                                          }`}
-                                        >
-                                          {isAnswered ? (
-                                            <Check className="w-3 h-3 text-white" strokeWidth={3} />
-                                          ) : null}
-                                        </div>
-                                        <span>{(row.subtitle?.trim() || row.title).replace(/^\d+\.\s*/, "")}</span>
-                                      </div>
-
-                                      {row.detailLine ? (
-                                        <div className="mt-1 pl-7 text-[11px] text-[#94A3B8]">{row.detailLine}</div>
-                                      ) : null}
-                                    </div>
-                                  );
-                                })}
-                              </>
-                            ) : sectionIndex === 2 || sectionIndex === 3 || sectionIndex === 4 || sectionIndex === 5 ? (
-                              <>
-                                {section.rows.map((row, rowIndex) => {
-                                  const isChecked =
-                                    row.checked === true ||
-                                    row.state === "uploaded" ||
-                                    row.state === "complete" ||
-                                    row.state === "answered";
+                                  const isChecked = rowIsComplete(row);
+                                  const isSaving = savingPipelineItemId === row.id;
+                                  const checkboxDisabled = !canManualCompletePipeline || isSaving;
                                   const cleanTitle = row.title.replace(/^\d+\.\s*/, "");
                                   const subtitleIsMeta = (row.subtitle ?? "").startsWith("(");
-                                  const checkboxText = (() => {
-                                    if (row.id === "oig") return "For Verification";
-                                    if (row.id === "drug") return "For Drug Test";
-                                    if (row.id === "bg") return "For Background Check";
-                                    if (row.subtitle && !subtitleIsMeta) return row.subtitle;
-                                    return `For ${cleanTitle}`;
-                                  })();
-
+                                  const checkboxText = pipelineCheckboxText(row);
                                   return (
                                     <div key={row.id} className="p-0">
                                       <div className="flex items-start justify-between gap-3">
@@ -597,18 +696,29 @@ export default function NewApplicantChecklistPage() {
                                         <RowBadge text={row.badge ?? "Pending"} state={row.state} />
                                       </div>
 
-                                      <div className="mt-3 flex items-center gap-3 text-sm text-[#6B7280]">
-                                        <div
-                                          className={`h-4 w-4 rounded-[4px] border flex items-center justify-center ${
+                                      <div className="mt-3 flex items-center gap-3 text-sm text-[#374151]">
+                                        <button
+                                          type="button"
+                                          aria-label={`Mark ${row.title} ${isChecked ? "incomplete" : "complete"}`}
+                                          aria-pressed={isChecked}
+                                          disabled={checkboxDisabled}
+                                          onClick={() => void togglePipelineItem(row, section.id)}
+                                          className={`h-4 w-4 rounded-[4px] border flex items-center justify-center transition-opacity ${
                                             isChecked ? "border-teal-600 bg-teal-600" : "border-zinc-300 bg-white"
-                                          }`}
+                                          } ${checkboxDisabled ? "cursor-not-allowed opacity-60" : "cursor-pointer hover:border-teal-500"}`}
                                         >
-                                          {isChecked ? (
+                                          {isSaving ? (
+                                            <span className="h-2.5 w-2.5 animate-pulse rounded-[2px] bg-white/80" />
+                                          ) : isChecked ? (
                                             <Check className="w-3 h-3 text-white" strokeWidth={3} />
                                           ) : null}
-                                        </div>
+                                        </button>
                                         <span>{checkboxText}</span>
                                       </div>
+
+                                      {row.detailLine ? (
+                                        <div className="mt-1 pl-7 text-[11px] text-[#94A3B8]">{row.detailLine}</div>
+                                      ) : null}
                                     </div>
                                   );
                                 })}

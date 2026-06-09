@@ -13,6 +13,15 @@ import {
 import { loadAdminAttachmentRequirements } from "@/lib/onboarding/load-admin-attachment-requirements"
 import { normalizeResumeStorageObjectPath } from "@/lib/onboarding/normalize-resume-storage-path"
 import { WORKER_RESUMES_BUCKET } from "@/lib/supabase-storage-buckets"
+import {
+  buildPipelineDetailLine,
+  getPipelineItemDef,
+  loadWorkerPipelineChecklistItems,
+  pipelineCheckboxLabel,
+  pipelineItemIsComplete,
+  pipelineSectionComplete,
+  type PipelineChecklistItemKey,
+} from "@/lib/worker-pipeline-checklist"
 
 export const runtime = "nodejs"
 
@@ -27,6 +36,8 @@ type ChecklistRow = {
   checked?: boolean
   detailLine?: string
   badge?: string
+  callLogCompleted?: boolean
+  checkboxLabel?: string
 }
 
 export type ChecklistSection = {
@@ -282,6 +293,32 @@ export async function GET(req: NextRequest) {
         ? Math.max(0, Math.floor((Date.now() - created.getTime()) / 86_400_000))
         : 0
 
+    const pipelineRowsByKey = await loadWorkerPipelineChecklistItems(supabase, workerId)
+
+    function buildPipelineChecklistRow(itemKey: PipelineChecklistItemKey): ChecklistRow {
+      const def = getPipelineItemDef(itemKey)
+      const row = pipelineRowsByKey.get(itemKey)
+      const isComplete = pipelineItemIsComplete(row)
+      const state: ItemState = isComplete
+        ? "complete"
+        : def.optional
+          ? "not_applicable"
+          : "pending"
+      const detailLine = buildPipelineDetailLine(itemKey, row, isComplete)
+      return {
+        id: itemKey,
+        title: def.title,
+        subtitle: def.subtitle,
+        optional: def.optional,
+        state,
+        checked: isComplete,
+        badge: stateBadge(state, isComplete ? "Complete" : "Pending"),
+        detailLine,
+        callLogCompleted: row?.call_log_completed === true,
+        checkboxLabel: pipelineCheckboxLabel(itemKey),
+      }
+    }
+
     const sections: ChecklistSection[] = [
       {
         id: "claimed",
@@ -325,22 +362,8 @@ export async function GET(req: NextRequest) {
         title: "Initial Screening / Interview",
         subtitle: "Call attempts and interview status",
         rows: [
-          {
-            id: "call_1",
-            title: "Call 1",
-            subtitle: "For Interview",
-            state: "pending",
-            badge: "Pending",
-            detailLine: "No call logs synced yet",
-          },
-          {
-            id: "call_2",
-            title: "Call 2",
-            subtitle: "Done Initial Interview",
-            state: "pending",
-            badge: "Pending",
-            detailLine: "No call logs synced yet",
-          },
+          buildPipelineChecklistRow("call_1"),
+          buildPipelineChecklistRow("call_2"),
         ],
       },
       {
@@ -348,28 +371,9 @@ export async function GET(req: NextRequest) {
         title: "Pre-employment Compliance Screening",
         subtitle: "OIG, drug screen, and background",
         rows: [
-          {
-            id: "oig",
-            title: "OIG Verification",
-            subtitle: "(Not Mandatory)",
-            state: "not_applicable",
-            optional: true,
-            badge: "Pending",
-          },
-          {
-            id: "drug",
-            title: "Drug Test",
-            subtitle: "(Not Mandatory)",
-            state: "not_applicable",
-            optional: true,
-            badge: "Pending",
-          },
-          {
-            id: "bg",
-            title: "Background Check",
-            state: "pending",
-            badge: "Pending",
-          },
+          buildPipelineChecklistRow("oig"),
+          buildPipelineChecklistRow("drug"),
+          buildPipelineChecklistRow("bg"),
         ],
       },
       {
@@ -377,20 +381,8 @@ export async function GET(req: NextRequest) {
         title: "Facility Specific Requirements",
         subtitle: "eSign and statements",
         rows: [
-          {
-            id: "fac_approval",
-            title: "Facility Approval",
-            subtitle: "For eSign",
-            state: "pending",
-            badge: "Pending",
-          },
-          {
-            id: "sworn",
-            title: "Sworn Statement",
-            subtitle: "To be fill-up",
-            state: "pending",
-            badge: "Pending",
-          },
+          buildPipelineChecklistRow("fac_approval"),
+          buildPipelineChecklistRow("sworn"),
         ],
       },
       {
@@ -398,34 +390,10 @@ export async function GET(req: NextRequest) {
         title: "New Hire Agreement",
         subtitle: "Payroll and workforce accounts",
         rows: [
-          {
-            id: "w2_i9",
-            title: "Employee Agreement W2 + I9",
-            subtitle: "To be signed",
-            state: "pending",
-            badge: "Pending",
-          },
-          {
-            id: "everify",
-            title: "Create eVerify Record",
-            subtitle: "To be created",
-            state: "pending",
-            badge: "Pending",
-          },
-          {
-            id: "wheniwork",
-            title: "WhenIWork Account",
-            subtitle: "To be created",
-            state: "pending",
-            badge: "Pending",
-          },
-          {
-            id: "paychex",
-            title: "PayChex Account",
-            subtitle: "To be created",
-            state: "pending",
-            badge: "Pending",
-          },
+          buildPipelineChecklistRow("w2_i9"),
+          buildPipelineChecklistRow("everify"),
+          buildPipelineChecklistRow("wheniwork"),
+          buildPipelineChecklistRow("paychex"),
         ],
       },
       {
@@ -433,20 +401,8 @@ export async function GET(req: NextRequest) {
         title: "Final Onboarding Steps",
         subtitle: "Welcome communication and badge",
         rows: [
-          {
-            id: "welcome_email",
-            title: "Welcome Email Sent",
-            subtitle: "For Email",
-            state: "pending",
-            badge: "Pending",
-          },
-          {
-            id: "badge",
-            title: "Badge Sent",
-            subtitle: "Send badge",
-            state: "pending",
-            badge: "Pending",
-          },
+          buildPipelineChecklistRow("welcome_email"),
+          buildPipelineChecklistRow("badge"),
         ],
       },
     ]
@@ -463,11 +419,11 @@ export async function GET(req: NextRequest) {
     const docSectionDone = verifiedDone >= verifiedTotal
     const trackDone = [
       docSectionDone,
-      false,
-      false,
-      false,
-      false,
-      false,
+      pipelineSectionComplete("screening", pipelineRowsByKey),
+      pipelineSectionComplete("compliance", pipelineRowsByKey),
+      pipelineSectionComplete("facility_req", pipelineRowsByKey),
+      pipelineSectionComplete("new_hire", pipelineRowsByKey),
+      pipelineSectionComplete("final", pipelineRowsByKey),
     ]
 
     const { data: activityRows } = await supabase
@@ -515,6 +471,10 @@ export async function GET(req: NextRequest) {
       },
       sections,
       activity_history: activityHistory,
+      permissions: {
+        canManualCompleteScreening: isStaffRole(auth.role),
+        canManualCompletePipeline: isStaffRole(auth.role),
+      },
     })
   } catch (err: unknown) {
     console.error("[admin/worker-checklist]", err)
