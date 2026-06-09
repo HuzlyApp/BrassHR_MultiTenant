@@ -149,27 +149,49 @@ export default function OnboardingStepsBuilderPanel({
   return (
     <div className="space-y-4">
       {mode === "admin-settings" ? (
-        <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
-          This list editor updates the same draft as the workflow canvas. Saving here does not change
-          the applicant flow until you publish from <strong>Onboarding Builder</strong>.
-        </p>
-      ) : null}
-      <OnboardingStepsBuilder steps={steps} onChange={handleChange} />
-
-      {mode === "admin-settings" ? (
-        <div className="flex flex-wrap items-center gap-3">
-          <button
-            type="button"
-            disabled={saving}
-            onClick={() => void save()}
-            className="rounded-xl bg-[#0d9488] px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
-          >
-            {saving ? "Saving…" : "Save draft (sync to builder)"}
-          </button>
-          {message ? <span className="text-sm text-green-700">{message}</span> : null}
-          {error ? <span className="text-sm text-red-700">{error}</span> : null}
+        <div className="rounded-lg border border-[#E5E7EB] bg-white p-5 sm:p-6">
+          <h2 className="text-lg font-semibold leading-7 text-[#012352]">Worker onboarding steps</h2>
+          <p className="mt-1 text-sm text-[#64748B]">
+            Enable, reorder, and customize applicant steps. Changes apply to new applications when
+            published from the builder or saved here.
+          </p>
+          <p className="mt-4 rounded-lg border border-[#E5E7EB] bg-[#F8FAFC] px-4 py-3 text-sm text-[#64748B]">
+            This list editor updates the same draft as the workflow canvas. Saving here does not change
+            the applicant flow until you publish from <strong>Onboarding Builder</strong>.
+          </p>
+          <div className="mt-6">
+            <OnboardingStepsBuilder steps={steps} onChange={handleChange} variant="admin" />
+          </div>
+          <div className="mt-6 flex flex-wrap items-center justify-end gap-3 border-t border-[#E5E7EB] pt-5">
+            <button
+              type="button"
+              disabled={saving}
+              onClick={() => void save()}
+              className="inline-flex h-10 items-center justify-center rounded-full bg-[color:var(--brand-primary)] px-6 text-sm font-medium text-white transition disabled:opacity-60"
+            >
+              {saving ? "Saving…" : "Save draft (sync to builder)"}
+            </button>
+            {message ? <span className="text-sm text-emerald-700">{message}</span> : null}
+            {error ? <span className="text-sm text-red-700">{error}</span> : null}
+          </div>
         </div>
-      ) : null}
+      ) : (
+        <>
+          <OnboardingStepsBuilder steps={steps} onChange={handleChange} />
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              disabled={saving}
+              onClick={() => void save()}
+              className="rounded-xl bg-[color:var(--brand-primary)] px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
+            >
+              {saving ? "Saving…" : "Save onboarding steps"}
+            </button>
+            {message ? <span className="text-sm text-green-700">{message}</span> : null}
+            {error ? <span className="text-sm text-red-700">{error}</span> : null}
+          </div>
+        </>
+      )}
     </div>
   );
 }

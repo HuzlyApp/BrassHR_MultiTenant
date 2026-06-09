@@ -9,9 +9,11 @@ import TenantOnboardingWorkflowBuilder from "@/app/components/onboarding/TenantO
 type SettingsTab = "onboarding-builder" | "step-editor";
 
 function tabClass(active: boolean): string {
-  return active
-    ? "border-b-2 border-[#0d9488] pb-3 text-sm font-semibold text-[#0d9488]"
-    : "border-b-2 border-transparent pb-3 text-sm font-medium text-[#64748B] hover:text-[#0F172A]";
+  return `shrink-0 pb-3 pt-1 text-sm font-medium leading-5 whitespace-nowrap transition-colors ${
+    active
+      ? "-mb-px border-b-2 text-[color:var(--brand-primary)]"
+      : "border-b-2 border-transparent text-[#2B3D51] hover:text-[color:var(--brand-primary)]"
+  }`;
 }
 
 function SettingsTabsInner() {
@@ -30,16 +32,27 @@ function SettingsTabsInner() {
         </p>
       </div>
 
-      <nav className="flex gap-6 border-b border-[#E2E8F0]" aria-label="Settings sections">
+      <nav
+        className="mb-2 flex flex-wrap items-end gap-x-8 gap-y-2 border-b border-[#E5E7EB]"
+        aria-label="Settings sections"
+      >
         <Link
           href="/admin_recruiter/settings?tab=onboarding-builder"
           className={tabClass(activeTab === "onboarding-builder")}
+          style={
+            activeTab === "onboarding-builder"
+              ? { borderBottomColor: "var(--brand-primary)" }
+              : undefined
+          }
         >
           Onboarding Builder
         </Link>
         <Link
           href="/admin_recruiter/settings?tab=step-editor"
           className={tabClass(activeTab === "step-editor")}
+          style={
+            activeTab === "step-editor" ? { borderBottomColor: "var(--brand-primary)" } : undefined
+          }
         >
           Step editor
         </Link>
@@ -53,16 +66,7 @@ function SettingsTabsInner() {
           <TenantOnboardingWorkflowBuilder />
         </section>
       ) : (
-        <section aria-labelledby="step-editor-heading" className="max-w-3xl space-y-4">
-          <div>
-            <h2 id="step-editor-heading" className="text-lg font-semibold text-[#0F172A]">
-              Worker onboarding steps
-            </h2>
-            <p className="mt-1 text-sm text-[#64748B]">
-              Enable, reorder, and customize applicant steps. Changes apply to new applications
-              immediately when published from the builder or saved here.
-            </p>
-          </div>
+        <section aria-labelledby="step-editor-heading" className="space-y-4">
           <OnboardingStepsBuilderPanel mode="admin-settings" />
         </section>
       )}
