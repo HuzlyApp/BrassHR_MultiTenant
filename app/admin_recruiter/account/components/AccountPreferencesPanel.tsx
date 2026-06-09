@@ -5,6 +5,7 @@ import { useAccountData } from "@/app/admin_recruiter/hooks/useAccountData";
 import { syncAccountChecklist } from "@/lib/account/fetch-account-data";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import { FIELD, FieldLabel } from "./account-form-fields";
+import AccountCheckbox from "./AccountCheckbox";
 import {
   AccountErrorBanner,
   AccountLoadingSkeleton,
@@ -189,11 +190,9 @@ export default function AccountPreferencesPanel() {
           { id: "marketing_emails", label: "Marketing emails", checked: marketingEmails, set: setMarketingEmails },
         ].map((item) => (
           <label key={item.id} className="flex items-center gap-3 text-sm text-[#374151]">
-            <input
-              type="checkbox"
+            <AccountCheckbox
               checked={item.checked}
               onChange={(e) => item.set(e.target.checked)}
-              className="h-4 w-4 rounded border-[#D1D5DB]"
             />
             {item.label}
           </label>

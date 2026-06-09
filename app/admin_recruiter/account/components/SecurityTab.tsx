@@ -25,11 +25,11 @@ type PasswordRules = {
 
 function FieldStatusIcon({ showValid }: { showValid: boolean }) {
   const base =
-    "flex h-[19.2px] w-[19.2px] shrink-0 items-center justify-center rounded-full border border-[#012352]";
+    "flex h-[19.2px] w-[19.2px] shrink-0 items-center justify-center rounded-full border border-[color:var(--brand-primary)]";
 
   if (showValid) {
     return (
-      <span className={`${base} bg-[#012352]`} aria-hidden>
+      <span className={`${base} bg-[color:var(--brand-primary)]`} aria-hidden>
         <Check className="h-2.5 w-2.5 text-white" strokeWidth={3} />
       </span>
     );
@@ -42,7 +42,9 @@ function RequirementItem({ met, label }: { met: boolean; label: string }) {
   return (
     <li className="flex items-center gap-2.5">
       <FieldStatusIcon showValid={met} />
-      <span className={`text-sm ${met ? "text-[#012352]" : "text-[#64748B]"}`}>{label}</span>
+      <span className={`text-sm ${met ? "text-[color:var(--brand-primary)]" : "text-[#64748B]"}`}>
+        {label}
+      </span>
     </li>
   );
 }

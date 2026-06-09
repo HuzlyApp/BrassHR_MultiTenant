@@ -17,7 +17,7 @@ export const US_STATES = [
 ];
 
 export const FIELD =
-  "h-11 w-full rounded-md border border-[#D1D5DB] bg-white px-3 text-sm text-[#111827] outline-none transition-colors focus:border-[var(--brand-primary,#BC8B41)]";
+  "h-11 w-full rounded-md border border-[#D1D5DB] bg-white px-3 text-sm text-[#111827] outline-none transition-colors focus:border-[color:var(--brand-primary)] focus:ring-1 focus:ring-[color:var(--brand-primary)]";
 
 export function FieldLabel({
   children,

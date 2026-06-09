@@ -8,6 +8,7 @@ import {
   Info,
   Link2,
 } from "lucide-react";
+import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
 import { useAccountData } from "@/app/admin_recruiter/hooks/useAccountData";
 import {
   formatAccountNumber,
@@ -131,13 +132,10 @@ export default function AccountSettingsBillingPanel() {
           className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border bg-white"
           style={{ borderColor: "var(--brand-primary)" }}
         >
-          <Image
+          <BrandedSvgIcon
             src="/icons/braas-HR/client-dashboard/uil_rocket.svg"
-            alt=""
-            width={24}
-            height={24}
             className="h-6 w-6"
-            aria-hidden
+            color="var(--brand-primary)"
           />
         </div>
         <div className="min-w-0">
@@ -198,13 +196,10 @@ export default function AccountSettingsBillingPanel() {
             <div className="rounded-lg border border-[#E5E7EB] bg-white px-6 py-16">
               <div className="mx-auto flex max-w-md flex-col items-center text-center">
                 <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-[#F3F4F6]">
-                  <Image
+                  <BrandedSvgIcon
                     src="/icons/braas-HR/client-dashboard/solar_folder-broken.svg"
-                    alt=""
-                    width={24}
-                    height={24}
                     className="h-6 w-6"
-                    aria-hidden
+                    color="var(--brand-primary)"
                   />
                 </div>
                 <p className="mt-4 text-base font-semibold text-[#111827]">Nothing to see here...</p>
