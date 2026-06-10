@@ -1,6 +1,7 @@
 "use client";
 
 import type { ApplicantPortalTab } from "./types";
+import { WORKER_SCHEDULE_SUBTITLE_STYLE } from "./worker-schedule-typography";
 
 type Props = {
   activeTab: ApplicantPortalTab;
@@ -14,8 +15,8 @@ export function ApplicantPortalTabs({ activeTab, onChange }: Props) {
   ];
 
   return (
-    <div className="px-8 pt-5">
-      <div className="inline-flex gap-3.5 rounded-md bg-transparent p-2">
+    <div className="border-b border-[#E5E7EB] px-8">
+      <div className="inline-flex gap-6">
         {tabs.map((tab) => {
           const active = activeTab === tab.id;
           return (
@@ -23,12 +24,12 @@ export function ApplicantPortalTabs({ activeTab, onChange }: Props) {
               key={tab.id}
               type="button"
               onClick={() => onChange(tab.id)}
-              className={`px-2 pb-2.5 pt-1 text-[14px] leading-5 transition ${
+              className={`border-b-2 px-1 pb-3 pt-5 text-[14px] leading-5 transition ${
                 active
-                  ? "font-normal text-[color:var(--brand-primary)]"
-                  : "font-normal text-[#012352]"
+                  ? "border-[color:var(--brand-primary)] font-medium text-[color:var(--brand-primary)]"
+                  : "border-transparent font-normal text-[#012352] hover:text-[#334155]"
               }`}
-              style={active ? { borderBottom: "1.5px solid var(--brand-primary)" } : undefined}
+              style={WORKER_SCHEDULE_SUBTITLE_STYLE}
             >
               {tab.label}
             </button>

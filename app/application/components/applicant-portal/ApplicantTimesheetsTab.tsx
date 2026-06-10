@@ -1,10 +1,21 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { AlarmClock, Calendar, ChevronDown } from "lucide-react";
+import { Calendar, ChevronDown } from "lucide-react";
+import { WorkerBrandedIcon } from "./WorkerBrandedIcon";
+import { WORKER_ICONS } from "./worker-icons";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import { dayLabel, formatDurationShort, formatTimeParts, formatTimer } from "./format";
 import type { AttendanceLog } from "./types";
+import {
+  WORKER_SCHEDULE_CARD_CLASS,
+  WORKER_SCHEDULE_SUBTITLE_CLASS,
+  WORKER_SCHEDULE_SUBTITLE_STYLE,
+  WORKER_SCHEDULE_TITLE_CLASS,
+  WORKER_SCHEDULE_TITLE_STYLE,
+  WORKER_SECTION_TITLE_CLASS,
+  WORKER_SECTION_TITLE_STYLE,
+} from "./worker-schedule-typography";
 
 type Props = {
   todayAttendance: AttendanceLog | null;
@@ -34,11 +45,16 @@ export function ApplicantTimesheetsTab({ todayAttendance, recentAttendance }: Pr
   }, [todayAttendance, recentAttendance]);
 
   return (
-    <div className="mx-8 mb-8 rounded-xl border border-[#E5E7EB] bg-white p-5">
-      <div className="mb-5 flex flex-wrap items-start justify-between gap-4">
+    <div className="px-8 pb-8 pt-5">
+      <div className={`${WORKER_SCHEDULE_CARD_CLASS} p-5`}>
+        <div className="mb-5 flex flex-wrap items-start justify-between gap-4">
           <div>
-            <h1 className="text-[30px] font-semibold leading-9 text-black">Timesheets</h1>
-            <p className="text-[16px] leading-6 text-[#6B7280]">Manage Attendance &amp; Timehsheets</p>
+            <h1 className={WORKER_SCHEDULE_TITLE_CLASS} style={WORKER_SCHEDULE_TITLE_STYLE}>
+              Timesheets
+            </h1>
+            <p className={WORKER_SCHEDULE_SUBTITLE_CLASS} style={WORKER_SCHEDULE_SUBTITLE_STYLE}>
+              Manage Attendance &amp; Timesheets
+            </p>
           </div>
           <div className="flex items-center">
             <button
@@ -58,11 +74,15 @@ export function ApplicantTimesheetsTab({ todayAttendance, recentAttendance }: Pr
           </div>
         </div>
 
-        <div className="overflow-hidden rounded-lg border border-[#E5E7EB]">
-          <div className="border-b border-[#E5E7EB] px-3.5 py-3">
-            <div className="flex items-center gap-2 text-[14px] font-semibold text-black">
-              <AlarmClock className="h-5 w-5" />
-              My timesheets
+        <div className={WORKER_SCHEDULE_CARD_CLASS}>
+          <div className="border-b border-[#E5E7EB] px-4 py-3">
+            <div className="flex items-center gap-2">
+              <span className="flex h-[20px] w-[20px] shrink-0 items-center justify-center">
+                <WorkerBrandedIcon src={WORKER_ICONS.timer} />
+              </span>
+              <span className={WORKER_SECTION_TITLE_CLASS} style={WORKER_SECTION_TITLE_STYLE}>
+                My timesheets
+              </span>
             </div>
           </div>
 
@@ -85,6 +105,7 @@ export function ApplicantTimesheetsTab({ todayAttendance, recentAttendance }: Pr
             )}
           </div>
         </div>
+      </div>
     </div>
   );
 }

@@ -1,11 +1,12 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { AlarmClock, Clock, Clock3, Link2, Pause, Play, Square } from "lucide-react";
+import { Link2, Pause, Play, Square } from "lucide-react";
+import { WorkerBrandedIcon } from "./WorkerBrandedIcon";
+import { WORKER_ICONS } from "./worker-icons";
 import {
   formatDateOnly,
   formatDurationParts,
-  formatDurationShort,
   formatScheduleDate,
   formatTimeParts,
   formatTimeRange,
@@ -15,6 +16,16 @@ import {
   scheduleStatusLabel,
 } from "./format";
 import type { Appointment, AppointmentSlot, AttendanceLog } from "./types";
+import {
+  WORKER_SCHEDULE_CARD_CLASS,
+  WORKER_SCHEDULE_SUBTITLE_CLASS,
+  WORKER_SCHEDULE_SUBTITLE_STYLE,
+  WORKER_SCHEDULE_TITLE_CLASS,
+  WORKER_SCHEDULE_TITLE_STYLE,
+  WORKER_SECTION_TITLE_CLASS,
+  WORKER_SECTION_TITLE_STYLE,
+  WORKER_SCHEDULE_ACTION_CONTROL_CLASS,
+} from "./worker-schedule-typography";
 
 type Props = {
   todayAttendance: AttendanceLog | null;
@@ -36,9 +47,24 @@ type Props = {
   onAttendanceAction: (action: "clock_in" | "clock_out") => void;
 };
 
+const EMPTY_SCHEDULE_MESSAGE = "There is nothing scheduled today.";
+
+function SectionHeader({ icon, title }: { icon: React.ReactNode; title: string }) {
+  return (
+    <div className="border-b border-[#E5E7EB] px-4 py-3">
+      <div className="flex items-center gap-2">
+        <span className="flex h-[20px] w-[20px] shrink-0 items-center justify-center">{icon}</span>
+        <span className={WORKER_SECTION_TITLE_CLASS} style={WORKER_SECTION_TITLE_STYLE}>
+          {title}
+        </span>
+      </div>
+    </div>
+  );
+}
+
 function DetailRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
-    <div className="flex gap-2 text-[12px] leading-4">
+    <div className="flex gap-2 text-[12px] leading-5">
       <span className="shrink-0 font-semibold text-[#374151]">{label}</span>
       <span className="min-w-0 text-[#374151]">{value}</span>
     </div>
@@ -108,7 +134,7 @@ export function ApplicantScheduleTab({
     return 0;
   }, [todayAttendance, isClockedIn, isCompleted, now]);
 
-  const timerLabel = isCompleted ? "COMPLETED" : isClockedIn ? "Working" : "Clocked in";
+  const timerStatusLabel = isCompleted ? "COMPLETED" : isClockedIn ? "IN PROGRESS" : "UPCOMING";
   const recentLog = recentAttendance[0] ?? todayAttendance;
   const scheduleDate = appointment?.confirmed_starts_at ?? selectedSlot?.starts_at ?? null;
   const scheduleEnd = appointment?.confirmed_ends_at ?? selectedSlot?.ends_at ?? null;
@@ -121,33 +147,37 @@ export function ApplicantScheduleTab({
     return [appointment];
   }, [appointment]);
 
-  return (
-    <div className="mx-8 mb-8 space-y-5 rounded-xl border border-[#E5E7EB] bg-white p-5">
-      <div>
-        <h1 className="text-[30px] font-semibold leading-9 text-black">Schedules</h1>
-        <p className="text-[16px] leading-6 text-[#6B7280]">Manage Schedules &amp; Appointments</p>
-      </div>
+  const hasTodaySchedule = Boolean(appointment && scheduleDate);
+  const hasUpcomingSchedules = upcomingAppointments.length > 0;
+  const hasUpcomingAppointment = Boolean(appointment);
 
-        <div className="grid gap-5 lg:grid-cols-3">
-          <div className="overflow-hidden rounded-lg border border-[#E5E7EB]">
-            <div className="border-b border-[#E5E7EB] px-3.5 py-3">
-              <div className="flex items-center gap-2 text-[14px] font-semibold text-black">
-                <AlarmClock className="h-5 w-5" />
-                <span>{timerLabel}</span>
-              </div>
-            </div>
-            <div className="flex flex-col items-center px-3.5 py-5">
-              <p className="text-[14px] font-semibold uppercase tracking-wide text-[#6B7280]">
-                {isCompleted ? "Completed" : isClockedIn ? "In progress" : "Ready to start"}
+  return (
+    <div className="px-8 pb-8 pt-5">
+      <div className={`${WORKER_SCHEDULE_CARD_CLASS} p-5`}>
+        <div>
+          <h1 className={WORKER_SCHEDULE_TITLE_CLASS} style={WORKER_SCHEDULE_TITLE_STYLE}>
+            Schedules
+          </h1>
+          <p className={WORKER_SCHEDULE_SUBTITLE_CLASS} style={WORKER_SCHEDULE_SUBTITLE_STYLE}>
+            Manage Schedules &amp; Appointments
+          </p>
+        </div>
+
+        <div className="mt-5 grid gap-5 lg:grid-cols-3">
+          <div className={WORKER_SCHEDULE_CARD_CLASS}>
+            <SectionHeader icon={<WorkerBrandedIcon src={WORKER_ICONS.timer} />} title="Timer" />
+            <div className="flex flex-col items-center px-4 py-6">
+              <p className="text-[12px] font-semibold uppercase tracking-[0.08em] text-[#94A3B8]">
+                {timerStatusLabel}
               </p>
               <p className="mt-2 font-semibold tabular-nums text-[36px] leading-9 text-black">
-                {todayAttendance ? formatTimer(timerSeconds) : "--:--:--"}
+                {formatTimer(timerSeconds)}
               </p>
-              <div className="mt-4 flex gap-2">
+              <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
                 <button
                   type="button"
                   disabled
-                  className="inline-flex h-7 items-center gap-1.5 rounded border border-[#E5E7EB] bg-[#F8FAFC] px-2.5 text-[12px] font-semibold text-[#475569] opacity-60"
+                  className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-[#E8EDF5] px-4 text-[12px] font-semibold text-[#475569] opacity-80"
                 >
                   <Pause className="h-4 w-4" />
                   Break
@@ -157,7 +187,7 @@ export function ApplicantScheduleTab({
                     type="button"
                     disabled={attendanceSubmitting}
                     onClick={() => onAttendanceAction("clock_out")}
-                    className="inline-flex h-7 items-center gap-1.5 rounded bg-[color:var(--brand-primary)] px-2.5 text-[12px] font-semibold text-white transition hover:brightness-90 disabled:opacity-60"
+                    className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-[color:var(--brand-primary)] px-4 text-[12px] font-semibold text-white transition hover:brightness-90 disabled:opacity-60"
                   >
                     <Square className="h-4 w-4" />
                     {attendanceSubmitting ? "Saving..." : "Clock Out"}
@@ -167,10 +197,10 @@ export function ApplicantScheduleTab({
                     type="button"
                     disabled={attendanceSubmitting || isCompleted}
                     onClick={() => onAttendanceAction("clock_in")}
-                    className="inline-flex h-7 items-center gap-1.5 rounded bg-[color:var(--brand-primary)] px-2.5 text-[12px] font-semibold text-white transition hover:brightness-90 disabled:opacity-60"
+                    className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-[color:var(--brand-primary)] px-4 text-[12px] font-semibold text-white transition hover:brightness-90 disabled:opacity-60"
                   >
                     <Play className="h-4 w-4" />
-                    {attendanceSubmitting ? "Verifying..." : "Start"}
+                    {attendanceSubmitting ? "Verifying..." : "Clock-In"}
                   </button>
                 )}
               </div>
@@ -178,10 +208,13 @@ export function ApplicantScheduleTab({
           </div>
 
           <ClockCard
-            title="Clock In"
-            icon={<Clock className="h-5 w-5" />}
+            title="Clock-In"
+            timeLabel="Clock-in time:"
+            icon={<WorkerBrandedIcon src={WORKER_ICONS.clockIn} />}
             timeIso={todayAttendance?.clock_in_at}
-            totalSeconds={todayAttendance?.clock_in_at && isCompleted ? todayAttendance.total_seconds : null}
+            totalSeconds={
+              todayAttendance?.clock_in_at && isCompleted ? todayAttendance.total_seconds : null
+            }
             ip={todayAttendance?.clock_in_ip}
             location={locationDisplay(
               todayAttendance?.clock_in_address,
@@ -192,7 +225,8 @@ export function ApplicantScheduleTab({
 
           <ClockCard
             title="Clock Out"
-            icon={<Clock3 className="h-5 w-5" />}
+            timeLabel="Clock-out time:"
+            icon={<WorkerBrandedIcon src={WORKER_ICONS.clockOut} />}
             timeIso={todayAttendance?.clock_out_at}
             totalSeconds={isCompleted ? todayAttendance?.total_seconds : null}
             ip={todayAttendance?.clock_out_ip}
@@ -204,188 +238,192 @@ export function ApplicantScheduleTab({
           />
         </div>
 
-        <div className="mt-5 overflow-hidden rounded-lg border border-[#E5E7EB] px-2 py-1">
-          <div className="grid grid-cols-3 gap-2 border-b border-[#E5E7EB] px-3 py-2 text-[10px] font-semibold uppercase text-black">
-            <span>Date/time</span>
-            <span>Status</span>
-            <span>Total</span>
-          </div>
+        <div className={`${WORKER_SCHEDULE_CARD_CLASS} mt-5`}>
           {recentLog ? (
-            <div className="grid grid-cols-3 gap-2 px-3 py-2 text-[12px] text-[#374151]">
-              <div className="flex items-center gap-1">
-                <span>{formatDateOnly(recentLog.clock_out_at ?? recentLog.clock_in_at)}</span>
-                <span>•</span>
-                <TimeValue iso={recentLog.clock_out_at ?? recentLog.clock_in_at} />
+            <>
+              <div className="grid grid-cols-3 gap-2 border-b border-[#E5E7EB] px-4 py-3 text-[10px] font-semibold uppercase tracking-wide text-[#94A3B8]">
+                <span>Date/time</span>
+                <span>Status</span>
+                <span>Total</span>
               </div>
-              <div>
-                <span className="inline-flex rounded border border-[#E5E7EB] bg-[#F8FAFC] px-2.5 py-1 text-[12px] font-semibold">
-                  {recentLog.status === "clocked_in" ? "Clocked in" : "Clocked out"}
-                </span>
+              <div className="grid grid-cols-3 gap-2 px-4 py-3 text-[12px] text-[#374151]">
+                <div className="flex items-center gap-1">
+                  <span>{formatDateOnly(recentLog.clock_out_at ?? recentLog.clock_in_at)}</span>
+                  <span>•</span>
+                  <TimeValue iso={recentLog.clock_out_at ?? recentLog.clock_in_at} />
+                </div>
+                <div>
+                  <span className="inline-flex rounded-md border border-[#E5E7EB] bg-[#F8FAFC] px-2.5 py-1 text-[12px] font-semibold text-[#374151]">
+                    {recentLog.status === "clocked_in" ? "Clocked in" : "Clocked out"}
+                  </span>
+                </div>
+                <DurationValue seconds={recentLog.total_seconds} />
               </div>
-              <DurationValue seconds={recentLog.total_seconds} />
-            </div>
+            </>
           ) : (
-            <p className="px-3 py-4 text-[13px] text-[#64748B]">No attendance records yet.</p>
+            <p className="px-4 py-5 text-center text-[13px] text-[#64748B]">{EMPTY_SCHEDULE_MESSAGE}</p>
           )}
         </div>
 
-      <div className="overflow-hidden rounded-lg border border-[#E5E7EB] bg-white">
-        <div className="border-b border-[#E5E7EB] px-3.5 py-3">
-          <div className="flex items-center gap-2 text-[14px] font-semibold text-black">
-            <AlarmClock className="h-5 w-5" />
-            Schedules
-          </div>
-        </div>
+        <div className={`${WORKER_SCHEDULE_CARD_CLASS} mt-5`}>
+          <SectionHeader icon={<WorkerBrandedIcon src={WORKER_ICONS.timer} />} title="Schedules" />
 
-        <ScheduleTableSection title="Today">
-          {appointment && scheduleDate ? (
-            <ScheduleRow
-              date={formatDateOnly(scheduleDate)}
-              time={formatTimeRange(scheduleDate, scheduleEnd)}
-              address={scheduleLocation ?? meetingTypeLabel(scheduleMeetingType)}
-              position={scheduleStatusLabel(appointment.status)}
-              manager="Recruiter"
-            />
-          ) : (
-            <EmptyScheduleRow message="No shift scheduled for today." />
-          )}
-        </ScheduleTableSection>
+          <ScheduleTableSection
+            title="Today"
+            hasData={hasTodaySchedule}
+            emptyMessage={EMPTY_SCHEDULE_MESSAGE}
+          >
+            {hasTodaySchedule && appointment ? (
+              <ScheduleRow
+                date={formatDateOnly(scheduleDate)}
+                time={formatTimeRange(scheduleDate, scheduleEnd)}
+                address={scheduleLocation ?? meetingTypeLabel(scheduleMeetingType)}
+                position={scheduleStatusLabel(appointment.status)}
+                manager="Recruiter"
+              />
+            ) : null}
+          </ScheduleTableSection>
 
-        <div className="mx-3.5 border-t border-[#E5E7EB]" />
+          <div className="mx-4 border-t border-[#E5E7EB]" />
 
-        <ScheduleTableSection title="Upcoming">
-          {upcomingAppointments.length > 0 ? (
-            upcomingAppointments.map((item) => {
-              const starts = item.confirmed_starts_at ?? selectedSlot?.starts_at;
-              const ends = item.confirmed_ends_at ?? selectedSlot?.ends_at;
-              return (
-                <ScheduleRow
-                  key={item.id}
-                  date={formatDateOnly(starts)}
-                  time={formatTimeRange(starts, ends)}
-                  address={item.location ?? meetingTypeLabel(item.meeting_type)}
-                  position={scheduleStatusLabel(item.status)}
-                  manager="Recruiter"
-                />
-              );
-            })
-          ) : (
-            <EmptyScheduleRow message="No upcoming schedules." />
-          )}
-        </ScheduleTableSection>
+          <ScheduleTableSection
+            title="Upcoming"
+            hasData={hasUpcomingSchedules}
+            emptyMessage={EMPTY_SCHEDULE_MESSAGE}
+          >
+            {hasUpcomingSchedules
+              ? upcomingAppointments.map((item) => {
+                  const starts = item.confirmed_starts_at ?? selectedSlot?.starts_at;
+                  const ends = item.confirmed_ends_at ?? selectedSlot?.ends_at;
+                  return (
+                    <ScheduleRow
+                      key={item.id}
+                      date={formatDateOnly(starts)}
+                      time={formatTimeRange(starts, ends)}
+                      address={item.location ?? meetingTypeLabel(item.meeting_type)}
+                      position={scheduleStatusLabel(item.status)}
+                      manager="Recruiter"
+                    />
+                  );
+                })
+              : null}
+          </ScheduleTableSection>
 
-        <div className="border-t border-[#E5E7EB] px-3.5 py-4">
-          <form onSubmit={onRequestSchedule} className="flex flex-col gap-3 sm:flex-row">
-            <select
-              value={selectedSlotId}
-              onChange={(event) => onSelectedSlotIdChange(event.target.value)}
-              className="h-10 min-w-0 flex-1 rounded-lg border border-[#E5E7EB] bg-white px-3 text-[13px] text-[#012352] outline-none focus:border-[color:var(--brand-primary)]"
+          <div className="border-t border-[#E5E7EB] px-4 py-4">
+            <form
+              onSubmit={onRequestSchedule}
+              className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-end"
             >
-              <option value="">
-                {availableSlots.length > 0 ? "Choose an available time slot" : "No available time slots"}
-              </option>
-              {availableSlots.map((slot) => (
-                <option key={slot.id} value={slot.id}>
-                  {formatScheduleDate(slot.starts_at)} - {meetingTypeLabel(slot.meeting_type)}
+              <select
+                value={selectedSlotId}
+                onChange={(event) => onSelectedSlotIdChange(event.target.value)}
+                className={`${WORKER_SCHEDULE_ACTION_CONTROL_CLASS} truncate border border-[#E5E7EB] bg-white pl-3 pr-8 text-[14px] font-normal leading-5 text-[#012352] outline-none focus:border-[color:var(--brand-primary)]`}
+                style={WORKER_SECTION_TITLE_STYLE}
+              >
+                <option value="">
+                  {availableSlots.length > 0 ? "Choose an available time slot" : "No available time slots"}
                 </option>
-              ))}
-            </select>
-            <button
-              type="submit"
-              disabled={!selectedSlotId || requestingSchedule}
-              className="inline-flex h-10 min-w-[140px] items-center justify-center rounded-lg bg-[color:var(--brand-primary)] px-4 text-[14px] font-semibold text-white transition hover:brightness-90 disabled:opacity-60"
-            >
-              {requestingSchedule ? "Requesting..." : "Request Schedule"}
-            </button>
-          </form>
+                {availableSlots.map((slot) => (
+                  <option key={slot.id} value={slot.id}>
+                    {formatScheduleDate(slot.starts_at)} - {meetingTypeLabel(slot.meeting_type)}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="submit"
+                disabled={!selectedSlotId || requestingSchedule}
+                className={`${WORKER_SCHEDULE_ACTION_CONTROL_CLASS} inline-flex items-center justify-center bg-[color:var(--brand-primary)] px-4 text-[14px] font-semibold leading-5 text-white transition hover:brightness-90 disabled:opacity-60`}
+                style={WORKER_SECTION_TITLE_STYLE}
+              >
+                {requestingSchedule ? "Requesting..." : "Request Schedule"}
+              </button>
+            </form>
 
-          {appointment && appointment.status !== "cancelled" ? (
-            <div className="mt-3">
-              {!showRescheduleReason ? (
-                <button
-                  type="button"
-                  onClick={() => onShowRescheduleReasonChange(true)}
-                  className="inline-flex h-9 items-center rounded-lg border border-[#E5E7EB] px-4 text-[13px] font-semibold text-[#475569]"
-                >
-                  Request Reschedule
-                </button>
-              ) : (
-                <form onSubmit={onRequestReschedule} className="space-y-3">
-                  <textarea
-                    value={rescheduleReason}
-                    onChange={(event) => onRescheduleReasonChange(event.target.value)}
-                    placeholder="Add a short reason for requesting a new schedule."
-                    rows={3}
-                    className="w-full resize-none rounded-lg border border-[#E5E7EB] px-3 py-2 text-[13px] outline-none focus:border-[color:var(--brand-primary)]"
-                  />
-                  <div className="flex justify-end gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        onShowRescheduleReasonChange(false);
-                        onRescheduleReasonChange("");
-                      }}
-                      className="inline-flex h-9 items-center rounded-lg border border-[#E5E7EB] px-4 text-[13px] font-semibold text-[#64748B]"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={!rescheduleReason.trim() || requestingReschedule}
-                      className="inline-flex h-9 items-center rounded-lg bg-[color:var(--brand-primary)] px-4 text-[13px] font-semibold text-white transition hover:brightness-90 disabled:opacity-60"
-                    >
-                      {requestingReschedule ? "Sending..." : "Request Reschedule"}
-                    </button>
-                  </div>
-                </form>
-              )}
-            </div>
-          ) : null}
-        </div>
-      </div>
-
-      <div className="overflow-hidden rounded-lg border border-[#E5E7EB] bg-white">
-        <div className="border-b border-[#E5E7EB] px-3.5 py-3">
-          <div className="flex items-center gap-2 text-[14px] font-semibold text-black">
-            <AlarmClock className="h-5 w-5" />
-            Appointments / Interviews
+            {appointment && appointment.status !== "cancelled" ? (
+              <div className="mt-3">
+                {!showRescheduleReason ? (
+                  <button
+                    type="button"
+                    onClick={() => onShowRescheduleReasonChange(true)}
+                    className="inline-flex h-9 items-center rounded-lg border border-[#E5E7EB] px-4 text-[13px] font-semibold text-[#475569]"
+                  >
+                    Request Reschedule
+                  </button>
+                ) : (
+                  <form onSubmit={onRequestReschedule} className="space-y-3">
+                    <textarea
+                      value={rescheduleReason}
+                      onChange={(event) => onRescheduleReasonChange(event.target.value)}
+                      placeholder="Add a short reason for requesting a new schedule."
+                      rows={3}
+                      className="w-full resize-none rounded-lg border border-[#E5E7EB] px-3 py-2 text-[13px] outline-none focus:border-[color:var(--brand-primary)]"
+                    />
+                    <div className="flex justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onShowRescheduleReasonChange(false);
+                          onRescheduleReasonChange("");
+                        }}
+                        className="inline-flex h-9 items-center rounded-lg border border-[#E5E7EB] px-4 text-[13px] font-semibold text-[#64748B]"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={!rescheduleReason.trim() || requestingReschedule}
+                        className="inline-flex h-9 items-center rounded-lg bg-[color:var(--brand-primary)] px-4 text-[13px] font-semibold text-white transition hover:brightness-90 disabled:opacity-60"
+                      >
+                        {requestingReschedule ? "Sending..." : "Request Reschedule"}
+                      </button>
+                    </div>
+                  </form>
+                )}
+              </div>
+            ) : null}
           </div>
         </div>
 
-        <ScheduleTableSection title="Upcoming">
-          {appointment ? (
-            <div className="grid grid-cols-[120px_120px_1fr_1fr_150px_100px] gap-2 px-3 py-2.5 text-[12px] text-[#374151]">
-              <span>{formatDateOnly(scheduleDate)}</span>
-              <span>{formatTimeRange(scheduleDate, scheduleEnd)}</span>
-              <span>{scheduleLocation ?? meetingTypeLabel(scheduleMeetingType)}</span>
-              <span className="inline-flex items-center gap-1 truncate">
-                {scheduleMeetingLink ? (
-                  <>
-                    <Link2 className="h-3.5 w-3.5 shrink-0 text-[color:var(--brand-primary)]" />
-                    <a
-                      href={scheduleMeetingLink}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="truncate text-[color:var(--brand-primary)] underline-offset-2 hover:underline"
-                    >
-                      {scheduleMeetingLink}
-                    </a>
-                  </>
-                ) : (
-                  "—"
-                )}
-              </span>
-              <span>HR Manager</span>
-              <span className="text-right">
-                <span className="inline-flex rounded-lg border border-[#E2E8F0] px-2 py-1 text-[10px] font-semibold text-[#475569]">
-                  Details
+        <div className={`${WORKER_SCHEDULE_CARD_CLASS} mt-5`}>
+          <SectionHeader icon={<WorkerBrandedIcon src={WORKER_ICONS.timer} />} title="Appointments / Interviews" />
+
+          <ScheduleTableSection
+            title="Upcoming"
+            hasData={hasUpcomingAppointment}
+            emptyMessage={EMPTY_SCHEDULE_MESSAGE}
+          >
+            {hasUpcomingAppointment ? (
+              <div className="grid grid-cols-[120px_120px_1fr_1fr_150px_100px] gap-2 px-3 py-2.5 text-[12px] text-[#374151]">
+                <span>{formatDateOnly(scheduleDate)}</span>
+                <span>{formatTimeRange(scheduleDate, scheduleEnd)}</span>
+                <span>{scheduleLocation ?? meetingTypeLabel(scheduleMeetingType)}</span>
+                <span className="inline-flex items-center gap-1 truncate">
+                  {scheduleMeetingLink ? (
+                    <>
+                      <Link2 className="h-3.5 w-3.5 shrink-0 text-[color:var(--brand-primary)]" />
+                      <a
+                        href={scheduleMeetingLink}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="truncate text-[color:var(--brand-primary)] underline-offset-2 hover:underline"
+                      >
+                        {scheduleMeetingLink}
+                      </a>
+                    </>
+                  ) : (
+                    "—"
+                  )}
                 </span>
-              </span>
-            </div>
-          ) : (
-            <EmptyScheduleRow message="No appointments scheduled." />
-          )}
-        </ScheduleTableSection>
+                <span>HR Manager</span>
+                <span className="text-right">
+                  <span className="inline-flex rounded-lg border border-[#E2E8F0] px-2 py-1 text-[10px] font-semibold text-[#475569]">
+                    Details
+                  </span>
+                </span>
+              </div>
+            ) : null}
+          </ScheduleTableSection>
+        </div>
       </div>
     </div>
   );
@@ -393,6 +431,7 @@ export function ApplicantScheduleTab({
 
 function ClockCard({
   title,
+  timeLabel,
   icon,
   timeIso,
   totalSeconds,
@@ -400,6 +439,7 @@ function ClockCard({
   location,
 }: {
   title: string;
+  timeLabel: string;
   icon: React.ReactNode;
   timeIso?: string | null;
   totalSeconds?: number | null;
@@ -410,16 +450,11 @@ function ClockCard({
   const hasData = Boolean(timeIso);
 
   return (
-    <div className="overflow-hidden rounded-lg border border-[#E5E7EB]">
-      <div className="border-b border-[#E5E7EB] px-3.5 py-3">
-        <div className="flex items-center gap-2 text-[14px] font-semibold text-black">
-          {icon}
-          {title}
-        </div>
-      </div>
-      <div className="space-y-3 p-3.5 text-[12px]">
+    <div className={WORKER_SCHEDULE_CARD_CLASS}>
+      <SectionHeader icon={icon} title={title} />
+      <div className="space-y-3 p-4 text-[12px]">
         <DetailRow
-          label={`${title.toLowerCase()} time:`}
+          label={timeLabel}
           value={
             hasData ? (
               <>
@@ -449,23 +484,37 @@ function ClockCard({
   );
 }
 
-function ScheduleTableSection({ title, children }: { title: string; children: React.ReactNode }) {
+function ScheduleTableSection({
+  title,
+  hasData,
+  emptyMessage,
+  children,
+}: {
+  title: string;
+  hasData: boolean;
+  emptyMessage: string;
+  children: React.ReactNode;
+}) {
   return (
-    <div className="px-3.5 py-2.5">
+    <div className="px-4 py-2.5">
       <p className="px-3 py-2 text-[14px] font-semibold text-black">{title}</p>
-      <div className="overflow-x-auto">
-        <div className="min-w-[760px]">
-          <div className="grid grid-cols-[120px_120px_1fr_150px_150px_100px] gap-2 px-3 py-1 text-[10px] font-semibold uppercase text-black">
-            <span>Date</span>
-            <span>Time</span>
-            <span>Address</span>
-            <span>Position</span>
-            <span>Manager</span>
-            <span />
+      {hasData ? (
+        <div className="overflow-x-auto">
+          <div className="min-w-[760px]">
+            <div className="grid grid-cols-[120px_120px_1fr_150px_150px_100px] gap-2 px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-[#94A3B8]">
+              <span>Date</span>
+              <span>Time</span>
+              <span>Address</span>
+              <span>Position</span>
+              <span>Manager</span>
+              <span />
+            </div>
+            {children}
           </div>
-          {children}
         </div>
-      </div>
+      ) : (
+        <p className="px-3 py-4 text-center text-[13px] text-[#64748B]">{emptyMessage}</p>
+      )}
     </div>
   );
 }
@@ -499,6 +548,3 @@ function ScheduleRow({
   );
 }
 
-function EmptyScheduleRow({ message }: { message: string }) {
-  return <p className="border-t border-[#F1F5F9] px-3 py-4 text-[13px] text-[#64748B]">{message}</p>;
-}
