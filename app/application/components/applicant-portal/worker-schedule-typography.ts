@@ -30,3 +30,31 @@ export const WORKER_SCHEDULE_CARD_CLASS =
 /** Figma: request schedule row — dropdown + button share width (+15% for label fit) */
 export const WORKER_SCHEDULE_ACTION_CONTROL_CLASS =
   "h-10 w-full shrink-0 rounded-lg sm:w-[193px]";
+
+/** Figma: timesheet day label — "Today" */
+export const WORKER_TIMESHEET_DAY_CLASS =
+  "text-[14px] font-semibold leading-5 tracking-normal text-black align-middle";
+
+/** Figma: timesheet field labels — Clock-in, Clock-out */
+export const WORKER_TIMESHEET_LABEL_CLASS =
+  "text-[14px] font-semibold leading-5 tracking-normal text-[#6B7280] align-middle";
+
+/** Figma: timesheet time values */
+export const WORKER_TIMESHEET_VALUE_CLASS =
+  "text-[14px] font-semibold leading-5 tracking-normal text-black align-middle";
+
+/** Figma: timesheet duration meta text */
+export const WORKER_TIMESHEET_DURATION_CLASS =
+  "text-[14px] font-normal leading-5 tracking-normal text-[#6B7280] align-middle";
+
+/** Figma: timesheet legend + timeline marks */
+export const WORKER_TIMESHEET_META_CLASS =
+  "text-[12px] font-normal leading-5 tracking-normal text-[#6B7280] align-middle";
+
+export const WORKER_TIMESHEET_FONT_STYLE: CSSProperties = {
+  fontFamily: "Inter, Arial, sans-serif",
+};
+
+/** Figma: date range controls — Last 7 days / calendar */
+export const WORKER_TIMESHEET_RANGE_CONTROL_CLASS =
+  "inline-flex h-10 items-center gap-1.5 border border-[#E5E7EB] bg-white px-3 text-[14px] font-normal leading-5 text-[#374151]";

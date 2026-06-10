@@ -76,6 +76,15 @@ export function formatDurationShort(seconds: number | null | undefined) {
   return `${hours} hrs ${minutes} mins`;
 }
 
+/** Compact duration for timesheet header — e.g. "0h", "2h 30m" */
+export function formatDurationCompact(seconds: number | null | undefined) {
+  if (seconds == null || seconds <= 0) return "0h";
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  if (minutes === 0) return `${hours}h`;
+  return `${hours}h ${minutes}m`;
+}
+
 export function formatTimer(seconds: number) {
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds % 3600) / 60);

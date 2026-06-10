@@ -2,7 +2,7 @@
 
 import type { CSSProperties } from "react";
 import Image from "next/image";
-import { ChevronDown, Menu, Search } from "lucide-react";
+import { ChevronDown, Search } from "lucide-react";
 import { useState } from "react";
 import SidebarNavIcon from "@/app/admin_recruiter/components/SidebarNavIcon";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
@@ -11,6 +11,7 @@ const SIDEBAR_TOGGLE_ICON = "/icons/sidebar-on-off-icon.svg";
 
 type Props = {
   applicantName: string;
+  mobileNavOpen?: boolean;
   onMenuClick?: () => void;
   onSidebarToggle?: () => void;
   sidebarCollapsed?: boolean;
@@ -19,6 +20,7 @@ type Props = {
 
 export function ApplicantPortalHeader({
   applicantName,
+  mobileNavOpen = false,
   onMenuClick,
   onSidebarToggle,
   sidebarCollapsed = false,
@@ -32,21 +34,32 @@ export function ApplicantPortalHeader({
 
   return (
     <header className="sticky top-0 z-30 border-b border-[#E2E8F0] bg-white">
-      <div className="flex h-16 items-center gap-3 px-4 lg:px-8">
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={onMenuClick}
-            className="inline-flex h-8 w-8 items-center justify-center text-[#64748B] transition hover:text-[#0F3B76] lg:hidden"
-            aria-label="Open navigation menu"
-          >
-            <Menu className="h-5 w-5" />
-          </button>
+      <div className="flex h-16 items-center gap-2 px-4 min-[1000px]:gap-3 min-[1000px]:px-8 max-[999px]:px-3 max-[499px]:pl-4 max-[499px]:pr-2">
+        <div className="flex shrink-0 items-center gap-2">
+          {onMenuClick ? (
+            <button
+              type="button"
+              onClick={onMenuClick}
+              className="inline-flex h-8 w-8 items-center justify-center bg-transparent text-[#64748B] transition hover:text-[#0F3B76] min-[1000px]:hidden"
+              aria-label="Open navigation menu"
+              aria-expanded={mobileNavOpen}
+              title="Open menu"
+            >
+              <Image
+                src={SIDEBAR_TOGGLE_ICON}
+                alt=""
+                width={20}
+                height={20}
+                className="h-5 w-5 shrink-0"
+                aria-hidden
+              />
+            </button>
+          ) : null}
           {onSidebarToggle ? (
             <button
               type="button"
               onClick={onSidebarToggle}
-              className="hidden h-8 w-8 items-center justify-center text-[#64748B] transition hover:text-[#0F3B76] lg:inline-flex"
+              className="hidden h-8 w-8 items-center justify-center bg-transparent text-[#64748B] transition hover:text-[#0F3B76] min-[1000px]:inline-flex"
               aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
               title={sidebarCollapsed ? "Expand menu" : "Collapse menu"}
             >
@@ -62,7 +75,7 @@ export function ApplicantPortalHeader({
           ) : null}
         </div>
 
-        <div className="hidden flex-1 justify-center lg:flex">
+        <div className="hidden flex-1 justify-center min-[1000px]:flex">
           <label className="relative w-full max-w-[520px]">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94A3B8]" />
             <input
@@ -73,7 +86,7 @@ export function ApplicantPortalHeader({
           </label>
         </div>
 
-        <div className="ml-auto flex items-center gap-3">
+        <div className="ml-auto flex items-center gap-2 sm:gap-3">
           <div className="flex items-center gap-0">
             <button
               type="button"
@@ -109,7 +122,7 @@ export function ApplicantPortalHeader({
               <ChevronDown className="h-4 w-4 text-[#94A3B8]" />
             </button>
             {profileOpen ? (
-              <div className="absolute right-0 top-12 w-48 rounded-lg border border-[#E2E8F0] bg-white p-2 shadow-lg">
+              <div className="absolute right-0 top-12 z-10 w-48 rounded-lg border border-[#E2E8F0] bg-white p-2 shadow-lg">
                 <p className="px-2 py-1 text-[12px] font-semibold text-[#012352]">{applicantName}</p>
                 <p className="px-2 pb-2 text-[11px] text-[#64748B]">Applicant</p>
               </div>

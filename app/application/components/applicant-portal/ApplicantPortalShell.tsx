@@ -1,20 +1,19 @@
 "use client";
 
 import type { CSSProperties } from "react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
 import { ApplicantPortalHeader } from "./ApplicantPortalHeader";
 import {
   ApplicantPortalSidebar,
   WORKER_SIDEBAR_COLLAPSED_WIDTH,
+  WORKER_SIDEBAR_COLLAPSED_WIDTH_NARROW,
   WORKER_SIDEBAR_EXPANDED_WIDTH,
 } from "./ApplicantPortalSidebar";
 import { ApplicantMessagesPanel } from "./ApplicantMessagesPanel";
 import type { ApplicantMessage, ApplicantSession } from "./types";
 import "./applicant-portal.css";
-
-const SIDEBAR_COLLAPSED_STORAGE_KEY = "applicantPortalSidebarCollapsed";
 
 type Props = {
   session: ApplicantSession | null;
@@ -42,35 +41,42 @@ export function ApplicantPortalShell({
   const shellStyle: CSSProperties = brandingToCssVars(branding);
 
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem(SIDEBAR_COLLAPSED_STORAGE_KEY);
-      if (stored === "true") setSidebarCollapsed(true);
-    } catch {
-      /* ignore */
-    }
-  }, []);
+    if (!mobileNavOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setMobileNavOpen(false);
+    };
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [mobileNavOpen]);
+
+  const closeMobileNav = useCallback(() => setMobileNavOpen(false), []);
+  const openMobileNav = useCallback(() => setMobileNavOpen(true), []);
 
   const toggleSidebarCollapsed = () => {
-    setSidebarCollapsed((prev) => {
-      const next = !prev;
-      try {
-        localStorage.setItem(SIDEBAR_COLLAPSED_STORAGE_KEY, String(next));
-      } catch {
-        /* ignore */
-      }
-      return next;
-    });
+    setSidebarCollapsed((prev) => !prev);
   };
 
   const sidebarWidth = sidebarCollapsed ? WORKER_SIDEBAR_COLLAPSED_WIDTH : WORKER_SIDEBAR_EXPANDED_WIDTH;
 
+  const shellCssVars = {
+    ...shellStyle,
+    "--worker-sidebar-width": `${sidebarWidth}px`,
+    "--worker-sidebar-collapsed-width": `${WORKER_SIDEBAR_COLLAPSED_WIDTH}px`,
+    "--worker-sidebar-collapsed-width-narrow": `${WORKER_SIDEBAR_COLLAPSED_WIDTH_NARROW}px`,
+  } as CSSProperties;
+
   return (
-    <div style={shellStyle} className="min-h-screen bg-[#F8FAFC] text-[#012352]">
+    <div style={shellCssVars} className="applicant-portal-shell min-h-screen bg-[#F8FAFC] text-[#012352]">
       <ApplicantPortalSidebar
         applicantName={session?.applicant.name ?? "Applicant"}
         mobileOpen={mobileNavOpen}
         collapsed={sidebarCollapsed}
-        onMobileClose={() => setMobileNavOpen(false)}
+        onMobileClose={closeMobileNav}
         onOpenMessages={() => {
           setMessagesOpen(true);
           setMobileNavOpen(false);
@@ -79,12 +85,14 @@ export function ApplicantPortalShell({
 
       <div
         className="applicant-portal-main flex min-h-screen flex-col"
-        style={{ "--worker-sidebar-width": `${sidebarWidth}px` } as CSSProperties}
+        data-sidebar-collapsed={sidebarCollapsed ? "true" : "false"}
+        data-mobile-nav-open={mobileNavOpen ? "true" : "false"}
       >
         <ApplicantPortalHeader
           applicantName={session?.applicant.name ?? "Applicant"}
+          mobileNavOpen={mobileNavOpen}
           sidebarCollapsed={sidebarCollapsed}
-          onMenuClick={() => setMobileNavOpen(true)}
+          onMenuClick={openMobileNav}
           onSidebarToggle={toggleSidebarCollapsed}
           onOpenMessages={() => setMessagesOpen(true)}
         />

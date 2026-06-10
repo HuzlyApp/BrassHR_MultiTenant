@@ -5,7 +5,7 @@ import { Calendar, ChevronDown } from "lucide-react";
 import { WorkerBrandedIcon } from "./WorkerBrandedIcon";
 import { WORKER_ICONS } from "./worker-icons";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
-import { dayLabel, formatDurationShort, formatTimeParts, formatTimer } from "./format";
+import { dayLabel, formatDurationCompact, formatTimeParts } from "./format";
 import type { AttendanceLog } from "./types";
 import {
   WORKER_SCHEDULE_CARD_CLASS,
@@ -15,6 +15,13 @@ import {
   WORKER_SCHEDULE_TITLE_STYLE,
   WORKER_SECTION_TITLE_CLASS,
   WORKER_SECTION_TITLE_STYLE,
+  WORKER_TIMESHEET_DAY_CLASS,
+  WORKER_TIMESHEET_DURATION_CLASS,
+  WORKER_TIMESHEET_FONT_STYLE,
+  WORKER_TIMESHEET_LABEL_CLASS,
+  WORKER_TIMESHEET_META_CLASS,
+  WORKER_TIMESHEET_RANGE_CONTROL_CLASS,
+  WORKER_TIMESHEET_VALUE_CLASS,
 } from "./worker-schedule-typography";
 
 type Props = {
@@ -30,6 +37,27 @@ const LEGEND_STATIC = [
 
 const TIMELINE_MARKS = ["9:00", "11:00", "13:00", "15:00", "16:00", "17:00"];
 
+function formatDateRangeLabel(start: Date, end: Date) {
+  const fmt = (date: Date) =>
+    date.toLocaleDateString(undefined, { month: "short", day: "2-digit" });
+  return `${fmt(start)} - ${fmt(end)}`;
+}
+
+function TimesheetSectionHeader() {
+  return (
+    <div className="border-b border-[#E5E7EB] px-4 py-3">
+      <div className="flex items-center gap-2">
+        <span className="flex h-[20px] w-[20px] shrink-0 items-center justify-center">
+          <WorkerBrandedIcon src={WORKER_ICONS.timer} />
+        </span>
+        <span className={WORKER_SECTION_TITLE_CLASS} style={WORKER_SECTION_TITLE_STYLE}>
+          My timesheets
+        </span>
+      </div>
+    </div>
+  );
+}
+
 export function ApplicantTimesheetsTab({ todayAttendance, recentAttendance }: Props) {
   const branding = useTenantBranding();
   const [rangeLabel] = useState("Last 7 days");
@@ -43,6 +71,22 @@ export function ApplicantTimesheetsTab({ todayAttendance, recentAttendance }: Pr
     merged.forEach((log) => unique.set(log.id, log));
     return Array.from(unique.values()).slice(0, 7);
   }, [todayAttendance, recentAttendance]);
+
+  const dateRangeLabel = useMemo(() => {
+    if (logs.length === 0) {
+      const today = new Date();
+      return formatDateRangeLabel(today, today);
+    }
+    const dates = logs
+      .map((log) => new Date(log.attendance_date))
+      .filter((date) => !Number.isNaN(date.getTime()))
+      .sort((a, b) => a.getTime() - b.getTime());
+    if (dates.length === 0) {
+      const today = new Date();
+      return formatDateRangeLabel(today, today);
+    }
+    return formatDateRangeLabel(dates[0], dates[dates.length - 1]);
+  }, [logs]);
 
   return (
     <div className="px-8 pb-8 pt-5">
@@ -59,50 +103,54 @@ export function ApplicantTimesheetsTab({ todayAttendance, recentAttendance }: Pr
           <div className="flex items-center">
             <button
               type="button"
-              className="inline-flex h-8 items-center gap-1 rounded-l-lg border border-[#E5E7EB] bg-white px-2 text-[12px] text-[#374151]"
+              className={`${WORKER_TIMESHEET_RANGE_CONTROL_CLASS} rounded-l-lg`}
+              style={WORKER_TIMESHEET_FONT_STYLE}
             >
               {rangeLabel}
-              <ChevronDown className="h-4 w-4" />
+              <ChevronDown className="h-4 w-4 shrink-0 text-[#64748B]" aria-hidden />
             </button>
             <button
               type="button"
-              className="inline-flex h-8 items-center gap-1 rounded-r-lg border border-l-0 border-[#E5E7EB] bg-white px-2 text-[12px] text-[#374151]"
+              className={`${WORKER_TIMESHEET_RANGE_CONTROL_CLASS} rounded-r-lg border-l-0`}
+              style={WORKER_TIMESHEET_FONT_STYLE}
             >
-              <Calendar className="h-4 w-4" />
-              Feb 04 - Feb 04
+              <Calendar className="h-4 w-4 shrink-0 text-[#64748B]" aria-hidden />
+              {dateRangeLabel}
             </button>
           </div>
         </div>
 
         <div className={WORKER_SCHEDULE_CARD_CLASS}>
-          <div className="border-b border-[#E5E7EB] px-4 py-3">
-            <div className="flex items-center gap-2">
-              <span className="flex h-[20px] w-[20px] shrink-0 items-center justify-center">
-                <WorkerBrandedIcon src={WORKER_ICONS.timer} />
-              </span>
-              <span className={WORKER_SECTION_TITLE_CLASS} style={WORKER_SECTION_TITLE_STYLE}>
-                My timesheets
-              </span>
-            </div>
-          </div>
+          <TimesheetSectionHeader />
 
-          <div className="space-y-4 px-3.5 py-4">
-            <div className="flex flex-wrap items-center justify-center gap-6 px-2 py-3">
+          <div className="px-4 py-4">
+            <div className="flex flex-wrap items-center justify-center gap-6 py-3">
               {legend.map((item) => (
-                <div key={item.label} className="flex items-center gap-2 text-[12px] text-[#374151]">
-                  <span className="h-3 w-3 rounded-[2px]" style={{ backgroundColor: item.color }} />
+                <div
+                  key={item.label}
+                  className={`flex items-center gap-2 ${WORKER_TIMESHEET_META_CLASS}`}
+                  style={WORKER_TIMESHEET_FONT_STYLE}
+                >
+                  <span className="h-3 w-3 shrink-0 rounded-[2px]" style={{ backgroundColor: item.color }} />
                   {item.label}
                 </div>
               ))}
             </div>
 
-            {logs.length === 0 ? (
-              <p className="rounded-lg bg-[#F8FAFC] px-4 py-6 text-center text-[14px] text-[#64748B]">
-                No timesheet entries yet. Clock in from the Schedule tab to start tracking time.
-              </p>
-            ) : (
-              logs.map((log) => <TimesheetRow key={log.id} log={log} workBarColor={branding.primaryHex} />)
-            )}
+            <div className="mt-2">
+              {logs.length === 0 ? (
+                <TimesheetRow isPlaceholder workBarColor={branding.primaryHex} />
+              ) : (
+                logs.map((log, index) => (
+                  <TimesheetRow
+                    key={log.id}
+                    log={log}
+                    workBarColor={branding.primaryHex}
+                    showDivider={index > 0}
+                  />
+                ))
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -110,39 +158,73 @@ export function ApplicantTimesheetsTab({ todayAttendance, recentAttendance }: Pr
   );
 }
 
-function TimesheetRow({ log, workBarColor }: { log: AttendanceLog; workBarColor: string }) {
-  const clockIn = formatTimeParts(log.clock_in_at);
-  const clockOut = formatTimeParts(log.clock_out_at);
-  const durationLabel =
-    log.total_seconds != null
-      ? formatDurationShort(log.total_seconds)
-      : log.status === "clocked_in"
-        ? formatTimer(
-            Math.max(0, Math.floor((Date.now() - new Date(log.clock_in_at).getTime()) / 1000))
+function TimesheetRow({
+  log,
+  workBarColor,
+  isPlaceholder = false,
+  showDivider = false,
+}: {
+  log?: AttendanceLog;
+  workBarColor: string;
+  isPlaceholder?: boolean;
+  showDivider?: boolean;
+}) {
+  const clockIn = isPlaceholder ? { time: "---", meridiem: "" } : formatTimeParts(log?.clock_in_at);
+  const clockOut = isPlaceholder ? { time: "---", meridiem: "" } : formatTimeParts(log?.clock_out_at);
+
+  const durationLabel = isPlaceholder
+    ? "0h"
+    : log!.total_seconds != null
+      ? formatDurationCompact(log!.total_seconds)
+      : log!.status === "clocked_in"
+        ? formatDurationCompact(
+            Math.max(0, Math.floor((Date.now() - new Date(log!.clock_in_at).getTime()) / 1000))
           )
         : "0h";
 
-  const barWidth = computeBarWidth(log);
+  const barWidth = isPlaceholder || !log ? 0 : computeBarWidth(log);
+  const day = isPlaceholder || !log ? "Today" : dayLabel(log.attendance_date);
+
+  const clockInDisplay =
+    clockIn.time === "—" || clockIn.time === "---"
+      ? "---"
+      : `${clockIn.time}${clockIn.meridiem ? ` ${clockIn.meridiem}` : ""}`.trim();
+  const clockOutDisplay =
+    clockOut.time === "—" || clockOut.time === "---"
+      ? "---"
+      : `${clockOut.time}${clockOut.meridiem ? ` ${clockOut.meridiem}` : ""}`.trim();
 
   return (
-    <div className="space-y-3 border-t border-[#F1F5F9] pt-4 first:border-t-0 first:pt-0">
-      <div className="flex items-center justify-between text-[14px]">
-        <span className="font-semibold text-black">{dayLabel(log.attendance_date)}</span>
-        <span className="text-[#6B7280]">
-          Duration: <span className="font-normal text-black">{durationLabel}</span>
+    <div
+      className={`py-4 ${showDivider ? "border-t border-dashed border-[#E5E7EB]" : ""}`}
+    >
+      <div className="mb-4 flex items-center justify-between gap-4">
+        <span className={WORKER_TIMESHEET_DAY_CLASS} style={WORKER_TIMESHEET_FONT_STYLE}>
+          {day}
+        </span>
+        <span className={WORKER_TIMESHEET_DURATION_CLASS} style={WORKER_TIMESHEET_FONT_STYLE}>
+          Duration:{" "}
+          <span className={WORKER_TIMESHEET_VALUE_CLASS} style={WORKER_TIMESHEET_FONT_STYLE}>
+            {durationLabel}
+          </span>
         </span>
       </div>
 
-      <div className="grid gap-5 lg:grid-cols-[120px_1fr_72px]">
-        <div className="text-[12px]">
-          <p className="text-[#6B7280]">Clock-in</p>
-          <p className="mt-1 text-black">
-            {clockIn.time} {clockIn.meridiem}
+      <div className="grid items-end gap-4 lg:grid-cols-[100px_minmax(0,1fr)_100px]">
+        <div>
+          <p className={WORKER_TIMESHEET_LABEL_CLASS} style={WORKER_TIMESHEET_FONT_STYLE}>
+            Clock-in
+          </p>
+          <p className={`mt-1 ${WORKER_TIMESHEET_VALUE_CLASS}`} style={WORKER_TIMESHEET_FONT_STYLE}>
+            {clockInDisplay}
           </p>
         </div>
 
-        <div className="min-w-0 px-2">
-          <div className="mb-2 flex justify-between text-[12px] text-[#6B7280]">
+        <div className="min-w-0 px-1">
+          <div
+            className={`mb-2 flex justify-between ${WORKER_TIMESHEET_META_CLASS}`}
+            style={WORKER_TIMESHEET_FONT_STYLE}
+          >
             {TIMELINE_MARKS.map((mark) => (
               <span key={mark}>{mark}</span>
             ))}
@@ -157,10 +239,12 @@ function TimesheetRow({ log, workBarColor }: { log: AttendanceLog; workBarColor:
           </div>
         </div>
 
-        <div className="text-[12px]">
-          <p className="text-[#6B7280]">Clock-out</p>
-          <p className="mt-1 text-black">
-            {clockOut.time === "—" ? "—" : `${clockOut.time} ${clockOut.meridiem}`.trim()}
+        <div className="text-right lg:text-left">
+          <p className={WORKER_TIMESHEET_LABEL_CLASS} style={WORKER_TIMESHEET_FONT_STYLE}>
+            Clock-out
+          </p>
+          <p className={`mt-1 ${WORKER_TIMESHEET_VALUE_CLASS}`} style={WORKER_TIMESHEET_FONT_STYLE}>
+            {clockOutDisplay}
           </p>
         </div>
       </div>

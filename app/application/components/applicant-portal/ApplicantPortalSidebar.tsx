@@ -4,10 +4,11 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronRight, X } from "lucide-react";
 import SidebarNavIcon from "@/app/admin_recruiter/components/SidebarNavIcon";
 import {
   WORKER_SIDEBAR_COLLAPSED_WIDTH,
+  WORKER_SIDEBAR_COLLAPSED_WIDTH_NARROW,
   WORKER_SIDEBAR_EXPANDED_WIDTH,
   WORKER_SIDEBAR_ICON_TYPES,
   WORKER_SIDEBAR_SECTIONS,
@@ -94,44 +95,80 @@ export function ApplicantPortalSidebar({
 
   const sidebarWidth = collapsed ? WORKER_SIDEBAR_COLLAPSED_WIDTH : WORKER_SIDEBAR_EXPANDED_WIDTH;
 
-  const SidebarContent = ({ isCollapsed }: { isCollapsed: boolean }) => (
+  const SidebarContent = ({
+    isCollapsed,
+    isMobileRail = false,
+    showMobileClose,
+  }: {
+    isCollapsed: boolean;
+    isMobileRail?: boolean;
+    showMobileClose?: boolean;
+  }) => (
     <div className="flex h-full flex-col overflow-hidden bg-[#F8FAFC]">
-      <div className={`border-b border-[#E2E8F0] ${isCollapsed ? "px-2 py-3" : "px-4 py-3"}`}>
-        <div className={`flex items-center ${isCollapsed ? "justify-center" : "gap-3"}`}>
-          <div
-            className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl border bg-white"
-            style={{ borderColor: "color-mix(in srgb, var(--brand-primary) 55%, #CBD5E1)" }}
-          >
-            {logoUseNativeImg ? (
-              <img
-                src={logoSrc}
-                alt={branding.companyName}
-                className="max-h-[40px] max-w-[40px] object-contain"
-                onError={() => setLogoSrc(DEFAULT_LOGO)}
-              />
-            ) : (
-              <Image
-                src={logoSrc}
-                alt={branding.companyName}
-                width={40}
-                height={40}
-                className="max-h-[40px] max-w-[40px] object-contain"
-                onError={() => setLogoSrc(DEFAULT_LOGO)}
-              />
-            )}
-          </div>
-          {!isCollapsed ? (
-            <div className="min-w-0">
-              <p className="truncate text-[18px] font-semibold leading-7 text-[#0F3B76]">{firstName}</p>
-              <p className="text-[10px] font-light uppercase leading-[15px] tracking-normal text-[#94A3B8]">
-                Dashboard
-              </p>
+      <div
+        className={`border-b border-[#E2E8F0] ${
+          isMobileRail
+            ? "flex h-16 shrink-0 items-center justify-center px-1"
+            : isCollapsed
+              ? "px-2 py-3"
+              : "px-4 py-3"
+        }`}
+      >
+        <div
+          className={`flex w-full items-center ${isCollapsed && !isMobileRail ? "justify-center" : showMobileClose ? "justify-between gap-3" : isMobileRail ? "justify-center" : "gap-3"}`}
+        >
+          <div className={`flex min-w-0 items-center ${isCollapsed && !isMobileRail ? "" : isMobileRail ? "justify-center" : "gap-3"}`}>
+            <div
+              className={`flex shrink-0 items-center justify-center overflow-hidden rounded-xl border bg-white ${
+                isMobileRail ? "h-9 w-9" : "h-10 w-10"
+              }`}
+              style={{ borderColor: "color-mix(in srgb, var(--brand-primary) 55%, #CBD5E1)" }}
+            >
+              {logoUseNativeImg ? (
+                <img
+                  src={logoSrc}
+                  alt={branding.companyName}
+                  className={`object-contain ${isMobileRail ? "max-h-[32px] max-w-[32px]" : "max-h-[40px] max-w-[40px]"}`}
+                  onError={() => setLogoSrc(DEFAULT_LOGO)}
+                />
+              ) : (
+                <Image
+                  src={logoSrc}
+                  alt={branding.companyName}
+                  width={40}
+                  height={40}
+                  className={`object-contain ${isMobileRail ? "max-h-[32px] max-w-[32px]" : "max-h-[40px] max-w-[40px]"}`}
+                  onError={() => setLogoSrc(DEFAULT_LOGO)}
+                />
+              )}
             </div>
+            {!isCollapsed ? (
+              <div className="min-w-0">
+                <p className="truncate text-[18px] font-semibold leading-7 text-[#0F3B76]">{firstName}</p>
+                <p className="text-[10px] font-light uppercase leading-[15px] tracking-normal text-[#94A3B8]">
+                  Dashboard
+                </p>
+              </div>
+            ) : null}
+          </div>
+          {showMobileClose ? (
+            <button
+              type="button"
+              onClick={onMobileClose}
+              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-[#64748B] transition hover:bg-white hover:text-[#0F3B76]"
+              aria-label="Close menu"
+            >
+              <X className="h-5 w-5" aria-hidden />
+            </button>
           ) : null}
         </div>
       </div>
 
-      <nav className={`flex-1 overflow-y-auto overflow-x-hidden ${isCollapsed ? "px-2 py-3" : "px-3 py-3"}`}>
+      <nav
+        className={`flex-1 overflow-y-auto overflow-x-hidden ${
+          isMobileRail ? "px-1 py-2" : isCollapsed ? "px-2 py-3" : "px-3 py-3"
+        }`}
+      >
         {renderedSections.map((section) => (
           <div key={section.label} className="mb-1">
             {section.children?.length && !isCollapsed ? (
@@ -192,7 +229,7 @@ export function ApplicantPortalSidebar({
                   handleNavClick();
                 }}
                 className={`group relative flex min-h-[36px] w-full items-center overflow-hidden rounded-md transition hover:bg-white ${
-                  isCollapsed ? "justify-center px-2 py-2" : "gap-3 px-2 py-1"
+                  isCollapsed ? (isMobileRail ? "justify-center px-1 py-1.5" : "justify-center px-2 py-2") : "gap-3 px-2 py-1"
                 } text-[#012352] hover:text-[color:var(--brand-primary)]`}
               >
                 <SidebarNavIcon iconType={section.iconType} active={false} />
@@ -204,7 +241,7 @@ export function ApplicantPortalSidebar({
               <div
                 title={`${section.label} (Coming soon)`}
                 className={`group relative flex min-h-[36px] items-center overflow-hidden rounded-md opacity-60 ${
-                  isCollapsed ? "justify-center px-2 py-2" : "gap-3 px-2 py-1"
+                  isCollapsed ? (isMobileRail ? "justify-center px-1 py-1.5" : "justify-center px-2 py-2") : "gap-3 px-2 py-1"
                 } text-[#012352]`}
                 aria-disabled
               >
@@ -219,7 +256,7 @@ export function ApplicantPortalSidebar({
                 onClick={handleNavClick}
                 title={isCollapsed ? section.label : undefined}
                 className={`group relative flex min-h-[36px] items-center overflow-hidden rounded-md transition hover:bg-white ${
-                  isCollapsed ? "justify-center px-2 py-2" : "gap-3 px-2 py-1"
+                  isCollapsed ? (isMobileRail ? "justify-center px-1 py-1.5" : "justify-center px-2 py-2") : "gap-3 px-2 py-1"
                 } ${
                   section.active
                     ? "text-[color:var(--brand-primary)]"
@@ -264,7 +301,11 @@ export function ApplicantPortalSidebar({
         ))}
       </nav>
 
-      <div className={`border-t border-[#E2E8F0] ${isCollapsed ? "px-2 py-3" : "px-4 py-3"}`}>
+      <div
+        className={`border-t border-[#E2E8F0] ${
+          isMobileRail ? "px-1 py-2" : isCollapsed ? "px-2 py-3" : "px-4 py-3"
+        }`}
+      >
         <div className={`flex items-center ${isCollapsed ? "flex-col gap-2" : "gap-2.5"}`}>
           {!isCollapsed ? (
             <span
@@ -306,36 +347,49 @@ export function ApplicantPortalSidebar({
   return (
     <>
       <aside
-        className="applicant-portal-sidebar fixed inset-y-0 left-0 z-40 hidden h-screen overflow-hidden border-r border-[#E2E8F0] lg:block"
+        className="applicant-portal-sidebar fixed inset-y-0 left-0 z-40 hidden h-screen overflow-hidden border-r border-[#E2E8F0] min-[1000px]:block"
         style={asideStyle}
         data-collapsed={collapsed ? "true" : "false"}
       >
         <SidebarContent isCollapsed={collapsed} />
       </aside>
 
+      <aside
+        className={`applicant-portal-sidebar applicant-portal-sidebar-mobile-rail fixed inset-y-0 left-0 z-40 h-screen overflow-hidden border-r border-[#E2E8F0] min-[1000px]:hidden ${
+          mobileOpen ? "hidden" : "block"
+        }`}
+        data-collapsed="true"
+      >
+        <SidebarContent isCollapsed isMobileRail />
+      </aside>
+
       <div
-        className={`fixed inset-0 z-50 bg-black/30 transition-opacity lg:hidden ${
+        className={`fixed inset-0 z-50 bg-black/30 transition-opacity min-[1000px]:hidden ${
           mobileOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"
         }`}
         onClick={onMobileClose}
         aria-hidden={!mobileOpen}
       >
         <aside
-          className={`h-full border-r border-[#E2E8F0] transition-transform ${
+          className={`h-full border-r border-[#E2E8F0] bg-[#F8FAFC] transition-transform duration-200 ease-in-out ${
             mobileOpen ? "translate-x-0" : "-translate-x-full"
           }`}
           style={{
             width: WORKER_SIDEBAR_EXPANDED_WIDTH,
-            maxWidth: "90vw",
+            maxWidth: "min(90vw, 344px)",
             boxShadow: "inset 3px 0 0 var(--brand-primary)",
           }}
           onClick={(event) => event.stopPropagation()}
         >
-          <SidebarContent isCollapsed={false} />
+          <SidebarContent isCollapsed={false} showMobileClose />
         </aside>
       </div>
     </>
   );
 }
 
-export { WORKER_SIDEBAR_COLLAPSED_WIDTH, WORKER_SIDEBAR_EXPANDED_WIDTH };
+export {
+  WORKER_SIDEBAR_COLLAPSED_WIDTH,
+  WORKER_SIDEBAR_COLLAPSED_WIDTH_NARROW,
+  WORKER_SIDEBAR_EXPANDED_WIDTH,
+};

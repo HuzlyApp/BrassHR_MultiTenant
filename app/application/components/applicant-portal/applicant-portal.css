@@ -1,8 +1,34 @@
 .applicant-portal-main {
   transition: margin-left 200ms ease-in-out;
+  margin-left: 0;
 }
 
-@media (min-width: 1024px) {
+/* Below 1000px: fixed collapsed icon rail (full menu opens via hamburger overlay) */
+@media (max-width: 999px) {
+  .applicant-portal-main {
+    margin-left: var(--worker-sidebar-collapsed-width, 80px);
+  }
+
+  .applicant-portal-main[data-mobile-nav-open="true"] {
+    margin-left: 0;
+  }
+}
+
+/* Below 500px: narrower mobile mini rail only (20% less width) */
+@media (max-width: 499px) {
+  .applicant-portal-sidebar-mobile-rail {
+    width: var(--worker-sidebar-collapsed-width-narrow, 64px);
+    max-width: var(--worker-sidebar-collapsed-width-narrow, 64px);
+    min-width: var(--worker-sidebar-collapsed-width-narrow, 64px);
+  }
+
+  .applicant-portal-main:not([data-mobile-nav-open="true"]) {
+    margin-left: var(--worker-sidebar-collapsed-width-narrow, 64px);
+  }
+}
+
+/* 1000px and up: full desktop sidebar width */
+@media (min-width: 1000px) {
   .applicant-portal-main {
     margin-left: var(--worker-sidebar-width);
   }
@@ -10,4 +36,12 @@
 
 .applicant-portal-sidebar {
   transition: width 200ms ease-in-out;
+}
+
+/* Mobile mini collapsed rail — width via CSS only (no inline overrides) */
+.applicant-portal-sidebar-mobile-rail {
+  width: var(--worker-sidebar-collapsed-width, 80px);
+  max-width: var(--worker-sidebar-collapsed-width, 80px);
+  min-width: var(--worker-sidebar-collapsed-width, 80px);
+  box-shadow: inset 3px 0 0 var(--brand-primary);
 }
