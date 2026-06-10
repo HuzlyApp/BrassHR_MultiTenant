@@ -17,7 +17,7 @@ export function requireResendConfig(): { apiKey: string; fromHeader: string; rep
     throw new CommunicationConfigError("RESEND_API_KEY is not configured");
   }
 
-  const displayName = process.env.RESEND_FROM_DISPLAY_NAME?.trim() || "Nexus MedPro";
+  const displayName = process.env.RESEND_FROM_DISPLAY_NAME?.trim() || "Brass HR";
   const address = buildFromEmailAddress(DEFAULT_FROM_EMAIL_LOCAL_PART);
   const fromHeader = `${displayName} <${address}>`;
   const replyTo = process.env.DEFAULT_SUPPORT_EMAIL?.trim() || null;

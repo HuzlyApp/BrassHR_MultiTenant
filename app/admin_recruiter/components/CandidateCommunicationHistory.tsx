@@ -1,7 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { AlertCircle, Loader2, Mail, MessageSquare, RefreshCw, Send, X } from "lucide-react";
+import { Loader2, Mail, MessageSquare, RefreshCw, Send, X } from "lucide-react";
+import {
+  defaultReplySubject,
+  type CommunicationThread,
+} from "@/lib/communication/conversation";
+import { communicationDirectionFromRow } from "@/lib/communication/direction";
 
 type CommunicationRow = {
   id: string;
@@ -9,7 +14,11 @@ type CommunicationRow = {
   recipient: string;
   subject: string | null;
   body: string;
-  status: "sent" | "failed";
+  status: "sent" | "failed" | "received";
+  direction?: "inbound" | "outbound" | null;
+  from_email?: string | null;
+  to_email?: string | null;
+  contact_email?: string | null;
   error_message: string | null;
   provider_message_id?: string | null;
   created_at: string;
@@ -47,19 +56,37 @@ function formatShortWhen(iso: string): string {
   });
 }
 
-function communicationDirection(row: CommunicationRow): "outbound" | "inbound" {
-  const subject = row.subject?.trim().toLowerCase() ?? "";
-  if (subject.startsWith("inbound") || subject.includes("reply")) return "inbound";
-  return "outbound";
-}
-
 function channelLabel(channel: CommunicationRow["channel"]): string {
   return channel === "sms" ? "SMS / Messages" : "Email";
 }
 
-function previewText(row: CommunicationRow): string {
-  const text = row.body.replace(/\s+/g, " ").trim();
-  return text.length > 120 ? `${text.slice(0, 120)}...` : text;
+function statusBadgeClass(status: CommunicationRow["status"]): string {
+  if (status === "sent") return "bg-emerald-100 text-emerald-800";
+  if (status === "received") return "bg-blue-100 text-blue-800";
+  return "bg-red-100 text-red-800";
+}
+
+function threadContactLine(thread: CommunicationThread): string {
+  if (thread.channel === "email") {
+    return thread.contactEmail ?? "No email on file";
+  }
+  return thread.contactPhone ?? "No phone on file";
+}
+
+function senderDisplay(
+  row: CommunicationRow,
+  contact: ContactInfo | null,
+  inbound: boolean
+): string {
+  if (row.channel === "email") {
+    if (inbound) return row.from_email?.trim() || contact?.email || contact?.name || "Applicant";
+    return row.from_email?.trim() || "notifications@brasshr.com";
+  }
+  return inbound ? contact?.name ?? contact?.phone ?? "Applicant" : "Recruiter";
+}
+
+function senderRole(inbound: boolean): string {
+  return inbound ? "Applicant" : "Recruiter";
 }
 
 type Props = {
@@ -71,9 +98,10 @@ export default function CandidateCommunicationHistory({ workerId, refreshKey = 0
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [rows, setRows] = useState<CommunicationRow[]>([]);
+  const [threads, setThreads] = useState<CommunicationThread[]>([]);
   const [contact, setContact] = useState<ContactInfo | null>(null);
   const [filter, setFilter] = useState<CommunicationFilter>("all");
-  const [selected, setSelected] = useState<CommunicationRow | null>(null);
+  const [selectedThread, setSelectedThread] = useState<CommunicationThread | null>(null);
   const [replyBody, setReplyBody] = useState("");
   const [replySubject, setReplySubject] = useState("");
   const [sendingReply, setSendingReply] = useState(false);
@@ -91,18 +119,22 @@ export default function CandidateCommunicationHistory({ workerId, refreshKey = 0
       );
       const json = (await res.json().catch(() => ({}))) as {
         communications?: CommunicationRow[];
+        threads?: CommunicationThread[];
         contact?: ContactInfo;
         error?: string;
       };
       if (!res.ok) {
         setRows([]);
+        setThreads([]);
         setError(json.error || `Failed to load (${res.status})`);
         return;
       }
       setRows(json.communications ?? []);
+      setThreads(json.threads ?? []);
       setContact(json.contact ?? null);
     } catch {
       setRows([]);
+      setThreads([]);
       setError("Could not load communication history.");
     } finally {
       setLoading(false);
@@ -113,53 +145,39 @@ export default function CandidateCommunicationHistory({ workerId, refreshKey = 0
     void load();
   }, [load, refreshKey]);
 
-  const filteredRows = useMemo(() => {
-    if (filter === "all") return rows;
-    return rows.filter((row) => row.channel === filter);
-  }, [filter, rows]);
-
-  const selectedChannelRows = useMemo(() => {
-    if (!selected) return [];
-    return rows
-      .filter((row) => row.channel === selected.channel)
-      .slice()
-      .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-  }, [rows, selected]);
-
-  const selectedContact = selected?.channel === "email" ? contact?.email : contact?.phone;
+  const filteredThreads = useMemo(() => {
+    if (filter === "all") return threads;
+    return threads.filter((thread) => thread.channel === filter);
+  }, [filter, threads]);
 
   useEffect(() => {
-    if (!selected) return;
-    const updated = rows.find((row) => row.id === selected.id);
-    if (updated) setSelected(updated);
-  }, [rows, selected]);
+    if (!selectedThread) return;
+    const updated = threads.find((t) => t.conversationId === selectedThread.conversationId);
+    if (updated) setSelectedThread(updated);
+  }, [threads, selectedThread]);
 
   useEffect(() => {
-    if (!selected) return;
+    if (!selectedThread) return;
     setReplyBody("");
     setModalError(null);
     setModalSuccess(null);
     setReplySubject(
-      selected.channel === "email"
-        ? selected.subject?.trim().toLowerCase().startsWith("re:")
-          ? selected.subject
-          : `Re: ${selected.subject?.trim() || "Application status"}`
-        : ""
+      selectedThread.channel === "email" ? defaultReplySubject(selectedThread) : ""
     );
-  }, [selected]);
+  }, [selectedThread]);
 
   async function sendReply() {
-    if (!selected || !replyBody.trim()) return;
+    if (!selectedThread || !replyBody.trim()) return;
     setSendingReply(true);
     setModalError(null);
     setModalSuccess(null);
     try {
       const url =
-        selected.channel === "email"
+        selectedThread.channel === "email"
           ? `/api/admin/candidates/${encodeURIComponent(workerId)}/communications/email`
           : `/api/admin/candidates/${encodeURIComponent(workerId)}/communications/sms`;
       const payload =
-        selected.channel === "email"
+        selectedThread.channel === "email"
           ? { subject: replySubject.trim(), body: replyBody.trim() }
           : { body: replyBody.trim() };
       const res = await fetch(url, {
@@ -180,7 +198,9 @@ export default function CandidateCommunicationHistory({ workerId, refreshKey = 0
         return;
       }
       setReplyBody("");
-      setModalSuccess(selected.channel === "email" ? "Email reply sent." : "SMS reply sent.");
+      setModalSuccess(
+        selectedThread.channel === "email" ? "Email reply sent." : "SMS reply sent."
+      );
       await load();
     } catch {
       setModalError("Network error. Please try again.");
@@ -189,10 +209,14 @@ export default function CandidateCommunicationHistory({ workerId, refreshKey = 0
     }
   }
 
+  const emailCount = threads.find((t) => t.channel === "email")?.messageCount ?? 0;
+  const smsCount = threads.find((t) => t.channel === "sms")?.messageCount ?? 0;
+  const totalMessageCount = rows.length;
+
   const filterTabs: Array<{ value: CommunicationFilter; label: string; count: number }> = [
-    { value: "all", label: "All", count: rows.length },
-    { value: "sms", label: "SMS / Messages", count: rows.filter((row) => row.channel === "sms").length },
-    { value: "email", label: "Email", count: rows.filter((row) => row.channel === "email").length },
+    { value: "all", label: "All", count: totalMessageCount },
+    { value: "sms", label: "SMS / Messages", count: smsCount },
+    { value: "email", label: "Email", count: emailCount },
   ];
 
   return (
@@ -202,7 +226,7 @@ export default function CandidateCommunicationHistory({ workerId, refreshKey = 0
           <div>
             <h3 className="text-[16px] font-semibold text-[#111827]">Communication History</h3>
             <p className="mt-1 text-xs text-slate-500">
-              Filter messages, open a thread, and continue the conversation.
+              Conversations grouped by contact. Open a thread to read and reply in context.
             </p>
           </div>
           <button
@@ -250,83 +274,63 @@ export default function CandidateCommunicationHistory({ workerId, refreshKey = 0
           </div>
         ) : error ? (
           <p className="text-sm text-red-600">{error}</p>
-        ) : rows.length === 0 ? (
+        ) : threads.length === 0 ? (
           <div className="rounded-xl border border-dashed border-amber-200 bg-amber-50/50 px-4 py-6 text-center">
             <p className="text-sm font-medium text-slate-800">No communication records yet.</p>
             <p className="mt-1 text-xs text-slate-500">Emails and SMS messages will appear here.</p>
           </div>
-        ) : filteredRows.length === 0 ? (
+        ) : filteredThreads.length === 0 ? (
           <div className="rounded-xl border border-dashed border-amber-200 bg-amber-50/50 px-4 py-6 text-center">
-            <p className="text-sm font-medium text-slate-800">No {filter === "sms" ? "SMS" : "email"} records.</p>
-            <p className="mt-1 text-xs text-slate-500">Try a different communication filter.</p>
+            <p className="text-sm font-medium text-slate-800">No {filter === "sms" ? "SMS" : "email"} conversations.</p>
           </div>
         ) : (
-          <ul className="grid gap-3 md:grid-cols-2">
-            {filteredRows.map((row) => {
-              const inbound = communicationDirection(row) === "inbound";
-              return (
-              <li
-                key={row.id}
-                className="group"
-              >
+          <ul className="space-y-3">
+            {filteredThreads.map((thread) => (
+              <li key={thread.conversationId}>
                 <button
                   type="button"
-                  onClick={() => setSelected(row)}
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50/80 px-3 py-3 text-left text-sm transition hover:border-amber-300 hover:bg-amber-50/40 hover:shadow-sm"
+                  onClick={() => setSelectedThread(thread)}
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50/80 px-4 py-4 text-left transition hover:border-amber-300 hover:bg-amber-50/40 hover:shadow-sm"
                 >
                   <div className="flex flex-wrap items-center gap-2">
-                    {row.channel === "email" ? (
-                      <Mail className="h-4 w-4 text-[#D97706]" aria-hidden />
+                    {thread.channel === "email" ? (
+                      <Mail className="h-5 w-5 text-[#D97706]" />
                     ) : (
-                      <MessageSquare className="h-4 w-4 text-[#D97706]" aria-hidden />
+                      <MessageSquare className="h-5 w-5 text-[#D97706]" />
                     )}
-                    <span className="font-semibold text-slate-900">{channelLabel(row.channel)}</span>
-                    <span
-                      className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                        row.status === "sent"
-                          ? "bg-emerald-100 text-emerald-800"
-                          : "bg-red-100 text-red-800"
-                      }`}
-                    >
-                      {row.status}
+                    <span className="font-semibold text-slate-900">{channelLabel(thread.channel)}</span>
+                    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-900">
+                      {thread.messageCount} message{thread.messageCount === 1 ? "" : "s"}
                     </span>
-                    <span
-                      className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                        inbound ? "bg-blue-100 text-blue-800" : "bg-amber-100 text-amber-800"
-                      }`}
-                    >
-                      {inbound ? "Applicant" : "Recruiter"}
+                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${statusBadgeClass(thread.latestStatus)}`}>
+                      {thread.latestStatus}
                     </span>
-                    <span className="ml-auto text-xs text-slate-500">{formatShortWhen(row.created_at)}</span>
+                    {thread.unreadCount > 0 ? (
+                      <span className="rounded-full bg-blue-600 px-2 py-0.5 text-[10px] font-semibold text-white">
+                        {thread.unreadCount} received
+                      </span>
+                    ) : null}
+                    <span className="ml-auto text-xs text-slate-500">{formatShortWhen(thread.latestAt)}</span>
                   </div>
                   <p className="mt-2 text-xs text-slate-600">
-                    {inbound ? "From" : "To"}: {row.recipient}
+                    {contact?.name ?? "Applicant"} · {threadContactLine(thread)}
                   </p>
-                  {row.subject ? (
-                    <p className="mt-1 line-clamp-1 font-medium text-slate-800">{row.subject}</p>
+                  {thread.channel === "email" && thread.latestSubject ? (
+                    <p className="mt-1 font-medium text-slate-800">{thread.latestSubject}</p>
                   ) : null}
-                  <p className="mt-1 line-clamp-3 whitespace-pre-wrap text-slate-700">
-                    {previewText(row)}
-                  </p>
-                  {row.error_message ? (
-                    <p className="mt-2 inline-flex items-center gap-1 text-xs text-red-600">
-                      <AlertCircle className="h-3.5 w-3.5" />
-                      {row.error_message}
-                    </p>
-                  ) : null}
+                  <p className="mt-1 line-clamp-2 text-sm text-slate-600">{thread.latestPreview}</p>
                 </button>
               </li>
-              );
-            })}
+            ))}
           </ul>
         )}
       </div>
 
-      {selected ? (
+      {selectedThread ? (
         <div
           className="fixed inset-0 z-[70] flex items-end justify-center bg-black/40 p-0 sm:items-center sm:p-4"
           role="presentation"
-          onClick={() => !sendingReply && setSelected(null)}
+          onClick={() => !sendingReply && setSelectedThread(null)}
         >
           <div
             role="dialog"
@@ -339,21 +343,28 @@ export default function CandidateCommunicationHistory({ workerId, refreshKey = 0
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
-                    {selected.channel === "email" ? (
+                    {selectedThread.channel === "email" ? (
                       <Mail className="h-5 w-5 text-[#D97706]" aria-hidden />
                     ) : (
                       <MessageSquare className="h-5 w-5 text-[#D97706]" aria-hidden />
                     )}
                     <h4 id="communication-thread-title" className="font-semibold text-slate-900">
-                      {channelLabel(selected.channel)} with {contact?.name ?? "Applicant"}
+                      {channelLabel(selectedThread.channel)} with {contact?.name ?? "Applicant"}
                     </h4>
                     <span className="rounded-full bg-white px-2 py-0.5 text-xs font-medium text-[#92400E] ring-1 ring-amber-200">
-                      {selectedChannelRows.length} record{selectedChannelRows.length === 1 ? "" : "s"}
+                      {selectedThread.messageCount} message{selectedThread.messageCount === 1 ? "" : "s"}
                     </span>
                   </div>
                   <p className="mt-1 truncate text-xs text-slate-500">
-                    {selectedContact ? `Contact: ${selectedContact}` : "No contact value on file"}
+                    {selectedThread.channel === "email"
+                      ? `Contact: ${selectedThread.contactEmail ?? contact?.email ?? "—"}`
+                      : `Contact: ${selectedThread.contactPhone ?? contact?.phone ?? "—"}`}
                   </p>
+                  {selectedThread.rootSubject ? (
+                    <p className="mt-0.5 truncate text-xs text-slate-500">
+                      Thread: {selectedThread.rootSubject}
+                    </p>
+                  ) : null}
                 </div>
                 <div className="flex items-center gap-2">
                   <button
@@ -367,7 +378,7 @@ export default function CandidateCommunicationHistory({ workerId, refreshKey = 0
                   </button>
                   <button
                     type="button"
-                    onClick={() => setSelected(null)}
+                    onClick={() => setSelectedThread(null)}
                     disabled={sendingReply}
                     className="rounded-md p-1.5 text-slate-500 hover:bg-white"
                     aria-label="Close conversation"
@@ -379,65 +390,56 @@ export default function CandidateCommunicationHistory({ workerId, refreshKey = 0
             </div>
 
             <div className="flex-1 space-y-4 overflow-y-auto bg-slate-50 px-4 py-4 sm:px-5">
-              {loading && selectedChannelRows.length === 0 ? (
-                <div className="flex items-center gap-2 text-sm text-slate-500">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Loading conversation…
-                </div>
-              ) : selectedChannelRows.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-amber-200 bg-white px-4 py-6 text-center text-sm text-slate-500">
-                  No conversation records found.
-                </div>
-              ) : (
-                selectedChannelRows.map((row) => {
-                  const direction = communicationDirection(row);
-                  const inbound = direction === "inbound";
-                  return (
+              {selectedThread.messages.map((row) => {
+                const inbound = communicationDirectionFromRow(row) === "inbound";
+                return (
+                  <div key={row.id} className={`flex ${inbound ? "justify-start" : "justify-end"}`}>
                     <div
-                      key={row.id}
-                      className={`flex ${inbound ? "justify-start" : "justify-end"}`}
+                      className={`max-w-[86%] rounded-2xl px-4 py-3 text-sm shadow-sm sm:max-w-[72%] ${
+                        inbound
+                          ? "rounded-bl-md border border-slate-200 bg-white text-slate-800"
+                          : "rounded-br-md bg-[#F59E0B] text-white"
+                      }`}
                     >
+                      <div className="mb-1 flex flex-wrap items-center gap-2 text-[11px] font-semibold">
+                        <span>{senderRole(inbound)}</span>
+                        <span className={inbound ? "font-normal text-slate-500" : "font-normal text-white/85"}>
+                          {senderDisplay(row, contact, inbound)}
+                        </span>
+                        <span className={inbound ? "text-slate-400" : "text-white/75"}>
+                          {formatWhen(row.created_at)}
+                        </span>
+                      </div>
+                      {row.channel === "email" && row.subject ? (
+                        <p className={`mb-2 font-semibold ${inbound ? "text-slate-900" : "text-white"}`}>
+                          {row.subject}
+                        </p>
+                      ) : null}
+                      <p className="whitespace-pre-wrap leading-6">{row.body}</p>
                       <div
-                        className={`max-w-[86%] rounded-2xl px-4 py-3 text-sm shadow-sm sm:max-w-[72%] ${
-                          inbound
-                            ? "rounded-bl-md border border-slate-200 bg-white text-slate-800"
-                            : "rounded-br-md bg-[#F59E0B] text-white"
+                        className={`mt-2 flex flex-wrap items-center gap-2 text-[11px] ${
+                          inbound ? "text-slate-500" : "text-white/80"
                         }`}
                       >
-                        <div className="mb-1 flex flex-wrap items-center gap-2 text-[11px] font-semibold">
-                          <span>{inbound ? contact?.name ?? "Applicant" : "Recruiter"}</span>
-                          <span className={inbound ? "text-slate-400" : "text-white/75"}>
-                            {formatWhen(row.created_at)}
-                          </span>
-                        </div>
-                        {row.channel === "email" && row.subject ? (
-                          <p className={`mb-2 font-semibold ${inbound ? "text-slate-900" : "text-white"}`}>
-                            {row.subject}
-                          </p>
+                        <span>{row.status}</span>
+                        {row.channel === "email" && row.to_email ? (
+                          <span>{inbound ? `To: ${row.to_email}` : `To: ${row.to_email}`}</span>
                         ) : null}
-                        <p className="whitespace-pre-wrap leading-6">{row.body}</p>
-                        <div
-                          className={`mt-2 flex flex-wrap items-center gap-2 text-[11px] ${
-                            inbound ? "text-slate-500" : "text-white/80"
-                          }`}
-                        >
-                          <span>{row.status}</span>
-                          {row.provider_message_id ? <span>ID: {row.provider_message_id}</span> : null}
-                          {row.error_message ? (
-                            <span className={inbound ? "text-red-600" : "text-red-100"}>
-                              {row.error_message}
-                            </span>
-                          ) : null}
-                        </div>
+                        {row.provider_message_id ? <span>ID: {row.provider_message_id}</span> : null}
+                        {row.error_message ? (
+                          <span className={inbound ? "text-red-600" : "text-red-100"}>
+                            {row.error_message}
+                          </span>
+                        ) : null}
                       </div>
                     </div>
-                  );
-                })
-              )}
+                  </div>
+                );
+              })}
             </div>
 
             <div className="border-t border-slate-200 bg-white px-4 py-3 sm:px-5">
-              {selected.channel === "email" ? (
+              {selectedThread.channel === "email" ? (
                 <label className="mb-2 block text-xs font-medium text-slate-600">
                   Subject
                   <input
@@ -458,7 +460,7 @@ export default function CandidateCommunicationHistory({ workerId, refreshKey = 0
                     disabled={sendingReply}
                     rows={3}
                     placeholder={
-                      selected.channel === "sms"
+                      selectedThread.channel === "sms"
                         ? "Write an SMS reply..."
                         : "Write an email reply..."
                     }
@@ -471,7 +473,7 @@ export default function CandidateCommunicationHistory({ workerId, refreshKey = 0
                   disabled={
                     sendingReply ||
                     !replyBody.trim() ||
-                    (selected.channel === "email" && !replySubject.trim())
+                    (selectedThread.channel === "email" && !replySubject.trim())
                   }
                   className="inline-flex h-11 items-center gap-2 rounded-xl bg-[#F59E0B] px-4 text-sm font-semibold text-white hover:bg-[#D97706] disabled:cursor-not-allowed disabled:opacity-50"
                 >

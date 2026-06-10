@@ -148,7 +148,7 @@ async function generateEmbedSigningUrl(params: {
 
   if (!host) {
     throw new Error(
-      "Zoho Sign embedded signing requires an https host. Set ZOHO_SIGN_EMBED_HOST or NEXT_PUBLIC_APP_URL to your public https domain (e.g. https://hr.nexusmedpro.com)."
+      "Zoho Sign embedded signing requires an https host. Set ZOHO_SIGN_EMBED_HOST or NEXT_PUBLIC_APP_URL to your public https domain (e.g. https://hr.brasshr.com)."
     )
   }
 

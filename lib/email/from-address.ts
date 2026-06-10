@@ -74,7 +74,7 @@ export function buildFromEmailAddress(localPart: string): string {
   return `${localPart}@${domain}`;
 }
 
-const DEFAULT_FROM_DISPLAY_NAME = "Nexus MedPro";
+const DEFAULT_FROM_DISPLAY_NAME = "Brass HR";
 
 export function buildResendFromHeader(tpl: Pick<EmailTemplateRow, "from_email_local_part">): string {
   const localPart = resolveFromEmailLocalPart(tpl);

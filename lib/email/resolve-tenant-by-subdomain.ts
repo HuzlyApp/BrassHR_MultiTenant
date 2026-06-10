@@ -8,7 +8,7 @@ export type TenantBySubdomain = {
 };
 
 /**
- * Resolve tenant by vanity subdomain label (e.g. test → test.nexusmedpro.com).
+ * Resolve tenant by vanity subdomain label (e.g. test → test.brasshr.com).
  * Falls back to slug when subdomain is unset.
  */
 export async function resolveTenantBySubdomain(

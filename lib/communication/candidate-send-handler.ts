@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import { ZodError, type z } from "zod";
-import { listCandidateCommunications } from "@/lib/communication/record";
 import type { StaffApiAuthContext } from "@/lib/auth/api-session";
 import { canAccessWorkerRecord } from "@/lib/auth/worker-record-access";
+import { getCompanyNotificationEmail } from "@/lib/communication/conversation";
 import { CommunicationConfigError } from "@/lib/communication/env";
 import { checkCommunicationRateLimit } from "@/lib/communication/rate-limit";
-import { recordCandidateCommunication } from "@/lib/communication/record";
+import { listCandidateCommunicationsWithThreads, recordCandidateCommunication } from "@/lib/communication/record";
 import { resolveWorkerContact } from "@/lib/communication/resolve-worker";
 import {
   sendCandidateEmailSchema,
@@ -104,10 +104,15 @@ export async function handleSendCandidateEmail(
     sentByUserId: auth.devBypass ? null : auth.userId,
     channel: "email",
     recipient: contact.email,
+    contactEmail: contact.email,
+    fromEmail: getCompanyNotificationEmail(),
+    toEmail: contact.email,
     subject: payload.subject,
     body: payload.body,
+    bodyHtml: payload.bodyHtml,
     providerMessageId: sendResult.ok ? sendResult.messageId : null,
     status: sendResult.ok ? "sent" : "failed",
+    direction: "outbound",
     errorMessage: sendResult.ok ? null : sendResult.error,
   });
 
@@ -200,6 +205,7 @@ export async function handleSendCandidateSms(
     body: payload.body,
     providerMessageId: sendResult.ok ? sendResult.messageId : null,
     status: sendResult.ok ? "sent" : "failed",
+    direction: "outbound",
     errorMessage: sendResult.ok ? null : sendResult.error,
   });
 
@@ -241,14 +247,23 @@ export async function handleListCandidateCommunications(
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const communications = await listCandidateCommunications(supabase, workerId);
+  const { communications, threads } = await listCandidateCommunicationsWithThreads(
+    supabase,
+    workerId,
+    { email: contact.email, phone: contact.phone }
+  );
 
-  return NextResponse.json({
-    communications,
-    contact: {
-      name: `${contact.firstName ?? ""} ${contact.lastName ?? ""}`.trim() || "Candidate",
-      email: contact.email,
-      phone: contact.phone,
+  return NextResponse.json(
+    {
+      communications,
+      threads,
+      conversations: threads,
+      contact: {
+        name: `${contact.firstName ?? ""} ${contact.lastName ?? ""}`.trim() || "Candidate",
+        email: contact.email,
+        phone: contact.phone,
+      },
     },
-  });
+    { headers: { "Cache-Control": "no-store" } }
+  );
 }

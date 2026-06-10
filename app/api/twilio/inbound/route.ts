@@ -98,7 +98,8 @@ async function recordInboundMessage(params: TwilioInboundParams) {
     subject: "Inbound SMS",
     body,
     providerMessageId: params.MessageSid ?? null,
-    status: "sent",
+    status: "received",
+    direction: "inbound",
   });
 }
 

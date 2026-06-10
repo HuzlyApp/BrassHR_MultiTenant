@@ -50,8 +50,8 @@ async function main() {
       applicantName: "Carlito Elipan",
       tenantName: "subdomain test",
       applicationStatusUrl:
-        "https://test.nexusmedpro.com/application/status/test-application-id",
-      supportEmail: "support@nexusmedpro.com",
+        "https://test.brasshr.com/application/status/test-application-id",
+      supportEmail: "support@brasshr.com",
     },
   });
 

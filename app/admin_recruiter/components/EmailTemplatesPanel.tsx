@@ -43,7 +43,7 @@ export default function EmailTemplatesPanel() {
   const [bodyHtml, setBodyHtml] = useState("");
   const [bodyText, setBodyText] = useState("");
   const [fromEmailLocalPart, setFromEmailLocalPart] = useState("notifications");
-  const [resendFromDomain, setResendFromDomain] = useState("nexusmedpro.com");
+  const [resendFromDomain, setResendFromDomain] = useState("brasshr.com");
   const [replyToEmail, setReplyToEmail] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);

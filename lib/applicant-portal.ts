@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { emailLookupVariants } from "@/lib/email/email-domain";
 
 export const UNAPPROVED_APPLICANT_MESSAGE =
   "Your application has not been approved yet. You will be able to access your applicant dashboard once your application has been approved.";
@@ -53,13 +54,13 @@ export async function findApplicantByEmail(
   email: string,
   tenantId?: string | null
 ): Promise<ApplicantWorkerRow | null> {
-  const normalizedEmail = email.trim().toLowerCase();
-  if (!normalizedEmail) return null;
+  const variants = emailLookupVariants(email);
+  if (variants.length === 0) return null;
 
   let query = supabase
     .from("worker")
     .select("id, user_id, tenant_id, email, first_name, last_name, status, applicant_password_set_at")
-    .eq("email", normalizedEmail)
+    .in("email", variants)
     .order("updated_at", { ascending: false })
     .limit(1);
 
