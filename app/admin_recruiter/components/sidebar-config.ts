@@ -1,4 +1,5 @@
 import type { SidebarIconType } from "@/app/admin_recruiter/components/sidebar-icons";
+import { CANDIDATE_ROUTE_PREFIXES } from "@/app/admin_recruiter/components/candidates-tabs-config";
 
 export type SidebarLink = {
   label: string;
@@ -48,31 +49,6 @@ const DASHBOARD_CHILDREN: SidebarLink[] = [
 const FINANCE_CHILDREN: SidebarLink[] = [
   { label: "Billing", href: "#", matchPrefixes: [], disabled: true },
   { label: "Invoices", href: "#", matchPrefixes: [], disabled: true },
-];
-
-const CANDIDATE_ROUTE_PREFIXES = [
-  "/admin_recruiter/candidates",
-  "/admin_recruiter/new",
-  "/admin_recruiter/pending",
-  "/admin_recruiter/approved",
-  "/admin_recruiter/disapproved",
-  "/admin_recruiter/attendance",
-];
-
-const CANDIDATES_CHILDREN: SidebarLink[] = [
-  { label: "New", href: "/admin_recruiter/new", matchPrefixes: ["/admin_recruiter/new"] },
-  { label: "Pending", href: "/admin_recruiter/pending", matchPrefixes: ["/admin_recruiter/pending"] },
-  { label: "Approved", href: "/admin_recruiter/approved", matchPrefixes: ["/admin_recruiter/approved"] },
-  {
-    label: "Disapproved",
-    href: "/admin_recruiter/disapproved",
-    matchPrefixes: ["/admin_recruiter/disapproved"],
-  },
-  {
-    label: "Attendance",
-    href: "/admin_recruiter/attendance",
-    matchPrefixes: ["/admin_recruiter/attendance"],
-  },
 ];
 
 const SHARED_TOP_SECTIONS: SidebarSection[] = [
@@ -173,7 +149,6 @@ export const CLIENT_SIDEBAR_SECTIONS: SidebarSection[] = [
     href: "/admin_recruiter/candidates",
     iconType: ICON.candidates,
     matchPrefixes: CANDIDATE_ROUTE_PREFIXES,
-    children: CANDIDATES_CHILDREN,
   },
   {
     label: "Organization",

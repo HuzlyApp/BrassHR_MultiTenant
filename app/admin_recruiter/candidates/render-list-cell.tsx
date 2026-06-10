@@ -2,6 +2,7 @@ import type { ReactNode } from "react"
 import BrandedSvgIcon from "@/app/components/BrandedSvgIcon"
 import type { CandidateColumnId } from "./column-config"
 import type { CandidateRow } from "./types"
+import { candidateStatusBadgeClassName } from "./candidate-status-badge"
 
 const BRAND_AVATAR_GRADIENT =
   "linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-accent) 100%)"
@@ -38,19 +39,10 @@ export function renderListCell(
         </div>
       )
     case "status":
-      const status = c.status.trim().toLowerCase()
       return (
         <div className="flex w-full justify-center">
           <span
-            className={`inline-flex items-center rounded-md px-2.5 py-0.5 text-sm font-medium ${
-              status === "pending"
-                ? "border border-[#F59E0B] bg-[#F59E0B] text-white"
-                : status === "approved"
-                  ? "border border-[#22C55E] bg-[#22C55E] text-white"
-                  : status === "disapproved"
-                    ? "border border-[#FB7185] bg-[#FB7185] text-white"
-                : "border border-[#E5E7EB] text-black"
-            }`}
+            className={`inline-flex items-center rounded-md px-2.5 py-0.5 text-sm font-medium ${candidateStatusBadgeClassName(c.status)}`}
           >
             {c.status}
           </span>

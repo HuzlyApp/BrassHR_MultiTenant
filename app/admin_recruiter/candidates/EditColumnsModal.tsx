@@ -1,13 +1,39 @@
 "use client"
 
 import * as Dialog from "@radix-ui/react-dialog"
-import { GripVertical, Search, X } from "lucide-react"
-import { useCallback, useMemo, useState } from "react"
+import { Check, GripVertical, Search, X } from "lucide-react"
+import { useCallback, useMemo, useState, type CSSProperties } from "react"
+import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext"
+import { brandingToCssVars } from "@/lib/tenant/tenant-branding"
 import {
   CANDIDATE_COLUMN_OPTIONS,
   type CandidateColumnId,
   columnLabel,
 } from "./column-config"
+
+function BrandedColumnCheckbox({
+  checked,
+  onChange,
+}: {
+  checked: boolean
+  onChange: () => void
+}) {
+  return (
+    <span className="relative inline-flex h-5 w-5 shrink-0">
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={onChange}
+        className="peer h-5 w-5 shrink-0 cursor-pointer appearance-none rounded-[5px] border-2 border-slate-300 bg-white transition-colors checked:border-[color:var(--brand-checkbox,var(--brand-primary))] checked:bg-[color:var(--brand-checkbox,var(--brand-primary))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--brand-primary)_30%,transparent)]"
+      />
+      <Check
+        className="pointer-events-none absolute inset-0 m-auto hidden h-3 w-3 text-white peer-checked:block"
+        strokeWidth={3}
+        aria-hidden
+      />
+    </span>
+  )
+}
 
 type Props = {
   open: boolean
@@ -18,6 +44,8 @@ type Props = {
 }
 
 export function EditColumnsModal({ open, onOpenChange, value, onSave }: Props) {
+  const branding = useTenantBranding()
+  const brandVars = brandingToCssVars(branding) as CSSProperties
   const [fieldSearch, setFieldSearch] = useState("")
   const [draftOrder, setDraftOrder] = useState<CandidateColumnId[]>(() => [...value])
   const [dragId, setDragId] = useState<CandidateColumnId | null>(null)
@@ -84,7 +112,10 @@ export function EditColumnsModal({ open, onOpenChange, value, onSave }: Props) {
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-[100] bg-black/40 data-[state=open]:animate-in fade-in" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 z-[101] flex h-[min(688px,calc(100vh-2rem))] w-[min(1024px,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 flex-col rounded-[20px] border border-zinc-200 bg-white shadow-xl outline-none">
+        <Dialog.Content
+          style={brandVars}
+          className="fixed left-1/2 top-1/2 z-[101] flex h-[min(688px,calc(100vh-2rem))] w-[min(1024px,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 flex-col rounded-[20px] border border-zinc-200 bg-white shadow-xl outline-none"
+        >
           <div className="flex items-center justify-between border-b border-zinc-200 px-6 py-4">
             <div>
               <Dialog.Title className="max-w-full overflow-hidden text-ellipsis whitespace-nowrap text-2xl font-semibold leading-8 text-gray-800">
@@ -110,7 +141,7 @@ export function EditColumnsModal({ open, onOpenChange, value, onSave }: Props) {
                 <button
                   type="button"
                   onClick={unselectAll}
-                  className="font-medium text-[color:var(--brand-primary)] hover:underline"
+                  className="font-medium text-[color:var(--brand-primary)] hover:text-[color:var(--brand-secondary)] hover:underline"
                 >
                   Unselect All
                 </button>
@@ -135,12 +166,7 @@ export function EditColumnsModal({ open, onOpenChange, value, onSave }: Props) {
                       key={col.id}
                       className="flex cursor-pointer items-center gap-3 rounded-md px-2 py-2 hover:bg-zinc-50"
                     >
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={() => toggle(col.id)}
-                        className="h-5 w-5 cursor-pointer rounded-[5px] border-2 border-slate-300 bg-white accent-[color:var(--brand-primary)]"
-                      />
+                      <BrandedColumnCheckbox checked={checked} onChange={() => toggle(col.id)} />
                       <span className="text-sm text-slate-700">{col.label}</span>
                     </label>
                   )
@@ -199,7 +225,7 @@ export function EditColumnsModal({ open, onOpenChange, value, onSave }: Props) {
                 onSave(draftOrder)
                 onOpenChange(false)
               }}
-              className="rounded-lg bg-[color:var(--brand-primary)] px-5 py-2 text-sm font-medium text-white hover:brightness-95"
+              className="rounded-lg bg-[color:var(--brand-primary)] px-5 py-2 text-sm font-medium text-white transition hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--brand-primary)_35%,transparent)]"
             >
               Save
             </button>

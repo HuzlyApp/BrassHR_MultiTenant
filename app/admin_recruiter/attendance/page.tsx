@@ -1,6 +1,13 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
+import { CandidatesSubTabs } from "../components/CandidatesSubTabs";
+import {
+  CANDIDATES_PAGE_SUBTITLE_CLASS,
+  CANDIDATES_PAGE_SUBTITLE_STYLE,
+  CANDIDATES_PAGE_TITLE_CLASS,
+  CANDIDATES_PAGE_TITLE_STYLE,
+} from "../candidates/candidates-typography";
 
 type AttendanceStatus = "clocked_in" | "clocked_out";
 
@@ -100,12 +107,16 @@ export default function AdminApplicantAttendancePage() {
   }
 
   return (
-    <main className="p-6">
+    <main className="px-5 pb-8 pt-5 lg:px-8">
+      <CandidatesSubTabs />
       <div className="mb-6">
-        <p className="text-sm font-semibold uppercase tracking-[0.16em] text-[#64748B]">
-          Applicant Attendance
+        <h1 className={CANDIDATES_PAGE_TITLE_CLASS} style={CANDIDATES_PAGE_TITLE_STYLE}>
+          Candidates
+        </h1>
+        <p className={CANDIDATES_PAGE_SUBTITLE_CLASS} style={CANDIDATES_PAGE_SUBTITLE_STYLE}>
+          Manage applicants in one place
         </p>
-        <h1 className="mt-2 text-2xl font-semibold text-[#0F172A]">Attendance / Time Tracking</h1>
+        <h2 className="mt-4 text-xl font-semibold text-[#0F172A]">Attendance / Time Tracking</h2>
         <p className="mt-2 max-w-3xl text-sm leading-6 text-[#64748B]">
           Review applicant clock-in and clock-out logs, including total hours, IP address, and
           browser location coordinates captured for verification.
