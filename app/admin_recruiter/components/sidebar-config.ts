@@ -76,6 +76,10 @@ const SHARED_TOP_SECTIONS: SidebarSection[] = [
     href: "/admin_recruiter/calendar",
     iconType: ICON.schedule,
     matchPrefixes: ["/admin_recruiter/calendar"],
+    children: [
+      { label: "Interviews", href: "/admin_recruiter/calendar", matchPrefixes: ["/admin_recruiter/calendar"] },
+      { label: "Shift calendar", href: "/admin_recruiter/calendar/shifts", matchPrefixes: ["/admin_recruiter/calendar/shifts"] },
+    ],
   },
   {
     label: "Tickets",
@@ -125,7 +129,7 @@ export const CLIENT_SIDEBAR_SECTIONS: SidebarSection[] = [
     iconType: ICON.taskboard,
     matchPrefixes: ["/admin_recruiter/dashboard/onboarding-builder"],
     children: [
-      { label: "Interviews", href: "#", matchPrefixes: [], disabled: true },
+      { label: "Interviews", href: "/admin_recruiter/calendar", matchPrefixes: ["/admin_recruiter/calendar"] },
       {
         label: "Onboarding",
         href: "/admin_recruiter/settings?tab=onboarding-builder",
@@ -180,7 +184,7 @@ export const GOD_ADMIN_SIDEBAR_SECTIONS: SidebarSection[] = [
     iconType: ICON.taskboard,
     matchPrefixes: ["/admin_recruiter/dashboard/onboarding-builder"],
     children: [
-      { label: "Interviews", href: "#", matchPrefixes: [], disabled: true },
+      { label: "Interviews", href: "/admin_recruiter/calendar", matchPrefixes: ["/admin_recruiter/calendar"] },
       {
         label: "Client Onboarding",
         href: "/admin_recruiter/settings?tab=onboarding-builder",
