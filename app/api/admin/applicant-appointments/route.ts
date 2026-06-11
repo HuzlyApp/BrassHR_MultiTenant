@@ -2,28 +2,33 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireStaffApiSession } from "@/lib/auth/api-session";
 import { resolveStaffTenantScope } from "@/lib/auth/staff-tenant-scope";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
+import { ensureApplicantForWorker } from "@/lib/interviews/ensure-applicant";
 import {
   applicantDisplayName,
   interviewOrdinalTitle,
-  type AppointmentStatus,
-  type MeetingType,
 } from "@/lib/interviews/format";
+import { isoToScheduleFields, scheduleRowToIso } from "@/lib/interviews/schedule-fields";
 import { parseRequiredUuid } from "@/lib/validation/uuid";
 
 export const runtime = "nodejs";
 
-type AppointmentRow = {
+type InterviewScheduleStatus = "upcoming" | "completed" | "cancelled" | "rescheduled";
+
+type InterviewScheduleRow = {
   id: string;
   tenant_id: string;
-  worker_id: string;
-  slot_id: string | null;
-  status: AppointmentStatus;
-  meeting_type: MeetingType | null;
-  confirmed_starts_at: string | null;
-  confirmed_ends_at: string | null;
+  applicant_id: string;
+  worker_id: string | null;
+  title: string;
+  description: string | null;
+  scheduled_date: string;
+  start_time: string;
+  end_time: string;
+  timezone: string;
+  status: InterviewScheduleStatus;
   meeting_link: string | null;
-  location: string | null;
-  requested_at: string;
+  notes: string | null;
+  created_at: string;
   updated_at: string;
 };
 
@@ -32,6 +37,7 @@ type WorkerRow = {
   first_name: string | null;
   last_name: string | null;
   status: string | null;
+  email?: string | null;
 };
 
 type ApplicantOption = {
@@ -48,81 +54,102 @@ export type AdminInterviewItem = {
   description: string;
   startsAt: string;
   endsAt: string | null;
-  status: AppointmentStatus;
-  meetingType: MeetingType | null;
+  status: InterviewScheduleStatus;
+  meetingType: "online" | null;
   meetingLink: string | null;
   location: string | null;
 };
-
-function parseMeetingType(value: unknown): MeetingType | null {
-  const type = typeof value === "string" ? value.trim().toLowerCase() : "";
-  if (type === "online" || type === "phone" || type === "in_person") return type;
-  return null;
-}
 
 function parseTab(value: string | null): "upcoming" | "recent" {
   return value === "recent" ? "recent" : "upcoming";
 }
 
-function buildInterviewItems(
-  appointments: AppointmentRow[],
-  workersById: Map<string, WorkerRow>,
-  sequenceByAppointmentId: Map<string, number>
-): AdminInterviewItem[] {
-  return appointments.map((row) => {
-    const worker = workersById.get(row.worker_id);
-    const applicantName = applicantDisplayName(worker?.first_name ?? null, worker?.last_name ?? null);
-    const sequence = sequenceByAppointmentId.get(row.id) ?? 1;
-    const title = interviewOrdinalTitle(sequence);
-    return {
-      id: row.id,
-      workerId: row.worker_id,
-      applicantName,
-      title,
-      description: `${title} schedule with ${applicantName}`,
-      startsAt: row.confirmed_starts_at ?? row.requested_at,
-      endsAt: row.confirmed_ends_at,
-      status: row.status,
-      meetingType: row.meeting_type,
-      meetingLink: row.meeting_link,
-      location: row.location,
-    };
-  });
+function scheduleStartMs(row: InterviewScheduleRow): number {
+  const { startsAt } = scheduleRowToIso(row.scheduled_date, row.start_time, row.end_time);
+  return new Date(startsAt).getTime();
+}
+
+function isUpcomingRow(row: InterviewScheduleRow, nowMs: number): boolean {
+  if (row.status === "cancelled" || row.status === "completed") return false;
+  return scheduleStartMs(row) >= nowMs;
+}
+
+function isRecentRow(row: InterviewScheduleRow, nowMs: number): boolean {
+  if (row.status === "completed" || row.status === "cancelled") return true;
+  return scheduleStartMs(row) < nowMs;
 }
 
 async function loadSequenceMap(
   supabase: NonNullable<ReturnType<typeof createServiceRoleClient>>,
   tenantId: string,
-  workerIds: string[]
+  applicantIds: string[]
 ) {
-  const sequenceByAppointmentId = new Map<string, number>();
-  if (workerIds.length === 0) return sequenceByAppointmentId;
+  const sequenceByScheduleId = new Map<string, number>();
+  if (applicantIds.length === 0) return sequenceByScheduleId;
 
   const { data, error } = await supabase
-    .from("applicant_appointments")
-    .select("id, worker_id, confirmed_starts_at, requested_at")
+    .from("interview_schedules")
+    .select("id, applicant_id, scheduled_date, start_time")
     .eq("tenant_id", tenantId)
-    .in("worker_id", workerIds)
+    .in("applicant_id", applicantIds)
     .neq("status", "cancelled")
-    .order("confirmed_starts_at", { ascending: true, nullsFirst: false })
-    .order("requested_at", { ascending: true });
+    .order("scheduled_date", { ascending: true })
+    .order("start_time", { ascending: true });
 
   if (error) throw error;
 
-  const byWorker = new Map<string, { id: string; sortKey: number }[]>();
+  const byApplicant = new Map<string, { id: string; sortKey: number }[]>();
   for (const row of data ?? []) {
-    const sortKey = new Date(row.confirmed_starts_at ?? row.requested_at).getTime();
-    const list = byWorker.get(row.worker_id) ?? [];
+    const sortKey = scheduleStartMs(row as InterviewScheduleRow);
+    const list = byApplicant.get(row.applicant_id) ?? [];
     list.push({ id: row.id, sortKey });
-    byWorker.set(row.worker_id, list);
+    byApplicant.set(row.applicant_id, list);
   }
 
-  byWorker.forEach((list) => {
+  byApplicant.forEach((list) => {
     list.sort((a, b) => a.sortKey - b.sortKey);
-    list.forEach((item, index) => sequenceByAppointmentId.set(item.id, index + 1));
+    list.forEach((item, index) => sequenceByScheduleId.set(item.id, index + 1));
   });
 
-  return sequenceByAppointmentId;
+  return sequenceByScheduleId;
+}
+
+function buildInterviewItems(
+  schedules: InterviewScheduleRow[],
+  workersById: Map<string, WorkerRow>,
+  applicantsById: Map<string, { full_name: string | null; worker_id: string | null }>,
+  sequenceByScheduleId: Map<string, number>
+): AdminInterviewItem[] {
+  return schedules.map((row) => {
+    const workerId = row.worker_id ?? applicantsById.get(row.applicant_id)?.worker_id ?? "";
+    const worker = workerId ? workersById.get(workerId) : undefined;
+    const applicantName =
+      worker
+        ? applicantDisplayName(worker.first_name, worker.last_name)
+        : applicantsById.get(row.applicant_id)?.full_name?.trim() || "Unnamed applicant";
+
+    const sequence = sequenceByScheduleId.get(row.id) ?? 1;
+    const title = row.title?.trim() || interviewOrdinalTitle(sequence);
+    const { startsAt, endsAt } = scheduleRowToIso(
+      row.scheduled_date,
+      row.start_time,
+      row.end_time
+    );
+
+    return {
+      id: row.id,
+      workerId: workerId || row.applicant_id,
+      applicantName,
+      title,
+      description: row.description?.trim() || `${title} schedule with ${applicantName}`,
+      startsAt,
+      endsAt,
+      status: row.status,
+      meetingType: "online",
+      meetingLink: row.meeting_link,
+      location: null,
+    };
+  });
 }
 
 export async function GET(req: NextRequest) {
@@ -141,43 +168,64 @@ export async function GET(req: NextRequest) {
     }
 
     const tab = parseTab(req.nextUrl.searchParams.get("tab"));
-    const now = new Date().toISOString();
+    const nowMs = Date.now();
 
-    let query = supabase
-      .from("applicant_appointments")
-      .select(
-        "id, tenant_id, worker_id, slot_id, status, meeting_type, confirmed_starts_at, confirmed_ends_at, meeting_link, location, requested_at, updated_at"
-      )
-      .eq("tenant_id", scope.tenantId)
-      .neq("status", "cancelled")
-      .order("confirmed_starts_at", { ascending: tab === "upcoming", nullsFirst: false })
-      .limit(200);
-
-    if (tab === "upcoming") {
-      query = query.or(`confirmed_starts_at.gte.${now},and(confirmed_starts_at.is.null,status.eq.requested)`);
-    } else {
-      query = query.lt("confirmed_starts_at", now);
-    }
-
-    const [{ data: appointmentData, error: appointmentError }, { data: workerData, error: workerError }] =
+    const [{ data: scheduleData, error: scheduleError }, { data: workerData, error: workerError }] =
       await Promise.all([
-        query,
+        supabase
+          .from("interview_schedules")
+          .select(
+            "id, tenant_id, applicant_id, worker_id, title, description, scheduled_date, start_time, end_time, timezone, status, meeting_link, notes, created_at, updated_at"
+          )
+          .eq("tenant_id", scope.tenantId)
+          .order("scheduled_date", { ascending: tab === "upcoming" })
+          .order("start_time", { ascending: tab === "upcoming" })
+          .limit(200),
         supabase
           .from("worker")
           .select("id, first_name, last_name, status")
           .eq("tenant_id", scope.tenantId)
-          .in("status", ["new", "pending", "approved"])
+          .in("status", ["new", "pending", "approved", "Active"])
           .order("first_name", { ascending: true })
           .limit(500),
       ]);
 
-    if (appointmentError) throw appointmentError;
+    if (scheduleError) throw scheduleError;
     if (workerError) throw workerError;
 
-    const appointments = (appointmentData as AppointmentRow[] | null) ?? [];
+    const allSchedules = (scheduleData as InterviewScheduleRow[] | null) ?? [];
+    const schedules = allSchedules.filter((row) =>
+      tab === "upcoming" ? isUpcomingRow(row, nowMs) : isRecentRow(row, nowMs)
+    );
+
     const workers = (workerData as WorkerRow[] | null) ?? [];
     const workersById = new Map(workers.map((w) => [w.id, w]));
-    const workerIds = Array.from(new Set(appointments.map((a) => a.worker_id)));
+
+    const applicantIds = Array.from(new Set(schedules.map((s) => s.applicant_id)));
+    const { data: applicantRows, error: applicantError } = applicantIds.length
+      ? await supabase
+          .from("applicants")
+          .select("id, full_name, worker_id")
+          .eq("tenant_id", scope.tenantId)
+          .in("id", applicantIds)
+      : { data: [], error: null };
+
+    if (applicantError) throw applicantError;
+
+    const applicantsById = new Map(
+      (applicantRows ?? []).map((a) => [
+        a.id,
+        { full_name: a.full_name as string | null, worker_id: a.worker_id as string | null },
+      ])
+    );
+
+    const workerIds = Array.from(
+      new Set(
+        schedules
+          .map((s) => s.worker_id ?? applicantsById.get(s.applicant_id)?.worker_id)
+          .filter((id): id is string => Boolean(id))
+      )
+    );
 
     const missingWorkerIds = workerIds.filter((id) => !workersById.has(id));
     if (missingWorkerIds.length > 0) {
@@ -189,8 +237,13 @@ export async function GET(req: NextRequest) {
       (extraWorkers as WorkerRow[] | null)?.forEach((w) => workersById.set(w.id, w));
     }
 
-    const sequenceByAppointmentId = await loadSequenceMap(supabase, scope.tenantId, workerIds);
-    const interviews = buildInterviewItems(appointments, workersById, sequenceByAppointmentId);
+    const sequenceByScheduleId = await loadSequenceMap(supabase, scope.tenantId, applicantIds);
+    const interviews = buildInterviewItems(
+      schedules,
+      workersById,
+      applicantsById,
+      sequenceByScheduleId
+    );
 
     const applicants: ApplicantOption[] = workers.map((w) => ({
       id: w.id,
@@ -198,25 +251,13 @@ export async function GET(req: NextRequest) {
       status: (w.status ?? "new").toLowerCase(),
     }));
 
-    const [{ count: upcomingCount }, { count: recentCount }] = await Promise.all([
-      supabase
-        .from("applicant_appointments")
-        .select("id", { count: "exact", head: true })
-        .eq("tenant_id", scope.tenantId)
-        .neq("status", "cancelled")
-        .or(`confirmed_starts_at.gte.${now},and(confirmed_starts_at.is.null,status.eq.requested)`),
-      supabase
-        .from("applicant_appointments")
-        .select("id", { count: "exact", head: true })
-        .eq("tenant_id", scope.tenantId)
-        .neq("status", "cancelled")
-        .lt("confirmed_starts_at", now),
-    ]);
+    const upcomingCount = allSchedules.filter((row) => isUpcomingRow(row, nowMs)).length;
+    const recentCount = allSchedules.filter((row) => isRecentRow(row, nowMs)).length;
 
     return NextResponse.json({
       interviews,
       applicants,
-      counts: { upcoming: upcomingCount ?? 0, recent: recentCount ?? 0 },
+      counts: { upcoming: upcomingCount, recent: recentCount },
       tab,
     });
   } catch (err) {
@@ -242,7 +283,7 @@ export async function POST(req: NextRequest) {
       endsAt?: string | null;
       meetingType?: string;
       meetingLink?: string | null;
-      location?: string | null;
+      notes?: string | null;
     };
 
     const workerIdCheck = parseRequiredUuid(body.workerId?.trim() ?? "", "workerId");
@@ -262,7 +303,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "End time must be after start time." }, { status: 400 });
     }
 
-    const meetingType = parseMeetingType(body.meetingType) ?? "online";
+    const timezone =
+      typeof Intl !== "undefined"
+        ? Intl.DateTimeFormat().resolvedOptions().timeZone
+        : "Asia/Manila";
 
     const supabase = createServiceRoleClient();
     if (!supabase) {
@@ -271,7 +315,7 @@ export async function POST(req: NextRequest) {
 
     const { data: worker, error: workerError } = await supabase
       .from("worker")
-      .select("id, first_name, last_name, tenant_id, status")
+      .select("id, first_name, last_name, tenant_id, status, email")
       .eq("id", workerIdCheck.value)
       .eq("tenant_id", scope.tenantId)
       .maybeSingle();
@@ -279,45 +323,38 @@ export async function POST(req: NextRequest) {
     if (workerError) throw workerError;
     if (!worker?.id) return NextResponse.json({ error: "Applicant not found." }, { status: 404 });
 
-    const { data: slot, error: slotError } = await supabase
-      .from("applicant_appointment_slots")
+    const applicantId = await ensureApplicantForWorker(supabase, scope.tenantId, worker);
+
+    const scheduleFields = isoToScheduleFields(startsAt, endsAt, timezone);
+
+    const sequenceByScheduleId = await loadSequenceMap(supabase, scope.tenantId, [applicantId]);
+    const sequence = (sequenceByScheduleId.size || 0) + 1;
+    const title = interviewOrdinalTitle(sequence);
+
+    const { data: schedule, error: scheduleError } = await supabase
+      .from("interview_schedules")
       .insert({
         tenant_id: scope.tenantId,
-        starts_at: startsAt.toISOString(),
-        ends_at: endsAt.toISOString(),
-        meeting_type: meetingType,
-        meeting_link: body.meetingLink?.trim() || null,
-        location: body.location?.trim() || null,
-        is_available: false,
-        created_by_user_id: auth.devBypass ? null : auth.userId,
-      })
-      .select("id")
-      .single();
-
-    if (slotError) throw slotError;
-
-    const { data: appointment, error: appointmentError } = await supabase
-      .from("applicant_appointments")
-      .insert({
-        tenant_id: scope.tenantId,
+        applicant_id: applicantId,
         worker_id: worker.id,
-        slot_id: slot.id,
-        status: "confirmed",
-        meeting_type: meetingType,
-        confirmed_starts_at: startsAt.toISOString(),
-        confirmed_ends_at: endsAt.toISOString(),
+        title,
+        description: `${title} schedule with ${applicantDisplayName(worker.first_name, worker.last_name)}`,
+        scheduled_date: scheduleFields.scheduled_date,
+        start_time: scheduleFields.start_time,
+        end_time: scheduleFields.end_time,
+        timezone: scheduleFields.timezone,
+        status: "upcoming",
         meeting_link: body.meetingLink?.trim() || null,
-        location: body.location?.trim() || null,
-        confirmed_at: new Date().toISOString(),
+        notes: body.notes?.trim() || null,
+        created_by: auth.devBypass ? null : auth.userId,
       })
       .select(
-        "id, tenant_id, worker_id, slot_id, status, meeting_type, confirmed_starts_at, confirmed_ends_at, meeting_link, location, requested_at, updated_at"
+        "id, tenant_id, applicant_id, worker_id, title, description, scheduled_date, start_time, end_time, timezone, status, meeting_link, notes, created_at, updated_at"
       )
       .single();
 
-    if (appointmentError) throw appointmentError;
+    if (scheduleError) throw scheduleError;
 
-    const sequenceByAppointmentId = await loadSequenceMap(supabase, scope.tenantId, [worker.id]);
     const workersById = new Map<string, WorkerRow>([
       [
         worker.id,
@@ -330,10 +367,16 @@ export async function POST(req: NextRequest) {
       ],
     ]);
 
+    const applicantsById = new Map([
+      [applicantId, { full_name: applicantDisplayName(worker.first_name, worker.last_name), worker_id: worker.id }],
+    ]);
+
+    const updatedSequence = await loadSequenceMap(supabase, scope.tenantId, [applicantId]);
     const [interview] = buildInterviewItems(
-      [appointment as AppointmentRow],
+      [schedule as InterviewScheduleRow],
       workersById,
-      sequenceByAppointmentId
+      applicantsById,
+      updatedSequence
     );
 
     return NextResponse.json({ ok: true, interview });

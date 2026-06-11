@@ -320,7 +320,8 @@ export default function InterviewsPageClient() {
       if (!res.ok) throw new Error(data.error || "Failed to schedule interview");
       setScheduleOpen(false);
       setSuccessOpen(true);
-      await loadInterviews(tab);
+      setTab("upcoming");
+      await loadInterviews("upcoming");
     } catch (err) {
       setScheduleError(err instanceof Error ? err.message : "Failed to schedule interview");
     } finally {
