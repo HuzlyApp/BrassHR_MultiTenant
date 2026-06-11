@@ -7,15 +7,40 @@
  * Example (from Resend dashboard Received email ID):
  *   npx tsx scripts/sync-resend-inbound-email.ts 56761188-7520-42d8-8898-ff6fc54ce618
  */
-import { config } from "dotenv";
+import { readFileSync, existsSync } from "node:fs";
+import { resolve, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 import { Resend } from "resend";
 import { extractInboundEmailBody } from "../lib/communication/extract-inbound-body";
 import { recordInboundCandidateEmail } from "../lib/communication/inbound-email";
 import { createServiceRoleClient } from "../lib/supabase/service-role";
 
-config({ path: ".env" });
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const root = resolve(__dirname, "..");
+
+function loadEnvFile() {
+  const envPath = resolve(root, ".env");
+  if (!existsSync(envPath)) return;
+  for (const line of readFileSync(envPath, "utf8").split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    const eq = trimmed.indexOf("=");
+    if (eq <= 0) continue;
+    const key = trimmed.slice(0, eq).trim();
+    let val = trimmed.slice(eq + 1).trim();
+    if (
+      (val.startsWith('"') && val.endsWith('"')) ||
+      (val.startsWith("'") && val.endsWith("'"))
+    ) {
+      val = val.slice(1, -1);
+    }
+    if (process.env[key] === undefined) process.env[key] = val;
+  }
+}
 
 async function main() {
+  loadEnvFile();
+
   const emailId = process.argv[2]?.trim();
   if (!emailId) {
     console.error("Usage: npx tsx scripts/sync-resend-inbound-email.ts <resend-email-id>");
