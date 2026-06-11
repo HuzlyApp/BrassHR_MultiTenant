@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useParams, usePathname, useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import DetailedCandidateHeader from "../../../components/DetailedCandidateHeader";
 import DetailedTabs from "../../../components/DetailedTabs";
 import {
@@ -38,6 +38,7 @@ type ProfileApi = {
     ssn_back_url: string | null;
     drivers_license_url: string | null;
     drivers_license_back_url: string | null;
+    authorization_document_url: string | null;
   };
   signeasy: { document_name: string | null; document_id: string | null };
   zoho_sign: {
@@ -77,6 +78,12 @@ type ZohoRequestDetails = {
   actions: ZohoAction[];
   documents: ZohoDocument[];
   documents_count: number;
+};
+
+type UploadSlot = {
+  id: string;
+  documentField: string;
+  title: string;
 };
 
 function isUuid(value: string) {
@@ -135,62 +142,104 @@ export default function NewApplicantAuthorizationFilledPage() {
   const [zohoDetails, setZohoDetails] = useState<ZohoRequestDetails | null>(null);
   const [zohoError, setZohoError] = useState<string | null>(null);
   const [zohoLoading, setZohoLoading] = useState(false);
+  const [uploadingId, setUploadingId] = useState<string | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [pendingUploadSlot, setPendingUploadSlot] = useState<UploadSlot | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const fetchApplicant = useCallback(async () => {
+    if (!applicantId) return;
+    if (!isUuid(applicantId)) {
+      try {
+        const res = await fetch("/api/workers", { cache: "no-store" });
+        const json = (await res.json()) as
+          | { workers?: Array<{ id?: string | null }> }
+          | { error?: string };
+        const workers = Array.isArray((json as { workers?: unknown[] }).workers)
+          ? ((json as { workers: Array<{ id?: string | null }> }).workers ?? [])
+          : [];
+        const validWorkers = workers
+          .map((w) => (w?.id ? String(w.id).trim() : ""))
+          .filter((id) => isUuid(id));
+        const unique = Array.from(new Set(validWorkers));
+        if (unique.length === 1) {
+          router.replace(`/admin_recruiter/new/authorization/${unique[0]}`);
+          return;
+        }
+      } catch {
+        // no-op; explicit error shown below
+      }
+      setLoadError("Invalid workerId in URL. Open Authorization from a specific candidate record.");
+      setProfile(null);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const res = await fetch(
+        `/api/admin/worker-profile?workerId=${encodeURIComponent(applicantId)}`
+      );
+      const json = (await res.json()) as ProfileApi & { error?: string };
+      if (!res.ok) {
+        throw new Error(json.error || `Failed to load profile (${res.status})`);
+      }
+      setProfile(json);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (msg !== "Invalid workerId") {
+        console.error("Failed to fetch applicant for authorization:", msg, e);
+      }
+      setLoadError(msg);
+      setProfile(null);
+    } finally {
+      setLoading(false);
+    }
+  }, [applicantId, router]);
 
   useEffect(() => {
-    async function fetchApplicant() {
-      if (!applicantId) return;
-      if (!isUuid(applicantId)) {
-        try {
-          // Recovery path: if URL has a short/invalid ID but only one worker is available,
-          // redirect to the canonical worker UUID route.
-          const res = await fetch("/api/workers", { cache: "no-store" });
-          const json = (await res.json()) as
-            | { workers?: Array<{ id?: string | null }> }
-            | { error?: string };
-          const workers = Array.isArray((json as { workers?: unknown[] }).workers)
-            ? ((json as { workers: Array<{ id?: string | null }> }).workers ?? [])
-            : [];
-          const validWorkers = workers
-            .map((w) => (w?.id ? String(w.id).trim() : ""))
-            .filter((id) => isUuid(id));
-          const unique = Array.from(new Set(validWorkers));
-          if (unique.length === 1) {
-            router.replace(`/admin_recruiter/new/authorization/${unique[0]}`);
-            return;
-          }
-        } catch {
-          // no-op; explicit error shown below
-        }
-        setLoadError("Invalid workerId in URL. Open Authorization from a specific candidate record.");
-        setProfile(null);
-        setLoading(false);
-        return;
-      }
-      setLoading(true);
-      setLoadError(null);
-      try {
-        const res = await fetch(
-          `/api/admin/worker-profile?workerId=${encodeURIComponent(applicantId)}`
-        );
-        const json = (await res.json()) as ProfileApi & { error?: string };
-        if (!res.ok) {
-          throw new Error(json.error || `Failed to load profile (${res.status})`);
-        }
-        setProfile(json);
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
-        if (msg !== "Invalid workerId") {
-          console.error("Failed to fetch applicant for authorization:", msg, e);
-        }
-        setLoadError(msg);
-        setProfile(null);
-      } finally {
-        setLoading(false);
-      }
-    }
+    void fetchApplicant();
+  }, [fetchApplicant]);
 
-    fetchApplicant();
-  }, [applicantId]);
+  const openUploadPicker = (slot: UploadSlot) => {
+    setUploadError(null);
+    setPendingUploadSlot(slot);
+    fileInputRef.current?.click();
+  };
+
+  const handleFileSelected = async (file: File | undefined) => {
+    const slot = pendingUploadSlot;
+    setPendingUploadSlot(null);
+    if (!file || !slot || !applicantId) return;
+
+    setUploadingId(slot.id);
+    setUploadError(null);
+
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("workerId", applicantId);
+      fd.append("documentField", slot.documentField);
+      fd.append("documentTitle", slot.title);
+
+      const res = await fetch("/api/admin/worker-attachment-upload", {
+        method: "POST",
+        body: fd,
+      });
+      const json = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        throw new Error(json.error || "Upload failed");
+      }
+
+      await fetchApplicant();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Upload failed";
+      setUploadError(msg);
+    } finally {
+      setUploadingId(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
 
   const applicant = profile?.worker ?? null;
 
@@ -205,10 +254,15 @@ export default function NewApplicantAuthorizationFilledPage() {
   const zohoSign = profile?.zoho_sign;
   const du = profile?.document_urls;
 
-  const authHasPacket = Boolean(signeasy?.document_name?.trim() || zohoSign?.request_id);
+  const authUploadedUrl = du?.authorization_document_url?.trim() || null;
+  const authHasPacket = Boolean(
+    signeasy?.document_name?.trim() || zohoSign?.request_id || authUploadedUrl
+  );
   const authSigned = Boolean(zohoDetails?.is_completed || zohoSign?.status === "completed");
   const authFileLabel =
-    signeasy?.document_name?.trim() || "Authorization agreement (e-sign)";
+    signeasy?.document_name?.trim() ||
+    (authUploadedUrl ? fileLabelFromUrl(authUploadedUrl) : null) ||
+    "Authorization agreement (e-sign)";
   const requestStatus = zohoDetails?.request_status || zohoSign?.status || "unknown";
   const requestId = zohoSign?.request_id?.trim() || "";
   const defaultDocumentId = zohoDetails?.documents[0]?.document_id || zohoSign?.document_id || null;
@@ -423,6 +477,23 @@ export default function NewApplicantAuthorizationFilledPage() {
               </div>
             ) : null}
 
+            {uploadError ? (
+              <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+                {uploadError}
+              </div>
+            ) : null}
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              className="hidden"
+              accept=".pdf,.png,.jpg,.jpeg,.docx,application/pdf,image/png,image/jpeg"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                void handleFileSelected(file);
+              }}
+            />
+
             <DetailedCandidateHeader
               name={candidateName}
               role={candidateRole}
@@ -497,9 +568,17 @@ export default function NewApplicantAuthorizationFilledPage() {
                         <span className="text-xs text-[#6B7280]">No Document</span>
                         <button
                           type="button"
-                          className="inline-flex h-8 items-center justify-center rounded-md border border-[#99D8D3] px-4 text-xs font-semibold text-[#0D9488]"
+                          disabled={uploadingId === "auth"}
+                          onClick={() =>
+                            openUploadPicker({
+                              id: "auth",
+                              documentField: "authorization",
+                              title: "Authorization",
+                            })
+                          }
+                          className="inline-flex h-8 items-center justify-center rounded-md border border-[#99D8D3] px-4 text-xs font-semibold text-[#0D9488] disabled:opacity-50"
                         >
-                          Upload
+                          {uploadingId === "auth" ? "Uploading..." : "Upload"}
                         </button>
                       </div>
                     )}
@@ -507,8 +586,16 @@ export default function NewApplicantAuthorizationFilledPage() {
                     <div className="flex items-center gap-2">
                       <button
                         type="button"
-                        onClick={() => openZohoDocument("preview", defaultDocumentId)}
-                        disabled={!requestId}
+                        onClick={() => {
+                          if (requestId) {
+                            openZohoDocument("preview", defaultDocumentId);
+                            return;
+                          }
+                          if (authUploadedUrl) {
+                            window.open(authUploadedUrl, "_blank", "noopener,noreferrer");
+                          }
+                        }}
+                        disabled={!requestId && !authUploadedUrl}
                         className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-[#99D8D3] text-[#0D9488] disabled:opacity-40"
                         title="Preview authorization document"
                       >
@@ -516,8 +603,16 @@ export default function NewApplicantAuthorizationFilledPage() {
                       </button>
                       <button
                         type="button"
-                        onClick={() => openZohoDocument("download", defaultDocumentId)}
-                        disabled={!requestId}
+                        onClick={() => {
+                          if (requestId) {
+                            openZohoDocument("download", defaultDocumentId);
+                            return;
+                          }
+                          if (authUploadedUrl) {
+                            window.location.href = authUploadedUrl;
+                          }
+                        }}
+                        disabled={!requestId && !authUploadedUrl}
                         className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-[#99D8D3] text-[#0D9488] disabled:opacity-40"
                         title="Download authorization document"
                       >
@@ -616,9 +711,17 @@ export default function NewApplicantAuthorizationFilledPage() {
                               <span className="text-xs text-[#6B7280]">No Document</span>
                               <button
                                 type="button"
-                                className="inline-flex h-8 items-center justify-center rounded-md border border-[#99D8D3] px-4 text-xs font-semibold text-[#0D9488]"
+                                disabled={uploadingId === "employment"}
+                                onClick={() =>
+                                  openUploadPicker({
+                                    id: "employment",
+                                    documentField: "authorization",
+                                    title: "Employment Agreement",
+                                  })
+                                }
+                                className="inline-flex h-8 items-center justify-center rounded-md border border-[#99D8D3] px-4 text-xs font-semibold text-[#0D9488] disabled:opacity-50"
                               >
-                                Upload
+                                {uploadingId === "employment" ? "Uploading..." : "Upload"}
                               </button>
                             </div>
                           ) : (
@@ -653,9 +756,24 @@ export default function NewApplicantAuthorizationFilledPage() {
                                   </span>
                                   <button
                                     type="button"
-                                    className="inline-flex h-8 items-center justify-center rounded-md border border-[#99D8D3] bg-white px-4 text-xs font-semibold text-[#0D9488]"
+                                    disabled={uploadingId === `${d.id}-${slot.label}`}
+                                    onClick={() =>
+                                      openUploadPicker({
+                                        id: `${d.id}-${slot.label}`,
+                                        documentField:
+                                          d.id === "ssn"
+                                            ? slot.label === "Front"
+                                              ? "ssn_front"
+                                              : "ssn_back"
+                                            : slot.label === "Front"
+                                              ? "dl_front"
+                                              : "dl_back",
+                                        title: `${d.title} ${slot.label}`,
+                                      })
+                                    }
+                                    className="inline-flex h-8 items-center justify-center rounded-md border border-[#99D8D3] bg-white px-4 text-xs font-semibold text-[#0D9488] disabled:opacity-50"
                                   >
-                                    Upload
+                                    {uploadingId === `${d.id}-${slot.label}` ? "Uploading..." : "Upload"}
                                   </button>
                                 </div>
                               )

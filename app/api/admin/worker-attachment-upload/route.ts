@@ -32,17 +32,41 @@ type LegacyDocColumn =
   | "tb_test_url"
   | "cpr_certification_url"
   | "ssn_url"
+  | "ssn_back_url"
   | "drivers_license_url"
+  | "drivers_license_back_url"
+  | "document_url"
+
+const DOCUMENT_FIELD_ALIASES: Record<string, LegacyDocColumn> = {
+  authorization: "document_url",
+  ssn_front: "ssn_url",
+  ssn_back: "ssn_back_url",
+  dl_front: "drivers_license_url",
+  dl_back: "drivers_license_back_url",
+}
 
 function legacyColumnForTitle(title: string): LegacyDocColumn | null {
   const t = title.trim().toLowerCase()
+  if (t.includes("authorization") || t.includes("agreement") || t.includes("w-2") || t.includes("i-9")) {
+    return "document_url"
+  }
   if (t.includes("nursing") && t.includes("license")) return "nursing_license_url"
   if (t.includes("tb") || t.includes("tuberculosis")) return "tb_test_url"
   if (t.includes("cpr") || t.includes("bls")) return "cpr_certification_url"
-  if (t.includes("ssn") || t.includes("social security")) return "ssn_url"
-  if (t.includes("driver") && t.includes("license")) return "drivers_license_url"
+  if (t.includes("ssn") || t.includes("social security")) {
+    return t.includes("back") ? "ssn_back_url" : "ssn_url"
+  }
+  if (t.includes("driver") && t.includes("license")) {
+    return t.includes("back") ? "drivers_license_back_url" : "drivers_license_url"
+  }
   if (t.includes("license")) return "nursing_license_url"
   return null
+}
+
+function resolveDocumentField(raw: string, title: string): LegacyDocColumn | null {
+  const key = raw.trim().toLowerCase()
+  if (key && DOCUMENT_FIELD_ALIASES[key]) return DOCUMENT_FIELD_ALIASES[key]
+  return legacyColumnForTitle(title)
 }
 
 async function upsertLegacyWorkerDocumentUrl(
@@ -50,7 +74,8 @@ async function upsertLegacyWorkerDocumentUrl(
   workerId: string,
   tenantId: string,
   column: LegacyDocColumn,
-  publicUrl: string
+  publicUrl: string,
+  extra?: { document_name?: string }
 ): Promise<void> {
   const { data: existingRows, error: selErr } = await supabase
     .from("worker_documents")
@@ -67,6 +92,9 @@ async function upsertLegacyWorkerDocumentUrl(
     const updatePayload: Record<string, unknown> = {
       updated_at,
       [column]: publicUrl,
+      ...(column === "document_url" && extra?.document_name
+        ? { document_name: extra.document_name }
+        : {}),
     }
     const { error } = await supabase
       .from("worker_documents")
@@ -81,6 +109,9 @@ async function upsertLegacyWorkerDocumentUrl(
     worker_id: workerId,
     updated_at,
     [column]: publicUrl,
+    ...(column === "document_url" && extra?.document_name
+      ? { document_name: extra.document_name }
+      : {}),
   }
   const { error: insErr } = await supabase.from("worker_documents").insert(insertPayload)
   if (insErr) throw insErr
@@ -108,6 +139,7 @@ export async function POST(req: NextRequest) {
     const workerIdRaw = String(formData.get("workerId") ?? "").trim()
     const requiredDocumentId = String(formData.get("requiredDocumentId") ?? "").trim() || null
     const documentTitle = String(formData.get("documentTitle") ?? "").trim()
+    const documentFieldRaw = String(formData.get("documentField") ?? "").trim()
     const attachmentKind = String(formData.get("attachmentKind") ?? "").trim()
 
     if (!file) {
@@ -184,8 +216,51 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, path: objectPath, bucket: WORKER_RESUMES_BUCKET })
     }
 
+    const directDocumentField = resolveDocumentField(documentFieldRaw, documentTitle)
     if (!requiredDocumentId) {
-      return NextResponse.json({ error: "Missing requiredDocumentId" }, { status: 400 })
+      if (!directDocumentField) {
+        return NextResponse.json(
+          { error: "Missing requiredDocumentId or documentField" },
+          { status: 400 }
+        )
+      }
+
+      const mime = (file.type || "").toLowerCase()
+      if (file.size > MAX_DOC_BYTES) {
+        return NextResponse.json({ error: "File is too large" }, { status: 400 })
+      }
+      if (mime && !ALLOWED_DOC_MIME.has(mime)) {
+        return NextResponse.json({ error: "File type not allowed" }, { status: 400 })
+      }
+
+      const buffer = Buffer.from(await file.arrayBuffer())
+      const objectPath = `${tenantId}/${workerId}/admin/${directDocumentField}/${randomUUID()}-${sanitizeFileName(file.name)}`
+
+      const { error: uploadError } = await supabase.storage
+        .from(WORKER_REQUIRED_FILES_BUCKET)
+        .upload(objectPath, buffer, {
+          contentType: file.type || "application/octet-stream",
+          upsert: true,
+        })
+
+      if (uploadError) {
+        return NextResponse.json({ error: uploadError.message || "Upload failed" }, { status: 500 })
+      }
+
+      const { data: urlData } = supabase.storage
+        .from(WORKER_REQUIRED_FILES_BUCKET)
+        .getPublicUrl(objectPath)
+
+      await upsertLegacyWorkerDocumentUrl(
+        supabase,
+        workerId,
+        tenantId,
+        directDocumentField,
+        urlData.publicUrl,
+        directDocumentField === "document_url" ? { document_name: file.name } : undefined
+      )
+
+      return NextResponse.json({ ok: true, path: objectPath, bucket: WORKER_REQUIRED_FILES_BUCKET })
     }
 
     const mime = (file.type || "").toLowerCase()
@@ -266,7 +341,7 @@ export async function POST(req: NextRequest) {
     }
 
     const title = documentTitle || String(reqDoc.title ?? "")
-    const legacyColumn = legacyColumnForTitle(title)
+    const legacyColumn = resolveDocumentField(documentFieldRaw, title)
     if (legacyColumn) {
       const { data: urlData } = supabase.storage
         .from(WORKER_REQUIRED_FILES_BUCKET)
@@ -276,7 +351,8 @@ export async function POST(req: NextRequest) {
         workerId,
         tenantId,
         legacyColumn,
-        urlData.publicUrl
+        urlData.publicUrl,
+        legacyColumn === "document_url" ? { document_name: file.name } : undefined
       )
     }
 
