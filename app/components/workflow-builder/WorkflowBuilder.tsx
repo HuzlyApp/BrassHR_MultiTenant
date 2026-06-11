@@ -74,6 +74,8 @@ export type WorkflowBuilderProps = {
   resetKey?: string;
   /** Hides top builder header + toolbar strip (used under recruiter dashboard tabs). */
   hideTopChrome?: boolean;
+  /** Fills parent flex container instead of fixed embedded height. */
+  fillParent?: boolean;
 };
 
 export default function WorkflowBuilder(props: WorkflowBuilderProps) {
@@ -106,6 +108,7 @@ function WorkflowBuilderInner({
   toolbarData,
   resetKey,
   hideTopChrome = false,
+  fillParent = false,
 }: WorkflowBuilderProps) {
   const hydratedInitial = useMemo(
     () => withLeafDropZones(initialNodes, initialEdges),
@@ -194,7 +197,11 @@ function WorkflowBuilderInner({
   return (
     <div
       className={`flex w-full flex-col overflow-hidden ${
-        embedded ? "h-[min(780px,calc(100vh-220px))] min-h-[560px] rounded-2xl border" : "h-screen"
+        fillParent
+          ? "h-full min-h-0"
+          : embedded
+            ? "h-[min(780px,calc(100vh-220px))] min-h-[560px] rounded-2xl border"
+            : "h-screen"
       }`}
       style={{ backgroundColor: PAGE_BG, ...(embedded ? { borderColor: CARD_BORDER } : {}) }}
     >

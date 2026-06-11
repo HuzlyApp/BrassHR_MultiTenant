@@ -1,13 +1,7 @@
 "use client";
 
-import { OnboardingBuilderPage } from "@/app/braas-hr/dashboard/onboarding-builder/page";
+import TenantOnboardingWorkflowBuilder from "@/app/components/onboarding/TenantOnboardingWorkflowBuilder";
 
 export default function AdminRecruiterOnboardingBuilderPage() {
-  return (
-    <OnboardingBuilderPage
-      dashboardBasePath="/admin_recruiter/dashboard"
-      redirectLegacyPath={false}
-      hideTopChrome
-    />
-  );
+  return <TenantOnboardingWorkflowBuilder variant="dashboard" />;
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { Edge, Node } from "@xyflow/react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
@@ -107,7 +107,15 @@ async function loadBuilderData(): Promise<BuilderQueryData> {
   };
 }
 
-export default function TenantOnboardingWorkflowBuilder() {
+export type TenantOnboardingWorkflowBuilderProps = {
+  /** Settings uses a compact card; dashboard fills the workspace below sub-nav. */
+  variant?: "settings" | "dashboard";
+};
+
+export default function TenantOnboardingWorkflowBuilder({
+  variant = "settings",
+}: TenantOnboardingWorkflowBuilderProps = {}) {
+  const isDashboard = variant === "dashboard";
   const queryClient = useQueryClient();
   const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const skipNextChange = useRef(true);
@@ -325,25 +333,22 @@ export default function TenantOnboardingWorkflowBuilder() {
   const error = localError ?? (queryError instanceof Error ? queryError.message : null);
   const hasLoadedBuilder = initialNodes.length > 0 || initialEdges.length > 0 || Boolean(tenantId);
 
-  if (isLoading && !hasLoadedBuilder) {
-    return (
-      <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-500">
-        Loading onboarding builder...
-      </div>
-    );
-  }
+  const loadingState = (
+    <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-500">
+      Loading onboarding builder...
+    </div>
+  );
 
-  if (error && /tenant/i.test(error)) {
-    return (
+  const tenantErrorState =
+    error && /tenant/i.test(error) ? (
       <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
         <p className="font-semibold">Select a tenant</p>
         <p className="mt-1">{error}</p>
       </div>
-    );
-  }
+    ) : null;
 
-  if (error && /staff role required/i.test(error)) {
-    return (
+  const authErrorState =
+    error && /staff role required/i.test(error) ? (
       <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
         <p className="font-semibold">Recruiter sign-in required</p>
         <p className="mt-1">
@@ -353,11 +358,10 @@ export default function TenantOnboardingWorkflowBuilder() {
           </a>
         </p>
       </div>
-    );
-  }
+    ) : null;
 
-  if (error) {
-    return (
+  const genericErrorState =
+    error && !tenantErrorState && !authErrorState ? (
       <div className="space-y-3">
         <p className="text-sm text-red-700">{error}</p>
         <button
@@ -368,13 +372,44 @@ export default function TenantOnboardingWorkflowBuilder() {
           Retry
         </button>
       </div>
+    ) : null;
+
+  if (isLoading && !hasLoadedBuilder) {
+    return isDashboard ? (
+      <DashboardBuilderShell>{loadingState}</DashboardBuilderShell>
+    ) : (
+      loadingState
+    );
+  }
+
+  if (tenantErrorState) {
+    return isDashboard ? (
+      <DashboardBuilderShell>{tenantErrorState}</DashboardBuilderShell>
+    ) : (
+      tenantErrorState
+    );
+  }
+
+  if (authErrorState) {
+    return isDashboard ? (
+      <DashboardBuilderShell>{authErrorState}</DashboardBuilderShell>
+    ) : (
+      authErrorState
+    );
+  }
+
+  if (genericErrorState) {
+    return isDashboard ? (
+      <DashboardBuilderShell>{genericErrorState}</DashboardBuilderShell>
+    ) : (
+      genericErrorState
     );
   }
 
   const isDraft = publishStatus === "draft";
 
-  return (
-    <div className="space-y-3">
+  const builderContent = (
+    <div className={`space-y-3 ${isDashboard ? "flex h-full min-h-0 flex-col" : ""}`}>
       {isDraft ? (
         <div
           className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950"
@@ -403,25 +438,52 @@ export default function TenantOnboardingWorkflowBuilder() {
         </span>
       </div>
 
-      <WorkflowBuilder
-        embedded
-        resetKey={activeFlowKey ?? undefined}
-        title={flowTitle}
-        subtitle="Applicant onboarding flow"
-        productName="Onboarding Builder"
-        brandName={tenantName}
-        stepLibrary={stepLibrary}
-        initialNodes={initialNodes}
-        initialEdges={initialEdges}
-        publishStatusLabel={publishStatus === "published" ? "Published" : "Draft"}
-        toolbarData={toolbarData}
-        onChange={handleDraftChange}
-        onSaveAsTemplate={(state) => void persist(state, { template: true })}
-        onPreview={handlePreview}
-        onPublish={(state) => void persist(state, { publish: true })}
-        onExportPDF={() => toast("Export PDF coming soon")}
-        onAddTrigger={() => toast("Triggers are not configured yet")}
-      />
+      <div className={isDashboard ? "min-h-0 flex-1" : undefined}>
+        <WorkflowBuilder
+          embedded
+          fillParent={isDashboard}
+          resetKey={activeFlowKey ?? undefined}
+          title={flowTitle}
+          subtitle="Applicant onboarding flow"
+          productName="Onboarding Builder"
+          brandName={tenantName}
+          stepLibrary={stepLibrary}
+          initialNodes={initialNodes}
+          initialEdges={initialEdges}
+          publishStatusLabel={publishStatus === "published" ? "Published" : "Draft"}
+          toolbarData={toolbarData}
+          onChange={handleDraftChange}
+          onSaveAsTemplate={(state) => void persist(state, { template: true })}
+          onPreview={handlePreview}
+          onPublish={(state) => void persist(state, { publish: true })}
+          onExportPDF={() => toast("Export PDF coming soon")}
+          onAddTrigger={() => toast("Triggers are not configured yet")}
+        />
+      </div>
     </div>
+  );
+
+  if (isDashboard) {
+    return <DashboardBuilderShell>{builderContent}</DashboardBuilderShell>;
+  }
+
+  return builderContent;
+}
+
+function DashboardBuilderShell({ children }: { children: ReactNode }) {
+  return (
+    <main
+      className="mx-auto flex max-w-[1400px] flex-col px-4 py-4 sm:px-6 sm:py-6"
+      style={{ height: "calc(100vh - 64px - 62px)" }}
+    >
+      <div className="shrink-0">
+        <h1 className="text-xl font-semibold text-[#0F172A]">Onboarding Builder</h1>
+        <p className="mt-2 max-w-2xl text-sm text-[#64748B]">
+          Configure worker onboarding for the active tenant. Use the header tenant switcher to edit
+          another organization — each tenant has its own flow.
+        </p>
+      </div>
+      <div className="mt-4 min-h-0 flex-1">{children}</div>
+    </main>
   );
 }

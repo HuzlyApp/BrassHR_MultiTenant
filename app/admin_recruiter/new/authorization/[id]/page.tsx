@@ -402,7 +402,7 @@ export default function NewApplicantAuthorizationFilledPage() {
             ].map((item) => {
               const Icon = item.icon;
               const isActive = pathname === item.href;
-              return (
+                return (
                 <Link
                   key={`${item.href}-${item.label}`}
                   href={item.href}
