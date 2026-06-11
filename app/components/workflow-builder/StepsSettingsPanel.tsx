@@ -3,8 +3,8 @@
 import { ChevronDown } from "lucide-react";
 import type { Node } from "@xyflow/react";
 import {
+  BRAND_CTA_GRADIENT,
   CARD_BORDER,
-  GOLD_GRADIENT,
   TEXT_PRIMARY,
   TEXT_SECONDARY,
 } from "./constants";
@@ -187,7 +187,7 @@ function SettingsBody({ node, onUpdate, onSaveStep, onCloneWorkflow }: SettingsB
           type="button"
           onClick={() => onSaveStep?.(node.id)}
           className="h-10 w-full rounded-lg text-sm font-semibold text-white transition hover:brightness-[0.97]"
-          style={{ background: GOLD_GRADIENT }}
+          style={{ background: BRAND_CTA_GRADIENT }}
         >
           Save Step
         </button>

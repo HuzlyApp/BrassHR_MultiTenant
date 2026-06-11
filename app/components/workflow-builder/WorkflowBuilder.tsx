@@ -29,8 +29,8 @@ import StepsCanvas from "./StepsCanvas";
 import StepsLibrary from "./StepsLibrary";
 import StepsSettingsPanel from "./StepsSettingsPanel";
 import {
+  BRAND_CTA_GRADIENT,
   CARD_BORDER,
-  GOLD_GRADIENT,
   PAGE_BG,
   TEXT_MUTED,
   TEXT_PRIMARY,
@@ -206,7 +206,7 @@ function WorkflowBuilderInner({
         <div className="flex items-center gap-3">
           <div
             className="flex h-10 w-10 items-center justify-center rounded-lg"
-            style={{ background: GOLD_GRADIENT }}
+            style={{ background: BRAND_CTA_GRADIENT }}
           >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
               <path
@@ -472,7 +472,7 @@ function WorkflowBuilderInner({
                 type="button"
                 onClick={() => onPublish?.(currentState)}
                 className="h-10 shrink-0 whitespace-nowrap rounded-lg px-4 text-sm font-semibold text-white transition hover:brightness-[0.97]"
-                style={{ background: GOLD_GRADIENT }}
+                style={{ background: BRAND_CTA_GRADIENT }}
               >
                 Publish to All
               </button>

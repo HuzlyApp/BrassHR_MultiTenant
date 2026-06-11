@@ -31,7 +31,11 @@ export function renderListCell(
           >
             {initialsFromName(c.name || "NA")}
           </div>
-          <div className="text-sm font-medium text-black truncate">{c.name || "—"}</div>
+          <div className="min-w-0">
+            <div className="text-sm font-medium text-black truncate">{c.name || "—"}</div>
+            <div className="text-xs text-[#4B5563] truncate">{c.email || "—"}</div>
+          </div>
+          
           <div className="ml-auto flex shrink-0 items-center gap-2">
             <BrandedSvgIcon src="/icons/admin-recruiter/save.svg" className="h-4 w-4" color={BRAND_ICON} />
             <BrandedSvgIcon src="/icons/admin-recruiter/eye.svg" className="h-4 w-4" color={BRAND_ICON} />
@@ -42,7 +46,7 @@ export function renderListCell(
       return (
         <div className="flex w-full justify-center">
           <span
-            className={`inline-flex items-center rounded-md px-2.5 py-0.5 text-sm font-medium ${candidateStatusBadgeClassName(c.status)}`}
+            className={`inline-flex items-center rounded-xl px-2.5 py-0.5 text-sm font-medium ${candidateStatusBadgeClassName(c.status)}`}
           >
             {c.status}
           </span>

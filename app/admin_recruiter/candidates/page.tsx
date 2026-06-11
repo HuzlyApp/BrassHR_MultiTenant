@@ -575,7 +575,7 @@ export default function CandidatesPage() {
                               <span>{formatDateTime(c.createdAt)}</span>
                             </div>
                             <span
-                              className={`inline-flex items-center px-2 py-0.5 rounded-sm text-[10px] font-semibold ${candidateStatusBadgeClassName(c.status)}`}
+                              className={`inline-flex items-center px-2 py-0.5 rounded-xl text-[10px] font-semibold ${candidateStatusBadgeClassName(c.status)}`}
                             >
                               {c.status}
                             </span>

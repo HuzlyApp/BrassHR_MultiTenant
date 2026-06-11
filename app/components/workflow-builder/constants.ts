@@ -14,6 +14,9 @@ export const TEXT_PRIMARY = "#101828";
 export const TEXT_SECONDARY = "#667085";
 export const TEXT_MUTED = "#98a2b3";
 export const GOLD_GRADIENT = "linear-gradient(90deg, #BC8B41 0%, #E9B771 100%)";
+/** Tenant-aware CTA gradient — same angle as GOLD_GRADIENT. */
+export const BRAND_CTA_GRADIENT =
+  "linear-gradient(90deg, var(--brand-primary) 0%, var(--brand-accent) 100%)";
 
 export const STEP_COLORS: Record<
   StepColorKey,
