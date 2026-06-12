@@ -9,6 +9,7 @@ const TEXT_SECONDARY = "#667085";
 type TemplateCreateSuccessModalProps = {
   open: boolean;
   templateName: string;
+  templateId?: string | null;
   onClose: () => void;
 };
 
@@ -34,6 +35,7 @@ function SuccessCheckIcon() {
 export default function TemplateCreateSuccessModal({
   open,
   templateName,
+  templateId,
   onClose,
 }: TemplateCreateSuccessModalProps) {
   useEffect(() => {
@@ -52,6 +54,9 @@ export default function TemplateCreateSuccessModal({
   if (!open) return null;
 
   const displayName = templateName.trim() || "Template";
+  const builderHref = templateId
+    ? `/admin_recruiter/dashboard/onboarding-builder?template=${templateId}`
+    : "/admin_recruiter/dashboard/onboarding-builder";
 
   return (
     <div
@@ -96,7 +101,7 @@ export default function TemplateCreateSuccessModal({
           </p>
 
           <Link
-            href="/admin_recruiter/dashboard/onboarding-flows"
+            href={builderHref}
             onClick={onClose}
             className="mt-8 flex h-11 w-full items-center justify-center rounded-lg text-sm font-semibold text-white transition hover:brightness-[0.97]"
             style={{
@@ -104,7 +109,7 @@ export default function TemplateCreateSuccessModal({
                 "linear-gradient(90deg, var(--brand-primary) 0%, color-mix(in srgb, var(--brand-primary) 70%, white) 100%)",
             }}
           >
-            Go to flow
+            Open builder
           </Link>
         </div>
       </div>

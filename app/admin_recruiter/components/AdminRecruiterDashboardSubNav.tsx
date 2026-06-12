@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useWorkflowBuilderHeaderChrome } from "@/app/admin_recruiter/components/WorkflowBuilderHeaderBar";
 
 const DASHBOARD_BASE = "/admin_recruiter/dashboard";
 
@@ -26,61 +27,65 @@ function getActiveTab(pathname: string): WorkflowTab | null {
 }
 
 function tabClass(active: boolean): string {
+  const base =
+    "inline-flex h-full items-center border-b-2 px-0.5 text-sm font-medium leading-5 transition-colors";
   return active
-    ? "cursor-pointer border-b-2 border-[color:var(--brand-primary)] pb-1 text-[color:var(--brand-primary)]"
-    : "cursor-pointer text-[#012352] transition-colors hover:text-[color:var(--brand-primary)]";
+    ? `${base} border-[color:var(--brand-primary)] text-[color:var(--brand-primary)]`
+    : `${base} border-transparent text-[#012352] hover:text-[color:var(--brand-primary)]`;
 }
+
+const TAB_LINKS: Array<{ id: WorkflowTab; href: string; label: string }> = [
+  { id: "builder", href: `${DASHBOARD_BASE}/onboarding-builder`, label: "Builder" },
+  { id: "templates", href: `${DASHBOARD_BASE}/templates`, label: "Templates" },
+  { id: "my-flows", href: `${DASHBOARD_BASE}/onboarding-flows`, label: "My Flows" },
+  { id: "library", href: `${DASHBOARD_BASE}/workflowlibrary`, label: "Library" },
+];
 
 export function AdminRecruiterDashboardSubNav() {
   const pathname = usePathname() ?? "";
+  const { banner, center, right } = useWorkflowBuilderHeaderChrome();
 
   if (!isDashboardWorkflowRoute(pathname)) {
     return null;
   }
 
   const activeTab = getActiveTab(pathname);
-  const showBreadcrumb =
-    pathname.startsWith(`${DASHBOARD_BASE}/onboarding-builder`) ||
-    pathname.startsWith(`${DASHBOARD_BASE}/templates`) ||
-    pathname.startsWith(`${DASHBOARD_BASE}/workflowlibrary`) ||
-    pathname.startsWith(`${DASHBOARD_BASE}/onboarding-flows`);
-
-  const breadcrumbCurrent = pathname.startsWith(`${DASHBOARD_BASE}/onboarding-builder`)
-    ? "Onboarding Builder"
-    : pathname.startsWith(`${DASHBOARD_BASE}/onboarding-flows`)
-      ? "Onboarding Flows"
-      : "Workflow Library";
 
   return (
     <nav
-      className="sticky top-[64px] z-30 flex h-[62px] w-full items-center justify-between border-b border-[#E4E7EC] bg-white px-5 lg:px-8"
+      className="sticky top-[64px] z-30 w-full border-b border-[#E4E7EC] bg-white"
       aria-label="Workflow dashboard navigation"
     >
-      {showBreadcrumb ? (
-        <div className="flex min-w-0 items-center gap-1.5 text-[13px] leading-5 text-[#667085]">
-          <Link href={DASHBOARD_BASE} className="hover:text-[#344054]">
-            Dashboard
-          </Link>
-          <span aria-hidden>&gt;</span>
-          <span className="truncate text-[#344054]">{breadcrumbCurrent}</span>
+      {banner ? (
+        <div
+          className="border-b px-5 py-2 lg:px-8"
+          style={{
+            borderColor: "#E4E7EC",
+            backgroundColor: "color-mix(in srgb, var(--brand-primary) 6%, white)",
+          }}
+        >
+          {banner}
         </div>
-      ) : (
-        <span className="sr-only">Dashboard workflow navigation</span>
-      )}
+      ) : null}
 
-      <div className="ml-auto flex flex-wrap items-center gap-6 text-sm">
-        <Link href={`${DASHBOARD_BASE}/onboarding-builder`} className={tabClass(activeTab === "builder")}>
-          Builder
-        </Link>
-        <Link href={`${DASHBOARD_BASE}/templates`} className={tabClass(activeTab === "templates")}>
-          Templates
-        </Link>
-        <Link href={`${DASHBOARD_BASE}/onboarding-flows`} className={tabClass(activeTab === "my-flows")}>
-          My Flows
-        </Link>
-        <Link href={`${DASHBOARD_BASE}/workflowlibrary`} className={tabClass(activeTab === "library")}>
-          Library
-        </Link>
+      <div className="flex h-[56px] items-center gap-3 px-5 lg:gap-4 lg:px-8">
+        <div className="flex h-full shrink-0 items-stretch gap-5 sm:gap-6">
+          {TAB_LINKS.map((tab) => (
+            <Link
+              key={tab.id}
+              href={tab.href}
+              className={tabClass(activeTab === tab.id)}
+            >
+              {tab.label}
+            </Link>
+          ))}
+        </div>
+
+        <div className="flex min-w-0 flex-1 items-center justify-center px-2">
+          {center ?? null}
+        </div>
+
+        <div className="flex shrink-0 items-center justify-end">{right ?? null}</div>
       </div>
     </nav>
   );

@@ -1,32 +1,30 @@
 "use client";
 
-import Image from "next/image";
-import { useState } from "react";
+import Link from "next/link";
+import { useCallback, useEffect, useState } from "react";
+import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
 import CreateTemplateModal, {
   type CreateTemplatePayload,
 } from "@/app/admin_recruiter/components/CreateTemplateModal";
 import TemplateCreateSuccessModal from "@/app/admin_recruiter/components/TemplateCreateSuccessModal";
+import { supabaseBrowser } from "@/lib/supabase-browser";
 
 const PAGE_BG = "#f8f8f8";
 const CARD_BORDER = "#eaecf0";
 const TEXT_PRIMARY = "#101828";
-const TEXT_SECONDARY = "#667085";
-const ICON_BOX_BG = "#f2f4f7";
 
 type TemplateItem = {
   id: string;
   name: string;
 };
 
-const INITIAL_PRESETS: TemplateItem[] = [
-  { id: "onboarding-1", name: "Onboarding 1.tpl" },
-  { id: "onboarding-2", name: "Onboarding 2.tpl" },
-];
-
-const INITIAL_SAVED_TEMPLATES: TemplateItem[] = [
-  { id: "post-offer", name: "Post-Offer.tpl" },
-  { id: "final-offer", name: "Final Offer.tpl" },
-];
+async function staffAuthHeaders(): Promise<HeadersInit> {
+  const {
+    data: { session },
+  } = await supabaseBrowser.auth.getSession();
+  const token = session?.access_token;
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
 
 function CreateTemplateIcon() {
   return (
@@ -38,71 +36,37 @@ function CreateTemplateIcon() {
 }
 
 function TemplateCard({ item }: { item: TemplateItem }) {
+  const editHref = `/admin_recruiter/dashboard/onboarding-builder?template=${item.id}`;
+  const displayName = item.name.replace(/\.tpl$/i, "");
+
   return (
-    <article
-      className="group relative flex min-h-[96px] items-center gap-4 rounded-xl border bg-white px-4 py-3 transition-colors"
+    <Link
+      href={editHref}
+      className="group relative flex min-h-[96px] items-center gap-4 rounded-xl border bg-white px-4 py-3 transition-colors hover:border-[color:var(--brand-primary)]"
       style={{ borderColor: CARD_BORDER }}
+      aria-label={`Edit ${displayName}`}
     >
       <div
         className="flex h-[40px] w-[40px] shrink-0 items-center justify-center rounded-lg"
-        style={{ backgroundColor: ICON_BOX_BG }}
+        style={{ backgroundColor: "color-mix(in srgb, var(--brand-primary) 12%, white)" }}
       >
-        <Image src="/icons/template-icon.svg" alt="" width={24} height={24} className="h-6 w-6" aria-hidden />
+        <BrandedSvgIcon
+          src="/icons/template-icon.svg"
+          className="h-6 w-6"
+          color="var(--brand-primary)"
+        />
       </div>
-      <h3 className="pr-[120px] text-[15px] font-semibold leading-6" style={{ color: TEXT_PRIMARY }}>
-        {item.name}
+      <h3 className="pr-12 text-[15px] font-semibold leading-6" style={{ color: TEXT_PRIMARY }}>
+        {displayName}
       </h3>
-      <div className="absolute right-4 top-1/2 flex -translate-y-1/2 items-center gap-1.5 opacity-0 transition-opacity group-hover:opacity-100">
-        <button
-          type="button"
-          aria-label={`Template details for ${item.name}`}
-          className="rounded-md p-0.5"
-        >
-          <Image
-            src="/icons/template-icons/codicon_notebook-template.svg"
-            alt=""
-            width={16}
-            height={16}
-            className="h-4 w-4"
-            aria-hidden
-          />
-        </button>
-        <button type="button" aria-label={`Preview ${item.name}`} className="rounded-md p-0.5">
-          <Image
-            src="/icons/template-icons/eye.svg"
-            alt=""
-            width={16}
-            height={16}
-            className="h-4 w-4"
-            aria-hidden
-          />
-        </button>
-        <button type="button" aria-label={`Edit ${item.name}`} className="rounded-md p-0.5">
-          <Image
-            src="/icons/template-icons/pencil.svg"
-            alt=""
-            width={16}
-            height={16}
-            className="h-4 w-4"
-            aria-hidden
-          />
-        </button>
-        <button type="button" aria-label={`More actions for ${item.name}`} className="rounded-md p-0.5">
-          <Image
-            src="/icons/template-icons/dots-vertical.svg"
-            alt=""
-            width={16}
-            height={16}
-            className="h-4 w-4"
-            aria-hidden
-          />
-        </button>
-      </div>
-      <span
-        className="pointer-events-none absolute inset-0 rounded-xl border border-transparent transition-colors group-hover:border-[color:var(--brand-primary)]"
-        aria-hidden
-      />
-    </article>
+      <span className="absolute right-4 top-1/2 flex -translate-y-1/2 items-center opacity-0 transition-opacity group-hover:opacity-100">
+        <BrandedSvgIcon
+          src="/icons/template-icons/pencil.svg"
+          className="h-4 w-4"
+          color="var(--brand-primary)"
+        />
+      </span>
+    </Link>
   );
 }
 
@@ -110,32 +74,87 @@ export default function AdminRecruiterTemplatesPage() {
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [successModalOpen, setSuccessModalOpen] = useState(false);
   const [createdTemplateName, setCreatedTemplateName] = useState("");
-  const [presets, setPresets] = useState<TemplateItem[]>(INITIAL_PRESETS);
-  const [savedTemplates, setSavedTemplates] = useState<TemplateItem[]>(INITIAL_SAVED_TEMPLATES);
+  const [createdTemplateId, setCreatedTemplateId] = useState<string | null>(null);
+  const [presets, setPresets] = useState<TemplateItem[]>([]);
+  const [savedTemplates, setSavedTemplates] = useState<TemplateItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
 
-  const handleCreateTemplate = (payload: CreateTemplatePayload) => {
-    const normalizedName = payload.name.endsWith(".tpl") ? payload.name : `${payload.name}.tpl`;
-    const created: TemplateItem = {
-      id: `template-${Date.now()}`,
-      name: normalizedName,
-    };
-
-    if (payload.folder === "presets") {
-      setPresets((prev) => [created, ...prev]);
-    } else {
-      setSavedTemplates((prev) => [created, ...prev]);
+  const loadTemplates = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/admin/workflow-templates", {
+        headers: await staffAuthHeaders(),
+      });
+      const data = (await res.json()) as {
+        presets?: TemplateItem[];
+        savedTemplates?: TemplateItem[];
+        error?: string;
+      };
+      if (!res.ok) throw new Error(data.error || "Failed to load templates");
+      setPresets(data.presets ?? []);
+      setSavedTemplates(data.savedTemplates ?? []);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to load templates");
+      setPresets([]);
+      setSavedTemplates([]);
+    } finally {
+      setLoading(false);
     }
-    setCreatedTemplateName(normalizedName);
-    setSuccessModalOpen(true);
+  }, []);
+
+  useEffect(() => {
+    void loadTemplates();
+  }, [loadTemplates]);
+
+  const handleCreateTemplate = async (payload: CreateTemplatePayload) => {
+    setCreating(true);
+    setCreateError(null);
+    try {
+      const res = await fetch("/api/admin/workflow-templates", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(await staffAuthHeaders()),
+        },
+        body: JSON.stringify({
+          name: payload.name,
+          folder: payload.folder,
+          flowName: payload.name.replace(/\.tpl$/i, ""),
+          builderDraft: { nodes: [], edges: [] },
+        }),
+      });
+      const data = (await res.json()) as { template?: TemplateItem; error?: string };
+      if (!res.ok) throw new Error(data.error || "Failed to create template");
+
+      const created = data.template;
+      if (!created?.id) throw new Error("Template was not created");
+
+      setCreatedTemplateName(created.name);
+      setCreatedTemplateId(created.id);
+      setCreateModalOpen(false);
+      setSuccessModalOpen(true);
+      await loadTemplates();
+    } catch (e) {
+      setCreateError(e instanceof Error ? e.message : "Failed to create template");
+    } finally {
+      setCreating(false);
+    }
   };
+
+  const folderOptions = [
+    { id: "presets" as const, label: "Presets", count: presets.length },
+    { id: "saved-templates" as const, label: "Saved Templates", count: savedTemplates.length },
+  ];
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: PAGE_BG }}>
       <div className="mx-auto w-full max-w-[1280px] px-5 py-6 lg:px-8">
         <header className="mb-8">
-          <h1 className="text-[30px] font-semibold leading-[36px] text-[#000000]">
-            My Templates
-          </h1>
+          <h1 className="text-[30px] font-semibold leading-[36px] text-[#000000]">My Templates</h1>
           <p className="mt-3 text-[16px] font-normal leading-6 text-[#374151]">
             Manage Workflow Templates
           </p>
@@ -145,9 +164,16 @@ export default function AdminRecruiterTemplatesPage() {
           <div className="flex items-center justify-end border-b px-4 py-3" style={{ borderColor: CARD_BORDER }}>
             <button
               type="button"
-              onClick={() => setCreateModalOpen(true)}
-              className="inline-flex h-10 items-center gap-2 rounded-lg px-4 text-sm font-semibold text-white transition hover:brightness-[0.97]"
-              style={{ background: "linear-gradient(180deg, #012352 0%, #000C1D 100%)" }}
+              onClick={() => {
+                setCreateError(null);
+                setCreateModalOpen(true);
+              }}
+              disabled={creating}
+              className="inline-flex h-10 items-center gap-2 rounded-lg px-4 text-sm font-semibold text-white transition hover:brightness-[0.97] disabled:opacity-60"
+              style={{
+                background:
+                  "linear-gradient(90deg, var(--brand-primary) 0%, color-mix(in srgb, var(--brand-primary) 70%, white) 100%)",
+              }}
             >
               <CreateTemplateIcon />
               Create new template
@@ -155,40 +181,68 @@ export default function AdminRecruiterTemplatesPage() {
           </div>
 
           <div className="space-y-8 p-4 sm:p-5">
-            <div>
-              <h2 className="mb-4 text-xl font-semibold leading-7" style={{ color: TEXT_PRIMARY }}>
-                Presets
-              </h2>
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                {presets.map((template) => (
-                  <TemplateCard key={template.id} item={template} />
-                ))}
+            {error ? (
+              <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                {error}
               </div>
-            </div>
+            ) : null}
 
-            <hr className="border-0 border-t" style={{ borderColor: CARD_BORDER }} />
+            {loading ? (
+              <p className="py-8 text-center text-sm text-[#667085]">Loading templates…</p>
+            ) : (
+              <>
+                <div>
+                  <h2 className="mb-4 text-xl font-semibold leading-7" style={{ color: TEXT_PRIMARY }}>
+                    Presets
+                  </h2>
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    {presets.length === 0 ? (
+                      <p className="text-sm text-[#667085]">No presets yet.</p>
+                    ) : (
+                      presets.map((template) => <TemplateCard key={template.id} item={template} />)
+                    )}
+                  </div>
+                </div>
 
-            <div>
-              <h2 className="mb-4 text-xl font-semibold leading-7" style={{ color: TEXT_PRIMARY }}>
-                Saved Templates
-              </h2>
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                {savedTemplates.map((template) => (
-                  <TemplateCard key={template.id} item={template} />
-                ))}
-              </div>
-            </div>
+                <hr className="border-0 border-t" style={{ borderColor: CARD_BORDER }} />
+
+                <div>
+                  <h2 className="mb-4 text-xl font-semibold leading-7" style={{ color: TEXT_PRIMARY }}>
+                    Saved Templates
+                  </h2>
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    {savedTemplates.length === 0 ? (
+                      <p className="text-sm text-[#667085]">
+                        No saved templates yet. Save from the builder to see them here.
+                      </p>
+                    ) : (
+                      savedTemplates.map((template) => (
+                        <TemplateCard key={template.id} item={template} />
+                      ))
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         </section>
 
         <CreateTemplateModal
           open={createModalOpen}
-          onClose={() => setCreateModalOpen(false)}
+          onClose={() => {
+            if (creating) return;
+            setCreateModalOpen(false);
+            setCreateError(null);
+          }}
           onCreate={handleCreateTemplate}
+          folderOptions={folderOptions}
+          creating={creating}
+          error={createError}
         />
         <TemplateCreateSuccessModal
           open={successModalOpen}
-          templateName={createdTemplateName || "Template Pre-Offer"}
+          templateName={createdTemplateName || "Template"}
+          templateId={createdTemplateId}
           onClose={() => setSuccessModalOpen(false)}
         />
       </div>

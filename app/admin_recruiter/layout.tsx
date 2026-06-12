@@ -12,6 +12,7 @@ import {
 } from "./components/AdminRecruiterSidebar";
 import { AdminRecruiterHeader } from "./components/AdminRecruiterHeader";
 import { AdminRecruiterDashboardSubNav } from "./components/AdminRecruiterDashboardSubNav";
+import { WorkflowDashboardHeaderProvider } from "./components/WorkflowDashboardHeaderContext";
 import GodAdminImpersonationBanner from "./components/GodAdminImpersonationBanner";
 import "./layout.css";
 
@@ -75,8 +76,10 @@ export default function AdminRecruiterLayout({ children }: { children: ReactNode
             sidebarCollapsed={sidebarCollapsed}
             onSidebarToggle={toggleSidebarCollapsed}
           />
-          <AdminRecruiterDashboardSubNav />
-          {children}
+          <WorkflowDashboardHeaderProvider>
+            <AdminRecruiterDashboardSubNav />
+            {children}
+          </WorkflowDashboardHeaderProvider>
         </div>
       </div>
       </AccountDataProvider>

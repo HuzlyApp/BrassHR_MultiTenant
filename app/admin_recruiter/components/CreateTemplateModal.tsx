@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useMemo, useRef, useState, type FormEvent } from "react";
+import { Loader2 } from "lucide-react";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 
 type TemplateFolder = "presets" | "saved-templates";
@@ -10,10 +11,19 @@ export type CreateTemplatePayload = {
   folder: TemplateFolder;
 };
 
+export type TemplateFolderOption = {
+  id: TemplateFolder;
+  label: string;
+  count?: number;
+};
+
 type CreateTemplateModalProps = {
   open: boolean;
   onClose: () => void;
-  onCreate: (payload: CreateTemplatePayload) => void;
+  onCreate: (payload: CreateTemplatePayload) => void | Promise<void>;
+  folderOptions?: TemplateFolderOption[];
+  creating?: boolean;
+  error?: string | null;
 };
 
 const CARD_BORDER = "#D0D5DD";
@@ -73,16 +83,23 @@ function CheckIcon() {
   );
 }
 
-const FOLDER_OPTIONS: Array<{ id: TemplateFolder; label: string }> = [
+const DEFAULT_FOLDER_OPTIONS: TemplateFolderOption[] = [
   { id: "presets", label: "Presets" },
   { id: "saved-templates", label: "Saved Templates" },
 ];
 
-export default function CreateTemplateModal({ open, onClose, onCreate }: CreateTemplateModalProps) {
+export default function CreateTemplateModal({
+  open,
+  onClose,
+  onCreate,
+  folderOptions = DEFAULT_FOLDER_OPTIONS,
+  creating = false,
+  error = null,
+}: CreateTemplateModalProps) {
   const branding = useTenantBranding();
-  const [templateName, setTemplateName] = useState("Remote Onboarding Template");
+  const [templateName, setTemplateName] = useState("");
   const [search, setSearch] = useState("");
-  const [selectedFolder, setSelectedFolder] = useState<TemplateFolder>("saved-templates");
+  const [selectedFolder, setSelectedFolder] = useState<TemplateFolder>("presets");
   const [showFolders, setShowFolders] = useState(true);
   const listboxId = useId();
   const containerRef = useRef<HTMLFormElement>(null);
@@ -107,26 +124,29 @@ export default function CreateTemplateModal({ open, onClose, onCreate }: CreateT
 
   useEffect(() => {
     if (open) return;
-    setTemplateName("Remote Onboarding Template");
+    setTemplateName("");
     setSearch("");
-    setSelectedFolder("saved-templates");
+    setSelectedFolder("presets");
     setShowFolders(true);
   }, [open]);
 
   const filteredFolders = useMemo(
-    () => FOLDER_OPTIONS.filter((opt) => opt.label.toLowerCase().includes(search.trim().toLowerCase())),
-    [search]
+    () => folderOptions.filter((opt) => opt.label.toLowerCase().includes(search.trim().toLowerCase())),
+    [folderOptions, search]
   );
 
   if (!open) return null;
 
-  const handleCreate = (e: FormEvent) => {
+  const handleCreate = async (e: FormEvent) => {
     e.preventDefault();
-    onCreate({ name: templateName.trim() || "New Template", folder: selectedFolder });
-    onClose();
+    if (creating) return;
+    const trimmed = templateName.trim();
+    if (!trimmed) return;
+    await onCreate({ name: trimmed, folder: selectedFolder });
   };
 
-  const selectedLabel = FOLDER_OPTIONS.find((opt) => opt.id === selectedFolder)?.label ?? "Select";
+  const selectedLabel = folderOptions.find((opt) => opt.id === selectedFolder)?.label ?? "Select";
+  const canSubmit = templateName.trim().length > 0 && !creating;
 
   return (
     <div
@@ -221,11 +241,16 @@ export default function CreateTemplateModal({ open, onClose, onCreate }: CreateT
                           onClick={() => setSelectedFolder(folder.id)}
                         >
                           <FolderIcon color={branding.primaryHex} />
-                          <span className="min-w-0 flex-1 truncate">{folder.label}</span>
+                          <span className="min-w-0 flex-1 truncate">
+                            {folder.label}
+                            {folder.count != null ? ` (${folder.count})` : ""}
+                          </span>
                           <span
-                            className={`flex h-[18px] w-[18px] items-center justify-center rounded-[4px] border ${
-                              checked ? "border-[#012352] bg-[#012352]" : "border-[#D0D5DD] bg-white"
-                            }`}
+                            className="flex h-[18px] w-[18px] items-center justify-center rounded-[4px] border"
+                            style={{
+                              borderColor: checked ? "var(--brand-primary)" : "#D0D5DD",
+                              backgroundColor: checked ? "var(--brand-primary)" : "white",
+                            }}
                           >
                             {checked ? <CheckIcon /> : null}
                           </span>
@@ -237,20 +262,29 @@ export default function CreateTemplateModal({ open, onClose, onCreate }: CreateT
               </div>
             ) : null}
             <p className="mt-1 text-right text-xs" style={{ color: TEXT_MUTED }}>
-              1 added
+              1 selected
             </p>
           </div>
         </div>
 
+        {error ? (
+          <p className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">
+            {error}
+          </p>
+        ) : null}
+
         <button
           type="submit"
-          className="mt-8 h-11 w-full rounded-lg text-sm font-semibold text-white transition hover:brightness-[0.97]"
+          disabled={!canSubmit}
+          className="mt-8 flex h-11 w-full items-center justify-center gap-2 rounded-lg text-sm font-semibold text-white transition hover:brightness-[0.97] disabled:cursor-not-allowed disabled:opacity-60"
           style={{
             background:
               "linear-gradient(90deg, var(--brand-primary) 0%, color-mix(in srgb, var(--brand-primary) 70%, white) 100%)",
           }}
+          aria-busy={creating}
         >
-          Create
+          {creating ? <Loader2 size={16} className="animate-spin" aria-hidden /> : null}
+          {creating ? "Creating…" : "Create"}
         </button>
       </form>
     </div>

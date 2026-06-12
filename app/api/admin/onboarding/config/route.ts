@@ -14,6 +14,7 @@ import {
 import { stepDraftsToSerializableWorkflow } from "@/lib/onboarding/step-drafts-to-workflow-state";
 import { syncBuilderDraftFromStepDrafts } from "@/lib/onboarding/config-from-builder-draft";
 import { publishOnboardingFromWorkflow } from "@/lib/onboarding/publish-onboarding-from-workflow";
+import { createWorkflowTemplate } from "@/lib/onboarding/workflow-templates";
 import {
   isSerializableWorkflowState,
   serializeWorkflowState,
@@ -108,6 +109,8 @@ type SaveBody = {
   flowName?: string;
   publish?: boolean;
   saveTemplate?: boolean;
+  templateName?: string;
+  templateFolder?: "presets" | "saved-templates";
 };
 
 export async function PUT(req: NextRequest) {
@@ -137,6 +140,8 @@ export async function PUT(req: NextRequest) {
       );
     }
 
+    let savedTemplate: Awaited<ReturnType<typeof createWorkflowTemplate>> | null = null;
+
     if (body.builderDraft && isSerializableWorkflowState(body.builderDraft)) {
       if (body.publish) {
         await publishOnboardingFromWorkflow(
@@ -152,6 +157,16 @@ export async function PUT(req: NextRequest) {
           builderDraft: body.builderDraft,
           updatedBy: auth.userId,
           publishStatus: "draft",
+        });
+      }
+
+      if (body.saveTemplate) {
+        savedTemplate = await createWorkflowTemplate(supabase as OnboardingDbClient, tenantId, {
+          name: body.templateName?.trim() || body.flowName?.trim() || "New Template",
+          folder: body.templateFolder ?? "saved-templates",
+          builderDraft: body.builderDraft,
+          flowName: body.flowName,
+          createdBy: auth.userId,
         });
       }
     } else if (Array.isArray(body.steps) && body.steps.length) {
@@ -187,6 +202,7 @@ export async function PUT(req: NextRequest) {
       publishStatus: builder.publishStatus,
       builderDraft: builder.builderDraft,
       builderUpdatedAt: builder.updatedAt,
+      savedTemplate,
     });
   } catch (err: unknown) {
     console.error("[admin/onboarding/config]", err);

@@ -16,7 +16,9 @@ import {
   Library,
   Menu,
   MoreVertical,
+  Pencil,
   Play,
+  Loader2,
   Plus,
   Save,
   Search,
@@ -56,6 +58,9 @@ export type WorkflowBuilderProps = {
   initialEdges?: Edge[];
   lastUpdated?: { author: string; minutesAgo: number };
   onBack?: () => void;
+  onTitleChange?: (title: string) => void;
+  editableTitle?: boolean;
+  titleCentered?: boolean;
   onChange?: (state: WorkflowState) => void;
   onSaveAsTemplate?: (state: WorkflowState) => void;
   onPreview?: (state: WorkflowState) => void;
@@ -76,6 +81,11 @@ export type WorkflowBuilderProps = {
   hideTopChrome?: boolean;
   /** Fills parent flex container instead of fixed embedded height. */
   fillParent?: boolean;
+  savingTemplate?: boolean;
+  savingPublish?: boolean;
+  /** Hides title + save row above the canvas (used when header is in dashboard sub-nav). */
+  hideCanvasHeader?: boolean;
+  registerUndoControls?: (controls: { canUndo: boolean; undo: () => void } | null) => void;
 };
 
 export default function WorkflowBuilder(props: WorkflowBuilderProps) {
@@ -97,6 +107,9 @@ function WorkflowBuilderInner({
   initialEdges = [],
   lastUpdated,
   onBack,
+  onTitleChange,
+  editableTitle = false,
+  titleCentered = false,
   onChange,
   onSaveAsTemplate,
   onPreview,
@@ -109,6 +122,10 @@ function WorkflowBuilderInner({
   resetKey,
   hideTopChrome = false,
   fillParent = false,
+  savingTemplate = false,
+  savingPublish = false,
+  hideCanvasHeader = false,
+  registerUndoControls,
 }: WorkflowBuilderProps) {
   const hydratedInitial = useMemo(
     () => withLeafDropZones(initialNodes, initialEdges),
@@ -122,6 +139,8 @@ function WorkflowBuilderInner({
   const [history, setHistory] = useState<WorkflowState[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [successOpen, setSuccessOpen] = useState(false);
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [titleDraft, setTitleDraft] = useState(title);
   const [activeToolbar, setActiveToolbar] = useState<
     "templates" | "flows" | "library" | "settings" | null
   >(null);
@@ -132,6 +151,10 @@ function WorkflowBuilderInner({
   useEffect(() => {
     onChangeRef.current = onChange;
   }, [onChange]);
+
+  useEffect(() => {
+    if (!editingTitle) setTitleDraft(title);
+  }, [editingTitle, title]);
 
   useEffect(() => {
     if (!resetKey) return;
@@ -179,6 +202,20 @@ function WorkflowBuilderInner({
       return prev.slice(0, -1);
     });
   }, [setNodes, setEdges]);
+
+  const registerUndoControlsRef = useRef(registerUndoControls);
+  registerUndoControlsRef.current = registerUndoControls;
+
+  useEffect(() => {
+    registerUndoControlsRef.current?.({
+      canUndo: history.length > 0,
+      undo: handleUndo,
+    });
+  }, [handleUndo, history.length]);
+
+  useEffect(() => {
+    return () => registerUndoControlsRef.current?.(null);
+  }, []);
 
   const handleUpdateNode = useCallback(
     (id: string, patch: Partial<WorkflowNodeData>, options?: { skipHistory?: boolean }) => {
@@ -343,8 +380,9 @@ function WorkflowBuilderInner({
         <StepsLibrary categories={stepLibrary} searchTerm={searchTerm} />
 
         <main className="flex flex-1 flex-col overflow-hidden px-4 pb-4 pt-2">
+          {!hideCanvasHeader ? (
           <div
-            className="flex shrink-0 items-center justify-between"
+            className={`relative flex shrink-0 items-center ${titleCentered ? "justify-center" : "justify-between"}`}
             style={{
               paddingTop: 14,
               paddingBottom: 14,
@@ -353,14 +391,52 @@ function WorkflowBuilderInner({
               minHeight: 72,
             }}
           >
-            <div className="pl-2">
-              <h1
-                className="text-lg font-semibold leading-7"
-                style={{ color: TEXT_PRIMARY }}
-              >
-                {title}
-              </h1>
-              {subtitle ? (
+            <div
+              className={`${titleCentered ? "absolute left-1/2 flex -translate-x-1/2 flex-col items-center text-center" : "pl-2"}`}
+            >
+              {editableTitle && editingTitle ? (
+                <input
+                  type="text"
+                  value={titleDraft}
+                  onChange={(e) => setTitleDraft(e.target.value)}
+                  onBlur={() => {
+                    const next = titleDraft.trim() || title;
+                    setEditingTitle(false);
+                    if (next !== title) onTitleChange?.(next);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") e.currentTarget.blur();
+                    if (e.key === "Escape") {
+                      setTitleDraft(title);
+                      setEditingTitle(false);
+                    }
+                  }}
+                  autoFocus
+                  className="min-w-[220px] rounded-md border px-2 py-1 text-center text-lg font-semibold leading-7 outline-none focus:ring-2 focus:ring-[color-mix(in_srgb,var(--brand-primary)_25%,transparent)]"
+                  style={{ borderColor: CARD_BORDER, color: TEXT_PRIMARY }}
+                  aria-label="Workflow name"
+                />
+              ) : (
+                <div className="flex items-center gap-2">
+                  <h1
+                    className="text-lg font-semibold leading-7"
+                    style={{ color: TEXT_PRIMARY }}
+                  >
+                    {title}
+                  </h1>
+                  {editableTitle ? (
+                    <button
+                      type="button"
+                      onClick={() => setEditingTitle(true)}
+                      className="inline-flex h-7 w-7 items-center justify-center rounded-md text-[#98A2B3] transition hover:bg-[#F9FAFB] hover:text-[color:var(--brand-primary)]"
+                      aria-label="Edit workflow name"
+                    >
+                      <Pencil size={14} />
+                    </button>
+                  ) : null}
+                </div>
+              )}
+              {subtitle && !titleCentered ? (
                 <p
                   className="mt-0.5 text-xs leading-4"
                   style={{ color: TEXT_SECONDARY }}
@@ -370,16 +446,13 @@ function WorkflowBuilderInner({
               ) : null}
             </div>
 
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
+            <div className={`flex items-center gap-2 ${titleCentered ? "absolute right-8" : ""}`}>
+              <SaveTemplateButton
+                compact
+                saving={savingTemplate}
+                disabled={savingPublish}
                 onClick={() => onSaveAsTemplate?.(currentState)}
-                className="flex h-9 items-center gap-2 rounded-lg border bg-white px-3.5 text-sm font-medium transition hover:bg-[#fafafa]"
-                style={{ borderColor: CARD_BORDER, color: TEXT_PRIMARY }}
-              >
-                <Save size={14} />
-                Save as template
-              </button>
+              />
               <button
                 type="button"
                 className="flex h-9 w-9 items-center justify-center rounded-lg border bg-white transition hover:bg-[#fafafa]"
@@ -390,6 +463,7 @@ function WorkflowBuilderInner({
               </button>
             </div>
           </div>
+          ) : null}
 
           <div
             className="relative flex flex-1 flex-col overflow-hidden rounded-2xl"
@@ -409,6 +483,29 @@ function WorkflowBuilderInner({
               selectedNodeId={selectedNodeId}
               onSelectNode={setSelectedNodeId}
             />
+
+            {savingTemplate ? (
+              <div
+                className="absolute inset-0 z-20 flex items-center justify-center bg-white/70"
+                role="status"
+                aria-live="polite"
+                aria-label="Saving template"
+              >
+                <div
+                  className="flex items-center gap-3 rounded-xl border bg-white px-5 py-3 shadow-md"
+                  style={{ borderColor: CARD_BORDER }}
+                >
+                  <Loader2
+                    size={20}
+                    className="animate-spin"
+                    style={{ color: "var(--brand-primary)" }}
+                  />
+                  <span className="text-sm font-semibold" style={{ color: TEXT_PRIMARY }}>
+                    Saving template…
+                  </span>
+                </div>
+              </div>
+            ) : null}
 
             {lastUpdated ? (
               <p
@@ -445,15 +542,13 @@ function WorkflowBuilderInner({
                 <Plus size={14} />
                 Add trigger
               </button>
-              <button
-                type="button"
-                onClick={() => onSaveAsTemplate?.(currentState)}
-                className="flex h-10 shrink-0 items-center gap-2 whitespace-nowrap rounded-lg border bg-white px-3 text-sm font-medium transition hover:bg-[#fafafa]"
-                style={{ borderColor: "#d0d5dd", color: TEXT_PRIMARY }}
-              >
-                <Save size={14} />
-                Save as template
-              </button>
+              {!hideCanvasHeader ? (
+                <SaveTemplateButton
+                  saving={savingTemplate}
+                  disabled={savingPublish}
+                  onClick={() => onSaveAsTemplate?.(currentState)}
+                />
+              ) : null}
               <button
                 type="button"
                 onClick={() => onExportPDF?.(currentState)}
@@ -478,10 +573,12 @@ function WorkflowBuilderInner({
               <button
                 type="button"
                 onClick={() => onPublish?.(currentState)}
-                className="h-10 shrink-0 whitespace-nowrap rounded-lg px-4 text-sm font-semibold text-white transition hover:brightness-[0.97]"
+                disabled={savingPublish || savingTemplate}
+                className="flex h-10 shrink-0 items-center gap-2 whitespace-nowrap rounded-lg px-4 text-sm font-semibold text-white transition hover:brightness-[0.97] disabled:cursor-not-allowed disabled:opacity-70"
                 style={{ background: BRAND_CTA_GRADIENT }}
               >
-                Publish to All
+                {savingPublish ? <Loader2 size={14} className="animate-spin" /> : null}
+                {savingPublish ? "Publishing…" : "Publish to All"}
               </button>
             </div>
           </div>
@@ -504,6 +601,38 @@ function WorkflowBuilderInner({
         message="New workflow has been created"
       />
     </div>
+  );
+}
+
+function SaveTemplateButton({
+  onClick,
+  saving = false,
+  disabled = false,
+  compact = false,
+}: {
+  onClick: () => void;
+  saving?: boolean;
+  disabled?: boolean;
+  compact?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={saving || disabled}
+      className={`flex shrink-0 items-center gap-2 whitespace-nowrap rounded-lg border bg-white text-sm font-medium transition hover:bg-[#fafafa] disabled:cursor-not-allowed disabled:opacity-70 ${
+        compact ? "h-9 px-3.5" : "h-10 px-3"
+      }`}
+      style={{ borderColor: compact ? CARD_BORDER : "#d0d5dd", color: TEXT_PRIMARY }}
+      aria-busy={saving}
+    >
+      {saving ? (
+        <Loader2 size={14} className="animate-spin" style={{ color: "var(--brand-primary)" }} />
+      ) : (
+        <Save size={14} />
+      )}
+      {saving ? "Saving…" : "Save as template"}
+    </button>
   );
 }
 

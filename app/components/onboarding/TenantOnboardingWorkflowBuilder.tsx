@@ -3,8 +3,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { Edge, Node } from "@xyflow/react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useSearchParams } from "next/navigation";
 import toast from "react-hot-toast";
 
+import BuilderWorkflowHeaderSlots from "@/app/admin_recruiter/components/BuilderWorkflowHeaderSlots";
+import { useOptionalWorkflowDashboardHeader } from "@/app/admin_recruiter/components/WorkflowDashboardHeaderContext";
+import SuccessModal from "@/app/components/SuccessModal";
 import { WorkflowBuilder } from "@/app/components/workflow-builder";
 import type { StepCategory } from "@/app/components/workflow-builder";
 import type { WorkflowNodeData, WorkflowState } from "@/app/components/workflow-builder";
@@ -15,7 +19,10 @@ import {
 } from "@/app/components/onboarding/workflow-step-library";
 import type { WorkflowStepLibraryCategory } from "@/lib/onboarding/workflow-step-library-data";
 import { mapConfigToDrafts } from "@/lib/onboarding/config-to-drafts";
-import { hydrateWorkflowFromStorage } from "@/lib/onboarding/drafts-to-workflow";
+import {
+  draftsToWorkflowNodes,
+  hydrateWorkflowFromStorage,
+} from "@/lib/onboarding/drafts-to-workflow";
 import type { TenantOnboardingConfig } from "@/lib/onboarding/types";
 import { applyApplicantConfigFilters } from "@/lib/onboarding/filter-applicant-steps";
 import { configFromWorkflowDraft } from "@/lib/onboarding/config-from-builder-draft";
@@ -51,6 +58,31 @@ type BuilderQueryData = {
   stepLibrary: StepCategory[];
   initialNodes: Node<WorkflowNodeData>[];
   initialEdges: Edge[];
+};
+
+type WorkflowTemplateListItem = {
+  id: string;
+  name: string;
+  folder: "presets" | "saved-templates";
+  isPreset: boolean;
+  flowName: string | null;
+  updatedAt: string;
+};
+
+type EditingTemplate = {
+  id: string;
+  name: string;
+  folder: "presets" | "saved-templates";
+  isReadOnly: boolean;
+  updatedAt: string | null;
+};
+
+type SuccessModalState = {
+  open: boolean;
+  title: string;
+  message: string;
+  actionHref?: string;
+  actionLabel?: string;
 };
 
 const BUILDER_STALE_TIME_MS = 5 * 60 * 1000;
@@ -97,7 +129,8 @@ async function loadBuilderData(): Promise<BuilderQueryData> {
 
   const drafts = mapConfigToDrafts(config);
   const stepLookup = buildWorkflowStepLookup(stepLibrary);
-  const { nodes, edges } = hydrateWorkflowFromStorage(payload.builderDraft, drafts, stepLookup);
+  // Default builder always starts from the published/live workflow (config steps).
+  const { nodes, edges } = draftsToWorkflowNodes(drafts, stepLookup);
 
   return {
     payload,
@@ -116,10 +149,16 @@ export default function TenantOnboardingWorkflowBuilder({
   variant = "settings",
 }: TenantOnboardingWorkflowBuilderProps = {}) {
   const isDashboard = variant === "dashboard";
+  const workflowHeader = useOptionalWorkflowDashboardHeader();
+  const searchParams = useSearchParams();
+  const templateIdFromUrl = searchParams.get("template")?.trim() || null;
   const queryClient = useQueryClient();
   const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const skipNextChange = useRef(true);
-  const [saving, setSaving] = useState(false);
+  const latestStateRef = useRef<WorkflowState>({ nodes: [], edges: [] });
+  const prevTemplateIdRef = useRef<string | null>(null);
+  const [savingTemplate, setSavingTemplate] = useState(false);
+  const [savingPublish, setSavingPublish] = useState(false);
   const [tenantId, setTenantId] = useState<string | null>(null);
   const [tenantSlug, setTenantSlug] = useState<string | null>(null);
   const [tenantName, setTenantName] = useState<string>("");
@@ -131,6 +170,17 @@ export default function TenantOnboardingWorkflowBuilder({
   const [initialEdges, setInitialEdges] = useState<Edge[]>([]);
   const [activeFlowKey, setActiveFlowKey] = useState<string | null>(null);
   const [localError, setLocalError] = useState<string | null>(null);
+  const [templateLists, setTemplateLists] = useState<{
+    presets: WorkflowTemplateListItem[];
+    savedTemplates: WorkflowTemplateListItem[];
+  }>({ presets: [], savedTemplates: [] });
+  const [editingTemplate, setEditingTemplate] = useState<EditingTemplate | null>(null);
+  const [templateUpdatedAt, setTemplateUpdatedAt] = useState<string | null>(null);
+  const [successModal, setSuccessModal] = useState<SuccessModalState>({
+    open: false,
+    title: "Success!",
+    message: "",
+  });
 
   const {
     data,
@@ -157,31 +207,50 @@ export default function TenantOnboardingWorkflowBuilder({
 
     const payload = data.payload;
     const nextTenantId = payload.tenantId ?? null;
-    const nextFlowName = payload.flowName?.trim() || "Worker onboarding";
-    const nextFlowKey = `${nextTenantId ?? "none"}:${nextFlowName}`;
 
     logBuilderDiagnostic("applying fetched builder data", {
       tenantId: nextTenantId,
       flowName: payload.flowName,
       builderUpdatedAt: payload.builderUpdatedAt,
       isBackgroundRefresh: !isLoading,
+      templateIdFromUrl,
     });
 
     setTenantId(nextTenantId);
     setTenantSlug(payload.tenantSlug?.trim() || null);
     setTenantName(payload.tenantName?.trim() || "Your organization");
-    setFlowTitle(nextFlowName);
-    setPublishStatus(payload.publishStatus === "draft" ? "draft" : "published");
-    setUpdatedAt(payload.builderUpdatedAt ?? null);
     setStepLibrary(data.stepLibrary);
 
-    if (activeFlowKey !== nextFlowKey) {
+    if (templateIdFromUrl) {
+      return;
+    }
+
+    setEditingTemplate(null);
+    setTemplateUpdatedAt(null);
+
+    const nextFlowName = payload.flowName?.trim() || "Worker onboarding";
+    const publishedFlowKey = `${nextTenantId ?? "none"}:published:${nextFlowName}`;
+    const cameFromTemplate = activeFlowKey?.includes(":template:") ?? false;
+
+    setFlowTitle(nextFlowName);
+    setPublishStatus("published");
+    setUpdatedAt(payload.builderUpdatedAt ?? null);
+
+    if (cameFromTemplate || activeFlowKey !== publishedFlowKey) {
       setInitialNodes(data.initialNodes);
       setInitialEdges(data.initialEdges);
-      setActiveFlowKey(nextFlowKey);
+      setActiveFlowKey(publishedFlowKey);
       skipNextChange.current = true;
     }
-  }, [activeFlowKey, data, isLoading]);
+  }, [activeFlowKey, data, isLoading, templateIdFromUrl]);
+
+  useEffect(() => {
+    const prevTemplateId = prevTemplateIdRef.current;
+    prevTemplateIdRef.current = templateIdFromUrl;
+    if (prevTemplateId && !templateIdFromUrl) {
+      void refetch();
+    }
+  }, [templateIdFromUrl, refetch]);
 
   useEffect(() => {
     return () => {
@@ -189,15 +258,225 @@ export default function TenantOnboardingWorkflowBuilder({
     };
   }, []);
 
+  const loadTemplateLists = useCallback(async () => {
+    try {
+      const res = await fetch("/api/admin/workflow-templates", {
+        headers: await staffAuthHeaders(),
+      });
+      const payload = (await res.json()) as {
+        presets?: WorkflowTemplateListItem[];
+        savedTemplates?: WorkflowTemplateListItem[];
+        error?: string;
+      };
+      if (!res.ok) throw new Error(payload.error || "Failed to load templates");
+      setTemplateLists({
+        presets: payload.presets ?? [],
+        savedTemplates: payload.savedTemplates ?? [],
+      });
+    } catch (e) {
+      logBuilderDiagnostic("template list load failed", {
+        error: e instanceof Error ? e.message : "unknown",
+      });
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadTemplateLists();
+  }, [loadTemplateLists]);
+
+  useEffect(() => {
+    if (!templateIdFromUrl || !tenantId) return;
+    let cancelled = false;
+
+    async function loadTemplate() {
+      try {
+        const res = await fetch(`/api/admin/workflow-templates/${templateIdFromUrl}`, {
+          headers: await staffAuthHeaders(),
+        });
+        const payload = (await res.json()) as {
+          template?: {
+            id: string;
+            name: string;
+            folder: "presets" | "saved-templates";
+            isReadOnly?: boolean;
+            flowName: string | null;
+            builderDraft: unknown;
+            updatedAt?: string;
+          };
+          error?: string;
+        };
+        if (!res.ok) throw new Error(payload.error || "Failed to load template");
+        if (cancelled || !payload.template) return;
+
+        const template = payload.template;
+        const stepLookup = buildWorkflowStepLookup(stepLibrary);
+        const { nodes, edges } = hydrateWorkflowFromStorage(
+          template.builderDraft,
+          [],
+          stepLookup
+        );
+        const displayTitle =
+          template.flowName?.trim() || template.name.replace(/\.tpl$/i, "");
+
+        setEditingTemplate({
+          id: template.id,
+          name: template.name,
+          folder: template.folder,
+          isReadOnly: template.isReadOnly === true,
+          updatedAt: template.updatedAt ?? null,
+        });
+        setTemplateUpdatedAt(template.updatedAt ?? null);
+        setInitialNodes(nodes);
+        setInitialEdges(edges);
+        setFlowTitle(displayTitle);
+        setPublishStatus("draft");
+        setActiveFlowKey(`${tenantId}:template:${templateIdFromUrl}:${template.updatedAt ?? "new"}`);
+        skipNextChange.current = true;
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Failed to load template");
+      }
+    }
+
+    void loadTemplate();
+    return () => {
+      cancelled = true;
+    };
+  }, [templateIdFromUrl, tenantId, stepLibrary]);
+
+  const persistTemplateUpdate = useCallback(
+    async (
+      state: WorkflowState,
+      options: { template?: boolean; silent?: boolean },
+      templateId: string
+    ) => {
+      const builderDraft = serializeWorkflowState(state.nodes, state.edges);
+      const res = await fetch(`/api/admin/workflow-templates/${templateId}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          ...(await staffAuthHeaders()),
+        },
+        body: JSON.stringify({
+          name: flowTitle,
+          flowName: flowTitle,
+          builderDraft,
+        }),
+      });
+      const payload = (await res.json()) as {
+        template?: WorkflowTemplateListItem;
+        error?: string;
+      };
+      if (!res.ok) throw new Error(payload.error || "Failed to save template");
+
+      const saved = payload.template;
+      if (saved) {
+        setEditingTemplate((prev) =>
+          prev
+            ? {
+                ...prev,
+                name: saved.name,
+                updatedAt: saved.updatedAt,
+              }
+            : prev
+        );
+        setTemplateUpdatedAt(saved.updatedAt);
+      }
+
+      if (!options.silent) {
+        void loadTemplateLists();
+        if (options.template) {
+          setSuccessModal({
+            open: true,
+            title: "Success!",
+            message: `Template "${saved?.name ?? flowTitle}" has been saved`,
+            actionHref: "/admin_recruiter/dashboard/templates",
+            actionLabel: "View templates",
+          });
+        } else {
+          toast.success("Template saved");
+        }
+      }
+    },
+    [flowTitle, loadTemplateLists]
+  );
+
+  const persistNewTemplate = useCallback(
+    async (state: WorkflowState, options: { silent?: boolean }) => {
+      const builderDraft = serializeWorkflowState(state.nodes, state.edges);
+      const folder = editingTemplate?.folder ?? "saved-templates";
+      const res = await fetch("/api/admin/workflow-templates", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(await staffAuthHeaders()),
+        },
+        body: JSON.stringify({
+          name: flowTitle,
+          folder,
+          flowName: flowTitle,
+          builderDraft,
+        }),
+      });
+      const payload = (await res.json()) as {
+        template?: WorkflowTemplateListItem;
+        error?: string;
+      };
+      if (!res.ok) throw new Error(payload.error || "Failed to save template");
+
+      const saved = payload.template;
+      if (saved) {
+        setEditingTemplate({
+          id: saved.id,
+          name: saved.name,
+          folder: saved.folder,
+          isReadOnly: false,
+          updatedAt: saved.updatedAt,
+        });
+        setTemplateUpdatedAt(saved.updatedAt);
+      }
+
+      if (!options.silent) {
+        void loadTemplateLists();
+        setSuccessModal({
+          open: true,
+          title: "Success!",
+          message: `Template "${saved?.name ?? flowTitle}" has been saved`,
+          actionHref: "/admin_recruiter/dashboard/templates",
+          actionLabel: "View templates",
+        });
+      }
+    },
+    [editingTemplate?.folder, flowTitle, loadTemplateLists]
+  );
+
   const persist = useCallback(
     async (
       state: WorkflowState,
       options: { publish?: boolean; template?: boolean; silent?: boolean }
     ) => {
-      if (!options.silent) setSaving(true);
+      if (!options.silent) {
+        if (options.template) setSavingTemplate(true);
+        else if (options.publish) setSavingPublish(true);
+      }
       setLocalError(null);
       try {
+        if (editingTemplate?.id && !options.publish) {
+          if (editingTemplate.isReadOnly) {
+            if (!options.template) return;
+            await persistNewTemplate(state, { silent: options.silent });
+            return;
+          }
+          await persistTemplateUpdate(state, options, editingTemplate.id);
+          return;
+        }
+
         const builderDraft = serializeWorkflowState(state.nodes, state.edges);
+
+        if (options.template) {
+          await persistNewTemplate(state, { silent: options.silent });
+          return;
+        }
+
         const endpoint = options.publish
           ? "/api/admin/onboarding-builder/publish"
           : "/api/admin/onboarding-builder/save";
@@ -211,7 +490,6 @@ export default function TenantOnboardingWorkflowBuilder({
             builderDraft,
             flowName: flowTitle,
             publish: options.publish === true,
-            saveTemplate: options.template === true,
           }),
         });
         const payload = (await res.json()) as BuilderPayload;
@@ -245,9 +523,11 @@ export default function TenantOnboardingWorkflowBuilder({
 
         if (!options.silent) {
           if (options.publish) {
-            toast.success("Onboarding flow published — workers now see this flow");
-          } else if (options.template) {
-            toast.success("Draft saved as template");
+            setSuccessModal({
+              open: true,
+              title: "Success!",
+              message: "Workflow published successfully",
+            });
           } else {
             toast.success("Draft saved");
           }
@@ -257,10 +537,13 @@ export default function TenantOnboardingWorkflowBuilder({
         setLocalError(message);
         if (!options.silent) toast.error(message);
       } finally {
-        if (!options.silent) setSaving(false);
+        if (!options.silent) {
+          if (options.template) setSavingTemplate(false);
+          else if (options.publish) setSavingPublish(false);
+        }
       }
     },
-    [flowTitle, queryClient]
+    [editingTemplate, flowTitle, persistNewTemplate, persistTemplateUpdate, queryClient]
   );
 
   const handlePreview = useCallback(
@@ -292,6 +575,7 @@ export default function TenantOnboardingWorkflowBuilder({
 
   const handleDraftChange = useCallback(
     (state: WorkflowState) => {
+      latestStateRef.current = state;
       if (skipNextChange.current) {
         skipNextChange.current = false;
         return;
@@ -305,9 +589,30 @@ export default function TenantOnboardingWorkflowBuilder({
     [persist]
   );
 
+  const handleFlowTitleChange = useCallback(
+    (nextTitle: string) => {
+      const trimmed = nextTitle.trim() || "Worker onboarding";
+      setFlowTitle(trimmed);
+      setPublishStatus("draft");
+      void persist(latestStateRef.current, { silent: true });
+    },
+    [persist]
+  );
+
   const toolbarData = useMemo(
     () => ({
-      templates: [],
+      templates: [
+        ...templateLists.presets.map((item) => ({
+          id: item.id,
+          name: item.name,
+          status: "Preset",
+        })),
+        ...templateLists.savedTemplates.map((item) => ({
+          id: item.id,
+          name: item.name,
+          status: "Saved",
+        })),
+      ],
       myFlows: [
         {
           id: tenantId ?? "active-flow",
@@ -327,29 +632,54 @@ export default function TenantOnboardingWorkflowBuilder({
         { label: "Last saved", value: updatedAt ? new Date(updatedAt).toLocaleString() : "Not saved yet" },
       ],
     }),
-    [flowTitle, publishStatus, stepLibrary, tenantId, tenantName, tenantSlug, updatedAt]
+    [flowTitle, publishStatus, stepLibrary, templateLists, tenantId, tenantName, tenantSlug, updatedAt]
   );
 
   const error = localError ?? (queryError instanceof Error ? queryError.message : null);
   const hasLoadedBuilder = initialNodes.length > 0 || initialEdges.length > 0 || Boolean(tenantId);
 
   const lastUpdated = useMemo(() => {
-    if (!updatedAt) return undefined;
+    const timestamp = editingTemplate ? templateUpdatedAt : updatedAt;
+    if (!timestamp) return undefined;
     const minutesAgo = Math.max(
       0,
-      Math.floor((Date.now() - new Date(updatedAt).getTime()) / 60000)
+      Math.floor((Date.now() - new Date(timestamp).getTime()) / 60000)
     );
     return { author: tenantName || "You", minutesAgo };
-  }, [tenantName, updatedAt]);
+  }, [editingTemplate, templateUpdatedAt, tenantName, updatedAt]);
 
   const statusSuffix = [
-    saving ? "saving…" : null,
+    savingTemplate ? "saving template…" : null,
+    savingPublish ? "publishing…" : null,
     isFetching && !isLoading ? "refreshing…" : null,
   ]
     .filter(Boolean)
     .join(" · ");
 
-  const dashboardShellClass = "flex h-[calc(100vh-64px-62px)] flex-col overflow-hidden";
+  const dashboardShellClass = "flex h-[calc(100vh-64px-56px)] flex-col overflow-hidden";
+  const isDraft = editingTemplate ? true : publishStatus === "draft";
+
+  const setUndoControlsRef = useRef(workflowHeader?.setUndoControls);
+  setUndoControlsRef.current = workflowHeader?.setUndoControls;
+
+  const registerUndoControls = useCallback(
+    (controls: { canUndo: boolean; undo: () => void } | null) => {
+      if (isDashboard) setUndoControlsRef.current?.(controls);
+    },
+    [isDashboard]
+  );
+
+  const handleSaveTemplateFromHeader = useCallback(() => {
+    void persist(latestStateRef.current, { template: true });
+  }, [persist]);
+
+  const handlePublishFromHeader = useCallback(() => {
+    void persist(latestStateRef.current, { publish: true });
+  }, [persist]);
+
+  const handlePreviewFromHeader = useCallback(() => {
+    handlePreview(latestStateRef.current);
+  }, [handlePreview]);
 
   const loadingState = (
     <div
@@ -398,8 +728,33 @@ export default function TenantOnboardingWorkflowBuilder({
       </div>
     ) : null;
 
+  const dashboardHeaderSlots =
+    isDashboard && workflowHeader ? (
+      <BuilderWorkflowHeaderSlots
+        title={flowTitle}
+        editableTitle
+        onTitleChange={handleFlowTitleChange}
+        isDraft={isDraft}
+        isEditingTemplate={Boolean(editingTemplate)}
+        templateReadOnly={editingTemplate?.isReadOnly}
+        savingTemplate={savingTemplate}
+        savingPublish={savingPublish}
+        statusSuffix={statusSuffix || undefined}
+        onSaveTemplate={handleSaveTemplateFromHeader}
+        onPreview={handlePreviewFromHeader}
+        onPublish={handlePublishFromHeader}
+      />
+    ) : null;
+
   const wrapDashboard = (content: ReactNode) =>
-    isDashboard ? <div className={dashboardShellClass}>{content}</div> : content;
+    isDashboard ? (
+      <div className={dashboardShellClass}>
+        {dashboardHeaderSlots}
+        {content}
+      </div>
+    ) : (
+      content
+    );
 
   if (isLoading && !hasLoadedBuilder) {
     return wrapDashboard(loadingState);
@@ -423,36 +778,31 @@ export default function TenantOnboardingWorkflowBuilder({
     );
   }
 
-  const isDraft = publishStatus === "draft";
-
   const builderContent = (
     <div className={isDashboard ? "flex h-full min-h-0 flex-col" : "space-y-3"}>
-      {isDraft ? (
+      {!isDashboard && editingTemplate ? (
         <div
-          className={
-            isDashboard
-              ? "shrink-0 border-b border-amber-200 bg-amber-50 px-5 py-2 text-xs text-amber-950"
-              : "rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950"
-          }
+          className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-950"
           role="status"
         >
-          {isDashboard ? (
-            <p>
-              <span className="font-semibold">Draft</span>
-              {" — "}
-              Not live until you click <strong>Publish to All</strong>. Use Preview to test.
-              {statusSuffix ? ` (${statusSuffix})` : ""}
-            </p>
-          ) : (
-            <>
-              <p className="font-semibold">Draft changes are not live until published</p>
-              <p className="mt-1 text-amber-900/90">
-                Autosave keeps your workflow canvas as a draft. Applicants and recruiters still see
-                the last published flow until you click <strong>Publish to All</strong>. Use Preview
-                to test the draft in a new tab.
-              </p>
-            </>
-          )}
+          <p className="font-semibold">
+            {editingTemplate.isReadOnly
+              ? "Editing a system preset — Save as Template creates your own copy"
+              : "Editing a saved template — changes update this template"}
+          </p>
+        </div>
+      ) : null}
+      {!isDashboard && isDraft && !editingTemplate ? (
+        <div
+          className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950"
+          role="status"
+        >
+          <p className="font-semibold">Draft changes are not live until published</p>
+          <p className="mt-1 text-amber-900/90">
+            Autosave keeps your workflow canvas as a draft. Applicants and recruiters still see the
+            last published flow until you click <strong>Publish to All</strong>. Use Preview to test
+            the draft in a new tab.
+          </p>
         </div>
       ) : null}
 
@@ -476,9 +826,11 @@ export default function TenantOnboardingWorkflowBuilder({
           embedded={!isDashboard}
           fillParent={isDashboard}
           hideTopChrome={isDashboard}
+          hideCanvasHeader={isDashboard}
+          registerUndoControls={isDashboard ? registerUndoControls : undefined}
           resetKey={activeFlowKey ?? undefined}
           title={flowTitle}
-          subtitle="Applicant onboarding flow"
+          subtitle={isDashboard ? undefined : "Applicant onboarding flow"}
           productName="Onboarding Builder"
           brandName={tenantName}
           stepLibrary={stepLibrary}
@@ -487,7 +839,12 @@ export default function TenantOnboardingWorkflowBuilder({
           lastUpdated={lastUpdated}
           publishStatusLabel={publishStatus === "published" ? "Published" : "Draft"}
           toolbarData={toolbarData}
+          editableTitle
+          titleCentered={isDashboard}
+          onTitleChange={handleFlowTitleChange}
           onChange={handleDraftChange}
+          savingTemplate={savingTemplate}
+          savingPublish={savingPublish}
           onSaveAsTemplate={(state) => void persist(state, { template: true })}
           onPreview={handlePreview}
           onPublish={(state) => void persist(state, { publish: true })}
@@ -495,6 +852,15 @@ export default function TenantOnboardingWorkflowBuilder({
           onAddTrigger={() => toast("Triggers are not configured yet")}
         />
       </div>
+
+      <SuccessModal
+        open={successModal.open}
+        onClose={() => setSuccessModal((prev) => ({ ...prev, open: false }))}
+        title={successModal.title}
+        message={successModal.message}
+        actionHref={successModal.actionHref}
+        actionLabel={successModal.actionLabel}
+      />
     </div>
   );
 

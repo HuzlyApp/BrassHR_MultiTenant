@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect } from "react";
 import { Check, X } from "lucide-react";
 
@@ -9,6 +10,8 @@ type SuccessModalProps = {
   title?: string;
   message?: string;
   autoCloseMs?: number;
+  actionHref?: string;
+  actionLabel?: string;
 };
 
 export default function SuccessModal({
@@ -17,6 +20,8 @@ export default function SuccessModal({
   title = "Success!",
   message = "Action completed successfully",
   autoCloseMs,
+  actionHref,
+  actionLabel,
 }: SuccessModalProps) {
   useEffect(() => {
     if (!open) return;
@@ -87,6 +92,20 @@ export default function SuccessModal({
               {message}
             </p>
           </div>
+
+          {actionHref && actionLabel ? (
+            <Link
+              href={actionHref}
+              onClick={onClose}
+              className="mt-2 flex h-11 w-full items-center justify-center rounded-lg text-sm font-semibold text-white transition hover:brightness-[0.97]"
+              style={{
+                background:
+                  "linear-gradient(90deg, var(--brand-primary, #bc8b41) 0%, color-mix(in srgb, var(--brand-primary, #bc8b41) 70%, white) 100%)",
+              }}
+            >
+              {actionLabel}
+            </Link>
+          ) : null}
         </div>
       </div>
     </div>
