@@ -333,8 +333,32 @@ export default function TenantOnboardingWorkflowBuilder({
   const error = localError ?? (queryError instanceof Error ? queryError.message : null);
   const hasLoadedBuilder = initialNodes.length > 0 || initialEdges.length > 0 || Boolean(tenantId);
 
+  const lastUpdated = useMemo(() => {
+    if (!updatedAt) return undefined;
+    const minutesAgo = Math.max(
+      0,
+      Math.floor((Date.now() - new Date(updatedAt).getTime()) / 60000)
+    );
+    return { author: tenantName || "You", minutesAgo };
+  }, [tenantName, updatedAt]);
+
+  const statusSuffix = [
+    saving ? "saving…" : null,
+    isFetching && !isLoading ? "refreshing…" : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
+  const dashboardShellClass = "flex h-[calc(100vh-64px-62px)] flex-col overflow-hidden";
+
   const loadingState = (
-    <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-500">
+    <div
+      className={
+        isDashboard
+          ? "flex flex-1 items-center justify-center text-sm text-slate-500"
+          : "rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-500"
+      }
+    >
       Loading onboarding builder...
     </div>
   );
@@ -374,74 +398,84 @@ export default function TenantOnboardingWorkflowBuilder({
       </div>
     ) : null;
 
+  const wrapDashboard = (content: ReactNode) =>
+    isDashboard ? <div className={dashboardShellClass}>{content}</div> : content;
+
   if (isLoading && !hasLoadedBuilder) {
-    return isDashboard ? (
-      <DashboardBuilderShell>{loadingState}</DashboardBuilderShell>
-    ) : (
-      loadingState
-    );
+    return wrapDashboard(loadingState);
   }
 
   if (tenantErrorState) {
-    return isDashboard ? (
-      <DashboardBuilderShell>{tenantErrorState}</DashboardBuilderShell>
-    ) : (
-      tenantErrorState
+    return wrapDashboard(
+      <div className="flex flex-1 items-center p-5">{tenantErrorState}</div>
     );
   }
 
   if (authErrorState) {
-    return isDashboard ? (
-      <DashboardBuilderShell>{authErrorState}</DashboardBuilderShell>
-    ) : (
-      authErrorState
+    return wrapDashboard(
+      <div className="flex flex-1 items-center p-5">{authErrorState}</div>
     );
   }
 
   if (genericErrorState) {
-    return isDashboard ? (
-      <DashboardBuilderShell>{genericErrorState}</DashboardBuilderShell>
-    ) : (
-      genericErrorState
+    return wrapDashboard(
+      <div className="flex flex-1 items-center p-5">{genericErrorState}</div>
     );
   }
 
   const isDraft = publishStatus === "draft";
 
   const builderContent = (
-    <div className={`space-y-3 ${isDashboard ? "flex h-full min-h-0 flex-col" : ""}`}>
+    <div className={isDashboard ? "flex h-full min-h-0 flex-col" : "space-y-3"}>
       {isDraft ? (
         <div
-          className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950"
+          className={
+            isDashboard
+              ? "shrink-0 border-b border-amber-200 bg-amber-50 px-5 py-2 text-xs text-amber-950"
+              : "rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950"
+          }
           role="status"
         >
-          <p className="font-semibold">Draft changes are not live until published</p>
-          <p className="mt-1 text-amber-900/90">
-            Autosave keeps your workflow canvas as a draft. Applicants and recruiters still see the
-            last published flow until you click <strong>Publish to All</strong>. Use Preview to test
-            the draft in a new tab.
-          </p>
+          {isDashboard ? (
+            <p>
+              <span className="font-semibold">Draft</span>
+              {" — "}
+              Not live until you click <strong>Publish to All</strong>. Use Preview to test.
+              {statusSuffix ? ` (${statusSuffix})` : ""}
+            </p>
+          ) : (
+            <>
+              <p className="font-semibold">Draft changes are not live until published</p>
+              <p className="mt-1 text-amber-900/90">
+                Autosave keeps your workflow canvas as a draft. Applicants and recruiters still see
+                the last published flow until you click <strong>Publish to All</strong>. Use Preview
+                to test the draft in a new tab.
+              </p>
+            </>
+          )}
         </div>
       ) : null}
 
-      <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-slate-600">
-        <span>
-          Configuring: <strong className="text-slate-900">{tenantName}</strong>
-          {tenantId ? (
-            <span className="ml-2 font-mono text-xs text-slate-400">{tenantId.slice(0, 8)}…</span>
-          ) : null}
-        </span>
-        <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium capitalize text-slate-700">
-          {publishStatus}
-          {saving ? " · saving…" : ""}
-          {isFetching && !isLoading ? " · refreshing…" : ""}
-        </span>
-      </div>
+      {!isDashboard ? (
+        <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-slate-600">
+          <span>
+            Configuring: <strong className="text-slate-900">{tenantName}</strong>
+            {tenantId ? (
+              <span className="ml-2 font-mono text-xs text-slate-400">{tenantId.slice(0, 8)}…</span>
+            ) : null}
+          </span>
+          <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium capitalize text-slate-700">
+            {publishStatus}
+            {statusSuffix ? ` · ${statusSuffix}` : ""}
+          </span>
+        </div>
+      ) : null}
 
       <div className={isDashboard ? "min-h-0 flex-1" : undefined}>
         <WorkflowBuilder
-          embedded
+          embedded={!isDashboard}
           fillParent={isDashboard}
+          hideTopChrome={isDashboard}
           resetKey={activeFlowKey ?? undefined}
           title={flowTitle}
           subtitle="Applicant onboarding flow"
@@ -450,6 +484,7 @@ export default function TenantOnboardingWorkflowBuilder({
           stepLibrary={stepLibrary}
           initialNodes={initialNodes}
           initialEdges={initialEdges}
+          lastUpdated={lastUpdated}
           publishStatusLabel={publishStatus === "published" ? "Published" : "Draft"}
           toolbarData={toolbarData}
           onChange={handleDraftChange}
@@ -463,27 +498,5 @@ export default function TenantOnboardingWorkflowBuilder({
     </div>
   );
 
-  if (isDashboard) {
-    return <DashboardBuilderShell>{builderContent}</DashboardBuilderShell>;
-  }
-
-  return builderContent;
-}
-
-function DashboardBuilderShell({ children }: { children: ReactNode }) {
-  return (
-    <main
-      className="mx-auto flex max-w-[1400px] flex-col px-4 py-4 sm:px-6 sm:py-6"
-      style={{ height: "calc(100vh - 64px - 62px)" }}
-    >
-      <div className="shrink-0">
-        <h1 className="text-xl font-semibold text-[#0F172A]">Onboarding Builder</h1>
-        <p className="mt-2 max-w-2xl text-sm text-[#64748B]">
-          Configure worker onboarding for the active tenant. Use the header tenant switcher to edit
-          another organization — each tenant has its own flow.
-        </p>
-      </div>
-      <div className="mt-4 min-h-0 flex-1">{children}</div>
-    </main>
-  );
+  return wrapDashboard(builderContent);
 }

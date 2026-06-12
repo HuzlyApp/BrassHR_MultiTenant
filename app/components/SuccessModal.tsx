@@ -64,9 +64,12 @@ export default function SuccessModal({
         <div className="flex flex-col items-center gap-5 text-center">
           <div
             className="flex h-16 w-16 items-center justify-center rounded-full"
-            style={{ background: "linear-gradient(135deg, #BC8B41 0%, #E9B771 100%)" }}
+            style={{
+              background:
+                "linear-gradient(135deg, var(--brand-primary, #bc8b41) 0%, color-mix(in srgb, var(--brand-primary, #bc8b41) 65%, white) 100%)",
+            }}
           >
-            <Check size={28} color="#ffffff" strokeWidth={3} />
+            <Check size={28} className="text-white" strokeWidth={3} aria-hidden />
           </div>
 
           <div className="flex flex-col gap-1.5">
