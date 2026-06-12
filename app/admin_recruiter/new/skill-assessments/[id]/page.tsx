@@ -6,6 +6,7 @@ import { usePathname, useParams } from "next/navigation";
 import { jsPDF } from "jspdf";
 import DetailedCandidateHeader from "../../../components/DetailedCandidateHeader";
 import DetailedTabs from "../../../components/DetailedTabs";
+import CandidateDetailLoader from "../../../components/CandidateDetailLoader";
 import BrandedStepperCompleteIcon from "../../../components/BrandedStepperCompleteIcon";
 import BrandedFileTypeIcon from "../../../components/BrandedFileTypeIcon";
 import {
@@ -444,10 +445,6 @@ export default function NewApplicantSkillAssessmentsPage() {
 
         <div className="flex-1 p-8 overflow-auto">
           <div className="max-w-[1320px] mx-auto">
-            <div className="mb-5 text-xs text-gray-600">
-              Admin - New Applicant Detailed Page - Skill Assessments
-            </div>
-
             <DetailedTabs applicantId={applicantId} activeTab="Skill Assessments" />
 
             {loadError ? (
@@ -461,10 +458,13 @@ export default function NewApplicantSkillAssessmentsPage() {
               </div>
             ) : null}
 
+            {loading ? (
+              <CandidateDetailLoader label="Loading skill assessments..." />
+            ) : (
+              <>
             <DetailedCandidateHeader
               name={candidateName}
               role={candidateRole}
-              loading={loading}
             />
 
             <div className="mx-auto w-full max-w-[1300px]">
@@ -542,6 +542,8 @@ export default function NewApplicantSkillAssessmentsPage() {
                 </button>
               </div>
             </div>
+              </>
+            )}
           </div>
         </div>
       </div>

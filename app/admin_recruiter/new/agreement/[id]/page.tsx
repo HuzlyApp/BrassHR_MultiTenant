@@ -5,6 +5,7 @@ import { useParams, usePathname } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import DetailedCandidateHeader from "../../../components/DetailedCandidateHeader";
 import DetailedTabs from "../../../components/DetailedTabs";
+import CandidateDetailLoader from "../../../components/CandidateDetailLoader";
 import BrandedFileTypeIcon from "../../../components/BrandedFileTypeIcon";
 import {
   Briefcase,
@@ -191,10 +192,6 @@ export default function NewApplicantAgreementPage() {
 
         <div className="flex-1 p-8 overflow-auto">
           <div className="max-w-[1320px] mx-auto">
-            <div className="mb-5 text-xs text-gray-600">
-              Admin - New Applicant Detailed Page - Agreement
-            </div>
-
             <DetailedTabs applicantId={applicantId} activeTab="Agreement" />
 
             {loadError ? (
@@ -203,10 +200,13 @@ export default function NewApplicantAgreementPage() {
               </div>
             ) : null}
 
+            {loading ? (
+              <CandidateDetailLoader label="Loading agreement..." />
+            ) : (
+              <>
             <DetailedCandidateHeader
               name={candidateName}
               role={candidateRole}
-              loading={loading}
             />
 
             <div className="mx-auto w-full max-w-[1300px]">
@@ -284,6 +284,8 @@ export default function NewApplicantAgreementPage() {
                 </section>
               </div>
             </div>
+              </>
+            )}
           </div>
         </div>
       </div>

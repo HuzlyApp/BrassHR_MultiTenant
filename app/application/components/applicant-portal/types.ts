@@ -66,4 +66,11 @@ export type AttendanceLog = {
   clock_out_location_permission_status: string | null;
 };
 
-export type ApplicantPortalTab = "schedule" | "timesheets";
+export type ApplicantNote = {
+  id: string;
+  body: string;
+  created_at: string;
+  author_name: string;
+};
+
+export type ApplicantPortalTab = "schedule" | "timesheets" | "notes";

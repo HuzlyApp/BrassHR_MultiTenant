@@ -176,9 +176,11 @@ describe("buildAdminAttachmentRequirements", () => {
       [
         "doc-tb",
         {
+          submitted_document_id: "submitted-doc-1",
           required_document_id: "doc-tb",
           signed_url: "https://signed/tb.pdf",
           original_file_name: "tb-result.pdf",
+          status: "uploaded",
         },
       ],
     ]);

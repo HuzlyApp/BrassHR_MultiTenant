@@ -11,6 +11,9 @@ export type AdminAttachmentRequirement = {
   step_key: string;
   step_type: OnboardingStepType;
   required_document_id: string | null;
+  submitted_document_id: string | null;
+  legacy_document_key: string | null;
+  status: string | null;
   url: string | null;
   filename: string;
   sort_order: number;
@@ -26,9 +29,11 @@ export type LegacyDocumentUrls = {
 };
 
 export type SubmittedDocumentRecord = {
+  submitted_document_id: string | null;
   required_document_id: string;
   signed_url: string | null;
   original_file_name: string | null;
+  status: string | null;
 };
 
 export type AdminAttachmentBuildInput = {
@@ -148,6 +153,9 @@ export function buildAdminAttachmentRequirements(
         step_key: step.step_key,
         step_type: step.step_type,
         required_document_id: null,
+        submitted_document_id: null,
+        legacy_document_key: null,
+        status: input.resumeUrl ? "uploaded" : null,
         url: input.resumeUrl,
         filename: resumeFilename(input.resumePath, input.resumePathRaw, input.resumeUrl),
         sort_order: sortOrder++,
@@ -169,6 +177,9 @@ export function buildAdminAttachmentRequirements(
           step_key: step.step_key,
           step_type: step.step_type,
           required_document_id: null,
+          submitted_document_id: null,
+          legacy_document_key: "document_url",
+          status: url ? "uploaded" : null,
           url,
           filename: fileNameFromHttpUrl(url),
           sort_order: sortOrder++,
@@ -183,12 +194,16 @@ export function buildAdminAttachmentRequirements(
         input.submittedByRequiredId,
         input.legacyUrls
       );
+      const submitted = input.submittedByRequiredId.get(doc.id);
       rows.push({
         id: `reqdoc-${doc.id}`,
         title: doc.title,
         step_key: step.step_key,
         step_type: step.step_type,
         required_document_id: doc.id,
+        submitted_document_id: submitted?.submitted_document_id ?? null,
+        legacy_document_key: null,
+        status: submitted?.status ?? (url ? "uploaded" : null),
         url,
         filename,
         sort_order: sortOrder++,
@@ -204,13 +219,21 @@ export function buildLegacyAttachmentRequirements(
   input: AdminAttachmentBuildInput
 ): AdminAttachmentRequirement[] {
   const { legacyUrls } = input;
-  const items: Array<{ id: string; title: string; url: string | null; step_key: string; step_type: OnboardingStepType }> = [
+  const items: Array<{
+    id: string;
+    title: string;
+    url: string | null;
+    step_key: string;
+    step_type: OnboardingStepType;
+    legacy_document_key: string | null;
+  }> = [
     {
       id: "resume",
       title: "Resume",
       url: input.resumeUrl,
       step_key: "resume_upload",
       step_type: "resume_upload",
+      legacy_document_key: null,
     },
     {
       id: "license",
@@ -218,6 +241,7 @@ export function buildLegacyAttachmentRequirements(
       url: legacyUrls.nursing_license_url,
       step_key: "professional_license",
       step_type: "professional_license",
+      legacy_document_key: "nursing_license_url",
     },
     {
       id: "tb",
@@ -225,6 +249,7 @@ export function buildLegacyAttachmentRequirements(
       url: legacyUrls.tb_test_url,
       step_key: "professional_license",
       step_type: "professional_license",
+      legacy_document_key: "tb_test_url",
     },
     {
       id: "cpr",
@@ -232,6 +257,7 @@ export function buildLegacyAttachmentRequirements(
       url: legacyUrls.cpr_certification_url,
       step_key: "professional_license",
       step_type: "professional_license",
+      legacy_document_key: "cpr_certification_url",
     },
     {
       id: "authorization",
@@ -239,6 +265,7 @@ export function buildLegacyAttachmentRequirements(
       url: legacyUrls.authorization_document_url,
       step_key: "authorizations",
       step_type: "authorizations",
+      legacy_document_key: "document_url",
     },
   ];
 
@@ -248,6 +275,9 @@ export function buildLegacyAttachmentRequirements(
     step_key: item.step_key,
     step_type: item.step_type,
     required_document_id: null,
+    submitted_document_id: null,
+    legacy_document_key: item.legacy_document_key,
+    status: item.url ? "uploaded" : null,
     url: item.url,
     filename:
       item.id === "resume"

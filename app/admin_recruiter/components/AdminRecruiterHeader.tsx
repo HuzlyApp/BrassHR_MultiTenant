@@ -3,7 +3,11 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { ChevronDown, Menu } from "lucide-react";
+import { ChevronDown, ChevronLeft, Menu } from "lucide-react";
+import {
+  isCandidateDetailPage,
+  navigateCandidateDetailBack,
+} from "./candidate-detail-navigation";
 
 const SIDEBAR_TOGGLE_ICON = "/icons/sidebar-on-off-icon.svg";
 const NOTIFICATION_ICON = "/icons/braas-HR/client-dashboard/notification-icon.svg";
@@ -162,6 +166,11 @@ export function AdminRecruiterHeader({
     () => notifications.filter((notification) => !notification.is_read).length,
     [notifications]
   );
+  const showBackButton = isCandidateDetailPage(pathname ?? "");
+
+  const handleBackClick = useCallback(() => {
+    navigateCandidateDetailBack(router, pathname ?? "");
+  }, [router, pathname]);
 
   return (
     <header
@@ -194,6 +203,17 @@ export function AdminRecruiterHeader({
                 className="h-5 w-5 shrink-0"
                 aria-hidden
               />
+            </button>
+          ) : null}
+          {showBackButton ? (
+            <button
+              type="button"
+              onClick={handleBackClick}
+              className="inline-flex items-center gap-1 rounded-md bg-transparent px-1 py-1 transition hover:bg-slate-50"
+              aria-label="Go back"
+            >
+              <ChevronLeft className="h-5 w-5 shrink-0 text-[#64748B]" aria-hidden />
+              <span className="text-sm font-medium text-[color:var(--brand-primary)]">Back</span>
             </button>
           ) : null}
         </div>

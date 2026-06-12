@@ -7,6 +7,7 @@ import { useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import OnboardingLayout from "@/app/components/OnboardingLayout"
+import ApplicantRecruiterNotes from "@/app/application/components/ApplicantRecruiterNotes"
 
 type StatusView = "pending" | "approved"
 
@@ -68,6 +69,7 @@ export default function ApplicationStatusPage() {
 
                 {isApproved ? (
                   <div className="mt-4 max-w-[500px] space-y-5 text-[16px] font-normal leading-6 text-slate-700">
+                    <ApplicantRecruiterNotes title="Message from recruiter" />
                     <p>
                       <span className="font-semibold text-slate-900">
                         Congratulations!
@@ -84,6 +86,10 @@ export default function ApplicationStatusPage() {
                   </div>
                 ) : (
                   <div className="mt-4 max-w-[500px] space-y-5 text-[16px] font-normal leading-6 text-slate-700">
+                    <ApplicantRecruiterNotes
+                      title="What you need to do"
+                      emptyMessage="Your application is pending. Your recruiter will add instructions here when needed."
+                    />
                     <p>
                       Current status is pending and will provide you updates
                       within 48 hours.

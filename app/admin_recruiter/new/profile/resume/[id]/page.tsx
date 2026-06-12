@@ -5,6 +5,7 @@ import { useParams, usePathname } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import DetailedCandidateHeader from "../../../../components/DetailedCandidateHeader";
 import DetailedTabs from "../../../../components/DetailedTabs";
+import CandidateDetailLoader from "../../../../components/CandidateDetailLoader";
 import ProfileSubTabs from "../../../../components/ProfileSubTabs";
 import { useCandidateHeader } from "../../../../hooks/useCandidateHeader";
 import {
@@ -93,6 +94,7 @@ export default function NewApplicantProfileResumePage() {
     role: candidateRole,
     loading: headerLoading,
   } = useCandidateHeader(applicantId);
+  const pageLoading = loading || headerLoading;
   const candidateLocation = useMemo(() => {
     const parts = [w?.city ?? "", w?.state ?? ""].filter(Boolean);
     return parts.length ? parts.join(", ") : "—";
@@ -234,10 +236,6 @@ export default function NewApplicantProfileResumePage() {
 
         <div className="flex-1 p-8 overflow-auto">
           <div className="max-w-[1320px] mx-auto">
-            <div className="mb-5 text-xs text-gray-600">
-              Admin - {isWorkerRoute ? "Worker" : "New Applicant"} Detailed Page - Resume
-            </div>
-
             <DetailedTabs applicantId={applicantId} activeTab="Profile" />
 
             {error ? (
@@ -246,10 +244,13 @@ export default function NewApplicantProfileResumePage() {
               </div>
             ) : null}
 
+            {pageLoading ? (
+              <CandidateDetailLoader label="Loading resume..." />
+            ) : (
+              <>
             <DetailedCandidateHeader
               name={candidateName}
               role={candidateRole}
-              loading={headerLoading}
             />
             <ProfileSubTabs applicantId={applicantId} activeTab="Resume" />
 
@@ -371,12 +372,9 @@ export default function NewApplicantProfileResumePage() {
                 </div>
               ) : null}
 
-              {loading ? (
-                <div className="rounded-2xl border border-zinc-200 bg-white/60 px-5 py-12 text-center text-sm text-gray-600">
-                  Loading resume…
-                </div>
-              ) : null}
             </div>
+              </>
+            )}
           </div>
         </div>
       </div>

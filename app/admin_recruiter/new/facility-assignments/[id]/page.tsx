@@ -5,6 +5,7 @@ import { useParams, usePathname } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import DetailedCandidateHeader from "../../../components/DetailedCandidateHeader";
 import DetailedTabs from "../../../components/DetailedTabs";
+import CandidateDetailLoader from "../../../components/CandidateDetailLoader";
 import UnderlineTabBar from "../../../components/UnderlineTabBar";
 import {
   Briefcase,
@@ -266,10 +267,6 @@ export default function NewApplicantFacilityAssignmentsPage() {
 
         <div className="flex-1 p-8 overflow-auto">
           <div className="max-w-[1320px] mx-auto">
-            <div className="mb-5 text-xs text-gray-600">
-              Admin - New Applicant Detailed Page - Facility Assignments
-            </div>
-
             <DetailedTabs applicantId={applicantId} activeTab="Facility Assignments" />
 
             {loadError ? (
@@ -278,10 +275,13 @@ export default function NewApplicantFacilityAssignmentsPage() {
               </div>
             ) : null}
 
+            {loading ? (
+              <CandidateDetailLoader label="Loading facility assignments..." />
+            ) : (
+              <>
             <DetailedCandidateHeader
               name={candidateName}
               role={candidateRole}
-              loading={loading}
             />
 
             <div className="mx-auto w-full max-w-[1300px] min-h-[896px] rounded-lg border border-[#E5E7EB] bg-white p-5">
@@ -408,6 +408,8 @@ export default function NewApplicantFacilityAssignmentsPage() {
                 </div>
               )}
             </div>
+              </>
+            )}
           </div>
         </div>
       </div>

@@ -5,6 +5,7 @@ import { useParams, usePathname } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import DetailedCandidateHeader from "../../../components/DetailedCandidateHeader";
 import DetailedTabs from "../../../components/DetailedTabs";
+import CandidateDetailLoader from "../../../components/CandidateDetailLoader";
 import BrandedHistoryIcon from "../../../components/BrandedHistoryIcon";
 import BrandedPhoneIcon from "../../../components/BrandedPhoneIcon";
 import {
@@ -229,8 +230,6 @@ export default function NewApplicantActivitiesPage() {
 
         <div className="flex-1 p-8 overflow-auto">
           <div className="max-w-[1320px] mx-auto">
-            <div className="mb-5 text-xs text-gray-600">Admin - New Applicant Detailed Page - Activities</div>
-
             <DetailedTabs applicantId={applicantId} activeTab="Activities" />
 
             {loadError ? (
@@ -239,10 +238,13 @@ export default function NewApplicantActivitiesPage() {
               </div>
             ) : null}
 
+            {loading ? (
+              <CandidateDetailLoader label="Loading activities..." />
+            ) : (
+              <>
             <DetailedCandidateHeader
               name={candidateName}
               role={candidateRole}
-              loading={loading}
             />
 
             <div className="mx-auto mb-3 flex w-full max-w-[1300px] items-center justify-center gap-2">
@@ -403,6 +405,8 @@ export default function NewApplicantActivitiesPage() {
                 </main>
               </div>
             </div>
+              </>
+            )}
           </div>
         </div>
       </div>

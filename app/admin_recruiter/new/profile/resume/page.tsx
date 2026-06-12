@@ -238,7 +238,6 @@ export default function NewApplicantProfileResumeDemoPage() {
               <Menu className="w-5 h-5" />
             </button>
             <div>
-              <div className="text-xs text-gray-600">Admin - New Applicant Detailed Page - Resume</div>
               <div className="text-lg font-semibold text-gray-600">Candidates</div>
             </div>
           </div>

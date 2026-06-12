@@ -5,8 +5,11 @@ import { useParams, usePathname } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import DetailedCandidateHeader from "../../../components/DetailedCandidateHeader";
 import DetailedTabs from "../../../components/DetailedTabs";
+import CandidateDetailLoader from "../../../components/CandidateDetailLoader";
 import BrandedPlusIcon from "../../../components/BrandedPlusIcon";
 import BrandedFileTypeIcon from "../../../components/BrandedFileTypeIcon";
+import DocumentReviewActions from "../../../components/DocumentReviewActions";
+import { useWorkerDocumentReview } from "../../../hooks/useWorkerDocumentReview";
 import {
   Briefcase,
   Calendar,
@@ -41,6 +44,9 @@ type AttachmentRequirement = {
   url: string | null;
   filename: string;
   required_document_id?: string | null;
+  submitted_document_id?: string | null;
+  legacy_document_key?: string | null;
+  status?: string | null;
   step_type?: OnboardingStepType;
   step_key?: string;
 };
@@ -57,6 +63,9 @@ type AttachmentRow = {
   url: string | null;
   filename: string;
   requiredDocumentId: string | null;
+  submittedDocumentId: string | null;
+  legacyDocumentKey: string | null;
+  status: string | null;
   stepType: OnboardingStepType | null;
   stepKey: string | null;
 };
@@ -121,6 +130,12 @@ export default function NewApplicantAttachmentsFilledPage() {
       setLoading(false);
     }
   }, [applicantId]);
+
+  const {
+    actionError,
+    submitReview,
+    isReviewLoading,
+  } = useWorkerDocumentReview(applicantId, fetchApplicant);
 
   useEffect(() => {
     void fetchApplicant();
@@ -190,6 +205,9 @@ export default function NewApplicantAttachmentsFilledPage() {
         url: row.url,
         filename: row.filename?.trim() ? row.filename : "—",
         requiredDocumentId: row.required_document_id ?? null,
+        submittedDocumentId: row.submitted_document_id ?? null,
+        legacyDocumentKey: row.legacy_document_key ?? null,
+        status: row.status ?? null,
         stepType: row.step_type ?? null,
         stepKey: row.step_key ?? null,
       };
@@ -370,10 +388,6 @@ export default function NewApplicantAttachmentsFilledPage() {
 
         <div className="flex-1 p-8 overflow-auto">
           <div className="max-w-[1320px] mx-auto">
-            <div className="mb-5 text-xs text-gray-600">
-              Admin - New Applicant Detailed Page - Attachments (filled)
-            </div>
-
             <DetailedTabs applicantId={applicantId} activeTab="Attachments" />
 
             {loadError ? (
@@ -388,6 +402,12 @@ export default function NewApplicantAttachmentsFilledPage() {
               </div>
             ) : null}
 
+            {actionError ? (
+              <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+                {actionError}
+              </div>
+            ) : null}
+
             <input
               ref={fileInputRef}
               type="file"
@@ -399,10 +419,13 @@ export default function NewApplicantAttachmentsFilledPage() {
               }}
             />
 
+            {loading ? (
+              <CandidateDetailLoader label="Loading attachments..." />
+            ) : (
+              <>
             <DetailedCandidateHeader
               name={candidateName}
               role={candidateRole}
-              loading={loading}
             />
 
             <div className="mx-auto w-full max-w-[1300px]">
@@ -462,10 +485,7 @@ export default function NewApplicantAttachmentsFilledPage() {
                   </div>
 
                   <div className="space-y-3">
-                    {loading ? (
-                      <div className="px-4 py-4 text-sm text-[#6B7280]">Loading requirements...</div>
-                    ) : (
-                      attachmentRows.map((r, idx) => {
+                      {attachmentRows.map((r, idx) => {
                         const scan = scanById[r.key];
                         const isPdf = isPdfFile(null, r.filename, r.url);
 
@@ -531,26 +551,41 @@ export default function NewApplicantAttachmentsFilledPage() {
                             )}
 
                             {r.url ? (
-                              <div className="flex items-center gap-2">
-                                <button
-                                  type="button"
-                                  className="inline-flex h-8 items-center justify-center rounded-md bg-[color:var(--brand-primary)] px-4 text-xs font-semibold text-white hover:brightness-95"
-                                >
-                                  Approved
-                                </button>
-                                <button
-                                  type="button"
-                                  className="inline-flex h-8 items-center justify-center rounded-md border border-[color:color-mix(in_srgb,var(--brand-primary)_30%,white)] px-4 text-xs font-semibold text-[color:var(--brand-primary)]"
-                                >
-                                  Reject
-                                </button>
-                                <button
-                                  type="button"
-                                  className="inline-flex h-8 items-center justify-center rounded-md border border-[color:color-mix(in_srgb,var(--brand-primary)_30%,white)] px-4 text-xs font-semibold text-[color:var(--brand-primary)]"
-                                >
-                                  Request More
-                                </button>
-                              </div>
+                              <DocumentReviewActions
+                                disabled={!r.submittedDocumentId && !r.legacyDocumentKey}
+                                loading={isReviewLoading({
+                                  submittedDocumentId: r.submittedDocumentId,
+                                  legacyDocumentKey: r.legacyDocumentKey,
+                                })}
+                                currentStatus={r.status}
+                                onApprove={() =>
+                                  void submitReview(
+                                    {
+                                      submittedDocumentId: r.submittedDocumentId,
+                                      legacyDocumentKey: r.legacyDocumentKey,
+                                    },
+                                    "approved"
+                                  )
+                                }
+                                onReject={() =>
+                                  void submitReview(
+                                    {
+                                      submittedDocumentId: r.submittedDocumentId,
+                                      legacyDocumentKey: r.legacyDocumentKey,
+                                    },
+                                    "rejected"
+                                  )
+                                }
+                                onRequestMore={() =>
+                                  void submitReview(
+                                    {
+                                      submittedDocumentId: r.submittedDocumentId,
+                                      legacyDocumentKey: r.legacyDocumentKey,
+                                    },
+                                    "needs_revision"
+                                  )
+                                }
+                              />
                             ) : (
                               <button
                                 type="button"
@@ -572,12 +607,13 @@ export default function NewApplicantAttachmentsFilledPage() {
                           ) : null}
                         </div>
                         );
-                      })
-                    )}
+                      })}
                   </div>
                 </div>
               </div>
             </div>
+              </>
+            )}
           </div>
         </div>
       </div>

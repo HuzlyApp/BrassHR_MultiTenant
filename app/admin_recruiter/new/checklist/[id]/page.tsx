@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams, usePathname } from "next/navigation";
 import DetailedCandidateHeader from "../../../components/DetailedCandidateHeader";
 import DetailedTabs from "../../../components/DetailedTabs";
+import CandidateDetailLoader from "../../../components/CandidateDetailLoader";
 import CandidateAvatarIcon from "../../../components/CandidateAvatarIcon";
 import BrandedHistoryIcon from "../../../components/BrandedHistoryIcon";
 import {
@@ -492,10 +493,6 @@ export default function NewApplicantChecklistPage() {
 
         <div className="flex-1 p-8 overflow-auto">
           <div className="max-w-[1320px] mx-auto">
-            <div className="mb-5 text-xs text-gray-600">
-              Admin - {isWorkerRoute ? "Worker" : "New Applicant"} Detailed Page - Checklist
-            </div>
-
             <DetailedTabs applicantId={applicantId} activeTab="Checklist" />
 
             {error ? (
@@ -510,10 +507,13 @@ export default function NewApplicantChecklistPage() {
               </div>
             ) : null}
 
+            {loading ? (
+              <CandidateDetailLoader label="Loading checklist..." />
+            ) : (
+              <>
             <DetailedCandidateHeader
               name={candidateName}
               role={candidateRole}
-              loading={loading}
             />
 
             <div className="mx-auto flex w-full max-w-[1300px] flex-col gap-[30px] overflow-hidden rounded-md border border-[#E5E7EB] bg-white p-5">
@@ -572,9 +572,6 @@ export default function NewApplicantChecklistPage() {
                 </div>
 
                 <main className="space-y-4">
-                  {loading ? (
-                    <div className="text-center py-16 text-gray-600">Loading checklist…</div>
-                  ) : (
                     <div className="grid grid-cols-1 xl:grid-cols-2 gap-[30px]">
                       {(data?.sections ?? []).map((section, sectionIndex) => (
                         <div
@@ -779,14 +776,11 @@ export default function NewApplicantChecklistPage() {
                         </div>
                       ))}
                     </div>
-                  )}
 
                   <section className="mt-4 rounded-lg border border-[#E5E7EB] bg-white p-5">
                     <h3 className="text-[28px] font-semibold leading-7 text-[#111827]">Recent History</h3>
                     <div className="mt-4">
-                      {loading ? (
-                        <div className="py-4 text-sm text-[#6B7280]">Loading history…</div>
-                      ) : recentHistoryRows.length === 0 ? (
+                      {recentHistoryRows.length === 0 ? (
                         <div className="rounded-md border border-dashed border-[#E5E7EB] px-4 py-8 text-center text-sm text-[#6B7280]">
                           No history yet.
                         </div>
@@ -809,6 +803,8 @@ export default function NewApplicantChecklistPage() {
                 </main>
               </div>
             </div>
+              </>
+            )}
           </div>
         </div>
       </div>

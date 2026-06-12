@@ -95,7 +95,7 @@ export async function PATCH(req: NextRequest) {
 
   const body = (await req.json()) as {
     documentId?: string;
-    status?: "under_review" | "approved" | "rejected";
+    status?: "under_review" | "approved" | "rejected" | "needs_revision";
   };
 
   const documentId = body.documentId?.trim() || "";

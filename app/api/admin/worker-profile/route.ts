@@ -9,6 +9,7 @@ import { canAccessWorkerRecord } from "@/lib/auth/worker-record-access"
 import { normalizeResumeStorageObjectPath } from "@/lib/onboarding/normalize-resume-storage-path"
 import { getSupabaseUrl } from "@/lib/supabase-env"
 import { WORKER_RESUMES_BUCKET } from "@/lib/supabase-storage-buckets"
+import { resolveStorageAccessibleUrl } from "@/lib/supabase/resolve-storage-accessible-url"
 import { parseRequiredUuid } from "@/lib/validation/uuid"
 
 export const runtime = "nodejs"
@@ -297,9 +298,21 @@ export async function GET(req: NextRequest) {
       }))
     )
     const workerEmail = w.email != null ? String(w.email).trim().toLowerCase() : ""
-    const nursingLicenseUrl = urlOrNull(docs?.nursing_license_url) ?? storageNursingUrl
-    const tbTestUrl = urlOrNull(docs?.tb_test_url) ?? storageTbUrl
-    const cprCertUrl = urlOrNull(docs?.cpr_certification_url) ?? storageCprUrl
+
+    async function resolveDocUrl(stored: unknown, storageFallback: string | null): Promise<string | null> {
+      const fromDb = await resolveStorageAccessibleUrl(supabase, urlOrNull(stored))
+      return fromDb ?? storageFallback
+    }
+
+    const nursingLicenseUrl =
+      (await resolveDocUrl(docs?.nursing_license_url, storageNursingUrl)) ?? storageNursingUrl
+    const tbTestUrl = (await resolveDocUrl(docs?.tb_test_url, storageTbUrl)) ?? storageTbUrl
+    const cprCertUrl =
+      (await resolveDocUrl(docs?.cpr_certification_url, storageCprUrl)) ?? storageCprUrl
+    const ssnUrl = await resolveDocUrl(docs?.ssn_url, null)
+    const ssnBackUrl = await resolveDocUrl(docs?.ssn_back_url, null)
+    const driversLicenseUrl = await resolveDocUrl(docs?.drivers_license_url, null)
+    const driversLicenseBackUrl = await resolveDocUrl(docs?.drivers_license_back_url, null)
     const licenseOk = hasUrl(nursingLicenseUrl)
     const tbOk = hasUrl(tbTestUrl)
     const cprOk = hasUrl(cprCertUrl)
@@ -429,6 +442,52 @@ export async function GET(req: NextRequest) {
       created_at: asTrimmedString(row.created_at),
     }))
 
+    const { data: noteRows, error: notesErr } = await supabase
+      .from("worker_notes")
+      .select("id, body, created_at, updated_at, created_by_user_id")
+      .eq("worker_id", workerId)
+      .order("created_at", { ascending: false })
+      .limit(50)
+    if (notesErr) {
+      console.warn("[admin/worker-profile] worker_notes", notesErr)
+    }
+    const noteAuthorIds = [
+      ...new Set(
+        ((noteRows ?? []) as { created_by_user_id?: string | null }[])
+          .map((row) => row.created_by_user_id)
+          .filter((id): id is string => Boolean(id))
+      ),
+    ]
+    const noteAuthorsById = new Map<string, { first_name: string | null; last_name: string | null }>()
+    if (noteAuthorIds.length > 0) {
+      const { data: noteAuthors } = await supabase
+        .from("users")
+        .select("id, first_name, last_name")
+        .in("id", noteAuthorIds)
+      for (const author of (noteAuthors ?? []) as {
+        id: string
+        first_name: string | null
+        last_name: string | null
+      }[]) {
+        noteAuthorsById.set(author.id, author)
+      }
+    }
+    const workerNotes = ((noteRows ?? []) as Record<string, unknown>[]).map((row) => {
+      const authorId =
+        row.created_by_user_id != null ? String(row.created_by_user_id) : null
+      const author = authorId ? noteAuthorsById.get(authorId) : null
+      const authorName = author
+        ? `${author.first_name ?? ""} ${author.last_name ?? ""}`.trim() || "Recruiter"
+        : "Recruiter"
+      return {
+        id: row.id ?? null,
+        body: asTrimmedString(row.body),
+        created_at: asTrimmedString(row.created_at),
+        updated_at: asTrimmedString(row.updated_at),
+        author_name: authorName,
+      }
+    })
+
     let zohoSign: ZohoSignRow | null = null
     if (workerEmail) {
       const { data: zohoRow, error: zohoErr } = await supabase
@@ -478,16 +537,31 @@ export async function GET(req: NextRequest) {
       zohoSign?.request_id && zohoSign.request_id.trim().length > 0
         ? `/api/zoho-sign/document?request_id=${encodeURIComponent(zohoSign.request_id)}&mode=preview`
         : null
-    const storageAuthUrl = storageAuthUrlFromFiles ?? urlOrNull(docs?.document_url) ?? zohoAuthUrl
+    const resolvedDocumentUrl = await resolveDocUrl(docs?.document_url, storageAuthUrlFromFiles)
+    const storageAuthUrl = resolvedDocumentUrl ?? zohoAuthUrl
 
     const legacyUrls = {
       nursing_license_url: nursingLicenseUrl,
       tb_test_url: tbTestUrl,
       cpr_certification_url: cprCertUrl,
       authorization_document_url: storageAuthUrl,
-      ssn_url: urlOrNull(docs?.ssn_url),
-      drivers_license_url: urlOrNull(docs?.drivers_license_url),
+      ssn_url: ssnUrl,
+      drivers_license_url: driversLicenseUrl,
     }
+
+    const { data: legacyReviewRows } = await supabase
+      .from("worker_legacy_document_reviews")
+      .select("document_key, status")
+      .eq("worker_id", workerId)
+    const legacyDocumentReviews = Object.fromEntries(
+      (legacyReviewRows ?? [])
+        .map((row) => {
+          const key = String((row as { document_key?: string }).document_key ?? "").trim()
+          const status = String((row as { status?: string }).status ?? "").trim()
+          return key && status ? [key, status] : null
+        })
+        .filter((entry): entry is [string, string] => entry != null)
+    )
 
     let attachmentRequirements: Awaited<ReturnType<typeof loadAdminAttachmentRequirements>> = []
     if (tenantIdForWorker) {
@@ -591,10 +665,10 @@ export async function GET(req: NextRequest) {
         nursing_license_url: nursingLicenseUrl,
         tb_test_url: tbTestUrl,
         cpr_certification_url: cprCertUrl,
-        ssn_url: urlOrNull(docs?.ssn_url),
-        ssn_back_url: urlOrNull(docs?.ssn_back_url),
-        drivers_license_url: urlOrNull(docs?.drivers_license_url),
-        drivers_license_back_url: urlOrNull(docs?.drivers_license_back_url),
+        ssn_url: ssnUrl,
+        ssn_back_url: ssnBackUrl,
+        drivers_license_url: driversLicenseUrl,
+        drivers_license_back_url: driversLicenseBackUrl,
         authorization_document_url: storageAuthUrl,
       },
       signeasy: {
@@ -642,9 +716,10 @@ export async function GET(req: NextRequest) {
         })),
       },
       facilities_assigned: facilityAssignments,
-      notes: [] as Array<Record<string, unknown>>,
+      notes: workerNotes,
       attachment_files: attachmentFiles,
       attachment_requirements: attachmentRequirements,
+      legacy_document_reviews: legacyDocumentReviews,
       activity_logs: activityLogs,
       activity_history: activityLogs,
       activity: {

@@ -247,16 +247,12 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: uploadError.message || "Upload failed" }, { status: 500 })
       }
 
-      const { data: urlData } = supabase.storage
-        .from(WORKER_REQUIRED_FILES_BUCKET)
-        .getPublicUrl(objectPath)
-
       await upsertLegacyWorkerDocumentUrl(
         supabase,
         workerId,
         tenantId,
         directDocumentField,
-        urlData.publicUrl,
+        objectPath,
         directDocumentField === "document_url" ? { document_name: file.name } : undefined
       )
 
@@ -343,15 +339,12 @@ export async function POST(req: NextRequest) {
     const title = documentTitle || String(reqDoc.title ?? "")
     const legacyColumn = resolveDocumentField(documentFieldRaw, title)
     if (legacyColumn) {
-      const { data: urlData } = supabase.storage
-        .from(WORKER_REQUIRED_FILES_BUCKET)
-        .getPublicUrl(objectPath)
       await upsertLegacyWorkerDocumentUrl(
         supabase,
         workerId,
         tenantId,
         legacyColumn,
-        urlData.publicUrl,
+        objectPath,
         legacyColumn === "document_url" ? { document_name: file.name } : undefined
       )
     }

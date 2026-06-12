@@ -45,7 +45,7 @@ export async function loadAdminAttachmentRequirements(
 
   const { data: submittedRaw, error: submittedErr } = await supabase
     .from("worker_submitted_documents")
-    .select("required_document_id, file_url, original_file_name")
+    .select("id, required_document_id, file_url, original_file_name, status")
     .eq("worker_id", workerId);
 
   if (submittedErr) {
@@ -73,16 +73,18 @@ export async function loadAdminAttachmentRequirements(
     }
 
     submittedByRequiredId.set(requiredDocumentId, {
+      submitted_document_id: String((row as { id?: string }).id ?? "").trim() || null,
       required_document_id: requiredDocumentId,
       signed_url: signedUrl,
       original_file_name:
         (row as { original_file_name?: string | null }).original_file_name != null
           ? String((row as { original_file_name?: string | null }).original_file_name)
           : null,
+      status: String((row as { status?: string | null }).status ?? "").trim() || null,
     });
   }
 
-  return buildAdminAttachmentRequirements({
+  const rows = buildAdminAttachmentRequirements({
     config,
     resumeUrl: args.resumeUrl,
     resumePath: args.resumePath,
@@ -90,5 +92,23 @@ export async function loadAdminAttachmentRequirements(
     legacyUrls: args.legacyUrls,
     submittedByRequiredId,
     useLegacyFallback,
+  });
+
+  const { data: legacyReviewsRaw } = await supabase
+    .from("worker_legacy_document_reviews")
+    .select("document_key, status")
+    .eq("worker_id", workerId);
+
+  const legacyStatusByKey = new Map<string, string>();
+  for (const row of legacyReviewsRaw ?? []) {
+    const key = String((row as { document_key?: string }).document_key ?? "").trim();
+    const status = String((row as { status?: string }).status ?? "").trim();
+    if (key && status) legacyStatusByKey.set(key, status);
+  }
+
+  return rows.map((row) => {
+    if (row.submitted_document_id || !row.legacy_document_key) return row;
+    const legacyStatus = legacyStatusByKey.get(row.legacy_document_key);
+    return legacyStatus ? { ...row, status: legacyStatus } : row;
   });
 }

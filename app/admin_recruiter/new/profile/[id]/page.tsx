@@ -9,6 +9,7 @@ import CandidateCommunicationHistory from "../../../components/CandidateCommunic
 import DetailedCandidateHeader from "../../../components/DetailedCandidateHeader";
 import { useCandidateHeader } from "../../../hooks/useCandidateHeader";
 import DetailedTabs from "../../../components/DetailedTabs";
+import CandidateDetailLoader from "../../../components/CandidateDetailLoader";
 import ProfileSubTabs from "../../../components/ProfileSubTabs";
 import BrandedPlusIcon from "../../../components/BrandedPlusIcon";
 import BrandedHistoryIcon from "../../../components/BrandedHistoryIcon";
@@ -198,6 +199,7 @@ export default function NewApplicantProfilePage() {
     role: candidateRole,
     loading: headerLoading,
   } = useCandidateHeader(applicantId);
+  const pageLoading = loading || headerLoading;
   const [commRefreshKey, setCommRefreshKey] = useState(0);
   const [resendingStatusEmail, setResendingStatusEmail] = useState(false);
   const [approvingForWork, setApprovingForWork] = useState(false);
@@ -462,10 +464,6 @@ export default function NewApplicantProfilePage() {
 
         <div className="flex-1 p-8 overflow-auto">
           <div className="max-w-[1320px] mx-auto">
-            <div className="mb-5 text-xs text-gray-600">
-              Admin - {isWorkerRoute ? "Worker" : "New Applicant"} Detailed Page - Details
-            </div>
-
             <DetailedTabs applicantId={applicantId} activeTab="Profile" />
 
             {error ? (
@@ -474,10 +472,13 @@ export default function NewApplicantProfilePage() {
               </div>
             ) : null}
 
+            {pageLoading ? (
+              <CandidateDetailLoader label="Loading profile..." />
+            ) : (
+              <>
             <DetailedCandidateHeader
               name={candidateName}
               role={candidateRole}
-              loading={headerLoading}
               onMessageClick={() => setCommOpen(true)}
               messageDisabled={!w?.email?.trim() && !w?.phone?.trim()}
               onResendStatusClick={() => void handleResendStatusEmail()}
@@ -929,6 +930,8 @@ export default function NewApplicantProfilePage() {
                 </section>
               </div>
             </div>
+              </>
+            )}
           </div>
         </div>
       </div>

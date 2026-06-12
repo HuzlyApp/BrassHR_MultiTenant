@@ -8,6 +8,7 @@ import Link from "next/link"
 import { ChevronRight } from "lucide-react"
 import { useSearchParams } from "next/navigation"
 import OnboardingLayout from "@/app/components/OnboardingLayout"
+import ApplicantRecruiterNotes from "@/app/application/components/ApplicantRecruiterNotes"
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext"
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding"
 
@@ -58,43 +59,14 @@ function VerificationStatusContent() {
             </div>
 
             <div className="space-y-6 p-5 text-[16px] font-normal leading-8 text-slate-700">
-              <div className="flex items-start justify-between gap-4">
-                <p className="text-black">Status</p>
-                <p className="text-slate-500">{isRejected ? "2/24/2026" : "2/12/2025"}</p>
-              </div>
-
-              {isRejected ? (
-                <>
-                  <p>
-                    We regret to inform you that as of now your application for
-                    healthcare position is currently denied due to lack of
-                    information details.
-                  </p>
-                  <p>Thank you.</p>
-                </>
-              ) : (
-                <>
-                  <p>
-                    Application was pending because additional requirements
-                    needed for the application.
-                  </p>
-
-                  <div className="space-y-3">
-                    <p>Following additional requirement(s) needed:</p>
-                    <p className="font-semibold text-slate-800">
-                      1. Latest birth certificate
-                    </p>
-                  </div>
-
-                  <p>
-                    You are given 24 hours to upload and submit the requirements
-                    needed.
-                  </p>
-
-                  <p>Please only upload the requirement in this page.</p>
-                  <p>Thank you.</p>
-                </>
-              )}
+              <ApplicantRecruiterNotes
+                title={isRejected ? "Message from recruiter" : "What you need to do"}
+                emptyMessage={
+                  isRejected
+                    ? "Your application was not approved. Please contact support if you need help."
+                    : "Your application is being reviewed. Your recruiter will add instructions here when needed."
+                }
+              />
             </div>
 
             {isRejected ? (

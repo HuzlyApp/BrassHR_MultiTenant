@@ -5,6 +5,7 @@ import { usePathname, useParams } from "next/navigation";
 import { useMemo, useState, useEffect } from "react";
 import DetailedCandidateHeader from "../../../components/DetailedCandidateHeader";
 import DetailedTabs from "../../../components/DetailedTabs";
+import CandidateDetailLoader from "../../../components/CandidateDetailLoader";
 import BrandedHistoryIcon from "../../../components/BrandedHistoryIcon";
 import {
   Briefcase,
@@ -269,8 +270,6 @@ export default function NewApplicantHistoryPage() {
 
         <div className="flex-1 p-8 overflow-auto">
           <div className="max-w-[1320px] mx-auto">
-            <div className="mb-5 text-xs text-gray-600">Admin - New Applicant Detailed Page - History</div>
-
             <DetailedTabs applicantId={applicantId} activeTab="History" />
 
             {loadError ? (
@@ -279,21 +278,22 @@ export default function NewApplicantHistoryPage() {
               </div>
             ) : null}
 
+            {loading ? (
+              <CandidateDetailLoader label="Loading history..." />
+            ) : (
+              <>
             <DetailedCandidateHeader
               name={candidateName}
               role={candidateRole}
-              loading={loading}
             />
 
             <div className="mx-auto w-full max-w-[1300px] rounded-md border border-[#D1D5DB] p-5">
               <div className="flex flex-col gap-5">
                 <div className="text-sm font-semibold text-[#374151]">
-                  Actions taken <span className="font-semibold text-[#111827]">{loading ? "—" : historyCount}</span>
+                  Actions taken <span className="font-semibold text-[#111827]">{historyCount}</span>
                 </div>
 
-                {loading ? (
-                  <div className="py-6 text-sm text-[#6B7280]">Loading history...</div>
-                ) : historyCount === 0 ? (
+                {historyCount === 0 ? (
                   <div className="rounded-md border border-dashed border-[#D1D5DB] px-6 py-10 text-center text-sm text-[#6B7280]">
                     No history events yet.
                   </div>
@@ -317,6 +317,8 @@ export default function NewApplicantHistoryPage() {
                 )}
               </div>
             </div>
+              </>
+            )}
           </div>
         </div>
       </div>

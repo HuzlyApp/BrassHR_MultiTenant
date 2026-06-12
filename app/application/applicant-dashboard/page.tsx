@@ -12,8 +12,10 @@ import { ApplicantPortalShell } from "@/app/application/components/applicant-por
 import { ApplicantPortalTabs } from "@/app/application/components/applicant-portal/ApplicantPortalTabs";
 import { ApplicantScheduleTab } from "@/app/application/components/applicant-portal/ApplicantScheduleTab";
 import { ApplicantTimesheetsTab } from "@/app/application/components/applicant-portal/ApplicantTimesheetsTab";
+import { ApplicantNotesTab } from "@/app/application/components/applicant-portal/ApplicantNotesTab";
 import type {
   ApplicantMessage,
+  ApplicantNote,
   ApplicantPortalTab,
   ApplicantSession,
   Appointment,
@@ -69,6 +71,8 @@ export default function ApplicantDashboardPage() {
   const [selectedSlot, setSelectedSlot] = useState<AppointmentSlot | null>(null);
   const [todayAttendance, setTodayAttendance] = useState<AttendanceLog | null>(null);
   const [recentAttendance, setRecentAttendance] = useState<AttendanceLog[]>([]);
+  const [notes, setNotes] = useState<ApplicantNote[]>([]);
+  const [notesLoading, setNotesLoading] = useState(true);
   const [selectedSlotId, setSelectedSlotId] = useState("");
   const [rescheduleReason, setRescheduleReason] = useState("");
   const [showRescheduleReason, setShowRescheduleReason] = useState(false);
@@ -113,6 +117,24 @@ export default function ApplicantDashboardPage() {
     setSelectedSlot(payload.selectedSlot ?? null);
   }
 
+  async function loadNotes(headers: { Authorization: string }) {
+    setNotesLoading(true);
+    try {
+      const res = await fetch("/api/applicant-portal/notes", {
+        headers,
+        cache: "no-store",
+      });
+      const payload = (await res.json().catch(() => ({}))) as {
+        notes?: ApplicantNote[];
+        error?: string;
+      };
+      if (!res.ok) throw new Error(payload.error || "Could not load notes.");
+      setNotes(payload.notes ?? []);
+    } finally {
+      setNotesLoading(false);
+    }
+  }
+
   async function loadAttendance(headers: { Authorization: string }) {
     const res = await fetch("/api/applicant-portal/attendance", {
       headers,
@@ -155,7 +177,12 @@ export default function ApplicantDashboardPage() {
           }
         }
 
-        await Promise.all([loadMessages(headers), loadAppointments(headers), loadAttendance(headers)]);
+        await Promise.all([
+          loadMessages(headers),
+          loadAppointments(headers),
+          loadAttendance(headers),
+          loadNotes(headers),
+        ]);
       } catch (err) {
         if (alive) setError(err instanceof Error ? err.message : "Could not load applicant dashboard.");
       } finally {
@@ -372,8 +399,10 @@ export default function ApplicantDashboardPage() {
                 onRequestReschedule={handleRequestReschedule}
                 onAttendanceAction={handleAttendanceAction}
               />
-            ) : (
+            ) : activeTab === "timesheets" ? (
               <ApplicantTimesheetsTab todayAttendance={todayAttendance} recentAttendance={recentAttendance} />
+            ) : (
+              <ApplicantNotesTab notes={notes} loading={notesLoading} />
             )}
           </>
         ) : null}

@@ -5,6 +5,12 @@ import { useParams, usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import DetailedCandidateHeader from "../../../components/DetailedCandidateHeader";
 import DetailedTabs from "../../../components/DetailedTabs";
+import CandidateDetailLoader from "../../../components/CandidateDetailLoader";
+import BrandedFileTypeIcon from "../../../components/BrandedFileTypeIcon";
+import DocumentReviewActions from "../../../components/DocumentReviewActions";
+import { useWorkerDocumentReview } from "../../../hooks/useWorkerDocumentReview";
+import { legacyDocumentKeyFromField } from "@/lib/admin/document-review";
+import { isPdfFile } from "@/lib/document-upload-helpers";
 import {
   Briefcase,
   Calendar,
@@ -28,8 +34,23 @@ type WorkerProfile = {
   status_label?: string;
 };
 
+type AuthorizationRequirement = {
+  id: string;
+  title: string;
+  url: string | null;
+  filename: string;
+  required_document_id?: string | null;
+  submitted_document_id?: string | null;
+  legacy_document_key?: string | null;
+  status?: string | null;
+  step_type?: string;
+  step_key?: string;
+};
+
 type ProfileApi = {
   worker: WorkerProfile;
+  attachment_requirements?: AuthorizationRequirement[];
+  legacy_document_reviews?: Record<string, string>;
   document_urls: {
     nursing_license_url: string | null;
     tb_test_url: string | null;
@@ -49,7 +70,15 @@ type ProfileApi = {
   };
 };
 
-type DocSlot = { label: string; url: string | null };
+type DocSlot = {
+  label: string;
+  url: string | null;
+  requiredDocumentId?: string | null;
+  submittedDocumentId?: string | null;
+  legacyDocumentKey?: string | null;
+  status?: string | null;
+  documentField?: string;
+};
 
 type DocSection = {
   id: string;
@@ -82,9 +111,25 @@ type ZohoRequestDetails = {
 
 type UploadSlot = {
   id: string;
-  documentField: string;
+  documentField?: string;
+  requiredDocumentId?: string | null;
   title: string;
 };
+
+function legacyDocumentFieldForTitle(title: string): string | null {
+  const t = title.trim().toLowerCase();
+  if (!t) return null;
+  if (t.includes("authorization") || t.includes("agreement") || t.includes("employee")) {
+    return "authorization";
+  }
+  if (t.includes("ssn") || t.includes("social security")) {
+    return t.includes("back") ? "ssn_back" : "ssn_front";
+  }
+  if (t.includes("driver") && t.includes("license")) {
+    return t.includes("back") ? "dl_back" : "dl_front";
+  }
+  return null;
+}
 
 function isUuid(value: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
@@ -201,6 +246,14 @@ export default function NewApplicantAuthorizationFilledPage() {
     void fetchApplicant();
   }, [fetchApplicant]);
 
+  const {
+    actionError,
+    submitReview,
+    requestEsign,
+    isReviewLoading,
+    esignLoading,
+  } = useWorkerDocumentReview(applicantId, fetchApplicant);
+
   const openUploadPicker = (slot: UploadSlot) => {
     setUploadError(null);
     setPendingUploadSlot(slot);
@@ -219,8 +272,14 @@ export default function NewApplicantAuthorizationFilledPage() {
       const fd = new FormData();
       fd.append("file", file);
       fd.append("workerId", applicantId);
-      fd.append("documentField", slot.documentField);
       fd.append("documentTitle", slot.title);
+      if (slot.requiredDocumentId) {
+        fd.append("requiredDocumentId", slot.requiredDocumentId);
+      } else if (slot.documentField) {
+        fd.append("documentField", slot.documentField);
+      } else {
+        throw new Error(`Upload is not configured for "${slot.title}".`);
+      }
 
       const res = await fetch("/api/admin/worker-attachment-upload", {
         method: "POST",
@@ -316,32 +375,83 @@ export default function NewApplicantAuthorizationFilledPage() {
     window.open(url, "_blank", "noopener,noreferrer");
   };
 
+  const legacyReviewMap = profile?.legacy_document_reviews ?? {};
+
+  const authorizationRequirements = useMemo(
+    () =>
+      (profile?.attachment_requirements ?? []).filter(
+        (row) => row.step_type === "authorizations"
+      ),
+    [profile?.attachment_requirements]
+  );
+
   const documentSections: DocSection[] = useMemo(() => {
+    if (authorizationRequirements.length > 0) {
+      return authorizationRequirements.map((req) => ({
+        id: req.id,
+        title: req.title,
+        slots: [
+          {
+            label: "Document",
+            url: req.url,
+            requiredDocumentId: req.required_document_id ?? null,
+            submittedDocumentId: req.submitted_document_id ?? null,
+            legacyDocumentKey: req.legacy_document_key ?? legacyDocumentKeyFromField(
+              legacyDocumentFieldForTitle(req.title) ?? undefined
+            ),
+            status: req.status ?? null,
+            documentField: legacyDocumentFieldForTitle(req.title) ?? undefined,
+          },
+        ],
+      }));
+    }
+
     if (!du) return [];
+    const legacySlot = (
+      label: string,
+      url: string | null,
+      documentField: string,
+      legacyKey: string
+    ): DocSlot => ({
+      label,
+      url,
+      documentField,
+      legacyDocumentKey: legacyKey,
+      status: legacyReviewMap[legacyKey] ?? (url ? "uploaded" : null),
+    });
+
     return [
       {
         id: "ssn",
         title: "SSN Card",
         slots: [
-          { label: "Front", url: du.ssn_url },
-          { label: "Back", url: du.ssn_back_url },
+          legacySlot("Front", du.ssn_url, "ssn_front", "ssn_url"),
+          legacySlot("Back", du.ssn_back_url, "ssn_back", "ssn_back_url"),
         ],
       },
       {
         id: "dl",
         title: "Driver's License",
         slots: [
-          { label: "Front", url: du.drivers_license_url },
-          { label: "Back", url: du.drivers_license_back_url },
+          legacySlot("Front", du.drivers_license_url, "dl_front", "drivers_license_url"),
+          legacySlot("Back", du.drivers_license_back_url, "dl_back", "drivers_license_back_url"),
         ],
       },
       {
         id: "employment",
         title: "Employment Agreement",
-        slots: [{ label: "Agreement", url: authHasPacket ? "signeasy-linked" : null }],
+        slots: [
+          {
+            label: "Agreement",
+            url: authHasPacket ? "signeasy-linked" : null,
+            documentField: "authorization",
+            legacyDocumentKey: "document_url",
+            status: legacyReviewMap.document_url ?? (authHasPacket ? "uploaded" : null),
+          },
+        ],
       },
     ];
-  }, [du, authHasPacket]);
+  }, [authorizationRequirements, du, authHasPacket, legacyReviewMap]);
 
   const reviewRows = useMemo(() => {
     const rows: { id: string; title: string }[] = [
@@ -465,10 +575,6 @@ export default function NewApplicantAuthorizationFilledPage() {
 
         <div className="flex-1 p-8 overflow-auto">
           <div className="max-w-[1320px] mx-auto">
-            <div className="mb-5 text-xs text-gray-600">
-              Admin - New Applicant Detailed Page - Authorization (filled)
-            </div>
-
             <DetailedTabs applicantId={applicantId} activeTab="Authorization" />
 
             {loadError ? (
@@ -483,6 +589,12 @@ export default function NewApplicantAuthorizationFilledPage() {
               </div>
             ) : null}
 
+            {actionError ? (
+              <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+                {actionError}
+              </div>
+            ) : null}
+
             <input
               ref={fileInputRef}
               type="file"
@@ -494,10 +606,13 @@ export default function NewApplicantAuthorizationFilledPage() {
               }}
             />
 
+            {loading ? (
+              <CandidateDetailLoader label="Loading authorization..." />
+            ) : (
+              <>
             <DetailedCandidateHeader
               name={candidateName}
               role={candidateRole}
-              loading={loading}
             />
 
             <div className="mx-auto w-full max-w-[1300px]">
@@ -548,7 +663,7 @@ export default function NewApplicantAuthorizationFilledPage() {
                   <div className="flex items-center justify-between gap-4 px-5 py-3">
                     {authHasPacket ? (
                       <div className="flex h-[50px] w-[306px] min-w-[306px] max-w-[520px] items-center gap-2 rounded-[8px] border border-[#99D8D3] bg-[#F8FAFC] px-3 py-2">
-                        <img src="/icons/pdf-icon.svg" alt="" className="h-6 w-6 shrink-0" />
+                        <BrandedFileTypeIcon type="pdf" className="h-6 w-6 shrink-0" />
                         <div className="min-w-0">
                           <div className="truncate text-xs font-semibold leading-4 tracking-[0.01em] text-[#0D9488]">
                             {authFileLabel}
@@ -618,24 +733,22 @@ export default function NewApplicantAuthorizationFilledPage() {
                       >
                         <Download className="h-4 w-4" />
                       </button>
-                      <button
-                        type="button"
-                        className="inline-flex h-8 items-center justify-center rounded-md bg-[#0D9488] px-4 text-xs font-semibold text-white"
-                      >
-                        Approved
-                      </button>
-                      <button
-                        type="button"
-                        className="inline-flex h-8 items-center justify-center rounded-md border border-[#99D8D3] px-4 text-xs font-semibold text-[#0D9488]"
-                      >
-                        Reject
-                      </button>
-                      <button
-                        type="button"
-                        className="inline-flex h-8 items-center justify-center rounded-md border border-[#99D8D3] px-4 text-xs font-semibold text-[#0D9488]"
-                      >
-                        Request eSign
-                      </button>
+                      <DocumentReviewActions
+                        disabled={!authHasPacket && !authUploadedUrl}
+                        loading={isReviewLoading({ legacyDocumentKey: "document_url" })}
+                        currentStatus={legacyReviewMap.document_url ?? (authSigned ? "approved" : "uploaded")}
+                        onApprove={() =>
+                          void submitReview({ legacyDocumentKey: "document_url" }, "approved")
+                        }
+                        onReject={() =>
+                          void submitReview({ legacyDocumentKey: "document_url" }, "rejected")
+                        }
+                        showRequestEsign
+                        esignLoading={esignLoading}
+                        onRequestEsign={() =>
+                          void requestEsign(requestId || null, zohoDetails?.actions[0]?.action_id)
+                        }
+                      />
                     </div>
                   </div>
                   {zohoDetails?.documents_count && zohoDetails.documents_count > 1 ? (
@@ -716,6 +829,7 @@ export default function NewApplicantAuthorizationFilledPage() {
                                   openUploadPicker({
                                     id: "employment",
                                     documentField: "authorization",
+                                    requiredDocumentId: d.slots[0]?.requiredDocumentId,
                                     title: "Employment Agreement",
                                   })
                                 }
@@ -731,9 +845,12 @@ export default function NewApplicantAuthorizationFilledPage() {
                                   key={`${d.id}-${slot.label}`}
                                   className="flex h-[50px] w-[306px] min-w-[306px] items-center gap-2 rounded-[8px] border border-[#99D8D3] bg-[#F8FAFC] px-3 py-2"
                                 >
-                                  <img src="/icons/pdf-icon.svg" alt="" className="h-6 w-6 shrink-0" />
+                                  <BrandedFileTypeIcon
+                                    type={isPdfFile(null, fileLabelFromUrl(slot.url ?? ""), slot.url) ? "pdf" : "jpeg"}
+                                    className="h-6 w-6 shrink-0"
+                                  />
                                   <div className="min-w-0">
-                                    <div className="truncate text-xs font-semibold leading-4 tracking-[0.01em] text-[#0D9488]">
+                                    <div className="truncate text-xs font-semibold leading-4 tracking-[0.01em] text-[color:var(--brand-primary)]">
                                       {d.id === "employment" ? authFileLabel : fileLabelFromUrl(slot.url)}
                                     </div>
                                     <div className="text-xs font-normal leading-4 tracking-[0.01em] text-[#6B7280]">
@@ -760,15 +877,12 @@ export default function NewApplicantAuthorizationFilledPage() {
                                     onClick={() =>
                                       openUploadPicker({
                                         id: `${d.id}-${slot.label}`,
-                                        documentField:
-                                          d.id === "ssn"
-                                            ? slot.label === "Front"
-                                              ? "ssn_front"
-                                              : "ssn_back"
-                                            : slot.label === "Front"
-                                              ? "dl_front"
-                                              : "dl_back",
-                                        title: `${d.title} ${slot.label}`,
+                                        requiredDocumentId: slot.requiredDocumentId,
+                                        documentField: slot.documentField,
+                                        title:
+                                          slot.label === "Document"
+                                            ? d.title
+                                            : `${d.title} ${slot.label}`,
                                       })
                                     }
                                     className="inline-flex h-8 items-center justify-center rounded-md border border-[#99D8D3] bg-white px-4 text-xs font-semibold text-[#0D9488] disabled:opacity-50"
@@ -781,44 +895,44 @@ export default function NewApplicantAuthorizationFilledPage() {
                           )}
                         </div>
 
-                        <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            className={`inline-flex h-8 items-center justify-center rounded-md px-4 text-xs font-semibold ${
-                              d.slots.some((s) => s.url)
-                                ? "bg-[#0D9488] text-white"
-                                : "bg-[#E5E7EB] text-[#9CA3AF]"
-                            }`}
-                          >
-                            Approved
-                          </button>
-                          <button
-                            type="button"
-                            className={`inline-flex h-8 items-center justify-center rounded-md px-4 text-xs font-semibold ${
-                              d.slots.some((s) => s.url)
-                                ? "border border-[#99D8D3] text-[#0D9488]"
-                                : "border border-[#E5E7EB] text-[#9CA3AF]"
-                            }`}
-                          >
-                            Reject
-                          </button>
-                          <button
-                            type="button"
-                            className={`inline-flex h-8 items-center justify-center rounded-md px-4 text-xs font-semibold ${
-                              d.slots.some((s) => s.url)
-                                ? "border border-[#99D8D3] text-[#0D9488]"
-                                : "border border-[#E5E7EB] text-[#9CA3AF]"
-                            }`}
-                          >
-                            Request a doc
-                          </button>
-                        </div>
+                        {(() => {
+                          const reviewSlot =
+                            d.slots.find((slot) => slot.url && slot.url !== "signeasy-linked") ??
+                            d.slots[0];
+                          const reviewTarget = {
+                            submittedDocumentId: reviewSlot?.submittedDocumentId ?? null,
+                            legacyDocumentKey: reviewSlot?.legacyDocumentKey ?? null,
+                          };
+                          return (
+                            <DocumentReviewActions
+                              disabled={!d.slots.some((s) => s.url && s.url !== "signeasy-linked")}
+                              loading={isReviewLoading(reviewTarget)}
+                              currentStatus={reviewSlot?.status}
+                              onApprove={() => void submitReview(reviewTarget, "approved")}
+                              onReject={() => void submitReview(reviewTarget, "rejected")}
+                              onRequestMore={() =>
+                                void submitReview(reviewTarget, "needs_revision")
+                              }
+                              requestMoreLabel="Request a doc"
+                              showRequestEsign={d.id === "employment"}
+                              esignLoading={esignLoading}
+                              onRequestEsign={() =>
+                                void requestEsign(
+                                  requestId || null,
+                                  zohoDetails?.actions[0]?.action_id
+                                )
+                              }
+                            />
+                          );
+                        })()}
                       </div>
                     </div>
                   ))}
                 </div>
               </section>
             </div>
+              </>
+            )}
           </div>
         </div>
       </div>
