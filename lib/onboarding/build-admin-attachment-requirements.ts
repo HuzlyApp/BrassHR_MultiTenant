@@ -143,7 +143,7 @@ export function buildAdminAttachmentRequirements(
   for (const step of enabled) {
     if (step.step_type === "resume_upload") {
       rows.push({
-        id: "resume",
+        id: `step-${step.step_key}`,
         title: step.title.trim() || "Resume",
         step_key: step.step_key,
         step_type: step.step_type,
@@ -259,4 +259,10 @@ export function buildLegacyAttachmentRequirements(
 
 export function attachmentRequirementHasUpload(req: AdminAttachmentRequirement): boolean {
   return typeof req.url === "string" && req.url.trim().length > 0;
+}
+
+export function isResumeAttachmentRequirement(
+  req: Pick<AdminAttachmentRequirement, "id" | "step_type">
+): boolean {
+  return req.step_type === "resume_upload" || req.id === "resume";
 }

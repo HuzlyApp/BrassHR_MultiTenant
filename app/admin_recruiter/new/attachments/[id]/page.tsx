@@ -26,6 +26,8 @@ import AiPreScanBanner from "@/app/components/AiPreScanBanner";
 import { scanUploadedDocument } from "@/lib/document-verification-client";
 import type { DocumentVerificationResult } from "@/lib/document-verification";
 import { isPdfFile } from "@/lib/document-upload-helpers";
+import type { OnboardingStepType } from "@/lib/onboarding/types";
+
 type WorkerProfile = {
   id: string;
   first_name: string | null;
@@ -39,6 +41,8 @@ type AttachmentRequirement = {
   url: string | null;
   filename: string;
   required_document_id?: string | null;
+  step_type?: OnboardingStepType;
+  step_key?: string;
 };
 
 type WorkerProfileResponse = {
@@ -47,12 +51,28 @@ type WorkerProfileResponse = {
 };
 
 type AttachmentRow = {
+  key: string;
   id: string;
   title: string;
   url: string | null;
   filename: string;
   requiredDocumentId: string | null;
+  stepType: OnboardingStepType | null;
+  stepKey: string | null;
 };
+
+function attachmentRowKey(
+  row: Omit<AttachmentRow, "key">,
+  index: number
+): string {
+  if (row.requiredDocumentId) return `req-${row.requiredDocumentId}`;
+  if (row.stepKey) return `step-${row.stepKey}`;
+  return `${row.id}-${index}`;
+}
+
+function isResumeAttachmentRow(row: Pick<AttachmentRow, "id" | "stepType">): boolean {
+  return row.stepType === "resume_upload" || row.id === "resume";
+}
 
 function initials(name: string) {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -117,7 +137,7 @@ export default function NewApplicantAttachmentsFilledPage() {
     setPendingUploadRow(null);
     if (!file || !row || !applicantId) return;
 
-    setUploadingId(row.id);
+    setUploadingId(row.key);
     setUploadError(null);
 
     try {
@@ -126,7 +146,7 @@ export default function NewApplicantAttachmentsFilledPage() {
       fd.append("workerId", applicantId);
       fd.append("documentTitle", row.title);
 
-      if (row.id === "resume") {
+      if (isResumeAttachmentRow(row)) {
         fd.append("attachmentKind", "resume");
       } else if (row.requiredDocumentId) {
         fd.append("requiredDocumentId", row.requiredDocumentId);
@@ -145,7 +165,7 @@ export default function NewApplicantAttachmentsFilledPage() {
 
       setScanById((prev) => {
         const next = { ...prev };
-        delete next[row.id];
+        delete next[row.key];
         return next;
       });
       await fetchApplicant();
@@ -163,13 +183,21 @@ export default function NewApplicantAttachmentsFilledPage() {
   const attachmentRows: AttachmentRow[] = useMemo(() => {
     if (!profile) return [];
     const fromConfig = profile.attachment_requirements ?? [];
-    return fromConfig.map((row) => ({
-      id: row.id,
-      title: row.title,
-      url: row.url,
-      filename: row.filename?.trim() ? row.filename : "—",
-      requiredDocumentId: row.required_document_id ?? null,
-    }));
+    return fromConfig.map((row, index) => {
+      const mapped = {
+        id: row.id,
+        title: row.title,
+        url: row.url,
+        filename: row.filename?.trim() ? row.filename : "—",
+        requiredDocumentId: row.required_document_id ?? null,
+        stepType: row.step_type ?? null,
+        stepKey: row.step_key ?? null,
+      };
+      return {
+        ...mapped,
+        key: attachmentRowKey(mapped, index),
+      };
+    });
   }, [profile]);
 
   useEffect(() => {
@@ -183,7 +211,7 @@ export default function NewApplicantAttachmentsFilledPage() {
 
         setScanById((prev) => ({
           ...prev,
-          [row.id]: { loading: true, result: null, error: null },
+          [row.key]: { loading: true, result: null, error: null },
         }));
 
         try {
@@ -195,14 +223,14 @@ export default function NewApplicantAttachmentsFilledPage() {
           if (cancelled) return;
           setScanById((prev) => ({
             ...prev,
-            [row.id]: { loading: false, result, error: null },
+            [row.key]: { loading: false, result, error: null },
           }));
         } catch (e) {
           if (cancelled) return;
           const msg = e instanceof Error ? e.message : "Scan failed";
           setScanById((prev) => ({
             ...prev,
-            [row.id]: { loading: false, result: null, error: msg },
+            [row.key]: { loading: false, result: null, error: msg },
           }));
         }
       }
@@ -438,12 +466,12 @@ export default function NewApplicantAttachmentsFilledPage() {
                       <div className="px-4 py-4 text-sm text-[#6B7280]">Loading requirements...</div>
                     ) : (
                       attachmentRows.map((r, idx) => {
-                        const scan = scanById[r.id];
+                        const scan = scanById[r.key];
                         const isPdf = isPdfFile(null, r.filename, r.url);
 
                         return (
                         <div
-                          key={r.id}
+                          key={r.key}
                           className="w-full rounded-md border border-[#D1D5DB]"
                         >
                           <div className="flex h-[44px] items-center justify-between px-5 pt-3 pb-2">
@@ -493,11 +521,11 @@ export default function NewApplicantAttachmentsFilledPage() {
                                 <span className="text-xs text-[#6B7280]">No Document</span>
                                 <button
                                   type="button"
-                                  disabled={uploadingId === r.id}
+                                  disabled={uploadingId === r.key}
                                   onClick={() => openUploadPicker(r)}
                                   className="inline-flex h-8 items-center justify-center rounded-md border border-[color:color-mix(in_srgb,var(--brand-primary)_30%,white)] bg-white px-4 text-xs font-semibold text-[color:var(--brand-primary)] disabled:opacity-50"
                                 >
-                                  {uploadingId === r.id ? "Uploading..." : "Upload"}
+                                  {uploadingId === r.key ? "Uploading..." : "Upload"}
                                 </button>
                               </div>
                             )}
@@ -526,11 +554,11 @@ export default function NewApplicantAttachmentsFilledPage() {
                             ) : (
                               <button
                                 type="button"
-                                disabled={uploadingId === r.id}
+                                disabled={uploadingId === r.key}
                                 onClick={() => openUploadPicker(r)}
                                 className="inline-flex h-8 items-center justify-center rounded-md bg-[color:var(--brand-primary)] px-5 text-xs font-semibold text-white hover:brightness-95 disabled:opacity-50"
                               >
-                                {uploadingId === r.id ? "Uploading..." : "Upload"}
+                                {uploadingId === r.key ? "Uploading..." : "Upload"}
                               </button>
                             )}
                           </div>

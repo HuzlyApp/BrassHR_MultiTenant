@@ -89,7 +89,47 @@ describe("buildAdminAttachmentRequirements", () => {
 
     expect(rows).toHaveLength(1);
     expect(rows[0]?.title).toBe("Add Resume");
-    expect(rows[0]?.id).toBe("resume");
+    expect(rows[0]?.id).toBe("step-resume_upload");
+  });
+
+  it("assigns unique ids when multiple resume upload steps are enabled", () => {
+    const config = minimalConfig([
+      {
+        id: "s1",
+        step_key: "resume_upload",
+        title: "Add Resume",
+        description: null,
+        step_type: "resume_upload",
+        sort_order: 10,
+        is_required: true,
+        is_enabled: true,
+        metadata: {},
+      },
+      {
+        id: "s2",
+        step_key: "resume_reupload",
+        title: "Updated Resume",
+        description: null,
+        step_type: "resume_upload",
+        sort_order: 15,
+        is_required: false,
+        is_enabled: true,
+        metadata: {},
+      },
+    ]);
+
+    const rows = buildAdminAttachmentRequirements({
+      config,
+      resumeUrl: "https://resume.pdf",
+      resumePath: "a/resume.pdf",
+      resumePathRaw: "a/resume.pdf",
+      legacyUrls,
+      submittedByRequiredId: new Map(),
+      useLegacyFallback: false,
+    });
+
+    expect(rows).toHaveLength(2);
+    expect(rows.map((r) => r.id)).toEqual(["step-resume_upload", "step-resume_reupload"]);
   });
 
   it("includes configured required documents for professional license step", () => {
