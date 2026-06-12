@@ -1,9 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Plus } from "lucide-react";
+import { ChevronLeft, ChevronRight, Loader2, Plus } from "lucide-react";
 import type { AdminInterviewItem } from "@/app/api/admin/applicant-appointments/route";
 import { formatInterviewDate, formatInterviewTimeRange } from "@/lib/interviews/format";
+import { localDateString } from "@/lib/interviews/schedule-fields";
 import { InterviewSuccessModal } from "./InterviewSuccessModal";
 import { ScheduleInterviewModal } from "./ScheduleInterviewModal";
 
@@ -28,7 +29,10 @@ const HOUR_LABELS = [
   "4:00 PM",
   "5:00 PM",
   "6:00 PM",
-];
+] as const;
+
+/** Local wall-clock hour for each row (must stay in sync with HOUR_LABELS). */
+const HOUR_SLOTS = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18] as const;
 
 function startOfDay(date: Date): Date {
   const d = new Date(date);
@@ -47,42 +51,166 @@ function getWeekStart(date: Date): Date {
   return addDays(d, -d.getDay());
 }
 
-function formatDateKey(date: Date): string {
-  return date.toISOString().slice(0, 10);
+function isDateInWeek(date: Date, weekStart: Date): boolean {
+  const day = startOfDay(date);
+  const weekEnd = addDays(weekStart, 6);
+  return day >= weekStart && day <= weekEnd;
+}
+
+function getDefaultCalendarAnchor(interviews: AdminInterviewItem[]): Date {
+  const now = new Date();
+  if (interviews.length === 0) return now;
+
+  const weekStart = getWeekStart(now);
+  const hasInterviewThisWeek = interviews.some((item) =>
+    isDateInWeek(new Date(item.startsAt), weekStart)
+  );
+
+  if (hasInterviewThisWeek) return now;
+
+  const earliest = [...interviews].sort(
+    (a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime()
+  )[0];
+  return new Date(earliest.startsAt);
+}
+
+function interviewMatchesHourSlot(startsAt: string, slotHour: number): boolean {
+  const start = new Date(startsAt);
+  return start.getHours() === slotHour;
 }
 
 function TabButton({
   active,
   count,
   label,
+  loading,
   onClick,
 }: {
   active: boolean;
   count: number;
   label: string;
+  loading?: boolean;
   onClick: () => void;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`flex w-full items-center gap-2 rounded-lg px-3.5 py-2 text-left text-sm transition ${
+      disabled={loading}
+      className={`flex w-full items-center gap-2 rounded-lg px-3.5 py-2.5 text-left text-sm font-medium transition disabled:cursor-wait disabled:opacity-70 ${
         active
-          ? "border border-[color:var(--brand-primary,#bc8b41)] text-[color:var(--brand-primary,#bc8b41)]"
-          : "text-[#1F2937] hover:bg-[#F8FAFC]"
+          ? "border border-[color:var(--brand-primary,#bc8b41)] bg-white text-[color:var(--brand-primary,#bc8b41)]"
+          : "border border-transparent text-[#1F2937] hover:bg-[#F8FAFC]"
       }`}
     >
       <span
-        className={`flex h-4 w-4 items-center justify-center rounded-full text-[10px] font-semibold ${
-          active
-            ? "bg-[color:var(--brand-primary,#bc8b41)] text-white"
-            : "bg-[#F4F4F4] text-[color:var(--brand-primary,#bc8b41)]"
+        className={`inline-flex size-4 shrink-0 items-center justify-center rounded-full p-0.5 text-[10px] font-semibold leading-none ${
+          loading
+            ? "animate-pulse bg-[#E5E7EB] text-transparent"
+            : active
+              ? "bg-[color:var(--brand-primary,#bc8b41)] text-white"
+              : "bg-[#F4F4F4] text-[color:var(--brand-primary,#bc8b41)]"
         }`}
+        aria-hidden
       >
         {count}
       </span>
-      {label}
+      <span>{label}</span>
     </button>
+  );
+}
+
+function SkeletonBlock({ className = "" }: { className?: string }) {
+  return <div className={`animate-pulse rounded bg-[#E5E7EB] ${className}`} aria-hidden />;
+}
+
+function InterviewsLoadingSkeleton({ viewMode, monthTitle }: { viewMode: ViewMode; monthTitle: string }) {
+  if (viewMode === "calendar") {
+    return (
+      <div className="flex flex-1 flex-col" role="status" aria-live="polite" aria-busy="true" aria-label="Loading interviews">
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <p className="text-base font-bold text-[#111827]">{monthTitle}</p>
+          <div className="flex items-center gap-2 text-xs text-[#64748B]">
+            <span className="font-medium text-[#111827]">Calendar View</span>
+            <SkeletonBlock className="h-5 w-9 rounded-full" />
+            <span>List View</span>
+          </div>
+        </div>
+        <div className="overflow-hidden rounded-lg border border-[#E5E7EB] bg-white">
+          <div
+            className="grid border-b border-[#E5E7EB] bg-white"
+            style={{ gridTemplateColumns: "93px repeat(7, minmax(0, 1fr))" }}
+          >
+            <div className="border-r border-[#E5E7EB]" aria-hidden />
+            {Array.from({ length: 7 }).map((_, i) => (
+              <div key={i} className="flex flex-col items-center border-r border-[#E5E7EB] px-2 py-3 last:border-r-0">
+                <SkeletonBlock className="h-3 w-6" />
+                <SkeletonBlock className="mt-1 h-6 w-8 rounded px-2 py-1" />
+                <SkeletonBlock className="mt-2 h-0.5 w-full" />
+              </div>
+            ))}
+          </div>
+          <div className="space-y-0">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div
+                key={i}
+                className="grid min-h-[56px] border-b border-[#E5E7EB]"
+                style={{ gridTemplateColumns: "93px repeat(7, minmax(0, 1fr))" }}
+              >
+                <div className="border-r border-[#E5E7EB] px-3 py-4">
+                  <SkeletonBlock className="ml-auto h-3 w-10" />
+                </div>
+                {Array.from({ length: 7 }).map((_, j) => (
+                  <div key={j} className="border-r border-[#E5E7EB] p-1 last:border-r-0">
+                    {i === 1 && j === 3 ? <SkeletonBlock className="h-10 w-full rounded" /> : null}
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="mt-6 flex items-center justify-center gap-2 text-sm text-[#475569]">
+          <Loader2 className="h-5 w-5 animate-spin text-[color:var(--brand-primary,#bc8b41)]" aria-hidden />
+          <span>Loading interviews…</span>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-1 flex-col" role="status" aria-live="polite" aria-busy="true" aria-label="Loading interviews">
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <p className="text-sm font-semibold text-[#1F2937]">{monthTitle}</p>
+        <div className="flex items-center gap-2 text-xs text-[#64748B]">
+          <span>Calendar View</span>
+          <SkeletonBlock className="h-5 w-8 rounded-full" />
+          <span className="text-[#1F2937]">List View</span>
+        </div>
+      </div>
+      <div className="overflow-hidden rounded-lg border border-[#E5E7EB]">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div key={i} className="flex min-h-[96px] border-b border-[#E5E7EB] last:border-b-0">
+            <div className="flex w-[120px] shrink-0 items-center justify-center border-r border-[#E5E7EB] px-2">
+              <div className="flex flex-col items-center gap-1">
+                <SkeletonBlock className="h-3 w-8" />
+                <SkeletonBlock className="h-6 w-12 rounded px-2 py-1" />
+              </div>
+            </div>
+            <div className="flex flex-1 items-center justify-between gap-4 px-6 py-4">
+              <div className="flex flex-1 flex-col gap-2">
+                <SkeletonBlock className="h-4 w-40 sm:w-52" />
+                <SkeletonBlock className="h-3 w-56 sm:w-72" />
+              </div>
+              <SkeletonBlock className="hidden h-4 w-24 shrink-0 sm:block" />
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="mt-6 flex items-center justify-center gap-2 text-sm text-[#475569]">
+        <Loader2 className="h-5 w-5 animate-spin text-[color:var(--brand-primary,#bc8b41)]" aria-hidden />
+        <span>Loading interviews…</span>
+      </div>
+    </div>
   );
 }
 
@@ -160,14 +288,15 @@ function InterviewCalendarView({
 }) {
   const weekStart = getWeekStart(anchorDate);
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
-  const todayKey = formatDateKey(new Date());
+  const todayKey = localDateString(new Date());
   const now = new Date();
   const nowMinutes = now.getHours() * 60 + now.getMinutes();
+  const todayInWeek = weekDays.some((day) => localDateString(day) === todayKey);
 
   const eventsByDay = useMemo(() => {
     const map = new Map<string, AdminInterviewItem[]>();
     interviews.forEach((item) => {
-      const key = formatDateKey(new Date(item.startsAt));
+      const key = localDateString(new Date(item.startsAt));
       const list = map.get(key) ?? [];
       list.push(item);
       map.set(key, list);
@@ -176,31 +305,43 @@ function InterviewCalendarView({
   }, [interviews]);
 
   return (
-    <div className="overflow-hidden rounded-lg border border-[#E5E7EB]">
-      <div className="grid grid-cols-7 border-b border-[#E5E7EB] bg-white">
+    <div className="overflow-hidden rounded-lg border border-[#E5E7EB] bg-white">
+      <div
+        className="grid border-b border-[#E5E7EB] bg-white"
+        style={{ gridTemplateColumns: "93px repeat(7, minmax(0, 1fr))" }}
+      >
+        <div className="border-r border-[#E5E7EB] bg-white" aria-hidden />
         {weekDays.map((day) => {
-          const key = formatDateKey(day);
+          const key = localDateString(day);
           const isToday = key === todayKey;
           const count = eventsByDay.get(key)?.length ?? 0;
           return (
             <div
               key={key}
-              className={`border-r border-[#E5E7EB] px-2 py-3 text-center last:border-r-0 ${
-                isToday ? "border-b-2 border-b-[color:var(--brand-primary,#bc8b41)]" : ""
-              }`}
+              className="flex flex-col items-center border-r border-[#E5E7EB] px-2 py-3 last:border-r-0"
             >
-              <p className="text-[10px] uppercase text-[#64748B]">
+              <p className="text-[10px] font-medium uppercase tracking-wide text-[#64748B]">
                 {day.toLocaleDateString("en-US", { weekday: "short" })}
               </p>
-              <p
-                className={`mx-auto mt-1 flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold ${
-                  isToday ? "bg-[color:var(--brand-primary,#bc8b41)] text-white" : "text-[#1F2937]"
+              <span
+                className={`mt-1 inline-flex h-6 items-center justify-center rounded px-2 py-1 text-xs font-semibold leading-none ${
+                  isToday
+                    ? "bg-[color:var(--brand-primary,#bc8b41)] text-white"
+                    : "text-[#1F2937]"
                 }`}
               >
                 {day.getDate()}
-              </p>
+              </span>
+              <span
+                className={`mt-2 block h-0.5 w-full rounded-full ${
+                  isToday ? "bg-[color:var(--brand-primary,#bc8b41)]" : "bg-transparent"
+                }`}
+                aria-hidden
+              />
               {count > 0 ? (
-                <p className="mt-1 text-[10px] font-semibold text-[#D97706]">{count}</p>
+                <p className="mt-1 text-[10px] font-semibold leading-none text-[color:var(--brand-primary,#bc8b41)]">
+                  {count}
+                </p>
               ) : null}
             </div>
           );
@@ -209,47 +350,58 @@ function InterviewCalendarView({
 
       <div className="relative max-h-[560px] overflow-y-auto">
         {HOUR_LABELS.map((label, index) => {
-          const hour = index < 4 ? 8 + index : index === 4 ? 12 : index - 3 + 12;
+          const hour = HOUR_SLOTS[index];
           const rowMinutes = hour * 60;
-          const showNowLine =
-            weekDays.some((day) => formatDateKey(day) === todayKey) &&
-            Math.abs(nowMinutes - rowMinutes) < 30;
+          const showNowLine = todayInWeek && Math.abs(nowMinutes - rowMinutes) < 30;
 
           return (
             <div
               key={label}
-              className="relative grid min-h-[56px] border-b border-[#E5E7EB]"
+              className="relative grid min-h-[56px] border-b border-[#E5E7EB] bg-white"
               style={{ gridTemplateColumns: "93px repeat(7, minmax(0, 1fr))" }}
             >
-              <div className="border-r border-[#E5E7EB] px-3 py-4 text-right text-[10px] text-[#64748B]">
+              <div className="relative border-r border-[#E5E7EB] bg-white px-3 py-4 text-right text-[11px] text-[#64748B]">
                 {label}
               </div>
               {weekDays.map((day) => {
-                const key = formatDateKey(day);
-                const dayEvents = (eventsByDay.get(key) ?? []).filter((event) => {
-                  const start = new Date(event.startsAt);
-                  return start.getHours() === hour;
-                });
+                const key = localDateString(day);
+                const dayEvents = (eventsByDay.get(key) ?? []).filter((event) =>
+                  interviewMatchesHourSlot(event.startsAt, hour)
+                );
                 return (
-                  <div key={`${label}-${key}`} className="relative border-r border-[#E5E7EB] p-1 last:border-r-0">
-                    {showNowLine && key === todayKey ? (
-                      <div className="pointer-events-none absolute left-0 right-0 top-1/2 z-10 flex items-center">
-                        <div className="h-0 w-0 border-y-[5px] border-l-[8px] border-y-transparent border-l-[color:var(--brand-primary,#bc8b41)]" />
-                        <div className="h-px flex-1 bg-[color:var(--brand-primary,#bc8b41)]" />
-                      </div>
-                    ) : null}
+                  <div
+                    key={`${label}-${key}`}
+                    className="relative border-r border-[#E5E7EB] bg-white p-1.5 last:border-r-0"
+                  >
                     {dayEvents.map((event) => (
                       <div
                         key={event.id}
-                        className="mb-1 rounded border border-[#E2E8F0] border-r-4 border-r-[#012352] bg-[#F8FAFC] px-2 py-1.5"
+                        className="mb-1 flex overflow-hidden rounded border border-[#E5E7EB] bg-[#F3F4F6]"
                       >
-                        <p className="truncate text-[11px] font-semibold text-[#1F2937]">{event.title}</p>
-                        <p className="truncate text-[10px] text-[#64748B]">{event.applicantName}</p>
+                        <div className="min-w-0 flex-1 px-2.5 py-2">
+                          <p className="truncate text-xs font-semibold text-[#111827]">{event.title}</p>
+                          <p className="mt-0.5 truncate text-[10px] leading-snug text-[#6B7280]">
+                            {event.description || `Interview with ${event.applicantName}`}
+                          </p>
+                        </div>
+                        <div
+                          className="w-1 shrink-0 bg-[#012352]"
+                          aria-hidden
+                        />
                       </div>
                     ))}
                   </div>
                 );
               })}
+              {showNowLine ? (
+                <div
+                  className="pointer-events-none absolute z-10 flex items-center"
+                  style={{ left: "93px", right: 0, top: "50%", transform: "translateY(-50%)" }}
+                >
+                  <div className="h-0 w-0 border-y-[4px] border-l-[6px] border-y-transparent border-l-[color:var(--brand-primary,#bc8b41)]" />
+                  <div className="h-px flex-1 bg-[color:var(--brand-primary,#bc8b41)]" />
+                </div>
+              ) : null}
             </div>
           );
         })}
@@ -270,7 +422,7 @@ export default function InterviewsPageClient() {
   const [successOpen, setSuccessOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [scheduleError, setScheduleError] = useState<string | null>(null);
-  const [anchorDate] = useState(() => new Date());
+  const [calendarWeekAnchor, setCalendarWeekAnchor] = useState<Date | null>(null);
 
   const loadInterviews = useCallback(async (activeTab: TabId) => {
     setLoading(true);
@@ -300,6 +452,16 @@ export default function InterviewsPageClient() {
   useEffect(() => {
     void loadInterviews(tab);
   }, [tab, loadInterviews]);
+
+  useEffect(() => {
+    setCalendarWeekAnchor(getDefaultCalendarAnchor(interviews));
+  }, [interviews]);
+
+  const anchorDate = calendarWeekAnchor ?? new Date();
+
+  function shiftCalendarWeek(deltaDays: number) {
+    setCalendarWeekAnchor((prev) => addDays(prev ?? new Date(), deltaDays));
+  }
 
   async function handleSchedule(payload: {
     workerId: string;
@@ -347,56 +509,85 @@ export default function InterviewsPageClient() {
                 active={tab === "upcoming"}
                 count={counts.upcoming}
                 label="Upcoming"
+                loading={loading}
                 onClick={() => setTab("upcoming")}
               />
               <TabButton
                 active={tab === "recent"}
                 count={counts.recent}
                 label="Recent"
+                loading={loading}
                 onClick={() => setTab("recent")}
               />
             </div>
           </aside>
 
           <section className="flex min-w-0 flex-1 flex-col p-5">
-            {hasInterviews ? (
-              <div className="mb-4 flex items-center justify-between gap-3">
-                <p className="text-sm font-semibold text-[#1F2937]">{monthTitle}</p>
-                <div className="flex items-center gap-2 text-xs text-[#64748B]">
-                  <span className={viewMode === "calendar" ? "text-[#1F2937]" : ""}>Calendar View</span>
-                  <button
-                    type="button"
-                    role="switch"
-                    aria-checked={viewMode === "list"}
-                    onClick={() => setViewMode((v) => (v === "list" ? "calendar" : "list"))}
-                    className={`relative h-5 w-8 rounded-full transition ${
-                      viewMode === "list" ? "bg-[color:var(--brand-primary,#bc8b41)]" : "bg-[#CBD5E1]"
-                    }`}
-                  >
-                    <span
-                      className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition ${
-                        viewMode === "list" ? "left-3.5" : "left-0.5"
-                      }`}
-                    />
-                  </button>
-                  <span className={viewMode === "list" ? "text-[#1F2937]" : ""}>List View</span>
-                </div>
-              </div>
-            ) : null}
-
             {loading ? (
-              <p className="py-16 text-center text-sm text-[#64748B]">Loading interviews…</p>
+              <InterviewsLoadingSkeleton viewMode={viewMode} monthTitle={monthTitle} />
             ) : error ? (
               <p className="rounded-lg bg-red-50 p-4 text-sm text-red-700">{error}</p>
             ) : !hasInterviews ? (
               <EmptyState onSchedule={() => setScheduleOpen(true)} />
-            ) : viewMode === "list" ? (
-              <InterviewListView interviews={interviews} />
             ) : (
-              <InterviewCalendarView interviews={interviews} anchorDate={anchorDate} />
+              <>
+                <div className="mb-4 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    {viewMode === "calendar" ? (
+                      <button
+                        type="button"
+                        onClick={() => shiftCalendarWeek(-7)}
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-[#E5E7EB] text-[#64748B] transition hover:bg-[#F8FAFC] hover:text-[#111827]"
+                        aria-label="Previous week"
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                      </button>
+                    ) : null}
+                    <p className="text-base font-bold text-[#111827]">{monthTitle}</p>
+                    {viewMode === "calendar" ? (
+                      <button
+                        type="button"
+                        onClick={() => shiftCalendarWeek(7)}
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-[#E5E7EB] text-[#64748B] transition hover:bg-[#F8FAFC] hover:text-[#111827]"
+                        aria-label="Next week"
+                      >
+                        <ChevronRight className="h-4 w-4" />
+                      </button>
+                    ) : null}
+                  </div>
+                  <div className="flex items-center gap-2 text-xs text-[#64748B]">
+                    <span className={viewMode === "calendar" ? "font-medium text-[#111827]" : ""}>
+                      Calendar View
+                    </span>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={viewMode === "calendar"}
+                      onClick={() => setViewMode((v) => (v === "list" ? "calendar" : "list"))}
+                      className={`relative h-5 w-9 rounded-full transition ${
+                        viewMode === "calendar"
+                          ? "bg-[color:var(--brand-primary,#bc8b41)]"
+                          : "bg-[#CBD5E1]"
+                      }`}
+                    >
+                      <span
+                        className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition ${
+                          viewMode === "calendar" ? "left-0.5" : "left-4"
+                        }`}
+                      />
+                    </button>
+                    <span className={viewMode === "list" ? "font-medium text-[#111827]" : ""}>List View</span>
+                  </div>
+                </div>
+                {viewMode === "list" ? (
+                  <InterviewListView interviews={interviews} />
+                ) : (
+                  <InterviewCalendarView interviews={interviews} anchorDate={anchorDate} />
+                )}
+              </>
             )}
 
-            {hasInterviews ? (
+            {hasInterviews && !loading ? (
               <div className="mt-5 flex justify-end">
                 <button
                   type="button"

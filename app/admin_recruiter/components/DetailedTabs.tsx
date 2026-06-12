@@ -47,26 +47,31 @@ function tabHref(tab: TabName, applicantId?: string) {
 
 export default function DetailedTabs({ applicantId, activeTab }: DetailedTabsProps) {
   return (
-    <nav
-      className="mb-4 mx-auto flex w-full max-w-[1300px] flex-wrap items-end gap-x-8 gap-y-2 border-b border-[#E5E7EB]"
-      aria-label="Applicant sections"
-    >
-      {TABS.map((tab) => {
-        const isActive = tab === activeTab;
-        return (
-          <Link
-            key={tab}
-            href={tabHref(tab, applicantId)}
-            className={`shrink-0 px-0 pb-3 pt-1 text-sm font-medium leading-5 whitespace-nowrap transition-colors ${
-              isActive
-                ? "-mb-px border-b-2 border-[color:var(--brand-primary)] text-[color:var(--brand-primary)]"
-                : "border-b-2 border-transparent text-[#2B3D51] hover:text-[color:var(--brand-primary)]"
-            }`}
-          >
-            {tab}
-          </Link>
-        );
-      })}
+    <nav className="mb-6 w-full" aria-label="Applicant sections">
+      <div className="mx-auto flex w-full max-w-[1300px] flex-wrap items-start justify-center gap-1">
+        {TABS.map((tab) => {
+          const isActive = tab === activeTab;
+          return (
+            <Link
+              key={tab}
+              href={tabHref(tab, applicantId)}
+              className={`inline-flex shrink-0 flex-col items-center rounded px-2 py-1 text-sm font-medium leading-none whitespace-nowrap transition-colors ${
+                isActive
+                  ? "text-[color:var(--brand-primary)]"
+                  : "text-[#2B3D51] hover:text-[color:var(--brand-primary)]"
+              }`}
+            >
+              <span>{tab}</span>
+              <span
+                className={`mt-2 block h-0.5 w-full rounded-full ${
+                  isActive ? "bg-[color:var(--brand-primary)]" : "bg-transparent"
+                }`}
+                aria-hidden
+              />
+            </Link>
+          );
+        })}
+      </div>
     </nav>
   );
 }
