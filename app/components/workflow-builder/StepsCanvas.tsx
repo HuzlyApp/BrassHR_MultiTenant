@@ -62,6 +62,10 @@ type StepsCanvasProps = {
   selectedNodeId: string | null;
   onSelectNode: (id: string | null) => void;
   onBeforeChange?: () => void;
+  readOnly?: boolean;
+  canPasteWorkflow?: boolean;
+  pastingWorkflow?: boolean;
+  onPasteWorkflow?: () => void;
 };
 
 const nodeTypes = { step: StepNode, dropZone: DropZoneNode };
@@ -114,6 +118,10 @@ export default function StepsCanvas({
   selectedNodeId,
   onSelectNode,
   onBeforeChange,
+  readOnly = false,
+  canPasteWorkflow = false,
+  pastingWorkflow = false,
+  onPasteWorkflow,
 }: StepsCanvasProps) {
   const { screenToFlowPosition } = useReactFlow<
     Node<WorkflowCanvasNodeData>,
@@ -129,6 +137,7 @@ export default function StepsCanvas({
 
   const handleDeleteNode = useCallback(
     (id: string) => {
+      if (readOnly) return;
       const target = nodes.find((n) => n.id === id);
       if (!target || isDropZoneNode(target)) return;
 
@@ -173,7 +182,7 @@ export default function StepsCanvas({
 
       if (selectedNodeId === id) onSelectNode(null);
     },
-    [nodes, edges, setNodes, setEdges, selectedNodeId, onSelectNode, onBeforeChange]
+    [nodes, edges, setNodes, setEdges, selectedNodeId, onSelectNode, onBeforeChange, readOnly]
   );
 
   const replaceDropZoneWithStep = useCallback(
@@ -184,6 +193,7 @@ export default function StepsCanvas({
     ) => {
       const dropZone = nodes.find((n) => n.id === dropZoneId);
       if (!dropZone || !isDropZoneNode(dropZone)) return;
+      if (readOnly) return;
 
       onBeforeChange?.();
 
@@ -217,7 +227,7 @@ export default function StepsCanvas({
 
       onSelectNode(stepId);
     },
-    [nodes, edges, setNodes, setEdges, onSelectNode, onBeforeChange]
+    [nodes, edges, setNodes, setEdges, onSelectNode, onBeforeChange, readOnly]
   );
 
   const handleInsertBetween = useCallback(
@@ -515,11 +525,11 @@ export default function StepsCanvas({
           selected: n.id === selectedNodeId,
           data: {
             ...n.data,
-            onDelete: handleDeleteNode,
+            onDelete: readOnly ? undefined : handleDeleteNode,
           },
         };
       }),
-    [nodes, selectedNodeId, handleDeleteNode]
+    [nodes, selectedNodeId, handleDeleteNode, readOnly]
   );
 
   const enhancedEdges = useMemo(
@@ -541,12 +551,12 @@ export default function StepsCanvas({
           data: {
             ...(typeof e.data === "object" ? e.data : {}),
             targetIsDropZone,
-            showParallelFlow,
-            onConnectorAction: handleConnectorAction,
+            showParallelFlow: readOnly ? false : showParallelFlow,
+            onConnectorAction: readOnly ? undefined : handleConnectorAction,
           },
         };
       }),
-    [edges, nodes, handleConnectorAction]
+    [edges, nodes, handleConnectorAction, readOnly]
   );
 
   const hasStepNodes = onlyStepNodes(nodes).length > 0;
@@ -555,24 +565,24 @@ export default function StepsCanvas({
     <div
       className="workflow-builder-flow relative h-full flex-1 overflow-hidden"
       style={{ backgroundColor: "transparent" }}
-      onDrop={onDrop}
-      onDragOver={onDragOver}
+      onDrop={readOnly ? undefined : onDrop}
+      onDragOver={readOnly ? undefined : onDragOver}
     >
       <ReactFlow
         nodes={enhancedNodes}
         edges={enhancedEdges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
-        onConnect={onConnect}
+        onConnect={readOnly ? undefined : onConnect}
         onNodeClick={handleNodeClick}
-        onNodeDragStart={handleNodeDragStart}
-        onNodeDragStop={handleNodeDragStop}
+        onNodeDragStart={readOnly ? undefined : handleNodeDragStart}
+        onNodeDragStop={readOnly ? undefined : handleNodeDragStop}
         onPaneClick={handlePaneClick}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
-        edgesFocusable
+        edgesFocusable={!readOnly}
         edgesReconnectable={false}
-        nodesDraggable
+        nodesDraggable={!readOnly}
         deleteKeyCode={null}
         onPaneContextMenu={(e) => e.preventDefault()}
         fitView
@@ -596,9 +606,9 @@ export default function StepsCanvas({
       </ReactFlow>
 
       {!hasStepNodes ? (
-        <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+        <div className="absolute inset-0 flex items-center justify-center">
           <div
-            className="flex flex-col items-center gap-2 rounded-xl border-2 border-dashed bg-white/60 px-8 py-10 text-center"
+            className="flex flex-col items-center gap-3 rounded-xl border-2 border-dashed bg-white/60 px-8 py-10 text-center"
             style={{ borderColor: GOLD }}
           >
             <span
@@ -610,6 +620,17 @@ export default function StepsCanvas({
             <span className="text-xs" style={{ color: TEXT_MUTED }}>
               Drop a step from the library to start building your flow
             </span>
+            {!readOnly && canPasteWorkflow ? (
+              <button
+                type="button"
+                onClick={onPasteWorkflow}
+                disabled={pastingWorkflow}
+                className="pointer-events-auto mt-2 flex h-11 items-center gap-2 rounded-lg px-5 text-sm font-semibold text-white transition hover:brightness-[0.97] disabled:cursor-not-allowed disabled:opacity-60"
+                style={{ background: "var(--brand-primary)" }}
+              >
+                {pastingWorkflow ? "Pasting…" : "Paste workflow"}
+              </button>
+            ) : null}
           </div>
         </div>
       ) : null}

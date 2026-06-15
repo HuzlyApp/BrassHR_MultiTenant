@@ -9,12 +9,14 @@ type StepsLibraryProps = {
   categories: StepCategory[];
   title?: string;
   searchTerm?: string;
+  readOnly?: boolean;
 };
 
 export default function StepsLibrary({
   categories,
   title = "Steps Library",
   searchTerm = "",
+  readOnly = false,
 }: StepsLibraryProps) {
   const [localSearch, setLocalSearch] = useState("");
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
@@ -103,7 +105,7 @@ export default function StepsLibrary({
                   <ul className="flex flex-col gap-1.5">
                     {cat.steps.map((step) => (
                       <li key={step.id}>
-                        <StepLibraryItem step={step} />
+                        <StepLibraryItem step={step} readOnly={readOnly} />
                       </li>
                     ))}
                   </ul>
@@ -117,19 +119,25 @@ export default function StepsLibrary({
   );
 }
 
-function StepLibraryItem({ step }: { step: StepDefinition }) {
+function StepLibraryItem({ step, readOnly = false }: { step: StepDefinition; readOnly?: boolean }) {
   // const color = STEP_COLORS[step.color];
 
   const handleDragStart = (e: React.DragEvent<HTMLDivElement>) => {
+    if (readOnly) {
+      e.preventDefault();
+      return;
+    }
     e.dataTransfer.setData(DRAG_DATA_TYPE, step.id);
     e.dataTransfer.effectAllowed = "move";
   };
 
   return (
     <div
-      draggable
+      draggable={!readOnly}
       onDragStart={handleDragStart}
-      className="group flex cursor-grab items-center gap-2 rounded-lg border bg-white px-2 py-2 transition hover:border-[#BC8B41] hover:bg-[#faf6ef] active:cursor-grabbing"
+      className={`group flex items-center gap-2 rounded-lg border bg-white px-2 py-2 transition ${
+        readOnly ? "cursor-default opacity-70" : "cursor-grab hover:border-[#BC8B41] hover:bg-[#faf6ef] active:cursor-grabbing"
+      }`}
       style={{ borderColor: CARD_BORDER }}
     >
       <span

@@ -83,6 +83,12 @@ export type WorkflowBuilderProps = {
   savingPublish?: boolean;
   /** Hides title + save row above the canvas (used when header is in dashboard sub-nav). */
   hideCanvasHeader?: boolean;
+  /** View-only mode — no edits on canvas, library, or settings. */
+  readOnly?: boolean;
+  canPasteWorkflow?: boolean;
+  pastingWorkflow?: boolean;
+  onPasteWorkflow?: () => void;
+  onResetCanvas?: () => void;
   registerUndoControls?: (
     controls: { canUndo: boolean; undo: () => void; canRedo: boolean; redo: () => void } | null
   ) => void;
@@ -125,6 +131,11 @@ function WorkflowBuilderInner({
   savingTemplate = false,
   savingPublish = false,
   hideCanvasHeader = false,
+  readOnly = false,
+  canPasteWorkflow = false,
+  pastingWorkflow = false,
+  onPasteWorkflow,
+  onResetCanvas,
   registerUndoControls,
 }: WorkflowBuilderProps) {
   const hydratedInitial = useMemo(
@@ -444,7 +455,7 @@ function WorkflowBuilderInner({
       ) : null}
 
       <div className="flex flex-1 overflow-hidden">
-        <StepsLibrary categories={stepLibrary} searchTerm={searchTerm} />
+        <StepsLibrary categories={stepLibrary} searchTerm={searchTerm} readOnly={readOnly} />
 
         <main className="flex flex-1 flex-col overflow-hidden px-4 pb-4 pt-2">
           {!hideCanvasHeader ? (
@@ -550,6 +561,10 @@ function WorkflowBuilderInner({
               selectedNodeId={selectedNodeId}
               onSelectNode={setSelectedNodeId}
               onBeforeChange={recordChange}
+              readOnly={readOnly}
+              canPasteWorkflow={canPasteWorkflow}
+              pastingWorkflow={pastingWorkflow}
+              onPasteWorkflow={onPasteWorkflow}
             />
 
             {savingTemplate ? (
@@ -591,6 +606,8 @@ function WorkflowBuilderInner({
             style={{ borderColor: "#d0d5dd" }}
           >
             <div className="flex flex-wrap items-center gap-2">
+              {!readOnly ? (
+              <>
               <button
                 type="button"
                 onClick={handleUndo}
@@ -613,16 +630,40 @@ function WorkflowBuilderInner({
                 <Redo2 size={14} />
                 Redo
               </button>
-              {!hideCanvasHeader ? (
+              </>
+              ) : null}
+              {!hideCanvasHeader && !readOnly ? (
                 <SaveTemplateButton
                   saving={savingTemplate}
                   disabled={savingPublish}
                   onClick={() => onSaveAsTemplate?.(currentState)}
                 />
               ) : null}
+              {!readOnly && canPasteWorkflow ? (
+                <button
+                  type="button"
+                  onClick={onPasteWorkflow}
+                  disabled={pastingWorkflow}
+                  className="flex h-10 shrink-0 items-center gap-2 whitespace-nowrap rounded-lg border bg-white px-3 text-sm font-semibold transition hover:bg-[#faf6ef] disabled:cursor-not-allowed disabled:opacity-60"
+                  style={{ borderColor: "var(--brand-primary)", color: "var(--brand-primary)" }}
+                >
+                  {pastingWorkflow ? "Pasting…" : "Paste workflow"}
+                </button>
+              ) : null}
+              {!readOnly && onResetCanvas ? (
+                <button
+                  type="button"
+                  onClick={onResetCanvas}
+                  className="flex h-10 shrink-0 items-center gap-2 whitespace-nowrap rounded-lg border bg-white px-3 text-sm font-medium transition hover:bg-[#fafafa]"
+                  style={{ borderColor: "#d0d5dd", color: TEXT_PRIMARY }}
+                >
+                  Reset
+                </button>
+              ) : null}
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
+              {!readOnly ? (
               <button
                 type="button"
                 onClick={() => onPreview?.(currentState)}
@@ -632,6 +673,8 @@ function WorkflowBuilderInner({
                 <Play size={14} />
                 Preview
               </button>
+              ) : null}
+              {!readOnly ? (
               <button
                 type="button"
                 onClick={() => onPublish?.(currentState)}
@@ -642,6 +685,7 @@ function WorkflowBuilderInner({
                 {savingPublish ? <Loader2 size={14} className="animate-spin" /> : null}
                 {savingPublish ? "Publishing…" : "Publish to All"}
               </button>
+              ) : null}
             </div>
           </div>
         </main>
@@ -649,6 +693,7 @@ function WorkflowBuilderInner({
         <StepsSettingsPanel
           node={selectedNode}
           onUpdate={handleUpdateNode}
+          readOnly={readOnly}
           onSaveStep={() => {
             onChange?.(currentState);
             setSuccessOpen(true);

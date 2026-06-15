@@ -206,6 +206,19 @@ export async function updateWorkflowTemplateName(
   });
 }
 
+export async function deleteWorkflowTemplate(
+  supabase: OnboardingDbClient,
+  tenantId: string,
+  templateId: string
+): Promise<void> {
+  const existing = await getWorkflowTemplateById(supabase, tenantId, templateId);
+  if (!existing) throw new Error("Template not found");
+  assertTemplateWritable(existing, tenantId);
+
+  const { error } = await supabase.from("workflow_templates").delete().eq("id", templateId);
+  if (error) throw error;
+}
+
 export function workflowTemplateDraft(row: WorkflowTemplateRow): SerializableWorkflowState {
   return parseDraft(row.builder_draft);
 }

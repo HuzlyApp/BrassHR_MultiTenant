@@ -167,7 +167,7 @@ export function useWorkflowBuilderHeaderChrome() {
         <button
           type="button"
           onClick={ctx.undo}
-          disabled={!ctx.canUndo || config.savingTemplate || config.savingPublish}
+          disabled={!ctx.canUndo || config.savingTemplate || config.savingPublish || config.viewOnly}
           className="inline-flex h-9 w-9 items-center justify-center rounded-lg border bg-white transition hover:bg-[#fafafa] disabled:cursor-not-allowed disabled:opacity-40"
           style={{ borderColor: CARD_BORDER, color: TEXT_PRIMARY }}
           aria-label="Undo"
@@ -178,7 +178,7 @@ export function useWorkflowBuilderHeaderChrome() {
         <button
           type="button"
           onClick={ctx.redo}
-          disabled={!ctx.canRedo || config.savingTemplate || config.savingPublish}
+          disabled={!ctx.canRedo || config.savingTemplate || config.savingPublish || config.viewOnly}
           className="inline-flex h-9 w-9 items-center justify-center rounded-lg border bg-white transition hover:bg-[#fafafa] disabled:cursor-not-allowed disabled:opacity-40"
           style={{ borderColor: CARD_BORDER, color: TEXT_PRIMARY }}
           aria-label="Redo"
@@ -186,6 +186,7 @@ export function useWorkflowBuilderHeaderChrome() {
         >
           <Redo2 size={16} />
         </button>
+        {!config.viewOnly ? (
         <button
           type="button"
           onClick={() => ctx.onPreview?.()}
@@ -198,15 +199,25 @@ export function useWorkflowBuilderHeaderChrome() {
         >
           Test workflow
         </button>
+        ) : null}
+        {!config.viewOnly ? (
         <SaveTemplateHeaderButton
           saving={config.savingTemplate === true}
           disabled={config.savingPublish}
           onClick={() => ctx.onSaveTemplate?.()}
         />
+        ) : (
+          <span
+            className="inline-flex h-9 items-center rounded-lg border px-3 text-xs font-semibold"
+            style={{ borderColor: CARD_BORDER, color: TEXT_PRIMARY }}
+          >
+            View only
+          </span>
+        )}
         <DraftPublishToggle
           isDraft={config.isDraft}
           savingPublish={config.savingPublish}
-          disabled={config.savingTemplate || config.templateReadOnly}
+          disabled={config.savingTemplate || config.templateReadOnly || config.viewOnly}
           onPublish={() => ctx.onPublish?.()}
         />
       </div>

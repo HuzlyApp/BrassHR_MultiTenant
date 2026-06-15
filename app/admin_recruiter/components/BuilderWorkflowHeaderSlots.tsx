@@ -10,6 +10,7 @@ type BuilderWorkflowHeaderSlotsProps = {
   isDraft: boolean;
   isEditingTemplate: boolean;
   templateReadOnly?: boolean;
+  viewOnly?: boolean;
   savingTemplate?: boolean;
   savingPublish?: boolean;
   statusSuffix?: string;
@@ -25,6 +26,7 @@ export default function BuilderWorkflowHeaderSlots({
   isDraft,
   isEditingTemplate,
   templateReadOnly = false,
+  viewOnly = false,
   savingTemplate = false,
   savingPublish = false,
   statusSuffix,
@@ -67,6 +69,7 @@ export default function BuilderWorkflowHeaderSlots({
       isDraft,
       isEditingTemplate,
       templateReadOnly,
+      viewOnly,
       savingTemplate,
       savingPublish,
       statusSuffix,
@@ -80,6 +83,7 @@ export default function BuilderWorkflowHeaderSlots({
     setHeaderConfig,
     statusSuffix,
     templateReadOnly,
+    viewOnly,
     title,
   ]);
 

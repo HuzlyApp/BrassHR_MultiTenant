@@ -23,6 +23,7 @@ type StepsSettingsPanelProps = {
   ) => void;
   onSaveStep?: (id: string) => void;
   onCloneWorkflow?: () => void;
+  readOnly?: boolean;
 };
 
 export default function StepsSettingsPanel({
@@ -30,6 +31,7 @@ export default function StepsSettingsPanel({
   onUpdate,
   onSaveStep,
   onCloneWorkflow,
+  readOnly = false,
 }: StepsSettingsPanelProps) {
   return (
     <aside
@@ -58,6 +60,7 @@ export default function StepsSettingsPanel({
           onUpdate={onUpdate}
           onSaveStep={onSaveStep}
           onCloneWorkflow={onCloneWorkflow}
+          readOnly={readOnly}
         />
       )}
     </aside>
@@ -69,9 +72,10 @@ type SettingsBodyProps = {
   onUpdate: StepsSettingsPanelProps["onUpdate"];
   onSaveStep?: StepsSettingsPanelProps["onSaveStep"];
   onCloneWorkflow?: StepsSettingsPanelProps["onCloneWorkflow"];
+  readOnly?: boolean;
 };
 
-function SettingsBody({ node, onUpdate, onSaveStep, onCloneWorkflow }: SettingsBodyProps) {
+function SettingsBody({ node, onUpdate, onSaveStep, onCloneWorkflow, readOnly = false }: SettingsBodyProps) {
   const { settings } = node.data;
   const integrationEnabled = settings.useBraasPartner;
   const providerOptions = integrationEnabled
@@ -96,7 +100,7 @@ function SettingsBody({ node, onUpdate, onSaveStep, onCloneWorkflow }: SettingsB
         </span>
       </div>
 
-      <div className="flex flex-col gap-3 px-5 pb-4">
+      <div className={`flex flex-col gap-3 px-5 pb-4 ${readOnly ? "pointer-events-none opacity-60" : ""}`}>
         <TextField
           label="Step title"
           value={node.data.label}
@@ -137,7 +141,10 @@ function SettingsBody({ node, onUpdate, onSaveStep, onCloneWorkflow }: SettingsB
         />
       </div>
 
-      <div className="flex flex-col gap-4 border-t px-5 py-4" style={{ borderColor: CARD_BORDER }}>
+      <div
+        className={`flex flex-col gap-4 border-t px-5 py-4 ${readOnly ? "pointer-events-none opacity-60" : ""}`}
+        style={{ borderColor: CARD_BORDER }}
+      >
         <SelectField
           label="Date Priority"
           value={settings.datePriority}
@@ -182,6 +189,7 @@ function SettingsBody({ node, onUpdate, onSaveStep, onCloneWorkflow }: SettingsB
         />
       </div>
 
+      {!readOnly ? (
       <div className="mt-auto flex flex-col gap-2.5 border-t px-5 py-4" style={{ borderColor: CARD_BORDER }}>
         <button
           type="button"
@@ -200,6 +208,7 @@ function SettingsBody({ node, onUpdate, onSaveStep, onCloneWorkflow }: SettingsB
           Clone Workflow
         </button>
       </div>
+      ) : null}
     </div>
   );
 }

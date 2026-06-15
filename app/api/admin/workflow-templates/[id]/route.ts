@@ -4,6 +4,7 @@ import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { resolveEffectiveAdminTenantId } from "@/lib/email-templates/resolve-effective-tenant";
 import type { OnboardingDbClient } from "@/lib/onboarding/load-tenant-config";
 import {
+  deleteWorkflowTemplate,
   getWorkflowTemplateById,
   updateWorkflowTemplate,
   workflowTemplateDraft,
@@ -122,6 +123,40 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : "Failed to update template";
     const status = /not found/i.test(msg) ? 404 : 500;
+    return NextResponse.json({ error: msg }, { status });
+  }
+}
+
+export async function DELETE(_req: NextRequest, context: RouteContext) {
+  const auth = await requireStaffApiSession();
+  if (auth instanceof NextResponse) return auth;
+
+  const supabase = createServiceRoleClient();
+  if (!supabase) {
+    return NextResponse.json({ error: "Supabase not configured" }, { status: 503 });
+  }
+
+  const { id } = await context.params;
+
+  try {
+    const tenantId = await resolveEffectiveAdminTenantId(supabase as OnboardingDbClient, {
+      userId: auth.userId,
+      authUser: auth.authUser,
+      godAdmin: auth.godAdmin,
+    });
+
+    if (!tenantId) {
+      return NextResponse.json(
+        { error: "No tenant selected", code: "TENANT_REQUIRED" },
+        { status: 400 }
+      );
+    }
+
+    await deleteWorkflowTemplate(supabase as OnboardingDbClient, tenantId, id);
+    return NextResponse.json({ ok: true });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Failed to delete template";
+    const status = /not found|cannot modify/i.test(msg) ? 404 : 500;
     return NextResponse.json({ error: msg }, { status });
   }
 }

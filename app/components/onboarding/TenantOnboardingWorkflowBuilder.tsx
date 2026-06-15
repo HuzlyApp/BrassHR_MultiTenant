@@ -26,6 +26,11 @@ import type { TenantOnboardingConfig } from "@/lib/onboarding/types";
 import { applyApplicantConfigFilters } from "@/lib/onboarding/filter-applicant-steps";
 import { configFromWorkflowDraft } from "@/lib/onboarding/config-from-builder-draft";
 import { isValidFlowNameInput, normalizeFlowNameKey } from "@/lib/onboarding/validate-flow-name";
+import { isSerializableWorkflowState } from "@/lib/onboarding/workflow-builder-serialization";
+import {
+  clearPendingWorkflowPaste,
+  isPendingWorkflowPaste,
+} from "@/lib/onboarding/workflow-template-pending-paste";
 import { writeOnboardingPreview } from "@/lib/onboarding/onboarding-preview-storage";
 import { firstOnboardingStepRoute } from "@/lib/onboarding/tenant-step-navigation";
 import { serializeWorkflowState } from "@/lib/onboarding/workflow-builder-serialization";
@@ -70,6 +75,7 @@ type EditingTemplate = {
   name: string;
   folder: "presets" | "saved-templates";
   isReadOnly: boolean;
+  isViewOnly?: boolean;
   updatedAt: string | null;
 };
 
@@ -89,6 +95,22 @@ function logBuilderDiagnostic(message: string, details?: Record<string, unknown>
   if (process.env.NODE_ENV !== "production") {
     console.info(`[OnboardingBuilder] ${message}`, details ?? {});
   }
+}
+
+function hydrateBuilderCanvas(
+  payload: BuilderPayload,
+  stepLibrary: StepCategory[]
+): { nodes: Node<WorkflowNodeData>[]; edges: Edge[] } {
+  if (!payload.config) return { nodes: [], edges: [] };
+  const drafts = mapConfigToDrafts(payload.config);
+  const stepLookup = buildWorkflowStepLookup(stepLibrary);
+  const draftForHydrate =
+    payload.publishStatus === "draft" &&
+    isSerializableWorkflowState(payload.builderDraft) &&
+    payload.builderDraft.nodes.length > 0
+      ? payload.builderDraft
+      : null;
+  return hydrateWorkflowFromStorage(draftForHydrate, drafts, stepLookup);
 }
 
 async function loadBuilderData(): Promise<BuilderQueryData> {
@@ -124,11 +146,7 @@ async function loadBuilderData(): Promise<BuilderQueryData> {
     throw new Error("Onboarding configuration is missing for this tenant.");
   }
 
-  const drafts = mapConfigToDrafts(config);
-  const stepLookup = buildWorkflowStepLookup(stepLibrary);
-  // Builder always opens on the live published workflow (applicant-facing steps).
-  // Unpublished builder_draft edits are kept server-side until Publish.
-  const { nodes, edges } = hydrateWorkflowFromStorage(null, drafts, stepLookup);
+  const { nodes, edges } = hydrateBuilderCanvas(payload, stepLibrary);
 
   return {
     payload,
@@ -151,6 +169,7 @@ export default function TenantOnboardingWorkflowBuilder({
   const pathname = usePathname() ?? "";
   const searchParams = useSearchParams();
   const templateIdFromUrl = searchParams.get("template")?.trim() || null;
+  const templateViewOnly = searchParams.get("view") === "1";
   const queryClient = useQueryClient();
   const prevPathnameRef = useRef<string | null>(null);
   const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -161,6 +180,7 @@ export default function TenantOnboardingWorkflowBuilder({
   );
   const prevTemplateIdRef = useRef<string | null>(null);
   const initializedTenantRef = useRef<string | null>(null);
+  const lastAppliedBuilderUpdatedAtRef = useRef<string | null>(null);
   const flowTitleRef = useRef("Worker onboarding");
   const savedFlowTitleRef = useRef("Worker onboarding");
   const [savingTemplate, setSavingTemplate] = useState(false);
@@ -183,6 +203,7 @@ export default function TenantOnboardingWorkflowBuilder({
   }>({ presets: [], savedTemplates: [] });
   const [editingTemplate, setEditingTemplate] = useState<EditingTemplate | null>(null);
   const [templateUpdatedAt, setTemplateUpdatedAt] = useState<string | null>(null);
+  const [pastingWorkflow, setPastingWorkflow] = useState(false);
   const [successModal, setSuccessModal] = useState<SuccessModalState>({
     open: false,
     title: "Success!",
@@ -253,9 +274,14 @@ export default function TenantOnboardingWorkflowBuilder({
     if (cameFromTemplate || tenantChanged || isFirstTenantLoad) {
       setInitialNodes(data.initialNodes);
       setInitialEdges(data.initialEdges);
-      setActiveFlowKey(tenantFlowKey);
+      setActiveFlowKey(`${tenantFlowKey}:${payload.builderUpdatedAt ?? "none"}`);
       initializedTenantRef.current = nextTenantId;
+      lastAppliedBuilderUpdatedAtRef.current = payload.builderUpdatedAt ?? null;
       skipNextChange.current = true;
+
+      if (isPendingWorkflowPaste() && data.initialNodes.length > 0) {
+        clearPendingWorkflowPaste();
+      }
     }
   }, [activeFlowKey, data, templateIdFromUrl]);
 
@@ -355,6 +381,7 @@ export default function TenantOnboardingWorkflowBuilder({
           name: template.name,
           folder: template.folder,
           isReadOnly: template.isReadOnly === true,
+          isViewOnly: templateViewOnly,
           updatedAt: template.updatedAt ?? null,
         });
         setTemplateUpdatedAt(template.updatedAt ?? null);
@@ -375,7 +402,7 @@ export default function TenantOnboardingWorkflowBuilder({
     return () => {
       cancelled = true;
     };
-  }, [templateIdFromUrl, tenantId, stepLibrary]);
+  }, [templateIdFromUrl, tenantId, stepLibrary, templateViewOnly]);
 
   const persistTemplateUpdate = useCallback(
     async (
@@ -481,6 +508,7 @@ export default function TenantOnboardingWorkflowBuilder({
         flowName?: string;
       }
     ) => {
+      if (editingTemplate?.isViewOnly) return;
       const effectiveFlowName = (options.flowName ?? flowTitleRef.current).trim() || "Worker onboarding";
       if (!options.silent) {
         if (options.template) setSavingTemplate(true);
@@ -532,23 +560,39 @@ export default function TenantOnboardingWorkflowBuilder({
           setUpdatedAt(payload.builderUpdatedAt ?? null);
         }
 
+        const savedAt = payload.builderUpdatedAt ?? null;
+        lastAppliedBuilderUpdatedAtRef.current = savedAt;
+
         const savedName = payload.flowName?.trim() || effectiveFlowName;
         flowTitleRef.current = savedName;
         savedFlowTitleRef.current = savedName;
         setFlowTitle(savedName);
 
+        const serializedDraft = builderDraft;
+        const hydratedCanvas = hydrateBuilderCanvas(
+          {
+            ...data?.payload,
+            config: payload.config ?? data?.payload.config,
+            publishStatus: payload.publishStatus ?? data?.payload.publishStatus ?? "draft",
+            builderDraft: serializedDraft,
+            builderUpdatedAt: savedAt,
+          } as BuilderPayload,
+          data?.stepLibrary ?? stepLibrary
+        );
+
         queryClient.setQueryData<BuilderQueryData>(BUILDER_QUERY_KEY, (current) =>
           current
             ? {
                 ...current,
+                initialNodes: hydratedCanvas.nodes,
+                initialEdges: hydratedCanvas.edges,
                 payload: {
                   ...current.payload,
                   config: payload.config ?? current.payload.config,
                   flowName: savedName,
                   publishStatus: payload.publishStatus ?? current.payload.publishStatus,
-                  builderDraft,
-                  builderUpdatedAt:
-                    payload.builderUpdatedAt ?? current.payload.builderUpdatedAt ?? null,
+                  builderDraft: serializedDraft,
+                  builderUpdatedAt: savedAt,
                 },
               }
             : current
@@ -577,7 +621,7 @@ export default function TenantOnboardingWorkflowBuilder({
         }
       }
     },
-    [editingTemplate, persistNewTemplate, persistTemplateUpdate, queryClient]
+    [editingTemplate, persistNewTemplate, persistTemplateUpdate, queryClient, data?.payload, data?.stepLibrary, stepLibrary]
   );
 
   const handlePreview = useCallback(
@@ -607,9 +651,42 @@ export default function TenantOnboardingWorkflowBuilder({
     [data?.payload.config, tenantId, tenantSlug]
   );
 
+  const handlePasteWorkflow = useCallback(async () => {
+    setPastingWorkflow(true);
+    try {
+      const result = await refetch();
+      const queryData = result.data;
+      if (!queryData) throw new Error("Could not load workflow");
+
+      const { nodes, edges } = hydrateBuilderCanvas(queryData.payload, queryData.stepLibrary);
+      if (!nodes.length) {
+        toast.error("No copied workflow found. Copy a template first.");
+        return;
+      }
+
+      const updatedAt = queryData.payload.builderUpdatedAt ?? String(Date.now());
+      setEditingTemplate(null);
+      setTemplateUpdatedAt(null);
+      setInitialNodes(nodes);
+      setInitialEdges(edges);
+      setPublishStatus("draft");
+      setUpdatedAt(updatedAt);
+      setActiveFlowKey(`${tenantId ?? "none"}:tenant-flow:${updatedAt}`);
+      lastAppliedBuilderUpdatedAtRef.current = updatedAt;
+      skipNextChange.current = true;
+      clearPendingWorkflowPaste();
+      toast.success("Workflow pasted on canvas");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Paste failed");
+    } finally {
+      setPastingWorkflow(false);
+    }
+  }, [refetch, tenantId]);
+
   const handleDraftChange = useCallback(
     (state: WorkflowState) => {
       latestStateRef.current = state;
+      if (editingTemplate?.isViewOnly) return;
       if (skipNextChange.current) {
         skipNextChange.current = false;
         return;
@@ -620,11 +697,32 @@ export default function TenantOnboardingWorkflowBuilder({
         void persist(state, { silent: true });
       }, 900);
     },
-    [persist]
+    [editingTemplate?.isViewOnly, persist]
   );
+
+  const handleResetCanvas = useCallback(() => {
+    if (editingTemplate?.isViewOnly) return;
+    const confirmed = window.confirm("Clear all steps from the canvas? This stays as draft only and is not saved yet.");
+    if (!confirmed) return;
+
+    if (autosaveTimer.current) {
+      clearTimeout(autosaveTimer.current);
+      autosaveTimer.current = null;
+    }
+
+    clearPendingWorkflowPaste();
+    skipNextChange.current = true;
+    latestStateRef.current = { nodes: [], edges: [] };
+    setInitialNodes([]);
+    setInitialEdges([]);
+    setPublishStatus("draft");
+    setActiveFlowKey(`${tenantId ?? "none"}:reset:${Date.now()}`);
+    toast.success("Canvas cleared — draft only, not saved");
+  }, [editingTemplate?.isViewOnly, tenantId]);
 
   const handleFlowTitleChange = useCallback(
     async (nextTitle: string) => {
+      if (editingTemplate?.isViewOnly) return;
       const trimmed = nextTitle.trim();
       const validation = isValidFlowNameInput(trimmed);
       if (validation) {
@@ -660,7 +758,7 @@ export default function TenantOnboardingWorkflowBuilder({
         setFlowTitle(revert);
       }
     },
-    [persist, templateLists.savedTemplates]
+    [editingTemplate?.isViewOnly, persist, templateLists.savedTemplates]
   );
 
   const toolbarData = useMemo(
@@ -783,15 +881,29 @@ export default function TenantOnboardingWorkflowBuilder({
     <OnboardingBuilderErrorPanel message={loadError} onRetry={handleRetryLoad} />
   ) : null;
 
+  const isViewOnly = editingTemplate?.isViewOnly === true;
+
+  const canPasteWorkflow = useMemo(() => {
+    if (editingTemplate || isViewOnly) return false;
+    if (isPendingWorkflowPaste()) return true;
+    const payload = data?.payload;
+    return (
+      payload?.publishStatus === "draft" &&
+      isSerializableWorkflowState(payload.builderDraft) &&
+      payload.builderDraft.nodes.length > 0
+    );
+  }, [data?.payload, editingTemplate, isViewOnly]);
+
   const dashboardHeaderSlots =
     isDashboard && workflowHeader ? (
       <BuilderWorkflowHeaderSlots
         title={flowTitle}
-        editableTitle
+        editableTitle={!isViewOnly}
         onTitleChange={handleFlowTitleChange}
         isDraft={isDraft}
         isEditingTemplate={Boolean(editingTemplate)}
-        templateReadOnly={editingTemplate?.isReadOnly}
+        templateReadOnly={editingTemplate?.isReadOnly || isViewOnly}
+        viewOnly={isViewOnly}
         savingTemplate={savingTemplate}
         savingPublish={savingPublish}
         statusSuffix={statusSuffix || undefined}
@@ -833,6 +945,15 @@ export default function TenantOnboardingWorkflowBuilder({
         />
       ) : null}
 
+      {isViewOnly ? (
+        <div
+          className="mx-4 mt-2 rounded-lg border border-sky-200 bg-sky-50 px-4 py-2 text-sm font-medium text-sky-950"
+          role="status"
+        >
+          View only — you cannot change this workflow
+        </div>
+      ) : null}
+
       {loadError && hasLoadedBuilder && loadError !== dismissedLoadError ? (
         <OnboardingBuilderSaveErrorBanner
           message={loadError}
@@ -846,9 +967,11 @@ export default function TenantOnboardingWorkflowBuilder({
           role="status"
         >
           <p className="font-semibold">
-            {editingTemplate.isReadOnly
-              ? "Editing a system preset — Save as Template creates your own copy"
-              : "Editing a saved template — changes update this template"}
+            {editingTemplate.isViewOnly
+              ? "View only — you cannot change this template"
+              : editingTemplate.isReadOnly
+                ? "Editing a system preset — Save as Template creates your own copy"
+                : "Editing a saved template — changes update this template"}
           </p>
         </div>
       ) : null}
@@ -899,10 +1022,15 @@ export default function TenantOnboardingWorkflowBuilder({
           lastUpdated={lastUpdated}
           publishStatusLabel={publishStatus === "published" ? "Published" : "Draft"}
           toolbarData={toolbarData}
-          editableTitle
+          editableTitle={!isViewOnly}
           titleCentered={isDashboard}
-          onTitleChange={handleFlowTitleChange}
+          onTitleChange={isViewOnly ? undefined : handleFlowTitleChange}
           onChange={handleDraftChange}
+          readOnly={isViewOnly}
+          canPasteWorkflow={canPasteWorkflow}
+          pastingWorkflow={pastingWorkflow}
+          onPasteWorkflow={() => void handlePasteWorkflow()}
+          onResetCanvas={!isViewOnly && !editingTemplate ? handleResetCanvas : undefined}
           savingTemplate={savingTemplate}
           savingPublish={savingPublish}
           onSaveAsTemplate={(state) => void persist(state, { template: true })}

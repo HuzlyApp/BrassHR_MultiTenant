@@ -23,6 +23,7 @@ export type WorkflowBuilderHeaderConfig = {
   isDraft: boolean;
   isEditingTemplate: boolean;
   templateReadOnly?: boolean;
+  viewOnly?: boolean;
   savingTemplate?: boolean;
   savingPublish?: boolean;
   statusSuffix?: string;

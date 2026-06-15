@@ -1,30 +1,29 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useRef, useState } from "react";
+import toast from "react-hot-toast";
+import { useQueryClient } from "@tanstack/react-query";
 import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
 import CreateTemplateModal, {
   type CreateTemplatePayload,
 } from "@/app/admin_recruiter/components/CreateTemplateModal";
 import TemplateCreateSuccessModal from "@/app/admin_recruiter/components/TemplateCreateSuccessModal";
-import { supabaseBrowser } from "@/lib/supabase-browser";
+import { staffAuthHeaders } from "@/lib/staff-auth-headers";
+import { markPendingWorkflowPaste } from "@/lib/onboarding/workflow-template-pending-paste";
 
 const PAGE_BG = "#f8f8f8";
 const CARD_BORDER = "#eaecf0";
 const TEXT_PRIMARY = "#101828";
+const BUILDER_BASE = "/admin_recruiter/dashboard/onboarding-builder";
+const BUILDER_QUERY_KEY = ["onboarding-builder", "effective-tenant"] as const;
 
 type TemplateItem = {
   id: string;
   name: string;
+  isPreset?: boolean;
 };
-
-async function staffAuthHeaders(): Promise<HeadersInit> {
-  const {
-    data: { session },
-  } = await supabaseBrowser.auth.getSession();
-  const token = session?.access_token;
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
 
 function CreateTemplateIcon() {
   return (
@@ -35,42 +34,163 @@ function CreateTemplateIcon() {
   );
 }
 
-function TemplateCard({ item }: { item: TemplateItem }) {
-  const editHref = `/admin_recruiter/dashboard/onboarding-builder?template=${item.id}`;
-  const displayName = item.name.replace(/\.tpl$/i, "");
+function TemplateActionButton({
+  label,
+  iconSrc,
+  onClick,
+  href,
+  disabled = false,
+}: {
+  label: string;
+  iconSrc: string;
+  onClick?: () => void;
+  href?: string;
+  disabled?: boolean;
+}) {
+  const className =
+    "inline-flex h-8 w-8 items-center justify-center rounded-md transition hover:bg-[color-mix(in_srgb,var(--brand-primary)_10%,white)] disabled:cursor-not-allowed disabled:opacity-40";
+
+  const icon = (
+    <BrandedSvgIcon src={iconSrc} className="h-4 w-4" color="var(--brand-primary)" />
+  );
+
+  if (href) {
+    return (
+      <Link href={href} className={className} aria-label={label} title={label}>
+        {icon}
+      </Link>
+    );
+  }
 
   return (
-    <Link
-      href={editHref}
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={className}
+      aria-label={label}
+      title={label}
+    >
+      {icon}
+    </button>
+  );
+}
+
+function TemplateCard({
+  item,
+  canDelete,
+  copying,
+  onCopy,
+  onView,
+  onDelete,
+}: {
+  item: TemplateItem;
+  canDelete: boolean;
+  copying?: boolean;
+  onCopy: (id: string) => void;
+  onView: (id: string) => void;
+  onDelete: (id: string, name: string) => void;
+}) {
+  const editHref = `${BUILDER_BASE}?template=${item.id}`;
+  const displayName = item.name.replace(/\.tpl$/i, "");
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const close = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [menuOpen]);
+
+  return (
+    <div
       className="group relative flex min-h-[96px] items-center gap-4 rounded-xl border bg-white px-4 py-3 transition-colors hover:border-[color:var(--brand-primary)]"
       style={{ borderColor: CARD_BORDER }}
-      aria-label={`Edit ${displayName}`}
     >
-      <div
-        className="flex h-[40px] w-[40px] shrink-0 items-center justify-center rounded-lg"
-        style={{ backgroundColor: "color-mix(in srgb, var(--brand-primary) 12%, white)" }}
+      <Link
+        href={editHref}
+        className="flex min-w-0 flex-1 items-center gap-4"
+        aria-label={`Edit ${displayName}`}
       >
-        <BrandedSvgIcon
-          src="/icons/template-icon.svg"
-          className="h-6 w-6"
-          color="var(--brand-primary)"
+        <div
+          className="flex h-[40px] w-[40px] shrink-0 items-center justify-center rounded-lg"
+          style={{ backgroundColor: "color-mix(in srgb, var(--brand-primary) 12%, white)" }}
+        >
+          <BrandedSvgIcon
+            src="/icons/template-icon.svg"
+            className="h-6 w-6"
+            color="var(--brand-primary)"
+          />
+        </div>
+        <h3 className="truncate pr-28 text-[15px] font-semibold leading-6" style={{ color: TEXT_PRIMARY }}>
+          {displayName}
+        </h3>
+      </Link>
+
+      <div className="absolute right-4 top-1/2 flex -translate-y-1/2 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+        <TemplateActionButton
+          label="Copy to workflow"
+          iconSrc="/icons/template-icons/codicon_notebook-template.svg"
+          onClick={() => onCopy(item.id)}
+          disabled={copying}
         />
+        <TemplateActionButton
+          label="View workflow"
+          iconSrc="/icons/template-icons/eye.svg"
+          onClick={() => onView(item.id)}
+        />
+        <TemplateActionButton
+          label="Edit template"
+          iconSrc="/icons/template-icons/pencil.svg"
+          href={editHref}
+        />
+        {canDelete ? (
+          <div className="relative" ref={menuRef}>
+            <button
+              type="button"
+              onClick={() => setMenuOpen((open) => !open)}
+              className="inline-flex h-8 w-8 items-center justify-center rounded-md transition hover:bg-[color-mix(in_srgb,var(--brand-primary)_10%,white)]"
+              aria-label="More options"
+              title="More options"
+            >
+              <BrandedSvgIcon
+                src="/icons/template-icons/dots-vertical.svg"
+                className="h-4 w-4"
+                color="var(--brand-primary)"
+              />
+            </button>
+            {menuOpen ? (
+              <div
+                className="absolute right-0 top-full z-20 mt-1 min-w-[140px] rounded-lg border bg-white py-1 shadow-lg"
+                style={{ borderColor: CARD_BORDER }}
+              >
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    onDelete(item.id, displayName);
+                  }}
+                  className="w-full px-3 py-2 text-left text-sm font-medium text-red-600 transition hover:bg-red-50"
+                >
+                  Delete
+                </button>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
       </div>
-      <h3 className="pr-12 text-[15px] font-semibold leading-6" style={{ color: TEXT_PRIMARY }}>
-        {displayName}
-      </h3>
-      <span className="absolute right-4 top-1/2 flex -translate-y-1/2 items-center opacity-0 transition-opacity group-hover:opacity-100">
-        <BrandedSvgIcon
-          src="/icons/template-icons/pencil.svg"
-          className="h-4 w-4"
-          color="var(--brand-primary)"
-        />
-      </span>
-    </Link>
+    </div>
   );
 }
 
 export default function AdminRecruiterTemplatesPage() {
+  const router = useRouter();
+  const queryClient = useQueryClient();
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [successModalOpen, setSuccessModalOpen] = useState(false);
   const [createdTemplateName, setCreatedTemplateName] = useState("");
@@ -81,6 +201,7 @@ export default function AdminRecruiterTemplatesPage() {
   const [error, setError] = useState<string | null>(null);
   const [createError, setCreateError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [copyingId, setCopyingId] = useState<string | null>(null);
 
   const loadTemplates = useCallback(async () => {
     setLoading(true);
@@ -109,6 +230,59 @@ export default function AdminRecruiterTemplatesPage() {
   useEffect(() => {
     void loadTemplates();
   }, [loadTemplates]);
+
+  const handleCopyToWorkflow = useCallback(
+    async (templateId: string) => {
+      if (copyingId) return;
+      setCopyingId(templateId);
+      try {
+        const res = await fetch(`/api/admin/workflow-templates/${templateId}/copy-to-workflow`, {
+          method: "POST",
+          headers: await staffAuthHeaders(),
+        });
+        const data = (await res.json()) as { error?: string; templateName?: string };
+        if (!res.ok) throw new Error(data.error || "Failed to copy template");
+
+        const name = data.templateName?.replace(/\.tpl$/i, "") ?? "Template";
+        markPendingWorkflowPaste(templateId);
+        void queryClient.invalidateQueries({ queryKey: BUILDER_QUERY_KEY });
+        toast.success(`"${name}" copied. Open Builder and click Paste.`);
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Failed to copy template");
+      } finally {
+        setCopyingId(null);
+      }
+    },
+    [copyingId, queryClient]
+  );
+
+  const handleViewTemplate = useCallback(
+    (templateId: string) => {
+      router.push(`${BUILDER_BASE}?template=${templateId}&view=1`);
+    },
+    [router]
+  );
+
+  const handleDeleteTemplate = useCallback(
+    async (templateId: string, displayName: string) => {
+      const confirmed = window.confirm(`Delete "${displayName}"? This cannot be undone.`);
+      if (!confirmed) return;
+
+      try {
+        const res = await fetch(`/api/admin/workflow-templates/${templateId}`, {
+          method: "DELETE",
+          headers: await staffAuthHeaders(),
+        });
+        const data = (await res.json()) as { error?: string };
+        if (!res.ok) throw new Error(data.error || "Failed to delete template");
+        toast.success("Template deleted");
+        await loadTemplates();
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Failed to delete template");
+      }
+    },
+    [loadTemplates]
+  );
 
   const handleCreateTemplate = async (payload: CreateTemplatePayload) => {
     setCreating(true);
@@ -199,7 +373,17 @@ export default function AdminRecruiterTemplatesPage() {
                     {presets.length === 0 ? (
                       <p className="text-sm text-[#667085]">No presets yet.</p>
                     ) : (
-                      presets.map((template) => <TemplateCard key={template.id} item={template} />)
+                      presets.map((template) => (
+                        <TemplateCard
+                          key={template.id}
+                          item={template}
+                          canDelete={false}
+                          copying={copyingId === template.id}
+                          onCopy={handleCopyToWorkflow}
+                          onView={handleViewTemplate}
+                          onDelete={handleDeleteTemplate}
+                        />
+                      ))
                     )}
                   </div>
                 </div>
@@ -217,7 +401,15 @@ export default function AdminRecruiterTemplatesPage() {
                       </p>
                     ) : (
                       savedTemplates.map((template) => (
-                        <TemplateCard key={template.id} item={template} />
+                        <TemplateCard
+                          key={template.id}
+                          item={template}
+                          canDelete
+                          copying={copyingId === template.id}
+                          onCopy={handleCopyToWorkflow}
+                          onView={handleViewTemplate}
+                          onDelete={handleDeleteTemplate}
+                        />
                       ))
                     )}
                   </div>
