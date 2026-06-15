@@ -246,7 +246,7 @@ export default function AdminRecruiterTemplatesPage() {
         const name = data.templateName?.replace(/\.tpl$/i, "") ?? "Template";
         markPendingWorkflowPaste(templateId);
         void queryClient.invalidateQueries({ queryKey: BUILDER_QUERY_KEY });
-        toast.success(`"${name}" copied. Open Builder and click Paste.`);
+        toast.success(`"${name}" copied. Open Builder and click Paste workflow.`);
       } catch (e) {
         toast.error(e instanceof Error ? e.message : "Failed to copy template");
       } finally {

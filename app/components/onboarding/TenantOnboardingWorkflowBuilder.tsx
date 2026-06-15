@@ -97,7 +97,18 @@ function logBuilderDiagnostic(message: string, details?: Record<string, unknown>
   }
 }
 
-function hydrateBuilderCanvas(
+function hydratePublishedCanvas(
+  payload: BuilderPayload,
+  stepLibrary: StepCategory[]
+): { nodes: Node<WorkflowNodeData>[]; edges: Edge[] } {
+  if (!payload.config) return { nodes: [], edges: [] };
+  const drafts = mapConfigToDrafts(payload.config);
+  const stepLookup = buildWorkflowStepLookup(stepLibrary);
+  // Builder opens on the live published workflow applicants see.
+  return hydrateWorkflowFromStorage(null, drafts, stepLookup);
+}
+
+function hydrateDraftCanvas(
   payload: BuilderPayload,
   stepLibrary: StepCategory[]
 ): { nodes: Node<WorkflowNodeData>[]; edges: Edge[] } {
@@ -105,7 +116,6 @@ function hydrateBuilderCanvas(
   const drafts = mapConfigToDrafts(payload.config);
   const stepLookup = buildWorkflowStepLookup(stepLibrary);
   const draftForHydrate =
-    payload.publishStatus === "draft" &&
     isSerializableWorkflowState(payload.builderDraft) &&
     payload.builderDraft.nodes.length > 0
       ? payload.builderDraft
@@ -146,7 +156,7 @@ async function loadBuilderData(): Promise<BuilderQueryData> {
     throw new Error("Onboarding configuration is missing for this tenant.");
   }
 
-  const { nodes, edges } = hydrateBuilderCanvas(payload, stepLibrary);
+  const { nodes, edges } = hydratePublishedCanvas(payload, stepLibrary);
 
   return {
     payload,
@@ -180,7 +190,7 @@ export default function TenantOnboardingWorkflowBuilder({
   );
   const prevTemplateIdRef = useRef<string | null>(null);
   const initializedTenantRef = useRef<string | null>(null);
-  const lastAppliedBuilderUpdatedAtRef = useRef<string | null>(null);
+  const lastAppliedPublishedVersionRef = useRef<number | null>(null);
   const flowTitleRef = useRef("Worker onboarding");
   const savedFlowTitleRef = useRef("Worker onboarding");
   const [savingTemplate, setSavingTemplate] = useState(false);
@@ -235,12 +245,15 @@ export default function TenantOnboardingWorkflowBuilder({
 
     const payload = data.payload;
     const nextTenantId = payload.tenantId ?? null;
+    const waitingForFreshFetch = isFetching && initializedTenantRef.current === null;
 
     logBuilderDiagnostic("applying fetched builder data", {
       tenantId: nextTenantId,
       flowName: payload.flowName,
-      builderUpdatedAt: payload.builderUpdatedAt,
+      configVersion: payload.config?.version,
+      publishStatus: payload.publishStatus,
       isBackgroundRefresh: !isLoading,
+      isFetching,
       templateIdFromUrl,
     });
 
@@ -268,22 +281,29 @@ export default function TenantOnboardingWorkflowBuilder({
       flowTitleRef.current = nextFlowName;
       savedFlowTitleRef.current = nextFlowName;
     }
-    setPublishStatus(payload.publishStatus === "draft" ? "draft" : "published");
-    setUpdatedAt(payload.builderUpdatedAt ?? null);
 
-    if (cameFromTemplate || tenantChanged || isFirstTenantLoad) {
+    if (waitingForFreshFetch) return;
+
+    const publishedVersion = payload.config?.version ?? 0;
+    const publishedRevisionChanged =
+      publishedVersion !== lastAppliedPublishedVersionRef.current;
+    const shouldApplyCanvas =
+      cameFromTemplate ||
+      tenantChanged ||
+      isFirstTenantLoad ||
+      publishedRevisionChanged;
+
+    if (shouldApplyCanvas) {
       setInitialNodes(data.initialNodes);
       setInitialEdges(data.initialEdges);
-      setActiveFlowKey(`${tenantFlowKey}:${payload.builderUpdatedAt ?? "none"}`);
+      setActiveFlowKey(`${tenantFlowKey}:v${publishedVersion}`);
       initializedTenantRef.current = nextTenantId;
-      lastAppliedBuilderUpdatedAtRef.current = payload.builderUpdatedAt ?? null;
+      lastAppliedPublishedVersionRef.current = publishedVersion;
       skipNextChange.current = true;
-
-      if (isPendingWorkflowPaste() && data.initialNodes.length > 0) {
-        clearPendingWorkflowPaste();
-      }
+      setPublishStatus("published");
+      setUpdatedAt(payload.builderUpdatedAt ?? null);
     }
-  }, [activeFlowKey, data, templateIdFromUrl]);
+  }, [activeFlowKey, data, isFetching, isLoading, templateIdFromUrl]);
 
   useEffect(() => {
     const prevTemplateId = prevTemplateIdRef.current;
@@ -293,6 +313,7 @@ export default function TenantOnboardingWorkflowBuilder({
       setTemplateUpdatedAt(null);
       setActiveFlowKey(null);
       initializedTenantRef.current = null;
+      lastAppliedPublishedVersionRef.current = null;
       void refetch();
     }
   }, [templateIdFromUrl, refetch]);
@@ -307,6 +328,7 @@ export default function TenantOnboardingWorkflowBuilder({
       setTemplateUpdatedAt(null);
       setActiveFlowKey(null);
       initializedTenantRef.current = null;
+      lastAppliedPublishedVersionRef.current = null;
       void queryClient.invalidateQueries({ queryKey: BUILDER_QUERY_KEY });
     }
   }, [pathname, templateIdFromUrl, queryClient]);
@@ -553,15 +575,7 @@ export default function TenantOnboardingWorkflowBuilder({
           throw new Error(payload.detail ?? payload.error ?? "Save failed");
         }
 
-        if (payload.publishStatus) {
-          setPublishStatus(payload.publishStatus);
-        }
-        if (payload.builderUpdatedAt !== undefined) {
-          setUpdatedAt(payload.builderUpdatedAt ?? null);
-        }
-
         const savedAt = payload.builderUpdatedAt ?? null;
-        lastAppliedBuilderUpdatedAtRef.current = savedAt;
 
         const savedName = payload.flowName?.trim() || effectiveFlowName;
         flowTitleRef.current = savedName;
@@ -569,23 +583,36 @@ export default function TenantOnboardingWorkflowBuilder({
         setFlowTitle(savedName);
 
         const serializedDraft = builderDraft;
-        const hydratedCanvas = hydrateBuilderCanvas(
+        const publishedCanvas = hydratePublishedCanvas(
           {
             ...data?.payload,
             config: payload.config ?? data?.payload.config,
-            publishStatus: payload.publishStatus ?? data?.payload.publishStatus ?? "draft",
-            builderDraft: serializedDraft,
-            builderUpdatedAt: savedAt,
           } as BuilderPayload,
           data?.stepLibrary ?? stepLibrary
         );
+
+        if (options.publish) {
+          setPublishStatus("published");
+          setUpdatedAt(savedAt);
+          const publishedVersion = payload.config?.version ?? 0;
+          setInitialNodes(publishedCanvas.nodes);
+          setInitialEdges(publishedCanvas.edges);
+          setActiveFlowKey(`${tenantId ?? "none"}:tenant-flow:v${publishedVersion}`);
+          lastAppliedPublishedVersionRef.current = publishedVersion;
+          skipNextChange.current = true;
+        } else if (payload.publishStatus) {
+          setPublishStatus(payload.publishStatus);
+          if (payload.builderUpdatedAt !== undefined) {
+            setUpdatedAt(payload.builderUpdatedAt ?? null);
+          }
+        }
 
         queryClient.setQueryData<BuilderQueryData>(BUILDER_QUERY_KEY, (current) =>
           current
             ? {
                 ...current,
-                initialNodes: hydratedCanvas.nodes,
-                initialEdges: hydratedCanvas.edges,
+                initialNodes: publishedCanvas.nodes,
+                initialEdges: publishedCanvas.edges,
                 payload: {
                   ...current.payload,
                   config: payload.config ?? current.payload.config,
@@ -621,7 +648,7 @@ export default function TenantOnboardingWorkflowBuilder({
         }
       }
     },
-    [editingTemplate, persistNewTemplate, persistTemplateUpdate, queryClient, data?.payload, data?.stepLibrary, stepLibrary]
+    [editingTemplate, persistNewTemplate, persistTemplateUpdate, queryClient, data?.payload, data?.stepLibrary, stepLibrary, tenantId]
   );
 
   const handlePreview = useCallback(
@@ -658,7 +685,7 @@ export default function TenantOnboardingWorkflowBuilder({
       const queryData = result.data;
       if (!queryData) throw new Error("Could not load workflow");
 
-      const { nodes, edges } = hydrateBuilderCanvas(queryData.payload, queryData.stepLibrary);
+      const { nodes, edges } = hydrateDraftCanvas(queryData.payload, queryData.stepLibrary);
       if (!nodes.length) {
         toast.error("No copied workflow found. Copy a template first.");
         return;
@@ -671,8 +698,7 @@ export default function TenantOnboardingWorkflowBuilder({
       setInitialEdges(edges);
       setPublishStatus("draft");
       setUpdatedAt(updatedAt);
-      setActiveFlowKey(`${tenantId ?? "none"}:tenant-flow:${updatedAt}`);
-      lastAppliedBuilderUpdatedAtRef.current = updatedAt;
+      setActiveFlowKey(`${tenantId ?? "none"}:tenant-flow:paste:${Date.now()}`);
       skipNextChange.current = true;
       clearPendingWorkflowPaste();
       toast.success("Workflow pasted on canvas");
