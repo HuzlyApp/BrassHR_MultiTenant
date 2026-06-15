@@ -40,14 +40,28 @@ export function normalizeFromEmailLocalPart(raw: string | null | undefined): str
 
 export function getResendFromDomain(): string {
   const domain = process.env.RESEND_FROM_DOMAIN?.trim().toLowerCase();
-  if (!domain || domain.includes("@") || !domain.includes(".")) {
-    throw new SendEmailError(
-      "NOT_CONFIGURED",
-      "RESEND_FROM_DOMAIN is not configured or invalid",
-      503
+  if (domain && !domain.includes("@") && domain.includes(".")) {
+    return domain;
+  }
+
+  const legacy = process.env.RESEND_FROM_EMAIL?.trim();
+  if (legacy) {
+    const angle = legacy.match(/<([^>]+@[^>]+)>/);
+    const email = (angle?.[1] ?? legacy).trim().toLowerCase();
+    const at = email.lastIndexOf("@");
+    if (at > 0) {
+      const fromLegacy = email.slice(at + 1).trim();
+      if (fromLegacy.includes(".")) return fromLegacy;
+    }
+  }
+
+  const fallback = "brasshr.com";
+  if (process.env.NODE_ENV !== "production") {
+    console.warn(
+      `[email] RESEND_FROM_DOMAIN not set; using fallback domain "${fallback}". Set RESEND_FROM_DOMAIN in .env.local for production.`
     );
   }
-  return domain;
+  return fallback;
 }
 
 /** Domain for admin UI (safe to expose; not tenant-specific). */

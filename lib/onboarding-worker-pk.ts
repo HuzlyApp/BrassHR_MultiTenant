@@ -41,6 +41,27 @@ export async function getWorkerSessionContext(
   return { id: String(worker.id), tenantId: resolved.tenantId }
 }
 
+/**
+ * Loads worker context; when `ensure` is true, creates a worker row from parsed resume
+ * if profile review was skipped in the tenant onboarding flow.
+ */
+export async function resolveWorkerSessionContext(
+  supabase: SupabaseClient,
+  options?: { ensure?: boolean }
+): Promise<WorkerSessionContext | null> {
+  const existing = await getWorkerSessionContext(supabase)
+  if (existing) return existing
+  if (!options?.ensure || typeof window === "undefined") return null
+
+  const { ensureApplicantWorker } = await import("@/lib/onboarding/ensure-applicant-worker")
+  const ensured = await ensureApplicantWorker()
+  if (!ensured.ok) {
+    console.warn("[resolveWorkerSessionContext]", ensured.error)
+    return null
+  }
+  return getWorkerSessionContext(supabase)
+}
+
 /** Returns `worker.id` when a worker row exists for the session applicant / auth user. */
 export async function getWorkerPrimaryKey(supabase: SupabaseClient): Promise<string | null> {
   const ctx = await getWorkerSessionContext(supabase)

@@ -3,11 +3,58 @@ import {
   getSkillAssessmentWorkerKey,
   getWorkerPrimaryKey,
   getWorkerSessionContext,
+  resolveWorkerSessionContext,
 } from "@/lib/onboarding-worker-pk"
 
 export type SkillAnswerRow = {
   skill_id: string
   answer_value: number
+}
+
+function isUpsertConflictSpecError(error: { code?: string; message?: string }): boolean {
+  return error.code === "42P10" || (error.message ?? "").includes("ON CONFLICT")
+}
+
+/** Insert or update one answer row without relying on PostgREST upsert. */
+async function saveSkillAnswerRow(
+  supabase: SupabaseClient,
+  row: {
+    applicant_id: string
+    category_id: string
+    skill_id: string
+    answer_value: number
+  }
+): Promise<{ ok: boolean; error?: string }> {
+  const { data: existing, error: findErr } = await supabase
+    .from("applicant_skill_assessment_answers")
+    .select("id")
+    .eq("applicant_id", row.applicant_id)
+    .eq("category_id", row.category_id)
+    .eq("skill_id", row.skill_id)
+    .maybeSingle()
+
+  if (findErr) return { ok: false, error: findErr.message }
+
+  if (existing?.id) {
+    const { error: upErr } = await supabase
+      .from("applicant_skill_assessment_answers")
+      .update({
+        answer_value: row.answer_value,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", existing.id)
+    if (upErr) return { ok: false, error: upErr.message }
+    return { ok: true }
+  }
+
+  const { error: insErr } = await supabase.from("applicant_skill_assessment_answers").insert({
+    applicant_id: row.applicant_id,
+    category_id: row.category_id,
+    skill_id: row.skill_id,
+    answer_value: row.answer_value,
+  })
+  if (insErr) return { ok: false, error: insErr.message }
+  return { ok: true }
 }
 
 /** Load normalized answers for a category; merges with optional legacy JSON map. */
@@ -46,7 +93,7 @@ export async function upsertSkillAnswerRow(
     answerValue: number
   }
 ): Promise<{ ok: boolean; error?: string }> {
-  const ctx = await getWorkerSessionContext(supabase)
+  const ctx = await resolveWorkerSessionContext(supabase, { ensure: true })
   if (!ctx) {
     return { ok: false, error: "no_worker_row" }
   }
@@ -54,19 +101,27 @@ export async function upsertSkillAnswerRow(
     return { ok: false, error: "invalid_answer" }
   }
 
+  const row = {
+    applicant_id: ctx.id,
+    category_id: params.categoryId,
+    skill_id: params.skillId,
+    answer_value: params.answerValue,
+  }
+
   const { error } = await supabase.from("applicant_skill_assessment_answers").upsert(
     {
-      applicant_id: ctx.id,
-      tenant_id: ctx.tenantId,
-      category_id: params.categoryId,
-      skill_id: params.skillId,
-      answer_value: params.answerValue,
+      ...row,
       updated_at: new Date().toISOString(),
     },
     { onConflict: "applicant_id,category_id,skill_id" }
   )
 
-  if (error) return { ok: false, error: error.message }
+  if (error) {
+    if (isUpsertConflictSpecError(error)) {
+      return saveSkillAnswerRow(supabase, row)
+    }
+    return { ok: false, error: error.message }
+  }
   return { ok: true }
 }
 

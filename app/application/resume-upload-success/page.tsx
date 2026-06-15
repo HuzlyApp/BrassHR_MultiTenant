@@ -16,10 +16,14 @@ import {
   normalizedResumeToStoredJson,
   RESUME_PARSE_FAILED_USER_MESSAGE,
 } from "@/lib/resumeParseQuality"
+import { useOnboardingStepNav } from "@/lib/onboarding/use-onboarding-step-nav"
+import { adjacentStepRoute } from "@/lib/onboarding/tenant-step-navigation"
+import { ensureApplicantWorker } from "@/lib/onboarding/ensure-applicant-worker"
 
 export default function Step1Success() {
   const branding = useTenantBranding()
   const router = useRouter()
+  const nav = useOnboardingStepNav()
   const brandSurfaceStyle = {
     borderColor: branding.primaryHex,
     backgroundColor: hexToRgba(branding.primaryHex, 0.1),
@@ -55,6 +59,8 @@ export default function Step1Success() {
     )
   })
   const [termsRequiredError, setTermsRequiredError] = useState<string | null>(null)
+  const [saveError, setSaveError] = useState<string | null>(null)
+  const [continuing, setContinuing] = useState(false)
   const [parseQualityFailed, setParseQualityFailed] = useState(false)
   const [parseQualityMessage, setParseQualityMessage] = useState<string | null>(null)
   const [parseMissingFields, setParseMissingFields] = useState<string[]>([])
@@ -134,7 +140,7 @@ export default function Step1Success() {
   }
 
   function handleContinue() {
-    if (parseQualityFailed) {
+    if (parseQualityFailed || continuing) {
       return
     }
     const raw = typeof window !== "undefined" ? localStorage.getItem("parsedResume")?.trim() : ""
@@ -161,7 +167,48 @@ export default function Step1Success() {
       setTermsRequiredError("Please accept Terms & Conditions *")
       return
     }
-    router.push(applicationPath(APPLICATION_ROUTES.profileReview))
+
+    void (async () => {
+      setSaveError(null)
+      setContinuing(true)
+      try {
+        const ensured = await ensureApplicantWorker()
+        if (!ensured.ok) {
+          setSaveError(ensured.error)
+          return
+        }
+
+        localStorage.setItem("step1ReviewCompleted", "true")
+
+        const applicantId = localStorage.getItem("applicantId")?.trim() || ""
+        if (applicantId) {
+          try {
+            await fetch("/api/onboarding/progress/step", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                applicantId,
+                stepKey: "resume_upload",
+                status: "completed",
+              }),
+            })
+          } catch {
+            /* progress is best-effort */
+          }
+        }
+
+        const resumeStep =
+          nav.enabledSteps?.find(
+            (s) => s.step_type === "resume_upload" || s.step_key === "resume_upload"
+          ) ?? null
+        const next =
+          adjacentStepRoute(nav.config, resumeStep, 1, nav.slug) ??
+          applicationPath(APPLICATION_ROUTES.profileReview)
+        router.push(next)
+      } finally {
+        setContinuing(false)
+      }
+    })()
   }
 
   return (
@@ -292,6 +339,15 @@ export default function Step1Success() {
             </div>
           ) : null}
 
+          {saveError ? (
+            <div
+              role="alert"
+              className="mt-4 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900"
+            >
+              {saveError}
+            </div>
+          ) : null}
+
           <div className="mt-auto flex justify-end gap-4 pt-10">
             <button
               type="button"
@@ -304,11 +360,11 @@ export default function Step1Success() {
             <button
               type="button"
               onClick={handleContinue}
-              disabled={!agree || parseQualityFailed}
+              disabled={!agree || parseQualityFailed || continuing}
               className="cursor-pointer inline-flex h-11 items-center justify-center rounded-lg px-10 text-[16px] font-semibold text-white transition hover:brightness-90 disabled:cursor-not-allowed disabled:opacity-50"
               style={primaryBtnStyle}
             >
-              Continue
+              {continuing ? "Saving…" : "Continue"}
             </button>
           </div>
         </div>

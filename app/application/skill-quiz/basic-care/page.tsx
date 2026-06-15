@@ -5,7 +5,7 @@ import { applicationPath } from "@/lib/tenant/with-tenant"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 // import Image from "next/image"
-import { supabaseBrowser as supabase } from "@/lib/supabase-browser"
+import { getApplicantSupabaseClient } from "@/lib/supabase-applicant-browser"
 import OnboardingLayout from "@/app/components/OnboardingLayout"
 import OnboardingStepper from "@/app/components/OnboardingStepper"
 import { useOnboardingStepNav } from "@/lib/onboarding/use-onboarding-step-nav"
@@ -21,13 +21,14 @@ import {
   mergeQuestionCatalogWithDb,
   remapLegacySyntheticAnswerKeys,
 } from "@/lib/merge-skill-quiz-catalog"
-import { getWorkerSessionContext } from "@/lib/onboarding-worker-pk"
+import { resolveWorkerSessionContext } from "@/lib/onboarding-worker-pk"
 import { fetchApplicantSkillAnswers } from "@/lib/skill-assessment-answer-rows"
 import { useQuizAutosave } from "@/lib/useQuizAutosave"
 import AutosaveStatus from "@/app/components/AutosaveStatus"
 
 const CATEGORY_SLUG = "basic-care"
 const PAGE_SIZE = 5
+const supabase = getApplicantSupabaseClient()
 const BASIC_CARE_QUESTION_CONTENT = [
   {
     quiz_number: 1,
@@ -311,9 +312,9 @@ export default function BasicCareQuiz() {
       return true
     }
 
-    const ctx = await getWorkerSessionContext(supabase)
+    const ctx = await resolveWorkerSessionContext(supabase, { ensure: true })
     if (!ctx) {
-      alert("Could not load worker profile.")
+      alert("Could not save your answers. Go back and upload your resume again.")
       return false
     }
     const workerId = ctx.id

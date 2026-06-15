@@ -1,3 +1,5 @@
+import { readFile } from "fs/promises";
+import path from "path";
 import { createClient as createSb } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import type { TenantBrandingRow } from "@/lib/tenant/tenant-branding";
@@ -9,14 +11,67 @@ import {
 } from "@/lib/tenant/tenant-branding";
 import { getSupabaseAnonKey, getSupabaseUrl } from "@/lib/supabase-env";
 
+export const runtime = "nodejs";
+
 const TENANT_BRANDING_SELECT =
   "id, name, slug, logo_url, primary_color, secondary_color, accent_color, welcome_headline, welcome_subtitle, auth_background_image_url";
 
 const DEFAULT_FAVICON = "/icons/braas-HR/BrassHR-logo.svg";
 
-function toAbsoluteIconUrl(iconSrc: string, requestUrl: string): string {
-  if (iconSrc.startsWith("http://") || iconSrc.startsWith("https://")) return iconSrc;
-  return new URL(iconSrc, requestUrl).toString();
+const CACHE_CONTROL = "public, max-age=86400, stale-while-revalidate=604800";
+
+function contentTypeFromPath(iconPath: string): string {
+  const lower = iconPath.split("?")[0]?.toLowerCase() ?? "";
+  if (lower.endsWith(".svg")) return "image/svg+xml";
+  if (lower.endsWith(".png")) return "image/png";
+  if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return "image/jpeg";
+  if (lower.endsWith(".webp")) return "image/webp";
+  if (lower.endsWith(".ico")) return "image/x-icon";
+  return "application/octet-stream";
+}
+
+async function readPublicAsset(iconSrc: string): Promise<Buffer | null> {
+  if (!iconSrc.startsWith("/") || iconSrc.startsWith("//")) return null;
+  const relative = iconSrc.split("?")[0]?.split("#")[0] ?? "";
+  if (!relative) return null;
+
+  try {
+    const filePath = path.join(process.cwd(), "public", relative.replace(/^\//, ""));
+    return await readFile(filePath);
+  } catch {
+    return null;
+  }
+}
+
+async function fetchRemoteAsset(url: string): Promise<{ body: ArrayBuffer; contentType: string } | null> {
+  try {
+    const res = await fetch(url, { cache: "force-cache" });
+    if (!res.ok) return null;
+    const contentType = res.headers.get("content-type")?.split(";")[0]?.trim();
+    return {
+      body: await res.arrayBuffer(),
+      contentType: contentType || contentTypeFromPath(url),
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function resolveIconResponse(
+  iconSrc: string,
+  requestUrl: string
+): Promise<{ body: Buffer | ArrayBuffer; contentType: string } | null> {
+  if (iconSrc.startsWith("http://") || iconSrc.startsWith("https://")) {
+    return fetchRemoteAsset(iconSrc);
+  }
+
+  const local = await readPublicAsset(iconSrc);
+  if (local) {
+    return { body: local, contentType: contentTypeFromPath(iconSrc) };
+  }
+
+  const absolute = new URL(iconSrc, requestUrl).toString();
+  return fetchRemoteAsset(absolute);
 }
 
 export async function GET(req: Request) {
@@ -66,7 +121,26 @@ export async function GET(req: Request) {
 
   const fallback = brandingFallbackForSlug(branding.slug).logoUrl || DEFAULT_FAVICON;
   const iconSrc = normalizeBrandingImageSrc(branding.logoUrl, fallback, { allowBlob: true });
-  const target = toAbsoluteIconUrl(iconSrc, req.url);
 
-  return NextResponse.redirect(target, 302);
+  const resolved =
+    (await resolveIconResponse(iconSrc, req.url)) ??
+    (iconSrc !== fallback ? await resolveIconResponse(fallback, req.url) : null) ??
+    (await resolveIconResponse(DEFAULT_FAVICON, req.url));
+
+  if (!resolved) {
+    return NextResponse.json({ error: "Favicon not found" }, { status: 404 });
+  }
+
+  const body =
+    resolved.body instanceof Buffer
+      ? new Uint8Array(resolved.body)
+      : new Uint8Array(resolved.body)
+
+  return new NextResponse(body, {
+    status: 200,
+    headers: {
+      "Content-Type": resolved.contentType,
+      "Cache-Control": CACHE_CONTROL,
+    },
+  });
 }

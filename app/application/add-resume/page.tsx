@@ -187,11 +187,14 @@ export default function Step1Upload() {
           return
         }
         void (async () => {
-          const { supabaseBrowser } = await import("@/lib/supabase-browser")
           const { ensureApplicantMatchesAuthSession } = await import(
             "@/lib/onboarding/ensure-applicant-auth"
           )
-          await ensureApplicantMatchesAuthSession(supabaseBrowser)
+          const { ensureApplicantWorker } = await import("@/lib/onboarding/ensure-applicant-worker")
+          await ensureApplicantMatchesAuthSession()
+          await ensureApplicantWorker().catch(() => {
+            /* best-effort; resume-upload-success will retry */
+          })
           router.push(applicationPath(APPLICATION_ROUTES.resumeUploadSuccess))
         })()
         return
@@ -282,11 +285,14 @@ export default function Step1Upload() {
         localStorage.setItem("resumeName", uploadJson?.fileName || file.name)
         localStorage.setItem("step1TermsAccepted", "false")
         localStorage.setItem("step1ReviewCompleted", "false")
-        const { supabaseBrowser } = await import("@/lib/supabase-browser")
         const { ensureApplicantMatchesAuthSession } = await import(
           "@/lib/onboarding/ensure-applicant-auth"
         )
-        await ensureApplicantMatchesAuthSession(supabaseBrowser)
+        const { ensureApplicantWorker } = await import("@/lib/onboarding/ensure-applicant-worker")
+        await ensureApplicantMatchesAuthSession()
+        await ensureApplicantWorker().catch(() => {
+          /* best-effort; resume-upload-success will retry */
+        })
         router.push(applicationPath(APPLICATION_ROUTES.resumeUploadSuccess))
       } catch (e) {
         const msg = e instanceof Error ? e.message : "Failed to parse resume"

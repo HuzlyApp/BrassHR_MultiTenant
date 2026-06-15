@@ -4,7 +4,7 @@ import { APPLICATION_ROUTES } from "@/lib/onboarding/application-routes"
 import { applicationPath } from "@/lib/tenant/with-tenant"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
-import { supabaseBrowser as supabase } from "@/lib/supabase-browser"
+import { getApplicantSupabaseClient } from "@/lib/supabase-applicant-browser"
 import { DOCUMENTATION_CATEGORY_ID } from "@/lib/documentation-category"
 import OnboardingLayout from "@/app/components/OnboardingLayout"
 import OnboardingStepper from "@/app/components/OnboardingStepper"
@@ -17,7 +17,7 @@ import {
   mergeQuestionCatalogWithDb,
   remapLegacySyntheticAnswerKeys,
 } from "@/lib/merge-skill-quiz-catalog"
-import { getWorkerSessionContext } from "@/lib/onboarding-worker-pk"
+import { resolveWorkerSessionContext } from "@/lib/onboarding-worker-pk"
 import { fetchApplicantSkillAnswers } from "@/lib/skill-assessment-answer-rows"
 import { useQuizAutosave } from "@/lib/useQuizAutosave"
 import AutosaveStatus from "@/app/components/AutosaveStatus"
@@ -25,6 +25,7 @@ import AutosaveStatus from "@/app/components/AutosaveStatus"
 /** `skill_assessments.worker_id` = auth user id; `category` matches `skill_categories.slug` */
 const CATEGORY_SLUG = "documentation"
 const PAGE_SIZE = 5
+const supabase = getApplicantSupabaseClient()
 const DISPLAY_TITLE = "Professional Practices & Documentation"
 const DISPLAY_SUBTITLE = "Ethical standards, record-keeping, and care coordination"
 const DOCUMENTATION_QUESTION_CONTENT = [
@@ -293,9 +294,9 @@ export default function DocumentationQuiz() {
       if (completed) localStorage.setItem("documentation_done", "true")
       return true
     }
-    const ctx = await getWorkerSessionContext(supabase)
+    const ctx = await resolveWorkerSessionContext(supabase, { ensure: true })
     if (!ctx) {
-      alert("Could not load worker profile.")
+      alert("Could not save your answers. Go back and upload your resume again.")
       return false
     }
     const workerId = ctx.id

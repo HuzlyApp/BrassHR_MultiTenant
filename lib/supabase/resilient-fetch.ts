@@ -1,4 +1,4 @@
-/** Server-side fetch with longer timeout and light retry for Supabase REST calls. */
+        /** Server-side fetch with longer timeout and light retry for Supabase REST calls. */
 export function createResilientFetch(options?: {
   timeoutMs?: number;
   retries?: number;

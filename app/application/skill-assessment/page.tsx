@@ -7,7 +7,8 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
 import { Check, ChevronRight } from "lucide-react"
-import { supabaseBrowser as supabase } from "@/lib/supabase-browser"
+import { getApplicantSupabaseClient } from "@/lib/supabase-applicant-browser"
+import { ensureApplicantWorker } from "@/lib/onboarding/ensure-applicant-worker"
 import OnboardingStepper from "@/app/components/OnboardingStepper"
 import { useOnboardingStepNav } from "@/lib/onboarding/use-onboarding-step-nav"
 import OnboardingLayout from "@/app/components/OnboardingLayout"
@@ -67,6 +68,8 @@ function recordCompletedCategories(rows: { category: string }[]): Set<string> {
   }
   return set
 }
+
+const supabase = getApplicantSupabaseClient()
 
 export default function AssessmentPage() {
   const branding = useTenantBranding()
@@ -128,6 +131,10 @@ export default function AssessmentPage() {
   useEffect(() => {
     void loadCategories()
   }, [loadCategories])
+
+  useEffect(() => {
+    void ensureApplicantWorker()
+  }, [])
 
   const goToCategory = (cat: Category) => {
     const href = quizHref(cat)

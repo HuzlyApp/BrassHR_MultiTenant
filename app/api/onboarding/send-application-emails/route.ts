@@ -76,11 +76,22 @@ export async function POST(req: NextRequest) {
       ok: true,
       sent: result.sent,
       skipped: result.skipped ?? false,
+      reason: result.reason ?? null,
       messageId: result.messageId ?? null,
     });
   } catch (e) {
     if (e instanceof z.ZodError) {
       return NextResponse.json({ error: "Invalid request", code: "VALIDATION_ERROR" }, { status: 400 });
+    }
+    if (e instanceof SendEmailError && e.code === "NOT_CONFIGURED") {
+      console.warn("[onboarding/send-application-emails]", e.message);
+      return NextResponse.json({
+        ok: true,
+        sent: false,
+        skipped: true,
+        reason: e.code,
+        error: e.message,
+      });
     }
     return handleError(e);
   }

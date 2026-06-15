@@ -4,7 +4,7 @@ import { APPLICATION_ROUTES } from "@/lib/onboarding/application-routes"
 import { applicationPath } from "@/lib/tenant/with-tenant"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
-import { supabaseBrowser as supabase } from "@/lib/supabase-browser"
+import { getApplicantSupabaseClient } from "@/lib/supabase-applicant-browser"
 import { CLINICAL_CATEGORY_ID } from "@/lib/clinical-category"
 import OnboardingLayout from "@/app/components/OnboardingLayout"
 import OnboardingStepper from "@/app/components/OnboardingStepper"
@@ -13,7 +13,7 @@ import OnboardingLoader from "@/app/components/OnboardingLoader"
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext"
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding"
 import { ChevronRight } from "lucide-react"
-import { getWorkerSessionContext } from "@/lib/onboarding-worker-pk"
+import { resolveWorkerSessionContext } from "@/lib/onboarding-worker-pk"
 import { fetchApplicantSkillAnswers } from "@/lib/skill-assessment-answer-rows"
 import { useQuizAutosave } from "@/lib/useQuizAutosave"
 import AutosaveStatus from "@/app/components/AutosaveStatus"
@@ -21,6 +21,7 @@ import AutosaveStatus from "@/app/components/AutosaveStatus"
 /** `skill_assessments.worker_id` = auth user id; `category` matches `skill_categories.slug` */
 const CATEGORY_SLUG = "clinical"
 const PAGE_SIZE = 5
+const supabase = getApplicantSupabaseClient()
 
 type QuestionRow = {
   id: string
@@ -222,9 +223,9 @@ export default function ClinicalQuiz() {
       if (completed) localStorage.setItem("clinical_done", "true")
       return true
     }
-    const ctx = await getWorkerSessionContext(supabase)
+    const ctx = await resolveWorkerSessionContext(supabase, { ensure: true })
     if (!ctx) {
-      alert("Could not load worker profile.")
+      alert("Could not save your answers. Go back and upload your resume again.")
       return false
     }
     const workerId = ctx.id
