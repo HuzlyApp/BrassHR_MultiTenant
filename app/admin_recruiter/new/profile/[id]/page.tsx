@@ -7,7 +7,6 @@ import toast from "react-hot-toast";
 import CandidateCommunicationDialog from "../../../components/CandidateCommunicationDialog";
 import CandidateCommunicationHistory from "../../../components/CandidateCommunicationHistory";
 import DetailedCandidateHeader from "../../../components/DetailedCandidateHeader";
-import { useCandidateHeader } from "../../../hooks/useCandidateHeader";
 import DetailedTabs from "../../../components/DetailedTabs";
 import CandidateDetailLoader from "../../../components/CandidateDetailLoader";
 import ProfileSubTabs from "../../../components/ProfileSubTabs";
@@ -193,13 +192,7 @@ export default function NewApplicantProfilePage() {
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<ProfilePayload | null>(null);
   const [commOpen, setCommOpen] = useState(false);
-  const {
-    worker: headerWorker,
-    name: candidateName,
-    role: candidateRole,
-    loading: headerLoading,
-  } = useCandidateHeader(applicantId);
-  const pageLoading = loading || headerLoading;
+  const pageLoading = loading;
   const [commRefreshKey, setCommRefreshKey] = useState(0);
   const [resendingStatusEmail, setResendingStatusEmail] = useState(false);
   const [approvingForWork, setApprovingForWork] = useState(false);
@@ -242,14 +235,16 @@ export default function NewApplicantProfilePage() {
   }, [applicantId]);
 
   const w = data?.worker;
+  const candidateName = useMemo(() => {
+    const n = `${w?.first_name ?? ""} ${w?.last_name ?? ""}`.trim();
+    return n || "Applicant";
+  }, [w?.first_name, w?.last_name]);
+  const candidateRole = w?.job_role?.trim() || "—";
+  const candidateStatus = w?.status_label;
   const candidateLocation = useMemo(() => {
-    const parts = [
-      w?.city ?? headerWorker?.city ?? "",
-      w?.state ?? headerWorker?.state ?? "",
-      w?.zip ?? "",
-    ].filter(Boolean);
+    const parts = [w?.city ?? "", w?.state ?? "", w?.zip ?? ""].filter(Boolean);
     return parts.length ? parts.join(", ") : "—";
-  }, [w?.city, w?.state, w?.zip, headerWorker?.city, headerWorker?.state]);
+  }, [w?.city, w?.state, w?.zip]);
 
   const id = applicantId ?? "";
   const nursingLicenseRows = useMemo(() => {
@@ -479,6 +474,7 @@ export default function NewApplicantProfilePage() {
             <DetailedCandidateHeader
               name={candidateName}
               role={candidateRole}
+              status={candidateStatus}
               onMessageClick={() => setCommOpen(true)}
               messageDisabled={!w?.email?.trim() && !w?.phone?.trim()}
               onResendStatusClick={() => void handleResendStatusEmail()}

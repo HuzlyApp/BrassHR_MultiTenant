@@ -7,6 +7,7 @@ import { jsPDF } from "jspdf";
 import DetailedCandidateHeader from "../../../components/DetailedCandidateHeader";
 import DetailedTabs from "../../../components/DetailedTabs";
 import CandidateDetailLoader from "../../../components/CandidateDetailLoader";
+import { useCandidateHeader } from "../../../hooks/useCandidateHeader";
 import BrandedStepperCompleteIcon from "../../../components/BrandedStepperCompleteIcon";
 import BrandedFileTypeIcon from "../../../components/BrandedFileTypeIcon";
 import {
@@ -27,6 +28,7 @@ type WorkerProfile = {
   first_name: string | null;
   last_name: string | null;
   job_role: string | null;
+  status_label?: string;
 };
 
 type Assessment = {
@@ -235,6 +237,7 @@ export default function NewApplicantSkillAssessmentsPage() {
   const [busyAssessmentId, setBusyAssessmentId] = useState<string | null>(null);
   const [applicant, setApplicant] = useState<WorkerProfile | null>(null);
   const [assessments, setAssessments] = useState<Assessment[]>([]);
+  const { status: candidateStatus } = useCandidateHeader(applicantId);
 
   useEffect(() => {
     async function fetchAssessmentList() {
@@ -465,6 +468,7 @@ export default function NewApplicantSkillAssessmentsPage() {
             <DetailedCandidateHeader
               name={candidateName}
               role={candidateRole}
+              status={candidateStatus ?? applicant?.status_label}
             />
 
             <div className="mx-auto w-full max-w-[1300px]">

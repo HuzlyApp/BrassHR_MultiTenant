@@ -1,11 +1,14 @@
 "use client";
 
-import { Mail, MoreVertical, RefreshCw } from "lucide-react";
+import { Mail, RefreshCw } from "lucide-react";
 import CandidateAvatarIcon from "./CandidateAvatarIcon";
+
+const CANDIDATE_DETAIL_ICON = "/icons/candidate-detail-icon.svg";
 
 type DetailedCandidateHeaderProps = {
   name: string;
   role: string;
+  status?: string;
   loading?: boolean;
   onMessageClick?: () => void;
   messageDisabled?: boolean;
@@ -17,6 +20,7 @@ type DetailedCandidateHeaderProps = {
 export default function DetailedCandidateHeader({
   name,
   role,
+  status,
   loading = false,
   onMessageClick,
   messageDisabled = false,
@@ -26,23 +30,39 @@ export default function DetailedCandidateHeader({
 }: DetailedCandidateHeaderProps) {
   const displayName = loading ? "Loading..." : name.trim() || "Applicant";
   const displayRole = loading ? "—" : role.trim() || "—";
+  const displayStatus = status?.trim();
 
   return (
     <div className="sticky top-0 z-20 mb-4 bg-zinc-50/95 backdrop-blur-sm py-1">
       <div className="mx-auto flex h-[92px] w-full max-w-[1300px] items-center justify-between rounded-md border border-[#D1D5DB] bg-white px-5">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           <CandidateAvatarIcon />
           <div>
-            <div className="text-base font-semibold leading-6 text-[color:var(--brand-primary)]">
+            <div className="font-[Inter,sans-serif] text-[20px] font-semibold leading-[28px] text-[#111827]">
               {displayName}
             </div>
-            <div className="mt-0.5 text-xs font-normal leading-4 text-[#4B5563]">
-              {displayRole}
+            <div className="mt-0.5 flex items-center gap-1">
+              <img
+                src={CANDIDATE_DETAIL_ICON}
+                alt=""
+                width={14}
+                height={14}
+                className="h-[14px] w-[14px] shrink-0"
+                aria-hidden
+              />
+              <span className="font-[Inter,sans-serif] text-[10px] font-normal leading-[15px] text-[#4B5563]">
+                {displayRole}
+              </span>
             </div>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
+          {displayStatus ? (
+            <span className="inline-flex h-8 items-center justify-center rounded-md border border-[#D1D5DB] bg-white px-3 text-center text-xs font-semibold leading-4 text-[#111827]">
+              {displayStatus}
+            </span>
+          ) : null}
           {onMessageClick ? (
             <button
               type="button"
@@ -65,19 +85,6 @@ export default function DetailedCandidateHeader({
               {resendingStatus ? "Sending..." : "Resend Status"}
             </button>
           ) : null}
-          <button
-            type="button"
-            className="inline-flex h-8 items-center justify-center rounded-md border border-[#D1D5DB] bg-white px-3 text-center text-xs font-semibold leading-4 text-[#111827] hover:bg-[#F9FAFB]"
-          >
-            New Applicant
-          </button>
-          <button
-            type="button"
-            aria-label="More options"
-            className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-transparent text-[#6B7280] hover:bg-[#F3F4F6]"
-          >
-            <MoreVertical className="h-4 w-4" />
-          </button>
         </div>
       </div>
     </div>

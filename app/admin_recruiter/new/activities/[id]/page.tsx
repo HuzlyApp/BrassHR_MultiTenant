@@ -245,6 +245,7 @@ export default function NewApplicantActivitiesPage() {
             <DetailedCandidateHeader
               name={candidateName}
               role={candidateRole}
+              status={statusLabel}
             />
 
             <div className="mx-auto mb-3 flex w-full max-w-[1300px] items-center justify-center gap-2">

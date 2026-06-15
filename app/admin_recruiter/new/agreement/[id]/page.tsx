@@ -207,6 +207,7 @@ export default function NewApplicantAgreementPage() {
             <DetailedCandidateHeader
               name={candidateName}
               role={candidateRole}
+              status={applicant?.status_label}
             />
 
             <div className="mx-auto w-full max-w-[1300px]">

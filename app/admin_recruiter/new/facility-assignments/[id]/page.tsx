@@ -282,6 +282,7 @@ export default function NewApplicantFacilityAssignmentsPage() {
             <DetailedCandidateHeader
               name={candidateName}
               role={candidateRole}
+              status={statusLabel}
             />
 
             <div className="mx-auto w-full max-w-[1300px] min-h-[896px] rounded-lg border border-[#E5E7EB] bg-white p-5">

@@ -285,6 +285,7 @@ export default function NewApplicantHistoryPage() {
             <DetailedCandidateHeader
               name={candidateName}
               role={candidateRole}
+              status={applicant?.status_label}
             />
 
             <div className="mx-auto w-full max-w-[1300px] rounded-md border border-[#D1D5DB] p-5">

@@ -514,6 +514,7 @@ export default function NewApplicantChecklistPage() {
             <DetailedCandidateHeader
               name={candidateName}
               role={candidateRole}
+              status={data?.worker?.status_label}
             />
 
             <div className="mx-auto flex w-full max-w-[1300px] flex-col gap-[30px] overflow-hidden rounded-md border border-[#E5E7EB] bg-white p-5">

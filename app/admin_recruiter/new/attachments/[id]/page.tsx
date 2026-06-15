@@ -36,6 +36,7 @@ type WorkerProfile = {
   first_name: string | null;
   last_name: string | null;
   job_role: string | null;
+  status_label?: string;
 };
 
 type AttachmentRequirement = {
@@ -426,6 +427,7 @@ export default function NewApplicantAttachmentsFilledPage() {
             <DetailedCandidateHeader
               name={candidateName}
               role={candidateRole}
+              status={applicant?.status_label}
             />
 
             <div className="mx-auto w-full max-w-[1300px]">

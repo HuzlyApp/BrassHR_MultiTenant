@@ -7,6 +7,7 @@ import {
 } from "@/lib/onboarding/build-admin-attachment-requirements";
 import { loadTenantOnboardingConfig } from "@/lib/onboarding/load-tenant-config";
 import { WORKER_REQUIRED_FILES_BUCKET } from "@/lib/supabase-storage-buckets";
+import { resolveStorageAccessibleUrl } from "@/lib/supabase/resolve-storage-accessible-url";
 
 export type LoadAdminAttachmentRequirementsArgs = {
   supabase: SupabaseClient;
@@ -18,9 +19,16 @@ export type LoadAdminAttachmentRequirementsArgs = {
   legacyUrls: LegacyDocumentUrls;
 };
 
+type LegacyReviewRow = {
+  document_key?: string | null;
+  status?: string | null;
+};
+
 export type LoadAdminAttachmentRequirementsOptions = {
   /** When set, skips re-fetching tenants.onboarding_config_version. */
   onboardingConfigVersion?: number;
+  /** When set, skips re-fetching worker_legacy_document_reviews. */
+  legacyReviewRows?: LegacyReviewRow[];
 };
 
 export async function loadAdminAttachmentRequirements(
@@ -30,58 +38,83 @@ export async function loadAdminAttachmentRequirements(
   const { supabase, workerId, tenantId } = args;
 
   let configVersion = options?.onboardingConfigVersion;
+  const needsTenantVersion = configVersion == null;
+
+  const [tenantResult, config, submittedResult, legacyReviewsResult] = await Promise.all([
+    needsTenantVersion
+      ? supabase
+          .from("tenants")
+          .select("onboarding_config_version")
+          .eq("id", tenantId)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
+    loadTenantOnboardingConfig(supabase, tenantId),
+    supabase
+      .from("worker_submitted_documents")
+      .select("id, required_document_id, file_url, original_file_name, status")
+      .eq("worker_id", workerId),
+    options?.legacyReviewRows
+      ? Promise.resolve({ data: options.legacyReviewRows })
+      : supabase
+          .from("worker_legacy_document_reviews")
+          .select("document_key, status")
+          .eq("worker_id", workerId),
+  ]);
+
   if (configVersion == null) {
-    const { data: tenantRow } = await supabase
-      .from("tenants")
-      .select("onboarding_config_version")
-      .eq("id", tenantId)
-      .maybeSingle();
     configVersion =
-      (tenantRow as { onboarding_config_version?: number } | null)?.onboarding_config_version ?? 0;
+      (tenantResult.data as { onboarding_config_version?: number } | null)
+        ?.onboarding_config_version ?? 0;
   }
   const useLegacyFallback = configVersion < 1;
 
-  const config = await loadTenantOnboardingConfig(supabase, tenantId);
-
-  const { data: submittedRaw, error: submittedErr } = await supabase
-    .from("worker_submitted_documents")
-    .select("id, required_document_id, file_url, original_file_name, status")
-    .eq("worker_id", workerId);
-
+  const { data: submittedRaw, error: submittedErr } = submittedResult;
   if (submittedErr) {
     console.warn("[load-admin-attachment-requirements] worker_submitted_documents", submittedErr);
   }
 
-  const submittedByRequiredId = new Map<string, SubmittedDocumentRecord>();
-  for (const row of submittedRaw ?? []) {
-    const requiredDocumentId = String(
-      (row as { required_document_id?: string }).required_document_id ?? ""
-    ).trim();
-    if (!requiredDocumentId) continue;
+  const submittedRows = (submittedRaw ?? []) as Array<{
+    id?: string;
+    required_document_id?: string;
+    file_url?: string;
+    original_file_name?: string | null;
+    status?: string | null;
+  }>;
 
-    const fileUrl = String((row as { file_url?: string }).file_url ?? "").trim();
-    let signedUrl: string | null = null;
-    if (fileUrl) {
-      const { data: signed, error: signErr } = await supabase.storage
-        .from(WORKER_REQUIRED_FILES_BUCKET)
-        .createSignedUrl(fileUrl, 3600);
-      if (signErr) {
-        console.warn("[load-admin-attachment-requirements] signed URL", signErr.message);
-      } else {
-        signedUrl = signed?.signedUrl ?? null;
+  const signedEntries = await Promise.all(
+    submittedRows.map(async (row) => {
+      const requiredDocumentId = String(row.required_document_id ?? "").trim();
+      if (!requiredDocumentId) return null;
+
+      const fileUrl = String(row.file_url ?? "").trim();
+      let signedUrl: string | null = null;
+      if (fileUrl) {
+        signedUrl = await resolveStorageAccessibleUrl(supabase, fileUrl, {
+          defaultBucket: WORKER_REQUIRED_FILES_BUCKET,
+        });
+        if (!signedUrl) {
+          console.warn("[load-admin-attachment-requirements] signed URL unavailable for", fileUrl);
+        }
       }
-    }
 
-    submittedByRequiredId.set(requiredDocumentId, {
-      submitted_document_id: String((row as { id?: string }).id ?? "").trim() || null,
-      required_document_id: requiredDocumentId,
-      signed_url: signedUrl,
-      original_file_name:
-        (row as { original_file_name?: string | null }).original_file_name != null
-          ? String((row as { original_file_name?: string | null }).original_file_name)
-          : null,
-      status: String((row as { status?: string | null }).status ?? "").trim() || null,
-    });
+      return {
+        requiredDocumentId,
+        record: {
+          submitted_document_id: String(row.id ?? "").trim() || null,
+          required_document_id: requiredDocumentId,
+          signed_url: signedUrl,
+          original_file_name:
+            row.original_file_name != null ? String(row.original_file_name) : null,
+          status: String(row.status ?? "").trim() || null,
+        } satisfies SubmittedDocumentRecord,
+      };
+    })
+  );
+
+  const submittedByRequiredId = new Map<string, SubmittedDocumentRecord>();
+  for (const entry of signedEntries) {
+    if (!entry) continue;
+    submittedByRequiredId.set(entry.requiredDocumentId, entry.record);
   }
 
   const rows = buildAdminAttachmentRequirements({
@@ -94,15 +127,10 @@ export async function loadAdminAttachmentRequirements(
     useLegacyFallback,
   });
 
-  const { data: legacyReviewsRaw } = await supabase
-    .from("worker_legacy_document_reviews")
-    .select("document_key, status")
-    .eq("worker_id", workerId);
-
   const legacyStatusByKey = new Map<string, string>();
-  for (const row of legacyReviewsRaw ?? []) {
-    const key = String((row as { document_key?: string }).document_key ?? "").trim();
-    const status = String((row as { status?: string }).status ?? "").trim();
+  for (const row of legacyReviewsResult.data ?? []) {
+    const key = String((row as LegacyReviewRow).document_key ?? "").trim();
+    const status = String((row as LegacyReviewRow).status ?? "").trim();
     if (key && status) legacyStatusByKey.set(key, status);
   }
 

@@ -7,7 +7,6 @@ import DetailedCandidateHeader from "../../../../components/DetailedCandidateHea
 import DetailedTabs from "../../../../components/DetailedTabs";
 import CandidateDetailLoader from "../../../../components/CandidateDetailLoader";
 import ProfileSubTabs from "../../../../components/ProfileSubTabs";
-import { useCandidateHeader } from "../../../../hooks/useCandidateHeader";
 import {
   Briefcase,
   Calendar,
@@ -29,6 +28,7 @@ type WorkerProfilePayload = {
     job_role: string | null;
     city: string | null;
     state: string | null;
+    status_label?: string;
   };
   requirements: {
     resume_path: string | null;
@@ -89,18 +89,17 @@ export default function NewApplicantProfileResumePage() {
   const resumePath = profile?.requirements?.resume_path ?? null;
   const resumeUrl = profile?.requirements?.resume_url ?? null;
 
-  const {
-    name: candidateName,
-    role: candidateRole,
-    loading: headerLoading,
-  } = useCandidateHeader(applicantId);
-  const pageLoading = loading || headerLoading;
+  const candidateName = useMemo(() => {
+    const n = `${w?.first_name ?? ""} ${w?.last_name ?? ""}`.trim();
+    return n || "Applicant";
+  }, [w?.first_name, w?.last_name]);
+  const candidateRole = w?.job_role?.trim() || "—";
+  const candidateStatus = w?.status_label;
+  const pageLoading = loading;
   const candidateLocation = useMemo(() => {
     const parts = [w?.city ?? "", w?.state ?? ""].filter(Boolean);
     return parts.length ? parts.join(", ") : "—";
   }, [w?.city, w?.state]);
-
-  const candidateStatus = isWorkerRoute ? "Worker" : "New Applicant";
 
   const isPdf =
     resumePath?.toLowerCase().endsWith(".pdf") ||
@@ -251,6 +250,7 @@ export default function NewApplicantProfileResumePage() {
             <DetailedCandidateHeader
               name={candidateName}
               role={candidateRole}
+              status={candidateStatus}
             />
             <ProfileSubTabs applicantId={applicantId} activeTab="Resume" />
 

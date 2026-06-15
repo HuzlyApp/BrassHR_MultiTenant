@@ -101,33 +101,42 @@ export async function GET(req: NextRequest) {
     const tenantIdForWorker =
       w.tenant_id != null && String(w.tenant_id).trim() !== "" ? String(w.tenant_id) : null
 
+    const workerEmail = w.email != null ? String(w.email).trim().toLowerCase() : ""
+
+    const [tenantResult, reqResult, docResult] = await Promise.all([
+      tenantIdForWorker
+        ? supabase
+            .from("tenants")
+            .select("onboarding_config_version")
+            .eq("id", tenantIdForWorker)
+            .maybeSingle()
+        : Promise.resolve({ data: null }),
+      supabase
+        .from("worker_requirements")
+        .select("resume_path")
+        .or(
+          userIdForLegacy
+            ? `worker_id.eq.${workerId},worker_id.eq.${userIdForLegacy}`
+            : `worker_id.eq.${workerId}`
+        )
+        .limit(1),
+      supabase.from("worker_documents").select("*").eq("worker_id", workerId).maybeSingle(),
+    ])
+
     let onboardingConfigVersion = 0
     if (tenantIdForWorker) {
-      const { data: tenantRow } = await supabase
-        .from("tenants")
-        .select("onboarding_config_version")
-        .eq("id", tenantIdForWorker)
-        .maybeSingle()
       onboardingConfigVersion =
-        (tenantRow as { onboarding_config_version?: number } | null)?.onboarding_config_version ?? 0
+        (tenantResult.data as { onboarding_config_version?: number } | null)
+          ?.onboarding_config_version ?? 0
     }
     const skipLegacyStorageScan = onboardingConfigVersion >= 1
 
-    const { data: reqRows, error: reqErr } = await supabase
-      .from("worker_requirements")
-      .select("resume_path")
-      .or(
-        userIdForLegacy
-          ? `worker_id.eq.${workerId},worker_id.eq.${userIdForLegacy}`
-          : `worker_id.eq.${workerId}`
-      )
-      .limit(1)
-
+    const { error: reqErr } = reqResult
     if (reqErr) {
       console.warn("[admin/worker-profile] worker_requirements", reqErr)
     }
 
-    const reqRow = Array.isArray(reqRows) ? reqRows[0] : reqRows
+    const reqRow = Array.isArray(reqResult.data) ? reqResult.data[0] : reqResult.data
     const resumePathRaw = (reqRow as { resume_path?: string } | null | undefined)?.resume_path
     const resumePathStored =
       typeof resumePathRaw === "string" && resumePathRaw.trim() !== ""
@@ -150,11 +159,7 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    const { data: docRow } = await supabase
-      .from("worker_documents")
-      .select("*")
-      .eq("worker_id", workerId)
-      .maybeSingle()
+    const { data: docRow } = docResult
 
     const docs = (docRow ?? null) as Record<string, unknown> | null
     const workerKeys = Array.from(
@@ -284,10 +289,13 @@ export async function GET(req: NextRequest) {
       const type = classifyStorageHit(hit)
       if (type) byType[type].push(hit)
     }
-    const storageNursingUrl = await toAccessibleUrlIfAny(newestHit(byType.license))
-    const storageTbUrl = await toAccessibleUrlIfAny(newestHit(byType.tb))
-    const storageCprUrl = await toAccessibleUrlIfAny(newestHit(byType.cpr))
-    const storageAuthUrlFromFiles = await toAccessibleUrlIfAny(newestHit(byType.authorization))
+    const [storageNursingUrl, storageTbUrl, storageCprUrl, storageAuthUrlFromFiles] =
+      await Promise.all([
+        toAccessibleUrlIfAny(newestHit(byType.license)),
+        toAccessibleUrlIfAny(newestHit(byType.tb)),
+        toAccessibleUrlIfAny(newestHit(byType.cpr)),
+        toAccessibleUrlIfAny(newestHit(byType.authorization)),
+      ])
     const attachmentFiles = await Promise.all(
       listHits.slice(0, 12).map(async (hit) => ({
         bucket: hit.bucket,
@@ -297,32 +305,76 @@ export async function GET(req: NextRequest) {
         url: await toAccessibleUrl(hit),
       }))
     )
-    const workerEmail = w.email != null ? String(w.email).trim().toLowerCase() : ""
-
     async function resolveDocUrl(stored: unknown, storageFallback: string | null): Promise<string | null> {
       const fromDb = await resolveStorageAccessibleUrl(supabase, urlOrNull(stored))
       return fromDb ?? storageFallback
     }
 
-    const nursingLicenseUrl =
-      (await resolveDocUrl(docs?.nursing_license_url, storageNursingUrl)) ?? storageNursingUrl
-    const tbTestUrl = (await resolveDocUrl(docs?.tb_test_url, storageTbUrl)) ?? storageTbUrl
-    const cprCertUrl =
-      (await resolveDocUrl(docs?.cpr_certification_url, storageCprUrl)) ?? storageCprUrl
-    const ssnUrl = await resolveDocUrl(docs?.ssn_url, null)
-    const ssnBackUrl = await resolveDocUrl(docs?.ssn_back_url, null)
-    const driversLicenseUrl = await resolveDocUrl(docs?.drivers_license_url, null)
-    const driversLicenseBackUrl = await resolveDocUrl(docs?.drivers_license_back_url, null)
+    const [
+      refResult,
+      workerRoleResult,
+      activityResult,
+      noteResult,
+      zohoResult,
+      legacyReviewResult,
+      nursingLicenseUrlResolved,
+      tbTestUrlResolved,
+      cprCertUrlResolved,
+      ssnUrl,
+      ssnBackUrl,
+      driversLicenseUrl,
+      driversLicenseBackUrl,
+    ] = await Promise.all([
+      supabase
+        .from("worker_references")
+        .select("id, reference_first_name, reference_last_name, reference_phone, reference_email, created_at")
+        .eq("worker_id", workerId)
+        .order("created_at", { ascending: true })
+        .limit(10),
+      supabase.from("worker_category_roles").select("*").eq("worker_id", workerId),
+      supabase
+        .from("activity_logs")
+        .select("*")
+        .eq("entity_id", workerId)
+        .order("created_at", { ascending: false })
+        .limit(50),
+      supabase
+        .from("worker_notes")
+        .select("id, body, created_at, updated_at, created_by_user_id")
+        .eq("worker_id", workerId)
+        .order("created_at", { ascending: false })
+        .limit(50),
+      workerEmail
+        ? supabase
+            .from("zoho_sign_requests")
+            .select("request_id,zoho_document_id,status,updated_at")
+            .eq("email", workerEmail)
+            .order("updated_at", { ascending: false })
+            .limit(1)
+            .maybeSingle()
+        : Promise.resolve({ data: null, error: null }),
+      supabase
+        .from("worker_legacy_document_reviews")
+        .select("document_key, status")
+        .eq("worker_id", workerId),
+      resolveDocUrl(docs?.nursing_license_url, storageNursingUrl),
+      resolveDocUrl(docs?.tb_test_url, storageTbUrl),
+      resolveDocUrl(docs?.cpr_certification_url, storageCprUrl),
+      resolveDocUrl(docs?.ssn_url, null),
+      resolveDocUrl(docs?.ssn_back_url, null),
+      resolveDocUrl(docs?.drivers_license_url, null),
+      resolveDocUrl(docs?.drivers_license_back_url, null),
+    ])
+
+    const nursingLicenseUrl = nursingLicenseUrlResolved ?? storageNursingUrl
+    const tbTestUrl = tbTestUrlResolved ?? storageTbUrl
+    const cprCertUrl = cprCertUrlResolved ?? storageCprUrl
     const licenseOk = hasUrl(nursingLicenseUrl)
     const tbOk = hasUrl(tbTestUrl)
     const cprOk = hasUrl(cprCertUrl)
     const idOk = hasUrl(docs?.ssn_url) || hasUrl(docs?.drivers_license_url)
-    const { data: refRows } = await supabase
-      .from("worker_references")
-      .select("id, reference_first_name, reference_last_name, reference_phone, reference_email, created_at")
-      .eq("worker_id", workerId)
-      .order("created_at", { ascending: true })
-      .limit(10)
+
+    const { data: refRows } = refResult
 
     const references = (refRows ?? []).map((r) => {
       const row = r as Record<string, unknown>
@@ -350,10 +402,7 @@ export async function GET(req: NextRequest) {
           ? Number(experienceYearsRaw)
           : null
 
-    const { data: workerRoleRows } = await supabase
-      .from("worker_category_roles")
-      .select("*")
-      .eq("worker_id", workerId)
+    const { data: workerRoleRows } = workerRoleResult
     const workerRoles = ((workerRoleRows ?? []) as Record<string, unknown>[]).filter(
       (row) => row != null
     )
@@ -427,12 +476,7 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    const { data: activityRows } = await supabase
-      .from("activity_logs")
-      .select("*")
-      .eq("entity_id", workerId)
-      .order("created_at", { ascending: false })
-      .limit(50)
+    const { data: activityRows } = activityResult
     const activityLogs = ((activityRows ?? []) as Record<string, unknown>[]).map((row) => ({
       id: row.id ?? null,
       action: asTrimmedString(row.action),
@@ -442,12 +486,7 @@ export async function GET(req: NextRequest) {
       created_at: asTrimmedString(row.created_at),
     }))
 
-    const { data: noteRows, error: notesErr } = await supabase
-      .from("worker_notes")
-      .select("id, body, created_at, updated_at, created_by_user_id")
-      .eq("worker_id", workerId)
-      .order("created_at", { ascending: false })
-      .limit(50)
+    const { data: noteRows, error: notesErr } = noteResult
     if (notesErr) {
       console.warn("[admin/worker-profile] worker_notes", notesErr)
     }
@@ -489,19 +528,11 @@ export async function GET(req: NextRequest) {
     })
 
     let zohoSign: ZohoSignRow | null = null
-    if (workerEmail) {
-      const { data: zohoRow, error: zohoErr } = await supabase
-        .from("zoho_sign_requests")
-        .select("request_id,zoho_document_id,status,updated_at")
-        .eq("email", workerEmail)
-        .order("updated_at", { ascending: false })
-        .limit(1)
-        .maybeSingle()
-      if (zohoErr) {
-        console.warn("[admin/worker-profile] zoho_sign_requests", zohoErr)
-      } else {
-        zohoSign = (zohoRow as ZohoSignRow | null) ?? null
-      }
+    const { data: zohoRow, error: zohoErr } = zohoResult
+    if (zohoErr) {
+      console.warn("[admin/worker-profile] zoho_sign_requests", zohoErr)
+    } else {
+      zohoSign = (zohoRow as ZohoSignRow | null) ?? null
     }
 
     const applicantName = `${String(w.first_name ?? "").trim()} ${String(w.last_name ?? "").trim()}`.trim() || "Applicant"
@@ -549,10 +580,7 @@ export async function GET(req: NextRequest) {
       drivers_license_url: driversLicenseUrl,
     }
 
-    const { data: legacyReviewRows } = await supabase
-      .from("worker_legacy_document_reviews")
-      .select("document_key, status")
-      .eq("worker_id", workerId)
+    const { data: legacyReviewRows } = legacyReviewResult
     const legacyDocumentReviews = Object.fromEntries(
       (legacyReviewRows ?? [])
         .map((row) => {
@@ -576,7 +604,7 @@ export async function GET(req: NextRequest) {
             resumePathRaw: resumePathStored,
             legacyUrls,
           },
-          { onboardingConfigVersion }
+          { onboardingConfigVersion, legacyReviewRows: legacyReviewRows ?? [] }
         )
       } catch (attachErr) {
         console.warn("[admin/worker-profile] attachment requirements", attachErr)
@@ -602,9 +630,9 @@ export async function GET(req: NextRequest) {
         document_url: urlOrNull(docs?.document_url),
       },
       resolvedUrls: {
-        nursing_license_url: storageNursingUrl,
-        tb_test_url: storageTbUrl,
-        cpr_certification_url: storageCprUrl,
+        nursing_license_url: nursingLicenseUrl,
+        tb_test_url: tbTestUrl,
+        cpr_certification_url: cprCertUrl,
         authorization_document_url: storageAuthUrl,
       },
     })

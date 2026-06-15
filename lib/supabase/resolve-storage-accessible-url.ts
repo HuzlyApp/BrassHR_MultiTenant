@@ -45,9 +45,20 @@ export type ResolveStorageAccessibleUrlOptions = {
   extraBuckets?: string[];
 };
 
+async function trySignedUrl(
+  supabase: SupabaseClient,
+  bucket: string,
+  path: string,
+  expiresIn: number
+): Promise<string | null> {
+  const { data, error } = await supabase.storage.from(bucket).createSignedUrl(path, expiresIn);
+  if (!error && data?.signedUrl) return data.signedUrl;
+  return null;
+}
+
 /**
  * Turn a stored path or legacy public URL into a browser-accessible URL.
- * Private buckets always use signed URLs — never /object/public/ links.
+ * Private buckets use signed URLs; legacy public object URLs are returned when signing fails.
  */
 export async function resolveStorageAccessibleUrl(
   supabase: SupabaseClient,
@@ -74,13 +85,20 @@ export async function resolveStorageAccessibleUrl(
     )
   );
 
-  for (const bucket of buckets) {
-    const { data, error } = await supabase.storage
-      .from(bucket)
-      .createSignedUrl(ref.path, expiresIn);
-    if (!error && data?.signedUrl) {
-      return data.signedUrl;
-    }
+  const direct = await trySignedUrl(supabase, ref.bucket, ref.path, expiresIn);
+  if (direct) return direct;
+
+  const otherBuckets = buckets.filter((bucket) => bucket !== ref.bucket);
+  if (otherBuckets.length > 0) {
+    const results = await Promise.all(
+      otherBuckets.map((bucket) => trySignedUrl(supabase, bucket, ref.path, expiresIn))
+    );
+    const hit = results.find(Boolean);
+    if (hit) return hit;
+  }
+
+  if (/^https?:\/\//i.test(raw) && raw.includes("/object/public/")) {
+    return raw;
   }
 
   return null;

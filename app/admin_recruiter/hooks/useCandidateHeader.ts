@@ -8,6 +8,7 @@ export type CandidateHeaderWorker = {
   job_role: string | null;
   city?: string | null;
   state?: string | null;
+  status_label?: string;
 };
 
 export function useCandidateHeader(workerId: string | undefined) {
@@ -53,5 +54,7 @@ export function useCandidateHeader(workerId: string | undefined) {
 
   const role = worker?.job_role?.trim() || "—";
 
-  return { worker, name, role, loading };
+  const status = worker?.status_label?.trim() || undefined;
+
+  return { worker, name, role, status, loading };
 }

@@ -6,17 +6,14 @@ type CandidateAvatarIconProps = {
   className?: string;
 };
 
-/** Applicant avatar ring — uses tenant accent from effective-branding CSS vars. */
-export default function CandidateAvatarIcon({
-  className = "h-[52px] w-[52px]",
-}: CandidateAvatarIconProps) {
+/** Applicant avatar — fixed gray border, tenant accent icon color. */
+export default function CandidateAvatarIcon({ className = "" }: CandidateAvatarIconProps) {
   return (
     <span
-      className={`inline-flex shrink-0 items-center justify-center rounded-full border bg-white ${className}`}
-      style={{ borderColor: "var(--brand-primary)" }}
+      className={`inline-flex h-[60px] w-[60px] shrink-0 items-center justify-center rounded-lg border border-[#D1D5DB] bg-white p-[10px] ${className}`}
       aria-hidden
     >
-      <User className="h-6 w-6" style={{ color: "var(--brand-primary)" }} strokeWidth={2} />
+      <User className="h-9 w-9" style={{ color: "var(--brand-primary)" }} strokeWidth={2} />
     </span>
   );
 }
