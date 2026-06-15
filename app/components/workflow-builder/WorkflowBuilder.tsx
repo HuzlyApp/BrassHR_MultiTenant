@@ -10,7 +10,6 @@ import {
 } from "@xyflow/react";
 import {
   ArrowLeft,
-  FileText,
   FolderOpen,
   LayoutTemplate,
   Library,
@@ -19,10 +18,10 @@ import {
   Pencil,
   Play,
   Loader2,
-  Plus,
   Save,
   Search,
   Settings,
+  Redo2,
   Undo2,
 } from "lucide-react";
 
@@ -39,6 +38,7 @@ import {
   TEXT_SECONDARY,
 } from "./constants";
 import { applyWorkflowNodeDataPatch } from "@/lib/onboarding/apply-workflow-node-patch";
+import { cloneWorkflowState } from "@/lib/onboarding/clone-workflow-state";
 import type {
   StepCategory,
   WorkflowCanvasNodeData,
@@ -65,8 +65,6 @@ export type WorkflowBuilderProps = {
   onSaveAsTemplate?: (state: WorkflowState) => void;
   onPreview?: (state: WorkflowState) => void;
   onPublish?: (state: WorkflowState) => void;
-  onExportPDF?: (state: WorkflowState) => void;
-  onAddTrigger?: () => void;
   /** Renders inside admin settings (no full-viewport shell / duplicate chrome). */
   embedded?: boolean;
   publishStatusLabel?: string;
@@ -85,8 +83,12 @@ export type WorkflowBuilderProps = {
   savingPublish?: boolean;
   /** Hides title + save row above the canvas (used when header is in dashboard sub-nav). */
   hideCanvasHeader?: boolean;
-  registerUndoControls?: (controls: { canUndo: boolean; undo: () => void } | null) => void;
+  registerUndoControls?: (
+    controls: { canUndo: boolean; undo: () => void; canRedo: boolean; redo: () => void } | null
+  ) => void;
 };
+
+const MAX_HISTORY = 50;
 
 export default function WorkflowBuilder(props: WorkflowBuilderProps) {
   return (
@@ -114,8 +116,6 @@ function WorkflowBuilderInner({
   onSaveAsTemplate,
   onPreview,
   onPublish,
-  onExportPDF,
-  onAddTrigger,
   embedded = false,
   publishStatusLabel,
   toolbarData,
@@ -136,7 +136,12 @@ function WorkflowBuilderInner({
     useNodesState<Node<WorkflowCanvasNodeData>>(hydratedInitial.nodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>(initialEdges);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
-  const [history, setHistory] = useState<WorkflowState[]>([]);
+  const [undoStack, setUndoStack] = useState<WorkflowState[]>([]);
+  const [redoStack, setRedoStack] = useState<WorkflowState[]>([]);
+  const nodesRef = useRef(nodes);
+  const edgesRef = useRef(edges);
+  nodesRef.current = nodes;
+  edgesRef.current = edges;
   const [searchTerm, setSearchTerm] = useState("");
   const [successOpen, setSuccessOpen] = useState(false);
   const [editingTitle, setEditingTitle] = useState(false);
@@ -162,7 +167,8 @@ function WorkflowBuilderInner({
     setNodes(hydrated.nodes);
     setEdges(hydrated.edges);
     setSelectedNodeId(null);
-    setHistory([]);
+    setUndoStack([]);
+    setRedoStack([]);
     skipChangeAfterReset.current = true;
   }, [initialEdges, initialNodes, resetKey, setEdges, setNodes]);
 
@@ -177,9 +183,30 @@ function WorkflowBuilderInner({
     [nodes, edges]
   );
 
-  const pushHistory = useCallback(() => {
-    setHistory((prev) => [...prev.slice(-19), { nodes, edges }]);
-  }, [nodes, edges]);
+  const snapshotCurrent = useCallback(
+    (): WorkflowState =>
+      cloneWorkflowState({ nodes: nodesRef.current, edges: edgesRef.current }),
+    []
+  );
+
+  const applySnapshot = useCallback(
+    (snap: WorkflowState) => {
+      setNodes(snap.nodes);
+      setEdges(snap.edges);
+      setSelectedNodeId((id) => {
+        if (!id) return id;
+        const stillExists = snap.nodes.some((n) => n.id === id && n.type === "step");
+        return stillExists ? id : null;
+      });
+    },
+    [setEdges, setNodes]
+  );
+
+  const recordChange = useCallback(() => {
+    const snap = snapshotCurrent();
+    setUndoStack((prev) => [...prev.slice(-(MAX_HISTORY - 1)), snap]);
+    setRedoStack([]);
+  }, [snapshotCurrent]);
 
   useEffect(() => {
     if (!didMount.current) {
@@ -194,24 +221,64 @@ function WorkflowBuilderInner({
   }, [currentState]);
 
   const handleUndo = useCallback(() => {
-    setHistory((prev) => {
+    setUndoStack((prev) => {
       if (prev.length === 0) return prev;
-      const last = prev[prev.length - 1];
-      setNodes(last.nodes);
-      setEdges(last.edges);
+      const previous = prev[prev.length - 1];
+      const current = snapshotCurrent();
+      setRedoStack((redo) => [...redo, current]);
+      applySnapshot(previous);
       return prev.slice(0, -1);
     });
-  }, [setNodes, setEdges]);
+  }, [applySnapshot, snapshotCurrent]);
+
+  const handleRedo = useCallback(() => {
+    setRedoStack((prev) => {
+      if (prev.length === 0) return prev;
+      const next = prev[prev.length - 1];
+      const current = snapshotCurrent();
+      setUndoStack((undo) => [...undo, current]);
+      applySnapshot(next);
+      return prev.slice(0, -1);
+    });
+  }, [applySnapshot, snapshotCurrent]);
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (
+        target &&
+        (target.isContentEditable ||
+          target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.tagName === "SELECT")
+      ) {
+        return;
+      }
+      const mod = e.ctrlKey || e.metaKey;
+      if (!mod) return;
+      if (e.key === "z" && !e.shiftKey) {
+        e.preventDefault();
+        handleUndo();
+      } else if (e.key === "y" || (e.key === "z" && e.shiftKey)) {
+        e.preventDefault();
+        handleRedo();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [handleRedo, handleUndo]);
 
   const registerUndoControlsRef = useRef(registerUndoControls);
   registerUndoControlsRef.current = registerUndoControls;
 
   useEffect(() => {
     registerUndoControlsRef.current?.({
-      canUndo: history.length > 0,
+      canUndo: undoStack.length > 0,
       undo: handleUndo,
+      canRedo: redoStack.length > 0,
+      redo: handleRedo,
     });
-  }, [handleUndo, history.length]);
+  }, [handleRedo, handleUndo, redoStack.length, undoStack.length]);
 
   useEffect(() => {
     return () => registerUndoControlsRef.current?.(null);
@@ -219,7 +286,7 @@ function WorkflowBuilderInner({
 
   const handleUpdateNode = useCallback(
     (id: string, patch: Partial<WorkflowNodeData>, options?: { skipHistory?: boolean }) => {
-      if (!options?.skipHistory) pushHistory();
+      if (!options?.skipHistory) recordChange();
       setNodes((prev) =>
         prev.map((n) => {
           if (n.id !== id || n.type !== "step") return n;
@@ -228,7 +295,7 @@ function WorkflowBuilderInner({
         })
       );
     },
-    [pushHistory, setNodes]
+    [recordChange, setNodes]
   );
 
   return (
@@ -482,6 +549,7 @@ function WorkflowBuilderInner({
               categories={stepLibrary}
               selectedNodeId={selectedNodeId}
               onSelectNode={setSelectedNodeId}
+              onBeforeChange={recordChange}
             />
 
             {savingTemplate ? (
@@ -526,21 +594,24 @@ function WorkflowBuilderInner({
               <button
                 type="button"
                 onClick={handleUndo}
-                disabled={history.length === 0}
+                disabled={undoStack.length === 0}
                 className="flex h-10 shrink-0 items-center gap-2 whitespace-nowrap rounded-lg border bg-white px-3 text-sm font-medium transition hover:bg-[#fafafa] disabled:cursor-not-allowed disabled:opacity-50"
                 style={{ borderColor: "#d0d5dd", color: TEXT_PRIMARY }}
+                aria-label="Undo"
               >
                 <Undo2 size={14} />
                 Undo
               </button>
               <button
                 type="button"
-                onClick={onAddTrigger}
-                className="flex h-10 shrink-0 items-center gap-2 whitespace-nowrap rounded-lg border bg-white px-3 text-sm font-medium transition hover:bg-[#fafafa]"
+                onClick={handleRedo}
+                disabled={redoStack.length === 0}
+                className="flex h-10 shrink-0 items-center gap-2 whitespace-nowrap rounded-lg border bg-white px-3 text-sm font-medium transition hover:bg-[#fafafa] disabled:cursor-not-allowed disabled:opacity-50"
                 style={{ borderColor: "#d0d5dd", color: TEXT_PRIMARY }}
+                aria-label="Redo"
               >
-                <Plus size={14} />
-                Add trigger
+                <Redo2 size={14} />
+                Redo
               </button>
               {!hideCanvasHeader ? (
                 <SaveTemplateButton
@@ -549,15 +620,6 @@ function WorkflowBuilderInner({
                   onClick={() => onSaveAsTemplate?.(currentState)}
                 />
               ) : null}
-              <button
-                type="button"
-                onClick={() => onExportPDF?.(currentState)}
-                className="flex h-10 shrink-0 items-center gap-2 whitespace-nowrap rounded-lg border bg-white px-3 text-sm font-medium transition hover:bg-[#fafafa]"
-                style={{ borderColor: "#d0d5dd", color: TEXT_PRIMARY }}
-              >
-                <FileText size={14} />
-                Export PDF
-              </button>
             </div>
 
             <div className="flex flex-wrap items-center gap-2">

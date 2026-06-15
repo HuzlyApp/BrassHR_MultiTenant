@@ -13,6 +13,8 @@ import {
 export type WorkflowUndoControls = {
   canUndo: boolean;
   undo: () => void;
+  canRedo: boolean;
+  redo: () => void;
 };
 
 export type WorkflowBuilderHeaderConfig = {
@@ -31,6 +33,8 @@ type WorkflowDashboardHeaderContextValue = {
   setHeaderConfig: (config: WorkflowBuilderHeaderConfig | null) => void;
   canUndo: boolean;
   undo: () => void;
+  canRedo: boolean;
+  redo: () => void;
   setUndoControls: (controls: WorkflowUndoControls | null) => void;
   onTitleChange?: (title: string) => void;
   setOnTitleChange: (handler: ((title: string) => void) | undefined) => void;
@@ -68,7 +72,9 @@ export function WorkflowDashboardHeaderProvider({ children }: { children: ReactN
     null
   );
   const [canUndo, setCanUndo] = useState(false);
+  const [canRedo, setCanRedo] = useState(false);
   const undoRef = useRef<(() => void) | null>(null);
+  const redoRef = useRef<(() => void) | null>(null);
   const onTitleChangeRef = useRef<((title: string) => void) | undefined>(undefined);
   const onSaveTemplateRef = useRef<(() => void) | undefined>(undefined);
   const onPreviewRef = useRef<(() => void) | undefined>(undefined);
@@ -80,12 +86,19 @@ export function WorkflowDashboardHeaderProvider({ children }: { children: ReactN
 
   const setUndoControls = useCallback((controls: WorkflowUndoControls | null) => {
     undoRef.current = controls?.undo ?? null;
+    redoRef.current = controls?.redo ?? null;
     const nextCanUndo = controls?.canUndo ?? false;
+    const nextCanRedo = controls?.canRedo ?? false;
     setCanUndo((prev) => (prev === nextCanUndo ? prev : nextCanUndo));
+    setCanRedo((prev) => (prev === nextCanRedo ? prev : nextCanRedo));
   }, []);
 
   const undo = useCallback(() => {
     undoRef.current?.();
+  }, []);
+
+  const redo = useCallback(() => {
+    redoRef.current?.();
   }, []);
 
   const setOnTitleChange = useCallback((handler: ((title: string) => void) | undefined) => {
@@ -126,6 +139,8 @@ export function WorkflowDashboardHeaderProvider({ children }: { children: ReactN
       setHeaderConfig,
       canUndo,
       undo,
+      canRedo,
+      redo,
       setUndoControls,
       onTitleChange,
       setOnTitleChange,
@@ -138,11 +153,13 @@ export function WorkflowDashboardHeaderProvider({ children }: { children: ReactN
     }),
     [
       canUndo,
+      canRedo,
       headerConfig,
       onPreview,
       onPublish,
       onSaveTemplate,
       onTitleChange,
+      redo,
       setHeaderConfig,
       setOnPreview,
       setOnPublish,

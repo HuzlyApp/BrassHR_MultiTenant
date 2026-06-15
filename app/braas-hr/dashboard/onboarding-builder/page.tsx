@@ -408,10 +408,6 @@ export function OnboardingBuilderPage({
     toast.success("Published to all new hires");
   };
 
-  const handleExport = (_state: WorkflowState) => {
-    toast("Export started");
-  };
-
   return (
     <WorkflowBuilder
       title="Standard Hiring"
@@ -424,8 +420,6 @@ export function OnboardingBuilderPage({
       onSaveAsTemplate={handleSave}
       onPreview={handlePreview}
       onPublish={handlePublish}
-      onExportPDF={handleExport}
-      onAddTrigger={() => toast("Add a trigger to start this flow")}
       hideTopChrome={hideTopChrome}
     />
   );

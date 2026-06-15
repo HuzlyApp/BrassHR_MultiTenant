@@ -43,7 +43,7 @@ const TAB_LINKS: Array<{ id: WorkflowTab; href: string; label: string }> = [
 
 export function AdminRecruiterDashboardSubNav() {
   const pathname = usePathname() ?? "";
-  const { banner, center, right } = useWorkflowBuilderHeaderChrome();
+  const { center, right } = useWorkflowBuilderHeaderChrome();
 
   if (!isDashboardWorkflowRoute(pathname)) {
     return null;
@@ -56,18 +56,6 @@ export function AdminRecruiterDashboardSubNav() {
       className="sticky top-[64px] z-30 w-full border-b border-[#E4E7EC] bg-white"
       aria-label="Workflow dashboard navigation"
     >
-      {banner ? (
-        <div
-          className="border-b px-5 py-2 lg:px-8"
-          style={{
-            borderColor: "#E4E7EC",
-            backgroundColor: "color-mix(in srgb, var(--brand-primary) 6%, white)",
-          }}
-        >
-          {banner}
-        </div>
-      ) : null}
-
       <div className="flex h-[56px] items-center gap-3 px-5 lg:gap-4 lg:px-8">
         <div className="flex h-full shrink-0 items-stretch gap-5 sm:gap-6">
           {TAB_LINKS.map((tab) => (

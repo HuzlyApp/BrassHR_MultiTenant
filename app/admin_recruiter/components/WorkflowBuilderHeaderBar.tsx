@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { History, Loader2, Pencil, Save } from "lucide-react";
+import { History, Loader2, Pencil, Redo2, Save } from "lucide-react";
 import { useOptionalWorkflowDashboardHeader } from "@/app/admin_recruiter/components/WorkflowDashboardHeaderContext";
 
 const TEXT_PRIMARY = "#101828";
@@ -111,17 +111,8 @@ export function useWorkflowBuilderHeaderChrome() {
 
   return useMemo(() => {
     if (!config || !ctx) {
-      return { banner: null, center: null, right: null };
+      return { center: null, right: null };
     }
-
-    const banner = !config.isEditingTemplate && config.isDraft ? (
-      <p className="text-xs leading-5 text-amber-950">
-        <span className="font-semibold">Draft</span>
-        {" — "}
-        Not live until you publish. Use Test workflow to preview.
-        {config.statusSuffix ? ` (${config.statusSuffix})` : ""}
-      </p>
-    ) : null;
 
     const center = (
       <div className="flex min-w-0 max-w-full items-center justify-center gap-2">
@@ -131,9 +122,10 @@ export function useWorkflowBuilderHeaderChrome() {
             value={titleDraft}
             onChange={(e) => setTitleDraft(e.target.value)}
             onBlur={() => {
-              const next = titleDraft.trim() || config.title;
+              const next = titleDraft.trim();
               setEditingTitle(false);
-              if (next !== config.title) ctx.onTitleChange?.(next);
+              if (!next || next === config.title) return;
+              void Promise.resolve(ctx.onTitleChange?.(next));
             }}
             onKeyDown={(e) => {
               if (e.key === "Enter") e.currentTarget.blur();
@@ -179,8 +171,20 @@ export function useWorkflowBuilderHeaderChrome() {
           className="inline-flex h-9 w-9 items-center justify-center rounded-lg border bg-white transition hover:bg-[#fafafa] disabled:cursor-not-allowed disabled:opacity-40"
           style={{ borderColor: CARD_BORDER, color: TEXT_PRIMARY }}
           aria-label="Undo"
+          title="Undo"
         >
           <History size={16} />
+        </button>
+        <button
+          type="button"
+          onClick={ctx.redo}
+          disabled={!ctx.canRedo || config.savingTemplate || config.savingPublish}
+          className="inline-flex h-9 w-9 items-center justify-center rounded-lg border bg-white transition hover:bg-[#fafafa] disabled:cursor-not-allowed disabled:opacity-40"
+          style={{ borderColor: CARD_BORDER, color: TEXT_PRIMARY }}
+          aria-label="Redo"
+          title="Redo"
+        >
+          <Redo2 size={16} />
         </button>
         <button
           type="button"
@@ -208,14 +212,16 @@ export function useWorkflowBuilderHeaderChrome() {
       </div>
     );
 
-    return { banner, center, right };
+    return { center, right };
   }, [
     config,
     ctx?.canUndo,
+    ctx?.canRedo,
     ctx?.onPreview,
     ctx?.onPublish,
     ctx?.onSaveTemplate,
     ctx?.onTitleChange,
+    ctx?.redo,
     ctx?.undo,
     editingTitle,
     titleDraft,

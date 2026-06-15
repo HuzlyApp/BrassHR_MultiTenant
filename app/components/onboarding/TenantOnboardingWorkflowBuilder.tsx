@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { Edge, Node } from "@xyflow/react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, usePathname } from "next/navigation";
 import toast from "react-hot-toast";
 
 import BuilderWorkflowHeaderSlots from "@/app/admin_recruiter/components/BuilderWorkflowHeaderSlots";
@@ -25,32 +25,15 @@ import {
 import type { TenantOnboardingConfig } from "@/lib/onboarding/types";
 import { applyApplicantConfigFilters } from "@/lib/onboarding/filter-applicant-steps";
 import { configFromWorkflowDraft } from "@/lib/onboarding/config-from-builder-draft";
+import { isValidFlowNameInput, normalizeFlowNameKey } from "@/lib/onboarding/validate-flow-name";
 import { writeOnboardingPreview } from "@/lib/onboarding/onboarding-preview-storage";
 import { firstOnboardingStepRoute } from "@/lib/onboarding/tenant-step-navigation";
 import { serializeWorkflowState } from "@/lib/onboarding/workflow-builder-serialization";
-import { supabaseBrowser } from "@/lib/supabase-browser";
+import { staffAuthHeaders, staffFetchInit } from "@/lib/staff-auth-headers";
 import {
   OnboardingBuilderErrorPanel,
   OnboardingBuilderSaveErrorBanner,
 } from "@/app/components/onboarding/OnboardingBuilderErrorPanel";
-
-async function staffAuthHeaders(): Promise<HeadersInit> {
-  const {
-    data: { session },
-  } = await supabaseBrowser.auth.getSession();
-  const token = session?.access_token;
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
-
-async function staffFetchInit(extraHeaders?: HeadersInit): Promise<RequestInit> {
-  return {
-    credentials: "include",
-    headers: {
-      ...(await staffAuthHeaders()),
-      ...extraHeaders,
-    },
-  };
-}
 
 type BuilderPayload = {
   config?: TenantOnboardingConfig;
@@ -143,11 +126,9 @@ async function loadBuilderData(): Promise<BuilderQueryData> {
 
   const drafts = mapConfigToDrafts(config);
   const stepLookup = buildWorkflowStepLookup(stepLibrary);
-  const { nodes, edges } = hydrateWorkflowFromStorage(
-    payload.publishStatus === "draft" ? payload.builderDraft : null,
-    drafts,
-    stepLookup
-  );
+  // Builder always opens on the live published workflow (applicant-facing steps).
+  // Unpublished builder_draft edits are kept server-side until Publish.
+  const { nodes, edges } = hydrateWorkflowFromStorage(null, drafts, stepLookup);
 
   return {
     payload,
@@ -167,9 +148,11 @@ export default function TenantOnboardingWorkflowBuilder({
 }: TenantOnboardingWorkflowBuilderProps = {}) {
   const isDashboard = variant === "dashboard";
   const workflowHeader = useOptionalWorkflowDashboardHeader();
+  const pathname = usePathname() ?? "";
   const searchParams = useSearchParams();
   const templateIdFromUrl = searchParams.get("template")?.trim() || null;
   const queryClient = useQueryClient();
+  const prevPathnameRef = useRef<string | null>(null);
   const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const skipNextChange = useRef(true);
   const latestStateRef = useRef<WorkflowState>({ nodes: [], edges: [] });
@@ -178,6 +161,8 @@ export default function TenantOnboardingWorkflowBuilder({
   );
   const prevTemplateIdRef = useRef<string | null>(null);
   const initializedTenantRef = useRef<string | null>(null);
+  const flowTitleRef = useRef("Worker onboarding");
+  const savedFlowTitleRef = useRef("Worker onboarding");
   const [savingTemplate, setSavingTemplate] = useState(false);
   const [savingPublish, setSavingPublish] = useState(false);
   const [tenantId, setTenantId] = useState<string | null>(null);
@@ -219,7 +204,7 @@ export default function TenantOnboardingWorkflowBuilder({
     staleTime: BUILDER_STALE_TIME_MS,
     gcTime: BUILDER_GC_TIME_MS,
     refetchInterval: false,
-    refetchOnMount: false,
+    refetchOnMount: "always",
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
   });
@@ -255,8 +240,13 @@ export default function TenantOnboardingWorkflowBuilder({
     const cameFromTemplate = activeFlowKey?.includes(":template:") ?? false;
     const tenantChanged = initializedTenantRef.current !== nextTenantId;
     const isFirstTenantLoad = activeFlowKey == null;
+    const shouldApplyFlowName = cameFromTemplate || tenantChanged || isFirstTenantLoad;
 
-    setFlowTitle(nextFlowName);
+    if (shouldApplyFlowName) {
+      setFlowTitle(nextFlowName);
+      flowTitleRef.current = nextFlowName;
+      savedFlowTitleRef.current = nextFlowName;
+    }
     setPublishStatus(payload.publishStatus === "draft" ? "draft" : "published");
     setUpdatedAt(payload.builderUpdatedAt ?? null);
 
@@ -273,9 +263,27 @@ export default function TenantOnboardingWorkflowBuilder({
     const prevTemplateId = prevTemplateIdRef.current;
     prevTemplateIdRef.current = templateIdFromUrl;
     if (prevTemplateId && !templateIdFromUrl) {
+      setEditingTemplate(null);
+      setTemplateUpdatedAt(null);
+      setActiveFlowKey(null);
+      initializedTenantRef.current = null;
       void refetch();
     }
   }, [templateIdFromUrl, refetch]);
+
+  useEffect(() => {
+    const prev = prevPathnameRef.current;
+    prevPathnameRef.current = pathname;
+    const onBuilder = pathname.includes("/onboarding-builder");
+    const wasOnBuilder = prev?.includes("/onboarding-builder") ?? false;
+    if (onBuilder && !wasOnBuilder && !templateIdFromUrl) {
+      setEditingTemplate(null);
+      setTemplateUpdatedAt(null);
+      setActiveFlowKey(null);
+      initializedTenantRef.current = null;
+      void queryClient.invalidateQueries({ queryKey: BUILDER_QUERY_KEY });
+    }
+  }, [pathname, templateIdFromUrl, queryClient]);
 
   useEffect(() => {
     return () => {
@@ -353,6 +361,8 @@ export default function TenantOnboardingWorkflowBuilder({
         setInitialNodes(nodes);
         setInitialEdges(edges);
         setFlowTitle(displayTitle);
+        flowTitleRef.current = displayTitle;
+        savedFlowTitleRef.current = displayTitle;
         setPublishStatus("draft");
         setActiveFlowKey(`${tenantId}:template:${templateIdFromUrl}:${template.updatedAt ?? "new"}`);
         skipNextChange.current = true;
@@ -380,8 +390,8 @@ export default function TenantOnboardingWorkflowBuilder({
         })),
         method: "PATCH",
         body: JSON.stringify({
-          name: flowTitle,
-          flowName: flowTitle,
+          name: flowTitleRef.current,
+          flowName: flowTitleRef.current,
           builderDraft,
         }),
       });
@@ -420,7 +430,7 @@ export default function TenantOnboardingWorkflowBuilder({
         }
       }
     },
-    [flowTitle, loadTemplateLists]
+    [loadTemplateLists]
   );
 
   const persistNewTemplate = useCallback(
@@ -433,9 +443,9 @@ export default function TenantOnboardingWorkflowBuilder({
         })),
         method: "POST",
         body: JSON.stringify({
-          name: flowTitle,
+          name: flowTitleRef.current,
           folder,
-          flowName: flowTitle,
+          flowName: flowTitleRef.current,
           builderDraft,
         }),
       });
@@ -446,36 +456,32 @@ export default function TenantOnboardingWorkflowBuilder({
       if (!res.ok) throw new Error(payload.error || "Failed to save template");
 
       const saved = payload.template;
-      if (saved) {
-        setEditingTemplate({
-          id: saved.id,
-          name: saved.name,
-          folder: saved.folder,
-          isReadOnly: false,
-          updatedAt: saved.updatedAt,
-        });
-        setTemplateUpdatedAt(saved.updatedAt);
-      }
 
       if (!options.silent) {
         void loadTemplateLists();
         setSuccessModal({
           open: true,
           title: "Success!",
-          message: `Template "${saved?.name ?? flowTitle}" has been saved`,
+          message: `Template "${saved?.name ?? flowTitleRef.current}" has been saved`,
           actionHref: "/admin_recruiter/dashboard/templates",
           actionLabel: "View templates",
         });
       }
     },
-    [editingTemplate?.folder, flowTitle, loadTemplateLists]
+    [editingTemplate?.folder, loadTemplateLists]
   );
 
   const persist = useCallback(
     async (
       state: WorkflowState,
-      options: { publish?: boolean; template?: boolean; silent?: boolean }
+      options: {
+        publish?: boolean;
+        template?: boolean;
+        silent?: boolean;
+        flowName?: string;
+      }
     ) => {
+      const effectiveFlowName = (options.flowName ?? flowTitleRef.current).trim() || "Worker onboarding";
       if (!options.silent) {
         if (options.template) setSavingTemplate(true);
         else if (options.publish) setSavingPublish(true);
@@ -510,7 +516,7 @@ export default function TenantOnboardingWorkflowBuilder({
           method: "POST",
           body: JSON.stringify({
             builderDraft,
-            flowName: flowTitle,
+            flowName: effectiveFlowName,
             publish: options.publish === true,
           }),
         });
@@ -526,6 +532,11 @@ export default function TenantOnboardingWorkflowBuilder({
           setUpdatedAt(payload.builderUpdatedAt ?? null);
         }
 
+        const savedName = payload.flowName?.trim() || effectiveFlowName;
+        flowTitleRef.current = savedName;
+        savedFlowTitleRef.current = savedName;
+        setFlowTitle(savedName);
+
         queryClient.setQueryData<BuilderQueryData>(BUILDER_QUERY_KEY, (current) =>
           current
             ? {
@@ -533,7 +544,7 @@ export default function TenantOnboardingWorkflowBuilder({
                 payload: {
                   ...current.payload,
                   config: payload.config ?? current.payload.config,
-                  flowName: payload.flowName ?? flowTitle,
+                  flowName: savedName,
                   publishStatus: payload.publishStatus ?? current.payload.publishStatus,
                   builderDraft,
                   builderUpdatedAt:
@@ -558,6 +569,7 @@ export default function TenantOnboardingWorkflowBuilder({
         const message = e instanceof Error ? e.message : "Save failed";
         setLocalError(message);
         if (!options.silent) toast.error(message);
+        throw e;
       } finally {
         if (!options.silent) {
           if (options.template) setSavingTemplate(false);
@@ -565,7 +577,7 @@ export default function TenantOnboardingWorkflowBuilder({
         }
       }
     },
-    [editingTemplate, flowTitle, persistNewTemplate, persistTemplateUpdate, queryClient]
+    [editingTemplate, persistNewTemplate, persistTemplateUpdate, queryClient]
   );
 
   const handlePreview = useCallback(
@@ -612,13 +624,43 @@ export default function TenantOnboardingWorkflowBuilder({
   );
 
   const handleFlowTitleChange = useCallback(
-    (nextTitle: string) => {
-      const trimmed = nextTitle.trim() || "Worker onboarding";
+    async (nextTitle: string) => {
+      const trimmed = nextTitle.trim();
+      const validation = isValidFlowNameInput(trimmed);
+      if (validation) {
+        toast.error(validation);
+        const revert = savedFlowTitleRef.current;
+        flowTitleRef.current = revert;
+        setFlowTitle(revert);
+        return;
+      }
+
+      const duplicate = templateLists.savedTemplates.some((item) => {
+        const existing = normalizeFlowNameKey(item.flowName ?? item.name.replace(/\.tpl$/i, ""));
+        return existing === normalizeFlowNameKey(trimmed) &&
+          normalizeFlowNameKey(trimmed) !== normalizeFlowNameKey(savedFlowTitleRef.current);
+      });
+      if (duplicate) {
+        toast.error(`A workflow named "${trimmed}" already exists. Please choose another name.`);
+        const revert = savedFlowTitleRef.current;
+        flowTitleRef.current = revert;
+        setFlowTitle(revert);
+        return;
+      }
+
+      flowTitleRef.current = trimmed;
       setFlowTitle(trimmed);
       setPublishStatus("draft");
-      void persist(latestStateRef.current, { silent: true });
+
+      try {
+        await persist(latestStateRef.current, { silent: true, flowName: trimmed });
+      } catch {
+        const revert = savedFlowTitleRef.current;
+        flowTitleRef.current = revert;
+        setFlowTitle(revert);
+      }
     },
-    [persist]
+    [persist, templateLists.savedTemplates]
   );
 
   const toolbarData = useMemo(
@@ -691,7 +733,14 @@ export default function TenantOnboardingWorkflowBuilder({
   setUndoControlsRef.current = workflowHeader?.setUndoControls;
 
   const registerUndoControls = useCallback(
-    (controls: { canUndo: boolean; undo: () => void } | null) => {
+    (
+      controls: {
+        canUndo: boolean;
+        undo: () => void;
+        canRedo: boolean;
+        redo: () => void;
+      } | null
+    ) => {
       if (isDashboard) setUndoControlsRef.current?.(controls);
     },
     [isDashboard]
@@ -859,8 +908,6 @@ export default function TenantOnboardingWorkflowBuilder({
           onSaveAsTemplate={(state) => void persist(state, { template: true })}
           onPreview={handlePreview}
           onPublish={(state) => void persist(state, { publish: true })}
-          onExportPDF={() => toast("Export PDF coming soon")}
-          onAddTrigger={() => toast("Triggers are not configured yet")}
         />
       </div>
 

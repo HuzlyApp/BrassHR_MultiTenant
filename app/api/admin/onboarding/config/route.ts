@@ -11,6 +11,7 @@ import {
   loadOnboardingBuilderMeta,
   saveOnboardingBuilderDraft,
 } from "@/lib/onboarding/load-onboarding-builder-meta";
+import { findDuplicateFlowName } from "@/lib/onboarding/validate-flow-name";
 import { stepDraftsToSerializableWorkflow } from "@/lib/onboarding/step-drafts-to-workflow-state";
 import { syncBuilderDraftFromStepDrafts } from "@/lib/onboarding/config-from-builder-draft";
 import { publishOnboardingFromWorkflow } from "@/lib/onboarding/publish-onboarding-from-workflow";
@@ -141,6 +142,23 @@ export async function PUT(req: NextRequest) {
     }
 
     let savedTemplate: Awaited<ReturnType<typeof createWorkflowTemplate>> | null = null;
+
+    const existingBuilder = await loadOnboardingBuilderMeta(supabase as OnboardingDbClient, tenantId);
+
+    if (body.flowName?.trim()) {
+      const duplicate = await findDuplicateFlowName(
+        supabase as OnboardingDbClient,
+        tenantId,
+        body.flowName,
+        { excludeFlowName: existingBuilder.flowName }
+      );
+      if (duplicate) {
+        return NextResponse.json(
+          { error: duplicate, code: "DUPLICATE_FLOW_NAME" },
+          { status: 409 }
+        );
+      }
+    }
 
     if (body.builderDraft && isSerializableWorkflowState(body.builderDraft)) {
       if (body.publish) {
