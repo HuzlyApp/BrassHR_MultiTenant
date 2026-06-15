@@ -106,14 +106,6 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  const forceOn =
-    process.env.ADMIN_RBAC_ENFORCE === "true" ||
-    process.env.NEXT_PUBLIC_ADMIN_AUTH_REQUIRED === "true";
-  const forceOff =
-    process.env.ADMIN_RBAC_ENFORCE === "false" ||
-    process.env.NEXT_PUBLIC_ADMIN_AUTH_REQUIRED === "false";
-  const enforceUi = process.env.NODE_ENV === "production" ? !forceOff : forceOn;
-
   const platformOn = isPlatformEnforcementEnabled();
   const isApi = pathname.startsWith("/api/");
   /** In development, rely on route handlers (incl. dev bypass); in production, gate APIs here so session always matches UI. */
@@ -238,11 +230,14 @@ export async function middleware(request: NextRequest) {
     return response;
   }
 
-  if ((enforceUi || isAdminRecruiterPath) && isAdminRecruiterPath) {
-    if (!user || isAnonymousUser) {
+  if (isAdminRecruiterPath) {
+    if (!user || isAnonymousAuthUser(user)) {
       const login = new URL("/signin", request.url);
       login.searchParams.set("next", `${request.nextUrl.pathname}${request.nextUrl.search}`);
       login.searchParams.set("role", "admin_recruiter");
+      if (user && isAnonymousAuthUser(user)) {
+        login.searchParams.set("error", "session");
+      }
       const tenant =
         request.nextUrl.searchParams.get("tenant")?.trim().toLowerCase() ||
         request.cookies.get(ONBOARDING_TENANT_SLUG_COOKIE)?.value?.trim().toLowerCase();

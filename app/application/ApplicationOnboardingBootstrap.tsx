@@ -7,6 +7,7 @@ import { TenantBrandingProvider } from "@/app/components/tenant/TenantBrandingCo
 import OnboardingConfigProvider from "@/app/components/onboarding/OnboardingConfigProvider";
 import type { TenantBranding } from "@/lib/tenant/tenant-branding";
 import { brandingFallbackForSlug } from "@/lib/tenant/tenant-branding";
+import { isOnboardingDraftPreview } from "@/lib/onboarding/is-draft-preview";
 import { persistOnboardingSlugCookie, resolveClientOnboardingTenantSlug } from "@/lib/tenant/client-onboarding-slug";
 
 function resolveBootstrapSlug(): string | null {
@@ -66,16 +67,18 @@ export default function ApplicationOnboardingBootstrap({ children }: { children:
             setBrandingReady(true);
           });
 
-        const authPromise =
-          pathname !== "/application/applicant-dashboard"
-            ? (async () => {
-                const { supabaseBrowser } = await import("@/lib/supabase-browser");
-                const { ensureApplicantMatchesAuthSession } = await import(
-                  "@/lib/onboarding/ensure-applicant-auth"
-                );
-                return ensureApplicantMatchesAuthSession(supabaseBrowser);
-              })()
-            : Promise.resolve({ ok: true as const });
+        const skipApplicantAuth =
+          pathname === "/application/applicant-dashboard" ||
+          isOnboardingDraftPreview(window.location.search);
+
+        const authPromise = skipApplicantAuth
+          ? Promise.resolve({ ok: true as const })
+          : (async () => {
+              const { ensureApplicantMatchesAuthSession } = await import(
+                "@/lib/onboarding/ensure-applicant-auth"
+              );
+              return ensureApplicantMatchesAuthSession();
+            })();
 
         await brandingPromise;
 

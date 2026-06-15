@@ -14,6 +14,7 @@ import { AdminRecruiterHeader } from "./components/AdminRecruiterHeader";
 import { AdminRecruiterDashboardSubNav } from "./components/AdminRecruiterDashboardSubNav";
 import { WorkflowDashboardHeaderProvider } from "./components/WorkflowDashboardHeaderContext";
 import GodAdminImpersonationBanner from "./components/GodAdminImpersonationBanner";
+import { AdminStaffAuthGuard } from "./components/AdminStaffAuthGuard";
 import "./layout.css";
 
 const SIDEBAR_COLLAPSED_STORAGE_KEY = "adminRecruiterSidebarCollapsed";
@@ -56,6 +57,7 @@ export default function AdminRecruiterLayout({ children }: { children: ReactNode
 
   return (
     <AdminTenantBrandingProvider>
+      <AdminStaffAuthGuard>
       <AccountDataProvider>
       <div
         className="admin-recruiter-shell min-h-screen text-gray-600"
@@ -83,6 +85,7 @@ export default function AdminRecruiterLayout({ children }: { children: ReactNode
         </div>
       </div>
       </AccountDataProvider>
+      </AdminStaffAuthGuard>
     </AdminTenantBrandingProvider>
   );
 }

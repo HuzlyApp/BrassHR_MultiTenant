@@ -115,6 +115,40 @@ describe("workflowStateToStepDrafts persistence", () => {
       provider: "Third-party API",
     });
   });
+
+  it("does not duplicate Summary when canvas ends with a custom-step Summary node", () => {
+    const state: SerializableWorkflowState = {
+      nodes: [
+        {
+          id: "step-resume_upload",
+          stepId: "resume-basic-profile",
+          label: "Add Resume",
+          description: "Upload and review your resume",
+          position: { x: 120, y: 40 },
+          day: 1,
+          required: true,
+          settings: { ...DEFAULT_STEP_SETTINGS },
+        },
+        {
+          id: "step-custom_question",
+          stepId: "custom-step",
+          label: "Summary",
+          description: "Review and submit application",
+          position: { x: 120, y: 560 },
+          day: 1,
+          required: true,
+          settings: { ...DEFAULT_STEP_SETTINGS },
+        },
+      ],
+      edges: [{ id: "e1", source: "step-resume_upload", target: "step-custom_question" }],
+    };
+
+    const drafts = workflowStateToStepDrafts(state, []);
+    expect(drafts).toHaveLength(2);
+    expect(drafts[1].step_type).toBe("review_submit");
+    expect(drafts[1].title).toBe("Summary");
+    expect(drafts.filter((s) => s.title.toLowerCase() === "summary")).toHaveLength(1);
+  });
 });
 
 describe("configFromWorkflowDraft preview", () => {

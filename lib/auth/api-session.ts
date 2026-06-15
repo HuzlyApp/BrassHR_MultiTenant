@@ -74,18 +74,38 @@ async function extractBearerToken(): Promise<string | null> {
   return token.length > 0 ? token : null;
 }
 
+function isAnonymousAuthUser(user: User | null | undefined): boolean {
+  return user?.is_anonymous === true;
+}
+
 async function getSessionUser(): Promise<{ user: User | null; error: unknown }> {
   const supabase = await createClient();
   const first = await supabase.auth.getUser();
-  if (first.data.user?.id) {
-    return { user: first.data.user, error: first.error };
-  }
+  const cookieUser = first.data.user ?? null;
+
   const bearer = await extractBearerToken();
-  if (!bearer) {
-    return { user: null, error: first.error };
+  if (bearer) {
+    const second = await supabase.auth.getUser(bearer);
+    const bearerUser = second.data.user ?? null;
+    if (bearerUser?.id) {
+      const cookieAnonymous = isAnonymousAuthUser(cookieUser);
+      const bearerAnonymous = isAnonymousAuthUser(bearerUser);
+      if (!cookieUser?.id || (cookieAnonymous && !bearerAnonymous)) {
+        return { user: bearerUser, error: second.error ?? first.error };
+      }
+    }
   }
-  const second = await supabase.auth.getUser(bearer);
-  return { user: second.data.user ?? null, error: second.error ?? first.error };
+
+  if (cookieUser?.id) {
+    return { user: cookieUser, error: first.error };
+  }
+
+  if (bearer) {
+    const second = await supabase.auth.getUser(bearer);
+    return { user: second.data.user ?? null, error: second.error ?? first.error };
+  }
+
+  return { user: null, error: first.error };
 }
 
 /**
@@ -195,6 +215,17 @@ export async function requireStaffApiSession(): Promise<StaffApiAuthContext | Ne
         platform: getUserPlatform(user),
       });
       return jsonUnauthorized(403);
+    }
+
+    if (isAnonymousAuthUser(user)) {
+      return NextResponse.json(
+        {
+          error: "Forbidden",
+          detail:
+            "Staff role required. Sign in again as a recruiter or admin (applicant preview may have replaced your session).",
+        },
+        { status: 403 }
+      );
     }
 
     const role = await resolveAppRoleForUser(user);

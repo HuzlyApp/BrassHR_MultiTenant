@@ -47,6 +47,16 @@ export function AccountDataProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     void refresh();
+
+    const {
+      data: { subscription },
+    } = supabaseBrowser.auth.onAuthStateChange(() => {
+      void refresh();
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, [refresh]);
 
   const value = useMemo<AccountDataContextValue>(

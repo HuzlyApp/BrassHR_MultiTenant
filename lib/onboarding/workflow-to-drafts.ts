@@ -3,9 +3,11 @@ import { reindexStepSortOrders } from "@/lib/onboarding/default-onboarding-steps
 import { createStepDraftForType } from "@/lib/onboarding/create-step-draft";
 import {
   orderedNodeIds,
+  type SerializableWorkflowNode,
   type SerializableWorkflowState,
 } from "@/lib/onboarding/workflow-builder-serialization";
 import { dayFromDatePriority } from "@/lib/onboarding/normalize-workflow-settings";
+import type { OnboardingStepType } from "@/lib/onboarding/types";
 import { workflowStepIdToOnboardingType } from "@/lib/onboarding/workflow-step-mapping";
 
 function uniqueStepKey(stepType: string, existingKeys: Set<string>, preferred: string): string {
@@ -13,6 +15,42 @@ function uniqueStepKey(stepType: string, existingKeys: Set<string>, preferred: s
   let n = 2;
   while (existingKeys.has(`${preferred}_${n}`)) n += 1;
   return `${preferred}_${n}`;
+}
+
+/** Canvas "custom-step" nodes labeled Summary are the review/submit step, not custom questions. */
+function isSummaryWorkflowNode(node: SerializableWorkflowNode): boolean {
+  const label = node.label?.trim().toLowerCase() ?? "";
+  const desc = node.description?.trim().toLowerCase() ?? "";
+  return (
+    label === "summary" ||
+    label.includes("review and submit") ||
+    desc.includes("review and submit") ||
+    desc.includes("submit application")
+  );
+}
+
+function resolveStepTypeForWorkflowNode(
+  node: SerializableWorkflowNode,
+  prior: OnboardingStepDraft | undefined
+): OnboardingStepType {
+  if (prior?.step_type === "review_submit") return "review_submit";
+  const mapped = workflowStepIdToOnboardingType(node.stepId);
+  if (mapped === "custom_question" && isSummaryWorkflowNode(node)) {
+    return "review_submit";
+  }
+  return mapped;
+}
+
+function preferredStepKey(
+  stepType: OnboardingStepType,
+  existingKeys: Set<string>,
+  prior: OnboardingStepDraft | undefined
+): string {
+  if (prior?.step_key) return prior.step_key;
+  if (stepType === "review_submit" && !existingKeys.has("review_submit")) {
+    return "review_submit";
+  }
+  return uniqueStepKey(stepType, existingKeys, stepType);
 }
 
 /**
@@ -31,15 +69,15 @@ export function workflowStateToStepDrafts(
     const node = byId.get(nodeId);
     if (!node) return;
 
-    const stepType = workflowStepIdToOnboardingType(node.stepId);
-
     const prior = existingSteps.find((s) => s.metadata?.workflow_node_id === node.id);
+
+    const stepType = resolveStepTypeForWorkflowNode(node, prior);
 
     const base = prior
       ? { ...prior }
       : createStepDraftForType(stepType, [...existingSteps, ...drafts]);
 
-    const stepKey = prior?.step_key ?? uniqueStepKey(stepType, existingKeys, stepType);
+    const stepKey = preferredStepKey(stepType, existingKeys, prior);
     existingKeys.add(stepKey);
 
     drafts.push({

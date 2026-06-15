@@ -20,7 +20,6 @@ import {
 import type { WorkflowStepLibraryCategory } from "@/lib/onboarding/workflow-step-library-data";
 import { mapConfigToDrafts } from "@/lib/onboarding/config-to-drafts";
 import {
-  draftsToWorkflowNodes,
   hydrateWorkflowFromStorage,
 } from "@/lib/onboarding/drafts-to-workflow";
 import type { TenantOnboardingConfig } from "@/lib/onboarding/types";
@@ -30,6 +29,10 @@ import { writeOnboardingPreview } from "@/lib/onboarding/onboarding-preview-stor
 import { firstOnboardingStepRoute } from "@/lib/onboarding/tenant-step-navigation";
 import { serializeWorkflowState } from "@/lib/onboarding/workflow-builder-serialization";
 import { supabaseBrowser } from "@/lib/supabase-browser";
+import {
+  OnboardingBuilderErrorPanel,
+  OnboardingBuilderSaveErrorBanner,
+} from "@/app/components/onboarding/OnboardingBuilderErrorPanel";
 
 async function staffAuthHeaders(): Promise<HeadersInit> {
   const {
@@ -37,6 +40,16 @@ async function staffAuthHeaders(): Promise<HeadersInit> {
   } = await supabaseBrowser.auth.getSession();
   const token = session?.access_token;
   return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+async function staffFetchInit(extraHeaders?: HeadersInit): Promise<RequestInit> {
+  return {
+    credentials: "include",
+    headers: {
+      ...(await staffAuthHeaders()),
+      ...extraHeaders,
+    },
+  };
 }
 
 type BuilderPayload = {
@@ -97,9 +110,10 @@ function logBuilderDiagnostic(message: string, details?: Record<string, unknown>
 
 async function loadBuilderData(): Promise<BuilderQueryData> {
   const headers = await staffAuthHeaders();
+  const fetchOptions: RequestInit = { headers, credentials: "include" };
   const [libraryRes, res] = await Promise.all([
-    fetch("/api/admin/onboarding-builder/steps-library", { headers }),
-    fetch("/api/admin/onboarding-builder", { headers }),
+    fetch("/api/admin/onboarding-builder/steps-library", fetchOptions),
+    fetch("/api/admin/onboarding-builder", fetchOptions),
   ]);
 
   let stepLibrary = ONBOARDING_WORKFLOW_STEP_LIBRARY;
@@ -129,8 +143,11 @@ async function loadBuilderData(): Promise<BuilderQueryData> {
 
   const drafts = mapConfigToDrafts(config);
   const stepLookup = buildWorkflowStepLookup(stepLibrary);
-  // Default builder always starts from the published/live workflow (config steps).
-  const { nodes, edges } = draftsToWorkflowNodes(drafts, stepLookup);
+  const { nodes, edges } = hydrateWorkflowFromStorage(
+    payload.publishStatus === "draft" ? payload.builderDraft : null,
+    drafts,
+    stepLookup
+  );
 
   return {
     payload,
@@ -156,7 +173,11 @@ export default function TenantOnboardingWorkflowBuilder({
   const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const skipNextChange = useRef(true);
   const latestStateRef = useRef<WorkflowState>({ nodes: [], edges: [] });
+  const lastPersistOptionsRef = useRef<{ publish?: boolean; template?: boolean; silent?: boolean }>(
+    {}
+  );
   const prevTemplateIdRef = useRef<string | null>(null);
+  const initializedTenantRef = useRef<string | null>(null);
   const [savingTemplate, setSavingTemplate] = useState(false);
   const [savingPublish, setSavingPublish] = useState(false);
   const [tenantId, setTenantId] = useState<string | null>(null);
@@ -170,6 +191,7 @@ export default function TenantOnboardingWorkflowBuilder({
   const [initialEdges, setInitialEdges] = useState<Edge[]>([]);
   const [activeFlowKey, setActiveFlowKey] = useState<string | null>(null);
   const [localError, setLocalError] = useState<string | null>(null);
+  const [dismissedLoadError, setDismissedLoadError] = useState<string | null>(null);
   const [templateLists, setTemplateLists] = useState<{
     presets: WorkflowTemplateListItem[];
     savedTemplates: WorkflowTemplateListItem[];
@@ -229,20 +251,23 @@ export default function TenantOnboardingWorkflowBuilder({
     setTemplateUpdatedAt(null);
 
     const nextFlowName = payload.flowName?.trim() || "Worker onboarding";
-    const publishedFlowKey = `${nextTenantId ?? "none"}:published:${nextFlowName}`;
+    const tenantFlowKey = `${nextTenantId ?? "none"}:tenant-flow`;
     const cameFromTemplate = activeFlowKey?.includes(":template:") ?? false;
+    const tenantChanged = initializedTenantRef.current !== nextTenantId;
+    const isFirstTenantLoad = activeFlowKey == null;
 
     setFlowTitle(nextFlowName);
-    setPublishStatus("published");
+    setPublishStatus(payload.publishStatus === "draft" ? "draft" : "published");
     setUpdatedAt(payload.builderUpdatedAt ?? null);
 
-    if (cameFromTemplate || activeFlowKey !== publishedFlowKey) {
+    if (cameFromTemplate || tenantChanged || isFirstTenantLoad) {
       setInitialNodes(data.initialNodes);
       setInitialEdges(data.initialEdges);
-      setActiveFlowKey(publishedFlowKey);
+      setActiveFlowKey(tenantFlowKey);
+      initializedTenantRef.current = nextTenantId;
       skipNextChange.current = true;
     }
-  }, [activeFlowKey, data, isLoading, templateIdFromUrl]);
+  }, [activeFlowKey, data, templateIdFromUrl]);
 
   useEffect(() => {
     const prevTemplateId = prevTemplateIdRef.current;
@@ -260,9 +285,7 @@ export default function TenantOnboardingWorkflowBuilder({
 
   const loadTemplateLists = useCallback(async () => {
     try {
-      const res = await fetch("/api/admin/workflow-templates", {
-        headers: await staffAuthHeaders(),
-      });
+      const res = await fetch("/api/admin/workflow-templates", await staffFetchInit());
       const payload = (await res.json()) as {
         presets?: WorkflowTemplateListItem[];
         savedTemplates?: WorkflowTemplateListItem[];
@@ -290,9 +313,10 @@ export default function TenantOnboardingWorkflowBuilder({
 
     async function loadTemplate() {
       try {
-        const res = await fetch(`/api/admin/workflow-templates/${templateIdFromUrl}`, {
-          headers: await staffAuthHeaders(),
-        });
+        const res = await fetch(
+          `/api/admin/workflow-templates/${templateIdFromUrl}`,
+          await staffFetchInit()
+        );
         const payload = (await res.json()) as {
           template?: {
             id: string;
@@ -351,11 +375,10 @@ export default function TenantOnboardingWorkflowBuilder({
     ) => {
       const builderDraft = serializeWorkflowState(state.nodes, state.edges);
       const res = await fetch(`/api/admin/workflow-templates/${templateId}`, {
-        method: "PATCH",
-        headers: {
+        ...(await staffFetchInit({
           "Content-Type": "application/json",
-          ...(await staffAuthHeaders()),
-        },
+        })),
+        method: "PATCH",
         body: JSON.stringify({
           name: flowTitle,
           flowName: flowTitle,
@@ -405,11 +428,10 @@ export default function TenantOnboardingWorkflowBuilder({
       const builderDraft = serializeWorkflowState(state.nodes, state.edges);
       const folder = editingTemplate?.folder ?? "saved-templates";
       const res = await fetch("/api/admin/workflow-templates", {
-        method: "POST",
-        headers: {
+        ...(await staffFetchInit({
           "Content-Type": "application/json",
-          ...(await staffAuthHeaders()),
-        },
+        })),
+        method: "POST",
         body: JSON.stringify({
           name: flowTitle,
           folder,
@@ -459,6 +481,7 @@ export default function TenantOnboardingWorkflowBuilder({
         else if (options.publish) setSavingPublish(true);
       }
       setLocalError(null);
+      lastPersistOptionsRef.current = options;
       try {
         if (editingTemplate?.id && !options.publish) {
           if (editingTemplate.isReadOnly) {
@@ -481,11 +504,10 @@ export default function TenantOnboardingWorkflowBuilder({
           ? "/api/admin/onboarding-builder/publish"
           : "/api/admin/onboarding-builder/save";
         const res = await fetch(endpoint, {
-          method: "POST",
-          headers: {
+          ...(await staffFetchInit({
             "Content-Type": "application/json",
-            ...(await staffAuthHeaders()),
-          },
+          })),
+          method: "POST",
           body: JSON.stringify({
             builderDraft,
             flowName: flowTitle,
@@ -511,7 +533,7 @@ export default function TenantOnboardingWorkflowBuilder({
                 payload: {
                   ...current.payload,
                   config: payload.config ?? current.payload.config,
-                  flowName: flowTitle,
+                  flowName: payload.flowName ?? flowTitle,
                   publishStatus: payload.publishStatus ?? current.payload.publishStatus,
                   builderDraft,
                   builderUpdatedAt:
@@ -635,7 +657,13 @@ export default function TenantOnboardingWorkflowBuilder({
     [flowTitle, publishStatus, stepLibrary, templateLists, tenantId, tenantName, tenantSlug, updatedAt]
   );
 
-  const error = localError ?? (queryError instanceof Error ? queryError.message : null);
+  const loadError =
+    queryError instanceof Error ? queryError.message : queryError ? String(queryError) : null;
+  const saveError = localError;
+
+  useEffect(() => {
+    setDismissedLoadError(null);
+  }, [loadError]);
   const hasLoadedBuilder = initialNodes.length > 0 || initialEdges.length > 0 || Boolean(tenantId);
 
   const lastUpdated = useMemo(() => {
@@ -693,40 +721,18 @@ export default function TenantOnboardingWorkflowBuilder({
     </div>
   );
 
-  const tenantErrorState =
-    error && /tenant/i.test(error) ? (
-      <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-        <p className="font-semibold">Select a tenant</p>
-        <p className="mt-1">{error}</p>
-      </div>
-    ) : null;
+  const handleRetryLoad = useCallback(() => {
+    void refetch();
+  }, [refetch]);
 
-  const authErrorState =
-    error && /staff role required/i.test(error) ? (
-      <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-        <p className="font-semibold">Recruiter sign-in required</p>
-        <p className="mt-1">
-          Sign in as a recruiter or admin to edit onboarding.{" "}
-          <a href="/signin" className="font-semibold underline">
-            Sign in
-          </a>
-        </p>
-      </div>
-    ) : null;
+  const handleRetrySave = useCallback(() => {
+    setLocalError(null);
+    void persist(latestStateRef.current, lastPersistOptionsRef.current);
+  }, [persist]);
 
-  const genericErrorState =
-    error && !tenantErrorState && !authErrorState ? (
-      <div className="space-y-3">
-        <p className="text-sm text-red-700">{error}</p>
-        <button
-          type="button"
-          onClick={() => void refetch()}
-          className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-800"
-        >
-          Retry
-        </button>
-      </div>
-    ) : null;
+  const loadErrorPanel = loadError ? (
+    <OnboardingBuilderErrorPanel message={loadError} onRetry={handleRetryLoad} />
+  ) : null;
 
   const dashboardHeaderSlots =
     isDashboard && workflowHeader ? (
@@ -760,26 +766,31 @@ export default function TenantOnboardingWorkflowBuilder({
     return wrapDashboard(loadingState);
   }
 
-  if (tenantErrorState) {
-    return wrapDashboard(
-      <div className="flex flex-1 items-center p-5">{tenantErrorState}</div>
-    );
+  if (loadErrorPanel && !hasLoadedBuilder) {
+    return wrapDashboard(loadErrorPanel);
   }
 
-  if (authErrorState) {
-    return wrapDashboard(
-      <div className="flex flex-1 items-center p-5">{authErrorState}</div>
-    );
-  }
-
-  if (genericErrorState) {
-    return wrapDashboard(
-      <div className="flex flex-1 items-center p-5">{genericErrorState}</div>
-    );
+  if (loadErrorPanel && !initialNodes.length && !tenantId) {
+    return wrapDashboard(loadErrorPanel);
   }
 
   const builderContent = (
     <div className={isDashboard ? "flex h-full min-h-0 flex-col" : "space-y-3"}>
+      {saveError ? (
+        <OnboardingBuilderSaveErrorBanner
+          message={saveError}
+          onRetry={handleRetrySave}
+          onDismiss={() => setLocalError(null)}
+        />
+      ) : null}
+
+      {loadError && hasLoadedBuilder && loadError !== dismissedLoadError ? (
+        <OnboardingBuilderSaveErrorBanner
+          message={loadError}
+          onRetry={handleRetryLoad}
+          onDismiss={() => setDismissedLoadError(loadError)}
+        />
+      ) : null}
       {!isDashboard && editingTemplate ? (
         <div
           className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-950"

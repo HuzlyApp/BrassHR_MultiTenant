@@ -114,16 +114,7 @@ export function useWorkflowBuilderHeaderChrome() {
       return { banner: null, center: null, right: null };
     }
 
-    const banner = config.isEditingTemplate ? (
-      <p className="text-xs leading-5 text-sky-950">
-        <span className="font-semibold">Editing template</span>
-        {" — "}
-        {config.templateReadOnly
-          ? "System preset. Save creates your own copy."
-          : "Changes save to this template."}
-        {config.statusSuffix ? ` (${config.statusSuffix})` : ""}
-      </p>
-    ) : config.isDraft ? (
+    const banner = !config.isEditingTemplate && config.isDraft ? (
       <p className="text-xs leading-5 text-amber-950">
         <span className="font-semibold">Draft</span>
         {" — "}
@@ -208,14 +199,12 @@ export function useWorkflowBuilderHeaderChrome() {
           disabled={config.savingPublish}
           onClick={() => ctx.onSaveTemplate?.()}
         />
-        {!config.isEditingTemplate ? (
-          <DraftPublishToggle
-            isDraft={config.isDraft}
-            savingPublish={config.savingPublish}
-            disabled={config.savingTemplate}
-            onPublish={() => ctx.onPublish?.()}
-          />
-        ) : null}
+        <DraftPublishToggle
+          isDraft={config.isDraft}
+          savingPublish={config.savingPublish}
+          disabled={config.savingTemplate || config.templateReadOnly}
+          onPublish={() => ctx.onPublish?.()}
+        />
       </div>
     );
 

@@ -124,10 +124,16 @@ export function AdminRecruiterHeader({
         if (isAuthError) {
           const next = `${pathname || "/admin_recruiter"}${window.location.search}`;
           const nextParam = encodeURIComponent(next);
+          const payload = errPayload as { detail?: string };
+          const staffSessionLost = String(payload?.detail ?? "")
+            .toLowerCase()
+            .includes("staff role required");
           router.replace(
-            response.status === 403
-              ? `/login?next=${nextParam}&error=platform`
-              : `/login?next=${nextParam}`
+            staffSessionLost
+              ? `/signin?role=admin_recruiter&next=${nextParam}&error=session`
+              : response.status === 403
+                ? `/login?next=${nextParam}&error=platform`
+                : `/login?next=${nextParam}`
           );
           return;
         }

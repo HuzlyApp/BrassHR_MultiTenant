@@ -12,6 +12,8 @@ export function parseAppRole(v: unknown): AppRole | null {
   if (typeof v !== "string") return null;
   const s = v.trim().toLowerCase();
   if (s === "god_admin") return "admin";
+  // Legacy / notify lists use "owner" for tenant account owners.
+  if (s === "owner") return "admin";
   // Supabase app_role enum uses "client" for tenant staff (recruiter-facing UI).
   if (s === "client") return "recruiter";
   if (s === "worker" || s === "recruiter" || s === "support" || s === "admin") return s;

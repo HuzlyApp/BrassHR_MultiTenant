@@ -20,6 +20,7 @@ import {
   serializeWorkflowState,
   type SerializableWorkflowState,
 } from "@/lib/onboarding/workflow-builder-serialization";
+import { formatApiError } from "@/lib/api/format-api-error";
 
 export const runtime = "nodejs";
 
@@ -98,8 +99,7 @@ export async function GET(req: NextRequest) {
       builderUpdatedAt: builder.updatedAt,
     });
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : "Unexpected error";
-    return NextResponse.json({ error: msg }, { status: 500 });
+    return NextResponse.json({ error: formatApiError(err) }, { status: 500 });
   }
 }
 
@@ -206,8 +206,7 @@ export async function PUT(req: NextRequest) {
     });
   } catch (err: unknown) {
     console.error("[admin/onboarding/config]", err);
-    const msg = err instanceof Error ? err.message : "Unexpected error";
-    return NextResponse.json({ error: msg }, { status: 500 });
+    return NextResponse.json({ error: formatApiError(err) }, { status: 500 });
   }
 }
 

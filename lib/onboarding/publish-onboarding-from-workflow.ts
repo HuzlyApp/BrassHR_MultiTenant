@@ -10,7 +10,6 @@ import {
   type SerializableWorkflowState,
 } from "@/lib/onboarding/workflow-builder-serialization";
 import {
-  markOnboardingFlowPublished,
   saveOnboardingBuilderDraft,
 } from "@/lib/onboarding/load-onboarding-builder-meta";
 import { persistTenantOnboardingConfig } from "@/lib/onboarding/persist-tenant-onboarding-config";
@@ -40,8 +39,9 @@ export async function publishOnboardingFromWorkflow(
   });
 
   if (stepsToPersist.length) {
-    await persistTenantOnboardingConfig(supabase, tenantId, stepsToPersist);
-    await markOnboardingFlowPublished(supabase, tenantId, updatedBy);
+    await persistTenantOnboardingConfig(supabase, tenantId, stepsToPersist, {
+      configId: existingConfig?.configId,
+    });
   }
 
   return loadTenantOnboardingConfig(supabase, tenantId, { workerFacing: false });
