@@ -71,7 +71,7 @@ export function ApplicantPortalShell({
   } as CSSProperties;
 
   return (
-    <div style={shellCssVars} className="applicant-portal-shell min-h-screen bg-[#F8FAFC] text-[#012352]">
+    <div style={shellCssVars} className="applicant-portal-shell min-h-screen bg-[#F4F4F4] text-[#012352]">
       <ApplicantPortalSidebar
         applicantName={session?.applicant.name ?? "Applicant"}
         mobileOpen={mobileNavOpen}
@@ -84,7 +84,7 @@ export function ApplicantPortalShell({
       />
 
       <div
-        className="applicant-portal-main flex min-h-screen flex-col"
+        className="applicant-portal-main flex min-h-screen flex-col bg-[#F4F4F4]"
         data-sidebar-collapsed={sidebarCollapsed ? "true" : "false"}
         data-mobile-nav-open={mobileNavOpen ? "true" : "false"}
       >
@@ -96,7 +96,7 @@ export function ApplicantPortalShell({
           onSidebarToggle={toggleSidebarCollapsed}
           onOpenMessages={() => setMessagesOpen(true)}
         />
-        <main className="flex-1">{children}</main>
+        <main className="flex-1 bg-[#F4F4F4]">{children}</main>
       </div>
 
       <ApplicantMessagesPanel

@@ -39,6 +39,7 @@ import {
   OnboardingBuilderErrorPanel,
   OnboardingBuilderSaveErrorBanner,
 } from "@/app/components/onboarding/OnboardingBuilderErrorPanel";
+import CandidateDetailLoader from "@/app/admin_recruiter/components/CandidateDetailLoader";
 
 type BuilderPayload = {
   config?: TenantOnboardingConfig;
@@ -830,7 +831,10 @@ export default function TenantOnboardingWorkflowBuilder({
   useEffect(() => {
     setDismissedLoadError(null);
   }, [loadError]);
-  const hasLoadedBuilder = initialNodes.length > 0 || initialEdges.length > 0 || Boolean(tenantId);
+  const isTemplateLoading = Boolean(templateIdFromUrl && tenantId && !editingTemplate);
+  const isBuilderReady = activeFlowKey != null;
+  const isBuilderLoading =
+    !isBuilderReady && (isLoading || isFetching || isTemplateLoading);
 
   const lastUpdated = useMemo(() => {
     const timestamp = editingTemplate ? templateUpdatedAt : updatedAt;
@@ -883,15 +887,10 @@ export default function TenantOnboardingWorkflowBuilder({
   }, [handlePreview]);
 
   const loadingState = (
-    <div
-      className={
-        isDashboard
-          ? "flex flex-1 items-center justify-center text-sm text-slate-500"
-          : "rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-500"
-      }
-    >
-      Loading onboarding builder...
-    </div>
+    <CandidateDetailLoader
+      label="Loading onboarding builder..."
+      className={isDashboard ? "min-h-0 flex-1 bg-transparent" : "min-h-[360px]"}
+    />
   );
 
   const handleRetryLoad = useCallback(() => {
@@ -949,15 +948,11 @@ export default function TenantOnboardingWorkflowBuilder({
       content
     );
 
-  if (isLoading && !hasLoadedBuilder) {
+  if (isBuilderLoading) {
     return wrapDashboard(loadingState);
   }
 
-  if (loadErrorPanel && !hasLoadedBuilder) {
-    return wrapDashboard(loadErrorPanel);
-  }
-
-  if (loadErrorPanel && !initialNodes.length && !tenantId) {
+  if (loadErrorPanel && !isBuilderReady) {
     return wrapDashboard(loadErrorPanel);
   }
 
@@ -980,7 +975,7 @@ export default function TenantOnboardingWorkflowBuilder({
         </div>
       ) : null}
 
-      {loadError && hasLoadedBuilder && loadError !== dismissedLoadError ? (
+      {loadError && isBuilderReady && loadError !== dismissedLoadError ? (
         <OnboardingBuilderSaveErrorBanner
           message={loadError}
           onRetry={handleRetryLoad}

@@ -10,6 +10,7 @@ import CreateTemplateModal, {
   type CreateTemplatePayload,
 } from "@/app/admin_recruiter/components/CreateTemplateModal";
 import TemplateCreateSuccessModal from "@/app/admin_recruiter/components/TemplateCreateSuccessModal";
+import CandidateDetailLoader from "@/app/admin_recruiter/components/CandidateDetailLoader";
 import { staffAuthHeaders } from "@/lib/staff-auth-headers";
 import { markPendingWorkflowPaste } from "@/lib/onboarding/workflow-template-pending-paste";
 
@@ -362,7 +363,7 @@ export default function AdminRecruiterTemplatesPage() {
             ) : null}
 
             {loading ? (
-              <p className="py-8 text-center text-sm text-[#667085]">Loading templates…</p>
+              <CandidateDetailLoader label="Loading templates..." className="min-h-[280px] bg-transparent py-10" />
             ) : (
               <>
                 <div>
