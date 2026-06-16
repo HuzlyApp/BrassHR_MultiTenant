@@ -314,7 +314,8 @@ async function ensureFirmaTemplateForBuilder(
   supabase: SupabaseClient,
   tenantId: string,
   templateId: string,
-  userId: string
+  userId: string,
+  options: { forceRecreate?: boolean } = {}
 ): Promise<RecruiterTemplateDetail> {
   const template = await getRecruiterTemplateDetail(supabase, tenantId, templateId);
 
@@ -405,6 +406,10 @@ async function ensureFirmaTemplateForBuilder(
 
   try {
     if (template.firma_template_id) {
+      if (options.forceRecreate) {
+        return recreateFirmaTemplate(template.firma_template_id);
+      }
+
       try {
         if (
           template.document_storage_path &&
@@ -451,9 +456,16 @@ export async function createRecruiterTemplateBuilderSession(
   supabase: SupabaseClient,
   tenantId: string,
   templateId: string,
-  userId: string
+  userId: string,
+  options: { forceRecreate?: boolean } = {}
 ): Promise<RecruiterTemplateBuilderSession> {
-  const template = await ensureFirmaTemplateForBuilder(supabase, tenantId, templateId, userId);
+  const template = await ensureFirmaTemplateForBuilder(
+    supabase,
+    tenantId,
+    templateId,
+    userId,
+    options
+  );
   const firmaTemplateId = template.firma_template_id;
   if (!firmaTemplateId) {
     throw new RecruiterTemplateError("FIRMA_ERROR", "Firma template was not created", 502);

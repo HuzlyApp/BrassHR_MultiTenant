@@ -7,17 +7,26 @@ import { createRecruiterTemplateBuilderSession } from "@/lib/recruiter-templates
 
 type RouteContext = { params: Promise<{ id: string }> };
 
-export async function POST(_req: Request, context: RouteContext) {
+export async function POST(req: Request, context: RouteContext) {
   try {
     const ctx = await requireRecruiterTemplateAdminContext();
     if (ctx instanceof NextResponse) return ctx;
+
+    let forceRecreate = false;
+    try {
+      const body = (await req.json()) as { force_recreate_firma_template?: unknown };
+      forceRecreate = body.force_recreate_firma_template === true;
+    } catch {
+      forceRecreate = false;
+    }
 
     const { id } = await context.params;
     const session = await createRecruiterTemplateBuilderSession(
       ctx.supabase,
       ctx.tenantId,
       id,
-      ctx.auth.userId
+      ctx.auth.userId,
+      { forceRecreate }
     );
 
     return NextResponse.json({ session });
