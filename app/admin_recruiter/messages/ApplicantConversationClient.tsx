@@ -250,7 +250,7 @@ export default function ApplicantConversationClient({
               type="submit"
               disabled={sending || !body.trim()}
               aria-label="Send message"
-              className="inline-flex h-6 w-6 items-center justify-center rounded-full text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex h-7 w-7 items-center justify-center rounded-full text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
               style={{
                 background:
                   "linear-gradient(135deg, var(--brand-gradient-from) 0%, var(--brand-gradient-to) 100%)",

@@ -136,7 +136,7 @@ export function AdminRecruiterSidebar({
   const sidebarWidth = collapsed ? SIDEBAR_COLLAPSED_WIDTH : SIDEBAR_EXPANDED_WIDTH;
 
   const SidebarContent = ({ isCollapsed }: { isCollapsed: boolean }) => (
-    <div className="flex h-full flex-col overflow-hidden bg-[#F8FAFC]">
+    <div className="flex h-full flex-col overflow-hidden bg-white">
       <div className={`border-b border-[#E2E8F0] ${isCollapsed ? "px-2 py-3" : "px-4 py-3"}`}>
         <div className={`flex items-center ${isCollapsed ? "justify-center" : "gap-3"}`}>
           <div
@@ -175,11 +175,6 @@ export function AdminRecruiterSidebar({
                     ? "text-[color:var(--brand-primary)]"
                     : "text-[#012352] hover:text-[color:var(--brand-primary)]"
                 }`}
-                style={
-                  section.active
-                    ? { backgroundColor: "color-mix(in srgb, var(--brand-accent) 14%, white)" }
-                    : undefined
-                }
               >
                 {section.disabled || section.href === "#" ? (
                   <div
@@ -252,13 +247,6 @@ export function AdminRecruiterSidebar({
                     ? "text-[color:var(--brand-primary)]"
                     : "text-[#012352] hover:text-[color:var(--brand-primary)]"
                 }`}
-                style={
-                  section.active
-                    ? {
-                        backgroundColor: "color-mix(in srgb, var(--brand-accent) 14%, white)",
-                      }
-                    : undefined
-                }
               >
                 <SidebarNavIcon
                   iconType={section.iconType}
@@ -300,11 +288,6 @@ export function AdminRecruiterSidebar({
                           ? "text-[color:var(--brand-primary)]"
                           : "text-[#012352] hover:text-[color:var(--brand-primary)]"
                       }`}
-                      style={
-                        child.active
-                          ? { backgroundColor: "color-mix(in srgb, var(--brand-accent) 14%, white)" }
-                          : undefined
-                      }
                     >
                       <span>{child.label}</span>
                       {child.active ? (
@@ -372,7 +355,7 @@ export function AdminRecruiterSidebar({
   return (
     <>
       <aside
-        className="admin-recruiter-sidebar fixed inset-y-0 left-0 z-40 hidden border-r border-[#E2E8F0] transition-[width] duration-200 ease-in-out lg:block"
+        className="admin-recruiter-sidebar fixed inset-y-0 left-0 z-40 hidden border-r border-[#E2E8F0] bg-white transition-[width] duration-200 ease-in-out lg:block"
         style={asideStyle}
         data-collapsed={collapsed ? "true" : "false"}
       >
@@ -387,7 +370,7 @@ export function AdminRecruiterSidebar({
         aria-hidden={!isMobileOpen}
       >
         <aside
-          className={`h-full border-r border-[#E2E8F0] transition-transform ${
+          className={`h-full border-r border-[#E2E8F0] bg-white transition-transform ${
             isMobileOpen ? "translate-x-0" : "-translate-x-full"
           }`}
           style={{

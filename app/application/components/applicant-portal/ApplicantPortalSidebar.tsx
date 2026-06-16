@@ -104,7 +104,7 @@ export function ApplicantPortalSidebar({
     isMobileRail?: boolean;
     showMobileClose?: boolean;
   }) => (
-    <div className="flex h-full flex-col overflow-hidden bg-[#F8FAFC]">
+    <div className="flex h-full flex-col overflow-hidden bg-white">
       <div
         className={`border-b border-[#E2E8F0] ${
           isMobileRail
@@ -180,11 +180,6 @@ export function ApplicantPortalSidebar({
                     ? "text-[color:var(--brand-primary)]"
                     : "text-[#012352] hover:text-[color:var(--brand-primary)]"
                 }`}
-                style={
-                  section.active && !section.disabled
-                    ? { backgroundColor: "color-mix(in srgb, var(--brand-accent) 14%, white)" }
-                    : undefined
-                }
               >
                 {section.disabled || section.href === "#" ? (
                   <div
@@ -262,11 +257,6 @@ export function ApplicantPortalSidebar({
                     ? "text-[color:var(--brand-primary)]"
                     : "text-[#012352] hover:text-[color:var(--brand-primary)]"
                 }`}
-                style={
-                  section.active
-                    ? { backgroundColor: "color-mix(in srgb, var(--brand-accent) 14%, white)" }
-                    : undefined
-                }
               >
                 <SidebarNavIcon iconType={section.iconType} active={section.active} />
                 {!isCollapsed ? (
@@ -347,7 +337,7 @@ export function ApplicantPortalSidebar({
   return (
     <>
       <aside
-        className="applicant-portal-sidebar fixed inset-y-0 left-0 z-40 hidden h-screen overflow-hidden border-r border-[#E2E8F0] min-[1000px]:block"
+        className="applicant-portal-sidebar fixed inset-y-0 left-0 z-40 hidden h-screen overflow-hidden border-r border-[#E2E8F0] bg-white min-[1000px]:block"
         style={asideStyle}
         data-collapsed={collapsed ? "true" : "false"}
       >
@@ -355,7 +345,7 @@ export function ApplicantPortalSidebar({
       </aside>
 
       <aside
-        className={`applicant-portal-sidebar applicant-portal-sidebar-mobile-rail fixed inset-y-0 left-0 z-40 h-screen overflow-hidden border-r border-[#E2E8F0] min-[1000px]:hidden ${
+        className={`applicant-portal-sidebar applicant-portal-sidebar-mobile-rail fixed inset-y-0 left-0 z-40 h-screen overflow-hidden border-r border-[#E2E8F0] bg-white min-[1000px]:hidden ${
           mobileOpen ? "hidden" : "block"
         }`}
         data-collapsed="true"
@@ -371,7 +361,7 @@ export function ApplicantPortalSidebar({
         aria-hidden={!mobileOpen}
       >
         <aside
-          className={`h-full border-r border-[#E2E8F0] bg-[#F8FAFC] transition-transform duration-200 ease-in-out ${
+          className={`h-full border-r border-[#E2E8F0] bg-white transition-transform duration-200 ease-in-out ${
             mobileOpen ? "translate-x-0" : "-translate-x-full"
           }`}
           style={{
