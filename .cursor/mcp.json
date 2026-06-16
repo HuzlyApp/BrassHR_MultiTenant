@@ -5,6 +5,12 @@
     },
     "vercel": {
       "url": "https://mcp.vercel.com"
+    },
+    "firma-api": {
+      "url": "https://mcp.firma.dev/mcp"
+    },
+    "firma-docs": {
+      "url": "https://docs.firma.dev/mcp"
     }
   }
 }

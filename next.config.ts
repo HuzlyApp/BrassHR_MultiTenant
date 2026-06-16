@@ -84,9 +84,10 @@ const nextConfig: NextConfig = {
           "img-src 'self' data: blob: https:",
           "font-src 'self' data:",
           "style-src 'self' 'unsafe-inline'",
-          "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
-          "connect-src 'self' https:",
-          "frame-src 'self' https:",
+          "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://api.firma.dev https://app.firma.dev",
+          "worker-src 'self' blob: data: https://api.firma.dev https://app.firma.dev",
+          "connect-src 'self' https: blob:",
+          "frame-src 'self' https://app.firma.dev https://api.firma.dev",
         ].join("; "),
       },
     ];

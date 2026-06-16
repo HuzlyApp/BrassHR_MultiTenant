@@ -66,6 +66,12 @@ const SHARED_TOP_SECTIONS: SidebarSection[] = [
     matchPrefixes: ["/admin_recruiter/email-templates"],
   },
   {
+    label: "Template Builder",
+    href: "/admin_recruiter/template-builder",
+    iconType: ICON.taskboard,
+    matchPrefixes: ["/admin_recruiter/template-builder"],
+  },
+  {
     label: "Chat",
     href: "/admin_recruiter/messages",
     iconType: ICON.chat,
