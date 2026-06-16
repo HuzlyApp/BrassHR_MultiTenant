@@ -62,7 +62,7 @@ export default function AdminRecruiterLayout({ children }: { children: ReactNode
       <div
         className="admin-recruiter-shell min-h-screen text-gray-600"
         style={{
-          backgroundColor: "color-mix(in srgb, var(--brand-accent) 12%, #f3f5f5)",
+          backgroundColor: "#F4F4F4",
           ["--admin-sidebar-width" as string]: `${sidebarWidth}px`,
         }}
       >
