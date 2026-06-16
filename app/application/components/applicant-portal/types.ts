@@ -12,8 +12,15 @@ export type ApplicantSession = {
 export type ApplicantMessage = {
   id: string;
   sender_role: "applicant" | "recruiter";
-  body: string;
+  body: string | null;
   created_at: string;
+  message_type?: "text" | "image" | "file";
+  attachment_bucket?: string | null;
+  attachment_path?: string | null;
+  attachment_name?: string | null;
+  attachment_mime?: string | null;
+  attachment_size?: number | null;
+  attachment_url?: string | null;
 };
 
 export type MeetingType = "online" | "phone" | "in_person";

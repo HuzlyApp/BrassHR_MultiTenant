@@ -12,7 +12,7 @@ function isApplicantMessageListRow(value: unknown): value is ApplicantMessageLis
     typeof row.worker_id === "string" &&
     typeof row.tenant_id === "string" &&
     (row.sender_role === "applicant" || row.sender_role === "recruiter") &&
-    typeof row.body === "string" &&
+    (typeof row.body === "string" || typeof row.attachment_path === "string") &&
     typeof row.created_at === "string"
   );
 }

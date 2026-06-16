@@ -6,3 +6,6 @@ export const WORKER_RESUMES_BUCKET = "worker-resumes"
 
 /** Public tenant/organization logos for branded login and onboarding. */
 export const ORGANIZATION_LOGOS_BUCKET = "organization-logos"
+
+/** Private recruiter <-> worker chat attachments. */
+export const APPLICANT_CHAT_BUCKET = "applicant-chat"

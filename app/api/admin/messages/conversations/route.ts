@@ -30,7 +30,7 @@ export async function GET() {
 
     let messagesQuery = supabase
       .from("applicant_messages")
-      .select("id, worker_id, tenant_id, sender_role, body, created_at")
+      .select("id, worker_id, tenant_id, sender_role, body, created_at, message_type, attachment_name")
       .order("created_at", { ascending: false })
       .limit(200);
 

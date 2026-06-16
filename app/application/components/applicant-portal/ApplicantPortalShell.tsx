@@ -21,7 +21,7 @@ type Props = {
   messageBody: string;
   sending: boolean;
   onMessageBodyChange: (value: string) => void;
-  onSendMessage: () => Promise<void>;
+  onSendMessage: (file?: File | null) => Promise<void>;
   children: React.ReactNode;
 };
 

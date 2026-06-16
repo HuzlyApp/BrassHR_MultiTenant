@@ -195,9 +195,9 @@ export default function ApplicantDashboardPage() {
     };
   }, [router]);
 
-  async function handleSendMessage() {
+  async function handleSendMessage(file?: File | null) {
     const body = messageBody.trim();
-    if (!body) return;
+    if (!body && !file) return;
 
     setSending(true);
     setError(null);
@@ -205,10 +205,13 @@ export default function ApplicantDashboardPage() {
       const headers = await authHeaders();
       if (!headers) throw new Error("You need to sign in again.");
 
+      const formData = new FormData();
+      if (body) formData.append("body", body);
+      if (file) formData.append("file", file);
       const res = await fetch("/api/applicant-portal/messages", {
         method: "POST",
-        headers: { ...headers, "Content-Type": "application/json" },
-        body: JSON.stringify({ body }),
+        headers,
+        body: formData,
       });
       const payload = (await res.json().catch(() => ({}))) as {
         error?: string;

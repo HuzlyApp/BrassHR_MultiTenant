@@ -3,8 +3,10 @@ export type ApplicantMessageListRow = {
   worker_id: string;
   tenant_id: string;
   sender_role: "applicant" | "recruiter";
-  body: string;
+  body: string | null;
   created_at: string;
+  message_type?: "text" | "image" | "file";
+  attachment_name?: string | null;
 };
 
 export type WorkerSummary = {
@@ -43,6 +45,7 @@ export function groupApplicantMessagesIntoConversations(
     const applicantName = applicantDisplayName(worker);
     const isUnread = msg.sender_role === "applicant";
     const href = `/admin_recruiter/messages/${msg.worker_id}`;
+    const preview = msg.body?.trim() || msg.attachment_name?.trim() || "(attachment)";
     const existing = grouped.get(msg.worker_id);
 
     if (!existing) {
@@ -50,7 +53,7 @@ export function groupApplicantMessagesIntoConversations(
         id: msg.id,
         workerId: msg.worker_id,
         applicantName,
-        preview: msg.body?.trim() || "(no content)",
+        preview,
         sentAt: msg.created_at,
         unreadCount: isUnread ? 1 : 0,
         href,
@@ -77,20 +80,21 @@ export function upsertConversationFromMessage(
   const index = next.findIndex((item) => item.workerId === message.worker_id);
   const applicantName = applicantDisplayName(worker);
   const isUnread = message.sender_role === "applicant";
+  const preview = message.body?.trim() || message.attachment_name?.trim() || "(attachment)";
 
   if (index === -1) {
     next.unshift({
       id: message.id,
       workerId: message.worker_id,
       applicantName,
-      preview: message.body?.trim() || "(no content)",
+      preview,
       sentAt: message.created_at,
       unreadCount: isUnread ? 1 : 0,
       href: `/admin_recruiter/messages/${message.worker_id}`,
     });
   } else {
     const existing = { ...next[index] };
-    existing.preview = message.body?.trim() || existing.preview;
+    existing.preview = preview;
     existing.sentAt = message.created_at;
     existing.unreadCount += isUnread ? 1 : 0;
     if (worker) existing.applicantName = applicantName;
