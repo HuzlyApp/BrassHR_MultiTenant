@@ -14,7 +14,6 @@ import { ApplicantScheduleTab } from "@/app/application/components/applicant-por
 import { ApplicantTimesheetsTab } from "@/app/application/components/applicant-portal/ApplicantTimesheetsTab";
 import { ApplicantNotesTab } from "@/app/application/components/applicant-portal/ApplicantNotesTab";
 import type {
-  ApplicantMessage,
   ApplicantNote,
   ApplicantPortalTab,
   ApplicantSession,
@@ -25,10 +24,9 @@ import type {
 import type { TenantBranding } from "@/lib/tenant/tenant-branding";
 import { persistOnboardingSlugCookie } from "@/lib/tenant/client-onboarding-slug";
 import {
-  mergeApplicantMessage,
-  sortApplicantMessages,
-} from "@/lib/messaging/applicant-messages";
-import { useApplicantMessagesRealtime } from "@/lib/messaging/useApplicantMessagesRealtime";
+  useApplicantPortalAuthHeaders,
+} from "@/app/application/components/applicant-portal/useApplicantPortalSession";
+import { useApplicantPortalMessaging } from "@/app/application/components/applicant-portal/useApplicantPortalMessaging";
 
 type AppointmentPayload = {
   availableSlots?: AppointmentSlot[];
@@ -65,7 +63,6 @@ export default function ApplicantDashboardPage() {
   const [activeTab, setActiveTab] = useState<ApplicantPortalTab>("schedule");
   const [session, setSession] = useState<ApplicantSession | null>(null);
   const [portalBranding, setPortalBranding] = useState<TenantBranding | null>(null);
-  const [messages, setMessages] = useState<ApplicantMessage[]>([]);
   const [availableSlots, setAvailableSlots] = useState<AppointmentSlot[]>([]);
   const [appointment, setAppointment] = useState<Appointment | null>(null);
   const [selectedSlot, setSelectedSlot] = useState<AppointmentSlot | null>(null);
@@ -76,34 +73,28 @@ export default function ApplicantDashboardPage() {
   const [selectedSlotId, setSelectedSlotId] = useState("");
   const [rescheduleReason, setRescheduleReason] = useState("");
   const [showRescheduleReason, setShowRescheduleReason] = useState(false);
-  const [messageBody, setMessageBody] = useState("");
   const [loading, setLoading] = useState(true);
-  const [sending, setSending] = useState(false);
   const [requestingSchedule, setRequestingSchedule] = useState(false);
   const [requestingReschedule, setRequestingReschedule] = useState(false);
   const [attendanceSubmitting, setAttendanceSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  async function authHeaders() {
-    const { data } = await supabaseBrowser.auth.getSession();
-    const token = data.session?.access_token;
-    return token ? { Authorization: `Bearer ${token}` } : null;
-  }
-
-  async function loadMessages(headers: { Authorization: string }) {
-    const res = await fetch("/api/applicant-portal/messages", {
-      headers,
-      cache: "no-store",
-    });
-    const payload = (await res.json().catch(() => ({}))) as {
-      messages?: ApplicantMessage[];
-      error?: string;
-    };
-    if (!res.ok) throw new Error(payload.error || "Could not load messages.");
-    setMessages(sortApplicantMessages(payload.messages ?? []));
-  }
-
-  useApplicantMessagesRealtime(session?.applicant.id, setMessages, !loading && Boolean(session?.applicant.id));
+  const authHeaders = useApplicantPortalAuthHeaders();
+  const {
+    messages,
+    messageBody,
+    setMessageBody,
+    sending,
+    aiTyping,
+    recruiterDirectHint,
+    lastInquiry,
+    loadMessages,
+    handleSendMessage,
+    handleContactRecruiter,
+    handleCreateSupportTicket,
+  } = useApplicantPortalMessaging({
+    workerId: session?.applicant.id,
+    authHeaders,
+  });
 
   async function loadAppointments(headers: { Authorization: string }) {
     const res = await fetch("/api/applicant-portal/appointments", {
@@ -178,7 +169,7 @@ export default function ApplicantDashboardPage() {
         }
 
         await Promise.all([
-          loadMessages(headers),
+          loadMessages(),
           loadAppointments(headers),
           loadAttendance(headers),
           loadNotes(headers),
@@ -195,40 +186,12 @@ export default function ApplicantDashboardPage() {
     };
   }, [router]);
 
-  async function handleSendMessage(file?: File | null) {
-    const body = messageBody.trim();
-    if (!body && !file) return;
-
-    setSending(true);
+  async function onSendMessage(file?: File | null) {
     setError(null);
     try {
-      const headers = await authHeaders();
-      if (!headers) throw new Error("You need to sign in again.");
-
-      const formData = new FormData();
-      if (body) formData.append("body", body);
-      if (file) formData.append("file", file);
-      const res = await fetch("/api/applicant-portal/messages", {
-        method: "POST",
-        headers,
-        body: formData,
-      });
-      const payload = (await res.json().catch(() => ({}))) as {
-        error?: string;
-        message?: ApplicantMessage;
-      };
-      if (!res.ok) throw new Error(payload.error || "Could not send message.");
-
-      setMessageBody("");
-      if (payload.message) {
-        setMessages((current) => mergeApplicantMessage(current, payload.message!));
-      } else {
-        await loadMessages(headers);
-      }
+      await handleSendMessage(file);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not send message.");
-    } finally {
-      setSending(false);
     }
   }
 
@@ -370,8 +333,13 @@ export default function ApplicantDashboardPage() {
         messages={messages}
         messageBody={messageBody}
         sending={sending}
+        aiTyping={aiTyping}
+        recruiterDirectHint={recruiterDirectHint}
+        lastInquiry={lastInquiry}
         onMessageBodyChange={setMessageBody}
-        onSendMessage={handleSendMessage}
+        onSendMessage={onSendMessage}
+        onContactRecruiter={handleContactRecruiter}
+        onCreateSupportTicket={handleCreateSupportTicket}
       >
         {error ? (
           <div className="mx-8 mt-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-[14px] font-medium text-red-700">

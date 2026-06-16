@@ -256,7 +256,12 @@ export default function ApplicantConversationClient({
         {!loading
           ? messages.map((message) => {
           const isRecruiter = message.sender_role === "recruiter";
-          const senderName = isRecruiter ? recruiterLabel : applicantName;
+          const isAi = message.sender_role === "ai";
+          const senderName = isRecruiter
+            ? recruiterLabel
+            : isAi
+              ? message.sender_name ?? "AI Assistant"
+              : applicantName;
           return (
             <div
               key={message.id}

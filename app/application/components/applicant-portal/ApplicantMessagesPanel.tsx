@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useRef, useState } from "react";
 import Image from "next/image";
-import { Download, Eye, MoreVertical, X } from "lucide-react";
+import { Bot, Download, Eye, MoreVertical, X } from "lucide-react";
 import type { ApplicantMessage } from "./types";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import ChatEmojiPicker from "@/app/components/ChatEmojiPicker";
@@ -28,9 +28,20 @@ type Props = {
   messages: ApplicantMessage[];
   messageBody: string;
   sending: boolean;
+  aiTyping?: boolean;
+  recruiterDirectHint?: boolean;
+  lastInquiry?: string;
   onMessageBodyChange: (value: string) => void;
   onSendMessage: (file?: File | null) => Promise<void>;
+  onContactRecruiter?: () => void;
+  onCreateSupportTicket?: (inquiry: string) => Promise<void>;
 };
+
+function senderLabel(message: ApplicantMessage): string {
+  if (message.sender_role === "ai") return message.sender_name ?? "AI Assistant";
+  if (message.sender_role === "applicant") return "You";
+  return "Recruiter";
+}
 
 export function ApplicantMessagesPanel({
   open,
@@ -38,13 +49,20 @@ export function ApplicantMessagesPanel({
   messages,
   messageBody,
   sending,
+  aiTyping = false,
+  recruiterDirectHint = false,
+  lastInquiry = "",
   onMessageBodyChange,
   onSendMessage,
+  onContactRecruiter,
+  onCreateSupportTicket,
 }: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const messageInputRef = useRef<HTMLTextAreaElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [ticketPending, setTicketPending] = useState(false);
   const [previewImage, setPreviewImage] = useState<{
     url: string;
     alt: string;
@@ -61,6 +79,12 @@ export function ApplicantMessagesPanel({
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [openMenuId]);
+
+  useEffect(() => {
+    if (recruiterDirectHint && open) {
+      messageInputRef.current?.focus();
+    }
+  }, [open, recruiterDirectHint]);
 
   function closeImagePreview() {
     if (previewImage?.revokeOnClose && previewImage.url.startsWith("blob:")) {
@@ -142,6 +166,16 @@ export function ApplicantMessagesPanel({
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
+  async function handleTicketClick(inquiry: string) {
+    if (!onCreateSupportTicket || ticketPending) return;
+    setTicketPending(true);
+    try {
+      await onCreateSupportTicket(inquiry);
+    } finally {
+      setTicketPending(false);
+    }
+  }
+
   return (
     <>
       <button
@@ -154,7 +188,7 @@ export function ApplicantMessagesPanel({
         <div className="flex items-center justify-between border-b border-[#E2E8F0] px-5 py-4">
           <div>
             <h2 className="text-[18px] font-semibold text-[#012352]">Messages</h2>
-            <p className="text-[13px] text-[#64748B]">Chat with your recruiter</p>
+            <p className="text-[13px] text-[#64748B]">Chat with your recruiter and AI assistant</p>
           </div>
           <button
             type="button"
@@ -168,24 +202,56 @@ export function ApplicantMessagesPanel({
         <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-5 py-4">
           {messages.length === 0 ? (
             <p className="rounded-lg bg-[#F8FAFC] px-4 py-3 text-[14px] text-[#64748B]">
-              No messages yet. Send your first question to the recruiter.
+              No messages yet. Ask a question and the AI assistant will help using your organization&apos;s help
+              articles.
             </p>
           ) : null}
           {messages.map((message) => {
             const isApplicant = message.sender_role === "applicant";
+            const isAi = message.sender_role === "ai";
+            const buttons = message.metadata?.buttons ?? [];
+
             return (
               <div
                 key={message.id}
                 className={`group relative w-fit max-w-[85%] rounded-2xl px-4 py-3 text-[14px] leading-5 ${
                   isApplicant
                     ? "ml-auto bg-(--brand-primary) text-white"
-                    : "mr-auto bg-[#F1F5F9] text-[#374151]"
+                    : isAi
+                      ? "mr-auto border border-[#D9E3F2] bg-[#F8FAFC] text-[#1E293B]"
+                      : "mr-auto bg-[#F1F5F9] text-[#374151]"
                 }`}
               >
-                <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.08em] opacity-75">
-                  {isApplicant ? "You" : "Recruiter"} · {formatMessageTime(message.created_at)}
-                </p>
+                <div className="mb-1 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] opacity-75">
+                  {isAi ? <Bot className="h-3.5 w-3.5" aria-hidden /> : null}
+                  <span>
+                    {senderLabel(message)} · {formatMessageTime(message.created_at)}
+                  </span>
+                </div>
                 {message.body ? <p className="whitespace-pre-wrap wrap-break-word">{message.body}</p> : null}
+                {buttons.length > 0 ? (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {buttons.map((button) => (
+                      <button
+                        key={button.action}
+                        type="button"
+                        disabled={ticketPending}
+                        onClick={() => {
+                          if (button.action === "message_recruiter") {
+                            onContactRecruiter?.();
+                            return;
+                          }
+                          void handleTicketClick(lastInquiry || message.body || "");
+                        }}
+                        className="rounded-full border border-[#CBD5E1] bg-white px-3 py-1.5 text-xs font-medium text-[#0F172A] transition hover:bg-[#F1F5F9] disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {ticketPending && button.action === "create_support_ticket"
+                          ? "Please wait..."
+                          : button.label}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
                 {message.attachment_path ? (
                   <div
                     className={`mt-2 w-fit max-w-full overflow-hidden rounded-lg border ${
@@ -214,73 +280,84 @@ export function ApplicantMessagesPanel({
                           : ""
                       }`}
                     >
-                    <p className="min-w-0 flex-1 truncate pr-1">
-                      {message.attachment_name ?? "Attachment"}
-                    </p>
-                    <button
-                      type="button"
-                      aria-label="File options"
-                      aria-expanded={openMenuId === message.id}
-                      onClick={() =>
-                        setOpenMenuId((current) => (current === message.id ? null : message.id))
-                      }
-                      className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md opacity-0 transition group-hover:opacity-100 focus:opacity-100 [@media(hover:none)]:opacity-100 ${
-                        openMenuId === message.id ? "opacity-100" : ""
-                      } ${
-                        isApplicant
-                          ? "text-white hover:bg-white/15"
-                          : "text-[#64748B] hover:bg-[#F1F5F9]"
-                      }`}
-                    >
-                      <MoreVertical className="h-4 w-4" aria-hidden />
-                    </button>
-                    {openMenuId === message.id ? (
-                      <div
-                        className={`absolute bottom-full right-0 z-20 mb-1 min-w-[130px] overflow-hidden rounded-lg border shadow-lg ${
+                      <p className="min-w-0 flex-1 truncate pr-1">
+                        {message.attachment_name ?? "Attachment"}
+                      </p>
+                      <button
+                        type="button"
+                        aria-label="File options"
+                        aria-expanded={openMenuId === message.id}
+                        onClick={() =>
+                          setOpenMenuId((current) => (current === message.id ? null : message.id))
+                        }
+                        className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md opacity-0 transition group-hover:opacity-100 focus:opacity-100 [@media(hover:none)]:opacity-100 ${
+                          openMenuId === message.id ? "opacity-100" : ""
+                        } ${
                           isApplicant
-                            ? "border-white/20 bg-[#0F172A] text-white"
-                            : "border-[#E2E8F0] bg-white text-[#0F2F62]"
+                            ? "text-white hover:bg-white/15"
+                            : "text-[#64748B] hover:bg-[#F1F5F9]"
                         }`}
                       >
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setOpenMenuId(null);
-                            void handleView(message);
-                          }}
-                          className={`flex w-full items-center gap-2 px-3 py-2.5 text-left text-[13px] font-medium ${
-                            isApplicant ? "hover:bg-white/10" : "hover:bg-[#F8FAFC]"
-                          }`}
-                        >
-                          <Eye className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                          {message.message_type === "image" ? "View" : "Open"}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setOpenMenuId(null);
-                            void handleDownload(message);
-                          }}
-                          className={`flex w-full items-center gap-2 border-t px-3 py-2.5 text-left text-[13px] font-medium ${
+                        <MoreVertical className="h-4 w-4" aria-hidden />
+                      </button>
+                      {openMenuId === message.id ? (
+                        <div
+                          className={`absolute bottom-full right-0 z-20 mb-1 min-w-[130px] overflow-hidden rounded-lg border shadow-lg ${
                             isApplicant
-                              ? "border-white/10 hover:bg-white/10"
-                              : "border-[#E2E8F0] hover:bg-[#F8FAFC]"
+                              ? "border-white/20 bg-[#0F172A] text-white"
+                              : "border-[#E2E8F0] bg-white text-[#0F2F62]"
                           }`}
                         >
-                          <Download className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                          Download
-                        </button>
-                      </div>
-                    ) : null}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setOpenMenuId(null);
+                              void handleView(message);
+                            }}
+                            className={`flex w-full items-center gap-2 px-3 py-2.5 text-left text-[13px] font-medium ${
+                              isApplicant ? "hover:bg-white/10" : "hover:bg-[#F8FAFC]"
+                            }`}
+                          >
+                            <Eye className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                            {message.message_type === "image" ? "View" : "Open"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setOpenMenuId(null);
+                              void handleDownload(message);
+                            }}
+                            className={`flex w-full items-center gap-2 border-t px-3 py-2.5 text-left text-[13px] font-medium ${
+                              isApplicant
+                                ? "border-white/10 hover:bg-white/10"
+                                : "border-[#E2E8F0] hover:bg-[#F8FAFC]"
+                            }`}
+                          >
+                            <Download className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                            Download
+                          </button>
+                        </div>
+                      ) : null}
                     </div>
                   </div>
                 ) : null}
               </div>
             );
           })}
+          {aiTyping ? (
+            <div className="mr-auto flex items-center gap-2 rounded-2xl border border-[#D9E3F2] bg-[#F8FAFC] px-4 py-3 text-[13px] text-[#64748B]">
+              <Bot className="h-4 w-4 shrink-0" aria-hidden />
+              <span>AI Assistant is typing...</span>
+            </div>
+          ) : null}
         </div>
 
         <form onSubmit={handleSubmit} className="mt-auto border-t border-[#E2E8F0] p-4">
+          {recruiterDirectHint ? (
+            <p className="mb-2 rounded-lg bg-[#EFF6FF] px-3 py-2 text-xs text-[#1D4ED8]">
+              You can send this question directly to your recruiter here.
+            </p>
+          ) : null}
           {selectedFile ? (
             <div className="mb-2 flex items-center justify-between rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-2 text-xs text-[#334155]">
               <span className="truncate pr-2">{selectedFile.name}</span>
@@ -299,6 +376,7 @@ export function ApplicantMessagesPanel({
           ) : null}
           <div className="flex w-full min-h-[60px] items-center gap-2 rounded-lg bg-[#F8FAFC] px-3 py-2">
             <textarea
+              ref={messageInputRef}
               value={messageBody}
               onChange={(event) => onMessageBodyChange(event.target.value)}
               placeholder="Write message"
@@ -324,7 +402,7 @@ export function ApplicantMessagesPanel({
               <ChatEmojiPicker onSelect={(emoji) => onMessageBodyChange(messageBody + emoji)} />
               <button
                 type="submit"
-                disabled={sending || (!messageBody.trim() && !selectedFile)}
+                disabled={sending || aiTyping || (!messageBody.trim() && !selectedFile)}
                 aria-label="Send message"
                 className="inline-flex h-7 w-7 items-center justify-center rounded-full text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
                 style={{

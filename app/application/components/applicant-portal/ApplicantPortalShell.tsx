@@ -12,6 +12,7 @@ import {
   WORKER_SIDEBAR_EXPANDED_WIDTH,
 } from "./ApplicantPortalSidebar";
 import { ApplicantMessagesPanel } from "./ApplicantMessagesPanel";
+import { ApplicantPortalUiProvider } from "./ApplicantPortalUiContext";
 import type { ApplicantMessage, ApplicantSession } from "./types";
 import "./applicant-portal.css";
 
@@ -20,8 +21,13 @@ type Props = {
   messages: ApplicantMessage[];
   messageBody: string;
   sending: boolean;
+  aiTyping?: boolean;
+  recruiterDirectHint?: boolean;
+  lastInquiry?: string;
   onMessageBodyChange: (value: string) => void;
   onSendMessage: (file?: File | null) => Promise<void>;
+  onContactRecruiter?: () => void;
+  onCreateSupportTicket?: (inquiry: string) => Promise<void>;
   children: React.ReactNode;
 };
 
@@ -30,8 +36,13 @@ export function ApplicantPortalShell({
   messages,
   messageBody,
   sending,
+  aiTyping,
+  recruiterDirectHint,
+  lastInquiry,
   onMessageBodyChange,
   onSendMessage,
+  onContactRecruiter,
+  onCreateSupportTicket,
   children,
 }: Props) {
   const branding = useTenantBranding();
@@ -71,43 +82,50 @@ export function ApplicantPortalShell({
   } as CSSProperties;
 
   return (
-    <div style={shellCssVars} className="applicant-portal-shell min-h-screen bg-[#F4F4F4] text-[#012352]">
-      <ApplicantPortalSidebar
-        applicantName={session?.applicant.name ?? "Applicant"}
-        mobileOpen={mobileNavOpen}
-        collapsed={sidebarCollapsed}
-        onMobileClose={closeMobileNav}
-        onOpenMessages={() => {
-          setMessagesOpen(true);
-          setMobileNavOpen(false);
-        }}
-      />
-
-      <div
-        className="applicant-portal-main flex min-h-screen flex-col bg-[#F4F4F4]"
-        data-sidebar-collapsed={sidebarCollapsed ? "true" : "false"}
-        data-mobile-nav-open={mobileNavOpen ? "true" : "false"}
-      >
-        <ApplicantPortalHeader
+    <ApplicantPortalUiProvider openRecruiterMessages={() => setMessagesOpen(true)}>
+      <div style={shellCssVars} className="applicant-portal-shell min-h-screen bg-[#F4F4F4] text-[#012352]">
+        <ApplicantPortalSidebar
           applicantName={session?.applicant.name ?? "Applicant"}
-          mobileNavOpen={mobileNavOpen}
-          sidebarCollapsed={sidebarCollapsed}
-          onMenuClick={openMobileNav}
-          onSidebarToggle={toggleSidebarCollapsed}
-          onOpenMessages={() => setMessagesOpen(true)}
+          mobileOpen={mobileNavOpen}
+          collapsed={sidebarCollapsed}
+          onMobileClose={closeMobileNav}
+          onOpenMessages={() => {
+            setMessagesOpen(true);
+            setMobileNavOpen(false);
+          }}
         />
-        <main className="flex-1 bg-[#F4F4F4]">{children}</main>
-      </div>
 
-      <ApplicantMessagesPanel
-        open={messagesOpen}
-        onClose={() => setMessagesOpen(false)}
-        messages={messages}
-        messageBody={messageBody}
-        sending={sending}
-        onMessageBodyChange={onMessageBodyChange}
-        onSendMessage={onSendMessage}
-      />
-    </div>
+        <div
+          className="applicant-portal-main flex min-h-screen flex-col bg-[#F4F4F4]"
+          data-sidebar-collapsed={sidebarCollapsed ? "true" : "false"}
+          data-mobile-nav-open={mobileNavOpen ? "true" : "false"}
+        >
+          <ApplicantPortalHeader
+            applicantName={session?.applicant.name ?? "Applicant"}
+            mobileNavOpen={mobileNavOpen}
+            sidebarCollapsed={sidebarCollapsed}
+            onMenuClick={openMobileNav}
+            onSidebarToggle={toggleSidebarCollapsed}
+            onOpenMessages={() => setMessagesOpen(true)}
+          />
+          <main className="flex-1 bg-[#F4F4F4]">{children}</main>
+        </div>
+
+        <ApplicantMessagesPanel
+          open={messagesOpen}
+          onClose={() => setMessagesOpen(false)}
+          messages={messages}
+          messageBody={messageBody}
+          sending={sending}
+          aiTyping={aiTyping}
+          recruiterDirectHint={recruiterDirectHint}
+          lastInquiry={lastInquiry}
+          onMessageBodyChange={onMessageBodyChange}
+          onSendMessage={onSendMessage}
+          onContactRecruiter={onContactRecruiter}
+          onCreateSupportTicket={onCreateSupportTicket}
+        />
+      </div>
+    </ApplicantPortalUiProvider>
   );
 }

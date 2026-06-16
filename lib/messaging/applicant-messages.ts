@@ -25,17 +25,24 @@ export function isApplicantMessageRow(value: unknown): value is ApplicantMessage
   const hasAttachment = typeof row.attachment_path === "string";
   return (
     typeof row.id === "string" &&
-    (row.sender_role === "applicant" || row.sender_role === "recruiter") &&
+    (row.sender_role === "applicant" || row.sender_role === "recruiter" || row.sender_role === "ai") &&
     (hasText || hasAttachment) &&
     typeof row.created_at === "string"
   );
 }
 
+function parseMetadata(value: unknown): ApplicantMessage["metadata"] {
+  if (!value || typeof value !== "object") return null;
+  return value as ApplicantMessage["metadata"];
+}
+
 export function toApplicantMessageRow(value: unknown): ApplicantMessage | null {
   if (!isApplicantMessageRow(value)) return null;
+  const row = value as Record<string, unknown>;
   return {
     id: value.id,
     sender_role: value.sender_role,
+    sender_name: typeof row.sender_name === "string" ? row.sender_name : null,
     body: typeof value.body === "string" ? value.body : null,
     created_at: value.created_at,
     message_type:
@@ -48,5 +55,6 @@ export function toApplicantMessageRow(value: unknown): ApplicantMessage | null {
     attachment_mime: typeof value.attachment_mime === "string" ? value.attachment_mime : null,
     attachment_size: typeof value.attachment_size === "number" ? value.attachment_size : null,
     attachment_url: typeof value.attachment_url === "string" ? value.attachment_url : null,
+    metadata: parseMetadata(row.metadata),
   };
 }

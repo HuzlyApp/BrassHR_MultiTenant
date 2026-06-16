@@ -42,6 +42,12 @@ const FINANCE_CHILDREN: WorkerSidebarLink[] = [
   { label: "Invoices", href: "#", matchPrefixes: [], disabled: true },
 ];
 
+const ACCOUNT_CHILDREN: WorkerSidebarLink[] = [
+  { label: "My Profile", href: "/application/applicant-dashboard/profile", matchPrefixes: ["/application/applicant-dashboard/profile"] },
+  { label: "Licenses", href: "/application/applicant-dashboard/licenses", matchPrefixes: ["/application/applicant-dashboard/licenses"] },
+  { label: "Documents", href: "/application/applicant-dashboard/documents", matchPrefixes: ["/application/applicant-dashboard/documents"] },
+];
+
 const TEAMS_CHILDREN: WorkerSidebarLink[] = [
   { label: "Managers", href: "#", matchPrefixes: [], disabled: true },
   { label: "Teams", href: "#", matchPrefixes: [], disabled: true },
@@ -67,10 +73,9 @@ export const WORKER_SIDEBAR_SECTIONS: WorkerSidebarSection[] = [
   },
   {
     label: "Chat",
-    href: "#",
+    href: "/application/applicant-dashboard/group-chat",
     iconType: ICON.chat,
-    matchPrefixes: [],
-    action: "messages",
+    matchPrefixes: ["/application/applicant-dashboard/group-chat"],
   },
   {
     label: "Schedule",
@@ -110,10 +115,14 @@ export const WORKER_SIDEBAR_SECTIONS: WorkerSidebarSection[] = [
   },
   {
     label: "Account",
-    href: "#",
+    href: "/application/applicant-dashboard/profile",
     iconType: ICON.account,
-    matchPrefixes: [],
-    disabled: true,
+    matchPrefixes: [
+      "/application/applicant-dashboard/profile",
+      "/application/applicant-dashboard/licenses",
+      "/application/applicant-dashboard/documents",
+    ],
+    children: ACCOUNT_CHILDREN,
   },
   {
     label: "Notifications",
@@ -124,10 +133,9 @@ export const WORKER_SIDEBAR_SECTIONS: WorkerSidebarSection[] = [
   },
   {
     label: "Help & Support",
-    href: "#",
+    href: "/application/applicant-dashboard/help",
     iconType: ICON.help,
-    matchPrefixes: [],
-    disabled: true,
+    matchPrefixes: ["/application/applicant-dashboard/help"],
   },
   {
     label: "Settings",

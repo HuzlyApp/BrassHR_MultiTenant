@@ -12,7 +12,8 @@ export const runtime = "nodejs";
 
 type MessageRow = {
   id: string;
-  sender_role: "applicant" | "recruiter";
+  sender_role: "applicant" | "recruiter" | "ai";
+  sender_name?: string | null;
   body: string | null;
   created_at: string;
   message_type?: "text" | "image" | "file";
@@ -22,6 +23,7 @@ type MessageRow = {
   attachment_mime?: string | null;
   attachment_size?: number | null;
   attachment_url?: string | null;
+  metadata?: Record<string, unknown> | null;
 };
 
 const MAX_CHAT_ATTACHMENT_BYTES = Number(process.env.MAX_CHAT_ATTACHMENT_BYTES ?? 10 * 1024 * 1024);
@@ -125,7 +127,7 @@ export async function GET(req: NextRequest) {
     const { data, error } = await resolved.supabase
       .from("applicant_messages")
       .select(
-        "id, sender_role, body, created_at, message_type, attachment_bucket, attachment_path, attachment_name, attachment_mime, attachment_size"
+        "id, sender_role, sender_name, body, created_at, message_type, attachment_bucket, attachment_path, attachment_name, attachment_mime, attachment_size, metadata"
       )
       .eq("worker_id", resolved.workerId)
       .order("created_at", { ascending: true });
@@ -217,7 +219,7 @@ export async function POST(req: NextRequest) {
         attachment_size: attachmentSize,
       })
       .select(
-        "id, sender_role, body, created_at, message_type, attachment_bucket, attachment_path, attachment_name, attachment_mime, attachment_size"
+        "id, sender_role, sender_name, body, created_at, message_type, attachment_bucket, attachment_path, attachment_name, attachment_mime, attachment_size, metadata"
       )
       .single();
     if (error) throw error;

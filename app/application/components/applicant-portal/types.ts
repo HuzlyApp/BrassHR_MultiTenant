@@ -11,7 +11,8 @@ export type ApplicantSession = {
 
 export type ApplicantMessage = {
   id: string;
-  sender_role: "applicant" | "recruiter";
+  sender_role: "applicant" | "recruiter" | "ai";
+  sender_name?: string | null;
   body: string | null;
   created_at: string;
   message_type?: "text" | "image" | "file";
@@ -21,6 +22,16 @@ export type ApplicantMessage = {
   attachment_mime?: string | null;
   attachment_size?: number | null;
   attachment_url?: string | null;
+  metadata?: ApplicantMessageMetadata | null;
+};
+
+export type ApplicantMessageMetadata = {
+  source?: "faq" | "ai_fallback" | "support_ticket" | "error";
+  type?: "answer" | "fallback" | "support_ticket_created" | "error";
+  faq_ids?: string[];
+  confidence?: number;
+  buttons?: { label: string; action: "message_recruiter" | "create_support_ticket" }[];
+  ticket_id?: string;
 };
 
 export type MeetingType = "online" | "phone" | "in_person";
