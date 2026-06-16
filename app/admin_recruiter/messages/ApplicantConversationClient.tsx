@@ -13,9 +13,10 @@ import {
   type ApplicantMessage,
 } from "@/lib/messaging/applicant-messages";
 import { useApplicantMessagesRealtime } from "@/lib/messaging/useApplicantMessagesRealtime";
+import ChatEmojiPicker from "@/app/components/ChatEmojiPicker";
+import ChatImagePreviewModal from "@/app/components/ChatImagePreviewModal";
 
 const CHAT_ATTACH_ICON = "/icons/chat-icons/attach_file.svg";
-const CHAT_EMOJI_ICON = "/icons/chat-icons/emoji-happy.svg";
 const CHAT_SEND_ICON = "/icons/chat-icons/send.svg";
 
 function ChatAvatar({
@@ -65,6 +66,11 @@ export default function ApplicantConversationClient({
   const [error, setError] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [previewImage, setPreviewImage] = useState<{
+    url: string;
+    alt: string;
+    revokeOnClose: boolean;
+  } | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -79,6 +85,22 @@ export default function ApplicantConversationClient({
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [openMenuId]);
+
+  function closeImagePreview() {
+    if (previewImage?.revokeOnClose && previewImage.url.startsWith("blob:")) {
+      URL.revokeObjectURL(previewImage.url);
+    }
+    setPreviewImage(null);
+  }
+
+  function openImagePreview(message: ApplicantMessage) {
+    if (message.message_type !== "image" || !message.attachment_path) return;
+    setPreviewImage({
+      url: attachmentUrl(message),
+      alt: message.attachment_name ?? "Image",
+      revokeOnClose: false,
+    });
+  }
 
   const loadMessages = useCallback(async () => {
     const res = await fetch(`/api/applicant-portal/messages?workerId=${encodeURIComponent(workerId)}`, {
@@ -169,6 +191,10 @@ export default function ApplicantConversationClient({
 
   async function handleView(message: ApplicantMessage) {
     if (!message.attachment_path) return;
+    if (message.message_type === "image") {
+      openImagePreview(message);
+      return;
+    }
     try {
       const { blob } = await fetchAttachmentBlob(message);
       const objectUrl = URL.createObjectURL(blob);
@@ -325,11 +351,19 @@ export default function ApplicantConversationClient({
                     }`}
                   >
                     {message.message_type === "image" ? (
-                      <img
-                        src={attachmentUrl(message)}
-                        alt={message.attachment_name ?? "Image attachment"}
-                        className="max-h-[180px] max-w-[240px] object-cover"
-                      />
+                      <button
+                        type="button"
+                        aria-label={`View ${message.attachment_name ?? "image"}`}
+                        onClick={() => openImagePreview(message)}
+                        className="block w-full cursor-zoom-in"
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={attachmentUrl(message)}
+                          alt={message.attachment_name ?? "Image attachment"}
+                          className="max-h-[180px] max-w-[240px] object-cover"
+                        />
+                      </button>
                     ) : null}
                     <div className="px-3 py-2 text-xs font-medium">
                       <p className="max-w-[220px] truncate">{message.attachment_name ?? "Attachment"}</p>
@@ -396,20 +430,12 @@ export default function ApplicantConversationClient({
                 aria-hidden
               />
             </button>
-            <button
-              type="button"
-              aria-label="Add emoji"
-              className="inline-flex h-6 w-6 items-center justify-center transition hover:opacity-80"
-            >
-              <Image
-                src={CHAT_EMOJI_ICON}
-                alt=""
-                width={24}
-                height={24}
-                className="h-6 w-6 shrink-0"
-                aria-hidden
-              />
-            </button>
+            <ChatEmojiPicker
+              onSelect={(emoji) => {
+                setBody((current) => current + emoji);
+                if (error) setError(null);
+              }}
+            />
             <button
               type="submit"
               disabled={sending || (!body.trim() && !selectedFile)}
@@ -443,6 +469,13 @@ export default function ApplicantConversationClient({
           }}
         />
       </form>
+
+      <ChatImagePreviewModal
+        open={Boolean(previewImage)}
+        imageUrl={previewImage?.url ?? null}
+        alt={previewImage?.alt}
+        onClose={closeImagePreview}
+      />
     </section>
   );
 }

@@ -5,9 +5,10 @@ import Image from "next/image";
 import { Download, Eye, MoreVertical, X } from "lucide-react";
 import type { ApplicantMessage } from "./types";
 import { supabaseBrowser } from "@/lib/supabase-browser";
+import ChatEmojiPicker from "@/app/components/ChatEmojiPicker";
+import ChatImagePreviewModal from "@/app/components/ChatImagePreviewModal";
 
 const CHAT_ATTACH_ICON = "/icons/chat-icons/attach_file.svg";
-const CHAT_EMOJI_ICON = "/icons/chat-icons/emoji-happy.svg";
 const CHAT_SEND_ICON = "/icons/chat-icons/send.svg";
 
 function formatMessageTime(value: string): string {
@@ -44,6 +45,11 @@ export function ApplicantMessagesPanel({
   const menuRef = useRef<HTMLDivElement>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [previewImage, setPreviewImage] = useState<{
+    url: string;
+    alt: string;
+    revokeOnClose: boolean;
+  } | null>(null);
 
   useEffect(() => {
     if (!openMenuId) return;
@@ -55,6 +61,27 @@ export function ApplicantMessagesPanel({
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [openMenuId]);
+
+  function closeImagePreview() {
+    if (previewImage?.revokeOnClose && previewImage.url.startsWith("blob:")) {
+      URL.revokeObjectURL(previewImage.url);
+    }
+    setPreviewImage(null);
+  }
+
+  async function openImagePreview(message: ApplicantMessage) {
+    if (message.message_type !== "image" || !message.attachment_path) return;
+    try {
+      const { blob } = await fetchAttachmentBlob(message);
+      setPreviewImage({
+        url: URL.createObjectURL(blob),
+        alt: message.attachment_name ?? "Image",
+        revokeOnClose: true,
+      });
+    } catch {
+      window.alert("Could not open image. Please sign in again.");
+    }
+  }
 
   if (!open) return null;
 
@@ -77,6 +104,10 @@ export function ApplicantMessagesPanel({
 
   async function handleView(message: ApplicantMessage) {
     if (!message.attachment_path) return;
+    if (message.message_type === "image") {
+      await openImagePreview(message);
+      return;
+    }
     try {
       const { blob } = await fetchAttachmentBlob(message);
       const objectUrl = URL.createObjectURL(blob);
@@ -157,13 +188,32 @@ export function ApplicantMessagesPanel({
                 {message.body ? <p className="whitespace-pre-wrap wrap-break-word">{message.body}</p> : null}
                 {message.attachment_path ? (
                   <div
-                    ref={openMenuId === message.id ? menuRef : undefined}
-                    className={`relative mt-2 flex min-w-[140px] max-w-full items-center gap-2 rounded-lg border px-3 py-2 text-xs font-medium ${
+                    className={`mt-2 w-fit max-w-full overflow-hidden rounded-lg border ${
                       isApplicant
                         ? "border-white/40 bg-white/10 text-white"
                         : "border-[#D9E3F2] bg-white text-[#0F2F62]"
                     }`}
                   >
+                    {message.message_type === "image" ? (
+                      <button
+                        type="button"
+                        aria-label={`View ${message.attachment_name ?? "image"}`}
+                        onClick={() => void openImagePreview(message)}
+                        className="block w-full cursor-zoom-in"
+                      >
+                        <AuthenticatedChatImage message={message} />
+                      </button>
+                    ) : null}
+                    <div
+                      ref={openMenuId === message.id ? menuRef : undefined}
+                      className={`relative flex min-w-[140px] items-center gap-2 px-3 py-2 text-xs font-medium ${
+                        message.message_type === "image"
+                          ? isApplicant
+                            ? "border-t border-white/20"
+                            : "border-t border-[#E2E8F0]"
+                          : ""
+                      }`}
+                    >
                     <p className="min-w-0 flex-1 truncate pr-1">
                       {message.attachment_name ?? "Attachment"}
                     </p>
@@ -222,6 +272,7 @@ export function ApplicantMessagesPanel({
                         </button>
                       </div>
                     ) : null}
+                    </div>
                   </div>
                 ) : null}
               </div>
@@ -270,20 +321,7 @@ export function ApplicantMessagesPanel({
                   aria-hidden
                 />
               </button>
-              <button
-                type="button"
-                aria-label="Add emoji"
-                className="inline-flex h-6 w-6 items-center justify-center transition hover:opacity-80"
-              >
-                <Image
-                  src={CHAT_EMOJI_ICON}
-                  alt=""
-                  width={24}
-                  height={24}
-                  className="h-6 w-6 shrink-0"
-                  aria-hidden
-                />
-              </button>
+              <ChatEmojiPicker onSelect={(emoji) => onMessageBodyChange(messageBody + emoji)} />
               <button
                 type="submit"
                 disabled={sending || (!messageBody.trim() && !selectedFile)}
@@ -317,6 +355,66 @@ export function ApplicantMessagesPanel({
           />
         </form>
       </aside>
+
+      <ChatImagePreviewModal
+        open={Boolean(previewImage)}
+        imageUrl={previewImage?.url ?? null}
+        alt={previewImage?.alt}
+        onClose={closeImagePreview}
+      />
     </>
+  );
+}
+
+function AuthenticatedChatImage({ message }: { message: ApplicantMessage }) {
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    let objectUrl: string | null = null;
+
+    void (async () => {
+      try {
+        const downloadUrl =
+          message.attachment_url ??
+          `/api/applicant-portal/messages/attachment?messageId=${encodeURIComponent(message.id)}`;
+        const { data } = await supabaseBrowser.auth.getSession();
+        const token = data.session?.access_token;
+        if (!token) return;
+
+        const response = await fetch(downloadUrl, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!response.ok) return;
+
+        const blob = await response.blob();
+        objectUrl = URL.createObjectURL(blob);
+        if (alive) setImageUrl(objectUrl);
+      } catch {
+        if (alive) setImageUrl(null);
+      }
+    })();
+
+    return () => {
+      alive = false;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [message.attachment_url, message.id]);
+
+  if (!imageUrl) {
+    return (
+      <div className="flex h-[120px] w-[200px] items-center justify-center bg-white/10 text-xs opacity-80">
+        Loading...
+      </div>
+    );
+  }
+
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={imageUrl}
+      alt={message.attachment_name ?? "Image attachment"}
+      className="max-h-[180px] max-w-[240px] object-cover"
+    />
   );
 }
