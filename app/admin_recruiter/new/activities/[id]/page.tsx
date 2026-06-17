@@ -6,8 +6,16 @@ import { useEffect, useMemo, useState } from "react";
 import DetailedCandidateHeader from "../../../components/DetailedCandidateHeader";
 import DetailedTabs from "../../../components/DetailedTabs";
 import CandidateDetailLoader from "../../../components/CandidateDetailLoader";
+import CandidateCommunicationHistory, {
+  InboxChannelTabButtons,
+  type InboxChannel,
+} from "../../../components/CandidateCommunicationHistory";
 import BrandedHistoryIcon from "../../../components/BrandedHistoryIcon";
 import BrandedPhoneIcon from "../../../components/BrandedPhoneIcon";
+import InterviewsPageClient from "../../../calendar/components/InterviewsPageClient";
+import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
+import type { CommunicationThread } from "@/lib/communication/conversation";
+import type { CandidateCommunicationRow } from "@/lib/communication/record";
 import {
   Briefcase,
   Calendar,
@@ -15,6 +23,7 @@ import {
   Menu,
   Phone,
   Plus,
+  RefreshCw,
   Settings,
   UserCheck,
   UserPlus,
@@ -37,18 +46,23 @@ type WorkerProfileResponse = {
     created_at: string | null;
     updated_at: string | null;
   };
+  activity_history?: Array<{
+    id: string | null;
+    action: string | null;
+    created_at: string | null;
+  }>;
 };
 
 type ActivityTab = "Calls" | "Inbox" | "Interview";
 
-type CallLog = {
-  id: string;
-  title: string;
-  when: string;
-  duration: string;
-  outcome: "Answered" | "Did not answered";
-  attempt: string;
-};
+function ordinalAttempt(n: number): string {
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod10 === 1 && mod100 !== 11) return `${n}st call attempt`;
+  if (mod10 === 2 && mod100 !== 12) return `${n}nd call attempt`;
+  if (mod10 === 3 && mod100 !== 13) return `${n}rd call attempt`;
+  return `${n}th call attempt`;
+}
 
 function initials(name: string) {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -69,6 +83,15 @@ export default function NewApplicantActivitiesPage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [profile, setProfile] = useState<WorkerProfileResponse | null>(null);
+  const [commLoading, setCommLoading] = useState(false);
+  const [commError, setCommError] = useState<string | null>(null);
+  const [commThreads, setCommThreads] = useState<CommunicationThread[]>([]);
+  const [commRefreshKey, setCommRefreshKey] = useState(0);
+  const [inboxChannel, setInboxChannel] = useState<InboxChannel>("sms");
+  const [inboxRefreshing, setInboxRefreshing] = useState(false);
+
+  const branding = useTenantBranding();
+  const companyName = branding.companyName?.trim() || "Company";
 
   useEffect(() => {
     async function fetchApplicant() {
@@ -106,15 +129,75 @@ export default function NewApplicantActivitiesPage() {
   const candidateRole = applicant?.job_role || "N/A";
   const statusLabel = applicant?.status_label?.trim() || "New Applicant";
 
-  /** No `call_logs` table yet — keep structure ready for a future API. */
-  const callLogs: CallLog[] = useMemo(() => [], []);
+  useEffect(() => {
+    async function fetchCommunicationData() {
+      if (!applicantId) return;
+      setCommLoading(true);
+      setCommError(null);
+      try {
+        const res = await fetch(
+          `/api/admin/candidates/${encodeURIComponent(applicantId)}/communications`,
+          { cache: "no-store" }
+        );
+        const json = (await res.json().catch(() => ({}))) as {
+          threads?: CommunicationThread[];
+          error?: string;
+        };
+        if (!res.ok) throw new Error(json.error || `Failed to load communications (${res.status})`);
+        setCommThreads(json.threads ?? []);
+      } catch (e) {
+        setCommThreads([]);
+        setCommError(e instanceof Error ? e.message : "Failed to load communications.");
+      } finally {
+        setCommLoading(false);
+      }
+    }
+    void fetchCommunicationData();
+  }, [applicantId, commRefreshKey]);
 
-  const historyCount = useMemo(() => {
-    const u = profile?.activity?.updated_at;
-    const c = profile?.activity?.created_at;
-    if (u && c && u !== c) return 1;
-    return 0;
-  }, [profile?.activity?.created_at, profile?.activity?.updated_at]);
+  const smsThreads = useMemo(
+    () => commThreads.filter((thread) => thread.channel === "sms"),
+    [commThreads]
+  );
+
+  const smsRows = useMemo(() => {
+    const rows: CandidateCommunicationRow[] = smsThreads.flatMap((thread) => thread.messages);
+    return rows.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  }, [smsThreads]);
+
+  const historyRows = useMemo(
+    () => [...smsRows].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()),
+    [smsRows]
+  );
+
+  const activityHistory = profile?.activity_history ?? [];
+  const historyCount = activityHistory.length;
+
+  const visibleCallRows = leftNav === "Recent Logs" ? smsRows : historyRows;
+
+  function relativeTimeLabel(iso: string): string {
+    const t = new Date(iso).getTime();
+    if (Number.isNaN(t)) return "—";
+    const diffMs = Date.now() - t;
+    const mins = Math.floor(diffMs / 60000);
+    if (mins < 1) return "just now";
+    if (mins < 60) return `${mins}m ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs}h ago`;
+    const days = Math.floor(hrs / 24);
+    return `${days}d ago`;
+  }
+
+  function callOutcome(status: CandidateCommunicationRow["status"]): "Answered" | "Did not answer" {
+    return status === "failed" ? "Did not answer" : "Answered";
+  }
+  function activityTabClass(isActive: boolean): string {
+    return `shrink-0 px-0 pb-3 pt-1 text-sm font-medium leading-5 whitespace-nowrap transition-colors ${
+      isActive
+        ? "-mb-px border-b-2 border-(--brand-primary) text-(--brand-primary)"
+        : "border-b-2 border-transparent text-[#2B3D51] hover:text-(--brand-primary)"
+    }`;
+  }
 
   return (
     <div className="flex min-h-screen bg-zinc-50 overflow-hidden">
@@ -248,163 +331,245 @@ export default function NewApplicantActivitiesPage() {
               status={statusLabel}
             />
 
-            <div className="mx-auto mb-3 flex w-full max-w-[1300px] items-center justify-center gap-2">
+            <nav
+              className="mb-4 mx-auto flex w-full max-w-[1300px] items-end justify-center gap-x-8"
+              aria-label="Activity sections"
+            >
               {(["Calls", "Inbox", "Interview"] as const).map((t) => {
                 const isActive = active === t;
                 return (
                   <button
                     key={t}
+                    type="button"
                     onClick={() => setActive(t)}
-                    className={`text-xs px-3 py-1.5 rounded-lg border transition ${
-                      isActive
-                        ? "border-[#0D9488] bg-[#0D9488] text-white"
-                        : "border-zinc-200 bg-transparent text-[#4B5563] hover:bg-zinc-50"
-                    }`}
+                    className={activityTabClass(isActive)}
+                    aria-current={isActive ? "page" : undefined}
                   >
                     {t}
                   </button>
                 );
               })}
-            </div>
+            </nav>
 
-            <div className="mx-auto w-full max-w-[1300px] rounded-md border border-[#D1D5DB] p-4">
-              <div className="grid grid-cols-12 gap-4">
-                {/* Left mini-nav */}
-                <aside className="col-span-3">
-                  <div className="h-full border-r border-[#E5E7EB] pr-4">
-                    <div className="space-y-2">
-                      {(
-                        [
-                          { key: "Recent Logs" as const, count: callLogs.length },
-                          { key: "History" as const, count: historyCount },
-                        ] as const
-                      ).map(({ key: k, count }) => {
-                        const isActive = leftNav === k;
-                        return (
-                          <button
-                            key={k}
-                            onClick={() => setLeftNav(k)}
-                            className={`w-full flex items-center justify-between gap-2 text-left px-3 py-2 rounded-md border text-xs transition ${
-                              isActive
-                                ? "border-[#99D8D3] bg-[#F8FAFC] text-[#374151]"
-                                : "border-transparent text-[#6B7280] hover:bg-[#F8FAFC]"
-                            }`}
-                          >
-                            <span className="inline-flex items-center gap-2">
-                              {k === "Recent Logs" ? (
-                                <BrandedPhoneIcon className="h-3.5 w-3.5" />
-                              ) : (
-                                <BrandedHistoryIcon className="h-3.5 w-3.5" />
-                              )}
-                              {k}
-                            </span>
-                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-zinc-100 text-[#6B7280] font-medium">
-                              {count}
-                            </span>
-                          </button>
-                        );
-                      })}
+            {active === "Inbox" ? (
+              <nav
+                className="mb-4 mx-auto grid w-full max-w-[1300px] grid-cols-[1fr_auto_1fr] items-end"
+                aria-label="Inbox channels"
+              >
+                <div aria-hidden />
+                <div className="flex items-end justify-center gap-x-8">
+                  <InboxChannelTabButtons
+                    active={inboxChannel}
+                    onChange={setInboxChannel}
+                  />
+                </div>
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setCommRefreshKey((key) => key + 1)}
+                    disabled={inboxRefreshing}
+                    className="mb-2 inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-(--brand-primary) bg-white px-3 text-xs font-semibold text-(--brand-primary) transition hover:bg-[color-mix(in_srgb,var(--brand-primary)_8%,white)] disabled:opacity-50"
+                  >
+                    <RefreshCw className={`h-3.5 w-3.5 ${inboxRefreshing ? "animate-spin" : ""}`} />
+                    Refresh
+                  </button>
+                </div>
+              </nav>
+            ) : null}
+
+            <div className="mx-auto w-full max-w-[1300px] overflow-hidden rounded-md border border-[#D1D5DB] bg-white">
+              {active === "Inbox" ? (
+                <CandidateCommunicationHistory
+                  workerId={applicantId ?? ""}
+                  refreshKey={commRefreshKey}
+                  embedded
+                  hideSubTabs
+                  inboxNav={inboxChannel}
+                  onInboxNavChange={setInboxChannel}
+                  onLoadingChange={setInboxRefreshing}
+                  candidateName={candidateName}
+                />
+              ) : active === "Interview" ? (
+                <InterviewsPageClient
+                  embedded
+                  workerId={applicantId ?? ""}
+                  candidateName={candidateName}
+                  candidateStatus={statusLabel}
+                />
+              ) : (
+                <div className="grid min-h-[420px] grid-cols-12">
+                  <aside className="col-span-12 border-b border-[#E5E7EB] bg-[#FAFBFC] md:col-span-3 md:border-b-0 md:border-r">
+                    <div className="space-y-2 p-4">
+                      <button
+                        type="button"
+                        onClick={() => setLeftNav("Recent Logs")}
+                        className={`flex w-full items-center justify-between rounded-md border px-3 py-2.5 text-left text-xs transition ${
+                          leftNav === "Recent Logs"
+                            ? "border-(--brand-primary) bg-[color-mix(in_srgb,var(--brand-primary)_8%,white)] text-(--brand-primary)"
+                            : "border-transparent text-[#6B7280] hover:bg-white"
+                        }`}
+                      >
+                        <span className="inline-flex items-center gap-2 font-medium">
+                          <BrandedPhoneIcon className="h-3.5 w-3.5" />
+                          Recent Logs
+                        </span>
+                        <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-semibold text-[#6B7280] ring-1 ring-[#E5E7EB]">
+                          {smsRows.length}
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setLeftNav("History")}
+                        className={`flex w-full items-center justify-between rounded-md border px-3 py-2.5 text-left text-xs transition ${
+                          leftNav === "History"
+                            ? "border-(--brand-primary) bg-[color-mix(in_srgb,var(--brand-primary)_8%,white)] text-(--brand-primary)"
+                            : "border-transparent text-[#6B7280] hover:bg-white"
+                        }`}
+                      >
+                        <span className="inline-flex items-center gap-2 font-medium">
+                          <BrandedHistoryIcon className="h-3.5 w-3.5" />
+                          History
+                        </span>
+                        <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-semibold text-[#6B7280] ring-1 ring-[#E5E7EB]">
+                          {historyCount}
+                        </span>
+                      </button>
                     </div>
-                  </div>
-                </aside>
+                  </aside>
 
-                {/* Main */}
-                <main className="col-span-9">
-                  <div className="flex items-center justify-between mb-4">
-                    <div />
-
-                    <div className="flex items-center gap-2">
-                      <button className="text-xs px-4 py-2 rounded-lg border border-[#99D8D3] bg-white text-[#0D9488] hover:bg-[#F8FAFC] transition">
+                  <main className="col-span-12 md:col-span-9">
+                    <div className="flex items-center justify-end gap-2 border-b border-[#E5E7EB] px-5 py-3">
+                      <button
+                        type="button"
+                        className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-(--brand-primary) bg-white px-4 text-xs font-semibold text-(--brand-primary) transition hover:bg-[color-mix(in_srgb,var(--brand-primary)_8%,white)]"
+                      >
                         + Add a call log
                       </button>
-                      <button className="text-xs px-4 py-2 rounded-lg border border-zinc-200 bg-zinc-100 text-[#9CA3AF] transition flex items-center gap-2">
-                        <BrandedPhoneIcon className="h-4 w-4 opacity-60" />
+                      <button
+                        type="button"
+                        disabled
+                        className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[#E5E7EB] bg-[#F3F4F6] px-4 text-xs font-semibold text-[#9CA3AF]"
+                      >
+                        <Phone className="h-3.5 w-3.5" />
                         Call
                       </button>
                     </div>
-                  </div>
 
-                  {active !== "Calls" ? (
-                    <div className="rounded-md border border-[#D1D5DB] p-6 text-sm text-[#6B7280]">
-                      {active} for {candidateName} — connect an inbox or interview data source to show items
-                      here.
-                    </div>
-                  ) : leftNav === "History" ? (
-                    <div className="rounded-md border border-[#D1D5DB] p-6 text-sm text-[#6B7280]">
-                      {historyCount > 0 ? (
-                        <p>
-                          Last profile update tracked from onboarding activity. Full history export can be
-                          wired when activity events are stored per worker.
-                        </p>
-                      ) : (
-                        <p>No history entries yet.</p>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="rounded-md border border-[#D1D5DB] p-5">
-                      <div className="flex items-center justify-between mb-4">
+                    <div className="px-5 py-4">
+                      <div className="mb-4 flex items-center justify-between gap-3">
                         <div className="inline-flex items-center gap-2 text-[20px] font-semibold leading-7 text-[#1F2937]">
                           <BrandedPhoneIcon className="h-5 w-5" />
-                          Call History
+                          {leftNav === "Recent Logs" ? "Call History" : "Activity History"}
                         </div>
                         <div className="text-xs text-[#6B7280]">
                           Actions taken{" "}
-                          <span className="font-semibold text-[#111827]">{callLogs.length}</span>
+                          <span className="font-semibold text-[#111827]">
+                            {leftNav === "Recent Logs" ? visibleCallRows.length : historyCount}
+                          </span>
                         </div>
                       </div>
 
-                      {callLogs.length === 0 ? (
-                        <div className="text-sm text-[#6B7280] py-10 text-center border border-dashed border-[#D1D5DB] rounded-md">
-                          No call logs recorded for{" "}
-                          <span className="font-medium text-[#374151]">{candidateName}</span> yet. Call logs
-                          can be stored in a future call-log table and loaded here.
+                      {leftNav === "History" ? (
+                        activityHistory.length === 0 ? (
+                          <div className="rounded-md border border-dashed border-[#D1D5DB] py-10 text-center text-sm text-[#6B7280]">
+                            No history entries yet.
+                          </div>
+                        ) : (
+                          <div className="space-y-0">
+                            {activityHistory.map((entry, idx) => (
+                              <div
+                                key={entry.id ?? `history-${idx}`}
+                                className={`flex items-start gap-3 py-3 ${
+                                  idx < activityHistory.length - 1 ? "border-b border-[#F1F5F9]" : ""
+                                }`}
+                              >
+                                <BrandedHistoryIcon className="mt-0.5 h-5 w-5 shrink-0" />
+                                <div className="min-w-0">
+                                  <p className="text-sm font-medium text-(--brand-primary)">
+                                    {entry.action ?? "Activity"}
+                                  </p>
+                                  <p className="text-xs text-[#6B7280]">
+                                    {entry.created_at
+                                      ? new Date(entry.created_at).toLocaleString()
+                                      : "—"}
+                                  </p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )
+                      ) : commLoading ? (
+                        <div className="py-10 text-sm text-[#6B7280]">Loading call logs...</div>
+                      ) : commError ? (
+                        <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                          {commError}
+                        </div>
+                      ) : visibleCallRows.length === 0 ? (
+                        <div className="rounded-md border border-dashed border-[#D1D5DB] py-10 text-center text-sm text-[#6B7280]">
+                          No call logs for <span className="font-medium text-[#374151]">{candidateName}</span> yet.
                         </div>
                       ) : (
-                        <div className="space-y-4">
-                          {callLogs.map((c) => {
+                        <div className="space-y-0">
+                          {visibleCallRows.map((row, idx) => {
+                            const outcome = callOutcome(row.status);
                             const badge =
-                              c.outcome === "Answered"
+                              outcome === "Answered"
                                 ? "bg-emerald-100 text-emerald-800"
                                 : "bg-rose-100 text-rose-800";
                             return (
                               <div
-                                key={c.id}
-                                className="grid grid-cols-12 gap-4 items-center py-3 border-b border-zinc-100 last:border-b-0"
+                                key={row.id}
+                                className={`grid grid-cols-12 items-center gap-3 py-4 ${
+                                  idx < visibleCallRows.length - 1 ? "border-b border-[#F1F5F9]" : ""
+                                }`}
                               >
-                                <div className="col-span-6 flex items-start gap-3">
-                                  <div className="w-9 h-9 rounded-full bg-teal-600/10 flex items-center justify-center shrink-0">
-                                    <BrandedPhoneIcon className="w-4 h-4" />
+                                <div className="col-span-12 flex items-start gap-3 lg:col-span-5">
+                                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[color-mix(in_srgb,var(--brand-primary)_10%,white)]">
+                                    <BrandedPhoneIcon className="h-4 w-4" />
                                   </div>
                                   <div className="min-w-0">
-                                    <div className="text-xs font-medium text-gray-600 truncate">
-                                      {c.title}
+                                    <div className="truncate text-xs text-[#374151]">
+                                      {companyName} Called{" "}
+                                      <span className="font-semibold text-(--brand-primary)">{candidateName}</span>
                                     </div>
-                                    <div className="text-[11px] text-gray-600">{c.when}</div>
+                                    <div className="mt-0.5 text-[11px] text-[#6B7280]">
+                                      {relativeTimeLabel(row.created_at)} •{" "}
+                                      {new Date(row.created_at).toLocaleDateString("en-US", {
+                                        month: "2-digit",
+                                        day: "2-digit",
+                                        year: "numeric",
+                                      })}{" "}
+                                      •{" "}
+                                      {new Date(row.created_at).toLocaleTimeString("en-US", {
+                                        hour: "numeric",
+                                        minute: "2-digit",
+                                      })}
+                                    </div>
                                   </div>
                                 </div>
 
-                                <div className="col-span-2 text-[11px] text-gray-600">
-                                  Duration: {c.duration}
+                                <div className="col-span-4 text-[11px] text-[#6B7280] lg:col-span-2">
+                                  Duration: —
                                 </div>
 
-                                <div className="col-span-2">
-                                  <span
-                                    className={`text-[11px] px-3 py-1 rounded-full font-medium ${badge}`}
-                                  >
-                                    {c.outcome}
+                                <div className="col-span-4 lg:col-span-2">
+                                  <span className={`rounded-full px-3 py-1 text-[11px] font-medium ${badge}`}>
+                                    {outcome}
                                   </span>
                                 </div>
 
-                                <div className="col-span-2 text-[11px] text-gray-600">{c.attempt}</div>
+                                <div className="col-span-4 text-right text-[11px] text-[#6B7280] lg:col-span-3">
+                                  {ordinalAttempt(idx + 1)}
+                                </div>
                               </div>
                             );
                           })}
                         </div>
                       )}
                     </div>
-                  )}
-                </main>
-              </div>
+                  </main>
+                </div>
+              )}
             </div>
               </>
             )}

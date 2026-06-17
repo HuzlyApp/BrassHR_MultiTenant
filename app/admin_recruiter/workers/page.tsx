@@ -4,10 +4,19 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
 import {
+  CANDIDATES_FILTER_CONTROL_CLASS,
+  CANDIDATES_FILTER_LABEL_CLASS,
+  CANDIDATES_PAGE_SUBTITLE_CLASS,
+  CANDIDATES_PAGE_SUBTITLE_STYLE,
+  CANDIDATES_PAGE_TITLE_CLASS,
+  CANDIDATES_PAGE_TITLE_STYLE,
+} from "@/app/admin_recruiter/candidates/candidates-typography";
+import { candidateStatusBadgeClassName } from "@/app/admin_recruiter/candidates/candidate-status-badge";
+import {
   Plus,
   Search,
   RefreshCw,
-  MoreHorizontal,
+  Filter,
   Loader2,
 } from "lucide-react";
 
@@ -42,13 +51,17 @@ export default function WorkersPage() {
       role: string;
       location: string;
       status: string;
+      createdAt: string | null;
     }>
   >([]);
   const [totalFromApi, setTotalFromApi] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
-  const [newOnly, setNewOnly] = useState(true);
-  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
+  const [newOnly, setNewOnly] = useState(false);
+  const [showFilterRows, setShowFilterRows] = useState(true);
+  const [jobRoleFilter, setJobRoleFilter] = useState("");
+  const [locationFilter, setLocationFilter] = useState("");
+  const [dateFilter, setDateFilter] = useState("");
 
   const loadWorkers = useCallback(async () => {
     setLoading(true);
@@ -85,6 +98,7 @@ export default function WorkersPage() {
           role: w.job_role || "—",
           location,
           status: titleCaseStatus(w.status ?? (newOnly ? "new" : "—")),
+          createdAt: w.created_at ?? null,
         };
       });
       setWorkers(mapped);
@@ -114,151 +128,247 @@ export default function WorkersPage() {
         );
       });
     }
+    if (jobRoleFilter) out = out.filter((c) => c.role === jobRoleFilter);
+    if (locationFilter) out = out.filter((c) => c.location === locationFilter);
+    if (dateFilter) {
+      out = out.filter((c) => {
+        if (!c.createdAt) return false;
+        const d = new Date(c.createdAt);
+        if (Number.isNaN(d.getTime())) return false;
+        const ymd = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+        return ymd === dateFilter;
+      });
+    }
     return out;
-  }, [workers, query]);
+  }, [workers, query, jobRoleFilter, locationFilter, dateFilter]);
+
+  const jobRoleOptions = useMemo(() => {
+    const s = new Set<string>();
+    for (const w of workers) {
+      if (w.role && w.role !== "—") s.add(w.role);
+    }
+    return Array.from(s).sort((a, b) => a.localeCompare(b));
+  }, [workers]);
+
+  const locationOptions = useMemo(() => {
+    const s = new Set<string>();
+    for (const w of workers) {
+      if (w.location && w.location !== "—") s.add(w.location);
+    }
+    return Array.from(s).sort((a, b) => a.localeCompare(b));
+  }, [workers]);
+
+  function workerTabClass(active: boolean): string {
+    return active
+      ? "border-b-2 border-(--brand-primary) pb-3 text-(--brand-primary)"
+      : "border-b-2 border-transparent pb-3 text-[#667085] transition-colors hover:text-(--brand-primary)";
+  }
 
   return (
-    <div className="p-4 sm:p-5"> 
-      <div className="flex items-start justify-between gap-4 flex-wrap mb-4">
-        <div>
-          <h1 className="text-[36px] font-semibold leading-10 tracking-normal text-[#1d2739]">Worker table</h1>
-          <div className="text-sm text-[#6f7683] mt-1">
-            Data from <code className="bg-zinc-100 px-1 rounded">/api/workers</code> · Profile route{" "}
-            <code className="bg-zinc-100 px-1 rounded">/admin_recruiter/workers/[id]/profile</code>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => void loadWorkers()}
-            className="h-10 inline-flex items-center gap-1.5 rounded-md border border-[#dce6e3] bg-white px-3 text-sm font-semibold text-[#3d4a4a] hover:bg-zinc-50"
-          >
-            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
-            Refresh
-          </button>
-
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => setMoreMenuOpen((v) => !v)}
-              className="flex items-center justify-center w-10 h-10 border border-[#dce6e3] bg-white hover:bg-zinc-50 rounded-md transition"
-              aria-label="More actions"
-            >
-              <BrandedSvgIcon src="/icons/admin-recruiter/candidates/three-dot.svg" className="h-4 w-4" color="var(--brand-primary)" />
-            </button>
-            {moreMenuOpen ? (
-              <>
-                <button
-                  type="button"
-                  className="fixed inset-0 z-40 cursor-default"
-                  aria-label="Close menu"
-                  onClick={() => setMoreMenuOpen(false)}
-                />
-                <div className="absolute right-0 top-full mt-2 z-50 min-w-[200px] rounded-2xl border border-zinc-200 bg-white py-2 shadow-lg">
-                  <button
-                    type="button"
-                    className="w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-zinc-50"
-                    onClick={() => {
-                      setMoreMenuOpen(false);
-                    }}
-                  >
-                    <span className="inline-flex items-center gap-2">
-                      <Plus className="w-4 h-4" /> Create worker
-                    </span>
-                  </button>
-                </div>
-              </>
-            ) : null}
-          </div>
-        </div>
+    <div className="px-5 pb-8 pt-5 lg:px-8">
+      <div className="mb-4 flex items-center gap-6 border-b border-[#E5E7EB]">
+        <button
+          type="button"
+          onClick={() => setNewOnly(true)}
+          className={`shrink-0 whitespace-nowrap text-sm font-medium ${workerTabClass(newOnly)}`}
+          aria-current={newOnly ? "page" : undefined}
+        >
+          New only
+        </button>
+        <button
+          type="button"
+          onClick={() => setNewOnly(false)}
+          className={`shrink-0 whitespace-nowrap text-sm font-medium ${workerTabClass(!newOnly)}`}
+          aria-current={!newOnly ? "page" : undefined}
+        >
+          All workers
+        </button>
       </div>
 
-      <div className="w-full shrink-0 rounded-md border border-[#E5E7EB] bg-white overflow-hidden flex flex-col">
-        <div className="min-h-[60px] border-b border-[#E5E7EB] p-[14px] flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setNewOnly(true)}
-              className={`h-8 px-3 rounded-md text-xs border font-semibold ${
-                newOnly ? "bg-[#0c918a] border-[#0c918a] text-white" : "bg-white border-[#dce6e3] text-[#3d4a4a]"
-              }`}
-            >
-              New only
-            </button>
-            <button
-              type="button"
-              onClick={() => setNewOnly(false)}
-              className={`h-8 px-3 rounded-md text-xs border font-semibold ${
-                !newOnly ? "border-[color:var(--brand-primary)] bg-[color:var(--brand-primary)] text-white" : "bg-white border-[#dce6e3] text-[#3d4a4a]"
-              }`}
-            >
-              All workers
-            </button>
+      <div className="w-full overflow-hidden rounded-[12px] border border-[#E5E7EB] bg-white">
+        <div className="px-[14px] pb-4 pt-5">
+          <h1 className={CANDIDATES_PAGE_TITLE_CLASS} style={CANDIDATES_PAGE_TITLE_STYLE}>
+            Workers
+          </h1>
+          <p className={CANDIDATES_PAGE_SUBTITLE_CLASS} style={CANDIDATES_PAGE_SUBTITLE_STYLE}>
+            Manage workers in one place
+          </p>
+        </div>
+
+        <div
+          className={`flex w-full flex-col gap-0 overflow-hidden rounded-t-[8px] border-y border-[#E5E7EB] bg-white ${
+            showFilterRows ? "min-h-[104px]" : "min-h-[52px]"
+          }`}
+        >
+          <div className="flex h-[52px] w-full shrink-0 items-center gap-3 border-b border-[#E5E7EB] px-[14px]">
+            <div className="flex h-8 w-full min-w-0 max-w-[360px] items-center rounded-md border border-[#dce6e3] bg-white px-3">
+              <Search className="mr-2 h-4 w-4 shrink-0 text-[#94A3B8]" />
+              <input
+                type="search"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search workers"
+                className="min-w-0 flex-1 bg-transparent text-sm font-normal leading-6 text-[#334155] outline-none placeholder:text-[#94A3B8]"
+                style={CANDIDATES_PAGE_SUBTITLE_STYLE}
+              />
+            </div>
+            <div className="ml-auto flex shrink-0 items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setShowFilterRows((v) => !v)}
+                className="inline-flex h-8 items-center gap-1.5 rounded-md border border-[#dce6e3] bg-white px-3 text-sm font-normal leading-6 text-[#334155] transition hover:bg-zinc-50"
+                style={CANDIDATES_PAGE_SUBTITLE_STYLE}
+              >
+                <Filter className="h-4 w-4 shrink-0" />
+                Filters
+              </button>
+              <button
+                type="button"
+                onClick={() => void loadWorkers()}
+                className="inline-flex h-8 items-center gap-1.5 rounded-md border border-[#dce6e3] bg-white px-3 text-sm font-normal leading-6 text-[#334155] transition hover:bg-zinc-50"
+                style={CANDIDATES_PAGE_SUBTITLE_STYLE}
+              >
+                <RefreshCw className={`h-4 w-4 shrink-0 ${loading ? "animate-spin" : ""}`} />
+                Refresh
+              </button>
+              <button
+                type="button"
+                className="inline-flex h-8 items-center gap-1.5 rounded-md border border-[#dce6e3] bg-white px-3 text-sm font-normal leading-6 text-[#334155] transition hover:bg-zinc-50"
+                style={CANDIDATES_PAGE_SUBTITLE_STYLE}
+              >
+                <Plus className="h-4 w-4 shrink-0" />
+                Create Worker
+              </button>
+            </div>
           </div>
 
-          <div className="flex items-center bg-white border border-[#dce6e3] rounded-md px-3 h-8 w-full sm:max-w-[320px]">
-            <Search className="w-4 h-4 text-[#94A3B8] mr-2 shrink-0" />
-            <input
-              type="search"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search by name, role, location, or id"
-              className="bg-transparent outline-none flex-1 min-w-0 text-xs text-[#334155] placeholder:text-[#94A3B8]"
-            />
+          {showFilterRows ? (
+            <div className="flex h-[52px] w-full shrink-0 items-center gap-3 px-[14px]">
+              <div className="flex min-w-0 items-center gap-4 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+                <BrandedSvgIcon
+                  src="/icons/admin-recruiter/candidates/filtered.svg.svg"
+                  className="h-4 w-4 shrink-0"
+                  color="var(--brand-primary)"
+                />
+                <label className="flex items-center gap-2">
+                  <span className={CANDIDATES_FILTER_LABEL_CLASS} style={CANDIDATES_PAGE_SUBTITLE_STYLE}>
+                    Job Role
+                  </span>
+                  <select
+                    value={jobRoleFilter}
+                    onChange={(e) => setJobRoleFilter(e.target.value)}
+                    className={CANDIDATES_FILTER_CONTROL_CLASS}
+                    style={CANDIDATES_PAGE_SUBTITLE_STYLE}
+                  >
+                    <option value="">All</option>
+                    {jobRoleOptions.map((role) => (
+                      <option key={role} value={role}>
+                        {role}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="flex items-center gap-2">
+                  <span className={CANDIDATES_FILTER_LABEL_CLASS} style={CANDIDATES_PAGE_SUBTITLE_STYLE}>
+                    Location
+                  </span>
+                  <select
+                    value={locationFilter}
+                    onChange={(e) => setLocationFilter(e.target.value)}
+                    className={CANDIDATES_FILTER_CONTROL_CLASS}
+                    style={CANDIDATES_PAGE_SUBTITLE_STYLE}
+                  >
+                    <option value="">All</option>
+                    {locationOptions.map((loc) => (
+                      <option key={loc} value={loc}>
+                        {loc}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="flex items-center gap-2">
+                  <span className={CANDIDATES_FILTER_LABEL_CLASS} style={CANDIDATES_PAGE_SUBTITLE_STYLE}>
+                    Date Applied
+                  </span>
+                  <input
+                    type="date"
+                    value={dateFilter}
+                    onChange={(e) => setDateFilter(e.target.value)}
+                    className={`${CANDIDATES_FILTER_CONTROL_CLASS} min-w-[132px] scheme-light`}
+                    style={CANDIDATES_PAGE_SUBTITLE_STYLE}
+                  />
+                </label>
+              </div>
+            </div>
+          ) : null}
+        </div>
+
+        <div className="flex w-full items-center gap-3 px-[14px] py-3">
+          <div className="text-xs leading-4 text-[#5e7371]">
+            Total: <span className="font-semibold text-[#203130]">{loading ? "—" : totalFromApi ?? workers.length}</span> workers
           </div>
         </div>
 
-        <div className="bg-white overflow-hidden">
+        <div className="bg-white px-[14px] py-4">
           {loading ? (
             <div className="flex items-center justify-center gap-3 py-16 text-gray-600">
-              <Loader2 className="h-6 w-6 animate-spin text-[color:var(--brand-primary)]" />
+              <Loader2 className="h-6 w-6 animate-spin text-(--brand-primary)" />
               Loading workers...
             </div>
           ) : filtered.length === 0 ? (
             <div className="py-16 text-center text-gray-600">No workers found.</div>
           ) : (
-            <div className="overflow-auto">
-              <table className="min-w-[760px] w-full border-collapse">
-                <thead className="bg-[#F8FAFC]">
-                  <tr className="border-b border-[#E5E7EB]">
-                    <th className="bg-[#E5E7EB] px-4 py-3 text-left text-xs font-medium uppercase tracking-[0.08em] text-black">Name</th>
-                    <th className="bg-[#E5E7EB] px-4 py-3 text-left text-xs font-medium uppercase tracking-[0.08em] text-black">Job role</th>
-                    <th className="bg-[#E5E7EB] px-4 py-3 text-left text-xs font-medium uppercase tracking-[0.08em] text-black">Location</th>
-                    <th className="bg-[#E5E7EB] px-4 py-3 text-left text-xs font-medium uppercase tracking-[0.08em] text-black">Status</th>
-                    <th className="bg-[#E5E7EB] px-4 py-3 text-right text-xs font-medium uppercase tracking-[0.08em] text-black">Profile</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filtered.map((w) => (
-                    <tr key={w.id} className="border-b border-[#E9EDF3] hover:bg-[#F9FBFB]">
-                      <td className="px-4 py-4 text-sm font-medium text-[#111827]">{w.name}</td>
-                      <td className="px-4 py-4 text-sm text-[#374151]">{w.role}</td>
-                      <td className="px-4 py-4 text-sm text-[#374151]">{w.location}</td>
-                      <td className="px-4 py-4">
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-medium border border-[#E5E7EB] text-[#111827]">
-                          {w.status}
-                        </span>
-                      </td>
-                      <td className="px-4 py-4 text-right">
-                        <Link
-                          href={`/admin_recruiter/workers/${w.id}/profile`}
-                          className="inline-flex items-center gap-1 rounded-full bg-[color:var(--brand-primary)] px-3 py-1.5 text-xs font-semibold text-white hover:brightness-95"
-                        >
-                          Open <span aria-hidden>-&gt;</span>
-                        </Link>
-                      </td>
+            <div className="overflow-hidden rounded-md border border-[#E5E7EB]">
+              <div className="overflow-auto">
+                <table className="min-w-[760px] w-full border-collapse">
+                  <thead className="bg-[#F8FAFC]">
+                    <tr className="border-b border-[#E5E7EB]">
+                      <th className="bg-[#E5E7EB] px-4 py-3 text-left text-sm font-medium uppercase tracking-[0.08em] text-black">
+                        Name
+                      </th>
+                      <th className="bg-[#E5E7EB] px-4 py-3 text-left text-sm font-medium uppercase tracking-[0.08em] text-black">
+                        Job Role
+                      </th>
+                      <th className="bg-[#E5E7EB] px-4 py-3 text-left text-sm font-medium uppercase tracking-[0.08em] text-black">
+                        Location
+                      </th>
+                      <th className="bg-[#E5E7EB] px-4 py-3 text-left text-sm font-medium uppercase tracking-[0.08em] text-black">
+                        Status
+                      </th>
+                      <th className="bg-[#E5E7EB] px-4 py-3 text-right text-sm font-medium uppercase tracking-[0.08em] text-black">
+                        Profile
+                      </th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {filtered.map((w) => (
+                      <tr key={w.id} className="border-b border-[#E9EDF3] hover:bg-[#F9FBFB]">
+                        <td className="px-4 py-4 text-sm font-medium text-[#111827]">{w.name}</td>
+                        <td className="px-4 py-4 text-sm text-[#374151]">{w.role}</td>
+                        <td className="px-4 py-4 text-sm text-[#374151]">{w.location}</td>
+                        <td className="px-4 py-4">
+                          <span
+                            className={`inline-flex items-center rounded-sm px-2 py-0.5 text-[10px] font-semibold ${candidateStatusBadgeClassName(w.status)}`}
+                          >
+                            {w.status}
+                          </span>
+                        </td>
+                        <td className="px-4 py-4 text-right">
+                          <Link
+                            href={`/admin_recruiter/workers/${w.id}/profile`}
+                            className="inline-flex items-center gap-1 rounded-full bg-(--brand-primary) px-3 py-1.5 text-xs font-semibold text-white transition hover:brightness-95"
+                          >
+                            Open <span aria-hidden>-&gt;</span>
+                          </Link>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
         </div>
-      </div>
-
-      <div className="mt-3 text-sm text-gray-600">
-        Total: {loading ? "—" : totalFromApi ?? workers.length} workers
       </div>
     </div>
   );

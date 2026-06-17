@@ -22,6 +22,9 @@ type ScheduleInterviewModalProps = {
     endsAt: string;
     meetingType: "online";
   }) => void;
+  /** When set, hides applicant dropdown and schedules for this worker only. */
+  fixedWorkerId?: string;
+  fixedApplicantName?: string;
 };
 
 const SLOT_MINUTES = 30;
@@ -68,6 +71,8 @@ export function ScheduleInterviewModal({
   error,
   onClose,
   onSubmit,
+  fixedWorkerId,
+  fixedApplicantName,
 }: ScheduleInterviewModalProps) {
   const [workerId, setWorkerId] = useState("");
   const [weekAnchor, setWeekAnchor] = useState(() => startOfDay(new Date()));
@@ -80,8 +85,10 @@ export function ScheduleInterviewModal({
     setWeekAnchor(today);
     setSelectedDay(today);
     setPendingSlot(null);
-    setWorkerId(applicants[0]?.id ?? "");
-  }, [open, applicants]);
+    setWorkerId(fixedWorkerId ?? applicants[0]?.id ?? "");
+  }, [open, applicants, fixedWorkerId]);
+
+  const resolvedWorkerId = fixedWorkerId ?? workerId;
 
   useEffect(() => {
     if (!open) return;
@@ -134,21 +141,28 @@ export function ScheduleInterviewModal({
         </div>
 
         <div className="overflow-y-auto px-5 py-5">
-          <label className="mb-5 block">
-            <span className="mb-1.5 block text-sm font-semibold text-[#1F2937]">Applicant</span>
-            <select
-              value={workerId}
-              onChange={(e) => setWorkerId(e.target.value)}
-              className="w-full rounded-lg border border-[#CBD5E1] px-3 py-2.5 text-sm text-[#1F2937]"
-            >
-              <option value="">Select applicant</option>
-              {applicants.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.name} ({a.status})
-                </option>
-              ))}
-            </select>
-          </label>
+          {fixedWorkerId ? (
+            <div className="mb-5 rounded-lg border border-[#ECF1F9] bg-[#F8FAFC] px-4 py-3">
+              <p className="text-xs font-medium uppercase tracking-wide text-[#64748B]">Applicant</p>
+              <p className="mt-1 text-sm font-semibold text-[#1F2937]">{fixedApplicantName ?? "Applicant"}</p>
+            </div>
+          ) : (
+            <label className="mb-5 block">
+              <span className="mb-1.5 block text-sm font-semibold text-[#1F2937]">Applicant</span>
+              <select
+                value={workerId}
+                onChange={(e) => setWorkerId(e.target.value)}
+                className="w-full rounded-lg border border-[#CBD5E1] px-3 py-2.5 text-sm text-[#1F2937]"
+              >
+                <option value="">Select applicant</option>
+                {applicants.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.name} ({a.status})
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
 
           <p className="mb-5 text-center text-lg font-semibold text-[#4B5563]">Select Date &amp; Time</p>
 
@@ -230,10 +244,10 @@ export function ScheduleInterviewModal({
                       </div>
                       <button
                         type="button"
-                        disabled={submitting || !workerId}
+                        disabled={submitting || !resolvedWorkerId}
                         onClick={() =>
                           onSubmit({
-                            workerId,
+                            workerId: resolvedWorkerId,
                             startsAt: slot.startsAt.toISOString(),
                             endsAt: slot.endsAt.toISOString(),
                             meetingType: "online",

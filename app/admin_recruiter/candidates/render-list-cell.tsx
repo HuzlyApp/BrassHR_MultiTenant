@@ -1,4 +1,5 @@
 import type { ReactNode } from "react"
+import Link from "next/link"
 import BrandedSvgIcon from "@/app/components/BrandedSvgIcon"
 import type { CandidateColumnId } from "./column-config"
 import type { CandidateRow } from "./types"
@@ -36,9 +37,21 @@ export function renderListCell(
             <div className="text-xs text-[#4B5563] truncate">{c.email || "—"}</div>
           </div>
           
-          <div className="ml-auto flex shrink-0 items-center gap-2">
-            <BrandedSvgIcon src="/icons/admin-recruiter/save.svg" className="h-4 w-4" color={BRAND_ICON} />
-            <BrandedSvgIcon src="/icons/admin-recruiter/eye.svg" className="h-4 w-4" color={BRAND_ICON} />
+          <div className="ml-auto flex shrink-0 items-center gap-1.5">
+            <Link
+              href={`/admin_recruiter/new/attachments/${c.id}`}
+              className="inline-flex h-7 w-7 items-center justify-center rounded-md transition hover:bg-[color-mix(in_srgb,var(--brand-primary)_8%,white)]"
+              aria-label="View document"
+            >
+              <BrandedSvgIcon src="/icons/admin-recruiter/save.svg" className="h-4 w-4" color={BRAND_ICON} />
+            </Link>
+            <Link
+              href={`/admin_recruiter/new/profile/${c.id}`}
+              className="inline-flex h-7 w-7 items-center justify-center rounded-md transition hover:bg-[color-mix(in_srgb,var(--brand-primary)_8%,white)]"
+              aria-label="View profile"
+            >
+              <BrandedSvgIcon src="/icons/admin-recruiter/eye.svg" className="h-4 w-4" color={BRAND_ICON} />
+            </Link>
           </div>
         </div>
       )

@@ -1,6 +1,6 @@
 "use client";
 
-import { Mail, RefreshCw } from "lucide-react";
+import { Mail } from "lucide-react";
 import CandidateAvatarIcon from "./CandidateAvatarIcon";
 
 const CANDIDATE_DETAIL_ICON = "/icons/candidate-detail-icon.svg";
@@ -24,9 +24,6 @@ export default function DetailedCandidateHeader({
   loading = false,
   onMessageClick,
   messageDisabled = false,
-  onResendStatusClick,
-  resendStatusDisabled = false,
-  resendingStatus = false,
 }: DetailedCandidateHeaderProps) {
   const displayName = loading ? "Loading..." : name.trim() || "Applicant";
   const displayRole = loading ? "—" : role.trim() || "—";
@@ -72,17 +69,6 @@ export default function DetailedCandidateHeader({
             >
               <Mail className="h-3.5 w-3.5" />
               Message
-            </button>
-          ) : null}
-          {onResendStatusClick ? (
-            <button
-              type="button"
-              onClick={onResendStatusClick}
-              disabled={resendStatusDisabled || resendingStatus || loading}
-              className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-[color:var(--brand-primary)] bg-[color:var(--brand-primary)] px-3 text-center text-xs font-semibold leading-4 text-white hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <RefreshCw className={`h-3.5 w-3.5 ${resendingStatus ? "animate-spin" : ""}`} />
-              {resendingStatus ? "Sending..." : "Resend Status"}
             </button>
           ) : null}
         </div>

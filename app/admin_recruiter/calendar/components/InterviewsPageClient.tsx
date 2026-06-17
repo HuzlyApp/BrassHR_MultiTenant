@@ -410,7 +410,21 @@ function InterviewCalendarView({
   );
 }
 
-export default function InterviewsPageClient() {
+type InterviewsPageClientProps = {
+  /** When set, shows only this candidate's interviews and hides applicant dropdown in schedule modal. */
+  workerId?: string;
+  candidateName?: string;
+  candidateStatus?: string;
+  /** Renders without page header / outer card wrapper (for candidate Activities tab). */
+  embedded?: boolean;
+};
+
+export default function InterviewsPageClient({
+  workerId,
+  candidateName,
+  candidateStatus = "approved",
+  embedded = false,
+}: InterviewsPageClientProps = {}) {
   const [tab, setTab] = useState<TabId>("upcoming");
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [interviews, setInterviews] = useState<AdminInterviewItem[]>([]);
@@ -428,6 +442,34 @@ export default function InterviewsPageClient() {
     setLoading(true);
     setError(null);
     try {
+      if (workerId) {
+        const [upcomingRes, recentRes] = await Promise.all([
+          fetch("/api/admin/applicant-appointments?tab=upcoming", { credentials: "include" }),
+          fetch("/api/admin/applicant-appointments?tab=recent", { credentials: "include" }),
+        ]);
+        const upcomingData = (await upcomingRes.json().catch(() => ({}))) as {
+          error?: string;
+          interviews?: AdminInterviewItem[];
+          applicants?: ApplicantOption[];
+        };
+        const recentData = (await recentRes.json().catch(() => ({}))) as {
+          error?: string;
+          interviews?: AdminInterviewItem[];
+        };
+        if (!upcomingRes.ok) {
+          throw new Error(upcomingData.error || "Failed to load upcoming interviews");
+        }
+        if (!recentRes.ok) {
+          throw new Error(recentData.error || "Failed to load recent interviews");
+        }
+        const upcoming = (upcomingData.interviews ?? []).filter((item) => item.workerId === workerId);
+        const recent = (recentData.interviews ?? []).filter((item) => item.workerId === workerId);
+        setCounts({ upcoming: upcoming.length, recent: recent.length });
+        setInterviews(activeTab === "upcoming" ? upcoming : recent);
+        if (!embedded) setApplicants(upcomingData.applicants ?? []);
+        return;
+      }
+
       const res = await fetch(`/api/admin/applicant-appointments?tab=${activeTab}`, {
         credentials: "include",
       });
@@ -447,7 +489,7 @@ export default function InterviewsPageClient() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [workerId, embedded]);
 
   useEffect(() => {
     void loadInterviews(tab);
@@ -494,121 +536,129 @@ export default function InterviewsPageClient() {
   const hasInterviews = interviews.length > 0;
   const monthTitle = anchorDate.toLocaleDateString("en-US", { month: "long", year: "numeric" });
 
-  return (
-    <main className="px-4 py-6 sm:px-8 sm:py-8">
-      <div className="mb-5">
-        <h1 className="text-[30px] font-semibold leading-9 text-black">Interviews</h1>
-        <p className="mt-1 text-base text-[#374151]">Manage applicant interviews</p>
-      </div>
+  const modalApplicants = useMemo(() => {
+    if (workerId && candidateName) {
+      return [{ id: workerId, name: candidateName, status: candidateStatus }];
+    }
+    return applicants;
+  }, [workerId, candidateName, candidateStatus, applicants]);
 
-      <div className="rounded-xl border border-[#E5E7EB] bg-white p-5">
-        <div className="flex min-h-[640px] overflow-hidden rounded-xl border border-[#E5E7EB]">
-          <aside className="w-[234px] shrink-0 border-r border-[#E5E7EB] p-3">
-            <div className="space-y-1 pt-2">
-              <TabButton
-                active={tab === "upcoming"}
-                count={counts.upcoming}
-                label="Upcoming"
-                loading={loading}
-                onClick={() => setTab("upcoming")}
-              />
-              <TabButton
-                active={tab === "recent"}
-                count={counts.recent}
-                label="Recent"
-                loading={loading}
-                onClick={() => setTab("recent")}
-              />
-            </div>
-          </aside>
+  const panel = (
+    <div
+      className={`flex overflow-hidden ${
+        embedded ? "min-h-[520px]" : "min-h-[640px] rounded-xl border border-[#E5E7EB]"
+      }`}
+    >
+      <aside className="w-[234px] shrink-0 border-r border-[#E5E7EB] p-3">
+        <div className="space-y-1 pt-2">
+          <TabButton
+            active={tab === "upcoming"}
+            count={counts.upcoming}
+            label="Upcoming"
+            loading={loading}
+            onClick={() => setTab("upcoming")}
+          />
+          <TabButton
+            active={tab === "recent"}
+            count={counts.recent}
+            label="Recent"
+            loading={loading}
+            onClick={() => setTab("recent")}
+          />
+        </div>
+      </aside>
 
-          <section className="flex min-w-0 flex-1 flex-col p-5">
-            {loading ? (
-              <InterviewsLoadingSkeleton viewMode={viewMode} monthTitle={monthTitle} />
-            ) : error ? (
-              <p className="rounded-lg bg-red-50 p-4 text-sm text-red-700">{error}</p>
-            ) : !hasInterviews ? (
-              <EmptyState onSchedule={() => setScheduleOpen(true)} />
-            ) : (
-              <>
-                <div className="mb-4 flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2">
-                    {viewMode === "calendar" ? (
-                      <button
-                        type="button"
-                        onClick={() => shiftCalendarWeek(-7)}
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-[#E5E7EB] text-[#64748B] transition hover:bg-[#F8FAFC] hover:text-[#111827]"
-                        aria-label="Previous week"
-                      >
-                        <ChevronLeft className="h-4 w-4" />
-                      </button>
-                    ) : null}
-                    <p className="text-base font-bold text-[#111827]">{monthTitle}</p>
-                    {viewMode === "calendar" ? (
-                      <button
-                        type="button"
-                        onClick={() => shiftCalendarWeek(7)}
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-[#E5E7EB] text-[#64748B] transition hover:bg-[#F8FAFC] hover:text-[#111827]"
-                        aria-label="Next week"
-                      >
-                        <ChevronRight className="h-4 w-4" />
-                      </button>
-                    ) : null}
-                  </div>
-                  <div className="flex items-center gap-2 text-xs text-[#64748B]">
-                    <span className={viewMode === "calendar" ? "font-medium text-[#111827]" : ""}>
-                      Calendar View
-                    </span>
-                    <button
-                      type="button"
-                      role="switch"
-                      aria-checked={viewMode === "calendar"}
-                      onClick={() => setViewMode((v) => (v === "list" ? "calendar" : "list"))}
-                      className={`relative h-5 w-9 rounded-full transition ${
-                        viewMode === "calendar"
-                          ? "bg-[color:var(--brand-primary,#bc8b41)]"
-                          : "bg-[#CBD5E1]"
-                      }`}
-                    >
-                      <span
-                        className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition ${
-                          viewMode === "calendar" ? "left-0.5" : "left-4"
-                        }`}
-                      />
-                    </button>
-                    <span className={viewMode === "list" ? "font-medium text-[#111827]" : ""}>List View</span>
-                  </div>
-                </div>
-                {viewMode === "list" ? (
-                  <InterviewListView interviews={interviews} />
-                ) : (
-                  <InterviewCalendarView interviews={interviews} anchorDate={anchorDate} />
-                )}
-              </>
-            )}
-
-            {hasInterviews && !loading ? (
-              <div className="mt-5 flex justify-end">
+      <section className="flex min-w-0 flex-1 flex-col p-5">
+        {loading ? (
+          <InterviewsLoadingSkeleton viewMode={viewMode} monthTitle={monthTitle} />
+        ) : error ? (
+          <p className="rounded-lg bg-red-50 p-4 text-sm text-red-700">{error}</p>
+        ) : !hasInterviews ? (
+          <EmptyState onSchedule={() => setScheduleOpen(true)} />
+        ) : (
+          <>
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                {viewMode === "calendar" ? (
+                  <button
+                    type="button"
+                    onClick={() => shiftCalendarWeek(-7)}
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-[#E5E7EB] text-[#64748B] transition hover:bg-[#F8FAFC] hover:text-[#111827]"
+                    aria-label="Previous week"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </button>
+                ) : null}
+                <p className="text-base font-bold text-[#111827]">{monthTitle}</p>
+                {viewMode === "calendar" ? (
+                  <button
+                    type="button"
+                    onClick={() => shiftCalendarWeek(7)}
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-[#E5E7EB] text-[#64748B] transition hover:bg-[#F8FAFC] hover:text-[#111827]"
+                    aria-label="Next week"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
+                ) : null}
+              </div>
+              <div className="flex items-center gap-2 text-xs text-[#64748B]">
+                <span className={viewMode === "calendar" ? "font-medium text-[#111827]" : ""}>
+                  Calendar View
+                </span>
                 <button
                   type="button"
-                  onClick={() => setScheduleOpen(true)}
-                  className="inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold text-white"
-                  style={{ backgroundColor: "var(--brand-primary, #bc8b41)" }}
+                  role="switch"
+                  aria-checked={viewMode === "calendar"}
+                  onClick={() => setViewMode((v) => (v === "list" ? "calendar" : "list"))}
+                  className={`relative h-5 w-9 rounded-full transition ${
+                    viewMode === "calendar"
+                      ? "bg-[color:var(--brand-primary,#bc8b41)]"
+                      : "bg-[#CBD5E1]"
+                  }`}
                 >
-                  <Plus className="h-4 w-4" />
-                  Schedule Interview
+                  <span
+                    className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition ${
+                      viewMode === "calendar" ? "left-0.5" : "left-4"
+                    }`}
+                  />
                 </button>
+                <span className={viewMode === "list" ? "font-medium text-[#111827]" : ""}>List View</span>
               </div>
-            ) : null}
-          </section>
-        </div>
-      </div>
+            </div>
+            {viewMode === "list" ? (
+              <InterviewListView interviews={interviews} />
+            ) : (
+              <InterviewCalendarView interviews={interviews} anchorDate={anchorDate} />
+            )}
+          </>
+        )}
 
+        {hasInterviews && !loading ? (
+          <div className="mt-5 flex justify-end">
+            <button
+              type="button"
+              onClick={() => setScheduleOpen(true)}
+              className="inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold text-white"
+              style={{ backgroundColor: "var(--brand-primary, #bc8b41)" }}
+            >
+              <Plus className="h-4 w-4" />
+              Schedule Interview
+            </button>
+          </div>
+        ) : null}
+      </section>
+    </div>
+  );
+
+  const modals = (
+    <>
       <ScheduleInterviewModal
         open={scheduleOpen}
-        applicants={applicants}
+        applicants={modalApplicants}
         submitting={submitting}
         error={scheduleError}
+        fixedWorkerId={workerId}
+        fixedApplicantName={candidateName}
         onClose={() => {
           setScheduleOpen(false);
           setScheduleError(null);
@@ -625,6 +675,30 @@ export default function InterviewsPageClient() {
           setTab("upcoming");
         }}
       />
+    </>
+  );
+
+  if (embedded) {
+    return (
+      <>
+        {panel}
+        {modals}
+      </>
+    );
+  }
+
+  return (
+    <main className="px-4 py-6 sm:px-8 sm:py-8">
+      <div className="mb-5">
+        <h1 className="text-[30px] font-semibold leading-9 text-black">Interviews</h1>
+        <p className="mt-1 text-base text-[#374151]">Manage applicant interviews</p>
+      </div>
+
+      <div className="rounded-xl border border-[#E5E7EB] bg-white p-5">
+        {panel}
+      </div>
+
+      {modals}
     </main>
   );
 }
