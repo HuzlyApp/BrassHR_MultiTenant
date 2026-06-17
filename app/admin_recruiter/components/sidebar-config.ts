@@ -161,6 +161,12 @@ export const CLIENT_SIDEBAR_SECTIONS: SidebarSection[] = [
     matchPrefixes: CANDIDATE_ROUTE_PREFIXES,
   },
   {
+    label: "Facilities",
+    href: "/admin_recruiter/facilities",
+    iconType: ICON.organization,
+    matchPrefixes: ["/admin_recruiter/facilities"],
+  },
+  {
     label: "Organization",
     href: "/admin_recruiter/account/business-info",
     iconType: ICON.organization,
@@ -206,8 +212,14 @@ export const GOD_ADMIN_SIDEBAR_SECTIONS: SidebarSection[] = [
     children: [
       { label: "All Clients", href: "/godadmin/tenants", matchPrefixes: ["/godadmin/tenants", "/godadmin"] },
       { label: "Organization", href: "#", matchPrefixes: [], disabled: true },
-      { label: "Facilities", href: "#", matchPrefixes: [], disabled: true },
+      { label: "Facilities", href: "/admin_recruiter/facilities", matchPrefixes: ["/admin_recruiter/facilities"] },
     ],
+  },
+  {
+    label: "Facilities",
+    href: "/admin_recruiter/facilities",
+    iconType: ICON.organization,
+    matchPrefixes: ["/admin_recruiter/facilities"],
   },
   {
     label: "Teams",

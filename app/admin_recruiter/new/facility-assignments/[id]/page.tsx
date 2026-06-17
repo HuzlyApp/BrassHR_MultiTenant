@@ -2,11 +2,14 @@
 
 import Link from "next/link";
 import { useParams, usePathname } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import toast from "react-hot-toast";
 import DetailedCandidateHeader from "../../../components/DetailedCandidateHeader";
 import DetailedTabs from "../../../components/DetailedTabs";
 import CandidateDetailLoader from "../../../components/CandidateDetailLoader";
 import UnderlineTabBar from "../../../components/UnderlineTabBar";
+import CreateFacilityModal from "../../../components/CreateFacilityModal";
+import type { FacilityAssignmentsMeta, FacilityAssignmentsResponse, FacilityListItem } from "@/lib/facilities/types";
 import {
   Briefcase,
   Calendar,
@@ -21,6 +24,7 @@ import {
   Users,
   X,
 } from "lucide-react";
+
 type WorkerProfile = {
   id: string;
   first_name: string | null;
@@ -41,58 +45,28 @@ const FACILITY_TABS = [
   { id: "recent" as const, label: "Recent Facilities" },
 ] as const;
 
-type PotentialFacility = {
-  id: string;
-  name: string;
-  primaryAddress: string;
-  secondaryAddress: string;
-  distance: string;
+const EMPTY_ASSIGNMENTS: FacilityAssignmentsResponse = {
+  active: [],
+  potential: [],
+  recent: [],
+  meta: {
+    tenantId: "",
+    assignedFacilityIds: [],
+    totalTenantFacilities: 0,
+    unassignedCount: 0,
+    assignedCount: 0,
+  },
 };
 
-const potentialFacilities: PotentialFacility[] = [
-  {
-    id: "hca-healthcare",
-    name: "HCA Healthcare",
-    primaryAddress: "213 Pine Road Troy, Michigan",
-    secondaryAddress: "PO Box 1244, Hanalei, Hawaii, 96714",
-    distance: "2 Miles Away",
-  },
-  {
-    id: "universal-health-services",
-    name: "Universal Health Services",
-    primaryAddress: "112 West Road Troy, Michigan",
-    secondaryAddress: "11820 Edgewater Dr, Lakewood, Ohio, 44107",
-    distance: "2.5 Miles Away",
-  },
-  {
-    id: "kaiser-permanente",
-    name: "Kaiser Permanente",
-    primaryAddress: "63 Mark Street, Michigan",
-    secondaryAddress: "7515 Forrester Ln, Manassas, Virginia, 20109",
-    distance: "1.5 Miles Away",
-  },
-  {
-    id: "providence-st-joseph-health",
-    name: "Providence St Joseph Health",
-    primaryAddress: "21 Ripple Ave, Michigan",
-    secondaryAddress: "19 Johnson Dr, Dickson, North Dakota, 58601",
-    distance: "3.5 Miles Away",
-  },
-  {
-    id: "trinity-health",
-    name: "Trinity Health",
-    primaryAddress: "133 Rump Street, Michigan",
-    secondaryAddress: "PO Box 1134, Hanalei, Hawaii, 96714",
-    distance: "1.5 Miles Away",
-  },
-  {
-    id: "ascension-health",
-    name: "Ascension Health",
-    primaryAddress: "95 Gandhi Street, Michigan",
-    secondaryAddress: "13 Winter Ter, Mahwah, New Jersey, 07430",
-    distance: "1.5 Miles Away",
-  },
-];
+function getAssignModalEmptyMessage(meta: FacilityAssignmentsMeta): string {
+  if (meta.totalTenantFacilities === 0) {
+    return "No facilities exist for this tenant yet. Create a new facility to continue.";
+  }
+  if (meta.unassignedCount === 0 && meta.assignedCount > 0) {
+    return "No other unassigned facilities available. All tenant facilities are already assigned to this applicant.";
+  }
+  return "No unassigned facilities available for this tenant.";
+}
 
 function initials(name: string) {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -102,6 +76,56 @@ function initials(name: string) {
   return (first + last).toUpperCase();
 }
 
+function FacilityCard({ facility }: { facility: FacilityListItem }) {
+  return (
+    <div className="rounded-xl border border-[#E5E7EB] bg-white p-4 shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)]">
+      <div className="mb-3 flex items-center gap-3 border-b border-[#F1F5F9] pb-3">
+        <div
+          className="flex h-10 w-10 items-center justify-center rounded-lg"
+          style={{
+            background:
+              "linear-gradient(135deg, var(--brand-gradient-from) 0%, var(--brand-gradient-to) 100%)",
+          }}
+        >
+          <img
+            src="/icons/admin-recruiter/pie_chart_outlined.svg"
+            alt="Facility icon"
+            className="h-5 w-5"
+          />
+        </div>
+        <div className="text-lg font-semibold leading-7 text-black">{facility.name}</div>
+      </div>
+
+      <div className="space-y-2">
+        <div className="flex items-center gap-2 text-sm text-[#4B5563]">
+          <img
+            src="/icons/admin-recruiter/locationfacility.svg"
+            alt="Location"
+            className="h-5 w-5"
+          />
+          <span>{facility.primaryAddress || "No address on file"}</span>
+        </div>
+        {facility.secondaryAddress ? (
+          <div className="flex items-center gap-2 text-sm text-[#4B5563]">
+            <img
+              src="/icons/admin-recruiter/corporate_fare.svg"
+              alt="Mailing address"
+              className="h-5 w-5"
+            />
+            <span>{facility.secondaryAddress}</span>
+          </div>
+        ) : null}
+        {facility.distance ? (
+          <div className="flex items-center gap-2 text-sm text-[#4B5563]">
+            <img src="/icons/admin-recruiter/target.svg" alt="Distance" className="h-5 w-5" />
+            <span>{facility.distance}</span>
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 export default function NewApplicantFacilityAssignmentsPage() {
   const pathname = usePathname();
   const params = useParams<{ id: string }>();
@@ -109,10 +133,15 @@ export default function NewApplicantFacilityAssignmentsPage() {
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [facilitiesLoading, setFacilitiesLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [facilitiesError, setFacilitiesError] = useState<string | null>(null);
   const [profile, setProfile] = useState<WorkerProfileResponse | null>(null);
+  const [assignments, setAssignments] = useState<FacilityAssignmentsResponse>(EMPTY_ASSIGNMENTS);
   const [activeFacilityTab, setActiveFacilityTab] = useState<FacilityTab>("potential");
   const [showAssignFacilityModal, setShowAssignFacilityModal] = useState(false);
+  const [showCreateFacilityModal, setShowCreateFacilityModal] = useState(false);
+  const [assigningFacilityId, setAssigningFacilityId] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchApplicant() {
@@ -141,6 +170,88 @@ export default function NewApplicantFacilityAssignmentsPage() {
     fetchApplicant();
   }, [applicantId]);
 
+  const loadFacilities = useCallback(async () => {
+    if (!applicantId) return;
+    setFacilitiesLoading(true);
+    setFacilitiesError(null);
+    try {
+      const res = await fetch(
+        `/api/admin/facility-assignments?workerId=${encodeURIComponent(applicantId)}`,
+        { cache: "no-store" }
+      );
+      const json = (await res.json()) as FacilityAssignmentsResponse & { error?: string };
+      if (!res.ok) {
+        throw new Error(json.error || `Failed to load facilities (${res.status})`);
+      }
+      if (process.env.NODE_ENV !== "production") {
+        console.info("[FacilityAssignments] loaded", {
+          applicantId,
+          tenantId: json.meta?.tenantId,
+          totalTenantFacilities: json.meta?.totalTenantFacilities,
+          assignedCount: json.meta?.assignedCount,
+          unassignedCount: json.meta?.unassignedCount,
+          potentialIds: json.potential?.map((item) => item.id),
+        });
+      }
+      setAssignments({
+        ...json,
+        meta: json.meta ?? EMPTY_ASSIGNMENTS.meta,
+      });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error("Failed to fetch facility assignments:", msg, e);
+      setFacilitiesError(msg);
+      setAssignments(EMPTY_ASSIGNMENTS);
+    } finally {
+      setFacilitiesLoading(false);
+    }
+  }, [applicantId]);
+
+  useEffect(() => {
+    void loadFacilities();
+  }, [loadFacilities]);
+
+  useEffect(() => {
+    if (!showAssignFacilityModal) return;
+    void loadFacilities();
+  }, [showAssignFacilityModal, loadFacilities]);
+
+  const assignFacilityToCandidate = useCallback(
+    async (facilityId: string) => {
+      if (!applicantId) return;
+      setAssigningFacilityId(facilityId);
+      try {
+        const res = await fetch("/api/admin/facility-assignments", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ workerId: applicantId, facilityId }),
+        });
+        const json = (await res.json().catch(() => ({}))) as {
+          error?: string;
+          alreadyAssigned?: boolean;
+        };
+        if (!res.ok) {
+          console.error("[facility-assignments] assign failed", json);
+          throw new Error(json.error || "Failed to assign facility.");
+        }
+        toast.success(
+          json.alreadyAssigned
+            ? "Facility is already assigned to this applicant."
+            : "Facility assigned successfully."
+        );
+        await loadFacilities();
+        setShowAssignFacilityModal(false);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "Failed to assign facility.";
+        toast.error(msg);
+        throw e;
+      } finally {
+        setAssigningFacilityId(null);
+      }
+    },
+    [applicantId, loadFacilities]
+  );
+
   const applicant = profile?.worker ?? null;
 
   const candidateName = useMemo(() => {
@@ -150,12 +261,17 @@ export default function NewApplicantFacilityAssignmentsPage() {
 
   const candidateRole = applicant?.job_role || "N/A";
   const statusLabel = applicant?.status_label?.trim() || "New Applicant";
-  const visibleFacilities =
-    activeFacilityTab === "potential" || activeFacilityTab === "recent" ? potentialFacilities : [];
+
+  const visibleFacilities = useMemo(() => {
+    if (activeFacilityTab === "active") return assignments.active;
+    if (activeFacilityTab === "recent") return assignments.recent;
+    return assignments.potential;
+  }, [activeFacilityTab, assignments]);
+
+  const isPageLoading = loading || facilitiesLoading;
 
   return (
     <div className="flex min-h-screen bg-zinc-50 overflow-hidden">
-      {/* Sidebar */}
       <div
         className={`fixed inset-y-0 left-0 z-50 w-72 bg-[#0A1F1C] text-white transform transition-transform lg:translate-x-0 ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
@@ -236,7 +352,6 @@ export default function NewApplicantFacilityAssignmentsPage() {
         </div>
       </div>
 
-      {/* Main */}
       <div className="flex-1 flex flex-col overflow-hidden lg:pl-72">
         <header className="h-16 border-b bg-white flex items-center px-6 justify-between">
           <div className="flex items-center gap-4">
@@ -275,145 +390,138 @@ export default function NewApplicantFacilityAssignmentsPage() {
               </div>
             ) : null}
 
-            {loading ? (
+            {facilitiesError ? (
+              <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+                {facilitiesError}
+              </div>
+            ) : null}
+
+            {isPageLoading ? (
               <CandidateDetailLoader label="Loading facility assignments..." />
             ) : (
               <>
-            <DetailedCandidateHeader
-              name={candidateName}
-              role={candidateRole}
-              status={statusLabel}
-            />
-
-            <div className="mx-auto w-full max-w-[1300px] min-h-[896px] rounded-lg border border-[#E5E7EB] bg-white p-5">
-              {/* Top */}
-              <div className="hidden p-6 items-start justify-between gap-6 border-b border-[#9CC3FF]/30 bg-white/40">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-full bg-teal-600 text-white flex items-center justify-center font-semibold text-sm">
-                    {initials(candidateName)}
-                  </div>
-                  <div>
-                    <div className="text-lg font-semibold text-gray-600">
-                      {loading ? "Loading..." : candidateName}
-                    </div>
-                    <div className="text-xs text-gray-600">{candidateRole}</div>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <span className="text-[11px] px-3 py-1 rounded-full bg-white/70 border border-zinc-200 text-gray-600 font-medium">
-                    {loading ? "…" : statusLabel}
-                  </span>
-                  <button className="bg-white/70 border border-[#9CC3FF] text-gray-600 px-5 py-2.5 rounded-2xl hover:bg-white transition text-sm">
-                    <Plus className="inline-block w-4 h-4 mr-2" />
-                    New Appointment
-                  </button>
-                </div>
-              </div>
-
-              <div className="px-6 py-4">
-                <UnderlineTabBar
-                  tabs={FACILITY_TABS}
-                  activeTab={activeFacilityTab}
-                  onTabChange={setActiveFacilityTab}
-                  ariaLabel="Facility sections"
+                <DetailedCandidateHeader
+                  name={candidateName}
+                  role={candidateRole}
+                  status={statusLabel}
                 />
-              </div>
 
-              {visibleFacilities.length === 0 ? (
-                <div className="flex min-h-[calc(896px-40px)] items-center justify-center px-6 py-10">
-                  <div className="max-w-md text-center">
-                    <div className="text-[18px] font-semibold leading-7 text-gray-700">
-                      No facility assigned yet
+                <div className="mx-auto w-full max-w-[1300px] min-h-[896px] rounded-lg border border-[#E5E7EB] bg-white p-5">
+                  <div className="hidden p-6 items-start justify-between gap-6 border-b border-[#9CC3FF]/30 bg-white/40">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 rounded-full bg-teal-600 text-white flex items-center justify-center font-semibold text-sm">
+                        {initials(candidateName)}
+                      </div>
+                      <div>
+                        <div className="text-lg font-semibold text-gray-600">{candidateName}</div>
+                        <div className="text-xs text-gray-600">{candidateRole}</div>
+                      </div>
                     </div>
-                    <div className="mt-2 text-center text-sm font-normal leading-5 text-gray-500">
-                      No facility assigned yet to the applicant.
-                    </div>
-                    <a
-                      href="#"
-                      className="mt-2 inline-block text-center text-sm font-normal leading-5 text-teal-700 underline underline-offset-4"
-                    >
-                      Learn more about facility recommendations
-                    </a>
 
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (activeFacilityTab === "active") {
-                          setShowAssignFacilityModal(true);
-                        }
-                      }}
-                      className="mt-6 inline-flex h-10 w-[237px] items-center justify-center gap-2 rounded-[8px] bg-[#0D9488] px-4 py-2.5 text-sm font-medium text-white transition hover:bg-[#0B7F77]"
-                    >
-                      <Plus className="w-4 h-4" />
-                      Add candidate to a facility
-                    </button>
+                    <div className="flex items-center gap-3">
+                      <span className="text-[11px] px-3 py-1 rounded-full bg-white/70 border border-zinc-200 text-gray-600 font-medium">
+                        {statusLabel}
+                      </span>
+                      <button className="bg-white/70 border border-[#9CC3FF] text-gray-600 px-5 py-2.5 rounded-2xl hover:bg-white transition text-sm">
+                        <Plus className="inline-block w-4 h-4 mr-2" />
+                        New Appointment
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ) : (
-                <div className="px-4 py-6 sm:px-6">
-                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-                    {visibleFacilities.map((facility) => (
-                      <div
-                        key={facility.id}
-                        className="rounded-xl border border-[#E5E7EB] bg-white p-4 shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)]"
+
+                  <div className="flex flex-col gap-4 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
+                    <UnderlineTabBar
+                      tabs={FACILITY_TABS}
+                      activeTab={activeFacilityTab}
+                      onTabChange={setActiveFacilityTab}
+                      ariaLabel="Facility sections"
+                    />
+                    <div className="flex flex-wrap items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setShowCreateFacilityModal(true)}
+                        className="inline-flex h-10 items-center justify-center gap-2 rounded-[8px] border border-[#0D9488] bg-white px-4 py-2.5 text-sm font-medium text-[#0D9488] transition hover:bg-[#F0FDFA]"
                       >
-                        <div className="mb-3 flex items-center gap-3 border-b border-[#F1F5F9] pb-3">
-                          <div
-                            className="flex h-10 w-10 items-center justify-center rounded-lg"
-                            style={{
-                              background:
-                                "linear-gradient(135deg, var(--brand-gradient-from) 0%, var(--brand-gradient-to) 100%)",
-                            }}
-                          >
-                            <img
-                              src="/icons/admin-recruiter/pie_chart_outlined.svg"
-                              alt="Facility icon"
-                              className="h-5 w-5"
-                            />
-                          </div>
-                          <div className="text-lg font-semibold leading-7 text-black ">
-                            {facility.name}
-                          </div>
+                        <Plus className="h-4 w-4" />
+                        Create Facility
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShowAssignFacilityModal(true)}
+                        className="inline-flex h-10 items-center justify-center gap-2 rounded-[8px] bg-[#0D9488] px-4 py-2.5 text-sm font-medium text-white transition hover:bg-[#0B7F77]"
+                      >
+                        <Plus className="h-4 w-4" />
+                        Assign Facility
+                      </button>
+                    </div>
+                  </div>
+
+                  {visibleFacilities.length === 0 ? (
+                    <div className="flex min-h-[calc(896px-40px)] items-center justify-center px-6 py-10">
+                      <div className="max-w-md text-center">
+                        <div className="text-[18px] font-semibold leading-7 text-gray-700">
+                          {activeFacilityTab === "active"
+                            ? "No facility assigned yet"
+                            : activeFacilityTab === "recent"
+                              ? "No recent facilities"
+                              : "No potential facilities found"}
+                        </div>
+                        <div className="mt-2 text-center text-sm font-normal leading-5 text-gray-500">
+                          {activeFacilityTab === "active"
+                            ? "No facility assigned yet to the applicant."
+                            : activeFacilityTab === "recent"
+                              ? "Recently created facilities will appear here."
+                              : "Create a new facility or assign an existing one to get started."}
                         </div>
 
-                        <div className="space-y-2">
-                          <div className="flex items-center gap-2 text-sm text-[#4B5563]">
-                            <img
-                              src="/icons/admin-recruiter/locationfacility.svg"
-                              alt="Location"
-                               className="h-5 w-5"
-                            />
-                            <span>{facility.primaryAddress}</span>
-                          </div>
-                          <div className="flex items-center gap-2 text-sm text-[#4B5563]">
-                            <img
-                              src="/icons/admin-recruiter/corporate_fare.svg"
-                              alt="Location"
-                               className="h-5 w-5"
-                            />
-                            <span>{facility.secondaryAddress}</span>
-                          </div>
-                          <div className="flex items-center gap-2 text-sm text-[#4B5563]">
-                            <img
-                              src="/icons/admin-recruiter/target.svg"
-                              alt="Distance"
-                              className="h-5 w-5"
-                            />
-                            <span>{facility.distance}</span>
-                          </div>
+                        <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
+                          <button
+                            type="button"
+                            onClick={() => setShowCreateFacilityModal(true)}
+                            className="inline-flex h-10 w-[237px] items-center justify-center gap-2 rounded-[8px] border border-[#0D9488] bg-white px-4 py-2.5 text-sm font-medium text-[#0D9488] transition hover:bg-[#F0FDFA]"
+                          >
+                            <Plus className="w-4 h-4" />
+                            Create Facility
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setShowAssignFacilityModal(true)}
+                            className="inline-flex h-10 w-[237px] items-center justify-center gap-2 rounded-[8px] bg-[#0D9488] px-4 py-2.5 text-sm font-medium text-white transition hover:bg-[#0B7F77]"
+                          >
+                            <Plus className="w-4 h-4" />
+                            Assign Facility
+                          </button>
                         </div>
                       </div>
-                    ))}
-                  </div>
+                    </div>
+                  ) : (
+                    <div className="px-4 py-6 sm:px-6">
+                      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+                        {visibleFacilities.map((facility) => (
+                          <FacilityCard key={facility.id} facility={facility} />
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
               </>
             )}
           </div>
         </div>
       </div>
+
+      {showCreateFacilityModal && applicantId ? (
+        <CreateFacilityModal
+          open={showCreateFacilityModal}
+          workerId={applicantId}
+          onClose={() => setShowCreateFacilityModal(false)}
+          onSuccess={({ assigned }) => {
+            void loadFacilities();
+            setActiveFacilityTab(assigned ? "active" : "potential");
+          }}
+          onAssignExisting={assignFacilityToCandidate}
+        />
+      ) : null}
 
       {showAssignFacilityModal ? (
         <div className="fixed inset-0 z-70 flex items-center justify-center bg-black/50 p-4">
@@ -432,43 +540,51 @@ export default function NewApplicantFacilityAssignmentsPage() {
 
             <div className="px-8 pb-8 pt-5">
               <div className="mb-4 text-lg font-normal leading-none text-[#374151]">
-                {potentialFacilities.length} Results
+                {assignments.potential.length} Results
               </div>
 
               <div className="max-h-[64vh] overflow-auto pr-2">
-                {potentialFacilities.map((facility) => (
-                  <div
-                    key={`assign-${facility.id}`}
-                    className="flex items-center justify-between border-b border-[#E5E7EB] py-5"
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[#0D9488]">
-                        <img
-                          src="/icons/admin-recruiter/facilityicon.svg"
-                          alt="Facility"
-                          className="h-5 w-5"
-                        />
-                      </div>
-                      <div>
-                        <div className="text-sm font-medium leading-none text-black">
-                          {facility.name}
-                        </div>
-                        <div className="mt-1 text-xs font-normal leading-none text-[#6B7280]">
-                          {facility.primaryAddress}
-                        </div>
-                      </div>
-                    </div>
-
-                    <button
-                      type="button"
-                      className="inline-flex items-center gap-5 px-2 py-1 text-[#0D9488]"
-                      aria-label={`Add ${facility.name}`}
-                    >
-                      <Circle className="h-5 w-5 fill-current stroke-current" />
-                      <Plus className="h-6 w-6" />
-                    </button>
+                {assignments.potential.length === 0 ? (
+                  <div className="py-8 text-center text-sm text-[#6B7280]">
+                    {getAssignModalEmptyMessage(assignments.meta)}
                   </div>
-                ))}
+                ) : (
+                  assignments.potential.map((facility) => (
+                    <div
+                      key={`assign-${facility.id}`}
+                      className="flex items-center justify-between border-b border-[#E5E7EB] py-5"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[#0D9488]">
+                          <img
+                            src="/icons/admin-recruiter/facilityicon.svg"
+                            alt="Facility"
+                            className="h-5 w-5"
+                          />
+                        </div>
+                        <div>
+                          <div className="text-sm font-medium leading-none text-black">
+                            {facility.name}
+                          </div>
+                          <div className="mt-1 text-xs font-normal leading-none text-[#6B7280]">
+                            {facility.primaryAddress}
+                          </div>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        disabled={assigningFacilityId === facility.id}
+                        onClick={() => void assignFacilityToCandidate(facility.id)}
+                        className="inline-flex items-center gap-5 px-2 py-1 text-[#0D9488] disabled:opacity-50"
+                        aria-label={`Add ${facility.name}`}
+                      >
+                        <Circle className="h-5 w-5 fill-current stroke-current" />
+                        <Plus className="h-6 w-6" />
+                      </button>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
           </div>
@@ -477,4 +593,3 @@ export default function NewApplicantFacilityAssignmentsPage() {
     </div>
   );
 }
-
