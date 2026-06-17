@@ -419,11 +419,11 @@ export default function ApplicantConversationClient({
             rows={1}
             className="h-[54px] min-h-[54px] flex-1 resize-none border-0 bg-transparent py-[4px] text-sm leading-5 text-[#0F172A] outline-none placeholder:text-[#94A3B8]"
           />
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="flex shrink-0 items-center gap-2 self-center">
             <button
               type="button"
               aria-label="Attach file"
-              className="inline-flex h-6 w-6 items-center justify-center transition hover:opacity-80"
+              className="inline-flex h-7 w-7 items-center justify-center transition hover:opacity-80"
               onClick={() => fileInputRef.current?.click()}
             >
               <Image
@@ -431,7 +431,7 @@ export default function ApplicantConversationClient({
                 alt=""
                 width={24}
                 height={24}
-                className="h-6 w-6 shrink-0"
+                className="block h-6 w-6 shrink-0"
                 aria-hidden
               />
             </button>

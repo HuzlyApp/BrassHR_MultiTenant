@@ -405,10 +405,7 @@ export default function AdminRecruiterMessagesClient({
               />
             </>
           ) : (
-            <div
-              className="flex h-full min-h-[360px] flex-1 items-center justify-center px-6 text-center"
-              style={{ backgroundColor: "#F4F4F4" }}
-            >
+            <div className="flex h-full min-h-[360px] flex-1 items-center justify-center bg-white px-6 text-center">
               {loading || groupsLoading ? (
                 <CandidateDetailLoader label="Loading..." className="min-h-0 bg-transparent py-0" />
               ) : (

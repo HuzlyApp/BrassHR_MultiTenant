@@ -37,20 +37,20 @@ export default function ChatEmojiPicker({ onSelect, className }: Props) {
   }, [open]);
 
   return (
-    <div ref={rootRef} className={`relative ${className ?? ""}`}>
+    <div ref={rootRef} className={`relative inline-flex shrink-0 items-center justify-center self-center ${className ?? ""}`}>
       <button
         type="button"
         aria-label="Add emoji"
         aria-expanded={open}
         onClick={() => setOpen((current) => !current)}
-        className="inline-flex h-6 w-6 items-center justify-center transition hover:opacity-80"
+        className="inline-flex h-7 w-7 items-center justify-center transition hover:opacity-80"
       >
         <Image
           src={CHAT_EMOJI_ICON}
           alt=""
-          width={24}
-          height={24}
-          className="h-6 w-6 shrink-0"
+          width={28}
+          height={28}
+          className="block h-7 w-7 shrink-0"
           aria-hidden
         />
       </button>
