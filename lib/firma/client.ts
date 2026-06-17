@@ -57,7 +57,7 @@ function isFirmaProxyEnvelope(
   value: unknown
 ): value is { statusCode: number; body: unknown; headers?: unknown } {
   return (
-    Boolean(value) &&
+    value !== null &&
     typeof value === "object" &&
     "statusCode" in value &&
     "body" in value &&

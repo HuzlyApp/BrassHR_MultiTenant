@@ -136,7 +136,10 @@ export async function createApplicantSupportTicketFromChat(
     userId: string;
     inquiry: string;
   }
-): Promise<{ ticketId: string; message: ApplicantAiChatMessage } | { error: string }> {
+): Promise<
+  | { ticketId: string; message: ApplicantAiChatMessage }
+  | { error: string; message: ApplicantAiChatMessage }
+> {
   const description = params.inquiry.trim() || "Support request from applicant portal chat";
   const insertRes = await supabase
     .from("support_tickets")
