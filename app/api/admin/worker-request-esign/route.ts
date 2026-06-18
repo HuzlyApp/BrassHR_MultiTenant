@@ -108,10 +108,9 @@ export async function POST(req: NextRequest) {
       await supabase.from("agreements").upsert(
         {
           tenant_id: String(worker.tenant_id),
+          user_id: worker.user_id,
           request_id: requestId,
-          applicant_id: String(worker.user_id),
-          status: "sent",
-          updated_at: new Date().toISOString(),
+          status: "pending",
         },
         { onConflict: "request_id", ignoreDuplicates: false }
       );

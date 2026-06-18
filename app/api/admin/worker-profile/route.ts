@@ -45,7 +45,7 @@ type StorageHit = {
   created_at: string | null
 }
 
-type ClassifiedDocType = "license" | "tb" | "cpr" | "authorization"
+type ClassifiedDocType = "license" | "tb" | "cpr" | "authorization" | "agreement_w2" | "agreement_i9"
 
 function asTrimmedString(v: unknown): string | null {
   if (v == null) return null
@@ -248,6 +248,20 @@ export async function GET(req: NextRequest) {
         return "cpr"
       }
       if (
+        full.includes("agreement_i9") ||
+        full.includes("agreement-i9") ||
+        (full.includes("/i9") && !full.includes("authorization"))
+      ) {
+        return "agreement_i9"
+      }
+      if (
+        full.includes("agreement_w2") ||
+        full.includes("agreement-w2") ||
+        full.includes("/w2")
+      ) {
+        return "agreement_w2"
+      }
+      if (
         full.includes("authorization") ||
         full.includes("agreement") ||
         full.includes("w2") ||
@@ -284,18 +298,28 @@ export async function GET(req: NextRequest) {
       tb: [],
       cpr: [],
       authorization: [],
+      agreement_w2: [],
+      agreement_i9: [],
     }
     for (const hit of listHits) {
       const type = classifyStorageHit(hit)
       if (type) byType[type].push(hit)
     }
-    const [storageNursingUrl, storageTbUrl, storageCprUrl, storageAuthUrlFromFiles] =
-      await Promise.all([
-        toAccessibleUrlIfAny(newestHit(byType.license)),
-        toAccessibleUrlIfAny(newestHit(byType.tb)),
-        toAccessibleUrlIfAny(newestHit(byType.cpr)),
-        toAccessibleUrlIfAny(newestHit(byType.authorization)),
-      ])
+    const [
+      storageNursingUrl,
+      storageTbUrl,
+      storageCprUrl,
+      storageAuthUrlFromFiles,
+      storageAgreementW2Url,
+      storageAgreementI9Url,
+    ] = await Promise.all([
+      toAccessibleUrlIfAny(newestHit(byType.license)),
+      toAccessibleUrlIfAny(newestHit(byType.tb)),
+      toAccessibleUrlIfAny(newestHit(byType.cpr)),
+      toAccessibleUrlIfAny(newestHit(byType.authorization)),
+      toAccessibleUrlIfAny(newestHit(byType.agreement_w2)),
+      toAccessibleUrlIfAny(newestHit(byType.agreement_i9)),
+    ])
     const attachmentFiles = await Promise.all(
       listHits.slice(0, 12).map(async (hit) => ({
         bucket: hit.bucket,
@@ -324,6 +348,8 @@ export async function GET(req: NextRequest) {
       ssnBackUrl,
       driversLicenseUrl,
       driversLicenseBackUrl,
+      agreementW2UrlResolved,
+      agreementI9UrlResolved,
     ] = await Promise.all([
       supabase
         .from("worker_references")
@@ -364,6 +390,8 @@ export async function GET(req: NextRequest) {
       resolveDocUrl(docs?.ssn_back_url, null),
       resolveDocUrl(docs?.drivers_license_url, null),
       resolveDocUrl(docs?.drivers_license_back_url, null),
+      resolveDocUrl(docs?.agreement_w2_url, storageAgreementW2Url),
+      resolveDocUrl(docs?.agreement_i9_url, storageAgreementI9Url),
     ])
 
     const nursingLicenseUrl = nursingLicenseUrlResolved ?? storageNursingUrl
@@ -570,12 +598,17 @@ export async function GET(req: NextRequest) {
         : null
     const resolvedDocumentUrl = await resolveDocUrl(docs?.document_url, storageAuthUrlFromFiles)
     const storageAuthUrl = resolvedDocumentUrl ?? zohoAuthUrl
+    const agreementW2Url =
+      agreementW2UrlResolved ?? storageAgreementW2Url ?? storageAuthUrl
+    const agreementI9Url = agreementI9UrlResolved ?? storageAgreementI9Url
 
     const legacyUrls = {
       nursing_license_url: nursingLicenseUrl,
       tb_test_url: tbTestUrl,
       cpr_certification_url: cprCertUrl,
       authorization_document_url: storageAuthUrl,
+      agreement_w2_url: agreementW2Url,
+      agreement_i9_url: agreementI9Url,
       ssn_url: ssnUrl,
       drivers_license_url: driversLicenseUrl,
     }
@@ -698,6 +731,8 @@ export async function GET(req: NextRequest) {
         drivers_license_url: driversLicenseUrl,
         drivers_license_back_url: driversLicenseBackUrl,
         authorization_document_url: storageAuthUrl,
+        agreement_w2_url: agreementW2Url,
+        agreement_i9_url: agreementI9Url,
       },
       signeasy: {
         document_name:

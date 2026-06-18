@@ -2,11 +2,19 @@
 
 import Link from "next/link";
 import { useParams, usePathname } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import DetailedCandidateHeader from "../../../components/DetailedCandidateHeader";
 import DetailedTabs from "../../../components/DetailedTabs";
 import CandidateDetailLoader from "../../../components/CandidateDetailLoader";
 import BrandedFileTypeIcon from "../../../components/BrandedFileTypeIcon";
+import DocumentReviewActions from "../../../components/DocumentReviewActions";
+import { useWorkerDocumentReview } from "../../../hooks/useWorkerDocumentReview";
+import {
+  buildWorkerAgreementSections,
+  type AgreementRecord,
+  type WorkerAgreementSection,
+} from "@/lib/admin/build-worker-agreement-sections";
+import type { AdminAttachmentRequirement } from "@/lib/onboarding/build-admin-attachment-requirements";
 import {
   Briefcase,
   Calendar,
@@ -30,9 +38,117 @@ type WorkerProfile = {
   status_label?: string;
 };
 
-type WorkerProfileResponse = {
+type ProfileApi = {
   worker: WorkerProfile;
+  attachment_requirements?: AdminAttachmentRequirement[];
+  legacy_document_reviews?: Record<string, string>;
+  document_urls?: {
+    authorization_document_url?: string | null;
+    agreement_w2_url?: string | null;
+    agreement_i9_url?: string | null;
+  };
+  signeasy?: {
+    document_name?: string | null;
+  };
+  zoho_sign?: {
+    request_id?: string | null;
+    document_id?: string | null;
+    status?: string | null;
+    updated_at?: string | null;
+  };
 };
+
+type UploadSlot = {
+  sectionId: "w2" | "i9";
+  title: string;
+  requiredDocumentId?: string | null;
+  documentField?: string;
+};
+
+function reviewTargetForSection(section: WorkerAgreementSection) {
+  return {
+    submittedDocumentId: section.submittedDocumentId,
+    legacyDocumentKey: section.legacyDocumentKey,
+  };
+}
+
+function AgreementStatusBadge({
+  label,
+  tone,
+}: {
+  label: string;
+  tone: "signed" | "not_uploaded";
+}) {
+  if (tone === "signed") {
+    return (
+      <span className="ml-auto rounded-md bg-[color:var(--brand-secondary)] px-2 py-1 text-[10px] font-semibold text-white">
+        {label}
+      </span>
+    );
+  }
+
+  return (
+    <span className="ml-auto rounded-md border border-[color:var(--brand-primary)] bg-white px-2 py-1 text-[10px] font-semibold text-[color:var(--brand-primary)]">
+      {label}
+    </span>
+  );
+}
+
+function AgreementFileCard({
+  section,
+  uploading,
+  esignLoading,
+  onUpload,
+  onRequestEsign,
+}: {
+  section: WorkerAgreementSection;
+  uploading: boolean;
+  esignLoading?: boolean;
+  onUpload: () => void;
+  onRequestEsign?: () => void;
+}) {
+  if (!section.hasFile) {
+    return (
+      <div className="flex h-[50px] w-[306px] min-w-[306px] max-w-[520px] items-center justify-between gap-2 rounded-[8px] border border-dashed border-[color:color-mix(in_srgb,var(--brand-primary)_30%,white)] bg-[#F8FAFC] px-3 py-2">
+        <span className="text-xs text-[#6B7280]">No Document</span>
+        <div className="flex shrink-0 items-center gap-2">
+          {section.statusBadge && section.statusBadgeTone ? (
+            <AgreementStatusBadge label={section.statusBadge} tone={section.statusBadgeTone} />
+          ) : null}
+          {section.kind === "esign" ? (
+            <button
+              type="button"
+              disabled={esignLoading}
+              onClick={onRequestEsign}
+              className="inline-flex h-8 items-center justify-center rounded-md bg-[color:var(--brand-primary)] px-4 text-xs font-semibold text-white disabled:opacity-50"
+            >
+              {esignLoading ? "Sending..." : "Request eSign"}
+            </button>
+          ) : null}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex h-[50px] w-[306px] min-w-[306px] max-w-[520px] items-center gap-2 rounded-[8px] border border-[color:color-mix(in_srgb,var(--brand-primary)_30%,white)] bg-[#F8FAFC] px-3 py-2">
+      <BrandedFileTypeIcon type="pdf" className="h-6 w-6 shrink-0" />
+      <div className="min-w-0">
+        <div className="truncate text-xs font-semibold leading-4 tracking-[0.01em] text-[color:var(--brand-primary)]">
+          {section.fileName}
+        </div>
+        {section.fileSizeLabel ? (
+          <div className="text-xs font-normal leading-4 tracking-[0.01em] text-[#6B7280]">
+            {section.fileSizeLabel}
+          </div>
+        ) : null}
+      </div>
+      {section.statusBadge && section.statusBadgeTone ? (
+        <AgreementStatusBadge label={section.statusBadge} tone={section.statusBadgeTone} />
+      ) : null}
+    </div>
+  );
+}
 
 export default function NewApplicantAgreementPage() {
   const pathname = usePathname();
@@ -42,43 +158,253 @@ export default function NewApplicantAgreementPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [profile, setProfile] = useState<WorkerProfileResponse | null>(null);
+  const [profile, setProfile] = useState<ProfileApi | null>(null);
+  const [agreements, setAgreements] = useState<AgreementRecord[]>([]);
+  const [uploadingId, setUploadingId] = useState<string | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [pendingUploadSlot, setPendingUploadSlot] = useState<UploadSlot | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    async function fetchApplicant() {
-      if (!applicantId) return;
-      setLoading(true);
-      setLoadError(null);
-      try {
-        const res = await fetch(
-          `/api/admin/worker-profile?workerId=${encodeURIComponent(applicantId)}`
-        );
-        const json = (await res.json()) as WorkerProfileResponse & { error?: string };
-        if (!res.ok) {
-          throw new Error(json.error || `Failed to load profile (${res.status})`);
-        }
-        setProfile(json);
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
-        console.error("Failed to fetch applicant for agreement:", msg, e);
-        setLoadError(msg);
-        setProfile(null);
-      } finally {
-        setLoading(false);
+  const fetchData = useCallback(async () => {
+    if (!applicantId) return;
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const [profileRes, agreementRes] = await Promise.all([
+        fetch(`/api/admin/worker-profile?workerId=${encodeURIComponent(applicantId)}`, {
+          cache: "no-store",
+        }),
+        fetch(`/api/admin/worker-agreement?workerId=${encodeURIComponent(applicantId)}`, {
+          cache: "no-store",
+        }),
+      ]);
+
+      const profileJson = (await profileRes.json()) as ProfileApi & { error?: string };
+      if (!profileRes.ok) {
+        throw new Error(profileJson.error || `Failed to load profile (${profileRes.status})`);
       }
-    }
 
-    fetchApplicant();
+      const agreementJson = (await agreementRes.json()) as {
+        agreements?: AgreementRecord[];
+        error?: string;
+      };
+      if (!agreementRes.ok) {
+        throw new Error(agreementJson.error || `Failed to load agreements (${agreementRes.status})`);
+      }
+
+      setProfile(profileJson);
+      setAgreements(agreementJson.agreements ?? []);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error("Failed to fetch applicant agreement data:", msg, e);
+      setLoadError(msg);
+      setProfile(null);
+      setAgreements([]);
+    } finally {
+      setLoading(false);
+    }
   }, [applicantId]);
 
-  const applicant = profile?.worker ?? null;
+  useEffect(() => {
+    void fetchData();
+  }, [fetchData]);
 
+  const {
+    actionError,
+    submitReview,
+    requestAgreementUpload,
+    requestEsign,
+    isReviewLoading,
+    isUploadRequestLoading,
+    esignLoading,
+  } = useWorkerDocumentReview(applicantId, fetchData);
+
+  const applicant = profile?.worker ?? null;
   const candidateName = useMemo(() => {
     const n = `${applicant?.first_name ?? ""} ${applicant?.last_name ?? ""}`.trim();
     return n || "Applicant";
   }, [applicant]);
-
   const candidateRole = applicant?.job_role || "N/A";
+
+  const sections = useMemo(
+    () => (profile ? buildWorkerAgreementSections(profile, agreements) : []),
+    [profile, agreements]
+  );
+
+  const w2Section = sections.find((section) => section.id === "w2") ?? null;
+  const i9Section = sections.find((section) => section.id === "i9") ?? null;
+
+  const openUploadPicker = (slot: UploadSlot) => {
+    setUploadError(null);
+    setPendingUploadSlot(slot);
+    fileInputRef.current?.click();
+  };
+
+  const handleFileSelected = async (file: File | undefined) => {
+    const slot = pendingUploadSlot;
+    setPendingUploadSlot(null);
+    if (!file || !slot || !applicantId) return;
+
+    setUploadingId(slot.sectionId);
+    setUploadError(null);
+
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("workerId", applicantId);
+      fd.append("documentTitle", slot.title);
+      if (slot.requiredDocumentId) {
+        fd.append("requiredDocumentId", slot.requiredDocumentId);
+      } else if (slot.documentField) {
+        fd.append("documentField", slot.documentField);
+      } else {
+        throw new Error(`Upload is not configured for "${slot.title}".`);
+      }
+
+      const res = await fetch("/api/admin/worker-attachment-upload", {
+        method: "POST",
+        body: fd,
+      });
+      const json = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        throw new Error(json.error || "Upload failed");
+      }
+
+      await fetchData();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Upload failed";
+      setUploadError(msg);
+    } finally {
+      setUploadingId(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  const openDocument = (section: WorkerAgreementSection, mode: "preview" | "download") => {
+    if (section.zohoRequestId) {
+      const qs = new URLSearchParams({ request_id: section.zohoRequestId, mode });
+      if (section.zohoDocumentId?.trim()) {
+        qs.set("document_id", section.zohoDocumentId.trim());
+        qs.set("specific", "1");
+      }
+      const url = `/api/zoho-sign/document?${qs.toString()}`;
+      if (mode === "download") {
+        window.location.href = url;
+        return;
+      }
+      window.open(url, "_blank", "noopener,noreferrer");
+      return;
+    }
+
+    if (!section.fileUrl) return;
+    if (mode === "download") {
+      window.location.href = section.fileUrl;
+      return;
+    }
+    window.open(section.fileUrl, "_blank", "noopener,noreferrer");
+  };
+
+  const renderSection = (section: WorkerAgreementSection, index: number) => {
+    const reviewTarget = reviewTargetForSection(section);
+    const canPreview = Boolean(section.fileUrl || section.zohoRequestId);
+    const canDownload = section.kind === "upload" && Boolean(section.fileUrl || section.zohoRequestId);
+    const uploadAlreadyRequested = section.reviewStatus === "needs_revision";
+    const showRequestUpload =
+      (section.reviewStatus === "rejected" || !section.hasFile) && !uploadAlreadyRequested;
+    const actionsEnabled = section.hasFile || section.kind === "upload" || showRequestUpload || uploadAlreadyRequested;
+
+    const openSectionUpload = () =>
+      openUploadPicker({
+        sectionId: section.id,
+        title: section.title,
+        requiredDocumentId: section.requiredDocumentId,
+        documentField: section.documentField ?? undefined,
+      });
+
+    const handleRequestUpload = () =>
+      void requestAgreementUpload({
+        section: section.id,
+        title: section.title,
+        submittedDocumentId: section.submittedDocumentId,
+        legacyDocumentKey: section.legacyDocumentKey,
+      });
+
+    const sectionBusy =
+      isReviewLoading(reviewTarget) ||
+      isUploadRequestLoading(section.id) ||
+      uploadingId === section.id;
+
+    return (
+      <section key={section.id} className="rounded-md border border-[#D1D5DB]">
+        <div className="flex items-center justify-between border-b border-[#E5E7EB] px-5 py-3">
+          <div className="text-[16px] font-semibold leading-6 text-[#111827]">
+            {index + 1}. {section.title}
+          </div>
+          <div className="text-sm text-[#6B7280]">{section.headerText}</div>
+        </div>
+
+        {section.uploadedAtLabel ? (
+          <div className="border-b border-[#E5E7EB] px-5 py-3 text-sm text-[#6B7280]">
+            <span className="font-semibold text-[#111827]">{section.title}</span>
+            <span className="ml-3">{section.uploadedAtLabel}</span>
+          </div>
+        ) : null}
+
+        <div className="flex items-center justify-between gap-4 px-5 py-3">
+          <AgreementFileCard
+            section={section}
+            uploading={uploadingId === section.id}
+            esignLoading={esignLoading}
+            onUpload={openSectionUpload}
+            onRequestEsign={() =>
+              void requestEsign(section.zohoRequestId, section.zohoDocumentId)
+            }
+          />
+
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              disabled={!canPreview}
+              onClick={() => openDocument(section, "preview")}
+              className="inline-flex items-center justify-center text-[color:var(--brand-primary)] disabled:opacity-40"
+              aria-label={`View ${section.title}`}
+            >
+              <Eye className="h-5 w-5" />
+            </button>
+            {section.kind === "upload" ? (
+              <button
+                type="button"
+                disabled={!canDownload}
+                onClick={() => openDocument(section, "download")}
+                className="inline-flex items-center justify-center text-[color:var(--brand-primary)] disabled:opacity-40"
+                aria-label={`Download ${section.title}`}
+              >
+                <Download className="h-5 w-5" />
+              </button>
+            ) : null}
+            <DocumentReviewActions
+              disabled={!actionsEnabled}
+              loading={sectionBusy}
+              currentStatus={section.reviewStatus ?? (section.hasFile ? "uploaded" : null)}
+              showApprove={section.hasFile}
+              showReject={section.hasFile}
+              onApprove={() => void submitReview(reviewTarget, "approved")}
+              onReject={() => void submitReview(reviewTarget, "rejected")}
+              onRequestMore={showRequestUpload ? handleRequestUpload : undefined}
+              requestMoreLabel={
+                isUploadRequestLoading(section.id) ? "Sending..." : "Request to Upload"
+              }
+              showRequestEsign={section.kind === "esign" && section.hasFile && !section.isSigned}
+              esignLoading={esignLoading}
+              onRequestEsign={() =>
+                void requestEsign(section.zohoRequestId, section.zohoDocumentId)
+              }
+            />
+          </div>
+        </div>
+      </section>
+    );
+  };
 
   return (
     <div className="flex min-h-screen bg-zinc-50 overflow-hidden">
@@ -194,9 +520,32 @@ export default function NewApplicantAgreementPage() {
           <div className="max-w-[1320px] mx-auto">
             <DetailedTabs applicantId={applicantId} activeTab="Agreement" />
 
+            <input
+              ref={fileInputRef}
+              type="file"
+              className="hidden"
+              accept=".pdf,.png,.jpg,.jpeg,.docx,application/pdf,image/png,image/jpeg"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                void handleFileSelected(file);
+              }}
+            />
+
             {loadError ? (
               <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
                 {loadError}
+              </div>
+            ) : null}
+
+            {uploadError ? (
+              <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+                {uploadError}
+              </div>
+            ) : null}
+
+            {actionError ? (
+              <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+                {actionError}
               </div>
             ) : null}
 
@@ -204,87 +553,18 @@ export default function NewApplicantAgreementPage() {
               <CandidateDetailLoader label="Loading agreement..." />
             ) : (
               <>
-            <DetailedCandidateHeader
-              name={candidateName}
-              role={candidateRole}
-              status={applicant?.status_label}
-            />
+                <DetailedCandidateHeader
+                  name={candidateName}
+                  role={candidateRole}
+                  status={applicant?.status_label}
+                />
 
-            <div className="mx-auto w-full max-w-[1300px]">
-              <div className="space-y-6">
-                <section className="rounded-md border border-[#D1D5DB]">
-                  <div className="flex items-center justify-between border-b border-[#E5E7EB] px-5 py-3">
-                    <div className="text-[16px] font-semibold leading-6 text-[#111827]">
-                      1. Employee Agreement W2
-                    </div>
-                    <div className="text-sm text-[#6B7280]">
-                      Signed <span className="font-semibold text-[#111827]">1</span> of{" "}
-                      <span className="font-semibold text-[#111827]">1</span>
-                    </div>
+                <div className="mx-auto w-full max-w-[1300px]">
+                  <div className="space-y-6">
+                    {w2Section ? renderSection(w2Section, 0) : null}
+                    {i9Section ? renderSection(i9Section, 1) : null}
                   </div>
-                  <div className="flex items-center justify-between gap-4 px-5 py-3">
-                    <div className="flex h-[50px] w-[306px] min-w-[306px] items-center gap-2 rounded-[8px] border border-[color:color-mix(in_srgb,var(--brand-primary)_30%,white)] bg-[#F8FAFC] px-3 py-2">
-                      <BrandedFileTypeIcon type="jpeg" className="h-6 w-6 shrink-0" />
-                      <div className="min-w-0">
-                        <div className="truncate text-xs font-semibold leading-4 tracking-[0.01em] text-[color:var(--brand-primary)]">
-                          Employee Agreement W2.pdf
-                        </div>
-                        <div className="text-xs font-normal leading-4 tracking-[0.01em] text-[#6B7280]">
-                          7.23 MB
-                        </div>
-                      </div>
-                      <span className="ml-auto rounded-md bg-[color:color-mix(in_srgb,var(--brand-accent)_55%,white)] px-2 py-1 text-[10px] font-semibold text-[color:var(--brand-primary)]">
-                        Signed
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <Eye className="h-5 w-5 text-[color:var(--brand-primary)]" />
-                      <button className="inline-flex h-8 items-center justify-center rounded-md bg-[color:var(--brand-primary)] px-4 text-xs font-semibold text-white hover:brightness-95">
-                        Approved
-                      </button>
-                      <button className="inline-flex h-8 items-center justify-center rounded-md border border-[color:color-mix(in_srgb,var(--brand-primary)_30%,white)] px-4 text-xs font-semibold text-[color:var(--brand-primary)]">
-                        Reject
-                      </button>
-                    </div>
-                  </div>
-                </section>
-
-                <section className="rounded-md border border-[#D1D5DB]">
-                  <div className="flex items-center justify-between border-b border-[#E5E7EB] px-5 py-3">
-                    <div className="text-[16px] font-semibold leading-6 text-[#111827]">2. I9 Form</div>
-                    <div className="text-sm text-[#6B7280]">
-                      Uploaded <span className="font-semibold text-[#111827]">1</span> of{" "}
-                      <span className="font-semibold text-[#111827]">1</span>
-                    </div>
-                  </div>
-                  <div className="border-b border-[#E5E7EB] px-5 py-3 text-sm text-[#6B7280]">
-                    <span className="font-semibold text-[#111827]">I9 Form</span>
-                    <span className="ml-3">Uploaded: April 20, 2026</span>
-                  </div>
-                  <div className="flex items-center justify-between gap-4 px-5 py-3">
-                    <div className="flex h-[50px] w-[306px] min-w-[306px] items-center gap-2 rounded-[8px] border border-[color:color-mix(in_srgb,var(--brand-primary)_30%,white)] bg-[#F8FAFC] px-3 py-2">
-                      <BrandedFileTypeIcon type="jpeg" className="h-6 w-6 shrink-0" />
-                      <div className="min-w-0">
-                        <div className="truncate text-xs font-semibold leading-4 tracking-[0.01em] text-[color:var(--brand-primary)]">
-                          I9 Form.pdf
-                        </div>
-                        <div className="text-xs font-normal leading-4 tracking-[0.01em] text-[#6B7280]">5.23 MB</div>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <Eye className="h-5 w-5 text-[color:var(--brand-primary)]" />
-                      <Download className="h-5 w-5 text-[color:var(--brand-primary)]" />
-                      <button className="inline-flex h-8 items-center justify-center rounded-md bg-[color:var(--brand-primary)] px-4 text-xs font-semibold text-white hover:brightness-95">
-                        Approved
-                      </button>
-                      <button className="inline-flex h-8 items-center justify-center rounded-md border border-[color:color-mix(in_srgb,var(--brand-primary)_30%,white)] px-4 text-xs font-semibold text-[color:var(--brand-primary)]">
-                        Reject
-                      </button>
-                    </div>
-                  </div>
-                </section>
-              </div>
-            </div>
+                </div>
               </>
             )}
           </div>

@@ -9,6 +9,7 @@ import BrandedSvgIcon from "@/app/components/BrandedSvgIcon"
 import BrandedUploadIcon from "@/app/components/BrandedUploadIcon"
 import OnboardingLayout from "@/app/components/OnboardingLayout"
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext"
+import { resolveApplicantId } from "@/lib/onboarding/upload-required-file-client"
 import { brandingToCssVars, hexToRgba } from "@/lib/tenant/tenant-branding"
 
 type UploadedFileMeta = {
@@ -43,6 +44,7 @@ export default function Upload19FormPage() {
   const [storedFileMeta, setStoredFileMeta] = useState<UploadedFileMeta | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isDragging, setIsDragging] = useState(false)
+  const [saving, setSaving] = useState(false)
 
   const contentStyle = brandingToCssVars(branding) as CSSProperties
   const completedSurfaceStyle = {
@@ -94,21 +96,43 @@ export default function Upload19FormPage() {
     setError(null)
   }
 
-  const handleSave = () => {
-    const payload = selectedFile
+  const handleSave = async () => {
+    const fileToUpload = selectedFile
+    const payload = fileToUpload
       ? {
-          name: selectedFile.name,
-          sizeLabel: formatFileSize(selectedFile.size),
+          name: fileToUpload.name,
+          sizeLabel: formatFileSize(fileToUpload.size),
         }
       : storedFileMeta
 
-    if (!payload) {
+    if (!payload || !fileToUpload) {
       setError("Please upload your I9 form before saving.")
       return
     }
 
-    localStorage.setItem(I9_FILE_KEY, JSON.stringify(payload))
-    router.push(applicationPath("/application/employee-agreement"))
+    setSaving(true)
+    setError(null)
+
+    try {
+      const applicantId = await resolveApplicantId()
+      const fd = new FormData()
+      fd.append("file", fileToUpload)
+      fd.append("applicantId", applicantId)
+      fd.append("section", "i9")
+
+      const res = await fetch("/api/onboarding/agreement/upload", { method: "POST", body: fd })
+      const json = (await res.json().catch(() => ({}))) as { error?: string }
+      if (!res.ok) {
+        throw new Error(json.error || "Upload failed")
+      }
+
+      localStorage.setItem(I9_FILE_KEY, JSON.stringify(payload))
+      router.push(applicationPath("/application/employee-agreement"))
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Upload failed")
+    } finally {
+      setSaving(false)
+    }
   }
 
   const handleRemoveFile = () => {
@@ -261,11 +285,12 @@ export default function Upload19FormPage() {
             </Link>
             <button
               type="button"
-              onClick={handleSave}
-              className="inline-flex h-10 cursor-pointer items-center justify-center rounded-xl px-6 text-[16px] font-semibold leading-6 text-white transition hover:brightness-90"
+              onClick={() => void handleSave()}
+              disabled={saving}
+              className="inline-flex h-10 cursor-pointer items-center justify-center rounded-xl px-6 text-[16px] font-semibold leading-6 text-white transition hover:brightness-90 disabled:opacity-50"
               style={primaryBtnStyle}
             >
-              {hasUploadedFile ? "Submit" : "Save"}
+              {saving ? "Uploading..." : hasUploadedFile ? "Submit" : "Save"}
             </button>
           </div>
         </div>

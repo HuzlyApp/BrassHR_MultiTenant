@@ -10,6 +10,8 @@ type DocumentReviewActionsProps = {
   onReject: () => void;
   onRequestMore?: () => void;
   requestMoreLabel?: string;
+  showApprove?: boolean;
+  showReject?: boolean;
   showRequestEsign?: boolean;
   onRequestEsign?: () => void;
   esignLoading?: boolean;
@@ -34,6 +36,8 @@ export default function DocumentReviewActions({
   onReject,
   onRequestMore,
   requestMoreLabel = "Request More",
+  showApprove = true,
+  showReject = true,
   showRequestEsign = false,
   onRequestEsign,
   esignLoading = false,
@@ -58,39 +62,76 @@ export default function DocumentReviewActions({
     return (
       <div className="flex flex-wrap items-center gap-2">
         <span
-          className={`${actionClass(true, true)} pointer-events-none`}
+          className={`${actionClass(false, true)} pointer-events-none`}
           aria-label="Document rejected"
         >
           Rejected
         </span>
+        {onRequestMore ? (
+          <button
+            type="button"
+            disabled={!enabled}
+            onClick={onRequestMore}
+            className={actionClass(true, enabled)}
+          >
+            {requestMoreLabel}
+          </button>
+        ) : null}
+      </div>
+    );
+  }
+
+  if (status === "needs_revision") {
+    return (
+      <div className="flex flex-wrap items-center gap-2">
+        <span
+          className={`${actionClass(true, true)} pointer-events-none opacity-90`}
+          aria-label="Upload request sent"
+        >
+          Request Sent
+        </span>
+        {onRequestMore ? (
+          <button
+            type="button"
+            disabled={!enabled}
+            onClick={onRequestMore}
+            className={actionClass(true, enabled)}
+          >
+            {requestMoreLabel}
+          </button>
+        ) : null}
       </div>
     );
   }
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <button
-        type="button"
-        disabled={!enabled}
-        onClick={onApprove}
-        className={actionClass(false, enabled)}
-      >
-        {loading ? "Saving..." : "Approved"}
-      </button>
-      <button
-        type="button"
-        disabled={!enabled}
-        onClick={onReject}
-        className={actionClass(false, enabled)}
-      >
-        Reject
-      </button>
+      {showApprove ? (
+        <button
+          type="button"
+          disabled={!enabled}
+          onClick={onApprove}
+          className={actionClass(false, enabled)}
+        >
+          {loading ? "Saving..." : "Approved"}
+        </button>
+      ) : null}
+      {showReject ? (
+        <button
+          type="button"
+          disabled={!enabled}
+          onClick={onReject}
+          className={actionClass(false, enabled)}
+        >
+          Reject
+        </button>
+      ) : null}
       {onRequestMore ? (
         <button
           type="button"
           disabled={!enabled}
           onClick={onRequestMore}
-          className={actionClass(status === "needs_revision", enabled)}
+          className={actionClass(true, enabled)}
         >
           {requestMoreLabel}
         </button>

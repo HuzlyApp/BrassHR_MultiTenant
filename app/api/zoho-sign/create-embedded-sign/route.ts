@@ -76,10 +76,9 @@ export async function POST(req: NextRequest) {
             .upsert(
               {
                 tenant_id: tenantId,
+                user_id: applicantId,
                 request_id: requestId,
-                applicant_id: applicantId,
-                status: "sent",
-                updated_at: new Date().toISOString(),
+                status: "pending",
               },
               { onConflict: "request_id", ignoreDuplicates: false }
             )

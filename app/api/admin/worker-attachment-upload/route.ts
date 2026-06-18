@@ -36,9 +36,13 @@ type LegacyDocColumn =
   | "drivers_license_url"
   | "drivers_license_back_url"
   | "document_url"
+  | "agreement_w2_url"
+  | "agreement_i9_url"
 
 const DOCUMENT_FIELD_ALIASES: Record<string, LegacyDocColumn> = {
   authorization: "document_url",
+  agreement_w2: "agreement_w2_url",
+  agreement_i9: "agreement_i9_url",
   ssn_front: "ssn_url",
   ssn_back: "ssn_back_url",
   dl_front: "drivers_license_url",
@@ -47,7 +51,11 @@ const DOCUMENT_FIELD_ALIASES: Record<string, LegacyDocColumn> = {
 
 function legacyColumnForTitle(title: string): LegacyDocColumn | null {
   const t = title.trim().toLowerCase()
-  if (t.includes("authorization") || t.includes("agreement") || t.includes("w-2") || t.includes("i-9")) {
+  if (t.includes("i9") || t.includes("i-9")) return "agreement_i9_url"
+  if (t.includes("w2") || t.includes("employee agreement") || t.includes("employment agreement")) {
+    return "agreement_w2_url"
+  }
+  if (t.includes("authorization") || t.includes("agreement")) {
     return "document_url"
   }
   if (t.includes("nursing") && t.includes("license")) return "nursing_license_url"
@@ -94,7 +102,9 @@ async function upsertLegacyWorkerDocumentUrl(
       [column]: publicUrl,
       ...(column === "document_url" && extra?.document_name
         ? { document_name: extra.document_name }
-        : {}),
+        : column === "agreement_w2_url" && extra?.document_name
+          ? { document_name: extra.document_name }
+          : {}),
     }
     const { error } = await supabase
       .from("worker_documents")
@@ -109,7 +119,7 @@ async function upsertLegacyWorkerDocumentUrl(
     worker_id: workerId,
     updated_at,
     [column]: publicUrl,
-    ...(column === "document_url" && extra?.document_name
+    ...((column === "document_url" || column === "agreement_w2_url") && extra?.document_name
       ? { document_name: extra.document_name }
       : {}),
   }
@@ -253,7 +263,9 @@ export async function POST(req: NextRequest) {
         tenantId,
         directDocumentField,
         objectPath,
-        directDocumentField === "document_url" ? { document_name: file.name } : undefined
+        directDocumentField === "document_url" || directDocumentField === "agreement_w2_url"
+          ? { document_name: file.name }
+          : undefined
       )
 
       return NextResponse.json({ ok: true, path: objectPath, bucket: WORKER_REQUIRED_FILES_BUCKET })
@@ -345,7 +357,9 @@ export async function POST(req: NextRequest) {
         tenantId,
         legacyColumn,
         objectPath,
-        legacyColumn === "document_url" ? { document_name: file.name } : undefined
+        legacyColumn === "document_url" || legacyColumn === "agreement_w2_url"
+          ? { document_name: file.name }
+          : undefined
       )
     }
 

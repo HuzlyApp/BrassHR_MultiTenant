@@ -274,17 +274,32 @@ export function ApplicantPortalSidebar({
 
             {!isCollapsed && section.children?.length && isSectionOpen(section) ? (
               <div className="ml-7 mt-0.5 space-y-0.5">
-                {section.children.map((child) => (
-                  <div
-                    key={`${section.label}-${child.label}`}
-                    className={`rounded-md px-2 py-1.5 text-[14px] font-normal leading-5 text-[#012352] ${
-                      child.disabled ? "opacity-60" : ""
-                    }`}
-                    aria-disabled={child.disabled}
-                  >
-                    {child.label}
-                  </div>
-                ))}
+                {section.children.map((child) =>
+                  child.disabled || !child.href || child.href === "#" ? (
+                    <div
+                      key={`${section.label}-${child.label}`}
+                      className={`rounded-md px-2 py-1.5 text-[14px] font-normal leading-5 text-[#012352] ${
+                        child.disabled ? "opacity-60" : ""
+                      }`}
+                      aria-disabled={child.disabled}
+                    >
+                      {child.label}
+                    </div>
+                  ) : (
+                    <Link
+                      key={`${section.label}-${child.label}`}
+                      href={child.href}
+                      onClick={handleNavClick}
+                      className={`block rounded-md px-2 py-1.5 text-[14px] font-normal leading-5 transition hover:bg-white ${
+                        child.active
+                          ? "font-semibold text-[color:var(--brand-primary)]"
+                          : "text-[#012352] hover:text-[color:var(--brand-primary)]"
+                      }`}
+                    >
+                      {child.label}
+                    </Link>
+                  )
+                )}
               </div>
             ) : null}
           </div>
