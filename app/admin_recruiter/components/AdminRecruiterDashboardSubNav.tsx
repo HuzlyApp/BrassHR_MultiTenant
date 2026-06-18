@@ -6,11 +6,12 @@ import { useWorkflowBuilderHeaderChrome } from "@/app/admin_recruiter/components
 
 const DASHBOARD_BASE = "/admin_recruiter/dashboard";
 
-type WorkflowTab = "builder" | "templates" | "my-flows" | "library";
+type WorkflowTab = "overview" | "builder" | "templates" | "library" | "my-flows";
 
 function isDashboardWorkflowRoute(pathname: string): boolean {
+  if (pathname === DASHBOARD_BASE) return true;
   return (
-    pathname === DASHBOARD_BASE ||
+    pathname.startsWith(`${DASHBOARD_BASE}/overview`) ||
     pathname.startsWith(`${DASHBOARD_BASE}/onboarding-builder`) ||
     pathname.startsWith(`${DASHBOARD_BASE}/templates`) ||
     pathname.startsWith(`${DASHBOARD_BASE}/workflowlibrary`) ||
@@ -19,10 +20,11 @@ function isDashboardWorkflowRoute(pathname: string): boolean {
 }
 
 function getActiveTab(pathname: string): WorkflowTab | null {
+  if (pathname.startsWith(`${DASHBOARD_BASE}/overview`)) return "overview";
   if (pathname.startsWith(`${DASHBOARD_BASE}/onboarding-builder`)) return "builder";
   if (pathname.startsWith(`${DASHBOARD_BASE}/templates`)) return "templates";
-  if (pathname.startsWith(`${DASHBOARD_BASE}/onboarding-flows`)) return "my-flows";
   if (pathname.startsWith(`${DASHBOARD_BASE}/workflowlibrary`)) return "library";
+  if (pathname.startsWith(`${DASHBOARD_BASE}/onboarding-flows`)) return "my-flows";
   return null;
 }
 
@@ -35,10 +37,11 @@ function tabClass(active: boolean): string {
 }
 
 const TAB_LINKS: Array<{ id: WorkflowTab; href: string; label: string }> = [
+  { id: "overview", href: `${DASHBOARD_BASE}/overview`, label: "Overview" },
   { id: "builder", href: `${DASHBOARD_BASE}/onboarding-builder`, label: "Builder" },
   { id: "templates", href: `${DASHBOARD_BASE}/templates`, label: "Templates" },
-  { id: "my-flows", href: `${DASHBOARD_BASE}/onboarding-flows`, label: "My Flows" },
   { id: "library", href: `${DASHBOARD_BASE}/workflowlibrary`, label: "Library" },
+  { id: "my-flows", href: `${DASHBOARD_BASE}/onboarding-flows`, label: "My Flows" },
 ];
 
 export function AdminRecruiterDashboardSubNav() {

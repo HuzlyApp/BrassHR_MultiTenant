@@ -39,6 +39,11 @@ const ICON = {
 } as const satisfies Record<string, SidebarIconType>;
 
 const DASHBOARD_CHILDREN: SidebarLink[] = [
+  {
+    label: "Overview",
+    href: "/admin_recruiter/dashboard/overview",
+    matchPrefixes: ["/admin_recruiter/dashboard/overview"],
+  },
   { label: "CRM", href: "#", matchPrefixes: [], disabled: true },
   { label: "Finance", href: "#", matchPrefixes: [], disabled: true },
   { label: "SaaS", href: "#", matchPrefixes: [], disabled: true },

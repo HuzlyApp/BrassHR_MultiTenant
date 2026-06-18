@@ -95,14 +95,13 @@ export function AdminRecruiterSidebar({
     () =>
       sidebarSections.map((section) => {
         const childActive = section.children?.some((child) => isPathActive(child.matchPrefixes)) ?? false;
+        const sectionPathActive = isPathActive(section.matchPrefixes);
         return {
           ...section,
           active:
             section.controlsActiveState === false
               ? false
-              : childActive
-                ? false
-                : isPathActive(section.matchPrefixes),
+              : sectionPathActive || childActive,
           children:
             section.children?.map((child) => ({
               ...child,
