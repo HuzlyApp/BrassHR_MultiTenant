@@ -39,8 +39,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(data);
   } catch (err) {
     console.error("[admin/facility-assignments GET]", err);
-    const message = err instanceof Error ? err.message : "Unexpected error";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: "Unable to load facilities. Please try again." }, { status: 500 });
   }
 }
 
@@ -73,7 +72,11 @@ export async function POST(req: NextRequest) {
     });
   } catch (err) {
     console.error("[admin/facility-assignments POST]", err);
-    const message = err instanceof Error ? err.message : "Unexpected error";
-    return NextResponse.json({ error: message }, { status: 500 });
+    const message = err instanceof Error ? err.message : "Failed to assign facility.";
+    const status = message === "Facility not found." ? 404 : 500;
+    return NextResponse.json(
+      { error: status === 404 ? message : "Failed to assign facility." },
+      { status }
+    );
   }
 }

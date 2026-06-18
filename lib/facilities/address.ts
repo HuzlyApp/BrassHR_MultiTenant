@@ -48,3 +48,15 @@ export function parseFacilityTypeFromAbout(about: string | null | undefined): st
   const match = about.match(/^Facility Type:\s*(.+)$/m);
   return match?.[1]?.trim() ?? "";
 }
+
+export function parseContactPersonFromAbout(about: string | null | undefined): string {
+  if (!about?.trim()) return "";
+  const match = about.match(/^Contact Person:\s*(.+)$/m);
+  return match?.[1]?.trim() ?? "";
+}
+
+export function parseEmailFromAbout(about: string | null | undefined): string {
+  if (!about?.trim()) return "";
+  const match = about.match(/^Email:\s*(.+)$/m);
+  return match?.[1]?.trim() ?? "";
+}

@@ -1,62 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { supabaseBrowser } from "@/lib/supabase-browser";
+import type { ShiftCalendarEvent, ShiftCalendarFilterOptions, ShiftCalendarStatus } from "@/lib/shifts/types";
 
 type CalendarView = "day" | "week" | "month";
-type ShiftStatus = "active" | "cancelled" | "pending" | "confirmed";
 
-type ShiftRow = {
-  id: string;
-  title: string | null;
-  start_date: string | null;
-  end_date: string | null;
-  facility_id: string | null;
-  job_category_id: string | null;
-  posted_at: string | null;
-};
-
-type AssignmentRow = {
-  shift_id: string;
-  worker_id: string;
-  status: string | null;
-};
-
-type WorkerRow = {
-  id: string;
-  user_id: string | null;
-  first_name: string | null;
-  last_name: string | null;
-  job_role: string | null;
-};
-
-type FacilityRow = {
-  id: string;
-  name: string | null;
-};
-
-type JobCategoryRow = {
-  id: string;
-  name: string | null;
-};
-
-type CancellationRow = {
-  shift_id: string;
-};
-
-type CalendarEvent = {
-  id: string;
-  shiftId: string;
-  title: string;
-  startDate: Date;
-  endDate: Date;
-  startHour: number;
-  endHour: number;
-  workerName: string;
-  workerId: string | null;
-  jobRole: string;
-  facility: string;
-  status: ShiftStatus;
+type CalendarEvent = ShiftCalendarEvent & {
+  startDateObj: Date;
+  endDateObj: Date;
 };
 
 const HOUR_LABELS = Array.from({ length: 24 }, (_, h) => `${String(h).padStart(2, "0")}:00`);
@@ -94,6 +45,10 @@ function formatDateHuman(date: Date): string {
   return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
+function parseDateKey(key: string): Date {
+  return new Date(`${key}T00:00:00`);
+}
+
 function getVisibleRange(anchor: Date, view: CalendarView): { start: Date; end: Date } {
   if (view === "day") return { start: startOfDay(anchor), end: endOfDay(anchor) };
   if (view === "week") {
@@ -107,24 +62,23 @@ function getVisibleRange(anchor: Date, view: CalendarView): { start: Date; end: 
   return { start: gridStart, end: gridEnd };
 }
 
-function deriveHours(title: string): { startHour: number; endHour: number } {
-  const t = title.toLowerCase();
-  if (t.includes("night")) return { startHour: 19, endHour: 23 };
-  if (t.includes("morning")) return { startHour: 7, endHour: 15 };
-  if (t.includes("mid")) return { startHour: 11, endHour: 19 };
-  return { startHour: 9, endHour: 17 };
-}
-
-function statusColor(status: ShiftStatus): string {
+function statusColor(status: ShiftCalendarStatus): string {
   if (status === "cancelled") return "bg-red-100 text-red-700 border-red-200";
   if (status === "pending") return "bg-amber-100 text-amber-700 border-amber-200";
   if (status === "confirmed") return "bg-emerald-100 text-emerald-700 border-emerald-200";
   return "bg-blue-100 text-blue-700 border-blue-200";
 }
 
-function statusPill(status: ShiftStatus): string {
+function statusPill(status: ShiftCalendarStatus): string {
   return status.slice(0, 1).toUpperCase() + status.slice(1);
 }
+
+const EMPTY_FILTER_OPTIONS: ShiftCalendarFilterOptions = {
+  workers: [],
+  jobRoles: [],
+  facilities: [],
+  statuses: [],
+};
 
 export default function AdminRecruiterCalendarPage() {
   const [view, setView] = useState<CalendarView>("week");
@@ -132,6 +86,7 @@ export default function AdminRecruiterCalendarPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [filterOptions, setFilterOptions] = useState<ShiftCalendarFilterOptions>(EMPTY_FILTER_OPTIONS);
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
 
   const [workerFilter, setWorkerFilter] = useState("all");
@@ -147,193 +102,50 @@ export default function AdminRecruiterCalendarPage() {
     const startKey = formatDateKey(visibleRange.start);
     const endKey = formatDateKey(visibleRange.end);
 
-    console.log("[AdminRecruiterCalendar] current date range", {
-      view,
-      start: startKey,
-      end: endKey,
-    });
+    try {
+      const params = new URLSearchParams({ start: startKey, end: endKey });
+      const res = await fetch(`/api/admin/shift-calendar?${params.toString()}`, {
+        cache: "no-store",
+        credentials: "include",
+      });
+      const json = (await res.json()) as {
+        events?: ShiftCalendarEvent[];
+        filterOptions?: ShiftCalendarFilterOptions;
+        error?: string;
+      };
 
-    const { data: shiftData, error: shiftError } = await supabaseBrowser
-      .from("shifts")
-      .select("id,title,start_date,end_date,facility_id,job_category_id,posted_at")
-      .lte("start_date", endKey)
-      .or(`end_date.gte.${startKey},end_date.is.null`)
-      .order("start_date", { ascending: true });
-
-    console.log("[AdminRecruiterCalendar] shifts query results", shiftData);
-
-    if (shiftError) {
-      console.error("[AdminRecruiterCalendar] shifts query error", shiftError);
-      setError("Failed to load shifts.");
-      setEvents([]);
-      setLoading(false);
-      return;
-    }
-
-    const shifts = (shiftData ?? []) as ShiftRow[];
-    console.log("[AdminRecruiterCalendar] fetched shift count", shifts.length);
-
-    if (shifts.length === 0) {
-      setEvents([]);
-      setLoading(false);
-      return;
-    }
-
-    const shiftIds = shifts.map((row) => row.id);
-    const { data: assignmentData, error: assignmentError } = await supabaseBrowser
-      .from("worker_shift_assignments")
-      .select("shift_id,worker_id,status")
-      .in("shift_id", shiftIds);
-
-    console.log("[AdminRecruiterCalendar] assignment query results", assignmentData);
-    if (assignmentError) {
-      console.error("[AdminRecruiterCalendar] assignment query error", assignmentError);
-    }
-
-    const assignments = (assignmentData ?? []) as AssignmentRow[];
-    const workerIds = Array.from(new Set(assignments.map((a) => a.worker_id).filter(Boolean)));
-    console.log("[AdminRecruiterCalendar] worker_id mapping", workerIds);
-
-    const { data: workerData, error: workerError } = workerIds.length
-      ? await supabaseBrowser
-          .from("worker")
-          .select("id,user_id,first_name,last_name,job_role")
-          .in("user_id", workerIds)
-      : { data: [] as WorkerRow[], error: null };
-
-    if (workerError) console.error("[AdminRecruiterCalendar] worker query error", workerError);
-
-    const facilityIds = Array.from(new Set(shifts.map((s) => s.facility_id).filter(Boolean))) as string[];
-    const { data: facilityData, error: facilityError } = facilityIds.length
-      ? await supabaseBrowser.from("facility").select("id,name").in("id", facilityIds)
-      : { data: [] as FacilityRow[], error: null };
-
-    if (facilityError) console.error("[AdminRecruiterCalendar] facility query error", facilityError);
-
-    const jobCategoryIds = Array.from(new Set(shifts.map((s) => s.job_category_id).filter(Boolean))) as string[];
-    const { data: jobCategoryData, error: jobCategoryError } = jobCategoryIds.length
-      ? await supabaseBrowser.from("job_categories").select("id,name").in("id", jobCategoryIds)
-      : { data: [] as JobCategoryRow[], error: null };
-
-    if (jobCategoryError) console.error("[AdminRecruiterCalendar] job category query error", jobCategoryError);
-
-    const { data: cancellationData, error: cancellationError } = await supabaseBrowser
-      .from("shift_cancellations")
-      .select("shift_id")
-      .in("shift_id", shiftIds);
-
-    if (cancellationError) console.error("[AdminRecruiterCalendar] cancellation query error", cancellationError);
-
-    const assignmentsByShift = new Map<string, AssignmentRow[]>();
-    assignments.forEach((assignment) => {
-      const existing = assignmentsByShift.get(assignment.shift_id) ?? [];
-      existing.push(assignment);
-      assignmentsByShift.set(assignment.shift_id, existing);
-    });
-
-    const workerByUserId = new Map<string, WorkerRow>();
-    (workerData ?? []).forEach((worker) => {
-      if (worker.user_id) workerByUserId.set(worker.user_id, worker);
-    });
-
-    const facilityById = new Map<string, FacilityRow>();
-    (facilityData ?? []).forEach((facility) => facilityById.set(facility.id, facility));
-
-    const jobCategoryById = new Map<string, JobCategoryRow>();
-    (jobCategoryData ?? []).forEach((category) => jobCategoryById.set(category.id, category));
-
-    const cancelledShiftIds = new Set((cancellationData as CancellationRow[] | null)?.map((c) => c.shift_id) ?? []);
-
-    const mappedEvents: CalendarEvent[] = [];
-
-    shifts.forEach((shift) => {
-      const shiftStartDate = shift.start_date ? new Date(`${shift.start_date}T00:00:00`) : null;
-      const shiftEndDate = shift.end_date
-        ? new Date(`${shift.end_date}T23:59:59`)
-        : shiftStartDate
-          ? new Date(`${shift.start_date}T23:59:59`)
-          : null;
-      if (!shiftStartDate || !shiftEndDate) return;
-
-      const relatedAssignments = assignmentsByShift.get(shift.id) ?? [];
-      const categoryName = shift.job_category_id
-        ? (jobCategoryById.get(shift.job_category_id)?.name ?? "Unassigned role")
-        : "Unassigned role";
-      const facilityName = shift.facility_id ? (facilityById.get(shift.facility_id)?.name ?? "Unknown facility") : "Unknown facility";
-      const title = shift.title || categoryName || "Shift";
-      const { startHour, endHour } = deriveHours(title);
-
-      if (relatedAssignments.length === 0) {
-        mappedEvents.push({
-          id: `${shift.id}-open`,
-          shiftId: shift.id,
-          title,
-          startDate: shiftStartDate,
-          endDate: shiftEndDate,
-          startHour,
-          endHour,
-          workerName: "Open shift",
-          workerId: null,
-          jobRole: categoryName,
-          facility: facilityName,
-          status: cancelledShiftIds.has(shift.id) ? "cancelled" : "active",
-        });
-        return;
+      if (!res.ok) {
+        throw new Error(json.error || "Failed to load shifts.");
       }
 
-      relatedAssignments.forEach((assignment) => {
-        const worker = workerByUserId.get(assignment.worker_id);
-        const workerName = worker
-          ? `${worker.first_name ?? ""} ${worker.last_name ?? ""}`.trim() || "Unnamed worker"
-          : "Unknown worker";
-        const assignmentStatus = (assignment.status ?? "").toLowerCase();
-        const status: ShiftStatus = cancelledShiftIds.has(shift.id)
-          ? "cancelled"
-          : assignmentStatus === "pending"
-            ? "pending"
-            : assignmentStatus === "confirmed"
-              ? "confirmed"
-              : "active";
+      const mapped = (json.events ?? []).map((event) => ({
+        ...event,
+        startDateObj: parseDateKey(event.startDate),
+        endDateObj: parseDateKey(event.endDate),
+      }));
 
-        mappedEvents.push({
-          id: `${shift.id}-${assignment.worker_id}`,
-          shiftId: shift.id,
-          title,
-          startDate: shiftStartDate,
-          endDate: shiftEndDate,
-          startHour,
-          endHour,
-          workerName,
-          workerId: assignment.worker_id,
-          jobRole: worker?.job_role ?? categoryName,
-          facility: facilityName,
-          status,
-        });
-      });
-    });
-
-    setEvents(mappedEvents);
-    setLoading(false);
-  }, [view, visibleRange.end, visibleRange.start]);
+      setEvents(mapped);
+      setFilterOptions(json.filterOptions ?? EMPTY_FILTER_OPTIONS);
+    } catch (err) {
+      console.error("[AdminRecruiterCalendar] load failed", err);
+      setError(err instanceof Error ? err.message : "Failed to load shifts.");
+      setEvents([]);
+      setFilterOptions(EMPTY_FILTER_OPTIONS);
+    } finally {
+      setLoading(false);
+    }
+  }, [visibleRange.end, visibleRange.start]);
 
   useEffect(() => {
     void loadCalendarData();
   }, [loadCalendarData]);
 
-  const workerOptions = useMemo(
-    () => Array.from(new Set(events.map((event) => event.workerName).filter((name) => name && name !== "Open shift"))).sort(),
-    [events]
-  );
-  const jobRoleOptions = useMemo(() => Array.from(new Set(events.map((event) => event.jobRole).filter(Boolean))).sort(), [events]);
-  const facilityOptions = useMemo(() => Array.from(new Set(events.map((event) => event.facility).filter(Boolean))).sort(), [events]);
-  const statusOptions = useMemo(() => Array.from(new Set(events.map((event) => event.status))), [events]);
-
   const filteredEvents = useMemo(
     () =>
       events.filter((event) => {
-        if (workerFilter !== "all" && event.workerName !== workerFilter) return false;
+        if (workerFilter !== "all" && event.workerId !== workerFilter) return false;
         if (jobRoleFilter !== "all" && event.jobRole !== jobRoleFilter) return false;
-        if (facilityFilter !== "all" && event.facility !== facilityFilter) return false;
+        if (facilityFilter !== "all" && event.facilityId !== facilityFilter) return false;
         if (statusFilter !== "all" && event.status !== statusFilter) return false;
         return true;
       }),
@@ -352,8 +164,8 @@ export default function AdminRecruiterCalendarPage() {
   const dayEventsByDate = useMemo(() => {
     const map = new Map<string, CalendarEvent[]>();
     filteredEvents.forEach((event) => {
-      let cursor = startOfDay(event.startDate);
-      const end = startOfDay(event.endDate);
+      let cursor = startOfDay(event.startDateObj);
+      const end = startOfDay(event.endDateObj);
       while (cursor <= end) {
         const key = formatDateKey(cursor);
         const current = map.get(key) ?? [];
@@ -427,15 +239,15 @@ export default function AdminRecruiterCalendarPage() {
         <div className="mb-4 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
           <select value={workerFilter} onChange={(e) => setWorkerFilter(e.target.value)} className="rounded-md border border-[#CBD5E1] px-2 py-2 text-sm">
             <option value="all">All workers</option>
-            {workerOptions.map((item) => (
-              <option key={item} value={item}>
-                {item}
+            {filterOptions.workers.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.name}
               </option>
             ))}
           </select>
           <select value={jobRoleFilter} onChange={(e) => setJobRoleFilter(e.target.value)} className="rounded-md border border-[#CBD5E1] px-2 py-2 text-sm">
             <option value="all">All job roles</option>
-            {jobRoleOptions.map((item) => (
+            {filterOptions.jobRoles.map((item) => (
               <option key={item} value={item}>
                 {item}
               </option>
@@ -443,15 +255,15 @@ export default function AdminRecruiterCalendarPage() {
           </select>
           <select value={facilityFilter} onChange={(e) => setFacilityFilter(e.target.value)} className="rounded-md border border-[#CBD5E1] px-2 py-2 text-sm">
             <option value="all">All facilities</option>
-            {facilityOptions.map((item) => (
-              <option key={item} value={item}>
-                {item}
+            {filterOptions.facilities.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.name}
               </option>
             ))}
           </select>
           <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="rounded-md border border-[#CBD5E1] px-2 py-2 text-sm">
             <option value="all">All statuses</option>
-            {statusOptions.map((item) => (
+            {filterOptions.statuses.map((item) => (
               <option key={item} value={item}>
                 {statusPill(item)}
               </option>
@@ -462,13 +274,13 @@ export default function AdminRecruiterCalendarPage() {
         {error ? <p className="mb-4 rounded-md bg-red-50 p-3 text-sm text-red-700">{error}</p> : null}
         {loading ? <p className="mb-4 text-sm text-[#64748B]">Loading shifts...</p> : null}
 
-        {!loading && filteredEvents.length === 0 ? (
+        {!loading && !error && filteredEvents.length === 0 ? (
           <div className="rounded-lg border border-dashed border-[#CBD5E1] p-8 text-center text-sm text-[#64748B]">
             No shifts found for this date range and filters.
           </div>
         ) : null}
 
-        {(view === "day" || view === "week") && filteredEvents.length > 0 ? (
+        {(view === "day" || view === "week") && !loading && filteredEvents.length > 0 ? (
           <div className="overflow-auto rounded-lg border border-[#E2E8F0]">
             <div className="grid min-w-[900px]" style={{ gridTemplateColumns: `80px repeat(${dayColumns.length}, minmax(180px,1fr))` }}>
               <div className="sticky left-0 top-0 z-20 border-r border-[#E2E8F0] bg-white p-2 text-xs font-semibold text-[#64748B]">Time</div>
@@ -514,7 +326,7 @@ export default function AdminRecruiterCalendarPage() {
           </div>
         ) : null}
 
-        {view === "month" && filteredEvents.length > 0 ? (
+        {view === "month" && !loading && filteredEvents.length > 0 ? (
           <div className="overflow-auto rounded-lg border border-[#E2E8F0]">
             <div className="grid min-w-[900px] grid-cols-7">
               {WEEKDAY_LABELS.map((label) => (
@@ -575,7 +387,8 @@ export default function AdminRecruiterCalendarPage() {
                 <span className="font-semibold">Facility:</span> {selectedEvent.facility}
               </p>
               <p>
-                <span className="font-semibold">Date:</span> {formatDateHuman(selectedEvent.startDate)} - {formatDateHuman(selectedEvent.endDate)}
+                <span className="font-semibold">Date:</span> {formatDateHuman(selectedEvent.startDateObj)} -{" "}
+                {formatDateHuman(selectedEvent.endDateObj)}
               </p>
               <p>
                 <span className="font-semibold">Time slot:</span> {String(selectedEvent.startHour).padStart(2, "0")}:00 -{" "}

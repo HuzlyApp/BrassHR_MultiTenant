@@ -4,6 +4,8 @@ import {
   formatFacilityAddress,
   normalizeAddressKey,
   normalizeFacilityName,
+  parseContactPersonFromAbout,
+  parseFacilityTypeFromAbout,
   parseMailingAddressFromAbout,
 } from "./address";
 import type {
@@ -40,9 +42,15 @@ type AssignmentRow = {
   status: string;
 };
 
+type AssignedFacilityMeta = {
+  assignmentId: string;
+  assignedAt: string;
+  status: string;
+};
+
 function toListItem(
   facility: FacilityRow,
-  extras?: { assignedAt?: string | null; assignmentId?: string | null }
+  extras?: Partial<AssignedFacilityMeta>
 ): FacilityListItem {
   return {
     id: facility.id,
@@ -50,8 +58,12 @@ function toListItem(
     primaryAddress: facility.address?.trim() || "",
     secondaryAddress: parseMailingAddressFromAbout(facility.about),
     distance: "",
+    phone: facility.phone?.trim() || null,
+    contactPerson: parseContactPersonFromAbout(facility.about) || null,
+    facilityType: parseFacilityTypeFromAbout(facility.about) || null,
     assignedAt: extras?.assignedAt ?? null,
     assignmentId: extras?.assignmentId ?? null,
+    assignmentStatus: extras?.status ?? null,
   };
 }
 
@@ -177,106 +189,101 @@ export async function findDuplicateFacility(
   return null;
 }
 
+async function resolveAssignedFacilityIdsForWorker(
+  supabase: SupabaseClient,
+  tenantId: string,
+  workerAuthId: string,
+  workerTableId?: string
+): Promise<Map<string, AssignedFacilityMeta>> {
+  const workerIds = [...new Set([workerAuthId, workerTableId].filter(Boolean))] as string[];
+  const activeByFacilityId = new Map<string, AssignedFacilityMeta>();
+  if (workerIds.length === 0) return activeByFacilityId;
+
+  const { data: assignmentRows, error: assignmentError } = await supabase
+    .from("worker_shift_assignments")
+    .select("id, shift_id, worker_id, assigned_at, status")
+    .eq("tenant_id", tenantId)
+    .in("worker_id", workerIds);
+  if (assignmentError) throw assignmentError;
+
+  const assignments = (assignmentRows ?? []) as AssignmentRow[];
+  const shiftIds = [...new Set(assignments.map((row) => row.shift_id).filter(Boolean))];
+  if (shiftIds.length === 0) return activeByFacilityId;
+
+  const { data: shiftRows, error: shiftError } = await supabase
+    .from("shifts")
+    .select("id, facility_id")
+    .eq("tenant_id", tenantId)
+    .in("id", shiftIds);
+  if (shiftError) throw shiftError;
+
+  const shiftById = new Map<string, ShiftRow>();
+  for (const shift of (shiftRows ?? []) as ShiftRow[]) {
+    shiftById.set(shift.id, shift);
+  }
+
+  for (const assignment of assignments) {
+    const shift = shiftById.get(assignment.shift_id);
+    const facilityId = shift?.facility_id ? String(shift.facility_id) : "";
+    if (!facilityId) continue;
+
+    const existing = activeByFacilityId.get(facilityId);
+    if (!existing || assignment.assigned_at > existing.assignedAt) {
+      activeByFacilityId.set(facilityId, {
+        assignmentId: assignment.id,
+        assignedAt: assignment.assigned_at,
+        status: assignment.status,
+      });
+    }
+  }
+
+  return activeByFacilityId;
+}
+
 export async function loadFacilityAssignmentsForWorker(
   supabase: SupabaseClient,
   tenantId: string,
   workerAuthId: string,
   workerTableId?: string
 ): Promise<FacilityAssignmentsResponse> {
-  const workerIds = [...new Set([workerAuthId, workerTableId].filter(Boolean))] as string[];
-
-  const [{ data: facilityRows, error: facilityError }, { data: assignmentRows, error: assignmentError }] =
-    await Promise.all([
-      supabase
-        .from("facility")
-        .select("id, tenant_id, client_id, name, address, phone, about, created_at")
-        .eq("tenant_id", tenantId)
-        .order("created_at", { ascending: false }),
-      workerIds.length > 0
-        ? supabase
-            .from("worker_shift_assignments")
-            .select("id, shift_id, worker_id, assigned_at, status")
-            .eq("tenant_id", tenantId)
-            .in("worker_id", workerIds)
-        : Promise.resolve({ data: [], error: null }),
-    ]);
+  const [{ data: facilityRows, error: facilityError }, activeByFacilityId] = await Promise.all([
+    supabase
+      .from("facility")
+      .select("id, tenant_id, client_id, name, address, phone, about, created_at")
+      .eq("tenant_id", tenantId)
+      .order("created_at", { ascending: false }),
+    resolveAssignedFacilityIdsForWorker(supabase, tenantId, workerAuthId, workerTableId),
+  ]);
 
   if (facilityError) throw facilityError;
-  if (assignmentError) throw assignmentError;
 
   logFacilityTenantDebug("load-assignments", {
     tenantId,
     workerAuthId,
     workerTableId: workerTableId ?? null,
-    workerIds,
     facilityCount: facilityRows?.length ?? 0,
-    assignmentCount: assignmentRows?.length ?? 0,
+    assignedFacilityCount: activeByFacilityId.size,
   });
 
   const facilities = (facilityRows ?? []) as FacilityRow[];
-  const assignments = (assignmentRows ?? []) as AssignmentRow[];
-  const shiftIds = [...new Set(assignments.map((row) => row.shift_id).filter(Boolean))];
-
-  const shiftById = new Map<string, ShiftRow>();
-  if (shiftIds.length > 0) {
-    const { data: shiftRows, error: shiftError } = await supabase
-      .from("shifts")
-      .select("id, facility_id")
-      .in("id", shiftIds);
-    if (shiftError) throw shiftError;
-    for (const shift of (shiftRows ?? []) as ShiftRow[]) {
-      shiftById.set(shift.id, shift);
-    }
-  }
-
-  const activeFacilityIds = new Set<string>();
-  const activeByFacilityId = new Map<string, { assignmentId: string; assignedAt: string }>();
-
-  for (const assignment of assignments) {
-    const shift = shiftById.get(assignment.shift_id);
-    const facilityId = shift?.facility_id ? String(shift.facility_id) : "";
-    if (!facilityId) continue;
-    activeFacilityIds.add(facilityId);
-    const existing = activeByFacilityId.get(facilityId);
-    if (!existing || assignment.assigned_at > existing.assignedAt) {
-      activeByFacilityId.set(facilityId, {
-        assignmentId: assignment.id,
-        assignedAt: assignment.assigned_at,
-      });
-    }
-  }
+  const activeFacilityIds = new Set(activeByFacilityId.keys());
 
   const active: FacilityListItem[] = [];
   const potential: FacilityListItem[] = [];
-  const recent: FacilityListItem[] = [];
-
-  const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
 
   for (const facility of facilities) {
-    const item = toListItem(facility);
     const activeMeta = activeByFacilityId.get(facility.id);
     if (activeMeta) {
-      active.push({
-        ...item,
-        assignedAt: activeMeta.assignedAt,
-        assignmentId: activeMeta.assignmentId,
-      });
+      active.push(toListItem(facility, activeMeta));
     } else {
-      potential.push(item);
-    }
-
-    const createdAt = new Date(facility.created_at).getTime();
-    if (!Number.isNaN(createdAt) && createdAt >= thirtyDaysAgo) {
-      recent.push(item);
+      potential.push(toListItem(facility));
     }
   }
 
   active.sort((a, b) => String(b.assignedAt ?? "").localeCompare(String(a.assignedAt ?? "")));
-  recent.sort((a, b) => {
-    const aFacility = facilities.find((row) => row.id === a.id);
-    const bFacility = facilities.find((row) => row.id === b.id);
-    return String(bFacility?.created_at ?? "").localeCompare(String(aFacility?.created_at ?? ""));
-  });
+
+  // Recent = assigned facilities for this candidate, latest assignment per facility, newest first.
+  const recent = [...active];
 
   const assignedFacilityIds = [...activeFacilityIds];
   const meta: FacilityAssignmentsMeta = {
@@ -295,6 +302,7 @@ export async function loadFacilityAssignmentsForWorker(
     unassignedCount: meta.unassignedCount,
     activeIds: active.map((item) => item.id),
     potentialIds: potential.map((item) => item.id),
+    recentIds: recent.map((item) => item.id),
   });
 
   return { active, potential, recent, meta };
@@ -366,6 +374,7 @@ export async function assignFacilityToWorker(
     const { data: shiftRows, error: shiftError } = await supabase
       .from("shifts")
       .select("id, facility_id")
+      .eq("tenant_id", tenantId)
       .in("id", shiftIds);
     if (shiftError) throw shiftError;
 

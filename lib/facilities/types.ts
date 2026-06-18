@@ -18,8 +18,12 @@ export type FacilityListItem = {
   primaryAddress: string;
   secondaryAddress: string;
   distance: string;
+  phone?: string | null;
+  contactPerson?: string | null;
+  facilityType?: string | null;
   assignedAt?: string | null;
   assignmentId?: string | null;
+  assignmentStatus?: string | null;
 };
 
 export type FacilityAssignmentsResponse = {

@@ -59,33 +59,58 @@ const EMPTY_ASSIGNMENTS: FacilityAssignmentsResponse = {
   },
 };
 
-function getAssignModalEmptyMessage(meta: FacilityAssignmentsMeta): string {
+const FACILITIES_LOAD_ERROR = "Unable to load facilities. Please try again.";
+
+function getAssignModalAvailableEmptyMessage(meta: FacilityAssignmentsMeta): string {
   if (meta.totalTenantFacilities === 0) {
-    return "No facilities exist for this tenant yet. Create a new facility to continue.";
+    return "No facilities are available for this tenant.";
   }
   if (meta.unassignedCount === 0 && meta.assignedCount > 0) {
-    return "No other unassigned facilities available. All tenant facilities are already assigned to this applicant.";
+    return "All tenant facilities are already assigned to this candidate.";
   }
-  return "No unassigned facilities available for this tenant.";
+  return "No facilities are available to assign.";
 }
 
-function getEmptyStateCopy(tab: FacilityTab): { title: string; description: string } {
+function getEmptyStateCopy(tab: FacilityTab): { title: string; description: string } | null {
   if (tab === "active") {
     return {
-      title: "No facility assigned yet",
-      description: "No facility assigned yet to the applicant.",
+      title: "No facilities assigned to this candidate yet.",
+      description: "Assign an existing facility or create a new one to get started.",
     };
   }
   if (tab === "recent") {
-    return {
-      title: "No recent facilities",
-      description: "Recently created facilities will appear here.",
-    };
+    return null;
   }
   return {
     title: "No potential facilities found",
     description: "Create a new facility or assign an existing one to get started.",
   };
+}
+
+function formatAssignedDate(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
+
+function formatAssignedDateTime(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  const datePart = date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+  const timePart = date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  return `Assigned on ${datePart} at ${timePart}`;
+}
+
+function formatAssignmentStatus(status: string | null | undefined): string | null {
+  if (!status?.trim()) return null;
+  const normalized = status.trim();
+  return normalized.charAt(0).toUpperCase() + normalized.slice(1);
 }
 
 function FacilityActionButtons({
@@ -125,24 +150,57 @@ function FacilityActionButtons({
   );
 }
 
-function FacilityCard({ facility }: { facility: FacilityListItem }) {
+function FacilityCard({
+  facility,
+  variant = "default",
+}: {
+  facility: FacilityListItem;
+  variant?: "default" | "assigned" | "recent";
+}) {
+  const assignedDate = formatAssignedDate(facility.assignedAt);
+  const assignedDateTime = formatAssignedDateTime(facility.assignedAt);
+  const assignmentStatus = formatAssignmentStatus(facility.assignmentStatus);
+
   return (
-    <div className="rounded-xl border border-[#E5E7EB] bg-white p-4 shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)]">
-      <div className="mb-3 flex items-center gap-3 border-b border-[#F1F5F9] pb-3">
-        <div
-          className="flex h-10 w-10 items-center justify-center rounded-lg"
-          style={{
-            background:
-              "linear-gradient(135deg, var(--brand-gradient-from) 0%, var(--brand-gradient-to) 100%)",
-          }}
-        >
-          <img
-            src="/icons/admin-recruiter/pie_chart_outlined.svg"
-            alt="Facility icon"
-            className="h-5 w-5"
-          />
+    <div
+      className={`rounded-xl border bg-white p-4 shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] ${
+        variant === "assigned" || variant === "recent"
+          ? "border-[#99F6E4] bg-[#F0FDFA]/40"
+          : "border-[#E5E7EB]"
+      }`}
+    >
+      <div className="mb-3 flex items-start justify-between gap-3 border-b border-[#F1F5F9] pb-3">
+        <div className="flex items-center gap-3">
+          <div
+            className="flex h-10 w-10 items-center justify-center rounded-lg"
+            style={{
+              background:
+                "linear-gradient(135deg, var(--brand-gradient-from) 0%, var(--brand-gradient-to) 100%)",
+            }}
+          >
+            <img
+              src="/icons/admin-recruiter/pie_chart_outlined.svg"
+              alt="Facility icon"
+              className="h-5 w-5"
+            />
+          </div>
+          <div>
+            <div className="text-lg font-semibold leading-7 text-black">{facility.name}</div>
+            {variant === "assigned" ? (
+              <div className="mt-1 text-xs font-medium uppercase tracking-wide text-[#0D9488]">
+                Assigned facility
+              </div>
+            ) : null}
+            {variant === "recent" && assignedDateTime ? (
+              <div className="mt-1 text-xs font-medium text-[#0F766E]">{assignedDateTime}</div>
+            ) : null}
+          </div>
         </div>
-        <div className="text-lg font-semibold leading-7 text-black">{facility.name}</div>
+        {assignmentStatus ? (
+          <span className="rounded-full bg-[#ECFDF5] px-2.5 py-1 text-xs font-medium text-[#047857]">
+            {assignmentStatus}
+          </span>
+        ) : null}
       </div>
 
       <div className="space-y-2">
@@ -164,6 +222,21 @@ function FacilityCard({ facility }: { facility: FacilityListItem }) {
             <span>{facility.secondaryAddress}</span>
           </div>
         ) : null}
+        {facility.phone ? (
+          <div className="text-sm text-[#4B5563]">
+            <span className="font-medium text-[#374151]">Phone:</span> {facility.phone}
+          </div>
+        ) : null}
+        {facility.contactPerson ? (
+          <div className="text-sm text-[#4B5563]">
+            <span className="font-medium text-[#374151]">Contact:</span> {facility.contactPerson}
+          </div>
+        ) : null}
+        {variant !== "recent" && assignedDate ? (
+          <div className="text-sm text-[#4B5563]">
+            <span className="font-medium text-[#374151]">Assigned:</span> {assignedDate}
+          </div>
+        ) : null}
         {facility.distance ? (
           <div className="flex items-center gap-2 text-sm text-[#4B5563]">
             <img src="/icons/admin-recruiter/target.svg" alt="Distance" className="h-5 w-5" />
@@ -171,6 +244,29 @@ function FacilityCard({ facility }: { facility: FacilityListItem }) {
           </div>
         ) : null}
       </div>
+    </div>
+  );
+}
+
+function AssignedFacilitySummary({
+  candidateName,
+  facilities,
+}: {
+  candidateName: string;
+  facilities: FacilityListItem[];
+}) {
+  if (facilities.length === 0) return null;
+
+  return (
+    <div className="mb-4 rounded-xl border border-[#99F6E4] bg-[#F0FDFA] px-5 py-4">
+      <p className="text-sm font-medium text-[#134E4A]">
+        {candidateName} is assigned to {facilities.length} {facilities.length === 1 ? "facility" : "facilities"}:
+      </p>
+      <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-[#115E59]">
+        {facilities.map((facility) => (
+          <li key={`assigned-summary-${facility.id}`}>{facility.name}</li>
+        ))}
+      </ul>
     </div>
   );
 }
@@ -187,10 +283,11 @@ export default function NewApplicantFacilityAssignmentsPage() {
   const [facilitiesError, setFacilitiesError] = useState<string | null>(null);
   const [profile, setProfile] = useState<WorkerProfileResponse | null>(null);
   const [assignments, setAssignments] = useState<FacilityAssignmentsResponse>(EMPTY_ASSIGNMENTS);
-  const [activeFacilityTab, setActiveFacilityTab] = useState<FacilityTab>("potential");
+  const [activeFacilityTab, setActiveFacilityTab] = useState<FacilityTab>("active");
   const [showAssignFacilityModal, setShowAssignFacilityModal] = useState(false);
   const [showCreateFacilityModal, setShowCreateFacilityModal] = useState(false);
   const [assigningFacilityId, setAssigningFacilityId] = useState<string | null>(null);
+  const [assignModalLoading, setAssignModalLoading] = useState(false);
 
   useEffect(() => {
     async function fetchApplicant() {
@@ -219,9 +316,13 @@ export default function NewApplicantFacilityAssignmentsPage() {
     fetchApplicant();
   }, [applicantId]);
 
-  const loadFacilities = useCallback(async () => {
+  const loadFacilities = useCallback(async (options?: { forModal?: boolean }) => {
     if (!applicantId) return;
-    setFacilitiesLoading(true);
+    if (options?.forModal) {
+      setAssignModalLoading(true);
+    } else {
+      setFacilitiesLoading(true);
+    }
     setFacilitiesError(null);
     try {
       const res = await fetch(
@@ -230,7 +331,7 @@ export default function NewApplicantFacilityAssignmentsPage() {
       );
       const json = (await res.json()) as FacilityAssignmentsResponse & { error?: string };
       if (!res.ok) {
-        throw new Error(json.error || `Failed to load facilities (${res.status})`);
+        throw new Error(FACILITIES_LOAD_ERROR);
       }
       if (process.env.NODE_ENV !== "production") {
         console.info("[FacilityAssignments] loaded", {
@@ -247,12 +348,14 @@ export default function NewApplicantFacilityAssignmentsPage() {
         meta: json.meta ?? EMPTY_ASSIGNMENTS.meta,
       });
     } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      console.error("Failed to fetch facility assignments:", msg, e);
-      setFacilitiesError(msg);
-      setAssignments(EMPTY_ASSIGNMENTS);
+      console.error("Failed to fetch facility assignments:", e);
+      setFacilitiesError(FACILITIES_LOAD_ERROR);
     } finally {
-      setFacilitiesLoading(false);
+      if (options?.forModal) {
+        setAssignModalLoading(false);
+      } else {
+        setFacilitiesLoading(false);
+      }
     }
   }, [applicantId]);
 
@@ -262,7 +365,7 @@ export default function NewApplicantFacilityAssignmentsPage() {
 
   useEffect(() => {
     if (!showAssignFacilityModal) return;
-    void loadFacilities();
+    void loadFacilities({ forModal: true });
   }, [showAssignFacilityModal, loadFacilities]);
 
   const assignFacilityToCandidate = useCallback(
@@ -285,11 +388,11 @@ export default function NewApplicantFacilityAssignmentsPage() {
         }
         toast.success(
           json.alreadyAssigned
-            ? "Facility is already assigned to this applicant."
+            ? "Facility is already assigned to this candidate."
             : "Facility assigned successfully."
         );
-        await loadFacilities();
-        setShowAssignFacilityModal(false);
+        setActiveFacilityTab("active");
+        await loadFacilities({ forModal: showAssignFacilityModal });
       } catch (e) {
         const msg = e instanceof Error ? e.message : "Failed to assign facility.";
         toast.error(msg);
@@ -298,7 +401,7 @@ export default function NewApplicantFacilityAssignmentsPage() {
         setAssigningFacilityId(null);
       }
     },
-    [applicantId, loadFacilities]
+    [applicantId, loadFacilities, showAssignFacilityModal]
   );
 
   const applicant = profile?.worker ?? null;
@@ -317,10 +420,17 @@ export default function NewApplicantFacilityAssignmentsPage() {
     return assignments.potential;
   }, [activeFacilityTab, assignments]);
 
+  const hasAssignedFacilities = assignments.active.length > 0;
   const hasVisibleFacilities = visibleFacilities.length > 0;
   const emptyStateCopy = getEmptyStateCopy(activeFacilityTab);
+  const showMainContent = !loading && !facilitiesLoading;
+  const isRecentTabEmpty = activeFacilityTab === "recent" && !hasVisibleFacilities;
 
-  const isPageLoading = loading || facilitiesLoading;
+  function facilityCardVariant(): "default" | "assigned" | "recent" {
+    if (activeFacilityTab === "active") return "assigned";
+    if (activeFacilityTab === "recent") return "recent";
+    return "default";
+  }
 
   return (
     <div className="flex min-h-screen bg-zinc-50 overflow-hidden">
@@ -448,7 +558,7 @@ export default function NewApplicantFacilityAssignmentsPage() {
               </div>
             ) : null}
 
-            {isPageLoading ? (
+            {loading || facilitiesLoading ? (
               <CandidateDetailLoader label="Loading facility assignments..." />
             ) : (
               <>
@@ -459,47 +569,44 @@ export default function NewApplicantFacilityAssignmentsPage() {
                 />
 
                 <div className="mx-auto flex w-full max-w-[1300px] flex-col">
-                  {hasVisibleFacilities ? (
-                    <div className="relative border-b border-[#E5E7EB]">
-                      <UnderlineTabBar
-                        tabs={FACILITY_TABS}
-                        activeTab={activeFacilityTab}
-                        onTabChange={setActiveFacilityTab}
-                        ariaLabel="Facility sections"
-                        align="center"
-                        className="border-b-0"
-                      />
-                      <div className="absolute right-0 bottom-1">
-                        <FacilityActionButtons
-                          onCreate={() => setShowCreateFacilityModal(true)}
-                          onAssign={() => setShowAssignFacilityModal(true)}
-                        />
-                      </div>
-                    </div>
-                  ) : (
+                  {showMainContent && hasAssignedFacilities ? (
+                    <AssignedFacilitySummary candidateName={candidateName} facilities={assignments.active} />
+                  ) : null}
+
+                  <div className="relative border-b border-[#E5E7EB]">
                     <UnderlineTabBar
                       tabs={FACILITY_TABS}
                       activeTab={activeFacilityTab}
                       onTabChange={setActiveFacilityTab}
                       ariaLabel="Facility sections"
                       align="center"
+                      className={hasVisibleFacilities ? "border-b-0" : undefined}
                     />
-                  )}
+                    {showMainContent ? (
+                      <div className={`${hasVisibleFacilities ? "absolute right-0 bottom-1" : "mt-4 flex justify-center"}`}>
+                        <FacilityActionButtons
+                          layout={hasVisibleFacilities ? "row" : "centered"}
+                          onCreate={() => setShowCreateFacilityModal(true)}
+                          onAssign={() => setShowAssignFacilityModal(true)}
+                        />
+                      </div>
+                    ) : null}
+                  </div>
 
-                  <div
-                    className={
-                      hasVisibleFacilities
-                        ? "mt-4 rounded-lg border border-[#E5E7EB] bg-white p-5"
-                        : "mt-4 flex min-h-[calc(100dvh-22rem)] items-center justify-center rounded-lg border border-[#E5E7EB] bg-white px-6 py-10"
-                    }
-                  >
-                    {hasVisibleFacilities ? (
+                  {hasVisibleFacilities ? (
+                    <div className="mt-4 rounded-lg border border-[#E5E7EB] bg-white p-5">
                       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
                         {visibleFacilities.map((facility) => (
-                          <FacilityCard key={facility.id} facility={facility} />
+                          <FacilityCard
+                            key={facility.id}
+                            facility={facility}
+                            variant={facilityCardVariant()}
+                          />
                         ))}
                       </div>
-                    ) : (
+                    </div>
+                  ) : isRecentTabEmpty ? null : emptyStateCopy ? (
+                    <div className="mt-4 flex min-h-[calc(100dvh-22rem)] items-center justify-center rounded-lg border border-[#E5E7EB] bg-white px-6 py-10">
                       <div className="max-w-md text-center">
                         <div className="text-[18px] font-semibold leading-7 text-gray-700">
                           {emptyStateCopy.title}
@@ -507,14 +614,9 @@ export default function NewApplicantFacilityAssignmentsPage() {
                         <div className="mt-2 text-center text-sm font-normal leading-5 text-gray-500">
                           {emptyStateCopy.description}
                         </div>
-                        <FacilityActionButtons
-                          layout="centered"
-                          onCreate={() => setShowCreateFacilityModal(true)}
-                          onAssign={() => setShowAssignFacilityModal(true)}
-                        />
                       </div>
-                    )}
-                  </div>
+                    </div>
+                  ) : null}
                 </div>
               </>
             )}
@@ -551,45 +653,89 @@ export default function NewApplicantFacilityAssignmentsPage() {
             </div>
 
             <div className="px-8 pb-8 pt-5">
-              <div className="mb-4 text-lg font-normal leading-none text-[#374151]">
-                {assignments.potential.length} Results
-              </div>
-
-              <div className="max-h-[64vh] overflow-auto pr-2">
-                {assignments.potential.length === 0 ? (
-                  <div className="py-8 text-center text-sm text-[#6B7280]">
-                    {getAssignModalEmptyMessage(assignments.meta)}
-                  </div>
+              <div className="max-h-[64vh] space-y-8 overflow-auto pr-2">
+                {assignModalLoading ? (
+                  <div className="py-8 text-center text-sm text-[#6B7280]">Loading facilities...</div>
+                ) : facilitiesError ? (
+                  <div className="py-8 text-center text-sm text-red-700">{FACILITIES_LOAD_ERROR}</div>
                 ) : (
-                  assignments.potential.map((facility) => (
-                    <div
-                      key={`assign-${facility.id}`}
-                      className="flex items-center justify-between border-b border-[#E5E7EB] py-5"
-                    >
-                      <div className="flex items-center gap-4">
-                        <BrandedHistoryIcon className="h-11 w-11" />
-                        <div>
-                          <div className="text-sm font-medium leading-none text-black">
-                            {facility.name}
-                          </div>
-                          <div className="mt-1 text-xs font-normal leading-none text-[#6B7280]">
-                            {facility.primaryAddress}
-                          </div>
+                  <>
+                    <section>
+                      <h3 className="text-base font-semibold text-[#1F2937]">Already Assigned Facilities</h3>
+                      {assignments.active.length > 0 ? (
+                        <div className="mt-3 rounded-xl border border-[#D1FAE5] bg-[#F0FDFA] px-4 py-4">
+                          <p className="text-sm font-medium text-[#134E4A]">
+                            {candidateName} is already assigned to:
+                          </p>
+                          <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-[#115E59]">
+                            {assignments.active.map((facility) => (
+                              <li key={`modal-assigned-${facility.id}`}>
+                                {facility.name}
+                                {facility.primaryAddress ? (
+                                  <span className="text-[#6B7280]"> — {facility.primaryAddress}</span>
+                                ) : null}
+                              </li>
+                            ))}
+                          </ul>
                         </div>
+                      ) : (
+                        <p className="mt-3 text-sm text-[#6B7280]">
+                          No facilities assigned to this candidate yet.
+                        </p>
+                      )}
+                    </section>
+
+                    <section>
+                      <div className="mb-3 flex items-center justify-between gap-3">
+                        <h3 className="text-base font-semibold text-[#1F2937]">Available Facilities to Assign</h3>
+                        <span className="text-sm text-[#6B7280]">
+                          {assignments.potential.length}{" "}
+                          {assignments.potential.length === 1 ? "facility" : "facilities"}
+                        </span>
                       </div>
 
-                      <button
-                        type="button"
-                        disabled={assigningFacilityId === facility.id}
-                        onClick={() => void assignFacilityToCandidate(facility.id)}
-                        className="inline-flex items-center gap-5 px-2 py-1 text-[#0D9488] disabled:opacity-50"
-                        aria-label={`Add ${facility.name}`}
-                      >
-                        <Circle className="h-5 w-5 fill-current stroke-current" />
-                        <Plus className="h-6 w-6" />
-                      </button>
-                    </div>
-                  ))
+                      {assignments.potential.length === 0 ? (
+                        <div className="py-6 text-center text-sm text-[#6B7280]">
+                          {getAssignModalAvailableEmptyMessage(assignments.meta)}
+                        </div>
+                      ) : (
+                        assignments.potential.map((facility) => (
+                          <div
+                            key={`assign-${facility.id}`}
+                            className="flex items-center justify-between border-b border-[#E5E7EB] py-5"
+                          >
+                            <div className="flex items-center gap-4">
+                              <BrandedHistoryIcon className="h-11 w-11" />
+                              <div>
+                                <div className="text-sm font-medium leading-none text-black">
+                                  {facility.name}
+                                </div>
+                                <div className="mt-1 text-xs font-normal leading-none text-[#6B7280]">
+                                  {facility.primaryAddress || "No address on file"}
+                                </div>
+                                {facility.contactPerson ? (
+                                  <div className="mt-1 text-xs text-[#6B7280]">
+                                    Contact: {facility.contactPerson}
+                                  </div>
+                                ) : null}
+                              </div>
+                            </div>
+
+                            <button
+                              type="button"
+                              disabled={assigningFacilityId === facility.id}
+                              onClick={() => void assignFacilityToCandidate(facility.id)}
+                              className="inline-flex items-center gap-5 px-2 py-1 text-[#0D9488] disabled:opacity-50"
+                              aria-label={`Add ${facility.name}`}
+                            >
+                              <Circle className="h-5 w-5 fill-current stroke-current" />
+                              <Plus className="h-6 w-6" />
+                            </button>
+                          </div>
+                        ))
+                      )}
+                    </section>
+                  </>
                 )}
               </div>
             </div>
