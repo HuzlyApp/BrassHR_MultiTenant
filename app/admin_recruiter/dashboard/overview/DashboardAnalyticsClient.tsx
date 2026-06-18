@@ -185,18 +185,20 @@ function MetricPill({
 }
 
 function SectionCard({
+  id,
   title,
   titleColor,
   viewAllHref,
   children,
 }: {
+  id?: string;
   title: string;
   titleColor: string;
   viewAllHref: string;
   children: ReactNode;
 }) {
   return (
-    <section className="overflow-hidden rounded-2xl border border-[#E5E7EB] bg-white shadow-sm">
+    <section id={id} className="scroll-mt-24 overflow-hidden rounded-2xl border border-[#E5E7EB] bg-white shadow-sm">
       <div className="flex items-center justify-between border-b border-[#E5E7EB] px-5 py-4">
         <h2 className="text-base font-semibold" style={{ color: titleColor }}>
           {title}
@@ -243,7 +245,17 @@ const REPORT_CARDS = [
   },
 ] as const;
 
-export default function DashboardAnalyticsClient() {
+export type DashboardAnalyticsFocusSection =
+  | "recruitment-analytics"
+  | "workforce-analytics"
+  | "financial-analytics"
+  | "operational-insights";
+
+type DashboardAnalyticsClientProps = {
+  focusSection?: DashboardAnalyticsFocusSection;
+};
+
+export default function DashboardAnalyticsClient({ focusSection }: DashboardAnalyticsClientProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<DashboardAnalyticsData | null>(null);
@@ -267,6 +279,15 @@ export default function DashboardAnalyticsClient() {
   useEffect(() => {
     void loadAnalytics();
   }, [loadAnalytics]);
+
+  useEffect(() => {
+    if (!focusSection || !data) return;
+    const element = document.getElementById(focusSection);
+    if (!element) return;
+    requestAnimationFrame(() => {
+      element.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }, [focusSection, data]);
 
   if (loading && !data) {
     return (
@@ -293,10 +314,10 @@ export default function DashboardAnalyticsClient() {
       {loading && data ? <DashboardPageLoader label="Updating overview..." overlay /> : null}
       <div className="mx-auto w-full max-w-[1400px] space-y-6">
         <header className="space-y-1">
-          <h1 className="text-[32px] font-semibold leading-tight text-[#111827] sm:text-[36px]">
+          <h1 className="font-[Inter,sans-serif] text-[18px] font-semibold leading-[28px] text-[#012352]">
             Dashboard Overview
           </h1>
-          <p className="text-sm text-[#6B7280] sm:text-base">
+          <p className="font-[Inter,sans-serif] text-[12px] font-normal leading-[16px] text-[#6B7280]">
             Summary of key metrics and insights across your organization.
           </p>
         </header>
@@ -338,7 +359,9 @@ export default function DashboardAnalyticsClient() {
         </div>
 
         <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-          <SectionCard title="Recruitment Analytics" titleColor="#3B82F6" viewAllHref="/admin_recruiter/candidates">
+          <SectionCard
+            id="recruitment-analytics"
+            title="Recruitment Analytics" titleColor="#3B82F6" viewAllHref="/admin_recruiter/candidates">
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-[160px_minmax(0,1fr)]">
               <div className="space-y-3">
                 <MetricPill
@@ -376,7 +399,9 @@ export default function DashboardAnalyticsClient() {
             </div>
           </SectionCard>
 
-          <SectionCard title="Workforce Analytics" titleColor="#F97316" viewAllHref="/admin_recruiter/workers">
+          <SectionCard
+            id="workforce-analytics"
+            title="Workforce Analytics" titleColor="#F97316" viewAllHref="/admin_recruiter/workers">
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-[160px_minmax(0,1fr)_140px]">
               <div className="space-y-3">
                 <MetricPill
@@ -438,7 +463,9 @@ export default function DashboardAnalyticsClient() {
         </div>
 
         <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-          <SectionCard title="Financial Insights" titleColor="#10B981" viewAllHref="#">
+          <SectionCard
+            id="financial-analytics"
+            title="Financial Analytics" titleColor="#10B981" viewAllHref="#">
             {data.financial.pending ? (
               <p className="mb-4 rounded-lg bg-[#F0FDF4] px-3 py-2 text-sm text-[#166534]">
                 Revenue tracking is coming soon. Showing hiring activity below.
@@ -464,7 +491,9 @@ export default function DashboardAnalyticsClient() {
             </div>
           </SectionCard>
 
-          <SectionCard title="Operational Insights" titleColor="#3B82F6" viewAllHref="/admin_recruiter/calendar/shifts">
+          <SectionCard
+            id="operational-insights"
+            title="Operational Insights" titleColor="#3B82F6" viewAllHref="/admin_recruiter/calendar/shifts">
             <div className="mb-4 grid grid-cols-2 gap-3">
               <MetricPill
                 label="Unified Shifts"

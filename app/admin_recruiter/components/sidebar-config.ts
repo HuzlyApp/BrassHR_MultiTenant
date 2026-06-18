@@ -5,6 +5,7 @@ export type SidebarLink = {
   label: string;
   href: string;
   matchPrefixes: string[];
+  matchExact?: boolean;
   disabled?: boolean;
 };
 
@@ -38,17 +39,35 @@ const ICON = {
   logout: "Logout",
 } as const satisfies Record<string, SidebarIconType>;
 
+const DASHBOARD_OVERVIEW_BASE = "/admin_recruiter/dashboard/overview";
+
 const DASHBOARD_CHILDREN: SidebarLink[] = [
   {
     label: "Overview",
-    href: "/admin_recruiter/dashboard/overview",
-    matchPrefixes: ["/admin_recruiter/dashboard/overview"],
+    href: DASHBOARD_OVERVIEW_BASE,
+    matchPrefixes: [DASHBOARD_OVERVIEW_BASE],
+    matchExact: true,
   },
-  { label: "CRM", href: "#", matchPrefixes: [], disabled: true },
-  { label: "Finance", href: "#", matchPrefixes: [], disabled: true },
-  { label: "SaaS", href: "#", matchPrefixes: [], disabled: true },
-  { label: "Human Resource", href: "#", matchPrefixes: [], disabled: true },
-  { label: "Marketing", href: "#", matchPrefixes: [], disabled: true },
+  {
+    label: "Recruitment Analytics",
+    href: `${DASHBOARD_OVERVIEW_BASE}/recruitment-analytics`,
+    matchPrefixes: [`${DASHBOARD_OVERVIEW_BASE}/recruitment-analytics`],
+  },
+  {
+    label: "Workforce Analytics",
+    href: `${DASHBOARD_OVERVIEW_BASE}/workforce-analytics`,
+    matchPrefixes: [`${DASHBOARD_OVERVIEW_BASE}/workforce-analytics`],
+  },
+  {
+    label: "Financial Analytics",
+    href: `${DASHBOARD_OVERVIEW_BASE}/financial-analytics`,
+    matchPrefixes: [`${DASHBOARD_OVERVIEW_BASE}/financial-analytics`],
+  },
+  {
+    label: "Operational Insights",
+    href: `${DASHBOARD_OVERVIEW_BASE}/operational-insights`,
+    matchPrefixes: [`${DASHBOARD_OVERVIEW_BASE}/operational-insights`],
+  },
 ];
 
 const FINANCE_CHILDREN: SidebarLink[] = [

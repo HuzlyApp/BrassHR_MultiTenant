@@ -12,6 +12,7 @@ import {
   CLIENT_SIDEBAR_SECTIONS,
   GOD_ADMIN_SIDEBAR_SECTIONS,
   SIDEBAR_ICON_TYPES,
+  type SidebarLink,
   type SidebarSection,
 } from "@/app/admin_recruiter/components/sidebar-config";
 import SidebarNavIcon from "@/app/admin_recruiter/components/SidebarNavIcon";
@@ -89,23 +90,37 @@ export function AdminRecruiterSidebar({
   const sidebarCompanyName = getOrganizationDisplayName(organization, profile, user);
   const profilePhoto = profile?.avatar_url ?? null;
 
+  const isLinkActive = (link: Pick<SidebarLink, "matchPrefixes" | "matchExact">) =>
+    link.matchPrefixes.some((prefix) =>
+      link.matchExact ? pathname === prefix || pathname === `${prefix}/` : pathname.startsWith(prefix)
+    );
+
   const isPathActive = (prefixes: string[]) => prefixes.some((prefix) => pathname.startsWith(prefix));
+
+  const isParentHrefActive = (href: string) => {
+    if (!href || href === "#") return false;
+    return pathname === href || pathname === `${href}/`;
+  };
 
   const renderedSections = useMemo(
     () =>
       sidebarSections.map((section) => {
-        const childActive = section.children?.some((child) => isPathActive(child.matchPrefixes)) ?? false;
+        const childActive = section.children?.some((child) => isLinkActive(child)) ?? false;
         const sectionPathActive = isPathActive(section.matchPrefixes);
+        const sectionActive =
+          section.controlsActiveState === false ? false : sectionPathActive || childActive;
+        const showIndicator = section.children?.length
+          ? !childActive && isParentHrefActive(section.href)
+          : sectionActive;
+
         return {
           ...section,
-          active:
-            section.controlsActiveState === false
-              ? false
-              : sectionPathActive || childActive,
+          active: sectionActive,
+          showIndicator,
           children:
             section.children?.map((child) => ({
               ...child,
-              active: isPathActive(child.matchPrefixes),
+              active: isLinkActive(child),
             })) ?? [],
         };
       }),
@@ -117,7 +132,7 @@ export function AdminRecruiterSidebar({
       .filter(
         (section) =>
           isPathActive(section.matchPrefixes) ||
-          section.children?.some((child) => isPathActive(child.matchPrefixes))
+          section.children?.some((child) => isLinkActive(child))
       )
       .map((section) => section.label);
     if (activeParents.length === 0) return;
@@ -210,7 +225,7 @@ export function AdminRecruiterSidebar({
                     {isSectionOpen(section) ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                   </span>
                 </button>
-                {section.active ? (
+                {section.showIndicator ? (
                   <span
                     aria-hidden
                     className="absolute right-0 top-1/2 h-7 w-[2px] -translate-y-1/2 rounded-full"
@@ -256,7 +271,7 @@ export function AdminRecruiterSidebar({
                     {section.label}
                   </span>
                 ) : null}
-                {section.active ? (
+                {section.showIndicator ? (
                   <span
                     aria-hidden
                     className="absolute right-0 top-1/2 h-7 w-[2px] -translate-y-1/2 rounded-full"
