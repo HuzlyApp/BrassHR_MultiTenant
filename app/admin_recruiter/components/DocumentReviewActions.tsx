@@ -15,6 +15,8 @@ type DocumentReviewActionsProps = {
   showRequestEsign?: boolean;
   onRequestEsign?: () => void;
   esignLoading?: boolean;
+  /** Solid brand-primary styling for the Approve action (Agreement tab). */
+  approveVariant?: "primary" | "outline";
 };
 
 function actionClass(active: boolean, enabled: boolean): string {
@@ -41,6 +43,7 @@ export default function DocumentReviewActions({
   showRequestEsign = false,
   onRequestEsign,
   esignLoading = false,
+  approveVariant = "outline",
 }: DocumentReviewActionsProps) {
   const enabled = !disabled && !loading;
   const status = currentStatus ?? "uploaded";
@@ -111,7 +114,7 @@ export default function DocumentReviewActions({
           type="button"
           disabled={!enabled}
           onClick={onApprove}
-          className={actionClass(false, enabled)}
+          className={actionClass(approveVariant === "primary", enabled)}
         >
           {loading ? "Saving..." : "Approved"}
         </button>

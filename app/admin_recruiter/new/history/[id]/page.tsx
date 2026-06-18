@@ -268,7 +268,7 @@ export default function NewApplicantHistoryPage() {
           </div>
         </header>
 
-        <div className="flex-1 p-8 overflow-auto">
+        <div className="flex-1 overflow-auto bg-[#F4F4F4] p-8">
           <div className="max-w-[1320px] mx-auto">
             <DetailedTabs applicantId={applicantId} activeTab="History" />
 
@@ -288,7 +288,7 @@ export default function NewApplicantHistoryPage() {
               status={applicant?.status_label}
             />
 
-            <div className="mx-auto w-full max-w-[1300px] rounded-md border border-[#D1D5DB] p-5">
+            <div className="mx-auto w-full max-w-[1300px] rounded-md border border-[#D1D5DB] bg-white p-5">
               <div className="flex flex-col gap-5">
                 <div className="text-sm font-semibold text-[#374151]">
                   Actions taken <span className="font-semibold text-[#111827]">{historyCount}</span>

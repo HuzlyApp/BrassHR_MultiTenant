@@ -388,6 +388,7 @@ export default function NewApplicantAgreementPage() {
               currentStatus={section.reviewStatus ?? (section.hasFile ? "uploaded" : null)}
               showApprove={section.hasFile}
               showReject={section.hasFile}
+              approveVariant="primary"
               onApprove={() => void submitReview(reviewTarget, "approved")}
               onReject={() => void submitReview(reviewTarget, "rejected")}
               onRequestMore={showRequestUpload ? handleRequestUpload : undefined}
