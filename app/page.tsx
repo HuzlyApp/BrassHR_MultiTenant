@@ -4,7 +4,6 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type CSSProperties } from "react";
-import ApplicantSignInCard from "@/app/components/ApplicantSignInCard";
 import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
 import { TenantBrandingProvider } from "@/app/components/tenant/TenantBrandingContext";
 import {
@@ -16,6 +15,7 @@ import {
   type TenantBranding,
 } from "@/lib/tenant/tenant-branding";
 import { recruiterSignInHref } from "@/lib/auth/recruiter-sign-in";
+import { workerSignInHref } from "@/lib/auth/worker-sign-in";
 import {
   persistOnboardingSlugCookie,
   resolveClientOnboardingTenantSlug,
@@ -152,6 +152,10 @@ export default function Home() {
     tenant: resolvedPortalSlug,
   });
 
+  const workerSignInUrl = workerSignInHref({
+    tenant: resolvedPortalSlug,
+  });
+
   const primaryCtaLabel = applicantLandingCtaLabel(resolvedPortalSlug);
 
   return (
@@ -207,7 +211,18 @@ export default function Home() {
               {startingApplication ? "Starting…" : primaryCtaLabel}
             </button>
 
-            {resolvedPortalSlug ? <ApplicantSignInCard tenantSlug={resolvedPortalSlug} /> : null}
+            {resolvedPortalSlug ? (
+              <p className="text-center text-[14px] font-normal leading-5 tracking-normal text-slate-500">
+                Already approved?{" "}
+                <Link
+                  href={workerSignInUrl}
+                  style={{ color: "var(--brand-primary)" }}
+                  className="text-[14px] font-semibold leading-5 underline-offset-4 hover:underline"
+                >
+                  Worker sign in
+                </Link>
+              </p>
+            ) : null}
 
             <p className="text-center text-[14px] font-normal leading-5 tracking-normal text-slate-500">
               Need to sign in as a recruiter?{" "}
