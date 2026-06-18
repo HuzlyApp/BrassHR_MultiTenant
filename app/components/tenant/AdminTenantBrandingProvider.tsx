@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState, type ReactNode } from "react";
 import AdminBrandingLoader from "@/app/admin_recruiter/components/AdminBrandingLoader";
 import { TenantBrandingProvider } from "@/app/components/tenant/TenantBrandingContext";
 import type { TenantBranding } from "@/lib/tenant/tenant-branding";
+import { BRANDING_UPDATED_EVENT } from "@/lib/tenant/branding-events";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 
 type LoadState = "loading" | "ready" | "error";
@@ -43,22 +44,34 @@ export function AdminTenantBrandingProvider({ children }: { children: ReactNode 
   const [branding, setBranding] = useState<TenantBranding | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const loadBranding = useCallback(async () => {
-    setLoadState("loading");
+  const loadBranding = useCallback(async (options?: { silent?: boolean }) => {
+    if (!options?.silent) {
+      setLoadState("loading");
+    }
     setErrorMessage(null);
     try {
       const next = await fetchEffectiveBranding();
       setBranding(next);
       setLoadState("ready");
     } catch (e) {
-      setBranding(null);
-      setLoadState("error");
+      if (!options?.silent) {
+        setBranding(null);
+        setLoadState("error");
+      }
       setErrorMessage(e instanceof Error ? e.message : "Could not load branding");
     }
   }, []);
 
   useEffect(() => {
     void loadBranding();
+  }, [loadBranding]);
+
+  useEffect(() => {
+    const handler = () => {
+      void loadBranding({ silent: true });
+    };
+    window.addEventListener(BRANDING_UPDATED_EVENT, handler);
+    return () => window.removeEventListener(BRANDING_UPDATED_EVENT, handler);
   }, [loadBranding]);
 
   if (loadState === "loading") {

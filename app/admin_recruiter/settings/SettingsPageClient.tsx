@@ -5,11 +5,12 @@ import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import OnboardingStepsBuilderPanel from "@/app/components/onboarding/OnboardingStepsBuilderPanel";
 import TenantOnboardingWorkflowBuilder from "@/app/components/onboarding/TenantOnboardingWorkflowBuilder";
+import BrandingSettingsPanel from "@/app/admin_recruiter/settings/BrandingSettingsPanel";
 
-type SettingsTab = "onboarding-builder" | "step-editor";
+type SettingsTab = "onboarding-builder" | "step-editor" | "branding";
 
 function tabClass(active: boolean): string {
-  return `shrink-0 pb-3 pt-1 text-sm font-medium leading-5 whitespace-nowrap transition-colors ${
+  return `shrink-0 cursor-pointer pb-3 pt-1 text-sm font-medium leading-5 whitespace-nowrap transition-colors ${
     active
       ? "-mb-px border-b-2 text-[color:var(--brand-primary)]"
       : "border-b-2 border-transparent text-[#2B3D51] hover:text-[color:var(--brand-primary)]"
@@ -20,15 +21,21 @@ function SettingsTabsInner() {
   const searchParams = useSearchParams();
   const tabParam = searchParams.get("tab");
   const activeTab: SettingsTab =
-    tabParam === "step-editor" ? "step-editor" : "onboarding-builder";
+    tabParam === "step-editor"
+      ? "step-editor"
+      : tabParam === "branding"
+        ? "branding"
+        : "onboarding-builder";
 
   return (
     <main className="mx-auto max-w-[1400px] space-y-6 p-4 sm:p-6">
       <div>
-        <h1 className="text-xl font-semibold text-[#0F172A]">Settings</h1>
-        <p className="mt-2 max-w-2xl text-sm text-[#64748B]">
-          Configure worker onboarding for the active tenant. Use the header tenant switcher to edit
-          another organization — each tenant has its own flow.
+        <h1 className="font-[Inter,sans-serif] text-[18px] font-semibold leading-[28px] text-[#012352]">
+          Settings
+        </h1>
+        <p className="mt-1 max-w-2xl font-[Inter,sans-serif] text-[12px] font-normal leading-[16px] text-[#6B7280]">
+          Set up onboarding and your company look. Branding updates apply for your whole organization,
+          including worker sign-in.
         </p>
       </div>
 
@@ -48,6 +55,13 @@ function SettingsTabsInner() {
           Onboarding Builder
         </Link>
         <Link
+          href="/admin_recruiter/settings?tab=branding"
+          className={tabClass(activeTab === "branding")}
+          style={activeTab === "branding" ? { borderBottomColor: "var(--brand-primary)" } : undefined}
+        >
+          Branding
+        </Link>
+        <Link
           href="/admin_recruiter/settings?tab=step-editor"
           className={tabClass(activeTab === "step-editor")}
           style={
@@ -58,7 +72,14 @@ function SettingsTabsInner() {
         </Link>
       </nav>
 
-      {activeTab === "onboarding-builder" ? (
+      {activeTab === "branding" ? (
+        <section aria-labelledby="branding-heading">
+          <h2 id="branding-heading" className="sr-only">
+            Branding
+          </h2>
+          <BrandingSettingsPanel />
+        </section>
+      ) : activeTab === "onboarding-builder" ? (
         <section aria-labelledby="onboarding-builder-heading">
           <h2 id="onboarding-builder-heading" className="sr-only">
             Onboarding Builder

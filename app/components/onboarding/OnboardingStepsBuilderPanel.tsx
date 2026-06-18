@@ -167,7 +167,7 @@ export default function OnboardingStepsBuilderPanel({
               type="button"
               disabled={saving}
               onClick={() => void save()}
-              className="inline-flex h-10 items-center justify-center rounded-full bg-[color:var(--brand-primary)] px-6 text-sm font-medium text-white transition disabled:opacity-60"
+              className="inline-flex h-10 cursor-pointer items-center justify-center rounded-full bg-[color:var(--brand-primary)] px-6 text-sm font-medium text-white transition disabled:cursor-not-allowed disabled:opacity-60"
             >
               {saving ? "Saving…" : "Save draft (sync to builder)"}
             </button>
@@ -183,7 +183,7 @@ export default function OnboardingStepsBuilderPanel({
               type="button"
               disabled={saving}
               onClick={() => void save()}
-              className="rounded-xl bg-[color:var(--brand-primary)] px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
+              className="cursor-pointer rounded-xl bg-[color:var(--brand-primary)] px-5 py-2.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
             >
               {saving ? "Saving…" : "Save onboarding steps"}
             </button>
