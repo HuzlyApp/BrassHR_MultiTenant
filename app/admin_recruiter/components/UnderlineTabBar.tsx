@@ -14,6 +14,7 @@ type UnderlineTabBarProps<T extends string> = {
   onTabChange: (tab: T) => void;
   ariaLabel?: string;
   className?: string;
+  align?: "start" | "center";
 };
 
 export default function UnderlineTabBar<T extends string>({
@@ -22,10 +23,14 @@ export default function UnderlineTabBar<T extends string>({
   onTabChange,
   ariaLabel = "Sections",
   className = "",
+  align = "center",
 }: UnderlineTabBarProps<T>) {
+  const alignClass =
+    align === "start" ? "mx-0 justify-start" : "mx-auto justify-center";
+
   return (
     <nav
-      className={`mx-auto flex w-full items-end justify-center gap-x-8 border-b border-[#E5E7EB] ${className}`}
+      className={`flex w-full items-end gap-x-8 border-b border-[#E5E7EB] ${alignClass} ${className}`}
       aria-label={ariaLabel}
     >
       {tabs.map(({ id, label }) => (

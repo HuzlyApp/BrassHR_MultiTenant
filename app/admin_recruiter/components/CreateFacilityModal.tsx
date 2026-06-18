@@ -11,6 +11,7 @@ import {
   TextField,
   US_STATES,
 } from "../account/components/account-form-fields";
+import AccountCheckbox from "../account/components/AccountCheckbox";
 import type { FacilityFormInput, FacilityListItem } from "@/lib/facilities/types";
 
 type Props = {
@@ -156,9 +157,9 @@ export default function CreateFacilityModal({
       <form
         onSubmit={handleSubmit}
         onClick={(event) => event.stopPropagation()}
-        className="max-h-[90vh] w-full max-w-[760px] overflow-auto rounded-[22px] bg-white shadow-[0_18px_38px_rgba(2,8,23,0.2)]"
+        className="flex max-h-[90vh] w-full max-w-[760px] flex-col overflow-hidden rounded-[22px] bg-white shadow-[0_18px_38px_rgba(2,8,23,0.2)]"
       >
-        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-[#E5E7EB] bg-white px-8 py-6">
+        <div className="flex shrink-0 items-center justify-between border-b border-[#E5E7EB] bg-white px-8 py-6">
           <h2 id="create-facility-title" className="text-2xl font-semibold leading-none text-[#1F2937]">
             Create Facility
           </h2>
@@ -172,7 +173,7 @@ export default function CreateFacilityModal({
           </button>
         </div>
 
-        <div className="space-y-5 px-8 py-6">
+        <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-8 py-6">
           {duplicateFacility ? (
             <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-900">
               <div className="font-medium">This facility already exists.</div>
@@ -184,7 +185,7 @@ export default function CreateFacilityModal({
                 type="button"
                 onClick={handleAssignDuplicate}
                 disabled={assigningDuplicate}
-                className="mt-4 inline-flex h-10 items-center justify-center rounded-lg bg-[#0D9488] px-4 text-sm font-medium text-white disabled:opacity-60"
+                className="mt-4 inline-flex h-10 items-center justify-center rounded-lg bg-(--brand-primary) px-4 text-sm font-medium text-white disabled:opacity-60"
               >
                 {assigningDuplicate ? "Assigning..." : "Assign existing facility instead"}
               </button>
@@ -283,21 +284,19 @@ export default function CreateFacilityModal({
           </label>
 
           {workerId ? (
-            <label className="flex items-start gap-3 rounded-lg border border-[#E5E7EB] bg-[#F9FAFB] px-4 py-3">
-              <input
-                type="checkbox"
+            <label className="flex cursor-pointer items-center gap-3">
+              <AccountCheckbox
                 checked={assignToCandidate}
                 onChange={(event) => setAssignToCandidate(event.target.checked)}
-                className="mt-1 h-4 w-4 rounded border-[#D1D5DB] text-[#0D9488] focus:ring-[#0D9488]"
               />
-              <span className="text-sm text-[#374151]">
+              <span className="text-sm leading-5 text-[#374151]">
                 Assign this facility to the current applicant after creating
               </span>
             </label>
           ) : null}
         </div>
 
-        <div className="flex items-center justify-end gap-3 border-t border-[#E5E7EB] px-8 py-5">
+        <div className="flex shrink-0 items-center justify-end gap-3 border-t border-[#E5E7EB] bg-white px-8 py-5">
           <button
             type="button"
             onClick={onClose}
@@ -308,7 +307,7 @@ export default function CreateFacilityModal({
           <button
             type="submit"
             disabled={submitting}
-            className="inline-flex h-10 items-center justify-center rounded-lg bg-[#0D9488] px-5 text-sm font-medium text-white disabled:opacity-60"
+            className="inline-flex h-10 items-center justify-center rounded-lg bg-(--brand-primary) px-5 text-sm font-medium text-white disabled:opacity-60"
           >
             {submitting ? "Creating..." : "Create Facility"}
           </button>
