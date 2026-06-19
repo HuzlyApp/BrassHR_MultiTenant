@@ -37,6 +37,7 @@ type WorkerProfile = {
   last_name: string | null;
   job_role: string | null;
   status_label?: string;
+  profile_photo_url?: string | null;
 };
 
 type WorkerProfileResponse = {

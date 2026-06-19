@@ -29,6 +29,7 @@ type WorkerProfilePayload = {
     city: string | null;
     state: string | null;
     status_label?: string;
+    profile_photo_url?: string | null;
   };
   requirements: {
     resume_path: string | null;
