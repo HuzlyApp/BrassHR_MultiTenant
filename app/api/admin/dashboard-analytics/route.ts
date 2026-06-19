@@ -288,7 +288,7 @@ export async function GET(_req: NextRequest) {
         label: "Active",
         value: workforceBuckets.active,
         pct: Math.round((workforceBuckets.active / workforceTotal) * 1000) / 10,
-        color: "#10B981",
+        color: "#008C36",
       },
       {
         key: "onLeave",
