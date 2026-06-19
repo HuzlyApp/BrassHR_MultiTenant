@@ -19,17 +19,31 @@ export async function POST(req: NextRequest) {
     const auth = await requireApprovedApplicant(req);
     if (auth instanceof NextResponse) return auth;
 
-    const body = (await req.json().catch(() => ({}))) as { inquiry?: string };
-    const inquiry = body.inquiry?.trim() ?? "";
-    if (!inquiry) {
-      return NextResponse.json({ error: "Missing inquiry." }, { status: 400 });
+    const body = (await req.json().catch(() => ({}))) as {
+      inquiry?: string;
+      subject?: string;
+      description?: string;
+      category?: string;
+      priority?: "low" | "normal" | "high" | "urgent";
+    };
+
+    const description = (body.description ?? body.inquiry ?? "").trim();
+    const subject = body.subject?.trim() ?? "";
+    if (!subject) {
+      return NextResponse.json({ error: "Subject is required." }, { status: 400 });
+    }
+    if (!description) {
+      return NextResponse.json({ error: "Please describe your issue." }, { status: 400 });
     }
 
     const result = await createApplicantSupportTicketFromChat(auth.supabase, {
       tenantId: auth.applicant.tenant_id,
       workerId: auth.applicant.id,
       userId: auth.user.id,
-      inquiry,
+      subject,
+      description,
+      category: body.category,
+      priority: body.priority,
     });
 
     if ("error" in result) {

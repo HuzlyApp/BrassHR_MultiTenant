@@ -14,6 +14,7 @@ import {
   replaceFirmaTemplateDocument,
   updateFirmaTemplate,
 } from "@/lib/firma/client";
+import { isFirmaDocumentUrlStale } from "@/lib/firma/document-access";
 import { FirmaError } from "@/lib/firma/errors";
 import { RECRUITER_TEMPLATE_DOCUMENT_BUCKET } from "@/lib/recruiter-templates/constants";
 import { RecruiterTemplateError } from "@/lib/recruiter-templates/errors";
@@ -302,12 +303,58 @@ function getFirmaSyncedDocumentStoragePath(template: RecruiterTemplateDetail): s
 }
 
 function buildFirmaSettingsWithSyncedDocument(
-  template: RecruiterTemplateDetail
+  template: RecruiterTemplateDetail,
+  documentUrlExpiresAt?: string | null
 ): Record<string, unknown> {
   return {
     ...template.firma_settings,
     synced_document_storage_path: template.document_storage_path,
+    ...(documentUrlExpiresAt !== undefined
+      ? { synced_document_url_expires_at: documentUrlExpiresAt }
+      : {}),
   };
+}
+
+async function ensureFirmaTemplateDocumentUrlFresh(
+  supabase: SupabaseClient,
+  tenantId: string,
+  templateId: string,
+  userId: string,
+  template: RecruiterTemplateDetail,
+  firmaTemplateId: string,
+  options: { forceRefresh?: boolean } = {}
+): Promise<RecruiterTemplateDetail> {
+  if (!template.document_storage_path) {
+    return template;
+  }
+
+  const firmaTemplate = await getFirmaTemplate(firmaTemplateId);
+  if (!options.forceRefresh && !isFirmaDocumentUrlStale(firmaTemplate)) {
+    return template;
+  }
+
+  const document = await readDocumentBase64(supabase, template.document_storage_path);
+  const updated = await replaceFirmaTemplateDocument(firmaTemplateId, document);
+
+  const { error } = await supabase
+    .from("recruiter_templates")
+    .update({
+      firma_settings: buildFirmaSettingsWithSyncedDocument(
+        template,
+        updated.document_url_expires_at ?? null
+      ),
+      updated_by: userId,
+    })
+    .eq("id", templateId)
+    .eq("tenant_id", tenantId);
+
+  if (error) {
+    throw new RecruiterTemplateError("INTERNAL_ERROR", "Failed to save Firma document state", 500, {
+      detail: error.message,
+    });
+  }
+
+  return getRecruiterTemplateDetail(supabase, tenantId, templateId);
 }
 
 async function ensureFirmaTemplateForBuilder(
@@ -315,7 +362,7 @@ async function ensureFirmaTemplateForBuilder(
   tenantId: string,
   templateId: string,
   userId: string,
-  options: { forceRecreate?: boolean } = {}
+  options: { forceRecreate?: boolean; refreshDocument?: boolean } = {}
 ): Promise<RecruiterTemplateDetail> {
   const template = await getRecruiterTemplateDetail(supabase, tenantId, templateId);
 
@@ -361,7 +408,10 @@ async function ensureFirmaTemplateForBuilder(
       .from("recruiter_templates")
       .update({
         firma_template_id: created.id,
-        firma_settings: buildFirmaSettingsWithSyncedDocument(template),
+        firma_settings: buildFirmaSettingsWithSyncedDocument(
+          template,
+          created.document_url_expires_at ?? null
+        ),
         updated_by: userId,
       })
       .eq("id", templateId)
@@ -387,23 +437,6 @@ async function ensureFirmaTemplateForBuilder(
     return createAndPersistFirmaTemplate();
   }
 
-  async function markFirmaDocumentSynced(): Promise<void> {
-    const { error } = await supabase
-      .from("recruiter_templates")
-      .update({
-        firma_settings: buildFirmaSettingsWithSyncedDocument(template),
-        updated_by: userId,
-      })
-      .eq("id", templateId)
-      .eq("tenant_id", tenantId);
-
-    if (error) {
-      throw new RecruiterTemplateError("INTERNAL_ERROR", "Failed to save Firma document state", 500, {
-        detail: error.message,
-      });
-    }
-  }
-
   try {
     if (template.firma_template_id) {
       if (options.forceRecreate) {
@@ -411,14 +444,17 @@ async function ensureFirmaTemplateForBuilder(
       }
 
       try {
-        if (
-          template.document_storage_path &&
-          getFirmaSyncedDocumentStoragePath(template) !== template.document_storage_path
-        ) {
-          const document = await readDocumentBase64(supabase, template.document_storage_path);
+        if (options.refreshDocument) {
           try {
-            await replaceFirmaTemplateDocument(template.firma_template_id, document);
-            await markFirmaDocumentSynced();
+            return await ensureFirmaTemplateDocumentUrlFresh(
+              supabase,
+              tenantId,
+              templateId,
+              userId,
+              template,
+              template.firma_template_id,
+              { forceRefresh: true }
+            );
           } catch (err) {
             if (err instanceof FirmaError && err.code === "VALIDATION_ERROR") {
               return recreateFirmaTemplate(template.firma_template_id);
@@ -427,13 +463,41 @@ async function ensureFirmaTemplateForBuilder(
           }
         }
 
-        await updateFirmaTemplate(template.firma_template_id, {
-          name: template.name,
-          description: template.description ?? undefined,
-          expiration_hours: template.expiration_hours,
-        });
-        await getFirmaTemplate(template.firma_template_id);
-        return getRecruiterTemplateDetail(supabase, tenantId, templateId);
+        if (
+          template.document_storage_path &&
+          getFirmaSyncedDocumentStoragePath(template) !== template.document_storage_path
+        ) {
+          const document = await readDocumentBase64(supabase, template.document_storage_path);
+          try {
+            const updated = await replaceFirmaTemplateDocument(template.firma_template_id, document);
+            await supabase
+              .from("recruiter_templates")
+              .update({
+                firma_settings: buildFirmaSettingsWithSyncedDocument(
+                  template,
+                  updated.document_url_expires_at ?? null
+                ),
+                updated_by: userId,
+              })
+              .eq("id", templateId)
+              .eq("tenant_id", tenantId);
+            return getRecruiterTemplateDetail(supabase, tenantId, templateId);
+          } catch (err) {
+            if (err instanceof FirmaError && err.code === "VALIDATION_ERROR") {
+              return recreateFirmaTemplate(template.firma_template_id);
+            }
+            throw err;
+          }
+        }
+
+        return ensureFirmaTemplateDocumentUrlFresh(
+          supabase,
+          tenantId,
+          templateId,
+          userId,
+          template,
+          template.firma_template_id
+        );
       } catch (err) {
         if (err instanceof FirmaError && err.code === "NOT_FOUND") {
           return createAndPersistFirmaTemplate();
@@ -457,7 +521,7 @@ export async function createRecruiterTemplateBuilderSession(
   tenantId: string,
   templateId: string,
   userId: string,
-  options: { forceRecreate?: boolean } = {}
+  options: { forceRecreate?: boolean; refreshDocument?: boolean } = {}
 ): Promise<RecruiterTemplateBuilderSession> {
   const template = await ensureFirmaTemplateForBuilder(
     supabase,
@@ -472,8 +536,13 @@ export async function createRecruiterTemplateBuilderSession(
   }
 
   try {
-    const jwt = await generateFirmaTemplateJwt(firmaTemplateId);
     const editorAppUrl = getFirmaEditorAppUrl();
+    await updateFirmaTemplate(firmaTemplateId, {
+      name: template.name,
+      description: template.description ?? undefined,
+      expiration_hours: template.expiration_hours,
+    });
+    const jwt = await generateFirmaTemplateJwt(firmaTemplateId);
     const editorUrl = new URL("/template-editor", editorAppUrl);
     editorUrl.searchParams.set("token", jwt.token);
 
@@ -487,7 +556,7 @@ export async function createRecruiterTemplateBuilderSession(
       .eq("tenant_id", tenantId);
 
     return {
-      template: await getRecruiterTemplateDetail(supabase, tenantId, templateId),
+      template,
       firma_template_id: firmaTemplateId,
       builder_session_id: jwt.jwt_record_id ?? null,
       jwt: jwt.token,

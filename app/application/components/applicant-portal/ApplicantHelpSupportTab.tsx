@@ -8,10 +8,10 @@ import type {
   HelpAssistantResponse,
   HelpAssistantButton,
 } from "@/lib/applicant-portal/help-assistant-types";
-import { HELP_TICKET_FAILED_MESSAGE } from "@/lib/applicant-portal/help-assistant-types";
 import { useApplicantPortal } from "./ApplicantPortalProvider";
 import { useApplicantPortalAuthHeaders } from "./useApplicantPortalSession";
 import { useApplicantPortalUi } from "./ApplicantPortalUiContext";
+import { CreateSupportTicketModal } from "./CreateSupportTicketModal";
 import {
   WORKER_SCHEDULE_CARD_CLASS,
   WORKER_SECTION_TITLE_CLASS,
@@ -33,55 +33,34 @@ type ChatItem =
 function HelpActionButton({
   button,
   lastInquiry,
-  onTicketCreated,
-  onTicketFailed,
+  onOpenTicketModal,
 }: {
   button: HelpAssistantButton;
   lastInquiry: string;
-  onTicketCreated: (payload: HelpAssistantResponse) => void;
-  onTicketFailed: (message: string) => void;
+  onOpenTicketModal: (defaults: { subject: string; description: string }) => void;
 }) {
-  const authHeaders = useApplicantPortalAuthHeaders();
   const { openRecruiterMessages } = useApplicantPortalUi();
-  const [pending, setPending] = useState(false);
 
-  async function handleClick() {
+  function handleClick() {
     if (button.action === "message_recruiter") {
       openRecruiterMessages();
       return;
     }
 
-    setPending(true);
-    try {
-      const headers = await authHeaders();
-      if (!headers) throw new Error("You need to sign in again.");
-      const inquiry = lastInquiry.trim() || "Support request from applicant portal";
-
-      const res = await fetch("/api/applicant-portal/help/support-ticket", {
-        method: "POST",
-        headers: { ...headers, "Content-Type": "application/json" },
-        body: JSON.stringify({ inquiry, description: inquiry, category: "general" }),
-      });
-      const payload = (await res.json().catch(() => ({}))) as HelpAssistantResponse & {
-        message?: string;
-      };
-      if (!res.ok) throw new Error(payload.message || HELP_TICKET_FAILED_MESSAGE);
-      onTicketCreated(payload);
-    } catch (err) {
-      onTicketFailed(err instanceof Error ? err.message : HELP_TICKET_FAILED_MESSAGE);
-    } finally {
-      setPending(false);
-    }
+    const description = lastInquiry.trim() || "";
+    onOpenTicketModal({
+      subject: description ? description.split(/\n+/)[0]?.slice(0, 120) ?? "" : "",
+      description,
+    });
   }
 
   return (
     <button
       type="button"
-      onClick={() => void handleClick()}
-      disabled={pending}
-      className="rounded-full border border-[#CBD5E1] bg-white px-4 py-2 text-sm font-medium text-[#0F172A] transition hover:bg-[#F8FAFC] disabled:cursor-not-allowed disabled:opacity-60"
+      onClick={handleClick}
+      className="rounded-full border border-[#CBD5E1] bg-white px-4 py-2 text-sm font-medium text-[#0F172A] transition hover:bg-[#F8FAFC]"
     >
-      {pending ? "Please wait..." : button.label}
+      {button.label}
     </button>
   );
 }
@@ -89,13 +68,11 @@ function HelpActionButton({
 function AssistantBubble({
   item,
   lastInquiry,
-  onTicketCreated,
-  onTicketFailed,
+  onOpenTicketModal,
 }: {
   item: Extract<ChatItem, { role: "assistant" }>;
   lastInquiry: string;
-  onTicketCreated: (payload: HelpAssistantResponse) => void;
-  onTicketFailed: (message: string) => void;
+  onOpenTicketModal: (defaults: { subject: string; description: string }) => void;
 }) {
   return (
     <div className="mr-auto flex w-fit max-w-[85%] items-start gap-2">
@@ -113,8 +90,7 @@ function AssistantBubble({
                 key={button.action}
                 button={button}
                 lastInquiry={lastInquiry}
-                onTicketCreated={onTicketCreated}
-                onTicketFailed={onTicketFailed}
+                onOpenTicketModal={onOpenTicketModal}
               />
             ))}
           </div>
@@ -139,6 +115,8 @@ export function ApplicantHelpSupportTab() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastInquiry, setLastInquiry] = useState("");
+  const [ticketModalOpen, setTicketModalOpen] = useState(false);
+  const [ticketModalDefaults, setTicketModalDefaults] = useState({ subject: "", description: "" });
   const scrollRef = useRef<HTMLDivElement>(null);
 
   function scrollToBottom() {
@@ -258,18 +236,10 @@ export function ApplicantHelpSupportTab() {
                 key={item.id}
                 item={item}
                 lastInquiry={lastInquiry}
-                onTicketCreated={appendAssistantFromResponse}
-                onTicketFailed={(message) =>
-                  setItems((current) => [
-                    ...current,
-                    {
-                      id: crypto.randomUUID(),
-                      role: "assistant",
-                      text: message,
-                      variant: "fallback",
-                    },
-                  ])
-                }
+                onOpenTicketModal={(defaults) => {
+                  setTicketModalDefaults(defaults);
+                  setTicketModalOpen(true);
+                }}
               />
             )
           )}
@@ -307,6 +277,22 @@ export function ApplicantHelpSupportTab() {
             </button>
           </div>
         </form>
+
+        <CreateSupportTicketModal
+          open={ticketModalOpen}
+          onClose={() => setTicketModalOpen(false)}
+          defaultSubject={ticketModalDefaults.subject}
+          defaultDescription={ticketModalDefaults.description}
+          submitEndpoint="/api/applicant-portal/help/support-ticket"
+          authHeaders={authHeaders}
+          onSuccess={() => {
+            appendAssistantFromResponse({
+              type: "support_ticket_created",
+              message: "Your support ticket has been created.",
+              ticket_id: "",
+            });
+          }}
+        />
       </div>
     </div>
   );

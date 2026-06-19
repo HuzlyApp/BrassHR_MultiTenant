@@ -7,6 +7,7 @@ import toast from "react-hot-toast";
 import { ArrowLeft, ExternalLink, Save, Send, Upload } from "lucide-react";
 import FirmaTemplateBuilderFrame from "@/app/admin_recruiter/components/FirmaTemplateBuilderFrame";
 import { recruiterTemplateFetch } from "@/app/admin_recruiter/components/recruiter-template-auth";
+import { prepareFirmaPdfWorker } from "@/lib/firma/pdf-worker-patch";
 import {
   RECRUITER_TEMPLATE_CATEGORIES,
   RECRUITER_TEMPLATE_CATEGORY_LABELS,
@@ -90,6 +91,11 @@ export default function RecruiterTemplateBuilderForm({
     setFirmaTemplateId(template.firma_template_id);
   }, []);
 
+  const handleTemplateSynced = useCallback((template: RecruiterTemplateDetail) => {
+    applyTemplate(template);
+    setFirmaDocumentUrl(null);
+  }, [applyTemplate]);
+
   const loadTemplate = useCallback(async () => {
     if (!templateId) return;
     setLoading(true);
@@ -155,6 +161,7 @@ export default function RecruiterTemplateBuilderForm({
   };
 
   const openBuilder = async () => {
+    void prepareFirmaPdfWorker();
     const saved = await saveDraft();
     const id = saved?.id ?? currentTemplateId;
     if (!id) return;
@@ -380,10 +387,7 @@ export default function RecruiterTemplateBuilderForm({
       {builderOpen && currentTemplateId ? (
         <FirmaTemplateBuilderFrame
           templateId={currentTemplateId}
-          onTemplateSynced={(template) => {
-            applyTemplate(template);
-            setFirmaDocumentUrl(null);
-          }}
+          onTemplateSynced={handleTemplateSynced}
         />
       ) : null}
     </div>

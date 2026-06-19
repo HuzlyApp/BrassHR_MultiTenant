@@ -98,6 +98,41 @@ describe("syncRecruiterTemplateSchema", () => {
   });
 });
 
+describe("isFirmaDocumentUrlStale", () => {
+  it("treats missing document URLs as stale", async () => {
+    const { isFirmaDocumentUrlStale } = await import("@/lib/firma/document-access");
+    expect(isFirmaDocumentUrlStale({ document_url: null, document_url_expires_at: null })).toBe(
+      true
+    );
+  });
+
+  it("treats expired signed URLs as stale", async () => {
+    const { isFirmaDocumentUrlStale } = await import("@/lib/firma/document-access");
+    expect(
+      isFirmaDocumentUrlStale(
+        {
+          document_url: "https://example.com/doc.pdf",
+          document_url_expires_at: "2020-01-01T00:00:00.000Z",
+        },
+        Date.parse("2026-06-20T00:00:00.000Z")
+      )
+    ).toBe(true);
+  });
+
+  it("treats fresh signed URLs as valid", async () => {
+    const { isFirmaDocumentUrlStale } = await import("@/lib/firma/document-access");
+    expect(
+      isFirmaDocumentUrlStale(
+        {
+          document_url: "https://example.com/doc.pdf",
+          document_url_expires_at: "2026-06-20T02:00:00.000Z",
+        },
+        Date.parse("2026-06-20T00:00:00.000Z")
+      )
+    ).toBe(false);
+  });
+});
+
 describe("firma client helpers", () => {
   const originalEnv = process.env;
 

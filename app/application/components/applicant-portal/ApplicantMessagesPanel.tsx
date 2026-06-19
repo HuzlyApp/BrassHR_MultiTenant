@@ -8,6 +8,7 @@ import { supabaseBrowser } from "@/lib/supabase-browser";
 import ChatEmojiPicker from "@/app/components/ChatEmojiPicker";
 import ChatImagePreviewModal from "@/app/components/ChatImagePreviewModal";
 import { ChatAttachmentOptionsRow } from "@/app/application/components/applicant-portal/ChatAttachmentOptionsRow";
+import { CreateSupportTicketModal } from "@/app/application/components/applicant-portal/CreateSupportTicketModal";
 
 const CHAT_ATTACH_ICON = "/icons/chat-icons/attach_file.svg";
 const CHAT_SEND_ICON = "/icons/chat-icons/send.svg";
@@ -35,7 +36,8 @@ type Props = {
   onMessageBodyChange: (value: string) => void;
   onSendMessage: (file?: File | null) => Promise<void>;
   onContactRecruiter?: () => void;
-  onCreateSupportTicket?: (inquiry: string) => Promise<void>;
+  authHeaders?: () => Promise<Record<string, string> | null>;
+  onSupportTicketCreated?: (payload: { chatMessage?: ApplicantMessage }) => void;
 };
 
 function senderLabel(message: ApplicantMessage): string {
@@ -56,13 +58,15 @@ export function ApplicantMessagesPanel({
   onMessageBodyChange,
   onSendMessage,
   onContactRecruiter,
-  onCreateSupportTicket,
+  authHeaders,
+  onSupportTicketCreated,
 }: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messageInputRef = useRef<HTMLTextAreaElement>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
-  const [ticketPending, setTicketPending] = useState(false);
+  const [ticketModalOpen, setTicketModalOpen] = useState(false);
+  const [ticketModalDefaults, setTicketModalDefaults] = useState({ subject: "", description: "" });
   const [previewImage, setPreviewImage] = useState<{
     url: string;
     alt: string;
@@ -155,14 +159,13 @@ export function ApplicantMessagesPanel({
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
-  async function handleTicketClick(inquiry: string) {
-    if (!onCreateSupportTicket || ticketPending) return;
-    setTicketPending(true);
-    try {
-      await onCreateSupportTicket(inquiry);
-    } finally {
-      setTicketPending(false);
-    }
+  function openTicketModal(inquiry: string) {
+    const description = inquiry.trim();
+    setTicketModalDefaults({
+      subject: description ? description.split(/\n+/)[0]?.slice(0, 120) ?? "" : "",
+      description,
+    });
+    setTicketModalOpen(true);
   }
 
   return (
@@ -224,19 +227,17 @@ export function ApplicantMessagesPanel({
                       <button
                         key={button.action}
                         type="button"
-                        disabled={ticketPending}
+                        disabled={ticketModalOpen}
                         onClick={() => {
                           if (button.action === "message_recruiter") {
                             onContactRecruiter?.();
                             return;
                           }
-                          void handleTicketClick(lastInquiry || message.body || "");
+                          openTicketModal(lastInquiry || message.body || "");
                         }}
                         className="rounded-full border border-[#CBD5E1] bg-white px-3 py-1.5 text-xs font-medium text-[#0F172A] transition hover:bg-[#F1F5F9] disabled:cursor-not-allowed disabled:opacity-60"
                       >
-                        {ticketPending && button.action === "create_support_ticket"
-                          ? "Please wait..."
-                          : button.label}
+                        {button.label}
                       </button>
                     ))}
                   </div>
@@ -371,6 +372,21 @@ export function ApplicantMessagesPanel({
         alt={previewImage?.alt}
         onClose={closeImagePreview}
       />
+
+      {authHeaders ? (
+        <CreateSupportTicketModal
+          open={ticketModalOpen}
+          onClose={() => setTicketModalOpen(false)}
+          defaultSubject={ticketModalDefaults.subject}
+          defaultDescription={ticketModalDefaults.description}
+          authHeaders={authHeaders}
+          onSuccess={(payload) => {
+            onSupportTicketCreated?.({
+              chatMessage: payload.chatMessage as ApplicantMessage | undefined,
+            });
+          }}
+        />
+      ) : null}
     </>
   );
 }

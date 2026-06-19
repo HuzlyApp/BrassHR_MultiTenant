@@ -113,16 +113,31 @@ const SHARED_TOP_SECTIONS: SidebarSection[] = [
   },
   {
     label: "Tickets",
-    href: "/admin_recruiter/advanced-search",
+    href: "/admin_recruiter/tickets/support",
     iconType: ICON.tickets,
-    matchPrefixes: ["/admin_recruiter/advanced-search"],
+    matchPrefixes: [
+      "/admin_recruiter/tickets",
+      "/admin_recruiter/support-tickets",
+      "/admin_recruiter/advanced-search",
+    ],
+    children: [
+      {
+        label: "Support Tickets",
+        href: "/admin_recruiter/tickets/support",
+        matchPrefixes: ["/admin_recruiter/tickets/support", "/admin_recruiter/support-tickets"],
+      },
+      {
+        label: "Advanced Search",
+        href: "/admin_recruiter/advanced-search",
+        matchPrefixes: ["/admin_recruiter/advanced-search"],
+      },
+    ],
   },
   {
     label: "Reports",
-    href: "/admin_recruiter/dashboard",
+    href: "/admin_recruiter/reports",
     iconType: ICON.reports,
-    matchPrefixes: ["/admin_recruiter/dashboard"],
-    disabled: true,
+    matchPrefixes: ["/admin_recruiter/reports"],
   },
   {
     label: "Finance",

@@ -1,12 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { FaqRow } from "@/lib/faqs/types";
 
-export type FaqRow = {
-  id: string;
-  tenant_id: string | null;
-  category: string;
-  question: string;
-  answer: string;
-};
+export type { FaqRow };
 
 const STOP_WORDS = new Set([
   "a",

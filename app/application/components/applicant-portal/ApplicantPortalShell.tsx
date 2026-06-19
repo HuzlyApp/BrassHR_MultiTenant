@@ -28,7 +28,8 @@ type Props = {
   onMessageBodyChange: (value: string) => void;
   onSendMessage: (file?: File | null) => Promise<void>;
   onContactRecruiter?: () => void;
-  onCreateSupportTicket?: (inquiry: string) => Promise<void>;
+  authHeaders?: () => Promise<Record<string, string> | null>;
+  onSupportTicketCreated?: (payload: { chatMessage?: ApplicantMessage }) => void;
   children: React.ReactNode;
 };
 
@@ -43,7 +44,8 @@ export function ApplicantPortalShell({
   onMessageBodyChange,
   onSendMessage,
   onContactRecruiter,
-  onCreateSupportTicket,
+  authHeaders,
+  onSupportTicketCreated,
   children,
 }: Props) {
   const branding = useTenantBranding();
@@ -136,7 +138,8 @@ export function ApplicantPortalShell({
           onMessageBodyChange={onMessageBodyChange}
           onSendMessage={onSendMessage}
           onContactRecruiter={onContactRecruiter}
-          onCreateSupportTicket={onCreateSupportTicket}
+          authHeaders={authHeaders}
+          onSupportTicketCreated={onSupportTicketCreated}
         />
       </div>
     </ApplicantPortalUiProvider>

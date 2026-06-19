@@ -34,8 +34,7 @@ export const HELP_FALLBACK_BUTTONS: HelpAssistantButton[] = [
   { label: "Create Support Ticket", action: "create_support_ticket" },
 ];
 
-export const HELP_TICKET_CREATED_MESSAGE =
-  "Your support ticket has been created. Our support team will review it and follow up with you.";
+export const HELP_TICKET_CREATED_MESSAGE = "Your support ticket has been created.";
 
 export const HELP_TICKET_FAILED_MESSAGE =
   "I couldn't create the support ticket right now. Please try again or contact your recruiter directly.";

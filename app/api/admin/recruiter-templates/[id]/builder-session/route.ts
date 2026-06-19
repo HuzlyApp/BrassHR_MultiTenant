@@ -13,11 +13,17 @@ export async function POST(req: Request, context: RouteContext) {
     if (ctx instanceof NextResponse) return ctx;
 
     let forceRecreate = false;
+    let refreshDocument = false;
     try {
-      const body = (await req.json()) as { force_recreate_firma_template?: unknown };
+      const body = (await req.json()) as {
+        force_recreate_firma_template?: unknown;
+        refresh_firma_document?: unknown;
+      };
       forceRecreate = body.force_recreate_firma_template === true;
+      refreshDocument = body.refresh_firma_document === true;
     } catch {
       forceRecreate = false;
+      refreshDocument = false;
     }
 
     const { id } = await context.params;
@@ -26,7 +32,7 @@ export async function POST(req: Request, context: RouteContext) {
       ctx.tenantId,
       id,
       ctx.auth.userId,
-      { forceRecreate }
+      { forceRecreate, refreshDocument }
     );
 
     return NextResponse.json({ session });

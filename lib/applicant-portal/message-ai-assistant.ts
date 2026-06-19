@@ -7,6 +7,7 @@ import {
   HELP_TICKET_FAILED_MESSAGE,
 } from "@/lib/applicant-portal/help-assistant-types";
 import { searchFaqForInquiry } from "@/lib/applicant-portal/faq-search";
+import { insertSupportTicket } from "@/lib/support-tickets/support-ticket-service";
 
 export type ApplicantAiMessageMetadata = {
   source: "faq" | "ai_fallback" | "support_ticket" | "error";
@@ -123,52 +124,45 @@ export async function respondToApplicantInquiry(
   });
 }
 
-function summarizeSubject(description: string): string {
-  const line = description.trim().split(/\n+/)[0] ?? "Support request";
-  return line.length > 120 ? `${line.slice(0, 117)}...` : line;
-}
-
 export async function createApplicantSupportTicketFromChat(
   supabase: SupabaseClient,
   params: {
     tenantId: string;
     workerId: string;
     userId: string;
-    inquiry: string;
+    subject: string;
+    description: string;
+    category?: string;
+    priority?: "low" | "normal" | "high" | "urgent";
   }
 ): Promise<
   | { ticketId: string; message: ApplicantAiChatMessage }
   | { error: string; message: ApplicantAiChatMessage }
 > {
-  const description = params.inquiry.trim() || "Support request from applicant portal chat";
-  const insertRes = await supabase
-    .from("support_tickets")
-    .insert({
-      user_id: params.userId,
-      tenant_id: params.tenantId,
-      applicant_id: params.workerId,
-      subject: summarizeSubject(description),
-      description,
-      category: "general",
+  const insertResult = await insertSupportTicket(supabase, {
+    tenantId: params.tenantId,
+    userId: params.userId,
+    applicantId: params.workerId,
+    input: {
+      subject: params.subject,
+      description: params.description,
+      category: params.category,
+      priority: params.priority,
       source: "ai_fallback",
-      status: "Open",
-      priority: "normal",
-    })
-    .select("id")
-    .single();
+    },
+  });
 
-  if (insertRes.error || !insertRes.data?.id) {
-    console.error("[message-ai-assistant:create-ticket]", insertRes.error);
+  if ("error" in insertResult) {
     const message = await insertApplicantAiMessage(supabase, {
       tenantId: params.tenantId,
       workerId: params.workerId,
       body: HELP_TICKET_FAILED_MESSAGE,
       metadata: { source: "error", type: "error" },
     });
-    return { error: HELP_TICKET_FAILED_MESSAGE, message };
+    return { error: insertResult.error, message };
   }
 
-  const ticketId = insertRes.data.id as string;
+  const ticketId = insertResult.ticket.id;
   const message = await insertApplicantAiMessage(supabase, {
     tenantId: params.tenantId,
     workerId: params.workerId,

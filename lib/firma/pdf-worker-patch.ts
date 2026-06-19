@@ -35,7 +35,6 @@ async function getFirmaPdfWorkerBlobUrl(embedScriptUrl: string): Promise<string>
 
 function shouldPatchFirmaPdfWorker(scriptUrl: string): boolean {
   return (
-    scriptUrl.startsWith("data:text/javascript") ||
     scriptUrl.includes("pdf.worker") ||
     scriptUrl.endsWith("/pdf.worker.mjs") ||
     scriptUrl.endsWith("pdf.worker.mjs")
@@ -55,7 +54,7 @@ export function installFirmaPdfWorkerPatch(workerBlobUrl: string): void {
     if (shouldPatchFirmaPdfWorker(url)) {
       return new WorkerConstructor(workerBlobUrl, {
         ...options,
-        type: "module",
+        type: options?.type ?? "module",
       });
     }
     return new WorkerConstructor(scriptURL, options);

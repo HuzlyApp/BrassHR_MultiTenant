@@ -22,6 +22,13 @@ import type { ApplicantMessage, ApplicantSession } from "@/app/application/compo
 import type { TenantBranding } from "@/lib/tenant/tenant-branding";
 import { persistOnboardingSlugCookie } from "@/lib/tenant/client-onboarding-slug";
 
+export type SupportTicketCreatePayload = {
+  subject: string;
+  description: string;
+  category?: string;
+  priority?: "low" | "normal" | "high" | "urgent";
+};
+
 export type ApplicantPortalMessaging = {
   messages: ApplicantMessage[];
   messageBody: string;
@@ -32,7 +39,7 @@ export type ApplicantPortalMessaging = {
   lastInquiry: string;
   onSendMessage: (file?: File | null) => Promise<void>;
   onContactRecruiter: () => void;
-  onCreateSupportTicket: (inquiry: string) => Promise<void>;
+  onSupportTicketCreated: (payload: { chatMessage?: ApplicantMessage }) => void;
 };
 
 type ApplicantPortalContextValue = {
@@ -83,7 +90,7 @@ function ApplicantPortalLayoutInner({ children }: { children: ReactNode }) {
     loadMessages,
     handleSendMessage,
     handleContactRecruiter,
-    handleCreateSupportTicket,
+    handleSupportTicketCreated,
   } = useApplicantPortalMessaging({
     workerId: session?.applicant.id,
     authHeaders,
@@ -148,7 +155,7 @@ function ApplicantPortalLayoutInner({ children }: { children: ReactNode }) {
     lastInquiry,
     onSendMessage: onSendMessage,
     onContactRecruiter: handleContactRecruiter,
-    onCreateSupportTicket: handleCreateSupportTicket,
+    onSupportTicketCreated: handleSupportTicketCreated,
   };
 
   if (!loading && !session && error) {
@@ -185,7 +192,8 @@ function ApplicantPortalLayoutInner({ children }: { children: ReactNode }) {
           onMessageBodyChange={setMessageBody}
           onSendMessage={onSendMessage}
           onContactRecruiter={handleContactRecruiter}
-          onCreateSupportTicket={handleCreateSupportTicket}
+          authHeaders={authHeaders}
+          onSupportTicketCreated={handleSupportTicketCreated}
         >
           {pageError || error ? (
             <div className="mx-4 mt-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700 min-[1000px]:mx-8">

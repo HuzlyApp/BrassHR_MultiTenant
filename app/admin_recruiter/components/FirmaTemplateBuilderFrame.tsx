@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
 import { RefreshCw } from "lucide-react";
 import toast from "react-hot-toast";
 import { recruiterTemplateFetch } from "@/app/admin_recruiter/components/recruiter-template-auth";
@@ -63,8 +63,9 @@ type FirmaTemplateEditorGlobal =
 const FIRMA_EDITOR_EVENTS = new Set(["editor.saved", "editor.published", "editor.closed"]);
 const FIRMA_SCRIPT_TIMEOUT_MS = 20000;
 const FIRMA_GLOBAL_TIMEOUT_MS = 5000;
-const FIRMA_INIT_TIMEOUT_MS = 30000;
+const FIRMA_INIT_TIMEOUT_MS = 45000;
 const IS_DEV = process.env.NODE_ENV !== "production";
+let firmaRefreshDebugLoggerInstalled = false;
 
 function getFirmaTemplateEditor(): FirmaTemplateEditorGlobal | undefined {
   return (window as unknown as { FirmaTemplateEditor?: FirmaTemplateEditorGlobal })
@@ -86,6 +87,73 @@ function extractUpdatedAt(data: unknown): string | undefined {
 function logFirmaBuilderPhase(phase: string, detail?: Record<string, unknown>) {
   if (!IS_DEV) return;
   console.info("[firma-template-builder]", phase, detail ?? {});
+}
+
+function installFirmaRefreshDebugLogger() {
+  if (!IS_DEV || firmaRefreshDebugLoggerInstalled || typeof window === "undefined") return;
+
+  const originalFetch = window.fetch.bind(window);
+  window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url =
+      typeof input === "string"
+        ? input
+        : input instanceof URL
+          ? input.toString()
+          : input.url;
+    const isFirmaRefresh = url.includes("refresh-embedded-template-document-url");
+
+    if (!isFirmaRefresh) {
+      return originalFetch(input, init);
+    }
+
+    const startedAt = performance.now();
+    const requestId = Math.random().toString(36).slice(2, 8);
+    const pendingTimer = window.setTimeout(() => {
+      console.warn("[firma-template-builder] Firma document refresh still pending", {
+        requestId,
+        elapsedMs: Math.round(performance.now() - startedAt),
+        method: init?.method ?? "GET",
+        url: new URL(url).origin + new URL(url).pathname,
+      });
+    }, 10000);
+
+    console.info("[firma-template-builder] Firma document refresh started", {
+      requestId,
+      method: init?.method ?? "GET",
+      url: new URL(url).origin + new URL(url).pathname,
+      hasAuthorization: Boolean(init?.headers && "Authorization" in Object(init.headers)),
+    });
+
+    try {
+      const response = await originalFetch(input, init);
+      window.clearTimeout(pendingTimer);
+      console.info("[firma-template-builder] Firma document refresh completed", {
+        requestId,
+        status: response.status,
+        ok: response.ok,
+        elapsedMs: Math.round(performance.now() - startedAt),
+        contentType: response.headers.get("content-type"),
+      });
+      return response;
+    } catch (error) {
+      window.clearTimeout(pendingTimer);
+      console.error("[firma-template-builder] Firma document refresh failed", {
+        requestId,
+        elapsedMs: Math.round(performance.now() - startedAt),
+        message: error instanceof Error ? error.message : "Unknown refresh error",
+      });
+      throw error;
+    }
+  };
+
+  firmaRefreshDebugLoggerInstalled = true;
+}
+
+function clearFirmaEditorTimer(initTimeoutRef: MutableRefObject<number | null>) {
+  if (initTimeoutRef.current) {
+    window.clearTimeout(initTimeoutRef.current);
+    initTimeoutRef.current = null;
+  }
 }
 
 function isPdfLoadError(message: string): boolean {
@@ -168,6 +236,7 @@ export default function FirmaTemplateBuilderFrame({
   const editorRef = useRef<FirmaTemplateEditorInstance | null>(null);
   const initTimeoutRef = useRef<number | null>(null);
   const pdfRepairAttemptedRef = useRef(false);
+  const onTemplateSyncedRef = useRef(onTemplateSynced);
   const [session, setSession] = useState<RecruiterTemplateBuilderSession | null>(null);
   const [loading, setLoading] = useState(true);
   const [editorPhase, setEditorPhase] = useState<string | null>(null);
@@ -183,6 +252,15 @@ export default function FirmaTemplateBuilderFrame({
       return null;
     }
   }, [session?.editor_app_url]);
+
+  const editorSessionKey = useMemo(() => {
+    if (!session) return null;
+    return `${session.firma_template_id}:${session.jwt}:${session.expires_at}`;
+  }, [session]);
+
+  useEffect(() => {
+    onTemplateSyncedRef.current = onTemplateSynced;
+  }, [onTemplateSynced]);
 
   const syncTemplate = useCallback(
     async (input: {
@@ -207,7 +285,7 @@ export default function FirmaTemplateBuilderFrame({
         if (!res.ok || !body.template) {
           throw new Error(body.error ?? "Failed to sync Firma template");
         }
-        onTemplateSynced?.(body.template);
+        onTemplateSyncedRef.current?.(body.template);
         if (input.event === "editor.saved") toast.success("Firma template saved");
         if (input.event === "editor.published") toast.success("Firma template published");
       } catch (err) {
@@ -216,10 +294,10 @@ export default function FirmaTemplateBuilderFrame({
         setSyncing(false);
       }
     },
-    [onTemplateSynced, session?.firma_template_id, templateId]
+    [session?.firma_template_id, templateId]
   );
 
-  const refreshSession = useCallback(async (options: { forceRecreate?: boolean } = {}) => {
+  const refreshSession = useCallback(async (options: { forceRecreate?: boolean; refreshDocument?: boolean } = {}) => {
     setLoading(true);
     setError(null);
     setEditorPhase(null);
@@ -232,6 +310,7 @@ export default function FirmaTemplateBuilderFrame({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             force_recreate_firma_template: options.forceRecreate === true,
+            refresh_firma_document: options.refreshDocument === true,
           }),
         }
       );
@@ -253,18 +332,26 @@ export default function FirmaTemplateBuilderFrame({
         editorOrigin: new URL(body.session.editor_app_url).origin,
         expiresAt: body.session.expires_at,
       });
-      onTemplateSynced?.(body.session.template);
+      onTemplateSyncedRef.current?.(body.session.template);
     } catch (err) {
       setSession(null);
       setError(err instanceof Error ? err.message : "Failed to start Firma builder session");
     } finally {
       setLoading(false);
     }
-  }, [onTemplateSynced, templateId]);
+  }, [templateId]);
+
+  const refreshSessionRef = useRef(refreshSession);
+  refreshSessionRef.current = refreshSession;
 
   useEffect(() => {
-    void refreshSession();
-  }, [refreshSession]);
+    installFirmaRefreshDebugLogger();
+    void prepareFirmaPdfWorker();
+  }, []);
+
+  useEffect(() => {
+    void refreshSessionRef.current();
+  }, [templateId]);
 
   useEffect(() => {
     if (!session?.expires_at) return;
@@ -277,8 +364,11 @@ export default function FirmaTemplateBuilderFrame({
     return () => window.clearTimeout(timer);
   }, [session?.expires_at]);
 
+  const syncTemplateRef = useRef(syncTemplate);
+  syncTemplateRef.current = syncTemplate;
+
   useEffect(() => {
-    if (!session || !wrapperRef.current) return;
+    if (!session || !editorSessionKey || !wrapperRef.current) return;
     const activeSession = session;
     const activeWrapper = wrapperRef.current;
     let cancelled = false;
@@ -286,13 +376,13 @@ export default function FirmaTemplateBuilderFrame({
     async function mountEditor() {
       setEditorPhase("Loading Firma editor...");
       setError(null);
-      if (initTimeoutRef.current) {
-        window.clearTimeout(initTimeoutRef.current);
-      }
+      clearFirmaEditorTimer(initTimeoutRef);
       initTimeoutRef.current = window.setTimeout(() => {
         if (cancelled) return;
         setEditorPhase(null);
-        setError("Firma editor did not finish loading.");
+        setError(
+          "Firma editor did not finish loading. Try Refresh session to regenerate document access."
+        );
         logFirmaBuilderPhase("editor-init-timeout", {
           templateId,
           firmaTemplateId: activeSession.firma_template_id,
@@ -323,31 +413,28 @@ export default function FirmaTemplateBuilderFrame({
           height: "calc(100vh - 220px)",
           showCloseButton: true,
           onSave: (data) => {
-            void syncTemplate({ event: "editor.saved", updated_at: extractUpdatedAt(data) });
+            void syncTemplateRef.current({
+              event: "editor.saved",
+              updated_at: extractUpdatedAt(data),
+            });
           },
           onClose: () => {
-            void syncTemplate({ event: "editor.closed" });
+            void syncTemplateRef.current({ event: "editor.closed" });
           },
           onError: (err) => {
             const message = err instanceof Error ? err.message : "Firma editor error";
             setError(message);
             setEditorPhase(null);
-            if (initTimeoutRef.current) {
-              window.clearTimeout(initTimeoutRef.current);
-              initTimeoutRef.current = null;
-            }
+            clearFirmaEditorTimer(initTimeoutRef);
             if (isPdfLoadError(message) && !pdfRepairAttemptedRef.current) {
               pdfRepairAttemptedRef.current = true;
-              toast("Rebuilding Firma document and refreshing the editor...");
-              void refreshSession({ forceRecreate: true });
+              toast("Refreshing Firma document and reopening the editor...");
+              void refreshSessionRef.current({ refreshDocument: true });
             }
           },
           onLoad: () => {
             setEditorPhase(null);
-            if (initTimeoutRef.current) {
-              window.clearTimeout(initTimeoutRef.current);
-              initTimeoutRef.current = null;
-            }
+            clearFirmaEditorTimer(initTimeoutRef);
             logFirmaBuilderPhase("editor-onload", {
               templateId,
               firmaTemplateId: activeSession.firma_template_id,
@@ -367,10 +454,7 @@ export default function FirmaTemplateBuilderFrame({
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to initialize Firma editor");
         setEditorPhase(null);
-        if (initTimeoutRef.current) {
-          window.clearTimeout(initTimeoutRef.current);
-          initTimeoutRef.current = null;
-        }
+        clearFirmaEditorTimer(initTimeoutRef);
       }
     }
 
@@ -378,10 +462,7 @@ export default function FirmaTemplateBuilderFrame({
 
     return () => {
       cancelled = true;
-      if (initTimeoutRef.current) {
-        window.clearTimeout(initTimeoutRef.current);
-        initTimeoutRef.current = null;
-      }
+      clearFirmaEditorTimer(initTimeoutRef);
       editorRef.current?.destroy?.();
       editorRef.current = null;
       if (containerRef.current) {
@@ -389,7 +470,7 @@ export default function FirmaTemplateBuilderFrame({
       }
       containerRef.current = null;
     };
-  }, [refreshSession, session, syncTemplate, templateId]);
+  }, [editorSessionKey, session, templateId]);
 
   useEffect(() => {
     function handleMessage(event: MessageEvent) {
@@ -468,6 +549,14 @@ export default function FirmaTemplateBuilderFrame({
         >
           <RefreshCw className="h-4 w-4" />
           {syncing ? "Syncing" : "Refresh session"}
+        </button>
+        <button
+          type="button"
+          onClick={() => void refreshSession({ refreshDocument: true })}
+          className="inline-flex items-center gap-2 rounded-lg border border-[#D0D5DD] px-3 py-2 text-sm font-medium text-[#344054]"
+        >
+          <RefreshCw className="h-4 w-4" />
+          Rebuild document
         </button>
       </div>
       {error ? (

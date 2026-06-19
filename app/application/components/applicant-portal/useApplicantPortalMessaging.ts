@@ -112,30 +112,13 @@ export function useApplicantPortalMessaging({
     setSkipNextAi(true);
   }, []);
 
-  const handleCreateSupportTicket = useCallback(
-    async (inquiry: string) => {
-      setAiTyping(true);
-      try {
-        const headers = await authHeaders();
-        if (!headers) throw new Error("You need to sign in again.");
-        const res = await fetch("/api/applicant-portal/messages/ai-ticket", {
-          method: "POST",
-          headers: { ...headers, "Content-Type": "application/json" },
-          body: JSON.stringify({ inquiry }),
-        });
-        const payload = (await res.json().catch(() => ({}))) as {
-          chatMessage?: ApplicantMessage;
-          message?: ApplicantMessage;
-        };
-        const chatMessage = payload.chatMessage ?? payload.message;
-        if (chatMessage) {
-          setMessages((current) => mergeApplicantMessage(current, chatMessage));
-        }
-      } finally {
-        setAiTyping(false);
+  const handleSupportTicketCreated = useCallback(
+    (payload: { chatMessage?: ApplicantMessage }) => {
+      if (payload.chatMessage) {
+        setMessages((current) => mergeApplicantMessage(current, payload.chatMessage!));
       }
     },
-    [authHeaders]
+    []
   );
 
   return {
@@ -150,6 +133,6 @@ export function useApplicantPortalMessaging({
     loadMessages,
     handleSendMessage,
     handleContactRecruiter,
-    handleCreateSupportTicket,
+    handleSupportTicketCreated,
   };
 }
