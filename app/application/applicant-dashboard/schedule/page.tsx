@@ -1,13 +1,9 @@
 "use client";
 
 import { FormEvent, Suspense, useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import OnboardingLoader from "@/app/components/OnboardingLoader";
-import {
-  TenantBrandingProvider,
-  useTenantBranding,
-} from "@/app/components/tenant/TenantBrandingContext";
-import { ApplicantPortalShell } from "@/app/application/components/applicant-portal/ApplicantPortalShell";
+import { useSearchParams } from "next/navigation";
+import DashboardPageLoader from "@/app/admin_recruiter/components/DashboardPageLoader";
+import { useApplicantPortal } from "@/app/application/components/applicant-portal/ApplicantPortalProvider";
 import { ApplicantPortalTabs } from "@/app/application/components/applicant-portal/ApplicantPortalTabs";
 import { ApplicantScheduleTab } from "@/app/application/components/applicant-portal/ApplicantScheduleTab";
 import { ApplicantTimesheetsTab } from "@/app/application/components/applicant-portal/ApplicantTimesheetsTab";
@@ -15,15 +11,10 @@ import { ApplicantNotesTab } from "@/app/application/components/applicant-portal
 import type {
   ApplicantNote,
   ApplicantPortalTab,
-  ApplicantSession,
   Appointment,
   AppointmentSlot,
   AttendanceLog,
 } from "@/app/application/components/applicant-portal/types";
-import type { TenantBranding } from "@/lib/tenant/tenant-branding";
-import { persistOnboardingSlugCookie } from "@/lib/tenant/client-onboarding-slug";
-import { useApplicantPortalAuthHeaders } from "@/app/application/components/applicant-portal/useApplicantPortalSession";
-import { useApplicantPortalMessaging } from "@/app/application/components/applicant-portal/useApplicantPortalMessaging";
 
 type AppointmentPayload = {
   availableSlots?: AppointmentSlot[];
@@ -50,32 +41,20 @@ function parseTab(value: string | null): ApplicantPortalTab {
   return "schedule";
 }
 
-async function loadTenantBranding(tenantId: string): Promise<TenantBranding | null> {
-  const res = await fetch(`/api/tenant-branding?tenantId=${encodeURIComponent(tenantId)}`, {
-    cache: "no-store",
-  });
-  if (!res.ok) return null;
-  const payload = (await res.json().catch(() => ({}))) as { branding?: TenantBranding };
-  return payload.branding ?? null;
-}
-
 export default function ApplicantSchedulePage() {
   return (
-    <Suspense fallback={<OnboardingLoader label="Loading schedule..." />}>
+    <Suspense fallback={<DashboardPageLoader label="Loading schedule..." className="min-h-[360px]" />}>
       <ApplicantSchedulePageContent />
     </Suspense>
   );
 }
 
 function ApplicantSchedulePageContent() {
-  const router = useRouter();
   const searchParams = useSearchParams();
-  const bootstrapBranding = useTenantBranding();
+  const { session, sessionReady, authHeaders } = useApplicantPortal();
   const [activeTab, setActiveTab] = useState<ApplicantPortalTab>(() =>
     parseTab(searchParams.get("tab"))
   );
-  const [session, setSession] = useState<ApplicantSession | null>(null);
-  const [portalBranding, setPortalBranding] = useState<TenantBranding | null>(null);
   const [availableSlots, setAvailableSlots] = useState<AppointmentSlot[]>([]);
   const [appointment, setAppointment] = useState<Appointment | null>(null);
   const [selectedSlot, setSelectedSlot] = useState<AppointmentSlot | null>(null);
@@ -86,28 +65,11 @@ function ApplicantSchedulePageContent() {
   const [selectedSlotId, setSelectedSlotId] = useState("");
   const [rescheduleReason, setRescheduleReason] = useState("");
   const [showRescheduleReason, setShowRescheduleReason] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [dataLoading, setDataLoading] = useState(true);
   const [requestingSchedule, setRequestingSchedule] = useState(false);
   const [requestingReschedule, setRequestingReschedule] = useState(false);
   const [attendanceSubmitting, setAttendanceSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const authHeaders = useApplicantPortalAuthHeaders();
-  const {
-    messages,
-    messageBody,
-    setMessageBody,
-    sending,
-    aiTyping,
-    recruiterDirectHint,
-    lastInquiry,
-    loadMessages,
-    handleSendMessage,
-    handleContactRecruiter,
-    handleCreateSupportTicket,
-  } = useApplicantPortalMessaging({
-    workerId: session?.applicant.id,
-    authHeaders,
-  });
 
   useEffect(() => {
     setActiveTab(parseTab(searchParams.get("tab")));
@@ -155,62 +117,34 @@ function ApplicantSchedulePageContent() {
   }
 
   useEffect(() => {
+    if (!sessionReady || !session) return;
+
     let alive = true;
+    setDataLoading(true);
 
     void (async () => {
       try {
         const headers = await authHeaders();
-        if (!headers) {
-          router.replace("/");
-          return;
-        }
-
-        const res = await fetch("/api/applicant-portal/session", {
-          headers,
-          cache: "no-store",
-        });
-        const payload = (await res.json().catch(() => ({}))) as ApplicantSession & { error?: string };
-        if (!res.ok) throw new Error(payload.error || "Could not load applicant dashboard.");
-        if (!alive) return;
-
-        setSession(payload);
-
-        const tenantId = payload.applicant?.tenantId?.trim();
-        if (tenantId) {
-          const branding = await loadTenantBranding(tenantId);
-          if (!alive) return;
-          if (branding) {
-            setPortalBranding(branding);
-            if (branding.slug) persistOnboardingSlugCookie(branding.slug);
-          }
-        }
+        if (!headers) return;
 
         await Promise.all([
-          loadMessages(),
           loadAppointments(headers),
           loadAttendance(headers),
           loadNotes(headers),
         ]);
       } catch (err) {
-        if (alive) setError(err instanceof Error ? err.message : "Could not load applicant dashboard.");
+        if (alive) {
+          setError(err instanceof Error ? err.message : "Could not load schedule.");
+        }
       } finally {
-        if (alive) setLoading(false);
+        if (alive) setDataLoading(false);
       }
     })();
 
     return () => {
       alive = false;
     };
-  }, [router]);
-
-  async function onSendMessage(file?: File | null) {
-    setError(null);
-    try {
-      await handleSendMessage(file);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not send message.");
-    }
-  }
+  }, [authHeaders, session, sessionReady]);
 
   async function handleRequestSchedule(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -333,68 +267,46 @@ function ApplicantSchedulePageContent() {
     }
   }
 
-  const branding = portalBranding ?? bootstrapBranding;
-
-  if (loading) {
-    return (
-      <TenantBrandingProvider branding={branding}>
-        <OnboardingLoader label="Loading schedule..." />
-      </TenantBrandingProvider>
-    );
+  if (!sessionReady || dataLoading) {
+    return <DashboardPageLoader label="Loading schedule..." className="min-h-[360px]" />;
   }
 
-  return (
-    <TenantBrandingProvider branding={branding}>
-      <ApplicantPortalShell
-        session={session}
-        messages={messages}
-        messageBody={messageBody}
-        sending={sending}
-        aiTyping={aiTyping}
-        recruiterDirectHint={recruiterDirectHint}
-        lastInquiry={lastInquiry}
-        onMessageBodyChange={setMessageBody}
-        onSendMessage={onSendMessage}
-        onContactRecruiter={handleContactRecruiter}
-        onCreateSupportTicket={handleCreateSupportTicket}
-      >
-        {error ? (
-          <div className="mx-8 mt-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-[14px] font-medium text-red-700">
-            {error}
-          </div>
-        ) : null}
+  if (!session) return null;
 
-        {session ? (
-          <>
-            <ApplicantPortalTabs activeTab={activeTab} onChange={setActiveTab} />
-            {activeTab === "schedule" ? (
-              <ApplicantScheduleTab
-                todayAttendance={todayAttendance}
-                recentAttendance={recentAttendance}
-                appointment={appointment}
-                selectedSlot={selectedSlot}
-                availableSlots={availableSlots}
-                selectedSlotId={selectedSlotId}
-                rescheduleReason={rescheduleReason}
-                showRescheduleReason={showRescheduleReason}
-                requestingSchedule={requestingSchedule}
-                requestingReschedule={requestingReschedule}
-                attendanceSubmitting={attendanceSubmitting}
-                onSelectedSlotIdChange={setSelectedSlotId}
-                onRescheduleReasonChange={setRescheduleReason}
-                onShowRescheduleReasonChange={setShowRescheduleReason}
-                onRequestSchedule={handleRequestSchedule}
-                onRequestReschedule={handleRequestReschedule}
-                onAttendanceAction={handleAttendanceAction}
-              />
-            ) : activeTab === "timesheets" ? (
-              <ApplicantTimesheetsTab todayAttendance={todayAttendance} recentAttendance={recentAttendance} />
-            ) : (
-              <ApplicantNotesTab notes={notes} loading={notesLoading} />
-            )}
-          </>
-        ) : null}
-      </ApplicantPortalShell>
-    </TenantBrandingProvider>
+  return (
+    <>
+      {error ? (
+        <div className="mx-4 mt-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700 min-[1000px]:mx-8">
+          {error}
+        </div>
+      ) : null}
+
+      <ApplicantPortalTabs activeTab={activeTab} onChange={setActiveTab} />
+      {activeTab === "schedule" ? (
+        <ApplicantScheduleTab
+          todayAttendance={todayAttendance}
+          recentAttendance={recentAttendance}
+          appointment={appointment}
+          selectedSlot={selectedSlot}
+          availableSlots={availableSlots}
+          selectedSlotId={selectedSlotId}
+          rescheduleReason={rescheduleReason}
+          showRescheduleReason={showRescheduleReason}
+          requestingSchedule={requestingSchedule}
+          requestingReschedule={requestingReschedule}
+          attendanceSubmitting={attendanceSubmitting}
+          onSelectedSlotIdChange={setSelectedSlotId}
+          onRescheduleReasonChange={setRescheduleReason}
+          onShowRescheduleReasonChange={setShowRescheduleReason}
+          onRequestSchedule={handleRequestSchedule}
+          onRequestReschedule={handleRequestReschedule}
+          onAttendanceAction={handleAttendanceAction}
+        />
+      ) : activeTab === "timesheets" ? (
+        <ApplicantTimesheetsTab todayAttendance={todayAttendance} recentAttendance={recentAttendance} />
+      ) : (
+        <ApplicantNotesTab notes={notes} loading={notesLoading} />
+      )}
+    </>
   );
 }

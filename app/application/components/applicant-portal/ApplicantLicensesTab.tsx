@@ -2,8 +2,9 @@
 
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { AlertTriangle, Upload } from "lucide-react";
+import DashboardPageLoader from "@/app/admin_recruiter/components/DashboardPageLoader";
 import { LICENSE_TYPES, LICENSE_TYPE_LABELS } from "@/lib/applicant-portal/documents";
-import { useApplicantPortalAuthHeaders } from "./useApplicantPortalSession";
+import { useApplicantPortal } from "./ApplicantPortalProvider";
 import {
   WORKER_SCHEDULE_CARD_CLASS,
   WORKER_SECTION_TITLE_CLASS,
@@ -50,7 +51,7 @@ function statusTone(status: string, urgency: LicenseItem["urgency"]) {
 }
 
 export function ApplicantLicensesTab() {
-  const authHeaders = useApplicantPortalAuthHeaders();
+  const { sessionReady, authHeaders } = useApplicantPortal();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [licenses, setLicenses] = useState<LicenseItem[]>([]);
   const [summary, setSummary] = useState<LicenseSummary | null>(null);
@@ -77,7 +78,11 @@ export function ApplicantLicensesTab() {
   }
 
   useEffect(() => {
+    if (!sessionReady) return;
+
     let alive = true;
+    setLoading(true);
+
     void (async () => {
       try {
         await loadLicenses();
@@ -90,7 +95,7 @@ export function ApplicantLicensesTab() {
     return () => {
       alive = false;
     };
-  }, [authHeaders]);
+  }, [authHeaders, sessionReady]);
 
   async function openFile(id: string) {
     const headers = await authHeaders();
@@ -138,8 +143,8 @@ export function ApplicantLicensesTab() {
     }
   }
 
-  if (loading) {
-    return <p className="px-8 py-10 text-sm text-[#64748B]">Loading licenses...</p>;
+  if (!sessionReady || loading) {
+    return <DashboardPageLoader label="Loading licenses..." className="min-h-[360px]" />;
   }
 
   return (

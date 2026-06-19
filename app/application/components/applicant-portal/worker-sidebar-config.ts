@@ -4,6 +4,7 @@ export type WorkerSidebarLink = {
   label: string;
   href?: string;
   matchPrefixes: string[];
+  matchExact?: boolean;
   disabled?: boolean;
 };
 
@@ -12,6 +13,7 @@ export type WorkerSidebarSection = {
   href: string;
   iconType: SidebarIconType;
   matchPrefixes: string[];
+  matchExact?: boolean;
   disabled?: boolean;
   action?: "messages";
   children?: WorkerSidebarLink[];
@@ -43,9 +45,24 @@ const FINANCE_CHILDREN: WorkerSidebarLink[] = [
 ];
 
 const ACCOUNT_CHILDREN: WorkerSidebarLink[] = [
-  { label: "My Profile", href: "/application/applicant-dashboard/profile", matchPrefixes: ["/application/applicant-dashboard/profile"] },
-  { label: "Licenses", href: "/application/applicant-dashboard/licenses", matchPrefixes: ["/application/applicant-dashboard/licenses"] },
-  { label: "Documents", href: "/application/applicant-dashboard/documents", matchPrefixes: ["/application/applicant-dashboard/documents"] },
+  {
+    label: "My Profile",
+    href: "/application/applicant-dashboard/profile",
+    matchPrefixes: ["/application/applicant-dashboard/profile"],
+    matchExact: true,
+  },
+  {
+    label: "Licenses",
+    href: "/application/applicant-dashboard/licenses",
+    matchPrefixes: ["/application/applicant-dashboard/licenses"],
+    matchExact: true,
+  },
+  {
+    label: "Documents",
+    href: "/application/applicant-dashboard/documents",
+    matchPrefixes: ["/application/applicant-dashboard/documents"],
+    matchExact: true,
+  },
 ];
 
 const TEAMS_CHILDREN: WorkerSidebarLink[] = [
@@ -62,6 +79,7 @@ export const WORKER_SIDEBAR_SECTIONS: WorkerSidebarSection[] = [
     href: PORTAL_HOME,
     iconType: ICON.dashboard,
     matchPrefixes: [PORTAL_HOME],
+    matchExact: true,
     children: DASHBOARD_CHILDREN,
   },
   {
@@ -76,12 +94,14 @@ export const WORKER_SIDEBAR_SECTIONS: WorkerSidebarSection[] = [
     href: "/application/applicant-dashboard/group-chat",
     iconType: ICON.chat,
     matchPrefixes: ["/application/applicant-dashboard/group-chat"],
+    matchExact: true,
   },
   {
     label: "Schedule",
     href: "/application/applicant-dashboard/schedule",
     iconType: ICON.schedule,
     matchPrefixes: ["/application/applicant-dashboard/schedule"],
+    matchExact: true,
   },
   {
     label: "Tickets",
@@ -136,6 +156,7 @@ export const WORKER_SIDEBAR_SECTIONS: WorkerSidebarSection[] = [
     href: "/application/applicant-dashboard/help",
     iconType: ICON.help,
     matchPrefixes: ["/application/applicant-dashboard/help"],
+    matchExact: true,
   },
   {
     label: "Settings",

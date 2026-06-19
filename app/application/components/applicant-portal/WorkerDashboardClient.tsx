@@ -1,79 +1,30 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import OnboardingLoader from "@/app/components/OnboardingLoader";
-import {
-  TenantBrandingProvider,
-  useTenantBranding,
-} from "@/app/components/tenant/TenantBrandingContext";
-import { ApplicantPortalShell } from "@/app/application/components/applicant-portal/ApplicantPortalShell";
+import DashboardPageLoader from "@/app/admin_recruiter/components/DashboardPageLoader";
+import { useApplicantPortal } from "@/app/application/components/applicant-portal/ApplicantPortalProvider";
 import { WorkerDashboardOverview } from "@/app/application/components/applicant-portal/WorkerDashboardOverview";
 import type {
   ApplicantNote,
-  ApplicantSession,
   Appointment,
   AppointmentSlot,
   AttendanceLog,
 } from "@/app/application/components/applicant-portal/types";
-import {
-  useApplicantPortalAuthHeaders,
-  useApplicantPortalSession,
-} from "@/app/application/components/applicant-portal/useApplicantPortalSession";
-import { useApplicantPortalMessaging } from "@/app/application/components/applicant-portal/useApplicantPortalMessaging";
-import type { TenantBranding } from "@/lib/tenant/tenant-branding";
-import { persistOnboardingSlugCookie } from "@/lib/tenant/client-onboarding-slug";
-
-async function loadTenantBranding(tenantId: string): Promise<TenantBranding | null> {
-  const res = await fetch(`/api/tenant-branding?tenantId=${encodeURIComponent(tenantId)}`, {
-    cache: "no-store",
-  });
-  if (!res.ok) return null;
-  const payload = (await res.json().catch(() => ({}))) as { branding?: TenantBranding };
-  return payload.branding ?? null;
-}
 
 export function WorkerDashboardClient() {
-  const bootstrapBranding = useTenantBranding();
-  const { session, loading, error } = useApplicantPortalSession();
-  const authHeaders = useApplicantPortalAuthHeaders();
-  const [portalBranding, setPortalBranding] = useState<TenantBranding | null>(null);
+  const { session, sessionReady, authHeaders } = useApplicantPortal();
   const [appointment, setAppointment] = useState<Appointment | null>(null);
   const [selectedSlot, setSelectedSlot] = useState<AppointmentSlot | null>(null);
   const [recentAttendance, setRecentAttendance] = useState<AttendanceLog[]>([]);
   const [notes, setNotes] = useState<ApplicantNote[]>([]);
-  const [notesLoading, setNotesLoading] = useState(true);
+  const [dataLoading, setDataLoading] = useState(true);
   const [pageError, setPageError] = useState<string | null>(null);
 
-  const {
-    messages,
-    messageBody,
-    setMessageBody,
-    sending,
-    aiTyping,
-    recruiterDirectHint,
-    lastInquiry,
-    loadMessages,
-    handleSendMessage,
-    handleContactRecruiter,
-    handleCreateSupportTicket,
-  } = useApplicantPortalMessaging({
-    workerId: session?.applicant.id,
-    authHeaders,
-  });
-
   useEffect(() => {
-    if (!session?.applicant.tenantId) return;
-    void loadTenantBranding(session.applicant.tenantId).then((branding) => {
-      if (!branding) return;
-      setPortalBranding(branding);
-      if (branding.slug) persistOnboardingSlugCookie(branding.slug);
-    });
-  }, [session?.applicant.tenantId]);
-
-  useEffect(() => {
-    if (loading || !session) return;
+    if (!sessionReady || !session) return;
 
     let alive = true;
+    setDataLoading(true);
 
     void (async () => {
       setPageError(null);
@@ -121,68 +72,37 @@ export function WorkerDashboardClient() {
           setPageError(err instanceof Error ? err.message : "Could not load dashboard.");
         }
       } finally {
-        if (alive) setNotesLoading(false);
+        if (alive) setDataLoading(false);
       }
     })();
-
-    void loadMessages();
 
     return () => {
       alive = false;
     };
-  }, [authHeaders, loadMessages, loading, session]);
+  }, [authHeaders, session, sessionReady]);
 
-  async function onSendMessage(file?: File | null) {
-    setPageError(null);
-    try {
-      await handleSendMessage(file);
-    } catch (err) {
-      setPageError(err instanceof Error ? err.message : "Could not send message.");
-    }
+  if (!sessionReady || dataLoading) {
+    return <DashboardPageLoader label="Loading dashboard..." className="min-h-[360px]" />;
   }
 
-  const branding = portalBranding ?? bootstrapBranding;
-
-  if (loading) {
-    return (
-      <TenantBrandingProvider branding={branding}>
-        <OnboardingLoader label="Loading dashboard..." />
-      </TenantBrandingProvider>
-    );
-  }
+  if (!session) return null;
 
   return (
-    <TenantBrandingProvider branding={branding}>
-      <ApplicantPortalShell
-        session={session}
-        messages={messages}
-        messageBody={messageBody}
-        sending={sending}
-        aiTyping={aiTyping}
-        recruiterDirectHint={recruiterDirectHint}
-        lastInquiry={lastInquiry}
-        onMessageBodyChange={setMessageBody}
-        onSendMessage={onSendMessage}
-        onContactRecruiter={handleContactRecruiter}
-        onCreateSupportTicket={handleCreateSupportTicket}
-      >
-        {error || pageError ? (
-          <div className="mx-4 mt-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700 min-[1000px]:mx-8">
-            {error || pageError}
-          </div>
-        ) : null}
+    <>
+      {pageError ? (
+        <div className="mx-4 mt-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700 min-[1000px]:mx-8">
+          {pageError}
+        </div>
+      ) : null}
 
-        {session ? (
-          <WorkerDashboardOverview
-            userName={session.applicant.name}
-            appointment={appointment}
-            selectedSlot={selectedSlot}
-            recentAttendance={recentAttendance}
-            notes={notes}
-            notesLoading={notesLoading}
-          />
-        ) : null}
-      </ApplicantPortalShell>
-    </TenantBrandingProvider>
+      <WorkerDashboardOverview
+        userName={session.applicant.name}
+        appointment={appointment}
+        selectedSlot={selectedSlot}
+        recentAttendance={recentAttendance}
+        notes={notes}
+        notesLoading={false}
+      />
+    </>
   );
 }

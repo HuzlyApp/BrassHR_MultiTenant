@@ -39,8 +39,8 @@ const NOTES_HREF = "/application/applicant-dashboard/schedule?tab=notes";
 const TIMESHEETS_HREF = "/application/applicant-dashboard/schedule?tab=timesheets";
 const HELP_HREF = "/application/applicant-dashboard/help";
 
-const BRAND_LABEL_CLASS =
-  "font-[Inter,sans-serif] text-[12px] font-semibold leading-[16px] text-[color:var(--brand-primary)]";
+const WORKER_CARD_LABEL_CLASS =
+  "font-[Inter,sans-serif] text-[14px] font-semibold leading-5 text-[#F97316]";
 
 function WorkerCardShell({
   title,
@@ -94,24 +94,19 @@ function SummaryMetricCard({
   label,
   icon,
   iconBg,
-  cardBg,
   children,
   action,
 }: {
   label: string;
   icon: ReactNode;
   iconBg: string;
-  cardBg: string;
   children: ReactNode;
   action?: ReactNode;
 }) {
   return (
-    <div
-      className="flex min-h-[188px] w-full min-w-0 flex-col rounded-md border border-[#E5E7EB] p-[14px]"
-      style={{ backgroundColor: cardBg }}
-    >
+    <div className="flex min-h-[188px] w-full min-w-0 flex-col rounded-md border border-[#E5E7EB] bg-white p-[14px] shadow-sm">
       <div className="mb-3 flex items-start justify-between gap-2">
-        <p className={BRAND_LABEL_CLASS}>{label}</p>
+        <p className={WORKER_CARD_LABEL_CLASS}>{label}</p>
         <div
           className="flex h-[50px] w-[50px] shrink-0 items-center justify-center rounded-md p-1"
           style={{ backgroundColor: iconBg }}
@@ -234,7 +229,6 @@ export function WorkerDashboardOverview({
       <div className="grid w-full min-w-0 gap-[14px] [grid-template-columns:repeat(auto-fit,minmax(250px,1fr))]">
         <SummaryMetricCard
           label="Upcoming Shift"
-          cardBg="#FFF9F2"
           iconBg="#FFECD6"
           icon={
             <CalendarClock
@@ -259,7 +253,6 @@ export function WorkerDashboardOverview({
 
         <SummaryMetricCard
           label="This Week"
-          cardBg="#F2FFF7"
           iconBg="#D6FFE6"
           icon={
             <CalendarDays
@@ -279,7 +272,6 @@ export function WorkerDashboardOverview({
 
         <SummaryMetricCard
           label="Pay this Period"
-          cardBg="#F0F7FF"
           iconBg="#DBEAFE"
           icon={
             <Wallet className="h-[30px] w-[30px] text-[#3B82F6]" strokeWidth={1.75} aria-hidden />
@@ -295,7 +287,6 @@ export function WorkerDashboardOverview({
 
         <SummaryMetricCard
           label="Leave Balance"
-          cardBg="#F0FDFA"
           iconBg="#CCFBF1"
           icon={
             <Palmtree className="h-[30px] w-[30px] text-[#0D9488]" strokeWidth={1.75} aria-hidden />

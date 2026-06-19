@@ -3,11 +3,13 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { Bot, User } from "lucide-react";
+import DashboardPageLoader from "@/app/admin_recruiter/components/DashboardPageLoader";
 import type {
   HelpAssistantResponse,
   HelpAssistantButton,
 } from "@/lib/applicant-portal/help-assistant-types";
 import { HELP_TICKET_FAILED_MESSAGE } from "@/lib/applicant-portal/help-assistant-types";
+import { useApplicantPortal } from "./ApplicantPortalProvider";
 import { useApplicantPortalAuthHeaders } from "./useApplicantPortalSession";
 import { useApplicantPortalUi } from "./ApplicantPortalUiContext";
 import {
@@ -123,6 +125,7 @@ function AssistantBubble({
 }
 
 export function ApplicantHelpSupportTab() {
+  const { sessionReady } = useApplicantPortal();
   const authHeaders = useApplicantPortalAuthHeaders();
   const [items, setItems] = useState<ChatItem[]>([
     {
@@ -215,6 +218,10 @@ export function ApplicantHelpSupportTab() {
     } finally {
       setLoading(false);
     }
+  }
+
+  if (!sessionReady) {
+    return <DashboardPageLoader label="Loading help..." className="min-h-[360px]" />;
   }
 
   return (

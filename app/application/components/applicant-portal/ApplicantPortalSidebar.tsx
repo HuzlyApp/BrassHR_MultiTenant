@@ -12,6 +12,7 @@ import {
   WORKER_SIDEBAR_EXPANDED_WIDTH,
   WORKER_SIDEBAR_ICON_TYPES,
   WORKER_SIDEBAR_SECTIONS,
+  type WorkerSidebarLink,
   type WorkerSidebarSection,
 } from "@/app/application/components/applicant-portal/worker-sidebar-config";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
@@ -55,20 +56,43 @@ export function ApplicantPortalSidebar({
     onMobileClose?.();
   };
 
-  const isPathActive = (prefixes: string[]) =>
-    prefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
+  const isLinkActive = (link: Pick<WorkerSidebarLink, "matchPrefixes" | "matchExact">) =>
+    link.matchPrefixes.some((prefix) =>
+      link.matchExact
+        ? pathname === prefix || pathname === `${prefix}/`
+        : pathname === prefix || pathname.startsWith(`${prefix}/`)
+    );
+
+  const isSectionPathActive = (section: Pick<WorkerSidebarSection, "matchPrefixes" | "matchExact">) =>
+    section.matchPrefixes.some((prefix) =>
+      section.matchExact
+        ? pathname === prefix || pathname === `${prefix}/`
+        : pathname === prefix || pathname.startsWith(`${prefix}/`)
+    );
+
+  const isParentHrefActive = (href: string) => {
+    if (!href || href === "#") return false;
+    return pathname === href || pathname === `${href}/`;
+  };
 
   const renderedSections = useMemo(
     () =>
       WORKER_SIDEBAR_SECTIONS.map((section) => {
-        const childActive = section.children?.some((child) => isPathActive(child.matchPrefixes)) ?? false;
+        const childActive = section.children?.some((child) => isLinkActive(child)) ?? false;
+        const sectionPathActive = isSectionPathActive(section);
+        const sectionActive = sectionPathActive || childActive;
+        const showIndicator = section.children?.length
+          ? !childActive && isParentHrefActive(section.href)
+          : sectionActive;
+
         return {
           ...section,
-          active: childActive ? false : isPathActive(section.matchPrefixes),
+          active: sectionActive,
+          showIndicator,
           children:
             section.children?.map((child) => ({
               ...child,
-              active: isPathActive(child.matchPrefixes),
+              active: isLinkActive(child),
             })) ?? [],
         };
       }),
@@ -78,8 +102,7 @@ export function ApplicantPortalSidebar({
   useEffect(() => {
     const activeParents = WORKER_SIDEBAR_SECTIONS.filter(
       (section) =>
-        isPathActive(section.matchPrefixes) ||
-        section.children?.some((child) => isPathActive(child.matchPrefixes))
+        isSectionPathActive(section) || section.children?.some((child) => isLinkActive(child))
     ).map((section) => section.label);
     if (activeParents.length === 0) return;
     setOpenSectionLabels((prev) => Array.from(new Set([...prev, ...activeParents])));
@@ -191,7 +214,7 @@ export function ApplicantPortalSidebar({
                   </div>
                 ) : (
                   <Link href={section.href} onClick={handleNavClick} className="flex min-w-0 flex-1 items-center gap-3">
-                    <SidebarNavIcon iconType={section.iconType} active={section.active} />
+                    <SidebarNavIcon iconType={section.iconType} active={!section.disabled && section.active} />
                     <span className="truncate text-[14px] font-normal leading-5">{section.label}</span>
                   </Link>
                 )}
@@ -208,7 +231,7 @@ export function ApplicantPortalSidebar({
                     <ChevronDown className="h-4 w-4" />
                   )}
                 </button>
-                {section.active && !section.disabled ? (
+                {section.showIndicator ? (
                   <span
                     aria-hidden
                     className="absolute right-0 top-1/2 h-7 w-[2px] -translate-y-1/2 rounded-full"
@@ -258,11 +281,11 @@ export function ApplicantPortalSidebar({
                     : "text-[#012352] hover:text-[color:var(--brand-primary)]"
                 }`}
               >
-                <SidebarNavIcon iconType={section.iconType} active={section.active} />
+                <SidebarNavIcon iconType={section.iconType} active={!section.disabled && section.active} />
                 {!isCollapsed ? (
                   <span className="text-[14px] font-normal leading-5">{section.label}</span>
                 ) : null}
-                {section.active ? (
+                {section.showIndicator ? (
                   <span
                     aria-hidden
                     className="absolute right-0 top-1/2 h-7 w-[2px] -translate-y-1/2 rounded-full"
@@ -290,13 +313,20 @@ export function ApplicantPortalSidebar({
                       key={`${section.label}-${child.label}`}
                       href={child.href}
                       onClick={handleNavClick}
-                      className={`block rounded-md px-2 py-1.5 text-[14px] font-normal leading-5 transition hover:bg-white ${
+                      className={`relative block overflow-hidden rounded-md px-2 py-1.5 text-[14px] font-normal leading-5 transition hover:bg-white ${
                         child.active
                           ? "font-semibold text-[color:var(--brand-primary)]"
                           : "text-[#012352] hover:text-[color:var(--brand-primary)]"
                       }`}
                     >
                       {child.label}
+                      {child.active ? (
+                        <span
+                          aria-hidden
+                          className="absolute right-0 top-1/2 h-7 w-[2px] -translate-y-1/2 rounded-full"
+                          style={{ backgroundColor: "var(--brand-secondary)" }}
+                        />
+                      ) : null}
                     </Link>
                   )
                 )}

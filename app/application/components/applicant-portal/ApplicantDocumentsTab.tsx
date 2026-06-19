@@ -2,9 +2,10 @@
 
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { Eye, Upload } from "lucide-react";
+import DashboardPageLoader from "@/app/admin_recruiter/components/DashboardPageLoader";
 import BrandedFileTypeIcon from "@/app/admin_recruiter/components/BrandedFileTypeIcon";
 import { documentStatusLabel } from "@/lib/applicant-portal/documents";
-import { useApplicantPortalAuthHeaders } from "./useApplicantPortalSession";
+import { useApplicantPortal } from "./ApplicantPortalProvider";
 import {
   WORKER_SCHEDULE_CARD_CLASS,
   WORKER_SECTION_TITLE_CLASS,
@@ -203,7 +204,7 @@ function OtherDocumentStatusBadge({ label, status }: { label: string; status: st
 }
 
 export function ApplicantDocumentsTab() {
-  const authHeaders = useApplicantPortalAuthHeaders();
+  const { sessionReady, authHeaders } = useApplicantPortal();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [portalDocuments, setPortalDocuments] = useState<DocumentItem[]>([]);
   const [requiredDocuments, setRequiredDocuments] = useState<DocumentItem[]>([]);
@@ -247,7 +248,11 @@ export function ApplicantDocumentsTab() {
   }
 
   useEffect(() => {
+    if (!sessionReady) return;
+
     let alive = true;
+    setLoading(true);
+
     void (async () => {
       try {
         await Promise.all([loadDocuments(), loadAgreementSections()]);
@@ -260,7 +265,7 @@ export function ApplicantDocumentsTab() {
     return () => {
       alive = false;
     };
-  }, [authHeaders]);
+  }, [authHeaders, sessionReady]);
 
   async function openFile(item: DocumentItem) {
     const headers = await authHeaders();
@@ -351,8 +356,8 @@ export function ApplicantDocumentsTab() {
     })
     .sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime());
 
-  if (loading) {
-    return <p className="px-8 py-10 text-sm text-[#64748B]">Loading documents...</p>;
+  if (!sessionReady || loading) {
+    return <DashboardPageLoader label="Loading documents..." className="min-h-[360px]" />;
   }
 
   return (

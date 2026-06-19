@@ -1,7 +1,8 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
-import { useApplicantPortalAuthHeaders } from "./useApplicantPortalSession";
+import DashboardPageLoader from "@/app/admin_recruiter/components/DashboardPageLoader";
+import { useApplicantPortal } from "./ApplicantPortalProvider";
 import {
   WORKER_SCHEDULE_CARD_CLASS,
   WORKER_SECTION_TITLE_CLASS,
@@ -79,7 +80,11 @@ export function ApplicantProfileTab() {
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
+    if (!sessionReady) return;
+
     let alive = true;
+    setLoading(true);
+
     void (async () => {
       try {
         const headers = await authHeaders();
@@ -98,7 +103,7 @@ export function ApplicantProfileTab() {
     return () => {
       alive = false;
     };
-  }, [authHeaders]);
+  }, [authHeaders, sessionReady]);
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -132,8 +137,8 @@ export function ApplicantProfileTab() {
     }
   }
 
-  if (loading) {
-    return <p className="px-8 py-10 text-sm text-[#64748B]">Loading profile...</p>;
+  if (!sessionReady || loading) {
+    return <DashboardPageLoader label="Loading profile..." className="min-h-[360px]" />;
   }
 
   return (
