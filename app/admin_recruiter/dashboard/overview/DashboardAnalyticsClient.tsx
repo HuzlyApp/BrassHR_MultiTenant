@@ -240,7 +240,7 @@ function SectionCard({
   children: ReactNode;
 }) {
   return (
-    <section id={id} className="scroll-mt-24 w-full min-w-0 overflow-hidden rounded-md border border-[#E5E7EB] bg-white">
+    <section id={id} className="scroll-mt-24 w-full min-w-0 rounded-md border border-[#E5E7EB] bg-white">
       <div className="flex items-center justify-between border-b border-[#E5E7EB] px-[14px] py-[14px]">
         <h2 className="font-[Inter,sans-serif] text-[16px] font-semibold leading-[24px]" style={{ color: titleColor }}>
           {title}
@@ -515,7 +515,7 @@ export default function DashboardAnalyticsClient({ focusSection }: DashboardAnal
           <SectionCard
             id="workforce-analytics"
             title="Workforce Analytics" titleColor="#F97316" viewAllHref="/admin_recruiter/workers">
-            <div className="grid grid-cols-1 gap-[14px] lg:grid-cols-[132px_minmax(0,1fr)_minmax(0,148px)] lg:items-center">
+            <div className="grid grid-cols-1 gap-[14px] lg:grid-cols-[minmax(120px,132px)_minmax(140px,1fr)_minmax(130px,148px)] lg:items-center">
               <div className="space-y-[14px]">
                 <AnalyticsMetric
                   label="Active Workers"
@@ -538,15 +538,17 @@ export default function DashboardAnalyticsClient({ focusSection }: DashboardAnal
                   changePct={data.workforce.metrics.shiftCoverage.changePct}
                 />
               </div>
-              <div className="flex h-[240px] min-w-0 items-center justify-center">
+              <div className="flex h-[240px] min-h-[200px] w-full min-w-[140px] items-center justify-center px-1">
                 <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
+                  <PieChart margin={{ top: 8, right: 8, bottom: 8, left: 8 }}>
                     <Pie
                       data={data.workforce.breakdown}
                       dataKey="value"
                       nameKey="label"
-                      innerRadius={52}
-                      outerRadius={78}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius="58%"
+                      outerRadius="82%"
                       paddingAngle={2}
                       stroke="#FFFFFF"
                       strokeWidth={2}

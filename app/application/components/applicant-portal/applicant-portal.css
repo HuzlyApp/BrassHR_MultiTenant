@@ -1,3 +1,8 @@
+.applicant-portal-main > main {
+  width: 100%;
+  min-width: 0;
+}
+
 .applicant-portal-main {
   transition: margin-left 200ms ease-in-out;
   margin-left: 0;

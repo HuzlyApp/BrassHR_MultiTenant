@@ -61,7 +61,7 @@ export const WORKER_SIDEBAR_SECTIONS: WorkerSidebarSection[] = [
     label: "Dashboard",
     href: PORTAL_HOME,
     iconType: ICON.dashboard,
-    matchPrefixes: [],
+    matchPrefixes: [PORTAL_HOME],
     children: DASHBOARD_CHILDREN,
   },
   {
@@ -79,9 +79,9 @@ export const WORKER_SIDEBAR_SECTIONS: WorkerSidebarSection[] = [
   },
   {
     label: "Schedule",
-    href: PORTAL_HOME,
+    href: "/application/applicant-dashboard/schedule",
     iconType: ICON.schedule,
-    matchPrefixes: [PORTAL_HOME],
+    matchPrefixes: ["/application/applicant-dashboard/schedule"],
   },
   {
     label: "Tickets",
