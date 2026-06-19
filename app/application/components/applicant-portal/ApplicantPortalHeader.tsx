@@ -1,11 +1,11 @@
 "use client";
 
-import type { CSSProperties } from "react";
 import Image from "next/image";
 import { ChevronDown, Search } from "lucide-react";
 import { useState } from "react";
 import SidebarNavIcon from "@/app/admin_recruiter/components/SidebarNavIcon";
-import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
+import { useApplicantPortal } from "./ApplicantPortalProvider";
+import { WorkerPortalUserAvatar } from "./WorkerPortalUserAvatar";
 
 const SIDEBAR_TOGGLE_ICON = "/icons/sidebar-on-off-icon.svg";
 
@@ -26,11 +26,9 @@ export function ApplicantPortalHeader({
   sidebarCollapsed = false,
   onOpenMessages,
 }: Props) {
-  const branding = useTenantBranding();
+  const { profilePhotoUrl } = useApplicantPortal();
   const [profileOpen, setProfileOpen] = useState(false);
   const firstName = applicantName.split(" ")[0] || "Applicant";
-  const initial = firstName.charAt(0).toUpperCase();
-  const avatarStyle = { backgroundColor: branding.primaryHex } as CSSProperties;
 
   return (
     <header className="sticky top-0 z-30 border-b border-[#E2E8F0] bg-white">
@@ -112,12 +110,7 @@ export function ApplicantPortalHeader({
               onClick={() => setProfileOpen((prev) => !prev)}
               className="flex items-center gap-2 rounded-xl border border-[#E5E7EB] px-2.5 py-1.5"
             >
-              <span
-                className="flex h-[30px] w-[30px] items-center justify-center rounded-full text-[14px] font-semibold text-white"
-                style={avatarStyle}
-              >
-                {initial}
-              </span>
+              <WorkerPortalUserAvatar name={applicantName} photoUrl={profilePhotoUrl} size={30} />
               <span className="hidden text-[14px] font-semibold text-black sm:inline">{firstName}.</span>
               <ChevronDown className="h-4 w-4 text-[#94A3B8]" />
             </button>

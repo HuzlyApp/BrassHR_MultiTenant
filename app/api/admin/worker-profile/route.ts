@@ -10,6 +10,7 @@ import { normalizeResumeStorageObjectPath } from "@/lib/onboarding/normalize-res
 import { getSupabaseUrl } from "@/lib/supabase-env"
 import { WORKER_RESUMES_BUCKET } from "@/lib/supabase-storage-buckets"
 import { resolveStorageAccessibleUrl } from "@/lib/supabase/resolve-storage-accessible-url"
+import { resolveWorkerProfilePhotoUrl } from "@/lib/applicant-portal/worker-profile-photo"
 import { parseRequiredUuid } from "@/lib/validation/uuid"
 
 export const runtime = "nodejs"
@@ -684,6 +685,8 @@ export async function GET(req: NextRequest) {
       request: req,
     })
 
+    const profilePhotoUrl = await resolveWorkerProfilePhotoUrl(supabase, w.profile_photo)
+
     return NextResponse.json({
       worker: {
         id: String(w.id),
@@ -707,6 +710,7 @@ export async function GET(req: NextRequest) {
         hourly_rate: w.hourly_rate != null ? String(w.hourly_rate) : null,
         ssn_last_four: w.ssn_last_four != null ? String(w.ssn_last_four) : null,
         positions,
+        profile_photo_url: profilePhotoUrl,
       },
       requirements: {
         resume_path: resumePathCanonical,

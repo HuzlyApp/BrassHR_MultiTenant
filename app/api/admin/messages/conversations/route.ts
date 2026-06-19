@@ -8,6 +8,7 @@ import {
   type ApplicantMessageListRow,
   type WorkerSummary,
 } from "@/lib/messaging/staff-conversations";
+import { resolveWorkerProfilePhotoUrl } from "@/lib/applicant-portal/worker-profile-photo";
 
 function getServiceClient() {
   const url = getSupabaseUrl();
@@ -45,12 +46,33 @@ export async function GET() {
     const workerIds = Array.from(new Set(messages.map((msg) => msg.worker_id).filter(Boolean)));
 
     const workerProfiles = workerIds.length
-      ? await supabase.from("worker").select("id, first_name, last_name, email").in("id", workerIds)
+      ? await supabase.from("worker").select("id, first_name, last_name, email, profile_photo").in("id", workerIds)
       : { data: [], error: null };
     if (workerProfiles.error) throw workerProfiles.error;
 
-    const workerMap = new Map(
-      (workerProfiles.data ?? []).map((worker) => [worker.id, worker as WorkerSummary])
+    const workerMap = new Map<string, WorkerSummary>(
+      await Promise.all(
+        (workerProfiles.data ?? []).map(async (worker) => {
+          const row = worker as {
+            id: string;
+            first_name: string | null;
+            last_name: string | null;
+            email: string | null;
+            profile_photo?: string | null;
+          };
+          const profilePhotoUrl = await resolveWorkerProfilePhotoUrl(supabase, row.profile_photo);
+          return [
+            row.id,
+            {
+              id: row.id,
+              first_name: row.first_name,
+              last_name: row.last_name,
+              email: row.email,
+              profilePhotoUrl,
+            },
+          ] as const;
+        })
+      )
     );
     const conversations = groupApplicantMessagesIntoConversations(messages, workerMap);
 

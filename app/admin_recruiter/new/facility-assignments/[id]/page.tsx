@@ -566,6 +566,7 @@ export default function NewApplicantFacilityAssignmentsPage() {
                   name={candidateName}
                   role={candidateRole}
                   status={statusLabel}
+                  profilePhotoUrl={applicant?.profile_photo_url}
                 />
 
                 <div className="mx-auto flex w-full max-w-[1300px] flex-col">

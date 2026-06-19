@@ -100,7 +100,7 @@ function CardShell({
   children: ReactNode;
 }) {
   return (
-    <section className="overflow-hidden rounded-xl border border-[#E5E7EB] bg-white shadow-sm">
+    <section className="w-full min-w-0 overflow-hidden rounded-xl border border-[#E5E7EB] bg-white shadow-sm">
       <div className="flex items-center justify-between gap-3 border-b border-[#E5E7EB] px-5 py-4">
         <div className="flex min-w-0 items-center gap-2">
           <span className="text-[#012352]" aria-hidden>
@@ -170,16 +170,15 @@ export default function DashboardOverviewClient() {
 
   if (loading && !data) {
     return (
-      <div className="px-5 py-6 lg:px-8">
+      <div className="px-4 py-5 min-[1000px]:px-8">
         <DashboardPageLoader label="Loading your day..." />
       </div>
     );
   }
 
   return (
-    <div className="relative px-5 py-6 lg:px-8">
+    <div className="relative w-full min-w-0 space-y-[14px] px-4 py-5 min-[1000px]:px-8">
       {loading && data ? <DashboardPageLoader label="Updating..." overlay /> : null}
-      <div className="mx-auto w-full max-w-[1320px] space-y-6">
         <header className="space-y-1">
           <h1 className="inline-flex items-center gap-1 font-[Inter,sans-serif] text-[18px] font-semibold leading-[28px] text-[#012352]">
             {data?.greeting ?? "Good morning"}, {data?.userName ?? "there"}!
@@ -201,7 +200,7 @@ export default function DashboardOverviewClient() {
           <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</div>
         ) : null}
 
-        <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
+        <div className="grid w-full min-w-0 grid-cols-1 gap-[14px] xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
           <CardShell
             title={data?.selectedDateLabel ?? "Schedule"}
             icon={<CalendarDays className="h-5 w-5" />}
@@ -332,7 +331,7 @@ export default function DashboardOverviewClient() {
           )}
         </CardShell>
 
-        <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+        <div className="grid w-full min-w-0 grid-cols-1 gap-[14px] xl:grid-cols-2">
           <CardShell title="Onboard New Hires" icon={<UserPlus className="h-5 w-5" />}>
             {loading ? (
               <EmptyState message="Loading hires..." />
@@ -416,7 +415,6 @@ export default function DashboardOverviewClient() {
             </div>
           </CardShell>
         </div>
-      </div>
     </div>
   );
 }

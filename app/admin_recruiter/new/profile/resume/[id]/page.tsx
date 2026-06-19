@@ -251,6 +251,7 @@ export default function NewApplicantProfileResumePage() {
               name={candidateName}
               role={candidateRole}
               status={candidateStatus}
+              profilePhotoUrl={w?.profile_photo_url}
             />
             <ProfileSubTabs applicantId={applicantId} activeTab="Resume" />
 

@@ -38,7 +38,16 @@ const CHAT_VIDEO_ICON = "/icons/chat-icons/video-call-icon.svg";
 const CHAT_MORE_ICON = "/icons/chat-icons/dots-horizontal.svg";
 const PINNED_STORAGE_KEY = "admin-recruiter-pinned-worker-chats";
 
-function ConversationAvatar({ name }: { name: string }) {
+function ConversationAvatar({ name, photoUrl }: { name: string; photoUrl?: string | null }) {
+  const trimmedPhoto = photoUrl?.trim();
+  if (trimmedPhoto) {
+    return (
+      <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-full border border-[#E2E8F0]">
+        <Image src={trimmedPhoto} alt="" fill className="object-cover" sizes="40px" unoptimized />
+      </div>
+    );
+  }
+
   return (
     <div
       className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold text-white"
@@ -382,7 +391,7 @@ export default function AdminRecruiterMessagesClient({
               <ChatHeader
                 title={selectedConversation.applicantName}
                 subtitle="Applicant chat"
-                avatar={<ConversationAvatar name={selectedConversation.applicantName} />}
+                avatar={<ConversationAvatar name={selectedConversation.applicantName} photoUrl={selectedConversation.profilePhotoUrl} />}
               />
               <ApplicantConversationClient
                 workerId={selectedWorkerId}
@@ -528,7 +537,7 @@ function ConversationListItem({
     >
       <button type="button" onClick={onSelect} className="flex min-w-0 flex-1 items-center gap-2 text-left">
         <div className="shrink-0 scale-90">
-          <ConversationAvatar name={conversation.applicantName} />
+          <ConversationAvatar name={conversation.applicantName} photoUrl={conversation.profilePhotoUrl} />
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-2">

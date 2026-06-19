@@ -67,6 +67,7 @@ type ChecklistPayload = {
     created_at: string | null;
     updated_at?: string | null;
     status_label: string;
+    profile_photo_url?: string | null;
   };
   activity_history?: ChecklistActivityEntry[];
   meta: {
@@ -515,6 +516,7 @@ export default function NewApplicantChecklistPage() {
               name={candidateName}
               role={candidateRole}
               status={data?.worker?.status_label}
+              profilePhotoUrl={data?.worker?.profile_photo_url}
             />
 
             <div className="mx-auto flex w-full max-w-[1300px] flex-col gap-[30px] overflow-hidden rounded-md border border-[#E5E7EB] bg-white p-5">

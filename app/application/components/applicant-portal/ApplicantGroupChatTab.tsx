@@ -33,7 +33,16 @@ type GroupMember = {
   joinedAt: string;
 };
 
-function MessageAvatar({ name }: { name: string }) {
+function MessageAvatar({ name, photoUrl }: { name: string; photoUrl?: string | null }) {
+  const trimmedPhoto = photoUrl?.trim();
+  if (trimmedPhoto) {
+    return (
+      <div className="relative h-6 w-6 shrink-0 overflow-hidden rounded-full">
+        <Image src={trimmedPhoto} alt="" fill className="object-cover" sizes="24px" unoptimized />
+      </div>
+    );
+  }
+
   return (
     <div
       className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold text-white"
@@ -60,7 +69,7 @@ export function ApplicantGroupConversation({
   applicantWorkerId: string;
   workerName: string;
 }) {
-  const { authHeaders } = useApplicantPortal();
+  const { authHeaders, profilePhotoUrl } = useApplicantPortal();
   const [messages, setMessages] = useState<GroupMessageRow[]>([]);
   const [body, setBody] = useState("");
   const [loading, setLoading] = useState(true);
@@ -196,7 +205,7 @@ export function ApplicantGroupConversation({
                     <p className="whitespace-pre-wrap wrap-break-word">{message.content}</p>
                   </div>
                   <div className={`mt-2 flex items-center gap-2 ${isSelf ? "flex-row-reverse" : ""}`}>
-                    <MessageAvatar name={displayName} />
+                    <MessageAvatar name={displayName} photoUrl={isSelf ? profilePhotoUrl : undefined} />
                     <p className="text-xs text-[#64748B]">
                       <span className="font-medium text-[#334155]">{displayName}</span>
                       {" · "}

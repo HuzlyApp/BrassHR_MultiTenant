@@ -203,7 +203,7 @@ function OtherDocumentStatusBadge({ label, status }: { label: string; status: st
   );
 }
 
-export function ApplicantDocumentsTab() {
+export function ApplicantDocumentsTab({ embedded = false }: { embedded?: boolean }) {
   const { sessionReady, authHeaders } = useApplicantPortal();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [portalDocuments, setPortalDocuments] = useState<DocumentItem[]>([]);
@@ -361,7 +361,7 @@ export function ApplicantDocumentsTab() {
   }
 
   return (
-    <div className="space-y-6 px-8 py-6">
+    <div className={embedded ? "space-y-6" : "space-y-6 px-8 py-6"}>
       <div className={`${WORKER_SCHEDULE_CARD_CLASS} overflow-hidden`}>
         <div className="border-b border-[#E5E7EB] px-4 py-3">
           <h2 className={WORKER_SECTION_TITLE_CLASS} style={WORKER_SECTION_TITLE_STYLE}>

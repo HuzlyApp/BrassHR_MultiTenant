@@ -41,6 +41,8 @@ type ApplicantPortalContextValue = {
   sessionError: string | null;
   authHeaders: () => Promise<{ Authorization: string } | null>;
   messaging: ApplicantPortalMessaging;
+  profilePhotoUrl: string | null;
+  setProfilePhotoUrl: (url: string | null) => void;
 };
 
 const ApplicantPortalContext = createContext<ApplicantPortalContextValue | null>(null);
@@ -68,6 +70,7 @@ function ApplicantPortalLayoutInner({ children }: { children: ReactNode }) {
   const authHeaders = useApplicantPortalAuthHeaders();
   const [portalBranding, setPortalBranding] = useState<TenantBranding | null>(null);
   const [pageError, setPageError] = useState<string | null>(null);
+  const [profilePhotoUrl, setProfilePhotoUrl] = useState<string | null>(null);
 
   const {
     messages,
@@ -113,6 +116,28 @@ function ApplicantPortalLayoutInner({ children }: { children: ReactNode }) {
   const sessionReady = !loading && Boolean(session);
   const showSessionLoader = loading && !session;
 
+  useEffect(() => {
+    if (!sessionReady) return;
+
+    let alive = true;
+    void (async () => {
+      try {
+        const headers = await authHeaders();
+        if (!headers) return;
+        const res = await fetch("/api/applicant-portal/profile-photo", { headers, cache: "no-store" });
+        const payload = (await res.json().catch(() => ({}))) as { profilePhotoUrl?: string | null };
+        if (!res.ok || !alive) return;
+        setProfilePhotoUrl(payload.profilePhotoUrl ?? null);
+      } catch {
+        if (alive) setProfilePhotoUrl(null);
+      }
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, [authHeaders, sessionReady]);
+
   const messaging: ApplicantPortalMessaging = {
     messages,
     messageBody,
@@ -144,6 +169,8 @@ function ApplicantPortalLayoutInner({ children }: { children: ReactNode }) {
         sessionError: error,
         authHeaders,
         messaging,
+        profilePhotoUrl,
+        setProfilePhotoUrl,
       }}
     >
       <TenantBrandingProvider branding={branding}>

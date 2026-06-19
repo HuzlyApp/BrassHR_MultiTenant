@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
+import { attachWorkerProfilePhotoUrls } from "@/lib/applicant-portal/worker-profile-photo";
 import { requireStaffApiSession } from "@/lib/auth/api-session";
 import { resolveStaffTenantScope } from "@/lib/auth/staff-tenant-scope";
 import { getSupabaseAnonKey, getSupabaseUrl } from "@/lib/supabase-env";
@@ -123,10 +124,12 @@ export async function GET(req: Request) {
       const baseColsOptions =
         tenantScope.mode === "scoped"
           ? ([
+              "id, user_id, first_name, last_name, job_role, email, phone, address1, city, state, zip, created_at, tenant_id, profile_photo",
               "id, user_id, first_name, last_name, job_role, email, phone, address1, city, state, zip, created_at, tenant_id",
               "id, user_id, first_name, last_name, job_role, email, phone, address1, city, state, created_at, tenant_id",
             ] as const)
           : ([
+              "id, user_id, first_name, last_name, job_role, email, phone, address1, city, state, zip, created_at, profile_photo",
               "id, user_id, first_name, last_name, job_role, email, phone, address1, city, state, zip, created_at",
               "id, user_id, first_name, last_name, job_role, email, phone, address1, city, state, created_at",
             ] as const);
@@ -322,15 +325,18 @@ export async function GET(req: Request) {
         };
 
         const enriched = await withContacts();
+        const withPhotos = headOnly
+          ? []
+          : await attachWorkerProfilePhotoUrls(supabase, enriched as Record<string, unknown>[]);
         const total =
           tenantScope.mode === "scoped"
             ? headOnly
               ? narrowed.length
-              : enriched.length
-            : (count ?? enriched.length ?? 0);
+              : withPhotos.length
+            : (count ?? withPhotos.length ?? 0);
         return Response.json({
           total,
-          workers: headOnly ? [] : enriched,
+          workers: headOnly ? [] : withPhotos,
         });
       }
 

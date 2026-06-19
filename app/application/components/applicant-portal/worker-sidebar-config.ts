@@ -46,7 +46,7 @@ const FINANCE_CHILDREN: WorkerSidebarLink[] = [
 
 const ACCOUNT_CHILDREN: WorkerSidebarLink[] = [
   {
-    label: "My Profile",
+    label: "Overview",
     href: "/application/applicant-dashboard/profile",
     matchPrefixes: ["/application/applicant-dashboard/profile"],
     matchExact: true,

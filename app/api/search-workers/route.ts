@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js"
 import { NextResponse } from "next/server"
+import { attachWorkerProfilePhotoUrls } from "@/lib/applicant-portal/worker-profile-photo"
 import { requireStaffApiSession } from "@/lib/auth/api-session"
 import { resolveStaffTenantScope } from "@/lib/auth/staff-tenant-scope"
 import { getSupabaseUrl } from "@/lib/supabase-env"
@@ -294,5 +295,10 @@ export async function POST(req: Request) {
     CACHE_TTL_SECONDS.searchResults
   )
 
-  return Response.json(narrowed)
+  const withPhotos = await attachWorkerProfilePhotoUrls(
+    supabase,
+    (Array.isArray(narrowed) ? narrowed : []) as Record<string, unknown>[]
+  )
+
+  return Response.json(withPhotos)
 }

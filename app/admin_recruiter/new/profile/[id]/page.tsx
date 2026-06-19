@@ -54,6 +54,7 @@ type ProfilePayload = {
     years_experience: number | null;
     hourly_rate: string | null;
     ssn_last_four: string | null;
+    profile_photo_url?: string | null;
   };
   documents: {
     updated_at: string | null;
@@ -439,6 +440,7 @@ export default function NewApplicantProfilePage() {
               name={candidateName}
               role={candidateRole}
               status={candidateStatus}
+              profilePhotoUrl={w?.profile_photo_url}
               onMessageClick={() => setCommOpen(true)}
               messageDisabled={!w?.email?.trim() && !w?.phone?.trim()}
             />

@@ -17,4 +17,5 @@ export type CandidateRow = {
   createdAt: string | null
   reference: string
   dateOfBirth: string | null
+  profilePhotoUrl?: string | null
 }

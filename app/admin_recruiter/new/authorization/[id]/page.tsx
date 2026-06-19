@@ -614,6 +614,7 @@ export default function NewApplicantAuthorizationFilledPage() {
               name={candidateName}
               role={candidateRole}
               status={applicant?.status_label}
+              profilePhotoUrl={applicant?.profile_photo_url}
             />
 
             <div className="mx-auto w-full max-w-[1300px]">

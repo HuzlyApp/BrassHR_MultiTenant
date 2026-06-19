@@ -18,6 +18,8 @@ import {
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import { isRemoteOrBlobImageSrc, normalizeBrandingImageSrc } from "@/lib/tenant/tenant-branding";
 import { supabaseBrowser } from "@/lib/supabase-browser";
+import { useApplicantPortal } from "./ApplicantPortalProvider";
+import { WorkerPortalUserAvatar } from "./WorkerPortalUserAvatar";
 
 const DEFAULT_LOGO = "/images/new-logo-nexus.svg";
 
@@ -37,6 +39,7 @@ export function ApplicantPortalSidebar({
   onOpenMessages,
 }: Props) {
   const branding = useTenantBranding();
+  const { profilePhotoUrl } = useApplicantPortal();
   const router = useRouter();
   const pathname = usePathname() ?? "";
   const [logoSrc, setLogoSrc] = useState(
@@ -45,7 +48,6 @@ export function ApplicantPortalSidebar({
   const [openSectionLabels, setOpenSectionLabels] = useState<string[]>([]);
 
   const firstName = applicantName.split(" ")[0] || "Applicant";
-  const initial = firstName.charAt(0).toUpperCase();
   const logoUseNativeImg = isRemoteOrBlobImageSrc(logoSrc);
 
   useEffect(() => {
@@ -342,15 +344,12 @@ export function ApplicantPortalSidebar({
         }`}
       >
         <div className={`flex items-center ${isCollapsed ? "flex-col gap-2" : "gap-2.5"}`}>
-          {!isCollapsed ? (
-            <span
-              className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-full text-[11px] font-semibold text-white"
-              style={{ backgroundColor: "var(--brand-primary)" }}
-              aria-hidden
-            >
-              {initial}
-            </span>
-          ) : null}
+          <WorkerPortalUserAvatar
+            name={applicantName}
+            photoUrl={profilePhotoUrl}
+            size={30}
+            className={isCollapsed ? "" : ""}
+          />
           {!isCollapsed ? (
             <div className="min-w-0 flex-1">
               <p className="truncate text-[14px] font-semibold leading-5 text-[#0F2F60]">{firstName}.</p>

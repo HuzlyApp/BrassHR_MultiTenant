@@ -50,7 +50,7 @@ function statusTone(status: string, urgency: LicenseItem["urgency"]) {
   return "gray" as const;
 }
 
-export function ApplicantLicensesTab() {
+export function ApplicantLicensesTab({ embedded = false }: { embedded?: boolean }) {
   const { sessionReady, authHeaders } = useApplicantPortal();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [licenses, setLicenses] = useState<LicenseItem[]>([]);
@@ -148,7 +148,7 @@ export function ApplicantLicensesTab() {
   }
 
   return (
-    <div className="space-y-6 px-8 py-6">
+    <div className={embedded ? "space-y-6" : "space-y-6 px-8 py-6"}>
       {summary && (summary.expiredCount > 0 || summary.expiringSoonCount > 0) ? (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
           <div className="flex items-start gap-2">

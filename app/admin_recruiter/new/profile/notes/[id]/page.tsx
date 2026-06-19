@@ -63,7 +63,7 @@ export default function NewApplicantProfileNotesPage() {
   const [noteText, setNoteText] = useState("");
   const [actionError, setActionError] = useState<string | null>(null);
 
-  const { name: candidateName, role: candidateRole, status: candidateStatus, loading: headerLoading } = useCandidateHeader(id);
+  const { name: candidateName, role: candidateRole, status: candidateStatus, profilePhotoUrl, loading: headerLoading } = useCandidateHeader(id);
   const pageLoading = headerLoading || notesLoading;
 
   const loadNotes = useCallback(async () => {
@@ -145,7 +145,7 @@ export default function NewApplicantProfileNotesPage() {
           <CandidateDetailLoader label="Loading notes..." />
         ) : (
           <>
-            <DetailedCandidateHeader name={candidateName} role={candidateRole} status={candidateStatus} />
+            <DetailedCandidateHeader name={candidateName} role={candidateRole} status={candidateStatus} profilePhotoUrl={profilePhotoUrl} />
             <ProfileSubTabs applicantId={id} activeTab="Notes" />
 
             <div className="relative mx-auto min-h-[520px] w-full max-w-[1300px] rounded-md border border-[#E5E7EB] bg-white p-5">

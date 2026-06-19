@@ -14,6 +14,7 @@ export type WorkerSummary = {
   first_name: string | null;
   last_name: string | null;
   email: string | null;
+  profilePhotoUrl?: string | null;
 };
 
 export type StaffConversation = {
@@ -24,6 +25,7 @@ export type StaffConversation = {
   sentAt: string | null;
   unreadCount: number;
   href: string;
+  profilePhotoUrl?: string | null;
 };
 
 export function applicantDisplayName(worker: WorkerSummary | undefined): string {
@@ -57,6 +59,7 @@ export function groupApplicantMessagesIntoConversations(
         sentAt: msg.created_at,
         unreadCount: isUnread ? 1 : 0,
         href,
+        profilePhotoUrl: worker?.profilePhotoUrl ?? null,
       });
       continue;
     }
@@ -91,6 +94,7 @@ export function upsertConversationFromMessage(
       sentAt: message.created_at,
       unreadCount: isUnread ? 1 : 0,
       href: `/admin_recruiter/messages/${message.worker_id}`,
+      profilePhotoUrl: worker?.profilePhotoUrl ?? null,
     });
   } else {
     const existing = { ...next[index] };

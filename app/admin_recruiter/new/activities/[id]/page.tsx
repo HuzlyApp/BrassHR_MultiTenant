@@ -329,6 +329,7 @@ export default function NewApplicantActivitiesPage() {
               name={candidateName}
               role={candidateRole}
               status={statusLabel}
+              profilePhotoUrl={applicant?.profile_photo_url}
             />
 
             <nav

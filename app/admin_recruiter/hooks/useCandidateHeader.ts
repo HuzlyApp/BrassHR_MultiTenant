@@ -9,6 +9,7 @@ export type CandidateHeaderWorker = {
   city?: string | null;
   state?: string | null;
   status_label?: string;
+  profile_photo_url?: string | null;
 };
 
 export function useCandidateHeader(workerId: string | undefined) {
@@ -56,5 +57,7 @@ export function useCandidateHeader(workerId: string | undefined) {
 
   const status = worker?.status_label?.trim() || undefined;
 
-  return { worker, name, role, status, loading };
+  const profilePhotoUrl = worker?.profile_photo_url ?? null;
+
+  return { worker, name, role, status, profilePhotoUrl, loading };
 }

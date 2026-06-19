@@ -10,12 +10,30 @@ import ChatImagePreviewModal from "@/app/components/ChatImagePreviewModal";
 import { ChatAttachmentOptionsRow } from "@/app/application/components/applicant-portal/ChatAttachmentOptionsRow";
 import type { ApplicantMessage } from "./types";
 import type { ApplicantPortalMessaging } from "./ApplicantPortalProvider";
+import { useApplicantPortal } from "./ApplicantPortalProvider";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 
 const CHAT_ATTACH_ICON = "/icons/chat-icons/attach_file.svg";
 const CHAT_SEND_ICON = "/icons/chat-icons/send.svg";
 
-function MessageAvatar({ name, variant }: { name: string; variant: "primary" | "accent" }) {
+function MessageAvatar({
+  name,
+  variant,
+  photoUrl,
+}: {
+  name: string;
+  variant: "primary" | "accent";
+  photoUrl?: string | null;
+}) {
+  const trimmedPhoto = photoUrl?.trim();
+  if (trimmedPhoto) {
+    return (
+      <div className="relative h-8 w-8 shrink-0 overflow-hidden rounded-full border border-white/20">
+        <Image src={trimmedPhoto} alt="" fill className="object-cover" sizes="32px" unoptimized />
+      </div>
+    );
+  }
+
   return (
     <div
       className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold"
@@ -51,6 +69,7 @@ type Props = {
 
 export function ApplicantRecruiterChatConversation({ messaging, recruiterName, workerName }: Props) {
   const branding = useTenantBranding();
+  const { profilePhotoUrl } = useApplicantPortal();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messageInputRef = useRef<HTMLTextAreaElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -289,7 +308,11 @@ export function ApplicantRecruiterChatConversation({ messaging, recruiterName, w
                       <Bot className="h-4 w-4" aria-hidden />
                     </div>
                   ) : (
-                    <MessageAvatar name={avatarName} variant={isApplicant ? "primary" : "accent"} />
+                    <MessageAvatar
+                      name={avatarName}
+                      variant={isApplicant ? "primary" : "accent"}
+                      photoUrl={isApplicant ? profilePhotoUrl : undefined}
+                    />
                   )}
                   <p className="text-xs text-[#64748B]">
                     <span className="font-medium text-[#334155]">{senderLabelText}</span>

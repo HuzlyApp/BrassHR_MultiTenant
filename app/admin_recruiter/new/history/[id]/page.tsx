@@ -286,6 +286,7 @@ export default function NewApplicantHistoryPage() {
               name={candidateName}
               role={candidateRole}
               status={applicant?.status_label}
+              profilePhotoUrl={applicant?.profile_photo_url}
             />
 
             <div className="mx-auto w-full max-w-[1300px] rounded-md border border-[#D1D5DB] bg-white p-5">

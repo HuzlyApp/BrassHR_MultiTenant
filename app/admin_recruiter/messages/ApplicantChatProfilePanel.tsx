@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useEffect, useState } from "react";
 import { Mail, MapPin, Phone } from "lucide-react";
 import CandidateDetailLoader from "@/app/admin_recruiter/components/CandidateDetailLoader";
@@ -18,6 +19,7 @@ type WorkerProfile = {
   job_role: string | null;
   status_label: string | null;
   created_at: string | null;
+  profile_photo_url?: string | null;
 };
 
 type ProfileResponse = {
@@ -89,12 +91,25 @@ export default function ApplicantChatProfilePanel({
         <>
       <div className="flex flex-1 flex-col gap-3.5 overflow-y-auto px-5 pt-[30px] pb-[30px]">
         <div className="flex flex-col items-center text-center">
-          <div
-            className="flex h-20 w-20 items-center justify-center rounded-full text-xl font-semibold text-white"
-            style={{ backgroundColor: "var(--brand-primary)" }}
-          >
-            {nameInitials(displayName)}
-          </div>
+          {profile?.profile_photo_url?.trim() ? (
+            <div className="relative h-20 w-20 overflow-hidden rounded-full border border-[#E2E8F0]">
+              <Image
+                src={profile.profile_photo_url}
+                alt=""
+                fill
+                className="object-cover"
+                sizes="80px"
+                unoptimized
+              />
+            </div>
+          ) : (
+            <div
+              className="flex h-20 w-20 items-center justify-center rounded-full text-xl font-semibold text-white"
+              style={{ backgroundColor: "var(--brand-primary)" }}
+            >
+              {nameInitials(displayName)}
+            </div>
+          )}
           <h3 className="mt-4 text-lg font-semibold text-[#0F172A]">{displayName}</h3>
           <p className="mt-1 text-sm text-[#64748B]">
             {profile?.job_role?.trim() || "Applicant"}

@@ -1,21 +1,12 @@
 import type { ReactNode } from "react"
 import Link from "next/link"
 import BrandedSvgIcon from "@/app/components/BrandedSvgIcon"
+import { CandidateListAvatar } from "@/app/admin_recruiter/components/CandidateListAvatar"
 import type { CandidateColumnId } from "./column-config"
 import type { CandidateRow } from "./types"
 import { candidateStatusBadgeClassName } from "./candidate-status-badge"
 
-const BRAND_AVATAR_GRADIENT =
-  "linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-accent) 100%)"
 const BRAND_ICON = "var(--brand-primary)"
-
-function initialsFromName(name: string) {
-  const parts = name.trim().split(/\s+/).filter(Boolean)
-  if (parts.length === 0) return "NA"
-  const first = parts[0]?.[0] ?? ""
-  const last = parts[parts.length - 1]?.[0] ?? ""
-  return (first + last).toUpperCase()
-}
 
 export function renderListCell(
   col: CandidateColumnId,
@@ -26,12 +17,7 @@ export function renderListCell(
     case "name":
       return (
         <div className="flex items-center gap-3 min-w-0 w-full">
-          <div
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold text-white"
-            style={{ background: BRAND_AVATAR_GRADIENT }}
-          >
-            {initialsFromName(c.name || "NA")}
-          </div>
+          <CandidateListAvatar name={c.name || "NA"} photoUrl={c.profilePhotoUrl} />
           <div className="min-w-0">
             <div className="text-sm font-medium text-black truncate">{c.name || "—"}</div>
             <div className="text-xs text-[#4B5563] truncate">{c.email || "—"}</div>

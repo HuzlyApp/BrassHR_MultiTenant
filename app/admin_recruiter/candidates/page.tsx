@@ -19,6 +19,7 @@ import type { CandidateRow } from "./types";
 import AdvancedSearchModal from "../components/AdvancedSearchModal";
 import CandidateCommunicationDialog from "../components/CandidateCommunicationDialog";
 import { CandidatesListShell } from "../components/CandidatesListShell";
+import { CandidateListAvatar } from "../components/CandidateListAvatar";
 import { exportCandidatesCsv } from "./export-candidates-csv";
 import { candidateStatusBadgeClassName } from "./candidate-status-badge";
 
@@ -41,10 +42,10 @@ type WorkerProfile = {
   zip?: string | null;
   created_at: string | null;
   status?: string | null;
+  profile_photo?: string | null;
+  profile_photo_url?: string | null;
 };
 
-const BRAND_AVATAR_GRADIENT =
-  "linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-accent) 100%)";
 const BRAND_ICON = "var(--brand-primary)";
 
 function titleCaseStatus(s: string | null | undefined) {
@@ -52,14 +53,6 @@ function titleCaseStatus(s: string | null | undefined) {
   if (!v) return "New";
   const low = v.toLowerCase();
   return low.slice(0, 1).toUpperCase() + low.slice(1);
-}
-
-function initialsFromName(name: string) {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return "NA";
-  const first = parts[0]?.[0] ?? "";
-  const last = parts[parts.length - 1]?.[0] ?? "";
-  return (first + last).toUpperCase();
 }
 
 /** Fixed `en-US` locale so SSR and browser produce identical strings (avoids hydration mismatch). */
@@ -265,6 +258,7 @@ export default function CandidatesPage() {
           createdAt: item.created_at,
           reference: item.id.slice(0, 7).toUpperCase(),
           dateOfBirth: null,
+          profilePhotoUrl: item.profile_photo_url ?? null,
           });
         });
 
@@ -315,6 +309,7 @@ export default function CandidatesPage() {
         createdAt: item.created_at,
         reference: item.id.slice(0, 7).toUpperCase(),
         dateOfBirth: null,
+        profilePhotoUrl: item.profile_photo_url ?? null,
         });
       });
 
@@ -529,12 +524,7 @@ export default function CandidatesPage() {
                         >
                           <div className="flex items-start justify-between gap-3">
                             <div className="flex items-start gap-3 min-w-0">
-                              <div
-                                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold text-white"
-                                style={{ background: BRAND_AVATAR_GRADIENT }}
-                              >
-                                {initialsFromName(c.name || "NA")}
-                              </div>
+                              <CandidateListAvatar name={c.name || "NA"} photoUrl={c.profilePhotoUrl} />
                               <div className="min-w-0">
                                 <div className="font-normal text-black truncate text-sm">{c.name || "Unnamed"}</div>
                                 <div className="text-[10px] text-[#6B7280] mt-0.5">RN #{c.reference}</div>

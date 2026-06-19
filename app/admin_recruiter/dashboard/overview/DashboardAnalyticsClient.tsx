@@ -393,7 +393,7 @@ export default function DashboardAnalyticsClient({ focusSection }: DashboardAnal
 
   if (loading && !data) {
     return (
-      <div className="px-5 py-6 lg:px-8">
+      <div className="px-4 py-5 min-[1000px]:px-8">
         <DashboardPageLoader label="Loading overview..." />
       </div>
     );
@@ -401,7 +401,7 @@ export default function DashboardAnalyticsClient({ focusSection }: DashboardAnal
 
   if (error && !data) {
     return (
-      <div className="px-5 py-6 lg:px-8">
+      <div className="px-4 py-5 min-[1000px]:px-8">
         <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</div>
       </div>
     );
@@ -412,9 +412,8 @@ export default function DashboardAnalyticsClient({ focusSection }: DashboardAnal
   const maxPendingBar = Math.max(1, ...data.operational.pendingApprovalsByType.map((b) => b.count));
 
   return (
-    <div className="relative px-5 py-6 lg:px-8">
+    <div className="relative w-full min-w-0 space-y-[14px] px-4 py-5 min-[1000px]:px-8">
       {loading && data ? <DashboardPageLoader label="Updating overview..." overlay /> : null}
-      <div className="mx-auto w-full max-w-[1400px] space-y-[14px]">
         <header className="space-y-1">
           <h1 className="align-middle font-[Inter,sans-serif] text-[30px] font-semibold leading-[36px] text-[#000000]">
             Dashboard Overview
@@ -671,7 +670,7 @@ export default function DashboardAnalyticsClient({ focusSection }: DashboardAnal
           </SectionCard>
         </div>
 
-        <section className="w-full max-w-[1296px] min-h-[228px] rounded-md border border-[#E5E7EB] bg-white p-[14px]">
+        <section className="w-full min-h-[228px] rounded-md border border-[#E5E7EB] bg-white p-[14px]">
           <h2 className="font-[Inter,sans-serif] text-[16px] font-semibold leading-[24px] text-[#111827]">Reports</h2>
           <div className="mt-[14px] grid w-full grid-cols-1 gap-[14px] sm:grid-cols-2 xl:grid-cols-4">
             {REPORT_CARDS.map((card) => (
@@ -689,7 +688,6 @@ export default function DashboardAnalyticsClient({ focusSection }: DashboardAnal
             ))}
           </div>
         </section>
-      </div>
     </div>
   );
 }

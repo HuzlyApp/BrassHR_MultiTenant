@@ -10,6 +10,7 @@ type DetailedCandidateHeaderProps = {
   role: string;
   status?: string;
   loading?: boolean;
+  profilePhotoUrl?: string | null;
   onMessageClick?: () => void;
   messageDisabled?: boolean;
   onResendStatusClick?: () => void;
@@ -22,6 +23,7 @@ export default function DetailedCandidateHeader({
   role,
   status,
   loading = false,
+  profilePhotoUrl,
   onMessageClick,
   messageDisabled = false,
 }: DetailedCandidateHeaderProps) {
@@ -33,7 +35,7 @@ export default function DetailedCandidateHeader({
     <div className="sticky top-0 z-20 mb-4 bg-zinc-50/95 backdrop-blur-sm py-1">
       <div className="mx-auto flex h-[92px] w-full max-w-[1300px] items-center justify-between rounded-md border border-[#D1D5DB] bg-white px-5">
         <div className="flex items-center gap-2">
-          <CandidateAvatarIcon />
+          <CandidateAvatarIcon photoUrl={profilePhotoUrl} name={displayName} />
           <div>
             <div className="font-[Inter,sans-serif] text-[20px] font-semibold leading-[28px] text-[#111827]">
               {displayName}

@@ -5,6 +5,7 @@ import { requireApiSession } from "@/lib/auth/api-session"
 import { isStaffRole } from "@/lib/auth/app-role"
 import { canAccessWorkerRecord } from "@/lib/auth/worker-record-access"
 import { getSupabaseUrl } from "@/lib/supabase-env"
+import { resolveWorkerProfilePhotoUrl } from "@/lib/applicant-portal/worker-profile-photo"
 import { parseRequiredUuid } from "@/lib/validation/uuid"
 import {
   attachmentRequirementHasUpload,
@@ -99,7 +100,7 @@ export async function GET(req: NextRequest) {
     const { data: worker, error: wErr } = await supabase
       .from("worker")
       .select(
-        "id, user_id, tenant_id, first_name, last_name, job_role, created_at, updated_at, city, state, status"
+        "id, user_id, tenant_id, first_name, last_name, job_role, created_at, updated_at, city, state, status, profile_photo"
       )
       .eq("id", workerId)
       .maybeSingle()
@@ -456,6 +457,10 @@ export async function GET(req: NextRequest) {
           statusNorm === "new"
             ? "New Applicant"
             : statusNorm.charAt(0).toUpperCase() + statusNorm.slice(1),
+        profile_photo_url: await resolveWorkerProfilePhotoUrl(
+          supabase,
+          (worker as { profile_photo?: unknown }).profile_photo
+        ),
       },
       meta: {
         daysInStage,
