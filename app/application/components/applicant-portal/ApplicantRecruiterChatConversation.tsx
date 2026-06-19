@@ -46,9 +46,10 @@ function senderLabel(message: ApplicantMessage): string {
 type Props = {
   messaging: ApplicantPortalMessaging;
   recruiterName: string;
+  workerName: string;
 };
 
-export function ApplicantRecruiterChatConversation({ messaging, recruiterName }: Props) {
+export function ApplicantRecruiterChatConversation({ messaging, recruiterName, workerName }: Props) {
   const branding = useTenantBranding();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messageInputRef = useRef<HTMLTextAreaElement>(null);
@@ -194,7 +195,8 @@ export function ApplicantRecruiterChatConversation({ messaging, recruiterName }:
           {messages.map((message) => {
             const isApplicant = message.sender_role === "applicant";
             const isAi = message.sender_role === "ai";
-            const senderName = isApplicant ? "You" : isAi ? senderLabel(message) : displayRecruiterName;
+            const senderLabelText = isApplicant ? "You" : isAi ? senderLabel(message) : displayRecruiterName;
+            const avatarName = isApplicant ? workerName : senderLabelText;
             const buttons = message.metadata?.buttons ?? [];
 
             return (
@@ -287,10 +289,10 @@ export function ApplicantRecruiterChatConversation({ messaging, recruiterName }:
                       <Bot className="h-4 w-4" aria-hidden />
                     </div>
                   ) : (
-                    <MessageAvatar name={senderName} variant={isApplicant ? "primary" : "accent"} />
+                    <MessageAvatar name={avatarName} variant={isApplicant ? "primary" : "accent"} />
                   )}
                   <p className="text-xs text-[#64748B]">
-                    <span className="font-medium text-[#334155]">{senderName}</span>
+                    <span className="font-medium text-[#334155]">{senderLabelText}</span>
                     {" · "}
                     {formatChatTime(message.created_at)}
                   </p>

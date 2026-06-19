@@ -104,6 +104,7 @@ function ApplicantChatClientContent() {
   const [groupsError, setGroupsError] = useState<string | null>(null);
 
   const recruiterName = branding.companyName?.trim() || "Your Recruiter";
+  const workerName = session?.applicant.name?.trim() || "Worker";
   const applicantWorkerId = session?.applicant.id ?? null;
 
   useEffect(() => {
@@ -302,7 +303,11 @@ function ApplicantChatClientContent() {
                 subtitle="Recruiter chat"
                 avatar={<SingleChatAvatar name={recruiterName} size={40} />}
               />
-              <ApplicantRecruiterChatConversation messaging={messaging} recruiterName={recruiterName} />
+              <ApplicantRecruiterChatConversation
+                messaging={messaging}
+                recruiterName={recruiterName}
+                workerName={workerName}
+              />
             </>
           ) : selectedGroup ? (
             <>
@@ -326,6 +331,7 @@ function ApplicantChatClientContent() {
                     : selectedGroup.members.map((member) => ({ ...member, joinedAt: "" }))
                 }
                 applicantWorkerId={applicantWorkerId}
+                workerName={workerName}
               />
             </>
           ) : (

@@ -52,11 +52,13 @@ export function ApplicantGroupConversation({
   groupName,
   members,
   applicantWorkerId,
+  workerName,
 }: {
   groupId: string;
   groupName: string;
   members: GroupMember[];
   applicantWorkerId: string;
+  workerName: string;
 }) {
   const { authHeaders } = useApplicantPortal();
   const [messages, setMessages] = useState<GroupMessageRow[]>([]);
@@ -170,6 +172,7 @@ export function ApplicantGroupConversation({
         {!loading
           ? messages.map((message) => {
               const isSelf = message.sender_role === "worker" && message.sender_id === applicantWorkerId;
+              const displayName = isSelf ? workerName : message.sender_name;
               return (
                 <div
                   key={message.id}
@@ -193,9 +196,9 @@ export function ApplicantGroupConversation({
                     <p className="whitespace-pre-wrap wrap-break-word">{message.content}</p>
                   </div>
                   <div className={`mt-2 flex items-center gap-2 ${isSelf ? "flex-row-reverse" : ""}`}>
-                    <MessageAvatar name={message.sender_name} />
+                    <MessageAvatar name={displayName} />
                     <p className="text-xs text-[#64748B]">
-                      <span className="font-medium text-[#334155]">{message.sender_name}</span>
+                      <span className="font-medium text-[#334155]">{displayName}</span>
                       {" · "}
                       {relativeChatMinutes(message.sent_at) || formatChatTime(message.sent_at)}
                     </p>
@@ -252,6 +255,7 @@ export function ApplicantGroupConversation({
 export function ApplicantGroupChatTab() {
   const { authHeaders } = useApplicantPortal();
   const [applicantWorkerId, setApplicantWorkerId] = useState<string | null>(null);
+  const [workerName, setWorkerName] = useState("Worker");
   const [groups, setGroups] = useState<AssignedGroup[]>([]);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [members, setMembers] = useState<GroupMember[]>([]);
@@ -266,13 +270,14 @@ export function ApplicantGroupChatTab() {
         if (!headers) return;
         const sessionRes = await fetch("/api/applicant-portal/session", { headers, cache: "no-store" });
         const sessionPayload = (await sessionRes.json().catch(() => ({}))) as {
-          applicant?: { id: string };
+          applicant?: { id: string; name?: string };
         };
         if (!sessionRes.ok || !sessionPayload.applicant?.id) {
           throw new Error("Could not load applicant session.");
         }
         if (!alive) return;
         setApplicantWorkerId(sessionPayload.applicant.id);
+        setWorkerName(sessionPayload.applicant.name?.trim() || "Worker");
 
         const res = await fetch("/api/applicant-portal/groups", { headers, cache: "no-store" });
         const payload = (await res.json().catch(() => ({}))) as {
@@ -394,6 +399,7 @@ export function ApplicantGroupChatTab() {
               groupName={selectedGroup.name}
               members={members.length > 0 ? members : selectedGroup.members.map((m) => ({ ...m, joinedAt: "" }))}
               applicantWorkerId={applicantWorkerId}
+              workerName={workerName}
             />
           ) : null}
         </div>
