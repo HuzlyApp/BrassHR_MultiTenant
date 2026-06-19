@@ -2,17 +2,7 @@
 
 import Link from "next/link";
 import type { ReactNode } from "react";
-import {
-  CalendarClock,
-  CalendarDays,
-  Clock,
-  FileText,
-  MapPin,
-  Megaphone,
-  Palmtree,
-  Shield,
-  Wallet,
-} from "lucide-react";
+import { Clock, MapPin, Megaphone, Shield } from "lucide-react";
 import { Cell, Pie, PieChart, ResponsiveContainer } from "recharts";
 import type {
   ApplicantNote,
@@ -21,7 +11,7 @@ import type {
   AttendanceLog,
 } from "./types";
 import {
-  WORKER_CHART_GREEN,
+  WORKER_CHART_BLUE,
   buildWeeklyScheduleRows,
   formatDecimalHours,
   getAttendanceProgress,
@@ -42,19 +32,40 @@ const HELP_HREF = "/application/applicant-dashboard/help";
 const WORKER_CARD_LABEL_CLASS =
   "font-[Inter,sans-serif] text-[14px] font-semibold leading-5 text-[#F97316]";
 
+const WORKER_DASHBOARD_ICONS = {
+  upcomingShift: "/icons/Upcoming-Shift.svg",
+  schedule: "/icons/uil_schedule.svg",
+  wallet: "/icons/uil_wallet.svg",
+  leave: "/icons/mdi_island.svg",
+  paySummary: "/icons/Pay-Summary-icon.svg",
+} as const;
+
+function WorkerDashboardIcon({ src, size }: { src: string; size: 24 | 64 }) {
+  const sizeClass = size === 24 ? "h-6 w-6" : "h-16 w-16";
+  return (
+    <img src={src} alt="" width={size} height={size} className={sizeClass} aria-hidden />
+  );
+}
+
 function WorkerCardShell({
   title,
   titleColor,
   action,
+  centerBody = false,
   children,
 }: {
   title: string;
   titleColor?: string;
   action?: ReactNode;
+  centerBody?: boolean;
   children: ReactNode;
 }) {
   return (
-    <section className="w-full min-w-0 rounded-md border border-[#E5E7EB] bg-white">
+    <section
+      className={`w-full min-w-0 rounded-md border border-[#E5E7EB] bg-white ${
+        centerBody ? "flex h-full flex-col" : ""
+      }`}
+    >
       <div className="flex items-center justify-between border-b border-[#E5E7EB] px-[14px] py-[14px]">
         <h2
           className="font-[Inter,sans-serif] text-[16px] font-semibold leading-[24px]"
@@ -64,7 +75,7 @@ function WorkerCardShell({
         </h2>
         {action}
       </div>
-      <div className="p-[14px]">{children}</div>
+      <div className={`p-[14px] ${centerBody ? "flex flex-1 items-center" : ""}`}>{children}</div>
     </section>
   );
 }
@@ -104,9 +115,13 @@ function SummaryMetricCard({
   action?: ReactNode;
 }) {
   return (
-    <div className="flex min-h-[188px] w-full min-w-0 flex-col rounded-md border border-[#E5E7EB] bg-white p-[14px] shadow-sm">
-      <div className="mb-3 flex items-start justify-between gap-2">
+    <div className="flex min-h-[188px] w-full min-w-0 gap-3 rounded-md border border-[#E5E7EB] bg-white p-[14px] shadow-sm">
+      <div className="flex min-w-0 flex-1 flex-col pt-4">
         <p className={WORKER_CARD_LABEL_CLASS}>{label}</p>
+        <div className="mt-3 flex flex-1 flex-col justify-start gap-1">{children}</div>
+        {action ? <div className="mt-4">{action}</div> : null}
+      </div>
+      <div className="flex shrink-0 items-start self-start">
         <div
           className="flex h-[50px] w-[50px] shrink-0 items-center justify-center rounded-md p-1"
           style={{ backgroundColor: iconBg }}
@@ -114,8 +129,6 @@ function SummaryMetricCard({
           {icon}
         </div>
       </div>
-      <div className="flex flex-1 flex-col justify-center gap-1">{children}</div>
-      {action ? <div className="mt-4">{action}</div> : null}
     </div>
   );
 }
@@ -146,7 +159,7 @@ function AttendanceDonut({ pct }: { pct: number }) {
   ];
 
   return (
-    <div className="relative flex h-[180px] w-full min-w-[140px] items-center justify-center">
+    <div className="relative flex h-[150px] w-full min-w-[140px] items-center justify-center">
       <ResponsiveContainer width="100%" height="100%">
         <PieChart margin={{ top: 8, right: 8, bottom: 8, left: 8 }}>
           <Pie
@@ -161,7 +174,7 @@ function AttendanceDonut({ pct }: { pct: number }) {
             stroke="#FFFFFF"
             strokeWidth={2}
           >
-            <Cell fill={WORKER_CHART_GREEN} />
+            <Cell fill={WORKER_CHART_BLUE} />
             <Cell fill="#E5E7EB" />
           </Pie>
         </PieChart>
@@ -230,13 +243,7 @@ export function WorkerDashboardOverview({
         <SummaryMetricCard
           label="Upcoming Shift"
           iconBg="#FFECD6"
-          icon={
-            <CalendarClock
-              className="h-[30px] w-[30px] text-[#F97316]"
-              strokeWidth={1.75}
-              aria-hidden
-            />
-          }
+          icon={<WorkerDashboardIcon src={WORKER_DASHBOARD_ICONS.upcomingShift} size={24} />}
           action={<WorkerOutlineButton href={SCHEDULE_HREF} label="View shift details" block />}
         >
           <p className="font-[Inter,sans-serif] text-[14px] font-semibold leading-5 text-[#111827]">
@@ -254,13 +261,7 @@ export function WorkerDashboardOverview({
         <SummaryMetricCard
           label="This Week"
           iconBg="#D6FFE6"
-          icon={
-            <CalendarDays
-              className="h-[30px] w-[30px] text-[#00B546]"
-              strokeWidth={1.75}
-              aria-hidden
-            />
-          }
+          icon={<WorkerDashboardIcon src={WORKER_DASHBOARD_ICONS.schedule} size={24} />}
         >
           <p className="font-[Inter,sans-serif] text-[24px] font-semibold leading-8 text-[#111827]">
             {weekStats.shiftCount} {weekStats.shiftCount === 1 ? "Shift" : "Shifts"}
@@ -273,9 +274,7 @@ export function WorkerDashboardOverview({
         <SummaryMetricCard
           label="Pay this Period"
           iconBg="#DBEAFE"
-          icon={
-            <Wallet className="h-[30px] w-[30px] text-[#3B82F6]" strokeWidth={1.75} aria-hidden />
-          }
+          icon={<WorkerDashboardIcon src={WORKER_DASHBOARD_ICONS.wallet} size={24} />}
         >
           <p className="font-[Inter,sans-serif] text-[24px] font-semibold leading-8 text-[#111827]">
             Soon
@@ -288,9 +287,7 @@ export function WorkerDashboardOverview({
         <SummaryMetricCard
           label="Leave Balance"
           iconBg="#CCFBF1"
-          icon={
-            <Palmtree className="h-[30px] w-[30px] text-[#0D9488]" strokeWidth={1.75} aria-hidden />
-          }
+          icon={<WorkerDashboardIcon src={WORKER_DASHBOARD_ICONS.leave} size={24} />}
           action={<WorkerOutlineButton href={HELP_HREF} label="Request Leave" block />}
         >
           <p className="font-[Inter,sans-serif] text-[24px] font-semibold leading-8 text-[#111827]">
@@ -381,9 +378,10 @@ export function WorkerDashboardOverview({
         </WorkerCardShell>
       </div>
 
-      <div className="grid w-full min-w-0 gap-[14px] [grid-template-columns:repeat(auto-fit,minmax(min(100%,480px),1fr))]">
+      <div className="grid w-full min-w-0 items-stretch gap-[14px] [grid-template-columns:repeat(auto-fit,minmax(min(100%,480px),1fr))]">
         <WorkerCardShell
           title="Time Attendance"
+          centerBody
           action={
             <Link
               href={TIMESHEETS_HREF}
@@ -393,7 +391,7 @@ export function WorkerDashboardOverview({
             </Link>
           }
         >
-          <div className="grid grid-cols-1 gap-[14px] lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(140px,180px)] lg:items-center">
+          <div className="grid w-full grid-cols-1 gap-[14px] lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(130px,160px)] lg:items-center">
             <div className="space-y-1 border-[#E5E7EB] lg:border-r lg:pr-[14px]">
               <p className="font-[Inter,sans-serif] text-[12px] font-semibold leading-4 text-[#6B7280]">
                 This Week
@@ -422,14 +420,15 @@ export function WorkerDashboardOverview({
 
         <WorkerCardShell
           title="Pay Summary"
+          centerBody
           action={
             <span className="font-[Inter,sans-serif] text-[14px] font-medium leading-5 text-[#9CA3AF]">
               View Payslips
             </span>
           }
         >
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="space-y-1">
+          <div className="flex w-full flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0 flex-1 space-y-1">
               <p className="font-[Inter,sans-serif] text-[12px] font-semibold leading-4 text-[#6B7280]">
                 Recent Pay
               </p>
@@ -442,8 +441,8 @@ export function WorkerDashboardOverview({
                 Next pay day: Coming soon
               </p>
             </div>
-            <div className="flex h-[120px] w-[120px] shrink-0 items-center justify-center rounded-md bg-[#F3E8FF]">
-              <FileText className="h-12 w-12 text-[#9333EA]" strokeWidth={1.5} aria-hidden />
+            <div className="flex shrink-0 items-center justify-center self-center sm:self-auto">
+              <WorkerDashboardIcon src={WORKER_DASHBOARD_ICONS.paySummary} size={64} />
             </div>
           </div>
         </WorkerCardShell>

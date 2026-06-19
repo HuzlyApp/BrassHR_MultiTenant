@@ -1,7 +1,7 @@
 import type { ApplicantNote, Appointment, AppointmentSlot, AttendanceLog } from "./types";
 import { formatDateOnly, formatTimeRange } from "./format";
 
-export const WORKER_CHART_GREEN = "#008C36";
+export const WORKER_CHART_BLUE = "#3B82F6";
 export const WORKER_WEEKLY_HOUR_TARGET = 40;
 
 export type WorkerScheduleRow = {
