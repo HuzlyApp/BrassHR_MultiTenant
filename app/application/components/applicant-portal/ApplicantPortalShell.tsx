@@ -2,6 +2,7 @@
 
 import type { CSSProperties } from "react";
 import { useCallback, useEffect, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
 import { ApplicantPortalHeader } from "./ApplicantPortalHeader";
@@ -46,6 +47,8 @@ export function ApplicantPortalShell({
   children,
 }: Props) {
   const branding = useTenantBranding();
+  const pathname = usePathname() ?? "";
+  const router = useRouter();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [messagesOpen, setMessagesOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -72,6 +75,16 @@ export function ApplicantPortalShell({
     setSidebarCollapsed((prev) => !prev);
   };
 
+  const openMessages = useCallback(() => {
+    if (pathname.startsWith("/application/applicant-dashboard/group-chat")) {
+      const params = new URLSearchParams(window.location.search);
+      params.set("tab", "recruiter");
+      router.push(`/application/applicant-dashboard/group-chat?${params.toString()}`);
+      return;
+    }
+    setMessagesOpen(true);
+  }, [pathname, router]);
+
   const sidebarWidth = sidebarCollapsed ? WORKER_SIDEBAR_COLLAPSED_WIDTH : WORKER_SIDEBAR_EXPANDED_WIDTH;
 
   const shellCssVars = {
@@ -82,7 +95,7 @@ export function ApplicantPortalShell({
   } as CSSProperties;
 
   return (
-    <ApplicantPortalUiProvider openRecruiterMessages={() => setMessagesOpen(true)}>
+    <ApplicantPortalUiProvider openRecruiterMessages={openMessages}>
       <div style={shellCssVars} className="applicant-portal-shell min-h-screen bg-[#F4F4F4] text-[#012352]">
         <ApplicantPortalSidebar
           applicantName={session?.applicant.name ?? "Applicant"}
@@ -90,7 +103,7 @@ export function ApplicantPortalShell({
           collapsed={sidebarCollapsed}
           onMobileClose={closeMobileNav}
           onOpenMessages={() => {
-            setMessagesOpen(true);
+            openMessages();
             setMobileNavOpen(false);
           }}
         />
@@ -106,7 +119,7 @@ export function ApplicantPortalShell({
             sidebarCollapsed={sidebarCollapsed}
             onMenuClick={openMobileNav}
             onSidebarToggle={toggleSidebarCollapsed}
-            onOpenMessages={() => setMessagesOpen(true)}
+            onOpenMessages={openMessages}
           />
           <main className="flex-1 bg-[#F4F4F4]">{children}</main>
         </div>

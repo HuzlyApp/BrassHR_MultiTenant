@@ -18,15 +18,29 @@ import {
   useApplicantPortalSession,
 } from "@/app/application/components/applicant-portal/useApplicantPortalSession";
 import { useApplicantPortalMessaging } from "@/app/application/components/applicant-portal/useApplicantPortalMessaging";
-import type { ApplicantSession } from "@/app/application/components/applicant-portal/types";
+import type { ApplicantMessage, ApplicantSession } from "@/app/application/components/applicant-portal/types";
 import type { TenantBranding } from "@/lib/tenant/tenant-branding";
 import { persistOnboardingSlugCookie } from "@/lib/tenant/client-onboarding-slug";
+
+export type ApplicantPortalMessaging = {
+  messages: ApplicantMessage[];
+  messageBody: string;
+  setMessageBody: (value: string) => void;
+  sending: boolean;
+  aiTyping: boolean;
+  recruiterDirectHint: boolean;
+  lastInquiry: string;
+  onSendMessage: (file?: File | null) => Promise<void>;
+  onContactRecruiter: () => void;
+  onCreateSupportTicket: (inquiry: string) => Promise<void>;
+};
 
 type ApplicantPortalContextValue = {
   session: ApplicantSession | null;
   sessionReady: boolean;
   sessionError: string | null;
   authHeaders: () => Promise<{ Authorization: string } | null>;
+  messaging: ApplicantPortalMessaging;
 };
 
 const ApplicantPortalContext = createContext<ApplicantPortalContextValue | null>(null);
@@ -99,6 +113,19 @@ function ApplicantPortalLayoutInner({ children }: { children: ReactNode }) {
   const sessionReady = !loading && Boolean(session);
   const showSessionLoader = loading && !session;
 
+  const messaging: ApplicantPortalMessaging = {
+    messages,
+    messageBody,
+    setMessageBody,
+    sending,
+    aiTyping,
+    recruiterDirectHint,
+    lastInquiry,
+    onSendMessage: onSendMessage,
+    onContactRecruiter: handleContactRecruiter,
+    onCreateSupportTicket: handleCreateSupportTicket,
+  };
+
   if (!loading && !session && error) {
     return (
       <TenantBrandingProvider branding={branding}>
@@ -116,6 +143,7 @@ function ApplicantPortalLayoutInner({ children }: { children: ReactNode }) {
         sessionReady,
         sessionError: error,
         authHeaders,
+        messaging,
       }}
     >
       <TenantBrandingProvider branding={branding}>

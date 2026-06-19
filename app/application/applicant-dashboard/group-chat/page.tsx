@@ -1,12 +1,7 @@
 "use client";
 
-import { ApplicantGroupChatTab } from "@/app/application/components/applicant-portal/ApplicantGroupChatTab";
-import { ApplicantPortalRoutePage } from "@/app/application/components/applicant-portal/ApplicantPortalRoutePage";
+import { ApplicantChatClient } from "@/app/application/components/applicant-portal/ApplicantChatClient";
 
 export default function ApplicantGroupChatPage() {
-  return (
-    <ApplicantPortalRoutePage>
-      <ApplicantGroupChatTab />
-    </ApplicantPortalRoutePage>
-  );
+  return <ApplicantChatClient />;
 }

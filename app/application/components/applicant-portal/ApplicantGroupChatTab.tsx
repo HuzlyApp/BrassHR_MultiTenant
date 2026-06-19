@@ -7,7 +7,7 @@ import CandidateDetailLoader from "@/app/admin_recruiter/components/CandidateDet
 import { formatChatTime, nameInitials } from "@/app/admin_recruiter/messages/chat-ui";
 import { relativeChatMinutes, type GroupMessageRow } from "@/lib/messaging/group-conversations";
 import { useGroupMessagesRealtime } from "@/lib/messaging/useGroupMessagesRealtime";
-import { useApplicantPortalAuthHeaders } from "./useApplicantPortalSession";
+import { useApplicantPortal } from "./ApplicantPortalProvider";
 import {
   WORKER_SCHEDULE_CARD_CLASS,
   WORKER_SECTION_TITLE_CLASS,
@@ -47,7 +47,7 @@ function MessageAvatar({ name }: { name: string }) {
   );
 }
 
-function ApplicantGroupConversation({
+export function ApplicantGroupConversation({
   groupId,
   groupName,
   members,
@@ -58,7 +58,7 @@ function ApplicantGroupConversation({
   members: GroupMember[];
   applicantWorkerId: string;
 }) {
-  const authHeaders = useApplicantPortalAuthHeaders();
+  const { authHeaders } = useApplicantPortal();
   const [messages, setMessages] = useState<GroupMessageRow[]>([]);
   const [body, setBody] = useState("");
   const [loading, setLoading] = useState(true);
@@ -250,7 +250,7 @@ function ApplicantGroupConversation({
 }
 
 export function ApplicantGroupChatTab() {
-  const authHeaders = useApplicantPortalAuthHeaders();
+  const { authHeaders } = useApplicantPortal();
   const [applicantWorkerId, setApplicantWorkerId] = useState<string | null>(null);
   const [groups, setGroups] = useState<AssignedGroup[]>([]);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);

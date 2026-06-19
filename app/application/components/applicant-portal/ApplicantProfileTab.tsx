@@ -71,7 +71,7 @@ function Field({
 }
 
 export function ApplicantProfileTab() {
-  const authHeaders = useApplicantPortalAuthHeaders();
+  const { sessionReady, authHeaders } = useApplicantPortal();
   const [profile, setProfile] = useState<Profile>(EMPTY_PROFILE);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [loading, setLoading] = useState(true);
