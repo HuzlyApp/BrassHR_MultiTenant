@@ -8,13 +8,56 @@
 
 @media (min-width: 1024px) {
   .admin-recruiter-shell .admin-recruiter-main-wrap {
-    margin-left: var(--admin-sidebar-width, 344px);
+    margin-left: var(--admin-sidebar-width, 272px);
     transition: margin-left 200ms ease-in-out;
   }
 }
 
 .admin-recruiter-shell .admin-recruiter-content header.h-16.border-b {
   display: none !important;
+}
+
+/* Admin recruiter sidebar scrollbar — hidden until hover/scroll (Figma) */
+.admin-recruiter-sidebar-nav {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+
+.admin-recruiter-sidebar-nav:hover,
+.admin-recruiter-sidebar-nav:focus-within,
+.admin-recruiter-sidebar-nav.is-scrolling {
+  scrollbar-color: #e5e7eb transparent;
+}
+
+.admin-recruiter-sidebar-nav::-webkit-scrollbar {
+  width: 5px;
+}
+
+.admin-recruiter-sidebar-nav::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.admin-recruiter-sidebar-nav::-webkit-scrollbar-thumb {
+  background-color: transparent;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background-clip: padding-box;
+}
+
+.admin-recruiter-sidebar-nav:hover::-webkit-scrollbar-thumb,
+.admin-recruiter-sidebar-nav:focus-within::-webkit-scrollbar-thumb,
+.admin-recruiter-sidebar-nav.is-scrolling::-webkit-scrollbar-thumb {
+  background-color: #e5e7eb;
+}
+
+/* Submenu label aligns with parent row text (px-2 + 20px icon + 12px gap). */
+.admin-recruiter-sidebar-submenu {
+  margin-top: 0.125rem;
+  padding-left: 2.5rem;
+}
+
+.admin-recruiter-sidebar-submenu-item {
+  padding: 0.375rem 0.5rem 0.375rem 0;
 }
 
 /* Tenant branding remap for legacy utility colors in recruiter pages. */

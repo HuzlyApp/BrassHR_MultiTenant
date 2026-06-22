@@ -4,8 +4,8 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
+import { SidebarSubmenuToggleIcon } from "@/app/components/sidebar/SidebarSubmenuToggleIcon";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import { useAccountData } from "@/app/admin_recruiter/hooks/useAccountData";
 import {
@@ -23,7 +23,7 @@ import {
 } from "@/lib/account/display-name";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 
-const SIDEBAR_EXPANDED_WIDTH = 344;
+const SIDEBAR_EXPANDED_WIDTH = 272;
 const SIDEBAR_COLLAPSED_WIDTH = 80;
 
 type AdminRecruiterSidebarProps = {
@@ -46,6 +46,8 @@ export function AdminRecruiterSidebar({
   const router = useRouter();
   const [openSectionLabels, setOpenSectionLabels] = useState<string[]>([]);
   const [isGodAdmin, setIsGodAdmin] = useState(false);
+  const navRef = useRef<HTMLElement>(null);
+  const scrollStopTimerRef = useRef<number | null>(null);
 
   const sidebarSections = isGodAdmin ? GOD_ADMIN_SIDEBAR_SECTIONS : CLIENT_SIDEBAR_SECTIONS;
 
@@ -141,15 +143,44 @@ export function AdminRecruiterSidebar({
 
   const isSectionOpen = (section: SidebarSection) => openSectionLabels.includes(section.label);
 
-  const toggleSectionOpen = (sectionLabel: string) => {
+  const toggleSectionOpen = (sectionLabel: string, nav: HTMLElement | null) => {
+    const scrollTop = nav?.scrollTop ?? 0;
     setOpenSectionLabels((prev) =>
       prev.includes(sectionLabel) ? prev.filter((label) => label !== sectionLabel) : [...prev, sectionLabel]
     );
+    requestAnimationFrame(() => {
+      if (nav) nav.scrollTop = scrollTop;
+    });
   };
+
+  const handleSectionToggleClick = (
+    sectionLabel: string,
+    event: MouseEvent<HTMLButtonElement>
+  ) => {
+    event.preventDefault();
+    const nav = event.currentTarget.closest("nav");
+    toggleSectionOpen(sectionLabel, nav);
+  };
+
+  const handleNavScroll = () => {
+    const nav = navRef.current;
+    if (!nav) return;
+    nav.classList.add("is-scrolling");
+    if (scrollStopTimerRef.current) window.clearTimeout(scrollStopTimerRef.current);
+    scrollStopTimerRef.current = window.setTimeout(() => {
+      nav.classList.remove("is-scrolling");
+    }, 800);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (scrollStopTimerRef.current) window.clearTimeout(scrollStopTimerRef.current);
+    };
+  }, []);
 
   const sidebarWidth = collapsed ? SIDEBAR_COLLAPSED_WIDTH : SIDEBAR_EXPANDED_WIDTH;
 
-  const SidebarContent = ({ isCollapsed }: { isCollapsed: boolean }) => (
+  const renderSidebarContent = (isCollapsed: boolean) => (
     <div className="flex h-full flex-col overflow-hidden bg-white">
       <div className={`border-b border-[#E2E8F0] ${isCollapsed ? "px-2 py-3" : "px-4 py-3"}`}>
         <div className={`flex items-center ${isCollapsed ? "justify-center" : "gap-3"}`}>
@@ -179,7 +210,13 @@ export function AdminRecruiterSidebar({
         </div>
       </div>
 
-      <nav className={`flex-1 overflow-y-auto overflow-x-hidden ${isCollapsed ? "px-2 py-3" : "px-3 py-3"}`}>
+      <nav
+        ref={navRef}
+        onScroll={handleNavScroll}
+        className={`admin-recruiter-sidebar-nav flex-1 overflow-y-auto overflow-x-hidden ${
+          isCollapsed ? "px-2 py-3" : "px-3 py-3"
+        }`}
+      >
         {renderedSections.map((section) => (
           <div key={section.label} className="mb-1">
             {section.children?.length && !isCollapsed ? (
@@ -217,13 +254,12 @@ export function AdminRecruiterSidebar({
                 <button
                   type="button"
                   title={`${isSectionOpen(section) ? "Collapse" : "Expand"} ${section.label}`}
-                  onClick={() => toggleSectionOpen(section.label)}
+                  onClick={(event) => handleSectionToggleClick(section.label, event)}
+                  onMouseDown={(event) => event.preventDefault()}
                   className="ml-auto flex h-6 w-6 items-center justify-center rounded-md transition hover:bg-white/70"
                   aria-label={`${isSectionOpen(section) ? "Collapse" : "Expand"} ${section.label}`}
                 >
-                  <span className="transition-colors">
-                    {isSectionOpen(section) ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                  </span>
+                  <SidebarSubmenuToggleIcon open={isSectionOpen(section)} />
                 </button>
                 {section.showIndicator ? (
                   <span
@@ -282,12 +318,12 @@ export function AdminRecruiterSidebar({
             )}
 
             {!isCollapsed && section.children?.length && isSectionOpen(section) ? (
-              <div className="ml-7 mt-0.5 space-y-0.5">
+              <div className="admin-recruiter-sidebar-submenu space-y-0.5">
                 {section.children.map((child) =>
                   child.disabled ? (
                     <div
                       key={`${section.label}-${child.label}`}
-                      className="group relative block overflow-hidden rounded-md px-2 py-1.5 font-normal text-[14px] leading-5 tracking-normal text-[#012352]"
+                      className="admin-recruiter-sidebar-submenu-item group relative block overflow-hidden rounded-md font-normal text-[14px] leading-5 tracking-normal text-[#012352]"
                       aria-disabled
                     >
                       <span>{child.label}</span>
@@ -297,7 +333,7 @@ export function AdminRecruiterSidebar({
                       key={`${section.label}-${child.label}`}
                       href={child.href}
                       onClick={handleNavClick}
-                      className={`group relative block overflow-hidden rounded-md px-2 py-1.5 font-normal text-[14px] leading-5 tracking-normal transition ${
+                      className={`admin-recruiter-sidebar-submenu-item group relative block overflow-hidden rounded-md font-normal text-[14px] leading-5 tracking-normal transition ${
                         child.active
                           ? "text-[color:var(--brand-primary)]"
                           : "text-[#012352] hover:text-[color:var(--brand-primary)]"
@@ -373,7 +409,7 @@ export function AdminRecruiterSidebar({
         style={asideStyle}
         data-collapsed={collapsed ? "true" : "false"}
       >
-        <SidebarContent isCollapsed={collapsed} />
+        {renderSidebarContent(collapsed)}
       </aside>
 
       <div
@@ -389,12 +425,12 @@ export function AdminRecruiterSidebar({
           }`}
           style={{
             width: SIDEBAR_EXPANDED_WIDTH,
-            maxWidth: "90vw",
+            maxWidth: "min(90vw, 272px)",
             boxShadow: "inset 3px 0 0 var(--brand-primary)",
           }}
           onClick={(event) => event.stopPropagation()}
         >
-          <SidebarContent isCollapsed={false} />
+          {renderSidebarContent(false)}
         </aside>
       </div>
     </>

@@ -2,7 +2,7 @@ import type { CSSProperties } from "react";
 
 /** Figma: Candidates page title */
 export const CANDIDATES_PAGE_TITLE_CLASS =
-  "text-[30px] font-semibold leading-9 tracking-normal text-[#1d2739] align-middle";
+  "m-0 font-[Inter,sans-serif] text-[30px] font-semibold leading-9 tracking-normal text-[#1d2739]";
 
 export const CANDIDATES_PAGE_TITLE_STYLE: CSSProperties = {
   fontFamily: "Inter, Arial, sans-serif",
@@ -10,7 +10,7 @@ export const CANDIDATES_PAGE_TITLE_STYLE: CSSProperties = {
 
 /** Figma: Candidates page subtitle — "Manage applicants in one place" */
 export const CANDIDATES_PAGE_SUBTITLE_CLASS =
-  "mt-1 text-[16px] font-normal leading-6 tracking-normal text-[#6f7683] align-middle";
+  "m-0 mt-1 font-[Inter,sans-serif] text-[16px] font-normal leading-6 tracking-normal text-[#6f7683]";
 
 export const CANDIDATES_PAGE_SUBTITLE_STYLE: CSSProperties = {
   fontFamily: "Inter, Arial, sans-serif",

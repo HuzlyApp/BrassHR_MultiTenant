@@ -3,8 +3,7 @@ export type CandidateTabId =
   | "new"
   | "pending"
   | "approved"
-  | "disapproved"
-  | "attendance";
+  | "disapproved";
 
 export type CandidateTab = {
   id: CandidateTabId;
@@ -18,7 +17,6 @@ export const CANDIDATES_TABS: CandidateTab[] = [
   { id: "pending", label: "Pending", href: "/admin_recruiter/pending" },
   { id: "approved", label: "Approved", href: "/admin_recruiter/approved" },
   { id: "disapproved", label: "Disapproved", href: "/admin_recruiter/disapproved" },
-  { id: "attendance", label: "Attendance", href: "/admin_recruiter/attendance" },
 ];
 
 export const CANDIDATE_ROUTE_PREFIXES = [
@@ -27,7 +25,6 @@ export const CANDIDATE_ROUTE_PREFIXES = [
   "/admin_recruiter/pending",
   "/admin_recruiter/approved",
   "/admin_recruiter/disapproved",
-  "/admin_recruiter/attendance",
 ];
 
 export function getActiveCandidateTab(pathname: string): CandidateTabId | null {

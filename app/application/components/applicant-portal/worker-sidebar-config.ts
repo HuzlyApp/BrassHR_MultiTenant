@@ -25,36 +25,57 @@ const ICON = {
   chat: "Chat",
   schedule: "Schedule",
   tickets: "Tickets",
-  reports: "Reports",
   finance: "Finance",
+  taskboard: "Taskboard",
   teams: "Teams",
-  account: "My Profile",
+  organization: "Organization",
+  profile: "My Profile",
   notifications: "Notifications",
   help: "Help & Support",
   settings: "Settings",
   logout: "Logout",
 } as const satisfies Record<string, SidebarIconType>;
 
-const DASHBOARD_CHILDREN: WorkerSidebarLink[] = [
-  { label: "Finance", href: "#", matchPrefixes: [], disabled: true },
+const PORTAL_HOME = "/application/applicant-dashboard";
+
+const MY_SHIFTS_CHILDREN: WorkerSidebarLink[] = [
+  { label: "Active Shifts", href: "#", matchPrefixes: [], disabled: true },
+  { label: "Applications", href: "#", matchPrefixes: [], disabled: true },
+  { label: "Interviews", href: "#", matchPrefixes: [], disabled: true },
 ];
 
-const FINANCE_CHILDREN: WorkerSidebarLink[] = [
-  { label: "Billing", href: "#", matchPrefixes: [], disabled: true },
-  { label: "Invoices", href: "#", matchPrefixes: [], disabled: true },
+const SCHEDULE_HOME = "/application/applicant-dashboard/schedule";
+
+const MY_SCHEDULE_CHILDREN: WorkerSidebarLink[] = [
+  { label: "Calendar", href: "#", matchPrefixes: [], disabled: true },
+  { label: "Attendance", href: "#", matchPrefixes: [], disabled: true },
+  { label: "Time Tracking", href: "#", matchPrefixes: [], disabled: true },
 ];
 
-const ACCOUNT_CHILDREN: WorkerSidebarLink[] = [
+const PAYROLL_CHILDREN: WorkerSidebarLink[] = [
+  { label: "Payslips", href: "#", matchPrefixes: [], disabled: true },
+  { label: "Earnings", href: "#", matchPrefixes: [], disabled: true },
+];
+
+const TASKBOARD_CHILDREN: WorkerSidebarLink[] = [
+  { label: "Assigned Tasks", href: "#", matchPrefixes: [], disabled: true },
+  { label: "Completed Tasks", href: "#", matchPrefixes: [], disabled: true },
+];
+
+const TEAMS_CHILDREN: WorkerSidebarLink[] = [
+  { label: "Teams", href: "#", matchPrefixes: [], disabled: true },
+  { label: "Managers", href: "#", matchPrefixes: [], disabled: true },
+];
+
+const ORGANIZATION_CHILDREN: WorkerSidebarLink[] = [
+  { label: "Locations", href: "#", matchPrefixes: [], disabled: true },
+];
+
+const PROFILE_CHILDREN: WorkerSidebarLink[] = [
   {
-    label: "Overview",
+    label: "Personal Information",
     href: "/application/applicant-dashboard/profile",
     matchPrefixes: ["/application/applicant-dashboard/profile"],
-    matchExact: true,
-  },
-  {
-    label: "Licenses",
-    href: "/application/applicant-dashboard/licenses",
-    matchPrefixes: ["/application/applicant-dashboard/licenses"],
     matchExact: true,
   },
   {
@@ -63,14 +84,13 @@ const ACCOUNT_CHILDREN: WorkerSidebarLink[] = [
     matchPrefixes: ["/application/applicant-dashboard/documents"],
     matchExact: true,
   },
+  {
+    label: "Certifications",
+    href: "/application/applicant-dashboard/licenses",
+    matchPrefixes: ["/application/applicant-dashboard/licenses"],
+    matchExact: true,
+  },
 ];
-
-const TEAMS_CHILDREN: WorkerSidebarLink[] = [
-  { label: "Managers", href: "#", matchPrefixes: [], disabled: true },
-  { label: "Teams", href: "#", matchPrefixes: [], disabled: true },
-];
-
-const PORTAL_HOME = "/application/applicant-dashboard";
 
 /** Worker portal sidebar — matches Figma worker menu (not admin recruiter). */
 export const WORKER_SIDEBAR_SECTIONS: WorkerSidebarSection[] = [
@@ -80,7 +100,53 @@ export const WORKER_SIDEBAR_SECTIONS: WorkerSidebarSection[] = [
     iconType: ICON.dashboard,
     matchPrefixes: [PORTAL_HOME],
     matchExact: true,
-    children: DASHBOARD_CHILDREN,
+  },
+  {
+    label: "My Shifts",
+    href: "#",
+    iconType: ICON.finance,
+    matchPrefixes: [],
+    disabled: true,
+    children: MY_SHIFTS_CHILDREN,
+  },
+  {
+    label: "Schedule",
+    href: SCHEDULE_HOME,
+    iconType: ICON.schedule,
+    matchPrefixes: [SCHEDULE_HOME],
+    children: MY_SCHEDULE_CHILDREN,
+  },
+  {
+    label: "Payroll",
+    href: "#",
+    iconType: ICON.finance,
+    matchPrefixes: [],
+    disabled: true,
+    children: PAYROLL_CHILDREN,
+  },
+  {
+    label: "Taskboard",
+    href: "#",
+    iconType: ICON.taskboard,
+    matchPrefixes: [],
+    disabled: true,
+    children: TASKBOARD_CHILDREN,
+  },
+  {
+    label: "Teams",
+    href: "#",
+    iconType: ICON.teams,
+    matchPrefixes: [],
+    disabled: true,
+    children: TEAMS_CHILDREN,
+  },
+  {
+    label: "Organization",
+    href: "#",
+    iconType: ICON.organization,
+    matchPrefixes: [],
+    disabled: true,
+    children: ORGANIZATION_CHILDREN,
   },
   {
     label: "Mail",
@@ -97,13 +163,6 @@ export const WORKER_SIDEBAR_SECTIONS: WorkerSidebarSection[] = [
     matchExact: true,
   },
   {
-    label: "Schedule",
-    href: "/application/applicant-dashboard/schedule",
-    iconType: ICON.schedule,
-    matchPrefixes: ["/application/applicant-dashboard/schedule"],
-    matchExact: true,
-  },
-  {
     label: "Tickets",
     href: "#",
     iconType: ICON.tickets,
@@ -111,38 +170,15 @@ export const WORKER_SIDEBAR_SECTIONS: WorkerSidebarSection[] = [
     disabled: true,
   },
   {
-    label: "Reports",
-    href: "#",
-    iconType: ICON.reports,
-    matchPrefixes: [],
-    disabled: true,
-  },
-  {
-    label: "Finance",
-    href: "#",
-    iconType: ICON.finance,
-    matchPrefixes: [],
-    disabled: true,
-    children: FINANCE_CHILDREN,
-  },
-  {
-    label: "Teams",
-    href: "#",
-    iconType: ICON.teams,
-    matchPrefixes: [],
-    disabled: true,
-    children: TEAMS_CHILDREN,
-  },
-  {
-    label: "Account",
+    label: "Profile",
     href: "/application/applicant-dashboard/profile",
-    iconType: ICON.account,
+    iconType: ICON.profile,
     matchPrefixes: [
       "/application/applicant-dashboard/profile",
-      "/application/applicant-dashboard/licenses",
       "/application/applicant-dashboard/documents",
+      "/application/applicant-dashboard/licenses",
     ],
-    children: ACCOUNT_CHILDREN,
+    children: PROFILE_CHILDREN,
   },
   {
     label: "Notifications",
@@ -169,7 +205,7 @@ export const WORKER_SIDEBAR_SECTIONS: WorkerSidebarSection[] = [
 
 export { ICON as WORKER_SIDEBAR_ICON_TYPES };
 
-export const WORKER_SIDEBAR_EXPANDED_WIDTH = 344;
+export const WORKER_SIDEBAR_EXPANDED_WIDTH = 272;
 export const WORKER_SIDEBAR_COLLAPSED_WIDTH = 80;
 /** Mobile mini rail below 500px — 20% narrower than {@link WORKER_SIDEBAR_COLLAPSED_WIDTH}. */
 export const WORKER_SIDEBAR_COLLAPSED_WIDTH_NARROW = Math.round(WORKER_SIDEBAR_COLLAPSED_WIDTH * 0.8);

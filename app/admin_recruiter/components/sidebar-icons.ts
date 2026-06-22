@@ -9,6 +9,7 @@ export type SidebarIconType =
   | "Finance"
   | "Taskboard"
   | "Teams"
+  | "Connect"
   | "Applicant"
   | "Clients"
   | "Organization"
@@ -22,7 +23,7 @@ const DEFAULT_FOLDER = "/icons/sidebar-icons/default-icons";
 const ACTIVE_FOLDER = "/icons/sidebar-icons/active-page-icons";
 
 /** Icons that only exist in the default-icons folder. */
-const DEFAULT_ONLY: SidebarIconType[] = ["Teams"];
+const DEFAULT_ONLY: SidebarIconType[] = [];
 
 /** Icons that only exist in the active-page-icons folder. */
 const ACTIVE_ONLY: SidebarIconType[] = [];

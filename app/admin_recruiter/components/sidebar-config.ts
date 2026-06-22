@@ -29,6 +29,7 @@ const ICON = {
   finance: "Finance",
   taskboard: "Taskboard",
   teams: "Teams",
+  automation: "Connect",
   candidates: "Applicant",
   clients: "Clients",
   organization: "Organization",
@@ -41,12 +42,30 @@ const ICON = {
 
 const DASHBOARD_OVERVIEW_BASE = "/admin_recruiter/dashboard/overview";
 
+const DASHBOARD_BASE = "/admin_recruiter/dashboard";
+const ONBOARDING_BUILDER_ROUTE = `${DASHBOARD_BASE}/onboarding-builder`;
+
 const DASHBOARD_CHILDREN: SidebarLink[] = [
   {
     label: "Overview",
     href: DASHBOARD_OVERVIEW_BASE,
-    matchPrefixes: [DASHBOARD_OVERVIEW_BASE],
+    matchPrefixes: [DASHBOARD_OVERVIEW_BASE, DASHBOARD_BASE],
     matchExact: true,
+  },
+  {
+    label: "Templates",
+    href: `${DASHBOARD_BASE}/templates`,
+    matchPrefixes: [`${DASHBOARD_BASE}/templates`],
+  },
+  {
+    label: "Library",
+    href: `${DASHBOARD_BASE}/workflowlibrary`,
+    matchPrefixes: [`${DASHBOARD_BASE}/workflowlibrary`],
+  },
+  {
+    label: "My Flows",
+    href: `${DASHBOARD_BASE}/onboarding-flows`,
+    matchPrefixes: [`${DASHBOARD_BASE}/onboarding-flows`],
   },
   {
     label: "Recruitment Analytics",
@@ -75,12 +94,73 @@ const FINANCE_CHILDREN: SidebarLink[] = [
   { label: "Invoices", href: "#", matchPrefixes: [], disabled: true },
 ];
 
+const REPORTS_CHILDREN: SidebarLink[] = [
+  { label: "Recruitment Reports", href: "#", matchPrefixes: [], disabled: true },
+  { label: "Workforce Reports", href: "#", matchPrefixes: [], disabled: true },
+  { label: "Payroll Reports", href: "#", matchPrefixes: [], disabled: true },
+  { label: "Financial Reports", href: "#", matchPrefixes: [], disabled: true },
+];
+
+const SCHEDULING_CHILDREN: SidebarLink[] = [
+  {
+    label: "Schedule",
+    href: "/admin_recruiter/calendar",
+    matchPrefixes: ["/admin_recruiter/calendar"],
+  },
+  {
+    label: "Time & Attendance",
+    href: "/admin_recruiter/attendance",
+    matchPrefixes: ["/admin_recruiter/attendance"],
+  },
+];
+
+const RECRUITMENT_CHILDREN: SidebarLink[] = [
+  {
+    label: "Candidates",
+    href: "/admin_recruiter/candidates",
+    matchPrefixes: CANDIDATE_ROUTE_PREFIXES,
+  },
+];
+
+const WORKFORCE_CHILDREN: SidebarLink[] = [
+  {
+    label: "Workers",
+    href: "/admin_recruiter/workers",
+    matchPrefixes: ["/admin_recruiter/workers"],
+  },
+  { label: "Managers", href: "#", matchPrefixes: [], disabled: true },
+];
+
+const AUTOMATION_CHILDREN: SidebarLink[] = [
+  {
+    label: "Onboarding",
+    href: ONBOARDING_BUILDER_ROUTE,
+    matchPrefixes: [ONBOARDING_BUILDER_ROUTE],
+  },
+];
+
+const ORGANIZATION_CHILDREN: SidebarLink[] = [
+  {
+    label: "Locations",
+    href: "/admin_recruiter/facilities",
+    matchPrefixes: ["/admin_recruiter/facilities"],
+  },
+];
+
+const DASHBOARD_ACTIVE_PREFIXES = [
+  DASHBOARD_OVERVIEW_BASE,
+  `${DASHBOARD_BASE}/templates`,
+  `${DASHBOARD_BASE}/workflowlibrary`,
+  `${DASHBOARD_BASE}/onboarding-flows`,
+  `${DASHBOARD_BASE}/home`,
+];
+
 const SHARED_TOP_SECTIONS: SidebarSection[] = [
   {
     label: "Dashboard",
     href: "/admin_recruiter/dashboard",
     iconType: ICON.dashboard,
-    matchPrefixes: ["/admin_recruiter/dashboard"],
+    matchPrefixes: DASHBOARD_ACTIVE_PREFIXES,
     children: DASHBOARD_CHILDREN,
   },
   {
@@ -102,14 +182,11 @@ const SHARED_TOP_SECTIONS: SidebarSection[] = [
     matchPrefixes: ["/admin_recruiter/messages"],
   },
   {
-    label: "Schedule",
+    label: "Scheduling",
     href: "/admin_recruiter/calendar",
     iconType: ICON.schedule,
-    matchPrefixes: ["/admin_recruiter/calendar"],
-    children: [
-      { label: "Interviews", href: "/admin_recruiter/calendar", matchPrefixes: ["/admin_recruiter/calendar"] },
-      { label: "Shift calendar", href: "/admin_recruiter/calendar/shifts", matchPrefixes: ["/admin_recruiter/calendar/shifts"] },
-    ],
+    matchPrefixes: ["/admin_recruiter/calendar", "/admin_recruiter/attendance"],
+    children: SCHEDULING_CHILDREN,
   },
   {
     label: "Tickets",
@@ -138,6 +215,7 @@ const SHARED_TOP_SECTIONS: SidebarSection[] = [
     href: "/admin_recruiter/reports",
     iconType: ICON.reports,
     matchPrefixes: ["/admin_recruiter/reports"],
+    children: REPORTS_CHILDREN,
   },
   {
     label: "Finance",
@@ -169,50 +247,35 @@ const SHARED_FOOTER_SECTIONS: SidebarSection[] = [
 export const CLIENT_SIDEBAR_SECTIONS: SidebarSection[] = [
   ...SHARED_TOP_SECTIONS,
   {
-    label: "Taskboard",
-    href: "#",
-    iconType: ICON.taskboard,
-    matchPrefixes: ["/admin_recruiter/dashboard/onboarding-builder"],
-    children: [
-      { label: "Interviews", href: "/admin_recruiter/calendar", matchPrefixes: ["/admin_recruiter/calendar"] },
-      {
-        label: "Onboarding",
-        href: "/admin_recruiter/settings?tab=onboarding-builder",
-        matchPrefixes: ["/admin_recruiter/dashboard/onboarding-builder"],
-      },
-    ],
-  },
-  {
-    label: "Teams",
-    href: "#",
-    iconType: ICON.teams,
-    matchPrefixes: [],
-    children: [
-      { label: "Admins", href: "#", matchPrefixes: [], disabled: true },
-      { label: "Managers", href: "#", matchPrefixes: [], disabled: true },
-      { label: "Workers", href: "/admin_recruiter/workers", matchPrefixes: ["/admin_recruiter/workers"] },
-    ],
-  },
-  {
-    label: "Candidates",
+    label: "Recruitment",
     href: "/admin_recruiter/candidates",
     iconType: ICON.candidates,
     matchPrefixes: CANDIDATE_ROUTE_PREFIXES,
+    children: RECRUITMENT_CHILDREN,
   },
   {
-    label: "Facilities",
-    href: "/admin_recruiter/facilities",
-    iconType: ICON.organization,
-    matchPrefixes: ["/admin_recruiter/facilities"],
+    label: "Workforce",
+    href: "/admin_recruiter/workers",
+    iconType: ICON.teams,
+    matchPrefixes: ["/admin_recruiter/workers"],
+    children: WORKFORCE_CHILDREN,
+  },
+  {
+    label: "Automation",
+    href: ONBOARDING_BUILDER_ROUTE,
+    iconType: ICON.automation,
+    matchPrefixes: [ONBOARDING_BUILDER_ROUTE],
+    children: AUTOMATION_CHILDREN,
   },
   {
     label: "Organization",
-    href: "/admin_recruiter/account/business-info",
+    href: "#",
     iconType: ICON.organization,
-    matchPrefixes: ["/admin_recruiter/account/business-info"],
+    matchPrefixes: ["/admin_recruiter/facilities"],
+    children: ORGANIZATION_CHILDREN,
   },
   {
-    label: "Account",
+    label: "Profile",
     href: "/admin_recruiter/account/personal",
     iconType: ICON.account,
     matchPrefixes: ["/admin_recruiter/account"],
@@ -230,18 +293,18 @@ export const CLIENT_SIDEBAR_SECTIONS: SidebarSection[] = [
 export const GOD_ADMIN_SIDEBAR_SECTIONS: SidebarSection[] = [
   ...SHARED_TOP_SECTIONS,
   {
-    label: "Taskboard",
-    href: "#",
-    iconType: ICON.taskboard,
-    matchPrefixes: ["/admin_recruiter/dashboard/onboarding-builder"],
-    children: [
-      { label: "Interviews", href: "/admin_recruiter/calendar", matchPrefixes: ["/admin_recruiter/calendar"] },
-      {
-        label: "Client Onboarding",
-        href: "/admin_recruiter/settings?tab=onboarding-builder",
-        matchPrefixes: ["/admin_recruiter/dashboard/onboarding-builder"],
-      },
-    ],
+    label: "Recruitment",
+    href: "/admin_recruiter/candidates",
+    iconType: ICON.candidates,
+    matchPrefixes: CANDIDATE_ROUTE_PREFIXES,
+    children: RECRUITMENT_CHILDREN,
+  },
+  {
+    label: "Workforce",
+    href: "/admin_recruiter/workers",
+    iconType: ICON.teams,
+    matchPrefixes: ["/admin_recruiter/workers"],
+    children: WORKFORCE_CHILDREN,
   },
   {
     label: "Clients",
@@ -255,28 +318,30 @@ export const GOD_ADMIN_SIDEBAR_SECTIONS: SidebarSection[] = [
     ],
   },
   {
-    label: "Facilities",
-    href: "/admin_recruiter/facilities",
-    iconType: ICON.organization,
-    matchPrefixes: ["/admin_recruiter/facilities"],
+    label: "Automation",
+    href: ONBOARDING_BUILDER_ROUTE,
+    iconType: ICON.automation,
+    matchPrefixes: [ONBOARDING_BUILDER_ROUTE],
+    children: AUTOMATION_CHILDREN,
   },
   {
-    label: "Teams",
+    label: "Organization",
     href: "#",
-    iconType: ICON.teams,
-    matchPrefixes: CANDIDATE_ROUTE_PREFIXES.concat([
-      "/admin_recruiter/account",
-      "/admin_recruiter/notifications",
-    ]),
-    children: [
-      { label: "Candidates", href: "/admin_recruiter/candidates", matchPrefixes: CANDIDATE_ROUTE_PREFIXES },
-      { label: "Account", href: "/admin_recruiter/account/personal", matchPrefixes: ["/admin_recruiter/account"] },
-      {
-        label: "Notifications",
-        href: "/admin_recruiter/notifications",
-        matchPrefixes: ["/admin_recruiter/notifications"],
-      },
-    ],
+    iconType: ICON.organization,
+    matchPrefixes: ["/admin_recruiter/facilities"],
+    children: ORGANIZATION_CHILDREN,
+  },
+  {
+    label: "Profile",
+    href: "/admin_recruiter/account/personal",
+    iconType: ICON.account,
+    matchPrefixes: ["/admin_recruiter/account"],
+  },
+  {
+    label: "Notifications",
+    href: "/admin_recruiter/notifications",
+    iconType: ICON.notifications,
+    matchPrefixes: ["/admin_recruiter/notifications"],
   },
   ...SHARED_FOOTER_SECTIONS,
 ];

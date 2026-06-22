@@ -115,7 +115,7 @@ export function useWorkflowBuilderHeaderChrome() {
     }
 
     const center = (
-      <div className="flex min-w-0 max-w-full items-center justify-center gap-2">
+      <div className="flex min-w-0 max-w-full items-center justify-start gap-2">
         {config.editableTitle && editingTitle ? (
           <input
             type="text"

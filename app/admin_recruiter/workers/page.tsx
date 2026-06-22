@@ -6,11 +6,9 @@ import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
 import {
   CANDIDATES_FILTER_CONTROL_CLASS,
   CANDIDATES_FILTER_LABEL_CLASS,
-  CANDIDATES_PAGE_SUBTITLE_CLASS,
   CANDIDATES_PAGE_SUBTITLE_STYLE,
-  CANDIDATES_PAGE_TITLE_CLASS,
-  CANDIDATES_PAGE_TITLE_STYLE,
 } from "@/app/admin_recruiter/candidates/candidates-typography";
+import { CandidatesPageHeader } from "@/app/admin_recruiter/components/CandidatesPageHeader";
 import { candidateStatusBadgeClassName } from "@/app/admin_recruiter/candidates/candidate-status-badge";
 import {
   Plus,
@@ -186,14 +184,7 @@ export default function WorkersPage() {
       </div>
 
       <div className="w-full overflow-hidden rounded-[12px] border border-[#E5E7EB] bg-white">
-        <div className="px-[14px] pb-4 pt-5">
-          <h1 className={CANDIDATES_PAGE_TITLE_CLASS} style={CANDIDATES_PAGE_TITLE_STYLE}>
-            Workers
-          </h1>
-          <p className={CANDIDATES_PAGE_SUBTITLE_CLASS} style={CANDIDATES_PAGE_SUBTITLE_STYLE}>
-            Manage workers in one place
-          </p>
-        </div>
+        <CandidatesPageHeader title="Workers" subtitle="Manage workers in one place" />
 
         <div
           className={`flex w-full flex-col gap-0 overflow-hidden rounded-t-[8px] border-y border-[#E5E7EB] bg-white ${
