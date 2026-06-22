@@ -194,7 +194,7 @@ export default function EmailTemplatesPanel() {
         <p className="text-sm text-red-700">{error}</p>
       ) : null}
 
-      <div className="grid gap-6 lg:grid-cols-[220px_1fr]">
+      <div className="grid gap-6 lg:grid-cols-[minmax(200px,240px)_minmax(0,1fr)]">
         <div className="space-y-1">
           <p className="mb-2 px-1 text-xs font-semibold uppercase tracking-wide text-[#64748B]">
             Templates

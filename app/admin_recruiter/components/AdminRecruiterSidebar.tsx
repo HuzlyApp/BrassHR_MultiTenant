@@ -119,6 +119,7 @@ export function AdminRecruiterSidebar({
           ...section,
           active: sectionActive,
           showIndicator,
+          childActive,
           children:
             section.children?.map((child) => ({
               ...child,
@@ -307,7 +308,7 @@ export function AdminRecruiterSidebar({
                     {section.label}
                   </span>
                 ) : null}
-                {section.showIndicator ? (
+                {section.showIndicator || (isCollapsed && section.childActive) ? (
                   <span
                     aria-hidden
                     className="absolute right-0 top-1/2 h-7 w-[2px] -translate-y-1/2 rounded-full"

@@ -327,7 +327,7 @@ export default function AdminRecruiterTemplatesPage() {
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: PAGE_BG }}>
-      <div className="mx-auto w-full max-w-[1280px] px-5 py-6 lg:px-8">
+      <div className="w-full px-5 py-6 lg:px-8">
         <header className="mb-8">
           <h1 className="text-[30px] font-semibold leading-[36px] text-[#000000]">My Templates</h1>
           <p className="mt-3 text-[16px] font-normal leading-6 text-[#374151]">

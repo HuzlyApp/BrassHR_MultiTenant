@@ -719,8 +719,8 @@ export function WorkflowLibraryPage({
   return (
     <div className="min-h-screen" style={{ backgroundColor: PAGE_BG }}>
       <div
-        className={`mx-auto w-full max-w-[1280px] ${
-          embeddedInAdminShell ? "px-5 py-6 lg:px-8" : "px-6 py-8 sm:px-10 sm:py-10"
+        className={`w-full ${
+          embeddedInAdminShell ? "px-5 py-6 lg:px-8" : "mx-auto max-w-[1280px] px-6 py-8 sm:px-10 sm:py-10"
         }`}
       >
         {/* Breadcrumb + top tabs */}

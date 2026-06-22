@@ -51,13 +51,9 @@
   box-shadow: inset 3px 0 0 var(--brand-primary);
 }
 
-/* Worker sidebar menu typography + colors */
+/* Worker sidebar menu typography — matches admin recruiter sidebar */
 .worker-sidebar-nav {
   font-family: Inter, ui-sans-serif, system-ui, sans-serif;
-  font-weight: 400;
-  font-size: 14px;
-  line-height: 20px;
-  letter-spacing: 0;
   scrollbar-width: thin;
   scrollbar-color: transparent transparent;
 }
@@ -87,48 +83,6 @@
 .worker-sidebar-nav:focus-within::-webkit-scrollbar-thumb,
 .worker-sidebar-nav.is-scrolling::-webkit-scrollbar-thumb {
   background-color: #e5e7eb;
-}
-
-.worker-sidebar-label {
-  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
-  font-weight: 400;
-  font-size: 14px;
-  line-height: 20px;
-  letter-spacing: 0;
-}
-
-.worker-sidebar-label--primary {
-  color: var(--brand-primary);
-}
-
-.worker-sidebar-label--primary-active {
-  color: var(--brand-primary);
-  font-weight: 500;
-}
-
-.worker-sidebar-label--primary-disabled {
-  color: color-mix(in srgb, var(--brand-primary) 55%, #94a3b8);
-}
-
-.worker-sidebar-child-label {
-  color: var(--brand-secondary);
-}
-
-.worker-sidebar-child-label--active {
-  color: var(--brand-secondary);
-  font-weight: 500;
-}
-
-.worker-sidebar-child-label--disabled {
-  color: color-mix(in srgb, var(--brand-secondary) 55%, #94a3b8);
-}
-
-.worker-sidebar-header-name {
-  color: #334155;
-}
-
-.worker-sidebar-header-role {
-  color: var(--brand-primary);
 }
 
 /* Submenu label aligns with parent row text (px-2 + 20px icon + 12px gap). */

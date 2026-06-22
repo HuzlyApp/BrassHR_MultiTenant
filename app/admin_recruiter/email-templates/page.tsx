@@ -2,7 +2,7 @@ import EmailTemplatesPanel from "@/app/admin_recruiter/components/EmailTemplates
 
 export default function AdminRecruiterEmailTemplatesPage() {
   return (
-    <main className="mx-auto max-w-5xl space-y-6 p-6">
+    <main className="w-full space-y-6 px-4 py-6 md:px-6">
       <div>
         <h1 className="text-xl font-semibold text-[#0F172A]">Email Templates</h1>
         <p className="mt-2 text-sm text-[#64748B]">

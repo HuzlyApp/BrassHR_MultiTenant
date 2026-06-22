@@ -2,7 +2,7 @@ import RecruiterTemplatesList from "@/app/admin_recruiter/components/RecruiterTe
 
 export default function AdminRecruiterTemplateBuilderPage() {
   return (
-    <main className="mx-auto max-w-7xl p-6">
+    <main className="w-full px-4 py-6 md:px-6">
       <RecruiterTemplatesList />
     </main>
   );

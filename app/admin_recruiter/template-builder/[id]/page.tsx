@@ -10,7 +10,7 @@ export default async function EditRecruiterTemplatePage({ params, searchParams }
   const query = await searchParams;
 
   return (
-    <main className="mx-auto max-w-7xl p-6">
+    <main className="w-full px-4 py-6 md:px-6">
       <RecruiterTemplateBuilderForm templateId={id} initialPreview={query.preview === "1"} />
     </main>
   );

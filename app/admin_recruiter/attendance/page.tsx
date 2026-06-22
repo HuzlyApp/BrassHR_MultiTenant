@@ -8,68 +8,35 @@ import {
   CANDIDATES_PAGE_SUBTITLE_STYLE,
 } from "@/app/admin_recruiter/candidates/candidates-typography";
 import { CandidatesPageHeader } from "@/app/admin_recruiter/components/CandidatesPageHeader";
-import { Filter, Loader2, RefreshCw, Search } from "lucide-react";
+import { AttendanceEditColumnsModal } from "@/app/admin_recruiter/attendance/EditColumnsModal";
+import {
+  attendanceColumnLabel,
+  DEFAULT_ATTENDANCE_COLUMNS,
+  loadAttendanceColumnOrder,
+  saveAttendanceColumnOrder,
+  type AttendanceColumnId,
+} from "@/app/admin_recruiter/attendance/column-config";
+import { renderAttendanceListCell, type AttendanceRow } from "@/app/admin_recruiter/attendance/render-list-cell";
+import { Columns2, Filter, Loader2, RefreshCw, Search } from "lucide-react";
 
-type AttendanceStatus = "clocked_in" | "clocked_out";
-
-type AttendanceRow = {
-  id: string;
-  applicant_name: string;
-  applicant_email: string | null;
-  attendance_date: string;
-  status: AttendanceStatus;
-  clock_in_at: string;
-  clock_out_at: string | null;
-  total_seconds: number | null;
-  clock_in_ip: string;
-  clock_out_ip: string | null;
-  clock_in_address: string | null;
-  clock_out_address: string | null;
-  clock_in_latitude: number;
-  clock_in_longitude: number;
-  clock_out_latitude: number | null;
-  clock_out_longitude: number | null;
-};
-
-function formatDateTime(iso: string | null | undefined) {
-  if (!iso) return "—";
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return "—";
-  return date.toLocaleString(undefined, {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
-}
-
-function formatDuration(seconds: number | null | undefined) {
-  if (seconds == null) return "In progress";
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
-  return `${hours}h ${minutes}m`;
-}
-
-function statusLabel(status: AttendanceStatus) {
-  return status === "clocked_in" ? "Clocked in" : "Clocked out";
-}
-
-function attendanceStatusBadgeClass(status: AttendanceStatus): string {
-  if (status === "clocked_in") {
-    return "border border-[#22C55E] bg-[#22C55E] text-white";
+function columnHeaderClass(colId: AttendanceColumnId): string {
+  const base =
+    "bg-[#E5E7EB] px-4 py-3 text-left text-sm font-medium uppercase tracking-[0.08em] text-black";
+  if (colId === "clockInLocation" || colId === "clockOutLocation") {
+    return `${base} min-w-[200px]`;
   }
-  return "border border-[#64748B] bg-[#64748B] text-white";
+  if (colId === "clockIn" || colId === "clockOut") {
+    return `${base} min-w-[160px] whitespace-nowrap`;
+  }
+  return base;
 }
 
-function locationText(
-  address: string | null | undefined,
-  lat: number | null | undefined,
-  lng: number | null | undefined
-) {
-  if (address?.trim()) return address;
-  if (lat == null || lng == null) return "—";
-  return `${lat}, ${lng}`;
+function columnCellClass(colId: AttendanceColumnId): string {
+  const base = "px-4 py-4 align-middle";
+  if (colId === "clockIn" || colId === "clockOut") {
+    return `${base} whitespace-nowrap`;
+  }
+  return base;
 }
 
 export default function AdminApplicantAttendancePage() {
@@ -80,6 +47,12 @@ export default function AdminApplicantAttendancePage() {
   const [showFilterRows, setShowFilterRows] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [listColumnOrder, setListColumnOrder] = useState<AttendanceColumnId[]>(DEFAULT_ATTENDANCE_COLUMNS);
+  const [editColumnsOpen, setEditColumnsOpen] = useState(false);
+
+  useEffect(() => {
+    setListColumnOrder(loadAttendanceColumnOrder());
+  }, []);
 
   const loadLogs = useCallback(async () => {
     setLoading(true);
@@ -144,6 +117,15 @@ export default function AdminApplicantAttendancePage() {
               >
                 <Filter className="h-4 w-4 shrink-0" />
                 Filters
+              </button>
+              <button
+                type="button"
+                onClick={() => setEditColumnsOpen(true)}
+                className="inline-flex h-8 items-center gap-1.5 rounded-md border border-[#dce6e3] bg-white px-3 text-sm font-normal leading-6 text-[#334155] transition hover:bg-zinc-50"
+                style={CANDIDATES_PAGE_SUBTITLE_STYLE}
+              >
+                <Columns2 className="h-4 w-4 shrink-0" />
+                Columns
               </button>
               <button
                 type="button"
@@ -218,75 +200,31 @@ export default function AdminApplicantAttendancePage() {
             </div>
           ) : logs.length === 0 ? (
             <div className="py-16 text-center text-gray-600">No attendance logs found.</div>
+          ) : listColumnOrder.length === 0 ? (
+            <div className="py-16 text-center text-gray-600">
+              No columns selected. Open Columns to choose what to show.
+            </div>
           ) : (
             <div className="overflow-hidden rounded-md border border-[#E5E7EB]">
               <div className="overflow-auto">
-                <table className="min-w-[1200px] w-full border-collapse">
+                <table className="w-full min-w-full border-collapse">
                   <thead className="bg-[#F8FAFC]">
                     <tr className="border-b border-[#E5E7EB]">
-                      <th className="bg-[#E5E7EB] px-4 py-3 text-left text-sm font-medium uppercase tracking-[0.08em] text-black">
-                        Applicant
-                      </th>
-                      <th className="bg-[#E5E7EB] px-4 py-3 text-left text-sm font-medium uppercase tracking-[0.08em] text-black">
-                        Email
-                      </th>
-                      <th className="bg-[#E5E7EB] px-4 py-3 text-left text-sm font-medium uppercase tracking-[0.08em] text-black">
-                        Date
-                      </th>
-                      <th className="bg-[#E5E7EB] px-4 py-3 text-left text-sm font-medium uppercase tracking-[0.08em] text-black">
-                        Clock In
-                      </th>
-                      <th className="bg-[#E5E7EB] px-4 py-3 text-left text-sm font-medium uppercase tracking-[0.08em] text-black">
-                        Clock Out
-                      </th>
-                      <th className="bg-[#E5E7EB] px-4 py-3 text-left text-sm font-medium uppercase tracking-[0.08em] text-black">
-                        Total Hours
-                      </th>
-                      <th className="bg-[#E5E7EB] px-4 py-3 text-left text-sm font-medium uppercase tracking-[0.08em] text-black">
-                        Clock-in IP
-                      </th>
-                      <th className="bg-[#E5E7EB] px-4 py-3 text-left text-sm font-medium uppercase tracking-[0.08em] text-black">
-                        Clock-out IP
-                      </th>
-                      <th className="bg-[#E5E7EB] px-4 py-3 text-left text-sm font-medium uppercase tracking-[0.08em] text-black">
-                        Clock-in Location
-                      </th>
-                      <th className="bg-[#E5E7EB] px-4 py-3 text-left text-sm font-medium uppercase tracking-[0.08em] text-black">
-                        Clock-out Location
-                      </th>
-                      <th className="bg-[#E5E7EB] px-4 py-3 text-left text-sm font-medium uppercase tracking-[0.08em] text-black">
-                        Status
-                      </th>
+                      {listColumnOrder.map((colId) => (
+                        <th key={colId} className={columnHeaderClass(colId)}>
+                          {attendanceColumnLabel(colId)}
+                        </th>
+                      ))}
                     </tr>
                   </thead>
                   <tbody>
                     {logs.map((log) => (
                       <tr key={log.id} className="border-b border-[#E9EDF3] hover:bg-[#F9FBFB]">
-                        <td className="px-4 py-4 text-sm font-medium text-[#111827]">{log.applicant_name}</td>
-                        <td className="px-4 py-4 text-sm text-[#374151]">{log.applicant_email ?? "—"}</td>
-                        <td className="px-4 py-4 text-sm text-[#374151]">{log.attendance_date}</td>
-                        <td className="px-4 py-4 text-sm text-[#374151]">{formatDateTime(log.clock_in_at)}</td>
-                        <td className="px-4 py-4 text-sm text-[#374151]">{formatDateTime(log.clock_out_at)}</td>
-                        <td className="px-4 py-4 text-sm text-[#374151]">{formatDuration(log.total_seconds)}</td>
-                        <td className="px-4 py-4 text-sm text-[#374151]">{log.clock_in_ip}</td>
-                        <td className="px-4 py-4 text-sm text-[#374151]">{log.clock_out_ip ?? "—"}</td>
-                        <td className="max-w-[220px] px-4 py-4 text-sm text-[#374151]">
-                          {locationText(log.clock_in_address, log.clock_in_latitude, log.clock_in_longitude)}
-                        </td>
-                        <td className="max-w-[220px] px-4 py-4 text-sm text-[#374151]">
-                          {locationText(
-                            log.clock_out_address,
-                            log.clock_out_latitude,
-                            log.clock_out_longitude
-                          )}
-                        </td>
-                        <td className="px-4 py-4">
-                          <span
-                            className={`inline-flex items-center whitespace-nowrap rounded-sm px-2 py-0.5 text-[10px] font-semibold ${attendanceStatusBadgeClass(log.status)}`}
-                          >
-                            {statusLabel(log.status)}
-                          </span>
-                        </td>
+                        {listColumnOrder.map((colId) => (
+                          <td key={colId} className={columnCellClass(colId)}>
+                            {renderAttendanceListCell(colId, log)}
+                          </td>
+                        ))}
                       </tr>
                     ))}
                   </tbody>
@@ -296,6 +234,17 @@ export default function AdminApplicantAttendancePage() {
           )}
         </div>
       </div>
+
+      <AttendanceEditColumnsModal
+        key={editColumnsOpen ? "attendance-edit-cols-open" : "attendance-edit-cols-closed"}
+        open={editColumnsOpen}
+        onOpenChange={setEditColumnsOpen}
+        value={listColumnOrder}
+        onSave={(order) => {
+          setListColumnOrder(order);
+          saveAttendanceColumnOrder(order);
+        }}
+      />
     </div>
   );
 }
