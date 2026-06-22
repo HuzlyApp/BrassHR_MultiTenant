@@ -43,9 +43,9 @@ function submenuTextClass(active: boolean, disabled = false): string {
 
 function parentRowClass(active: boolean, disabled = false): string {
   if (disabled) {
-    return "group relative flex min-h-[36px] w-full items-center gap-2 overflow-hidden rounded-md px-2 py-1 text-[#012352] opacity-60";
+    return "group relative flex min-h-[36px] w-full items-center gap-2 overflow-hidden rounded-md pl-2 pr-0 py-1 text-[#012352] opacity-60";
   }
-  return `group relative flex min-h-[36px] w-full items-center gap-2 overflow-hidden rounded-md px-2 py-1 transition hover:bg-white ${
+  return `group relative flex min-h-[36px] w-full items-center gap-2 overflow-hidden rounded-md pl-2 pr-0 py-1 transition hover:bg-white ${
     active
       ? "text-[color:var(--brand-primary)]"
       : "text-[#012352] hover:text-[color:var(--brand-primary)]"
@@ -55,9 +55,9 @@ function parentRowClass(active: boolean, disabled = false): string {
 function topLevelLinkClass(active: boolean, isCollapsed: boolean, isMobileRail: boolean): string {
   const layout = isCollapsed
     ? isMobileRail
-      ? "justify-center px-1 py-1.5"
-      : "justify-center px-2 py-2"
-    : "gap-3 px-2 py-1";
+      ? "justify-center pl-1 pr-0 py-1.5"
+      : "justify-center pl-2 pr-0 py-2"
+    : "gap-3 pl-2 pr-0 py-1";
 
   return `group relative flex min-h-[36px] items-center overflow-hidden rounded-md transition hover:bg-white ${layout} ${
     active
@@ -89,8 +89,8 @@ export function ApplicantPortalSidebar({
     normalizeBrandingImageSrc(branding.logoUrl, DEFAULT_LOGO, { allowBlob: true })
   );
   const [openSectionLabels, setOpenSectionLabels] = useState<string[]>([]);
+  const [sidebarHovered, setSidebarHovered] = useState(false);
   const navRef = useRef<HTMLElement>(null);
-  const scrollStopTimerRef = useRef<number | null>(null);
 
   const firstName = applicantName.split(" ")[0] || "Applicant";
   const logoUseNativeImg = isRemoteOrBlobImageSrc(logoSrc);
@@ -156,6 +156,20 @@ export function ApplicantPortalSidebar({
     setOpenSectionLabels((prev) => Array.from(new Set([...prev, ...activeParents])));
   }, [pathname]);
 
+  useEffect(() => {
+    const nav = navRef.current;
+    if (!nav) return;
+    const active = nav.ownerDocument.activeElement;
+    if (active instanceof HTMLElement && nav.contains(active)) {
+      active.blur();
+    }
+    setSidebarHovered(false);
+  }, [pathname]);
+
+  useEffect(() => {
+    if (!mobileOpen) setSidebarHovered(false);
+  }, [mobileOpen]);
+
   const isSectionOpen = (section: WorkerSidebarSection) => openSectionLabels.includes(section.label);
 
   const toggleSectionOpen = (sectionLabel: string) => {
@@ -164,21 +178,12 @@ export function ApplicantPortalSidebar({
     );
   };
 
-  const handleNavScroll = () => {
-    const nav = navRef.current;
-    if (!nav) return;
-    nav.classList.add("is-scrolling");
-    if (scrollStopTimerRef.current) window.clearTimeout(scrollStopTimerRef.current);
-    scrollStopTimerRef.current = window.setTimeout(() => {
-      nav.classList.remove("is-scrolling");
-    }, 800);
+  const sidebarHoverProps = {
+    onMouseEnter: () => setSidebarHovered(true),
+    onMouseLeave: () => setSidebarHovered(false),
   };
 
-  useEffect(() => {
-    return () => {
-      if (scrollStopTimerRef.current) window.clearTimeout(scrollStopTimerRef.current);
-    };
-  }, []);
+  const sidebarHoverClass = sidebarHovered ? "is-hovered" : "";
 
   const sidebarWidth = collapsed ? WORKER_SIDEBAR_COLLAPSED_WIDTH : WORKER_SIDEBAR_EXPANDED_WIDTH;
 
@@ -255,9 +260,8 @@ export function ApplicantPortalSidebar({
 
       <nav
         ref={navRef}
-        onScroll={handleNavScroll}
         className={`worker-sidebar-nav flex-1 overflow-y-auto overflow-x-hidden ${
-          isMobileRail ? "px-1 py-2" : isCollapsed ? "px-2 py-3" : "px-3 py-3"
+          isMobileRail ? "py-2 pl-1 pr-0" : isCollapsed ? "py-3 pl-2 pr-0" : "py-3 pl-3 pr-0"
         }`}
       >
         {renderedSections.map((section) => (
@@ -291,11 +295,7 @@ export function ApplicantPortalSidebar({
                   <SidebarSubmenuToggleIcon open={isSectionOpen(section)} />
                 </button>
                 {section.showIndicator ? (
-                  <span
-                    aria-hidden
-                    className="absolute right-0 top-1/2 h-7 w-[2px] -translate-y-1/2 rounded-full"
-                    style={{ backgroundColor: "var(--brand-secondary)" }}
-                  />
+                  <span aria-hidden className="worker-sidebar-active-indicator" />
                 ) : null}
               </div>
             ) : section.action === "messages" ? (
@@ -318,7 +318,11 @@ export function ApplicantPortalSidebar({
               <div
                 title={`${section.label} (Coming soon)`}
                 className={`group relative flex min-h-[36px] items-center overflow-hidden rounded-md opacity-60 ${
-                  isCollapsed ? (isMobileRail ? "justify-center px-1 py-1.5" : "justify-center px-2 py-2") : "gap-3 px-2 py-1"
+                  isCollapsed
+                    ? isMobileRail
+                      ? "justify-center pl-1 pr-0 py-1.5"
+                      : "justify-center pl-2 pr-0 py-2"
+                    : "gap-3 pl-2 pr-0 py-1"
                 } text-[#012352]`}
                 aria-disabled
               >
@@ -338,12 +342,8 @@ export function ApplicantPortalSidebar({
                 {!isCollapsed ? (
                   <span className={parentNavTextClass(section.active, false)}>{section.label}</span>
                 ) : null}
-                {section.showIndicator || (isCollapsed && section.childActive) ? (
-                  <span
-                    aria-hidden
-                    className="absolute right-0 top-1/2 h-7 w-[2px] -translate-y-1/2 rounded-full"
-                    style={{ backgroundColor: "var(--brand-secondary)" }}
-                  />
+                {section.showIndicator || (isCollapsed && section.active) ? (
+                  <span aria-hidden className="worker-sidebar-active-indicator" />
                 ) : null}
               </Link>
             )}
@@ -371,11 +371,7 @@ export function ApplicantPortalSidebar({
                     >
                       <span>{child.label}</span>
                       {child.active ? (
-                        <span
-                          aria-hidden
-                          className="absolute right-0 top-1/2 h-7 w-[2px] -translate-y-1/2 rounded-full"
-                          style={{ backgroundColor: "var(--brand-secondary)" }}
-                        />
+                        <span aria-hidden className="worker-sidebar-active-indicator" />
                       ) : null}
                     </Link>
                   )
@@ -430,18 +426,20 @@ export function ApplicantPortalSidebar({
   return (
     <>
       <aside
-        className="applicant-portal-sidebar fixed inset-y-0 left-0 z-40 hidden h-screen overflow-hidden border-r border-[#E2E8F0] bg-white min-[1000px]:block"
+        className={`applicant-portal-sidebar fixed inset-y-0 left-0 z-40 hidden h-screen overflow-hidden border-r border-[#E2E8F0] bg-white min-[1000px]:block ${sidebarHoverClass}`}
         style={asideStyle}
         data-collapsed={collapsed ? "true" : "false"}
+        {...sidebarHoverProps}
       >
         <SidebarContent isCollapsed={collapsed} />
       </aside>
 
       <aside
-        className={`applicant-portal-sidebar applicant-portal-sidebar-mobile-rail fixed inset-y-0 left-0 z-40 h-screen overflow-hidden border-r border-[#E2E8F0] bg-white min-[1000px]:hidden ${
+        className={`applicant-portal-sidebar applicant-portal-sidebar-mobile-rail fixed inset-y-0 left-0 z-40 h-screen overflow-hidden border-r border-[#E2E8F0] bg-white min-[1000px]:hidden ${sidebarHoverClass} ${
           mobileOpen ? "hidden" : "block"
         }`}
         data-collapsed="true"
+        {...sidebarHoverProps}
       >
         <SidebarContent isCollapsed isMobileRail />
       </aside>
@@ -454,7 +452,7 @@ export function ApplicantPortalSidebar({
         aria-hidden={!mobileOpen}
       >
         <aside
-          className={`h-full border-r border-[#E2E8F0] bg-white transition-transform duration-200 ease-in-out ${
+          className={`applicant-portal-sidebar h-full border-r border-[#E2E8F0] bg-white transition-transform duration-200 ease-in-out ${sidebarHoverClass} ${
             mobileOpen ? "translate-x-0" : "-translate-x-full"
           }`}
           style={{
@@ -463,6 +461,7 @@ export function ApplicantPortalSidebar({
             boxShadow: "inset 3px 0 0 var(--brand-primary)",
           }}
           onClick={(event) => event.stopPropagation()}
+          {...sidebarHoverProps}
         >
           <SidebarContent isCollapsed={false} showMobileClose />
         </aside>

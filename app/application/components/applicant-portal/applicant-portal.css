@@ -51,17 +51,12 @@
   box-shadow: inset 3px 0 0 var(--brand-primary);
 }
 
-/* Worker sidebar menu typography — matches admin recruiter sidebar */
+/* Worker sidebar scrollbar — thumb hidden until sidebar hover (Figma) */
 .worker-sidebar-nav {
   font-family: Inter, ui-sans-serif, system-ui, sans-serif;
   scrollbar-width: thin;
   scrollbar-color: transparent transparent;
-}
-
-.worker-sidebar-nav:hover,
-.worker-sidebar-nav:focus-within,
-.worker-sidebar-nav.is-scrolling {
-  scrollbar-color: #e5e7eb transparent;
+  scrollbar-gutter: stable;
 }
 
 .worker-sidebar-nav::-webkit-scrollbar {
@@ -79,10 +74,29 @@
   background-clip: padding-box;
 }
 
-.worker-sidebar-nav:hover::-webkit-scrollbar-thumb,
-.worker-sidebar-nav:focus-within::-webkit-scrollbar-thumb,
-.worker-sidebar-nav.is-scrolling::-webkit-scrollbar-thumb {
+.applicant-portal-sidebar.is-hovered .worker-sidebar-nav {
+  scrollbar-color: #e5e7eb transparent;
+}
+
+.applicant-portal-sidebar.is-hovered .worker-sidebar-nav::-webkit-scrollbar-thumb {
   background-color: #e5e7eb;
+}
+
+/* Active rail — flush to nav edge, beside scrollbar gutter. */
+.worker-sidebar-active-indicator {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  height: 1.75rem;
+  width: 2px;
+  transform: translateY(-50%);
+  border-radius: 9999px;
+  background-color: var(--brand-secondary);
+  pointer-events: none;
+}
+
+.applicant-portal-sidebar[data-collapsed="true"] .worker-sidebar-active-indicator {
+  height: 1.5rem;
 }
 
 /* Submenu label aligns with parent row text (px-2 + 20px icon + 12px gap). */
@@ -92,5 +106,5 @@
 }
 
 .worker-sidebar-submenu-item {
-  padding: 0.375rem 0.5rem 0.375rem 0;
+  padding: 0.375rem 0 0.375rem 0;
 }

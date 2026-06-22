@@ -17,16 +17,11 @@
   display: none !important;
 }
 
-/* Admin recruiter sidebar scrollbar — hidden until hover/scroll (Figma) */
+/* Admin recruiter sidebar scrollbar — thumb hidden until sidebar hover (Figma) */
 .admin-recruiter-sidebar-nav {
   scrollbar-width: thin;
   scrollbar-color: transparent transparent;
-}
-
-.admin-recruiter-sidebar-nav:hover,
-.admin-recruiter-sidebar-nav:focus-within,
-.admin-recruiter-sidebar-nav.is-scrolling {
-  scrollbar-color: #e5e7eb transparent;
+  scrollbar-gutter: stable;
 }
 
 .admin-recruiter-sidebar-nav::-webkit-scrollbar {
@@ -44,10 +39,29 @@
   background-clip: padding-box;
 }
 
-.admin-recruiter-sidebar-nav:hover::-webkit-scrollbar-thumb,
-.admin-recruiter-sidebar-nav:focus-within::-webkit-scrollbar-thumb,
-.admin-recruiter-sidebar-nav.is-scrolling::-webkit-scrollbar-thumb {
+.admin-recruiter-sidebar.is-hovered .admin-recruiter-sidebar-nav {
+  scrollbar-color: #e5e7eb transparent;
+}
+
+.admin-recruiter-sidebar.is-hovered .admin-recruiter-sidebar-nav::-webkit-scrollbar-thumb {
   background-color: #e5e7eb;
+}
+
+/* Active rail — flush to nav edge, beside scrollbar gutter. */
+.admin-recruiter-sidebar-active-indicator {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  height: 1.75rem;
+  width: 2px;
+  transform: translateY(-50%);
+  border-radius: 9999px;
+  background-color: var(--brand-secondary);
+  pointer-events: none;
+}
+
+.admin-recruiter-sidebar[data-collapsed="true"] .admin-recruiter-sidebar-active-indicator {
+  height: 1.5rem;
 }
 
 /* Submenu label aligns with parent row text (px-2 + 20px icon + 12px gap). */
@@ -57,7 +71,7 @@
 }
 
 .admin-recruiter-sidebar-submenu-item {
-  padding: 0.375rem 0.5rem 0.375rem 0;
+  padding: 0.375rem 0 0.375rem 0;
 }
 
 /* Tenant branding remap for legacy utility colors in recruiter pages. */
