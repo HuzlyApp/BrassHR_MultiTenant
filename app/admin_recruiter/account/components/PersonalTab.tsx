@@ -1,11 +1,11 @@
 "use client";
 
-import Image from "next/image";
 import { FormEvent, useEffect, useState } from "react";
 import { ImageIcon } from "lucide-react";
 import { useAccountData } from "@/app/admin_recruiter/hooks/useAccountData";
 import { getAccountDisplayName, formatRoleLabel } from "@/lib/account/display-name";
 import { syncAccountChecklist } from "@/lib/account/fetch-account-data";
+import { resolveImageSrc } from "@/lib/images/resolve-image-src";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import { FIELD, FieldLabel, SelectField, US_STATES } from "./account-form-fields";
 import {
@@ -51,6 +51,7 @@ export default function PersonalTab() {
 
   const displayName = getAccountDisplayName(profile, user);
   const roleLabel = formatRoleLabel(profile?.role);
+  const avatarPreviewSrc = resolveImageSrc(avatarUrl);
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -147,9 +148,9 @@ export default function PersonalTab() {
       <div className="mb-6 flex items-center justify-between gap-4 rounded-lg border border-[#E5E7EB] bg-white px-4 py-4 sm:px-5 sm:py-5">
         <div className="flex min-w-0 items-center gap-4">
           <div className="flex h-[72px] w-[72px] shrink-0 items-center justify-center overflow-hidden rounded-lg border border-[#E2E8F0] bg-[#F8FAFC]">
-            {avatarUrl ? (
-              <Image
-                src={avatarUrl}
+            {avatarPreviewSrc ? (
+              <img
+                src={avatarPreviewSrc}
                 alt=""
                 width={72}
                 height={72}
@@ -228,7 +229,7 @@ export default function PersonalTab() {
           <label className="block">
             <FieldLabel>Avatar URL</FieldLabel>
             <input
-              type="url"
+              type="text"
               value={avatarUrl}
               onChange={(e) => setAvatarUrl(e.target.value)}
               placeholder="https://"

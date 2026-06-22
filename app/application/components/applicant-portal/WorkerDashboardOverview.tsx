@@ -26,7 +26,7 @@ import {
 
 const SCHEDULE_HREF = "/application/applicant-dashboard/schedule";
 const NOTES_HREF = "/application/applicant-dashboard/schedule?tab=notes";
-const TIMESHEETS_HREF = "/application/applicant-dashboard/schedule?tab=timesheets";
+const TIMESHEETS_HREF = "/application/applicant-dashboard/schedule/timesheets";
 const HELP_HREF = "/application/applicant-dashboard/help";
 
 const WORKER_CARD_LABEL_CLASS =

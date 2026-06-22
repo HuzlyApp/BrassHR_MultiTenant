@@ -45,10 +45,16 @@ const MY_SHIFTS_CHILDREN: WorkerSidebarLink[] = [
 ];
 
 const SCHEDULE_HOME = "/application/applicant-dashboard/schedule";
+const SCHEDULE_TIMESHEETS = `${SCHEDULE_HOME}/timesheets`;
 
 const MY_SCHEDULE_CHILDREN: WorkerSidebarLink[] = [
   { label: "Calendar", href: "#", matchPrefixes: [], disabled: true },
-  { label: "Attendance", href: "#", matchPrefixes: [], disabled: true },
+  {
+    label: "Timesheets",
+    href: SCHEDULE_TIMESHEETS,
+    matchPrefixes: [SCHEDULE_TIMESHEETS],
+    matchExact: true,
+  },
   { label: "Time Tracking", href: "#", matchPrefixes: [], disabled: true },
 ];
 
@@ -113,7 +119,7 @@ export const WORKER_SIDEBAR_SECTIONS: WorkerSidebarSection[] = [
     label: "Schedule",
     href: SCHEDULE_HOME,
     iconType: ICON.schedule,
-    matchPrefixes: [SCHEDULE_HOME],
+    matchPrefixes: [SCHEDULE_HOME, SCHEDULE_TIMESHEETS],
     children: MY_SCHEDULE_CHILDREN,
   },
   {

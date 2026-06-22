@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo } from "react";
-import Image from "next/image";
 import {
   Building2,
   ImageIcon,
@@ -16,6 +15,7 @@ import {
   getAccountDisplayName,
   getOrganizationDisplayName,
 } from "@/lib/account/display-name";
+import { resolveImageSrc } from "@/lib/images/resolve-image-src";
 
 type BillingTab = "billing" | "subscription";
 
@@ -48,6 +48,8 @@ export default function AccountSettingsBillingPanel() {
     organization?.domain?.trim() ||
     (organization?.subdomain ? `${organization.subdomain}.brasshr.com` : "—");
   const roleLabel = formatRoleLabel(profile?.role);
+  const profileAvatarSrc = resolveImageSrc(profile?.avatar_url);
+  const organizationLogoSrc = resolveImageSrc(organization?.logo_url);
 
   return (
     <div
@@ -88,17 +90,17 @@ export default function AccountSettingsBillingPanel() {
 
           <div className="flex items-center gap-3 sm:shrink-0">
             <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-md border border-[#E2E8F0] bg-[#F8FAFC]">
-              {profile?.avatar_url ? (
-                <Image
-                  src={profile.avatar_url}
+              {profileAvatarSrc ? (
+                <img
+                  src={profileAvatarSrc}
                   alt=""
                   width={48}
                   height={48}
                   className="h-full w-full object-cover"
                 />
-              ) : organization?.logo_url ? (
-                <Image
-                  src={organization.logo_url}
+              ) : organizationLogoSrc ? (
+                <img
+                  src={organizationLogoSrc}
                   alt=""
                   width={48}
                   height={48}

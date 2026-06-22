@@ -5,6 +5,7 @@ import AdminBrandingLoader from "@/app/admin_recruiter/components/AdminBrandingL
 import { TenantBrandingProvider } from "@/app/components/tenant/TenantBrandingContext";
 import type { TenantBranding } from "@/lib/tenant/tenant-branding";
 import { BRANDING_UPDATED_EVENT } from "@/lib/tenant/branding-events";
+import { prefetchSidebarIconMarkups } from "@/lib/sidebar/sidebar-icon-markup";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 
 type LoadState = "loading" | "ready" | "error";
@@ -51,6 +52,7 @@ export function AdminTenantBrandingProvider({ children }: { children: ReactNode 
     setErrorMessage(null);
     try {
       const next = await fetchEffectiveBranding();
+      await prefetchSidebarIconMarkups(next.primaryHex);
       setBranding(next);
       setLoadState("ready");
     } catch (e) {

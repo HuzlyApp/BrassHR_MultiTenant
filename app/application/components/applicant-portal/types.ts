@@ -91,4 +91,4 @@ export type ApplicantNote = {
   author_name: string;
 };
 
-export type ApplicantPortalTab = "schedule" | "timesheets" | "notes";
+export type ApplicantPortalTab = "schedule" | "notes";

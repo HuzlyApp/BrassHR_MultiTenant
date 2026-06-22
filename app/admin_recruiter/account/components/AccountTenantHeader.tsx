@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import { Building2, ImageIcon, Link2 } from "lucide-react";
 import { useAccountData } from "@/app/admin_recruiter/hooks/useAccountData";
 import {
@@ -9,6 +8,7 @@ import {
   getAccountDisplayName,
   getOrganizationDisplayName,
 } from "@/lib/account/display-name";
+import { resolveImageSrc } from "@/lib/images/resolve-image-src";
 
 type AccountTenantHeaderProps = {
   ownerName?: string;
@@ -34,6 +34,8 @@ export default function AccountTenantHeader({
   const accountDomain =
     organization?.domain?.trim() ||
     (organization?.subdomain ? `${organization.subdomain}.brasshr.com` : "—");
+  const ownerPhotoSrc = resolveImageSrc(ownerPhoto);
+  const organizationLogoSrc = resolveImageSrc(organization?.logo_url);
 
   const displayName = loading ? "Loading…" : ownerName;
 
@@ -56,17 +58,17 @@ export default function AccountTenantHeader({
 
         <div className="flex shrink-0 items-center gap-3">
           <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-md border border-[#E2E8F0] bg-[#F8FAFC]">
-            {ownerPhoto ? (
-              <Image
-                src={ownerPhoto}
+            {ownerPhotoSrc ? (
+              <img
+                src={ownerPhotoSrc}
                 alt=""
                 width={48}
                 height={48}
                 className="h-full w-full object-cover"
               />
-            ) : organization?.logo_url ? (
-              <Image
-                src={organization.logo_url}
+            ) : organizationLogoSrc ? (
+              <img
+                src={organizationLogoSrc}
                 alt=""
                 width={48}
                 height={48}

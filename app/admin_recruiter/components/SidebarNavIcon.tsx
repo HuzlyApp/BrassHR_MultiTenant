@@ -7,73 +7,56 @@ import {
   SIDEBAR_ICON_SIZE_CLASS,
   type SidebarIconType,
 } from "@/app/admin_recruiter/components/sidebar-icons";
-
-const FIGMA_ICON_COLOR = /#BC8B41/gi;
-const svgTextCache = new Map<string, string>();
-
-async function loadSvgText(src: string): Promise<string> {
-  const cached = svgTextCache.get(src);
-  if (cached) return cached;
-  const res = await fetch(src);
-  if (!res.ok) return "";
-  const text = await res.text();
-  if (text) svgTextCache.set(src, text);
-  return text;
-}
+import {
+  ensureTintedSidebarIconMarkup,
+  getTintedSidebarIconMarkup,
+} from "@/lib/sidebar/sidebar-icon-markup";
 
 type SidebarNavIconProps = {
   iconType: SidebarIconType;
   active: boolean;
 };
 
+function SidebarIconPlaceholder() {
+  return (
+    <span
+      className={`${SIDEBAR_ICON_SIZE_CLASS} inline-block shrink-0 rounded-sm bg-[#E2E8F0]`}
+      aria-hidden
+    />
+  );
+}
+
 /** Sidebar menu icon — inline SVG tinted with tenant primary (mask-image breaks on these Figma assets). */
 export default function SidebarNavIcon({ iconType, active }: SidebarNavIconProps) {
   const branding = useTenantBranding();
   const src = getSidebarIconSrc(iconType, active);
-  const [markup, setMarkup] = useState<string | null>(null);
-  const [failed, setFailed] = useState(false);
+  const primaryHex = branding.primaryHex;
+  const [markup, setMarkup] = useState<string | null>(() =>
+    getTintedSidebarIconMarkup(src, primaryHex)
+  );
 
   useEffect(() => {
+    const cached = getTintedSidebarIconMarkup(src, primaryHex);
+    if (cached) {
+      setMarkup(cached);
+      return;
+    }
+
     let cancelled = false;
     setMarkup(null);
-    setFailed(false);
-    void loadSvgText(src).then((text) => {
+
+    void ensureTintedSidebarIconMarkup(src, primaryHex).then((next) => {
       if (cancelled) return;
-      if (!text) {
-        setFailed(true);
-        return;
-      }
-      setMarkup(text.replace(FIGMA_ICON_COLOR, branding.primaryHex));
+      setMarkup(next);
     });
+
     return () => {
       cancelled = true;
     };
-  }, [src, branding.primaryHex]);
-
-  if (failed) {
-    return (
-      <img
-        src={src}
-        alt=""
-        width={20}
-        height={20}
-        className={`${SIDEBAR_ICON_SIZE_CLASS} shrink-0 object-contain`}
-        aria-hidden
-      />
-    );
-  }
+  }, [src, primaryHex]);
 
   if (!markup) {
-    return (
-      <img
-        src={src}
-        alt=""
-        width={20}
-        height={20}
-        className={`${SIDEBAR_ICON_SIZE_CLASS} shrink-0 object-contain`}
-        aria-hidden
-      />
-    );
+    return <SidebarIconPlaceholder />;
   }
 
   return (
