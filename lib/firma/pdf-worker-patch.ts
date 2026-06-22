@@ -37,8 +37,35 @@ function shouldPatchFirmaPdfWorker(scriptUrl: string): boolean {
   return (
     scriptUrl.includes("pdf.worker") ||
     scriptUrl.endsWith("/pdf.worker.mjs") ||
-    scriptUrl.endsWith("pdf.worker.mjs")
+    scriptUrl.endsWith("pdf.worker.mjs") ||
+    isFirmaPdfWorkerDataUri(scriptUrl)
   );
+}
+
+function isFirmaPdfWorkerDataUri(url: string): boolean {
+  return (
+    url.startsWith("data:text/javascript") &&
+    (url.includes("pdfjs") || url.includes("WorkerMessageHandler"))
+  );
+}
+
+function resolveFirmaPdfWorkerUrl(scriptUrl: string, workerBlobUrl: string): string {
+  return shouldPatchFirmaPdfWorker(scriptUrl) ? workerBlobUrl : scriptUrl;
+}
+
+function patchFirmaPdfWorkerScriptSrc(workerBlobUrl: string): void {
+  const descriptor = Object.getOwnPropertyDescriptor(HTMLScriptElement.prototype, "src");
+  if (!descriptor?.set) return;
+
+  const originalSet = descriptor.set;
+  Object.defineProperty(HTMLScriptElement.prototype, "src", {
+    configurable: true,
+    enumerable: descriptor.enumerable,
+    get: descriptor.get,
+    set(value: string) {
+      originalSet.call(this, resolveFirmaPdfWorkerUrl(String(value), workerBlobUrl));
+    },
+  });
 }
 
 export function installFirmaPdfWorkerPatch(workerBlobUrl: string): void {
@@ -62,6 +89,7 @@ export function installFirmaPdfWorkerPatch(workerBlobUrl: string): void {
 
   PatchedWorker.prototype = WorkerConstructor.prototype;
   window.Worker = PatchedWorker;
+  patchFirmaPdfWorkerScriptSrc(workerBlobUrl);
   workerPatchInstalled = true;
 }
 
