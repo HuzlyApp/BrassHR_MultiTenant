@@ -9,6 +9,7 @@ import {
   listApplicantSupportTickets,
   listStaffSupportTickets,
 } from "@/lib/support-tickets/support-ticket-service";
+import { enrichTicketsWithMessagePreviews } from "@/lib/support-tickets/support-ticket-messages";
 import type { SupportTicketPriority } from "@/lib/support-tickets/types";
 import { getSupabaseUrl } from "@/lib/supabase-env";
 import { enforceRateLimit, getClientIp } from "@/lib/security/rate-limit";
@@ -34,7 +35,8 @@ export async function GET(req: NextRequest) {
   if (!(applicantAuth instanceof NextResponse)) {
     try {
       const tickets = await listApplicantSupportTickets(supabase, applicantAuth.applicant.id);
-      return NextResponse.json({ tickets });
+      const conversations = await enrichTicketsWithMessagePreviews(supabase, tickets);
+      return NextResponse.json({ tickets: conversations });
     } catch (err) {
       console.error("[support-tickets:get:applicant]", err);
       return NextResponse.json({ error: "Could not load support tickets." }, { status: 500 });
@@ -51,7 +53,8 @@ export async function GET(req: NextRequest) {
     const scope = await resolveStaffTenantScope(staffAuth.authUser);
     const tenantId = scope.mode === "scoped" ? scope.tenantId : undefined;
     const tickets = await listStaffSupportTickets(supabase, tenantId);
-    return NextResponse.json({ tickets });
+    const conversations = await enrichTicketsWithMessagePreviews(supabase, tickets);
+    return NextResponse.json({ tickets: conversations });
   } catch (err) {
     console.error("[support-tickets:get:staff]", err);
     return NextResponse.json({ error: "Could not load support tickets." }, { status: 500 });
@@ -71,18 +74,44 @@ export async function POST(req: NextRequest) {
   const auth = await requireApprovedApplicant(req);
   if (auth instanceof NextResponse) return auth;
 
-  const body = (await req.json().catch(() => ({}))) as {
-    subject?: string;
-    description?: string;
-    inquiry?: string;
-    category?: string;
-    priority?: string;
-    source?: string;
-  };
+  const isFormData = req.headers.get("content-type")?.toLowerCase().includes("multipart/form-data");
+  let subject = "";
+  let description = "";
+  let category = "general";
+  let priorityRaw = "";
+  let source = "manual";
+  const files: File[] = [];
 
-  const description = (body.description ?? body.inquiry ?? "").trim();
-  const subject = body.subject?.trim() ?? "";
-  const priority = body.priority?.trim().toLowerCase() as SupportTicketPriority | undefined;
+  if (isFormData) {
+    const form = await req.formData();
+    subject = String(form.get("subject") ?? "").trim();
+    description = String(form.get("description") ?? form.get("inquiry") ?? "").trim();
+    category = String(form.get("category") ?? "general").trim() || "general";
+    priorityRaw = String(form.get("priority") ?? "").trim().toLowerCase();
+    source = String(form.get("source") ?? "manual").trim() || "manual";
+    for (const entry of form.getAll("file")) {
+      if (entry instanceof File && entry.size > 0) files.push(entry);
+    }
+    for (const entry of form.getAll("files")) {
+      if (entry instanceof File && entry.size > 0) files.push(entry);
+    }
+  } else {
+    const body = (await req.json().catch(() => ({}))) as {
+      subject?: string;
+      description?: string;
+      inquiry?: string;
+      category?: string;
+      priority?: string;
+      source?: string;
+    };
+    subject = body.subject?.trim() ?? "";
+    description = (body.description ?? body.inquiry ?? "").trim();
+    category = body.category?.trim() || "general";
+    priorityRaw = body.priority?.trim().toLowerCase() ?? "";
+    source = body.source?.trim() || "manual";
+  }
+
+  const priority = priorityRaw as SupportTicketPriority | undefined;
 
   if (!subject) {
     return NextResponse.json({ error: "Subject is required." }, { status: 400 });
@@ -90,7 +119,7 @@ export async function POST(req: NextRequest) {
   if (!description) {
     return NextResponse.json({ error: "Please describe your issue." }, { status: 400 });
   }
-  if (priority && !PRIORITIES.has(priority)) {
+  if (priorityRaw && !PRIORITIES.has(priorityRaw as SupportTicketPriority)) {
     return NextResponse.json({ error: "Invalid priority." }, { status: 400 });
   }
 
@@ -101,10 +130,11 @@ export async function POST(req: NextRequest) {
     input: {
       subject,
       description,
-      category: body.category,
-      priority,
-      source: body.source ?? "manual",
+      category,
+      priority: priority && PRIORITIES.has(priority) ? priority : undefined,
+      source,
     },
+    files,
   });
 
   if ("error" in result) {

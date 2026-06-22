@@ -1,16 +1,56 @@
 import type { TenantOnboardingConfig, TenantOnboardingStep, TenantRequiredDocument } from "@/lib/onboarding/types";
-import { adjacentStepRoute } from "@/lib/onboarding/tenant-step-navigation";
+import { findApplicantStepByKey } from "@/lib/onboarding/find-applicant-step";
+import { adjacentStepRoute, getEnabledTenantSteps } from "@/lib/onboarding/tenant-step-navigation";
 
-/** Enabled professional-license step for the current tenant config. */
-export function findProfessionalLicenseStep(
-  config: TenantOnboardingConfig | null | undefined
+/** Resolve the workflow step for a dedicated applicant page (uses ?stepKey= when present). */
+export function resolveApplicantPageStep(
+  config: TenantOnboardingConfig | null | undefined,
+  stepKeyFromUrl: string | null,
+  fallback: (steps: TenantOnboardingStep[]) => TenantOnboardingStep | null
 ): TenantOnboardingStep | null {
-  if (!config?.steps?.length) return null;
-  const enabled = config.steps.filter((s) => s.is_enabled);
-  return (
-    enabled.find((s) => s.step_type === "professional_license") ??
-    enabled.find((s) => s.step_key === "professional_license") ??
-    null
+  const enabled = getEnabledTenantSteps(config);
+  if (!enabled.length) return null;
+
+  if (stepKeyFromUrl) {
+    const byKey = findApplicantStepByKey(enabled, stepKeyFromUrl);
+    if (byKey) return byKey;
+  }
+
+  return fallback(enabled);
+}
+
+export function findProfessionalLicenseStep(
+  config: TenantOnboardingConfig | null | undefined,
+  stepKey?: string | null
+): TenantOnboardingStep | null {
+  return resolveApplicantPageStep(config, stepKey ?? null, (enabled) => {
+    if (stepKey) return findApplicantStepByKey(enabled, stepKey);
+    return (
+      enabled.find((s) => s.step_type === "professional_license") ??
+      enabled.find((s) => s.step_type === "document_upload") ??
+      enabled.find((s) => s.step_key === "professional_license") ??
+      null
+    );
+  });
+}
+
+export function findReferencesStep(
+  config: TenantOnboardingConfig | null | undefined,
+  stepKey?: string | null
+): TenantOnboardingStep | null {
+  return resolveApplicantPageStep(config, stepKey ?? null, (enabled) =>
+    enabled.find((s) => s.step_type === "references") ?? null
+  );
+}
+
+export function findResumeStep(
+  config: TenantOnboardingConfig | null | undefined,
+  stepKey?: string | null
+): TenantOnboardingStep | null {
+  return resolveApplicantPageStep(config, stepKey ?? null, (enabled) =>
+    enabled.find(
+      (s) => s.step_type === "resume_upload" || s.step_type === "profile_information"
+    ) ?? null
   );
 }
 

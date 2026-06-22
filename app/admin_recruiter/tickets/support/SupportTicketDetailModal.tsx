@@ -1,8 +1,18 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { Loader2, X } from "lucide-react";
-import type { SupportTicketListItem } from "@/lib/support-tickets/types";
-import { descriptionPreview } from "@/lib/support-tickets/support-ticket-service";
+import {
+  flattenTicketAttachments,
+  SupportTicketAttachmentsList,
+} from "@/app/admin_recruiter/tickets/support/SupportTicketAttachmentsList";
+import { safeFetchJson } from "@/lib/api/safe-fetch-json";
+import type {
+  SupportTicketAttachmentRow,
+  SupportTicketListItem,
+  SupportTicketMessageWithAttachments,
+} from "@/lib/support-tickets/types";
+import { descriptionPreview } from "@/lib/support-tickets/support-ticket-display";
 
 function formatDateTime(value: string | null | undefined): string {
   if (!value) return "—";
@@ -31,6 +41,45 @@ type Props = {
 };
 
 export function SupportTicketDetailModal({ ticket, open, closing, onClose, onCloseTicket }: Props) {
+  const [attachments, setAttachments] = useState<SupportTicketAttachmentRow[]>([]);
+  const [attachmentsLoading, setAttachmentsLoading] = useState(false);
+
+  useEffect(() => {
+    if (!open || !ticket?.id) {
+      setAttachments([]);
+      return;
+    }
+
+    let alive = true;
+    setAttachmentsLoading(true);
+    void (async () => {
+      try {
+        const result = await safeFetchJson<{
+          messages?: SupportTicketMessageWithAttachments[];
+          attachments?: SupportTicketAttachmentRow[];
+        }>(`/api/support-tickets/${encodeURIComponent(ticket.id)}/messages`, {
+          cache: "no-store",
+          credentials: "include",
+        });
+        if (!alive) return;
+        if (!result.ok) {
+          setAttachments([]);
+          return;
+        }
+        const direct = result.data.attachments ?? [];
+        setAttachments(
+          direct.length > 0 ? direct : flattenTicketAttachments(result.data.messages ?? [])
+        );
+      } finally {
+        if (alive) setAttachmentsLoading(false);
+      }
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, [open, ticket?.id]);
+
   if (!open || !ticket) return null;
 
   return (
@@ -103,6 +152,16 @@ export function SupportTicketDetailModal({ ticket, open, closing, onClose, onClo
               {ticket.description ?? "—"}
             </p>
             <p className="mt-4 text-xs text-[#64748B]">Preview: {descriptionPreview(ticket.description, 160)}</p>
+
+            <div className="mt-5 border-t border-[#E5E7EB] pt-4">
+              <h3 className="text-sm font-semibold text-[#0F172A]">Attachments</h3>
+              <div className="mt-3">
+                <SupportTicketAttachmentsList
+                  attachments={attachments}
+                  loading={attachmentsLoading}
+                />
+              </div>
+            </div>
           </div>
 
           <div className="mt-5 flex gap-4">

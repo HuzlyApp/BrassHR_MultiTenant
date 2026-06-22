@@ -9,3 +9,6 @@ export const ORGANIZATION_LOGOS_BUCKET = "organization-logos"
 
 /** Private recruiter <-> worker chat attachments. */
 export const APPLICANT_CHAT_BUCKET = "applicant-chat"
+
+/** Private support ticket thread attachments. */
+export const SUPPORT_TICKET_FILES_BUCKET = "support-ticket-files"

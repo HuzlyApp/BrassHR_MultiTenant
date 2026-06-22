@@ -38,3 +38,38 @@ export type CreateSupportTicketInput = {
   priority?: SupportTicketPriority;
   source?: string;
 };
+
+export type SupportTicketSenderRole = "applicant" | "staff";
+
+export type SupportTicketMessageRow = {
+  id: string;
+  tenant_id: string;
+  ticket_id: string;
+  sender_id: string;
+  sender_role: SupportTicketSenderRole;
+  message: string;
+  created_at: string;
+};
+
+export type SupportTicketAttachmentRow = {
+  id: string;
+  tenant_id: string;
+  ticket_id: string;
+  message_id: string | null;
+  uploaded_by: string;
+  file_name: string;
+  file_path: string;
+  file_type: string | null;
+  file_size: number | null;
+  storage_bucket: string;
+  created_at: string;
+};
+
+export type SupportTicketMessageWithAttachments = SupportTicketMessageRow & {
+  attachments: SupportTicketAttachmentRow[];
+};
+
+export type SupportTicketConversationItem = SupportTicketListItem & {
+  lastMessagePreview: string;
+  lastMessageAt: string;
+};

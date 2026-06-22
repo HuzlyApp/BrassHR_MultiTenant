@@ -1,14 +1,24 @@
 "use client";
 
 import { useCallback, useState } from "react";
+import { useRouter } from "next/navigation";
 import type { ApplicantMessage } from "@/app/application/components/applicant-portal/types";
 import {
   mergeApplicantMessage,
   sortApplicantMessages,
 } from "@/lib/messaging/applicant-messages";
+import {
+  filterApplicantMessagesForActiveSession,
+  markApplicantChatSessionReset,
+} from "@/lib/messaging/applicant-chat-session";
 import { useApplicantMessagesRealtime } from "@/lib/messaging/useApplicantMessagesRealtime";
 
 type AuthHeadersFn = () => Promise<Record<string, string> | null>;
+
+export type SupportTicketCreatedPayload = {
+  ticketId?: string;
+  chatMessage?: ApplicantMessage;
+};
 
 export function useApplicantPortalMessaging({
   workerId,
@@ -17,6 +27,7 @@ export function useApplicantPortalMessaging({
   workerId: string | null | undefined;
   authHeaders: AuthHeadersFn;
 }) {
+  const router = useRouter();
   const [messages, setMessages] = useState<ApplicantMessage[]>([]);
   const [messageBody, setMessageBody] = useState("");
   const [sending, setSending] = useState(false);
@@ -25,15 +36,40 @@ export function useApplicantPortalMessaging({
   const [skipNextAi, setSkipNextAi] = useState(false);
   const [lastInquiry, setLastInquiry] = useState("");
 
-  useApplicantMessagesRealtime(workerId, setMessages, Boolean(workerId));
+  const applySessionFilter = useCallback((items: ApplicantMessage[]) => {
+    return filterApplicantMessagesForActiveSession(sortApplicantMessages(items));
+  }, []);
+
+  const setFilteredMessages = useCallback(
+    (updater: ApplicantMessage[] | ((current: ApplicantMessage[]) => ApplicantMessage[])) => {
+      setMessages((current) => {
+        const next = typeof updater === "function" ? updater(current) : updater;
+        return applySessionFilter(next);
+      });
+    },
+    [applySessionFilter]
+  );
+
+  useApplicantMessagesRealtime(workerId, setFilteredMessages, Boolean(workerId));
 
   const loadMessages = useCallback(async () => {
     const headers = await authHeaders();
     if (!headers) return;
     const res = await fetch("/api/applicant-portal/messages", { headers, cache: "no-store" });
     const payload = (await res.json().catch(() => ({}))) as { messages?: ApplicantMessage[] };
-    if (res.ok) setMessages(sortApplicantMessages(payload.messages ?? []));
-  }, [authHeaders]);
+    if (res.ok) setMessages(applySessionFilter(payload.messages ?? []));
+  }, [applySessionFilter, authHeaders]);
+
+  const resetChatSession = useCallback(() => {
+    markApplicantChatSessionReset();
+    setMessages([]);
+    setMessageBody("");
+    setLastInquiry("");
+    setRecruiterDirectHint(false);
+    setSkipNextAi(false);
+    setAiTyping(false);
+    setSending(false);
+  }, []);
 
   const requestAiResponse = useCallback(
     async (inquiry: string) => {
@@ -51,13 +87,13 @@ export function useApplicantPortalMessaging({
           error?: string;
         };
         if (payload.message) {
-          setMessages((current) => mergeApplicantMessage(current, payload.message!));
+          setFilteredMessages((current) => mergeApplicantMessage(current, payload.message!));
         }
       } finally {
         setAiTyping(false);
       }
     },
-    [authHeaders]
+    [authHeaders, setFilteredMessages]
   );
 
   const handleSendMessage = useCallback(
@@ -87,7 +123,7 @@ export function useApplicantPortalMessaging({
         setMessageBody("");
         setRecruiterDirectHint(false);
         if (payload.message) {
-          setMessages((current) => mergeApplicantMessage(current, payload.message!));
+          setFilteredMessages((current) => mergeApplicantMessage(current, payload.message!));
         } else {
           await loadMessages();
         }
@@ -104,7 +140,7 @@ export function useApplicantPortalMessaging({
         setSending(false);
       }
     },
-    [authHeaders, loadMessages, messageBody, requestAiResponse, skipNextAi]
+    [authHeaders, loadMessages, messageBody, requestAiResponse, setFilteredMessages, skipNextAi]
   );
 
   const handleContactRecruiter = useCallback(() => {
@@ -113,12 +149,15 @@ export function useApplicantPortalMessaging({
   }, []);
 
   const handleSupportTicketCreated = useCallback(
-    (payload: { chatMessage?: ApplicantMessage }) => {
-      if (payload.chatMessage) {
-        setMessages((current) => mergeApplicantMessage(current, payload.chatMessage!));
+    (payload: SupportTicketCreatedPayload) => {
+      resetChatSession();
+      if (payload.ticketId) {
+        router.push(
+          `/application/applicant-dashboard/tickets?ticket=${encodeURIComponent(payload.ticketId)}`
+        );
       }
     },
-    []
+    [resetChatSession, router]
   );
 
   return {
@@ -131,6 +170,7 @@ export function useApplicantPortalMessaging({
     recruiterDirectHint,
     lastInquiry,
     loadMessages,
+    resetChatSession,
     handleSendMessage,
     handleContactRecruiter,
     handleSupportTicketCreated,

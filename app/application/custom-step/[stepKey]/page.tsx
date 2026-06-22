@@ -5,7 +5,7 @@ import { useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import OnboardingLayout from "@/app/components/OnboardingLayout";
 import OnboardingStepper from "@/app/components/OnboardingStepper";
-import OnboardingPreviewBanner from "@/app/application/OnboardingPreviewBanner";
+import ApplicantWorkflowStepRedirect from "@/app/components/onboarding/ApplicantWorkflowStepRedirect";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
 import { useOnboardingStepNav } from "@/lib/onboarding/use-onboarding-step-nav";
@@ -15,8 +15,7 @@ import {
   isIntegrationPartnerStep,
   workflowSettingsAdminHints,
 } from "@/lib/onboarding/workflow-settings";
-import { routeForOnboardingStep } from "@/lib/onboarding/step-routes";
-import type { OnboardingStepType } from "@/lib/onboarding/types";
+import { APPLICATION_ROUTES } from "@/lib/onboarding/application-routes";
 
 export default function CustomOnboardingStepPage() {
   const branding = useTenantBranding();
@@ -28,23 +27,23 @@ export default function CustomOnboardingStepPage() {
   const [answer, setAnswer] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [showCustomForm, setShowCustomForm] = useState(false);
 
   const step = useMemo(() => {
-    return nav.enabledSteps?.find((s) => s.step_key === stepKey) ?? null;
-  }, [nav.enabledSteps, stepKey]);
+    return nav.enabledSteps?.find((s) => s.step_key === stepKey) ?? nav.currentStep ?? null;
+  }, [nav.enabledSteps, nav.currentStep, stepKey]);
 
   const settings = step ? getWorkflowSettings(step) : null;
   const adminHints = step ? workflowSettingsAdminHints(step) : [];
   const partnerLabel = step ? integrationProviderLabel(step) : null;
   const usesPartner = step ? isIntegrationPartnerStep(step) : false;
 
-  const typedRoute =
-    step &&
-    routeForOnboardingStep(step.step_key, step.step_type as OnboardingStepType);
-
   const isGenericCustom =
     step?.step_type === "custom_question" &&
-    typedRoute?.includes(`/application/custom-step/${encodeURIComponent(stepKey)}`);
+    !usesPartner &&
+    (typeof step.metadata?.workflow_step_id !== "string" ||
+      step.metadata.workflow_step_id === "custom-step" ||
+      step.metadata.workflow_step_id === "custom-form");
 
   async function handleComplete() {
     if (!step) return;
@@ -70,24 +69,30 @@ export default function CustomOnboardingStepPage() {
   if (!nav.configLoading && !step) {
     return (
       <OnboardingLayout>
-        <OnboardingPreviewBanner />
         <div className="mx-auto max-w-lg px-4 py-10 text-center text-sm text-slate-600">
           <p className="font-semibold text-slate-900">Step not found</p>
           <p className="mt-2">
-            The step &quot;{stepKey}&quot; is not part of this tenant&apos;s published onboarding
-            flow.
+            The step &quot;{stepKey}&quot; is not part of this tenant&apos;s onboarding workflow.
           </p>
         </div>
       </OnboardingLayout>
     );
   }
 
+  if (step && !showCustomForm && step.step_type !== "custom_question") {
+    return (
+      <ApplicantWorkflowStepRedirect
+        step={step}
+        onStayOnCustomPage={() => setShowCustomForm(true)}
+      />
+    );
+  }
+
   return (
     <OnboardingLayout>
-      <OnboardingPreviewBanner />
-      <OnboardingStepper title={step?.title ?? "Custom step"} />
+      <OnboardingStepper title={step?.title ?? "Onboarding step"} />
       <div className="mx-auto max-w-2xl px-4 py-8" style={contentStyle}>
-        <h1 className="text-xl font-semibold text-slate-900">{step?.title ?? "Custom step"}</h1>
+        <h1 className="text-xl font-semibold text-slate-900">{step?.title ?? "Onboarding step"}</h1>
         {step?.description ? (
           <p className="mt-2 text-sm text-slate-600">{step.description}</p>
         ) : null}
@@ -101,6 +106,7 @@ export default function CustomOnboardingStepPage() {
                 ? "Complete this step in the application."
                 : "Your recruiter or HR team will complete this step on your behalf."}
             {settings.timeline ? ` Expected timeline: ${settings.timeline}.` : ""}
+            {!settings.required ? " This step is optional." : null}
           </p>
         ) : null}
 
@@ -112,7 +118,7 @@ export default function CustomOnboardingStepPage() {
           </ul>
         ) : null}
 
-        {isGenericCustom ? (
+        {isGenericCustom || showCustomForm ? (
           <div className="mt-6 space-y-3">
             <label className="block text-sm font-medium text-slate-800" htmlFor="custom-answer">
               Your response {settings?.required ? <span className="text-red-600">*</span> : null}
@@ -128,7 +134,7 @@ export default function CustomOnboardingStepPage() {
           </div>
         ) : (
           <p className="mt-6 text-sm text-slate-600">
-            This step uses a dedicated application screen. Use Continue to open the correct page.
+            This step uses a dedicated application screen in your onboarding workflow.
           </p>
         )}
 
@@ -146,18 +152,19 @@ export default function CustomOnboardingStepPage() {
             type="button"
             disabled={saving}
             onClick={() => {
-              if (isGenericCustom) {
+              if (isGenericCustom || showCustomForm) {
                 void handleComplete();
                 return;
               }
-              if (typedRoute) {
-                nav.push(typedRoute);
+              if (step) {
+                const route = APPLICATION_ROUTES.customStep(step.step_key);
+                nav.push(route);
               }
             }}
             className="rounded-lg px-5 py-2 text-sm font-semibold text-white transition hover:brightness-90 disabled:opacity-50"
             style={primaryBtnStyle}
           >
-            {saving ? "Saving…" : isGenericCustom ? "Save & continue" : "Continue"}
+            {saving ? "Saving…" : isGenericCustom || showCustomForm ? "Save & continue" : "Continue"}
           </button>
         </div>
       </div>

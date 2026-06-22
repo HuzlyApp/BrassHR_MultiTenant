@@ -3,7 +3,6 @@ import type { HelpAssistantButton } from "@/lib/applicant-portal/help-assistant-
 import {
   HELP_FALLBACK_BUTTONS,
   HELP_FALLBACK_MESSAGE,
-  HELP_TICKET_CREATED_MESSAGE,
   HELP_TICKET_FAILED_MESSAGE,
 } from "@/lib/applicant-portal/help-assistant-types";
 import { searchFaqForInquiry } from "@/lib/applicant-portal/faq-search";
@@ -134,9 +133,10 @@ export async function createApplicantSupportTicketFromChat(
     description: string;
     category?: string;
     priority?: "low" | "normal" | "high" | "urgent";
+    files?: File[];
   }
 ): Promise<
-  | { ticketId: string; message: ApplicantAiChatMessage }
+  | { ticketId: string }
   | { error: string; message: ApplicantAiChatMessage }
 > {
   const insertResult = await insertSupportTicket(supabase, {
@@ -150,6 +150,7 @@ export async function createApplicantSupportTicketFromChat(
       priority: params.priority,
       source: "ai_fallback",
     },
+    files: params.files,
   });
 
   if ("error" in insertResult) {
@@ -162,17 +163,5 @@ export async function createApplicantSupportTicketFromChat(
     return { error: insertResult.error, message };
   }
 
-  const ticketId = insertResult.ticket.id;
-  const message = await insertApplicantAiMessage(supabase, {
-    tenantId: params.tenantId,
-    workerId: params.workerId,
-    body: HELP_TICKET_CREATED_MESSAGE,
-    metadata: {
-      source: "support_ticket",
-      type: "support_ticket_created",
-      ticket_id: ticketId,
-    },
-  });
-
-  return { ticketId, message };
+  return { ticketId: insertResult.ticket.id };
 }

@@ -170,10 +170,9 @@ export const WORKER_SIDEBAR_SECTIONS: WorkerSidebarSection[] = [
   },
   {
     label: "Tickets",
-    href: "#",
+    href: "/application/applicant-dashboard/tickets",
     iconType: ICON.tickets,
-    matchPrefixes: [],
-    disabled: true,
+    matchPrefixes: ["/application/applicant-dashboard/tickets"],
   },
   {
     label: "Profile",

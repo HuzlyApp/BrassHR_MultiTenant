@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createApplicantSupportTicketFromChat } from "@/lib/applicant-portal/message-ai-assistant";
 import { requireApprovedApplicant } from "@/lib/applicant-portal/request";
+import { parseSupportTicketCreateBody } from "@/lib/support-tickets/parse-create-request";
 import { enforceRateLimit, getClientIp } from "@/lib/security/rate-limit";
 
 export const runtime = "nodejs";
@@ -19,20 +20,12 @@ export async function POST(req: NextRequest) {
     const auth = await requireApprovedApplicant(req);
     if (auth instanceof NextResponse) return auth;
 
-    const body = (await req.json().catch(() => ({}))) as {
-      inquiry?: string;
-      subject?: string;
-      description?: string;
-      category?: string;
-      priority?: "low" | "normal" | "high" | "urgent";
-    };
+    const body = await parseSupportTicketCreateBody(req);
 
-    const description = (body.description ?? body.inquiry ?? "").trim();
-    const subject = body.subject?.trim() ?? "";
-    if (!subject) {
+    if (!body.subject) {
       return NextResponse.json({ error: "Subject is required." }, { status: 400 });
     }
-    if (!description) {
+    if (!body.description) {
       return NextResponse.json({ error: "Please describe your issue." }, { status: 400 });
     }
 
@@ -40,10 +33,11 @@ export async function POST(req: NextRequest) {
       tenantId: auth.applicant.tenant_id,
       workerId: auth.applicant.id,
       userId: auth.user.id,
-      subject,
-      description,
+      subject: body.subject,
+      description: body.description,
       category: body.category,
       priority: body.priority,
+      files: body.files,
     });
 
     if ("error" in result) {
@@ -60,8 +54,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       type: "support_ticket_created",
       ticket_id: result.ticketId,
-      message: result.message,
-      chatMessage: result.message,
     });
   } catch (err) {
     console.error("[applicant-portal/messages/ai-ticket:post]", err);

@@ -11,7 +11,7 @@ import {
 } from "@/app/admin_recruiter/candidates/candidates-typography";
 import { TicketsSubNav } from "@/app/admin_recruiter/tickets/TicketsSubNav";
 import { SupportTicketDetailModal } from "@/app/admin_recruiter/tickets/support/SupportTicketDetailModal";
-import { descriptionPreview } from "@/lib/support-tickets/support-ticket-service";
+import { descriptionPreview } from "@/lib/support-tickets/support-ticket-display";
 import type { SupportTicketListItem } from "@/lib/support-tickets/types";
 
 type SidebarFilter = "open" | "closed" | "archived";

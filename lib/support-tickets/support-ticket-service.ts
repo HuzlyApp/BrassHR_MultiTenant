@@ -1,4 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { insertTicketMessage } from "@/lib/support-tickets/support-ticket-messages";
+import { descriptionPreview } from "@/lib/support-tickets/support-ticket-display";
 import type {
   CreateSupportTicketInput,
   SupportTicketListItem,
@@ -19,6 +21,7 @@ export async function insertSupportTicket(
     userId: string;
     applicantId: string;
     input: CreateSupportTicketInput;
+    files?: File[];
   }
 ): Promise<{ ticket: SupportTicketRow } | { error: string }> {
   const description = params.input.description.trim();
@@ -54,7 +57,21 @@ export async function insertSupportTicket(
     return { error: "Could not create support ticket." };
   }
 
-  return { ticket: data as SupportTicketRow };
+  const ticket = data as SupportTicketRow;
+  const messageResult = await insertTicketMessage(supabase, {
+    tenantId: params.tenantId,
+    ticketId: ticket.id,
+    senderId: params.userId,
+    senderRole: "applicant",
+    message: description,
+    files: params.files,
+  });
+
+  if ("error" in messageResult) {
+    console.error("[support-tickets:initial-message]", messageResult.error);
+  }
+
+  return { ticket };
 }
 
 export async function listApplicantSupportTickets(
@@ -179,8 +196,4 @@ export async function closeSupportTicket(
   return { ticket: data as SupportTicketRow };
 }
 
-export function descriptionPreview(description: string | null, maxLength = 80): string {
-  const text = (description ?? "").trim();
-  if (!text) return "—";
-  return text.length > maxLength ? `${text.slice(0, maxLength - 3)}...` : text;
-}
+export { descriptionPreview };

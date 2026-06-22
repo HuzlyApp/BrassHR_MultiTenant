@@ -39,7 +39,7 @@ export type ApplicantPortalMessaging = {
   lastInquiry: string;
   onSendMessage: (file?: File | null) => Promise<void>;
   onContactRecruiter: () => void;
-  onSupportTicketCreated: (payload: { chatMessage?: ApplicantMessage }) => void;
+  onSupportTicketCreated: (payload: { ticketId?: string; chatMessage?: ApplicantMessage }) => void;
 };
 
 type ApplicantPortalContextValue = {

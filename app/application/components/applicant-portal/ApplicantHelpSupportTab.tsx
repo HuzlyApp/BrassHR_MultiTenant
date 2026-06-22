@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useRef, useState } from "react";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { Bot, User } from "lucide-react";
 import DashboardPageLoader from "@/app/admin_recruiter/components/DashboardPageLoader";
 import type {
@@ -29,6 +30,13 @@ type ChatItem =
       buttons?: HelpAssistantButton[];
       variant?: "answer" | "fallback" | "ticket";
     };
+
+const HELP_WELCOME_ITEM: ChatItem = {
+  id: "welcome",
+  role: "assistant",
+  text: "Hi! I can help with questions about the applicant portal, documents, onboarding, and messaging your recruiter. What can I help you with?",
+  variant: "answer",
+};
 
 function HelpActionButton({
   button,
@@ -103,14 +111,8 @@ function AssistantBubble({
 export function ApplicantHelpSupportTab() {
   const { sessionReady } = useApplicantPortal();
   const authHeaders = useApplicantPortalAuthHeaders();
-  const [items, setItems] = useState<ChatItem[]>([
-    {
-      id: "welcome",
-      role: "assistant",
-      text: "Hi! I can help with questions about the applicant portal, documents, onboarding, and messaging your recruiter. What can I help you with?",
-      variant: "answer",
-    },
-  ]);
+  const router = useRouter();
+  const [items, setItems] = useState<ChatItem[]>([HELP_WELCOME_ITEM]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -118,6 +120,14 @@ export function ApplicantHelpSupportTab() {
   const [ticketModalOpen, setTicketModalOpen] = useState(false);
   const [ticketModalDefaults, setTicketModalDefaults] = useState({ subject: "", description: "" });
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  function resetHelpChat() {
+    setItems([HELP_WELCOME_ITEM]);
+    setInput("");
+    setLastInquiry("");
+    setError(null);
+    setTicketModalDefaults({ subject: "", description: "" });
+  }
 
   function scrollToBottom() {
     requestAnimationFrame(() => {
@@ -280,17 +290,21 @@ export function ApplicantHelpSupportTab() {
 
         <CreateSupportTicketModal
           open={ticketModalOpen}
-          onClose={() => setTicketModalOpen(false)}
+          onClose={() => {
+            setTicketModalOpen(false);
+            resetHelpChat();
+          }}
           defaultSubject={ticketModalDefaults.subject}
           defaultDescription={ticketModalDefaults.description}
           submitEndpoint="/api/applicant-portal/help/support-ticket"
           authHeaders={authHeaders}
-          onSuccess={() => {
-            appendAssistantFromResponse({
-              type: "support_ticket_created",
-              message: "Your support ticket has been created.",
-              ticket_id: "",
-            });
+          onSuccess={(payload) => {
+            resetHelpChat();
+            if (payload.ticketId) {
+              router.push(
+                `/application/applicant-dashboard/tickets?ticket=${encodeURIComponent(payload.ticketId)}`
+              );
+            }
           }}
         />
       </div>

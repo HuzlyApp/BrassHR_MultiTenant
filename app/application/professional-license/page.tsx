@@ -2,7 +2,7 @@
 
 import { APPLICATION_ROUTES } from "@/lib/onboarding/application-routes"
 import { applicationPath } from "@/lib/tenant/with-tenant";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import type { TenantRequiredDocument } from "@/lib/onboarding/types";
 import AutosaveStatus from "@/app/components/AutosaveStatus";
@@ -20,6 +20,7 @@ import {
   nextStepRouteAfter,
   requiredDocumentsForStep,
 } from "@/lib/onboarding/professional-license-step";
+import { readStepKeyFromSearch } from "@/lib/onboarding/find-applicant-step";
 import {
   resolveApplicantId,
   uploadRequiredOnboardingFile,
@@ -74,6 +75,10 @@ const MAX_BYTES = 10 * 1024 * 1024;
 export default function Step2License() {
   const branding = useTenantBranding();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const stepKey = readStepKeyFromSearch(
+    searchParams.toString() ? `?${searchParams.toString()}` : ""
+  );
   const onboarding = useOnboardingConfigOptional();
   const [files, setFiles] = useState<Record<UploadType, UploadSlot | null>>(emptySlots);
   const [dynamicFiles, setDynamicFiles] = useState<Record<string, UploadSlot | null>>({});
@@ -88,8 +93,8 @@ export default function Step2License() {
       : null;
 
   const licenseStep = useMemo(
-    () => findProfessionalLicenseStep(onboarding?.config),
-    [onboarding?.config]
+    () => findProfessionalLicenseStep(onboarding?.config, stepKey),
+    [onboarding?.config, stepKey]
   );
 
   const configuredDocs = useMemo(

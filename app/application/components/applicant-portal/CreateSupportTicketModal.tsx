@@ -1,8 +1,10 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
-import { Ticket, X } from "lucide-react";
+import { FormEvent, useEffect, useRef, useState } from "react";
+import { Paperclip, Ticket, X } from "lucide-react";
 import SuccessModal from "@/app/components/SuccessModal";
+import ChatPendingAttachment from "@/app/components/ChatPendingAttachment";
+import { validateSupportTicketFile } from "@/lib/support-tickets/support-ticket-file-validation";
 import type { SupportTicketPriority } from "@/lib/support-tickets/types";
 
 export type SupportTicketFormValues = {
@@ -54,16 +56,24 @@ export function CreateSupportTicketModal({
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const wasOpenRef = useRef(false);
 
   useEffect(() => {
-    if (!open) return;
-    setSubject(defaultSubject);
-    setDescription(defaultDescription);
-    setCategory("general");
-    setPriority("normal");
-    setErrors({});
-    setSubmitError(null);
-    setShowSuccess(false);
+    if (open && !wasOpenRef.current) {
+      setSubject(defaultSubject);
+      setDescription(defaultDescription);
+      setCategory("general");
+      setPriority("normal");
+      setErrors({});
+      setSubmitError(null);
+      setShowSuccess(false);
+      setSelectedFile(null);
+      setUploadError(null);
+    }
+    wasOpenRef.current = open;
   }, [open, defaultDescription, defaultSubject]);
 
   useEffect(() => {
@@ -95,17 +105,33 @@ export function CreateSupportTicketModal({
       const headers = await authHeaders();
       if (!headers) throw new Error("You need to sign in again.");
 
-      const res = await fetch(submitEndpoint, {
-        method: "POST",
-        headers: { ...headers, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          subject: subject.trim(),
-          description: description.trim(),
-          category,
-          priority,
-          source: "ai_fallback",
-        }),
-      });
+      let res: Response;
+      if (selectedFile) {
+        const form = new FormData();
+        form.set("subject", subject.trim());
+        form.set("description", description.trim());
+        form.set("category", category);
+        form.set("priority", priority);
+        form.set("source", "ai_fallback");
+        form.set("file", selectedFile);
+        res = await fetch(submitEndpoint, {
+          method: "POST",
+          headers,
+          body: form,
+        });
+      } else {
+        res = await fetch(submitEndpoint, {
+          method: "POST",
+          headers: { ...headers, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            subject: subject.trim(),
+            description: description.trim(),
+            category,
+            priority,
+            source: "ai_fallback",
+          }),
+        });
+      }
       const payload = (await res.json().catch(() => ({}))) as {
         error?: string;
         message?: string;
@@ -254,6 +280,46 @@ export function CreateSupportTicketModal({
               {errors.description ? (
                 <p className="mt-1 text-xs text-red-600">{errors.description}</p>
               ) : null}
+            </div>
+
+            <div className="px-2">
+              <input
+                ref={fileInputRef}
+                type="file"
+                className="hidden"
+                accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.txt,application/pdf,image/png,image/jpeg,text/plain"
+                onChange={(event) => {
+                  const file = event.target.files?.[0] ?? null;
+                  if (!file) {
+                    setSelectedFile(null);
+                    setUploadError(null);
+                    return;
+                  }
+                  const validation = validateSupportTicketFile(file);
+                  if (validation) {
+                    setUploadError(validation);
+                    setSelectedFile(null);
+                    return;
+                  }
+                  setUploadError(null);
+                  setSelectedFile(file);
+                }}
+              />
+              {selectedFile ? (
+                <ChatPendingAttachment file={selectedFile} onRemove={() => setSelectedFile(null)} />
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={submitting}
+                  className="inline-flex items-center gap-2 rounded-lg border border-[#E2E8F0] px-3.5 py-2.5 text-sm font-medium text-[#0F172A] transition hover:bg-[#F8FAFC] disabled:opacity-60"
+                >
+                  <Paperclip className="h-4 w-4" />
+                  Attach file (optional)
+                </button>
+              )}
+              {uploadError ? <p className="mt-1 text-xs text-red-600">{uploadError}</p> : null}
+              <p className="mt-1 text-xs text-[#94A3B8]">PDF, DOCX, PNG, JPG, JPEG, or TXT up to 10 MB.</p>
             </div>
 
             <div className="flex gap-5 px-2 pb-2 pt-1">

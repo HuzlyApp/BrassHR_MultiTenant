@@ -19,11 +19,17 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { applyApplicantConfigFilters } from "@/lib/onboarding/filter-applicant-steps";
 import { readOnboardingPreview } from "@/lib/onboarding/onboarding-preview-storage";
 import { computeMaxAllowedStepIndex } from "@/lib/onboarding/tenant-step-navigation";
+import { safeFetchJson } from "@/lib/api/safe-fetch-json";
+
+export type OnboardingConfigSource = "published" | "draft-preview" | "draft-api" | null;
 
 type Ctx = {
   config: TenantOnboardingConfig | null;
   progress: WorkerOnboardingProgressPayload | null;
   loading: boolean;
+  error: string | null;
+  source: OnboardingConfigSource;
+  isDraftPreview: boolean;
   applicantId: string | null;
   refresh: () => Promise<void>;
   updateStepStatus: (
@@ -57,18 +63,30 @@ function readApplicantId(): string | null {
   }
 }
 
+type ConfigPayload = {
+  config?: TenantOnboardingConfig;
+  error?: string;
+  detail?: string;
+  code?: string;
+  source?: string;
+};
+
 export default function OnboardingConfigProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const tenantFromUrl = searchParams.get("tenant");
+  const isDraftPreview = searchParams.get("preview") === "draft";
   const [config, setConfig] = useState<TenantOnboardingConfig | null>(null);
   const [progress, setProgress] = useState<WorkerOnboardingProgressPayload | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [source, setSource] = useState<OnboardingConfigSource>(null);
   const [applicantId, setApplicantId] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     const aid = readApplicantId();
     setApplicantId(aid);
+    setError(null);
 
     const search = typeof window !== "undefined" ? window.location.search : "";
     const slug = resolveClientOnboardingTenantSlug(search);
@@ -77,48 +95,96 @@ export default function OnboardingConfigProvider({ children }: { children: React
       if (!slug) {
         setConfig(null);
         setProgress(null);
+        setSource(null);
+        setError("Select a tenant to load onboarding.");
         return;
       }
 
-      if (searchParams.get("preview") === "draft") {
+      if (isDraftPreview) {
         const preview = readOnboardingPreview(slug);
         if (preview?.config) {
           setConfig(applyApplicantConfigFilters(preview.config));
           setProgress(null);
+          setSource("draft-preview");
           return;
         }
+
+        const draftRes = await safeFetchJson<ConfigPayload>(
+          `/api/onboarding/preview-config?slug=${encodeURIComponent(slug)}`,
+          { cache: "no-store" }
+        );
+
+        if (draftRes.ok && draftRes.data.config) {
+          setConfig(applyApplicantConfigFilters(draftRes.data.config));
+          setProgress(null);
+          setSource("draft-api");
+          return;
+        }
+
+        setConfig(null);
+        setProgress(null);
+        setSource(null);
+        const draftMessage = !draftRes.ok
+          ? draftRes.data?.error ?? draftRes.error
+          : "Draft preview is unavailable.";
+        setError(
+          draftMessage ||
+            "Open preview from the Onboarding Builder so the draft workflow can be loaded."
+        );
+        return;
       }
 
-      const configUrl = `/api/onboarding/config?slug=${encodeURIComponent(slug)}`;
-      const configRes = await fetch(configUrl, { cache: "no-store" });
-      if (configRes.ok) {
-        const payload = (await configRes.json()) as { config?: TenantOnboardingConfig };
-        if (payload.config) {
-          setConfig(applyApplicantConfigFilters(payload.config));
-        }
+      const configRes = await safeFetchJson<ConfigPayload>(
+        `/api/onboarding/config?slug=${encodeURIComponent(slug)}`,
+        { cache: "no-store" }
+      );
+
+      if (!configRes.ok) {
+        setConfig(null);
+        setProgress(null);
+        setSource(null);
+        setError(
+          configRes.data?.detail ??
+            configRes.data?.error ??
+            configRes.error ??
+            "Could not load onboarding configuration."
+        );
+        return;
+      }
+
+      if (configRes.data.config) {
+        setConfig(applyApplicantConfigFilters(configRes.data.config));
+        setSource("published");
+      } else {
+        setConfig(null);
+        setSource(null);
+        setError("Onboarding configuration is missing for this tenant.");
       }
 
       if (aid) {
-        const progRes = await fetch(
+        const progRes = await safeFetchJson<{ progress?: WorkerOnboardingProgressPayload | null }>(
           `/api/onboarding/progress?applicantId=${encodeURIComponent(aid)}`,
           { cache: "no-store" }
         );
         if (progRes.ok) {
-          const payload = (await progRes.json()) as { progress?: WorkerOnboardingProgressPayload | null };
-          setProgress(payload.progress ?? null);
+          setProgress(progRes.data.progress ?? null);
         }
+      } else {
+        setProgress(null);
       }
     } finally {
       setLoading(false);
     }
-  }, [searchParams]);
+  }, [isDraftPreview, searchParams]);
 
   useEffect(() => {
+    setLoading(true);
     void refresh();
   }, [refresh, tenantFromUrl, searchParams]);
 
   const updateStepStatus = useCallback(
     async (stepKey: string, status: OnboardingStepStatus, data?: Record<string, unknown>) => {
+      if (isDraftPreview) return;
       const aid = readApplicantId();
       if (!aid) return;
       await fetch("/api/onboarding/progress/step", {
@@ -128,7 +194,7 @@ export default function OnboardingConfigProvider({ children }: { children: React
       });
       await refresh();
     },
-    [refresh]
+    [refresh, isDraftPreview]
   );
 
   const maxAllowedStepIndex = useMemo(
@@ -141,12 +207,26 @@ export default function OnboardingConfigProvider({ children }: { children: React
       config,
       progress,
       loading,
+      error,
+      source,
+      isDraftPreview,
       applicantId,
       refresh,
       updateStepStatus,
       maxAllowedStepIndex,
     }),
-    [config, progress, loading, applicantId, refresh, updateStepStatus, maxAllowedStepIndex]
+    [
+      config,
+      progress,
+      loading,
+      error,
+      source,
+      isDraftPreview,
+      applicantId,
+      refresh,
+      updateStepStatus,
+      maxAllowedStepIndex,
+    ]
   );
 
   return (

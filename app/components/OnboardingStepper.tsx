@@ -8,11 +8,11 @@ import { Check } from "lucide-react"
 
 import { useEffect, useMemo } from "react"
 
-import { usePathname } from "next/navigation"
+import { usePathname, useSearchParams } from "next/navigation"
 
 import { useOnboardingConfigOptional } from "@/app/components/onboarding/OnboardingConfigProvider"
 
-import { routeForOnboardingStep } from "@/lib/onboarding/step-routes"
+import { routeForApplicantStep } from "@/lib/onboarding/resolve-applicant-step-route"
 
 import {
 
@@ -23,8 +23,6 @@ import {
 } from "@/lib/onboarding/tenant-step-navigation"
 
 import { useOnboardingTenant } from "@/lib/tenant/use-onboarding-tenant"
-
-import type { OnboardingStepType } from "@/lib/onboarding/types"
 
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext"
 
@@ -69,6 +67,8 @@ export default function OnboardingStepper({
   const { slug, push, replace } = useOnboardingTenant()
 
   const pathname = usePathname()
+  const searchParams = useSearchParams()
+  const search = searchParams.toString() ? `?${searchParams.toString()}` : ""
 
   const onboarding = useOnboardingConfigOptional()
 
@@ -98,11 +98,7 @@ export default function OnboardingStepper({
 
     () =>
 
-      (enabledSteps ?? []).map((s) =>
-
-        routeForOnboardingStep(s.step_key, s.step_type as OnboardingStepType)
-
-      ),
+      (enabledSteps ?? []).map((s) => routeForApplicantStep(s, slug)),
 
     [enabledSteps]
 
@@ -116,9 +112,9 @@ export default function OnboardingStepper({
 
     if (!enabledSteps?.length) return 1
 
-    return stepIndexFromPathname(pathname || "", enabledSteps)
+    return stepIndexFromPathname(pathname || "", enabledSteps, search)
 
-  }, [currentStepOverride, pathname, enabledSteps])
+  }, [currentStepOverride, pathname, enabledSteps, search])
 
 
 
@@ -188,7 +184,11 @@ export default function OnboardingStepper({
 
       <div className="h-16 w-full animate-pulse rounded-lg bg-slate-100" />
 
-    ) : null
+    ) : (
+      <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-4 py-3 text-center text-sm text-slate-600">
+        No onboarding steps are configured for this workflow.
+      </div>
+    );
 
   }
 

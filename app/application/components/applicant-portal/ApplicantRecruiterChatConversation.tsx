@@ -405,14 +405,15 @@ export function ApplicantRecruiterChatConversation({ messaging, recruiterName, w
 
       <CreateSupportTicketModal
         open={ticketModalOpen}
-        onClose={() => setTicketModalOpen(false)}
+        onClose={() => {
+          setTicketModalOpen(false);
+          setTicketModalDefaults({ subject: "", description: "" });
+        }}
         defaultSubject={ticketModalDefaults.subject}
         defaultDescription={ticketModalDefaults.description}
         authHeaders={authHeaders}
         onSuccess={(payload) => {
-          onSupportTicketCreated({
-            chatMessage: payload.chatMessage as ApplicantMessage | undefined,
-          });
+          onSupportTicketCreated({ ticketId: payload.ticketId });
         }}
       />
     </>

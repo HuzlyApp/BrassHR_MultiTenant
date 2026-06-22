@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useOnboardingConfigOptional } from "@/app/components/onboarding/OnboardingConfigProvider";
 import {
   adjacentStepRoute,
@@ -16,6 +16,8 @@ import { useOnboardingTenant } from "@/lib/tenant/use-onboarding-tenant";
 /** Tenant-ordered onboarding navigation for applicant pages. */
 export function useOnboardingStepNav() {
   const pathname = usePathname() ?? "";
+  const searchParams = useSearchParams();
+  const search = searchParams.toString() ? `?${searchParams.toString()}` : "";
   const { slug, push, replace, path } = useOnboardingTenant();
   const onboarding = useOnboardingConfigOptional();
 
@@ -26,13 +28,13 @@ export function useOnboardingStepNav() {
 
   const currentIndex = useMemo(() => {
     if (!enabledSteps?.length) return 1;
-    return stepIndexFromPathname(pathname, enabledSteps);
-  }, [pathname, enabledSteps]);
+    return stepIndexFromPathname(pathname, enabledSteps, search);
+  }, [pathname, enabledSteps, search]);
 
   const currentStep = useMemo(() => {
     if (!enabledSteps?.length) return null;
-    return findStepForPathname(pathname, enabledSteps);
-  }, [pathname, enabledSteps]);
+    return findStepForPathname(pathname, enabledSteps, search);
+  }, [pathname, enabledSteps, search]);
 
   const maxAllowedStepIndex = useMemo(
     () =>

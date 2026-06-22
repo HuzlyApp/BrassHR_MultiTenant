@@ -1,5 +1,5 @@
 import { APPLICATION_ROUTES } from "@/lib/onboarding/application-routes";
-import { routeForOnboardingStep } from "@/lib/onboarding/step-routes";
+import { routeForApplicantStep } from "@/lib/onboarding/resolve-applicant-step-route";
 import {
   countCompleteReferencesFromStorage,
   MIN_COMPLETE_REFERENCES,
@@ -65,10 +65,7 @@ function sectionForStep(
   snapshot: ApplicantSummarySnapshot,
   tenantSlug: string | null
 ): SummarySectionModel | null {
-  const editHref = withTenant(
-    routeForOnboardingStep(step.step_key, step.step_type),
-    tenantSlug
-  );
+  const editHref = withTenant(routeForApplicantStep(step), tenantSlug);
 
   switch (step.step_type) {
     case "resume_upload":

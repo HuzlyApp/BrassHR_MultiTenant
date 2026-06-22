@@ -6,6 +6,7 @@ import { Pin, Search, UserPlus } from "lucide-react";
 import CandidateDetailLoader from "@/app/admin_recruiter/components/CandidateDetailLoader";
 import ApplicantChatProfilePanel from "@/app/admin_recruiter/messages/ApplicantChatProfilePanel";
 import ApplicantConversationClient from "@/app/admin_recruiter/messages/ApplicantConversationClient";
+import SupportConversationClient from "@/app/admin_recruiter/messages/SupportConversationClient";
 import CreateGroupModal from "@/app/admin_recruiter/messages/CreateGroupModal";
 import GroupChatProfilePanel from "@/app/admin_recruiter/messages/GroupChatProfilePanel";
 import GroupConversationClient from "@/app/admin_recruiter/messages/GroupConversationClient";
@@ -17,6 +18,8 @@ import {
   type StaffConversation,
 } from "@/lib/messaging/staff-conversations";
 import { useApplicantConversationsRealtime } from "@/lib/messaging/useApplicantConversationsRealtime";
+import { safeFetchJson } from "@/lib/api/safe-fetch-json";
+import type { SupportTicketConversationItem, SupportTicketStatus } from "@/lib/support-tickets/types";
 
 type ChatTab = "worker" | "group" | "support";
 
@@ -37,6 +40,14 @@ const CHAT_PHONE_ICON = "/icons/chat-icons/phone-icon.svg";
 const CHAT_VIDEO_ICON = "/icons/chat-icons/video-call-icon.svg";
 const CHAT_MORE_ICON = "/icons/chat-icons/dots-horizontal.svg";
 const PINNED_STORAGE_KEY = "admin-recruiter-pinned-worker-chats";
+
+const SUPPORT_STATUS_COLORS: Record<SupportTicketStatus, string> = {
+  Open: "bg-[#DBEAFE] text-[#1D4ED8]",
+  Pending: "bg-[#FEF3C7] text-[#B45309]",
+  "In Progress": "bg-[#E0E7FF] text-[#4338CA]",
+  Resolved: "bg-[#D1FAE5] text-[#047857]",
+  Closed: "bg-[#F1F5F9] text-[#64748B]",
+};
 
 function ConversationAvatar({ name, photoUrl }: { name: string; photoUrl?: string | null }) {
   const trimmedPhoto = photoUrl?.trim();
@@ -114,6 +125,9 @@ export default function AdminRecruiterMessagesClient({
   const [searchQuery, setSearchQuery] = useState("");
   const [showCreateGroup, setShowCreateGroup] = useState(false);
   const [pinnedWorkerIds, setPinnedWorkerIds] = useState<string[]>([]);
+  const [supportTickets, setSupportTickets] = useState<SupportTicketConversationItem[]>([]);
+  const [selectedSupportTicketId, setSelectedSupportTicketId] = useState<string | null>(null);
+  const [supportLoading, setSupportLoading] = useState(false);
 
   useEffect(() => {
     setPinnedWorkerIds(readPinnedWorkerIds());
@@ -139,6 +153,22 @@ export default function AdminRecruiterMessagesClient({
       return payload.groups ?? [];
     } finally {
       setGroupsLoading(false);
+    }
+  }, []);
+
+  const loadSupportTickets = useCallback(async () => {
+    setSupportLoading(true);
+    try {
+      const result = await safeFetchJson<{ tickets?: SupportTicketConversationItem[] }>(
+        "/api/support-tickets",
+        { cache: "no-store", credentials: "include" }
+      );
+      if (!result.ok) throw new Error(result.error);
+      const items = result.data.tickets ?? [];
+      setSupportTickets(items);
+      return items;
+    } finally {
+      setSupportLoading(false);
     }
   }, []);
 
@@ -184,8 +214,21 @@ export default function AdminRecruiterMessagesClient({
     });
   }, [activeTab, loadGroups]);
 
+  useEffect(() => {
+    if (activeTab !== "support") return;
+    void loadSupportTickets()
+      .then((items) => {
+        setSelectedSupportTicketId((current) => current ?? items[0]?.id ?? null);
+      })
+      .catch((err) => {
+        setError(err instanceof Error ? err.message : "Could not load support tickets.");
+      });
+  }, [activeTab, loadSupportTickets]);
+
   const selectedConversation = conversations.find((item) => item.workerId === selectedWorkerId) ?? null;
   const selectedGroup = groups.find((item) => item.id === selectedGroupId) ?? null;
+  const selectedSupportTicket =
+    supportTickets.find((item) => item.id === selectedSupportTicketId) ?? null;
 
   const filteredConversations = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
@@ -207,6 +250,19 @@ export default function AdminRecruiterMessagesClient({
         group.memberNames.some((name) => name.toLowerCase().includes(query))
     );
   }, [groups, searchQuery]);
+
+  const filteredSupportTickets = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) return supportTickets;
+    return supportTickets.filter(
+      (ticket) =>
+        (ticket.subject ?? "").toLowerCase().includes(query) ||
+        ticket.lastMessagePreview.toLowerCase().includes(query) ||
+        (ticket.applicant_name ?? "").toLowerCase().includes(query) ||
+        (ticket.applicant_email ?? "").toLowerCase().includes(query) ||
+        (ticket.category ?? "").toLowerCase().includes(query)
+    );
+  }, [searchQuery, supportTickets]);
 
   const pinnedConversations = filteredConversations.filter((item) => pinnedWorkerIds.includes(item.workerId));
   const unpinnedConversations = filteredConversations.filter((item) => !pinnedWorkerIds.includes(item.workerId));
@@ -380,7 +436,35 @@ export default function AdminRecruiterMessagesClient({
             ) : null}
 
             {activeTab === "support" ? (
-              <p className="px-4 py-6 text-sm text-[#64748B]">Support chat is coming soon.</p>
+              <>
+                {supportLoading ? (
+                  <CandidateDetailLoader label="Loading support tickets..." className="min-h-[240px] py-10" />
+                ) : null}
+                {!supportLoading && filteredSupportTickets.length === 0 ? (
+                  <p className="px-4 py-6 text-sm text-[#64748B]">
+                    {searchQuery.trim()
+                      ? "No support tickets match your search."
+                      : "No worker support tickets yet."}
+                  </p>
+                ) : null}
+                {!supportLoading && filteredSupportTickets.length > 0 ? (
+                  <div className="px-3 py-3">
+                    <p className="mb-2 px-1 text-[16px] font-semibold text-[#0F172A]">Support</p>
+                    {filteredSupportTickets.map((ticket) => (
+                      <SupportTicketListItem
+                        key={ticket.id}
+                        ticket={ticket}
+                        active={ticket.id === selectedSupportTicketId}
+                        onSelect={() => {
+                          setSelectedSupportTicketId(ticket.id);
+                          setSelectedWorkerId(null);
+                          setSelectedGroupId(null);
+                        }}
+                      />
+                    ))}
+                  </div>
+                ) : null}
+              </>
             ) : null}
           </div>
         </aside>
@@ -413,13 +497,34 @@ export default function AdminRecruiterMessagesClient({
                 memberCount={selectedGroup.memberCount}
               />
             </>
+          ) : activeTab === "support" && selectedSupportTicketId && selectedSupportTicket ? (
+            <>
+              <ChatHeader
+                title={selectedSupportTicket.applicant_name ?? "Applicant"}
+                subtitle={selectedSupportTicket.subject ?? "Support ticket"}
+                avatar={
+                  <ConversationAvatar name={selectedSupportTicket.applicant_name ?? "Applicant"} />
+                }
+              />
+              <SupportConversationClient
+                ticketId={selectedSupportTicketId}
+                viewerRole="staff"
+                counterpartyLabel={selectedSupportTicket.applicant_name ?? "Applicant"}
+                compact
+                ticketStatus={selectedSupportTicket.status}
+              />
+            </>
           ) : (
             <div className="flex h-full min-h-[360px] flex-1 items-center justify-center bg-white px-6 text-center">
-              {loading || groupsLoading ? (
+              {loading || groupsLoading || supportLoading ? (
                 <CandidateDetailLoader label="Loading..." className="min-h-0 bg-transparent py-0" />
               ) : (
                 <p className="max-w-sm text-sm text-[#64748B]">
-                  {activeTab === "group" ? "Pick a group to read and reply." : "Pick a chat to read and reply."}
+                  {activeTab === "group"
+                    ? "Pick a group to read and reply."
+                    : activeTab === "support"
+                      ? "Pick a support ticket to read and reply."
+                      : "Pick a chat to read and reply."}
                 </p>
               )}
             </div>
@@ -446,10 +551,19 @@ export default function AdminRecruiterMessagesClient({
                 void loadGroups();
               }}
             />
+          ) : activeTab === "support" && selectedSupportTicket?.applicant_id ? (
+            <ApplicantChatProfilePanel
+              workerId={selectedSupportTicket.applicant_id}
+              applicantName={selectedSupportTicket.applicant_name ?? "Applicant"}
+            />
           ) : (
             <aside className="flex min-h-[360px] items-center justify-center overflow-hidden rounded-lg border border-[#E2E8F0] bg-white px-6 text-center shadow-sm xl:h-full">
               <p className="text-sm text-[#64748B]">
-                {activeTab === "group" ? "Select a group to see details." : "Select a chat to see profile details."}
+                {activeTab === "group"
+                  ? "Select a group to see details."
+                  : activeTab === "support"
+                    ? "Select a support ticket to see worker details."
+                    : "Select a chat to see profile details."}
               </p>
             </aside>
           )}
@@ -590,6 +704,48 @@ function GroupListItem({
         <p className="mt-0.5 truncate text-[10px] leading-[15px] text-[#6B7280]">
           {group.preview || `${group.memberCount} members`}
         </p>
+      </div>
+    </button>
+  );
+}
+
+function SupportTicketListItem({
+  ticket,
+  active,
+  onSelect,
+}: {
+  ticket: SupportTicketConversationItem;
+  active: boolean;
+  onSelect: () => void;
+}) {
+  const name = ticket.applicant_name ?? "Applicant";
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      className={`mb-2 flex w-full flex-col rounded-lg border p-3 text-left transition ${
+        active
+          ? "border-(--brand-primary) bg-[#F8FAFC]"
+          : "border-[#E2E8F0] bg-white hover:border-(--brand-primary)"
+      }`}
+    >
+      <div className="flex items-start gap-2">
+        <div className="shrink-0 scale-90">
+          <ConversationAvatar name={name} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-start justify-between gap-2">
+            <p className="truncate text-[12px] font-semibold text-[#0F172A]">{name}</p>
+            <span
+              className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${SUPPORT_STATUS_COLORS[ticket.status]}`}
+            >
+              {ticket.status}
+            </span>
+          </div>
+          <p className="truncate text-[11px] font-medium text-[#334155]">{ticket.subject ?? "Support request"}</p>
+          <p className="mt-0.5 truncate text-[10px] text-[#64748B]">{ticket.lastMessagePreview}</p>
+          <p className="mt-1 text-[10px] text-[#94A3B8]">{formatChatTime(ticket.lastMessageAt)}</p>
+        </div>
       </div>
     </button>
   );

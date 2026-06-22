@@ -1,6 +1,9 @@
 import { createDefaultOnboardingStepDrafts } from "@/lib/onboarding/default-onboarding-steps";
-import { routeForOnboardingStep } from "@/lib/onboarding/step-routes";
+import { routeForApplicantStep } from "@/lib/onboarding/resolve-applicant-step-route";
 import { stepIndexFromPathname } from "@/lib/onboarding/step-index-from-pathname";
+import {
+  resolveApplicantStepFromPath,
+} from "@/lib/onboarding/find-applicant-step";
 import type {
   OnboardingStepType,
   TenantOnboardingConfig,
@@ -42,16 +45,20 @@ export function resolveApplicantEnabledSteps(
 ): TenantOnboardingStep[] | null {
   const fromTenant = getEnabledTenantSteps(config);
   if (fromTenant.length > 0) return fromTenant;
-  if (!loading) return getLegacyFallbackSteps();
-  return null;
+  if (loading) return null;
+  if (config) return [];
+  return getLegacyFallbackSteps();
 }
 
 export function findStepForPathname(
   pathname: string,
-  enabledSteps: TenantOnboardingStep[]
+  enabledSteps: TenantOnboardingStep[],
+  search?: string
 ): TenantOnboardingStep | null {
-  const idx = stepIndexFromPathname(pathname, enabledSteps);
-  return enabledSteps[idx - 1] ?? null;
+  const searchStr =
+    search ??
+    (typeof window !== "undefined" ? window.location.search : "");
+  return resolveApplicantStepFromPath(pathname, searchStr, enabledSteps);
 }
 
 export function findStepByKeyOrType(
@@ -78,32 +85,29 @@ export function adjacentStepRoute(
 ): string | null {
   const enabled = getEnabledTenantSteps(config);
   if (!enabled.length) {
+    if (config) return null;
     const legacy = getLegacyFallbackSteps();
     if (!legacy.length) return null;
     if (!current) {
       const target = direction > 0 ? legacy[0] : null;
-      return target
-        ? withTenant(routeForOnboardingStep(target.step_key, target.step_type), tenantSlug)
-        : null;
+      return target ? routeForApplicantStep(target, tenantSlug) : null;
     }
     const idx = legacy.findIndex((s) => s.id === current.id || s.step_key === current.step_key);
     const next = legacy[idx + direction];
-    return next
-      ? withTenant(routeForOnboardingStep(next.step_key, next.step_type), tenantSlug)
-      : null;
+    return next ? routeForApplicantStep(next, tenantSlug) : null;
   }
 
   if (!current) {
     if (direction < 0) return null;
     const first = enabled[0];
-    return withTenant(routeForOnboardingStep(first.step_key, first.step_type), tenantSlug);
+    return routeForApplicantStep(first, tenantSlug);
   }
 
   const idx = enabled.findIndex((s) => s.id === current.id);
   const resolvedIdx = idx >= 0 ? idx : enabled.findIndex((s) => s.step_key === current.step_key);
   const next = enabled[resolvedIdx + direction];
   if (!next) return null;
-  return withTenant(routeForOnboardingStep(next.step_key, next.step_type), tenantSlug);
+  return routeForApplicantStep(next, tenantSlug);
 }
 
 export function firstOnboardingStepRoute(
@@ -122,8 +126,16 @@ export function computeMaxAllowedStepIndex(
   pathname?: string | null
 ): number {
   const enabled = getEnabledTenantSteps(config);
-  const steps = enabled.length ? enabled : getLegacyFallbackSteps();
+  const steps = enabled.length ? enabled : config ? [] : getLegacyFallbackSteps();
   if (!steps.length) return 1;
+
+  if (typeof window !== "undefined") {
+    const preview = new URLSearchParams(window.location.search).get("preview");
+    if (preview === "draft") {
+      const idx = stepIndexFromPathname(pathname ?? "", steps, window.location.search);
+      return Math.max(idx, steps.length);
+    }
+  }
 
   const statusByStepId = new Map(
     (progress?.steps ?? []).map((p) => [p.onboarding_step_id, p.status])

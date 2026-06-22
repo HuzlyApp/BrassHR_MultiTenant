@@ -23,6 +23,7 @@ import {
   hydrateWorkflowFromStorage,
 } from "@/lib/onboarding/drafts-to-workflow";
 import type { TenantOnboardingConfig } from "@/lib/onboarding/types";
+import { safeFetchJson } from "@/lib/api/safe-fetch-json";
 import { applyApplicantConfigFilters } from "@/lib/onboarding/filter-applicant-steps";
 import { configFromWorkflowDraft } from "@/lib/onboarding/config-from-builder-draft";
 import { isValidFlowNameInput, normalizeFlowNameKey } from "@/lib/onboarding/validate-flow-name";
@@ -128,29 +129,31 @@ async function loadBuilderData(): Promise<BuilderQueryData> {
   const headers = await staffAuthHeaders();
   const fetchOptions: RequestInit = { headers, credentials: "include" };
   const [libraryRes, res] = await Promise.all([
-    fetch("/api/admin/onboarding-builder/steps-library", fetchOptions),
-    fetch("/api/admin/onboarding-builder", fetchOptions),
+    safeFetchJson<{ categories?: WorkflowStepLibraryCategory[] }>(
+      "/api/admin/onboarding-builder/steps-library",
+      fetchOptions
+    ),
+    safeFetchJson<BuilderPayload>("/api/admin/onboarding-builder", fetchOptions),
   ]);
 
   let stepLibrary = ONBOARDING_WORKFLOW_STEP_LIBRARY;
 
-  if (libraryRes.ok) {
-    const libraryPayload = (await libraryRes.json()) as {
-      categories?: WorkflowStepLibraryCategory[];
-    };
-    if (libraryPayload.categories?.length) {
-      stepLibrary = hydrateWorkflowStepLibrary(libraryPayload.categories);
-    }
-  } else {
+  if (libraryRes.ok && libraryRes.data.categories?.length) {
+    stepLibrary = hydrateWorkflowStepLibrary(libraryRes.data.categories);
+  } else if (!libraryRes.ok) {
     logBuilderDiagnostic("step library request failed; using bundled library", {
       status: libraryRes.status,
+      error: libraryRes.error,
     });
   }
 
-  const payload = (await res.json()) as BuilderPayload;
   if (!res.ok) {
-    throw new Error(payload.detail ?? payload.error ?? "Could not load onboarding builder");
+    throw new Error(
+      res.data?.detail ?? res.data?.error ?? res.error ?? "Could not load onboarding builder"
+    );
   }
+
+  const payload = res.data;
 
   const config = payload.config;
   if (!config || !payload.tenantId) {

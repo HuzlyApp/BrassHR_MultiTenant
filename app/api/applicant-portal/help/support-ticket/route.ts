@@ -6,6 +6,7 @@ import {
 } from "@/lib/applicant-portal/help-assistant-types";
 import { requireApprovedApplicant } from "@/lib/applicant-portal/request";
 import { insertSupportTicket } from "@/lib/support-tickets/support-ticket-service";
+import { parseSupportTicketCreateBody } from "@/lib/support-tickets/parse-create-request";
 import type { SupportTicketPriority } from "@/lib/support-tickets/types";
 import { enforceRateLimit, getClientIp } from "@/lib/security/rate-limit";
 
@@ -27,25 +28,15 @@ export async function POST(req: NextRequest) {
     const auth = await requireApprovedApplicant(req);
     if (auth instanceof NextResponse) return auth;
 
-    const body = (await req.json().catch(() => ({}))) as {
-      inquiry?: string;
-      description?: string;
-      subject?: string;
-      category?: string;
-      priority?: string;
-    };
+    const body = await parseSupportTicketCreateBody(req);
 
-    const description = (body.description ?? body.inquiry ?? "").trim();
-    const subject = body.subject?.trim() ?? "";
-    const priority = body.priority?.trim().toLowerCase() as SupportTicketPriority | undefined;
-
-    if (!subject) {
+    if (!body.subject) {
       return NextResponse.json({ error: "Subject is required." }, { status: 400 });
     }
-    if (!description) {
+    if (!body.description) {
       return NextResponse.json({ error: "Please describe your issue." }, { status: 400 });
     }
-    if (priority && !PRIORITIES.has(priority)) {
+    if (body.priority && !PRIORITIES.has(body.priority)) {
       return NextResponse.json({ error: "Invalid priority." }, { status: 400 });
     }
 
@@ -54,12 +45,13 @@ export async function POST(req: NextRequest) {
       userId: auth.user.id,
       applicantId: auth.applicant.id,
       input: {
-        subject,
-        description,
+        subject: body.subject,
+        description: body.description,
         category: body.category,
-        priority,
-        source: "ai_fallback",
+        priority: body.priority,
+        source: body.source ?? "ai_fallback",
       },
+      files: body.files,
     });
 
     if ("error" in result) {
