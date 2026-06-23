@@ -311,6 +311,28 @@ export async function getFirmaSigningRequest(id: string): Promise<FirmaSigningRe
   return firmaRequest<FirmaSigningRequest>(`/signing-requests/${id}`, { retries: 1 });
 }
 
+type FirmaSigningRequestUsersResponse =
+  | FirmaSigningRequestRecipient[]
+  | { items?: FirmaSigningRequestRecipient[] };
+
+function normalizeFirmaSigningRequestUsers(
+  response: FirmaSigningRequestUsersResponse
+): FirmaSigningRequestRecipient[] {
+  if (Array.isArray(response)) return response;
+  if (Array.isArray(response.items)) return response.items;
+  return [];
+}
+
+export async function getFirmaSigningRequestUsers(
+  signingRequestId: string
+): Promise<FirmaSigningRequestRecipient[]> {
+  const response = await firmaRequest<FirmaSigningRequestUsersResponse>(
+    `/signing-requests/${signingRequestId}/users`,
+    { retries: 1 }
+  );
+  return normalizeFirmaSigningRequestUsers(response);
+}
+
 export function resolveFirmaRecipientSigningUrl(
   recipient: FirmaSigningRequestRecipient | null | undefined
 ): string | null {
@@ -324,14 +346,30 @@ export function resolveFirmaRecipientSigningUrl(
 
 export function resolveApplicantSigningRecipient(
   detail: FirmaSigningRequest,
-  email: string
+  email: string,
+  users?: FirmaSigningRequestRecipient[]
 ): FirmaSigningRequestRecipient | null {
   const normalized = email.trim().toLowerCase();
-  const recipients = Array.isArray(detail.recipients) ? detail.recipients : [];
+  const recipients =
+    Array.isArray(detail.recipients) && detail.recipients.length > 0
+      ? detail.recipients
+      : Array.isArray(users) && users.length > 0
+        ? users
+        : [];
   const match = recipients.find(
     (recipient) => (recipient.email ?? "").trim().toLowerCase() === normalized
   );
   if (match) return match;
   if (detail.first_signer?.id) return detail.first_signer;
   return recipients[0] ?? null;
+}
+
+export function resolveFirmaSigningIframeUrl(
+  recipient: FirmaSigningRequestRecipient | null | undefined,
+  fallbackUserId?: string | null
+): string | null {
+  return (
+    resolveFirmaRecipientSigningUrl(recipient) ??
+    resolveFirmaRecipientSigningUrl(fallbackUserId?.trim() ? { id: fallbackUserId.trim() } : null)
+  );
 }

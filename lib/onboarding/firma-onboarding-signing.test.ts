@@ -15,6 +15,7 @@ import {
 import {
   resolveApplicantSigningRecipient,
   resolveFirmaRecipientSigningUrl,
+  resolveFirmaSigningIframeUrl,
 } from "@/lib/firma/client";
 import { routeForApplicantStep } from "@/lib/onboarding/resolve-applicant-step-route";
 import { APPLICATION_ROUTES } from "@/lib/onboarding/application-routes";
@@ -160,6 +161,20 @@ describe("firma signing url helpers", () => {
       "applicant@example.com"
     );
     expect(recipient?.id).toBe("r-2");
+  });
+
+  it("selects applicant recipient from users when GET detail omits recipients", () => {
+    const recipient = resolveApplicantSigningRecipient(
+      { id: "req-1" },
+      "applicant@example.com",
+      [{ id: "r-2", email: "applicant@example.com" }]
+    );
+    expect(recipient?.id).toBe("r-2");
+  });
+
+  it("falls back to stored signing_request_user_id for iframe URL", () => {
+    const url = resolveFirmaSigningIframeUrl(null, "stored-recipient-id");
+    expect(url).toBe("https://app.firma.dev/signing/stored-recipient-id");
   });
 });
 
@@ -314,6 +329,270 @@ describe("ensureFirmaSigningSession", () => {
     expect(session.signing_request_id).toBe("signing-request-1");
     expect(session.iframe_url).toBe("https://app.firma.dev/signing/recipient-1");
     expect(upsert).toHaveBeenCalled();
+  });
+
+  it("refreshes an existing session when Firma GET omits recipients", async () => {
+    global.fetch = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/signing-requests/signing-request-1/users")) {
+        return new Response(
+          JSON.stringify({
+            items: [
+              {
+                id: "recipient-1",
+                email: "applicant@example.com",
+                status: "sent",
+              },
+            ],
+          }),
+          { status: 200 }
+        );
+      }
+      if (url.includes("/signing-requests/signing-request-1")) {
+        return new Response(
+          JSON.stringify({
+            id: "signing-request-1",
+            status: "sent",
+          }),
+          { status: 200 }
+        );
+      }
+      if (url.includes("/templates/firma-template-1")) {
+        return new Response(
+          JSON.stringify({
+            id: "firma-template-1",
+            name: "Employee Agreement",
+          }),
+          { status: 200 }
+        );
+      }
+      return new Response(JSON.stringify({ error: "not found" }), { status: 404 });
+    }) as typeof fetch;
+
+    const upsert = vi.fn().mockResolvedValue({
+      data: {
+        id: "session-1",
+        tenant_id: "tenant-1",
+        worker_id: "worker-1",
+        onboarding_step_id: "step-1",
+        recruiter_template_id: "recruiter-template-1",
+        firma_template_id: "firma-template-1",
+        signing_request_id: "signing-request-1",
+        signing_request_user_id: "recipient-1",
+        firma_status: "sent",
+        iframe_url: "https://app.firma.dev/signing/recipient-1",
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      },
+      error: null,
+    });
+
+    const supabase = {
+      from: vi.fn((table: string) => {
+        if (table === "recruiter_templates") {
+          return {
+            select: () => ({
+              eq: () => ({
+                eq: () => ({
+                  maybeSingle: async () => ({
+                    data: {
+                      id: "recruiter-template-1",
+                      tenant_id: "tenant-1",
+                      name: "Employee Agreement",
+                      status: "active",
+                      firma_template_id: "firma-template-1",
+                    },
+                    error: null,
+                  }),
+                }),
+              }),
+            }),
+          };
+        }
+        if (table === "worker_firma_signing_sessions") {
+          return {
+            select: () => ({
+              eq: () => ({
+                eq: () => ({
+                  maybeSingle: async () => ({
+                    data: {
+                      id: "session-1",
+                      tenant_id: "tenant-1",
+                      worker_id: "worker-1",
+                      onboarding_step_id: "step-1",
+                      recruiter_template_id: "recruiter-template-1",
+                      firma_template_id: "firma-template-1",
+                      signing_request_id: "signing-request-1",
+                      signing_request_user_id: "recipient-1",
+                      firma_status: "sent",
+                      iframe_url: null,
+                      created_at: new Date().toISOString(),
+                      updated_at: new Date().toISOString(),
+                    },
+                    error: null,
+                  }),
+                }),
+              }),
+            }),
+            upsert: () => ({
+              select: () => ({
+                maybeSingle: upsert,
+              }),
+            }),
+          };
+        }
+        throw new Error(`Unexpected table ${table}`);
+      }),
+    };
+
+    const session = await ensureFirmaSigningSession({
+      supabase: supabase as never,
+      tenantId: "tenant-1",
+      workerId: "worker-1",
+      applicantEmail: "applicant@example.com",
+      applicantFirstName: "Jane",
+      applicantLastName: "Doe",
+      step: {
+        id: "step-1",
+        step_key: "employee_agreement",
+        title: "Employee Agreement",
+        description: null,
+        step_type: "authorizations",
+        sort_order: 10,
+        is_required: true,
+        is_enabled: true,
+        metadata: {
+          workflow_settings: {
+            ...DEFAULT_STEP_SETTINGS,
+            firmaRecruiterTemplateId: "recruiter-template-1",
+          },
+        },
+      },
+    });
+
+    expect(session.iframe_url).toBe("https://app.firma.dev/signing/recipient-1");
+    expect(upsert).toHaveBeenCalled();
+  });
+
+  it("refreshes an existing session using stored signing_request_user_id when users are unavailable", async () => {
+    global.fetch = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/signing-requests/signing-request-1/users")) {
+        return new Response(JSON.stringify({ items: [] }), { status: 200 });
+      }
+      if (url.includes("/signing-requests/signing-request-1")) {
+        return new Response(
+          JSON.stringify({
+            id: "signing-request-1",
+            status: "sent",
+          }),
+          { status: 200 }
+        );
+      }
+      return new Response(JSON.stringify({ error: "not found" }), { status: 404 });
+    }) as typeof fetch;
+
+    const upsert = vi.fn().mockResolvedValue({
+      data: {
+        id: "session-1",
+        tenant_id: "tenant-1",
+        worker_id: "worker-1",
+        onboarding_step_id: "step-1",
+        recruiter_template_id: "recruiter-template-1",
+        firma_template_id: "firma-template-1",
+        signing_request_id: "signing-request-1",
+        signing_request_user_id: "stored-recipient-id",
+        firma_status: "sent",
+        iframe_url: "https://app.firma.dev/signing/stored-recipient-id",
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      },
+      error: null,
+    });
+
+    const supabase = {
+      from: vi.fn((table: string) => {
+        if (table === "recruiter_templates") {
+          return {
+            select: () => ({
+              eq: () => ({
+                eq: () => ({
+                  maybeSingle: async () => ({
+                    data: {
+                      id: "recruiter-template-1",
+                      tenant_id: "tenant-1",
+                      name: "Employee Agreement",
+                      status: "active",
+                      firma_template_id: "firma-template-1",
+                    },
+                    error: null,
+                  }),
+                }),
+              }),
+            }),
+          };
+        }
+        if (table === "worker_firma_signing_sessions") {
+          return {
+            select: () => ({
+              eq: () => ({
+                eq: () => ({
+                  maybeSingle: async () => ({
+                    data: {
+                      id: "session-1",
+                      tenant_id: "tenant-1",
+                      worker_id: "worker-1",
+                      onboarding_step_id: "step-1",
+                      recruiter_template_id: "recruiter-template-1",
+                      firma_template_id: "firma-template-1",
+                      signing_request_id: "signing-request-1",
+                      signing_request_user_id: "stored-recipient-id",
+                      firma_status: "sent",
+                      iframe_url: null,
+                      created_at: new Date().toISOString(),
+                      updated_at: new Date().toISOString(),
+                    },
+                    error: null,
+                  }),
+                }),
+              }),
+            }),
+            upsert: () => ({
+              select: () => ({
+                maybeSingle: upsert,
+              }),
+            }),
+          };
+        }
+        throw new Error(`Unexpected table ${table}`);
+      }),
+    };
+
+    const session = await ensureFirmaSigningSession({
+      supabase: supabase as never,
+      tenantId: "tenant-1",
+      workerId: "worker-1",
+      applicantEmail: "applicant@example.com",
+      applicantFirstName: "Jane",
+      step: {
+        id: "step-1",
+        step_key: "employee_agreement",
+        title: "Employee Agreement",
+        description: null,
+        step_type: "authorizations",
+        sort_order: 10,
+        is_required: true,
+        is_enabled: true,
+        metadata: {
+          workflow_settings: {
+            ...DEFAULT_STEP_SETTINGS,
+            firmaRecruiterTemplateId: "recruiter-template-1",
+          },
+        },
+      },
+    });
+
+    expect(session.iframe_url).toBe("https://app.firma.dev/signing/stored-recipient-id");
   });
 
   it("creates an ephemeral Firma session for builder draft preview", async () => {

@@ -3,10 +3,11 @@ import { FirmaError } from "@/lib/firma/errors";
 import {
   createFirmaSigningRequest,
   getFirmaSigningRequest,
+  getFirmaSigningRequestUsers,
   getFirmaTemplate,
   isFirmaConfigured,
   resolveApplicantSigningRecipient,
-  resolveFirmaRecipientSigningUrl,
+  resolveFirmaSigningIframeUrl,
 } from "@/lib/firma/client";
 import {
   getFirmaRecruiterTemplateId,
@@ -250,7 +251,7 @@ async function createFirmaSigningSessionFromTemplate(
   });
 
   const recipient = resolveApplicantSigningRecipient(detail, input.applicantEmail);
-  const iframeUrl = resolveFirmaRecipientSigningUrl(recipient);
+  const iframeUrl = resolveFirmaSigningIframeUrl(recipient);
   if (!iframeUrl) {
     throw new FirmaOnboardingSigningError(
       "Firma did not return a signing URL for this applicant",
@@ -334,8 +335,12 @@ async function refreshSessionFromFirma(
   applicantEmail: string
 ): Promise<WorkerFirmaSigningSessionRow> {
   const detail = await getFirmaSigningRequest(session.signing_request_id);
-  const recipient = resolveApplicantSigningRecipient(detail, applicantEmail);
-  const iframeUrl = resolveFirmaRecipientSigningUrl(recipient);
+  const users =
+    Array.isArray(detail.recipients) && detail.recipients.length > 0
+      ? detail.recipients
+      : await getFirmaSigningRequestUsers(session.signing_request_id);
+  const recipient = resolveApplicantSigningRecipient(detail, applicantEmail, users);
+  const iframeUrl = resolveFirmaSigningIframeUrl(recipient, session.signing_request_user_id);
   const firmaStatus = normalizeFirmaSigningStatus(
     detail.status ?? recipient?.status ?? session.firma_status
   );
