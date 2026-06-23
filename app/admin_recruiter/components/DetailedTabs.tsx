@@ -23,7 +23,27 @@ type TabName = BaseTabName | typeof ONBOARD_TAB;
 type DetailedTabsProps = {
   applicantId?: string;
   activeTab?: TabName;
+  /** When the parent page already loaded worker status, skip the extra profile fetch delay. */
+  workerStatus?: string | null;
 };
+
+const APPROVED_CACHE_PREFIX = "brasshr-approved-worker:";
+
+function readApprovedCache(applicantId?: string): boolean {
+  if (!applicantId || typeof window === "undefined") return false;
+  return sessionStorage.getItem(`${APPROVED_CACHE_PREFIX}${applicantId}`) === "1";
+}
+
+function writeApprovedCache(applicantId: string, approved: boolean) {
+  if (typeof window === "undefined") return;
+  const key = `${APPROVED_CACHE_PREFIX}${applicantId}`;
+  if (approved) sessionStorage.setItem(key, "1");
+  else sessionStorage.removeItem(key);
+}
+
+function isApprovedStatus(status: string | null | undefined): boolean {
+  return status?.toString().trim().toLowerCase() === "approved";
+}
 
 function tabHref(tab: TabName, applicantId?: string) {
   const id = applicantId ?? "";
@@ -51,13 +71,34 @@ function tabHref(tab: TabName, applicantId?: string) {
   }
 }
 
-export default function DetailedTabs({ applicantId, activeTab }: DetailedTabsProps) {
-  const [isApproved, setIsApproved] = useState(false);
+export default function DetailedTabs({ applicantId, activeTab, workerStatus }: DetailedTabsProps) {
+  const [isApproved, setIsApproved] = useState(() => {
+    if (activeTab === ONBOARD_TAB) return true;
+    if (workerStatus != null) return isApprovedStatus(workerStatus);
+    return readApprovedCache(applicantId);
+  });
 
   useEffect(() => {
+    if (workerStatus != null) {
+      const approved = isApprovedStatus(workerStatus);
+      setIsApproved(approved);
+      if (applicantId) writeApprovedCache(applicantId, approved);
+      return;
+    }
+
     if (!applicantId) {
       setIsApproved(false);
       return;
+    }
+
+    if (activeTab === ONBOARD_TAB) {
+      setIsApproved(true);
+      writeApprovedCache(applicantId, true);
+      return;
+    }
+
+    if (readApprovedCache(applicantId)) {
+      setIsApproved(true);
     }
 
     let cancelled = false;
@@ -67,21 +108,25 @@ export default function DetailedTabs({ applicantId, activeTab }: DetailedTabsPro
       .then((res) => (res.ok ? res.json() : null))
       .then((payload: { worker?: { status?: string | null } } | null) => {
         if (cancelled) return;
-        const status = payload?.worker?.status?.toString().trim().toLowerCase() ?? "";
-        setIsApproved(status === "approved");
+        const approved = isApprovedStatus(payload?.worker?.status);
+        setIsApproved(approved);
+        writeApprovedCache(applicantId, approved);
       })
       .catch(() => {
-        if (!cancelled) setIsApproved(false);
+        if (!cancelled) setIsApproved(readApprovedCache(applicantId));
       });
 
     return () => {
       cancelled = true;
     };
-  }, [applicantId]);
+  }, [applicantId, activeTab, workerStatus]);
+
+  const showOnboardTab =
+    activeTab === ONBOARD_TAB || isApproved || isApprovedStatus(workerStatus);
 
   const tabs = useMemo<TabName[]>(
-    () => (isApproved ? [...BASE_TABS, ONBOARD_TAB] : [...BASE_TABS]),
-    [isApproved]
+    () => (showOnboardTab ? [...BASE_TABS, ONBOARD_TAB] : [...BASE_TABS]),
+    [showOnboardTab]
   );
 
   return (

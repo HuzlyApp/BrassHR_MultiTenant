@@ -56,7 +56,15 @@ type ChecklistRow = {
 
 type ChecklistSection = {
   id: string;
+  title?: string;
   rows: ChecklistRow[];
+};
+
+type OnboardingStep = {
+  id: string;
+  label: string;
+  state: string;
+  detail?: string;
 };
 
 type ProfileWorker = {
@@ -72,14 +80,19 @@ type ProfileWorker = {
   zip?: string | null;
   job_role?: string | null;
   created_at?: string | null;
+  updated_at?: string | null;
   status?: string | null;
   profile_photo_url?: string | null;
+  employee_id?: string | null;
+  employee_number?: string | null;
+  employment_type?: string | null;
+  reports_to?: string | null;
 };
 
 type ProfilePayload = {
   worker?: ProfileWorker;
   onboardingCompletion?: { percent?: number };
-  onboardingSteps?: Array<{ id: string; label: string; state: string }>;
+  onboardingSteps?: OnboardingStep[];
   attachment_requirements?: Array<{
     id: string;
     title: string;
@@ -96,6 +109,19 @@ type ChecklistPayload = {
 
 function clampPercent(value: number): number {
   return Math.max(0, Math.min(100, Math.round(value)));
+}
+
+function displayOrDash(value: string | null | undefined): string {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : "—";
+}
+
+function formatEmploymentType(value: string | null | undefined): string {
+  const normalized = value?.trim().toLowerCase() ?? "";
+  if (!normalized) return "—";
+  if (normalized === "w2" || normalized === "w-2") return "W-2";
+  if (normalized === "1099" || normalized === "contractor") return "1099 Contractor";
+  return value!.trim();
 }
 
 function formatDate(value: string | null | undefined): string {
@@ -133,6 +159,82 @@ function allChecklistRows(sections: ChecklistSection[] | undefined): ChecklistRo
   return (sections ?? []).flatMap((section) => section.rows);
 }
 
+const ONBOARDING_CHECKLIST_SECTION_IDS = ["claimed", "new_hire", "final"] as const;
+
+function checklistRowsForOnboardingCard(sections: ChecklistSection[] | undefined): ChecklistRow[] {
+  const matched = (sections ?? [])
+    .filter((section) =>
+      ONBOARDING_CHECKLIST_SECTION_IDS.includes(
+        section.id as (typeof ONBOARDING_CHECKLIST_SECTION_IDS)[number]
+      )
+    )
+    .flatMap((section) => section.rows);
+
+  if (matched.length > 0) return matched.slice(0, 8);
+  return allChecklistRows(sections).slice(0, 8);
+}
+
+function mapChecklistRowToItem(row: ChecklistRow, completedDate: string): OnboardedListItem {
+  const passed = rowIsPassed(row);
+  const badge = row.badge?.trim();
+  const status = badge || (passed ? "Completed" : "Pending");
+  const statusLower = status.toLowerCase();
+
+  let statusTone: OnboardedListItem["statusTone"] = "pending";
+  if (passed) {
+    statusTone =
+      statusLower.includes("signed") || statusLower.includes("uploaded") ? "signed" : "complete";
+  }
+
+  return {
+    id: row.id,
+    title: row.title,
+    status,
+    statusTone,
+    date: passed ? completedDate : undefined,
+  };
+}
+
+function mapOnboardingStepToItem(step: OnboardingStep, completedDate: string): OnboardedListItem {
+  const state = step.state.trim().toLowerCase();
+  const done = state === "complete" || state === "uploaded" || state === "signed";
+  const inProgress = state === "in_progress" || state === "in progress";
+
+  let status = "Pending";
+  let statusTone: OnboardedListItem["statusTone"] = "pending";
+
+  if (done) {
+    status = state === "signed" ? "Signed" : "Completed";
+    statusTone = state === "signed" ? "signed" : "complete";
+  } else if (inProgress) {
+    status = "In Progress";
+  } else if (step.detail?.trim()) {
+    status = step.detail.trim();
+  }
+
+  return {
+    id: step.id,
+    title: step.label,
+    status,
+    statusTone,
+    date: done ? completedDate : undefined,
+  };
+}
+
+function buildProgressSummary(
+  firstName: string,
+  pendingItems: number,
+  completionPercent: number
+): string {
+  if (pendingItems === 0 && completionPercent >= 100) {
+    return `All onboarding tasks have been completed. ${firstName} is all set to start their journey with us!`;
+  }
+  if (pendingItems === 0) {
+    return `${firstName} has completed the available onboarding steps and is ready for the next stage.`;
+  }
+  return `${firstName} still has ${pendingItems} pending onboarding item${pendingItems === 1 ? "" : "s"}. Please review the checklist below.`;
+}
+
 function countSignedDocuments(
   attachments: ProfilePayload["attachment_requirements"]
 ): number {
@@ -164,52 +266,17 @@ export function buildOnboardedApplicantViewModel(
   const pendingItems = Math.max(0, totalTasks - completedTasks);
 
   const hireDate = formatDate(worker.created_at);
+  const completedDate = formatDate(worker.updated_at ?? worker.created_at);
   const onboardedDate = hireDate;
   const orientationDate = hireDate;
 
-  const checklistItems: OnboardedListItem[] = rows.slice(0, 4).map((row) => ({
-    id: row.id,
-    title: row.title,
-    status: rowIsPassed(row) ? "Completed" : row.badge?.trim() || "Pending",
-    statusTone: rowIsPassed(row) ? "complete" : "pending",
-    date: rowIsPassed(row) ? onboardedDate : undefined,
-  }));
+  const checklistItems: OnboardedListItem[] = checklistRowsForOnboardingCard(
+    checklist.sections
+  ).map((row) => mapChecklistRowToItem(row, completedDate));
 
-  if (checklistItems.length === 0) {
-    checklistItems.push({
-      id: "i9",
-      title: "I-9 Form",
-      status: "Completed",
-      statusTone: "complete",
-      date: onboardedDate,
-    });
-  }
-
-  const workerSetupItems: OnboardedListItem[] = (profile.onboardingSteps ?? [])
-    .slice(0, 4)
-    .map((step) => {
-      const done =
-        step.state === "complete" ||
-        step.state === "uploaded" ||
-        step.state === "signed";
-      return {
-        id: step.id,
-        title: step.label,
-        status: done ? "Signed" : "Pending",
-        statusTone: done ? "signed" : "pending",
-        date: done ? onboardedDate : undefined,
-      };
-    });
-
-  if (workerSetupItems.length === 0) {
-    workerSetupItems.push({
-      id: "profile",
-      title: "Worker profile created",
-      status: "Signed",
-      statusTone: "signed",
-      date: onboardedDate,
-    });
-  }
+  const workerSetupItems: OnboardedListItem[] = (profile.onboardingSteps ?? []).map((step) =>
+    mapOnboardingStepToItem(step, completedDate)
+  );
 
   const firstName = candidateName.split(/\s+/)[0] || candidateName;
 
@@ -221,11 +288,11 @@ export function buildOnboardedApplicantViewModel(
     email: worker.email ?? null,
     phone: worker.phone ?? null,
     address: formatAddress(worker),
-    employeeId: worker.id ? worker.id.slice(0, 8).toUpperCase() : "—",
+    employeeId: displayOrDash(worker.employee_id ?? worker.employee_number),
     department: candidateRole !== "—" ? candidateRole : "Operations",
-    reportsTo: "—",
+    reportsTo: displayOrDash(worker.reports_to),
     hireDate,
-    employmentType: "W-2",
+    employmentType: formatEmploymentType(worker.employment_type),
     currentStatus: "Active - Onboarded",
     onboardedDate,
     orientationDate,
@@ -256,7 +323,7 @@ export function buildOnboardedApplicantViewModel(
         theme: "purple",
       },
     ],
-    progressSummary: `All onboarding tasks have been completed. ${firstName} is all set to start their journey with us!`,
+    progressSummary: buildProgressSummary(firstName, pendingItems, completionPercent),
     checklistItems,
     workerSetupItems,
     whatsNextItems: [

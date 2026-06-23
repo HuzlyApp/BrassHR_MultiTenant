@@ -711,6 +711,10 @@ export async function GET(req: NextRequest) {
         ssn_last_four: w.ssn_last_four != null ? String(w.ssn_last_four) : null,
         positions,
         profile_photo_url: profilePhotoUrl,
+        employee_id: asTrimmedString(w.employee_id) ?? asTrimmedString(w.employee_number),
+        employee_number: asTrimmedString(w.employee_number),
+        employment_type: asTrimmedString(w.employment_type),
+        reports_to: asTrimmedString(w.reports_to) ?? asTrimmedString(w.manager_name),
       },
       requirements: {
         resume_path: resumePathCanonical,

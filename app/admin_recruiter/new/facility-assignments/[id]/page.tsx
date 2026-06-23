@@ -252,29 +252,6 @@ function FacilityCard({
   );
 }
 
-function AssignedFacilitySummary({
-  candidateName,
-  facilities,
-}: {
-  candidateName: string;
-  facilities: FacilityListItem[];
-}) {
-  if (facilities.length === 0) return null;
-
-  return (
-    <div className="mb-4 rounded-xl border border-[#99F6E4] bg-[#F0FDFA] px-5 py-4">
-      <p className="text-sm font-medium text-[#134E4A]">
-        {candidateName} is assigned to {facilities.length} {facilities.length === 1 ? "facility" : "facilities"}:
-      </p>
-      <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-[#115E59]">
-        {facilities.map((facility) => (
-          <li key={`assigned-summary-${facility.id}`}>{facility.name}</li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
 export default function NewApplicantFacilityAssignmentsPage() {
   const pathname = usePathname();
   const params = useParams<{ id: string }>();
@@ -424,7 +401,6 @@ export default function NewApplicantFacilityAssignmentsPage() {
     return assignments.potential;
   }, [activeFacilityTab, assignments]);
 
-  const hasAssignedFacilities = assignments.active.length > 0;
   const hasVisibleFacilities = visibleFacilities.length > 0;
   const emptyStateCopy = getEmptyStateCopy(activeFacilityTab);
   const showMainContent = !loading && !facilitiesLoading;
@@ -573,10 +549,6 @@ export default function NewApplicantFacilityAssignmentsPage() {
                 />
 
                 <div className="flex w-full min-w-0 admin-recruiter-content-width flex-col">
-                  {showMainContent && hasAssignedFacilities ? (
-                    <AssignedFacilitySummary candidateName={candidateName} facilities={assignments.active} />
-                  ) : null}
-
                   <div className="flex flex-col gap-3 sm:grid sm:grid-cols-[1fr_auto_1fr] sm:items-end">
                     <div className="hidden sm:block" />
                     <UnderlineTabBar
@@ -667,31 +639,6 @@ export default function NewApplicantFacilityAssignmentsPage() {
                   <div className="py-8 text-center text-sm text-red-700">{FACILITIES_LOAD_ERROR}</div>
                 ) : (
                   <>
-                    <section>
-                      <h3 className="text-base font-semibold text-[#1F2937]">Already Assigned Facilities</h3>
-                      {assignments.active.length > 0 ? (
-                        <div className="mt-3 rounded-xl border border-[#D1FAE5] bg-[#F0FDFA] px-4 py-4">
-                          <p className="text-sm font-medium text-[#134E4A]">
-                            {candidateName} is already assigned to:
-                          </p>
-                          <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-[#115E59]">
-                            {assignments.active.map((facility) => (
-                              <li key={`modal-assigned-${facility.id}`}>
-                                {facility.name}
-                                {facility.primaryAddress ? (
-                                  <span className="text-[#6B7280]"> — {facility.primaryAddress}</span>
-                                ) : null}
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      ) : (
-                        <p className="mt-3 text-sm text-[#6B7280]">
-                          No facilities assigned to this candidate yet.
-                        </p>
-                      )}
-                    </section>
-
                     <section>
                       <div className="mb-3 flex items-center justify-between gap-3">
                         <h3 className="text-base font-semibold text-[#1F2937]">Available Facilities to Assign</h3>

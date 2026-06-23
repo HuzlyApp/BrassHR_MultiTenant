@@ -409,20 +409,26 @@ export default function OnboardedApplicantPanel({ workerId, data }: Props) {
                 }
               />
               <ul className="px-5 py-2">
-                {data.checklistItems.map((item) => (
-                  <li
-                    key={item.id}
-                    className="flex items-center justify-between gap-3 border-b border-[#F3F4F6] py-3.5 last:border-b-0"
-                  >
-                    <span className="truncate text-sm font-medium text-[#111827]">{item.title}</span>
-                    <div className="flex shrink-0 items-center gap-2">
-                      {item.date ? (
-                        <span className="text-xs text-[#6B7280]">{item.date}</span>
-                      ) : null}
-                      <ListStatusBadge tone={item.statusTone} label={item.status} />
-                    </div>
+                {data.checklistItems.length === 0 ? (
+                  <li className="py-8 text-center text-sm text-[#6B7280]">
+                    No checklist items yet.
                   </li>
-                ))}
+                ) : (
+                  data.checklistItems.map((item) => (
+                    <li
+                      key={item.id}
+                      className="flex items-center justify-between gap-3 border-b border-[#F3F4F6] py-3.5 last:border-b-0"
+                    >
+                      <span className="truncate text-sm font-medium text-[#111827]">{item.title}</span>
+                      <div className="flex shrink-0 items-center gap-2">
+                        {item.date ? (
+                          <span className="text-xs text-[#6B7280]">{item.date}</span>
+                        ) : null}
+                        <ListStatusBadge tone={item.statusTone} label={item.status} />
+                      </div>
+                    </li>
+                  ))
+                )}
               </ul>
             </section>
 
@@ -439,56 +445,74 @@ export default function OnboardedApplicantPanel({ workerId, data }: Props) {
                 }
               />
               <ul className="px-5 py-2">
-                {data.workerSetupItems.map((item) => (
-                  <li
-                    key={item.id}
-                    className="flex items-center justify-between gap-3 border-b border-[#F3F4F6] py-3.5 last:border-b-0"
-                  >
-                    <div className="flex min-w-0 items-center gap-3">
-                      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-blue-100">
-                        <FileText className="h-4 w-4 text-blue-700" />
-                      </span>
-                      <span className="truncate text-sm font-medium text-[#111827]">{item.title}</span>
-                    </div>
-                    <ListStatusBadge tone={item.statusTone} label={item.status} />
+                {data.workerSetupItems.length === 0 ? (
+                  <li className="py-8 text-center text-sm text-[#6B7280]">
+                    No worker setup steps yet.
                   </li>
-                ))}
+                ) : (
+                  data.workerSetupItems.map((item) => (
+                    <li
+                      key={item.id}
+                      className="flex items-center justify-between gap-3 border-b border-[#F3F4F6] py-3.5 last:border-b-0"
+                    >
+                      <div className="flex min-w-0 items-center gap-3">
+                        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-blue-100">
+                          <FileText className="h-4 w-4 text-blue-700" />
+                        </span>
+                        <span className="truncate text-sm font-medium text-[#111827]">{item.title}</span>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-2">
+                        {item.date ? (
+                          <span className="text-xs text-[#6B7280]">{item.date}</span>
+                        ) : null}
+                        <ListStatusBadge tone={item.statusTone} label={item.status} />
+                      </div>
+                    </li>
+                  ))
+                )}
               </ul>
             </section>
           </div>
         </div>
 
         <div className="flex w-full min-w-0 flex-col gap-5 xl:max-w-[400px] xl:justify-self-end">
-          <section className="rounded-md border border-emerald-200 bg-emerald-50 p-5">
-            <div className="flex flex-col items-center text-center">
-              <div className="mb-4 grid h-16 w-16 place-items-center rounded-full bg-emerald-500 text-white">
+          <section className="rounded-md border border-emerald-200 bg-emerald-50 p-6">
+            <div className="flex flex-col items-center px-1 text-center">
+              <div className="mb-5 grid h-16 w-16 place-items-center rounded-full bg-emerald-500 text-white">
                 <PartyPopper className="h-8 w-8" />
               </div>
               <h2 className="text-lg font-bold text-[#111827]">Welcome to the Team, {firstName}</h2>
-              <p className="mt-2 text-sm leading-6 text-[#4B5563]">
+              <p className="mt-3 max-w-[320px] text-sm leading-6 text-[#4B5563]">
                 Congratulations on completing onboarding. We are excited to have you on the team and
                 look forward to your success.
               </p>
             </div>
 
-            <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <div className="rounded-lg border border-[#E5E7EB] bg-white p-3">
-                <div className="flex items-center gap-2 text-xs font-semibold text-[#374151]">
-                  <Calendar className="h-4 w-4 text-blue-600" />
-                  Onboarded
+            <div className="mt-6 grid w-full grid-cols-2 gap-4">
+              <div className="flex min-w-0 flex-col rounded-lg border border-[#E5E7EB] bg-white p-4">
+                <div className="flex items-center gap-2.5">
+                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-blue-50">
+                    <Calendar className="h-4 w-4 text-blue-600" aria-hidden />
+                  </span>
+                  <span className="text-xs font-semibold leading-4 text-[#374151]">Onboarded</span>
                 </div>
-                <div className="mt-1 text-sm font-bold text-[#111827]">{data.onboardedDate}</div>
+                <div className="mt-3 text-sm font-bold leading-5 text-[#111827]">{data.onboardedDate}</div>
               </div>
-              <div className="rounded-lg border border-[#E5E7EB] bg-white p-3">
-                <div className="flex items-center gap-2 text-xs font-semibold text-[#374151]">
-                  <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                  Orientation Completed
+              <div className="flex min-w-0 flex-col rounded-lg border border-[#E5E7EB] bg-white p-4">
+                <div className="flex items-start gap-2.5">
+                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-emerald-50">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-600" aria-hidden />
+                  </span>
+                  <div className="min-w-0 pt-0.5">
+                    <div className="text-xs font-semibold leading-4 text-[#374151]">Orientation</div>
+                    <div className="text-xs font-semibold leading-4 text-[#374151]">Completed</div>
+                  </div>
                 </div>
-                <div className="mt-1 text-sm font-bold text-[#111827]">{data.orientationDate}</div>
+                <div className="mt-3 text-sm font-bold leading-5 text-[#111827]">{data.orientationDate}</div>
               </div>
             </div>
 
-            <div className="mt-5 flex items-start gap-2 rounded-lg bg-white/70 p-3 text-left">
+            <div className="mt-6 flex items-start gap-3 rounded-lg bg-white/80 p-4 text-left">
               <Quote className="mt-0.5 h-4 w-4 shrink-0 text-[#9CA3AF]" />
               <p className="text-sm italic leading-6 text-[#6B7280]">
                 Every new journey begins with a single step. Welcome aboard!
