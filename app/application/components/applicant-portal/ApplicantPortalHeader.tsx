@@ -1,9 +1,11 @@
 "use client";
 
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { ChevronDown, Search } from "lucide-react";
 import { useState } from "react";
 import SidebarNavIcon from "@/app/admin_recruiter/components/SidebarNavIcon";
+import { supabaseBrowser } from "@/lib/supabase-browser";
 import { useApplicantPortal } from "./ApplicantPortalProvider";
 import { WorkerPortalUserAvatar } from "./WorkerPortalUserAvatar";
 
@@ -26,9 +28,23 @@ export function ApplicantPortalHeader({
   sidebarCollapsed = false,
   onOpenMessages,
 }: Props) {
+  const router = useRouter();
   const { profilePhotoUrl } = useApplicantPortal();
   const [profileOpen, setProfileOpen] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
   const firstName = applicantName.split(" ")[0] || "Applicant";
+
+  async function handleLogout() {
+    if (loggingOut) return;
+    setLoggingOut(true);
+    try {
+      await supabaseBrowser.auth.signOut();
+      router.replace("/");
+    } catch (error) {
+      console.error("[ApplicantPortalHeader] logout failed", error);
+      setLoggingOut(false);
+    }
+  }
 
   return (
     <header className="sticky top-0 z-30 border-b border-[#E2E8F0] bg-white">
@@ -115,9 +131,17 @@ export function ApplicantPortalHeader({
               <ChevronDown className="h-4 w-4 text-[#94A3B8]" />
             </button>
             {profileOpen ? (
-              <div className="absolute right-0 top-12 z-10 w-48 rounded-lg border border-[#E2E8F0] bg-white p-2 shadow-lg">
+              <div className="absolute right-0 top-12 z-10 w-52 rounded-lg border border-[#E2E8F0] bg-white p-2 shadow-lg">
                 <p className="px-2 py-1 text-[12px] font-semibold text-[#012352]">{applicantName}</p>
                 <p className="px-2 pb-2 text-[11px] text-[#64748B]">Applicant</p>
+                <button
+                  type="button"
+                  onClick={() => void handleLogout()}
+                  disabled={loggingOut}
+                  className="mt-1 block w-full rounded-md px-2 py-1 text-left text-xs text-[#0F172A] hover:bg-[#f2f8f7] disabled:opacity-60"
+                >
+                  {loggingOut ? "Logging out..." : "Logout"}
+                </button>
               </div>
             ) : null}
           </div>

@@ -27,6 +27,10 @@ export const WORKER_SECTION_TITLE_STYLE: CSSProperties = {
 export const WORKER_SCHEDULE_CARD_CLASS =
   "overflow-hidden rounded-[12px] border border-[#E5E7EB] bg-white";
 
+/** Shared horizontal padding for worker portal pages (matches dashboard). */
+export const WORKER_PORTAL_PAGE_PAD_CLASS =
+  "w-full min-w-0 px-4 py-5 min-[1000px]:px-8";
+
 /** Figma: request schedule row — dropdown + button share width (+15% for label fit) */
 export const WORKER_SCHEDULE_ACTION_CONTROL_CLASS =
   "h-10 w-full shrink-0 rounded-lg sm:w-[193px]";

@@ -10,11 +10,6 @@ import { useApplicantPortalAuthHeaders } from "@/app/application/components/appl
 import { formatChatTime } from "@/app/admin_recruiter/messages/chat-ui";
 import { safeFetchJson } from "@/lib/api/safe-fetch-json";
 import type { SupportTicketConversationItem, SupportTicketStatus } from "@/lib/support-tickets/types";
-import {
-  WORKER_SCHEDULE_CARD_CLASS,
-  WORKER_SECTION_TITLE_CLASS,
-  WORKER_SECTION_TITLE_STYLE,
-} from "@/app/application/components/applicant-portal/worker-schedule-typography";
 
 const STATUS_COLORS: Record<SupportTicketStatus, string> = {
   Open: "bg-[#DBEAFE] text-[#1D4ED8]",
@@ -101,12 +96,10 @@ function ApplicantTicketsClientContent() {
   }
 
   return (
-    <div className="space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    <div className="px-4 py-6 min-[1000px]:px-8">
+      <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className={WORKER_SECTION_TITLE_CLASS} style={WORKER_SECTION_TITLE_STYLE}>
-            Support Tickets
-          </h1>
+          <h1 className="text-xl font-semibold text-[#0F172A]">Support Tickets</h1>
           <p className="mt-1 text-sm text-[#64748B]">
             Create a ticket or follow up on an existing support conversation.
           </p>
@@ -114,7 +107,7 @@ function ApplicantTicketsClientContent() {
         <button
           type="button"
           onClick={() => setShowCreate(true)}
-          className="inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold text-white transition hover:brightness-110"
+          className="inline-flex shrink-0 items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold text-white transition hover:brightness-110"
           style={{
             background:
               "linear-gradient(135deg, var(--brand-gradient-from) 0%, var(--brand-gradient-to) 100%)",
@@ -126,26 +119,26 @@ function ApplicantTicketsClientContent() {
       </div>
 
       {error ? (
-        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+        <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
           {error}
         </div>
       ) : null}
 
-      <div className={`grid grid-cols-1 gap-4 lg:grid-cols-[300px_minmax(0,1fr)] ${WORKER_SCHEDULE_CARD_CLASS}`}>
-        <aside className="flex min-h-[360px] flex-col overflow-hidden rounded-xl border border-[#E2E8F0] bg-white">
+      <div className="grid grid-cols-1 gap-4 lg:h-[calc(100vh-220px)] lg:grid-cols-[minmax(220px,280px)_minmax(0,1fr)] lg:gap-3 lg:items-stretch">
+        <aside className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-[#E2E8F0] bg-white shadow-sm lg:h-full">
           <div className="border-b border-[#E8EDF2] p-4">
             <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94A3B8]" />
+              <Search className="pointer-events-none absolute left-[10px] top-1/2 h-4 w-4 -translate-y-1/2 text-[#94A3B8]" />
               <input
                 type="search"
                 value={searchQuery}
                 onChange={(event) => setSearchQuery(event.target.value)}
                 placeholder="Search tickets..."
-                className="h-10 w-full rounded-lg border border-[#D8E0EA] bg-[#F8FAFC] py-2 pl-9 pr-3 text-sm text-[#0F172A] outline-none placeholder:text-[#94A3B8] focus:border-(--brand-primary)"
+                className="h-8 w-full rounded-[8px] border border-[#D8E0EA] bg-[#F8FAFC] py-2 pl-9 pr-[10px] text-sm text-[#0F172A] outline-none transition placeholder:text-[#94A3B8] focus:border-(--brand-primary)"
               />
             </div>
           </div>
-          <div className="min-h-0 flex-1 overflow-y-auto p-3">
+          <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
             {filteredTickets.length === 0 ? (
               <p className="px-2 py-6 text-sm text-[#64748B]">
                 {searchQuery.trim() ? "No tickets match your search." : "No support tickets yet."}
@@ -156,40 +149,46 @@ function ApplicantTicketsClientContent() {
                   key={ticket.id}
                   type="button"
                   onClick={() => setSelectedTicketId(ticket.id)}
-                  className={`mb-2 w-full rounded-lg border p-3 text-left transition ${
+                  className={`mb-3 flex w-full items-start gap-3 rounded-lg border p-3 text-left transition ${
                     ticket.id === selectedTicketId
                       ? "border-(--brand-primary) bg-[#F8FAFC]"
-                      : "border-[#E2E8F0] bg-white hover:border-(--brand-primary)"
+                      : "border-[#E5E7EB] bg-white hover:border-(--brand-primary)"
                   }`}
                 >
-                  <div className="flex items-start justify-between gap-2">
-                    <p className="truncate text-sm font-semibold text-[#0F172A]">
-                      {ticket.subject ?? "Support request"}
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="truncate text-[12px] font-semibold leading-4 text-[#0F172A]">
+                        {ticket.subject ?? "Support request"}
+                      </p>
+                      <span
+                        className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${STATUS_COLORS[ticket.status]}`}
+                      >
+                        {ticket.status}
+                      </span>
+                    </div>
+                    <p className="mt-0.5 truncate text-[10px] font-normal leading-[15px] text-[#64748B]">
+                      {ticket.lastMessagePreview}
                     </p>
-                    <span
-                      className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${STATUS_COLORS[ticket.status]}`}
-                    >
-                      {ticket.status}
-                    </span>
+                    <p className="mt-0.5 text-[10px] leading-[15px] text-[#94A3B8]">
+                      {formatChatTime(ticket.lastMessageAt)}
+                    </p>
                   </div>
-                  <p className="mt-1 truncate text-xs text-[#64748B]">{ticket.lastMessagePreview}</p>
-                  <p className="mt-1 text-[10px] text-[#94A3B8]">{formatChatTime(ticket.lastMessageAt)}</p>
                 </button>
               ))
             )}
           </div>
         </aside>
 
-        <section className="flex min-h-[480px] flex-col overflow-hidden rounded-xl border border-[#E2E8F0] bg-white">
+        <section className="flex min-h-[480px] min-w-0 flex-col overflow-hidden rounded-lg border border-[#E2E8F0] bg-white shadow-sm lg:h-full">
           {selectedTicket ? (
             <>
-              <div className="border-b border-[#E8EDF2] px-5 py-4">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#ECF1F9] text-[#0F2F62]">
+              <div className="flex items-center justify-between gap-3 border-b border-[#E8EDF2] px-5 py-4">
+                <div className="flex min-w-0 items-center gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#ECF1F9] text-[#0F2F62]">
                     <Ticket className="h-5 w-5" />
                   </div>
                   <div className="min-w-0">
-                    <h2 className="truncate text-base font-semibold text-[#0F172A]">
+                    <h2 className="truncate text-[14px] font-semibold leading-5 text-[#0F172A]">
                       {selectedTicket.subject ?? "Support request"}
                     </h2>
                     <p className="text-xs text-[#64748B]">
