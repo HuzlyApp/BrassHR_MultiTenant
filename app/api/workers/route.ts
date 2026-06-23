@@ -65,6 +65,14 @@ const PIPELINE_STATUSES = new Set<WorkerStatus>([
   "disapproved",
 ]);
 
+/** Legacy employment labels stored in text `status` — not recruiter pipeline stages. */
+const EMPLOYMENT_ONLY_STATUSES = new Set<WorkerStatus>([
+  "active",
+  "inactive",
+  "cancelled",
+  "banned",
+]);
+
 /** Prefer text `status` (recruiter pipeline); fall back to enum `worker_status`. */
 function resolveWorkerDisplayStatus(row: Record<string, unknown>): string | null {
   const pipeline =
@@ -74,7 +82,11 @@ function resolveWorkerDisplayStatus(row: Record<string, unknown>): string | null
       ? row.worker_status.trim().toLowerCase()
       : "";
 
-  if (pipeline && PIPELINE_STATUSES.has(pipeline as WorkerStatus)) return pipeline;
+  if (pipeline) {
+    if (PIPELINE_STATUSES.has(pipeline as WorkerStatus)) return pipeline;
+    if (!EMPLOYMENT_ONLY_STATUSES.has(pipeline as WorkerStatus)) return pipeline;
+  }
+
   if (legacy && PIPELINE_STATUSES.has(legacy as WorkerStatus)) return legacy;
   if (pipeline) return pipeline;
   if (legacy) return legacy;
@@ -141,14 +153,15 @@ export async function GET(req: Request) {
         status === "pending" ||
         status === "approved" ||
         status === "disapproved";
+      const pipelineSelectExtra = "status, worker_status";
       const attempts = pipelineStatus
         ? [
-            { col: "status" as const, extra: "status" as const },
-            { col: "worker_status" as const, extra: "worker_status" as const },
+            { col: "status" as const, extra: pipelineSelectExtra },
+            { col: "worker_status" as const, extra: pipelineSelectExtra },
           ]
         : [
             // "All" must load pipeline `status` (where approvals are stored), not only `worker_status`.
-            { col: "status" as const, extra: "status, worker_status" as const },
+            { col: "status" as const, extra: pipelineSelectExtra },
             { col: "worker_status" as const, extra: "worker_status" as const },
           ];
 
@@ -237,7 +250,13 @@ export async function GET(req: Request) {
             count = typeof res.count === "number" ? res.count : null;
           }
 
-          if (!error) break outer;
+          if (!error) {
+            const hasResults = headOnly
+              ? (count ?? 0) > 0
+              : ((data as unknown[] | null)?.length ?? 0) > 0;
+            if (hasResults) break outer;
+            continue;
+          }
           if (!isMissingColumnErr(error)) break outer;
         }
       }
@@ -249,10 +268,18 @@ export async function GET(req: Request) {
           return { ...r, status: s };
         });
 
+        const statusFiltered =
+          pipelineStatus && status
+            ? normalized.filter((row) => {
+                const display = (row as { status?: string | null }).status;
+                return typeof display === "string" && display.toLowerCase() === status;
+              })
+            : normalized;
+
         const narrowed = await narrowWorkerRowsByTenant(
           supabase,
           tenantScope,
-          normalized as Record<string, unknown>[]
+          statusFiltered as Record<string, unknown>[]
         );
 
         const withContacts = async () => {

@@ -1,4 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { isDraftPreviewApplicantId } from "@/lib/onboarding/is-draft-preview";
+import { persistWorkerRow } from "@/lib/onboarding/persist-worker-row";
+import { resumeToStep1Fields } from "@/lib/onboarding/resume-to-step1-fields";
+import { resolveOnboardingTenantId } from "@/lib/tenant/resolve-onboarding-tenant-id";
 
 export type WorkerContext = {
   workerId: string;
@@ -6,15 +10,22 @@ export type WorkerContext = {
   userId: string;
 };
 
-export async function resolveWorkerByApplicantId(
+async function loadWorkerContext(
   supabase: SupabaseClient,
-  applicantId: string
+  column: "user_id" | "id",
+  value: string,
+  tenantId?: string | null
 ): Promise<WorkerContext | null> {
-  const { data: worker, error } = await supabase
+  let query = supabase
     .from("worker")
     .select("id, tenant_id, user_id")
-    .eq("user_id", applicantId)
-    .maybeSingle();
+    .eq(column, value);
+
+  if (tenantId) {
+    query = query.eq("tenant_id", tenantId);
+  }
+
+  const { data: worker, error } = await query.maybeSingle();
 
   if (error) throw error;
   if (!worker?.id || worker.tenant_id == null) return null;
@@ -22,8 +33,55 @@ export async function resolveWorkerByApplicantId(
   return {
     workerId: String(worker.id),
     tenantId: String(worker.tenant_id),
-    userId: String(worker.user_id ?? applicantId),
+    userId: String(worker.user_id ?? value),
   };
+}
+
+export async function resolveWorkerByApplicantId(
+  supabase: SupabaseClient,
+  applicantId: string,
+  tenantId?: string | null
+): Promise<WorkerContext | null> {
+  if (tenantId) {
+    const scoped = await loadWorkerContext(supabase, "user_id", applicantId, tenantId);
+    if (scoped) return scoped;
+  }
+
+  const byUserId = await loadWorkerContext(supabase, "user_id", applicantId);
+  if (byUserId) return byUserId;
+  return loadWorkerContext(supabase, "id", applicantId, tenantId);
+}
+
+/** Ensures a worker row exists for onboarding APIs when only the auth applicant id is known. */
+export async function resolveOrEnsureWorkerForApplicant(
+  supabase: SupabaseClient,
+  applicantId: string,
+  tenantSlug?: string | null
+): Promise<WorkerContext | null> {
+  if (isDraftPreviewApplicantId(applicantId)) return null;
+
+  const slug = tenantSlug?.trim().toLowerCase() || "";
+  const tenantRes = slug ? await resolveOnboardingTenantId(supabase, slug) : null;
+  const tenantId = tenantRes?.ok ? tenantRes.tenantId : null;
+
+  if (tenantId) {
+    const scoped = await resolveWorkerByApplicantId(supabase, applicantId, tenantId);
+    if (scoped) return scoped;
+  } else {
+    const existing = await resolveWorkerByApplicantId(supabase, applicantId);
+    if (existing) return existing;
+  }
+
+  if (!tenantId) return null;
+
+  const saved = await persistWorkerRow(supabase, {
+    applicantId,
+    tenantId,
+    fields: resumeToStep1Fields({}, applicantId),
+  });
+  if (!saved.ok) return null;
+
+  return resolveWorkerByApplicantId(supabase, applicantId, tenantId);
 }
 
 export async function resolveTenantIdBySlug(

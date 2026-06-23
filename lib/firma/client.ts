@@ -4,6 +4,7 @@ import type {
   FirmaApiErrorBody,
   FirmaJwtTokenResponse,
   FirmaSigningRequest,
+  FirmaSigningRequestRecipient,
   FirmaTemplate,
   FirmaTemplateField,
   FirmaTemplateSettings,
@@ -289,4 +290,33 @@ export async function createFirmaSigningRequest(input: {
     body: input,
     retries: 0,
   });
+}
+
+export async function getFirmaSigningRequest(id: string): Promise<FirmaSigningRequest> {
+  return firmaRequest<FirmaSigningRequest>(`/signing-requests/${id}`, { retries: 1 });
+}
+
+export function resolveFirmaRecipientSigningUrl(
+  recipient: FirmaSigningRequestRecipient | null | undefined
+): string | null {
+  if (!recipient) return null;
+  const direct = recipient.signing_url?.trim() || recipient.signing_link?.trim();
+  if (direct) return direct;
+  const recipientId = recipient.id?.trim();
+  if (!recipientId) return null;
+  return `${getFirmaEditorAppUrl()}/signing/${recipientId}`;
+}
+
+export function resolveApplicantSigningRecipient(
+  detail: FirmaSigningRequest,
+  email: string
+): FirmaSigningRequestRecipient | null {
+  const normalized = email.trim().toLowerCase();
+  const recipients = Array.isArray(detail.recipients) ? detail.recipients : [];
+  const match = recipients.find(
+    (recipient) => (recipient.email ?? "").trim().toLowerCase() === normalized
+  );
+  if (match) return match;
+  if (detail.first_signer?.id) return detail.first_signer;
+  return recipients[0] ?? null;
 }

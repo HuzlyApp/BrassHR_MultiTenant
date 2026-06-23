@@ -1,4 +1,5 @@
 import { APPLICATION_ROUTES } from "@/lib/onboarding/application-routes";
+import { stepUsesFirmaSigning } from "@/lib/onboarding/firma-step-settings";
 import type { OnboardingStepType, TenantOnboardingStep } from "@/lib/onboarding/types";
 import { withTenant } from "@/lib/tenant/with-tenant";
 
@@ -56,6 +57,10 @@ function isDuplicateStepKey(stepKey: string, stepType: OnboardingStepType): bool
 }
 
 function baseRouteForStep(step: TenantOnboardingStep): string {
+  if (stepUsesFirmaSigning(step)) {
+    return APPLICATION_ROUTES.firmaSign;
+  }
+
   if (step.step_type === "review_submit" || step.step_key === "review_submit") {
     return APPLICATION_ROUTES.applicationSummary;
   }
@@ -78,6 +83,10 @@ function baseRouteForStep(step: TenantOnboardingStep): string {
 }
 
 export function dedicatedRouteForWorkflowStep(step: TenantOnboardingStep): string | null {
+  if (stepUsesFirmaSigning(step)) {
+    return APPLICATION_ROUTES.firmaSign;
+  }
+
   const libraryId = workflowStepId(step);
   if (libraryId && WORKFLOW_STEP_APPLICANT_ROUTE[libraryId]) {
     return WORKFLOW_STEP_APPLICANT_ROUTE[libraryId];

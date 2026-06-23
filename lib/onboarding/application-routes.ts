@@ -14,6 +14,7 @@ export const APPLICATION_ROUTES = {
   skillQuiz: (slug: string) =>
     `/application/skill-quiz/${encodeURIComponent(slug)}`,
   authorizationsDocuments: "/application/authorizations-documents",
+  firmaSign: "/application/firma-sign",
   identityVerification: "/application/identity-verification",
   addReferences: "/application/add-references",
   referenceReview: "/application/reference-review",
@@ -67,6 +68,10 @@ export const APPLICATION_ROUTE_STEP_MARKERS: {
       "/application/skill-quiz/",
       "/application/step-3-",
     ],
+  },
+  {
+    stepType: "authorizations",
+    pathIncludes: [APPLICATION_ROUTES.firmaSign],
   },
   {
     stepType: "authorizations",

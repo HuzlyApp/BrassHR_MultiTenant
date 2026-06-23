@@ -11,6 +11,10 @@ import {
 import { CandidatesPageHeader } from "@/app/admin_recruiter/components/CandidatesPageHeader";
 import { candidateStatusBadgeClassName } from "@/app/admin_recruiter/candidates/candidate-status-badge";
 import {
+  employmentWorkerTabLabel,
+  type EmploymentWorkerTab,
+} from "@/lib/admin/employment-workers";
+import {
   Plus,
   Search,
   RefreshCw,
@@ -18,21 +22,23 @@ import {
   Loader2,
 } from "lucide-react";
 
-type WorkerProfile = {
+type EmploymentWorkerRow = {
   id: string;
+  candidate_id: string;
   first_name: string | null;
   last_name: string | null;
   job_role: string | null;
-  email: string | null;
-  phone: string | null;
-  address1: string | null;
-  address2?: string | null;
-  city: string | null;
-  state: string | null;
-  zip?: string | null;
+  location: string | null;
+  status: string | null;
   created_at: string | null;
-  status?: string | null;
 };
+
+const WORKER_TABS: Array<{ id: EmploymentWorkerTab; label: string }> = [
+  { id: "new", label: "New only" },
+  { id: "all", label: "All workers" },
+  { id: "w2", label: "W-2" },
+  { id: "1099", label: "1099" },
+];
 
 function titleCaseStatus(s: string | null | undefined) {
   const v = (s || "").trim();
@@ -45,6 +51,7 @@ export default function WorkersPage() {
   const [workers, setWorkers] = useState<
     Array<{
       id: string;
+      profileId: string;
       name: string;
       role: string;
       location: string;
@@ -53,9 +60,10 @@ export default function WorkersPage() {
     }>
   >([]);
   const [totalFromApi, setTotalFromApi] = useState<number | null>(null);
+  const [tabLabel, setTabLabel] = useState("workers");
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
-  const [newOnly, setNewOnly] = useState(false);
+  const [workerTab, setWorkerTab] = useState<EmploymentWorkerTab>("all");
   const [showFilterRows, setShowFilterRows] = useState(true);
   const [jobRoleFilter, setJobRoleFilter] = useState("");
   const [locationFilter, setLocationFilter] = useState("");
@@ -64,7 +72,7 @@ export default function WorkersPage() {
   const loadWorkers = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(newOnly ? "/api/workers?worker_status=new" : "/api/workers", {
+      const res = await fetch(`/api/admin/employment-workers?tab=${workerTab}`, {
         cache: "no-store",
       });
       const data = await res.json();
@@ -76,26 +84,26 @@ export default function WorkersPage() {
       if (authError) {
         setWorkers([]);
         setTotalFromApi(0);
+        setTabLabel(employmentWorkerTabLabel(workerTab));
         return;
       }
       if (!res.ok) throw new Error(data?.error || "Failed to fetch workers");
 
-      const list: WorkerProfile[] = Array.isArray(data?.workers)
-        ? data.workers
-        : Array.isArray(data)
-          ? data
-          : [];
+      const list: EmploymentWorkerRow[] = Array.isArray(data?.workers) ? data.workers : [];
       setTotalFromApi(typeof data?.total === "number" ? data.total : list.length);
+      setTabLabel(
+        typeof data?.tabLabel === "string" ? data.tabLabel : employmentWorkerTabLabel(workerTab)
+      );
 
       const mapped = list.map((w) => {
         const name = `${w.first_name ?? ""} ${w.last_name ?? ""}`.trim() || "Unnamed";
-        const location = [w.city, w.state].filter(Boolean).join(", ") || "—";
         return {
           id: w.id,
+          profileId: w.candidate_id,
           name,
           role: w.job_role || "—",
-          location,
-          status: titleCaseStatus(w.status ?? (newOnly ? "new" : "—")),
+          location: w.location?.trim() || "—",
+          status: titleCaseStatus(w.status),
           createdAt: w.created_at ?? null,
         };
       });
@@ -104,10 +112,11 @@ export default function WorkersPage() {
       console.error("Failed to fetch workers:", err);
       setWorkers([]);
       setTotalFromApi(null);
+      setTabLabel(employmentWorkerTabLabel(workerTab));
     } finally {
       setLoading(false);
     }
-  }, [newOnly]);
+  }, [workerTab]);
 
   useEffect(() => {
     void loadWorkers();
@@ -165,22 +174,17 @@ export default function WorkersPage() {
   return (
     <div className="px-5 pb-8 pt-5 lg:px-8">
       <div className="mb-4 flex items-center gap-6 border-b border-[#E5E7EB]">
-        <button
-          type="button"
-          onClick={() => setNewOnly(true)}
-          className={`shrink-0 whitespace-nowrap text-sm font-medium ${workerTabClass(newOnly)}`}
-          aria-current={newOnly ? "page" : undefined}
-        >
-          New only
-        </button>
-        <button
-          type="button"
-          onClick={() => setNewOnly(false)}
-          className={`shrink-0 whitespace-nowrap text-sm font-medium ${workerTabClass(!newOnly)}`}
-          aria-current={!newOnly ? "page" : undefined}
-        >
-          All workers
-        </button>
+        {WORKER_TABS.map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => setWorkerTab(tab.id)}
+            className={`shrink-0 whitespace-nowrap text-sm font-medium ${workerTabClass(workerTab === tab.id)}`}
+            aria-current={workerTab === tab.id ? "page" : undefined}
+          >
+            {tab.label}
+          </button>
+        ))}
       </div>
 
       <div className="w-full overflow-hidden rounded-[12px] border border-[#E5E7EB] bg-white">
@@ -296,7 +300,7 @@ export default function WorkersPage() {
 
         <div className="flex w-full items-center gap-3 px-[14px] py-3">
           <div className="text-xs leading-4 text-[#5e7371]">
-            Total: <span className="font-semibold text-[#203130]">{loading ? "—" : totalFromApi ?? workers.length}</span> workers
+            Total: <span className="font-semibold text-[#203130]">{loading ? "—" : totalFromApi ?? workers.length}</span> {tabLabel}
           </div>
         </div>
 
@@ -346,7 +350,7 @@ export default function WorkersPage() {
                         </td>
                         <td className="px-4 py-4 text-right">
                           <Link
-                            href={`/admin_recruiter/workers/${w.id}/profile`}
+                            href={`/admin_recruiter/workers/${w.profileId}/profile`}
                             className="inline-flex items-center gap-1 rounded-full bg-(--brand-primary) px-3 py-1.5 text-xs font-semibold text-white transition hover:brightness-95"
                           >
                             Open <span aria-hidden>-&gt;</span>

@@ -715,6 +715,8 @@ export async function GET(req: NextRequest) {
         employee_number: asTrimmedString(w.employee_number),
         employment_type: asTrimmedString(w.employment_type),
         reports_to: asTrimmedString(w.reports_to) ?? asTrimmedString(w.manager_name),
+        converted_worker_type: asTrimmedString(w.converted_worker_type),
+        converted_at: w.converted_at != null ? String(w.converted_at) : null,
       },
       requirements: {
         resume_path: resumePathCanonical,

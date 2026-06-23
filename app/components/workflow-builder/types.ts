@@ -47,6 +47,8 @@ export type StepSettings = {
   notify: string;
   timeline: string;
   conditionalLogic: string;
+  firmaRecruiterTemplateId?: string;
+  firmaRecruiterTemplateName?: string;
 };
 
 export type WorkflowNodeData = {
@@ -97,4 +99,6 @@ export const DEFAULT_STEP_SETTINGS: StepSettings = {
   notify: "HR + Recruiter",
   timeline: "5 business days",
   conditionalLogic: "If result = fail → Pause flow + notify",
+  firmaRecruiterTemplateId: "",
+  firmaRecruiterTemplateName: "",
 };

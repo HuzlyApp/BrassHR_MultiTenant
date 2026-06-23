@@ -1,3 +1,5 @@
+import { resolveCandidateConversionState } from "@/lib/admin/convert-candidate-to-worker";
+
 export type OnboardedProgressMetricTheme = "green" | "orange" | "blue" | "purple";
 
 export type OnboardedProgressMetric = {
@@ -24,6 +26,10 @@ export type OnboardedWhatsNextItem = {
 
 export type OnboardedApplicantViewModel = {
   isApproved: boolean;
+  isConverted: boolean;
+  convertedWorkerType: "w2" | "1099" | null;
+  convertedWorkerTypeRaw: string | null;
+  convertedAt: string | null;
   candidateName: string;
   candidateRole: string;
   profilePhotoUrl: string | null;
@@ -82,6 +88,8 @@ type ProfileWorker = {
   created_at?: string | null;
   updated_at?: string | null;
   status?: string | null;
+  converted_worker_type?: string | null;
+  converted_at?: string | null;
   profile_photo_url?: string | null;
   employee_id?: string | null;
   employee_number?: string | null;
@@ -253,7 +261,10 @@ export function buildOnboardedApplicantViewModel(
     `${worker.first_name ?? ""} ${worker.last_name ?? ""}`.trim() || "Applicant";
   const candidateRole = worker.job_role?.trim() || "—";
   const statusNorm = (worker.status ?? checklist.worker?.status ?? "new").toString().trim().toLowerCase();
-  const isApproved = statusNorm === "approved";
+  const isApproved = statusNorm === "approved" || statusNorm === "converted";
+  const conversion = resolveCandidateConversionState(worker);
+  const { isConverted, convertedWorkerType, convertedAt } = conversion;
+  const convertedWorkerTypeRaw = worker.converted_worker_type?.trim() || null;
 
   const onboardingCompletionPercent = clampPercent(profile.onboardingCompletion?.percent ?? 0);
   const checklistProgressPercent = clampPercent(checklist.meta?.progressPercent ?? 0);
@@ -282,6 +293,10 @@ export function buildOnboardedApplicantViewModel(
 
   return {
     isApproved,
+    isConverted,
+    convertedWorkerType,
+    convertedWorkerTypeRaw,
+    convertedAt,
     candidateName,
     candidateRole,
     profilePhotoUrl: worker.profile_photo_url ?? null,

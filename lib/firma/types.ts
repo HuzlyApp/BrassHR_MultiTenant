@@ -50,6 +50,20 @@ export type FirmaSigningRequest = {
   id: string;
   name?: string;
   status?: string;
+  recipients?: FirmaSigningRequestRecipient[];
+  first_signer?: FirmaSigningRequestRecipient;
+};
+
+export type FirmaSigningRequestRecipient = {
+  id: string;
+  first_name?: string | null;
+  last_name?: string | null;
+  email?: string | null;
+  designation?: string | null;
+  order?: number | null;
+  status?: string | null;
+  signing_url?: string | null;
+  signing_link?: string | null;
 };
 
 export type FirmaApiErrorBody = {

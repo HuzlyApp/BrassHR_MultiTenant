@@ -13,6 +13,8 @@ import {
   WORKFLOW_DATE_PRIORITY_OPTIONS,
   WORKFLOW_PROVIDER_OPTIONS,
 } from "@/lib/onboarding/normalize-workflow-settings";
+import { isFirmaAttachableWorkflowStepId } from "@/lib/onboarding/firma-step-settings";
+import { FirmaTemplateSelect } from "@/app/components/onboarding/FirmaTemplateSelect";
 
 type StepsSettingsPanelProps = {
   node: Node<WorkflowNodeData> | null;
@@ -81,6 +83,7 @@ function SettingsBody({ node, onUpdate, onSaveStep, onCloneWorkflow, readOnly = 
   const providerOptions = integrationEnabled
     ? [...WORKFLOW_PROVIDER_OPTIONS]
     : (["Manual", "Third-party API"] as const);
+  const showFirmaTemplatePicker = isFirmaAttachableWorkflowStepId(node.data.stepId);
 
   const patchSettings = (patch: Partial<StepSettings>, options?: { skipHistory?: boolean }) => {
     onUpdate(node.id, { settings: { ...settings, ...patch } }, options);
@@ -139,6 +142,19 @@ function SettingsBody({ node, onUpdate, onSaveStep, onCloneWorkflow, readOnly = 
           value={settings.notifyHrOnFail}
           onChange={(v) => patchSettings({ notifyHrOnFail: v })}
         />
+        {showFirmaTemplatePicker ? (
+          <FirmaTemplateSelect
+            value={settings.firmaRecruiterTemplateId ?? ""}
+            templateName={settings.firmaRecruiterTemplateName}
+            disabled={readOnly}
+            onChange={({ id, name }) =>
+              patchSettings({
+                firmaRecruiterTemplateId: id,
+                firmaRecruiterTemplateName: name,
+              })
+            }
+          />
+        ) : null}
       </div>
 
       <div
