@@ -37,7 +37,7 @@ type Props = {
   onSendMessage: (file?: File | null) => Promise<void>;
   onContactRecruiter?: () => void;
   authHeaders?: () => Promise<Record<string, string> | null>;
-  onSupportTicketCreated?: (payload: { chatMessage?: ApplicantMessage }) => void;
+  onSupportTicketCreated?: (payload: { ticketId?: string; chatMessage?: ApplicantMessage }) => void;
 };
 
 function senderLabel(message: ApplicantMessage): string {
