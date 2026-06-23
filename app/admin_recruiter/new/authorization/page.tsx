@@ -195,8 +195,8 @@ export default function NewApplicantAuthorizationFilledDemoPage() {
           </div>
         </header>
 
-        <div className="flex-1 p-8 overflow-auto">
-          <div className="max-w-[1320px] mx-auto">
+        <div className="flex-1 w-full min-w-0 overflow-auto admin-recruiter-page-pad">
+          <div className="admin-recruiter-content-width">
             <div className="rounded-2xl border border-[#9CC3FF] overflow-hidden shadow-sm bg-[linear-gradient(90deg,rgba(59,130,246,0.06)_1px,transparent_1px),linear-gradient(0deg,rgba(59,130,246,0.04)_1px,transparent_1px)] bg-[size:34px_34px] bg-white/70">
               {/* Top */}
               <div className="p-6 flex items-start justify-between gap-6 border-b border-[#9CC3FF]/30 bg-white/40">

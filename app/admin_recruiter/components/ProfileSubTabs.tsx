@@ -47,7 +47,7 @@ export default function ProfileSubTabs({ applicantId, activeTab }: ProfileSubTab
 
   return (
     <nav
-      className="mb-4 mx-auto flex w-full max-w-[1300px] items-end justify-center gap-x-8 border-b border-[#E5E7EB]"
+      className="mb-4 flex w-full min-w-0 items-end justify-center gap-x-8 border-b border-[#E5E7EB]"
       aria-label="Profile sections"
     >
       {SUB_TABS.map((tab) => {

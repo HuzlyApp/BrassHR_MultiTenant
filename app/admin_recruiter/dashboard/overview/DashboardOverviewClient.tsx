@@ -4,14 +4,9 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import DashboardPageLoader from "@/app/admin_recruiter/components/DashboardPageLoader";
 import {
-  Building2,
-  CalendarClock,
-  CalendarDays,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
-  ClipboardList,
-  UserPlus,
 } from "lucide-react";
 
 type ScheduleItem = {
@@ -90,24 +85,17 @@ function initials(name: string): string {
 
 function CardShell({
   title,
-  icon,
   action,
   children,
 }: {
   title: string;
-  icon: React.ReactNode;
   action?: ReactNode;
   children: ReactNode;
 }) {
   return (
     <section className="w-full min-w-0 overflow-hidden rounded-xl border border-[#E5E7EB] bg-white shadow-sm">
       <div className="flex items-center justify-between gap-3 border-b border-[#E5E7EB] px-5 py-4">
-        <div className="flex min-w-0 items-center gap-2">
-          <span className="text-[#012352]" aria-hidden>
-            {icon}
-          </span>
-          <h2 className="truncate text-base font-semibold text-[#111827]">{title}</h2>
-        </div>
+        <h2 className="truncate text-base font-semibold text-[#111827]">{title}</h2>
         {action}
       </div>
       <div className="px-5 py-4">{children}</div>
@@ -177,7 +165,7 @@ export default function DashboardOverviewClient() {
   }
 
   return (
-    <div className="relative w-full min-w-0 space-y-[14px] px-4 py-5 min-[1000px]:px-8">
+    <div className="relative w-full min-w-0 space-y-[14px] admin-recruiter-page-pad">
       {loading && data ? <DashboardPageLoader label="Updating..." overlay /> : null}
         <header className="space-y-1">
           <h1 className="inline-flex items-center gap-1 font-[Inter,sans-serif] text-[18px] font-semibold leading-[28px] text-[#012352]">
@@ -203,7 +191,6 @@ export default function DashboardOverviewClient() {
         <div className="grid w-full min-w-0 grid-cols-1 gap-[14px] xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
           <CardShell
             title={data?.selectedDateLabel ?? "Schedule"}
-            icon={<CalendarDays className="h-5 w-5" />}
             action={
               <div className="flex items-center gap-1">
                 <button
@@ -270,7 +257,7 @@ export default function DashboardOverviewClient() {
             </div>
           </CardShell>
 
-          <CardShell title="To Do's" icon={<ClipboardList className="h-5 w-5" />}>
+          <CardShell title="To Do's">
             {loading ? (
               <EmptyState message="Loading to do list..." />
             ) : !data?.todos.length ? (
@@ -294,7 +281,7 @@ export default function DashboardOverviewClient() {
           </CardShell>
         </div>
 
-        <CardShell title="Scheduled Shifts" icon={<CalendarClock className="h-5 w-5" />}>
+        <CardShell title="Scheduled Shifts">
           {loading ? (
             <EmptyState message="Loading shifts..." />
           ) : !data?.shifts.length ? (
@@ -332,7 +319,7 @@ export default function DashboardOverviewClient() {
         </CardShell>
 
         <div className="grid w-full min-w-0 grid-cols-1 gap-[14px] xl:grid-cols-2">
-          <CardShell title="Onboard New Hires" icon={<UserPlus className="h-5 w-5" />}>
+          <CardShell title="Onboard New Hires">
             {loading ? (
               <EmptyState message="Loading hires..." />
             ) : !data?.onboardHires.length ? (
@@ -372,7 +359,6 @@ export default function DashboardOverviewClient() {
 
           <CardShell
             title="Active Facilities Workers"
-            icon={<Building2 className="h-5 w-5" />}
             action={
               <button
                 type="button"

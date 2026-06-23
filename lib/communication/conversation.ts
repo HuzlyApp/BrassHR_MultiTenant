@@ -5,8 +5,14 @@ import { normalizePhoneToE164 } from "@/lib/communication/phone";
 import type {
   CandidateCommunicationRow,
   CommunicationChannel,
-  CommunicationStatus,
 } from "@/lib/communication/record";
+import {
+  type CommunicationThread,
+  defaultReplySubject,
+} from "@/lib/communication/conversation-client";
+
+export type { CommunicationThread };
+export { defaultReplySubject };
 
 /** Stable conversation id per worker + channel (one email thread per contact). */
 export function buildConversationId(workerId: string, channel: CommunicationChannel): string {
@@ -98,22 +104,6 @@ function rowBelongsToContact(
   return true;
 }
 
-export type CommunicationThread = {
-  conversationId: string;
-  channel: CommunicationChannel;
-  contactId: string;
-  contactEmail: string | null;
-  contactPhone: string | null;
-  messageCount: number;
-  latestAt: string;
-  latestStatus: CommunicationStatus;
-  latestSubject: string | null;
-  rootSubject: string | null;
-  latestPreview: string;
-  unreadCount: number;
-  messages: CandidateCommunicationRow[];
-};
-
 export function buildCommunicationThreads(
   rows: CandidateCommunicationRow[],
   workerId: string,
@@ -166,11 +156,4 @@ export function buildCommunicationThreads(
   }
 
   return threads.sort((a, b) => new Date(b.latestAt).getTime() - new Date(a.latestAt).getTime());
-}
-
-export function defaultReplySubject(thread: CommunicationThread): string {
-  if (thread.channel !== "email") return "";
-  const latest = thread.messages[thread.messages.length - 1];
-  const subject = latest?.subject?.trim() || thread.rootSubject || "Application status";
-  return subject.toLowerCase().startsWith("re:") ? subject : `Re: ${subject}`;
 }

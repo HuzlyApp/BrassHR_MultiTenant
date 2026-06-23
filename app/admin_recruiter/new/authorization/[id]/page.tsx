@@ -574,8 +574,8 @@ export default function NewApplicantAuthorizationFilledPage() {
           </div>
         </header>
 
-        <div className="flex-1 p-8 overflow-auto">
-          <div className="max-w-[1320px] mx-auto">
+        <div className="flex-1 w-full min-w-0 overflow-auto admin-recruiter-page-pad">
+          <div className="admin-recruiter-content-width">
             <DetailedTabs applicantId={applicantId} activeTab="Authorization" />
 
             {loadError ? (
@@ -618,7 +618,7 @@ export default function NewApplicantAuthorizationFilledPage() {
               profilePhotoUrl={applicant?.profile_photo_url}
             />
 
-            <div className="mx-auto w-full max-w-[1300px]">
+            <div className="w-full min-w-0 admin-recruiter-content-width">
               <section>
                 <div className="mb-3 text-[20px] font-semibold leading-7 text-[#1F2937]">Authorization</div>
                 <div className="rounded-md border border-[#D1D5DB]">

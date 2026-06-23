@@ -80,7 +80,10 @@ function getEmptyStateCopy(tab: FacilityTab): { title: string; description: stri
     };
   }
   if (tab === "recent") {
-    return null;
+    return {
+      title: "No recent facilities for this candidate yet.",
+      description: "Create a new facility to get started.",
+    };
   }
   return {
     title: "No potential facilities found",
@@ -425,7 +428,6 @@ export default function NewApplicantFacilityAssignmentsPage() {
   const hasVisibleFacilities = visibleFacilities.length > 0;
   const emptyStateCopy = getEmptyStateCopy(activeFacilityTab);
   const showMainContent = !loading && !facilitiesLoading;
-  const isRecentTabEmpty = activeFacilityTab === "recent" && !hasVisibleFacilities;
 
   function facilityCardVariant(): "default" | "assigned" | "recent" {
     if (activeFacilityTab === "active") return "assigned";
@@ -543,8 +545,8 @@ export default function NewApplicantFacilityAssignmentsPage() {
           </div>
         </header>
 
-        <div className="flex-1 p-8 overflow-auto">
-          <div className="max-w-[1320px] mx-auto">
+        <div className="flex-1 w-full min-w-0 overflow-auto admin-recruiter-page-pad">
+          <div className="admin-recruiter-content-width">
             <DetailedTabs applicantId={applicantId} activeTab="Facility Assignments" />
 
             {loadError ? (
@@ -570,29 +572,32 @@ export default function NewApplicantFacilityAssignmentsPage() {
                   profilePhotoUrl={applicant?.profile_photo_url}
                 />
 
-                <div className="mx-auto flex w-full max-w-[1300px] flex-col">
+                <div className="flex w-full min-w-0 admin-recruiter-content-width flex-col">
                   {showMainContent && hasAssignedFacilities ? (
                     <AssignedFacilitySummary candidateName={candidateName} facilities={assignments.active} />
                   ) : null}
 
-                  <div className="relative border-b border-[#E5E7EB]">
+                  <div className="flex flex-col gap-3 sm:grid sm:grid-cols-[1fr_auto_1fr] sm:items-end">
+                    <div className="hidden sm:block" />
                     <UnderlineTabBar
                       tabs={FACILITY_TABS}
                       activeTab={activeFacilityTab}
                       onTabChange={setActiveFacilityTab}
                       ariaLabel="Facility sections"
                       align="center"
-                      className={hasVisibleFacilities ? "border-b-0" : undefined}
+                      className="border-b-0"
                     />
                     {showMainContent ? (
-                      <div className={`${hasVisibleFacilities ? "absolute right-0 bottom-1" : "mt-4 flex justify-center"}`}>
+                      <div className="flex justify-end sm:pb-1">
                         <FacilityActionButtons
-                          layout={hasVisibleFacilities ? "row" : "centered"}
+                          layout="row"
                           onCreate={() => setShowCreateFacilityModal(true)}
                           onAssign={() => setShowAssignFacilityModal(true)}
                         />
                       </div>
-                    ) : null}
+                    ) : (
+                      <div className="hidden sm:block" />
+                    )}
                   </div>
 
                   {hasVisibleFacilities ? (
@@ -607,7 +612,7 @@ export default function NewApplicantFacilityAssignmentsPage() {
                         ))}
                       </div>
                     </div>
-                  ) : isRecentTabEmpty ? null : emptyStateCopy ? (
+                  ) : emptyStateCopy ? (
                     <div className="mt-4 flex min-h-[calc(100dvh-22rem)] items-center justify-center rounded-lg border border-[#E5E7EB] bg-white px-6 py-10">
                       <div className="max-w-md text-center">
                         <div className="text-[18px] font-semibold leading-7 text-gray-700">

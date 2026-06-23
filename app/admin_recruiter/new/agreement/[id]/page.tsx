@@ -518,8 +518,8 @@ export default function NewApplicantAgreementPage() {
           </div>
         </header>
 
-        <div className="flex-1 p-8 overflow-auto">
-          <div className="max-w-[1320px] mx-auto">
+        <div className="flex-1 w-full min-w-0 overflow-auto admin-recruiter-page-pad">
+          <div className="admin-recruiter-content-width">
             <DetailedTabs applicantId={applicantId} activeTab="Agreement" />
 
             <input
@@ -562,7 +562,7 @@ export default function NewApplicantAgreementPage() {
                   profilePhotoUrl={applicant?.profile_photo_url}
                 />
 
-                <div className="mx-auto w-full max-w-[1300px]">
+                <div className="w-full min-w-0 admin-recruiter-content-width">
                   <div className="space-y-6">
                     {w2Section ? renderSection(w2Section, 0) : null}
                     {i9Section ? renderSection(i9Section, 1) : null}

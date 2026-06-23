@@ -1,41 +1,47 @@
 "use client";
 
-import Link from "next/link";
-import { usePathname, useParams } from "next/navigation";
-import { useMemo, useState, useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useParams } from "next/navigation";
 import DetailedCandidateHeader from "../../../components/DetailedCandidateHeader";
 import DetailedTabs from "../../../components/DetailedTabs";
 import CandidateDetailLoader from "../../../components/CandidateDetailLoader";
 import BrandedHistoryIcon from "../../../components/BrandedHistoryIcon";
-import {
-  Briefcase,
-  Calendar,
-  LogOut,
-  Menu,
-  Settings,
-  UserCheck,
-  UserPlus,
-  UserX,
-  Users,
-  X,
-} from "lucide-react";
-
-type WorkerProfile = {
-  id: string;
-  first_name: string | null;
-  last_name: string | null;
-  job_role: string | null;
-  status_label?: string;
-  profile_photo_url?: string | null;
-};
 
 type ProfilePayload = {
-  worker: WorkerProfile;
-  activity: {
-    source: string;
-    created_at: string | null;
-    updated_at: string | null;
+  worker?: {
+    first_name?: string | null;
+    last_name?: string | null;
+    job_role?: string | null;
+    status_label?: string | null;
+    profile_photo_url?: string | null;
   };
+  activity?: {
+    created_at?: string | null;
+    updated_at?: string | null;
+  };
+  activity_history?: Array<{
+    id?: string | null;
+    action?: string | null;
+    created_at?: string | null;
+  }>;
+  error?: string;
+};
+
+type ChecklistPayload = {
+  activity_history?: Array<{
+    id?: string | null;
+    action?: string | null;
+    created_at?: string | null;
+  }>;
+  error?: string;
+};
+
+type HistoryItem = {
+  id: string;
+  action: string;
+  ago: string;
+  date: string;
+  time: string;
 };
 
 function formatRelative(iso: string): string {
@@ -61,60 +67,71 @@ function formatDateTimeParts(iso: string): { dateLine: string; timeLine: string 
   if (Number.isNaN(d.getTime())) {
     return { dateLine: "—", timeLine: "—" };
   }
-  const dateLine = d.toLocaleDateString(undefined, {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  });
-  const timeLine = d.toLocaleTimeString(undefined, {
-    hour: "numeric",
-    minute: "2-digit",
-  });
-  return { dateLine, timeLine };
+  return {
+    dateLine: d.toLocaleDateString(undefined, {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }),
+    timeLine: d.toLocaleTimeString(undefined, {
+      hour: "numeric",
+      minute: "2-digit",
+    }),
+  };
 }
 
-type HistoryItem = {
-  id: string;
-  action: string;
-  ago: string;
-  date: string;
-  time: string;
-};
+function buildHistoryItems(
+  profile: ProfilePayload | null,
+  checklist: ChecklistPayload | null
+): HistoryItem[] {
+  const logs = checklist?.activity_history?.length
+    ? checklist.activity_history
+    : profile?.activity_history ?? [];
 
-function buildHistoryFromActivity(activity: ProfilePayload["activity"] | undefined): HistoryItem[] {
-  if (!activity) return [];
+  const withTime = logs.filter((entry) => entry.created_at?.trim());
+  if (withTime.length > 0) {
+    return withTime.map((entry, index) => {
+      const at = entry.created_at!.trim();
+      const { dateLine, timeLine } = formatDateTimeParts(at);
+      return {
+        id: entry.id ?? `activity-${index}`,
+        action: entry.action?.trim() || "Activity",
+        ago: formatRelative(at),
+        date: dateLine,
+        time: timeLine,
+      };
+    });
+  }
 
-  type Row = { id: string; action: string; at: string };
-  const rows: Row[] = [];
-
-  if (activity.created_at?.trim()) {
+  const activity = profile?.activity;
+  const rows: Array<{ id: string; action: string; at: string }> = [];
+  if (activity?.created_at?.trim()) {
     rows.push({
       id: "created",
       action: "Applicant record created",
       at: activity.created_at.trim(),
     });
   }
-
-  if (activity.updated_at?.trim()) {
-    const u = activity.updated_at.trim();
-    const c = activity.created_at?.trim();
-    if (!c || u !== c) {
+  if (activity?.updated_at?.trim()) {
+    const updated = activity.updated_at.trim();
+    const created = activity.created_at?.trim();
+    if (!created || updated !== created) {
       rows.push({
         id: "updated",
         action: "Applicant profile updated",
-        at: u,
+        at: updated,
       });
     }
   }
 
   rows.sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
 
-  return rows.map((r) => {
-    const { dateLine, timeLine } = formatDateTimeParts(r.at);
+  return rows.map((row) => {
+    const { dateLine, timeLine } = formatDateTimeParts(row.at);
     return {
-      id: r.id,
-      action: r.action,
-      ago: formatRelative(r.at),
+      id: row.id,
+      action: row.action,
+      ago: formatRelative(row.at),
       date: dateLine,
       time: timeLine,
     };
@@ -122,14 +139,13 @@ function buildHistoryFromActivity(activity: ProfilePayload["activity"] | undefin
 }
 
 export default function NewApplicantHistoryPage() {
-  const pathname = usePathname();
   const params = useParams<{ id: string }>();
   const applicantId = params?.id;
 
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [profile, setProfile] = useState<ProfilePayload | null>(null);
+  const [checklist, setChecklist] = useState<ChecklistPayload | null>(null);
 
   useEffect(() => {
     async function fetchApplicant() {
@@ -137,193 +153,107 @@ export default function NewApplicantHistoryPage() {
       setLoading(true);
       setLoadError(null);
       try {
-        const res = await fetch(
-          `/api/admin/worker-profile?workerId=${encodeURIComponent(applicantId)}`
-        );
-        const json = (await res.json()) as ProfilePayload & { error?: string };
-        if (!res.ok) {
-          throw new Error(json.error || `Failed to load profile (${res.status})`);
+        const [profileRes, checklistRes] = await Promise.all([
+          fetch(`/api/admin/worker-profile?workerId=${encodeURIComponent(applicantId)}`, {
+            cache: "no-store",
+          }),
+          fetch(`/api/admin/worker-checklist?workerId=${encodeURIComponent(applicantId)}`, {
+            cache: "no-store",
+          }),
+        ]);
+
+        const profileJson = (await profileRes.json()) as ProfilePayload;
+        const checklistJson = (await checklistRes.json()) as ChecklistPayload;
+
+        if (!profileRes.ok) {
+          throw new Error(profileJson.error || `Failed to load profile (${profileRes.status})`);
         }
-        setProfile(json);
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
-        console.error("Failed to fetch applicant for history:", msg, e);
-        setLoadError(msg);
+        if (!checklistRes.ok) {
+          throw new Error(checklistJson.error || `Failed to load checklist (${checklistRes.status})`);
+        }
+
+        setProfile(profileJson);
+        setChecklist(checklistJson);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Failed to load history";
+        setLoadError(message);
         setProfile(null);
+        setChecklist(null);
       } finally {
         setLoading(false);
       }
     }
-    fetchApplicant();
+
+    void fetchApplicant();
   }, [applicantId]);
 
   const applicant = profile?.worker ?? null;
 
   const candidateName = useMemo(() => {
-    const n = `${applicant?.first_name ?? ""} ${applicant?.last_name ?? ""}`.trim();
-    return n || "Applicant";
+    const name = `${applicant?.first_name ?? ""} ${applicant?.last_name ?? ""}`.trim();
+    return name || "Applicant";
   }, [applicant]);
 
   const candidateRole = applicant?.job_role || "N/A";
-  const historyItems: HistoryItem[] = useMemo(
-    () => buildHistoryFromActivity(profile?.activity),
-    [profile?.activity]
+
+  const historyItems = useMemo(
+    () => buildHistoryItems(profile, checklist),
+    [profile, checklist]
   );
 
-  const historyCount = historyItems.length;
-
   return (
-    <div className="flex min-h-screen bg-zinc-50 overflow-hidden">
-      <div
-        className={`fixed inset-y-0 left-0 z-50 w-72 bg-[#0A1F1C] text-white transform transition-transform lg:translate-x-0 ${
-          sidebarOpen ? "translate-x-0" : "-translate-x-full"
-        }`}
-      >
-        <div className="flex h-full flex-col">
-          <div className="px-6 py-8 flex items-center gap-3 border-b border-white/10">
-            <div className="w-10 h-10 bg-white rounded-2xl flex items-center justify-center">
-              <span className="text-[#0A1F1C] font-bold text-3xl">N</span>
-            </div>
-            <div>
-              <div className="font-semibold text-2xl tracking-tight">Nexus</div>
-              <div className="text-xs text-teal-400 -mt-1">MedPro Staffing</div>
-            </div>
+    <div className="admin-recruiter-page-pad">
+      <div className="admin-recruiter-content-width">
+        <DetailedTabs applicantId={applicantId} />
+
+        {loadError ? (
+          <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+            {loadError}
           </div>
+        ) : null}
 
-          <nav className="flex-1 px-3 py-8 space-y-1">
-            <div className="px-4 text-xs uppercase tracking-widest text-teal-400/70 mb-4">
-              PERSONAL SETTINGS
-            </div>
-            <a href="#" className="flex items-center gap-3 px-4 py-3 text-sm hover:bg-white/10 rounded-2xl">
-              Profile
-            </a>
-            <a href="#" className="flex items-center gap-3 px-4 py-3 text-sm hover:bg-white/10 rounded-2xl">
-              Account
-            </a>
-
-            <div className="px-4 pt-8 text-xs uppercase tracking-widest text-teal-400/70 mb-4">
-              TEAM MANAGEMENT
-            </div>
-
-            {[
-              { label: "Candidates", href: "/admin_recruiter/candidates", icon: Users },
-              { label: "New", href: "/admin_recruiter/new", icon: UserPlus },
-              { label: "Pending", href: "/admin_recruiter/pending", icon: UserCheck },
-              { label: "Approved", href: "/admin_recruiter/approved", icon: UserCheck },
-              { label: "Disapproved", href: "/admin_recruiter/disapproved", icon: UserX },
-              { label: "Workers", href: "/admin_recruiter/workers", icon: Briefcase },
-              { label: "Schedule", href: "/admin_recruiter/schedule", icon: Calendar },
-            ].map((item) => {
-              const Icon = item.icon;
-              const isActive = pathname === item.href;
-              return (
-                <Link
-                  key={`${item.href}-${item.label}`}
-                  href={item.href}
-                  className={`flex items-center gap-3 px-4 py-3 text-sm rounded-2xl transition-all ${
-                    isActive ? "bg-white/10 text-white" : "text-white/80 hover:bg-white/10"
-                  }`}
-                >
-                  <Icon className="w-5 h-5" />
-                  {item.label}
-                </Link>
-              );
-            })}
-
-            <div className="px-4 pt-10">
-              <a href="#" className="flex items-center gap-3 px-4 py-3 text-sm hover:bg-white/10 rounded-2xl">
-                <Settings className="w-5 h-5" /> Settings
-              </a>
-            </div>
-          </nav>
-
-          <div className="p-6 border-t border-white/10">
-            <button className="flex w-full items-center gap-3 px-4 py-3 text-sm text-red-400 hover:bg-white/10 rounded-2xl">
-              <LogOut className="w-5 h-5" /> Sign out
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <div className="flex-1 flex flex-col overflow-hidden lg:pl-72">
-        <header className="h-16 border-b bg-white flex items-center px-6 justify-between">
-          <div className="flex items-center gap-4">
-            <button onClick={() => setSidebarOpen((v) => !v)} className="lg:hidden text-gray-600">
-              {sidebarOpen ? <X size={24} /> : <Menu size={24} />}
-            </button>
-            <div className="font-semibold text-2xl">New Applicant</div>
-          </div>
-
-          <div className="flex items-center gap-6">
-            <div className="flex items-center gap-2 bg-emerald-100 text-emerald-700 px-4 py-1 rounded-full text-sm">
-              <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-              Online
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="text-right">
-                <div className="font-medium text-sm">Sean Smith</div>
-                <div className="text-xs text-gray-600">Manager</div>
-              </div>
-              <div className="w-9 h-9 rounded-full bg-zinc-100" />
-            </div>
-          </div>
-        </header>
-
-        <div className="flex-1 overflow-auto bg-[#F4F4F4] p-8">
-          <div className="max-w-[1320px] mx-auto">
-            <DetailedTabs applicantId={applicantId} activeTab="History" />
-
-            {loadError ? (
-              <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
-                {loadError}
-              </div>
-            ) : null}
-
-            {loading ? (
-              <CandidateDetailLoader label="Loading history..." />
-            ) : (
-              <>
+        {loading ? (
+          <CandidateDetailLoader label="Loading history..." />
+        ) : (
+          <>
             <DetailedCandidateHeader
               name={candidateName}
               role={candidateRole}
-              status={applicant?.status_label}
-              profilePhotoUrl={applicant?.profile_photo_url}
+              status={applicant?.status_label ?? undefined}
+              profilePhotoUrl={applicant?.profile_photo_url ?? undefined}
             />
 
-            <div className="mx-auto w-full max-w-[1300px] rounded-md border border-[#D1D5DB] bg-white p-5">
-              <div className="flex flex-col gap-5">
-                <div className="text-sm font-semibold text-[#374151]">
-                  Actions taken <span className="font-semibold text-[#111827]">{historyCount}</span>
-                </div>
-
-                {historyCount === 0 ? (
-                  <div className="rounded-md border border-dashed border-[#D1D5DB] px-6 py-10 text-center text-sm text-[#6B7280]">
-                    No history events yet.
-                  </div>
-                ) : (
-                  <div className="space-y-0">
-                    {historyItems.map((h) => (
-                      <div
-                        key={h.id}
-                        className="flex items-center justify-between border-b border-[#E5E7EB] py-4 last:border-b-0"
-                      >
-                        <div className="flex min-w-0 items-center gap-3">
-                          <BrandedHistoryIcon className="h-[30px] w-[30px] shrink-0" />
-                          <div className="truncate text-sm text-[#4B5563]">{h.action}</div>
-                        </div>
-                        <div className="shrink-0 text-xs text-[#6B7280]">
-                          {h.ago} <span>•</span> {h.date} <span>•</span> {h.time}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
+            <div className="rounded-xl border border-[#D1D5DB] bg-white p-5 shadow-sm">
+              <div className="mb-4 text-sm font-semibold text-[#374151]">
+                Actions taken{" "}
+                <span className="font-semibold text-[#111827]">{historyItems.length}</span>
               </div>
+
+              {historyItems.length === 0 ? (
+                <div className="rounded-md border border-dashed border-[#D1D5DB] px-6 py-10 text-center text-sm text-[#6B7280]">
+                  No history events yet.
+                </div>
+              ) : (
+                <div className="space-y-0">
+                  {historyItems.map((item) => (
+                    <div
+                      key={item.id}
+                      className="flex items-center justify-between border-b border-[#E5E7EB] py-4 last:border-b-0"
+                    >
+                      <div className="flex min-w-0 items-center gap-3">
+                        <BrandedHistoryIcon className="h-[30px] w-[30px] shrink-0" />
+                        <div className="truncate text-sm text-[#4B5563]">{item.action}</div>
+                      </div>
+                      <div className="shrink-0 text-xs text-[#6B7280]">
+                        {item.ago} <span>•</span> {item.date} <span>•</span> {item.time}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
-              </>
-            )}
-          </div>
-        </div>
+          </>
+        )}
       </div>
     </div>
   );

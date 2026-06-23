@@ -14,7 +14,7 @@ import BrandedHistoryIcon from "../../../components/BrandedHistoryIcon";
 import BrandedPhoneIcon from "../../../components/BrandedPhoneIcon";
 import InterviewsPageClient from "../../../calendar/components/InterviewsPageClient";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
-import type { CommunicationThread } from "@/lib/communication/conversation";
+import type { CommunicationThread } from "@/lib/communication/conversation-client";
 import type { CandidateCommunicationRow } from "@/lib/communication/record";
 import {
   Briefcase,
@@ -312,8 +312,8 @@ export default function NewApplicantActivitiesPage() {
           </div>
         </header>
 
-        <div className="flex-1 p-8 overflow-auto">
-          <div className="max-w-[1320px] mx-auto">
+        <div className="flex-1 w-full min-w-0 overflow-auto admin-recruiter-page-pad">
+          <div className="admin-recruiter-content-width">
             <DetailedTabs applicantId={applicantId} activeTab="Activities" />
 
             {loadError ? (
@@ -334,7 +334,7 @@ export default function NewApplicantActivitiesPage() {
             />
 
             <nav
-              className="mb-4 mx-auto flex w-full max-w-[1300px] items-end justify-center gap-x-8"
+              className="mb-4 flex w-full min-w-0 admin-recruiter-content-width items-end justify-center gap-x-8"
               aria-label="Activity sections"
             >
               {(["Calls", "Inbox", "Interview"] as const).map((t) => {
@@ -355,7 +355,7 @@ export default function NewApplicantActivitiesPage() {
 
             {active === "Inbox" ? (
               <nav
-                className="mb-4 mx-auto grid w-full max-w-[1300px] grid-cols-[1fr_auto_1fr] items-end"
+                className="mb-4 grid w-full min-w-0 admin-recruiter-content-width grid-cols-[1fr_auto_1fr] items-end"
                 aria-label="Inbox channels"
               >
                 <div aria-hidden />
@@ -379,7 +379,7 @@ export default function NewApplicantActivitiesPage() {
               </nav>
             ) : null}
 
-            <div className="mx-auto w-full max-w-[1300px] overflow-hidden rounded-md border border-[#D1D5DB] bg-white">
+            <div className="w-full min-w-0 admin-recruiter-content-width overflow-hidden rounded-md border border-[#D1D5DB] bg-white">
               {active === "Inbox" ? (
                 <CandidateCommunicationHistory
                   workerId={applicantId ?? ""}

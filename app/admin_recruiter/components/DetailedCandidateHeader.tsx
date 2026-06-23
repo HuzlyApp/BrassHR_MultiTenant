@@ -33,7 +33,7 @@ export default function DetailedCandidateHeader({
 
   return (
     <div className="sticky top-0 z-20 mb-4 bg-zinc-50/95 backdrop-blur-sm py-1">
-      <div className="mx-auto flex h-[92px] w-full max-w-[1300px] items-center justify-between rounded-md border border-[#D1D5DB] bg-white px-5">
+      <div className="flex h-[92px] w-full min-w-0 items-center justify-between rounded-md border border-[#D1D5DB] bg-white px-5">
         <div className="flex items-center gap-2">
           <CandidateAvatarIcon photoUrl={profilePhotoUrl} name={displayName} />
           <div>

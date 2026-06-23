@@ -17,7 +17,7 @@ import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext
 import {
   defaultReplySubject,
   type CommunicationThread,
-} from "@/lib/communication/conversation";
+} from "@/lib/communication/conversation-client";
 import { communicationDirectionFromRow } from "@/lib/communication/direction";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import {

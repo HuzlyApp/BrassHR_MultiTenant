@@ -53,7 +53,7 @@ export default function AccountSettingsBillingPanel() {
 
   return (
     <div
-      className="mx-auto w-full max-w-[1300px] rounded-lg border border-[#D1D5DB] p-5 sm:p-6"
+      className="w-full min-w-0 admin-recruiter-content-width rounded-lg border border-[#D1D5DB] p-5 sm:p-6"
       style={{ backgroundColor: COLORS.bgPrimary }}
     >
       <div

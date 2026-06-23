@@ -234,8 +234,8 @@ export default function NewApplicantProfileResumePage() {
           </div>
         </header>
 
-        <div className="flex-1 p-8 overflow-auto">
-          <div className="max-w-[1320px] mx-auto">
+        <div className="flex-1 w-full min-w-0 overflow-auto admin-recruiter-page-pad">
+          <div className="admin-recruiter-content-width">
             <DetailedTabs applicantId={applicantId} activeTab="Profile" />
 
             {error ? (
@@ -256,7 +256,7 @@ export default function NewApplicantProfileResumePage() {
             />
             <ProfileSubTabs applicantId={applicantId} activeTab="Resume" />
 
-            <div className="mx-auto w-full max-w-[1300px]">
+            <div className="w-full min-w-0 admin-recruiter-content-width">
             <div className="hidden p-6 items-center justify-between">
               <div className="flex items-center gap-4">
                 <div className="w-12 h-12 rounded-2xl bg-white border border-zinc-200 grid place-items-center text-gray-600">

@@ -167,9 +167,9 @@ export default function NewApplicantFacilityAssignmentsDemoPage() {
           </div>
         </header>
 
-        <div className="flex-1 p-8 overflow-auto">
-          <div className="max-w-[1320px] mx-auto">
-            <div className="mx-auto w-full max-w-[1300px] min-h-[896px] rounded-lg border border-[#E5E7EB] bg-white p-5">
+        <div className="flex-1 w-full min-w-0 overflow-auto admin-recruiter-page-pad">
+          <div className="admin-recruiter-content-width">
+            <div className="w-full min-w-0 admin-recruiter-content-width min-h-[896px] rounded-lg border border-[#E5E7EB] bg-white p-5">
               {/* Top */}
               <div className="p-6 flex items-start justify-between gap-6 border-b border-[#9CC3FF]/30 bg-white/40">
                 <div className="flex items-center gap-4">

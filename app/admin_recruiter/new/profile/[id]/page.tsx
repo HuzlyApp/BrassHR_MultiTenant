@@ -422,8 +422,8 @@ export default function NewApplicantProfilePage() {
           </div>
         </header>
 
-        <div className="flex-1 p-8 overflow-auto">
-          <div className="max-w-[1320px] mx-auto">
+        <div className="flex-1 w-full min-w-0 overflow-auto admin-recruiter-page-pad">
+          <div className="admin-recruiter-content-width">
             <DetailedTabs applicantId={applicantId} activeTab="Profile" />
 
             {error ? (
@@ -454,7 +454,7 @@ export default function NewApplicantProfilePage() {
               phone={w?.phone ?? null}
             />
 
-            <div className="mx-auto w-full max-w-[1300px] overflow-x-auto rounded-lg border border-[#D1D5DB] bg-white">
+            <div className="w-full min-w-0 admin-recruiter-content-width overflow-x-auto rounded-lg border border-[#D1D5DB] bg-white">
               <div className="hidden p-6 items-start justify-between gap-6 border-b border-[#9CC3FF]/30 bg-white/40">
                 <div className="flex items-center gap-4">
                   <div className="w-12 h-12 rounded-full bg-teal-600 text-white flex items-center justify-center font-semibold text-sm">

@@ -260,3 +260,28 @@
 .admin-recruiter-shell .hover\:bg-\[\#0B7F77\]:hover {
   filter: brightness(0.95);
 }
+
+/* Full-width content — dashboard + candidate detail pages */
+.admin-recruiter-content-width {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.admin-recruiter-page-pad {
+  width: 100%;
+  min-width: 0;
+  padding: 1.25rem 1rem;
+}
+
+@media (min-width: 1000px) {
+  .admin-recruiter-page-pad {
+    padding-left: 2rem;
+    padding-right: 2rem;
+  }
+}
+
+.admin-recruiter-shell .admin-recruiter-main-wrap .flex.min-h-screen {
+  width: 100%;
+  min-width: 0;
+}

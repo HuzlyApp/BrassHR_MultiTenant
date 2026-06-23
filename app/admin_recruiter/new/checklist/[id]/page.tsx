@@ -492,8 +492,8 @@ export default function NewApplicantChecklistPage() {
           </div>
         </header>
 
-        <div className="flex-1 p-8 overflow-auto">
-          <div className="max-w-[1320px] mx-auto">
+        <div className="flex-1 w-full min-w-0 overflow-auto admin-recruiter-page-pad">
+          <div className="admin-recruiter-content-width">
             <DetailedTabs applicantId={applicantId} activeTab="Checklist" />
 
             {error ? (
@@ -519,9 +519,9 @@ export default function NewApplicantChecklistPage() {
               profilePhotoUrl={data?.worker?.profile_photo_url}
             />
 
-            <div className="mx-auto flex w-full max-w-[1300px] flex-col gap-[30px] overflow-hidden rounded-md border border-[#E5E7EB] bg-white p-5">
+            <div className="flex w-full min-w-0 admin-recruiter-content-width flex-col gap-[30px] overflow-hidden rounded-md border border-[#E5E7EB] bg-white p-5">
               <div className="hidden p-3 sm:p-4 border-b border-[#9CC3FF]/30 bg-white/40">
-                <div className="mx-auto flex h-[92px] w-full max-w-[1300px] items-center justify-between rounded-md border border-[#D1D5DB] bg-white px-5">
+                <div className="flex h-[92px] w-full min-w-0 items-center justify-between rounded-md border border-[#D1D5DB] bg-white px-5">
                   <div className="flex items-center gap-3">
                     <CandidateAvatarIcon />
                     <div>

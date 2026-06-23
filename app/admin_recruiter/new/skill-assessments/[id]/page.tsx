@@ -446,8 +446,8 @@ export default function NewApplicantSkillAssessmentsPage() {
           </div>
         </header>
 
-        <div className="flex-1 p-8 overflow-auto">
-          <div className="max-w-[1320px] mx-auto">
+        <div className="flex-1 w-full min-w-0 overflow-auto admin-recruiter-page-pad">
+          <div className="admin-recruiter-content-width">
             <DetailedTabs applicantId={applicantId} activeTab="Skill Assessments" />
 
             {loadError ? (
@@ -472,7 +472,7 @@ export default function NewApplicantSkillAssessmentsPage() {
               profilePhotoUrl={profilePhotoUrl}
             />
 
-            <div className="mx-auto w-full max-w-[1300px]">
+            <div className="w-full min-w-0 admin-recruiter-content-width">
               <div className="mb-5 flex items-center justify-between">
                 <h2 className="text-[20px] font-semibold leading-7 text-[#1F2937]">Skill Assessment</h2>
                 <div className="text-xs font-medium text-[#6B7280]">

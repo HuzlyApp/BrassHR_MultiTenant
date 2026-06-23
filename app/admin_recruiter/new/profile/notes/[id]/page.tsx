@@ -131,8 +131,8 @@ export default function NewApplicantProfileNotesPage() {
   }
 
   return (
-    <div className="min-h-screen bg-zinc-50 p-8">
-      <div className="max-w-[1320px] mx-auto">
+    <div className="min-h-screen bg-zinc-50 admin-recruiter-page-pad">
+      <div className="admin-recruiter-content-width">
         <DetailedTabs applicantId={id} activeTab="Profile" />
 
         {actionError ? (
@@ -148,7 +148,7 @@ export default function NewApplicantProfileNotesPage() {
             <DetailedCandidateHeader name={candidateName} role={candidateRole} status={candidateStatus} profilePhotoUrl={profilePhotoUrl} />
             <ProfileSubTabs applicantId={id} activeTab="Notes" />
 
-            <div className="relative mx-auto min-h-[520px] w-full max-w-[1300px] rounded-md border border-[#E5E7EB] bg-white p-5">
+            <div className="relative min-h-[520px] w-full min-w-0 admin-recruiter-content-width rounded-md border border-[#E5E7EB] bg-white p-5">
               {notes.length === 0 ? (
                 <div className="flex min-h-[480px] flex-col items-center justify-center gap-[30px] text-center">
                   <div className="flex flex-col items-center gap-3">

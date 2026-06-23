@@ -171,7 +171,7 @@ export default function ResultsClient() {
           </Link>
         </header>
 
-        <div className="flex-1 p-8 overflow-auto">
+        <div className="flex-1 w-full min-w-0 overflow-auto admin-recruiter-page-pad">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
             <div>
               <h1 className="text-3xl font-semibold">Candidates</h1>

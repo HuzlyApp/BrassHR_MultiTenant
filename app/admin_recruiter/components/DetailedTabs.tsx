@@ -11,14 +11,14 @@ const TABS = [
   "Activities",
   "Facility Assignments",
   "Agreement",
-  "History",
+  "Final Approval",
 ] as const;
 
 type TabName = (typeof TABS)[number];
 
 type DetailedTabsProps = {
   applicantId?: string;
-  activeTab: TabName;
+  activeTab?: TabName;
 };
 
 function tabHref(tab: TabName, applicantId?: string) {
@@ -40,17 +40,17 @@ function tabHref(tab: TabName, applicantId?: string) {
       return `/admin_recruiter/new/facility-assignments/${id}`;
     case "Agreement":
       return `/admin_recruiter/new/agreement/${id}`;
-    case "History":
-      return `/admin_recruiter/new/history/${id}`;
+    case "Final Approval":
+      return `/admin_recruiter/new/final-approval/${id}`;
   }
 }
 
 export default function DetailedTabs({ applicantId, activeTab }: DetailedTabsProps) {
   return (
     <nav className="mb-6 w-full" aria-label="Applicant sections">
-      <div className="mx-auto flex w-full max-w-[1300px] flex-wrap items-start justify-center gap-1">
+      <div className="flex w-full min-w-0 flex-wrap items-start justify-center gap-1">
         {TABS.map((tab) => {
-          const isActive = tab === activeTab;
+          const isActive = activeTab != null && tab === activeTab;
           return (
             <Link
               key={tab}

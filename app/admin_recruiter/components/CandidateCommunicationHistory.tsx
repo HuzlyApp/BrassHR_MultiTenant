@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Loader2, MessageSquare, RefreshCw } from "lucide-react";
 import {
   type CommunicationThread,
-} from "@/lib/communication/conversation";
+} from "@/lib/communication/conversation-client";
 import CandidateEmailInboxPanel from "./CandidateEmailInboxPanel";
 import {
   CommunicationMessageBubble,
@@ -414,7 +414,7 @@ export default function CandidateCommunicationHistory({
   }
 
   return (
-    <section className="mx-auto mb-4 mt-0 w-full max-w-[1300px] rounded-lg border border-[#D1D5DB] bg-white">
+    <section className="mb-4 mt-0 w-full min-w-0 rounded-lg border border-[#D1D5DB] bg-white">
       <div className="border-b border-[#E5E7EB] px-5 py-3">
         <h3 className="text-[16px] font-semibold text-[#111827]">Communication History</h3>
         <p className="mt-0.5 text-xs text-[#64748B]">SMS and email with this applicant.</p>
