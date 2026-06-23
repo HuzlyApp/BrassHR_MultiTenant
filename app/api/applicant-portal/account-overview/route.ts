@@ -35,6 +35,8 @@ type WorkerRow = {
   years_experience: number | null;
   experience_years: number | null;
   profile_photo: string | null;
+  employee_id: string | null;
+  employee_number: string | null;
 };
 
 type AttendanceRow = {
@@ -60,9 +62,9 @@ function formatAddress(worker: WorkerRow): string {
   return parts.join(" ") || "—";
 }
 
-function formatEmployeeId(workerId: string): string {
-  const compact = workerId.replace(/-/g, "").toUpperCase();
-  return `BRH-${compact.slice(0, 5)}`;
+function displayOrDash(value: string | null | undefined): string {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : "—";
 }
 
 function formatHireDate(iso: string | null): string {
@@ -138,6 +140,8 @@ function normalizeWorkerRow(data: Record<string, unknown>): WorkerRow {
     years_experience: typeof data.years_experience === "number" ? data.years_experience : null,
     experience_years: typeof data.experience_years === "number" ? data.experience_years : null,
     profile_photo: typeof data.profile_photo === "string" ? data.profile_photo : null,
+    employee_id: typeof data.employee_id === "string" ? data.employee_id : null,
+    employee_number: typeof data.employee_number === "string" ? data.employee_number : null,
   };
 }
 
@@ -180,7 +184,7 @@ function serializeProfile(worker: WorkerRow, profilePhotoUrl: string | null) {
       applicant_password_set_at: null,
     }),
     fullAddress: formatAddress(worker),
-    employeeId: formatEmployeeId(worker.id),
+    employeeId: displayOrDash(worker.employee_id ?? worker.employee_number),
     hireDateLabel: formatHireDate(worker.created_at),
     employmentType: "Part Time",
     department: worker.job_role?.trim() || "—",

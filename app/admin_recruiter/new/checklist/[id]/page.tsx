@@ -8,6 +8,7 @@ import DetailedTabs from "../../../components/DetailedTabs";
 import CandidateDetailLoader from "../../../components/CandidateDetailLoader";
 import CandidateAvatarIcon from "../../../components/CandidateAvatarIcon";
 import BrandedHistoryIcon from "../../../components/BrandedHistoryIcon";
+import { checklistSectionDetailHref } from "@/lib/admin/checklist-section-navigation";
 import {
   Briefcase,
   Calendar,
@@ -598,12 +599,27 @@ export default function NewApplicantChecklistPage() {
                                 {section.title}
                               </div>
                             </div>
-                            <button
-                              type="button"
-                              className="inline-flex h-8 w-[73px] shrink-0 items-center justify-center gap-1.5 rounded-[8px] border border-[color:var(--brand-primary)] px-4 py-2 text-xs font-semibold leading-4 text-[color:var(--brand-primary)]"
-                            >
-                              Details
-                            </button>
+                            {(() => {
+                              const detailsHref = applicantId
+                                ? checklistSectionDetailHref(section.id, applicantId)
+                                : null;
+                              const detailsClassName =
+                                "inline-flex h-8 w-[73px] shrink-0 items-center justify-center gap-1.5 rounded-[8px] border border-[color:var(--brand-primary)] px-4 py-2 text-xs font-semibold leading-4 text-[color:var(--brand-primary)] hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_8%,white)]";
+
+                              if (detailsHref) {
+                                return (
+                                  <Link href={detailsHref} className={detailsClassName}>
+                                    Details
+                                  </Link>
+                                );
+                              }
+
+                              return (
+                                <button type="button" disabled className={`${detailsClassName} opacity-50`}>
+                                  Details
+                                </button>
+                              );
+                            })()}
                           </div>
 
                           <div className="space-y-3 p-5 pt-4">

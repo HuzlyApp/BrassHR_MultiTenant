@@ -53,21 +53,6 @@ const DASHBOARD_CHILDREN: SidebarLink[] = [
     matchExact: true,
   },
   {
-    label: "Templates",
-    href: `${DASHBOARD_BASE}/templates`,
-    matchPrefixes: [`${DASHBOARD_BASE}/templates`],
-  },
-  {
-    label: "Library",
-    href: `${DASHBOARD_BASE}/workflowlibrary`,
-    matchPrefixes: [`${DASHBOARD_BASE}/workflowlibrary`],
-  },
-  {
-    label: "My Flows",
-    href: `${DASHBOARD_BASE}/onboarding-flows`,
-    matchPrefixes: [`${DASHBOARD_BASE}/onboarding-flows`],
-  },
-  {
     label: "Recruitment Analytics",
     href: `${DASHBOARD_OVERVIEW_BASE}/recruitment-analytics`,
     matchPrefixes: [`${DASHBOARD_OVERVIEW_BASE}/recruitment-analytics`],
@@ -137,6 +122,28 @@ const AUTOMATION_CHILDREN: SidebarLink[] = [
     href: ONBOARDING_BUILDER_ROUTE,
     matchPrefixes: [ONBOARDING_BUILDER_ROUTE],
   },
+  {
+    label: "Templates",
+    href: `${DASHBOARD_BASE}/templates`,
+    matchPrefixes: [`${DASHBOARD_BASE}/templates`],
+  },
+  {
+    label: "Library",
+    href: `${DASHBOARD_BASE}/workflowlibrary`,
+    matchPrefixes: [`${DASHBOARD_BASE}/workflowlibrary`],
+  },
+  {
+    label: "My Flows",
+    href: `${DASHBOARD_BASE}/onboarding-flows`,
+    matchPrefixes: [`${DASHBOARD_BASE}/onboarding-flows`],
+  },
+];
+
+const AUTOMATION_ACTIVE_PREFIXES = [
+  ONBOARDING_BUILDER_ROUTE,
+  `${DASHBOARD_BASE}/templates`,
+  `${DASHBOARD_BASE}/workflowlibrary`,
+  `${DASHBOARD_BASE}/onboarding-flows`,
 ];
 
 const ORGANIZATION_CHILDREN: SidebarLink[] = [
@@ -149,9 +156,6 @@ const ORGANIZATION_CHILDREN: SidebarLink[] = [
 
 const DASHBOARD_ACTIVE_PREFIXES = [
   DASHBOARD_OVERVIEW_BASE,
-  `${DASHBOARD_BASE}/templates`,
-  `${DASHBOARD_BASE}/workflowlibrary`,
-  `${DASHBOARD_BASE}/onboarding-flows`,
   `${DASHBOARD_BASE}/home`,
 ];
 
@@ -264,7 +268,7 @@ export const CLIENT_SIDEBAR_SECTIONS: SidebarSection[] = [
     label: "Automation",
     href: ONBOARDING_BUILDER_ROUTE,
     iconType: ICON.automation,
-    matchPrefixes: [ONBOARDING_BUILDER_ROUTE],
+    matchPrefixes: AUTOMATION_ACTIVE_PREFIXES,
     children: AUTOMATION_CHILDREN,
   },
   {
@@ -321,7 +325,7 @@ export const GOD_ADMIN_SIDEBAR_SECTIONS: SidebarSection[] = [
     label: "Automation",
     href: ONBOARDING_BUILDER_ROUTE,
     iconType: ICON.automation,
-    matchPrefixes: [ONBOARDING_BUILDER_ROUTE],
+    matchPrefixes: AUTOMATION_ACTIVE_PREFIXES,
     children: AUTOMATION_CHILDREN,
   },
   {
