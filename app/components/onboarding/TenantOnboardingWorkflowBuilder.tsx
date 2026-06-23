@@ -18,10 +18,13 @@ import {
   hydrateWorkflowStepLibrary,
 } from "@/app/components/onboarding/workflow-step-library";
 import type { WorkflowStepLibraryCategory } from "@/lib/onboarding/workflow-step-library-data";
-import { mapConfigToDrafts } from "@/lib/onboarding/config-to-drafts";
 import {
-  hydrateWorkflowFromStorage,
-} from "@/lib/onboarding/drafts-to-workflow";
+  hydrateCanvasFromBuilderDraft,
+  hydrateDraftCanvas,
+  hydratePublishedCanvas,
+  selectBuilderCanvas,
+} from "@/lib/onboarding/select-builder-canvas";
+import { hydrateWorkflowFromStorage } from "@/lib/onboarding/drafts-to-workflow";
 import type { TenantOnboardingConfig } from "@/lib/onboarding/types";
 import { safeFetchJson } from "@/lib/api/safe-fetch-json";
 import { applyApplicantConfigFilters } from "@/lib/onboarding/filter-applicant-steps";
@@ -99,32 +102,6 @@ function logBuilderDiagnostic(message: string, details?: Record<string, unknown>
   }
 }
 
-function hydratePublishedCanvas(
-  payload: BuilderPayload,
-  stepLibrary: StepCategory[]
-): { nodes: Node<WorkflowNodeData>[]; edges: Edge[] } {
-  if (!payload.config) return { nodes: [], edges: [] };
-  const drafts = mapConfigToDrafts(payload.config);
-  const stepLookup = buildWorkflowStepLookup(stepLibrary);
-  // Builder opens on the live published workflow applicants see.
-  return hydrateWorkflowFromStorage(null, drafts, stepLookup);
-}
-
-function hydrateDraftCanvas(
-  payload: BuilderPayload,
-  stepLibrary: StepCategory[]
-): { nodes: Node<WorkflowNodeData>[]; edges: Edge[] } {
-  if (!payload.config) return { nodes: [], edges: [] };
-  const drafts = mapConfigToDrafts(payload.config);
-  const stepLookup = buildWorkflowStepLookup(stepLibrary);
-  const draftForHydrate =
-    isSerializableWorkflowState(payload.builderDraft) &&
-    payload.builderDraft.nodes.length > 0
-      ? payload.builderDraft
-      : null;
-  return hydrateWorkflowFromStorage(draftForHydrate, drafts, stepLookup);
-}
-
 async function loadBuilderData(): Promise<BuilderQueryData> {
   const headers = await staffAuthHeaders();
   const fetchOptions: RequestInit = { headers, credentials: "include" };
@@ -160,13 +137,18 @@ async function loadBuilderData(): Promise<BuilderQueryData> {
     throw new Error("Onboarding configuration is missing for this tenant.");
   }
 
-  const { nodes, edges } = hydratePublishedCanvas(payload, stepLibrary);
+  const canvas = selectBuilderCanvas(payload, stepLibrary);
+  logBuilderDiagnostic("hydrated builder canvas", {
+    source: canvas.source,
+    publishStatus: payload.publishStatus,
+    nodeCount: canvas.nodes.length,
+  });
 
   return {
     payload,
     stepLibrary,
-    initialNodes: nodes,
-    initialEdges: edges,
+    initialNodes: canvas.nodes,
+    initialEdges: canvas.edges,
   };
 }
 
@@ -304,7 +286,7 @@ export default function TenantOnboardingWorkflowBuilder({
       initializedTenantRef.current = nextTenantId;
       lastAppliedPublishedVersionRef.current = publishedVersion;
       skipNextChange.current = true;
-      setPublishStatus("published");
+      setPublishStatus(payload.publishStatus ?? "published");
       setUpdatedAt(payload.builderUpdatedAt ?? null);
     }
   }, [activeFlowKey, data, isFetching, isLoading, templateIdFromUrl]);
@@ -587,13 +569,16 @@ export default function TenantOnboardingWorkflowBuilder({
         setFlowTitle(savedName);
 
         const serializedDraft = builderDraft;
+        const library = data?.stepLibrary ?? stepLibrary;
         const publishedCanvas = hydratePublishedCanvas(
           {
             ...data?.payload,
             config: payload.config ?? data?.payload.config,
-          } as BuilderPayload,
-          data?.stepLibrary ?? stepLibrary
+            publishStatus: "published",
+          },
+          library
         );
+        const draftCanvas = hydrateCanvasFromBuilderDraft(serializedDraft, library);
 
         if (options.publish) {
           setPublishStatus("published");
@@ -615,8 +600,8 @@ export default function TenantOnboardingWorkflowBuilder({
           current
             ? {
                 ...current,
-                initialNodes: publishedCanvas.nodes,
-                initialEdges: publishedCanvas.edges,
+                initialNodes: options.publish ? publishedCanvas.nodes : draftCanvas.nodes,
+                initialEdges: options.publish ? publishedCanvas.edges : draftCanvas.edges,
                 payload: {
                   ...current.payload,
                   config: payload.config ?? current.payload.config,

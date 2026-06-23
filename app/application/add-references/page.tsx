@@ -3,12 +3,17 @@
 import { APPLICATION_ROUTES } from "@/lib/onboarding/application-routes"
 import { applicationPath } from "@/lib/tenant/with-tenant"
 import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import OnboardingLayout from "@/app/components/OnboardingLayout"
 import OnboardingStepper from "@/app/components/OnboardingStepper"
+import OnboardingLoader from "@/app/components/OnboardingLoader"
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext"
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding"
 import { useOnboardingStepNav } from "@/lib/onboarding/use-onboarding-step-nav"
+import { resolveLegacyAddReferencesTarget } from "@/lib/onboarding/legacy-add-references-redirect"
+import { ensureApplicantWorker } from "@/lib/onboarding/ensure-applicant-worker"
+import { isDraftPreviewApplicantId, isOnboardingDraftPreview } from "@/lib/onboarding/is-draft-preview"
+import { resolveClientOnboardingTenantSlug } from "@/lib/tenant/client-onboarding-slug"
 import { formatPhoneNumber, normalizePhoneInput } from "@/lib/phone"
 import AutosaveStatus from "@/app/components/AutosaveStatus"
 import {
@@ -46,12 +51,36 @@ function loadRefsFromStorage(): RefRow[] {
 export default function ReferencesPage() {
   const branding = useTenantBranding()
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const search = searchParams.toString() ? `?${searchParams.toString()}` : ""
   const nav = useOnboardingStepNav()
+  const [redirecting, setRedirecting] = useState(false)
 
   const [refs, setRefs] = useState<RefRow[]>(() => loadRefsFromStorage())
   const [error, setError] = useState("")
   const [saving, setSaving] = useState(false)
   const [autosaveState, setAutosaveState] = useState<"idle" | "saving" | "saved">("idle")
+
+  useEffect(() => {
+    if (nav.configLoading) return
+
+    const redirectTarget = resolveLegacyAddReferencesTarget(
+      nav.config,
+      nav.enabledSteps ?? [],
+      search,
+      nav.slug
+    )
+
+    if (redirectTarget) {
+      setRedirecting(true)
+      nav.replace(redirectTarget)
+    }
+  }, [nav.configLoading, nav.config, nav.enabledSteps, nav.slug, nav.replace, search])
+
+  useEffect(() => {
+    if (nav.configLoading || isOnboardingDraftPreview(search)) return
+    void ensureApplicantWorker()
+  }, [nav.configLoading, search])
 
   useEffect(() => {
     const t = window.setTimeout(() => {
@@ -107,41 +136,71 @@ export default function ReferencesPage() {
       return
     }
 
-    const res = await fetch("/api/onboarding/worker-references", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        applicantId,
-        references: completeRefs.map((r) => ({
-          first: r.first,
-          last: r.last,
-          phone: r.phone,
-          email: r.email,
-        })),
-      }),
-    })
-    let payload: { error?: string; hint?: string } = {}
-    try {
-      payload = (await res.json()) as { error?: string; hint?: string }
-    } catch {
-      /* ignore */
+    const isPreview =
+      isOnboardingDraftPreview(search) || isDraftPreviewApplicantId(applicantId)
+
+    if (!isPreview) {
+      const ensured = await ensureApplicantWorker()
+      if (!ensured.ok) {
+        setError(ensured.error)
+        setSaving(false)
+        return
+      }
     }
-    if (!res.ok) {
-      setError(
-        payload.hint
-          ? `${payload.error || "Save failed"}. ${payload.hint}`
-          : payload.error || `Save failed (${res.status})`,
-      )
-      setSaving(false)
-      return
+
+    const tenantSlug =
+      typeof window !== "undefined"
+        ? resolveClientOnboardingTenantSlug(window.location.search)
+        : null
+
+    const res = isPreview
+      ? { ok: true }
+      : await fetch("/api/onboarding/worker-references", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            applicantId,
+            tenantSlug,
+            references: completeRefs.map((r) => ({
+              first: r.first,
+              last: r.last,
+              phone: r.phone,
+              email: r.email,
+            })),
+          }),
+        })
+    let payload: { error?: string; hint?: string } = {}
+    if (!isPreview) {
+      try {
+        payload = (await res.json()) as { error?: string; hint?: string }
+      } catch {
+        /* ignore */
+      }
+      if (!res.ok) {
+        setError(
+          payload.hint
+            ? `${payload.error || "Save failed"}. ${payload.hint}`
+            : payload.error || `Save failed (${res.status})`,
+        )
+        setSaving(false)
+        return
+      }
     }
     // router.push(applicationPath(APPLICATION_ROUTES.applicationSummary))
     localStorage.setItem("referenceData", JSON.stringify(completeRefs))
     localStorage.removeItem("referenceDataDraft")
     localStorage.setItem("referencesCount", String(completeRefs.length))
     localStorage.setItem("step5Completed", "false")
-    router.push(applicationPath(APPLICATION_ROUTES.referenceReview))
+    if (nav.nextRoute) {
+      nav.push(nav.nextRoute)
+    } else {
+      router.push(applicationPath(APPLICATION_ROUTES.referenceReview))
+    }
     setSaving(false)
+  }
+
+  if (nav.configLoading || redirecting) {
+    return <OnboardingLoader label="Loading your onboarding step…" />
   }
 
   return (

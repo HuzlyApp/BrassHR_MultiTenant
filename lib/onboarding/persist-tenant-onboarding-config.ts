@@ -164,10 +164,20 @@ export async function persistTenantOnboardingConfig(
     })
   );
 
+  const { data: tenantRow, error: versionReadErr } = await supabase
+    .from("tenants")
+    .select("onboarding_config_version")
+    .eq("id", tenantId)
+    .maybeSingle();
+
+  if (versionReadErr) throw versionReadErr;
+
+  const nextVersion = Math.max(1, Number(tenantRow?.onboarding_config_version ?? 0) + 1);
+
   const { error: tenantErr } = await supabase
     .from("tenants")
     .update({
-      onboarding_config_version: 1,
+      onboarding_config_version: nextVersion,
       updated_at: now,
     })
     .eq("id", tenantId);

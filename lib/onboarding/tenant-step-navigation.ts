@@ -43,9 +43,9 @@ export function resolveApplicantEnabledSteps(
   config: TenantOnboardingConfig | null | undefined,
   loading: boolean
 ): TenantOnboardingStep[] | null {
+  if (loading) return null;
   const fromTenant = getEnabledTenantSteps(config);
   if (fromTenant.length > 0) return fromTenant;
-  if (loading) return null;
   if (config) return [];
   return getLegacyFallbackSteps();
 }

@@ -20,6 +20,7 @@ export const WORKFLOW_STEP_APPLICANT_ROUTE: Record<string, string> = {
   "policy-acknowledgment": APPLICATION_ROUTES.authorizationsDocuments,
   "equipment-badge-acknowledgment": APPLICATION_ROUTES.authorizationsDocuments,
   "ssn-identity-verification": APPLICATION_ROUTES.identityVerification,
+  "background-check": APPLICATION_ROUTES.customStep("background_check"),
 };
 
 const CANONICAL_STEP_KEY_ROUTES: Record<string, string> = {

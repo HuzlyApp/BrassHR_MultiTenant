@@ -2,7 +2,10 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getApplicantSupabaseClient } from "@/lib/supabase-applicant-browser";
-import { isOnboardingDraftPreview } from "@/lib/onboarding/is-draft-preview";
+import {
+  DRAFT_PREVIEW_APPLICANT_ID,
+  isOnboardingDraftPreview,
+} from "@/lib/onboarding/is-draft-preview";
 
 export type ApplicantBootstrapResult = { applicantId: string } | { error: string };
 
@@ -16,7 +19,7 @@ export async function ensureApplicantMatchesAuthSession(
   void _legacySupabase;
 
   if (isOnboardingDraftPreview()) {
-    return { applicantId: "draft-preview" };
+    return { applicantId: DRAFT_PREVIEW_APPLICANT_ID };
   }
 
   if (typeof window !== "undefined") {

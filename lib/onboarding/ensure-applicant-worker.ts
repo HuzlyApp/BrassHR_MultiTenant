@@ -1,5 +1,6 @@
 "use client"
 
+import { isDraftPreviewApplicantId } from "@/lib/onboarding/is-draft-preview"
 import { resolveClientOnboardingTenantSlug } from "@/lib/tenant/client-onboarding-slug"
 
 export type EnsureApplicantWorkerResult =
@@ -15,6 +16,9 @@ export async function ensureApplicantWorker(): Promise<EnsureApplicantWorkerResu
   const applicantId = localStorage.getItem("applicantId")?.trim() || ""
   if (!applicantId) {
     return { ok: false, error: "Applicant session not found. Refresh and try again." }
+  }
+  if (isDraftPreviewApplicantId(applicantId)) {
+    return { ok: true }
   }
 
   const tenantSlug = resolveClientOnboardingTenantSlug(window.location.search)

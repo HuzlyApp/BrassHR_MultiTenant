@@ -31,6 +31,22 @@ export async function publishOnboardingFromWorkflow(
   const existingDrafts = existingConfig ? configToDrafts(existingConfig) : [];
   const stepsToPersist = workflowStateToStepDrafts(builderDraft, existingDrafts);
 
+  if (!stepsToPersist.length) {
+    throw new Error("Cannot publish an empty workflow. Add at least one step.");
+  }
+
+  console.info("[publishOnboardingFromWorkflow] persisting workflow", {
+    tenantId,
+    publishStatus: "published",
+    stepCount: stepsToPersist.length,
+    steps: stepsToPersist.map((s) => ({
+      step_key: s.step_key,
+      step_type: s.step_type,
+      workflow_step_id: s.metadata?.workflow_step_id,
+      sort_order: s.sort_order,
+    })),
+  });
+
   await saveOnboardingBuilderDraft(supabase, tenantId, {
     flowName,
     builderDraft,
