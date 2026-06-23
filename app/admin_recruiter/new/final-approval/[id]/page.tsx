@@ -79,9 +79,9 @@ export default function NewApplicantFinalApprovalPage() {
   const [profile, setProfile] = useState<ProfilePayload | null>(null);
   const [checklist, setChecklist] = useState<ChecklistPayload | null>(null);
 
-  const loadData = useCallback(async () => {
+  const loadData = useCallback(async (silent = false) => {
     if (!applicantId) return;
-    setLoading(true);
+    if (!silent) setLoading(true);
     setLoadError(null);
     try {
       const [profileRes, checklistRes] = await Promise.all([
@@ -111,7 +111,7 @@ export default function NewApplicantFinalApprovalPage() {
       setProfile(null);
       setChecklist(null);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [applicantId]);
 
@@ -135,13 +135,13 @@ export default function NewApplicantFinalApprovalPage() {
           </div>
         ) : null}
 
-        {loading ? (
+        {loading && !profile ? (
           <CandidateDetailLoader label="Loading final approval..." />
         ) : (
           <FinalApprovalPanel
             workerId={applicantId ?? ""}
             data={finalApprovalData}
-            onRefresh={loadData}
+            onRefresh={() => void loadData(true)}
           />
         )}
       </div>

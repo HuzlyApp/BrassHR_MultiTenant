@@ -26,6 +26,7 @@ import {
   Users,
 } from "lucide-react";
 import toast from "react-hot-toast";
+import SuccessModal from "@/app/components/SuccessModal";
 import CandidateCommunicationDialog from "@/app/admin_recruiter/components/CandidateCommunicationDialog";
 import type {
   FinalApprovalMetric,
@@ -44,31 +45,27 @@ const FIGMA_CARD =
 
 const METRIC_THEME: Record<
   FinalApprovalMetricTheme,
-  { bg: string; text: string; accent: string; icon: React.ReactNode }
+  { iconBg: string; Icon: typeof Briefcase; iconClass: string }
 > = {
   green: {
-    bg: "bg-emerald-50",
-    text: "text-emerald-700",
-    accent: "text-emerald-600",
-    icon: <Briefcase className="h-5 w-5 text-emerald-600" />,
+    iconBg: "bg-emerald-100",
+    Icon: Briefcase,
+    iconClass: "text-emerald-600",
   },
   orange: {
-    bg: "bg-orange-50",
-    text: "text-orange-700",
-    accent: "text-orange-600",
-    icon: <Lightbulb className="h-5 w-5 text-orange-600" />,
+    iconBg: "bg-orange-100",
+    Icon: Lightbulb,
+    iconClass: "text-orange-600",
   },
   blue: {
-    bg: "bg-blue-50",
-    text: "text-blue-700",
-    accent: "text-blue-600",
-    icon: <FileText className="h-5 w-5 text-blue-600" />,
+    iconBg: "bg-blue-100",
+    Icon: FileText,
+    iconClass: "text-blue-600",
   },
   yellow: {
-    bg: "bg-amber-50",
-    text: "text-amber-700",
-    accent: "text-amber-600",
-    icon: <Users className="h-5 w-5 text-amber-600" />,
+    iconBg: "bg-amber-100",
+    Icon: Users,
+    iconClass: "text-amber-600",
   },
 };
 
@@ -126,15 +123,19 @@ function ScoreRing({ percent }: { percent: number }) {
 
 function MetricCard({ metric }: { metric: FinalApprovalMetric }) {
   const theme = METRIC_THEME[metric.theme];
+  const Icon = theme.Icon;
+
   return (
-    <div className={`flex min-h-[88px] flex-1 flex-col justify-between rounded-md px-3 py-3 ${theme.bg}`}>
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-xs font-medium text-[#6B7280]">{metric.label}</span>
-        {theme.icon}
+    <div className="flex h-[100px] min-w-0 flex-1 basis-0 flex-row flex-nowrap items-center gap-3 rounded-[20px] bg-[#F8FAFC] px-3 py-2">
+      <div
+        className={`flex h-[40px] w-[40px] shrink-0 items-center justify-center self-center rounded-lg ${theme.iconBg}`}
+      >
+        <Icon className={`h-5 w-5 shrink-0 ${theme.iconClass}`} strokeWidth={2} aria-hidden />
       </div>
-      <div>
-        <div className={`text-[26px] font-bold leading-none ${theme.accent}`}>{metric.percent}%</div>
-        <div className={`mt-1 text-sm font-semibold ${theme.text}`}>{metric.rating}</div>
+      <div className="flex min-w-0 flex-1 flex-col justify-center">
+        <p className="truncate text-xs font-medium leading-4 text-[#374151]">{metric.label}</p>
+        <p className="mt-1 text-[26px] font-bold leading-none text-black">{metric.percent}%</p>
+        <p className="mt-1 truncate text-sm font-semibold leading-5 text-[#374151]">{metric.rating}</p>
       </div>
     </div>
   );
@@ -195,6 +196,7 @@ export default function FinalApprovalPanel({ workerId, data, onRefresh }: Props)
   const [requestingChanges, setRequestingChanges] = useState(false);
   const [rejecting, setRejecting] = useState(false);
   const [communicationOpen, setCommunicationOpen] = useState(false);
+  const [showApprovalSuccess, setShowApprovalSuccess] = useState(false);
 
   async function patchStatus(status: "approved" | "pending" | "disapproved") {
     const res = await fetch("/api/admin/workers/status", {
@@ -217,15 +219,9 @@ export default function FinalApprovalPanel({ workerId, data, onRefresh }: Props)
     }
     setApproving(true);
     try {
-      const json = await patchStatus("approved");
-      if (json.approvalEmail?.sent) {
-        toast.success("Approved. Email sent to candidate.");
-      } else {
-        toast.success("Candidate approved and moved to onboarding.");
-      }
+      await patchStatus("approved");
+      setShowApprovalSuccess(true);
       onRefresh?.();
-      router.push("/admin_recruiter/approved");
-      router.refresh();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not approve candidate.");
     } finally {
@@ -458,7 +454,7 @@ export default function FinalApprovalPanel({ workerId, data, onRefresh }: Props)
                 icon={<Lightbulb className="h-5 w-5 text-amber-500" />}
               />
               <div className="space-y-4 px-5 py-4">
-                <div className="flex flex-col gap-3 sm:flex-row">
+                <div className="flex w-full flex-row items-stretch gap-3">
                   {data.metrics.map((metric) => (
                     <MetricCard key={metric.id} metric={metric} />
                   ))}
@@ -694,6 +690,30 @@ export default function FinalApprovalPanel({ workerId, data, onRefresh }: Props)
         phone={data.phone}
         initialChannel="email"
         onSent={() => setCommunicationOpen(false)}
+      />
+
+      <SuccessModal
+        open={showApprovalSuccess}
+        onClose={() => {
+          setShowApprovalSuccess(false);
+          onRefresh?.();
+        }}
+        size="large"
+        title="Success!"
+        message={
+          <>
+            <p>Applicant onboarding has been approved.</p>
+            <p>
+              <span className="font-semibold text-[#111827]">{data.candidateName}</span> will receive
+              an email for onboarding.
+            </p>
+          </>
+        }
+        actionLabel="Go to Onboarding"
+        onAction={() => {
+          router.push("/admin_recruiter/approved");
+          router.refresh();
+        }}
       />
     </>
   );
