@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
 
-const TABS = [
+const BASE_TABS = [
   "Checklist",
   "Profile",
   "Attachments",
@@ -14,7 +15,10 @@ const TABS = [
   "Final Approval",
 ] as const;
 
-type TabName = (typeof TABS)[number];
+const ONBOARD_TAB = "Onboard Applicant" as const;
+
+type BaseTabName = (typeof BASE_TABS)[number];
+type TabName = BaseTabName | typeof ONBOARD_TAB;
 
 type DetailedTabsProps = {
   applicantId?: string;
@@ -42,14 +46,48 @@ function tabHref(tab: TabName, applicantId?: string) {
       return `/admin_recruiter/new/agreement/${id}`;
     case "Final Approval":
       return `/admin_recruiter/new/final-approval/${id}`;
+    case "Onboard Applicant":
+      return `/admin_recruiter/new/onboard-applicant/${id}`;
   }
 }
 
 export default function DetailedTabs({ applicantId, activeTab }: DetailedTabsProps) {
+  const [isApproved, setIsApproved] = useState(false);
+
+  useEffect(() => {
+    if (!applicantId) {
+      setIsApproved(false);
+      return;
+    }
+
+    let cancelled = false;
+    void fetch(`/api/admin/worker-profile?workerId=${encodeURIComponent(applicantId)}`, {
+      cache: "no-store",
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((payload: { worker?: { status?: string | null } } | null) => {
+        if (cancelled) return;
+        const status = payload?.worker?.status?.toString().trim().toLowerCase() ?? "";
+        setIsApproved(status === "approved");
+      })
+      .catch(() => {
+        if (!cancelled) setIsApproved(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [applicantId]);
+
+  const tabs = useMemo<TabName[]>(
+    () => (isApproved ? [...BASE_TABS, ONBOARD_TAB] : [...BASE_TABS]),
+    [isApproved]
+  );
+
   return (
     <nav className="mb-6 w-full" aria-label="Applicant sections">
       <div className="flex w-full min-w-0 flex-wrap items-start justify-center gap-1">
-        {TABS.map((tab) => {
+        {tabs.map((tab) => {
           const isActive = activeTab != null && tab === activeTab;
           return (
             <Link

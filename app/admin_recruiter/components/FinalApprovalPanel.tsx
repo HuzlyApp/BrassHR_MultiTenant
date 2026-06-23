@@ -711,7 +711,7 @@ export default function FinalApprovalPanel({ workerId, data, onRefresh }: Props)
         }
         actionLabel="Go to Onboarding"
         onAction={() => {
-          router.push("/admin_recruiter/approved");
+          router.push(`/admin_recruiter/new/onboard-applicant/${workerId}`);
           router.refresh();
         }}
       />
