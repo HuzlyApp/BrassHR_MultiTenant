@@ -102,7 +102,11 @@ export async function getRecruiterTemplateDetail(
 
   const row = mapTemplateRow(data as Record<string, unknown>);
   if (row.tenant_id !== tenantId) {
-    throw new RecruiterTemplateError("TENANT_MISMATCH", "Template not found", 404);
+    throw new RecruiterTemplateError(
+      "TENANT_MISMATCH",
+      "This template belongs to another company. Switch tenants using the header switcher, then open the template again.",
+      404
+    );
   }
 
   const [roles, fields] = await Promise.all([
@@ -357,6 +361,16 @@ async function ensureFirmaTemplateDocumentUrlFresh(
   return getRecruiterTemplateDetail(supabase, tenantId, templateId);
 }
 
+function isMissingFirmaTemplateError(err: unknown): boolean {
+  if (!(err instanceof FirmaError)) return false;
+  if (err.code === "NOT_FOUND") return true;
+  const message = err.message.trim().toLowerCase();
+  return (
+    message.includes("template not found") ||
+    message.includes("does not belong to this workspace")
+  );
+}
+
 async function ensureFirmaTemplateForBuilder(
   supabase: SupabaseClient,
   tenantId: string,
@@ -456,7 +470,10 @@ async function ensureFirmaTemplateForBuilder(
               { forceRefresh: true }
             );
           } catch (err) {
-            if (err instanceof FirmaError && err.code === "VALIDATION_ERROR") {
+            if (
+              err instanceof FirmaError &&
+              (err.code === "VALIDATION_ERROR" || isMissingFirmaTemplateError(err))
+            ) {
               return recreateFirmaTemplate(template.firma_template_id);
             }
             throw err;
@@ -483,7 +500,10 @@ async function ensureFirmaTemplateForBuilder(
               .eq("tenant_id", tenantId);
             return getRecruiterTemplateDetail(supabase, tenantId, templateId);
           } catch (err) {
-            if (err instanceof FirmaError && err.code === "VALIDATION_ERROR") {
+            if (
+              err instanceof FirmaError &&
+              (err.code === "VALIDATION_ERROR" || isMissingFirmaTemplateError(err))
+            ) {
               return recreateFirmaTemplate(template.firma_template_id);
             }
             throw err;
@@ -499,7 +519,7 @@ async function ensureFirmaTemplateForBuilder(
           template.firma_template_id
         );
       } catch (err) {
-        if (err instanceof FirmaError && err.code === "NOT_FOUND") {
+        if (isMissingFirmaTemplateError(err)) {
           return createAndPersistFirmaTemplate();
         }
         throw err;
@@ -523,19 +543,10 @@ export async function createRecruiterTemplateBuilderSession(
   userId: string,
   options: { forceRecreate?: boolean; refreshDocument?: boolean } = {}
 ): Promise<RecruiterTemplateBuilderSession> {
-  const template = await ensureFirmaTemplateForBuilder(
-    supabase,
-    tenantId,
-    templateId,
-    userId,
-    options
-  );
-  const firmaTemplateId = template.firma_template_id;
-  if (!firmaTemplateId) {
-    throw new RecruiterTemplateError("FIRMA_ERROR", "Firma template was not created", 502);
-  }
-
-  try {
+  async function openSession(
+    template: RecruiterTemplateDetail,
+    firmaTemplateId: string
+  ): Promise<RecruiterTemplateBuilderSession> {
     const editorAppUrl = getFirmaEditorAppUrl();
     await updateFirmaTemplate(firmaTemplateId, {
       name: template.name,
@@ -565,7 +576,35 @@ export async function createRecruiterTemplateBuilderSession(
       embed_script_url: getFirmaEmbedScriptUrl(),
       expires_at: jwt.expires_at,
     };
+  }
+
+  let template = await ensureFirmaTemplateForBuilder(
+    supabase,
+    tenantId,
+    templateId,
+    userId,
+    options
+  );
+  let firmaTemplateId = template.firma_template_id;
+  if (!firmaTemplateId) {
+    throw new RecruiterTemplateError("FIRMA_ERROR", "Firma template was not created", 502);
+  }
+
+  try {
+    return await openSession(template, firmaTemplateId);
   } catch (err) {
+    if (!options.forceRecreate && isMissingFirmaTemplateError(err)) {
+      template = await ensureFirmaTemplateForBuilder(supabase, tenantId, templateId, userId, {
+        ...options,
+        forceRecreate: true,
+      });
+      firmaTemplateId = template.firma_template_id;
+      if (!firmaTemplateId) {
+        throw new RecruiterTemplateError("FIRMA_ERROR", "Firma template was not created", 502);
+      }
+      return await openSession(template, firmaTemplateId);
+    }
+
     if (err instanceof FirmaError) {
       throw new RecruiterTemplateError("FIRMA_ERROR", err.message, err.status, err.details);
     }

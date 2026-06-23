@@ -57,8 +57,24 @@ export const FIRMA_SIGNING_STATUSES = [
 
 export type FirmaSigningStatus = (typeof FIRMA_SIGNING_STATUSES)[number];
 
-export function normalizeFirmaSigningStatus(value: string | null | undefined): FirmaSigningStatus {
-  const status = (value ?? "").trim().toLowerCase();
+export function normalizeFirmaSigningStatus(value: unknown): FirmaSigningStatus {
+  let status = "";
+  if (typeof value === "string") {
+    status = value.trim().toLowerCase();
+  } else if (typeof value === "number" && Number.isFinite(value)) {
+    status = String(value).trim().toLowerCase();
+  } else if (value && typeof value === "object") {
+    const nested =
+      "status" in value
+        ? (value as { status?: unknown }).status
+        : "name" in value
+          ? (value as { name?: unknown }).name
+          : null;
+    if (nested != null && nested !== value) {
+      return normalizeFirmaSigningStatus(nested);
+    }
+  }
+
   if (status === "complete") return "completed";
   if ((FIRMA_SIGNING_STATUSES as readonly string[]).includes(status)) {
     return status as FirmaSigningStatus;
@@ -66,9 +82,7 @@ export function normalizeFirmaSigningStatus(value: string | null | undefined): F
   return "draft";
 }
 
-export function mapFirmaStatusToOnboardingStatus(
-  firmaStatus: string | null | undefined
-): OnboardingStepStatus {
+export function mapFirmaStatusToOnboardingStatus(firmaStatus: unknown): OnboardingStepStatus {
   const status = normalizeFirmaSigningStatus(firmaStatus);
   if (status === "completed" || status === "signed") return "completed";
   if (status === "sent" || status === "viewed") return "in_progress";
@@ -76,7 +90,7 @@ export function mapFirmaStatusToOnboardingStatus(
   return "pending";
 }
 
-export function isFirmaSigningComplete(firmaStatus: string | null | undefined): boolean {
+export function isFirmaSigningComplete(firmaStatus: unknown): boolean {
   const status = normalizeFirmaSigningStatus(firmaStatus);
   return status === "completed" || status === "signed";
 }

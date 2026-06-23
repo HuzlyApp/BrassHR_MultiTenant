@@ -10,7 +10,12 @@ import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
 import { useOnboardingStepNav } from "@/lib/onboarding/use-onboarding-step-nav";
 import { ensureApplicantWorker } from "@/lib/onboarding/ensure-applicant-worker";
-import { isDraftPreviewApplicantId, isOnboardingDraftPreview } from "@/lib/onboarding/is-draft-preview";
+import {
+  DRAFT_PREVIEW_APPLICANT_ID,
+  isDraftPreviewApplicantId,
+  isOnboardingDraftPreview,
+} from "@/lib/onboarding/is-draft-preview";
+import { stepUsesFirmaSigning } from "@/lib/onboarding/firma-step-settings";
 import { resolveClientOnboardingTenantSlug } from "@/lib/tenant/client-onboarding-slug";
 
 type FirmaSessionResponse = {
@@ -30,6 +35,35 @@ function getApplicantId(): string | null {
   return localStorage.getItem("applicantId")?.trim() || null;
 }
 
+function resolveApplicantId(search: string): string | null {
+  const stored = getApplicantId();
+  if (stored) return stored;
+  if (isOnboardingDraftPreview(search)) return DRAFT_PREVIEW_APPLICANT_ID;
+  return null;
+}
+
+function resolveFirmaStepContext(
+  searchParams: URLSearchParams,
+  nav: ReturnType<typeof useOnboardingStepNav>
+): { stepKey: string; stepId: string } {
+  const urlStepKey = searchParams.get("stepKey")?.trim() ?? "";
+  const urlStepId = searchParams.get("stepId")?.trim() ?? "";
+
+  const stepKey =
+    urlStepKey ||
+    nav.currentStep?.step_key ||
+    nav.enabledSteps?.find((step) => stepUsesFirmaSigning(step))?.step_key ||
+    "";
+
+  const matchedStep =
+    nav.enabledSteps?.find((step) => step.id === urlStepId || step.step_key === stepKey) ??
+    nav.currentStep;
+
+  const stepId = urlStepId || matchedStep?.id || "";
+
+  return { stepKey, stepId };
+}
+
 export default function FirmaSignPage() {
   const branding = useTenantBranding();
   const searchParams = useSearchParams();
@@ -44,8 +78,7 @@ export default function FirmaSignPage() {
   const [firmaStatus, setFirmaStatus] = useState<string>("draft");
   const [continuing, setContinuing] = useState(false);
 
-  const stepKey = nav.currentStep?.step_key ?? searchParams.get("stepKey")?.trim() ?? "";
-  const stepId = nav.currentStep?.id ?? searchParams.get("stepId")?.trim() ?? "";
+  const { stepKey, stepId } = resolveFirmaStepContext(searchParams, nav);
 
   useEffect(() => {
     if (nav.configLoading) return;
@@ -57,9 +90,13 @@ export default function FirmaSignPage() {
       setError(null);
       setErrorCode(null);
 
-      const applicantId = getApplicantId();
+      const applicantId = resolveApplicantId(search);
       if (!applicantId || !stepKey) {
-        setError("Missing applicant or onboarding step context.");
+        setError(
+          !applicantId
+            ? "Missing applicant session. Sign in or start onboarding from the first step."
+            : "Missing onboarding step. Open this page from your onboarding checklist or add ?stepKey= to the URL."
+        );
         setLoading(false);
         return;
       }
@@ -122,10 +159,10 @@ export default function FirmaSignPage() {
     return () => {
       cancelled = true;
     };
-  }, [nav.configLoading, nav.slug, search, searchParams, stepKey, stepId]);
+  }, [nav.configLoading, nav.slug, nav.enabledSteps, nav.currentStep, search, searchParams, stepKey, stepId]);
 
   useEffect(() => {
-    const applicantId = getApplicantId();
+    const applicantId = resolveApplicantId(search);
     if (!applicantId || !stepKey || !signingRequestId || loading || error) return;
 
     const isPreview =
@@ -159,7 +196,7 @@ export default function FirmaSignPage() {
   }, [stepKey, stepId, signingRequestId, loading, error, firmaStatus, nav.slug, search, searchParams]);
 
   async function handleContinue() {
-    const applicantId = getApplicantId();
+    const applicantId = resolveApplicantId(search);
     if (!applicantId || !stepKey) return;
 
     setContinuing(true);
@@ -222,7 +259,10 @@ export default function FirmaSignPage() {
     return <OnboardingLoader label="Loading document signing..." />;
   }
 
-  const stepTitle = nav.currentStep?.title ?? "Document Signing";
+  const stepTitle =
+    nav.currentStep?.title ??
+    nav.enabledSteps?.find((step) => step.step_key === stepKey)?.title ??
+    "Document Signing";
 
   return (
     <OnboardingLayout style={brandingToCssVars(branding)}>

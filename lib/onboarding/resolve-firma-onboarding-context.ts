@@ -13,6 +13,7 @@ import {
   resolveTenantIdBySlug,
   resolveWorkerByApplicantId,
 } from "@/lib/onboarding/resolve-worker-context";
+import { isDraftPreviewApplicantId } from "@/lib/onboarding/is-draft-preview";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type ResolveFirmaOnboardingContextInput = {
@@ -27,9 +28,10 @@ export type ResolveFirmaOnboardingContextInput = {
 export type ResolveFirmaOnboardingContextResult =
   | {
       ok: true;
-      workerId: string;
+      workerId: string | null;
       tenantId: string;
       step: TenantOnboardingStep;
+      draftPreview?: boolean;
     }
   | {
       ok: false;
@@ -58,6 +60,55 @@ export async function resolveFirmaOnboardingContext(
   const tenantIdFromSlug = input.tenantSlug
     ? await resolveTenantIdBySlug(input.supabase, input.tenantSlug)
     : null;
+
+  const isDraftPreview =
+    input.preferDraftConfig && isDraftPreviewApplicantId(input.applicantId);
+
+  if (isDraftPreview) {
+    if (!tenantIdFromSlug) {
+      return {
+        ok: false,
+        error: "Tenant not found for draft preview",
+        code: "WORKER_NOT_FOUND",
+        status: 404,
+      };
+    }
+
+    const draftConfig = await loadApplicantDraftOnboardingConfig(
+      input.supabase,
+      tenantIdFromSlug
+    );
+    const step = await resolveFirmaStepFromConfig(draftConfig?.steps ?? [], {
+      stepKey: input.stepKey,
+      stepId: input.stepId,
+    });
+
+    if (!step) {
+      return {
+        ok: false,
+        error: "Onboarding step not found in the builder draft.",
+        code: "STEP_NOT_FOUND",
+        status: 404,
+      };
+    }
+
+    if (!stepUsesFirmaSigning(step)) {
+      return {
+        ok: false,
+        error: "This step is not configured for Firma signing",
+        code: "STEP_NOT_FIRMA",
+        status: 400,
+      };
+    }
+
+    return {
+      ok: true,
+      workerId: null,
+      tenantId: tenantIdFromSlug,
+      step,
+      draftPreview: true,
+    };
+  }
 
   const ctx =
     (tenantIdFromSlug

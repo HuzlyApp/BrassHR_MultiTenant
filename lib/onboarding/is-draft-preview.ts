@@ -1,6 +1,9 @@
 /** Synthetic applicant id used during admin draft preview (`?preview=draft`). */
 export const DRAFT_PREVIEW_APPLICANT_ID = "draft-preview";
 
+/** Placeholder signer email for Firma draft-preview signing sessions. */
+export const DRAFT_PREVIEW_APPLICANT_EMAIL = "draft-preview@preview.brasshr.local";
+
 export function isDraftPreviewApplicantId(applicantId: string | null | undefined): boolean {
   return applicantId?.trim() === DRAFT_PREVIEW_APPLICANT_ID;
 }

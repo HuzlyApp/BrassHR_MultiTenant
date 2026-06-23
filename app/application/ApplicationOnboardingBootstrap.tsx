@@ -7,7 +7,7 @@ import { TenantBrandingProvider } from "@/app/components/tenant/TenantBrandingCo
 import OnboardingConfigProvider from "@/app/components/onboarding/OnboardingConfigProvider";
 import type { TenantBranding } from "@/lib/tenant/tenant-branding";
 import { brandingFallbackForSlug } from "@/lib/tenant/tenant-branding";
-import { isOnboardingDraftPreview } from "@/lib/onboarding/is-draft-preview";
+import { DRAFT_PREVIEW_APPLICANT_ID, isOnboardingDraftPreview } from "@/lib/onboarding/is-draft-preview";
 import { persistOnboardingSlugCookie, resolveClientOnboardingTenantSlug } from "@/lib/tenant/client-onboarding-slug";
 
 function resolveBootstrapSlug(): string | null {
@@ -70,6 +70,10 @@ export default function ApplicationOnboardingBootstrap({ children }: { children:
         const skipApplicantAuth =
           pathname.startsWith("/application/applicant-dashboard") ||
           isOnboardingDraftPreview(window.location.search);
+
+        if (skipApplicantAuth && isOnboardingDraftPreview(window.location.search)) {
+          localStorage.setItem("applicantId", DRAFT_PREVIEW_APPLICANT_ID);
+        }
 
         const authPromise = skipApplicantAuth
           ? Promise.resolve({ ok: true as const })

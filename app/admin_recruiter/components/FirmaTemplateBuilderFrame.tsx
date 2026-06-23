@@ -528,6 +528,14 @@ export default function FirmaTemplateBuilderFrame({
           <RefreshCw className="h-4 w-4" />
           Retry
         </button>
+        <button
+          type="button"
+          onClick={() => void refreshSession({ forceRecreate: true })}
+          className="inline-flex items-center gap-2 rounded-lg border border-[#FCA5A5] bg-white px-3 py-2 text-sm font-medium text-[#991B1B]"
+        >
+          <RefreshCw className="h-4 w-4" />
+          Reset Firma template
+        </button>
       </div>
     );
   }
@@ -570,6 +578,14 @@ export default function FirmaTemplateBuilderFrame({
             >
               <RefreshCw className="h-4 w-4" />
               Retry
+            </button>
+            <button
+              type="button"
+              onClick={() => void refreshSession({ forceRecreate: true })}
+              className="inline-flex items-center gap-2 rounded-lg border border-[#FCA5A5] bg-white px-3 py-2 text-sm font-medium text-[#991B1B]"
+            >
+              <RefreshCw className="h-4 w-4" />
+              Reset Firma template
             </button>
           </div>
         </div>

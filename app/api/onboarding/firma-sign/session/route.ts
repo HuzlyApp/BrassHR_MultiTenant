@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { getSupabaseUrl } from "@/lib/supabase-env";
 import {
   FirmaOnboardingSigningError,
+  ensureFirmaDraftPreviewSigningSession,
   ensureFirmaSigningSession,
 } from "@/lib/onboarding/firma-onboarding-signing";
 import { resolveFirmaOnboardingContext } from "@/lib/onboarding/resolve-firma-onboarding-context";
@@ -63,11 +64,20 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const profile = await resolveApplicantProfile(supabase, resolved.workerId, applicantId);
+    if (resolved.draftPreview) {
+      const session = await ensureFirmaDraftPreviewSigningSession({
+        supabase,
+        tenantId: resolved.tenantId,
+        step: resolved.step,
+      });
+      return NextResponse.json({ session });
+    }
+
+    const profile = await resolveApplicantProfile(supabase, resolved.workerId!, applicantId);
     const session = await ensureFirmaSigningSession({
       supabase,
       tenantId: resolved.tenantId,
-      workerId: resolved.workerId,
+      workerId: resolved.workerId!,
       applicantEmail: profile.email,
       applicantFirstName: profile.firstName,
       applicantLastName: profile.lastName,

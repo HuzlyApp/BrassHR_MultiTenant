@@ -115,6 +115,21 @@ async function parseFirmaResponse<T>(res: Response): Promise<T> {
     throwFirmaHttpError(status, (body ?? {}) as FirmaApiErrorBody);
   }
 
+  if (body && typeof body === "object") {
+    const record = body as Record<string, unknown>;
+    const errorMessage = typeof record.error === "string" ? record.error.trim() : "";
+    if (errorMessage) {
+      const errorCode = typeof record.code === "string" ? record.code : undefined;
+      const mappedStatus =
+        errorCode === "NOT_FOUND" || errorCode === "INVALID_TEMPLATE"
+          ? 404
+          : errorCode === "AUTH_ERROR"
+            ? 401
+            : 400;
+      throwFirmaHttpError(mappedStatus, body as FirmaApiErrorBody);
+    }
+  }
+
   if (body && typeof body === "object" && "data" in (body as Record<string, unknown>)) {
     return (body as { data: T }).data;
   }

@@ -14,6 +14,7 @@ import {
   mapFirmaStatusToOnboardingStatus,
   normalizeFirmaSigningStatus,
 } from "@/lib/onboarding/firma-step-settings";
+import { DRAFT_PREVIEW_APPLICANT_EMAIL } from "@/lib/onboarding/is-draft-preview";
 import type { OnboardingStepStatus, TenantOnboardingStep } from "@/lib/onboarding/types";
 
 export type WorkerFirmaSigningSessionRow = {
@@ -51,6 +52,15 @@ export type EnsureFirmaSigningSessionInput = {
   applicantFirstName: string;
   applicantLastName?: string | null;
   step: TenantOnboardingStep;
+};
+
+export type EnsureFirmaDraftPreviewSigningSessionInput = {
+  supabase: SupabaseClient;
+  tenantId: string;
+  step: TenantOnboardingStep;
+  applicantEmail?: string;
+  applicantFirstName?: string;
+  applicantLastName?: string | null;
 };
 
 function isFirmaWorkspaceMismatchMessage(message: string): boolean {
@@ -158,6 +168,148 @@ async function upsertSession(
   return data as WorkerFirmaSigningSessionRow;
 }
 
+function sessionPayloadFromFirma(
+  step: TenantOnboardingStep,
+  detail: {
+    signing_request_id: string;
+    signing_request_user_id: string | null;
+    iframe_url: string | null;
+    firma_status: string;
+    recruiter_template_id: string | null;
+    firma_template_id: string | null;
+  }
+): FirmaSigningSessionPayload {
+  return {
+    signing_request_id: detail.signing_request_id,
+    signing_request_user_id: detail.signing_request_user_id,
+    iframe_url: detail.iframe_url,
+    firma_status: normalizeFirmaSigningStatus(detail.firma_status),
+    onboarding_status: mapFirmaStatusToOnboardingStatus(detail.firma_status),
+    step_key: step.step_key,
+    step_title: step.title,
+    recruiter_template_id: detail.recruiter_template_id,
+    firma_template_id: detail.firma_template_id,
+  };
+}
+
+async function resolveRecruiterTemplateForStep(
+  supabase: SupabaseClient,
+  tenantId: string,
+  step: TenantOnboardingStep
+) {
+  const recruiterTemplateId = getFirmaRecruiterTemplateId(step);
+  if (!recruiterTemplateId) {
+    throw new FirmaOnboardingSigningError(
+      "This onboarding step does not have a Firma template attached",
+      "MISSING_TEMPLATE",
+      400
+    );
+  }
+
+  if (!isFirmaConfigured()) {
+    throw new FirmaOnboardingSigningError("Firma API is not configured", "FIRMA_NOT_CONFIGURED", 503);
+  }
+
+  const recruiterTemplate = await loadRecruiterTemplate(supabase, tenantId, recruiterTemplateId);
+  if (!recruiterTemplate?.id) {
+    throw new FirmaOnboardingSigningError("Firma template not found", "MISSING_TEMPLATE", 404);
+  }
+  if (recruiterTemplate.status !== "active" || !recruiterTemplate.firma_template_id) {
+    throw new FirmaOnboardingSigningError(
+      "Publish the Firma template before applicants can sign",
+      "TEMPLATE_NOT_PUBLISHED",
+      400
+    );
+  }
+
+  return { recruiterTemplateId, recruiterTemplate };
+}
+
+async function createFirmaSigningSessionFromTemplate(
+  input: {
+    applicantEmail: string;
+    applicantFirstName: string;
+    applicantLastName?: string | null;
+  },
+  recruiterTemplateId: string,
+  firmaTemplateId: string,
+  templateName: string
+) {
+  const detail = await createFirmaSigningRequest({
+    template_id: firmaTemplateId,
+    name: `${templateName} — ${input.applicantFirstName}`.trim(),
+    recipients: [
+      {
+        first_name: input.applicantFirstName,
+        last_name: input.applicantLastName?.trim() || undefined,
+        email: input.applicantEmail.trim().toLowerCase(),
+        designation: "Signer",
+        order: 1,
+      },
+    ],
+  });
+
+  const recipient = resolveApplicantSigningRecipient(detail, input.applicantEmail);
+  const iframeUrl = resolveFirmaRecipientSigningUrl(recipient);
+  if (!iframeUrl) {
+    throw new FirmaOnboardingSigningError(
+      "Firma did not return a signing URL for this applicant",
+      "IFRAME_UNAVAILABLE",
+      502
+    );
+  }
+
+  return {
+    detail,
+    recipient,
+    iframeUrl,
+    firmaStatus: normalizeFirmaSigningStatus(detail.status ?? recipient?.status),
+  };
+}
+
+export async function ensureFirmaDraftPreviewSigningSession(
+  input: EnsureFirmaDraftPreviewSigningSessionInput
+): Promise<FirmaSigningSessionPayload> {
+  const { recruiterTemplateId, recruiterTemplate } = await resolveRecruiterTemplateForStep(
+    input.supabase,
+    input.tenantId,
+    input.step
+  );
+
+  const applicantEmail = input.applicantEmail?.trim() || DRAFT_PREVIEW_APPLICANT_EMAIL;
+  const applicantFirstName = input.applicantFirstName?.trim() || "Draft Preview";
+
+  try {
+    await getFirmaTemplate(String(recruiterTemplate.firma_template_id));
+  } catch (err) {
+    throw mapFirmaSigningCreateError(err);
+  }
+
+  try {
+    const created = await createFirmaSigningSessionFromTemplate(
+      {
+        applicantEmail,
+        applicantFirstName,
+        applicantLastName: input.applicantLastName,
+      },
+      recruiterTemplateId,
+      String(recruiterTemplate.firma_template_id),
+      recruiterTemplate.name ?? input.step.title
+    );
+
+    return sessionPayloadFromFirma(input.step, {
+      signing_request_id: created.detail.id,
+      signing_request_user_id: created.recipient?.id ?? null,
+      iframe_url: created.iframeUrl,
+      firma_status: created.firmaStatus,
+      recruiter_template_id: recruiterTemplateId,
+      firma_template_id: String(recruiterTemplate.firma_template_id),
+    });
+  } catch (err) {
+    throw mapFirmaSigningCreateError(err);
+  }
+}
+
 function sessionPayload(
   step: TenantOnboardingStep,
   session: WorkerFirmaSigningSessionRow
@@ -209,29 +361,12 @@ async function createSessionFromTemplate(
   firmaTemplateId: string,
   templateName: string
 ): Promise<WorkerFirmaSigningSessionRow> {
-  const detail = await createFirmaSigningRequest({
-    template_id: firmaTemplateId,
-    name: `${templateName} — ${input.applicantFirstName}`.trim(),
-    recipients: [
-      {
-        first_name: input.applicantFirstName,
-        last_name: input.applicantLastName?.trim() || undefined,
-        email: input.applicantEmail.trim().toLowerCase(),
-        designation: "Signer",
-        order: 1,
-      },
-    ],
-  });
-
-  const recipient = resolveApplicantSigningRecipient(detail, input.applicantEmail);
-  const iframeUrl = resolveFirmaRecipientSigningUrl(recipient);
-  if (!iframeUrl) {
-    throw new FirmaOnboardingSigningError(
-      "Firma did not return a signing URL for this applicant",
-      "IFRAME_UNAVAILABLE",
-      502
-    );
-  }
+  const created = await createFirmaSigningSessionFromTemplate(
+    input,
+    recruiterTemplateId,
+    firmaTemplateId,
+    templateName
+  );
 
   return upsertSession(supabase, {
     tenant_id: input.tenantId,
@@ -239,44 +374,21 @@ async function createSessionFromTemplate(
     onboarding_step_id: input.step.id,
     recruiter_template_id: recruiterTemplateId,
     firma_template_id: firmaTemplateId,
-    signing_request_id: detail.id,
-    signing_request_user_id: recipient?.id ?? null,
-    firma_status: normalizeFirmaSigningStatus(detail.status ?? recipient?.status),
-    iframe_url: iframeUrl,
+    signing_request_id: created.detail.id,
+    signing_request_user_id: created.recipient?.id ?? null,
+    firma_status: created.firmaStatus,
+    iframe_url: created.iframeUrl,
   });
 }
 
 export async function ensureFirmaSigningSession(
   input: EnsureFirmaSigningSessionInput
 ): Promise<FirmaSigningSessionPayload> {
-  const recruiterTemplateId = getFirmaRecruiterTemplateId(input.step);
-  if (!recruiterTemplateId) {
-    throw new FirmaOnboardingSigningError(
-      "This onboarding step does not have a Firma template attached",
-      "MISSING_TEMPLATE",
-      400
-    );
-  }
-
-  if (!isFirmaConfigured()) {
-    throw new FirmaOnboardingSigningError("Firma API is not configured", "FIRMA_NOT_CONFIGURED", 503);
-  }
-
-  const recruiterTemplate = await loadRecruiterTemplate(
+  const { recruiterTemplateId, recruiterTemplate } = await resolveRecruiterTemplateForStep(
     input.supabase,
     input.tenantId,
-    recruiterTemplateId
+    input.step
   );
-  if (!recruiterTemplate?.id) {
-    throw new FirmaOnboardingSigningError("Firma template not found", "MISSING_TEMPLATE", 404);
-  }
-  if (recruiterTemplate.status !== "active" || !recruiterTemplate.firma_template_id) {
-    throw new FirmaOnboardingSigningError(
-      "Publish the Firma template before applicants can sign",
-      "TEMPLATE_NOT_PUBLISHED",
-      400
-    );
-  }
 
   const existing = await loadExistingSession(input.supabase, input.workerId, input.step.id);
   if (existing?.signing_request_id) {

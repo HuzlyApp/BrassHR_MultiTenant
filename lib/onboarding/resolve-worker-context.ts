@@ -4,6 +4,13 @@ import { persistWorkerRow } from "@/lib/onboarding/persist-worker-row";
 import { resumeToStep1Fields } from "@/lib/onboarding/resume-to-step1-fields";
 import { resolveOnboardingTenantId } from "@/lib/tenant/resolve-onboarding-tenant-id";
 
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+export function isUuidLike(value: string | null | undefined): boolean {
+  return UUID_RE.test((value ?? "").trim());
+}
+
 export type WorkerContext = {
   workerId: string;
   tenantId: string;
@@ -42,6 +49,8 @@ export async function resolveWorkerByApplicantId(
   applicantId: string,
   tenantId?: string | null
 ): Promise<WorkerContext | null> {
+  if (isDraftPreviewApplicantId(applicantId)) return null;
+
   if (tenantId) {
     const scoped = await loadWorkerContext(supabase, "user_id", applicantId, tenantId);
     if (scoped) return scoped;
@@ -49,6 +58,9 @@ export async function resolveWorkerByApplicantId(
 
   const byUserId = await loadWorkerContext(supabase, "user_id", applicantId);
   if (byUserId) return byUserId;
+
+  if (!isUuidLike(applicantId)) return null;
+
   return loadWorkerContext(supabase, "id", applicantId, tenantId);
 }
 

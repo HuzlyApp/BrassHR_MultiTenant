@@ -9,6 +9,7 @@ import {
   shouldCompleteOnboardingStepFromFirmaStatus,
   FirmaOnboardingSigningError,
   ensureFirmaSigningSession,
+  ensureFirmaDraftPreviewSigningSession,
   mapFirmaSigningCreateError,
 } from "@/lib/onboarding/firma-onboarding-signing";
 import {
@@ -119,6 +120,12 @@ describe("firma status mapping", () => {
     expect(mapFirmaStatusToOnboardingStatus("signed")).toBe("completed");
     expect(mapFirmaStatusToOnboardingStatus("completed")).toBe("completed");
     expect(mapFirmaStatusToOnboardingStatus("expired")).toBe("failed");
+  });
+
+  it("normalizes non-string Firma status payloads", () => {
+    expect(mapFirmaStatusToOnboardingStatus({ status: "sent" })).toBe("in_progress");
+    expect(mapFirmaStatusToOnboardingStatus(null)).toBe("pending");
+    expect(mapFirmaStatusToOnboardingStatus(undefined)).toBe("pending");
   });
 
   it("updates onboarding completion when Firma status becomes signed", async () => {
@@ -307,6 +314,84 @@ describe("ensureFirmaSigningSession", () => {
     expect(session.signing_request_id).toBe("signing-request-1");
     expect(session.iframe_url).toBe("https://app.firma.dev/signing/recipient-1");
     expect(upsert).toHaveBeenCalled();
+  });
+
+  it("creates an ephemeral Firma session for builder draft preview", async () => {
+    global.fetch = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/templates/firma-template-1")) {
+        return new Response(JSON.stringify({ id: "firma-template-1", name: "Employee Agreement" }), {
+          status: 200,
+        });
+      }
+      if (url.includes("/signing-requests") && !url.includes("/signing-requests/")) {
+        return new Response(
+          JSON.stringify({
+            id: "signing-request-preview",
+            status: "sent",
+            recipients: [
+              {
+                id: "recipient-preview",
+                email: "draft-preview@preview.brasshr.local",
+                signing_url: "https://app.firma.dev/signing/recipient-preview",
+              },
+            ],
+          }),
+          { status: 201 }
+        );
+      }
+      return new Response(JSON.stringify({ error: "not found" }), { status: 404 });
+    }) as typeof fetch;
+
+    const supabase = {
+      from: vi.fn((table: string) => {
+        if (table === "recruiter_templates") {
+          return {
+            select: () => ({
+              eq: () => ({
+                eq: () => ({
+                  maybeSingle: async () => ({
+                    data: {
+                      id: "recruiter-template-1",
+                      tenant_id: "tenant-1",
+                      name: "Employee Agreement",
+                      status: "active",
+                      firma_template_id: "firma-template-1",
+                    },
+                    error: null,
+                  }),
+                }),
+              }),
+            }),
+          };
+        }
+        throw new Error(`Unexpected table ${table}`);
+      }),
+    };
+
+    const session = await ensureFirmaDraftPreviewSigningSession({
+      supabase: supabase as never,
+      tenantId: "tenant-1",
+      step: {
+        id: "preview-authorizations_4",
+        step_key: "authorizations_4",
+        title: "Employee Agreement",
+        description: null,
+        step_type: "authorizations",
+        sort_order: 10,
+        is_required: true,
+        is_enabled: true,
+        metadata: {
+          workflow_settings: {
+            ...DEFAULT_STEP_SETTINGS,
+            firmaRecruiterTemplateId: "recruiter-template-1",
+          },
+        },
+      },
+    });
+
+    expect(session.signing_request_id).toBe("signing-request-preview");
+    expect(session.iframe_url).toContain("recipient-preview");
   });
 
   it("throws when Firma template id is missing from step settings", async () => {

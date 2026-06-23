@@ -6,9 +6,15 @@ import { FirmaSigningIframe } from "@/app/components/onboarding/FirmaSigningIfra
 import FirmaSignPage from "@/app/application/firma-sign/page";
 import { FirmaTemplateSelect } from "@/app/components/onboarding/FirmaTemplateSelect";
 
+const { searchParamsMock } = vi.hoisted(() => ({
+  searchParamsMock: vi.fn(
+    () => new URLSearchParams("stepKey=employee_agreement&tenant=braas-hr")
+  ),
+}));
+
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
-  useSearchParams: () => new URLSearchParams("stepKey=employee_agreement&tenant=braas-hr"),
+  useSearchParams: searchParamsMock,
 }));
 
 vi.mock("@/app/components/tenant/TenantBrandingContext", () => ({
@@ -77,12 +83,47 @@ describe("FirmaSignPage", () => {
 
   beforeEach(() => {
     localStorage.setItem("applicantId", "applicant-user-1");
+    searchParamsMock.mockReturnValue(
+      new URLSearchParams("stepKey=employee_agreement&tenant=braas-hr")
+    );
     mockNav.push.mockReset();
   });
 
   afterEach(() => {
     global.fetch = originalFetch;
     vi.restoreAllMocks();
+  });
+
+  it("loads a Firma signing session in draft preview without a stored applicant id", async () => {
+    localStorage.removeItem("applicantId");
+    searchParamsMock.mockReturnValue(
+      new URLSearchParams("stepKey=employee_agreement&tenant=subdomaintest&preview=draft")
+    );
+
+    global.fetch = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/api/onboarding/firma-sign/session")) {
+        return new Response(
+          JSON.stringify({
+            session: {
+              signing_request_id: "signing-request-1",
+              iframe_url: "https://app.firma.dev/signing/recipient-1",
+              firma_status: "sent",
+              onboarding_status: "in_progress",
+              step_title: "Employee Agreement",
+            },
+          }),
+          { status: 200 }
+        );
+      }
+      return new Response(JSON.stringify({}), { status: 404 });
+    }) as typeof fetch;
+
+    render(<FirmaSignPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("firma-signing-iframe")).toBeInTheDocument();
+    });
   });
 
   it("loads a Firma signing session and renders the iframe without leaving onboarding", async () => {
