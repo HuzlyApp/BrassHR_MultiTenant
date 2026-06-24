@@ -234,10 +234,9 @@ const SHARED_TOP_SECTIONS: SidebarSection[] = [
 const SHARED_FOOTER_SECTIONS: SidebarSection[] = [
   {
     label: "Help & Support",
-    href: "/admin_recruiter/settings",
+    href: "/admin_recruiter/help-support",
     iconType: ICON.help,
-    matchPrefixes: ["/admin_recruiter/settings"],
-    controlsActiveState: false,
+    matchPrefixes: ["/admin_recruiter/help-support"],
   },
   {
     label: "Settings",
