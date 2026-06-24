@@ -5,6 +5,8 @@ import { AlertTriangle, Upload } from "lucide-react";
 import { WorkerPortalPageLoader } from "./WorkerPortalPageLoader";
 import { LICENSE_TYPES, LICENSE_TYPE_LABELS } from "@/lib/applicant-portal/documents";
 import { useApplicantPortal } from "./ApplicantPortalProvider";
+import { WorkerFilePicker } from "./WorkerFilePicker";
+import { WORKER_BTN_OUTLINE, WORKER_BTN_PRIMARY } from "./worker-portal-buttons";
 import {
   WORKER_SCHEDULE_CARD_CLASS,
   WORKER_SECTION_TITLE_CLASS,
@@ -213,25 +215,19 @@ export function ApplicantLicensesTab({ embedded = false }: { embedded?: boolean 
                 className="h-10 w-full rounded-lg border border-[#D1D5DB] px-3 text-sm outline-none focus:border-[color:var(--brand-primary)]"
               />
             </div>
-            <div>
+            <div className="md:col-span-2">
               <label className="mb-1.5 block text-[13px] font-medium text-[#374151]">
                 License file <span className="text-red-500">*</span>
               </label>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".pdf,image/*"
-                onChange={(event) => setSelectedFile(event.target.files?.[0] ?? null)}
-                className="block w-full text-sm text-[#374151] file:mr-3 file:rounded-md file:border-0 file:bg-[#F1F5F9] file:px-3 file:py-2 file:text-sm file:font-medium"
+              <WorkerFilePicker
+                inputRef={fileInputRef}
+                file={selectedFile}
+                onChange={setSelectedFile}
+                disabled={uploading}
               />
             </div>
           </div>
-          <button
-            type="submit"
-            disabled={uploading}
-            className="inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
-            style={{ backgroundColor: "var(--brand-primary)" }}
-          >
+          <button type="submit" disabled={uploading} className={WORKER_BTN_PRIMARY}>
             <Upload className="h-4 w-4" />
             {uploading ? "Uploading..." : "Submit for review"}
           </button>
@@ -266,7 +262,7 @@ export function ApplicantLicensesTab({ embedded = false }: { embedded?: boolean 
                     <button
                       type="button"
                       onClick={() => void openFile(license.id)}
-                      className="rounded-md border border-[#D1D5DB] px-3 py-1.5 text-xs font-medium text-[#334155] hover:bg-[#F8FAFC]"
+                      className={WORKER_BTN_OUTLINE}
                     >
                       View file
                     </button>

@@ -69,8 +69,8 @@ export const WORKER_ACCOUNT_TABS: Array<{ id: WorkerAccountTab; label: string }>
   { id: "employment", label: "Employment Details" },
   { id: "documents", label: "Documents" },
   { id: "skills", label: "Skills & Certifications" },
-  { id: "emergency", label: "Emergency Contact" },
-  { id: "account", label: "Account" },
+  // { id: "emergency", label: "Emergency Contact" },
+  // { id: "account", label: "Account" },
 ];
 
 export const WORKER_ACCOUNT_PROFILE_HREF = "/application/applicant-dashboard/profile";

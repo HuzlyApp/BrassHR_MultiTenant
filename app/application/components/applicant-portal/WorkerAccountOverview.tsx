@@ -6,6 +6,7 @@ import BrandedFileTypeIcon from "@/app/admin_recruiter/components/BrandedFileTyp
 import { formatDecimalHours } from "./worker-dashboard-utils";
 import type { WorkerAccountOverviewPayload } from "./worker-account-types";
 import { workerAccountTabHref } from "./worker-account-types";
+import { WORKER_BTN_GHOST_ICON, WORKER_BTN_OUTLINE } from "./worker-portal-buttons";
 import {
   WORKER_SCHEDULE_CARD_CLASS,
   WORKER_SECTION_TITLE_CLASS,
@@ -163,7 +164,7 @@ export function WorkerAccountOverview({ data, onDownloadDocument }: WorkerAccoun
                   </div>
                   <Link
                     href="/application/applicant-dashboard/licenses"
-                    className="rounded-md border border-[#D1D5DB] px-3 py-1.5 text-xs font-semibold text-[#111827] hover:bg-[#F9FAFB]"
+                    className={WORKER_BTN_OUTLINE}
                   >
                     Update
                   </Link>
@@ -233,7 +234,7 @@ export function WorkerAccountOverview({ data, onDownloadDocument }: WorkerAccoun
                   <button
                     type="button"
                     onClick={() => onDownloadDocument(doc.source, doc.id)}
-                    className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-[#E5E7EB] text-[#374151] hover:bg-[#F9FAFB]"
+                    className={`${WORKER_BTN_GHOST_ICON} shrink-0 border border-[#E5E7EB]`}
                     aria-label={`Download ${doc.title}`}
                   >
                     <Download className="h-4 w-4" aria-hidden />

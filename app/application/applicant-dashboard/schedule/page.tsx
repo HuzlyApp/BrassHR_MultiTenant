@@ -24,6 +24,7 @@ type AppointmentPayload = {
 
 type AttendancePayload = {
   today?: AttendanceLog | null;
+  active?: AttendanceLog | null;
   recent?: AttendanceLog[];
   error?: string;
 };
@@ -59,6 +60,7 @@ function ApplicantSchedulePageContent() {
   const [appointment, setAppointment] = useState<Appointment | null>(null);
   const [selectedSlot, setSelectedSlot] = useState<AppointmentSlot | null>(null);
   const [todayAttendance, setTodayAttendance] = useState<AttendanceLog | null>(null);
+  const [activeAttendance, setActiveAttendance] = useState<AttendanceLog | null>(null);
   const [recentAttendance, setRecentAttendance] = useState<AttendanceLog[]>([]);
   const [notes, setNotes] = useState<ApplicantNote[]>([]);
   const [notesLoading, setNotesLoading] = useState(true);
@@ -119,6 +121,7 @@ function ApplicantSchedulePageContent() {
     const payload = (await res.json().catch(() => ({}))) as AttendancePayload;
     if (!res.ok) throw new Error(payload.error || "Could not load attendance.");
     setTodayAttendance(payload.today ?? null);
+    setActiveAttendance(payload.active ?? null);
     setRecentAttendance(payload.recent ?? []);
   }
 
@@ -262,9 +265,15 @@ function ApplicantSchedulePageContent() {
         body: JSON.stringify({ action, location }),
       });
       const payload = (await res.json().catch(() => ({}))) as AttendancePayload;
-      if (!res.ok) throw new Error(payload.error || "Could not update attendance.");
+      if (!res.ok) {
+        if (res.status === 409 && action === "clock_in") {
+          await loadAttendance(headers);
+        }
+        throw new Error(payload.error || "Could not update attendance.");
+      }
 
       setTodayAttendance(payload.today ?? null);
+      setActiveAttendance(payload.active ?? null);
       setRecentAttendance(payload.recent ?? []);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not update attendance.");
@@ -291,6 +300,7 @@ function ApplicantSchedulePageContent() {
       {activeTab === "schedule" ? (
         <ApplicantScheduleTab
           todayAttendance={todayAttendance}
+          activeAttendance={activeAttendance}
           recentAttendance={recentAttendance}
           appointment={appointment}
           selectedSlot={selectedSlot}

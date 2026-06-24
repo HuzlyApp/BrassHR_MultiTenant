@@ -24,8 +24,8 @@ export function WorkerAccountTabNav({ activeTab }: WorkerAccountTabNavProps) {
       : activeTab;
 
   return (
-    <div className="border-b border-[#E5E7EB] bg-white">
-      <div className="flex gap-5 overflow-x-auto px-1">
+    <div className="border-b border-[#E5E7EB]">
+      <div className="flex justify-center gap-5 overflow-x-auto px-1">
         {WORKER_ACCOUNT_TABS.map((tab) => {
           const active = resolvedTab === tab.id;
           const href =
@@ -42,7 +42,7 @@ export function WorkerAccountTabNav({ activeTab }: WorkerAccountTabNavProps) {
               className={`shrink-0 border-b-2 px-1 pb-3 pt-4 text-[14px] leading-5 transition ${
                 active
                   ? "border-[color:var(--brand-primary)] font-medium text-[color:var(--brand-primary)]"
-                  : "border-transparent font-normal text-[#012352] hover:text-[#334155]"
+                  : "border-transparent font-normal text-[#012352] hover:border-[color:color-mix(in_srgb,var(--brand-primary)_25%,transparent)] hover:text-[color:var(--brand-primary)]"
               }`}
               style={WORKER_SCHEDULE_SUBTITLE_STYLE}
             >

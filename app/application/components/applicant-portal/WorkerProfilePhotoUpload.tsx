@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { useApplicantPortal } from "./ApplicantPortalProvider";
+import { WORKER_BTN_FILE_CHOOSE } from "./worker-portal-buttons";
 
 function initials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -28,6 +29,7 @@ export function WorkerProfilePhotoUpload({
   const { authHeaders, setProfilePhotoUrl } = useApplicantPortal();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(photoUrl);
+  const [selectedFileName, setSelectedFileName] = useState<string>("");
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploadSuccess, setUploadSuccess] = useState(false);
@@ -42,6 +44,7 @@ export function WorkerProfilePhotoUpload({
     setUploading(true);
     setUploadError(null);
     setUploadSuccess(false);
+    setSelectedFileName(file.name);
 
     const localPreview = URL.createObjectURL(file);
     setPreviewUrl(localPreview);
@@ -122,21 +125,19 @@ export function WorkerProfilePhotoUpload({
     <div className="min-w-0">
       <label className="mb-1.5 block text-[13px] font-medium text-[#374151]">Profile photo</label>
       <div className="flex items-center gap-3">
-        <div className="flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-md border border-[#E5E7EB] bg-[#F3F4F6]">
+        <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-md border border-[#E5E7EB] bg-[#F3F4F6]">
           {previewUrl ? (
-            <img src={previewUrl} alt="" width={24} height={24} className="h-6 w-6 object-cover" />
+            <img src={previewUrl} alt="" width={48} height={48} className="h-12 w-12 object-cover" />
           ) : (
-            <span className="text-[8px] font-semibold leading-none text-[#9CA3AF]">
+            <span className="text-[11px] font-semibold leading-none text-[#9CA3AF]">
               {initials(displayName).slice(0, 2)}
             </span>
           )}
         </div>
         <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-2">
-          <span className="inline-flex h-10 shrink-0 items-center rounded-lg border border-[#D1D5DB] bg-white px-3 text-xs font-semibold text-[#111827] hover:bg-[#F9FAFB]">
-            Choose file
-          </span>
+          <span className={`${WORKER_BTN_FILE_CHOOSE} text-xs`}>Choose file</span>
           <span className="truncate text-xs text-[#9CA3AF]">
-            {uploading ? "Uploading..." : uploadSuccess ? "Saved" : "JPG or PNG"}
+            {uploading ? "Uploading..." : selectedFileName || "JPG or PNG"}
           </span>
           <input
             ref={fileInputRef}

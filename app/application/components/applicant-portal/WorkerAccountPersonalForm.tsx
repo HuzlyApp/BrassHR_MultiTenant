@@ -5,6 +5,7 @@ import { WorkerPortalPageLoader } from "./WorkerPortalPageLoader";
 import { useApplicantPortal } from "./ApplicantPortalProvider";
 import { useWorkerAccountActions, useWorkerAccountOverview } from "./WorkerAccountContext";
 import { WorkerProfilePhotoUpload } from "./WorkerProfilePhotoUpload";
+import { WORKER_BTN_PRIMARY } from "./worker-portal-buttons";
 import {
   WORKER_SCHEDULE_CARD_CLASS,
   WORKER_SECTION_TITLE_CLASS,
@@ -243,12 +244,7 @@ export function WorkerAccountPersonalForm() {
           </div>
         </div>
         <div className="flex justify-end pt-2">
-          <button
-            type="submit"
-            disabled={saving}
-            className="rounded-lg px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
-            style={{ backgroundColor: "var(--brand-primary)" }}
-          >
+          <button type="submit" disabled={saving} className={WORKER_BTN_PRIMARY}>
             {saving ? "Saving..." : "Save profile"}
           </button>
         </div>

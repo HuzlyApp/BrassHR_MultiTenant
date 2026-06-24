@@ -29,6 +29,7 @@ import {
 
 type Props = {
   todayAttendance: AttendanceLog | null;
+  activeAttendance: AttendanceLog | null;
   recentAttendance: AttendanceLog[];
   appointment: Appointment | null;
   selectedSlot: AppointmentSlot | null;
@@ -97,6 +98,7 @@ function DurationValue({ seconds }: { seconds: number | null | undefined }) {
 
 export function ApplicantScheduleTab({
   todayAttendance,
+  activeAttendance,
   recentAttendance,
   appointment,
   selectedSlot,
@@ -115,8 +117,9 @@ export function ApplicantScheduleTab({
   onAttendanceAction,
 }: Props) {
   const [now, setNow] = useState(() => Date.now());
-  const isClockedIn = todayAttendance?.status === "clocked_in";
-  const isCompleted = todayAttendance?.status === "clocked_out";
+  const currentSession = activeAttendance ?? todayAttendance;
+  const isClockedIn = activeAttendance?.status === "clocked_in";
+  const isCompleted = !isClockedIn && todayAttendance?.status === "clocked_out";
 
   useEffect(() => {
     if (!isClockedIn) return;
@@ -125,17 +128,17 @@ export function ApplicantScheduleTab({
   }, [isClockedIn]);
 
   const timerSeconds = useMemo(() => {
-    if (!todayAttendance?.clock_in_at) return 0;
-    if (isCompleted && todayAttendance.total_seconds != null) return todayAttendance.total_seconds;
+    if (!currentSession?.clock_in_at) return 0;
+    if (isCompleted && currentSession.total_seconds != null) return currentSession.total_seconds;
     if (isClockedIn) {
-      const start = new Date(todayAttendance.clock_in_at).getTime();
+      const start = new Date(currentSession.clock_in_at).getTime();
       return Math.max(0, Math.floor((now - start) / 1000));
     }
     return 0;
-  }, [todayAttendance, isClockedIn, isCompleted, now]);
+  }, [currentSession, isClockedIn, isCompleted, now]);
 
   const timerStatusLabel = isCompleted ? "COMPLETED" : isClockedIn ? "IN PROGRESS" : "UPCOMING";
-  const recentLog = recentAttendance[0] ?? todayAttendance;
+  const recentLog = recentAttendance[0] ?? currentSession;
   const scheduleDate = appointment?.confirmed_starts_at ?? selectedSlot?.starts_at ?? null;
   const scheduleEnd = appointment?.confirmed_ends_at ?? selectedSlot?.ends_at ?? null;
   const scheduleMeetingType = appointment?.meeting_type ?? selectedSlot?.meeting_type ?? null;
@@ -211,15 +214,15 @@ export function ApplicantScheduleTab({
             title="Clock-In"
             timeLabel="Clock-in time:"
             icon={<WorkerBrandedIcon src={WORKER_ICONS.clockIn} />}
-            timeIso={todayAttendance?.clock_in_at}
+            timeIso={currentSession?.clock_in_at}
             totalSeconds={
-              todayAttendance?.clock_in_at && isCompleted ? todayAttendance.total_seconds : null
+              currentSession?.clock_in_at && isCompleted ? currentSession.total_seconds : null
             }
-            ip={todayAttendance?.clock_in_ip}
+            ip={currentSession?.clock_in_ip}
             location={locationDisplay(
-              todayAttendance?.clock_in_address,
-              todayAttendance?.clock_in_latitude,
-              todayAttendance?.clock_in_longitude
+              currentSession?.clock_in_address,
+              currentSession?.clock_in_latitude,
+              currentSession?.clock_in_longitude
             )}
           />
 
@@ -227,14 +230,18 @@ export function ApplicantScheduleTab({
             title="Clock Out"
             timeLabel="Clock-out time:"
             icon={<WorkerBrandedIcon src={WORKER_ICONS.clockOut} />}
-            timeIso={todayAttendance?.clock_out_at}
-            totalSeconds={isCompleted ? todayAttendance?.total_seconds : null}
-            ip={todayAttendance?.clock_out_ip}
-            location={locationDisplay(
-              todayAttendance?.clock_out_address,
-              todayAttendance?.clock_out_latitude,
-              todayAttendance?.clock_out_longitude
-            )}
+            timeIso={isCompleted ? currentSession?.clock_out_at : null}
+            totalSeconds={isCompleted ? currentSession?.total_seconds : null}
+            ip={isCompleted ? currentSession?.clock_out_ip : null}
+            location={
+              isCompleted
+                ? locationDisplay(
+                    currentSession?.clock_out_address,
+                    currentSession?.clock_out_latitude,
+                    currentSession?.clock_out_longitude
+                  )
+                : null
+            }
           />
         </div>
 
@@ -444,7 +451,7 @@ function ClockCard({
   timeIso?: string | null;
   totalSeconds?: number | null;
   ip?: string | null;
-  location?: string;
+  location?: string | null;
 }) {
   const date = formatDateOnly(timeIso);
   const hasData = Boolean(timeIso);

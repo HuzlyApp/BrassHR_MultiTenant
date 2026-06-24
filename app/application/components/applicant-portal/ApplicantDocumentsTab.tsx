@@ -6,6 +6,12 @@ import { WorkerPortalPageLoader } from "./WorkerPortalPageLoader";
 import BrandedFileTypeIcon from "@/app/admin_recruiter/components/BrandedFileTypeIcon";
 import { documentStatusLabel } from "@/lib/applicant-portal/documents";
 import { useApplicantPortal } from "./ApplicantPortalProvider";
+import { WorkerFilePicker } from "./WorkerFilePicker";
+import {
+  WORKER_BTN_GHOST_ICON,
+  WORKER_BTN_PRIMARY,
+  WORKER_BTN_PRIMARY_SM,
+} from "./worker-portal-buttons";
 import {
   WORKER_SCHEDULE_CARD_CLASS,
   WORKER_SECTION_TITLE_CLASS,
@@ -151,7 +157,7 @@ function AgreementDocumentSection({
             type="button"
             disabled={!canView}
             onClick={onView}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-md text-[color:var(--brand-primary)] disabled:opacity-40"
+            className={WORKER_BTN_GHOST_ICON}
             aria-label={`View ${section.title}`}
           >
             <Eye className="h-5 w-5" />
@@ -163,7 +169,7 @@ function AgreementDocumentSection({
                 type="button"
                 disabled={uploading}
                 onClick={() => inputRef.current?.click()}
-                className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-[color:var(--brand-primary)] px-4 text-xs font-semibold text-white disabled:opacity-50"
+                className={WORKER_BTN_PRIMARY_SM}
               >
                 <Upload className="h-4 w-4" />
                 {uploading ? "Uploading..." : section.hasFile ? "Upload again" : "Upload file"}
@@ -187,6 +193,18 @@ function AgreementDocumentSection({
       </div>
     </section>
   );
+}
+
+type UploadFieldErrors = {
+  title?: string;
+  file?: string;
+};
+
+function mapUploadError(message: string): { fieldErrors?: UploadFieldErrors; formError?: string } {
+  const lower = message.toLowerCase();
+  if (lower.includes("title")) return { fieldErrors: { title: message } };
+  if (lower.includes("file")) return { fieldErrors: { file: message } };
+  return { formError: message };
 }
 
 function OtherDocumentStatusBadge({ label, status }: { label: string; status: string }) {
@@ -213,7 +231,10 @@ export function ApplicantDocumentsTab({ embedded = false }: { embedded?: boolean
   const [agreementUploadSection, setAgreementUploadSection] = useState<"w2" | "i9" | "">("");
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [pageError, setPageError] = useState<string | null>(null);
+  const [documentsError, setDocumentsError] = useState<string | null>(null);
+  const [uploadFieldErrors, setUploadFieldErrors] = useState<UploadFieldErrors>({});
+  const [uploadFormError, setUploadFormError] = useState<string | null>(null);
   const [title, setTitle] = useState("");
   const [documentType, setDocumentType] = useState("other");
   const [requiredDocumentId, setRequiredDocumentId] = useState("");
@@ -257,7 +278,7 @@ export function ApplicantDocumentsTab({ embedded = false }: { embedded?: boolean
       try {
         await Promise.all([loadDocuments(), loadAgreementSections()]);
       } catch (err) {
-        if (alive) setError(err instanceof Error ? err.message : "Could not load documents.");
+        if (alive) setPageError(err instanceof Error ? err.message : "Could not load documents.");
       } finally {
         if (alive) setLoading(false);
       }
@@ -276,7 +297,7 @@ export function ApplicantDocumentsTab({ embedded = false }: { embedded?: boolean
     );
     const payload = (await res.json().catch(() => ({}))) as { url?: string; error?: string };
     if (!res.ok || !payload.url) {
-      setError(payload.error || "Could not open file.");
+      setDocumentsError(payload.error || "Could not open file.");
       return;
     }
     window.open(payload.url, "_blank", "noopener,noreferrer");
@@ -285,7 +306,7 @@ export function ApplicantDocumentsTab({ embedded = false }: { embedded?: boolean
   async function handleAgreementUpload(section: AgreementSection, file: File) {
     setUploading(true);
     setAgreementUploadSection(section.id);
-    setError(null);
+    setDocumentsError(null);
     try {
       const headers = await authHeaders();
       if (!headers) throw new Error("You need to sign in again.");
@@ -304,7 +325,7 @@ export function ApplicantDocumentsTab({ embedded = false }: { embedded?: boolean
       if (!res.ok) throw new Error(payload.error || "Could not upload document.");
       await Promise.all([loadDocuments(), loadAgreementSections()]);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not upload document.");
+      setDocumentsError(err instanceof Error ? err.message : "Could not upload document.");
     } finally {
       setUploading(false);
       setAgreementUploadSection("");
@@ -313,12 +334,24 @@ export function ApplicantDocumentsTab({ embedded = false }: { embedded?: boolean
 
   async function handleUpload(event: FormEvent) {
     event.preventDefault();
-    if (!selectedFile) {
-      setError("Choose a file to upload.");
+
+    const nextFieldErrors: UploadFieldErrors = {};
+    if (!selectedFile) nextFieldErrors.file = "Choose a file to upload.";
+    if (!requiredDocumentId && !title.trim()) {
+      nextFieldErrors.title = "Document title is required.";
+    }
+    if (Object.keys(nextFieldErrors).length > 0) {
+      setUploadFieldErrors(nextFieldErrors);
+      setUploadFormError(null);
       return;
     }
+
+    const fileToUpload = selectedFile;
+    if (!fileToUpload) return;
+
     setUploading(true);
-    setError(null);
+    setUploadFieldErrors({});
+    setUploadFormError(null);
     try {
       const headers = await authHeaders();
       if (!headers) throw new Error("You need to sign in again.");
@@ -329,7 +362,7 @@ export function ApplicantDocumentsTab({ embedded = false }: { embedded?: boolean
         form.append("title", title.trim());
         form.append("documentType", documentType);
       }
-      form.append("file", selectedFile);
+      form.append("file", fileToUpload);
       const res = await fetch("/api/applicant-portal/documents", { method: "POST", headers, body: form });
       const payload = (await res.json().catch(() => ({}))) as { error?: string };
       if (!res.ok) throw new Error(payload.error || "Could not upload document.");
@@ -339,7 +372,10 @@ export function ApplicantDocumentsTab({ embedded = false }: { embedded?: boolean
       if (fileInputRef.current) fileInputRef.current.value = "";
       await loadDocuments();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not upload document.");
+      const message = err instanceof Error ? err.message : "Could not upload document.";
+      const mapped = mapUploadError(message);
+      if (mapped.fieldErrors) setUploadFieldErrors(mapped.fieldErrors);
+      else setUploadFormError(mapped.formError ?? message);
     } finally {
       setUploading(false);
     }
@@ -362,6 +398,10 @@ export function ApplicantDocumentsTab({ embedded = false }: { embedded?: boolean
 
   return (
     <div className={embedded ? "space-y-6" : "space-y-6 px-8 py-6"}>
+      {pageError ? (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{pageError}</div>
+      ) : null}
+
       <div className={`${WORKER_SCHEDULE_CARD_CLASS} overflow-hidden`}>
         <div className="border-b border-[#E5E7EB] px-4 py-3">
           <h2 className={WORKER_SECTION_TITLE_CLASS} style={WORKER_SECTION_TITLE_STYLE}>
@@ -373,9 +413,9 @@ export function ApplicantDocumentsTab({ embedded = false }: { embedded?: boolean
         </div>
 
         <div className="space-y-4 p-4">
-          {error ? (
+          {documentsError ? (
             <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-              {error}
+              {documentsError}
             </div>
           ) : null}
 
@@ -432,10 +472,20 @@ export function ApplicantDocumentsTab({ embedded = false }: { embedded?: boolean
                 <label className="mb-1.5 block text-[13px] font-medium text-[#374151]">Name</label>
                 <input
                   value={title}
-                  onChange={(event) => setTitle(event.target.value)}
-                  className="h-10 w-full rounded-lg border border-[#D1D5DB] px-3 text-sm outline-none focus:border-[color:var(--brand-primary)]"
+                  onChange={(event) => {
+                    setTitle(event.target.value);
+                    if (uploadFieldErrors.title) {
+                      setUploadFieldErrors((current) => ({ ...current, title: undefined }));
+                    }
+                  }}
+                  className={`h-10 w-full rounded-lg border px-3 text-sm outline-none focus:border-[color:var(--brand-primary)] ${
+                    uploadFieldErrors.title ? "border-red-300" : "border-[#D1D5DB]"
+                  }`}
                   placeholder="e.g. Immunization record"
                 />
+                {uploadFieldErrors.title ? (
+                  <p className="mt-1 text-xs text-red-600">{uploadFieldErrors.title}</p>
+                ) : null}
               </div>
               <div>
                 <label className="mb-1.5 block text-[13px] font-medium text-[#374151]">Type</label>
@@ -449,20 +499,25 @@ export function ApplicantDocumentsTab({ embedded = false }: { embedded?: boolean
           ) : null}
           <div>
             <label className="mb-1.5 block text-[13px] font-medium text-[#374151]">File</label>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".pdf,image/*"
-              onChange={(event) => setSelectedFile(event.target.files?.[0] ?? null)}
-              className="block w-full text-sm text-[#374151] file:mr-3 file:rounded-md file:border-0 file:bg-[#F1F5F9] file:px-3 file:py-2 file:text-sm file:font-medium"
+            <WorkerFilePicker
+              inputRef={fileInputRef}
+              file={selectedFile}
+              onChange={(file) => {
+                setSelectedFile(file);
+                if (uploadFieldErrors.file) {
+                  setUploadFieldErrors((current) => ({ ...current, file: undefined }));
+                }
+              }}
+              disabled={uploading}
+              error={uploadFieldErrors.file}
             />
           </div>
-          <button
-            type="submit"
-            disabled={uploading}
-            className="inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
-            style={{ backgroundColor: "var(--brand-primary)" }}
-          >
+          {uploadFormError ? (
+            <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {uploadFormError}
+            </div>
+          ) : null}
+          <button type="submit" disabled={uploading} className={WORKER_BTN_PRIMARY}>
             <Upload className="h-4 w-4" />
             {uploading ? "Uploading..." : "Upload"}
           </button>
@@ -504,7 +559,7 @@ export function ApplicantDocumentsTab({ embedded = false }: { embedded?: boolean
                   <button
                     type="button"
                     onClick={() => void openFile(doc)}
-                    className="inline-flex h-9 w-9 items-center justify-center rounded-md text-[color:var(--brand-primary)] hover:bg-[#F8FAFC]"
+                    className={WORKER_BTN_GHOST_ICON}
                     aria-label="View file"
                   >
                     <Eye className="h-5 w-5" />

@@ -27,7 +27,7 @@ export function WorkerAccountEmploymentTab({ profile }: WorkerAccountEmploymentT
   ];
 
   return (
-    <section className={WORKER_SCHEDULE_CARD_CLASS}>
+    <section className={`${WORKER_SCHEDULE_CARD_CLASS} w-full lg:w-1/2`}>
       <div className="border-b border-[#E5E7EB] px-4 py-3">
         <h2 className={WORKER_SECTION_TITLE_CLASS} style={WORKER_SECTION_TITLE_STYLE}>
           Employment Details

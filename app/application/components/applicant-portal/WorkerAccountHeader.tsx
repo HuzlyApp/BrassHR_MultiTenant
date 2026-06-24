@@ -5,6 +5,7 @@ import { Mail, MapPin, Phone } from "lucide-react";
 import { WorkerProfilePhotoUpload } from "./WorkerProfilePhotoUpload";
 import type { WorkerAccountProfile } from "./worker-account-types";
 import { workerAccountTabHref } from "./worker-account-types";
+import { WORKER_BTN_LINK } from "./worker-portal-buttons";
 import { WORKER_SCHEDULE_CARD_CLASS } from "./worker-schedule-typography";
 
 function statusTone(status: string): string {
@@ -119,11 +120,7 @@ export function WorkerAccountHeader({
                 style={{ width: `${profile.profileCompletionPercent}%` }}
               />
             </div>
-            <Link
-              href={workerAccountTabHref("personal")}
-              className="mt-5 inline-flex h-11 w-full items-center justify-center rounded-md px-4 text-sm font-semibold text-white"
-              style={{ backgroundColor: "var(--brand-primary)" }}
-            >
+            <Link href={workerAccountTabHref("personal")} className={`mt-5 ${WORKER_BTN_LINK}`}>
               Update Profile
             </Link>
           </div>

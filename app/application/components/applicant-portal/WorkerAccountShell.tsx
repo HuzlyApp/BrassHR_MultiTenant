@@ -7,6 +7,7 @@ import { WorkerAccountProvider } from "./WorkerAccountContext";
 import { WorkerAccountHeader } from "./WorkerAccountHeader";
 import { WorkerAccountTabNav } from "./WorkerAccountTabNav";
 import type { WorkerAccountOverviewPayload, WorkerAccountTab } from "./worker-account-types";
+import { WORKER_PORTAL_PAGE_PAD_CLASS } from "./worker-schedule-typography";
 
 const EMPTY_PROFILE: WorkerAccountOverviewPayload["profile"] = {
   id: "",
@@ -100,7 +101,7 @@ export function WorkerAccountShell({ activeTab, children }: WorkerAccountShellPr
   const profile = overview?.profile ?? EMPTY_PROFILE;
 
   return (
-    <div className="w-full min-w-0 space-y-4 px-4 py-5 min-[1000px]:px-8">
+    <div className={`space-y-4 ${WORKER_PORTAL_PAGE_PAD_CLASS}`}>
       {error ? (
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
       ) : null}
