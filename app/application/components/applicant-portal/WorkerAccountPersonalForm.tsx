@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
-import DashboardPageLoader from "@/app/admin_recruiter/components/DashboardPageLoader";
+import { WorkerPortalPageLoader } from "./WorkerPortalPageLoader";
 import { useApplicantPortal } from "./ApplicantPortalProvider";
 import { useWorkerAccountActions, useWorkerAccountOverview } from "./WorkerAccountContext";
 import { WorkerProfilePhotoUpload } from "./WorkerProfilePhotoUpload";
@@ -142,7 +142,7 @@ export function WorkerAccountPersonalForm() {
   }
 
   if (!sessionReady || loading) {
-    return <DashboardPageLoader label="Loading profile..." className="min-h-[280px]" />;
+    return <WorkerPortalPageLoader label="Loading profile..." />;
   }
 
   return (

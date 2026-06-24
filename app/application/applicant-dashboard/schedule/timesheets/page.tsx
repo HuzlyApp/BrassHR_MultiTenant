@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import DashboardPageLoader from "@/app/admin_recruiter/components/DashboardPageLoader";
+import { WorkerPortalPageLoader } from "@/app/application/components/applicant-portal/WorkerPortalPageLoader";
 import { useApplicantPortal } from "@/app/application/components/applicant-portal/ApplicantPortalProvider";
 import { ApplicantTimesheetsTab } from "@/app/application/components/applicant-portal/ApplicantTimesheetsTab";
 import type { AttendanceLog } from "@/app/application/components/applicant-portal/types";
@@ -57,7 +57,7 @@ export default function ApplicantTimesheetsPage() {
   }, [authHeaders, session, sessionReady]);
 
   if (!sessionReady || loading) {
-    return <DashboardPageLoader label="Loading timesheets..." className="min-h-[360px]" />;
+    return <WorkerPortalPageLoader label="Loading timesheets..." />;
   }
 
   if (!session) return null;

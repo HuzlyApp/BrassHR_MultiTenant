@@ -2,7 +2,7 @@
 
 import { FormEvent, Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import DashboardPageLoader from "@/app/admin_recruiter/components/DashboardPageLoader";
+import { WorkerPortalPageLoader } from "@/app/application/components/applicant-portal/WorkerPortalPageLoader";
 import { useApplicantPortal } from "@/app/application/components/applicant-portal/ApplicantPortalProvider";
 import { ApplicantPortalTabs } from "@/app/application/components/applicant-portal/ApplicantPortalTabs";
 import { ApplicantScheduleTab } from "@/app/application/components/applicant-portal/ApplicantScheduleTab";
@@ -42,7 +42,7 @@ function parseTab(value: string | null): ApplicantPortalTab {
 
 export default function ApplicantSchedulePage() {
   return (
-    <Suspense fallback={<DashboardPageLoader label="Loading schedule..." className="min-h-[360px]" />}>
+    <Suspense fallback={<WorkerPortalPageLoader label="Loading schedule..." />}>
       <ApplicantSchedulePageContent />
     </Suspense>
   );
@@ -274,7 +274,7 @@ function ApplicantSchedulePageContent() {
   }
 
   if (!sessionReady || dataLoading) {
-    return <DashboardPageLoader label="Loading schedule..." className="min-h-[360px]" />;
+    return <WorkerPortalPageLoader label="Loading schedule..." />;
   }
 
   if (!session) return null;

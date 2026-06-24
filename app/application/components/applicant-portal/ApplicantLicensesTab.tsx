@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { AlertTriangle, Upload } from "lucide-react";
-import DashboardPageLoader from "@/app/admin_recruiter/components/DashboardPageLoader";
+import { WorkerPortalPageLoader } from "./WorkerPortalPageLoader";
 import { LICENSE_TYPES, LICENSE_TYPE_LABELS } from "@/lib/applicant-portal/documents";
 import { useApplicantPortal } from "./ApplicantPortalProvider";
 import {
@@ -144,7 +144,7 @@ export function ApplicantLicensesTab({ embedded = false }: { embedded?: boolean 
   }
 
   if (!sessionReady || loading) {
-    return <DashboardPageLoader label="Loading licenses..." className="min-h-[360px]" />;
+    return <WorkerPortalPageLoader label="Loading licenses..." />;
   }
 
   return (

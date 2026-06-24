@@ -7,7 +7,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import DashboardPageLoader from "@/app/admin_recruiter/components/DashboardPageLoader";
+import { WorkerPortalPageLoader } from "@/app/application/components/applicant-portal/WorkerPortalPageLoader";
 import {
   TenantBrandingProvider,
   useTenantBranding,
@@ -202,7 +202,7 @@ function ApplicantPortalLayoutInner({ children }: { children: ReactNode }) {
           ) : null}
 
           {showSessionLoader ? (
-            <DashboardPageLoader label="Loading..." className="min-h-[360px]" />
+            <WorkerPortalPageLoader label="Loading..." />
           ) : (
             children
           )}

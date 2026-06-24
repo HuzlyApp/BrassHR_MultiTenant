@@ -3,7 +3,7 @@
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Plus, Search, Ticket } from "lucide-react";
-import DashboardPageLoader from "@/app/admin_recruiter/components/DashboardPageLoader";
+import { WorkerPortalPageLoader } from "@/app/application/components/applicant-portal/WorkerPortalPageLoader";
 import SupportConversationClient from "@/app/admin_recruiter/messages/SupportConversationClient";
 import { CreateSupportTicketModal } from "@/app/application/components/applicant-portal/CreateSupportTicketModal";
 import { useApplicantPortalAuthHeaders } from "@/app/application/components/applicant-portal/useApplicantPortalSession";
@@ -21,7 +21,7 @@ const STATUS_COLORS: Record<SupportTicketStatus, string> = {
 
 export function ApplicantTicketsClient() {
   return (
-    <Suspense fallback={<DashboardPageLoader label="Loading support tickets..." />}>
+    <Suspense fallback={<WorkerPortalPageLoader label="Loading support tickets..." />}>
       <ApplicantTicketsClientContent />
     </Suspense>
   );
@@ -92,7 +92,7 @@ function ApplicantTicketsClientContent() {
   const selectedTicket = tickets.find((ticket) => ticket.id === selectedTicketId) ?? null;
 
   if (loading) {
-    return <DashboardPageLoader label="Loading support tickets..." />;
+    return <WorkerPortalPageLoader label="Loading support tickets..." />;
   }
 
   return (

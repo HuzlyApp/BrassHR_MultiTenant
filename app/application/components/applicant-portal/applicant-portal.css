@@ -1,6 +1,8 @@
 .applicant-portal-main > main {
   width: 100%;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .applicant-portal-main {

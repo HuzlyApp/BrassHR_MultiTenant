@@ -221,7 +221,7 @@ export function WorkerDashboardOverview({
   const weekRange = getWeekRangeLabel();
 
   return (
-    <div className="w-full min-w-0 space-y-[14px] px-4 py-5 min-[1000px]:px-8">
+    <div className="w-full min-w-0 space-y-[14px] py-5 max-[479px]:pl-6 max-[479px]:pr-3 min-[480px]:px-4 min-[1000px]:px-8">
       <header className="space-y-1">
         <h1 className="font-[Inter,sans-serif] text-[30px] font-semibold leading-9 text-[#012352]">
           {getGreeting()}, {getFirstName(userName)}!

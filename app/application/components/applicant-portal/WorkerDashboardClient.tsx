@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import DashboardPageLoader from "@/app/admin_recruiter/components/DashboardPageLoader";
+import { WorkerPortalPageLoader } from "./WorkerPortalPageLoader";
 import { useApplicantPortal } from "@/app/application/components/applicant-portal/ApplicantPortalProvider";
 import { WorkerDashboardOverview } from "@/app/application/components/applicant-portal/WorkerDashboardOverview";
 import type {
@@ -82,7 +82,7 @@ export function WorkerDashboardClient() {
   }, [authHeaders, session, sessionReady]);
 
   if (!sessionReady || dataLoading) {
-    return <DashboardPageLoader label="Loading dashboard..." className="min-h-[360px]" />;
+    return <WorkerPortalPageLoader label="Loading dashboard..." />;
   }
 
   if (!session) return null;

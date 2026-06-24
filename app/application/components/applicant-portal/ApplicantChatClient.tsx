@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
 import { Search, Users } from "lucide-react";
-import DashboardPageLoader from "@/app/admin_recruiter/components/DashboardPageLoader";
+import { WorkerPortalPageLoader } from "@/app/application/components/applicant-portal/WorkerPortalPageLoader";
 import CandidateDetailLoader from "@/app/admin_recruiter/components/CandidateDetailLoader";
 import GroupStackedAvatars, {
   SingleChatAvatar,
@@ -85,7 +85,7 @@ function ChatHeader({
 
 export function ApplicantChatClient() {
   return (
-    <Suspense fallback={<DashboardPageLoader label="Loading chat..." className="min-h-[360px]" />}>
+    <Suspense fallback={<WorkerPortalPageLoader label="Loading chat..." />}>
       <ApplicantChatClientContent />
     </Suspense>
   );
@@ -179,7 +179,7 @@ function ApplicantChatClientContent() {
       : "Chat with your recruiter";
 
   if (!sessionReady || !applicantWorkerId) {
-    return <DashboardPageLoader label="Loading chat..." className="min-h-[360px]" />;
+    return <WorkerPortalPageLoader label="Loading chat..." />;
   }
 
   return (

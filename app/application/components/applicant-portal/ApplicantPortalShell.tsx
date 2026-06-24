@@ -123,7 +123,7 @@ export function ApplicantPortalShell({
             onSidebarToggle={toggleSidebarCollapsed}
             onOpenMessages={openMessages}
           />
-          <main className="flex-1 bg-[#F4F4F4]">{children}</main>
+          <main className="flex flex-1 flex-col bg-[#F4F4F4]">{children}</main>
         </div>
 
         <ApplicantMessagesPanel

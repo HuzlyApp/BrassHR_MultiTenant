@@ -87,3 +87,8 @@ export type FacilitiesListResponse = {
   facilities: FacilityManagementItem[];
   meta: { tenantId: string; total: number };
 };
+
+export type WorkerLocationsResponse = {
+  locations: FacilityListItem[];
+  total: number;
+};

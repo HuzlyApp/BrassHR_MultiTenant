@@ -73,8 +73,15 @@ const TEAMS_CHILDREN: WorkerSidebarLink[] = [
   { label: "Managers", href: "#", matchPrefixes: [], disabled: true },
 ];
 
+const LOCATIONS_HOME = "/application/applicant-dashboard/locations";
+
 const ORGANIZATION_CHILDREN: WorkerSidebarLink[] = [
-  { label: "Locations", href: "#", matchPrefixes: [], disabled: true },
+  {
+    label: "Locations",
+    href: LOCATIONS_HOME,
+    matchPrefixes: [LOCATIONS_HOME],
+    matchExact: true,
+  },
 ];
 
 const PROFILE_CHILDREN: WorkerSidebarLink[] = [
@@ -148,10 +155,9 @@ export const WORKER_SIDEBAR_SECTIONS: WorkerSidebarSection[] = [
   },
   {
     label: "Organization",
-    href: "#",
+    href: LOCATIONS_HOME,
     iconType: ICON.organization,
-    matchPrefixes: [],
-    disabled: true,
+    matchPrefixes: [LOCATIONS_HOME],
     children: ORGANIZATION_CHILDREN,
   },
   {

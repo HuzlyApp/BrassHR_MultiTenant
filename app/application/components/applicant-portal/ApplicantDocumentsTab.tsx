@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { Eye, Upload } from "lucide-react";
-import DashboardPageLoader from "@/app/admin_recruiter/components/DashboardPageLoader";
+import { WorkerPortalPageLoader } from "./WorkerPortalPageLoader";
 import BrandedFileTypeIcon from "@/app/admin_recruiter/components/BrandedFileTypeIcon";
 import { documentStatusLabel } from "@/lib/applicant-portal/documents";
 import { useApplicantPortal } from "./ApplicantPortalProvider";
@@ -357,7 +357,7 @@ export function ApplicantDocumentsTab({ embedded = false }: { embedded?: boolean
     .sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime());
 
   if (!sessionReady || loading) {
-    return <DashboardPageLoader label="Loading documents..." className="min-h-[360px]" />;
+    return <WorkerPortalPageLoader label="Loading documents..." />;
   }
 
   return (

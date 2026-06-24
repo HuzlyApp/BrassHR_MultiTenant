@@ -1,5 +1,5 @@
-import DashboardPageLoader from "@/app/admin_recruiter/components/DashboardPageLoader";
+import { WorkerPortalPageLoader } from "@/app/application/components/applicant-portal/WorkerPortalPageLoader";
 
 export default function ApplicantDashboardLoading() {
-  return <DashboardPageLoader label="Loading..." className="min-h-[360px]" />;
+  return <WorkerPortalPageLoader label="Loading..." />;
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState, type ReactNode } from "react";
-import DashboardPageLoader from "@/app/admin_recruiter/components/DashboardPageLoader";
+import { WorkerPortalPageLoader } from "./WorkerPortalPageLoader";
 import { useApplicantPortal } from "./ApplicantPortalProvider";
 import { WorkerAccountProvider } from "./WorkerAccountContext";
 import { WorkerAccountHeader } from "./WorkerAccountHeader";
@@ -94,7 +94,7 @@ export function WorkerAccountShell({ activeTab, children }: WorkerAccountShellPr
   }, [authHeaders, sessionReady, setProfilePhotoUrl]);
 
   if (!sessionReady || loading) {
-    return <DashboardPageLoader label="Loading account..." className="min-h-[420px]" />;
+    return <WorkerPortalPageLoader label="Loading account..." />;
   }
 
   const profile = overview?.profile ?? EMPTY_PROFILE;
