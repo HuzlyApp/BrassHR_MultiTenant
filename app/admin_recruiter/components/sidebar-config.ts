@@ -103,8 +103,9 @@ const SCHEDULING_CHILDREN: SidebarLink[] = [
 const TASKBOARD_CHILDREN: SidebarLink[] = [
   {
     label: "Onboarding",
-    href: ONBOARDING_BUILDER_ROUTE,
-    matchPrefixes: [ONBOARDING_BUILDER_ROUTE],
+    href: "#",
+    matchPrefixes: [],
+    disabled: true,
   },
   {
     label: "Interviews",
@@ -120,10 +121,7 @@ const TASKBOARD_CHILDREN: SidebarLink[] = [
   },
 ];
 
-const TASKBOARD_ACTIVE_PREFIXES = [
-  ONBOARDING_BUILDER_ROUTE,
-  "/admin_recruiter/calendar",
-];
+const TASKBOARD_ACTIVE_PREFIXES = ["/admin_recruiter/calendar"];
 
 const RECRUITMENT_CHILDREN: SidebarLink[] = [
   {
@@ -207,7 +205,7 @@ const SHARED_TOP_SECTIONS: SidebarSection[] = [
   },
   {
     label: "Taskboard",
-    href: ONBOARDING_BUILDER_ROUTE,
+    href: "#",
     iconType: ICON.taskboard,
     matchPrefixes: TASKBOARD_ACTIVE_PREFIXES,
     children: TASKBOARD_CHILDREN,

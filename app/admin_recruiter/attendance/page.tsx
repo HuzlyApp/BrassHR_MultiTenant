@@ -8,6 +8,7 @@ import {
   CANDIDATES_PAGE_SUBTITLE_STYLE,
 } from "@/app/admin_recruiter/candidates/candidates-typography";
 import { CandidatesPageHeader } from "@/app/admin_recruiter/components/CandidatesPageHeader";
+import { SchedulingSubNav } from "@/app/admin_recruiter/scheduling/SchedulingSubNav";
 import { AttendanceEditColumnsModal } from "@/app/admin_recruiter/attendance/EditColumnsModal";
 import {
   attendanceColumnLabel,
@@ -85,12 +86,15 @@ export default function AdminApplicantAttendancePage() {
 
   return (
     <div className="px-5 pb-8 pt-5 lg:px-8">
-      <div className="w-full overflow-hidden rounded-[12px] border border-[#E5E7EB] bg-white">
-        <CandidatesPageHeader
-          title="Time & Attendance"
-          subtitle="Review clock-in and clock-out logs for your team"
-        />
+      <SchedulingSubNav />
 
+      <CandidatesPageHeader
+        variant="page"
+        title="Time & Attendance"
+        subtitle="Review clock-in and clock-out logs for your team"
+      />
+
+      <div className="w-full overflow-hidden rounded-[12px] border border-[#E5E7EB] bg-white">
         <div
           className={`flex w-full flex-col gap-0 overflow-hidden rounded-t-[8px] border-y border-[#E5E7EB] bg-white ${
             showFilterRows ? "min-h-[104px]" : "min-h-[52px]"
