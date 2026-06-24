@@ -14,6 +14,7 @@ const ALL_SIDEBAR_ICON_TYPES: SidebarIconType[] = [
   "Reports",
   "Finance",
   "Taskboard",
+  "Template Builder",
   "Teams",
   "Connect",
   "Applicant",

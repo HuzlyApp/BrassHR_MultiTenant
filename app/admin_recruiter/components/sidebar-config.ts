@@ -28,6 +28,7 @@ const ICON = {
   reports: "Reports",
   finance: "Finance",
   taskboard: "Taskboard",
+  templateBuilder: "Template Builder",
   teams: "Teams",
   automation: "Connect",
   candidates: "Applicant",
@@ -89,14 +90,39 @@ const REPORTS_CHILDREN: SidebarLink[] = [
 const SCHEDULING_CHILDREN: SidebarLink[] = [
   {
     label: "Schedule",
-    href: "/admin_recruiter/calendar",
-    matchPrefixes: ["/admin_recruiter/calendar"],
+    href: "/admin_recruiter/calendar/shifts",
+    matchPrefixes: ["/admin_recruiter/calendar/shifts"],
   },
   {
     label: "Time & Attendance",
     href: "/admin_recruiter/attendance",
     matchPrefixes: ["/admin_recruiter/attendance"],
   },
+];
+
+const TASKBOARD_CHILDREN: SidebarLink[] = [
+  {
+    label: "Onboarding",
+    href: ONBOARDING_BUILDER_ROUTE,
+    matchPrefixes: [ONBOARDING_BUILDER_ROUTE],
+  },
+  {
+    label: "Interviews",
+    href: "/admin_recruiter/calendar",
+    matchPrefixes: ["/admin_recruiter/calendar"],
+    matchExact: true,
+  },
+  {
+    label: "Calls",
+    href: "#",
+    matchPrefixes: [],
+    disabled: true,
+  },
+];
+
+const TASKBOARD_ACTIVE_PREFIXES = [
+  ONBOARDING_BUILDER_ROUTE,
+  "/admin_recruiter/calendar",
 ];
 
 const RECRUITMENT_CHILDREN: SidebarLink[] = [
@@ -176,8 +202,15 @@ const SHARED_TOP_SECTIONS: SidebarSection[] = [
   {
     label: "Template Builder",
     href: "/admin_recruiter/template-builder",
-    iconType: ICON.taskboard,
+    iconType: ICON.templateBuilder,
     matchPrefixes: ["/admin_recruiter/template-builder"],
+  },
+  {
+    label: "Taskboard",
+    href: ONBOARDING_BUILDER_ROUTE,
+    iconType: ICON.taskboard,
+    matchPrefixes: TASKBOARD_ACTIVE_PREFIXES,
+    children: TASKBOARD_CHILDREN,
   },
   {
     label: "Chat",
@@ -187,9 +220,9 @@ const SHARED_TOP_SECTIONS: SidebarSection[] = [
   },
   {
     label: "Scheduling",
-    href: "/admin_recruiter/calendar",
+    href: "/admin_recruiter/calendar/shifts",
     iconType: ICON.schedule,
-    matchPrefixes: ["/admin_recruiter/calendar", "/admin_recruiter/attendance"],
+    matchPrefixes: ["/admin_recruiter/calendar/shifts", "/admin_recruiter/attendance"],
     children: SCHEDULING_CHILDREN,
   },
   {

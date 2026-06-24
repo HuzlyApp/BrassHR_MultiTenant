@@ -8,6 +8,7 @@ export type SidebarIconType =
   | "Reports"
   | "Finance"
   | "Taskboard"
+  | "Template Builder"
   | "Teams"
   | "Connect"
   | "Applicant"
