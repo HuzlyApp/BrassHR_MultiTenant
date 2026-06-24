@@ -45,12 +45,14 @@ function getFirmaApiKey(): string {
   return key;
 }
 
-function buildUrl(path: string, workspaceId?: string): string {
+function buildUrl(path: string, workspaceId?: string, includeWorkspaceScope = true): string {
   const base = getFirmaApiBaseUrl();
   const normalized = path.startsWith("/") ? path : `/${path}`;
   const url = new URL(`${base}${normalized}`);
-  const ws = workspaceId ?? getFirmaWorkspaceId();
-  if (ws) url.searchParams.set("workspace_id", ws);
+  if (includeWorkspaceScope) {
+    const ws = workspaceId ?? getFirmaWorkspaceId();
+    if (ws) url.searchParams.set("workspace_id", ws);
+  }
   return url.toString();
 }
 
@@ -141,12 +143,20 @@ type FirmaRequestOptions = {
   body?: unknown;
   workspaceId?: string;
   retries?: number;
+  /** When false, omit workspace_id query param (company/account-level endpoints such as POST /workspaces). */
+  includeWorkspaceScope?: boolean;
 };
 
 async function firmaRequest<T>(path: string, options: FirmaRequestOptions = {}): Promise<T> {
-  const { method = "GET", body, workspaceId, retries = 1 } = options;
+  const {
+    method = "GET",
+    body,
+    workspaceId,
+    retries = 1,
+    includeWorkspaceScope = true,
+  } = options;
   const apiKey = getFirmaApiKey();
-  const url = buildUrl(path, workspaceId);
+  const url = buildUrl(path, workspaceId, includeWorkspaceScope);
 
   let lastError: unknown;
 
@@ -182,26 +192,32 @@ async function firmaRequest<T>(path: string, options: FirmaRequestOptions = {}):
   throw new FirmaError("NETWORK_ERROR", msg, 502, lastError);
 }
 
-export async function listFirmaTemplates(): Promise<FirmaTemplate[]> {
-  const result = await firmaRequest<FirmaTemplate[] | { templates?: FirmaTemplate[] }>("/templates");
+export async function listFirmaTemplates(workspaceId: string): Promise<FirmaTemplate[]> {
+  const result = await firmaRequest<FirmaTemplate[] | { templates?: FirmaTemplate[] }>("/templates", {
+    workspaceId,
+  });
   if (Array.isArray(result)) return result;
   return result.templates ?? [];
 }
 
-export async function getFirmaTemplate(id: string): Promise<FirmaTemplate> {
-  return firmaRequest<FirmaTemplate>(`/templates/${id}`);
+export async function getFirmaTemplate(id: string, workspaceId: string): Promise<FirmaTemplate> {
+  return firmaRequest<FirmaTemplate>(`/templates/${id}`, { workspaceId });
 }
 
-export async function createFirmaTemplate(input: {
-  name: string;
-  document: string;
-  description?: string;
-  expiration_hours?: number;
-  settings?: FirmaTemplateSettings;
-}): Promise<FirmaTemplate> {
+export async function createFirmaTemplate(
+  input: {
+    name: string;
+    document: string;
+    description?: string;
+    expiration_hours?: number;
+    settings?: FirmaTemplateSettings;
+  },
+  workspaceId: string
+): Promise<FirmaTemplate> {
   return firmaRequest<FirmaTemplate>("/templates", {
     method: "POST",
     body: input,
+    workspaceId,
     retries: 0,
   });
 }
@@ -216,52 +232,66 @@ export async function updateFirmaTemplate(
     settings?: FirmaTemplateSettings;
     user?: Record<string, unknown>;
     field?: Record<string, unknown>;
-  }
+  },
+  workspaceId: string
 ): Promise<FirmaTemplate> {
   return firmaRequest<FirmaTemplate>(`/templates/${id}`, {
     method: "PATCH",
     body: input,
+    workspaceId,
     retries: 0,
   });
 }
 
 export async function replaceFirmaTemplateDocument(
   id: string,
-  document: string
+  document: string,
+  workspaceId: string
 ): Promise<FirmaTemplate> {
   return firmaRequest<FirmaTemplate>(`/templates/${id}/replace-document`, {
     method: "POST",
     body: { document },
+    workspaceId,
     retries: 0,
   });
 }
 
-export async function deleteFirmaTemplate(id: string): Promise<void> {
-  await firmaRequest<void>(`/templates/${id}`, { method: "DELETE", retries: 0 });
+export async function deleteFirmaTemplate(id: string, workspaceId: string): Promise<void> {
+  await firmaRequest<void>(`/templates/${id}`, { method: "DELETE", workspaceId, retries: 0 });
 }
 
 export async function duplicateFirmaTemplateToSigningRequest(
   id: string,
+  workspaceId: string,
   name?: string
 ): Promise<FirmaSigningRequest> {
   return firmaRequest<FirmaSigningRequest>(`/templates/${id}/duplicate`, {
     method: "POST",
     body: name ? { name } : {},
+    workspaceId,
     retries: 0,
   });
 }
 
-export async function listFirmaTemplateUsers(id: string): Promise<FirmaTemplateUser[]> {
+export async function listFirmaTemplateUsers(
+  id: string,
+  workspaceId: string
+): Promise<FirmaTemplateUser[]> {
   const result = await firmaRequest<FirmaTemplateUser[] | { users?: FirmaTemplateUser[] }>(
-    `/templates/${id}/users`
+    `/templates/${id}/users`,
+    { workspaceId }
   );
   if (Array.isArray(result)) return result;
   return result.users ?? [];
 }
 
-export async function listFirmaTemplateFields(id: string): Promise<FirmaTemplateField[]> {
+export async function listFirmaTemplateFields(
+  id: string,
+  workspaceId: string
+): Promise<FirmaTemplateField[]> {
   const result = await firmaRequest<FirmaTemplateField[] | { fields?: FirmaTemplateField[] }>(
-    `/templates/${id}/fields`
+    `/templates/${id}/fields`,
+    { workspaceId }
   );
   if (Array.isArray(result)) return result;
   return result.fields ?? [];
@@ -281,10 +311,14 @@ export function normalizeFirmaTemplateJwt(value: unknown): string {
   return normalized;
 }
 
-export async function generateFirmaTemplateJwt(templateId: string): Promise<FirmaJwtTokenResponse> {
+export async function generateFirmaTemplateJwt(
+  templateId: string,
+  workspaceId: string
+): Promise<FirmaJwtTokenResponse> {
   const response = await firmaRequest<FirmaJwtTokenResponse>("/generate-template-token", {
     method: "POST",
     body: { companies_workspaces_templates_id: templateId },
+    workspaceId,
     retries: 1,
   });
 
@@ -294,21 +328,63 @@ export async function generateFirmaTemplateJwt(templateId: string): Promise<Firm
   };
 }
 
-export async function createFirmaSigningRequest(input: {
+export type CreateFirmaSigningRequestInput = {
   template_id: string;
   name?: string;
   description?: string;
   recipients?: Array<Record<string, unknown>>;
-}): Promise<FirmaSigningRequest> {
+};
+
+export async function createFirmaSigningRequest(
+  input: CreateFirmaSigningRequestInput,
+  workspaceId: string
+): Promise<FirmaSigningRequest> {
   return firmaRequest<FirmaSigningRequest>("/signing-requests", {
     method: "POST",
     body: input,
+    workspaceId,
     retries: 0,
   });
 }
 
-export async function getFirmaSigningRequest(id: string): Promise<FirmaSigningRequest> {
-  return firmaRequest<FirmaSigningRequest>(`/signing-requests/${id}`, { retries: 1 });
+/** Creates a signing request and sends it in one call (required for embedded signing URLs). */
+export async function createAndSendFirmaSigningRequest(
+  input: CreateFirmaSigningRequestInput,
+  workspaceId: string
+): Promise<FirmaSigningRequest> {
+  try {
+    return await firmaRequest<FirmaSigningRequest>("/signing-requests/create-and-send", {
+      method: "POST",
+      body: input,
+      workspaceId,
+      retries: 0,
+    });
+  } catch (err) {
+    if (err instanceof FirmaError && err.code === "NOT_FOUND") {
+      const draft = await createFirmaSigningRequest(input, workspaceId);
+      return sendFirmaSigningRequest(draft.id, workspaceId);
+    }
+    throw err;
+  }
+}
+
+export async function sendFirmaSigningRequest(
+  signingRequestId: string,
+  workspaceId: string
+): Promise<FirmaSigningRequest> {
+  return firmaRequest<FirmaSigningRequest>(`/signing-requests/${signingRequestId}/send`, {
+    method: "POST",
+    body: {},
+    workspaceId,
+    retries: 0,
+  });
+}
+
+export async function getFirmaSigningRequest(
+  id: string,
+  workspaceId: string
+): Promise<FirmaSigningRequest> {
+  return firmaRequest<FirmaSigningRequest>(`/signing-requests/${id}`, { workspaceId, retries: 1 });
 }
 
 type FirmaSigningRequestUsersResponse =
@@ -324,13 +400,44 @@ function normalizeFirmaSigningRequestUsers(
 }
 
 export async function getFirmaSigningRequestUsers(
-  signingRequestId: string
+  signingRequestId: string,
+  workspaceId: string
 ): Promise<FirmaSigningRequestRecipient[]> {
   const response = await firmaRequest<FirmaSigningRequestUsersResponse>(
     `/signing-requests/${signingRequestId}/users`,
-    { retries: 1 }
+    { workspaceId, retries: 1 }
   );
   return normalizeFirmaSigningRequestUsers(response);
+}
+
+export type FirmaWorkspace = {
+  id: string;
+  name?: string;
+};
+
+/** Official endpoint: POST /workspaces (docs.firma.dev/guides/creating-workspaces) */
+export async function createFirmaWorkspace(input: {
+  name: string;
+  slug?: string | null;
+}): Promise<FirmaWorkspace> {
+  const name = input.name.trim();
+  if (!name) {
+    throw new FirmaError("VALIDATION_ERROR", "Firma workspace name is required", 400);
+  }
+
+  const result = await firmaRequest<FirmaWorkspace>("/workspaces", {
+    method: "POST",
+    body: { name },
+    includeWorkspaceScope: false,
+    retries: 0,
+  });
+
+  const id = typeof result?.id === "string" ? result.id.trim() : "";
+  if (!id) {
+    throw new FirmaError("API_ERROR", "Firma did not return a workspace id", 502);
+  }
+
+  return { id, name: result.name ?? name };
 }
 
 export function resolveFirmaRecipientSigningUrl(

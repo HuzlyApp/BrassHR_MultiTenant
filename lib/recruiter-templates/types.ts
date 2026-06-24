@@ -38,6 +38,7 @@ export type RecruiterTemplateRow = {
   id: string;
   tenant_id: string;
   firma_template_id: string | null;
+  firma_workspace_id?: string | null;
   firma_builder_session_id?: string | null;
   name: string;
   description: string | null;

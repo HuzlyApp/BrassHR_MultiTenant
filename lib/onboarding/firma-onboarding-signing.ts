@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { FirmaError } from "@/lib/firma/errors";
 import {
-  createFirmaSigningRequest,
+  createAndSendFirmaSigningRequest,
   getFirmaSigningRequest,
   getFirmaSigningRequestUsers,
   getFirmaTemplate,
@@ -10,12 +10,26 @@ import {
   resolveFirmaSigningIframeUrl,
 } from "@/lib/firma/client";
 import {
+  FirmaWorkspaceConfigError,
+  isStoredFirmaWorkspaceMismatch,
+  resolveTenantFirmaWorkspaceId,
+} from "@/lib/firma/resolve-tenant-workspace";
+import {
+  getFirmaSigningSessionStaleReason,
+  isFirmaSigningSessionStale,
+} from "@/lib/firma/session-staleness";
+import {
   getFirmaRecruiterTemplateId,
   isFirmaSigningComplete,
   mapFirmaStatusToOnboardingStatus,
   normalizeFirmaSigningStatus,
 } from "@/lib/onboarding/firma-step-settings";
-import { DRAFT_PREVIEW_APPLICANT_EMAIL } from "@/lib/onboarding/is-draft-preview";
+import {
+  DRAFT_PREVIEW_APPLICANT_EMAIL,
+  getDraftPreviewFirmaSignerEmailFallback,
+  isUndeliverableDraftPreviewEmail,
+  resolveDraftPreviewFirmaSignerEmail,
+} from "@/lib/onboarding/is-draft-preview";
 import type { OnboardingStepStatus, TenantOnboardingStep } from "@/lib/onboarding/types";
 
 export type WorkerFirmaSigningSessionRow = {
@@ -25,6 +39,7 @@ export type WorkerFirmaSigningSessionRow = {
   onboarding_step_id: string;
   recruiter_template_id: string | null;
   firma_template_id: string | null;
+  firma_workspace_id: string | null;
   signing_request_id: string;
   signing_request_user_id: string | null;
   firma_status: string;
@@ -64,22 +79,43 @@ export type EnsureFirmaDraftPreviewSigningSessionInput = {
   applicantLastName?: string | null;
 };
 
+function isFirmaEmailBounceError(err: unknown): boolean {
+  const message =
+    err instanceof FirmaError
+      ? err.message
+      : err instanceof Error
+        ? err.message
+        : String(err);
+  return /bounce|can't receive email|cannot receive email/i.test(message);
+}
+
 function isFirmaWorkspaceMismatchMessage(message: string): boolean {
   const normalized = message.trim().toLowerCase();
   return (
     normalized.includes("does not belong to this workspace") ||
-    normalized.includes("invalid_template")
+    normalized.includes("invalid_template") ||
+    normalized.includes("workspace mismatch")
   );
 }
 
 export function mapFirmaSigningCreateError(err: unknown): FirmaOnboardingSigningError {
   if (err instanceof FirmaOnboardingSigningError) return err;
+  if (err instanceof FirmaWorkspaceConfigError) {
+    return new FirmaOnboardingSigningError(err.message, "WORKSPACE_NOT_CONFIGURED", err.status);
+  }
   if (err instanceof FirmaError) {
     if (err.code === "NOT_FOUND" || isFirmaWorkspaceMismatchMessage(err.message)) {
       return new FirmaOnboardingSigningError(
-        "The attached Firma template is not available in this server workspace. Open Template Builder, re-open the template (or use force recreate), publish again, then retry onboarding.",
+        "The attached Firma template is not available in this organization's Firma workspace. Open Template Builder, re-open the template (or use force recreate), publish again, then retry onboarding.",
         "TEMPLATE_WORKSPACE_MISMATCH",
         409
+      );
+    }
+    if (err.code === "AUTH_ERROR") {
+      return new FirmaOnboardingSigningError(
+        "Firma API credentials do not have access to this organization's workspace. Verify the Firma API key and workspace ID configuration.",
+        "FIRMA_AUTH_MISMATCH",
+        err.status
       );
     }
     return new FirmaOnboardingSigningError(err.message, "CREATE_FAILED", err.status);
@@ -87,7 +123,7 @@ export function mapFirmaSigningCreateError(err: unknown): FirmaOnboardingSigning
   const message = err instanceof Error ? err.message : "Failed to create Firma signing request";
   if (isFirmaWorkspaceMismatchMessage(message)) {
     return new FirmaOnboardingSigningError(
-      "The attached Firma template is not available in this server workspace. Open Template Builder, re-open the template (or use force recreate), publish again, then retry onboarding.",
+      "The attached Firma template is not available in this organization's Firma workspace. Open Template Builder, re-open the template (or use force recreate), publish again, then retry onboarding.",
       "TEMPLATE_WORKSPACE_MISMATCH",
       409
     );
@@ -102,14 +138,32 @@ export class FirmaOnboardingSigningError extends Error {
       | "MISSING_TEMPLATE"
       | "TEMPLATE_NOT_PUBLISHED"
       | "TEMPLATE_WORKSPACE_MISMATCH"
+      | "SESSION_WORKSPACE_MISMATCH"
+      | "WORKSPACE_NOT_CONFIGURED"
+      | "FIRMA_AUTH_MISMATCH"
       | "FIRMA_NOT_CONFIGURED"
       | "CREATE_FAILED"
       | "INVALID_SESSION"
+      | "SIGNING_REQUEST_DRAFT"
       | "IFRAME_UNAVAILABLE",
     readonly status = 400
   ) {
     super(message);
     this.name = "FirmaOnboardingSigningError";
+  }
+}
+
+async function resolveWorkspaceForSigning(
+  supabase: SupabaseClient,
+  tenantId: string
+): Promise<string> {
+  try {
+    return await resolveTenantFirmaWorkspaceId(supabase, tenantId);
+  } catch (err) {
+    if (err instanceof FirmaWorkspaceConfigError) {
+      throw new FirmaOnboardingSigningError(err.message, "WORKSPACE_NOT_CONFIGURED", err.status);
+    }
+    throw err;
   }
 }
 
@@ -120,7 +174,7 @@ async function loadRecruiterTemplate(
 ) {
   const { data, error } = await supabase
     .from("recruiter_templates")
-    .select("id, tenant_id, name, status, firma_template_id")
+    .select("id, tenant_id, name, status, firma_template_id, firma_workspace_id")
     .eq("id", recruiterTemplateId)
     .eq("tenant_id", tenantId)
     .maybeSingle();
@@ -143,6 +197,11 @@ async function loadExistingSession(
 
   if (error) throw error;
   return (data as WorkerFirmaSigningSessionRow | null) ?? null;
+}
+
+async function clearSigningSession(supabase: SupabaseClient, sessionId: string): Promise<void> {
+  const { error } = await supabase.from("worker_firma_signing_sessions").delete().eq("id", sessionId);
+  if (error) throw error;
 }
 
 async function upsertSession(
@@ -196,7 +255,8 @@ function sessionPayloadFromFirma(
 async function resolveRecruiterTemplateForStep(
   supabase: SupabaseClient,
   tenantId: string,
-  step: TenantOnboardingStep
+  step: TenantOnboardingStep,
+  workspaceId: string
 ) {
   const recruiterTemplateId = getFirmaRecruiterTemplateId(step);
   if (!recruiterTemplateId) {
@@ -223,7 +283,26 @@ async function resolveRecruiterTemplateForStep(
     );
   }
 
+  if (isStoredFirmaWorkspaceMismatch(recruiterTemplate.firma_workspace_id, workspaceId)) {
+    throw new FirmaOnboardingSigningError(
+      "This template belongs to a different Firma workspace. Re-publish the template in Template Builder before applicants can sign.",
+      "TEMPLATE_WORKSPACE_MISMATCH",
+      409
+    );
+  }
+
   return { recruiterTemplateId, recruiterTemplate };
+}
+
+function assertSigningRequestIsEmbeddable(firmaStatus: string): void {
+  const status = normalizeFirmaSigningStatus(firmaStatus);
+  if (status === "draft") {
+    throw new FirmaOnboardingSigningError(
+      "The Firma signing request has not been sent yet. A new signing request will be created.",
+      "SIGNING_REQUEST_DRAFT",
+      409
+    );
+  }
 }
 
 async function createFirmaSigningSessionFromTemplate(
@@ -232,29 +311,35 @@ async function createFirmaSigningSessionFromTemplate(
     applicantFirstName: string;
     applicantLastName?: string | null;
   },
-  recruiterTemplateId: string,
   firmaTemplateId: string,
-  templateName: string
+  templateName: string,
+  workspaceId: string
 ) {
-  const detail = await createFirmaSigningRequest({
-    template_id: firmaTemplateId,
-    name: `${templateName} — ${input.applicantFirstName}`.trim(),
-    recipients: [
-      {
-        first_name: input.applicantFirstName,
-        last_name: input.applicantLastName?.trim() || undefined,
-        email: input.applicantEmail.trim().toLowerCase(),
-        designation: "Signer",
-        order: 1,
-      },
-    ],
-  });
+  const detail = await createAndSendFirmaSigningRequest(
+    {
+      template_id: firmaTemplateId,
+      name: `${templateName} — ${input.applicantFirstName}`.trim(),
+      recipients: [
+        {
+          first_name: input.applicantFirstName,
+          last_name: input.applicantLastName?.trim() || undefined,
+          email: input.applicantEmail.trim().toLowerCase(),
+          designation: "Signer",
+          order: 1,
+        },
+      ],
+    },
+    workspaceId
+  );
+
+  const firmaStatus = normalizeFirmaSigningStatus(detail.status);
+  assertSigningRequestIsEmbeddable(firmaStatus);
 
   const recipient = resolveApplicantSigningRecipient(detail, input.applicantEmail);
   const iframeUrl = resolveFirmaSigningIframeUrl(recipient);
   if (!iframeUrl) {
     throw new FirmaOnboardingSigningError(
-      "Firma did not return a signing URL for this applicant",
+      "Firma did not return a signing URL for this applicant. The signing request may not have been sent successfully.",
       "IFRAME_UNAVAILABLE",
       502
     );
@@ -271,31 +356,35 @@ async function createFirmaSigningSessionFromTemplate(
 export async function ensureFirmaDraftPreviewSigningSession(
   input: EnsureFirmaDraftPreviewSigningSessionInput
 ): Promise<FirmaSigningSessionPayload> {
+  const workspaceId = await resolveWorkspaceForSigning(input.supabase, input.tenantId);
   const { recruiterTemplateId, recruiterTemplate } = await resolveRecruiterTemplateForStep(
     input.supabase,
     input.tenantId,
-    input.step
+    input.step,
+    workspaceId
   );
 
-  const applicantEmail = input.applicantEmail?.trim() || DRAFT_PREVIEW_APPLICANT_EMAIL;
+  const primaryEmail = input.applicantEmail?.trim() || DRAFT_PREVIEW_APPLICANT_EMAIL;
+  const fallbackEmail = getDraftPreviewFirmaSignerEmailFallback();
+  let signerEmail = resolveDraftPreviewFirmaSignerEmail(primaryEmail);
   const applicantFirstName = input.applicantFirstName?.trim() || "Draft Preview";
 
   try {
-    await getFirmaTemplate(String(recruiterTemplate.firma_template_id));
+    await getFirmaTemplate(String(recruiterTemplate.firma_template_id), workspaceId);
   } catch (err) {
     throw mapFirmaSigningCreateError(err);
   }
 
-  try {
+  const createSession = async (applicantEmail: string) => {
     const created = await createFirmaSigningSessionFromTemplate(
       {
         applicantEmail,
         applicantFirstName,
         applicantLastName: input.applicantLastName,
       },
-      recruiterTemplateId,
       String(recruiterTemplate.firma_template_id),
-      recruiterTemplate.name ?? input.step.title
+      recruiterTemplate.name ?? input.step.title,
+      workspaceId
     );
 
     return sessionPayloadFromFirma(input.step, {
@@ -306,7 +395,23 @@ export async function ensureFirmaDraftPreviewSigningSession(
       recruiter_template_id: recruiterTemplateId,
       firma_template_id: String(recruiterTemplate.firma_template_id),
     });
+  };
+
+  try {
+    return await createSession(signerEmail);
   } catch (err) {
+    if (
+      signerEmail !== fallbackEmail &&
+      !isUndeliverableDraftPreviewEmail(signerEmail) &&
+      isFirmaEmailBounceError(err)
+    ) {
+      signerEmail = fallbackEmail;
+      try {
+        return await createSession(fallbackEmail);
+      } catch (retryErr) {
+        throw mapFirmaSigningCreateError(retryErr);
+      }
+    }
     throw mapFirmaSigningCreateError(err);
   }
 }
@@ -332,18 +437,49 @@ async function refreshSessionFromFirma(
   supabase: SupabaseClient,
   step: TenantOnboardingStep,
   session: WorkerFirmaSigningSessionRow,
-  applicantEmail: string
+  applicantEmail: string,
+  workspaceId: string,
+  expected: {
+    recruiterTemplateId: string;
+    firmaTemplateId: string;
+  }
 ): Promise<WorkerFirmaSigningSessionRow> {
-  const detail = await getFirmaSigningRequest(session.signing_request_id);
+  const detail = await getFirmaSigningRequest(session.signing_request_id, workspaceId);
   const users =
     Array.isArray(detail.recipients) && detail.recipients.length > 0
       ? detail.recipients
-      : await getFirmaSigningRequestUsers(session.signing_request_id);
+      : await getFirmaSigningRequestUsers(session.signing_request_id, workspaceId);
   const recipient = resolveApplicantSigningRecipient(detail, applicantEmail, users);
   const iframeUrl = resolveFirmaSigningIframeUrl(recipient, session.signing_request_user_id);
   const firmaStatus = normalizeFirmaSigningStatus(
     detail.status ?? recipient?.status ?? session.firma_status
   );
+
+  if (
+    isFirmaSigningSessionStale({
+      firmaStatus,
+      storedWorkspaceId: session.firma_workspace_id,
+      effectiveWorkspaceId: workspaceId,
+      recruiterTemplateId: session.recruiter_template_id,
+      expectedRecruiterTemplateId: expected.recruiterTemplateId,
+      firmaTemplateId: session.firma_template_id,
+      expectedFirmaTemplateId: expected.firmaTemplateId,
+    })
+  ) {
+    throw new FirmaOnboardingSigningError(
+      "The stored Firma signing session is no longer valid",
+      "INVALID_SESSION",
+      410
+    );
+  }
+
+  if (!iframeUrl) {
+    throw new FirmaOnboardingSigningError(
+      "Firma did not return a signing URL for this applicant",
+      "IFRAME_UNAVAILABLE",
+      502
+    );
+  }
 
   return upsertSession(supabase, {
     id: session.id,
@@ -352,6 +488,7 @@ async function refreshSessionFromFirma(
     onboarding_step_id: session.onboarding_step_id,
     recruiter_template_id: session.recruiter_template_id,
     firma_template_id: session.firma_template_id,
+    firma_workspace_id: workspaceId,
     signing_request_id: session.signing_request_id,
     signing_request_user_id: recipient?.id ?? session.signing_request_user_id,
     firma_status: firmaStatus,
@@ -364,13 +501,14 @@ async function createSessionFromTemplate(
   input: EnsureFirmaSigningSessionInput,
   recruiterTemplateId: string,
   firmaTemplateId: string,
-  templateName: string
+  templateName: string,
+  workspaceId: string
 ): Promise<WorkerFirmaSigningSessionRow> {
   const created = await createFirmaSigningSessionFromTemplate(
     input,
-    recruiterTemplateId,
     firmaTemplateId,
-    templateName
+    templateName,
+    workspaceId
   );
 
   return upsertSession(supabase, {
@@ -379,6 +517,7 @@ async function createSessionFromTemplate(
     onboarding_step_id: input.step.id,
     recruiter_template_id: recruiterTemplateId,
     firma_template_id: firmaTemplateId,
+    firma_workspace_id: workspaceId,
     signing_request_id: created.detail.id,
     signing_request_user_id: created.recipient?.id ?? null,
     firma_status: created.firmaStatus,
@@ -386,46 +525,71 @@ async function createSessionFromTemplate(
   });
 }
 
+function shouldDiscardExistingSession(
+  session: WorkerFirmaSigningSessionRow,
+  workspaceId: string,
+  recruiterTemplateId: string,
+  firmaTemplateId: string
+): boolean {
+  return isFirmaSigningSessionStale({
+    firmaStatus: session.firma_status,
+    storedWorkspaceId: session.firma_workspace_id,
+    effectiveWorkspaceId: workspaceId,
+    recruiterTemplateId: session.recruiter_template_id,
+    expectedRecruiterTemplateId: recruiterTemplateId,
+    firmaTemplateId: session.firma_template_id,
+    expectedFirmaTemplateId: firmaTemplateId,
+  });
+}
+
 export async function ensureFirmaSigningSession(
   input: EnsureFirmaSigningSessionInput
 ): Promise<FirmaSigningSessionPayload> {
+  const workspaceId = await resolveWorkspaceForSigning(input.supabase, input.tenantId);
   const { recruiterTemplateId, recruiterTemplate } = await resolveRecruiterTemplateForStep(
     input.supabase,
     input.tenantId,
-    input.step
+    input.step,
+    workspaceId
   );
+  const firmaTemplateId = String(recruiterTemplate.firma_template_id);
 
   const existing = await loadExistingSession(input.supabase, input.workerId, input.step.id);
   if (existing?.signing_request_id) {
-    try {
-      const refreshed = await refreshSessionFromFirma(
-        input.supabase,
-        input.step,
-        existing,
-        input.applicantEmail
-      );
-      if (!refreshed.iframe_url) {
-        throw new FirmaOnboardingSigningError(
-          "Signing session is missing an embed URL",
-          "IFRAME_UNAVAILABLE",
-          502
+    if (shouldDiscardExistingSession(existing, workspaceId, recruiterTemplateId, firmaTemplateId)) {
+      await clearSigningSession(input.supabase, existing.id);
+    } else {
+      try {
+        const refreshed = await refreshSessionFromFirma(
+          input.supabase,
+          input.step,
+          existing,
+          input.applicantEmail,
+          workspaceId,
+          { recruiterTemplateId, firmaTemplateId }
         );
+        return sessionPayload(input.step, refreshed);
+      } catch (err) {
+        if (
+          err instanceof FirmaOnboardingSigningError &&
+          (err.code === "INVALID_SESSION" ||
+            err.code === "IFRAME_UNAVAILABLE" ||
+            err.code === "SIGNING_REQUEST_DRAFT")
+        ) {
+          await clearSigningSession(input.supabase, existing.id);
+        } else if (err instanceof FirmaError && err.code === "NOT_FOUND") {
+          await clearSigningSession(input.supabase, existing.id);
+        } else if (err instanceof FirmaOnboardingSigningError && err.code === "SESSION_WORKSPACE_MISMATCH") {
+          await clearSigningSession(input.supabase, existing.id);
+        } else {
+          throw err;
+        }
       }
-      return sessionPayload(input.step, refreshed);
-    } catch (err) {
-      if (err instanceof FirmaError && err.code === "NOT_FOUND") {
-        throw new FirmaOnboardingSigningError(
-          "The Firma signing request is no longer valid",
-          "INVALID_SESSION",
-          410
-        );
-      }
-      throw err;
     }
   }
 
   try {
-    await getFirmaTemplate(String(recruiterTemplate.firma_template_id));
+    await getFirmaTemplate(firmaTemplateId, workspaceId);
   } catch (err) {
     throw mapFirmaSigningCreateError(err);
   }
@@ -435,8 +599,9 @@ export async function ensureFirmaSigningSession(
       input.supabase,
       input,
       recruiterTemplateId,
-      String(recruiterTemplate.firma_template_id),
-      recruiterTemplate.name ?? input.step.title
+      firmaTemplateId,
+      recruiterTemplate.name ?? input.step.title,
+      workspaceId
     );
     return sessionPayload(input.step, created);
   } catch (err) {
@@ -447,9 +612,19 @@ export async function ensureFirmaSigningSession(
 export async function syncFirmaSigningSessionStatus(
   input: EnsureFirmaSigningSessionInput
 ): Promise<FirmaSigningSessionPayload> {
+  const workspaceId = await resolveWorkspaceForSigning(input.supabase, input.tenantId);
+  const recruiterTemplateId = getFirmaRecruiterTemplateId(input.step);
   const existing = await loadExistingSession(input.supabase, input.workerId, input.step.id);
   if (!existing?.signing_request_id) {
     throw new FirmaOnboardingSigningError("Signing session not found", "INVALID_SESSION", 404);
+  }
+
+  if (isStoredFirmaWorkspaceMismatch(existing.firma_workspace_id, workspaceId)) {
+    throw new FirmaOnboardingSigningError(
+      "This signing session belongs to a different Firma workspace",
+      "SESSION_WORKSPACE_MISMATCH",
+      409
+    );
   }
 
   try {
@@ -457,7 +632,12 @@ export async function syncFirmaSigningSessionStatus(
       input.supabase,
       input.step,
       existing,
-      input.applicantEmail
+      input.applicantEmail,
+      workspaceId,
+      {
+        recruiterTemplateId: recruiterTemplateId ?? existing.recruiter_template_id ?? "",
+        firmaTemplateId: existing.firma_template_id ?? "",
+      }
     );
     return sessionPayload(input.step, refreshed);
   } catch (err) {
@@ -483,17 +663,23 @@ export async function syncFirmaSigningStatusByRequestId(input: {
   signingRequestId: string;
   applicantEmail: string;
   step: TenantOnboardingStep;
+  tenantId: string;
+  supabase: SupabaseClient;
+  workspaceId?: string;
 }): Promise<FirmaSigningSessionPayload> {
   if (!isFirmaConfigured()) {
     throw new FirmaOnboardingSigningError("Firma API is not configured", "FIRMA_NOT_CONFIGURED", 503);
   }
 
+  const workspaceId =
+    input.workspaceId ?? (await resolveWorkspaceForSigning(input.supabase, input.tenantId));
+
   try {
-    const detail = await getFirmaSigningRequest(input.signingRequestId);
+    const detail = await getFirmaSigningRequest(input.signingRequestId, workspaceId);
     const users =
       Array.isArray(detail.recipients) && detail.recipients.length > 0
         ? detail.recipients
-        : await getFirmaSigningRequestUsers(input.signingRequestId);
+        : await getFirmaSigningRequestUsers(input.signingRequestId, workspaceId);
     const recipient = resolveApplicantSigningRecipient(detail, input.applicantEmail, users);
     const iframeUrl = resolveFirmaSigningIframeUrl(recipient, recipient?.id ?? null);
     const firmaStatus = normalizeFirmaSigningStatus(
@@ -519,3 +705,5 @@ export async function syncFirmaSigningStatusByRequestId(input: {
     throw err;
   }
 }
+
+export { getFirmaSigningSessionStaleReason, isFirmaSigningSessionStale };
