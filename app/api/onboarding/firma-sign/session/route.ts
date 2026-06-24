@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { getSupabaseUrl } from "@/lib/supabase-env";
 import {
   FirmaOnboardingSigningError,
@@ -11,7 +11,7 @@ import { resolveFirmaOnboardingContext } from "@/lib/onboarding/resolve-firma-on
 export const runtime = "nodejs";
 
 async function resolveApplicantProfile(
-  supabase: ReturnType<typeof createClient>,
+  supabase: SupabaseClient,
   workerId: string,
   applicantId: string
 ) {
@@ -23,10 +23,12 @@ async function resolveApplicantProfile(
 
   if (error) throw error;
 
+  const row = data as { first_name?: string | null; last_name?: string | null; email?: string | null } | null;
+
   return {
-    firstName: data?.first_name?.trim() || "Applicant",
-    lastName: data?.last_name?.trim() || null,
-    email: data?.email?.trim() || applicantId,
+    firstName: row?.first_name?.trim() || "Applicant",
+    lastName: row?.last_name?.trim() || null,
+    email: row?.email?.trim() || applicantId,
   };
 }
 

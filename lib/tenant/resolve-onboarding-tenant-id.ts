@@ -1,10 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { resolveTenantIdBySlug } from "@/lib/onboarding/resolve-worker-context";
+import { resolveTenantIdBySlug } from "@/lib/onboarding/resolve-tenant-id-by-slug";
 import {
-  getConfiguredDefaultTenantId,
   resolveDefaultTenantId,
   type ResolveTenantResult,
 } from "@/lib/tenant/resolve-default-tenant-id";
+
+export { getClientOnboardingTenantIdFallback } from "@/lib/tenant/client-onboarding-tenant-fallback";
 
 /**
  * Resolves tenant for applicant onboarding: slug/subdomain first, then platform default.
@@ -23,9 +24,4 @@ export async function resolveOnboardingTenantId(
     };
   }
   return resolveDefaultTenantId(supabase);
-}
-
-/** Client-side hint only (UUID from env); prefer passing `tenantSlug` to APIs. */
-export function getClientOnboardingTenantIdFallback(): string | null {
-  return getConfiguredDefaultTenantId();
 }

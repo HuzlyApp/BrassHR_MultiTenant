@@ -82,7 +82,9 @@ async function fetchEmploymentWorkers(
 
   const primary = await buildQuery(SELECT_COLUMNS_WITH_LIST_FIELDS);
   if (!primary.error) {
-    return (primary.data ?? []).map((row) => normalizeWorkerRow(row as WorkerListRow));
+    return (primary.data ?? []).map((row) =>
+      normalizeWorkerRow(row as unknown as WorkerListRow)
+    );
   }
   if (!isMissingListColumnsError(primary.error)) throw primary.error;
 
@@ -91,7 +93,7 @@ async function fetchEmploymentWorkers(
   const fallback = await buildQuery(fallbackSelect, tab !== "new");
   if (fallback.error) throw fallback.error;
 
-  let rows = (fallback.data ?? []) as WorkerListRow[];
+  let rows = (fallback.data ?? []) as unknown as WorkerListRow[];
   if (tab === "new") {
     rows = rows.filter((row) => (row.worker?.status ?? "").trim().toLowerCase() === "new");
   }

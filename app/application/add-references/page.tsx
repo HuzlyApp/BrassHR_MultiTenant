@@ -154,7 +154,7 @@ export default function ReferencesPage() {
         : null
 
     const res = isPreview
-      ? { ok: true }
+      ? null
       : await fetch("/api/onboarding/worker-references", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -170,7 +170,7 @@ export default function ReferencesPage() {
           }),
         })
     let payload: { error?: string; hint?: string } = {}
-    if (!isPreview) {
+    if (res) {
       try {
         payload = (await res.json()) as { error?: string; hint?: string }
       } catch {

@@ -477,3 +477,45 @@ export function shouldCompleteOnboardingStepFromFirmaStatus(
 ): boolean {
   return isFirmaSigningComplete(firmaStatus);
 }
+
+/** Poll Firma for signing status without a persisted worker session (draft preview). */
+export async function syncFirmaSigningStatusByRequestId(input: {
+  signingRequestId: string;
+  applicantEmail: string;
+  step: TenantOnboardingStep;
+}): Promise<FirmaSigningSessionPayload> {
+  if (!isFirmaConfigured()) {
+    throw new FirmaOnboardingSigningError("Firma API is not configured", "FIRMA_NOT_CONFIGURED", 503);
+  }
+
+  try {
+    const detail = await getFirmaSigningRequest(input.signingRequestId);
+    const users =
+      Array.isArray(detail.recipients) && detail.recipients.length > 0
+        ? detail.recipients
+        : await getFirmaSigningRequestUsers(input.signingRequestId);
+    const recipient = resolveApplicantSigningRecipient(detail, input.applicantEmail, users);
+    const iframeUrl = resolveFirmaSigningIframeUrl(recipient, recipient?.id ?? null);
+    const firmaStatus = normalizeFirmaSigningStatus(
+      detail.status ?? recipient?.status ?? "draft"
+    );
+
+    return sessionPayloadFromFirma(input.step, {
+      signing_request_id: input.signingRequestId,
+      signing_request_user_id: recipient?.id ?? null,
+      iframe_url: iframeUrl,
+      firma_status: firmaStatus,
+      recruiter_template_id: getFirmaRecruiterTemplateId(input.step),
+      firma_template_id: null,
+    });
+  } catch (err) {
+    if (err instanceof FirmaError && err.code === "NOT_FOUND") {
+      throw new FirmaOnboardingSigningError(
+        "The Firma signing request is no longer valid",
+        "INVALID_SESSION",
+        410
+      );
+    }
+    throw err;
+  }
+}

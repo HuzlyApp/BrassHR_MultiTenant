@@ -1,3 +1,5 @@
+import "server-only"
+
 import type { SupabaseClient } from "@supabase/supabase-js"
 import type { Step1FormFields } from "@/lib/onboardingStep1Validation"
 import { ensureWorkerOnboardingProgress } from "@/lib/onboarding/ensure-worker-progress"

@@ -5,8 +5,10 @@ import {
   FirmaOnboardingSigningError,
   shouldCompleteOnboardingStepFromFirmaStatus,
   syncFirmaSigningSessionStatus,
+  syncFirmaSigningStatusByRequestId,
 } from "@/lib/onboarding/firma-onboarding-signing";
 import { mapFirmaStatusToOnboardingStatus } from "@/lib/onboarding/firma-step-settings";
+import { DRAFT_PREVIEW_APPLICANT_EMAIL } from "@/lib/onboarding/is-draft-preview";
 import { ensureWorkerOnboardingProgress } from "@/lib/onboarding/ensure-worker-progress";
 import { resolveFirmaOnboardingContext } from "@/lib/onboarding/resolve-firma-onboarding-context";
 
@@ -46,19 +48,57 @@ export async function GET(req: NextRequest) {
       );
     }
 
+    if (resolved.draftPreview) {
+      const signingRequestId = req.nextUrl.searchParams.get("signingRequestId")?.trim() || "";
+      if (!signingRequestId) {
+        return NextResponse.json(
+          { error: "Missing signingRequestId for draft preview", code: "INVALID_SESSION" },
+          { status: 400 }
+        );
+      }
+
+      const session = await syncFirmaSigningStatusByRequestId({
+        signingRequestId,
+        applicantEmail: DRAFT_PREVIEW_APPLICANT_EMAIL,
+        step: resolved.step,
+      });
+      const onboardingStatus = mapFirmaStatusToOnboardingStatus(session.firma_status);
+      const completed = shouldCompleteOnboardingStepFromFirmaStatus(session.firma_status);
+
+      return NextResponse.json({
+        session,
+        onboarding_status: onboardingStatus,
+        completed,
+      });
+    }
+
+    const workerId = resolved.workerId;
+    if (!workerId) {
+      return NextResponse.json(
+        { error: "Worker not found", code: "WORKER_NOT_FOUND" },
+        { status: 404 }
+      );
+    }
+
     const { data: worker } = await supabase
       .from("worker")
       .select("first_name, last_name, email")
-      .eq("id", resolved.workerId)
+      .eq("id", workerId)
       .maybeSingle();
+
+    const workerRow = worker as {
+      first_name?: string | null;
+      last_name?: string | null;
+      email?: string | null;
+    } | null;
 
     const session = await syncFirmaSigningSessionStatus({
       supabase,
       tenantId: resolved.tenantId,
-      workerId: resolved.workerId,
-      applicantEmail: worker?.email?.trim() || applicantId,
-      applicantFirstName: worker?.first_name?.trim() || "Applicant",
-      applicantLastName: worker?.last_name?.trim() || null,
+      workerId,
+      applicantEmail: workerRow?.email?.trim() || applicantId,
+      applicantFirstName: workerRow?.first_name?.trim() || "Applicant",
+      applicantLastName: workerRow?.last_name?.trim() || null,
       step: resolved.step,
     });
 
@@ -67,7 +107,7 @@ export async function GET(req: NextRequest) {
 
     const progressPayload = await ensureWorkerOnboardingProgress(
       supabase,
-      resolved.workerId,
+      workerId,
       resolved.tenantId
     );
     const progressStatus = completed ? "completed" : onboardingStatus === "in_progress" ? "in_progress" : "pending";

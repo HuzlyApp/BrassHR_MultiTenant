@@ -6,8 +6,6 @@ import OnboardingLayout from "@/app/components/OnboardingLayout";
 import OnboardingStepper from "@/app/components/OnboardingStepper";
 import OnboardingLoader from "@/app/components/OnboardingLoader";
 import { FirmaSigningIframe } from "@/app/components/onboarding/FirmaSigningIframe";
-import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
-import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
 import { useOnboardingStepNav } from "@/lib/onboarding/use-onboarding-step-nav";
 import { ensureApplicantWorker } from "@/lib/onboarding/ensure-applicant-worker";
 import {
@@ -65,7 +63,6 @@ function resolveFirmaStepContext(
 }
 
 export default function FirmaSignPage() {
-  const branding = useTenantBranding();
   const searchParams = useSearchParams();
   const search = searchParams.toString() ? `?${searchParams.toString()}` : "";
   const nav = useOnboardingStepNav();
@@ -213,6 +210,7 @@ export default function FirmaSignPage() {
       if (stepId) statusQuery.set("stepId", stepId);
       if (tenantSlug) statusQuery.set("tenantSlug", tenantSlug);
       if (isPreview) statusQuery.set("preview", "draft");
+      if (signingRequestId) statusQuery.set("signingRequestId", signingRequestId);
 
       const statusRes = await fetch(`/api/onboarding/firma-sign/status?${statusQuery.toString()}`, {
         cache: "no-store",
@@ -265,7 +263,7 @@ export default function FirmaSignPage() {
     "Document Signing";
 
   return (
-    <OnboardingLayout style={brandingToCssVars(branding)}>
+    <OnboardingLayout>
       <OnboardingStepper />
       <div className="mx-auto w-full max-w-5xl px-4 py-8">
         <div className="mb-6">

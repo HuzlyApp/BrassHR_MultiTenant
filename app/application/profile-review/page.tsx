@@ -30,7 +30,7 @@ import { useAddressValidation } from "@/lib/mapbox/use-address-validation"
 import type { AddressValidationResult } from "@/lib/mapbox/address-validation-types"
 import AutosaveStatus from "@/app/components/AutosaveStatus"
 import { resolveClientOnboardingTenantSlug } from "@/lib/tenant/client-onboarding-slug"
-import { getClientOnboardingTenantIdFallback } from "@/lib/tenant/resolve-onboarding-tenant-id"
+import { getClientOnboardingTenantIdFallback } from "@/lib/tenant/client-onboarding-tenant-fallback"
 import { useOnboardingStepNav } from "@/lib/onboarding/use-onboarding-step-nav"
 import { adjacentStepRoute } from "@/lib/onboarding/tenant-step-navigation"
 

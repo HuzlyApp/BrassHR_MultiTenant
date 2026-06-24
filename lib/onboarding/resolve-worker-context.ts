@@ -1,8 +1,13 @@
+import "server-only";
+
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { isDraftPreviewApplicantId } from "@/lib/onboarding/is-draft-preview";
 import { persistWorkerRow } from "@/lib/onboarding/persist-worker-row";
 import { resumeToStep1Fields } from "@/lib/onboarding/resume-to-step1-fields";
+import { resolveTenantIdBySlug } from "@/lib/onboarding/resolve-tenant-id-by-slug";
 import { resolveOnboardingTenantId } from "@/lib/tenant/resolve-onboarding-tenant-id";
+
+export { resolveTenantIdBySlug } from "@/lib/onboarding/resolve-tenant-id-by-slug";
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -94,22 +99,4 @@ export async function resolveOrEnsureWorkerForApplicant(
   if (!saved.ok) return null;
 
   return resolveWorkerByApplicantId(supabase, applicantId, tenantId);
-}
-
-export async function resolveTenantIdBySlug(
-  supabase: SupabaseClient,
-  slug: string
-): Promise<string | null> {
-  const s = slug.trim().toLowerCase();
-  if (!s) return null;
-
-  const { data, error } = await supabase
-    .from("tenants")
-    .select("id")
-    .or(`slug.eq.${s},subdomain.eq.${s}`)
-    .eq("is_active", true)
-    .maybeSingle();
-
-  if (error) throw error;
-  return data?.id ? String(data.id) : null;
 }
