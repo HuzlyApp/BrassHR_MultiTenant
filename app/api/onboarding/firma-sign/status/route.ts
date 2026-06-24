@@ -8,7 +8,7 @@ import {
   syncFirmaSigningStatusByRequestId,
 } from "@/lib/onboarding/firma-onboarding-signing";
 import { mapFirmaStatusToOnboardingStatus } from "@/lib/onboarding/firma-step-settings";
-import { DRAFT_PREVIEW_APPLICANT_EMAIL } from "@/lib/onboarding/is-draft-preview";
+import { resolveDraftPreviewFirmaSignerEmail } from "@/lib/onboarding/is-draft-preview";
 import { ensureWorkerOnboardingProgress } from "@/lib/onboarding/ensure-worker-progress";
 import { resolveFirmaOnboardingContext } from "@/lib/onboarding/resolve-firma-onboarding-context";
 
@@ -59,7 +59,7 @@ export async function GET(req: NextRequest) {
 
       const session = await syncFirmaSigningStatusByRequestId({
         signingRequestId,
-        applicantEmail: DRAFT_PREVIEW_APPLICANT_EMAIL,
+        applicantEmail: resolveDraftPreviewFirmaSignerEmail(),
         step: resolved.step,
         tenantId: resolved.tenantId,
         supabase,

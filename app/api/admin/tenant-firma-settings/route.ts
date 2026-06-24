@@ -37,6 +37,18 @@ export async function GET() {
     return NextResponse.json({ error: "No organization selected" }, { status: 400 });
   }
 
+  const { data: tenantRow, error: tenantRowError } = await svc
+    .from("tenants")
+    .select(
+      "firma_workspace_id, firma_workspace_provisioning_status, firma_workspace_provisioning_error"
+    )
+    .eq("id", tenantId)
+    .maybeSingle();
+
+  if (tenantRowError) {
+    return NextResponse.json({ error: tenantRowError.message }, { status: 500 });
+  }
+
   const tenantWorkspace = await loadTenantFirmaWorkspaceId(svc, tenantId);
   const envWorkspace = resolveFirmaWorkspaceIdFromEnv();
   let effectiveWorkspaceId: string | null = null;
@@ -52,6 +64,10 @@ export async function GET() {
     effective_workspace_id: effectiveWorkspaceId,
     env_fallback_workspace_id: envWorkspace ?? null,
     source: tenantWorkspace ? "tenant" : envWorkspace ? "env" : null,
+    firma_workspace_provisioning_status:
+      (tenantRow?.firma_workspace_provisioning_status as string | undefined) ?? null,
+    firma_workspace_provisioning_error:
+      (tenantRow?.firma_workspace_provisioning_error as string | undefined) ?? null,
   });
 }
 

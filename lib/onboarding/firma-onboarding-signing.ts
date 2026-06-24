@@ -24,7 +24,12 @@ import {
   mapFirmaStatusToOnboardingStatus,
   normalizeFirmaSigningStatus,
 } from "@/lib/onboarding/firma-step-settings";
-import { DRAFT_PREVIEW_APPLICANT_EMAIL } from "@/lib/onboarding/is-draft-preview";
+import {
+  DRAFT_PREVIEW_APPLICANT_EMAIL,
+  getDraftPreviewFirmaSignerEmailFallback,
+  isUndeliverableDraftPreviewEmail,
+  resolveDraftPreviewFirmaSignerEmail,
+} from "@/lib/onboarding/is-draft-preview";
 import type { OnboardingStepStatus, TenantOnboardingStep } from "@/lib/onboarding/types";
 
 export type WorkerFirmaSigningSessionRow = {
@@ -73,6 +78,16 @@ export type EnsureFirmaDraftPreviewSigningSessionInput = {
   applicantFirstName?: string;
   applicantLastName?: string | null;
 };
+
+function isFirmaEmailBounceError(err: unknown): boolean {
+  const message =
+    err instanceof FirmaError
+      ? err.message
+      : err instanceof Error
+        ? err.message
+        : String(err);
+  return /bounce|can't receive email|cannot receive email/i.test(message);
+}
 
 function isFirmaWorkspaceMismatchMessage(message: string): boolean {
   const normalized = message.trim().toLowerCase();
@@ -349,7 +364,9 @@ export async function ensureFirmaDraftPreviewSigningSession(
     workspaceId
   );
 
-  const applicantEmail = input.applicantEmail?.trim() || DRAFT_PREVIEW_APPLICANT_EMAIL;
+  const primaryEmail = input.applicantEmail?.trim() || DRAFT_PREVIEW_APPLICANT_EMAIL;
+  const fallbackEmail = getDraftPreviewFirmaSignerEmailFallback();
+  let signerEmail = resolveDraftPreviewFirmaSignerEmail(primaryEmail);
   const applicantFirstName = input.applicantFirstName?.trim() || "Draft Preview";
 
   try {
@@ -358,7 +375,7 @@ export async function ensureFirmaDraftPreviewSigningSession(
     throw mapFirmaSigningCreateError(err);
   }
 
-  try {
+  const createSession = async (applicantEmail: string) => {
     const created = await createFirmaSigningSessionFromTemplate(
       {
         applicantEmail,
@@ -378,7 +395,23 @@ export async function ensureFirmaDraftPreviewSigningSession(
       recruiter_template_id: recruiterTemplateId,
       firma_template_id: String(recruiterTemplate.firma_template_id),
     });
+  };
+
+  try {
+    return await createSession(signerEmail);
   } catch (err) {
+    if (
+      signerEmail !== fallbackEmail &&
+      !isUndeliverableDraftPreviewEmail(signerEmail) &&
+      isFirmaEmailBounceError(err)
+    ) {
+      signerEmail = fallbackEmail;
+      try {
+        return await createSession(fallbackEmail);
+      } catch (retryErr) {
+        throw mapFirmaSigningCreateError(retryErr);
+      }
+    }
     throw mapFirmaSigningCreateError(err);
   }
 }

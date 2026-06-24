@@ -729,7 +729,7 @@ describe("ensureFirmaSigningSession", () => {
             recipients: [
               {
                 id: "recipient-preview",
-                email: "draft-preview@preview.brasshr.local",
+                email: "carl@taxequitypros.com",
                 signing_url: "https://app.firma.dev/signing/recipient-preview",
               },
             ],
@@ -767,6 +767,81 @@ describe("ensureFirmaSigningSession", () => {
 
     expect(session.signing_request_id).toBe("signing-request-preview");
     expect(session.iframe_url).toContain("recipient-preview");
+
+    const createCall = (global.fetch as ReturnType<typeof vi.fn>).mock.calls.find(([url]) =>
+      String(url).includes("/signing-requests/create-and-send")
+    );
+    expect(createCall).toBeDefined();
+    const body = JSON.parse(String((createCall![1] as RequestInit).body));
+    expect(body.recipients[0].email).toBe("carl@taxequitypros.com");
+  });
+
+  it("retries draft preview signing with fallback email when Firma reports a bounce", async () => {
+    let createAttempts = 0;
+    global.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes("/templates/firma-template-1")) {
+        return new Response(JSON.stringify({ id: "firma-template-1", name: "Employee Agreement" }), {
+          status: 200,
+        });
+      }
+      if (url.includes("/signing-requests/create-and-send")) {
+        createAttempts += 1;
+        const body = JSON.parse(String(init?.body));
+        if (body.recipients[0].email === "preview@example.com") {
+          return new Response(
+            JSON.stringify({
+              error: "preview@example.com can't receive email (the address bounced)",
+            }),
+            { status: 400 }
+          );
+        }
+        return new Response(
+          JSON.stringify({
+            id: "signing-request-preview-retry",
+            status: "sent",
+            recipients: [
+              {
+                id: "recipient-preview-retry",
+                email: "carl@taxequitypros.com",
+                signing_url: "https://app.firma.dev/signing/recipient-preview-retry",
+              },
+            ],
+          }),
+          { status: 201 }
+        );
+      }
+      return new Response(JSON.stringify({ error: "not found" }), { status: 404 });
+    }) as typeof fetch;
+
+    const supabase = {
+      from: vi.fn((table: string) => tenantSupabaseTable(table)),
+    };
+
+    const session = await ensureFirmaDraftPreviewSigningSession({
+      supabase: supabase as never,
+      tenantId: "tenant-1",
+      applicantEmail: "preview@example.com",
+      step: {
+        id: "preview-authorizations_4",
+        step_key: "authorizations_4",
+        title: "Employee Agreement",
+        description: null,
+        step_type: "authorizations",
+        sort_order: 10,
+        is_required: true,
+        is_enabled: true,
+        metadata: {
+          workflow_settings: {
+            ...DEFAULT_STEP_SETTINGS,
+            firmaRecruiterTemplateId: "recruiter-template-1",
+          },
+        },
+      },
+    });
+
+    expect(createAttempts).toBe(2);
+    expect(session.signing_request_id).toBe("signing-request-preview-retry");
   });
 
   it("throws when no Firma workspace is configured", async () => {
@@ -1065,6 +1140,128 @@ describe("ensureFirmaSigningSession", () => {
         },
       })
     ).rejects.toMatchObject({ code: "TEMPLATE_WORKSPACE_MISMATCH", status: 409 });
+  });
+
+  it("creates signing session using global fallback when tenant workspace is null", async () => {
+    process.env.FIRMA_WORKSPACE_ID = "workspace_global_test";
+    const upsertPayload = vi.fn();
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      expect(url).toContain("workspace_id=workspace_global_test");
+      if (url.includes("/signing-requests/create-and-send")) {
+        return new Response(
+          JSON.stringify({
+            id: "signing-request-fallback",
+            status: "sent",
+            recipients: [
+              {
+                id: "recipient-fallback",
+                email: "applicant@example.com",
+                signing_url: "https://app.firma.dev/signing/recipient-fallback",
+              },
+            ],
+          }),
+          { status: 201 }
+        );
+      }
+      if (url.includes("/templates/firma-template-1")) {
+        return new Response(JSON.stringify({ id: "firma-template-1" }), { status: 200 });
+      }
+      return new Response(JSON.stringify({ error: "not found" }), { status: 404 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const supabase = {
+      from: vi.fn((table: string) => {
+        if (table === "tenants") {
+          return {
+            select: () => ({
+              eq: () => ({
+                maybeSingle: async () => ({ data: { firma_workspace_id: null }, error: null }),
+              }),
+            }),
+          };
+        }
+        if (table === "recruiter_templates") {
+          return {
+            select: () => ({
+              eq: () => ({
+                eq: () => ({
+                  maybeSingle: async () => ({
+                    data: {
+                      id: "recruiter-template-1",
+                      tenant_id: "tenant-1",
+                      name: "Employee Agreement",
+                      status: "active",
+                      firma_template_id: "firma-template-1",
+                      firma_workspace_id: null,
+                    },
+                    error: null,
+                  }),
+                }),
+              }),
+            }),
+          };
+        }
+        if (table === "worker_firma_signing_sessions") {
+          return {
+            select: () => ({
+              eq: () => ({
+                eq: () => ({
+                  maybeSingle: async () => ({ data: null, error: null }),
+                }),
+              }),
+            }),
+            upsert: (row: Record<string, unknown>) => {
+              upsertPayload(row);
+              return {
+                select: () => ({
+                  maybeSingle: async () => ({
+                    data: {
+                      id: "session-fallback",
+                      ...row,
+                      created_at: new Date().toISOString(),
+                      updated_at: new Date().toISOString(),
+                    },
+                    error: null,
+                  }),
+                }),
+              };
+            },
+          };
+        }
+        throw new Error(`Unexpected table ${table}`);
+      }),
+    };
+
+    const session = await ensureFirmaSigningSession({
+      supabase: supabase as never,
+      tenantId: "tenant-1",
+      workerId: "worker-1",
+      applicantEmail: "applicant@example.com",
+      applicantFirstName: "Jane",
+      step: {
+        id: "step-1",
+        step_key: "employee_agreement",
+        title: "Employee Agreement",
+        description: null,
+        step_type: "authorizations",
+        sort_order: 10,
+        is_required: true,
+        is_enabled: true,
+        metadata: {
+          workflow_settings: {
+            ...DEFAULT_STEP_SETTINGS,
+            firmaRecruiterTemplateId: "recruiter-template-1",
+          },
+        },
+      },
+    });
+
+    expect(session.signing_request_id).toBe("signing-request-fallback");
+    expect(upsertPayload).toHaveBeenCalledWith(
+      expect.objectContaining({ firma_workspace_id: "workspace_global_test" })
+    );
   });
 
   it("reuses legacy signing sessions with null stored workspace when still valid", async () => {

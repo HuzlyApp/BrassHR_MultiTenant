@@ -122,9 +122,11 @@ describe("resolveTenantFirmaWorkspaceId", () => {
       })),
     };
 
-    await expect(resolveTenantFirmaWorkspaceId(supabase as never, "tenant-a")).rejects.toBeInstanceOf(
-      FirmaWorkspaceConfigError
-    );
+    await expect(resolveTenantFirmaWorkspaceId(supabase as never, "tenant-a")).rejects.toMatchObject({
+      name: "FirmaWorkspaceConfigError",
+      code: "FIRMA_WORKSPACE_NOT_CONFIGURED",
+      status: 503,
+    });
   });
 });
 

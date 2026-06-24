@@ -1339,18 +1339,51 @@ export function DoneStep({
   preview,
   createdSlug,
   createdDomain,
+  firmaProvisioning,
 }: {
   preview: TenantBranding;
   createdSlug: string | null;
   createdDomain: string | null;
+  firmaProvisioning?: {
+    status: string;
+    workspaceId?: string | null;
+    message?: string | null;
+  } | null;
 }) {
+  const headline = (() => {
+    switch (firmaProvisioning?.status) {
+      case "created":
+        return "Tenant ready! Firma workspace created successfully.";
+      case "already_configured":
+        return "Tenant ready! Firma workspace is already configured.";
+      case "failed":
+        return "Tenant ready!";
+      default:
+        return "Tenant ready!";
+    }
+  })();
+
+  const firmaMessage = (() => {
+    switch (firmaProvisioning?.status) {
+      case "failed":
+        return (
+          firmaProvisioning.message ??
+          "Tenant ready, but Firma workspace creation failed. You can retry in Account Settings."
+        );
+      default:
+        return null;
+    }
+  })();
+
+  const firmaTone = firmaProvisioning?.status === "failed" ? "warning" : "success";
+
   return (
     <div className="text-center">
       <div className="mx-auto flex h-[72px] w-[72px] items-center justify-center rounded-full bg-[color:color-mix(in_srgb,var(--brand-primary)_15%,white)]">
         <Check className="h-[36px] w-[36px] text-[color:var(--brand-primary)]" strokeWidth={2.5} />
       </div>
       <h2 className="mt-[24px] text-[30px] font-semibold leading-[36px] text-[#0f172a]" style={interStyle}>
-        Tenant ready!
+        {headline}
       </h2>
       <p className="mx-auto mt-[12px] max-w-lg text-[16px] leading-[24px] text-[#64748b]" style={interStyle}>
         Applicant portal:{" "}
@@ -1359,6 +1392,25 @@ export function DoneStep({
         </span>
         . Sign in with the recruiter you created, then share your subdomain URL with applicants.
       </p>
+      {firmaProvisioning?.workspaceId &&
+      (firmaProvisioning.status === "created" || firmaProvisioning.status === "already_configured") ? (
+        <p className="mx-auto mt-[12px] max-w-lg text-[14px] leading-[22px] text-[#64748b]" style={interStyle}>
+          Firma workspace ID:{" "}
+          <span className="font-mono text-[#0f172a]">{firmaProvisioning.workspaceId}</span>
+        </p>
+      ) : null}
+      {firmaMessage ? (
+        <div
+          className={`mx-auto mt-[20px] max-w-lg rounded-[12px] border px-4 py-3 text-left text-[14px] leading-[22px] ${
+            firmaTone === "success"
+              ? "border-emerald-200 bg-emerald-50 text-emerald-900"
+              : "border-amber-200 bg-amber-50 text-amber-900"
+          }`}
+          role="status"
+        >
+          <p>{firmaMessage}</p>
+        </div>
+      ) : null}
       <div className="mt-[32px] flex flex-wrap justify-center gap-3">
         <Link
           href="/admin_recruiter/dashboard"

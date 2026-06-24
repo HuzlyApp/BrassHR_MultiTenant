@@ -1,6 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import { createInitialBuilderSteps } from "@/app/components/onboarding/OnboardingStepsBuilder";
@@ -44,7 +43,6 @@ type Step =
   | "done";
 
 export default function TenantOnboardingPage() {
-  const router = useRouter();
   const [brand, setBrand] = useState<TenantBranding>(() => defaultTenantBranding());
   const [brandLoaded, setBrandLoaded] = useState(false);
 
@@ -80,6 +78,11 @@ export default function TenantOnboardingPage() {
   const [adminPassword, setAdminPassword] = useState("");
   const [createdSlug, setCreatedSlug] = useState<string | null>(null);
   const [createdDomain, setCreatedDomain] = useState<string | null>(null);
+  const [firmaProvisioning, setFirmaProvisioning] = useState<{
+    status: string;
+    workspaceId?: string | null;
+    error?: string | null;
+  } | null>(null);
 
   const publicRootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN?.trim() ?? "";
 
@@ -210,6 +213,11 @@ export default function TenantOnboardingPage() {
         domain?: string;
         tenantId?: string;
         code?: string;
+        firmaProvisioning?: {
+          status: string;
+          workspaceId?: string | null;
+          message?: string | null;
+        };
       };
 
       if (!res.ok) {
@@ -220,6 +228,7 @@ export default function TenantOnboardingPage() {
 
       setCreatedSlug(String(payload.slug ?? "").trim());
       setCreatedDomain(String(payload.domain ?? "").trim());
+      setFirmaProvisioning(payload.firmaProvisioning ?? null);
       document.cookie = `${ONBOARDING_TENANT_SLUG_COOKIE}=${encodeURIComponent(payload.slug ?? "")}; path=/; max-age=${60 * 60 * 24 * 365}; SameSite=Lax`;
 
       const tenantId = String(payload.tenantId ?? "").trim();
@@ -244,8 +253,7 @@ export default function TenantOnboardingPage() {
         }
       }
 
-      router.push("/admin_recruiter/dashboard");
-      router.refresh();
+      setStep("done");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unexpected error");
     } finally {
@@ -370,7 +378,12 @@ export default function TenantOnboardingPage() {
       ) : null}
 
       {step === "done" ? (
-        <DoneStep preview={preview} createdSlug={createdSlug} createdDomain={createdDomain} />
+        <DoneStep
+          preview={preview}
+          createdSlug={createdSlug}
+          createdDomain={createdDomain}
+          firmaProvisioning={firmaProvisioning}
+        />
       ) : null}
     </TenantOnboardingShell>
   );

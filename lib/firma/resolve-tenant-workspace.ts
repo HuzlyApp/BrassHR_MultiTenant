@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { getFirmaWorkspaceId } from "@/lib/firma/client";
 
 export class FirmaWorkspaceConfigError extends Error {
+  readonly code = "FIRMA_WORKSPACE_NOT_CONFIGURED" as const;
   readonly status = 503;
 
   constructor(message: string) {

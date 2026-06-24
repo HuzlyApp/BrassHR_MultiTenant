@@ -18,6 +18,18 @@ ALTER TABLE public.worker_firma_signing_sessions
 COMMENT ON COLUMN public.worker_firma_signing_sessions.firma_workspace_id IS
   'Firma workspace used when this signing session was created. Detects stale sessions after workspace changes.';
 
+CREATE INDEX IF NOT EXISTS idx_tenants_firma_workspace_id
+  ON public.tenants (firma_workspace_id)
+  WHERE firma_workspace_id IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_recruiter_templates_firma_workspace_id
+  ON public.recruiter_templates (firma_workspace_id)
+  WHERE firma_workspace_id IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_worker_firma_signing_sessions_firma_workspace_id
+  ON public.worker_firma_signing_sessions (firma_workspace_id)
+  WHERE firma_workspace_id IS NOT NULL;
+
 CREATE INDEX IF NOT EXISTS recruiter_templates_firma_workspace_idx
   ON public.recruiter_templates (tenant_id, firma_workspace_id)
   WHERE firma_workspace_id IS NOT NULL;

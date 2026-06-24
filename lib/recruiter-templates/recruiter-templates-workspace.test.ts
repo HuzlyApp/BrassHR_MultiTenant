@@ -242,4 +242,17 @@ describe("recruiter template hybrid Firma workspace", () => {
       status: 409,
     });
   });
+
+  it("throws a clear configuration error when no tenant workspace and no env fallback", async () => {
+    delete process.env.FIRMA_WORKSPACE_ID;
+    const { buildRecruiterTemplatePreview } = await import("@/lib/recruiter-templates/service");
+    const supabase = mockSupabaseForTemplate("tenant-a", baseTemplate(), null);
+
+    await expect(
+      buildRecruiterTemplatePreview(supabase as never, "tenant-a", "recruiter-template-1")
+    ).rejects.toMatchObject({
+      code: "NOT_CONFIGURED",
+      status: 503,
+    });
+  });
 });

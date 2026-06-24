@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
+import { provisionFirmaWorkspaceForTenant } from "@/lib/firma/provision-tenant-workspace";
 import { validateTenantSubdomainInput, subdomainErrorMessage } from "@/lib/tenant/subdomain-validation";
 import { registerTenantDomain } from "@/lib/vercel";
 
@@ -281,6 +282,38 @@ export async function POST(req: Request) {
     );
   }
 
+  let firmaProvisioning = {
+    status: "failed" as const,
+    workspaceId: null as string | null,
+    message: null as string | null,
+  };
+
+  if (tenantId) {
+    try {
+      const result = await provisionFirmaWorkspaceForTenant({
+        supabase: svc,
+        tenantId,
+        tenantName: org,
+        tenantSlug: subdomainFinal,
+      });
+      firmaProvisioning = {
+        status: result.status,
+        workspaceId: result.workspaceId,
+        message: result.message ?? null,
+      };
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Firma workspace provisioning failed unexpectedly";
+      console.error("[tenant-onboarding] Firma provisioning", message);
+      firmaProvisioning = {
+        status: "failed",
+        workspaceId: null,
+        message:
+          "Tenant was created, but Firma workspace creation failed. You can retry in Account Settings.",
+      };
+    }
+  }
+
   return NextResponse.json({
     ok: true,
     tenantId,
@@ -289,5 +322,6 @@ export async function POST(req: Request) {
     domain: domainFinal,
     vercelDomainRegistered,
     vercelDomainSkipped,
+    firmaProvisioning,
   });
 }

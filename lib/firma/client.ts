@@ -45,12 +45,14 @@ function getFirmaApiKey(): string {
   return key;
 }
 
-function buildUrl(path: string, workspaceId?: string): string {
+function buildUrl(path: string, workspaceId?: string, includeWorkspaceScope = true): string {
   const base = getFirmaApiBaseUrl();
   const normalized = path.startsWith("/") ? path : `/${path}`;
   const url = new URL(`${base}${normalized}`);
-  const ws = workspaceId ?? getFirmaWorkspaceId();
-  if (ws) url.searchParams.set("workspace_id", ws);
+  if (includeWorkspaceScope) {
+    const ws = workspaceId ?? getFirmaWorkspaceId();
+    if (ws) url.searchParams.set("workspace_id", ws);
+  }
   return url.toString();
 }
 
@@ -141,12 +143,20 @@ type FirmaRequestOptions = {
   body?: unknown;
   workspaceId?: string;
   retries?: number;
+  /** When false, omit workspace_id query param (company/account-level endpoints such as POST /workspaces). */
+  includeWorkspaceScope?: boolean;
 };
 
 async function firmaRequest<T>(path: string, options: FirmaRequestOptions = {}): Promise<T> {
-  const { method = "GET", body, workspaceId, retries = 1 } = options;
+  const {
+    method = "GET",
+    body,
+    workspaceId,
+    retries = 1,
+    includeWorkspaceScope = true,
+  } = options;
   const apiKey = getFirmaApiKey();
-  const url = buildUrl(path, workspaceId);
+  const url = buildUrl(path, workspaceId, includeWorkspaceScope);
 
   let lastError: unknown;
 
@@ -398,6 +408,36 @@ export async function getFirmaSigningRequestUsers(
     { workspaceId, retries: 1 }
   );
   return normalizeFirmaSigningRequestUsers(response);
+}
+
+export type FirmaWorkspace = {
+  id: string;
+  name?: string;
+};
+
+/** Official endpoint: POST /workspaces (docs.firma.dev/guides/creating-workspaces) */
+export async function createFirmaWorkspace(input: {
+  name: string;
+  slug?: string | null;
+}): Promise<FirmaWorkspace> {
+  const name = input.name.trim();
+  if (!name) {
+    throw new FirmaError("VALIDATION_ERROR", "Firma workspace name is required", 400);
+  }
+
+  const result = await firmaRequest<FirmaWorkspace>("/workspaces", {
+    method: "POST",
+    body: { name },
+    includeWorkspaceScope: false,
+    retries: 0,
+  });
+
+  const id = typeof result?.id === "string" ? result.id.trim() : "";
+  if (!id) {
+    throw new FirmaError("API_ERROR", "Firma did not return a workspace id", 502);
+  }
+
+  return { id, name: result.name ?? name };
 }
 
 export function resolveFirmaRecipientSigningUrl(
