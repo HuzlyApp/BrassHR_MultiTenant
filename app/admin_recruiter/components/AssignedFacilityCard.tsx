@@ -13,12 +13,19 @@ function formatAssignmentStatus(status: string | null | undefined): string | nul
   return normalized.charAt(0).toUpperCase() + normalized.slice(1);
 }
 
+function assignmentStatusBadgeClass(status: string): string {
+  if (status.trim().toLowerCase() === "confirmed") {
+    return "rounded-full bg-[#DCFCE7] px-3 py-1 text-xs font-semibold text-[#166534]";
+  }
+  return "rounded-full bg-[#F1F5F9] px-3 py-1 text-xs font-semibold text-[#475569]";
+}
+
 export default function AssignedFacilityCard({ facility }: { facility: FacilityListItem }) {
   const assignedDate = formatAssignedDate(facility.assignedAt);
   const assignmentStatus = formatAssignmentStatus(facility.assignmentStatus);
 
   return (
-    <div className="rounded-xl border border-[#99F6E4] bg-[#F0FDFA]/40 p-4 shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)]">
+    <div className="rounded-xl border border-[#E2E8F0] bg-white p-4 shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)]">
       <div className="mb-3 flex items-start justify-between gap-3 border-b border-[#F1F5F9] pb-3">
         <div className="flex items-center gap-3">
           <div
@@ -43,7 +50,7 @@ export default function AssignedFacilityCard({ facility }: { facility: FacilityL
           </div>
         </div>
         {assignmentStatus ? (
-          <span className="rounded-full bg-[#ECFDF5] px-2.5 py-1 text-xs font-medium text-[#047857]">
+          <span className={assignmentStatusBadgeClass(facility.assignmentStatus ?? "")}>
             {assignmentStatus}
           </span>
         ) : null}

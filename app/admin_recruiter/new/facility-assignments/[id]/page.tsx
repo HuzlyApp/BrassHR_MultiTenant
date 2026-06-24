@@ -117,6 +117,13 @@ function formatAssignmentStatus(status: string | null | undefined): string | nul
   return normalized.charAt(0).toUpperCase() + normalized.slice(1);
 }
 
+function assignmentStatusBadgeClass(status: string): string {
+  if (status.trim().toLowerCase() === "confirmed") {
+    return "rounded-full bg-[#DCFCE7] px-3 py-1 text-xs font-semibold text-[#166534]";
+  }
+  return "rounded-full bg-[#F1F5F9] px-3 py-1 text-xs font-semibold text-[#475569]";
+}
+
 function FacilityActionButtons({
   onCreate,
   onAssign,
@@ -166,13 +173,7 @@ function FacilityCard({
   const assignmentStatus = formatAssignmentStatus(facility.assignmentStatus);
 
   return (
-    <div
-      className={`rounded-xl border bg-white p-4 shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] ${
-        variant === "assigned" || variant === "recent"
-          ? "border-[#99F6E4] bg-[#F0FDFA]/40"
-          : "border-[#E5E7EB]"
-      }`}
-    >
+    <div className="rounded-xl border border-[#E2E8F0] bg-white p-4 shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)]">
       <div className="mb-3 flex items-start justify-between gap-3 border-b border-[#F1F5F9] pb-3">
         <div className="flex items-center gap-3">
           <div
@@ -201,7 +202,7 @@ function FacilityCard({
           </div>
         </div>
         {assignmentStatus ? (
-          <span className="rounded-full bg-[#ECFDF5] px-2.5 py-1 text-xs font-medium text-[#047857]">
+          <span className={assignmentStatusBadgeClass(facility.assignmentStatus ?? "")}>
             {assignmentStatus}
           </span>
         ) : null}
@@ -549,18 +550,9 @@ export default function NewApplicantFacilityAssignmentsPage() {
                 />
 
                 <div className="flex w-full min-w-0 admin-recruiter-content-width flex-col">
-                  <div className="flex flex-col gap-3 sm:grid sm:grid-cols-[1fr_auto_1fr] sm:items-end">
-                    <div className="hidden sm:block" />
-                    <UnderlineTabBar
-                      tabs={FACILITY_TABS}
-                      activeTab={activeFacilityTab}
-                      onTabChange={setActiveFacilityTab}
-                      ariaLabel="Facility sections"
-                      align="center"
-                      className="border-b-0"
-                    />
+                  <div className="flex flex-col gap-3 xl:grid xl:grid-cols-[1fr_auto_1fr] xl:items-end">
                     {showMainContent ? (
-                      <div className="flex justify-end sm:pb-1">
+                      <div className="order-1 flex justify-end xl:order-3 xl:pb-1">
                         <FacilityActionButtons
                           layout="row"
                           onCreate={() => setShowCreateFacilityModal(true)}
@@ -568,8 +560,19 @@ export default function NewApplicantFacilityAssignmentsPage() {
                         />
                       </div>
                     ) : (
-                      <div className="hidden sm:block" />
+                      <div className="hidden xl:block" />
                     )}
+                    <div className="order-2 xl:order-1 hidden xl:block" />
+                    <div className="order-3 xl:order-2">
+                      <UnderlineTabBar
+                        tabs={FACILITY_TABS}
+                        activeTab={activeFacilityTab}
+                        onTabChange={setActiveFacilityTab}
+                        ariaLabel="Facility sections"
+                        align="center"
+                        className="border-b-0"
+                      />
+                    </div>
                   </div>
 
                   {hasVisibleFacilities ? (
