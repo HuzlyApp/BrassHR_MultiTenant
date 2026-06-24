@@ -3,6 +3,7 @@ import { ZodError } from "zod";
 import { requireStaffApiSession } from "@/lib/auth/api-session";
 import { resolveEffectiveAdminTenantId } from "@/lib/email-templates/resolve-effective-tenant";
 import { FirmaError } from "@/lib/firma/errors";
+import { FirmaWorkspaceConfigError } from "@/lib/firma/resolve-tenant-workspace";
 import { RecruiterTemplateError } from "@/lib/recruiter-templates/errors";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 
@@ -56,6 +57,16 @@ export function handleRecruiterTemplateRouteError(e: unknown): NextResponse {
         error: e.message,
         code: e.code,
         ...(e.details ? { details: e.details } : {}),
+      },
+      { status: e.status }
+    );
+  }
+
+  if (e instanceof FirmaWorkspaceConfigError) {
+    return NextResponse.json(
+      {
+        error: e.message,
+        code: "NOT_CONFIGURED",
       },
       { status: e.status }
     );

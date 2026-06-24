@@ -172,10 +172,13 @@ describe("firma client helpers", () => {
     );
 
     const { createFirmaTemplate } = await import("@/lib/firma/client");
-    const result = await createFirmaTemplate({
-      name: "Offer Letter",
-      document: "base64pdf",
-    });
+    const result = await createFirmaTemplate(
+      {
+        name: "Offer Letter",
+        document: "base64pdf",
+      },
+      "ws-test"
+    );
 
     expect(result.id).toBe("tpl_envelope");
   });
@@ -194,7 +197,7 @@ describe("firma client helpers", () => {
 
     const { getFirmaTemplate } = await import("@/lib/firma/client");
 
-    await expect(getFirmaTemplate("template-id")).rejects.toMatchObject({
+    await expect(getFirmaTemplate("template-id", "ws-test")).rejects.toMatchObject({
       code: "AUTH_ERROR",
       status: 401,
     });
@@ -211,14 +214,17 @@ describe("firma client helpers", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const { createFirmaTemplate } = await import("@/lib/firma/client");
-    const result = await createFirmaTemplate({
-      name: "Offer Letter",
-      document: "base64pdf",
-    });
+    const result = await createFirmaTemplate(
+      {
+        name: "Offer Letter",
+        document: "base64pdf",
+      },
+      "ws-test"
+    );
 
     expect(result.id).toBe("tpl_1");
     expect(fetchMock).toHaveBeenCalledWith(
-      expect.stringContaining("/templates"),
+      expect.stringMatching(/\/templates\?.*workspace_id=ws-test/),
       expect.objectContaining({ method: "POST" })
     );
   });
@@ -245,7 +251,7 @@ describe("firma client helpers", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const { generateFirmaTemplateJwt } = await import("@/lib/firma/client");
-    const result = await generateFirmaTemplateJwt("tmpl_123");
+    const result = await generateFirmaTemplateJwt("tmpl_123", "ws-test");
 
     expect(result.token).toBe(
       "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.signature"
@@ -270,7 +276,7 @@ describe("firma client helpers", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const { replaceFirmaTemplateDocument } = await import("@/lib/firma/client");
-    const result = await replaceFirmaTemplateDocument("tpl_1", "base64pdf");
+    const result = await replaceFirmaTemplateDocument("tpl_1", "base64pdf", "ws-test");
 
     expect(result.id).toBe("tpl_1");
     expect(fetchMock).toHaveBeenCalledWith(
@@ -306,9 +312,50 @@ describe("firma client helpers", () => {
 
     const { generateFirmaTemplateJwt } = await import("@/lib/firma/client");
 
-    await expect(generateFirmaTemplateJwt("tmpl_123")).rejects.toMatchObject({
+    await expect(generateFirmaTemplateJwt("tmpl_123", "ws-test")).rejects.toMatchObject({
       code: "API_ERROR",
       message: "Firma JWT response had an invalid token format",
     });
+  });
+
+  it("creates and sends signing requests via create-and-send", async () => {
+    process.env.FIRMA_API_KEY = "firma_test_key";
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      expect(url).toContain("workspace_id=ws-test");
+      if (url.includes("/signing-requests/create-and-send")) {
+        return new Response(
+          JSON.stringify({
+            id: "signing-request-1",
+            status: "sent",
+            recipients: [
+              {
+                id: "recipient-1",
+                email: "a@example.com",
+                signing_url: "https://app.firma.dev/signing/recipient-1",
+              },
+            ],
+          }),
+          { status: 201 }
+        );
+      }
+      return new Response(JSON.stringify({ error: "not found" }), { status: 404 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { createAndSendFirmaSigningRequest } = await import("@/lib/firma/client");
+    const result = await createAndSendFirmaSigningRequest(
+      {
+        template_id: "tmpl-1",
+        recipients: [{ email: "a@example.com", order: 1 }],
+      },
+      "ws-test"
+    );
+
+    expect(result.id).toBe("signing-request-1");
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/signing-requests/create-and-send"),
+      expect.objectContaining({ method: "POST" })
+    );
   });
 });

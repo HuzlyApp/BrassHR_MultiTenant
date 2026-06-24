@@ -3,6 +3,7 @@ export type RecruiterTemplateErrorCode =
   | "NOT_FOUND"
   | "TENANT_MISMATCH"
   | "FIRMA_ERROR"
+  | "FIRMA_WORKSPACE_MISMATCH"
   | "NOT_CONFIGURED"
   | "PUBLISH_BLOCKED"
   | "INTERNAL_ERROR";

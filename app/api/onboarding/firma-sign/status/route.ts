@@ -61,6 +61,8 @@ export async function GET(req: NextRequest) {
         signingRequestId,
         applicantEmail: DRAFT_PREVIEW_APPLICANT_EMAIL,
         step: resolved.step,
+        tenantId: resolved.tenantId,
+        supabase,
       });
       const onboardingStatus = mapFirmaStatusToOnboardingStatus(session.firma_status);
       const completed = shouldCompleteOnboardingStepFromFirmaStatus(session.firma_status);

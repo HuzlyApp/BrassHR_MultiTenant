@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
-  createFirmaSigningRequest,
+  createAndSendFirmaSigningRequest,
   createFirmaTemplate,
   deleteFirmaTemplate,
   duplicateFirmaTemplateToSigningRequest,
@@ -16,6 +16,11 @@ import {
 } from "@/lib/firma/client";
 import { isFirmaDocumentUrlStale } from "@/lib/firma/document-access";
 import { FirmaError } from "@/lib/firma/errors";
+import {
+  isStoredFirmaWorkspaceMismatch,
+  resolveTenantFirmaWorkspaceId,
+  FirmaWorkspaceConfigError,
+} from "@/lib/firma/resolve-tenant-workspace";
 import { RECRUITER_TEMPLATE_DOCUMENT_BUCKET } from "@/lib/recruiter-templates/constants";
 import { RecruiterTemplateError } from "@/lib/recruiter-templates/errors";
 import type {
@@ -31,6 +36,33 @@ import type {
   RecruiterTemplateSyncInput,
 } from "@/lib/recruiter-templates/types";
 import { canPublish, validatePublishReady } from "@/lib/recruiter-templates/validation";
+
+function assertTemplateFirmaWorkspace(
+  template: RecruiterTemplateDetail,
+  workspaceId: string
+): void {
+  if (isStoredFirmaWorkspaceMismatch(template.firma_workspace_id, workspaceId)) {
+    throw new RecruiterTemplateError(
+      "FIRMA_WORKSPACE_MISMATCH",
+      "This template belongs to a different Firma workspace. Re-publish the template in Template Builder to use your organization's current workspace.",
+      409
+    );
+  }
+}
+
+async function resolveFirmaWorkspace(
+  supabase: SupabaseClient,
+  tenantId: string
+): Promise<string> {
+  try {
+    return await resolveTenantFirmaWorkspaceId(supabase, tenantId);
+  } catch (err) {
+    if (err instanceof FirmaWorkspaceConfigError) {
+      throw new RecruiterTemplateError("NOT_CONFIGURED", err.message, err.status);
+    }
+    throw err;
+  }
+}
 
 function mapTemplateRow(row: Record<string, unknown>): RecruiterTemplateRow {
   return row as unknown as RecruiterTemplateRow;
@@ -326,19 +358,20 @@ async function ensureFirmaTemplateDocumentUrlFresh(
   userId: string,
   template: RecruiterTemplateDetail,
   firmaTemplateId: string,
+  workspaceId: string,
   options: { forceRefresh?: boolean } = {}
 ): Promise<RecruiterTemplateDetail> {
   if (!template.document_storage_path) {
     return template;
   }
 
-  const firmaTemplate = await getFirmaTemplate(firmaTemplateId);
+  const firmaTemplate = await getFirmaTemplate(firmaTemplateId, workspaceId);
   if (!options.forceRefresh && !isFirmaDocumentUrlStale(firmaTemplate)) {
     return template;
   }
 
   const document = await readDocumentBase64(supabase, template.document_storage_path);
-  const updated = await replaceFirmaTemplateDocument(firmaTemplateId, document);
+  const updated = await replaceFirmaTemplateDocument(firmaTemplateId, document, workspaceId);
 
   const { error } = await supabase
     .from("recruiter_templates")
@@ -347,6 +380,7 @@ async function ensureFirmaTemplateDocumentUrlFresh(
         template,
         updated.document_url_expires_at ?? null
       ),
+      firma_workspace_id: workspaceId,
       updated_by: userId,
     })
     .eq("id", templateId)
@@ -379,6 +413,10 @@ async function ensureFirmaTemplateForBuilder(
   options: { forceRecreate?: boolean; refreshDocument?: boolean } = {}
 ): Promise<RecruiterTemplateDetail> {
   const template = await getRecruiterTemplateDetail(supabase, tenantId, templateId);
+  const workspaceId = await resolveFirmaWorkspace(supabase, tenantId);
+  const workspaceMismatch =
+    Boolean(template.firma_template_id) &&
+    isStoredFirmaWorkspaceMismatch(template.firma_workspace_id, workspaceId);
 
   if (template.status === "archived") {
     throw new RecruiterTemplateError("VALIDATION_ERROR", "Archived templates cannot be edited", 400);
@@ -398,17 +436,20 @@ async function ensureFirmaTemplateForBuilder(
     }
 
     const document = await readDocumentBase64(supabase, template.document_storage_path);
-    const created = await createFirmaTemplate({
-      name: template.name,
-      description: template.description ?? undefined,
-      document,
-      expiration_hours: template.expiration_hours,
-      settings: {
-        allow_editing_before_sending: true,
-        attach_pdf_on_finish: true,
-        allow_download: true,
+    const created = await createFirmaTemplate(
+      {
+        name: template.name,
+        description: template.description ?? undefined,
+        document,
+        expiration_hours: template.expiration_hours,
+        settings: {
+          allow_editing_before_sending: true,
+          attach_pdf_on_finish: true,
+          allow_download: true,
+        },
       },
-    });
+      workspaceId
+    );
 
     if (!created.id) {
       throw new RecruiterTemplateError(
@@ -422,6 +463,7 @@ async function ensureFirmaTemplateForBuilder(
       .from("recruiter_templates")
       .update({
         firma_template_id: created.id,
+        firma_workspace_id: workspaceId,
         firma_settings: buildFirmaSettingsWithSyncedDocument(
           template,
           created.document_url_expires_at ?? null
@@ -441,11 +483,13 @@ async function ensureFirmaTemplateForBuilder(
   }
 
   async function recreateFirmaTemplate(existingFirmaTemplateId: string): Promise<RecruiterTemplateDetail> {
-    try {
-      await deleteFirmaTemplate(existingFirmaTemplateId);
-    } catch (err) {
-      if (!(err instanceof FirmaError && err.code === "NOT_FOUND")) {
-        throw err;
+    if (!workspaceMismatch) {
+      try {
+        await deleteFirmaTemplate(existingFirmaTemplateId, workspaceId);
+      } catch (err) {
+        if (!(err instanceof FirmaError && err.code === "NOT_FOUND")) {
+          throw err;
+        }
       }
     }
     return createAndPersistFirmaTemplate();
@@ -453,7 +497,7 @@ async function ensureFirmaTemplateForBuilder(
 
   try {
     if (template.firma_template_id) {
-      if (options.forceRecreate) {
+      if (options.forceRecreate || workspaceMismatch) {
         return recreateFirmaTemplate(template.firma_template_id);
       }
 
@@ -467,6 +511,7 @@ async function ensureFirmaTemplateForBuilder(
               userId,
               template,
               template.firma_template_id,
+              workspaceId,
               { forceRefresh: true }
             );
           } catch (err) {
@@ -486,7 +531,11 @@ async function ensureFirmaTemplateForBuilder(
         ) {
           const document = await readDocumentBase64(supabase, template.document_storage_path);
           try {
-            const updated = await replaceFirmaTemplateDocument(template.firma_template_id, document);
+            const updated = await replaceFirmaTemplateDocument(
+              template.firma_template_id,
+              document,
+              workspaceId
+            );
             await supabase
               .from("recruiter_templates")
               .update({
@@ -494,6 +543,7 @@ async function ensureFirmaTemplateForBuilder(
                   template,
                   updated.document_url_expires_at ?? null
                 ),
+                firma_workspace_id: workspaceId,
                 updated_by: userId,
               })
               .eq("id", templateId)
@@ -516,7 +566,8 @@ async function ensureFirmaTemplateForBuilder(
           templateId,
           userId,
           template,
-          template.firma_template_id
+          template.firma_template_id,
+          workspaceId
         );
       } catch (err) {
         if (isMissingFirmaTemplateError(err)) {
@@ -545,15 +596,20 @@ export async function createRecruiterTemplateBuilderSession(
 ): Promise<RecruiterTemplateBuilderSession> {
   async function openSession(
     template: RecruiterTemplateDetail,
-    firmaTemplateId: string
+    firmaTemplateId: string,
+    workspaceId: string
   ): Promise<RecruiterTemplateBuilderSession> {
     const editorAppUrl = getFirmaEditorAppUrl();
-    await updateFirmaTemplate(firmaTemplateId, {
-      name: template.name,
-      description: template.description ?? undefined,
-      expiration_hours: template.expiration_hours,
-    });
-    const jwt = await generateFirmaTemplateJwt(firmaTemplateId);
+    await updateFirmaTemplate(
+      firmaTemplateId,
+      {
+        name: template.name,
+        description: template.description ?? undefined,
+        expiration_hours: template.expiration_hours,
+      },
+      workspaceId
+    );
+    const jwt = await generateFirmaTemplateJwt(firmaTemplateId, workspaceId);
     const editorUrl = new URL("/template-editor", editorAppUrl);
     editorUrl.searchParams.set("token", jwt.token);
 
@@ -590,8 +646,10 @@ export async function createRecruiterTemplateBuilderSession(
     throw new RecruiterTemplateError("FIRMA_ERROR", "Firma template was not created", 502);
   }
 
+  const workspaceId = await resolveFirmaWorkspace(supabase, tenantId);
+
   try {
-    return await openSession(template, firmaTemplateId);
+    return await openSession(template, firmaTemplateId, workspaceId);
   } catch (err) {
     if (!options.forceRecreate && isMissingFirmaTemplateError(err)) {
       template = await ensureFirmaTemplateForBuilder(supabase, tenantId, templateId, userId, {
@@ -602,7 +660,7 @@ export async function createRecruiterTemplateBuilderSession(
       if (!firmaTemplateId) {
         throw new RecruiterTemplateError("FIRMA_ERROR", "Firma template was not created", 502);
       }
-      return await openSession(template, firmaTemplateId);
+      return await openSession(template, firmaTemplateId, workspaceId);
     }
 
     if (err instanceof FirmaError) {
@@ -696,6 +754,7 @@ export async function publishRecruiterTemplate(
       .from("recruiter_templates")
       .update({
         firma_template_id: firmaTemplateId,
+        firma_workspace_id: await resolveFirmaWorkspace(supabase, tenantId),
         status: "active",
         published_at: new Date().toISOString(),
         last_synced_at: new Date().toISOString(),
@@ -790,8 +849,9 @@ export async function deleteRecruiterTemplateHard(
   const template = await getRecruiterTemplateDetail(supabase, tenantId, templateId);
 
   if (template.firma_template_id && isFirmaConfigured()) {
+    const workspaceId = await resolveFirmaWorkspace(supabase, tenantId);
     try {
-      await deleteFirmaTemplate(template.firma_template_id);
+      await deleteFirmaTemplate(template.firma_template_id, workspaceId);
     } catch (err) {
       if (!(err instanceof FirmaError && err.code === "NOT_FOUND")) {
         throw new RecruiterTemplateError(
@@ -838,11 +898,14 @@ export async function buildRecruiterTemplatePreview(
   };
 
   if (template.firma_template_id && isFirmaConfigured()) {
+    const workspaceId = await resolveFirmaWorkspace(supabase, tenantId);
+    assertTemplateFirmaWorkspace(template, workspaceId);
+
     try {
       const [firmaTemplate, users, fields] = await Promise.all([
-        getFirmaTemplate(template.firma_template_id),
-        listFirmaTemplateUsers(template.firma_template_id),
-        listFirmaTemplateFields(template.firma_template_id),
+        getFirmaTemplate(template.firma_template_id, workspaceId),
+        listFirmaTemplateUsers(template.firma_template_id, workspaceId),
+        listFirmaTemplateFields(template.firma_template_id, workspaceId),
       ]);
 
       preview.firma = {
@@ -863,7 +926,7 @@ export async function buildRecruiterTemplatePreview(
       };
 
       if (!options.readOnly || template.status === "active") {
-        const jwt = await generateFirmaTemplateJwt(template.firma_template_id);
+        const jwt = await generateFirmaTemplateJwt(template.firma_template_id, workspaceId);
         preview.editor = {
           ...preview.editor,
           jwt: jwt.token,
@@ -903,12 +966,18 @@ export async function createRecruiterTemplateSigningRequest(
     throw new RecruiterTemplateError("NOT_CONFIGURED", "Firma API is not configured", 503);
   }
 
+  const workspaceId = await resolveFirmaWorkspace(supabase, tenantId);
+  assertTemplateFirmaWorkspace(template, workspaceId);
+
   try {
-    const signingRequest = await createFirmaSigningRequest({
-      template_id: template.firma_template_id,
-      name: input.name ?? template.name,
-      recipients: input.recipients,
-    });
+    const signingRequest = await createAndSendFirmaSigningRequest(
+      {
+        template_id: template.firma_template_id,
+        name: input.name ?? template.name,
+        recipients: input.recipients,
+      },
+      workspaceId
+    );
 
     return {
       signing_request_id: signingRequest.id,
@@ -933,9 +1002,13 @@ export async function createSigningRequestFromDuplicate(
     throw new RecruiterTemplateError("PUBLISH_BLOCKED", "Template must be published first", 400);
   }
 
+  const workspaceId = await resolveFirmaWorkspace(supabase, tenantId);
+  assertTemplateFirmaWorkspace(template, workspaceId);
+
   try {
     const result = await duplicateFirmaTemplateToSigningRequest(
       template.firma_template_id,
+      workspaceId,
       name ?? template.name
     );
     return { signing_request_id: result.id };

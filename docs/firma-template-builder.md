@@ -12,12 +12,20 @@ Add these to your server environment (never expose the API key to the client):
 # Required for publish/preview/signing-request flows
 FIRMA_API_KEY=firma_test_...
 
+# Optional global fallback workspace when a tenant has no firma_workspace_id
+FIRMA_WORKSPACE_ID=
+
 # Optional overrides
 FIRMA_API_BASE_URL=https://api.firma.dev/functions/v1/signing-request-api
-FIRMA_WORKSPACE_ID=
 FIRMA_EDITOR_APP_URL=https://app.firma.dev
 FIRMA_EMBED_SCRIPT_URL=https://api.firma.dev/functions/v1/embed-proxy/template-editor.js
 ```
+
+### Per-tenant workspace
+
+Each organization can set `tenants.firma_workspace_id` in **Account Settings → Firma E-Signature**, or via `PATCH /api/admin/tenant-firma-settings`. When set, all Firma API calls for that tenant use that workspace. When null, the server falls back to `FIRMA_WORKSPACE_ID`.
+
+Apply migration `supabase/migrations/20260624120000_tenant_firma_workspace.sql` for tenant/template/session workspace columns.
 
 ### Auth pattern
 

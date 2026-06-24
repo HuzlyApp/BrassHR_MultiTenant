@@ -53,6 +53,7 @@ export const FIRMA_SIGNING_STATUSES = [
   "completed",
   "expired",
   "cancelled",
+  "voided",
 ] as const;
 
 export type FirmaSigningStatus = (typeof FIRMA_SIGNING_STATUSES)[number];
