@@ -3,7 +3,7 @@ export const ACCOUNT_TABS = [
   { slug: "business-info", label: "Business Info" },
   { slug: "account-settings", label: "Account Settings" },
   { slug: "security", label: "Security" },
-  { slug: "checklist", label: "Checklist" },
+  // { slug: "checklist", label: "Checklist" }, // Hidden for now; keep for future enablement
 ] as const;
 
 export type AccountTabSlug = (typeof ACCOUNT_TABS)[number]["slug"];
