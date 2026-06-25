@@ -223,28 +223,28 @@ const SHARED_TOP_SECTIONS: SidebarSection[] = [
     matchPrefixes: ["/admin_recruiter/calendar/shifts", "/admin_recruiter/attendance"],
     children: SCHEDULING_CHILDREN,
   },
-  {
-    label: "Tickets",
-    href: "/admin_recruiter/tickets/support",
-    iconType: ICON.tickets,
-    matchPrefixes: [
-      "/admin_recruiter/tickets",
-      "/admin_recruiter/support-tickets",
-      "/admin_recruiter/advanced-search",
-    ],
-    children: [
-      {
-        label: "Support Tickets",
-        href: "/admin_recruiter/tickets/support",
-        matchPrefixes: ["/admin_recruiter/tickets/support", "/admin_recruiter/support-tickets"],
-      },
-      {
-        label: "Advanced Search",
-        href: "/admin_recruiter/advanced-search",
-        matchPrefixes: ["/admin_recruiter/advanced-search"],
-      },
-    ],
-  },
+  // {
+  //   label: "Tickets",
+  //   href: "/admin_recruiter/tickets/support",
+  //   iconType: ICON.tickets,
+  //   matchPrefixes: [
+  //     "/admin_recruiter/tickets",
+  //     "/admin_recruiter/support-tickets",
+  //     "/admin_recruiter/advanced-search",
+  //   ],
+  //   children: [
+  //     {
+  //       label: "Support Tickets",
+  //       href: "/admin_recruiter/tickets/support",
+  //       matchPrefixes: ["/admin_recruiter/tickets/support", "/admin_recruiter/support-tickets"],
+  //     },
+  //     {
+  //       label: "Advanced Search",
+  //       href: "/admin_recruiter/advanced-search",
+  //       matchPrefixes: ["/admin_recruiter/advanced-search"],
+  //     },
+  //   ],
+  // }, // Hidden for now; can be uncommented later
   {
     label: "Reports",
     href: "/admin_recruiter/reports",

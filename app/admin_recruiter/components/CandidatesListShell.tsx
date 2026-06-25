@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { Columns2, Download, Filter, LayoutGrid, List, Plus } from "lucide-react";
+import { Columns2, Download, Filter, LayoutGrid, List, Search } from "lucide-react";
 import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
 import { CandidatesSubTabs } from "./CandidatesSubTabs";
 import { CandidatesPageHeader } from "./CandidatesPageHeader";
@@ -72,10 +72,12 @@ function InlineFilterField({
 function CreateAndViewActions({
   view,
   onViewChange,
+  onAdvancedSearch,
   size = "md",
 }: {
   view: "card" | "list";
   onViewChange: (view: "card" | "list") => void;
+  onAdvancedSearch?: () => void;
   size?: "md" | "sm";
 }) {
   const btnH = size === "sm" ? "h-8" : "h-9";
@@ -85,10 +87,13 @@ function CreateAndViewActions({
     <div className="flex shrink-0 items-center gap-2">
       <button
         type="button"
+        onClick={onAdvancedSearch}
+        disabled={!onAdvancedSearch}
+        aria-label="Advanced search"
         className={`inline-flex ${btnH} items-center gap-1.5 whitespace-nowrap rounded-md bg-[color:var(--brand-primary)] px-3 text-sm font-semibold leading-6 text-white transition hover:brightness-95`}
       >
-        <Plus className="h-3.5 w-3.5 shrink-0" />
-        Create Candidate
+        <Search className="h-3.5 w-3.5 shrink-0" />
+        Advanced Search
       </button>
       <button
         type="button"
@@ -313,7 +318,12 @@ export function CandidatesListShell({
               </div>
 
               <div className="ml-auto shrink-0 pl-3">
-                <CreateAndViewActions view={view} onViewChange={onViewChange} size="sm" />
+                <CreateAndViewActions
+                  view={view}
+                  onViewChange={onViewChange}
+                  onAdvancedSearch={onAdvancedSearch}
+                  size="sm"
+                />
               </div>
             </div>
           ) : null}
@@ -327,7 +337,11 @@ export function CandidatesListShell({
           <div className="text-xs leading-4 text-[#5e7371]">{totalText}</div>
           {!showFilterRows ? (
             <div className="ml-auto shrink-0">
-              <CreateAndViewActions view={view} onViewChange={onViewChange} />
+              <CreateAndViewActions
+                view={view}
+                onViewChange={onViewChange}
+                onAdvancedSearch={onAdvancedSearch}
+              />
             </div>
           ) : null}
         </div>
