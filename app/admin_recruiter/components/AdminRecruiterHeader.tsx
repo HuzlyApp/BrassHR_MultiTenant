@@ -202,8 +202,8 @@ export function AdminRecruiterHeader({
       className="sticky top-0 z-40 w-full bg-white border-b border-[#E2E8F0]"
       style={{ borderColor: "color-mix(in srgb, var(--brand-accent) 35%, #E2E8F0)" }}
     >
-      <div className="flex h-[64px] w-full items-center px-5 lg:px-8">
-        <div className="flex items-center gap-2">
+      <div className="flex h-14 min-w-0 w-full items-center justify-between gap-2 px-3 sm:h-[64px] sm:gap-3 sm:px-5 lg:px-8">
+        <div className="flex min-w-0 shrink-0 items-center gap-1 sm:gap-2">
           <button
             type="button"
             onClick={onMenuClick}
@@ -238,17 +238,17 @@ export function AdminRecruiterHeader({
               aria-label="Go back"
             >
               <ChevronLeft className="h-5 w-5 shrink-0 text-[#64748B]" aria-hidden />
-              <span className="text-sm font-medium text-[color:var(--brand-primary)]">Back</span>
+              <span className="hidden text-sm font-medium text-[color:var(--brand-primary)] min-[420px]:inline">Back</span>
             </button>
           ) : null}
         </div>
 
-        <div className="flex flex-1 justify-center px-2">
+        <div className="hidden min-w-0 flex-1 justify-center px-2 sm:flex">
           <GodAdminTenantSwitcher />
         </div>
 
-        <div className="relative ml-4">
-          <div className="flex items-center gap-3">
+        <div className="relative ml-auto shrink-0">
+          <div className="flex items-center gap-1 sm:gap-3">
             <div ref={messagesAreaRef} className="relative flex items-center gap-0">
               <button
                 type="button"
@@ -350,7 +350,7 @@ export function AdminRecruiterHeader({
             </div>
 
             <div ref={profileAreaRef} className="relative">
-            <div className="flex items-center gap-2 rounded-xl border border-[#E5E7EB] bg-white px-2.5 py-1.5">
+            <div className="flex items-center gap-1 rounded-lg border border-[#E5E7EB] bg-white px-1.5 py-1 sm:gap-2 sm:rounded-xl sm:px-2.5 sm:py-1.5">
             {profilePhoto ? (
               <img
                 src={profilePhoto}
@@ -367,9 +367,11 @@ export function AdminRecruiterHeader({
                 {displayName.charAt(0).toUpperCase()}
               </span>
             )}
-            <div className="leading-tight">
-              <p className="text-sm font-semibold text-[#0F172A]">{headerLoading ? "Loading..." : displayName}</p>
-              <p className="text-[11px] text-[#64748B]">{displayRole}</p>
+            <div className="hidden min-w-0 leading-tight sm:block">
+              <p className="max-w-[88px] truncate text-sm font-semibold text-[#0F172A] md:max-w-[140px]">
+                {headerLoading ? "Loading..." : displayName}
+              </p>
+              <p className="max-w-[88px] truncate text-[11px] text-[#64748B] md:max-w-[140px]">{displayRole}</p>
             </div>
             <button
               type="button"

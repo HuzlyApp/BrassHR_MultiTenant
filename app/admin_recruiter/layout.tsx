@@ -15,6 +15,7 @@ import { AdminRecruiterDashboardSubNav } from "./components/AdminRecruiterDashbo
 import { WorkflowDashboardHeaderProvider } from "./components/WorkflowDashboardHeaderContext";
 import GodAdminImpersonationBanner from "./components/GodAdminImpersonationBanner";
 import { AdminStaffAuthGuard } from "./components/AdminStaffAuthGuard";
+import { isCandidateDetailPage } from "./components/candidate-detail-navigation";
 import "./layout.css";
 
 const SIDEBAR_COLLAPSED_STORAGE_KEY = "adminRecruiterSidebarCollapsed";
@@ -54,6 +55,7 @@ export default function AdminRecruiterLayout({ children }: { children: ReactNode
   };
 
   const sidebarWidth = sidebarCollapsed ? SIDEBAR_COLLAPSED_WIDTH : SIDEBAR_EXPANDED_WIDTH;
+  const candidateDetailRoute = isCandidateDetailPage(pathname ?? "");
 
   return (
     <AdminTenantBrandingProvider>
@@ -80,7 +82,11 @@ export default function AdminRecruiterLayout({ children }: { children: ReactNode
           />
           <WorkflowDashboardHeaderProvider>
             <AdminRecruiterDashboardSubNav />
-            {children}
+            {candidateDetailRoute ? (
+              <div className="admin-candidate-detail-shell">{children}</div>
+            ) : (
+              children
+            )}
           </WorkflowDashboardHeaderProvider>
         </div>
       </div>

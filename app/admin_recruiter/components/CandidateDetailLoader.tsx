@@ -13,7 +13,7 @@ export default function CandidateDetailLoader({
 }: CandidateDetailLoaderProps) {
   return (
     <div
-      className={`flex min-h-[360px] w-full items-center justify-center py-16 ${className}`}
+      className={`candidate-detail-loader flex w-full items-center justify-center lg:min-h-[360px] lg:py-16 ${className}`}
       role="status"
       aria-live="polite"
       aria-busy="true"

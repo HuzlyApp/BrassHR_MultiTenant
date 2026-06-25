@@ -2,28 +2,14 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useParams, usePathname } from "next/navigation";
+import { useParams } from "next/navigation";
 import DetailedCandidateHeader from "../../../components/DetailedCandidateHeader";
 import DetailedTabs from "../../../components/DetailedTabs";
 import CandidateDetailLoader from "../../../components/CandidateDetailLoader";
 import CandidateAvatarIcon from "../../../components/CandidateAvatarIcon";
 import BrandedHistoryIcon from "../../../components/BrandedHistoryIcon";
 import { checklistSectionDetailHref } from "@/lib/admin/checklist-section-navigation";
-import {
-  Briefcase,
-  Calendar,
-  Check,
-  CheckCircle2,
-  LogOut,
-  Menu,
-  MoreVertical,
-  Settings,
-  UserCheck,
-  UserPlus,
-  UserX,
-  Users,
-  X,
-} from "lucide-react";
+import { Check, CheckCircle2, MoreVertical } from "lucide-react";
 
 type ItemState = "pending" | "complete" | "uploaded" | "answered" | "warning" | "not_reachable" | "not_applicable";
 
@@ -238,13 +224,9 @@ function RowBadge({ text, state }: { text: string; state: ItemState }) {
 }
 
 export default function NewApplicantChecklistPage() {
-  const pathname = usePathname();
   const params = useParams<{ id: string }>();
   const applicantId = params?.id;
 
-  const isWorkerRoute = pathname?.startsWith("/admin_recruiter/workers/") ?? false;
-
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<ChecklistPayload | null>(null);
@@ -381,120 +363,8 @@ export default function NewApplicantChecklistPage() {
   const recentHistoryRows = useMemo(() => buildRecentHistoryRows(data), [data]);
 
   return (
-    <div className="flex min-h-screen bg-zinc-50 overflow-hidden">
-      <div
-        className={`fixed inset-y-0 left-0 z-50 w-72 bg-[#0A1F1C] text-white transform transition-transform lg:translate-x-0 ${
-          sidebarOpen ? "translate-x-0" : "-translate-x-full"
-        }`}
-      >
-        <div className="flex h-full flex-col">
-          <div className="px-6 py-8 flex items-center gap-3 border-b border-white/10">
-            <div className="w-10 h-10 bg-white rounded-2xl flex items-center justify-center">
-              <span className="text-[#0A1F1C] font-bold text-3xl">N</span>
-            </div>
-            <div>
-              <div className="font-semibold text-2xl tracking-tight">Nexus</div>
-              <div className="text-xs text-teal-400 -mt-1">MedPro Staffing</div>
-            </div>
-          </div>
-
-          <nav className="flex-1 px-3 py-8 space-y-1">
-            <div className="px-4 text-xs uppercase tracking-widest text-teal-400/70 mb-4">
-              PERSONAL SETTINGS
-            </div>
-            <a href="#" className="flex items-center gap-3 px-4 py-3 text-sm hover:bg-white/10 rounded-2xl">
-              Profile
-            </a>
-            <a href="#" className="flex items-center gap-3 px-4 py-3 text-sm hover:bg-white/10 rounded-2xl">
-              Account
-            </a>
-
-            <div className="px-4 pt-8 text-xs uppercase tracking-widest text-teal-400/70 mb-4">
-              TEAM MANAGEMENT
-            </div>
-
-            {[
-              { label: "Candidates", href: "/admin_recruiter/candidates", icon: Users },
-              { label: "New", href: "/admin_recruiter/new", icon: UserPlus },
-              { label: "Pending", href: "/admin_recruiter/pending", icon: UserCheck },
-              { label: "Approved", href: "/admin_recruiter/approved", icon: UserCheck },
-              { label: "Disapproved", href: "/admin_recruiter/disapproved", icon: UserX },
-              { label: "Workers", href: "/admin_recruiter/workers", icon: Briefcase },
-              { label: "Schedule", href: "/admin_recruiter/schedule", icon: Calendar },
-            ].map((item) => {
-              const Icon = item.icon;
-              const isActive = pathname === item.href;
-              return (
-                <Link
-                  key={`${item.href}-${item.label}`}
-                  href={item.href}
-                  className={`flex items-center gap-3 px-4 py-3 text-sm rounded-2xl transition-all ${
-                    isActive ? "bg-white/10 text-white" : "text-white/80 hover:bg-white/10"
-                  }`}
-                >
-                  <Icon className="w-5 h-5" />
-                  {item.label}
-                </Link>
-              );
-            })}
-
-            <div className="px-4 pt-10">
-              <a href="#" className="flex items-center gap-3 px-4 py-3 text-sm hover:bg-white/10 rounded-2xl">
-                <Settings className="w-5 h-5" /> Settings
-              </a>
-            </div>
-          </nav>
-
-          <div className="p-6 border-t border-white/10">
-            <button className="flex w-full items-center gap-3 px-4 py-3 text-sm text-red-400 hover:bg-white/10 rounded-2xl">
-              <LogOut className="w-5 h-5" /> Sign out
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <div className="flex-1 flex flex-col overflow-hidden lg:pl-72">
-        <header className="h-16 border-b bg-white flex items-center px-6 justify-between">
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => setSidebarOpen((v) => !v)}
-              className="lg:hidden text-gray-600"
-            >
-              {sidebarOpen ? <X size={24} /> : <Menu size={24} />}
-            </button>
-            <div className="flex items-baseline gap-3">
-              <div className="font-semibold text-2xl">{isWorkerRoute ? "Worker" : "New Applicant"}</div>
-              <Link
-                href={isWorkerRoute ? "/admin_recruiter/workers" : "/admin_recruiter/new"}
-                className="text-sm text-gray-600 hover:text-gray-600"
-              >
-                Back to {isWorkerRoute ? "Workers" : "New"}
-              </Link>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-6">
-            <div className="flex items-center gap-2 bg-emerald-100 text-emerald-700 px-4 py-1 rounded-full text-sm">
-              <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-              Online
-            </div>
-
-            <div className="flex items-center gap-3">
-              <div className="text-right">
-                <div className="font-medium text-sm">Sean Smith</div>
-                <div className="text-xs text-gray-600">Manager</div>
-              </div>
-              <img
-                src="https://i.pravatar.cc/128?u=sean"
-                alt="Sean Smith"
-                className="w-9 h-9 rounded-full object-cover"
-              />
-            </div>
-          </div>
-        </header>
-
-        <div className="flex-1 w-full min-w-0 overflow-auto admin-recruiter-page-pad">
-          <div className="admin-recruiter-content-width">
+    <div className="w-full min-w-0 overflow-auto admin-recruiter-page-pad">
+      <div className="admin-recruiter-content-width">
             <DetailedTabs applicantId={applicantId} activeTab="Checklist" />
 
             {error ? (
@@ -554,48 +424,46 @@ export default function NewApplicantChecklistPage() {
               </div>
 
               <div className="flex flex-col gap-[30px]">
-                <div className="h-[110px] w-full max-w-[1260px] rounded-md border border-[#0D9488] bg-[#F8FAFC] px-6 py-5">
-                  <div className="flex items-center justify-between">
-                    <div className="text-[20px] font-semibold leading-7 text-[#1F2937]">Progress Checklist Tracker</div>
-                    <div className="text-[18px] font-normal leading-7 text-[#374151]">
+                <div className="w-full rounded-md border border-[#0D9488] bg-[#F8FAFC] px-3 py-3 sm:px-6 sm:py-5">
+                  <div className="flex min-w-0 flex-row flex-nowrap items-center justify-between gap-2">
+                    <div className="min-w-0 truncate text-[11px] font-semibold leading-4 text-[#1F2937] sm:text-sm sm:leading-5">
+                      Progress Checklist Tracker
+                    </div>
+                    <div className="shrink-0 whitespace-nowrap text-[10px] font-normal leading-4 text-[#374151] sm:text-xs sm:leading-5">
                       Days in current stage:{" "}
                       <span className="font-semibold text-[#1F2937]">{data?.meta?.daysInStage ?? "—"} days</span>
                     </div>
                   </div>
-                  <div className="mt-4 flex items-center gap-4">
-                    <div className="h-[10px] w-full max-w-[1168px] rounded-[100px] bg-[#ECF1F9] overflow-hidden">
+                  <div className="mt-3 flex w-full items-center gap-2 sm:mt-4 sm:gap-4">
+                    <div className="h-[8px] min-w-0 flex-1 overflow-hidden rounded-[100px] bg-[#ECF1F9] sm:h-[10px]">
                       <div
                         className="h-full rounded-[100px] bg-[#0D9488] transition-all"
                         style={{ width: `${data?.meta?.progressPercent ?? 0}%` }}
                       />
                     </div>
-                    <div className="text-[18px] font-semibold leading-7 text-[#111827]">
+                    <div className="shrink-0 text-xs font-semibold leading-4 text-[#111827] sm:text-sm sm:leading-5">
                       {data?.meta?.progressPercent ?? 0}%
                     </div>
                   </div>
                 </div>
 
-                <main className="space-y-4">
-                    <div className="grid grid-cols-1 xl:grid-cols-2 gap-[30px]">
+                <main className="@container/checklist-main space-y-4">
+                    <div className="grid w-full min-w-0 grid-cols-1 gap-4 @min-[680px]:grid-cols-2 @min-[680px]:gap-[30px]">
                       {(data?.sections ?? []).map((section, sectionIndex) => (
                         <div
                           key={section.id}
-                          className={`rounded-lg border border-[#E5E7EB] bg-white ${
-                            sectionIndex < 2 ? "min-h-[480px]" : ""
-                          }`}
+                          className="flex min-w-0 flex-col rounded-lg border border-[#E5E7EB] bg-white"
                         >
                           <div
-                            className={`flex justify-between gap-3 border-b border-[#E5E7EB] px-5 ${
-                              sectionIndex < 2
-                                ? "min-h-[88px] items-start py-4"
-                                : "h-16 items-center py-5"
+                            className={`flex items-start justify-between gap-3 border-b border-[#E5E7EB] px-5 py-4 max-[450px]:px-3 max-[450px]:py-3 ${
+                              sectionIndex < 2 ? "max-[679px]:min-h-[88px]" : ""
                             }`}
                           >
                             <div className="flex min-w-0 flex-1 items-start gap-3">
                               <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-[color:var(--brand-primary)] bg-[color:var(--brand-primary)] text-[13px] font-semibold leading-none tabular-nums text-white">
                                 {sectionIndex + 1}
                               </span>
-                              <div className="min-w-0 flex-1 pt-0.5 text-[18px] font-semibold leading-6 text-[#111827]">
+                              <div className="min-w-0 flex-1 pt-0.5 text-[18px] font-semibold leading-6 text-[#111827] max-[450px]:text-[9px] max-[450px]:leading-[12px] @max-[899px]:text-[15px] @max-[899px]:leading-5">
                                 {section.title}
                               </div>
                             </div>
@@ -824,8 +692,6 @@ export default function NewApplicantChecklistPage() {
             </div>
               </>
             )}
-          </div>
-        </div>
       </div>
     </div>
   );

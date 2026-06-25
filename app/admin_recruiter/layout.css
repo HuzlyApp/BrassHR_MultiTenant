@@ -67,6 +67,26 @@
   border-radius: 999px;
 }
 
+/* Candidate detail tabs — single row with horizontal scroll on mobile */
+.candidate-detail-tabs-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+  -webkit-overflow-scrolling: touch;
+}
+
+.candidate-detail-tabs-scroll::-webkit-scrollbar {
+  height: 4px;
+}
+
+.candidate-detail-tabs-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.candidate-detail-tabs-scroll::-webkit-scrollbar-thumb {
+  background-color: #cbd5e1;
+  border-radius: 999px;
+}
+
 /* Active rail — flush to nav edge, beside scrollbar gutter. */
 .admin-recruiter-sidebar-active-indicator {
   position: absolute;
@@ -304,4 +324,61 @@
 .admin-recruiter-shell .admin-recruiter-main-wrap .flex.min-h-screen {
   width: 100%;
   min-width: 0;
+}
+
+/* Candidate detail pages — full-height shell, unified background, centered mobile loader */
+.admin-recruiter-main-wrap {
+  display: flex;
+  flex-direction: column;
+}
+
+.admin-candidate-detail-shell {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  width: 100%;
+  background-color: #f4f4f4;
+}
+
+.admin-candidate-detail-shell .admin-recruiter-page-pad,
+.admin-candidate-detail-shell .admin-recruiter-content-width,
+.admin-candidate-detail-shell > .flex.min-h-screen,
+.admin-candidate-detail-shell > .bg-zinc-50,
+.admin-candidate-detail-shell .bg-zinc-50 {
+  background-color: #f4f4f4;
+}
+
+.admin-candidate-detail-shell .admin-recruiter-page-pad {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: calc(100dvh - 3.5rem);
+}
+
+@media (min-width: 640px) {
+  .admin-candidate-detail-shell .admin-recruiter-page-pad {
+    min-height: calc(100dvh - 4rem);
+  }
+}
+
+.admin-candidate-detail-shell .admin-recruiter-content-width {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.admin-candidate-detail-shell > .flex.min-h-screen {
+  flex: 1;
+  min-height: calc(100dvh - 3.5rem);
+}
+
+@media (max-width: 1023px) {
+  .admin-candidate-detail-shell .candidate-detail-loader {
+    flex: 1;
+    min-height: calc(100dvh - 12.5rem);
+    padding-top: 0;
+    padding-bottom: 0;
+  }
 }

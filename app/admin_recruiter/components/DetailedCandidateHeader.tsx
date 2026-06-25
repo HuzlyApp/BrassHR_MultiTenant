@@ -32,12 +32,12 @@ export default function DetailedCandidateHeader({
   const displayStatus = status?.trim();
 
   return (
-    <div className="sticky top-0 z-20 mb-4 bg-zinc-50/95 backdrop-blur-sm py-1">
-      <div className="flex h-[92px] w-full min-w-0 items-center justify-between rounded-md border border-[#D1D5DB] bg-white px-5">
-        <div className="flex items-center gap-2">
+    <div className="sticky top-0 z-20 mb-4 bg-zinc-50/95 py-1 backdrop-blur-sm">
+      <div className="flex min-h-[72px] w-full min-w-0 items-center justify-between gap-2 rounded-md border border-[#D1D5DB] bg-white px-3 py-2 sm:h-[92px] sm:gap-3 sm:px-5 sm:py-0">
+        <div className="flex min-w-0 items-center gap-2">
           <CandidateAvatarIcon photoUrl={profilePhotoUrl} name={displayName} />
-          <div>
-            <div className="font-[Inter,sans-serif] text-[20px] font-semibold leading-[28px] text-[#111827]">
+          <div className="min-w-0">
+            <div className="truncate font-[Inter,sans-serif] text-base font-semibold leading-6 text-[#111827] sm:text-[20px] sm:leading-[28px]">
               {displayName}
             </div>
             <div className="mt-0.5 flex items-center gap-1">
@@ -56,9 +56,9 @@ export default function DetailedCandidateHeader({
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2">
           {displayStatus ? (
-            <span className="inline-flex h-8 items-center justify-center rounded-md border border-[#D1D5DB] bg-white px-3 text-center text-xs font-semibold leading-4 text-[#111827]">
+            <span className="inline-flex h-7 max-w-[96px] items-center justify-center truncate rounded-md border border-[#D1D5DB] bg-white px-2 text-center text-[10px] font-semibold leading-4 text-[#111827] sm:h-8 sm:max-w-none sm:px-3 sm:text-xs">
               {displayStatus}
             </span>
           ) : null}
