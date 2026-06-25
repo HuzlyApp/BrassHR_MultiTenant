@@ -4,12 +4,12 @@ import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { resolveEffectiveAdminTenantId } from "@/lib/email-templates/resolve-effective-tenant";
 import type { OnboardingDbClient } from "@/lib/onboarding/load-tenant-config";
 import {
-  deleteWorkflowTemplate,
-  getWorkflowTemplateById,
-  updateWorkflowTemplate,
-  workflowTemplateDraft,
-  type WorkflowTemplateFolder,
-} from "@/lib/onboarding/workflow-templates";
+  deleteOnboardingFlow,
+  getOnboardingFlowById,
+  saveOnboardingFlowAsTemplate,
+  updateOnboardingFlow,
+  type OnboardingFlowStatus,
+} from "@/lib/onboarding/onboarding-flows";
 import {
   isSerializableWorkflowState,
   type SerializableWorkflowState,
@@ -18,6 +18,18 @@ import {
 export const runtime = "nodejs";
 
 type RouteContext = { params: Promise<{ id: string }> };
+
+async function resolveTenantId(
+  supabase: OnboardingDbClient,
+  auth: Awaited<ReturnType<typeof requireStaffApiSession>>
+): Promise<string | null> {
+  if (auth instanceof NextResponse) return null;
+  return resolveEffectiveAdminTenantId(supabase, {
+    userId: auth.userId,
+    authUser: auth.authUser,
+    godAdmin: auth.godAdmin,
+  });
+}
 
 export async function GET(_req: NextRequest, context: RouteContext) {
   const auth = await requireStaffApiSession();
@@ -31,12 +43,7 @@ export async function GET(_req: NextRequest, context: RouteContext) {
   const { id } = await context.params;
 
   try {
-    const tenantId = await resolveEffectiveAdminTenantId(supabase as OnboardingDbClient, {
-      userId: auth.userId,
-      authUser: auth.authUser,
-      godAdmin: auth.godAdmin,
-    });
-
+    const tenantId = await resolveTenantId(supabase as OnboardingDbClient, auth);
     if (!tenantId) {
       return NextResponse.json(
         { error: "No tenant selected", code: "TENANT_REQUIRED" },
@@ -44,37 +51,26 @@ export async function GET(_req: NextRequest, context: RouteContext) {
       );
     }
 
-    const row = await getWorkflowTemplateById(supabase as OnboardingDbClient, tenantId, id);
-    if (!row) {
-      return NextResponse.json({ error: "Template not found" }, { status: 404 });
+    const flow = await getOnboardingFlowById(supabase as OnboardingDbClient, tenantId, id);
+    if (!flow) {
+      return NextResponse.json({ error: "Flow not found" }, { status: 404 });
     }
 
-    const builderDraft = await workflowTemplateDraft(supabase as OnboardingDbClient, row);
-    const folder: WorkflowTemplateFolder = row.type === "preset" ? "presets" : "saved-templates";
-
-    return NextResponse.json({
-      template: {
-        id: row.id,
-        name: row.name,
-        folder,
-        isPreset: row.type === "preset",
-        tenantId: row.tenant_id,
-        isReadOnly: row.type === "preset" && row.tenant_id === null,
-        flowName: row.flow_name,
-        builderDraft,
-        updatedAt: row.updated_at,
-      },
-    });
+    return NextResponse.json({ flow });
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : "Failed to load template";
+    const msg = err instanceof Error ? err.message : "Failed to load flow";
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
 
 type PatchBody = {
   name?: string;
-  flowName?: string;
+  status?: OnboardingFlowStatus;
+  libraryId?: string | null;
   builderDraft?: SerializableWorkflowState;
+  publish?: boolean;
+  saveTemplate?: boolean;
+  templateName?: string;
 };
 
 export async function PATCH(req: NextRequest, context: RouteContext) {
@@ -95,20 +91,8 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  if (
-    body.builderDraft !== undefined &&
-    !isSerializableWorkflowState(body.builderDraft)
-  ) {
-    return NextResponse.json({ error: "Invalid builder draft" }, { status: 400 });
-  }
-
   try {
-    const tenantId = await resolveEffectiveAdminTenantId(supabase as OnboardingDbClient, {
-      userId: auth.userId,
-      authUser: auth.authUser,
-      godAdmin: auth.godAdmin,
-    });
-
+    const tenantId = await resolveTenantId(supabase as OnboardingDbClient, auth);
     if (!tenantId) {
       return NextResponse.json(
         { error: "No tenant selected", code: "TENANT_REQUIRED" },
@@ -116,17 +100,43 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
       );
     }
 
-    const template = await updateWorkflowTemplate(supabase as OnboardingDbClient, tenantId, id, {
+    const builderDraft =
+      body.builderDraft && isSerializableWorkflowState(body.builderDraft)
+        ? body.builderDraft
+        : undefined;
+
+    let status = body.status;
+    if (body.publish === true) {
+      status = "published";
+    } else if (body.publish === false && status === undefined) {
+      status = "draft";
+    }
+
+    const flow = await updateOnboardingFlow(supabase as OnboardingDbClient, tenantId, id, {
       name: body.name,
-      flowName: body.flowName,
-      builderDraft: body.builderDraft,
+      status,
+      libraryId: body.libraryId,
+      builderDraft,
       updatedBy: auth.userId,
     });
 
-    return NextResponse.json({ template });
+    let savedTemplate: { templateId: string } | null = null;
+    if (body.saveTemplate && builderDraft) {
+      savedTemplate = await saveOnboardingFlowAsTemplate(
+        supabase as OnboardingDbClient,
+        tenantId,
+        id,
+        {
+          templateName: body.templateName?.trim() || flow.name,
+          createdBy: auth.userId,
+        }
+      );
+    }
+
+    return NextResponse.json({ flow, savedTemplate });
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : "Failed to update template";
-    const status = /not found/i.test(msg) ? 404 : 500;
+    const msg = err instanceof Error ? err.message : "Failed to update flow";
+    const status = msg.includes("already exists") ? 409 : msg === "Flow not found" ? 404 : 500;
     return NextResponse.json({ error: msg }, { status });
   }
 }
@@ -143,12 +153,7 @@ export async function DELETE(_req: NextRequest, context: RouteContext) {
   const { id } = await context.params;
 
   try {
-    const tenantId = await resolveEffectiveAdminTenantId(supabase as OnboardingDbClient, {
-      userId: auth.userId,
-      authUser: auth.authUser,
-      godAdmin: auth.godAdmin,
-    });
-
+    const tenantId = await resolveTenantId(supabase as OnboardingDbClient, auth);
     if (!tenantId) {
       return NextResponse.json(
         { error: "No tenant selected", code: "TENANT_REQUIRED" },
@@ -156,11 +161,10 @@ export async function DELETE(_req: NextRequest, context: RouteContext) {
       );
     }
 
-    await deleteWorkflowTemplate(supabase as OnboardingDbClient, tenantId, id);
+    await deleteOnboardingFlow(supabase as OnboardingDbClient, tenantId, id);
     return NextResponse.json({ ok: true });
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : "Failed to delete template";
-    const status = /not found|cannot modify/i.test(msg) ? 404 : 500;
-    return NextResponse.json({ error: msg }, { status });
+    const msg = err instanceof Error ? err.message : "Failed to delete flow";
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }

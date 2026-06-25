@@ -13,7 +13,6 @@ import { WorkflowBuilder } from "@/app/components/workflow-builder";
 import type { StepCategory } from "@/app/components/workflow-builder";
 import type { WorkflowNodeData, WorkflowState } from "@/app/components/workflow-builder";
 import {
-  ONBOARDING_WORKFLOW_STEP_LIBRARY,
   buildWorkflowStepLookup,
   hydrateWorkflowStepLibrary,
 } from "@/app/components/onboarding/workflow-step-library";
@@ -113,16 +112,15 @@ async function loadBuilderData(): Promise<BuilderQueryData> {
     safeFetchJson<BuilderPayload>("/api/admin/onboarding-builder", fetchOptions),
   ]);
 
-  let stepLibrary = ONBOARDING_WORKFLOW_STEP_LIBRARY;
-
-  if (libraryRes.ok && libraryRes.data.categories?.length) {
-    stepLibrary = hydrateWorkflowStepLibrary(libraryRes.data.categories);
-  } else if (!libraryRes.ok) {
-    logBuilderDiagnostic("step library request failed; using bundled library", {
-      status: libraryRes.status,
-      error: libraryRes.error,
-    });
+  if (!libraryRes.ok || !libraryRes.data.categories?.length) {
+    throw new Error(
+      (!libraryRes.ok ? libraryRes.error : null) ??
+        libraryRes.data?.error ??
+        "Step library is not configured. Add steps in Supabase onboarding_step_library."
+    );
   }
+
+  const stepLibrary = hydrateWorkflowStepLibrary(libraryRes.data.categories);
 
   if (!res.ok) {
     throw new Error(
@@ -165,6 +163,7 @@ export default function TenantOnboardingWorkflowBuilder({
   const pathname = usePathname() ?? "";
   const searchParams = useSearchParams();
   const templateIdFromUrl = searchParams.get("template")?.trim() || null;
+  const flowIdFromUrl = searchParams.get("flow")?.trim() || null;
   const templateViewOnly = searchParams.get("view") === "1";
   const queryClient = useQueryClient();
   const prevPathnameRef = useRef<string | null>(null);
@@ -177,17 +176,17 @@ export default function TenantOnboardingWorkflowBuilder({
   const prevTemplateIdRef = useRef<string | null>(null);
   const initializedTenantRef = useRef<string | null>(null);
   const lastAppliedPublishedVersionRef = useRef<number | null>(null);
-  const flowTitleRef = useRef("Worker onboarding");
-  const savedFlowTitleRef = useRef("Worker onboarding");
+  const flowTitleRef = useRef("");
+  const savedFlowTitleRef = useRef("");
   const [savingTemplate, setSavingTemplate] = useState(false);
   const [savingPublish, setSavingPublish] = useState(false);
   const [tenantId, setTenantId] = useState<string | null>(null);
   const [tenantSlug, setTenantSlug] = useState<string | null>(null);
   const [tenantName, setTenantName] = useState<string>("");
-  const [flowTitle, setFlowTitle] = useState("Worker onboarding");
+  const [flowTitle, setFlowTitle] = useState("");
   const [publishStatus, setPublishStatus] = useState<"draft" | "published">("published");
   const [updatedAt, setUpdatedAt] = useState<string | null>(null);
-  const [stepLibrary, setStepLibrary] = useState<StepCategory[]>(ONBOARDING_WORKFLOW_STEP_LIBRARY);
+  const [stepLibrary, setStepLibrary] = useState<StepCategory[]>([]);
   const [initialNodes, setInitialNodes] = useState<Node<WorkflowNodeData>[]>([]);
   const [initialEdges, setInitialEdges] = useState<Edge[]>([]);
   const [activeFlowKey, setActiveFlowKey] = useState<string | null>(null);
@@ -198,6 +197,9 @@ export default function TenantOnboardingWorkflowBuilder({
     savedTemplates: WorkflowTemplateListItem[];
   }>({ presets: [], savedTemplates: [] });
   const [editingTemplate, setEditingTemplate] = useState<EditingTemplate | null>(null);
+  const [editingFlow, setEditingFlow] = useState<{ id: string; updatedAt: string | null } | null>(
+    null
+  );
   const [templateUpdatedAt, setTemplateUpdatedAt] = useState<string | null>(null);
   const [pastingWorkflow, setPastingWorkflow] = useState(false);
   const [successModal, setSuccessModal] = useState<SuccessModalState>({
@@ -248,14 +250,14 @@ export default function TenantOnboardingWorkflowBuilder({
     setTenantName(payload.tenantName?.trim() || "Your organization");
     setStepLibrary(data.stepLibrary);
 
-    if (templateIdFromUrl) {
+    if (templateIdFromUrl || flowIdFromUrl) {
       return;
     }
 
     setEditingTemplate(null);
     setTemplateUpdatedAt(null);
 
-    const nextFlowName = payload.flowName?.trim() || "Worker onboarding";
+    const nextFlowName = payload.flowName?.trim() ?? "";
     const tenantFlowKey = `${nextTenantId ?? "none"}:tenant-flow`;
     const cameFromTemplate = activeFlowKey?.includes(":template:") ?? false;
     const tenantChanged = initializedTenantRef.current !== nextTenantId;
@@ -289,7 +291,7 @@ export default function TenantOnboardingWorkflowBuilder({
       setPublishStatus(payload.publishStatus ?? "published");
       setUpdatedAt(payload.builderUpdatedAt ?? null);
     }
-  }, [activeFlowKey, data, isFetching, isLoading, templateIdFromUrl]);
+  }, [activeFlowKey, data, flowIdFromUrl, isFetching, isLoading, templateIdFromUrl]);
 
   useEffect(() => {
     const prevTemplateId = prevTemplateIdRef.current;
@@ -305,11 +307,65 @@ export default function TenantOnboardingWorkflowBuilder({
   }, [templateIdFromUrl, refetch]);
 
   useEffect(() => {
+    if (!flowIdFromUrl || !tenantId) return;
+    let cancelled = false;
+
+    async function loadFlow() {
+      try {
+        const res = await fetch(
+          `/api/admin/onboarding-flows/${flowIdFromUrl}`,
+          await staffFetchInit()
+        );
+        const payload = (await res.json()) as {
+          flow?: {
+            id: string;
+            name: string;
+            status: "draft" | "published" | "unpublished";
+            builderDraft: unknown;
+            updatedAt: string;
+          };
+          error?: string;
+        };
+        if (!res.ok) throw new Error(payload.error || "Failed to load flow");
+        if (cancelled || !payload.flow) return;
+
+        const flow = payload.flow;
+        const stepLookup = buildWorkflowStepLookup(stepLibrary);
+        const { nodes, edges } = hydrateWorkflowFromStorage(
+          flow.builderDraft,
+          [],
+          stepLookup
+        );
+
+        setEditingFlow({ id: flow.id, updatedAt: flow.updatedAt });
+        setEditingTemplate(null);
+        setTemplateUpdatedAt(null);
+        setInitialNodes(nodes);
+        setInitialEdges(edges);
+        setFlowTitle(flow.name);
+        flowTitleRef.current = flow.name;
+        savedFlowTitleRef.current = flow.name;
+        setPublishStatus(flow.status === "published" ? "published" : "draft");
+        setUpdatedAt(flow.updatedAt);
+        setActiveFlowKey(`${tenantId}:flow:${flow.id}:${flow.updatedAt}`);
+        skipNextChange.current = true;
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Failed to load flow");
+      }
+    }
+
+    void loadFlow();
+    return () => {
+      cancelled = true;
+    };
+  }, [flowIdFromUrl, tenantId, stepLibrary]);
+
+  useEffect(() => {
     const prev = prevPathnameRef.current;
     prevPathnameRef.current = pathname;
     const onBuilder = pathname.includes("/onboarding-builder");
     const wasOnBuilder = prev?.includes("/onboarding-builder") ?? false;
-    if (onBuilder && !wasOnBuilder && !templateIdFromUrl) {
+    if (onBuilder && !wasOnBuilder && !templateIdFromUrl && !flowIdFromUrl) {
       setEditingTemplate(null);
       setTemplateUpdatedAt(null);
       setActiveFlowKey(null);
@@ -317,7 +373,7 @@ export default function TenantOnboardingWorkflowBuilder({
       lastAppliedPublishedVersionRef.current = null;
       void queryClient.invalidateQueries({ queryKey: BUILDER_QUERY_KEY });
     }
-  }, [pathname, templateIdFromUrl, queryClient]);
+  }, [pathname, templateIdFromUrl, flowIdFromUrl, queryClient]);
 
   useEffect(() => {
     return () => {
@@ -517,7 +573,7 @@ export default function TenantOnboardingWorkflowBuilder({
       }
     ) => {
       if (editingTemplate?.isViewOnly) return;
-      const effectiveFlowName = (options.flowName ?? flowTitleRef.current).trim() || "Worker onboarding";
+      const effectiveFlowName = (options.flowName ?? flowTitleRef.current).trim();
       if (!options.silent) {
         if (options.template) setSavingTemplate(true);
         else if (options.publish) setSavingPublish(true);
@@ -536,6 +592,68 @@ export default function TenantOnboardingWorkflowBuilder({
         }
 
         const builderDraft = serializeWorkflowState(state.nodes, state.edges);
+
+        if (editingFlow?.id) {
+          const res = await fetch(`/api/admin/onboarding-flows/${editingFlow.id}`, {
+            ...(await staffFetchInit({
+              "Content-Type": "application/json",
+            })),
+            method: "PATCH",
+            body: JSON.stringify({
+              name: effectiveFlowName,
+              builderDraft,
+              publish: options.publish === true,
+              saveTemplate: options.template === true,
+              templateName: flowTitleRef.current,
+            }),
+          });
+          const payload = (await res.json()) as {
+            flow?: {
+              id: string;
+              name: string;
+              status: string;
+              updatedAt: string;
+            };
+            error?: string;
+          };
+          if (!res.ok) throw new Error(payload.error || "Save failed");
+
+          const saved = payload.flow;
+          const savedAt = saved?.updatedAt ?? new Date().toISOString();
+          const savedName = saved?.name?.trim() || effectiveFlowName;
+          flowTitleRef.current = savedName;
+          savedFlowTitleRef.current = savedName;
+          setFlowTitle(savedName);
+          setUpdatedAt(savedAt);
+          if (saved) {
+            setEditingFlow({ id: saved.id, updatedAt: savedAt });
+            setPublishStatus(saved.status === "published" ? "published" : "draft");
+            setActiveFlowKey(`${tenantId ?? "none"}:flow:${saved.id}:${savedAt}`);
+          }
+          skipNextChange.current = true;
+
+          if (!options.silent) {
+            if (options.template) {
+              void loadTemplateLists();
+              setSuccessModal({
+                open: true,
+                title: "Success!",
+                message: `Template "${flowTitleRef.current}" has been saved`,
+                actionHref: "/admin_recruiter/dashboard/templates",
+                actionLabel: "View templates",
+              });
+            } else if (options.publish) {
+              setSuccessModal({
+                open: true,
+                title: "Success!",
+                message: "Workflow published successfully",
+              });
+            } else {
+              toast.success("Draft saved");
+            }
+          }
+          return;
+        }
 
         if (options.template) {
           await persistNewTemplate(state, { silent: options.silent });
@@ -637,7 +755,7 @@ export default function TenantOnboardingWorkflowBuilder({
         }
       }
     },
-    [editingTemplate, persistNewTemplate, persistTemplateUpdate, queryClient, data?.payload, data?.stepLibrary, stepLibrary, tenantId]
+    [editingFlow, editingTemplate, persistNewTemplate, persistTemplateUpdate, queryClient, data?.payload, data?.stepLibrary, stepLibrary, tenantId]
   );
 
   const handlePreview = useCallback(
@@ -820,9 +938,10 @@ export default function TenantOnboardingWorkflowBuilder({
     setDismissedLoadError(null);
   }, [loadError]);
   const isTemplateLoading = Boolean(templateIdFromUrl && tenantId && !editingTemplate);
+  const isFlowLoading = Boolean(flowIdFromUrl && tenantId && !editingFlow);
   const isBuilderReady = activeFlowKey != null;
   const isBuilderLoading =
-    !isBuilderReady && (isLoading || isFetching || isTemplateLoading);
+    !isBuilderReady && (isLoading || isFetching || isTemplateLoading || isFlowLoading);
 
   const lastUpdated = useMemo(() => {
     const timestamp = editingTemplate ? templateUpdatedAt : updatedAt;

@@ -32,18 +32,32 @@ export async function findDuplicateFlowName(
     return null;
   }
 
-  const { data: templates, error } = await supabase
-    .from("workflow_templates")
+  const { data: templates, error: templateError } = await supabase
+    .from("onboarding_templates")
     .select("id, flow_name, name")
     .eq("tenant_id", tenantId);
 
-  if (error) throw error;
+  if (templateError) throw templateError;
 
   for (const row of templates ?? []) {
     if (opts?.excludeTemplateId && String(row.id) === opts.excludeTemplateId) continue;
     const existing = normalizeFlowNameKey(
       String(row.flow_name ?? row.name ?? "").replace(/\.tpl$/i, "")
     );
+    if (existing && existing === normalized) {
+      return `A workflow named "${flowName.trim()}" already exists. Please choose another name.`;
+    }
+  }
+
+  const { data: flows, error: flowError } = await supabase
+    .from("onboarding_flows")
+    .select("id, name")
+    .eq("tenant_id", tenantId);
+
+  if (flowError) throw flowError;
+
+  for (const row of flows ?? []) {
+    const existing = normalizeFlowNameKey(String(row.name));
     if (existing && existing === normalized) {
       return `A workflow named "${flowName.trim()}" already exists. Please choose another name.`;
     }

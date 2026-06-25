@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   useCallback,
   useEffect,
@@ -11,6 +11,11 @@ import {
   useState,
   type FormEvent,
 } from "react";
+import toast from "react-hot-toast";
+import CandidateDetailLoader from "@/app/admin_recruiter/components/CandidateDetailLoader";
+import { useOnboardingFlows, type OnboardingFlowListItem } from "@/lib/onboarding/hooks/use-onboarding-flows";
+import { useOnboardingLibraries } from "@/lib/onboarding/hooks/use-onboarding-libraries";
+import { useOnboardingTemplates } from "@/lib/onboarding/hooks/use-onboarding-templates";
 import {
   CARD_BORDER,
   GOLD_GRADIENT,
@@ -21,50 +26,12 @@ import {
   TEXT_SECONDARY,
 } from "../constants";
 
-type FlowStatus = "published" | "unpublished";
-
-type OnboardingFlow = {
-  id: string;
-  name: string;
-  status: FlowStatus;
-};
-
-const INITIAL_PUBLISHED: OnboardingFlow[] = [
-  { id: "pre-offer", name: "Pre-Offer (ATS)", status: "published" },
-  { id: "post-offer", name: "Post-Offer", status: "published" },
-  { id: "final-offer", name: "Final Offer", status: "published" },
-  { id: "employee-account", name: "Employee Account Setup", status: "published" },
-  { id: "new-hire-orientation", name: "New Hire Orientation", status: "published" },
-  { id: "hr-doc-verification", name: "HR Document Verification", status: "published" },
-  { id: "it-equipment", name: "IT Equipment Provisioning", status: "published" },
-  { id: "payroll-enrollment", name: "Payroll Enrollment", status: "published" },
-  { id: "background-check", name: "Background Check Approval", status: "published" },
-  { id: "department-intro", name: "Department Introduction", status: "published" },
-  { id: "training-compliance", name: "Training & Compliance", status: "published" },
-  { id: "benefits-registration", name: "Benefits Registration", status: "published" },
-];
-
-const INITIAL_UNPUBLISHED: OnboardingFlow[] = [
-  { id: "manager-approval", name: "Manager Approval", status: "unpublished" },
-  { id: "facility-assignment", name: "Facility Assignment", status: "unpublished" },
-];
+type OnboardingFlow = OnboardingFlowListItem;
 
 type FilterTab = "published" | "unpublished";
 type FlowSaveStatus = "published" | "draft";
 
 type SelectOption = { id: string; label: string };
-
-const FLOW_TEMPLATE_OPTIONS: SelectOption[] = [
-  { id: "employee-checklist", label: "New Employee Checklist" },
-  { id: "orientation", label: "Orientation Template" },
-  { id: "compliance", label: "Compliance Template" },
-];
-
-const FLOW_FOLDER_OPTIONS: SelectOption[] = [
-  { id: "onboarding", label: "Onboarding Flows" },
-  { id: "marketing", label: "Marketing Flows" },
-  { id: "uncategorized", label: "Uncategorized" },
-];
 
 function CloseIcon() {
   return (
@@ -395,22 +362,32 @@ function UnpublishedBadge() {
   );
 }
 
-type FlowCardProps = {
-  flow: OnboardingFlow;
-};
-
 type CreateNewFlowModalProps = {
   open: boolean;
   onClose: () => void;
-  onCreated: (flow: OnboardingFlow) => void;
+  onCreated: (flow: OnboardingFlow) => void | Promise<void>;
+  templateOptions: SelectOption[];
+  folderOptions: SelectOption[];
+  defaultFolderId?: string;
+  saving?: boolean;
+  error?: string | null;
 };
 
-function CreateNewFlowModal({ open, onClose, onCreated }: CreateNewFlowModalProps) {
-  const [flowName, setFlowName] = useState("New Employee Checklist");
+function CreateNewFlowModal({
+  open,
+  onClose,
+  onCreated,
+  templateOptions,
+  folderOptions,
+  defaultFolderId,
+  saving = false,
+  error,
+}: CreateNewFlowModalProps) {
+  const [flowName, setFlowName] = useState("");
   const [template, setTemplate] = useState("");
-  const [templateName, setTemplateName] = useState("New Employee Checklist Template");
+  const [templateName, setTemplateName] = useState("");
   const [createAsBlank, setCreateAsBlank] = useState(false);
-  const [folder, setFolder] = useState("onboarding");
+  const [folder, setFolder] = useState(defaultFolderId ?? "");
   const [saveStatus, setSaveStatus] = useState<FlowSaveStatus>("published");
 
   useEffect(() => {
@@ -428,27 +405,32 @@ function CreateNewFlowModal({ open, onClose, onCreated }: CreateNewFlowModalProp
 
   useEffect(() => {
     if (open) return;
-    setFlowName("New Employee Checklist");
+    setFlowName("");
     setTemplate("");
-    setTemplateName("New Employee Checklist Template");
+    setTemplateName("");
     setCreateAsBlank(false);
-    setFolder("onboarding");
+    setFolder(defaultFolderId ?? "");
     setSaveStatus("published");
-  }, [open]);
+  }, [open, defaultFolderId]);
 
   const handleCreate = useCallback(
-    (e: FormEvent) => {
+    async (e: FormEvent) => {
       e.preventDefault();
-      const name = flowName.trim() || "New Employee Checklist";
-      const status: FlowStatus = saveStatus === "published" ? "published" : "unpublished";
-      onCreated({
-        id: `flow-${Date.now()}`,
+      const name = flowName.trim();
+      if (!name) return;
+      const status = saveStatus === "published" ? "published" : "unpublished";
+      await onCreated({
+        id: "",
         name,
         status,
+        libraryId: folder || null,
+        templateId: createAsBlank ? null : template || null,
+        createdAsBlank: createAsBlank,
+        createdAt: "",
+        updatedAt: "",
       });
-      onClose();
     },
-    [flowName, onCreated, onClose, saveStatus]
+    [flowName, onCreated, saveStatus, folder, createAsBlank, template]
   );
 
   if (!open) return null;
@@ -508,6 +490,8 @@ function CreateNewFlowModal({ open, onClose, onCreated }: CreateNewFlowModalProp
               type="text"
               value={flowName}
               onChange={(e) => setFlowName(e.target.value)}
+              placeholder="Enter flow name"
+              required
               className={fieldClassName}
               style={fieldStyle}
             />
@@ -525,7 +509,7 @@ function CreateNewFlowModal({ open, onClose, onCreated }: CreateNewFlowModalProp
               id="flow-template"
               triggerPlaceholder="Select a template"
               searchPlaceholder="Search template"
-              options={FLOW_TEMPLATE_OPTIONS}
+              options={templateOptions}
               selectedId={template}
               onChange={setTemplate}
               disabled={createAsBlank}
@@ -608,7 +592,7 @@ function CreateNewFlowModal({ open, onClose, onCreated }: CreateNewFlowModalProp
               id="flow-folder"
               triggerPlaceholder="Select folder"
               searchPlaceholder="Search folder"
-              options={FLOW_FOLDER_OPTIONS}
+              options={folderOptions}
               selectedId={folder}
               onChange={setFolder}
               iconType="folder"
@@ -645,12 +629,19 @@ function CreateNewFlowModal({ open, onClose, onCreated }: CreateNewFlowModalProp
             </label>
           </fieldset>
 
+          {error ? (
+            <p className="text-sm text-red-600" role="alert">
+              {error}
+            </p>
+          ) : null}
+
           <button
             type="submit"
-            className="mt-1 h-11 w-full rounded-lg text-sm font-semibold text-white transition hover:brightness-[0.97]"
+            disabled={saving || !flowName.trim()}
+            className="mt-1 h-11 w-full rounded-lg text-sm font-semibold text-white transition hover:brightness-[0.97] disabled:opacity-60"
             style={{ background: GOLD_GRADIENT }}
           >
-            Create
+            {saving ? "Creating…" : "Create"}
           </button>
         </form>
       </div>
@@ -658,22 +649,23 @@ function CreateNewFlowModal({ open, onClose, onCreated }: CreateNewFlowModalProp
   );
 }
 
-function FlowCard({ flow }: FlowCardProps) {
+type FlowCardProps = {
+  flow: OnboardingFlow;
+  builderHref: string;
+};
+
+function FlowCard({ flow, builderHref }: FlowCardProps) {
   const published = flow.status === "published";
 
   return (
-    <article
-      className="group relative flex items-center gap-4 rounded-xl border bg-white px-4 py-4 transition"
+    <Link
+      href={builderHref}
+      className="group relative flex items-center gap-4 rounded-xl border bg-white px-4 py-4 transition hover:border-[color:var(--brand-primary)]"
       style={{
         borderColor: CARD_BORDER,
         boxShadow: "0 1px 2px rgba(16, 24, 40, 0.05)",
       }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.borderColor = "var(--brand-primary)";
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.borderColor = CARD_BORDER;
-      }}
+      aria-label={`Open ${flow.name} in builder`}
     >
       <div
         className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg"
@@ -694,23 +686,14 @@ function FlowCard({ flow }: FlowCardProps) {
         </div>
       </div>
 
-      <div className="absolute right-4 top-1/2 flex h-[14px] w-[36px] -translate-y-1/2 items-center gap-2 opacity-0 transition-opacity group-hover:opacity-100">
-        <button
-          type="button"
-          className="flex h-[14px] w-[14px] items-center justify-center transition hover:opacity-80"
-          aria-label={`View ${flow.name}`}
-        >
-          <EyeIcon />
-        </button>
-        <button
-          type="button"
-          className="flex h-[14px] w-[14px] items-center justify-center transition hover:opacity-80"
-          aria-label={`Edit ${flow.name}`}
-        >
-          <EditIcon />
-        </button>
+      <div
+        className="absolute right-4 top-1/2 flex h-[14px] w-[36px] -translate-y-1/2 items-center gap-2 opacity-0 transition-opacity group-hover:opacity-100"
+        aria-hidden
+      >
+        <EyeIcon />
+        <EditIcon />
       </div>
-    </article>
+    </Link>
   );
 }
 
@@ -727,30 +710,93 @@ export function OnboardingFlowsPage({
 }: OnboardingFlowsPageProps) {
   const pathname = usePathname();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const libraryIdFromUrl = searchParams.get("library")?.trim() || undefined;
+
   const [activeTab, setActiveTab] = useState<FilterTab>("published");
   const [createModalOpen, setCreateModalOpen] = useState(false);
-  const [publishedFlows, setPublishedFlows] = useState(INITIAL_PUBLISHED);
-  const [unpublishedFlows, setUnpublishedFlows] = useState(INITIAL_UNPUBLISHED);
 
-  const publishedCount = publishedFlows.length;
-  const unpublishedCount = unpublishedFlows.length;
+  const { libraries, isLoading: librariesLoading, error: librariesError } = useOnboardingLibraries();
+  const { templateOptions, isLoading: templatesLoading } = useOnboardingTemplates();
 
-  const visibleFlows = useMemo(
-    () => (activeTab === "published" ? publishedFlows : unpublishedFlows),
-    [activeTab, publishedFlows, unpublishedFlows]
+  const onboardingLibrary = useMemo(
+    () => libraries.find((l) => l.slug === "onboarding") ?? null,
+    [libraries]
   );
 
-  const handleFlowCreated = useCallback((flow: OnboardingFlow) => {
-    if (flow.status === "published") {
-      setPublishedFlows((prev) => [flow, ...prev]);
-      setActiveTab("published");
-    } else {
-      setUnpublishedFlows((prev) => [flow, ...prev]);
-      setActiveTab("unpublished");
-    }
-  }, []);
+  const effectiveLibraryId = libraryIdFromUrl ?? onboardingLibrary?.id;
+
+  // Sync URL with resolved default library so refreshes stay scoped
+  useEffect(() => {
+    if (librariesLoading || libraryIdFromUrl || !onboardingLibrary?.id) return;
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("library", onboardingLibrary.id);
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  }, [
+    librariesLoading,
+    libraryIdFromUrl,
+    onboardingLibrary?.id,
+    pathname,
+    router,
+    searchParams,
+  ]);
+
+  const folderOptions: SelectOption[] = useMemo(
+    () => libraries.map((l) => ({ id: l.id, label: l.name })),
+    [libraries]
+  );
+
+  const defaultFolderId = effectiveLibraryId ?? folderOptions[0]?.id;
+
+  const {
+    flows,
+    publishedCount,
+    unpublishedCount,
+    library: activeLibrary,
+    isLoading: flowsLoading,
+    isFetching: flowsFetching,
+    error: flowsError,
+    createFlow,
+    isCreating,
+    refetch,
+  } = useOnboardingFlows({
+    libraryId: effectiveLibraryId,
+    status: activeTab,
+    enabled: !librariesLoading && Boolean(effectiveLibraryId),
+  });
+
+  const builderBase = `${dashboardBasePath}/onboarding-builder`;
+
+  const handleFlowCreated = useCallback(
+    async (draft: OnboardingFlow) => {
+      try {
+        const created = await createFlow({
+          name: draft.name,
+          libraryId: draft.libraryId ?? effectiveLibraryId ?? null,
+          templateId: draft.templateId,
+          createAsBlank: draft.createdAsBlank,
+          status: draft.status,
+        });
+        setCreateModalOpen(false);
+        if (created.status === "published") {
+          setActiveTab("published");
+        } else {
+          setActiveTab("unpublished");
+        }
+        await refetch();
+        router.push(`${builderBase}?flow=${created.id}`);
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Failed to create flow");
+        throw e;
+      }
+    },
+    [createFlow, effectiveLibraryId, refetch, router, builderBase]
+  );
 
   const sectionTitle = activeTab === "published" ? "Published Flows" : "Unpublished Flows";
+  const libraryLabel = activeLibrary?.name ?? onboardingLibrary?.name ?? "Onboarding Flows";
+  const isPageLoading = librariesLoading || (!effectiveLibraryId && !librariesError);
+  const isFlowsLoading = isPageLoading || flowsLoading || flowsFetching;
 
   useEffect(() => {
     if (pathname === "/braas-hr/dashboard/onboarding-flows") {
@@ -800,11 +846,15 @@ export function OnboardingFlowsPage({
             <h1
               className="text-[30px] font-semibold leading-[36px] tracking-normal text-[#000000]"
             >
+<<<<<<< Updated upstream
               Workflows
+=======
+              {libraryLabel}
+>>>>>>> Stashed changes
             </h1>
             <p className="mt-3 text-[16px] font-normal leading-6 text-[#374151]">
               {publishedCount} Published <span className="text-[#d0d5dd]">•</span>{" "}
-              {unpublishedCount} Unpublish
+              {unpublishedCount} Unpublished
             </p>
           </div>
 
@@ -852,6 +902,24 @@ export function OnboardingFlowsPage({
           </button>
         </div>
 
+        {(librariesError || flowsError) ? (
+          <div className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {librariesError instanceof Error
+              ? librariesError.message
+              : flowsError instanceof Error
+                ? flowsError.message
+                : "Failed to load onboarding flows"}
+          </div>
+        ) : null}
+
+        {isFlowsLoading ? (
+          <CandidateDetailLoader label="Loading flows…" className="min-h-[280px] bg-transparent py-10" />
+        ) : !effectiveLibraryId ? (
+          <p className="py-12 text-center text-sm" style={{ color: TEXT_MUTED }}>
+            No onboarding library found for this tenant.
+          </p>
+        ) : (
+          <>
         <div className="mb-5 flex items-center justify-between">
           <h2
             className="text-lg font-semibold leading-7"
@@ -860,23 +928,31 @@ export function OnboardingFlowsPage({
             {sectionTitle}
           </h2>
           <span className="text-sm leading-5" style={{ color: TEXT_MUTED }}>
-            {visibleFlows.length}
+            {flows.length}
           </span>
         </div>
 
-        {visibleFlows.length === 0 ? (
+        {flows.length === 0 ? (
           <p className="py-12 text-center text-sm" style={{ color: TEXT_MUTED }}>
-            No flows found
+            {activeTab === "published"
+              ? "No published flows found."
+              : "No unpublished flows found."}
           </p>
         ) : (
           <section
             className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3"
             aria-label={sectionTitle}
           >
-            {visibleFlows.map((flow) => (
-              <FlowCard key={flow.id} flow={flow} />
+            {flows.map((flow) => (
+              <FlowCard
+                key={flow.id}
+                flow={flow}
+                builderHref={`${builderBase}?flow=${flow.id}`}
+              />
             ))}
           </section>
+        )}
+          </>
         )}
       </div>
 
@@ -884,6 +960,10 @@ export function OnboardingFlowsPage({
         open={createModalOpen}
         onClose={() => setCreateModalOpen(false)}
         onCreated={handleFlowCreated}
+        templateOptions={templateOptions}
+        folderOptions={folderOptions}
+        defaultFolderId={defaultFolderId}
+        saving={isCreating || templatesLoading}
       />
     </div>
   );

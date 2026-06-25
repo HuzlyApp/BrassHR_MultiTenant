@@ -6,7 +6,6 @@ import type {
   WorkflowStepLibraryCategory,
   WorkflowStepLibraryItem,
 } from "@/lib/onboarding/workflow-step-library-data";
-import { WORKFLOW_STEP_LIBRARY_DATA } from "@/lib/onboarding/workflow-step-library-data";
 import {
   AdverseActionProcessIcon,
   BackgroundCheckIcon,
@@ -123,7 +122,7 @@ function hydrateStep(step: WorkflowStepLibraryItem) {
 }
 
 export function hydrateWorkflowStepLibrary(
-  data: WorkflowStepLibraryCategory[] = WORKFLOW_STEP_LIBRARY_DATA
+  data: WorkflowStepLibraryCategory[]
 ): StepCategory[] {
   return data.map((category) => ({
     id: category.id,
@@ -132,10 +131,8 @@ export function hydrateWorkflowStepLibrary(
   }));
 }
 
-export const ONBOARDING_WORKFLOW_STEP_LIBRARY: StepCategory[] = hydrateWorkflowStepLibrary();
-
 export function buildWorkflowStepLookup(
-  library: StepCategory[] = ONBOARDING_WORKFLOW_STEP_LIBRARY
+  library: StepCategory[]
 ): Map<string, { id: string; label: string; icon: ReactNode }> {
   const map = new Map<string, { id: string; label: string; icon: ReactNode }>();
   for (const category of library) {

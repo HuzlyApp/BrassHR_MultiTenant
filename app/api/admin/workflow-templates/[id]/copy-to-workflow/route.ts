@@ -43,7 +43,7 @@ export async function POST(_req: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: "Template not found" }, { status: 404 });
     }
 
-    const builderDraft = workflowTemplateDraft(row);
+    const builderDraft = await workflowTemplateDraft(supabase as OnboardingDbClient, row);
     await saveOnboardingBuilderDraft(supabase as OnboardingDbClient, tenantId, {
       builderDraft,
       updatedBy: auth.userId,

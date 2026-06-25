@@ -3,6 +3,10 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
+import toast from "react-hot-toast";
+import CandidateDetailLoader from "@/app/admin_recruiter/components/CandidateDetailLoader";
+import { useOnboardingLibraries } from "@/lib/onboarding/hooks/use-onboarding-libraries";
+import { useOnboardingFlows } from "@/lib/onboarding/hooks/use-onboarding-flows";
 import { GOLD_GRADIENT } from "../constants";
 
 const BRAND_PRIMARY = "var(--brand-primary)";
@@ -18,31 +22,9 @@ type FlowLibrary = {
   title: string;
   published: number;
   unpublished: number;
-  active?: boolean;
+  slug: string;
+  isUncategorized?: boolean;
 };
-
-const UNCATEGORIZED: FlowLibrary = {
-  id: "uncategorized",
-  title: "Uncategorized Flows",
-  published: 14,
-  unpublished: 2,
-};
-
-const LIBRARIES: FlowLibrary[] = [
-  {
-    id: "onboarding",
-    title: "Onboarding Flows",
-    published: 12,
-    unpublished: 2,
-    active: true,
-  },
-  {
-    id: "marketing",
-    title: "Marketing Flows",
-    published: 8,
-    unpublished: 1,
-  },
-];
 
 function FolderIcon({ className = "h-7 w-7" }: { className?: string }) {
   return (
@@ -190,21 +172,14 @@ type FlowOption = {
   label: string;
 };
 
-const AVAILABLE_FLOWS: FlowOption[] = [
-  { id: "pre-offer", label: "Pre Offer (ATS)" },
-  { id: "post-offer", label: "Post Offer" },
-  { id: "final-offer", label: "Final Offer" },
-  { id: "onboarding", label: "Onboarding Flow" },
-  { id: "marketing", label: "Marketing Flow" },
-];
-
 type FlowMultiSelectProps = {
   id: string;
   selectedIds: string[];
   onChange: (ids: string[]) => void;
+  options: FlowOption[];
 };
 
-function FlowMultiSelect({ id, selectedIds, onChange }: FlowMultiSelectProps) {
+function FlowMultiSelect({ id, selectedIds, onChange, options }: FlowMultiSelectProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const containerRef = useRef<HTMLDivElement>(null);
@@ -225,7 +200,7 @@ function FlowMultiSelect({ id, selectedIds, onChange }: FlowMultiSelectProps) {
     if (!open) setSearch("");
   }, [open]);
 
-  const filteredFlows = AVAILABLE_FLOWS.filter((flow) =>
+  const filteredFlows = options.filter((flow) =>
     flow.label.toLowerCase().includes(search.trim().toLowerCase())
   );
 
@@ -386,7 +361,7 @@ function FolderCreatedSuccessModal({
 
   if (!open) return null;
 
-  const displayName = folderName.trim() || "Remote Onboarding";
+  const displayName = folderName.trim() || "New library";
 
   return (
     <div
@@ -457,10 +432,12 @@ function FolderCreatedSuccessModal({
 type CreateFolderModalProps = {
   open: boolean;
   onClose: () => void;
-  onCreated: (folderName: string) => void;
+  onCreated: (folderName: string) => void | Promise<void>;
+  flowOptions: FlowOption[];
+  saving?: boolean;
 };
 
-function CreateFolderModal({ open, onClose, onCreated }: CreateFolderModalProps) {
+function CreateFolderModal({ open, onClose, onCreated, flowOptions, saving = false }: CreateFolderModalProps) {
   const [folderName, setFolderName] = useState("");
   const [selectedFlowIds, setSelectedFlowIds] = useState<string[]>([]);
   const [isPrivate, setIsPrivate] = useState(true);
@@ -485,9 +462,10 @@ function CreateFolderModal({ open, onClose, onCreated }: CreateFolderModalProps)
     setIsPrivate(true);
   }, [open]);
 
-  const handleCreate = useCallback(() => {
-    const name = folderName.trim() || "Remote Onboarding";
-    onCreated(name);
+  const handleCreate = useCallback(async () => {
+    const name = folderName.trim();
+    if (!name) return;
+    await onCreated(name);
     onClose();
   }, [folderName, onCreated, onClose]);
 
@@ -550,7 +528,8 @@ function CreateFolderModal({ open, onClose, onCreated }: CreateFolderModalProps)
               type="text"
               value={folderName}
               onChange={(e) => setFolderName(e.target.value)}
-              placeholder="Remote Onboarding"
+              placeholder="Enter folder name"
+              required
               className="h-11 w-full rounded-lg border px-3.5 text-sm outline-none transition focus:border-[color:var(--brand-primary)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--brand-primary)_25%,transparent)]"
               style={{
                 borderColor: CARD_BORDER,
@@ -571,6 +550,7 @@ function CreateFolderModal({ open, onClose, onCreated }: CreateFolderModalProps)
               id="add-flows"
               selectedIds={selectedFlowIds}
               onChange={setSelectedFlowIds}
+              options={flowOptions}
             />
           </div>
 
@@ -597,10 +577,11 @@ function CreateFolderModal({ open, onClose, onCreated }: CreateFolderModalProps)
 
           <button
             type="submit"
-            className="mt-2 h-11 w-full rounded-lg text-sm font-semibold text-white transition hover:brightness-[0.97]"
+            disabled={saving || !folderName.trim()}
+            className="mt-2 h-11 w-full rounded-lg text-sm font-semibold text-white transition hover:brightness-[0.97] disabled:opacity-60"
             style={{ background: GOLD_GRADIENT }}
           >
-            Create
+            {saving ? "Creating…" : "Create"}
           </button>
         </form>
       </div>
@@ -608,18 +589,17 @@ function CreateFolderModal({ open, onClose, onCreated }: CreateFolderModalProps)
   );
 }
 
-function libraryHref(id: string, dashboardBasePath: string): string | null {
-  if (id === "onboarding") return `${dashboardBasePath}/onboarding-flows`;
-  return null;
+function libraryHref(library: FlowLibrary, dashboardBasePath: string): string {
+  return `${dashboardBasePath}/onboarding-flows?library=${library.id}`;
 }
 
 function FlowLibraryCard({ library, dashboardBasePath }: { library: FlowLibrary; dashboardBasePath: string }) {
-  const href = library.active ? libraryHref(library.id, dashboardBasePath) : null;
+  const href = libraryHref(library, dashboardBasePath);
 
   const cardClassName =
     "flex min-h-[100px] items-center gap-5 rounded-xl border bg-white px-6 py-5 transition";
   const cardStyle = {
-    borderColor: library.active ? BRAND_PRIMARY : CARD_BORDER,
+    borderColor: library.slug === "onboarding" ? BRAND_PRIMARY : CARD_BORDER,
     boxShadow: "0 1px 2px rgba(16, 24, 40, 0.05)",
   };
 
@@ -645,46 +625,26 @@ function FlowLibraryCard({ library, dashboardBasePath }: { library: FlowLibrary;
         </p>
       </div>
 
-      {library.active && href ? (
-        <span
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full"
-          style={{ background: "linear-gradient(180deg, #012352 0%, #000C1D 100%)" }}
-          aria-hidden
-        >
-          <ChevronRightIcon />
-        </span>
-      ) : null}
+      <span
+        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full"
+        style={{ background: "linear-gradient(180deg, #012352 0%, #000C1D 100%)" }}
+        aria-hidden
+      >
+        <ChevronRightIcon />
+      </span>
     </>
   );
 
-  if (href) {
-    return (
-      <Link
-        href={href}
-        className={`${cardClassName} hover:bg-[#fafafa] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--brand-primary)]`}
-        style={cardStyle}
-        aria-label={`Open ${library.title}`}
-      >
-        {inner}
-      </Link>
-    );
-  }
-
   return (
-    <article className={cardClassName} style={cardStyle}>
+    <Link
+      href={href}
+      className={`${cardClassName} hover:bg-[#fafafa] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--brand-primary)]`}
+      style={cardStyle}
+      aria-label={`Open ${library.title}`}
+    >
       {inner}
-    </article>
+    </Link>
   );
-}
-
-function buildCreatedLibrary(title: string): FlowLibrary {
-  return {
-    id: `created-${Date.now()}`,
-    title,
-    published: 0,
-    unpublished: 0,
-    active: true,
-  };
 }
 
 type WorkflowLibraryPageProps = {
@@ -701,10 +661,36 @@ export function WorkflowLibraryPage({
 }: WorkflowLibraryPageProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const [createFlowModalOpen, setCreateFlowModalOpen] = useState(false);
+  const [createFolderModalOpen, setCreateFolderModalOpen] = useState(false);
   const [successModalOpen, setSuccessModalOpen] = useState(false);
   const [createdFolderName, setCreatedFolderName] = useState("");
-  const [createdLibraries, setCreatedLibraries] = useState<FlowLibrary[]>([]);
+  const [createdLibraryId, setCreatedLibraryId] = useState<string | null>(null);
+
+  const {
+    tenantId,
+    libraries,
+    isLoading: librariesLoading,
+    isFetching: librariesFetching,
+    error: librariesError,
+    createLibrary,
+    isCreating: creatingLibrary,
+  } = useOnboardingLibraries();
+
+  const { flows: allFlows } = useOnboardingFlows();
+
+  const flowOptions: FlowOption[] = allFlows.map((f) => ({ id: f.id, label: f.name }));
+
+  const uncategorizedLibrary = libraries.find((l) => l.isUncategorized);
+  const folderLibraries = libraries.filter((l) => !l.isUncategorized);
+
+  const mapLibrary = (lib: (typeof libraries)[number]): FlowLibrary => ({
+    id: lib.id,
+    title: lib.name,
+    published: lib.publishedCount,
+    unpublished: lib.unpublishedCount,
+    slug: lib.slug,
+    isUncategorized: lib.isUncategorized,
+  });
 
   useEffect(() => {
     if (pathname === "/braas-hr/dashboard/workflowlibrary") {
@@ -781,61 +767,101 @@ export function WorkflowLibraryPage({
           <div className="flex shrink-0 flex-wrap items-center gap-3">
             <button
               type="button"
+              onClick={() => setCreateFolderModalOpen(true)}
               className="inline-flex h-10 items-center gap-2 rounded-lg border bg-white px-4 text-sm font-semibold transition hover:bg-[#fafafa]"
               style={{ borderColor: "#344054", color: TEXT_PRIMARY }}
             >
               <AddLibraryIcon />
               Add library
             </button>
-            <button
-              type="button"
-              onClick={() => setCreateFlowModalOpen(true)}
+            <Link
+              href={`${dashboardBasePath}/onboarding-flows`}
               className="inline-flex h-10 items-center gap-2 rounded-lg px-4 text-sm font-semibold text-white transition hover:brightness-[0.97]"
               style={{ background: "linear-gradient(180deg, #012352 0%, #000C1D 100%)" }}
             >
               <CreateFlowIcon />
               Create new flow
-            </button>
+            </Link>
           </div>
         </header>
 
         {/* Cards */}
         <section aria-label="Workflow libraries">
-          {/* Figma: top card is left-aligned, ~half width — not full row */}
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <FlowLibraryCard library={UNCATEGORIZED} dashboardBasePath={dashboardBasePath} />
-          </div>
+          {!tenantId && !librariesLoading ? (
+            <p className="py-12 text-center text-sm" style={{ color: TEXT_SECONDARY }}>
+              Select a tenant to view workflow libraries.
+            </p>
+          ) : librariesError ? (
+            <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {librariesError instanceof Error ? librariesError.message : "Failed to load libraries"}
+            </div>
+          ) : librariesLoading || librariesFetching ? (
+            <CandidateDetailLoader label="Loading libraries…" className="min-h-[200px] bg-transparent py-10" />
+          ) : libraries.length === 0 ? (
+            <p className="py-12 text-center text-sm" style={{ color: TEXT_SECONDARY }}>
+              No workflow libraries found.
+            </p>
+          ) : (
+            <>
+              {uncategorizedLibrary ? (
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <FlowLibraryCard
+                    library={mapLibrary(uncategorizedLibrary)}
+                    dashboardBasePath={dashboardBasePath}
+                  />
+                </div>
+              ) : null}
 
-          <hr
-            className="my-8 border-0 border-t sm:my-10"
-            style={{ borderColor: "#e4e7ec" }}
-          />
+              <hr
+                className="my-8 border-0 border-t sm:my-10"
+                style={{ borderColor: "#e4e7ec" }}
+              />
 
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            {createdLibraries.map((lib) => (
-              <FlowLibraryCard key={lib.id} library={lib} dashboardBasePath={dashboardBasePath} />
-            ))}
-            {LIBRARIES.map((lib) => (
-              <FlowLibraryCard key={lib.id} library={lib} dashboardBasePath={dashboardBasePath} />
-            ))}
-          </div>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                {folderLibraries.length === 0 ? (
+                  <p className="text-sm" style={{ color: TEXT_SECONDARY }}>
+                    No libraries yet. Create one to organize your flows.
+                  </p>
+                ) : (
+                  folderLibraries.map((lib) => (
+                    <FlowLibraryCard
+                      key={lib.id}
+                      library={mapLibrary(lib)}
+                      dashboardBasePath={dashboardBasePath}
+                    />
+                  ))
+                )}
+              </div>
+            </>
+          )}
         </section>
       </div>
 
       <CreateFolderModal
-        open={createFlowModalOpen}
-        onClose={() => setCreateFlowModalOpen(false)}
-        onCreated={(name) => {
-          setCreatedLibraries((prev) => [buildCreatedLibrary(name), ...prev]);
-          setCreatedFolderName(name);
-          setSuccessModalOpen(true);
+        open={createFolderModalOpen}
+        onClose={() => setCreateFolderModalOpen(false)}
+        flowOptions={flowOptions}
+        saving={creatingLibrary}
+        onCreated={async (name) => {
+          try {
+            const library = await createLibrary({ name });
+            setCreatedFolderName(name);
+            setCreatedLibraryId(library.id);
+            setSuccessModalOpen(true);
+          } catch (e) {
+            toast.error(e instanceof Error ? e.message : "Failed to create library");
+          }
         }}
       />
 
       <FolderCreatedSuccessModal
         open={successModalOpen}
         folderName={createdFolderName}
-        folderHref={`${dashboardBasePath}/onboarding-flows`}
+        folderHref={
+          createdLibraryId
+            ? `${dashboardBasePath}/onboarding-flows?library=${createdLibraryId}`
+            : `${dashboardBasePath}/onboarding-flows`
+        }
         onClose={() => setSuccessModalOpen(false)}
       />
     </div>

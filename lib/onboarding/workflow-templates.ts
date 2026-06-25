@@ -3,6 +3,7 @@ import {
   isSerializableWorkflowState,
   type SerializableWorkflowState,
 } from "@/lib/onboarding/workflow-builder-serialization";
+import { loadTemplateBuilderDraft } from "@/lib/onboarding/flow-steps-sync";
 
 export type WorkflowTemplateFolder = "presets" | "saved-templates";
 
@@ -10,8 +11,8 @@ export type WorkflowTemplateRow = {
   id: string;
   tenant_id: string | null;
   name: string;
-  folder: WorkflowTemplateFolder;
-  is_preset: boolean;
+  type: "preset" | "saved";
+  status: string;
   builder_draft: SerializableWorkflowState;
   flow_name: string | null;
   created_by: string | null;
@@ -29,6 +30,17 @@ export type WorkflowTemplateListItem = {
   updatedAt: string;
 };
 
+const TEMPLATE_SELECT =
+  "id, tenant_id, name, type, status, builder_draft, flow_name, created_by, updated_by, created_at, updated_at";
+
+function rowToFolder(type: "preset" | "saved"): WorkflowTemplateFolder {
+  return type === "preset" ? "presets" : "saved-templates";
+}
+
+function folderToType(folder: WorkflowTemplateFolder): "preset" | "saved" {
+  return folder === "presets" ? "preset" : "saved";
+}
+
 function normalizeName(name: string): string {
   const trimmed = name.trim();
   if (!trimmed) return "New Template";
@@ -39,8 +51,8 @@ function toListItem(row: WorkflowTemplateRow): WorkflowTemplateListItem {
   return {
     id: row.id,
     name: row.name,
-    folder: row.folder,
-    isPreset: row.is_preset,
+    folder: rowToFolder(row.type),
+    isPreset: row.type === "preset",
     flowName: row.flow_name,
     updatedAt: row.updated_at,
   };
@@ -51,25 +63,48 @@ function parseDraft(raw: unknown): SerializableWorkflowState {
   return { nodes: [], edges: [] };
 }
 
+async function syncTemplateSteps(
+  supabase: OnboardingDbClient,
+  templateId: string,
+  draft: SerializableWorkflowState
+): Promise<void> {
+  await supabase.from("onboarding_template_steps").delete().eq("template_id", templateId);
+  if (!draft.nodes.length) return;
+
+  const inserts = draft.nodes.map((node, index) => ({
+    template_id: templateId,
+    step_type: node.stepId,
+    title: node.label,
+    description: node.description ?? null,
+    position: index + 1,
+    day: node.day,
+    is_required: node.required,
+    settings: node.settings,
+    metadata: { library_step_key: node.stepId },
+    canvas_node_id: node.id,
+  }));
+
+  const { error } = await supabase.from("onboarding_template_steps").insert(inserts);
+  if (error) throw error;
+}
+
 export async function listWorkflowTemplates(
   supabase: OnboardingDbClient,
   tenantId: string
 ): Promise<{ presets: WorkflowTemplateListItem[]; savedTemplates: WorkflowTemplateListItem[] }> {
   const { data: presetRows, error: presetError } = await supabase
-    .from("workflow_templates")
-    .select("id, tenant_id, name, folder, is_preset, builder_draft, flow_name, created_by, updated_by, created_at, updated_at")
-    .eq("folder", "presets")
-    .or(`is_preset.eq.true,tenant_id.eq.${tenantId}`)
+    .from("onboarding_templates")
+    .select(TEMPLATE_SELECT)
+    .eq("type", "preset")
     .order("name", { ascending: true });
 
   if (presetError) throw presetError;
 
   const { data: savedRows, error: savedError } = await supabase
-    .from("workflow_templates")
-    .select("id, tenant_id, name, folder, is_preset, builder_draft, flow_name, created_by, updated_by, created_at, updated_at")
+    .from("onboarding_templates")
+    .select(TEMPLATE_SELECT)
     .eq("tenant_id", tenantId)
-    .eq("is_preset", false)
-    .eq("folder", "saved-templates")
+    .eq("type", "saved")
     .order("updated_at", { ascending: false });
 
   if (savedError) throw savedError;
@@ -86,8 +121,8 @@ export async function getWorkflowTemplateById(
   templateId: string
 ): Promise<WorkflowTemplateRow | null> {
   const { data, error } = await supabase
-    .from("workflow_templates")
-    .select("id, tenant_id, name, folder, is_preset, builder_draft, flow_name, created_by, updated_by, created_at, updated_at")
+    .from("onboarding_templates")
+    .select(TEMPLATE_SELECT)
     .eq("id", templateId)
     .maybeSingle();
 
@@ -95,7 +130,7 @@ export async function getWorkflowTemplateById(
   if (!data) return null;
 
   const row = data as WorkflowTemplateRow;
-  if (row.is_preset) return row;
+  if (row.type === "preset") return row;
   if (row.tenant_id !== tenantId) return null;
   return row;
 }
@@ -113,32 +148,32 @@ export async function createWorkflowTemplate(
   }
 ): Promise<WorkflowTemplateListItem> {
   const folder = input.folder ?? "saved-templates";
-  const isPreset = input.isPreset === true;
+  const type = input.isPreset === true ? "preset" : folderToType(folder);
 
   const { data, error } = await supabase
-    .from("workflow_templates")
+    .from("onboarding_templates")
     .insert({
-      tenant_id: isPreset ? null : tenantId,
+      tenant_id: type === "preset" ? null : tenantId,
       name: normalizeName(input.name),
-      folder,
-      is_preset: isPreset,
+      type,
+      status: "draft",
       builder_draft: input.builderDraft,
       flow_name: input.flowName?.trim() || null,
       created_by: input.createdBy,
       updated_by: input.createdBy,
     })
-    .select("id, tenant_id, name, folder, is_preset, builder_draft, flow_name, created_by, updated_by, created_at, updated_at")
+    .select(TEMPLATE_SELECT)
     .single();
 
   if (error) throw error;
-  return toListItem(data as WorkflowTemplateRow);
+
+  const row = data as WorkflowTemplateRow;
+  await syncTemplateSteps(supabase, row.id, input.builderDraft);
+  return toListItem(row);
 }
 
-function assertTemplateWritable(
-  existing: WorkflowTemplateRow,
-  tenantId: string
-): void {
-  if (existing.is_preset && existing.tenant_id === null) {
+function assertTemplateWritable(existing: WorkflowTemplateRow, tenantId: string): void {
+  if (existing.type === "preset" && existing.tenant_id === null) {
     throw new Error("Cannot modify system preset");
   }
   if (existing.tenant_id !== null && existing.tenant_id !== tenantId) {
@@ -170,26 +205,23 @@ export async function updateWorkflowTemplate(
     updated_by: input.updatedBy,
   };
 
-  if (input.name !== undefined) {
-    patch.name = normalizeName(input.name);
-  }
-  if (input.flowName !== undefined) {
-    patch.flow_name = input.flowName.trim() || null;
-  }
-  if (input.builderDraft !== undefined) {
-    patch.builder_draft = input.builderDraft;
-  }
+  if (input.name !== undefined) patch.name = normalizeName(input.name);
+  if (input.flowName !== undefined) patch.flow_name = input.flowName.trim() || null;
+  if (input.builderDraft !== undefined) patch.builder_draft = input.builderDraft;
 
   const { data, error } = await supabase
-    .from("workflow_templates")
+    .from("onboarding_templates")
     .update(patch)
     .eq("id", templateId)
-    .select(
-      "id, tenant_id, name, folder, is_preset, builder_draft, flow_name, created_by, updated_by, created_at, updated_at"
-    )
+    .select(TEMPLATE_SELECT)
     .single();
 
   if (error) throw error;
+
+  if (input.builderDraft) {
+    await syncTemplateSteps(supabase, templateId, input.builderDraft);
+  }
+
   return toListItem(data as WorkflowTemplateRow);
 }
 
@@ -200,10 +232,7 @@ export async function updateWorkflowTemplateName(
   name: string,
   updatedBy: string
 ): Promise<void> {
-  await updateWorkflowTemplate(supabase, tenantId, templateId, {
-    name,
-    updatedBy,
-  });
+  await updateWorkflowTemplate(supabase, tenantId, templateId, { name, updatedBy });
 }
 
 export async function deleteWorkflowTemplate(
@@ -215,10 +244,17 @@ export async function deleteWorkflowTemplate(
   if (!existing) throw new Error("Template not found");
   assertTemplateWritable(existing, tenantId);
 
-  const { error } = await supabase.from("workflow_templates").delete().eq("id", templateId);
+  const { error } = await supabase.from("onboarding_templates").delete().eq("id", templateId);
   if (error) throw error;
 }
 
-export function workflowTemplateDraft(row: WorkflowTemplateRow): SerializableWorkflowState {
+export async function workflowTemplateDraft(
+  supabase: OnboardingDbClient,
+  row: WorkflowTemplateRow
+): Promise<SerializableWorkflowState> {
+  return loadTemplateBuilderDraft(supabase, row.id, row.builder_draft);
+}
+
+export function workflowTemplateDraftSync(row: WorkflowTemplateRow): SerializableWorkflowState {
   return parseDraft(row.builder_draft);
 }
