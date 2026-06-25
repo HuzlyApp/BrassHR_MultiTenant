@@ -846,11 +846,7 @@ export function OnboardingFlowsPage({
             <h1
               className="text-[30px] font-semibold leading-[36px] tracking-normal text-[#000000]"
             >
-<<<<<<< Updated upstream
-              Workflows
-=======
               {libraryLabel}
->>>>>>> Stashed changes
             </h1>
             <p className="mt-3 text-[16px] font-normal leading-6 text-[#374151]">
               {publishedCount} Published <span className="text-[#d0d5dd]">•</span>{" "}
