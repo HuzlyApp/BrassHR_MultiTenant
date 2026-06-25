@@ -1,13 +1,21 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useAccountData } from "@/app/admin_recruiter/hooks/useAccountData";
 import { syncAccountChecklist } from "@/lib/account/fetch-account-data";
 import { supabaseBrowser } from "@/lib/supabase-browser";
+import {
+  isBusinessInfoValid,
+  normalizeBusinessZipInput,
+  normalizeEinInput,
+  validateBusinessInfoForm,
+  type BusinessInfoFieldErrors,
+  type BusinessInfoFieldKey,
+} from "@/lib/tenant/business-info-validation";
 import AccountTenantHeader from "./AccountTenantHeader";
+import { getStateCodeFromName } from "@/lib/us-state-names";
 import {
   AddressField,
-  CITY_OPTIONS,
   EMPLOYEE_COUNT_OPTIONS,
   INDUSTRY_OPTIONS,
   SelectField,
@@ -42,6 +50,8 @@ export default function BusinessInfoTab() {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<BusinessInfoFieldErrors>({});
+  const [submitAttempted, setSubmitAttempted] = useState(false);
 
   useEffect(() => {
     if (!organization) return;
@@ -60,6 +70,59 @@ export default function BusinessInfoTab() {
     setEin(organization.ein ?? "");
   }, [organization]);
 
+  const formInput = useMemo(
+    () => ({
+      companyName,
+      industry,
+      companySize,
+      state,
+      city,
+      address,
+      phone: businessPhone,
+      email: businessEmail,
+      zipCode,
+      ein,
+    }),
+    [
+      address,
+      businessEmail,
+      businessPhone,
+      city,
+      companyName,
+      companySize,
+      ein,
+      industry,
+      state,
+      zipCode,
+    ]
+  );
+
+  const validationContext = useMemo(
+    () => ({
+      stateCode: getStateCodeFromName(state),
+      allowedStateNames: [...US_STATES],
+    }),
+    [state]
+  );
+
+  const revalidateField = (field: BusinessInfoFieldKey, nextInput = formInput) => {
+    const nextErrors = validateBusinessInfoForm(nextInput, validationContext);
+    setFieldErrors((prev) => ({
+      ...prev,
+      [field]: nextErrors[field] ?? undefined,
+    }));
+  };
+
+  const updateField = <K extends keyof typeof formInput>(
+    field: K,
+    value: (typeof formInput)[K],
+    setter: (value: (typeof formInput)[K]) => void
+  ) => {
+    setter(value);
+    if (!submitAttempted) return;
+    revalidateField(field as BusinessInfoFieldKey, { ...formInput, [field]: value });
+  };
+
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
     if (!organization?.id) {
@@ -67,32 +130,57 @@ export default function BusinessInfoTab() {
       return;
     }
 
+    setSubmitAttempted(true);
     setSaving(true);
     setSaveError(null);
     setSaveSuccess(null);
 
-    try {
-      const { error: updateError } = await supabaseBrowser
-        .from("tenants")
-        .update({
-          name: companyName.trim() || organization.name,
-          legal_name: legalName.trim() || null,
-          subdomain: subdomain.trim() || null,
-          website: website.trim() || null,
-          industry: industry.trim() || null,
-          company_size: companySize.trim() || null,
-          city: city.trim() || null,
-          state: state.trim() || null,
-          address_line_1: address.trim() || null,
-          phone: businessPhone.trim() || null,
-          email: businessEmail.trim() || null,
-          postal_code: zipCode.trim() || null,
-          ein: ein.trim() || null,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", organization.id);
+    const errors = validateBusinessInfoForm(formInput, validationContext);
+    setFieldErrors(errors);
+    if (!isBusinessInfoValid(formInput, validationContext)) {
+      setSaving(false);
+      return;
+    }
 
-      if (updateError) throw updateError;
+    try {
+      const res = await fetch("/api/admin/business-info", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          companyName,
+          industry,
+          companySize,
+          city,
+          state,
+          address,
+          phone: businessPhone,
+          email: businessEmail,
+          zipCode,
+          ein,
+        }),
+      });
+
+      const payload = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        errors?: BusinessInfoFieldErrors;
+      };
+
+      if (!res.ok) {
+        if (payload.errors) setFieldErrors(payload.errors);
+        throw new Error(payload.error ?? "Failed to save business information");
+      }
+
+      if (legalName.trim() || subdomain.trim() || website.trim()) {
+        await supabaseBrowser
+          .from("tenants")
+          .update({
+            legal_name: legalName.trim() || null,
+            subdomain: subdomain.trim() || null,
+            website: website.trim() || null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", organization.id);
+      }
 
       await refresh();
       await syncAccountChecklist(supabaseBrowser, {
@@ -144,14 +232,21 @@ export default function BusinessInfoTab() {
             <TextField
               label="Company Name"
               value={companyName}
-              onChange={setCompanyName}
+              onChange={(value) => updateField("companyName", value, setCompanyName)}
               required
+              error={submitAttempted ? fieldErrors.companyName : null}
             />
             <TextField label="Legal Name" value={legalName} onChange={setLegalName} />
             <TextField label="Subdomain" value={subdomain} onChange={setSubdomain} />
 
             <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-              <SelectField label="Industry" value={industry} onChange={setIndustry} required>
+              <SelectField
+                label="Industry"
+                value={industry}
+                onChange={(value) => updateField("industry", value, setIndustry)}
+                required
+                error={submitAttempted ? fieldErrors.industry : null}
+              >
                 <option value="">Select industry</option>
                 {INDUSTRY_OPTIONS.map((item) => (
                   <option key={item} value={item}>
@@ -162,8 +257,9 @@ export default function BusinessInfoTab() {
               <SelectField
                 label="Number of Employees"
                 value={companySize}
-                onChange={setCompanySize}
+                onChange={(value) => updateField("companySize", value, setCompanySize)}
                 required
+                error={submitAttempted ? fieldErrors.companySize : null}
               >
                 <option value="">Select size</option>
                 {EMPLOYEE_COUNT_OPTIONS.map((item) => (
@@ -177,15 +273,27 @@ export default function BusinessInfoTab() {
             <TextField label="Website" value={website} onChange={setWebsite} type="url" />
 
             <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-              <SelectField label="City" value={city} onChange={setCity} required>
+              <SelectField
+                label="City"
+                value={city}
+                onChange={(value) => updateField("city", value, setCity)}
+                required
+                error={submitAttempted ? fieldErrors.city : null}
+              >
                 <option value="">Select city</option>
-                {CITY_OPTIONS.map((cityOption) => (
+                {["Los Angeles", "San Francisco", "San Diego", "Phoenix", "Houston", "Chicago", "New York", "Miami"].map((cityOption) => (
                   <option key={cityOption} value={cityOption}>
                     {cityOption}
                   </option>
                 ))}
               </SelectField>
-              <SelectField label="State" value={state} onChange={setState} required>
+              <SelectField
+                label="State"
+                value={state}
+                onChange={(value) => updateField("state", value, setState)}
+                required
+                error={submitAttempted ? fieldErrors.state : null}
+              >
                 <option value="">Select state</option>
                 {US_STATES.map((stateOption) => (
                   <option key={stateOption} value={stateOption}>
@@ -198,32 +306,54 @@ export default function BusinessInfoTab() {
             <AddressField
               label="Business Address"
               value={address}
-              onChange={setAddress}
+              onChange={(value) => updateField("address", value, setAddress)}
               required
+              error={submitAttempted ? fieldErrors.address : null}
             />
 
             <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
               <TextField
                 label="Business Phone"
                 value={businessPhone}
-                onChange={setBusinessPhone}
+                onChange={(value) => updateField("phone", value, setBusinessPhone)}
                 type="tel"
+                required
+                error={submitAttempted ? fieldErrors.phone : null}
               />
               <TextField
                 label="Business Email Address"
                 value={businessEmail}
-                onChange={setBusinessEmail}
+                onChange={(value) => updateField("email", value, setBusinessEmail)}
                 type="email"
+                required
+                error={submitAttempted ? fieldErrors.email : null}
               />
             </div>
 
             <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-              <TextField label="Zip Code" value={zipCode} onChange={setZipCode} required />
-              <TextField label="EIN Number" value={ein} onChange={setEin} />
+              <TextField
+                label="Zip Code"
+                value={zipCode}
+                onChange={(value) =>
+                  updateField(
+                    "zipCode",
+                    normalizeBusinessZipInput(value).slice(0, 5),
+                    setZipCode
+                  )
+                }
+                required
+                error={submitAttempted ? fieldErrors.zipCode : null}
+              />
+              <TextField
+                label="EIN Number"
+                value={ein}
+                onChange={(value) => updateField("ein", normalizeEinInput(value), setEin)}
+                error={submitAttempted ? fieldErrors.ein : null}
+              />
             </div>
 
             <div className="flex justify-end">
-              <AccountSaveButton saving={saving} />
+              <AccountSaveButton saving={saving} disabled={saving} />
             </div>
           </div>
         )}

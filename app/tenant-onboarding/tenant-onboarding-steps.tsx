@@ -19,6 +19,14 @@ import {
   type TenantBrandingThemeMode,
   type TenantGoalId,
 } from "@/app/tenant-onboarding/constants";
+import {
+  isBusinessInfoValid,
+  normalizeBusinessZipInput,
+  normalizeEinInput,
+  validateBusinessInfoForm,
+  type BusinessInfoFieldErrors,
+  type BusinessInfoFieldKey,
+} from "@/lib/tenant/business-info-validation";
 import { APPLICATION_ROUTES } from "@/lib/onboarding/application-routes";
 import type { OnboardingStepDraft } from "@/lib/onboarding/default-onboarding-steps";
 import { subdomainErrorMessage, validateTenantSubdomainInput } from "@/lib/tenant/subdomain-validation";
@@ -35,6 +43,18 @@ const inputTypographyStyle = {
 
 const inputTextClass =
   "text-[16px] font-normal leading-[24px] tracking-normal placeholder:text-[16px] placeholder:leading-[24px] placeholder:font-normal";
+
+const inputErrorClass =
+  "border-[#ff5c7a] text-[#b91c1c] focus:border-[#ff5c7a] focus:ring-2 focus:ring-[#ff5c7a]/20";
+
+function FieldError({ message }: { message?: string | null }) {
+  if (!message) return null;
+  return (
+    <p className="mt-[6px] text-[13px] leading-[18px] text-[#b91c1c]" style={interStyle}>
+      {message}
+    </p>
+  );
+}
 
 const inputFocusClass =
   "tenant-onboarding-input text-[#0f172a] placeholder:text-[#94a3b8] focus:border-[color:var(--brand-primary)] focus:ring-2 focus:ring-[color:color-mix(in_srgb,var(--brand-primary)_20%,transparent)]";
@@ -149,6 +169,7 @@ function TextField({
   placeholder,
   required = false,
   type = "text",
+  error,
 }: {
   label: string;
   value: string;
@@ -156,6 +177,7 @@ function TextField({
   placeholder?: string;
   required?: boolean;
   type?: string;
+  error?: string | null;
 }) {
   return (
     <div>
@@ -166,8 +188,11 @@ function TextField({
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         style={inputTypographyStyle}
-        className={`h-[56px] w-full rounded-[8px] border border-[#cbd5e1] bg-white px-[14px] ${inputTextClass} text-[#0f172a] outline-none transition placeholder:text-[#94a3b8] ${inputFocusClass}`}
+        className={`h-[56px] w-full rounded-[8px] border bg-white px-[14px] ${inputTextClass} outline-none transition placeholder:text-[#94a3b8] ${
+          error ? inputErrorClass : `border-[#cbd5e1] text-[#0f172a] ${inputFocusClass}`
+        }`}
       />
+      <FieldError message={error} />
     </div>
   );
 }
@@ -180,6 +205,7 @@ function SelectField({
   options,
   required = false,
   disabled = false,
+  error,
 }: {
   label: string;
   value: string;
@@ -188,6 +214,7 @@ function SelectField({
   options: readonly string[];
   required?: boolean;
   disabled?: boolean;
+  error?: string | null;
 }) {
   return (
     <div>
@@ -198,8 +225,10 @@ function SelectField({
           disabled={disabled}
           onChange={(e) => onChange(e.target.value)}
           style={inputTypographyStyle}
-          className={`h-[56px] w-full appearance-none rounded-[8px] border border-[#cbd5e1] bg-white px-[14px] pr-10 ${inputTextClass} text-[#0f172a] outline-none transition disabled:cursor-not-allowed disabled:bg-[#f7f8fa] disabled:text-[#94a3b8] ${inputFocusClass} ${
-            value ? "text-[#0f172a]" : "text-[#94a3b8]"
+          className={`h-[56px] w-full appearance-none rounded-[8px] border bg-white px-[14px] pr-10 ${inputTextClass} outline-none transition disabled:cursor-not-allowed disabled:bg-[#f7f8fa] disabled:text-[#94a3b8] ${
+            error
+              ? inputErrorClass
+              : `border-[#cbd5e1] ${inputFocusClass} ${value ? "text-[#0f172a]" : "text-[#94a3b8]"}`
           }`}
         >
           <option value="">{placeholder ?? "Select"}</option>
@@ -211,6 +240,7 @@ function SelectField({
         </select>
         <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 text-[#64748b]" />
       </div>
+      <FieldError message={error} />
     </div>
   );
 }
@@ -222,6 +252,7 @@ function AddressField({
   placeholder,
   required = true,
   helperText = "Building, Floor, etc.",
+  error,
 }: {
   label: string;
   value: string;
@@ -229,6 +260,7 @@ function AddressField({
   placeholder?: string;
   required?: boolean;
   helperText?: string;
+  error?: string | null;
 }) {
   return (
     <div>
@@ -249,8 +281,11 @@ function AddressField({
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         style={inputTypographyStyle}
-        className={`h-[56px] w-full rounded-[8px] border border-[#cbd5e1] bg-white px-[14px] ${inputTextClass} text-[#0f172a] outline-none transition placeholder:text-[#94a3b8] ${inputFocusClass}`}
+        className={`h-[56px] w-full rounded-[8px] border bg-white px-[14px] ${inputTextClass} outline-none transition placeholder:text-[#94a3b8] ${
+          error ? inputErrorClass : `border-[#cbd5e1] text-[#0f172a] ${inputFocusClass}`
+        }`}
       />
+      <FieldError message={error} />
     </div>
   );
 }
@@ -432,14 +467,125 @@ export function BusinessStep({
     };
   }, [selectedStateCode]);
 
-  const canContinue =
-    orgName.trim().length >= 2 &&
-    businessInfo.industry.trim().length > 0 &&
-    businessInfo.companySize.trim().length > 0 &&
-    businessInfo.city.trim().length > 0 &&
-    businessInfo.state.trim().length > 0 &&
-    businessInfo.address.trim().length > 0 &&
-    businessInfo.zipCode.trim().length >= 5;
+  const [fieldErrors, setFieldErrors] = useState<BusinessInfoFieldErrors>({});
+  const [submitAttempted, setSubmitAttempted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+
+  const validationContext = useMemo(
+    () => ({
+      stateCode: selectedStateCode || undefined,
+      allowedStateNames: stateOptions,
+      allowedCityNames: cityOptions.length > 0 ? cityOptions : undefined,
+    }),
+    [cityOptions, selectedStateCode, stateOptions]
+  );
+
+  const formInput = useMemo(
+    () => ({
+      companyName: orgName,
+      industry: businessInfo.industry,
+      companySize: businessInfo.companySize,
+      state: businessInfo.state,
+      city: businessInfo.city,
+      address: businessInfo.address,
+      phone: businessInfo.phone,
+      email: businessInfo.email,
+      zipCode: businessInfo.zipCode,
+      ein: businessInfo.ein,
+    }),
+    [businessInfo, orgName]
+  );
+
+  const canContinue = useMemo(
+    () => isBusinessInfoValid(formInput, validationContext),
+    [formInput, validationContext]
+  );
+
+  const revalidateField = (field: BusinessInfoFieldKey, nextInput = formInput) => {
+    const nextErrors = validateBusinessInfoForm(nextInput, validationContext);
+    setFieldErrors((prev) => ({
+      ...prev,
+      [field]: nextErrors[field] ?? undefined,
+    }));
+  };
+
+  const handleOrgNameChange = (value: string) => {
+    onOrgNameChange(value);
+    if (submitAttempted) {
+      const nextInput = { ...formInput, companyName: value };
+      revalidateField("companyName", nextInput);
+    }
+  };
+
+  const handleBusinessFieldChange = (patch: Partial<BusinessInfoForm>) => {
+    onBusinessInfoChange(patch);
+    if (!submitAttempted) return;
+    const nextInput = {
+      ...formInput,
+      ...patch,
+    };
+    const keysToCheck = new Set<BusinessInfoFieldKey>(
+      Object.keys(patch) as Array<keyof BusinessInfoForm>
+    );
+    if (patch.state !== undefined) {
+      keysToCheck.add("city");
+      keysToCheck.add("zipCode");
+    }
+    for (const key of keysToCheck) {
+      revalidateField(key, nextInput);
+    }
+  };
+
+  const handleContinue = async () => {
+    setSubmitAttempted(true);
+    setSubmitError(null);
+
+    const errors = validateBusinessInfoForm(formInput, validationContext);
+    setFieldErrors(errors);
+    if (!canContinue) {
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const res = await fetch("/api/tenant-onboarding/business-info", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          companyName: formInput.companyName,
+          industry: formInput.industry,
+          companySize: formInput.companySize,
+          state: formInput.state,
+          city: formInput.city,
+          address: formInput.address,
+          phone: formInput.phone,
+          email: formInput.email,
+          zipCode: formInput.zipCode,
+          ein: formInput.ein,
+        }),
+      });
+
+      const payload = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        errors?: BusinessInfoFieldErrors;
+      };
+
+      if (!res.ok) {
+        if (payload.errors) {
+          setFieldErrors(payload.errors);
+        }
+        setSubmitError(payload.error ?? "Could not save business information.");
+        return;
+      }
+
+      onContinue();
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : "Could not save business information.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
     <div>
@@ -448,13 +594,16 @@ export function BusinessStep({
         subtitle="Add your business info."
       />
 
+      {submitError ? <ErrorBanner message={submitError} /> : null}
+
       <div className="mt-[28px] space-y-[24px]">
         <TextField
           label="Company Name"
           required
           value={orgName}
-          onChange={onOrgNameChange}
+          onChange={handleOrgNameChange}
           placeholder="ABC Company"
+          error={submitAttempted ? fieldErrors.companyName : null}
         />
 
         <div className="grid gap-[24px] sm:grid-cols-2">
@@ -462,17 +611,19 @@ export function BusinessStep({
             label="Industry"
             required
             value={businessInfo.industry}
-            onChange={(value) => onBusinessInfoChange({ industry: value })}
+            onChange={(value) => handleBusinessFieldChange({ industry: value })}
             placeholder="Select industry"
             options={INDUSTRY_OPTIONS}
+            error={submitAttempted ? fieldErrors.industry : null}
           />
           <SelectField
             label="Number of Employees"
             required
             value={businessInfo.companySize}
-            onChange={(value) => onBusinessInfoChange({ companySize: value })}
+            onChange={(value) => handleBusinessFieldChange({ companySize: value })}
             placeholder="Select size"
             options={COMPANY_SIZE_OPTIONS}
+            error={submitAttempted ? fieldErrors.companySize : null}
           />
         </div>
 
@@ -481,18 +632,20 @@ export function BusinessStep({
             label="State"
             required
             value={businessInfo.state}
-            onChange={(value) => onBusinessInfoChange({ state: value, city: "" })}
+            onChange={(value) => handleBusinessFieldChange({ state: value, city: "" })}
             placeholder={locationLoading ? "Loading…" : "Select state"}
             options={stateOptions}
             disabled={locationLoading}
+            error={submitAttempted ? fieldErrors.state : null}
           />
           {businessInfo.state && cityOptions.length === 0 && !citiesLoading ? (
             <TextField
               label="City"
               required
               value={businessInfo.city}
-              onChange={(value) => onBusinessInfoChange({ city: value })}
+              onChange={(value) => handleBusinessFieldChange({ city: value })}
               placeholder="Enter your city"
+              error={submitAttempted ? fieldErrors.city : null}
             />
           ) : (
             <SelectField
@@ -500,7 +653,7 @@ export function BusinessStep({
               required
               disabled={!businessInfo.state || citiesLoading}
               value={businessInfo.city}
-              onChange={(value) => onBusinessInfoChange({ city: value })}
+              onChange={(value) => handleBusinessFieldChange({ city: value })}
               placeholder={
                 !businessInfo.state
                   ? "Select state first"
@@ -511,6 +664,7 @@ export function BusinessStep({
                       : "No cities listed"
               }
               options={cityOptions}
+              error={submitAttempted ? fieldErrors.city : null}
             />
           )}
         </div>
@@ -519,26 +673,29 @@ export function BusinessStep({
           label="Business Address"
           required
           value={businessInfo.address}
-          onChange={(value) => onBusinessInfoChange({ address: value })}
+          onChange={(value) => handleBusinessFieldChange({ address: value })}
           placeholder="123 Maple Street, Springfield, IL 62704, USA"
+          error={submitAttempted ? fieldErrors.address : null}
         />
 
         <div className="grid gap-[24px] sm:grid-cols-2">
           <TextField
             label="Business Phone"
-            required={false}
+            required
             value={businessInfo.phone}
-            onChange={(value) => onBusinessInfoChange({ phone: value })}
+            onChange={(value) => handleBusinessFieldChange({ phone: value })}
             placeholder="(201) 512-2366"
             type="tel"
+            error={submitAttempted ? fieldErrors.phone : null}
           />
           <TextField
             label="Business Email Address"
-            required={false}
+            required
             value={businessInfo.email}
-            onChange={(value) => onBusinessInfoChange({ email: value })}
+            onChange={(value) => handleBusinessFieldChange({ email: value })}
             placeholder="info@abccompany.com"
             type="email"
+            error={submitAttempted ? fieldErrors.email : null}
           />
         </div>
 
@@ -548,25 +705,29 @@ export function BusinessStep({
             required
             value={businessInfo.zipCode}
             onChange={(value) =>
-              onBusinessInfoChange({ zipCode: value.replace(/\D/g, "").slice(0, 10) })
+              handleBusinessFieldChange({
+                zipCode: normalizeBusinessZipInput(value).slice(0, 5),
+              })
             }
             placeholder="40170"
+            error={submitAttempted ? fieldErrors.zipCode : null}
           />
           <TextField
             label="EIN Number"
             required={false}
             value={businessInfo.ein}
-            onChange={(value) => onBusinessInfoChange({ ein: value })}
-            placeholder="902231829"
+            onChange={(value) => handleBusinessFieldChange({ ein: normalizeEinInput(value) })}
+            placeholder="12-3456789"
+            error={submitAttempted ? fieldErrors.ein : null}
           />
         </div>
       </div>
 
       <StepActions
         onBack={onBack}
-        onContinue={onContinue}
-        continueLabel="Save and Continue"
-        continueDisabled={!canContinue}
+        onContinue={() => void handleContinue()}
+        continueLabel={submitting ? "Saving..." : "Save and Continue"}
+        continueDisabled={submitting}
       />
       <SkipForNowButton onClick={onSkip} />
     </div>

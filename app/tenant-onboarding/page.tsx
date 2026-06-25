@@ -204,6 +204,15 @@ export default function TenantOnboardingPage() {
           authBackgroundImageUrl: backgroundUrl.trim() || null,
           adminEmail: adminEmail.trim().toLowerCase(),
           adminPassword,
+          industry: businessInfo.industry,
+          companySize: businessInfo.companySize,
+          city: businessInfo.city,
+          state: businessInfo.state,
+          address: businessInfo.address,
+          phone: businessInfo.phone,
+          email: businessInfo.email,
+          zipCode: businessInfo.zipCode,
+          ein: businessInfo.ein,
         }),
       });
 

@@ -42,7 +42,7 @@ export const STATE_OPTIONS = [
   "Other",
 ] as const;
 
-/** UI-only business fields (not sent to API yet). */
+/** Business fields collected during tenant onboarding. */
 export type BusinessInfoForm = {
   industry: string;
   companySize: string;

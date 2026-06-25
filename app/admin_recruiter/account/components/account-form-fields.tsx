@@ -19,6 +19,14 @@ export const US_STATES = [
 export const FIELD =
   "h-11 w-full rounded-md border border-[#D1D5DB] bg-white px-3 text-sm text-[#111827] outline-none transition-colors focus:border-[color:var(--brand-primary)] focus:ring-1 focus:ring-[color:var(--brand-primary)]";
 
+export const FIELD_ERROR =
+  "border-[#FCA5A5] text-[#B91C1C] focus:border-[#EF4444] focus:ring-[#EF4444]";
+
+function FieldError({ message }: { message?: string | null }) {
+  if (!message) return null;
+  return <p className="mt-1 text-xs text-[#B91C1C]">{message}</p>;
+}
+
 export function FieldLabel({
   children,
   required,
@@ -53,6 +61,7 @@ export function SelectField({
   value,
   onChange,
   required,
+  error,
   children,
 }: {
   label: string;
@@ -60,6 +69,7 @@ export function SelectField({
   value?: string;
   onChange?: (value: string) => void;
   required?: boolean;
+  error?: string | null;
   children: React.ReactNode;
 }) {
   return (
@@ -70,7 +80,7 @@ export function SelectField({
           value={value}
           defaultValue={value === undefined ? defaultValue : undefined}
           onChange={onChange ? (e) => onChange(e.target.value) : undefined}
-          className={`${FIELD} appearance-none pr-9`}
+          className={`${FIELD} appearance-none pr-9 ${error ? FIELD_ERROR : ""}`}
         >
           {children}
         </select>
@@ -79,6 +89,7 @@ export function SelectField({
           aria-hidden
         />
       </div>
+      <FieldError message={error} />
     </label>
   );
 }
@@ -91,6 +102,7 @@ export function TextField({
   required,
   type = "text",
   placeholder,
+  error,
 }: {
   label: string;
   defaultValue?: string;
@@ -99,6 +111,7 @@ export function TextField({
   required?: boolean;
   type?: string;
   placeholder?: string;
+  error?: string | null;
 }) {
   return (
     <label className="block">
@@ -109,8 +122,9 @@ export function TextField({
         defaultValue={value === undefined ? defaultValue : undefined}
         onChange={onChange ? (e) => onChange(e.target.value) : undefined}
         placeholder={placeholder}
-        className={FIELD}
+        className={`${FIELD} ${error ? FIELD_ERROR : ""}`}
       />
+      <FieldError message={error} />
     </label>
   );
 }
@@ -122,6 +136,7 @@ export function AddressField({
   value,
   onChange,
   required,
+  error,
 }: {
   label: string;
   helperText?: string;
@@ -129,6 +144,7 @@ export function AddressField({
   value?: string;
   onChange?: (value: string) => void;
   required?: boolean;
+  error?: string | null;
 }) {
   return (
     <label className="block">
@@ -146,8 +162,9 @@ export function AddressField({
         value={value}
         defaultValue={value === undefined ? defaultValue : undefined}
         onChange={onChange ? (e) => onChange(e.target.value) : undefined}
-        className={FIELD}
+        className={`${FIELD} ${error ? FIELD_ERROR : ""}`}
       />
+      <FieldError message={error} />
     </label>
   );
 }

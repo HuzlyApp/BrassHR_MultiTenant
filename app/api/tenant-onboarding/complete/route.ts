@@ -3,8 +3,15 @@ import { createClient } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { provisionFirmaWorkspaceForTenant } from "@/lib/firma/provision-tenant-workspace";
 import type { FirmaWorkspaceProvisioningStatus } from "@/lib/firma/provision-tenant-workspace";
+import {
+  firstBusinessInfoError,
+  isBusinessInfoValid,
+  normalizeBusinessInfoBody,
+  validateBusinessInfoForm,
+} from "@/lib/tenant/business-info-validation";
 import { validateTenantSubdomainInput, subdomainErrorMessage } from "@/lib/tenant/subdomain-validation";
 import { registerTenantDomain } from "@/lib/vercel";
+import { resolveBusinessInfoValidationContext } from "@/lib/tenant/resolve-business-info-context";
 
 type Body = {
   organizationName?: string;
@@ -18,6 +25,15 @@ type Body = {
   authBackgroundImageUrl?: string | null;
   adminEmail?: string;
   adminPassword?: string;
+  industry?: string;
+  companySize?: string;
+  city?: string;
+  state?: string;
+  address?: string;
+  phone?: string;
+  email?: string;
+  zipCode?: string;
+  ein?: string;
 };
 
 /**
@@ -73,8 +89,26 @@ export async function POST(req: Request) {
 
   const effectiveAdminEmail = sessionEmail || adminEmail;
 
-  if (org.length < 2 || !effectiveAdminEmail.includes("@")) {
-    return NextResponse.json({ error: "Organization name and a valid admin email are required." }, { status: 400 });
+  if (!effectiveAdminEmail.includes("@")) {
+    return NextResponse.json({ error: "A valid admin email is required." }, { status: 400 });
+  }
+
+  const businessInput = normalizeBusinessInfoBody({
+    ...body,
+    companyName: org,
+    organizationName: org,
+  });
+  const businessContext = await resolveBusinessInfoValidationContext(svc, businessInput.state);
+  const businessErrors = validateBusinessInfoForm(businessInput, businessContext);
+  if (!isBusinessInfoValid(businessInput, businessContext)) {
+    return NextResponse.json(
+      {
+        error: firstBusinessInfoError(businessErrors) ?? "Business information is invalid.",
+        errors: businessErrors,
+        code: "INVALID_BUSINESS_INFO",
+      },
+      { status: 400 }
+    );
   }
 
   if (!sessionUserId && adminPassword.length < 6) {
@@ -115,7 +149,7 @@ export async function POST(req: Request) {
   }
 
   const brandingRow = {
-    name: org,
+    name: businessInput.companyName,
     slug: slugFinal,
     subdomain: subdomainFinal,
     domain: domainFinal,
@@ -123,9 +157,18 @@ export async function POST(req: Request) {
     primary_color: body.primaryColor?.trim() || "#0d9488",
     secondary_color: body.secondaryColor?.trim() || "#0f766e",
     accent_color: body.accentColor?.trim() || "#99f6e4",
-    welcome_headline: body.welcomeHeadline?.trim() || `Welcome to ${org}`,
+    welcome_headline: body.welcomeHeadline?.trim() || `Welcome to ${businessInput.companyName}`,
     welcome_subtitle: body.welcomeSubtitle?.trim() || "Your applicant experience starts here.",
     auth_background_image_url: body.authBackgroundImageUrl?.trim() || null,
+    industry: businessInput.industry,
+    company_size: businessInput.companySize,
+    city: businessInput.city,
+    state: businessInput.state,
+    address_line_1: businessInput.address,
+    phone: businessInput.phone,
+    email: businessInput.email,
+    postal_code: businessInput.zipCode,
+    ein: businessInput.ein || null,
     is_active: true,
   };
 

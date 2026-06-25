@@ -35,6 +35,14 @@ vi.mock("@/lib/firma/provision-tenant-workspace", () => ({
   provisionFirmaWorkspaceForTenant: (...args: unknown[]) => provisionMock(...args),
 }));
 
+vi.mock("@/lib/tenant/resolve-business-info-context", () => ({
+  resolveBusinessInfoValidationContext: vi.fn(async () => ({
+    stateCode: "CA",
+    allowedStateNames: ["California"],
+    allowedCityNames: ["Los Angeles"],
+  })),
+}));
+
 vi.mock("@/lib/supabase/service-role", () => ({
   createServiceRoleClient: vi.fn(() => ({
     from: (table: string) => {
@@ -99,6 +107,14 @@ async function completeTenant() {
         organizationName: "Testy",
         subdomain: "workspacetesty",
         adminEmail: authState.email,
+        industry: "Staffing",
+        companySize: "1-10",
+        state: "California",
+        city: "Los Angeles",
+        address: "123 Main St",
+        phone: "2135550198",
+        email: authState.email,
+        zipCode: "90012",
       }),
     })
   );
