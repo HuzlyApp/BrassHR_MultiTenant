@@ -45,6 +45,8 @@ const DASHBOARD_OVERVIEW_BASE = "/admin_recruiter/dashboard/overview";
 
 const DASHBOARD_BASE = "/admin_recruiter/dashboard";
 const ONBOARDING_BUILDER_ROUTE = `${DASHBOARD_BASE}/onboarding-builder`;
+const WORKFLOWS_ROUTE = `${DASHBOARD_BASE}/onboarding-flows`;
+const TEMPLATES_ROUTE = `${DASHBOARD_BASE}/templates`;
 
 const DASHBOARD_CHILDREN: SidebarLink[] = [
   {
@@ -141,15 +143,15 @@ const WORKFORCE_CHILDREN: SidebarLink[] = [
 ];
 
 const AUTOMATION_CHILDREN: SidebarLink[] = [
-  {
-    label: "Onboarding",
-    href: ONBOARDING_BUILDER_ROUTE,
-    matchPrefixes: [ONBOARDING_BUILDER_ROUTE],
-  },
+  // {
+  //   label: "Onboarding",
+  //   href: ONBOARDING_BUILDER_ROUTE,
+  //   matchPrefixes: [ONBOARDING_BUILDER_ROUTE],
+  // }, // Hidden for now; can be uncommented later
   {
     label: "Templates",
-    href: `${DASHBOARD_BASE}/templates`,
-    matchPrefixes: [`${DASHBOARD_BASE}/templates`],
+    href: TEMPLATES_ROUTE,
+    matchPrefixes: [TEMPLATES_ROUTE],
   },
   {
     label: "Library",
@@ -157,17 +159,17 @@ const AUTOMATION_CHILDREN: SidebarLink[] = [
     matchPrefixes: [`${DASHBOARD_BASE}/workflowlibrary`],
   },
   {
-    label: "My Flows",
-    href: `${DASHBOARD_BASE}/onboarding-flows`,
-    matchPrefixes: [`${DASHBOARD_BASE}/onboarding-flows`],
+    label: "Workflows",
+    href: WORKFLOWS_ROUTE,
+    matchPrefixes: [WORKFLOWS_ROUTE],
   },
 ];
 
 const AUTOMATION_ACTIVE_PREFIXES = [
   ONBOARDING_BUILDER_ROUTE,
-  `${DASHBOARD_BASE}/templates`,
+  TEMPLATES_ROUTE,
   `${DASHBOARD_BASE}/workflowlibrary`,
-  `${DASHBOARD_BASE}/onboarding-flows`,
+  WORKFLOWS_ROUTE,
 ];
 
 const ORGANIZATION_CHILDREN: SidebarLink[] = [
@@ -296,7 +298,7 @@ export const CLIENT_SIDEBAR_SECTIONS: SidebarSection[] = [
   },
   {
     label: "Automation",
-    href: ONBOARDING_BUILDER_ROUTE,
+    href: TEMPLATES_ROUTE,
     iconType: ICON.automation,
     matchPrefixes: AUTOMATION_ACTIVE_PREFIXES,
     children: AUTOMATION_CHILDREN,
@@ -353,7 +355,7 @@ export const GOD_ADMIN_SIDEBAR_SECTIONS: SidebarSection[] = [
   },
   {
     label: "Automation",
-    href: ONBOARDING_BUILDER_ROUTE,
+    href: TEMPLATES_ROUTE,
     iconType: ICON.automation,
     matchPrefixes: AUTOMATION_ACTIVE_PREFIXES,
     children: AUTOMATION_CHILDREN,

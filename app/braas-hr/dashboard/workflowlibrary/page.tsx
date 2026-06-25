@@ -740,7 +740,7 @@ export function WorkflowLibraryPage({
                   Templates
                 </Link>
                 <Link href="/admin_recruiter/dashboard/onboarding-flows" className="cursor-pointer">
-                  My Flows
+                  Workflows
                 </Link>
                 <Link
                   href="/admin_recruiter/dashboard/workflowlibrary"

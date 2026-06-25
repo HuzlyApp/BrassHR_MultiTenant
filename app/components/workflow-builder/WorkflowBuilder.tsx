@@ -426,7 +426,7 @@ function WorkflowBuilderInner({
           />
           <ToolbarButton
             icon={<FolderOpen size={14} />}
-            label="My Flows"
+            label="Workflows"
             active={activeToolbar === "flows"}
             onClick={() => setActiveToolbar((v) => (v === "flows" ? null : "flows"))}
           />
@@ -797,7 +797,7 @@ function ToolbarPanel({
       ) : null}
       {active === "flows" ? (
         <PanelList
-          title="My Flows"
+          title="Workflows"
           items={data?.myFlows.map((f) => ({
             id: f.id,
             primary: f.name,

@@ -51,7 +51,11 @@ type SharedFilterOptions = {
   date?: string;
 };
 
-type LogsSelectQuery = ReturnType<ReturnType<SupabaseClient["from"]>["select"]>;
+type SharedFilterOptions = {
+  scope: Awaited<ReturnType<typeof resolveStaffTenantScope>>;
+  workerId?: string;
+  date?: string;
+};
 
 async function supportsClaimTracking(supabase: SupabaseClient): Promise<boolean> {
   const { error } = await supabase.from("applicant_attendance_logs").select("claimed_at").limit(0);
@@ -60,7 +64,9 @@ async function supportsClaimTracking(supabase: SupabaseClient): Promise<boolean>
   throw error;
 }
 
-function applySharedFilters(query: LogsSelectQuery, options: SharedFilterOptions): LogsSelectQuery {
+function applyScopeFilters<
+  T extends { eq: (column: string, value: string) => T },
+>(query: T, options: SharedFilterOptions): T {
   let next = query;
   if (options.scope.mode === "scoped") next = next.eq("tenant_id", options.scope.tenantId);
   if (options.workerId) next = next.eq("worker_id", options.workerId);
@@ -68,11 +74,13 @@ function applySharedFilters(query: LogsSelectQuery, options: SharedFilterOptions
   return next;
 }
 
-function applyBucketFilter(
-  query: LogsSelectQuery,
-  bucket: AttendanceBucket,
-  claimTrackingEnabled: boolean
-): LogsSelectQuery {
+function applyBucketStatusFilter<
+  T extends {
+    eq: (column: string, value: string) => T;
+    not: (column: string, operator: string, value: string | null) => T;
+    is: (column: string, value: null) => T;
+  },
+>(query: T, bucket: AttendanceBucket, claimTrackingEnabled: boolean): T {
   switch (bucket) {
     case "ongoing":
       return query.eq("status", "clocked_in");
@@ -97,12 +105,14 @@ async function countForBucket(
   options: SharedFilterOptions,
   claimTrackingEnabled: boolean
 ): Promise<number> {
-  let query = supabase
-    .from("applicant_attendance_logs")
-    .select("id", { count: "exact", head: true });
-
-  query = applySharedFilters(query, options);
-  query = applyBucketFilter(query, bucket, claimTrackingEnabled);
+  const query = applyBucketStatusFilter(
+    applyScopeFilters(
+      supabase.from("applicant_attendance_logs").select("id", { count: "exact", head: true }),
+      options
+    ),
+    bucket,
+    claimTrackingEnabled
+  );
 
   const { count, error } = await query;
   if (error) throw error;
@@ -150,12 +160,14 @@ export async function GET(req: NextRequest) {
 
     const sharedOptions: SharedFilterOptions = { scope, workerId, date: date || undefined };
 
-    let query = supabase.from("applicant_attendance_logs").select("*");
-    query = applySharedFilters(query, sharedOptions);
-    query = applyBucketFilter(query, bucket, claimTrackingEnabled);
+    const filteredQuery = applyBucketStatusFilter(
+      applyScopeFilters(supabase.from("applicant_attendance_logs").select("*"), sharedOptions),
+      bucket,
+      claimTrackingEnabled
+    );
 
     const [{ data, error }, counts] = await Promise.all([
-      query.order("clock_in_at", { ascending: false }).limit(200),
+      filteredQuery.order("clock_in_at", { ascending: false }).limit(200),
       loadBucketCounts(supabase, sharedOptions, claimTrackingEnabled),
     ]);
     if (error) throw error;

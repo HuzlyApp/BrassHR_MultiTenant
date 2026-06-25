@@ -777,7 +777,7 @@ export function OnboardingFlowsPage({
                   Dashboard
                 </Link>
                 <span>&gt;</span>
-                <span className="text-[#344054]">Onboarding Flows</span>
+                <span className="text-[#344054]">Workflows</span>
               </nav>
               <nav className="flex flex-wrap items-center gap-6 text-sm text-[#012352]" aria-label="Workflow tabs">
                 <span className="cursor-pointer">Builder</span>
@@ -785,7 +785,7 @@ export function OnboardingFlowsPage({
                   Templates
                 </Link>
                 <Link href="/admin_recruiter/dashboard/onboarding-flows" className="cursor-pointer border-b-2 border-[color:var(--brand-primary)] pb-1 text-[color:var(--brand-primary)]">
-                  My Flows
+                  Workflows
                 </Link>
                 <Link href="/admin_recruiter/dashboard/workflowlibrary" className="cursor-pointer">
                   Library
@@ -800,7 +800,7 @@ export function OnboardingFlowsPage({
             <h1
               className="text-[30px] font-semibold leading-[36px] tracking-normal text-[#000000]"
             >
-              Onboarding Flows
+              Workflows
             </h1>
             <p className="mt-3 text-[16px] font-normal leading-6 text-[#374151]">
               {publishedCount} Published <span className="text-[#d0d5dd]">•</span>{" "}
