@@ -51,7 +51,7 @@ type SharedFilterOptions = {
   date?: string;
 };
 
-type LogsQuery = ReturnType<SupabaseClient["from"]>;
+type LogsSelectQuery = ReturnType<ReturnType<SupabaseClient["from"]>["select"]>;
 
 async function supportsClaimTracking(supabase: SupabaseClient): Promise<boolean> {
   const { error } = await supabase.from("applicant_attendance_logs").select("claimed_at").limit(0);
@@ -60,7 +60,7 @@ async function supportsClaimTracking(supabase: SupabaseClient): Promise<boolean>
   throw error;
 }
 
-function applySharedFilters(query: LogsQuery, options: SharedFilterOptions): LogsQuery {
+function applySharedFilters(query: LogsSelectQuery, options: SharedFilterOptions): LogsSelectQuery {
   let next = query;
   if (options.scope.mode === "scoped") next = next.eq("tenant_id", options.scope.tenantId);
   if (options.workerId) next = next.eq("worker_id", options.workerId);
@@ -69,10 +69,10 @@ function applySharedFilters(query: LogsQuery, options: SharedFilterOptions): Log
 }
 
 function applyBucketFilter(
-  query: LogsQuery,
+  query: LogsSelectQuery,
   bucket: AttendanceBucket,
   claimTrackingEnabled: boolean
-): LogsQuery {
+): LogsSelectQuery {
   switch (bucket) {
     case "ongoing":
       return query.eq("status", "clocked_in");
@@ -150,17 +150,12 @@ export async function GET(req: NextRequest) {
 
     const sharedOptions: SharedFilterOptions = { scope, workerId, date: date || undefined };
 
-    let query = supabase
-      .from("applicant_attendance_logs")
-      .select("*")
-      .order("clock_in_at", { ascending: false })
-      .limit(200);
-
+    let query = supabase.from("applicant_attendance_logs").select("*");
     query = applySharedFilters(query, sharedOptions);
     query = applyBucketFilter(query, bucket, claimTrackingEnabled);
 
     const [{ data, error }, counts] = await Promise.all([
-      query,
+      query.order("clock_in_at", { ascending: false }).limit(200),
       loadBucketCounts(supabase, sharedOptions, claimTrackingEnabled),
     ]);
     if (error) throw error;

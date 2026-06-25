@@ -22,16 +22,29 @@ export const FIELD =
 export function FieldLabel({
   children,
   required,
+  htmlFor,
 }: {
   children: React.ReactNode;
   required?: boolean;
+  htmlFor?: string;
 }) {
-  return (
-    <span className="mb-2 block text-sm text-[#6B7280]">
+  const className = "mb-2 block text-sm text-[#6B7280]";
+  const content = (
+    <>
       {children}
       {required ? <span className="text-red-500"> *</span> : null}
-    </span>
+    </>
   );
+
+  if (htmlFor) {
+    return (
+      <label htmlFor={htmlFor} className={className}>
+        {content}
+      </label>
+    );
+  }
+
+  return <span className={className}>{content}</span>;
 }
 
 export function SelectField({

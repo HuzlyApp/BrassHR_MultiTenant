@@ -4,7 +4,6 @@ import AccountTabNav from "./components/AccountTabNav";
 import PersonalTab from "./components/PersonalTab";
 import BusinessInfoTab from "./components/BusinessInfoTab";
 import SecurityTab from "./components/SecurityTab";
-import ChecklistTab from "./components/ChecklistTab";
 import AccountSettingsTab from "./components/AccountSettingsTab";
 import type { AccountTabSlug } from "./account-tabs";
 
@@ -22,7 +21,6 @@ export default function AccountPageClient({ activeTab }: AccountPageClientProps)
         {activeTab === "business-info" ? <BusinessInfoTab /> : null}
         {activeTab === "account-settings" ? <AccountSettingsTab /> : null}
         {activeTab === "security" ? <SecurityTab /> : null}
-        {activeTab === "checklist" ? <ChecklistTab /> : null}
       </div>
     </main>
   );
