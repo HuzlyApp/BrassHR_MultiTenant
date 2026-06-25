@@ -1,8 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
-import { CandidatesPageHeader } from "@/app/admin_recruiter/components/CandidatesPageHeader";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import DashboardPageLoader from "@/app/admin_recruiter/components/DashboardPageLoader";
 import { SchedulingSubNav } from "@/app/admin_recruiter/scheduling/SchedulingSubNav";
 import type { ShiftCalendarEvent, ShiftCalendarFilterOptions, ShiftCalendarStatus } from "@/lib/shifts/types";
@@ -15,8 +14,20 @@ type CalendarEvent = ShiftCalendarEvent & {
 };
 
 const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-const HOUR_LABELS = ["8 AM", "9 AM", "10 AM", "11 AM", "12 PM", "1 PM", "2 PM", "3 PM", "4 PM", "5 PM", "6 PM"];
-const HOUR_SLOTS = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18];
+const HOUR_LABELS = [
+  "8:00 AM",
+  "9:00 AM",
+  "10:00 AM",
+  "11:00 AM",
+  "Noon",
+  "1:00 PM",
+  "2:00 PM",
+  "3:00 PM",
+  "4:00 PM",
+  "5:00 PM",
+  "6:00 PM",
+] as const;
+const HOUR_SLOTS = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18] as const;
 
 const STATUS_LABELS: Record<ShiftCalendarStatus, string> = {
   pending: "Unassigned",
@@ -275,17 +286,21 @@ function ShiftWeekCalendar({
   const weekStart = getWeekStart(anchorDate);
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
   const todayKey = formatDateKey(new Date());
+  const now = new Date();
+  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+  const todayInWeek = weekDays.some((day) => formatDateKey(day) === todayKey);
 
   return (
     <div className="overflow-hidden rounded-lg border border-[#E5E7EB] bg-white">
       <div
         className="grid border-b border-[#E5E7EB] bg-white"
-        style={{ gridTemplateColumns: "72px repeat(7, minmax(0, 1fr))" }}
+        style={{ gridTemplateColumns: "93px repeat(7, minmax(0, 1fr))" }}
       >
-        <div className="border-r border-[#E5E7EB]" aria-hidden />
+        <div className="border-r border-[#E5E7EB] bg-white" aria-hidden />
         {weekDays.map((day) => {
           const key = formatDateKey(day);
           const isToday = key === todayKey;
+          const count = eventsByDay.get(key)?.length ?? 0;
           return (
             <div
               key={key}
@@ -295,47 +310,81 @@ function ShiftWeekCalendar({
                 {day.toLocaleDateString("en-US", { weekday: "short" })}
               </p>
               <span
-                className={`mt-1 inline-flex h-6 items-center justify-center rounded px-2 text-xs font-semibold ${
+                className={`mt-1 inline-flex h-6 items-center justify-center rounded px-2 py-1 text-xs font-semibold leading-none ${
                   isToday ? "bg-[color:var(--brand-primary)] text-white" : "text-[#1F2937]"
                 }`}
               >
                 {day.getDate()}
               </span>
+              <span
+                className={`mt-2 block h-0.5 w-full rounded-full ${
+                  isToday ? "bg-[color:var(--brand-primary)]" : "bg-transparent"
+                }`}
+                aria-hidden
+              />
+              {count > 0 ? (
+                <p className="mt-1 text-[10px] font-semibold leading-none text-[color:var(--brand-primary)]">
+                  {count}
+                </p>
+              ) : null}
             </div>
           );
         })}
       </div>
-      <div className="max-h-[560px] overflow-y-auto">
-        {HOUR_SLOTS.map((hour, index) => (
-          <div
-            key={hour}
-            className="grid min-h-[52px] border-b border-[#E5E7EB]"
-            style={{ gridTemplateColumns: "72px repeat(7, minmax(0, 1fr))" }}
-          >
-            <div className="border-r border-[#E5E7EB] px-2 py-3 text-right text-[10px] text-[#64748B]">
-              {HOUR_LABELS[index]}
-            </div>
-            {weekDays.map((day) => {
-              const key = formatDateKey(day);
-              const cellEvents = (eventsByDay.get(key) ?? []).filter((event) => shiftMatchesHour(event, hour));
-              return (
-                <div key={`${key}-${hour}`} className="border-r border-[#E5E7EB] p-1 last:border-r-0">
-                  {cellEvents.map((event) => (
-                    <div
-                      key={`${event.id}-${hour}`}
-                      className="mb-1 rounded border border-[#86EFAC] bg-[#DCFCE7] px-2 py-1"
-                    >
-                      <p className="truncate text-[10px] font-semibold text-[#166534]">{event.title}</p>
-                      <p className="truncate text-[10px] text-[#15803D]">
-                        {event.facility} — {event.workerName}
-                      </p>
-                    </div>
-                  ))}
+
+      <div className="schedule-calendar-scroll relative max-h-[560px] overflow-y-auto">
+        {HOUR_LABELS.map((label, index) => {
+          const hour = HOUR_SLOTS[index];
+          const rowMinutes = hour * 60;
+          const showNowLine = todayInWeek && Math.abs(nowMinutes - rowMinutes) < 30;
+
+          return (
+            <div
+              key={label}
+              className="relative grid min-h-[56px] border-b border-[#E5E7EB] bg-white"
+              style={{ gridTemplateColumns: "93px repeat(7, minmax(0, 1fr))" }}
+            >
+              <div className="relative border-r border-[#E5E7EB] bg-white px-3 py-4 text-right text-[11px] text-[#64748B]">
+                {label}
+              </div>
+              {weekDays.map((day) => {
+                const key = formatDateKey(day);
+                const cellEvents = (eventsByDay.get(key) ?? []).filter((event) => shiftMatchesHour(event, hour));
+                return (
+                  <div
+                    key={`${key}-${hour}`}
+                    className="relative border-r border-[#E5E7EB] bg-white p-1.5 last:border-r-0"
+                  >
+                    {cellEvents.map((event) => (
+                      <div
+                        key={`${event.id}-${hour}`}
+                        className="mb-1 flex overflow-hidden rounded border border-[#E5E7EB] bg-[#F3F4F6]"
+                        title={`${event.workerName} • ${event.jobRole}`}
+                      >
+                        <div className="min-w-0 flex-1 px-2.5 py-2">
+                          <p className="truncate text-xs font-semibold text-[#111827]">{event.title}</p>
+                          <p className="mt-0.5 truncate text-[10px] leading-snug text-[#6B7280]">
+                            {event.facility} — {event.workerName === "Open shift" ? "Open Shift" : event.workerName}
+                          </p>
+                        </div>
+                        <div className="w-1 shrink-0 bg-[#012352]" aria-hidden />
+                      </div>
+                    ))}
+                  </div>
+                );
+              })}
+              {showNowLine ? (
+                <div
+                  className="pointer-events-none absolute z-10 flex items-center"
+                  style={{ left: "93px", right: 0, top: "50%", transform: "translateY(-50%)" }}
+                >
+                  <div className="h-0 w-0 border-y-[4px] border-l-[6px] border-y-transparent border-l-[color:var(--brand-primary)]" />
+                  <div className="h-px flex-1 bg-[color:var(--brand-primary)]" />
                 </div>
-              );
-            })}
-          </div>
-        ))}
+              ) : null}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -343,7 +392,7 @@ function ShiftWeekCalendar({
 
 export default function SchedulePageClient() {
   const [anchorDate, setAnchorDate] = useState(() => new Date());
-  const [viewMode, setViewMode] = useState<ViewMode>("month");
+  const [viewMode, setViewMode] = useState<ViewMode>("week");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [events, setEvents] = useState<CalendarEvent[]>([]);
@@ -483,12 +532,6 @@ export default function SchedulePageClient() {
     <div className="px-5 pb-8 pt-5 lg:px-8">
       <SchedulingSubNav />
 
-      <CandidatesPageHeader
-        variant="page"
-        title="Schedule"
-        subtitle="View and manage upcoming shifts"
-      />
-
       <div className="flex min-h-[640px] flex-col overflow-hidden rounded-xl border border-[#E5E7EB] bg-white lg:flex-row">
         <aside className="w-full shrink-0 border-b border-[#E5E7EB] p-4 lg:w-[248px] lg:border-b-0 lg:border-r">
           <div className="space-y-3">
@@ -528,26 +571,45 @@ export default function SchedulePageClient() {
         <section className="flex min-w-0 flex-1 flex-col p-4 sm:p-5">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => (viewMode === "month" ? shiftMonth(-1) : shiftWeek(-7))}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-[#E5E7EB] text-[#64748B] hover:bg-[#F8FAFC]"
-                aria-label="Previous period"
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </button>
-              <div className="flex items-center gap-1">
-                <p className="text-base font-bold text-[#111827]">{monthTitle}</p>
-                <ChevronDown className="h-4 w-4 text-[#94A3B8]" aria-hidden />
-              </div>
-              <button
-                type="button"
-                onClick={() => (viewMode === "month" ? shiftMonth(1) : shiftWeek(7))}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-[#E5E7EB] text-[#64748B] hover:bg-[#F8FAFC]"
-                aria-label="Next period"
-              >
-                <ChevronRight className="h-4 w-4" />
-              </button>
+              {viewMode === "week" ? (
+                <button
+                  type="button"
+                  onClick={() => shiftWeek(-7)}
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-[#E5E7EB] text-[#64748B] transition hover:bg-[#F8FAFC] hover:text-[#111827]"
+                  aria-label="Previous week"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => shiftMonth(-1)}
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-[#E5E7EB] text-[#64748B] transition hover:bg-[#F8FAFC] hover:text-[#111827]"
+                  aria-label="Previous month"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+              )}
+              <p className="text-base font-bold text-[#111827]">{monthTitle}</p>
+              {viewMode === "week" ? (
+                <button
+                  type="button"
+                  onClick={() => shiftWeek(7)}
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-[#E5E7EB] text-[#64748B] transition hover:bg-[#F8FAFC] hover:text-[#111827]"
+                  aria-label="Next week"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => shiftMonth(1)}
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-[#E5E7EB] text-[#64748B] transition hover:bg-[#F8FAFC] hover:text-[#111827]"
+                  aria-label="Next month"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              )}
             </div>
 
             <div className="flex items-center gap-2 text-xs text-[#64748B]">
@@ -579,11 +641,6 @@ export default function SchedulePageClient() {
 
           {loading ? (
             <DashboardPageLoader label="Loading schedule..." className="min-h-[420px]" />
-          ) : filteredEvents.length === 0 && !error ? (
-            <div className="flex min-h-[420px] flex-col items-center justify-center rounded-lg border border-dashed border-[#E5E7EB] px-6 text-center">
-              <h3 className="text-lg font-semibold text-[#111827]">No shifts found</h3>
-              <p className="mt-2 text-sm text-[#6B7280]">Try another date or adjust your filters.</p>
-            </div>
           ) : viewMode === "month" ? (
             <ShiftMonthGrid anchorDate={anchorDate} eventsByDay={eventsByDay} />
           ) : (

@@ -12,7 +12,7 @@ import {
 const SIDEBAR_TOGGLE_ICON = "/icons/sidebar-on-off-icon.svg";
 const NOTIFICATION_ICON = "/icons/braas-HR/client-dashboard/notification-icon.svg";
 const MESSAGE_ICON = "/icons/braas-HR/client-dashboard/message-icon.svg";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import GodAdminTenantSwitcher from "./GodAdminTenantSwitcher";
 import { useAccountData } from "@/app/admin_recruiter/hooks/useAccountData";
 import { formatRoleLabel, getAccountDisplayName } from "@/lib/account/display-name";
@@ -86,6 +86,25 @@ export function AdminRecruiterHeader({
   const [showMessages, setShowMessages] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [tenantLogoSrc, setTenantLogoSrc] = useState(branding.logoUrl || DEFAULT_TENANT_LOGO);
+  const messagesAreaRef = useRef<HTMLDivElement>(null);
+  const profileAreaRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!showMessages && !showProfileMenu) return;
+
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (showMessages && messagesAreaRef.current && !messagesAreaRef.current.contains(target)) {
+        setShowMessages(false);
+      }
+      if (showProfileMenu && profileAreaRef.current && !profileAreaRef.current.contains(target)) {
+        setShowProfileMenu(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [showMessages, showProfileMenu]);
 
   const loadConversations = useCallback(async () => {
     const response = await fetch("/api/admin/messages/conversations", { cache: "no-store" });
@@ -230,7 +249,7 @@ export function AdminRecruiterHeader({
 
         <div className="relative ml-4">
           <div className="flex items-center gap-3">
-            <div className="relative flex items-center gap-0">
+            <div ref={messagesAreaRef} className="relative flex items-center gap-0">
               <button
                 type="button"
                 onClick={() => {
@@ -330,6 +349,7 @@ export function AdminRecruiterHeader({
               ) : null}
             </div>
 
+            <div ref={profileAreaRef} className="relative">
             <div className="flex items-center gap-2 rounded-xl border border-[#E5E7EB] bg-white px-2.5 py-1.5">
             {profilePhoto ? (
               <img
@@ -353,17 +373,20 @@ export function AdminRecruiterHeader({
             </div>
             <button
               type="button"
-              onClick={() => setShowProfileMenu((prev) => !prev)}
+              onClick={() => {
+                setShowProfileMenu((prev) => !prev);
+                setShowMessages(false);
+                setShowNotifications(false);
+              }}
               className="inline-flex h-6 w-6 items-center justify-center rounded-md text-[#94A3B8] transition hover:bg-slate-100"
               aria-label="Open profile menu"
             >
               <ChevronDown className="h-4 w-4" />
             </button>
             </div>
-          </div>
 
           {showProfileMenu ? (
-            <div className="absolute right-0 top-12 w-[220px] rounded-lg border border-[#d7e4e1] bg-white p-2 shadow-xl">
+            <div className="absolute right-0 top-full z-50 mt-1 w-[220px] rounded-lg border border-[#d7e4e1] bg-white p-2 shadow-xl">
               <div className="mb-1 flex items-center gap-2 px-2">
                 <img
                   src={tenantLogoSrc}
@@ -394,6 +417,8 @@ export function AdminRecruiterHeader({
               </button>
             </div>
           ) : null}
+            </div>
+          </div>
         </div>
       </div>
     </header>

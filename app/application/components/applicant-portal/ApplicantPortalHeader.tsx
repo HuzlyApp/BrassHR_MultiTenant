@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { ChevronDown, Search } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import SidebarNavIcon from "@/app/admin_recruiter/components/SidebarNavIcon";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import { useApplicantPortal } from "./ApplicantPortalProvider";
@@ -32,7 +32,21 @@ export function ApplicantPortalHeader({
   const { profilePhotoUrl } = useApplicantPortal();
   const [profileOpen, setProfileOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+  const profileAreaRef = useRef<HTMLDivElement>(null);
   const firstName = applicantName.split(" ")[0] || "Applicant";
+
+  useEffect(() => {
+    if (!profileOpen) return;
+
+    const handleClickOutside = (event: MouseEvent) => {
+      if (profileAreaRef.current && !profileAreaRef.current.contains(event.target as Node)) {
+        setProfileOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [profileOpen]);
 
   async function handleLogout() {
     if (loggingOut) return;
@@ -120,7 +134,7 @@ export function ApplicantPortalHeader({
             </button>
           </div>
 
-          <div className="relative">
+          <div ref={profileAreaRef} className="relative">
             <button
               type="button"
               onClick={() => setProfileOpen((prev) => !prev)}
@@ -131,7 +145,7 @@ export function ApplicantPortalHeader({
               <ChevronDown className="h-4 w-4 text-[#94A3B8]" />
             </button>
             {profileOpen ? (
-              <div className="absolute right-0 top-12 z-10 w-52 rounded-lg border border-[#E2E8F0] bg-white p-2 shadow-lg">
+              <div className="absolute right-0 top-full z-50 mt-1 w-52 rounded-lg border border-[#E2E8F0] bg-white p-2 shadow-lg">
                 <p className="px-2 py-1 text-[12px] font-semibold text-[#012352]">{applicantName}</p>
                 <p className="px-2 pb-2 text-[11px] text-[#64748B]">Applicant</p>
                 <button

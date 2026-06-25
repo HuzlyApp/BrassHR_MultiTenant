@@ -1,15 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
 import {
   CANDIDATES_FILTER_CONTROL_CLASS,
   CANDIDATES_FILTER_LABEL_CLASS,
   CANDIDATES_PAGE_SUBTITLE_STYLE,
 } from "@/app/admin_recruiter/candidates/candidates-typography";
-import { CandidatesPageHeader } from "@/app/admin_recruiter/components/CandidatesPageHeader";
 import { SchedulingSubNav } from "@/app/admin_recruiter/scheduling/SchedulingSubNav";
 import { AttendanceEditColumnsModal } from "@/app/admin_recruiter/attendance/EditColumnsModal";
+import { AttendanceSubTabs } from "@/app/admin_recruiter/attendance/AttendanceSubTabs";
 import {
   attendanceColumnLabel,
   DEFAULT_ATTENDANCE_COLUMNS,
@@ -18,6 +19,10 @@ import {
   type AttendanceColumnId,
 } from "@/app/admin_recruiter/attendance/column-config";
 import { renderAttendanceListCell, type AttendanceRow } from "@/app/admin_recruiter/attendance/render-list-cell";
+import {
+  attendanceBucketEmptyMessage,
+  parseAttendanceBucket,
+} from "@/lib/attendance/attendance-buckets";
 import { Columns2, Filter, Loader2, RefreshCw, Search } from "lucide-react";
 
 function columnHeaderClass(colId: AttendanceColumnId): string {
@@ -40,13 +45,16 @@ function columnCellClass(colId: AttendanceColumnId): string {
   return base;
 }
 
-export default function AdminApplicantAttendancePage() {
+function AttendancePageContent() {
+  const searchParams = useSearchParams();
+  const bucket = parseAttendanceBucket(searchParams.get("bucket"));
   const [logs, setLogs] = useState<AttendanceRow[]>([]);
+  const [claimTrackingEnabled, setClaimTrackingEnabled] = useState(true);
   const [q, setQ] = useState("");
   const [date, setDate] = useState("");
-  const [status, setStatus] = useState("");
   const [showFilterRows, setShowFilterRows] = useState(true);
   const [loading, setLoading] = useState(false);
+  const [claimingId, setClaimingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [listColumnOrder, setListColumnOrder] = useState<AttendanceColumnId[]>(DEFAULT_ATTENDANCE_COLUMNS);
   const [editColumnsOpen, setEditColumnsOpen] = useState(false);
@@ -62,37 +70,58 @@ export default function AdminApplicantAttendancePage() {
       const params = new URLSearchParams();
       if (q.trim()) params.set("q", q.trim());
       if (date) params.set("date", date);
-      if (status) params.set("status", status);
+      if (bucket !== "all") params.set("bucket", bucket);
       const res = await fetch(`/api/admin/applicant-attendance?${params.toString()}`, {
         cache: "no-store",
       });
       const payload = (await res.json().catch(() => ({}))) as {
         logs?: AttendanceRow[];
+        claimTrackingEnabled?: boolean;
         error?: string;
       };
       if (!res.ok) throw new Error(payload.error || "Failed to load attendance logs.");
       setLogs(payload.logs ?? []);
+      setClaimTrackingEnabled(payload.claimTrackingEnabled !== false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load attendance logs.");
       setLogs([]);
     } finally {
       setLoading(false);
     }
-  }, [date, q, status]);
+  }, [bucket, date, q]);
 
   useEffect(() => {
     void loadLogs();
   }, [loadLogs]);
 
+  const handleClaim = useCallback(
+    async (logId: string) => {
+      setClaimingId(logId);
+      setError(null);
+      try {
+        const res = await fetch("/api/admin/applicant-attendance", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: logId, action: "claim" }),
+        });
+        const payload = (await res.json().catch(() => ({}))) as { error?: string };
+        if (!res.ok) throw new Error(payload.error || "Could not claim this record.");
+        await loadLogs();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Could not claim this record.");
+      } finally {
+        setClaimingId(null);
+      }
+    },
+    [loadLogs]
+  );
+
+  const showClaimColumn = bucket === "unclaimed" && claimTrackingEnabled;
+
   return (
     <div className="px-5 pb-8 pt-5 lg:px-8">
       <SchedulingSubNav />
-
-      <CandidatesPageHeader
-        variant="page"
-        title="Time & Attendance"
-        subtitle="Review clock-in and clock-out logs for your team"
-      />
+      <AttendanceSubTabs />
 
       <div className="w-full overflow-hidden rounded-[12px] border border-[#E5E7EB] bg-white">
         <div
@@ -163,21 +192,6 @@ export default function AdminApplicantAttendancePage() {
                     style={CANDIDATES_PAGE_SUBTITLE_STYLE}
                   />
                 </label>
-                <label className="flex items-center gap-2">
-                  <span className={CANDIDATES_FILTER_LABEL_CLASS} style={CANDIDATES_PAGE_SUBTITLE_STYLE}>
-                    Status
-                  </span>
-                  <select
-                    value={status}
-                    onChange={(event) => setStatus(event.target.value)}
-                    className={CANDIDATES_FILTER_CONTROL_CLASS}
-                    style={CANDIDATES_PAGE_SUBTITLE_STYLE}
-                  >
-                    <option value="">All</option>
-                    <option value="clocked_in">Clocked in</option>
-                    <option value="clocked_out">Clocked out</option>
-                  </select>
-                </label>
               </div>
             </div>
           ) : null}
@@ -185,7 +199,7 @@ export default function AdminApplicantAttendancePage() {
 
         <div className="flex w-full items-center gap-3 px-[14px] py-3">
           <div className="text-xs leading-4 text-[#5e7371]">
-            Total:{" "}
+            Showing:{" "}
             <span className="font-semibold text-[#203130]">{loading ? "—" : logs.length}</span> records
           </div>
         </div>
@@ -203,7 +217,7 @@ export default function AdminApplicantAttendancePage() {
               Loading attendance logs...
             </div>
           ) : logs.length === 0 ? (
-            <div className="py-16 text-center text-gray-600">No attendance logs found.</div>
+            <div className="py-16 text-center text-gray-600">{attendanceBucketEmptyMessage(bucket)}</div>
           ) : listColumnOrder.length === 0 ? (
             <div className="py-16 text-center text-gray-600">
               No columns selected. Open Columns to choose what to show.
@@ -219,6 +233,11 @@ export default function AdminApplicantAttendancePage() {
                           {attendanceColumnLabel(colId)}
                         </th>
                       ))}
+                      {showClaimColumn ? (
+                        <th className="bg-[#E5E7EB] px-4 py-3 text-left text-sm font-medium uppercase tracking-[0.08em] text-black">
+                          Action
+                        </th>
+                      ) : null}
                     </tr>
                   </thead>
                   <tbody>
@@ -229,6 +248,18 @@ export default function AdminApplicantAttendancePage() {
                             {renderAttendanceListCell(colId, log)}
                           </td>
                         ))}
+                        {showClaimColumn ? (
+                          <td className="px-4 py-4 align-middle">
+                            <button
+                              type="button"
+                              onClick={() => void handleClaim(log.id)}
+                              disabled={claimingId === log.id}
+                              className="inline-flex min-h-9 items-center rounded-full bg-[color:var(--brand-primary)] px-4 text-sm font-medium text-white transition hover:brightness-95 disabled:cursor-wait disabled:opacity-70"
+                            >
+                              {claimingId === log.id ? "Claiming..." : "Claim"}
+                            </button>
+                          </td>
+                        ) : null}
                       </tr>
                     ))}
                   </tbody>
@@ -250,5 +281,20 @@ export default function AdminApplicantAttendancePage() {
         }}
       />
     </div>
+  );
+}
+
+export default function AdminApplicantAttendancePage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex items-center justify-center gap-3 px-5 py-24 text-gray-600 lg:px-8">
+          <Loader2 className="h-6 w-6 animate-spin text-[color:var(--brand-primary)]" />
+          Loading attendance...
+        </div>
+      }
+    >
+      <AttendancePageContent />
+    </Suspense>
   );
 }

@@ -5,12 +5,10 @@ import Image from "next/image";
 const BRAND_AVATAR_GRADIENT =
   "linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-accent) 100%)";
 
-function initialsFromName(name: string) {
+function initialFromName(name: string) {
   const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return "NA";
-  const first = parts[0]?.[0] ?? "";
-  const last = parts[parts.length - 1]?.[0] ?? "";
-  return (first + last).toUpperCase();
+  if (parts.length === 0) return "?";
+  return (parts[0]?.[0] ?? "?").toUpperCase();
 }
 
 type CandidateListAvatarProps = {
@@ -36,11 +34,11 @@ export function CandidateListAvatar({ name, photoUrl, className = "" }: Candidat
 
   return (
     <div
-      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold text-white ${className}`}
+      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold leading-none text-white ${className}`}
       style={{ background: BRAND_AVATAR_GRADIENT }}
       aria-hidden
     >
-      {initialsFromName(name || "NA")}
+      {initialFromName(name || "")}
     </div>
   );
 }

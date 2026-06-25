@@ -30,7 +30,7 @@ export function SchedulingSubNav() {
   return (
     <nav
       aria-label="Scheduling sections"
-      className="mb-5 flex flex-wrap items-center gap-6"
+      className="mb-6 flex flex-wrap items-center gap-4"
     >
       {TAB_LINKS.map((tab) => (
         <Link key={tab.id} href={tab.href} className={tabClass(activeTab === tab.id)}>

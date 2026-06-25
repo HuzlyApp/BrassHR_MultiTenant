@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { CandidateListAvatar } from "@/app/admin_recruiter/components/CandidateListAvatar";
 import type { AttendanceColumnId } from "./column-config";
 
 type AttendanceStatus = "clocked_in" | "clocked_out";
@@ -7,6 +8,7 @@ export type AttendanceRow = {
   id: string;
   applicant_name: string;
   applicant_email: string | null;
+  profile_photo_url?: string | null;
   attendance_date: string;
   status: AttendanceStatus;
   clock_in_at: string;
@@ -20,6 +22,7 @@ export type AttendanceRow = {
   clock_in_longitude: number;
   clock_out_latitude: number | null;
   clock_out_longitude: number | null;
+  claimed_at?: string | null;
 };
 
 function formatDateTime(iso: string | null | undefined) {
@@ -66,7 +69,18 @@ function locationText(
 export function renderAttendanceListCell(col: AttendanceColumnId, log: AttendanceRow): ReactNode {
   switch (col) {
     case "applicant":
-      return <span className="text-sm font-medium text-[#111827]">{log.applicant_name}</span>;
+      return (
+        <div className="flex min-w-0 items-center gap-3">
+          <CandidateListAvatar
+            name={log.applicant_name || "NA"}
+            photoUrl={log.profile_photo_url}
+          />
+          <div className="min-w-0">
+            <div className="truncate text-sm font-medium text-black">{log.applicant_name || "—"}</div>
+            <div className="truncate text-xs text-[#4B5563]">{log.applicant_email || "—"}</div>
+          </div>
+        </div>
+      );
     case "email":
       return <span className="text-sm text-[#374151]">{log.applicant_email ?? "—"}</span>;
     case "date":
