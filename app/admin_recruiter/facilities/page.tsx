@@ -19,10 +19,8 @@ import { filterFacilitiesBySearch } from "@/lib/facilities/facility-management-s
 import type { FacilityAssignedWorker, FacilityManagementItem } from "@/lib/facilities/types";
 
 const BRAND_ICON = "var(--brand-primary)";
-const FACILITY_CARD_GRID_CLASS =
-  "grid grid-cols-[repeat(auto-fill,minmax(min(100%,260px),1fr))] gap-3";
-const CANDIDATE_CARD_GRID_CLASS =
-  "grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3";
+const FACILITY_CARD_GRID_CLASS = "grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3";
+const CANDIDATE_CARD_GRID_CLASS = "grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3";
 
 function formatDate(iso: string | null | undefined) {
   if (!iso) return "—";
@@ -122,10 +120,65 @@ function AssignedCandidateListSkeleton() {
   );
 }
 
+function AssignedCandidateListRow({ worker }: { worker: FacilityAssignedWorker }) {
+  const name = workerName(worker);
+  const statusLabel = titleCaseStatus(worker.status);
+
+  return (
+    <div className="border-b border-[#E5E7EB] p-4 last:border-b-0">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex min-w-0 items-start gap-3">
+          <CandidateListAvatar name={name} />
+          <div className="min-w-0">
+            <div className="truncate text-sm font-medium text-black">{name}</div>
+            <div className="mt-0.5 text-xs text-[#6B7280]">{worker.jobRole || "No role"}</div>
+          </div>
+        </div>
+        <div className="flex shrink-0 items-center gap-1.5">
+          <span
+            className={`inline-flex items-center rounded-xl px-2 py-0.5 text-[10px] font-semibold ${candidateStatusBadgeClassName(worker.status ?? "")}`}
+          >
+            {statusLabel}
+          </span>
+          <Link
+            href={`/admin_recruiter/new/profile/${worker.workerId}`}
+            className="flex h-8 w-8 items-center justify-center rounded-md text-[#4e6462] transition hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_8%,white)]"
+            aria-label="View profile"
+          >
+            <BrandedSvgIcon src="/icons/admin-recruiter/eye.svg" className="h-4 w-4" color={BRAND_ICON} />
+          </Link>
+        </div>
+      </div>
+
+      <div className="mt-3 space-y-1.5 text-xs text-[#4B5563]">
+        <div className="flex items-start gap-2">
+          <BrandedSvgIcon
+            src="/icons/admin-recruiter/location-marker.svg"
+            className="mt-0.5 h-4 w-4 shrink-0"
+            color={BRAND_ICON}
+          />
+          <span className="leading-snug">{worker.location}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <BrandedSvgIcon src="/icons/admin-recruiter/calendar.svg" className="h-4 w-4 shrink-0" color={BRAND_ICON} />
+          <span>Assigned {formatDateShort(worker.assignedAt)}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function AssignedCandidateList({ workers }: { workers: FacilityAssignedWorker[] }) {
   return (
-    <div className="overflow-hidden rounded-md border border-[#E5E7EB]">
-      <div className="overflow-auto">
+    <>
+      <div className="overflow-hidden rounded-md border border-[#E5E7EB] md:hidden">
+        {workers.map((worker) => (
+          <AssignedCandidateListRow key={worker.assignmentId} worker={worker} />
+        ))}
+      </div>
+
+      <div className="hidden overflow-hidden rounded-md border border-[#E5E7EB] md:block">
+        <div className="overflow-auto">
         <table className="min-w-[760px] w-full border-collapse">
           <thead className="bg-[#F8FAFC]">
             <tr className="border-b border-[#E5E7EB]">
@@ -204,8 +257,9 @@ function AssignedCandidateList({ workers }: { workers: FacilityAssignedWorker[] 
             })}
           </tbody>
         </table>
+        </div>
       </div>
-    </div>
+    </>
   );
 }
 
@@ -227,7 +281,7 @@ function AssignedCandidateCard({ worker }: { worker: FacilityAssignedWorker }) {
         <div className="flex shrink-0 items-center gap-1.5">
           <Link
             href={`/admin_recruiter/new/profile/${worker.workerId}`}
-            className="flex h-6 w-6 items-center justify-center rounded-md text-[#4e6462] transition hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_8%,white)]"
+            className="flex h-8 w-8 items-center justify-center rounded-md text-[#4e6462] transition hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_8%,white)]"
             aria-label="View profile"
           >
             <BrandedSvgIcon src="/icons/admin-recruiter/eye.svg" className="h-4 w-4" color={BRAND_ICON} />
@@ -354,9 +408,9 @@ export default function FacilitiesPage() {
   }, [facilities.length, searchQuery]);
 
   return (
-    <div className="px-5 pb-8 pt-5 lg:px-8">
-      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div>
+    <div className="min-w-0 overflow-x-hidden px-4 pb-6 pt-4 sm:px-5 sm:pb-8 sm:pt-5 lg:px-8">
+      <div className="mb-5 flex flex-col gap-4 sm:mb-6 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
           <h1 className={CANDIDATES_PAGE_TITLE_CLASS} style={CANDIDATES_PAGE_TITLE_STYLE}>
             Locations
           </h1>
@@ -367,27 +421,40 @@ export default function FacilitiesPage() {
         <button
           type="button"
           onClick={() => setShowCreateModal(true)}
-          className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-(--brand-primary) px-4 text-sm font-semibold text-white transition hover:opacity-90"
+          className="hidden h-10 shrink-0 items-center justify-center gap-2 rounded-lg bg-(--brand-primary) px-4 text-sm font-semibold text-white transition hover:opacity-90 sm:inline-flex"
         >
-          <Plus className="h-4 w-4" />
+          <Plus className="h-4 w-4 shrink-0" />
           Create Facility
         </button>
       </div>
 
-      <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="relative w-full max-w-md">
+      <div className="mb-4 flex items-center gap-2 sm:mb-5 sm:justify-between sm:gap-3">
+        <div className="relative min-w-0 flex-1 sm:max-w-md">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94A3B8]" />
           <input
             type="search"
             value={searchQuery}
             onChange={(event) => setSearchQuery(event.target.value)}
-            placeholder="Search by name, address, city, state, or ZIP"
-            className="h-10 w-full rounded-lg border border-[#D8E0EA] py-2 pl-9 pr-3 text-sm text-[#0F172A] outline-none focus:border-(--brand-primary)"
+            placeholder="Search locations"
+            className="h-11 w-full rounded-lg border border-[#D8E0EA] py-2 pl-9 pr-3 text-base text-[#0F172A] outline-none focus:border-(--brand-primary) sm:h-10 sm:text-sm"
           />
         </div>
-        <div className="text-sm text-[#64748B]">
+        <button
+          type="button"
+          onClick={() => setShowCreateModal(true)}
+          className="inline-flex h-11 shrink-0 items-center justify-center gap-1.5 rounded-lg bg-(--brand-primary) px-3 text-sm font-semibold text-white transition hover:opacity-90 sm:hidden"
+          aria-label="Create Facility"
+        >
+          <Plus className="h-4 w-4 shrink-0" />
+          <span className="hidden min-[400px]:inline">Create Facility</span>
+        </button>
+        <div className="hidden text-sm text-[#64748B] sm:block sm:shrink-0">
           {loadingFacilities ? "Loading..." : `${filteredFacilities.length} facilities`}
         </div>
+      </div>
+
+      <div className="mb-4 text-sm text-[#64748B] sm:hidden">
+        {loadingFacilities ? "Loading..." : `${filteredFacilities.length} facilities`}
       </div>
 
       {facilitiesError ? (
@@ -396,9 +463,9 @@ export default function FacilitiesPage() {
         </div>
       ) : null}
 
-      <div className="flex flex-col gap-6">
-        <section className="rounded-xl border border-[#E5E7EB] bg-white p-4 sm:p-5">
-          <h2 className="mb-4 text-lg font-semibold text-[#111827]">All Facilities</h2>
+      <div className="flex flex-col gap-4 sm:gap-6">
+        <section className="rounded-xl border border-[#E5E7EB] bg-white p-3 sm:p-4 lg:p-5">
+          <h2 className="mb-3 text-base font-semibold text-[#111827] sm:mb-4 sm:text-lg">All Facilities</h2>
 
           {loadingFacilities ? (
             <div className={FACILITY_CARD_GRID_CLASS}>
@@ -419,7 +486,7 @@ export default function FacilitiesPage() {
                     key={facility.id}
                     type="button"
                     onClick={() => setSelectedFacilityId(facility.id)}
-                    className={`h-auto w-full rounded-xl border p-4 text-left transition ${
+                    className={`h-auto w-full rounded-xl border p-3.5 text-left transition sm:p-4 ${
                       selected
                         ? "border-(--brand-primary) bg-[#F0FDFA] shadow-[0_0_0_1px_var(--brand-primary)]"
                         : "border-[#E5E7EB] bg-white hover:border-[#CBD5E1] hover:bg-[#FAFAFA]"
@@ -430,20 +497,21 @@ export default function FacilitiesPage() {
                         <Building2 className="h-5 w-5" />
                       </div>
                       <div className="min-w-0 flex-1">
-                        <div className="text-base font-semibold text-[#111827]">{facility.name}</div>
-                        <div className="mt-1 text-sm text-[#6B7280]">
+                        <div className="text-base font-semibold break-words text-[#111827]">{facility.name}</div>
+                        <div className="mt-1 text-sm leading-snug break-words text-[#6B7280]">
                           {facility.address || "No address on file"}
                         </div>
                       </div>
                     </div>
-                    <div className="flex flex-wrap items-center gap-2 text-xs text-[#64748B]">
+                    <div className="flex flex-col items-start gap-2 text-xs text-[#64748B] sm:flex-row sm:flex-wrap sm:items-center">
                       {facility.facilityType ? (
                         <span className="rounded-full bg-[#F3F4F6] px-2 py-1">{facility.facilityType}</span>
                       ) : null}
                       <span className="rounded-full bg-[#ECFDF5] px-2 py-1 text-[#047857]">
-                        Assigned candidates: {facility.assignedCount}
+                        <span className="sm:hidden">Candidates: {facility.assignedCount}</span>
+                        <span className="hidden sm:inline">Assigned candidates: {facility.assignedCount}</span>
                       </span>
-                      <span>Created {formatDate(facility.createdAt)}</span>
+                      <span className="text-[#94A3B8] sm:text-[#64748B]">Created {formatDate(facility.createdAt)}</span>
                     </div>
                   </button>
                 );
@@ -452,30 +520,34 @@ export default function FacilitiesPage() {
           )}
         </section>
 
-        <section className="rounded-xl border border-[#E5E7EB] bg-white p-4 sm:p-5">
+        <section className="rounded-xl border border-[#E5E7EB] bg-white p-3 sm:p-4 lg:p-5">
           {!selectedFacility ? (
-            <div className="rounded-lg border border-dashed border-[#D1D5DB] bg-[#F9FAFB] px-6 py-10 text-center text-sm text-[#6B7280]">
+            <div className="rounded-lg border border-dashed border-[#D1D5DB] bg-[#F9FAFB] px-4 py-8 text-center text-sm text-[#6B7280] sm:px-6 sm:py-10">
               Select a facility to view assigned candidates.
             </div>
           ) : (
             <>
-              <div className="mb-5 flex flex-col gap-3 border-b border-[#E5E7EB] pb-4 sm:flex-row sm:items-start sm:justify-between">
-                <div className="min-w-0">
-                  <h2 className="text-lg font-semibold text-[#111827]">
-                    Assigned Candidates for {selectedFacility.name}
-                  </h2>
-                  <p className="mt-1 text-sm text-[#6B7280]">{selectedFacility.address || "No address on file"}</p>
-                  {!loadingAssignments ? (
-                    <p className="mt-2 text-sm text-[#64748B]">
-                      {assignedWorkers.length} candidate{assignedWorkers.length === 1 ? "" : "s"}
+              <div className="mb-4 border-b border-[#E5E7EB] pb-4 sm:mb-5">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <h2 className="text-base font-semibold break-words text-[#111827] sm:text-lg">
+                      Assigned Candidates for {selectedFacility.name}
+                    </h2>
+                    <p className="mt-1 text-sm leading-snug break-words text-[#6B7280]">
+                      {selectedFacility.address || "No address on file"}
                     </p>
-                  ) : null}
+                    {!loadingAssignments ? (
+                      <p className="mt-2 text-sm text-[#64748B]">
+                        {assignedWorkers.length} candidate{assignedWorkers.length === 1 ? "" : "s"}
+                      </p>
+                    ) : null}
+                  </div>
+                  <CandidatesViewToggle
+                    view={assignedCandidatesView}
+                    onViewChange={setAssignedCandidatesView}
+                    size="sm"
+                  />
                 </div>
-                <CandidatesViewToggle
-                  view={assignedCandidatesView}
-                  onViewChange={setAssignedCandidatesView}
-                  size="sm"
-                />
               </div>
 
               {assignmentsError ? (
