@@ -167,35 +167,56 @@ function ViewToggleButtons({
   );
 }
 
-function CreateAndViewActions({
-  view,
-  onViewChange,
-  onAdvancedSearch,
-  size = "md",
-  showViewToggle = true,
+function FiltersToggleButton({
+  active,
+  hasActiveFilters,
+  onClick,
+  className = "",
 }: {
-  view: "card" | "list";
-  onViewChange: (view: "card" | "list") => void;
-  onAdvancedSearch?: () => void;
-  size?: "md" | "sm";
-  showViewToggle?: boolean;
+  active: boolean;
+  hasActiveFilters: boolean;
+  onClick: () => void;
+  className?: string;
+}) {
+  const isOn = active || hasActiveFilters;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-expanded={active}
+      className={`inline-flex h-10 w-auto shrink-0 items-center gap-1 rounded-md border px-2.5 text-xs font-medium whitespace-nowrap transition sm:h-8 sm:px-3 sm:text-sm ${
+        isOn
+          ? "border-[color:var(--brand-primary)] bg-[color:color-mix(in_srgb,var(--brand-primary)_10%,white)] text-[color:var(--brand-primary)]"
+          : "border-[#dce6e3] bg-white text-[#334155] hover:bg-zinc-50"
+      } ${className}`}
+    >
+      <Filter className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+      <span className="hidden min-[480px]:inline">Filters</span>
+    </button>
+  );
+}
+
+function AdvancedSearchButton({
+  onClick,
+  disabled,
+  size = "md",
+}: {
+  onClick?: () => void;
+  disabled?: boolean;
+  size?: "sm" | "md";
 }) {
   const btnH = size === "sm" ? "h-9 sm:h-8" : "h-10 sm:h-9";
-
   return (
-    <div className="flex w-full min-w-0 items-center justify-end gap-2 sm:w-auto sm:shrink-0">
-      {showViewToggle ? <ViewToggleButtons view={view} onViewChange={onViewChange} size={size} /> : null}
-      <button
-        type="button"
-        onClick={onAdvancedSearch}
-        disabled={!onAdvancedSearch}
-        aria-label="Advanced search"
-        className={`inline-flex w-auto shrink-0 ${btnH} items-center justify-center gap-1.5 whitespace-nowrap rounded-md bg-[color:var(--brand-primary)] px-3 text-sm font-semibold leading-6 text-white transition hover:brightness-95`}
-      >
-        <Search className="h-4 w-4 shrink-0" />
-        <span className="truncate">Advanced Search</span>
-      </button>
-    </div>
+    <button
+      type="button"
+      onClick={() => onClick?.()}
+      disabled={disabled}
+      aria-label="Advanced search"
+      className={`relative z-10 inline-flex w-auto shrink-0 ${btnH} items-center justify-center gap-1.5 rounded-md bg-[color:var(--brand-primary)] px-2.5 text-xs font-semibold whitespace-nowrap text-white transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50 sm:px-3 sm:text-sm`}
+    >
+      <Search className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />
+      <span>Advanced Search</span>
+    </button>
   );
 }
 
@@ -275,10 +296,10 @@ export function CandidatesListShell({
         <CandidatesPageHeader title="Candidates" subtitle="Manage applicants in one place" />
 
         <div className="flex w-full flex-col overflow-hidden rounded-t-[8px] border-y border-[#E5E7EB] bg-white">
-          {/* Compact toolbar — phones & tablets up to ~1023px (fixes ~679px overlap) */}
-          <div className="flex flex-col gap-2 border-b border-[#E5E7EB] px-3 py-2.5 lg:hidden">
-            <div className="flex items-center gap-2">
-              <div className="flex h-10 min-w-0 flex-1 items-center rounded-md border border-[#dce6e3] bg-white px-3">
+          {/* Compact / tablet toolbar — below 1280px */}
+          <div className="flex flex-col gap-2 border-b border-[#E5E7EB] px-3 py-2.5 xl:hidden">
+            <div className="flex w-full items-center gap-2">
+              <div className="flex h-10 min-w-0 flex-1 items-center rounded-md border border-[#dce6e3] bg-white px-3 md:h-8">
                 <BrandedSvgIcon
                   src="/icons/admin-recruiter/candidates/search.svg"
                   className="mr-2 h-4 w-4 shrink-0"
@@ -289,62 +310,76 @@ export function CandidatesListShell({
                   value={query}
                   onChange={(e) => onQueryChange(e.target.value)}
                   placeholder="Search workers"
-                  className="min-w-0 flex-1 bg-transparent text-sm font-normal leading-6 text-[#334155] outline-none placeholder:text-[#94A3B8]"
+                  className="min-w-0 flex-1 bg-transparent text-base font-normal leading-6 text-[#334155] outline-none placeholder:text-[#94A3B8] sm:text-sm"
                   style={CANDIDATES_PAGE_SUBTITLE_STYLE}
                 />
               </div>
 
-              <button
-                type="button"
+              <FiltersToggleButton
+                active={showFilterRows}
+                hasActiveFilters={hasActiveFilters}
                 onClick={onToggleFilterRows}
-                aria-expanded={showFilterRows}
-                className={`inline-flex h-10 w-auto shrink-0 items-center gap-1 rounded-md border px-2.5 text-xs font-medium whitespace-nowrap transition ${
-                  showFilterRows || hasActiveFilters
-                    ? "border-[color:var(--brand-primary)] bg-[color:color-mix(in_srgb,var(--brand-primary)_10%,white)] text-[color:var(--brand-primary)]"
-                    : "border-[#dce6e3] bg-white text-[#334155]"
-                }`}
-              >
-                <Filter className="h-3.5 w-3.5" />
-                Filters
-              </button>
+                className="shrink-0"
+              />
             </div>
 
-            <div className="flex items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-              <MobileIconButton onClick={onEditColumns} label="Columns">
-                <Columns2 className="h-4 w-4" />
-              </MobileIconButton>
-              <MobileIconButton onClick={onExport} label="Export">
-                <Download className="h-4 w-4" />
-              </MobileIconButton>
-              <MobileIconButton onClick={onRefresh} label={refreshLabel}>
-                <BrandedSvgIcon
-                  src="/icons/admin-recruiter/candidates/refresh.svg"
-                  className="h-4 w-4"
-                  color={BRAND_ICON}
+            <div className="flex flex-wrap items-center gap-1.5 md:gap-2">
+              <div className="flex items-center gap-1.5 md:gap-2">
+                <div className="flex items-center gap-1.5 md:hidden">
+                  <MobileIconButton onClick={onEditColumns} label="Columns">
+                    <Columns2 className="h-4 w-4" />
+                  </MobileIconButton>
+                  <MobileIconButton onClick={onExport} label="Export">
+                    <Download className="h-4 w-4" />
+                  </MobileIconButton>
+                  <MobileIconButton onClick={onRefresh} label={refreshLabel}>
+                    <BrandedSvgIcon
+                      src="/icons/admin-recruiter/candidates/refresh.svg"
+                      className="h-4 w-4"
+                      color={BRAND_ICON}
+                    />
+                  </MobileIconButton>
+                </div>
+                <div className="hidden items-center gap-2 md:flex">
+                  <ToolbarIconButton onClick={onEditColumns} label="Columns">
+                    <Columns2 className="h-4 w-4 shrink-0" />
+                  </ToolbarIconButton>
+                  <ToolbarIconButton onClick={onExport} label="Export">
+                    <Download className="h-4 w-4 shrink-0" />
+                  </ToolbarIconButton>
+                  <button
+                    type="button"
+                    onClick={onRefresh}
+                    className="inline-flex h-8 items-center gap-1.5 rounded-md border border-[#dce6e3] bg-white px-2.5 text-sm font-normal leading-6 text-[#334155] transition hover:bg-zinc-50"
+                    aria-label={refreshLabel}
+                    title={refreshLabel}
+                  >
+                    <BrandedSvgIcon
+                      src="/icons/admin-recruiter/candidates/refresh.svg"
+                      className="h-4 w-4 shrink-0"
+                      color={BRAND_ICON}
+                    />
+                  </button>
+                </div>
+                <ViewToggleButtons view={view} onViewChange={onViewChange} size="sm" />
+              </div>
+
+              <div className="ml-auto">
+                <AdvancedSearchButton
+                  onClick={onAdvancedSearch}
+                  disabled={!onAdvancedSearch}
+                  size="sm"
                 />
-              </MobileIconButton>
-
-              <ViewToggleButtons view={view} onViewChange={onViewChange} size="sm" />
-
-              <button
-                type="button"
-                onClick={() => onAdvancedSearch?.()}
-                aria-label="Advanced search"
-                className="relative z-10 ml-auto inline-flex h-9 w-auto shrink-0 items-center justify-center gap-1 rounded-md bg-[color:var(--brand-primary)] px-2.5 text-xs font-semibold whitespace-nowrap text-white disabled:cursor-not-allowed disabled:opacity-50"
-                disabled={!onAdvancedSearch}
-              >
-                <Search className="h-3.5 w-3.5 shrink-0" />
-                <span className="whitespace-nowrap">Advanced Search</span>
-              </button>
+              </div>
             </div>
 
             {showFilterRows ? (
-              <div className="grid grid-cols-2 gap-2 rounded-lg border border-[#E8EEEC] bg-[#F8FAFC] p-2.5">
+              <div className="grid grid-cols-1 gap-2 rounded-lg border border-[#E8EEEC] bg-[#F8FAFC] p-2.5 min-[600px]:grid-cols-2 md:grid-cols-3">
                 <CompactFilterField label="Job Role">
                   <select
                     value={jobRoleFilter}
                     onChange={(e) => onJobRoleFilterChange(e.target.value)}
-                    className="h-9 w-full min-w-0 rounded-md border border-[#dce6e3] bg-white px-2 text-sm text-[#334155]"
+                    className="h-10 w-full min-w-0 rounded-md border border-[#dce6e3] bg-white px-2 text-sm text-[#334155] sm:h-9"
                   >
                     <option value="">All</option>
                     {jobRoleOptions.map((role) => (
@@ -358,7 +393,7 @@ export function CandidatesListShell({
                   <select
                     value={locationFilter}
                     onChange={(e) => onLocationFilterChange(e.target.value)}
-                    className="h-9 w-full min-w-0 rounded-md border border-[#dce6e3] bg-white px-2 text-sm text-[#334155]"
+                    className="h-10 w-full min-w-0 rounded-md border border-[#dce6e3] bg-white px-2 text-sm text-[#334155] sm:h-9"
                   >
                     <option value="">All</option>
                     {locationOptions.map((loc) => (
@@ -368,22 +403,22 @@ export function CandidatesListShell({
                     ))}
                   </select>
                 </CompactFilterField>
-                <CompactFilterField label="Date Applied" className="col-span-2">
+                <CompactFilterField label="Date Applied" className="min-[600px]:col-span-2 md:col-span-1">
                   <input
                     type="date"
                     value={dateFilter}
                     onChange={(e) => onDateFilterChange(e.target.value)}
-                    className="h-9 w-full min-w-0 rounded-md border border-[#dce6e3] bg-white px-2 text-sm text-[#334155] scheme-light"
+                    className="h-10 w-full min-w-0 rounded-md border border-[#dce6e3] bg-white px-2 text-sm text-[#334155] scheme-light sm:h-9"
                   />
                 </CompactFilterField>
               </div>
             ) : null}
           </div>
 
-          {/* Desktop toolbar — wide screens only */}
-          <div className="hidden w-full flex-col lg:flex">
-            <div className="flex min-h-[52px] w-full shrink-0 flex-wrap items-center gap-2 border-b border-[#E5E7EB] px-[14px] py-2 xl:flex-nowrap xl:py-0">
-              <div className="flex h-8 w-full min-w-[200px] flex-1 items-center rounded-md border border-[#dce6e3] bg-white px-3 xl:max-w-[360px]">
+          {/* Desktop toolbar — 1280px and up */}
+          <div className="hidden w-full flex-col xl:flex">
+            <div className="flex min-h-[52px] w-full items-center gap-2 border-b border-[#E5E7EB] px-[14px] py-2">
+              <div className="flex h-8 w-full min-w-0 max-w-[360px] flex-1 items-center rounded-md border border-[#dce6e3] bg-white px-3">
                 <BrandedSvgIcon
                   src="/icons/admin-recruiter/candidates/search.svg"
                   className="mr-2 h-4 w-4 shrink-0"
@@ -399,10 +434,13 @@ export function CandidatesListShell({
                 />
               </div>
 
-              <div className="flex w-full shrink-0 flex-wrap items-center justify-end gap-2 xl:ml-auto xl:w-auto">
-                <ToolbarIconButton onClick={onToggleFilterRows} label="Filters">
-                  <Filter className="h-4 w-4 shrink-0" />
-                </ToolbarIconButton>
+              <div className="ml-auto flex shrink-0 items-center gap-2">
+                <FiltersToggleButton
+                  active={showFilterRows}
+                  hasActiveFilters={hasActiveFilters}
+                  onClick={onToggleFilterRows}
+                  className="[&_span]:inline"
+                />
                 <ToolbarIconButton onClick={onEditColumns} label="Columns">
                   <Columns2 className="h-4 w-4 shrink-0" />
                 </ToolbarIconButton>
@@ -412,7 +450,7 @@ export function CandidatesListShell({
                 <button
                   type="button"
                   onClick={onRefresh}
-                  className="inline-flex h-8 items-center gap-1.5 rounded-md border border-[#dce6e3] bg-white px-2.5 text-sm font-normal leading-6 text-[#334155] transition hover:bg-zinc-50"
+                  className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-[#dce6e3] bg-white text-[#334155] transition hover:bg-zinc-50"
                   aria-label={refreshLabel}
                   title={refreshLabel}
                 >
@@ -426,11 +464,11 @@ export function CandidatesListShell({
             </div>
 
             {showFilterRows ? (
-              <div className="flex w-full flex-col gap-2 border-b border-[#E5E7EB] px-[14px] py-2.5 xl:flex-row xl:items-center xl:gap-3 xl:py-2">
-                <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-4 gap-y-2 xl:flex-nowrap xl:overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+              <div className="flex items-center gap-4 border-b border-[#E5E7EB] px-[14px] py-2.5">
+                <div className="flex min-w-0 flex-1 items-center gap-4 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
                   <BrandedSvgIcon
                     src="/icons/admin-recruiter/candidates/filtered.svg.svg"
-                    className="hidden h-4 w-4 shrink-0 xl:block"
+                    className="h-4 w-4 shrink-0"
                     color={BRAND_ICON}
                   />
                   <InlineFilterField label="Job Role">
@@ -473,45 +511,41 @@ export function CandidatesListShell({
                     />
                   </InlineFilterField>
                 </div>
-
-                <div className="w-full shrink-0 xl:ml-auto xl:w-auto xl:pl-3">
-                  <CreateAndViewActions
-                    view={view}
-                    onViewChange={onViewChange}
-                    onAdvancedSearch={onAdvancedSearch}
+                <div className="ml-auto flex shrink-0 items-center gap-2">
+                  <AdvancedSearchButton
+                    onClick={onAdvancedSearch}
+                    disabled={!onAdvancedSearch}
                     size="sm"
                   />
+                  <ViewToggleButtons view={view} onViewChange={onViewChange} size="sm" />
                 </div>
               </div>
             ) : null}
           </div>
         </div>
 
-        <div
-          className={`flex w-full flex-col gap-2 px-3 py-2 lg:flex-row lg:items-center lg:gap-3 lg:px-[14px] lg:py-3 ${
-            showFilterRows ? "" : "lg:justify-between"
-          }`}
-        >
+        <div className="flex w-full flex-col gap-2 px-3 py-2 xl:flex-row xl:items-center xl:justify-between xl:gap-3 xl:px-[14px] xl:py-3">
           <div className="text-xs leading-4 text-[#5e7371]">{totalText}</div>
           {!showFilterRows ? (
-            <div className="hidden w-full shrink-0 lg:ml-auto lg:block lg:w-auto">
-              <CreateAndViewActions
-                view={view}
-                onViewChange={onViewChange}
-                onAdvancedSearch={onAdvancedSearch}
+            <div className="hidden shrink-0 items-center gap-2 xl:flex">
+              <AdvancedSearchButton
+                onClick={onAdvancedSearch}
+                disabled={!onAdvancedSearch}
+                size="sm"
               />
+              <ViewToggleButtons view={view} onViewChange={onViewChange} size="sm" />
             </div>
           ) : null}
         </div>
 
-        <div className="bg-white px-3 py-4 lg:px-[14px]">{children}</div>
+        <div className="bg-white px-3 py-4 xl:px-[14px]">{children}</div>
 
         {totalFiltered > 0 ? (
-          <div className="flex flex-col gap-3 border-t border-[#E5E7EB] bg-white px-3 py-4 lg:flex-row lg:flex-wrap lg:items-center lg:justify-between lg:gap-4 lg:px-[14px]">
+          <div className="flex flex-col gap-3 border-t border-[#E5E7EB] bg-white px-3 py-4 xl:flex-row xl:flex-wrap xl:items-center xl:justify-between xl:gap-4 xl:px-[14px]">
             <p className="text-sm text-[#64748B]">
               Showing {rangeStart}-{rangeEnd} of {totalFiltered} results
             </p>
-            <div className="flex w-full flex-wrap items-center justify-end gap-3 lg:w-auto">
+            <div className="flex w-full flex-wrap items-center justify-end gap-3 xl:w-auto">
               <label className="flex items-center gap-2 text-sm text-[#64748B]">
                 Show
                 <select

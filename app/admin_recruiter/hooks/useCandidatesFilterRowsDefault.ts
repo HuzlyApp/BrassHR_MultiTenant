@@ -7,7 +7,7 @@ export function useCandidatesFilterRowsDefault() {
   const [showFilterRows, setShowFilterRows] = useState(false);
 
   useEffect(() => {
-    const mq = window.matchMedia("(min-width: 1024px)");
+    const mq = window.matchMedia("(min-width: 1280px)");
     const sync = () => setShowFilterRows(mq.matches);
     sync();
     mq.addEventListener("change", sync);
