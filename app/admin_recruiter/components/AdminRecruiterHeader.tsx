@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { ChevronDown, ChevronLeft, Menu } from "lucide-react";
+import { ChevronDown, ChevronLeft } from "lucide-react";
 import {
   isCandidateDetailPage,
   navigateCandidateDetailBack,
@@ -61,6 +61,7 @@ type ConversationsResponse = {
 
 type AdminRecruiterHeaderProps = {
   onMenuClick?: () => void;
+  mobileNavOpen?: boolean;
   sidebarCollapsed?: boolean;
   onSidebarToggle?: () => void;
 };
@@ -69,6 +70,7 @@ const DEFAULT_TENANT_LOGO = "/images/new-logo-nexus.svg";
 
 export function AdminRecruiterHeader({
   onMenuClick,
+  mobileNavOpen = false,
   sidebarCollapsed = false,
   onSidebarToggle,
 }: AdminRecruiterHeaderProps) {
@@ -202,21 +204,32 @@ export function AdminRecruiterHeader({
       className="sticky top-0 z-40 w-full bg-white border-b border-[#E2E8F0]"
       style={{ borderColor: "color-mix(in srgb, var(--brand-accent) 35%, #E2E8F0)" }}
     >
-      <div className="flex h-14 min-w-0 w-full items-center justify-between gap-2 px-3 sm:h-[64px] sm:gap-3 sm:px-5 lg:px-8">
+      <div className="flex h-14 min-w-0 w-full items-center justify-between gap-2 px-3 sm:h-[64px] sm:gap-3 sm:px-5 min-[1000px]:px-8 max-[999px]:pr-3">
         <div className="flex min-w-0 shrink-0 items-center gap-1 sm:gap-2">
-          <button
-            type="button"
-            onClick={onMenuClick}
-            className="inline-flex h-8 w-8 items-center justify-center bg-transparent text-[#64748B] transition hover:text-[#0F3B76] lg:hidden"
-            aria-label="Open navigation menu"
-          >
-            <Menu className="h-5 w-5" />
-          </button>
+          {onMenuClick ? (
+            <button
+              type="button"
+              onClick={onMenuClick}
+              className="inline-flex h-8 w-8 items-center justify-center bg-transparent text-[#64748B] transition hover:text-[#0F3B76] min-[1000px]:hidden"
+              aria-label="Open navigation menu"
+              aria-expanded={mobileNavOpen}
+              title="Open menu"
+            >
+              <Image
+                src={SIDEBAR_TOGGLE_ICON}
+                alt=""
+                width={20}
+                height={20}
+                className="h-5 w-5 shrink-0"
+                aria-hidden
+              />
+            </button>
+          ) : null}
           {onSidebarToggle ? (
             <button
               type="button"
               onClick={onSidebarToggle}
-              className="hidden h-8 w-8 items-center justify-center bg-transparent text-[#64748B] transition hover:text-[#0F3B76] lg:inline-flex"
+              className="hidden h-8 w-8 items-center justify-center bg-transparent text-[#64748B] transition hover:text-[#0F3B76] min-[1000px]:inline-flex"
               aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
               title={sidebarCollapsed ? "Expand menu" : "Collapse menu"}
             >

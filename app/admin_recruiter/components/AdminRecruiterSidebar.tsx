@@ -5,6 +5,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
+import { X } from "lucide-react";
 import { SidebarSubmenuToggleIcon } from "@/app/components/sidebar/SidebarSubmenuToggleIcon";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import { useAccountData } from "@/app/admin_recruiter/hooks/useAccountData";
@@ -25,6 +26,7 @@ import { supabaseBrowser } from "@/lib/supabase-browser";
 
 const SIDEBAR_EXPANDED_WIDTH = 272;
 const SIDEBAR_COLLAPSED_WIDTH = 80;
+const SIDEBAR_COLLAPSED_WIDTH_NARROW = Math.round(SIDEBAR_COLLAPSED_WIDTH * 0.8);
 
 type AdminRecruiterSidebarProps = {
   isMobileOpen?: boolean;
@@ -186,32 +188,82 @@ export function AdminRecruiterSidebar({
 
   const sidebarWidth = collapsed ? SIDEBAR_COLLAPSED_WIDTH : SIDEBAR_EXPANDED_WIDTH;
 
-  const renderSidebarContent = (isCollapsed: boolean) => (
+  const collapsedRowClass = (isCollapsed: boolean, isMobileRail: boolean) =>
+    isCollapsed
+      ? isMobileRail
+        ? "w-full justify-center px-0 py-1.5"
+        : "w-full justify-center px-0 py-2"
+      : "gap-3 pl-2 pr-0 py-1";
+
+  const renderSidebarContent = (
+    isCollapsed: boolean,
+    options?: { isMobileRail?: boolean; showMobileClose?: boolean }
+  ) => {
+    const isMobileRail = options?.isMobileRail ?? false;
+    const showMobileClose = options?.showMobileClose ?? false;
+
+    return (
     <div className="flex h-full flex-col overflow-hidden bg-white">
-      <div className={`border-b border-[#E2E8F0] ${isCollapsed ? "px-2 py-3" : "px-4 py-3"}`}>
-        <div className={`flex items-center ${isCollapsed ? "justify-center" : "gap-3"}`}>
+      <div
+        className={`border-b border-[#E2E8F0] ${
+          isMobileRail
+            ? "flex h-16 shrink-0 items-center justify-center px-0"
+            : isCollapsed
+              ? "px-2 py-3"
+              : "px-4 py-3"
+        }`}
+      >
+        <div
+          className={`flex w-full items-center ${
+            isCollapsed && !isMobileRail
+              ? "justify-center"
+              : showMobileClose
+                ? "justify-between gap-3"
+                : isMobileRail
+                  ? "justify-center"
+                  : "gap-3"
+          }`}
+        >
           <div
-            className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl border bg-white"
-            style={{ borderColor: "color-mix(in srgb, var(--brand-primary) 55%, #CBD5E1)" }}
+            className={`flex min-w-0 items-center ${
+              isCollapsed && !isMobileRail ? "" : isMobileRail ? "justify-center" : "gap-3"
+            }`}
           >
-            <img
-              src={logoSrc}
-              alt={branding.companyName}
-              className="max-h-[40px] max-w-[40px] object-contain"
-              width={40}
-              height={40}
-              onError={() => setLogoSrc(DEFAULT_TENANT_LOGO)}
-            />
-          </div>
-          {!isCollapsed ? (
-            <div className="min-w-0">
-              <p className="truncate text-[18px] leading-[28px] font-semibold text-[#0F3B76]">
-                {sidebarCompanyName || branding.companyName}
-              </p>
-              <p className="text-[10px] leading-[15px] font-light uppercase tracking-normal text-[#94A3B8]">
-                Dashboard
-              </p>
+            <div
+              className={`flex shrink-0 items-center justify-center overflow-hidden rounded-xl border bg-white ${
+                isMobileRail ? "h-9 w-9" : "h-10 w-10"
+              }`}
+              style={{ borderColor: "color-mix(in srgb, var(--brand-primary) 55%, #CBD5E1)" }}
+            >
+              <img
+                src={logoSrc}
+                alt={branding.companyName}
+                className={`object-contain ${isMobileRail ? "max-h-[32px] max-w-[32px]" : "max-h-[40px] max-w-[40px]"}`}
+                width={40}
+                height={40}
+                onError={() => setLogoSrc(DEFAULT_TENANT_LOGO)}
+              />
             </div>
+            {!isCollapsed ? (
+              <div className="min-w-0">
+                <p className="truncate text-[18px] leading-[28px] font-semibold text-[#0F3B76]">
+                  {sidebarCompanyName || branding.companyName}
+                </p>
+                <p className="text-[10px] leading-[15px] font-light uppercase tracking-normal text-[#94A3B8]">
+                  Dashboard
+                </p>
+              </div>
+            ) : null}
+          </div>
+          {showMobileClose ? (
+            <button
+              type="button"
+              onClick={onMobileClose}
+              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-[#64748B] transition hover:bg-white hover:text-[#0F3B76]"
+              aria-label="Close menu"
+            >
+              <X className="h-5 w-5" aria-hidden />
+            </button>
           ) : null}
         </div>
       </div>
@@ -219,11 +271,15 @@ export function AdminRecruiterSidebar({
       <nav
         ref={navRef}
         className={`admin-recruiter-sidebar-nav flex-1 overflow-y-auto overflow-x-hidden ${
-          isCollapsed ? "py-3 pl-2 pr-0" : "py-3 pl-3 pr-0"
+          isMobileRail
+            ? "flex flex-col items-center py-2 px-0"
+            : isCollapsed
+              ? "py-3 px-0"
+              : "py-3 pl-3 pr-0"
         }`}
       >
         {renderedSections.map((section) => (
-          <div key={section.label} className="mb-1">
+          <div key={section.label} className={`mb-1 ${isMobileRail || isCollapsed ? "w-full" : ""}`}>
             {section.children?.length && !isCollapsed ? (
               <div
                 className={`group relative flex min-h-[36px] w-full items-center gap-2 overflow-hidden rounded-md pl-2 pr-0 py-1 transition hover:bg-white ${
@@ -274,7 +330,7 @@ export function AdminRecruiterSidebar({
               <div
                 title={`${section.label} (Coming soon)`}
                 className={`group relative flex min-h-[36px] items-center overflow-hidden rounded-md ${
-                  isCollapsed ? "justify-center pl-2 pr-0 py-2" : "gap-3 pl-2 pr-0 py-1"
+                  collapsedRowClass(isCollapsed, isMobileRail)
                 } text-[#012352]`}
                 aria-disabled
               >
@@ -291,9 +347,10 @@ export function AdminRecruiterSidebar({
                 href={section.href}
                 onClick={handleNavClick}
                 title={isCollapsed ? section.label : undefined}
-                className={`group relative flex min-h-[36px] items-center overflow-hidden rounded-md transition hover:bg-white ${
-                  isCollapsed ? "justify-center pl-2 pr-0 py-2" : "gap-3 pl-2 pr-0 py-1"
-                } ${
+                className={`group relative flex min-h-[36px] items-center overflow-hidden rounded-md transition hover:bg-white ${collapsedRowClass(
+                  isCollapsed,
+                  isMobileRail
+                )} ${
                   section.active
                     ? "text-[color:var(--brand-primary)]"
                     : "text-[#012352] hover:text-[color:var(--brand-primary)]"
@@ -349,9 +406,21 @@ export function AdminRecruiterSidebar({
         ))}
       </nav>
 
-      <div className={`border-t border-[#E2E8F0] ${isCollapsed ? "px-2 py-3" : "px-4 py-3"}`}>
-        <div className={`flex items-center ${isCollapsed ? "flex-col gap-2" : "gap-2.5"}`}>
-          {!isCollapsed ? (
+      <div
+        className={`border-t border-[#E2E8F0] ${
+          isMobileRail ? "px-0 py-2" : isCollapsed ? "px-2 py-3" : "px-4 py-3"
+        }`}
+      >
+        <div
+          className={`flex items-center ${
+            isCollapsed
+              ? isMobileRail
+                ? "flex-col items-center justify-center gap-2"
+                : "flex-col items-center gap-2"
+              : "gap-2.5"
+          }`}
+        >
+          {!isCollapsed || isMobileRail ? (
             profilePhoto ? (
               <img
                 src={profilePhoto}
@@ -386,7 +455,8 @@ export function AdminRecruiterSidebar({
         </div>
       </div>
     </div>
-  );
+    );
+  };
 
   const asideStyle = {
     width: sidebarWidth,
@@ -398,7 +468,7 @@ export function AdminRecruiterSidebar({
   return (
     <>
       <aside
-        className={`admin-recruiter-sidebar fixed inset-y-0 left-0 z-40 hidden border-r border-[#E2E8F0] bg-white transition-[width] duration-200 ease-in-out lg:block ${sidebarHoverClass}`}
+        className={`admin-recruiter-sidebar fixed inset-y-0 left-0 z-40 hidden h-screen overflow-hidden border-r border-[#E2E8F0] bg-white transition-[width] duration-200 ease-in-out min-[1000px]:block ${sidebarHoverClass}`}
         style={asideStyle}
         data-collapsed={collapsed ? "true" : "false"}
         {...sidebarHoverProps}
@@ -406,15 +476,25 @@ export function AdminRecruiterSidebar({
         {renderSidebarContent(collapsed)}
       </aside>
 
+      <aside
+        className={`admin-recruiter-sidebar admin-recruiter-sidebar-mobile-rail fixed inset-y-0 left-0 z-40 h-screen overflow-hidden border-r border-[#E2E8F0] bg-white min-[1000px]:hidden ${sidebarHoverClass} ${
+          isMobileOpen ? "hidden" : "block"
+        }`}
+        data-collapsed="true"
+        {...sidebarHoverProps}
+      >
+        {renderSidebarContent(true, { isMobileRail: true })}
+      </aside>
+
       <div
-        className={`fixed inset-0 z-50 bg-black/30 transition-opacity lg:hidden ${
+        className={`fixed inset-0 z-50 bg-black/30 transition-opacity min-[1000px]:hidden ${
           isMobileOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"
         }`}
         onClick={onMobileClose}
         aria-hidden={!isMobileOpen}
       >
         <aside
-          className={`admin-recruiter-sidebar h-full border-r border-[#E2E8F0] bg-white transition-transform ${sidebarHoverClass} ${
+          className={`admin-recruiter-sidebar h-full border-r border-[#E2E8F0] bg-white transition-transform duration-200 ease-in-out ${sidebarHoverClass} ${
             isMobileOpen ? "translate-x-0" : "-translate-x-full"
           }`}
           style={{
@@ -425,11 +505,15 @@ export function AdminRecruiterSidebar({
           onClick={(event) => event.stopPropagation()}
           {...sidebarHoverProps}
         >
-          {renderSidebarContent(false)}
+          {renderSidebarContent(false, { showMobileClose: true })}
         </aside>
       </div>
     </>
   );
 }
 
-export { SIDEBAR_COLLAPSED_WIDTH, SIDEBAR_EXPANDED_WIDTH };
+export {
+  SIDEBAR_COLLAPSED_WIDTH,
+  SIDEBAR_COLLAPSED_WIDTH_NARROW,
+  SIDEBAR_EXPANDED_WIDTH,
+};

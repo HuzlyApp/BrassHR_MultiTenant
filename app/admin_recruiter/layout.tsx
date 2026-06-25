@@ -8,6 +8,7 @@ import { AccountDataProvider } from "@/app/admin_recruiter/account/AccountDataPr
 import {
   AdminRecruiterSidebar,
   SIDEBAR_COLLAPSED_WIDTH,
+  SIDEBAR_COLLAPSED_WIDTH_NARROW,
   SIDEBAR_EXPANDED_WIDTH,
 } from "./components/AdminRecruiterSidebar";
 import { AdminRecruiterHeader } from "./components/AdminRecruiterHeader";
@@ -26,7 +27,7 @@ const SIDEBAR_COLLAPSED_STORAGE_KEY = "adminRecruiterSidebarCollapsed";
  */
 export default function AdminRecruiterLayout({ children }: { children: ReactNode }) {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
   const pathname = usePathname();
 
   useEffect(() => {
@@ -37,6 +38,7 @@ export default function AdminRecruiterLayout({ children }: { children: ReactNode
     try {
       const stored = localStorage.getItem(SIDEBAR_COLLAPSED_STORAGE_KEY);
       if (stored === "true") setSidebarCollapsed(true);
+      else if (stored === "false") setSidebarCollapsed(false);
     } catch {
       /* ignore */
     }
@@ -66,6 +68,8 @@ export default function AdminRecruiterLayout({ children }: { children: ReactNode
         style={{
           backgroundColor: "#F4F4F4",
           ["--admin-sidebar-width" as string]: `${sidebarWidth}px`,
+          ["--admin-sidebar-collapsed-width" as string]: `${SIDEBAR_COLLAPSED_WIDTH}px`,
+          ["--admin-sidebar-collapsed-width-narrow" as string]: `${SIDEBAR_COLLAPSED_WIDTH_NARROW}px`,
         }}
       >
         <AdminRecruiterSidebar
@@ -73,10 +77,14 @@ export default function AdminRecruiterLayout({ children }: { children: ReactNode
           isMobileOpen={mobileSidebarOpen}
           onMobileClose={() => setMobileSidebarOpen(false)}
         />
-        <div className="admin-recruiter-content admin-recruiter-main-wrap min-h-screen">
+        <div
+          className="admin-recruiter-content admin-recruiter-main-wrap min-h-screen"
+          data-mobile-nav-open={mobileSidebarOpen ? "true" : "false"}
+        >
           <GodAdminImpersonationBanner />
           <AdminRecruiterHeader
             onMenuClick={() => setMobileSidebarOpen(true)}
+            mobileNavOpen={mobileSidebarOpen}
             sidebarCollapsed={sidebarCollapsed}
             onSidebarToggle={toggleSidebarCollapsed}
           />
