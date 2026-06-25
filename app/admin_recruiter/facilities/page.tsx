@@ -4,7 +4,10 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import toast from "react-hot-toast";
 import { Building2, Loader2, Plus, Search } from "lucide-react";
+import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
 import CreateFacilityModal from "@/app/admin_recruiter/components/CreateFacilityModal";
+import { CandidatesViewToggle } from "@/app/admin_recruiter/components/CandidatesListShell";
+import { CandidateListAvatar } from "@/app/admin_recruiter/components/CandidateListAvatar";
 import {
   CANDIDATES_PAGE_SUBTITLE_CLASS,
   CANDIDATES_PAGE_SUBTITLE_STYLE,
@@ -14,6 +17,12 @@ import {
 import { candidateStatusBadgeClassName } from "@/app/admin_recruiter/candidates/candidate-status-badge";
 import { filterFacilitiesBySearch } from "@/lib/facilities/facility-management-service";
 import type { FacilityAssignedWorker, FacilityManagementItem } from "@/lib/facilities/types";
+
+const BRAND_ICON = "var(--brand-primary)";
+const FACILITY_CARD_GRID_CLASS =
+  "grid grid-cols-[repeat(auto-fill,minmax(min(100%,260px),1fr))] gap-3";
+const CANDIDATE_CARD_GRID_CLASS =
+  "grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3";
 
 function formatDate(iso: string | null | undefined) {
   if (!iso) return "—";
@@ -48,6 +57,214 @@ function FacilityCardSkeleton() {
   );
 }
 
+function AssignedCandidateCardSkeleton() {
+  return (
+    <div className="animate-pulse rounded-lg border border-[#e3ecea] bg-white p-3.5">
+      <div className="flex items-start gap-3">
+        <div className="h-8 w-8 rounded-full bg-[#E5E7EB]" />
+        <div className="min-w-0 flex-1 space-y-2">
+          <div className="h-4 w-2/3 rounded bg-[#E5E7EB]" />
+          <div className="h-3 w-1/3 rounded bg-[#F3F4F6]" />
+        </div>
+      </div>
+      <div className="mt-3 h-px bg-[#E5E7EB]" />
+      <div className="mt-3 space-y-2">
+        <div className="h-3 w-full rounded bg-[#F3F4F6]" />
+        <div className="h-3 w-4/5 rounded bg-[#F3F4F6]" />
+      </div>
+    </div>
+  );
+}
+
+function formatAssignedDateTime(iso: string | null | undefined) {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  const date = d.toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+  const time = d.toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
+  return `${date} • ${time}`;
+}
+
+function formatDateShort(iso: string | null | undefined) {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+}
+
+function AssignedCandidateListSkeleton() {
+  return (
+    <div className="overflow-hidden rounded-md border border-[#E5E7EB]">
+      <div className="animate-pulse space-y-0">
+        {Array.from({ length: 4 }).map((_, index) => (
+          <div key={`list-skeleton-${index}`} className="flex gap-4 border-b border-[#E5E7EB] px-4 py-4 last:border-b-0">
+            <div className="h-8 w-8 rounded-full bg-[#E5E7EB]" />
+            <div className="flex-1 space-y-2">
+              <div className="h-4 w-1/3 rounded bg-[#E5E7EB]" />
+              <div className="h-3 w-1/4 rounded bg-[#F3F4F6]" />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function AssignedCandidateList({ workers }: { workers: FacilityAssignedWorker[] }) {
+  return (
+    <div className="overflow-hidden rounded-md border border-[#E5E7EB]">
+      <div className="overflow-auto">
+        <table className="min-w-[760px] w-full border-collapse">
+          <thead className="bg-[#F8FAFC]">
+            <tr className="border-b border-[#E5E7EB]">
+              <th className="border-r border-[#E5E7EB] bg-[#E5E7EB] px-4 py-3 text-left text-sm font-medium uppercase tracking-[0.08em] text-black first:pl-6">
+                Name
+              </th>
+              <th className="border-r border-[#E5E7EB] bg-[#E5E7EB] px-4 py-3 text-left text-sm font-medium uppercase tracking-[0.08em] text-black">
+                Job Role
+              </th>
+              <th className="border-r border-[#E5E7EB] bg-[#E5E7EB] px-4 py-3 text-left text-sm font-medium uppercase tracking-[0.08em] text-black">
+                Status
+              </th>
+              <th className="border-r border-[#E5E7EB] bg-[#E5E7EB] px-4 py-3 text-left text-sm font-medium uppercase tracking-[0.08em] text-black">
+                Location
+              </th>
+              <th className="min-w-[140px] whitespace-nowrap border-r border-[#E5E7EB] bg-[#E5E7EB] px-4 py-3 text-left text-sm font-medium uppercase tracking-[0.08em] text-black">
+                Assigned
+              </th>
+              <th className="bg-[#E5E7EB] px-4 py-3 text-left text-sm font-medium uppercase tracking-[0.08em] text-black last:pr-6">
+                Action
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {workers.map((worker) => {
+              const name = workerName(worker);
+              const statusLabel = titleCaseStatus(worker.status);
+
+              return (
+                <tr key={worker.assignmentId} className="border-b border-[#E9EDF3] hover:bg-[#F9FBFB]">
+                  <td className="border-r border-[#EEF2F7] px-4 py-4 align-middle first:pl-6">
+                    <div className="flex min-w-0 items-center gap-3">
+                      <CandidateListAvatar name={name} />
+                      <div className="min-w-0">
+                        <div className="truncate text-sm font-medium text-black">{name}</div>
+                      </div>
+                      <div className="ml-auto flex shrink-0 items-center gap-1.5">
+                        <Link
+                          href={`/admin_recruiter/new/profile/${worker.workerId}`}
+                          className="inline-flex h-7 w-7 items-center justify-center rounded-md transition hover:bg-[color-mix(in_srgb,var(--brand-primary)_8%,white)]"
+                          aria-label="View profile"
+                        >
+                          <BrandedSvgIcon src="/icons/admin-recruiter/eye.svg" className="h-4 w-4" color={BRAND_ICON} />
+                        </Link>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="border-r border-[#EEF2F7] px-4 py-4 align-middle text-sm text-[#374151]">
+                    {worker.jobRole || "—"}
+                  </td>
+                  <td className="border-r border-[#EEF2F7] px-4 py-4 align-middle">
+                    <div className="flex w-full justify-center">
+                      <span
+                        className={`inline-flex items-center rounded-xl px-2.5 py-0.5 text-sm font-medium ${candidateStatusBadgeClassName(worker.status ?? "")}`}
+                      >
+                        {statusLabel}
+                      </span>
+                    </div>
+                  </td>
+                  <td className="border-r border-[#EEF2F7] px-4 py-4 align-middle text-sm text-[#4B5563]">
+                    {worker.location}
+                  </td>
+                  <td className="min-w-[140px] whitespace-nowrap border-r border-[#EEF2F7] px-4 py-4 align-middle text-sm text-[#374151]">
+                    {formatDateShort(worker.assignedAt)}
+                  </td>
+                  <td className="px-4 py-4 align-middle last:pr-6">
+                    <Link
+                      href={`/admin_recruiter/new/profile/${worker.workerId}`}
+                      className="inline-flex h-9 shrink-0 items-center justify-center whitespace-nowrap rounded-lg bg-(--brand-primary) px-4 text-sm font-semibold text-white transition hover:opacity-90"
+                    >
+                      View profile
+                    </Link>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function AssignedCandidateCard({ worker }: { worker: FacilityAssignedWorker }) {
+  const name = workerName(worker);
+  const statusLabel = titleCaseStatus(worker.status);
+
+  return (
+    <div className="rounded-lg border border-[#e3ecea] bg-white p-3.5 transition-shadow hover:shadow-sm">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex min-w-0 items-start gap-3">
+          <CandidateListAvatar name={name} />
+          <div className="min-w-0">
+            <div className="truncate text-sm font-normal text-black">{name}</div>
+            <div className="mt-0.5 truncate text-[10px] text-[#6B7280]">{worker.jobRole || "No role"}</div>
+          </div>
+        </div>
+
+        <div className="flex shrink-0 items-center gap-1.5">
+          <Link
+            href={`/admin_recruiter/new/profile/${worker.workerId}`}
+            className="flex h-6 w-6 items-center justify-center rounded-md text-[#4e6462] transition hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_8%,white)]"
+            aria-label="View profile"
+          >
+            <BrandedSvgIcon src="/icons/admin-recruiter/eye.svg" className="h-4 w-4" color={BRAND_ICON} />
+          </Link>
+        </div>
+      </div>
+
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-b border-[#E5E7EB] pb-3">
+        <div className="flex items-center gap-1.5 text-[11px] text-[#6f8380]">
+          <BrandedSvgIcon src="/icons/admin-recruiter/calendar.svg" className="h-4 w-4" color={BRAND_ICON} />
+          <span>{formatAssignedDateTime(worker.assignedAt)}</span>
+        </div>
+        <span
+          className={`inline-flex items-center rounded-xl px-2 py-0.5 text-[10px] font-semibold ${candidateStatusBadgeClassName(worker.status ?? "")}`}
+        >
+          {statusLabel}
+        </span>
+      </div>
+
+      <div className="mt-3 space-y-1.5 text-[11px] text-[#4f6462]">
+        <div className="flex items-start gap-2.5">
+          <BrandedSvgIcon src="/icons/admin-recruiter/target.svg" className="h-4 w-4 shrink-0" color={BRAND_ICON} />
+          <span className="truncate text-black">{worker.jobRole || "—"}</span>
+        </div>
+        <div className="flex items-start gap-2.5">
+          <BrandedSvgIcon
+            src="/icons/admin-recruiter/location-marker.svg"
+            className="h-4 w-4 shrink-0"
+            color={BRAND_ICON}
+          />
+          <span className="leading-snug text-black">{worker.location}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function FacilitiesPage() {
   const [facilities, setFacilities] = useState<FacilityManagementItem[]>([]);
   const [loadingFacilities, setLoadingFacilities] = useState(true);
@@ -58,6 +275,7 @@ export default function FacilitiesPage() {
   const [loadingAssignments, setLoadingAssignments] = useState(false);
   const [assignmentsError, setAssignmentsError] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [assignedCandidatesView, setAssignedCandidatesView] = useState<"card" | "list">("card");
 
   const loadFacilities = useCallback(async () => {
     setLoadingFacilities(true);
@@ -140,10 +358,10 @@ export default function FacilitiesPage() {
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className={CANDIDATES_PAGE_TITLE_CLASS} style={CANDIDATES_PAGE_TITLE_STYLE}>
-            Facilities
+            Locations
           </h1>
           <p className={CANDIDATES_PAGE_SUBTITLE_CLASS} style={CANDIDATES_PAGE_SUBTITLE_STYLE}>
-            View facilities and assigned candidates
+            View locations and assigned candidates
           </p>
         </div>
         <button
@@ -178,12 +396,12 @@ export default function FacilitiesPage() {
         </div>
       ) : null}
 
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
+      <div className="flex flex-col gap-6">
         <section className="rounded-xl border border-[#E5E7EB] bg-white p-4 sm:p-5">
           <h2 className="mb-4 text-lg font-semibold text-[#111827]">All Facilities</h2>
 
           {loadingFacilities ? (
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <div className={FACILITY_CARD_GRID_CLASS}>
               {Array.from({ length: 4 }).map((_, index) => (
                 <FacilityCardSkeleton key={`facility-skeleton-${index}`} />
               ))}
@@ -193,7 +411,7 @@ export default function FacilitiesPage() {
               {facilitiesEmptyMessage}
             </div>
           ) : (
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <div className={FACILITY_CARD_GRID_CLASS}>
               {filteredFacilities.map((facility) => {
                 const selected = facility.id === selectedFacilityId;
                 return (
@@ -201,7 +419,7 @@ export default function FacilitiesPage() {
                     key={facility.id}
                     type="button"
                     onClick={() => setSelectedFacilityId(facility.id)}
-                    className={`rounded-xl border p-4 text-left transition ${
+                    className={`h-auto w-full rounded-xl border p-4 text-left transition ${
                       selected
                         ? "border-(--brand-primary) bg-[#F0FDFA] shadow-[0_0_0_1px_var(--brand-primary)]"
                         : "border-[#E5E7EB] bg-white hover:border-[#CBD5E1] hover:bg-[#FAFAFA]"
@@ -211,8 +429,8 @@ export default function FacilitiesPage() {
                       <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#F2F4F7] text-(--brand-primary)">
                         <Building2 className="h-5 w-5" />
                       </div>
-                      <div className="min-w-0">
-                        <div className="truncate text-base font-semibold text-[#111827]">{facility.name}</div>
+                      <div className="min-w-0 flex-1">
+                        <div className="text-base font-semibold text-[#111827]">{facility.name}</div>
                         <div className="mt-1 text-sm text-[#6B7280]">
                           {facility.address || "No address on file"}
                         </div>
@@ -236,16 +454,28 @@ export default function FacilitiesPage() {
 
         <section className="rounded-xl border border-[#E5E7EB] bg-white p-4 sm:p-5">
           {!selectedFacility ? (
-            <div className="flex min-h-[320px] items-center justify-center text-center text-sm text-[#6B7280]">
+            <div className="rounded-lg border border-dashed border-[#D1D5DB] bg-[#F9FAFB] px-6 py-10 text-center text-sm text-[#6B7280]">
               Select a facility to view assigned candidates.
             </div>
           ) : (
             <>
-              <div className="mb-5 border-b border-[#E5E7EB] pb-4">
-                <h2 className="text-lg font-semibold text-[#111827]">
-                  Assigned Candidates for {selectedFacility.name}
-                </h2>
-                <p className="mt-1 text-sm text-[#6B7280]">{selectedFacility.address || "No address on file"}</p>
+              <div className="mb-5 flex flex-col gap-3 border-b border-[#E5E7EB] pb-4 sm:flex-row sm:items-start sm:justify-between">
+                <div className="min-w-0">
+                  <h2 className="text-lg font-semibold text-[#111827]">
+                    Assigned Candidates for {selectedFacility.name}
+                  </h2>
+                  <p className="mt-1 text-sm text-[#6B7280]">{selectedFacility.address || "No address on file"}</p>
+                  {!loadingAssignments ? (
+                    <p className="mt-2 text-sm text-[#64748B]">
+                      {assignedWorkers.length} candidate{assignedWorkers.length === 1 ? "" : "s"}
+                    </p>
+                  ) : null}
+                </div>
+                <CandidatesViewToggle
+                  view={assignedCandidatesView}
+                  onViewChange={setAssignedCandidatesView}
+                  size="sm"
+                />
               </div>
 
               {assignmentsError ? (
@@ -255,55 +485,26 @@ export default function FacilitiesPage() {
               ) : null}
 
               {loadingAssignments ? (
-                <div className="space-y-3">
-                  {Array.from({ length: 3 }).map((_, index) => (
-                    <div key={`assignment-skeleton-${index}`} className="animate-pulse rounded-lg border border-[#E5E7EB] p-4">
-                      <div className="mb-2 h-4 w-1/3 rounded bg-[#E5E7EB]" />
-                      <div className="h-3 w-1/2 rounded bg-[#F3F4F6]" />
-                    </div>
-                  ))}
-                </div>
+                assignedCandidatesView === "list" ? (
+                  <AssignedCandidateListSkeleton />
+                ) : (
+                  <div className={CANDIDATE_CARD_GRID_CLASS}>
+                    {Array.from({ length: 3 }).map((_, index) => (
+                      <AssignedCandidateCardSkeleton key={`assignment-skeleton-${index}`} />
+                    ))}
+                  </div>
+                )
               ) : assignedWorkers.length === 0 ? (
                 <div className="rounded-lg border border-dashed border-[#D1D5DB] bg-[#F9FAFB] px-6 py-10 text-center text-sm text-[#6B7280]">
                   No candidates assigned to this facility yet.
                 </div>
+              ) : assignedCandidatesView === "list" ? (
+                <AssignedCandidateList workers={assignedWorkers} />
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="min-w-full text-left text-sm">
-                    <thead>
-                      <tr className="border-b border-[#E5E7EB] text-xs uppercase tracking-wide text-[#64748B]">
-                        <th className="px-3 py-3 font-medium">Name</th>
-                        <th className="px-3 py-3 font-medium">Job Role</th>
-                        <th className="px-3 py-3 font-medium">Status</th>
-                        <th className="px-3 py-3 font-medium">Location</th>
-                        <th className="px-3 py-3 font-medium">Assigned</th>
-                        <th className="px-3 py-3 font-medium">Action</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {assignedWorkers.map((worker) => (
-                        <tr key={worker.assignmentId} className="border-b border-[#F1F5F9] last:border-b-0">
-                          <td className="px-3 py-4 font-medium text-[#111827]">{workerName(worker)}</td>
-                          <td className="px-3 py-4 text-[#475569]">{worker.jobRole || "—"}</td>
-                          <td className="px-3 py-4">
-                            <span className={candidateStatusBadgeClassName(worker.status ?? "")}>
-                              {titleCaseStatus(worker.status)}
-                            </span>
-                          </td>
-                          <td className="px-3 py-4 text-[#475569]">{worker.location}</td>
-                          <td className="px-3 py-4 text-[#475569]">{formatDate(worker.assignedAt)}</td>
-                          <td className="px-3 py-4">
-                            <Link
-                              href={`/admin_recruiter/new/profile/${worker.workerId}`}
-                              className="text-sm font-medium text-(--brand-primary) hover:underline"
-                            >
-                              View profile
-                            </Link>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                <div className={CANDIDATE_CARD_GRID_CLASS}>
+                  {assignedWorkers.map((worker) => (
+                    <AssignedCandidateCard key={worker.assignmentId} worker={worker} />
+                  ))}
                 </div>
               )}
             </>

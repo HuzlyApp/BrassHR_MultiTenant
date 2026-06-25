@@ -134,7 +134,7 @@ function CompactFilterField({
   );
 }
 
-function ViewToggleButtons({
+export function CandidatesViewToggle({
   view,
   onViewChange,
   size = "md",
@@ -361,7 +361,7 @@ export function CandidatesListShell({
                     />
                   </button>
                 </div>
-                <ViewToggleButtons view={view} onViewChange={onViewChange} size="sm" />
+                <CandidatesViewToggle view={view} onViewChange={onViewChange} size="sm" />
               </div>
 
               <div className="ml-auto">
@@ -517,7 +517,7 @@ export function CandidatesListShell({
                     disabled={!onAdvancedSearch}
                     size="sm"
                   />
-                  <ViewToggleButtons view={view} onViewChange={onViewChange} size="sm" />
+                  <CandidatesViewToggle view={view} onViewChange={onViewChange} size="sm" />
                 </div>
               </div>
             ) : null}
@@ -533,7 +533,7 @@ export function CandidatesListShell({
                 disabled={!onAdvancedSearch}
                 size="sm"
               />
-              <ViewToggleButtons view={view} onViewChange={onViewChange} size="sm" />
+              <CandidatesViewToggle view={view} onViewChange={onViewChange} size="sm" />
             </div>
           ) : null}
         </div>
