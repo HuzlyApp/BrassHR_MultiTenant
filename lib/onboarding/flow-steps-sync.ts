@@ -1,4 +1,5 @@
 import type { OnboardingDbClient } from "@/lib/onboarding/load-tenant-config";
+import { normalizeWorkflowNodeSettings } from "@/lib/onboarding/normalize-workflow-settings";
 import {
   isSerializableWorkflowState,
   orderedNodeIds,
@@ -18,8 +19,8 @@ export type OnboardingFlowStepRow = {
   settings: Record<string, unknown>;
   metadata: Record<string, unknown>;
   canvas_node_id: string | null;
-  created_at: string;
-  updated_at: string;
+  created_at?: string;
+  updated_at?: string;
 };
 
 export function builderDraftToFlowStepInserts(
@@ -202,7 +203,10 @@ function stepsToBuilderDraft(
       position: { x: 120, y: 40 + index * 130 },
       day: step.day,
       required: step.is_required,
-      settings: step.settings ?? {},
+      settings: normalizeWorkflowNodeSettings(step.settings, {
+        required: step.is_required,
+        day: step.day,
+      }),
     };
   });
 

@@ -18,7 +18,6 @@ import { publishOnboardingFromWorkflow } from "@/lib/onboarding/publish-onboardi
 import { createWorkflowTemplate } from "@/lib/onboarding/workflow-templates";
 import {
   isSerializableWorkflowState,
-  serializeWorkflowState,
   type SerializableWorkflowState,
 } from "@/lib/onboarding/workflow-builder-serialization";
 import { formatApiError } from "@/lib/api/format-api-error";
@@ -227,6 +226,3 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ error: formatApiError(err) }, { status: 500 });
   }
 }
-
-/** Re-export for route handlers that need to serialize client workflow state. */
-export { serializeWorkflowState };

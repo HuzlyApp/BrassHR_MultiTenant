@@ -9,6 +9,7 @@ import {
   useMemo,
   useRef,
   useState,
+  Suspense,
   type FormEvent,
 } from "react";
 import toast from "react-hot-toast";
@@ -703,7 +704,7 @@ type OnboardingFlowsPageProps = {
   embeddedInAdminShell?: boolean;
 };
 
-export function OnboardingFlowsPage({
+function OnboardingFlowsPageContent({
   dashboardBasePath = "/braas-hr/dashboard",
   showTopTabs = false,
   embeddedInAdminShell = false,
@@ -962,6 +963,20 @@ export function OnboardingFlowsPage({
         saving={isCreating || templatesLoading}
       />
     </div>
+  );
+}
+
+export function OnboardingFlowsPage(props: OnboardingFlowsPageProps) {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-[320px] items-center justify-center">
+          <CandidateDetailLoader />
+        </div>
+      }
+    >
+      <OnboardingFlowsPageContent {...props} />
+    </Suspense>
   );
 }
 

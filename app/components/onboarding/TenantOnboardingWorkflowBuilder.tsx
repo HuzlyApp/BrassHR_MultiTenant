@@ -105,7 +105,7 @@ async function loadBuilderData(): Promise<BuilderQueryData> {
   const headers = await staffAuthHeaders();
   const fetchOptions: RequestInit = { headers, credentials: "include" };
   const [libraryRes, res] = await Promise.all([
-    safeFetchJson<{ categories?: WorkflowStepLibraryCategory[] }>(
+    safeFetchJson<{ categories?: WorkflowStepLibraryCategory[]; error?: string }>(
       "/api/admin/onboarding-builder/steps-library",
       fetchOptions
     ),
