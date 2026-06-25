@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { provisionFirmaWorkspaceForTenant } from "@/lib/firma/provision-tenant-workspace";
+import type { FirmaWorkspaceProvisioningStatus } from "@/lib/firma/provision-tenant-workspace";
 import { validateTenantSubdomainInput, subdomainErrorMessage } from "@/lib/tenant/subdomain-validation";
 import { registerTenantDomain } from "@/lib/vercel";
 
@@ -282,10 +283,14 @@ export async function POST(req: Request) {
     );
   }
 
-  let firmaProvisioning = {
-    status: "failed" as const,
-    workspaceId: null as string | null,
-    message: null as string | null,
+  let firmaProvisioning: {
+    status: FirmaWorkspaceProvisioningStatus;
+    workspaceId: string | null;
+    message: string | null;
+  } = {
+    status: "failed",
+    workspaceId: null,
+    message: null,
   };
 
   if (tenantId) {

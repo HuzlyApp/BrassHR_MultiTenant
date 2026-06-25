@@ -51,12 +51,6 @@ type SharedFilterOptions = {
   date?: string;
 };
 
-type SharedFilterOptions = {
-  scope: Awaited<ReturnType<typeof resolveStaffTenantScope>>;
-  workerId?: string;
-  date?: string;
-};
-
 async function supportsClaimTracking(supabase: SupabaseClient): Promise<boolean> {
   const { error } = await supabase.from("applicant_attendance_logs").select("claimed_at").limit(0);
   if (!error) return true;
@@ -64,39 +58,36 @@ async function supportsClaimTracking(supabase: SupabaseClient): Promise<boolean>
   throw error;
 }
 
-function applyScopeFilters<
-  T extends { eq: (column: string, value: string) => T },
->(query: T, options: SharedFilterOptions): T {
+function applyAttendanceFilters(
+  query: any,
+  options: SharedFilterOptions,
+  bucket: AttendanceBucket,
+  claimTrackingEnabled: boolean
+): any {
   let next = query;
   if (options.scope.mode === "scoped") next = next.eq("tenant_id", options.scope.tenantId);
   if (options.workerId) next = next.eq("worker_id", options.workerId);
   if (options.date) next = next.eq("attendance_date", options.date);
-  return next;
-}
 
-function applyBucketStatusFilter<
-  T extends {
-    eq: (column: string, value: string) => T;
-    not: (column: string, operator: string, value: string | null) => T;
-    is: (column: string, value: null) => T;
-  },
->(query: T, bucket: AttendanceBucket, claimTrackingEnabled: boolean): T {
   switch (bucket) {
     case "ongoing":
-      return query.eq("status", "clocked_in");
+      next = next.eq("status", "clocked_in");
+      break;
     case "completed":
-      if (claimTrackingEnabled) {
-        return query.eq("status", "clocked_out").not("claimed_at", "is", null);
-      }
-      return query.eq("id", "00000000-0000-0000-0000-000000000000");
+      next = claimTrackingEnabled
+        ? next.eq("status", "clocked_out").not("claimed_at", "is", null)
+        : next.eq("id", "00000000-0000-0000-0000-000000000000");
+      break;
     case "unclaimed":
-      if (claimTrackingEnabled) {
-        return query.eq("status", "clocked_out").is("claimed_at", null);
-      }
-      return query.eq("status", "clocked_out");
+      next = claimTrackingEnabled
+        ? next.eq("status", "clocked_out").is("claimed_at", null)
+        : next.eq("status", "clocked_out");
+      break;
     default:
-      return query;
+      break;
   }
+
+  return next;
 }
 
 async function countForBucket(
@@ -105,11 +96,9 @@ async function countForBucket(
   options: SharedFilterOptions,
   claimTrackingEnabled: boolean
 ): Promise<number> {
-  const query = applyBucketStatusFilter(
-    applyScopeFilters(
-      supabase.from("applicant_attendance_logs").select("id", { count: "exact", head: true }),
-      options
-    ),
+  const query = applyAttendanceFilters(
+    supabase.from("applicant_attendance_logs").select("id", { count: "exact", head: true }),
+    options,
     bucket,
     claimTrackingEnabled
   );
@@ -160,8 +149,9 @@ export async function GET(req: NextRequest) {
 
     const sharedOptions: SharedFilterOptions = { scope, workerId, date: date || undefined };
 
-    const filteredQuery = applyBucketStatusFilter(
-      applyScopeFilters(supabase.from("applicant_attendance_logs").select("*"), sharedOptions),
+    const filteredQuery = applyAttendanceFilters(
+      supabase.from("applicant_attendance_logs").select("*"),
+      sharedOptions,
       bucket,
       claimTrackingEnabled
     );
@@ -263,12 +253,11 @@ export async function PATCH(req: NextRequest) {
     let lookup = supabase
       .from("applicant_attendance_logs")
       .select("id, tenant_id, status, claimed_at")
-      .eq("id", idCheck.value)
-      .maybeSingle();
+      .eq("id", idCheck.value);
 
     if (scope.mode === "scoped") lookup = lookup.eq("tenant_id", scope.tenantId);
 
-    const { data: existing, error: lookupError } = await lookup;
+    const { data: existing, error: lookupError } = await lookup.maybeSingle();
     if (lookupError) throw lookupError;
     if (!existing) return NextResponse.json({ error: "Attendance record not found." }, { status: 404 });
     if (existing.status !== "clocked_out") {
