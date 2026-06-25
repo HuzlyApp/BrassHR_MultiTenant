@@ -19,6 +19,7 @@ import type { CandidateRow } from "./types";
 import AdvancedSearchModal from "../components/AdvancedSearchModal";
 import CandidateCommunicationDialog from "../components/CandidateCommunicationDialog";
 import { CandidatesListShell } from "../components/CandidatesListShell";
+import { useCandidatesFilterRowsDefault } from "../hooks/useCandidatesFilterRowsDefault";
 import { CandidateListAvatar } from "../components/CandidateListAvatar";
 import { exportCandidatesCsv } from "./export-candidates-csv";
 import { candidateStatusBadgeClassName } from "./candidate-status-badge";
@@ -145,7 +146,7 @@ export default function CandidatesPage() {
   const [jobRoleFilter, setJobRoleFilter] = useState("");
   const [locationFilter, setLocationFilter] = useState("");
   const [dateFilter, setDateFilter] = useState("");
-  const [showFilterRows, setShowFilterRows] = useState(true);
+  const [showFilterRows, setShowFilterRows] = useCandidatesFilterRowsDefault();
   const [view, setView] = useState<"card" | "list">("card");
   const [listColumnOrder, setListColumnOrder] = useState<CandidateColumnId[]>(DEFAULT_CANDIDATE_COLUMNS);
   const [editColumnsOpen, setEditColumnsOpen] = useState(false);

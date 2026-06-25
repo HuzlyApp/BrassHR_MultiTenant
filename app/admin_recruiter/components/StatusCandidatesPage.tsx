@@ -2,9 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
 import { CandidatesListShell } from "./CandidatesListShell";
+import AdvancedSearchModal from "./AdvancedSearchModal";
+import { useCandidatesFilterRowsDefault } from "../hooks/useCandidatesFilterRowsDefault";
 import { CandidateListAvatar } from "./CandidateListAvatar";
 import { exportCandidatesCsv } from "../candidates/export-candidates-csv";
 import { candidateStatusBadgeClassName } from "../candidates/candidate-status-badge";
@@ -85,6 +88,7 @@ function formatDateShort(iso: string | null) {
 
 const DEFAULT_PAGE_SIZE = 10;
 const BRAND_ICON = "var(--brand-primary)";
+const ADVANCED_SEARCH_STORAGE_KEY = "admin_recruiter_candidates_advanced_search";
 
 function pickFirstNonEmpty(values: Array<string | null | undefined>): string {
   for (const value of values) {
@@ -135,6 +139,7 @@ function resolveCandidateContact(item: WorkerProfile) {
 }
 
 export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: StatusCandidatesPageProps) {
+  const router = useRouter();
   const [candidates, setCandidates] = useState<CandidateRow[]>([]);
   const [totalFromApi, setTotalFromApi] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
@@ -142,12 +147,13 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
   const [jobRoleFilter, setJobRoleFilter] = useState("");
   const [locationFilter, setLocationFilter] = useState("");
   const [dateFilter, setDateFilter] = useState("");
-  const [showFilterRows, setShowFilterRows] = useState(true);
+  const [showFilterRows, setShowFilterRows] = useCandidatesFilterRowsDefault();
   const [view, setView] = useState<"card" | "list">("card");
   const [listColumnOrder, setListColumnOrder] = useState<CandidateColumnId[]>(DEFAULT_CANDIDATE_COLUMNS);
   const [editColumnsOpen, setEditColumnsOpen] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+  const [advancedSearchOpen, setAdvancedSearchOpen] = useState(false);
 
   useEffect(() => {
     setListColumnOrder(loadColumnOrder());
@@ -297,6 +303,7 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
         onViewChange={setView}
         onEditColumns={() => setEditColumnsOpen(true)}
         onExport={() => exportCandidatesCsv(filtered)}
+        onAdvancedSearch={() => setAdvancedSearchOpen(true)}
         totalCount={totalFromApi}
         loading={loading}
         totalLabel={`${statusLabel} applicants`}
@@ -452,6 +459,26 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
         onSave={(order) => {
           setListColumnOrder(order);
           saveColumnOrder(order);
+        }}
+      />
+
+      <AdvancedSearchModal
+        open={advancedSearchOpen}
+        onClose={() => setAdvancedSearchOpen(false)}
+        onViewResults={(params) => {
+          if (typeof window !== "undefined") {
+            window.sessionStorage.setItem(
+              ADVANCED_SEARCH_STORAGE_KEY,
+              JSON.stringify({
+                lat: params.lat,
+                lng: params.lng,
+                radius: params.radius,
+                ...(params.place ? { place: params.place } : {}),
+              })
+            );
+          }
+          setAdvancedSearchOpen(false);
+          router.push("/admin_recruiter/candidates");
         }}
       />
     </>

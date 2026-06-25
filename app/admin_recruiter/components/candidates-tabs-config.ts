@@ -14,9 +14,9 @@ export type CandidateTab = {
 export const CANDIDATES_TABS: CandidateTab[] = [
   { id: "all", label: "All", href: "/admin_recruiter/candidates" },
   { id: "new", label: "New", href: "/admin_recruiter/new" },
-  { id: "pending", label: "Pending", href: "/admin_recruiter/pending" },
+  { id: "pending", label: "Pending Review", href: "/admin_recruiter/pending" },
   { id: "approved", label: "Approved", href: "/admin_recruiter/approved" },
-  { id: "disapproved", label: "Disapproved", href: "/admin_recruiter/disapproved" },
+  { id: "disapproved", label: "Rejected", href: "/admin_recruiter/disapproved" },
 ];
 
 export const CANDIDATE_ROUTE_PREFIXES = [

@@ -60,7 +60,7 @@ function InlineFilterField({
   children: React.ReactNode;
 }) {
   return (
-    <label className="flex items-center gap-2">
+    <label className="flex w-full min-w-0 shrink-0 flex-col gap-1 lg:w-auto lg:flex-row lg:items-center lg:gap-2">
       <span className={CANDIDATES_FILTER_LABEL_CLASS} style={CANDIDATES_PAGE_SUBTITLE_STYLE}>
         {label}
       </span>
@@ -69,37 +69,89 @@ function InlineFilterField({
   );
 }
 
-function CreateAndViewActions({
+function MobileIconButton({
+  onClick,
+  label,
+  children,
+}: {
+  onClick: () => void;
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      title={label}
+      className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-[#dce6e3] bg-white text-[#334155] transition hover:bg-zinc-50"
+    >
+      {children}
+    </button>
+  );
+}
+
+function ToolbarIconButton({
+  onClick,
+  label,
+  children,
+  className = "",
+}: {
+  onClick: () => void;
+  label: string;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      title={label}
+      className={`inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-md border border-[#dce6e3] bg-white px-3 text-sm font-normal leading-6 text-[#334155] transition hover:bg-zinc-50 ${className}`}
+      style={CANDIDATES_PAGE_SUBTITLE_STYLE}
+    >
+      {children}
+      <span>{label}</span>
+    </button>
+  );
+}
+
+function CompactFilterField({
+  label,
+  children,
+  className = "",
+}: {
+  label: string;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <label className={`flex min-w-0 flex-col gap-1 ${className}`}>
+      <span className="text-xs font-medium leading-4 text-[#475569]">{label}</span>
+      {children}
+    </label>
+  );
+}
+
+function ViewToggleButtons({
   view,
   onViewChange,
-  onAdvancedSearch,
   size = "md",
 }: {
   view: "card" | "list";
   onViewChange: (view: "card" | "list") => void;
-  onAdvancedSearch?: () => void;
   size?: "md" | "sm";
 }) {
-  const btnH = size === "sm" ? "h-8" : "h-9";
-  const iconBtn = size === "sm" ? "h-8 w-8" : "h-9 w-9";
+  const iconBtn = size === "sm" ? "h-9 w-9" : "h-10 w-10 sm:h-9 sm:w-9";
 
   return (
-    <div className="flex shrink-0 items-center gap-2">
-      <button
-        type="button"
-        onClick={onAdvancedSearch}
-        disabled={!onAdvancedSearch}
-        aria-label="Advanced search"
-        className={`inline-flex ${btnH} items-center gap-1.5 whitespace-nowrap rounded-md bg-[color:var(--brand-primary)] px-3 text-sm font-semibold leading-6 text-white transition hover:brightness-95`}
-      >
-        <Search className="h-3.5 w-3.5 shrink-0" />
-        Advanced Search
-      </button>
+    <div className="flex shrink-0 items-center gap-1">
       <button
         type="button"
         onClick={() => onViewChange("card")}
         aria-label="Card view"
-        className={`inline-flex ${iconBtn} shrink-0 items-center justify-center rounded-md border transition ${viewToggleClass(view === "card")}`}
+        className={`inline-flex ${iconBtn} items-center justify-center rounded-md border transition ${viewToggleClass(view === "card")}`}
       >
         <LayoutGrid className="h-4 w-4" />
       </button>
@@ -107,9 +159,41 @@ function CreateAndViewActions({
         type="button"
         onClick={() => onViewChange("list")}
         aria-label="List view"
-        className={`inline-flex ${iconBtn} shrink-0 items-center justify-center rounded-md border transition ${viewToggleClass(view === "list")}`}
+        className={`inline-flex ${iconBtn} items-center justify-center rounded-md border transition ${viewToggleClass(view === "list")}`}
       >
         <List className="h-4 w-4" />
+      </button>
+    </div>
+  );
+}
+
+function CreateAndViewActions({
+  view,
+  onViewChange,
+  onAdvancedSearch,
+  size = "md",
+  showViewToggle = true,
+}: {
+  view: "card" | "list";
+  onViewChange: (view: "card" | "list") => void;
+  onAdvancedSearch?: () => void;
+  size?: "md" | "sm";
+  showViewToggle?: boolean;
+}) {
+  const btnH = size === "sm" ? "h-9 sm:h-8" : "h-10 sm:h-9";
+
+  return (
+    <div className="flex w-full min-w-0 items-center justify-end gap-2 sm:w-auto sm:shrink-0">
+      {showViewToggle ? <ViewToggleButtons view={view} onViewChange={onViewChange} size={size} /> : null}
+      <button
+        type="button"
+        onClick={onAdvancedSearch}
+        disabled={!onAdvancedSearch}
+        aria-label="Advanced search"
+        className={`inline-flex w-auto shrink-0 ${btnH} items-center justify-center gap-1.5 whitespace-nowrap rounded-md bg-[color:var(--brand-primary)] px-3 text-sm font-semibold leading-6 text-white transition hover:brightness-95`}
+      >
+        <Search className="h-4 w-4 shrink-0" />
+        <span className="truncate">Advanced Search</span>
       </button>
     </div>
   );
@@ -147,6 +231,8 @@ export function CandidatesListShell({
   totalFiltered,
   children,
 }: CandidatesListShellProps) {
+  const hasActiveFilters = Boolean(jobRoleFilter || locationFilter || dateFilter);
+
   const totalPages = Math.max(1, Math.ceil(totalFiltered / pageSize));
   const safePage = Math.min(page, totalPages);
   const rangeStart = totalFiltered === 0 ? 0 : (safePage - 1) * pageSize + 1;
@@ -182,106 +268,83 @@ export function CandidatesListShell({
   );
 
   return (
-    <div className="px-5 pb-8 pt-5 lg:px-8">
+    <div className="px-3 pb-8 pt-4 sm:px-5 sm:pt-5 lg:px-8">
       <CandidatesSubTabs />
 
       <div className="w-full overflow-hidden rounded-[12px] border border-[#E5E7EB] bg-white">
         <CandidatesPageHeader title="Candidates" subtitle="Manage applicants in one place" />
 
-        <div
-          className={`flex w-full flex-col gap-0 overflow-hidden rounded-t-[8px] border-y border-[#E5E7EB] bg-white ${
-            showFilterRows ? "min-h-[104px]" : "min-h-[52px]"
-          }`}
-        >
-          <div className="flex h-[52px] w-full shrink-0 items-center gap-3 border-b border-[#E5E7EB] px-[14px]">
-            <div className="flex h-8 w-full min-w-0 max-w-[360px] items-center rounded-md border border-[#dce6e3] bg-white px-3">
-              <BrandedSvgIcon
-                src="/icons/admin-recruiter/candidates/search.svg"
-                className="mr-2 h-4 w-4 shrink-0"
-                color={BRAND_ICON}
-              />
-              <input
-                type="search"
-                value={query}
-                onChange={(e) => onQueryChange(e.target.value)}
-                placeholder="Search workers"
-                className="min-w-0 flex-1 bg-transparent text-sm font-normal leading-6 text-[#334155] outline-none placeholder:text-[#94A3B8]"
-                style={CANDIDATES_PAGE_SUBTITLE_STYLE}
-              />
-            </div>
+        <div className="flex w-full flex-col overflow-hidden rounded-t-[8px] border-y border-[#E5E7EB] bg-white">
+          {/* Compact toolbar — phones & tablets up to ~1023px (fixes ~679px overlap) */}
+          <div className="flex flex-col gap-2 border-b border-[#E5E7EB] px-3 py-2.5 lg:hidden">
+            <div className="flex items-center gap-2">
+              <div className="flex h-10 min-w-0 flex-1 items-center rounded-md border border-[#dce6e3] bg-white px-3">
+                <BrandedSvgIcon
+                  src="/icons/admin-recruiter/candidates/search.svg"
+                  className="mr-2 h-4 w-4 shrink-0"
+                  color={BRAND_ICON}
+                />
+                <input
+                  type="search"
+                  value={query}
+                  onChange={(e) => onQueryChange(e.target.value)}
+                  placeholder="Search workers"
+                  className="min-w-0 flex-1 bg-transparent text-sm font-normal leading-6 text-[#334155] outline-none placeholder:text-[#94A3B8]"
+                  style={CANDIDATES_PAGE_SUBTITLE_STYLE}
+                />
+              </div>
 
-            <div className="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-2">
               <button
                 type="button"
                 onClick={onToggleFilterRows}
-                className="inline-flex h-8 items-center gap-1.5 rounded-md border border-[#dce6e3] bg-white px-3 text-sm font-normal leading-6 text-[#334155] transition hover:bg-zinc-50"
-                style={CANDIDATES_PAGE_SUBTITLE_STYLE}
+                aria-expanded={showFilterRows}
+                className={`inline-flex h-10 w-auto shrink-0 items-center gap-1 rounded-md border px-2.5 text-xs font-medium whitespace-nowrap transition ${
+                  showFilterRows || hasActiveFilters
+                    ? "border-[color:var(--brand-primary)] bg-[color:color-mix(in_srgb,var(--brand-primary)_10%,white)] text-[color:var(--brand-primary)]"
+                    : "border-[#dce6e3] bg-white text-[#334155]"
+                }`}
               >
-                <Filter className="h-4 w-4 shrink-0" />
+                <Filter className="h-3.5 w-3.5" />
                 Filters
               </button>
-              <button
-                type="button"
-                onClick={onEditColumns}
-                className="inline-flex h-8 items-center gap-1.5 rounded-md border border-[#dce6e3] bg-white px-3 text-sm font-normal leading-6 text-[#334155] transition hover:bg-zinc-50"
-                style={CANDIDATES_PAGE_SUBTITLE_STYLE}
-              >
-                <Columns2 className="h-4 w-4 shrink-0" />
-                Columns
-              </button>
-              <button
-                type="button"
-                onClick={onExport}
-                className="inline-flex h-8 items-center gap-1.5 rounded-md border border-[#dce6e3] bg-white px-3 text-sm font-normal leading-6 text-[#334155] transition hover:bg-zinc-50"
-                style={CANDIDATES_PAGE_SUBTITLE_STYLE}
-              >
-                <Download className="h-4 w-4 shrink-0" />
-                Export
-              </button>
-              <button
-                type="button"
-                onClick={onRefresh}
-                className="inline-flex h-8 items-center gap-1.5 rounded-md border border-[#dce6e3] bg-white px-2.5 text-sm font-normal leading-6 text-[#334155] transition hover:bg-zinc-50"
-                aria-label={refreshLabel}
-                title={refreshLabel}
-              >
+            </div>
+
+            <div className="flex items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+              <MobileIconButton onClick={onEditColumns} label="Columns">
+                <Columns2 className="h-4 w-4" />
+              </MobileIconButton>
+              <MobileIconButton onClick={onExport} label="Export">
+                <Download className="h-4 w-4" />
+              </MobileIconButton>
+              <MobileIconButton onClick={onRefresh} label={refreshLabel}>
                 <BrandedSvgIcon
                   src="/icons/admin-recruiter/candidates/refresh.svg"
-                  className="h-4 w-4 shrink-0"
+                  className="h-4 w-4"
                   color={BRAND_ICON}
                 />
-              </button>
-              {onAdvancedSearch ? (
-                <button
-                  type="button"
-                  onClick={onAdvancedSearch}
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-[#dce6e3] bg-white transition hover:bg-zinc-50"
-                  aria-label="Advanced search"
-                >
-                  <BrandedSvgIcon
-                    src="/icons/admin-recruiter/candidates/three-dot.svg"
-                    className="h-4 w-4"
-                    color={BRAND_ICON}
-                  />
-                </button>
-              ) : null}
-            </div>
-          </div>
+              </MobileIconButton>
 
-          {showFilterRows ? (
-            <div className="flex h-[52px] w-full shrink-0 items-center gap-3 px-[14px]">
-              <div className="flex min-w-0 items-center gap-4 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-                <BrandedSvgIcon
-                  src="/icons/admin-recruiter/candidates/filtered.svg.svg"
-                  className="h-4 w-4 shrink-0"
-                  color={BRAND_ICON}
-                />
-                <InlineFilterField label="Job Role">
+              <ViewToggleButtons view={view} onViewChange={onViewChange} size="sm" />
+
+              <button
+                type="button"
+                onClick={() => onAdvancedSearch?.()}
+                aria-label="Advanced search"
+                className="relative z-10 ml-auto inline-flex h-9 w-auto shrink-0 items-center justify-center gap-1 rounded-md bg-[color:var(--brand-primary)] px-2.5 text-xs font-semibold whitespace-nowrap text-white disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={!onAdvancedSearch}
+              >
+                <Search className="h-3.5 w-3.5 shrink-0" />
+                <span className="whitespace-nowrap">Advanced Search</span>
+              </button>
+            </div>
+
+            {showFilterRows ? (
+              <div className="grid grid-cols-2 gap-2 rounded-lg border border-[#E8EEEC] bg-[#F8FAFC] p-2.5">
+                <CompactFilterField label="Job Role">
                   <select
                     value={jobRoleFilter}
                     onChange={(e) => onJobRoleFilterChange(e.target.value)}
-                    className={CANDIDATES_FILTER_CONTROL_CLASS}
-                    style={CANDIDATES_PAGE_SUBTITLE_STYLE}
+                    className="h-9 w-full min-w-0 rounded-md border border-[#dce6e3] bg-white px-2 text-sm text-[#334155]"
                   >
                     <option value="">All</option>
                     {jobRoleOptions.map((role) => (
@@ -290,13 +353,12 @@ export function CandidatesListShell({
                       </option>
                     ))}
                   </select>
-                </InlineFilterField>
-                <InlineFilterField label="Location">
+                </CompactFilterField>
+                <CompactFilterField label="Location">
                   <select
                     value={locationFilter}
                     onChange={(e) => onLocationFilterChange(e.target.value)}
-                    className={CANDIDATES_FILTER_CONTROL_CLASS}
-                    style={CANDIDATES_PAGE_SUBTITLE_STYLE}
+                    className="h-9 w-full min-w-0 rounded-md border border-[#dce6e3] bg-white px-2 text-sm text-[#334155]"
                   >
                     <option value="">All</option>
                     {locationOptions.map((loc) => (
@@ -305,38 +367,134 @@ export function CandidatesListShell({
                       </option>
                     ))}
                   </select>
-                </InlineFilterField>
-                <InlineFilterField label="Date Applied">
+                </CompactFilterField>
+                <CompactFilterField label="Date Applied" className="col-span-2">
                   <input
                     type="date"
                     value={dateFilter}
                     onChange={(e) => onDateFilterChange(e.target.value)}
-                    className={`${CANDIDATES_FILTER_CONTROL_CLASS} min-w-[132px] scheme-light`}
-                    style={CANDIDATES_PAGE_SUBTITLE_STYLE}
+                    className="h-9 w-full min-w-0 rounded-md border border-[#dce6e3] bg-white px-2 text-sm text-[#334155] scheme-light"
                   />
-                </InlineFilterField>
+                </CompactFilterField>
               </div>
+            ) : null}
+          </div>
 
-              <div className="ml-auto shrink-0 pl-3">
-                <CreateAndViewActions
-                  view={view}
-                  onViewChange={onViewChange}
-                  onAdvancedSearch={onAdvancedSearch}
-                  size="sm"
+          {/* Desktop toolbar — wide screens only */}
+          <div className="hidden w-full flex-col lg:flex">
+            <div className="flex min-h-[52px] w-full shrink-0 flex-wrap items-center gap-2 border-b border-[#E5E7EB] px-[14px] py-2 xl:flex-nowrap xl:py-0">
+              <div className="flex h-8 w-full min-w-[200px] flex-1 items-center rounded-md border border-[#dce6e3] bg-white px-3 xl:max-w-[360px]">
+                <BrandedSvgIcon
+                  src="/icons/admin-recruiter/candidates/search.svg"
+                  className="mr-2 h-4 w-4 shrink-0"
+                  color={BRAND_ICON}
+                />
+                <input
+                  type="search"
+                  value={query}
+                  onChange={(e) => onQueryChange(e.target.value)}
+                  placeholder="Search workers"
+                  className="min-w-0 flex-1 bg-transparent text-sm font-normal leading-6 text-[#334155] outline-none placeholder:text-[#94A3B8]"
+                  style={CANDIDATES_PAGE_SUBTITLE_STYLE}
                 />
               </div>
+
+              <div className="flex w-full shrink-0 flex-wrap items-center justify-end gap-2 xl:ml-auto xl:w-auto">
+                <ToolbarIconButton onClick={onToggleFilterRows} label="Filters">
+                  <Filter className="h-4 w-4 shrink-0" />
+                </ToolbarIconButton>
+                <ToolbarIconButton onClick={onEditColumns} label="Columns">
+                  <Columns2 className="h-4 w-4 shrink-0" />
+                </ToolbarIconButton>
+                <ToolbarIconButton onClick={onExport} label="Export">
+                  <Download className="h-4 w-4 shrink-0" />
+                </ToolbarIconButton>
+                <button
+                  type="button"
+                  onClick={onRefresh}
+                  className="inline-flex h-8 items-center gap-1.5 rounded-md border border-[#dce6e3] bg-white px-2.5 text-sm font-normal leading-6 text-[#334155] transition hover:bg-zinc-50"
+                  aria-label={refreshLabel}
+                  title={refreshLabel}
+                >
+                  <BrandedSvgIcon
+                    src="/icons/admin-recruiter/candidates/refresh.svg"
+                    className="h-4 w-4 shrink-0"
+                    color={BRAND_ICON}
+                  />
+                </button>
+              </div>
             </div>
-          ) : null}
+
+            {showFilterRows ? (
+              <div className="flex w-full flex-col gap-2 border-b border-[#E5E7EB] px-[14px] py-2.5 xl:flex-row xl:items-center xl:gap-3 xl:py-2">
+                <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-4 gap-y-2 xl:flex-nowrap xl:overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+                  <BrandedSvgIcon
+                    src="/icons/admin-recruiter/candidates/filtered.svg.svg"
+                    className="hidden h-4 w-4 shrink-0 xl:block"
+                    color={BRAND_ICON}
+                  />
+                  <InlineFilterField label="Job Role">
+                    <select
+                      value={jobRoleFilter}
+                      onChange={(e) => onJobRoleFilterChange(e.target.value)}
+                      className={CANDIDATES_FILTER_CONTROL_CLASS}
+                      style={CANDIDATES_PAGE_SUBTITLE_STYLE}
+                    >
+                      <option value="">All</option>
+                      {jobRoleOptions.map((role) => (
+                        <option key={role} value={role}>
+                          {role}
+                        </option>
+                      ))}
+                    </select>
+                  </InlineFilterField>
+                  <InlineFilterField label="Location">
+                    <select
+                      value={locationFilter}
+                      onChange={(e) => onLocationFilterChange(e.target.value)}
+                      className={CANDIDATES_FILTER_CONTROL_CLASS}
+                      style={CANDIDATES_PAGE_SUBTITLE_STYLE}
+                    >
+                      <option value="">All</option>
+                      {locationOptions.map((loc) => (
+                        <option key={loc} value={loc}>
+                          {loc}
+                        </option>
+                      ))}
+                    </select>
+                  </InlineFilterField>
+                  <InlineFilterField label="Date Applied">
+                    <input
+                      type="date"
+                      value={dateFilter}
+                      onChange={(e) => onDateFilterChange(e.target.value)}
+                      className={`${CANDIDATES_FILTER_CONTROL_CLASS} scheme-light`}
+                      style={CANDIDATES_PAGE_SUBTITLE_STYLE}
+                    />
+                  </InlineFilterField>
+                </div>
+
+                <div className="w-full shrink-0 xl:ml-auto xl:w-auto xl:pl-3">
+                  <CreateAndViewActions
+                    view={view}
+                    onViewChange={onViewChange}
+                    onAdvancedSearch={onAdvancedSearch}
+                    size="sm"
+                  />
+                </div>
+              </div>
+            ) : null}
+          </div>
         </div>
 
         <div
-          className={`flex w-full items-center gap-3 px-[14px] py-3 ${
-            showFilterRows ? "" : "justify-between"
+          className={`flex w-full flex-col gap-2 px-3 py-2 lg:flex-row lg:items-center lg:gap-3 lg:px-[14px] lg:py-3 ${
+            showFilterRows ? "" : "lg:justify-between"
           }`}
         >
           <div className="text-xs leading-4 text-[#5e7371]">{totalText}</div>
           {!showFilterRows ? (
-            <div className="ml-auto shrink-0">
+            <div className="hidden w-full shrink-0 lg:ml-auto lg:block lg:w-auto">
               <CreateAndViewActions
                 view={view}
                 onViewChange={onViewChange}
@@ -346,14 +504,14 @@ export function CandidatesListShell({
           ) : null}
         </div>
 
-        <div className="bg-white px-[14px] py-4">{children}</div>
+        <div className="bg-white px-3 py-4 lg:px-[14px]">{children}</div>
 
         {totalFiltered > 0 ? (
-          <div className="flex flex-wrap items-center justify-between gap-4 border-t border-[#E5E7EB] bg-white px-[14px] py-4">
+          <div className="flex flex-col gap-3 border-t border-[#E5E7EB] bg-white px-3 py-4 lg:flex-row lg:flex-wrap lg:items-center lg:justify-between lg:gap-4 lg:px-[14px]">
             <p className="text-sm text-[#64748B]">
               Showing {rangeStart}-{rangeEnd} of {totalFiltered} results
             </p>
-            <div className="flex flex-wrap items-center gap-3">
+            <div className="flex w-full flex-wrap items-center justify-end gap-3 lg:w-auto">
               <label className="flex items-center gap-2 text-sm text-[#64748B]">
                 Show
                 <select

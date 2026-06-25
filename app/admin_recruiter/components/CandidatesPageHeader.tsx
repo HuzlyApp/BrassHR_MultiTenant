@@ -19,7 +19,7 @@ export function CandidatesPageHeader({
   variant = "card",
 }: CandidatesPageHeaderProps) {
   const wrapperClass =
-    variant === "page" ? "pb-5" : "px-[14px] pb-4 pt-5";
+    variant === "page" ? "pb-5" : "px-3 pb-3 pt-3 sm:px-[14px] sm:pb-4 sm:pt-5";
 
   return (
     <div className={wrapperClass}>

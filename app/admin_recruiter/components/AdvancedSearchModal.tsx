@@ -203,21 +203,31 @@ export default function AdvancedSearchModal({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 p-6">
-      <div className="w-full max-w-[620px] overflow-hidden rounded-[20px] border border-zinc-200 bg-white text-gray-600 shadow-xl">
-        <div className="flex items-center justify-between border-b border-zinc-200 px-[28px] py-4">
-          <div className="text-2xl font-semibold leading-8 text-[#1F2937]">Advanced Search</div>
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/30 p-0 sm:items-center sm:bg-black/20 sm:p-6"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="advanced-search-title"
+    >
+      <div className="flex max-h-[92dvh] w-full max-w-[620px] flex-col overflow-hidden rounded-t-[20px] border border-zinc-200 bg-white text-gray-600 shadow-xl sm:max-h-[90vh] sm:rounded-[20px]">
+        <div className="flex shrink-0 items-center justify-between border-b border-zinc-200 px-4 py-3 sm:px-[28px] sm:py-4">
+          <div
+            id="advanced-search-title"
+            className="text-lg font-semibold leading-7 text-[#1F2937] sm:text-2xl sm:leading-8"
+          >
+            Advanced Search
+          </div>
           <button
             onClick={onClose}
-            className="flex h-[30px] w-[30px] items-center justify-center rounded-full bg-black text-white"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-black text-white sm:h-[30px] sm:w-[30px]"
             aria-label="Close"
           >
-            <X className="h-[18px] w-[18px]" />
+            <X className="h-4 w-4 sm:h-[18px] sm:w-[18px]" />
           </button>
         </div>
 
-        <div className="space-y-5 px-[28px] py-5">
-          <div className="mx-auto h-[314px] w-full max-w-[560px] overflow-hidden rounded-[8px] border border-zinc-200">
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4 sm:space-y-5 sm:px-[28px] sm:py-5">
+          <div className="h-[220px] w-full overflow-hidden rounded-[8px] border border-zinc-200 sm:mx-auto sm:h-[314px] sm:max-w-[560px]">
             <MapBoxAdvanced
               center={center}
               workers={workers}
@@ -228,9 +238,63 @@ export default function AdvancedSearchModal({
             />
           </div>
 
-          <div className="mx-auto w-full max-w-[560px]">
+          <div className="w-full sm:mx-auto sm:max-w-[560px]">
             <div className="mb-2 text-sm font-normal leading-5 text-gray-700">Show me worker within</div>
-            <div className="grid grid-cols-[94px_96px_28px_1fr] gap-3">
+
+            {/* Mobile — stacked fields */}
+            <div className="flex flex-col gap-3 sm:hidden">
+              <div className="grid grid-cols-2 gap-3">
+                <input
+                  type="number"
+                  value={radiusMiles}
+                  min={1}
+                  onChange={(e) => setRadiusMiles(Number(e.target.value))}
+                  className="h-11 w-full rounded-[8px] border border-zinc-200 px-3 text-sm outline-none focus:border-[#0D9488] focus:ring-2 focus:ring-[#0D9488]/20"
+                  aria-label="Distance"
+                />
+                <select
+                  value={distanceUnit}
+                  onChange={(e) => setDistanceUnit(e.target.value as DistanceUnit)}
+                  className="h-11 w-full rounded-[8px] border border-zinc-200 bg-white px-3 text-sm text-gray-700 outline-none focus:border-[#0D9488] focus:ring-2 focus:ring-[#0D9488]/20"
+                  aria-label="Distance unit"
+                >
+                  <option value="miles">Miles</option>
+                  <option value="km">Kilometers</option>
+                </select>
+              </div>
+              <div className="text-sm text-gray-500">of</div>
+              <div className="relative">
+                <MapPin className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94A3B8]" />
+                <input
+                  value={placeQuery}
+                  onChange={(e) => setPlaceQuery(e.target.value)}
+                  placeholder="Search city or address"
+                  className="h-11 w-full rounded-[8px] border border-zinc-200 pl-10 pr-10 text-sm outline-none focus:border-[#0D9488] focus:ring-2 focus:ring-[#0D9488]/20"
+                />
+                <Search className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#6B7280]" />
+                {suggestions.length > 0 ? (
+                  <div className="absolute top-full z-10 mt-2 max-h-48 w-full overflow-y-auto rounded-[8px] border border-zinc-200 bg-white shadow-lg">
+                    {suggestions.map((s) => (
+                      <button
+                        key={s.place_name}
+                        onClick={() => {
+                          setPlaceLabel(s.place_name);
+                          setPlaceQuery(s.place_name);
+                          setSuggestions([]);
+                          setCenter([s.center[0], s.center[1]]);
+                        }}
+                        className="w-full px-4 py-3 text-left text-sm hover:bg-zinc-50"
+                      >
+                        {s.place_name}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            </div>
+
+            {/* Desktop — single row */}
+            <div className="hidden grid-cols-[94px_96px_28px_1fr] gap-3 sm:grid">
               <input
                 type="number"
                 value={radiusMiles}
@@ -278,7 +342,7 @@ export default function AdvancedSearchModal({
             </div>
           </div>
 
-          <div className="mx-auto grid w-full max-w-[560px] grid-cols-[274px_274px] gap-3">
+          <div className="grid w-full grid-cols-1 gap-3 sm:mx-auto sm:max-w-[560px] sm:grid-cols-2">
             <button
               onClick={reset}
               className="h-11 rounded-[8px] border border-[#0D9488] px-4 text-sm font-semibold text-[#0D9488] hover:bg-teal-50"
@@ -295,10 +359,14 @@ export default function AdvancedSearchModal({
 
           <div className="text-center text-sm">
             Total: <span className="font-medium">{workers.length}</span> Results{" "}
-            {placeLabel ? <>found in <span className="font-medium">{placeLabel}</span></> : null}
+            {placeLabel ? (
+              <>
+                found in <span className="font-medium">{placeLabel}</span>
+              </>
+            ) : null}
           </div>
 
-          <div className="mx-auto w-full max-w-[560px]">
+          <div className="w-full sm:mx-auto sm:max-w-[560px]">
             <Link
               href={resultsHref}
               onClick={(e) => {
