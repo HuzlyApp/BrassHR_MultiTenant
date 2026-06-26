@@ -25,7 +25,10 @@ export async function POST(req: Request) {
   }
 
   const input = normalizeBusinessInfoBody(body);
-  const context = await resolveBusinessInfoValidationContext(svc, input.state);
+  const context = {
+    ...(await resolveBusinessInfoValidationContext(svc, input.state)),
+    requireEin: true,
+  };
   const errors = validateBusinessInfoForm(input, context);
 
   if (!isBusinessInfoValid(input, context)) {

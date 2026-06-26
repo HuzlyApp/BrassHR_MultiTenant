@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { Check, ChevronDown, ChevronRight, Link2, Trash2 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState, type ChangeEvent, type DragEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ComponentProps, type DragEvent } from "react";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import type { SignupStateOption } from "@/lib/signup/owner-signup";
 import OnboardingStepsBuilder from "@/app/components/onboarding/OnboardingStepsBuilder";
@@ -20,7 +20,6 @@ import {
   type TenantGoalId,
 } from "@/app/tenant-onboarding/constants";
 import {
-  isBusinessInfoValid,
   normalizeBusinessZipInput,
   normalizeEinInput,
   validateBusinessInfoForm,
@@ -28,6 +27,7 @@ import {
   type BusinessInfoFieldKey,
 } from "@/lib/tenant/business-info-validation";
 import { APPLICATION_ROUTES } from "@/lib/onboarding/application-routes";
+import { formatPhoneNumber } from "@/lib/phone";
 import type { OnboardingStepDraft } from "@/lib/onboarding/default-onboarding-steps";
 import { subdomainErrorMessage, validateTenantSubdomainInput } from "@/lib/tenant/subdomain-validation";
 import type { TenantBranding } from "@/lib/tenant/tenant-branding";
@@ -44,13 +44,19 @@ const inputTypographyStyle = {
 const inputTextClass =
   "text-[16px] font-normal leading-[24px] tracking-normal placeholder:text-[16px] placeholder:leading-[24px] placeholder:font-normal";
 
+/** Fixed validation red — never tied to tenant brand colors. */
+const VALIDATION_ERROR_RED = "#DC2626";
+
 const inputErrorClass =
-  "border-[#ff5c7a] text-[#b91c1c] focus:border-[#ff5c7a] focus:ring-2 focus:ring-[#ff5c7a]/20";
+  "!border-[#DC2626] bg-white text-[#0f172a] focus:!border-[#DC2626] focus:ring-2 focus:ring-[#DC2626]/30";
 
 function FieldError({ message }: { message?: string | null }) {
   if (!message) return null;
   return (
-    <p className="mt-[6px] text-[13px] leading-[18px] text-[#b91c1c]" style={interStyle}>
+    <p
+      className="mt-[6px] text-[13px] font-medium leading-[18px]"
+      style={{ ...interStyle, color: VALIDATION_ERROR_RED }}
+    >
       {message}
     </p>
   );
@@ -74,8 +80,8 @@ function FieldLabel({ children, required = true }: { children: string; required?
 function ErrorBanner({ message }: { message: string }) {
   return (
     <div
-      className="mb-6 rounded-[8px] border border-[#fecaca] bg-[#fef2f2] px-[14px] py-[12px] text-[14px] leading-[20px] text-[#b91c1c]"
-      style={interStyle}
+      className="mb-6 rounded-[8px] border border-[#FECACA] bg-[#FEF2F2] px-[14px] py-[12px] text-[14px] font-medium leading-[20px]"
+      style={{ ...interStyle, color: VALIDATION_ERROR_RED }}
     >
       {message}
     </div>
@@ -170,6 +176,10 @@ function TextField({
   required = false,
   type = "text",
   error,
+  onBlur,
+  inputMode,
+  maxLength,
+  autoComplete,
 }: {
   label: string;
   value: string;
@@ -178,6 +188,10 @@ function TextField({
   required?: boolean;
   type?: string;
   error?: string | null;
+  onBlur?: () => void;
+  inputMode?: ComponentProps<"input">["inputMode"];
+  maxLength?: number;
+  autoComplete?: string;
 }) {
   return (
     <div>
@@ -186,7 +200,11 @@ function TextField({
         type={type}
         value={value}
         onChange={(e) => onChange(e.target.value)}
+        onBlur={onBlur}
         placeholder={placeholder}
+        inputMode={inputMode}
+        maxLength={maxLength}
+        autoComplete={autoComplete}
         style={inputTypographyStyle}
         className={`h-[56px] w-full rounded-[8px] border bg-white px-[14px] ${inputTextClass} outline-none transition placeholder:text-[#94a3b8] ${
           error ? inputErrorClass : `border-[#cbd5e1] text-[#0f172a] ${inputFocusClass}`
@@ -253,6 +271,7 @@ function AddressField({
   required = true,
   helperText = "Building, Floor, etc.",
   error,
+  onBlur,
 }: {
   label: string;
   value: string;
@@ -261,6 +280,7 @@ function AddressField({
   required?: boolean;
   helperText?: string;
   error?: string | null;
+  onBlur?: () => void;
 }) {
   return (
     <div>
@@ -279,7 +299,9 @@ function AddressField({
         type="text"
         value={value}
         onChange={(e) => onChange(e.target.value)}
+        onBlur={onBlur}
         placeholder={placeholder}
+        autoComplete="street-address"
         style={inputTypographyStyle}
         className={`h-[56px] w-full rounded-[8px] border bg-white px-[14px] ${inputTextClass} outline-none transition placeholder:text-[#94a3b8] ${
           error ? inputErrorClass : `border-[#cbd5e1] text-[#0f172a] ${inputFocusClass}`
@@ -477,6 +499,7 @@ export function BusinessStep({
       stateCode: selectedStateCode || undefined,
       allowedStateNames: stateOptions,
       allowedCityNames: cityOptions.length > 0 ? cityOptions : undefined,
+      requireEin: true,
     }),
     [cityOptions, selectedStateCode, stateOptions]
   );
@@ -497,17 +520,20 @@ export function BusinessStep({
     [businessInfo, orgName]
   );
 
-  const canContinue = useMemo(
-    () => isBusinessInfoValid(formInput, validationContext),
-    [formInput, validationContext]
-  );
-
   const revalidateField = (field: BusinessInfoFieldKey, nextInput = formInput) => {
     const nextErrors = validateBusinessInfoForm(nextInput, validationContext);
     setFieldErrors((prev) => ({
       ...prev,
       [field]: nextErrors[field] ?? undefined,
     }));
+  };
+
+  const showFieldError = (field: BusinessInfoFieldKey) =>
+    submitAttempted ? fieldErrors[field] ?? null : null;
+
+  const handleFieldBlur = (field: BusinessInfoFieldKey) => {
+    if (!submitAttempted) return;
+    revalidateField(field);
   };
 
   const handleOrgNameChange = (value: string) => {
@@ -543,7 +569,7 @@ export function BusinessStep({
 
     const errors = validateBusinessInfoForm(formInput, validationContext);
     setFieldErrors(errors);
-    if (!canContinue) {
+    if (Object.keys(errors).length > 0) {
       return;
     }
 
@@ -602,8 +628,9 @@ export function BusinessStep({
           required
           value={orgName}
           onChange={handleOrgNameChange}
+          onBlur={() => handleFieldBlur("companyName")}
           placeholder="ABC Company"
-          error={submitAttempted ? fieldErrors.companyName : null}
+          error={showFieldError("companyName")}
         />
 
         <div className="grid gap-[24px] sm:grid-cols-2">
@@ -614,7 +641,7 @@ export function BusinessStep({
             onChange={(value) => handleBusinessFieldChange({ industry: value })}
             placeholder="Select industry"
             options={INDUSTRY_OPTIONS}
-            error={submitAttempted ? fieldErrors.industry : null}
+            error={showFieldError("industry")}
           />
           <SelectField
             label="Number of Employees"
@@ -623,7 +650,7 @@ export function BusinessStep({
             onChange={(value) => handleBusinessFieldChange({ companySize: value })}
             placeholder="Select size"
             options={COMPANY_SIZE_OPTIONS}
-            error={submitAttempted ? fieldErrors.companySize : null}
+            error={showFieldError("companySize")}
           />
         </div>
 
@@ -636,7 +663,7 @@ export function BusinessStep({
             placeholder={locationLoading ? "Loading…" : "Select state"}
             options={stateOptions}
             disabled={locationLoading}
-            error={submitAttempted ? fieldErrors.state : null}
+            error={showFieldError("state")}
           />
           {businessInfo.state && cityOptions.length === 0 && !citiesLoading ? (
             <TextField
@@ -644,8 +671,9 @@ export function BusinessStep({
               required
               value={businessInfo.city}
               onChange={(value) => handleBusinessFieldChange({ city: value })}
+              onBlur={() => handleFieldBlur("city")}
               placeholder="Enter your city"
-              error={submitAttempted ? fieldErrors.city : null}
+              error={showFieldError("city")}
             />
           ) : (
             <SelectField
@@ -664,7 +692,7 @@ export function BusinessStep({
                       : "No cities listed"
               }
               options={cityOptions}
-              error={submitAttempted ? fieldErrors.city : null}
+              error={showFieldError("city")}
             />
           )}
         </div>
@@ -674,8 +702,9 @@ export function BusinessStep({
           required
           value={businessInfo.address}
           onChange={(value) => handleBusinessFieldChange({ address: value })}
+          onBlur={() => handleFieldBlur("address")}
           placeholder="123 Maple Street, Springfield, IL 62704, USA"
-          error={submitAttempted ? fieldErrors.address : null}
+          error={showFieldError("address")}
         />
 
         <div className="grid gap-[24px] sm:grid-cols-2">
@@ -683,19 +712,25 @@ export function BusinessStep({
             label="Business Phone"
             required
             value={businessInfo.phone}
-            onChange={(value) => handleBusinessFieldChange({ phone: value })}
+            onChange={(value) => handleBusinessFieldChange({ phone: formatPhoneNumber(value) })}
+            onBlur={() => handleFieldBlur("phone")}
             placeholder="(201) 512-2366"
             type="tel"
-            error={submitAttempted ? fieldErrors.phone : null}
+            inputMode="tel"
+            autoComplete="tel"
+            error={showFieldError("phone")}
           />
           <TextField
             label="Business Email Address"
             required
             value={businessInfo.email}
             onChange={(value) => handleBusinessFieldChange({ email: value })}
+            onBlur={() => handleFieldBlur("email")}
             placeholder="info@abccompany.com"
             type="email"
-            error={submitAttempted ? fieldErrors.email : null}
+            inputMode="email"
+            autoComplete="email"
+            error={showFieldError("email")}
           />
         </div>
 
@@ -709,16 +744,22 @@ export function BusinessStep({
                 zipCode: normalizeBusinessZipInput(value).slice(0, 5),
               })
             }
+            onBlur={() => handleFieldBlur("zipCode")}
             placeholder="40170"
-            error={submitAttempted ? fieldErrors.zipCode : null}
+            inputMode="numeric"
+            maxLength={5}
+            error={showFieldError("zipCode")}
           />
           <TextField
             label="EIN Number"
-            required={false}
+            required
             value={businessInfo.ein}
             onChange={(value) => handleBusinessFieldChange({ ein: normalizeEinInput(value) })}
+            onBlur={() => handleFieldBlur("ein")}
             placeholder="12-3456789"
-            error={submitAttempted ? fieldErrors.ein : null}
+            inputMode="numeric"
+            maxLength={10}
+            error={showFieldError("ein")}
           />
         </div>
       </div>
@@ -1004,7 +1045,10 @@ export function CompanyLogoStep({
             </div>
 
             {uploadError ? (
-              <p className="mt-[8px] text-[13px] leading-[18px] text-[#b91c1c]" style={interStyle}>
+              <p
+                className="mt-[8px] text-[13px] font-medium leading-[18px]"
+                style={{ ...interStyle, color: VALIDATION_ERROR_RED }}
+              >
                 {uploadError}
               </p>
             ) : null}
@@ -1329,7 +1373,9 @@ export function DomainStep({
             <span className="font-semibold">{hostPreview ?? "abcccompany.brasshr.com"}</span>
           </div>
           {"failure" in validation && subdomain.length > 0 ? (
-            <p className="mt-2 text-[13px] text-[#b91c1c]">{subdomainErrorMessage(validation.failure)}</p>
+            <p className="mt-2 text-[13px] font-medium" style={{ color: VALIDATION_ERROR_RED }}>
+              {subdomainErrorMessage(validation.failure)}
+            </p>
           ) : null}
         </div>
       </div>

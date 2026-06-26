@@ -61,6 +61,14 @@ describe("validateBusinessInfoForm", () => {
     const errors = validateBusinessInfoForm({ ...validInput, ein: "00-1234567" });
     expect(errors.ein).toBeTruthy();
   });
+
+  it("requires EIN during tenant onboarding", () => {
+    const errors = validateBusinessInfoForm(
+      { ...validInput, ein: "" },
+      { stateCode: "CA", allowedCityNames: ["Los Angeles"], requireEin: true }
+    );
+    expect(errors.ein).toMatch(/required/i);
+  });
 });
 
 describe("zipPrefixBelongsToState", () => {

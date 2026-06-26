@@ -28,6 +28,8 @@ export type BusinessInfoValidationContext = {
   allowedCityNames?: string[];
   /** When true, state must appear in this list (state name). */
   allowedStateNames?: string[];
+  /** Tenant onboarding requires a valid EIN; admin profile may leave it blank. */
+  requireEin?: boolean;
 };
 
 const EMAIL_RE =
@@ -196,9 +198,14 @@ export function zipCodeValidationMessage(
   return null;
 }
 
-export function einValidationMessage(ein: string): string | null {
+export function einValidationMessage(
+  ein: string,
+  options?: { required?: boolean }
+): string | null {
   const trimmed = ein.trim();
-  if (!trimmed) return null;
+  if (!trimmed) {
+    return options?.required ? "EIN number is required." : null;
+  }
   const digits = trimmed.replace(/\D/g, "");
   if (digits.length !== 9) {
     return "EIN must be 9 digits in XX-XXXXXXX format.";
@@ -243,7 +250,7 @@ export function validateBusinessInfoForm(
   const zipError = zipCodeValidationMessage(input.zipCode, context);
   if (zipError) errors.zipCode = zipError;
 
-  const einError = einValidationMessage(input.ein);
+  const einError = einValidationMessage(input.ein, { required: context?.requireEin });
   if (einError) errors.ein = einError;
 
   return errors;
