@@ -201,6 +201,7 @@ export async function deleteMailDraftForWorker(
 
   if (error) {
     console.error("[deleteMailDraftForWorker] failed:", error.message);
+    throw new Error(error.message);
   }
 }
 
@@ -219,5 +220,6 @@ export async function deleteMailDraftById(
 
   if (error) {
     console.error("[deleteMailDraftById] failed:", error.message);
+    throw new Error(error.message);
   }
 }

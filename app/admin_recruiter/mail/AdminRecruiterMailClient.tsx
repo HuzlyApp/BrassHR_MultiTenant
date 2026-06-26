@@ -3,8 +3,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Archive, Loader2, Mail } from "lucide-react";
+import toast from "react-hot-toast";
 import CandidateEmailInboxPanel from "@/app/admin_recruiter/components/CandidateEmailInboxPanel";
-import { CandidateListAvatar } from "@/app/admin_recruiter/components/CandidateListAvatar";
 import { MailComposePanel } from "@/app/admin_recruiter/components/MailComposePanel";
 import { EmailIntegrationPanel } from "@/app/admin_recruiter/components/EmailIntegrationPanel";
 import {
@@ -22,6 +22,7 @@ import type { MailDraftListItem } from "@/lib/communication/mail-drafts";
 import type { CommunicationThread } from "@/lib/communication/conversation-client";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import { MailFolderListRow } from "@/app/admin_recruiter/components/MailFolderListRow";
+import { MailDraftListRow } from "@/app/admin_recruiter/components/MailDraftListRow";
 
 type MailApiResponse = {
   items?: TenantMailInboxItem[];
@@ -62,6 +63,7 @@ export default function AdminRecruiterMailClient() {
   const [activeDraft, setActiveDraft] = useState<MailDraftListItem | null>(null);
   const [drafts, setDrafts] = useState<MailDraftListItem[]>([]);
   const [draftsLoading, setDraftsLoading] = useState(false);
+  const [deletingDraftId, setDeletingDraftId] = useState<string | null>(null);
   const [workerThreads, setWorkerThreads] = useState<CommunicationThread[]>([]);
   const [workerContact, setWorkerContact] = useState<{
     name: string;
@@ -229,6 +231,43 @@ export default function AdminRecruiterMailClient() {
     openCompose(draft);
   }
 
+  const deleteDraft = useCallback(
+    async (draft: MailDraftListItem) => {
+      const label = draft.candidateName.trim() || "this draft";
+      const confirmed = window.confirm(`Delete draft for ${label}? This cannot be undone.`);
+      if (!confirmed) return;
+
+      setDeletingDraftId(draft.id);
+      try {
+        const res = await fetch("/api/admin/mail/drafts", {
+          method: "DELETE",
+          headers: {
+            ...(await authHeaders()),
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ draftId: draft.id }),
+        });
+        const json = (await res.json().catch(() => ({}))) as { error?: string };
+        if (!res.ok) {
+          throw new Error(json.error || `Could not delete draft (${res.status})`);
+        }
+
+        setDrafts((current) => current.filter((item) => item.id !== draft.id));
+        if (activeDraft?.id === draft.id) {
+          setActiveDraft(null);
+          setComposeWorkerId(null);
+          if (folder === "compose") setFolder("drafts");
+        }
+        toast.success("Draft deleted.");
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Could not delete draft.");
+      } finally {
+        setDeletingDraftId(null);
+      }
+    },
+    [activeDraft?.id, folder]
+  );
+
   const mainContent = (() => {
     if (loading && emailConfigured === null) {
       return (
@@ -267,35 +306,19 @@ export default function AdminRecruiterMailClient() {
                 </p>
               </div>
             ) : (
-              <ul className="divide-y divide-[#E5E7EB]">
+              <ul>
                 {drafts.map((draft) => (
                   <li key={draft.id}>
-                    <button
-                      type="button"
-                      onClick={() => openDraft(draft)}
-                      className="flex w-full items-start gap-3 px-5 py-4 text-left transition hover:bg-[color-mix(in_srgb,var(--brand-primary)_6%,white)]"
-                    >
-                      <CandidateListAvatar
-                        name={draft.candidateName}
-                        photoUrl={draft.profilePhotoUrl}
-                      />
-                      <span className="min-w-0 flex-1">
-                        <span className="flex items-start justify-between gap-3">
-                          <span className="truncate text-sm font-semibold text-[#111827]">
-                            {draft.candidateName}
-                          </span>
-                          <span className="shrink-0 text-xs text-[#94A3B8]">
-                            {formatMailTime(draft.updatedAt)}
-                          </span>
-                        </span>
-                        <span className="mt-0.5 block truncate text-xs text-[#64748B]">
-                          {draft.subject.trim() || "No subject"}
-                        </span>
-                        <span className="mt-1 line-clamp-2 text-xs text-[#6B7280]">
-                          {draft.body.trim() || "No message yet"}
-                        </span>
-                      </span>
-                    </button>
+                    <MailDraftListRow
+                      candidateName={draft.candidateName}
+                      profilePhotoUrl={draft.profilePhotoUrl}
+                      subject={draft.subject}
+                      preview={draft.body}
+                      timeLabel={formatMailTime(draft.updatedAt)}
+                      deleting={deletingDraftId === draft.id}
+                      onOpen={() => openDraft(draft)}
+                      onDelete={() => void deleteDraft(draft)}
+                    />
                   </li>
                 ))}
               </ul>
@@ -343,6 +366,12 @@ export default function AdminRecruiterMailClient() {
           }}
           onSent={refreshMail}
           onDraftSaved={loadDrafts}
+          onDraftDeleted={() => {
+            setActiveDraft(null);
+            setComposeWorkerId(null);
+            void loadDrafts();
+            setFolder("drafts");
+          }}
         />
       );
     }

@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, Loader2, Pencil, Save } from "lucide-react";
+import toast from "react-hot-toast";
+import BrandedDeleteIcon from "./BrandedDeleteIcon";
 import { EmailComposeForm } from "./CommunicationThreadParts";
 import { MailComposeDropdown } from "./MailComposeDropdown";
 import { MailComposeFieldRow } from "./MailComposeFieldRow";
@@ -53,6 +55,7 @@ type MailComposePanelProps = {
   onBack?: () => void;
   onSent?: () => Promise<void> | void;
   onDraftSaved?: () => Promise<void> | void;
+  onDraftDeleted?: () => void;
 };
 
 async function authHeaders(): Promise<HeadersInit> {
@@ -70,6 +73,7 @@ export function MailComposePanel({
   onBack,
   onSent,
   onDraftSaved,
+  onDraftDeleted,
 }: MailComposePanelProps) {
   const [candidates, setCandidates] = useState<CandidateOption[]>([]);
   const [loadingCandidates, setLoadingCandidates] = useState(true);
@@ -83,6 +87,7 @@ export function MailComposePanel({
   const [sendError, setSendError] = useState<string | null>(null);
   const [sendSuccess, setSendSuccess] = useState<string | null>(null);
   const [draftNotice, setDraftNotice] = useState<string | null>(null);
+  const [deletingDraft, setDeletingDraft] = useState(false);
   const hydratedRef = useRef(false);
 
   const {
@@ -307,6 +312,41 @@ export function MailComposePanel({
     onBack?.();
   }
 
+  const canDeleteDraft = Boolean(selectedWorkerId && (initialDraft?.id || draftSavedAt));
+
+  async function handleDeleteDraft() {
+    if (!initialDraft?.id && !selectedWorkerId) return;
+
+    const label = selected?.name?.trim() || initialDraft?.candidateName || "this draft";
+    const confirmed = window.confirm(`Delete draft for ${label}? This cannot be undone.`);
+    if (!confirmed) return;
+
+    setDeletingDraft(true);
+    try {
+      const res = await fetch("/api/admin/mail/drafts", {
+        method: "DELETE",
+        headers: {
+          ...(await authHeaders()),
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(
+          initialDraft?.id ? { draftId: initialDraft.id } : { workerId: selectedWorkerId }
+        ),
+      });
+      const json = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        throw new Error(json.error || `Could not delete draft (${res.status})`);
+      }
+
+      toast.success("Draft deleted.");
+      onDraftDeleted?.();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not delete draft.");
+    } finally {
+      setDeletingDraft(false);
+    }
+  }
+
   async function handleSend() {
     if (!selectedWorkerId || !subject.trim() || !body.trim()) return;
     setSending(true);
@@ -428,6 +468,22 @@ export function MailComposePanel({
         </div>
         <div className="flex shrink-0 items-center gap-2">
           {savedLabel ? <span className="hidden text-xs text-[#64748B] sm:inline">{savedLabel}</span> : null}
+          {canDeleteDraft ? (
+            <button
+              type="button"
+              onClick={() => void handleDeleteDraft()}
+              disabled={sending || deletingDraft}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-[#E5E7EB] bg-white transition hover:bg-[color-mix(in_srgb,var(--brand-primary)_8%,white)] disabled:cursor-not-allowed disabled:opacity-50"
+              aria-label="Delete draft"
+              title="Delete draft"
+            >
+              {deletingDraft ? (
+                <Loader2 className="h-5 w-5 animate-spin text-(--brand-primary)" />
+              ) : (
+                <BrandedDeleteIcon className="h-5 w-5" />
+              )}
+            </button>
+          ) : null}
           <button
             type="button"
             onClick={() => void handleSaveDraft()}

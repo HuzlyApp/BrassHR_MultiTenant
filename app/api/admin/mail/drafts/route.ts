@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireStaffApiSession } from "@/lib/auth/api-session";
-import { listMailDrafts, upsertMailDraft } from "@/lib/communication/mail-drafts";
+import { listMailDrafts, upsertMailDraft, deleteMailDraftById, deleteMailDraftForWorker } from "@/lib/communication/mail-drafts";
 import { resolveEffectiveAdminTenantId } from "@/lib/email-templates/resolve-effective-tenant";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { parseRequiredUuid } from "@/lib/validation/uuid";
@@ -15,6 +15,16 @@ const saveDraftSchema = z.object({
   bodyHtml: z.string().max(50_000).nullable().optional(),
   templateKey: z.string().max(100).nullable().optional(),
 });
+
+const deleteDraftSchema = z
+  .object({
+    draftId: z.string().uuid().optional(),
+    workerId: z.string().uuid().optional(),
+  })
+  .refine((data) => Boolean(data.draftId || data.workerId), {
+    message: "draftId or workerId is required",
+    path: ["draftId"],
+  });
 
 /** GET — list current recruiter mail drafts for the tenant. */
 export async function GET() {
@@ -94,6 +104,55 @@ export async function POST(req: Request) {
     return NextResponse.json({ draft, saved: Boolean(draft) });
   } catch (e) {
     const message = e instanceof Error ? e.message : "Could not save draft";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
+
+/** DELETE — remove a mail draft by id or worker id. */
+export async function DELETE(req: Request) {
+  const auth = await requireStaffApiSession();
+  if (auth instanceof NextResponse) return auth;
+
+  const body = await req.json().catch(() => null);
+  const parsed = deleteDraftSchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json(
+      {
+        error: "Validation failed",
+        issues: parsed.error.issues.map((issue) => ({
+          path: issue.path.join("."),
+          message: issue.message,
+        })),
+      },
+      { status: 400 }
+    );
+  }
+
+  const supabase = createServiceRoleClient();
+  if (!supabase) {
+    return NextResponse.json({ error: "Supabase is not configured" }, { status: 503 });
+  }
+
+  const tenantId = await resolveEffectiveAdminTenantId(supabase, {
+    userId: auth.userId,
+    authUser: auth.authUser,
+    godAdmin: auth.godAdmin,
+  });
+
+  if (!tenantId) {
+    return NextResponse.json({ error: "No tenant selected", code: "TENANT_REQUIRED" }, { status: 400 });
+  }
+
+  try {
+    if (parsed.data.draftId) {
+      await deleteMailDraftById(supabase, tenantId, auth.userId, parsed.data.draftId);
+    } else if (parsed.data.workerId) {
+      await deleteMailDraftForWorker(supabase, tenantId, auth.userId, parsed.data.workerId);
+    }
+
+    return NextResponse.json({ deleted: true });
+  } catch (e) {
+    const message = e instanceof Error ? e.message : "Could not delete draft";
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
