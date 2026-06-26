@@ -407,7 +407,7 @@ export default function FirmaTemplateBuilderFrame({
           container: host,
           jwt: activeSession.jwt,
           templateId: activeSession.firma_template_id,
-          theme: "light",
+          theme: "dark",
           readOnly: false,
           width: "100%",
           height: "calc(100vh - 220px)",

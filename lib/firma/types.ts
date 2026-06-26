@@ -71,3 +71,18 @@ export type FirmaApiErrorBody = {
   message?: string;
   details?: unknown;
 };
+
+/** Workspace appearance settings (docs.firma.dev/guides/white-labeling). */
+export type FirmaWorkspaceAppearanceSettings = {
+  color_primary?: string | null;
+  color_primary_fg?: string | null;
+  color_background?: string | null;
+  color_foreground?: string | null;
+  color_card?: string | null;
+  color_border?: string | null;
+  color_accent?: string | null;
+  color_accent_fg?: string | null;
+  color_canvas?: string | null;
+  color_muted?: string | null;
+  color_muted_fg?: string | null;
+};

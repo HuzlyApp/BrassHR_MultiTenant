@@ -9,6 +9,7 @@ import type {
   FirmaTemplateField,
   FirmaTemplateSettings,
   FirmaTemplateUser,
+  FirmaWorkspaceAppearanceSettings,
 } from "@/lib/firma/types";
 
 const DEFAULT_API_BASE = "https://api.firma.dev/functions/v1/signing-request-api";
@@ -438,6 +439,24 @@ export async function createFirmaWorkspace(input: {
   }
 
   return { id, name: result.name ?? name };
+}
+
+/** Sync workspace appearance (embedded editor + signing chrome). */
+export async function updateFirmaWorkspaceSettings(
+  workspaceId: string,
+  settings: FirmaWorkspaceAppearanceSettings
+): Promise<FirmaWorkspaceAppearanceSettings> {
+  const id = workspaceId.trim();
+  if (!id) {
+    throw new FirmaError("VALIDATION_ERROR", "Firma workspace id is required", 400);
+  }
+
+  return firmaRequest<FirmaWorkspaceAppearanceSettings>(`/workspace/${id}/settings`, {
+    method: "PUT",
+    body: settings,
+    includeWorkspaceScope: false,
+    retries: 0,
+  });
 }
 
 export function resolveFirmaRecipientSigningUrl(

@@ -21,6 +21,7 @@ import {
   resolveTenantFirmaWorkspaceId,
   FirmaWorkspaceConfigError,
 } from "@/lib/firma/resolve-tenant-workspace";
+import { syncTenantBrandingToFirmaWorkspace } from "@/lib/firma/sync-workspace-branding";
 import { RECRUITER_TEMPLATE_DOCUMENT_BUCKET } from "@/lib/recruiter-templates/constants";
 import { RecruiterTemplateError } from "@/lib/recruiter-templates/errors";
 import type {
@@ -600,6 +601,28 @@ export async function createRecruiterTemplateBuilderSession(
     workspaceId: string
   ): Promise<RecruiterTemplateBuilderSession> {
     const editorAppUrl = getFirmaEditorAppUrl();
+
+    try {
+      const brandingSync = await syncTenantBrandingToFirmaWorkspace(
+        supabase,
+        tenantId,
+        workspaceId
+      );
+      if (brandingSync.synced && process.env.NODE_ENV !== "production") {
+        console.info("[firma-template-builder] workspace branding synced", {
+          tenantId,
+          workspaceId,
+          color_primary: brandingSync.colors.color_primary,
+          color_accent: brandingSync.colors.color_accent,
+        });
+      }
+    } catch (brandingErr) {
+      console.warn(
+        "[firma-template-builder] workspace branding sync failed (editor will use Firma defaults)",
+        brandingErr instanceof Error ? brandingErr.message : brandingErr
+      );
+    }
+
     await updateFirmaTemplate(
       firmaTemplateId,
       {

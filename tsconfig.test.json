@@ -1,0 +1,14 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": ["vitest/globals"]
+  },
+  "include": [
+    "lib/**/*.test.ts",
+    "lib/**/*.test.tsx",
+    "app/**/*.test.ts",
+    "app/**/*.test.tsx",
+    "lib/test-utils/**/*.ts"
+  ],
+  "exclude": ["node_modules", "supabase/functions/**"]
+}
