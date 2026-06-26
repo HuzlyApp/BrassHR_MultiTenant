@@ -10,6 +10,8 @@ import type {
   TenantSkillQuestion,
 } from "@/lib/onboarding/types";
 import { buildCacheKey, CACHE_TTL_SECONDS, getOrSetCache } from "@/lib/cache";
+import { enforceUploadResumeFirstInTenantSteps } from "@/lib/onboarding/enforce-upload-resume-first";
+import { mapConfigToDrafts } from "@/lib/onboarding/config-to-drafts";
 
 export async function seedDefaultTenantOnboarding(
   supabase: OnboardingDbClient,
@@ -94,7 +96,7 @@ async function loadTenantOnboardingConfigUncached(
   const { data: stepsRaw, error: stepsErr } = await stepsQuery;
   if (stepsErr) throw stepsErr;
 
-  const steps: TenantOnboardingStep[] = (stepsRaw ?? []).map((s) => ({
+  let steps: TenantOnboardingStep[] = (stepsRaw ?? []).map((s) => ({
     id: String(s.id),
     step_key: String(s.step_key),
     title: String(s.title),
@@ -105,6 +107,10 @@ async function loadTenantOnboardingConfigUncached(
     is_enabled: Boolean(s.is_enabled),
     metadata: (s.metadata as Record<string, unknown>) ?? {},
   }));
+
+  const { steps: normalizedSteps, changed: resumeOrderChanged } =
+    enforceUploadResumeFirstInTenantSteps(steps);
+  steps = normalizedSteps;
 
   const stepIds = steps.map((s) => s.id);
 
@@ -203,7 +209,7 @@ async function loadTenantOnboardingConfigUncached(
     questions: questionsByAssessment.get(String(a.id)) ?? [],
   }));
 
-  return {
+  const config: TenantOnboardingConfig = {
     configId,
     tenantId,
     version,
@@ -211,4 +217,19 @@ async function loadTenantOnboardingConfigUncached(
     requiredDocuments,
     skillAssessments,
   };
+
+  if (resumeOrderChanged) {
+    try {
+      const { persistTenantOnboardingConfig } = await import(
+        "@/lib/onboarding/persist-tenant-onboarding-config"
+      );
+      await persistTenantOnboardingConfig(supabase, tenantId, mapConfigToDrafts(config), {
+        configId,
+      });
+    } catch (err) {
+      console.warn("[loadTenantOnboardingConfig] upload resume normalization persist failed", err);
+    }
+  }
+
+  return config;
 }

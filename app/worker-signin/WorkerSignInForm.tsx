@@ -8,6 +8,7 @@ import { interStyle } from "@/app/login/BraasLoginShell";
 import { useApplicantSignIn } from "@/lib/applicant-portal/use-applicant-sign-in";
 import { recruiterSignInHref } from "@/lib/auth/recruiter-sign-in";
 import type { TenantBranding } from "@/lib/tenant/tenant-branding";
+import { brandingAuthButtonStyle } from "@/lib/tenant/tenant-branding";
 import type { CSSProperties, ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { Check } from "lucide-react";
@@ -32,11 +33,7 @@ const inputTextClass =
 const checkboxActiveClass = "border-[#012352] bg-[#012352]";
 
 function primaryButtonStyle(enabled: boolean): CSSProperties | undefined {
-  if (!enabled) return undefined;
-  return {
-    backgroundImage: "linear-gradient(90deg, var(--brand-primary) 0%, var(--brand-accent) 100%)",
-    fontFamily: "var(--font-geist-sans), Inter, Arial, sans-serif",
-  };
+  return brandingAuthButtonStyle(enabled);
 }
 
 function FieldLabel({ children }: { children: string }) {

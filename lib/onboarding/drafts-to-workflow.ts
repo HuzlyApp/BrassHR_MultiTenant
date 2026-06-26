@@ -13,6 +13,12 @@ import {
   type SerializableWorkflowState,
 } from "@/lib/onboarding/workflow-builder-serialization";
 import { onboardingTypeToWorkflowStepId } from "@/lib/onboarding/workflow-step-mapping";
+import {
+  enforceUploadResumeFirstInDrafts,
+  isUploadResumeStep,
+  isUploadResumeWorkflowStepId,
+} from "@/lib/onboarding/enforce-upload-resume-first";
+import { enforceUploadResumeFirstInWorkflowState } from "@/lib/onboarding/normalize-builder-workflow";
 
 const NODE_VERTICAL_SPACING = 130;
 const CANVAS_X = 120;
@@ -28,7 +34,8 @@ export function draftsToWorkflowNodes(
   drafts: OnboardingStepDraft[],
   stepById: Map<string, StepDefinition>
 ): { nodes: Node<WorkflowNodeData>[]; edges: Edge[] } {
-  const enabled = drafts
+  const { steps: normalizedDrafts } = enforceUploadResumeFirstInDrafts(drafts);
+  const enabled = normalizedDrafts
     .filter((s) => s.is_enabled)
     .sort((a, b) => a.sort_order - b.sort_order);
 
@@ -63,6 +70,7 @@ export function draftsToWorkflowNodes(
         day,
         required: step.is_required,
         settings,
+        lockedFirstStep: isUploadResumeStep(step),
       },
     };
   });
@@ -80,7 +88,8 @@ export function hydrateWorkflowFromStorage(
   stepById: Map<string, StepDefinition>
 ): { nodes: Node<WorkflowNodeData>[]; edges: Edge[] } {
   if (isSerializableWorkflowState(builderDraft) && builderDraft.nodes.length > 0) {
-    const nodes: Node<WorkflowNodeData>[] = builderDraft.nodes.map((n) => {
+    const enforced = enforceUploadResumeFirstInWorkflowState(builderDraft, drafts);
+    const nodes: Node<WorkflowNodeData>[] = enforced.nodes.map((n) => {
       const def = resolveStepDefinition(n.stepId, stepById);
       const settings = normalizeWorkflowNodeSettings(n.settings, {
         required: n.required,
@@ -99,11 +108,12 @@ export function hydrateWorkflowFromStorage(
           day,
           required: settings.required,
           settings,
+          lockedFirstStep: isUploadResumeWorkflowStepId(n.stepId),
         },
       };
     });
 
-    const edges: Edge[] = builderDraft.edges.map((e) => ({
+    const edges: Edge[] = enforced.edges.map((e) => ({
       ...createWorkflowEdge(e.source, e.target),
       id: e.id,
     }));

@@ -1,7 +1,9 @@
 import type { TenantBrandingRow } from "@/lib/tenant/tenant-branding";
+import { normalizeBrandingFontId } from "@/lib/tenant/tenant-branding";
+import { isValidBrandingHex } from "@/lib/tenant/branding-validation";
 
 export const TENANT_BRANDING_SELECT =
-  "id, name, slug, logo_url, primary_color, secondary_color, accent_color, welcome_headline, welcome_subtitle, auth_background_image_url";
+  "id, name, slug, logo_url, login_logo_url, signup_logo_url, primary_color, secondary_color, accent_color, checkbox_color, welcome_headline, welcome_subtitle, signup_headline, signup_subheadline, auth_background_image_url, primary_font, heading_font, body_font, font_color, heading_color, muted_text_color, button_text, button_color";
 
 export type TenantBrandingUpdateInput = {
   primaryColor?: string | null;
@@ -9,15 +11,21 @@ export type TenantBrandingUpdateInput = {
   accentColor?: string | null;
   welcomeHeadline?: string | null;
   welcomeSubtitle?: string | null;
+  signupHeadline?: string | null;
+  signupSubheadline?: string | null;
   authBackgroundImageUrl?: string | null;
   logoUrl?: string | null;
+  loginLogoUrl?: string | null;
+  signupLogoUrl?: string | null;
+  primaryFont?: string | null;
+  headingFont?: string | null;
+  bodyFont?: string | null;
+  fontColor?: string | null;
+  headingColor?: string | null;
+  mutedTextColor?: string | null;
+  buttonText?: string | null;
+  buttonColor?: string | null;
 };
-
-const HEX_RE = /^#[0-9A-Fa-f]{6}$/;
-
-export function isValidBrandingHex(value: string): boolean {
-  return HEX_RE.test(value.trim());
-}
 
 export function normalizeBrandingImageUrl(value: string | null | undefined): string | null {
   const raw = value?.trim();
@@ -38,63 +46,70 @@ export function normalizeBrandingText(value: string | null | undefined, maxLengt
   return raw.slice(0, maxLength);
 }
 
-export function buildTenantBrandingUpdate(
-  body: TenantBrandingUpdateInput
-): Partial<
+type BrandingPatch = Partial<
   Pick<
     TenantBrandingRow,
     | "logo_url"
+    | "login_logo_url"
+    | "signup_logo_url"
     | "primary_color"
     | "secondary_color"
     | "accent_color"
     | "welcome_headline"
     | "welcome_subtitle"
+    | "signup_headline"
+    | "signup_subheadline"
     | "auth_background_image_url"
+    | "primary_font"
+    | "heading_font"
+    | "body_font"
+    | "font_color"
+    | "heading_color"
+    | "muted_text_color"
+    | "button_text"
+    | "button_color"
   >
-> {
-  const patch: Partial<
-    Pick<
-      TenantBrandingRow,
-      | "logo_url"
-      | "primary_color"
-      | "secondary_color"
-      | "accent_color"
-      | "welcome_headline"
-      | "welcome_subtitle"
-      | "auth_background_image_url"
-    >
-  > = {};
+>;
 
-  if ("primaryColor" in body) {
-    const value = body.primaryColor?.trim();
-    if (value && !isValidBrandingHex(value)) {
-      throw new Error("Primary color must be a valid hex code (example: #BC8B41).");
-    }
-    patch.primary_color = value || null;
+function patchHexField(
+  patch: BrandingPatch,
+  key: keyof BrandingPatch,
+  value: string | null | undefined,
+  label: string
+) {
+  if (value === undefined) return;
+  const trimmed = value?.trim();
+  if (trimmed && !isValidBrandingHex(trimmed)) {
+    throw new Error(`${label} must be a valid hex code (example: #BC8B41).`);
   }
+  patch[key] = trimmed || null;
+}
 
-  if ("secondaryColor" in body) {
-    const value = body.secondaryColor?.trim();
-    if (value && !isValidBrandingHex(value)) {
-      throw new Error("Secondary color must be a valid hex code (example: #104b83).");
-    }
-    patch.secondary_color = value || null;
-  }
+export function buildTenantBrandingUpdate(body: TenantBrandingUpdateInput): BrandingPatch {
+  const patch: BrandingPatch = {};
 
-  if ("accentColor" in body) {
-    const value = body.accentColor?.trim();
-    if (value && !isValidBrandingHex(value)) {
-      throw new Error("Accent color must be a valid hex code (example: #E9B771).");
-    }
-    patch.accent_color = value || null;
-  }
+  patchHexField(patch, "primary_color", body.primaryColor, "Primary color");
+  patchHexField(patch, "secondary_color", body.secondaryColor, "Secondary color");
+  patchHexField(patch, "accent_color", body.accentColor, "Accent color");
+  patchHexField(patch, "font_color", body.fontColor, "Font color");
+  patchHexField(patch, "heading_color", body.headingColor, "Heading color");
+  patchHexField(patch, "muted_text_color", body.mutedTextColor, "Muted text color");
+  patchHexField(patch, "button_color", body.buttonColor, "Button color");
 
   if ("welcomeHeadline" in body) {
     patch.welcome_headline = normalizeBrandingText(body.welcomeHeadline, 120);
   }
-
   if ("welcomeSubtitle" in body) {
     patch.welcome_subtitle = normalizeBrandingText(body.welcomeSubtitle, 200);
+  }
+  if ("signupHeadline" in body) {
+    patch.signup_headline = normalizeBrandingText(body.signupHeadline, 120);
+  }
+  if ("signupSubheadline" in body) {
+    patch.signup_subheadline = normalizeBrandingText(body.signupSubheadline, 200);
+  }
+  if ("buttonText" in body) {
+    patch.button_text = normalizeBrandingText(body.buttonText, 40);
   }
 
   if ("authBackgroundImageUrl" in body) {
@@ -105,22 +120,29 @@ export function buildTenantBrandingUpdate(
     patch.auth_background_image_url = value ? normalizeBrandingImageUrl(value) : null;
   }
 
-  if ("logoUrl" in body) {
-    const value = body.logoUrl?.trim();
-    if (value && !normalizeBrandingImageUrl(value)) {
-      throw new Error("Logo must be a valid web link or start with /.");
+  for (const [inputKey, columnKey] of [
+    ["logoUrl", "logo_url"],
+    ["loginLogoUrl", "login_logo_url"],
+    ["signupLogoUrl", "signup_logo_url"],
+  ] as const) {
+    if (inputKey in body) {
+      const value = body[inputKey]?.trim();
+      if (value && !normalizeBrandingImageUrl(value)) {
+        throw new Error("Logo must be a valid web link or start with /.");
+      }
+      patch[columnKey] = value ? normalizeBrandingImageUrl(value) : null;
     }
-    patch.logo_url = value ? normalizeBrandingImageUrl(value) : null;
+  }
+
+  if ("primaryFont" in body) {
+    patch.primary_font = body.primaryFont ? normalizeBrandingFontId(body.primaryFont) : null;
+  }
+  if ("headingFont" in body) {
+    patch.heading_font = body.headingFont ? normalizeBrandingFontId(body.headingFont) : null;
+  }
+  if ("bodyFont" in body) {
+    patch.body_font = body.bodyFont ? normalizeBrandingFontId(body.bodyFont) : null;
   }
 
   return patch;
-}
-
-export async function invalidateTenantBrandingCache(tenantId: string): Promise<void> {
-  const { buildCacheKey, deleteCache } = await import("@/lib/cache");
-  await deleteCache(
-    buildCacheKey("tenants", ["tenant", tenantId, "branding"], {
-      fields: "branding",
-    })
-  );
 }

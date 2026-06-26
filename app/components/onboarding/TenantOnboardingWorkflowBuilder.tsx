@@ -36,6 +36,7 @@ import {
 } from "@/lib/onboarding/workflow-template-pending-paste";
 import { writeOnboardingPreview } from "@/lib/onboarding/onboarding-preview-storage";
 import { firstOnboardingStepRoute } from "@/lib/onboarding/tenant-step-navigation";
+import { PUBLISH_SUCCESS_MESSAGE } from "@/lib/onboarding/prepare-published-step-drafts";
 import { serializeWorkflowState } from "@/lib/onboarding/workflow-builder-serialization";
 import { staffAuthHeaders, staffFetchInit } from "@/lib/staff-auth-headers";
 import {
@@ -156,7 +157,7 @@ export type TenantOnboardingWorkflowBuilderProps = {
 };
 
 export default function TenantOnboardingWorkflowBuilder({
-  variant = "settings",
+  variant = "dashboard",
 }: TenantOnboardingWorkflowBuilderProps = {}) {
   const isDashboard = variant === "dashboard";
   const workflowHeader = useOptionalWorkflowDashboardHeader();
@@ -168,6 +169,8 @@ export default function TenantOnboardingWorkflowBuilder({
   const queryClient = useQueryClient();
   const prevPathnameRef = useRef<string | null>(null);
   const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const saveGenerationRef = useRef(0);
+  const prevStepCountRef = useRef(0);
   const skipNextChange = useRef(true);
   const latestStateRef = useRef<WorkflowState>({ nodes: [], edges: [] });
   const lastPersistOptionsRef = useRef<{ publish?: boolean; template?: boolean; silent?: boolean }>(
@@ -284,6 +287,7 @@ export default function TenantOnboardingWorkflowBuilder({
     if (shouldApplyCanvas) {
       setInitialNodes(data.initialNodes);
       setInitialEdges(data.initialEdges);
+      prevStepCountRef.current = data.initialNodes.filter((n) => n.type === "step").length;
       setActiveFlowKey(`${tenantFlowKey}:v${publishedVersion}`);
       initializedTenantRef.current = nextTenantId;
       lastAppliedPublishedVersionRef.current = publishedVersion;
@@ -307,7 +311,11 @@ export default function TenantOnboardingWorkflowBuilder({
   }, [templateIdFromUrl, refetch]);
 
   useEffect(() => {
-    if (!flowIdFromUrl || !tenantId) return;
+    if (!flowIdFromUrl) {
+      setEditingFlow(null);
+      return;
+    }
+    if (!tenantId) return;
     let cancelled = false;
 
     async function loadFlow() {
@@ -347,7 +355,7 @@ export default function TenantOnboardingWorkflowBuilder({
         savedFlowTitleRef.current = flow.name;
         setPublishStatus(flow.status === "published" ? "published" : "draft");
         setUpdatedAt(flow.updatedAt);
-        setActiveFlowKey(`${tenantId}:flow:${flow.id}:${flow.updatedAt}`);
+        setActiveFlowKey(`${tenantId}:flow:${flow.id}`);
         skipNextChange.current = true;
       } catch (e) {
         toast.error(e instanceof Error ? e.message : "Failed to load flow");
@@ -367,6 +375,7 @@ export default function TenantOnboardingWorkflowBuilder({
     const wasOnBuilder = prev?.includes("/onboarding-builder") ?? false;
     if (onBuilder && !wasOnBuilder && !templateIdFromUrl && !flowIdFromUrl) {
       setEditingTemplate(null);
+      setEditingFlow(null);
       setTemplateUpdatedAt(null);
       setActiveFlowKey(null);
       initializedTenantRef.current = null;
@@ -570,9 +579,11 @@ export default function TenantOnboardingWorkflowBuilder({
         template?: boolean;
         silent?: boolean;
         flowName?: string;
+        saveGeneration?: number;
       }
     ) => {
       if (editingTemplate?.isViewOnly) return;
+      const saveGeneration = options.saveGeneration;
       const effectiveFlowName = (options.flowName ?? flowTitleRef.current).trim();
       if (!options.silent) {
         if (options.template) setSavingTemplate(true);
@@ -593,8 +604,9 @@ export default function TenantOnboardingWorkflowBuilder({
 
         const builderDraft = serializeWorkflowState(state.nodes, state.edges);
 
-        if (editingFlow?.id) {
-          const res = await fetch(`/api/admin/onboarding-flows/${editingFlow.id}`, {
+        const activeFlowId = flowIdFromUrl;
+        if (activeFlowId) {
+          const res = await fetch(`/api/admin/onboarding-flows/${activeFlowId}`, {
             ...(await staffFetchInit({
               "Content-Type": "application/json",
             })),
@@ -628,8 +640,12 @@ export default function TenantOnboardingWorkflowBuilder({
           if (saved) {
             setEditingFlow({ id: saved.id, updatedAt: savedAt });
             setPublishStatus(saved.status === "published" ? "published" : "draft");
-            setActiveFlowKey(`${tenantId ?? "none"}:flow:${saved.id}:${savedAt}`);
           }
+
+          const library = data?.stepLibrary ?? stepLibrary;
+          const savedCanvas = hydrateCanvasFromBuilderDraft(builderDraft, library);
+          setInitialNodes(savedCanvas.nodes);
+          setInitialEdges(savedCanvas.edges);
           skipNextChange.current = true;
 
           if (!options.silent) {
@@ -646,8 +662,9 @@ export default function TenantOnboardingWorkflowBuilder({
               setSuccessModal({
                 open: true,
                 title: "Success!",
-                message: "Workflow published successfully",
+                message: PUBLISH_SUCCESS_MESSAGE,
               });
+              void queryClient.invalidateQueries({ queryKey: BUILDER_QUERY_KEY });
             } else {
               toast.success("Draft saved");
             }
@@ -677,6 +694,10 @@ export default function TenantOnboardingWorkflowBuilder({
         const payload = (await res.json()) as BuilderPayload;
         if (!res.ok) {
           throw new Error(payload.detail ?? payload.error ?? "Save failed");
+        }
+
+        if (saveGeneration != null && saveGeneration !== saveGenerationRef.current) {
+          return;
         }
 
         const savedAt = payload.builderUpdatedAt ?? null;
@@ -712,6 +733,9 @@ export default function TenantOnboardingWorkflowBuilder({
           if (payload.builderUpdatedAt !== undefined) {
             setUpdatedAt(payload.builderUpdatedAt ?? null);
           }
+          setInitialNodes(draftCanvas.nodes);
+          setInitialEdges(draftCanvas.edges);
+          skipNextChange.current = true;
         }
 
         queryClient.setQueryData<BuilderQueryData>(BUILDER_QUERY_KEY, (current) =>
@@ -737,8 +761,9 @@ export default function TenantOnboardingWorkflowBuilder({
             setSuccessModal({
               open: true,
               title: "Success!",
-              message: "Workflow published successfully",
+              message: PUBLISH_SUCCESS_MESSAGE,
             });
+            void queryClient.invalidateQueries({ queryKey: BUILDER_QUERY_KEY });
           } else {
             toast.success("Draft saved");
           }
@@ -747,7 +772,6 @@ export default function TenantOnboardingWorkflowBuilder({
         const message = e instanceof Error ? e.message : "Save failed";
         setLocalError(message);
         if (!options.silent) toast.error(message);
-        throw e;
       } finally {
         if (!options.silent) {
           if (options.template) setSavingTemplate(false);
@@ -755,7 +779,7 @@ export default function TenantOnboardingWorkflowBuilder({
         }
       }
     },
-    [editingFlow, editingTemplate, persistNewTemplate, persistTemplateUpdate, queryClient, data?.payload, data?.stepLibrary, stepLibrary, tenantId]
+    [editingFlow, editingTemplate, flowIdFromUrl, persistNewTemplate, persistTemplateUpdate, queryClient, data?.payload, data?.stepLibrary, stepLibrary, tenantId]
   );
 
   const handlePreview = useCallback(
@@ -825,10 +849,24 @@ export default function TenantOnboardingWorkflowBuilder({
         return;
       }
       setPublishStatus("draft");
+
+      const stepCount = state.nodes.filter((n) => n.type === "step").length;
+      const isDeletion = stepCount < prevStepCountRef.current;
+      prevStepCountRef.current = stepCount;
+
+      const generation = ++saveGenerationRef.current;
       if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
-      autosaveTimer.current = setTimeout(() => {
-        void persist(state, { silent: true });
-      }, 900);
+
+      const runPersist = () => {
+        void persist(state, { silent: true, saveGeneration: generation });
+      };
+
+      if (isDeletion) {
+        runPersist();
+        return;
+      }
+
+      autosaveTimer.current = setTimeout(runPersist, 900);
     },
     [editingTemplate?.isViewOnly, persist]
   );

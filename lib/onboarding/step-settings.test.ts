@@ -83,7 +83,7 @@ describe("workflowStateToStepDrafts persistence", () => {
       nodes: [
         {
           id: "step-resume_upload",
-          stepId: "resume-upload",
+          stepId: "resume-basic-profile",
           label: "Resume (edited)",
           description: "PDF only",
           position: { x: 0, y: 0 },
@@ -106,7 +106,7 @@ describe("workflowStateToStepDrafts persistence", () => {
     const drafts = workflowStateToStepDrafts(state, []);
     expect(drafts[0].title).toBe("Resume (edited)");
     expect(drafts[0].description).toBe("PDF only");
-    expect(drafts[0].is_required).toBe(false);
+    expect(drafts[0].is_required).toBe(true);
     expect(drafts[0].metadata?.workflow_day).toBe(7);
     expect(drafts[0].metadata?.workflow_settings).toMatchObject({
       clientPerforms: false,
@@ -157,7 +157,7 @@ describe("configFromWorkflowDraft preview", () => {
       nodes: [
         {
           id: "step-resume_upload",
-          stepId: "resume-upload",
+          stepId: "resume-basic-profile",
           label: "Preview title",
           description: "Preview desc",
           position: { x: 0, y: 0 },

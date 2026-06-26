@@ -149,7 +149,7 @@ export async function PUT(req: NextRequest) {
         supabase as OnboardingDbClient,
         tenantId,
         body.flowName,
-        { excludeFlowName: existingBuilder.flowName }
+        { excludeFlowName: existingBuilder.flowName, scope: "tenant-default" }
       );
       if (duplicate) {
         return NextResponse.json(
@@ -209,7 +209,9 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: "Invalid builder draft" }, { status: 400 });
     }
 
-    const config = await loadTenantOnboardingConfig(supabase as OnboardingDbClient, tenantId);
+    const config = await loadTenantOnboardingConfig(supabase as OnboardingDbClient, tenantId, {
+      workerFacing: true,
+    });
     const builder = await loadOnboardingBuilderMeta(supabase as OnboardingDbClient, tenantId);
 
     return NextResponse.json({

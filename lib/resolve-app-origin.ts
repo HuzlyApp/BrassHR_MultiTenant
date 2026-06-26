@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server"
 
 /**
- * Ensures a valid absolute origin for redirects and third-party APIs (e.g. Zoho `redirect_pages`).
+ * Ensures a valid absolute origin for redirects and third-party callback URLs.
  * Bare `localhost:3000` or `app.example.com` become `http://…` / `https://…`.
  */
 export function normalizePublicOrigin(input: string): string {
@@ -19,7 +19,7 @@ export function normalizePublicOrigin(input: string): string {
 }
 
 /**
- * Full redirect URL with required `http://` or `https://` scheme (Zoho rejects scheme-less URLs).
+ * Full redirect URL with required `http://` or `https://` scheme.
  */
 export function normalizeRedirectUrl(url: string): string {
   const u = url.trim()

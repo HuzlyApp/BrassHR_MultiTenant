@@ -43,6 +43,23 @@ export default function Step1Upload() {
   const brandTextStyle = { color: branding.primaryHex } as CSSProperties
   const secondaryTextStyle = { color: branding.secondaryHex } as CSSProperties
 
+  const ACCEPTED_RESUME_EXTENSIONS = [".pdf", ".doc", ".docx"]
+
+  function isAcceptedResumeFile(selected: File): boolean {
+    const lower = selected.name.toLowerCase()
+    return ACCEPTED_RESUME_EXTENSIONS.some((ext) => lower.endsWith(ext))
+  }
+
+  function validateResumeFile(selected: File): string | null {
+    if (!isAcceptedResumeFile(selected)) {
+      return "Please upload a resume in PDF, DOC, or DOCX format."
+    }
+    if (selected.size > 10 * 1024 * 1024) {
+      return "Max file size is 10MB."
+    }
+    return null
+  }
+
   const router = useRouter()
   const fileInput = useRef<HTMLInputElement>(null)
 
@@ -96,9 +113,9 @@ export default function Step1Upload() {
     setParseError(null)
     setParseMissingFields([])
 
-    // ✅ SIZE VALIDATION
-    if (selected.size > 10 * 1024 * 1024) {
-      alert("Max file size is 10MB")
+    const validationError = validateResumeFile(selected)
+    if (validationError) {
+      setFileRequiredError(validationError)
       return
     }
 
@@ -123,8 +140,9 @@ export default function Step1Upload() {
     setParseError(null)
     setParseMissingFields([])
 
-    if (dropped.size > 10 * 1024 * 1024) {
-      alert("Max file size is 10MB")
+    const validationError = validateResumeFile(dropped)
+    if (validationError) {
+      setFileRequiredError(validationError)
       return
     }
 
@@ -199,7 +217,7 @@ export default function Step1Upload() {
         })()
         return
       }
-      setFileRequiredError("Please upload your resume *")
+      setFileRequiredError("Please upload your resume before continuing.")
       return
     }
 
@@ -437,7 +455,7 @@ export default function Step1Upload() {
           </div>
 
           <div className="mt-3 text-xs text-[#6D6D6D]">
-            Only support .docx or pdf files
+            Accepted formats: PDF, DOC, and DOCX (max 10 MB)
           </div>
 
           {fileRequiredError ? (

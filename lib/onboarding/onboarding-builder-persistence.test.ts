@@ -86,13 +86,14 @@ describe("workflowStateToStepDrafts", () => {
       .sort((a, b) => a.sort_order - b.sort_order)
       .map((s) => s.metadata.workflow_step_id);
 
-    expect(enabledTypes.slice(0, 3)).toEqual([
+    expect(enabledTypes[0]).toBe("resume-basic-profile");
+    expect(enabledTypes.slice(1, 4)).toEqual([
       "skill-qualification-assessment",
       "document-upload",
       "background-check",
     ]);
 
-    expect(drafts.some((s) => s.step_type === "review_submit")).toBe(true);
+    expect(drafts.some((s) => s.step_type === "review_submit")).toBe(false);
 
     expect(drafts.map((s) => s.title)).not.toContain("Add References");
 
@@ -137,6 +138,7 @@ describe("published applicant workflow projection", () => {
     const applicantSteps = getApplicantWorkflowSteps(workflow);
 
     expect(applicantSteps.map((step) => step.title)).toEqual([
+      "Upload Resume",
       "Skill / Qualification Assessment",
       "Document Upload",
       "Background Check",

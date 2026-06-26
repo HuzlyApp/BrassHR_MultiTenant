@@ -135,6 +135,7 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
 
     return NextResponse.json({ flow, savedTemplate });
   } catch (err: unknown) {
+    console.error("[onboarding-flows PATCH]", err);
     const msg = err instanceof Error ? err.message : "Failed to update flow";
     const status = msg.includes("already exists") ? 409 : msg === "Flow not found" ? 404 : 500;
     return NextResponse.json({ error: msg }, { status });

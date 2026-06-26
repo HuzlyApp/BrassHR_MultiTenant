@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { normalizeResumeStorageObjectPath } from "@/lib/onboarding/normalize-resume-storage-path"
 import { mapDynamicAdminOnboardingProgress } from "@/lib/onboarding/map-dynamic-admin-progress"
+import { isFirmaSigningComplete } from "@/lib/onboarding/firma-step-settings"
 
 type JsonRow = Record<string, unknown>
 
@@ -29,7 +30,7 @@ type MapperArgs = {
   resumePathRaw: string | null
   candidateBuckets: string[]
   storageHits: StorageHit[]
-  zohoStatus: string | null
+  firmaSigningStatus: string | null
   referencesCount: number
 }
 
@@ -51,9 +52,8 @@ function step(done: boolean, partial: boolean): StepState {
   return "pending"
 }
 
-function isZohoSigned(status: string | null | undefined): boolean {
-  const s = (status ?? "").trim().toLowerCase()
-  return s === "signed" || s === "completed"
+function isFirmaSigned(status: string | null | undefined): boolean {
+  return isFirmaSigningComplete(status)
 }
 
 function classifyStoragePath(path: string): "license" | "tb" | "cpr" | "authorization" | "resume" | null {
@@ -78,7 +78,7 @@ export async function mapAdminOnboardingProgress({
   resumePathRaw,
   candidateBuckets,
   storageHits,
-  zohoStatus,
+  firmaSigningStatus,
   referencesCount,
 }: MapperArgs): Promise<MapperResult> {
   const { data: workerTenant } = await supabase
@@ -246,7 +246,7 @@ export async function mapAdminOnboardingProgress({
   const authorizationUploaded =
     hasUrl(workerDocuments?.document_url) ||
     storageClassified.authorization > 0 ||
-    isZohoSigned(zohoStatus)
+    isFirmaSigned(firmaSigningStatus)
   const authChecks = [authorizationUploaded, ssnUploaded, driversUploaded]
   const authDocsCount = authChecks.filter(Boolean).length
   const authDocsRequiredCount = authChecks.length
@@ -340,10 +340,10 @@ export async function mapAdminOnboardingProgress({
     applicantName,
     user_id: userId,
     worker_id: workerId,
-    table_queried: ["worker_documents", "zoho_sign_requests"],
+    table_queried: ["worker_documents", "worker_firma_signing_sessions"],
     storage_path_checked: ["worker_required_files/authorization/{user_id}", "worker_required_files/license/{user_id} (authorization file names)"],
     records_found: {
-      zoho_signed: isZohoSigned(zohoStatus),
+      firma_signed: isFirmaSigned(firmaSigningStatus),
       ssn_uploaded: ssnUploaded,
       drivers_license_uploaded: driversUploaded,
       authorization_uploaded: authorizationUploaded,

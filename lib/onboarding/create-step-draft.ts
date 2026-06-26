@@ -6,8 +6,8 @@ const TYPE_DEFAULTS: Record<
   Pick<OnboardingStepDraft, "title" | "description" | "metadata" | "required_documents">
 > = {
   resume_upload: {
-    title: "Add Resume",
-    description: "Upload and review resume",
+    title: "Upload Resume",
+    description: "Upload your resume and confirm your contact information.",
     metadata: { parsing_enabled: true },
     required_documents: [],
   },
@@ -67,7 +67,6 @@ const TYPE_DEFAULTS: Record<
 
 /** Step types tenants can add from the builder (review is auto-suggested at end). */
 export const ADDABLE_STEP_TYPES: OnboardingStepType[] = [
-  "resume_upload",
   "professional_license",
   "skill_assessment",
   "document_upload",

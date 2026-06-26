@@ -7,6 +7,7 @@ import {
   type OnboardingStepDraft,
 } from "@/lib/onboarding/default-onboarding-steps";
 import { invalidateTenantCache } from "@/lib/cache";
+import { enforceUploadResumeFirstInDrafts } from "@/lib/onboarding/enforce-upload-resume-first";
 
 export type PersistStepInput = OnboardingStepDraft;
 
@@ -84,7 +85,7 @@ export async function persistTenantOnboardingConfig(
     throw new Error("At least one onboarding step is required");
   }
 
-  const normalizedSteps = reindexStepSortOrders(steps);
+  const normalizedSteps = enforceUploadResumeFirstInDrafts(reindexStepSortOrders(steps)).steps;
   const now = new Date().toISOString();
 
   let configId = options?.configId ?? (await loadTenantOnboardingConfig(supabase, tenantId))?.configId;

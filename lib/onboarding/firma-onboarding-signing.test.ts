@@ -63,18 +63,38 @@ describe("firma step settings", () => {
     };
 
     const drafts = workflowStateToStepDrafts(state);
-    expect(drafts[0].metadata?.workflow_settings).toMatchObject({
+    const agreementDraft = drafts.find((draft) =>
+      Boolean(getFirmaRecruiterTemplateId(draft as Parameters<typeof getFirmaRecruiterTemplateId>[0]))
+    );
+    expect(agreementDraft?.metadata?.workflow_settings).toMatchObject({
       firmaRecruiterTemplateId: "recruiter-template-1",
       firmaRecruiterTemplateName: "Employee Agreement",
     });
   });
 
-  it("routes Firma-enabled steps to the in-app signing page", () => {
+  it("routes Firma-enabled authorizations steps to authorizations-documents", () => {
     const route = routeForApplicantStep({
       step_key: "employee_agreement",
       step_type: "authorizations",
       metadata: {
         workflow_step_id: "employee-agreement",
+        workflow_settings: {
+          ...DEFAULT_STEP_SETTINGS,
+          firmaRecruiterTemplateId: "recruiter-template-1",
+        },
+      },
+    });
+
+    expect(route).toContain(APPLICATION_ROUTES.authorizationsDocuments);
+    expect(route).not.toContain(APPLICATION_ROUTES.firmaSign);
+  });
+
+  it("routes non-authorizations Firma steps to the in-app signing page", () => {
+    const route = routeForApplicantStep({
+      step_key: "policy_acknowledgment",
+      step_type: "custom_question",
+      metadata: {
+        workflow_step_id: "policy-acknowledgment",
         workflow_settings: {
           ...DEFAULT_STEP_SETTINGS,
           firmaRecruiterTemplateId: "recruiter-template-1",
@@ -1680,7 +1700,7 @@ describe("ensureFirmaSigningSession", () => {
 });
 
 describe("zoho separation", () => {
-  it("does not route Firma-enabled steps to the Zoho authorizations page", () => {
+  it("does not reference Zoho routes for Firma-enabled authorizations steps", () => {
     const route = routeForApplicantStep({
       step_key: "welcome_packet",
       step_type: "authorizations",
@@ -1693,8 +1713,7 @@ describe("zoho separation", () => {
       },
     });
 
-    expect(route).toContain("/application/firma-sign");
-    expect(route).not.toContain("/application/authorizations-documents");
+    expect(route).toContain("/application/authorizations-documents");
     expect(route).not.toContain("zoho");
   });
 });

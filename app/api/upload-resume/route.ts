@@ -14,6 +14,7 @@ const MAX_RESUME_BYTES = Number(process.env.MAX_RESUME_UPLOAD_BYTES ?? 10 * 1024
 const ALLOWED_RESUME_MIME = new Set([
   "application/pdf",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/msword",
 ])
 
 function sanitizeFileName(name: string): string {
@@ -38,7 +39,13 @@ async function extractText(buffer: Buffer, file: File): Promise<string> {
     return result.value
   }
 
-  throw new Error("Only .pdf and .docx files are supported")
+  if (mime === "application/msword" || lower.endsWith(".doc")) {
+    throw new Error(
+      "Legacy .doc files are not supported. Please save your resume as .docx or PDF."
+    )
+  }
+
+  throw new Error("Only PDF, DOC, and DOCX resumes are supported")
 }
 
 export async function POST(req: Request) {
@@ -65,8 +72,8 @@ export async function POST(req: Request) {
   if (file.size > MAX_RESUME_BYTES) {
     return NextResponse.json({ error: "Resume file is too large" }, { status: 400 })
   }
-  if (!ALLOWED_RESUME_MIME.has(mime) && !lowerName.endsWith(".pdf") && !lowerName.endsWith(".docx")) {
-    return NextResponse.json({ error: "Only PDF and DOCX resumes are supported" }, { status: 400 })
+  if (!ALLOWED_RESUME_MIME.has(mime) && !lowerName.endsWith(".pdf") && !lowerName.endsWith(".docx") && !lowerName.endsWith(".doc")) {
+    return NextResponse.json({ error: "Only PDF, DOC, and DOCX resumes are supported" }, { status: 400 })
   }
 
   const buffer = Buffer.from(await file.arrayBuffer())

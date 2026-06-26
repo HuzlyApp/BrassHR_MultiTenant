@@ -4,10 +4,10 @@ import type { TenantBrandingRow } from "@/lib/tenant/tenant-branding";
 import { brandingFromTenantRow, defaultTenantBranding } from "@/lib/tenant/tenant-branding";
 import {
   buildTenantBrandingUpdate,
-  invalidateTenantBrandingCache,
   TENANT_BRANDING_SELECT,
   type TenantBrandingUpdateInput,
 } from "@/lib/tenant/branding-fields";
+import { invalidateTenantBrandingCache } from "@/lib/tenant/invalidate-tenant-branding-cache";
 import { requireStaffApiSession } from "@/lib/auth/api-session";
 import { resolveEffectiveAdminTenantId } from "@/lib/email-templates/resolve-effective-tenant";
 

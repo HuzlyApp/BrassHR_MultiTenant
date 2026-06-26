@@ -44,9 +44,11 @@ export default function OnboardingLayout({
     "/images/handshake.jpg"
   )
   const panelUseNativeImg = isRemoteOrBlobImageSrc(panelSrc)
-  const logoSrc = normalizeBrandingImageSrc(branding.logoUrl, "/images/new-logo-nexus.svg", {
-    allowBlob: true,
-  })
+  const logoSrc = normalizeBrandingImageSrc(
+    branding.loginLogoUrl || branding.logoUrl,
+    "/images/new-logo-nexus.svg",
+    { allowBlob: true }
+  )
   const shellStyle: CSSProperties = {
     ...brandingToCssVars(branding),
     background: `linear-gradient(135deg, var(--brand-gradient-from) 0%, var(--brand-gradient-to) 100%)`,

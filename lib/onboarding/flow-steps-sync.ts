@@ -23,6 +23,11 @@ export type OnboardingFlowStepRow = {
   updated_at?: string;
 };
 
+function formatSupabaseError(context: string, error: { message?: string; details?: string; hint?: string }): Error {
+  const parts = [error.message, error.details, error.hint].filter(Boolean);
+  return new Error(parts.length ? `${context}: ${parts.join(" — ")}` : context);
+}
+
 export function builderDraftToFlowStepInserts(
   flowId: string,
   draft: SerializableWorkflowState
@@ -88,18 +93,17 @@ export async function replaceFlowStepsFromDraft(
     .from("onboarding_flow_steps")
     .delete()
     .eq("flow_id", flowId);
-  if (deleteError) throw deleteError;
+  if (deleteError) {
+    throw formatSupabaseError("Failed to clear flow steps", deleteError);
+  }
 
   const inserts = builderDraftToFlowStepInserts(flowId, draft);
   if (!inserts.length) return;
 
-  const canvasToDbId = new Map<string, string>();
-  const rowsWithParents = inserts.map((row) => ({ ...row }));
-
-  for (const row of rowsWithParents) {
-    const { data, error } = await supabase
-      .from("onboarding_flow_steps")
-      .insert({
+  const { data, error } = await supabase
+    .from("onboarding_flow_steps")
+    .insert(
+      inserts.map((row) => ({
         flow_id: row.flow_id,
         step_type: row.step_type,
         title: row.title,
@@ -111,26 +115,31 @@ export async function replaceFlowStepsFromDraft(
         settings: row.settings,
         metadata: row.metadata,
         canvas_node_id: row.canvas_node_id,
-      })
-      .select("id, canvas_node_id")
-      .single();
-    if (error) throw error;
-    if (data?.canvas_node_id) {
-      canvasToDbId.set(String(data.canvas_node_id), String(data.id));
-    }
+      }))
+    )
+    .select("id, canvas_node_id");
+
+  if (error) {
+    throw formatSupabaseError("Failed to save flow steps", error);
   }
 
-  for (const row of rowsWithParents) {
+  const canvasToDbId = new Map(
+    (data ?? []).map((row) => [String(row.canvas_node_id), String(row.id)])
+  );
+
+  for (const row of inserts) {
     const parentCanvas = row.metadata.parent_canvas_node_id as string | null;
     if (!parentCanvas) continue;
     const parentDbId = canvasToDbId.get(parentCanvas);
     const selfDbId = canvasToDbId.get(row.canvas_node_id);
     if (!parentDbId || !selfDbId) continue;
-    const { error } = await supabase
+    const { error: parentError } = await supabase
       .from("onboarding_flow_steps")
       .update({ parent_step_id: parentDbId })
       .eq("id", selfDbId);
-    if (error) throw error;
+    if (parentError) {
+      throw formatSupabaseError("Failed to link flow step parents", parentError);
+    }
   }
 }
 
@@ -147,7 +156,7 @@ export async function loadFlowBuilderDraft(
     .eq("flow_id", flowId)
     .order("position", { ascending: true });
 
-  if (error) throw error;
+  if (error) throw formatSupabaseError("Failed to load flow steps", error);
   return stepsToBuilderDraft(steps as OnboardingFlowStepRow[] | null, fallbackDraft);
 }
 

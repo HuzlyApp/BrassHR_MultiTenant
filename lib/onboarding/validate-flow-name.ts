@@ -16,11 +16,18 @@ export function isValidFlowNameInput(name: string): string | null {
  * Returns an error message when another saved workflow template in the tenant
  * already uses this display name (case-insensitive).
  */
+export type DuplicateFlowNameScope = "tenant-default" | "full";
+
 export async function findDuplicateFlowName(
   supabase: OnboardingDbClient,
   tenantId: string,
   flowName: string,
-  opts?: { excludeTemplateId?: string; excludeFlowName?: string }
+  opts?: {
+    excludeTemplateId?: string;
+    excludeFlowName?: string;
+    /** Tenant default onboarding uses its own namespace (tenant_onboarding_configs.flow_name). */
+    scope?: DuplicateFlowNameScope;
+  }
 ): Promise<string | null> {
   const validation = isValidFlowNameInput(flowName);
   if (validation) return validation;
@@ -29,6 +36,14 @@ export async function findDuplicateFlowName(
   const excludeCurrent = normalizeFlowNameKey(opts?.excludeFlowName ?? "");
 
   if (excludeCurrent && normalized === excludeCurrent) {
+    return null;
+  }
+
+  const scope = opts?.scope ?? "full";
+
+  if (scope === "tenant-default") {
+    // Named flows in onboarding_flows are a separate list; they may share a display
+    // name with the tenant's default applicant onboarding flow.
     return null;
   }
 

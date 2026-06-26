@@ -30,6 +30,7 @@ import {
   isUndeliverableDraftPreviewEmail,
   resolveDraftPreviewFirmaSignerEmail,
 } from "@/lib/onboarding/is-draft-preview";
+import { isValidStep1Email } from "@/lib/onboardingStep1Validation";
 import type { OnboardingStepStatus, TenantOnboardingStep } from "@/lib/onboarding/types";
 
 export type WorkerFirmaSigningSessionRow = {
@@ -145,11 +146,30 @@ export class FirmaOnboardingSigningError extends Error {
       | "CREATE_FAILED"
       | "INVALID_SESSION"
       | "SIGNING_REQUEST_DRAFT"
-      | "IFRAME_UNAVAILABLE",
+      | "IFRAME_UNAVAILABLE"
+      | "INVALID_APPLICANT_EMAIL",
     readonly status = 400
   ) {
     super(message);
     this.name = "FirmaOnboardingSigningError";
+  }
+}
+
+export function assertValidApplicantEmailForSigning(email: string): void {
+  const trimmed = email.trim();
+  if (!trimmed) {
+    throw new FirmaOnboardingSigningError(
+      "Applicant email is required before creating a signing request. Complete the first onboarding step with a valid email.",
+      "INVALID_APPLICANT_EMAIL",
+      400
+    );
+  }
+  if (!isValidStep1Email(trimmed)) {
+    throw new FirmaOnboardingSigningError(
+      "Enter a valid applicant email before creating a signing request.",
+      "INVALID_APPLICANT_EMAIL",
+      400
+    );
   }
 }
 
@@ -545,6 +565,7 @@ function shouldDiscardExistingSession(
 export async function ensureFirmaSigningSession(
   input: EnsureFirmaSigningSessionInput
 ): Promise<FirmaSigningSessionPayload> {
+  assertValidApplicantEmailForSigning(input.applicantEmail);
   const workspaceId = await resolveWorkspaceForSigning(input.supabase, input.tenantId);
   const { recruiterTemplateId, recruiterTemplate } = await resolveRecruiterTemplateForStep(
     input.supabase,
@@ -612,6 +633,7 @@ export async function ensureFirmaSigningSession(
 export async function syncFirmaSigningSessionStatus(
   input: EnsureFirmaSigningSessionInput
 ): Promise<FirmaSigningSessionPayload> {
+  assertValidApplicantEmailForSigning(input.applicantEmail);
   const workspaceId = await resolveWorkspaceForSigning(input.supabase, input.tenantId);
   const recruiterTemplateId = getFirmaRecruiterTemplateId(input.step);
   const existing = await loadExistingSession(input.supabase, input.workerId, input.step.id);

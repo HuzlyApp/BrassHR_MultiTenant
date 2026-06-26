@@ -7,6 +7,7 @@ import {
   ensureFirmaSigningSession,
 } from "@/lib/onboarding/firma-onboarding-signing";
 import { resolveFirmaOnboardingContext } from "@/lib/onboarding/resolve-firma-onboarding-context";
+import { isValidStep1Email } from "@/lib/onboardingStep1Validation";
 
 export const runtime = "nodejs";
 
@@ -25,10 +26,15 @@ async function resolveApplicantProfile(
 
   const row = data as { first_name?: string | null; last_name?: string | null; email?: string | null } | null;
 
+  const email = row?.email?.trim() || "";
+  if (!email || !isValidStep1Email(email)) {
+    return null;
+  }
+
   return {
     firstName: row?.first_name?.trim() || "Applicant",
     lastName: row?.last_name?.trim() || null,
-    email: row?.email?.trim() || applicantId,
+    email: email.toLowerCase(),
   };
 }
 
@@ -76,6 +82,16 @@ export async function GET(req: NextRequest) {
     }
 
     const profile = await resolveApplicantProfile(supabase, resolved.workerId!, applicantId);
+    if (!profile) {
+      return NextResponse.json(
+        {
+          error:
+            "A valid applicant email is required before signing. Complete the first onboarding step with your email address.",
+          code: "INVALID_APPLICANT_EMAIL",
+        },
+        { status: 400 }
+      );
+    }
     const session = await ensureFirmaSigningSession({
       supabase,
       tenantId: resolved.tenantId,

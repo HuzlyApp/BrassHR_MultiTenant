@@ -1,9 +1,9 @@
 "use client";
 
 import Image from "next/image";
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { TenantBrandingProvider } from "@/app/components/tenant/TenantBrandingContext";
-import { braasLoginShellLogoUrl, type TenantBranding } from "@/lib/tenant/tenant-branding";
+import { braasLoginShellLogoUrl, brandingToCssVars, type TenantBranding } from "@/lib/tenant/tenant-branding";
 
 export const interStyle = { fontFamily: "Inter, Arial, sans-serif" };
 
@@ -45,7 +45,7 @@ export function LoginBrandHeader({ brand }: { brand: TenantBranding }) {
             <p className="text-[18px] font-semibold uppercase leading-[28px] text-black" style={interStyle}>
               {brand.companyName}
             </p>
-            <p className="text-[16px] font-normal leading-[24px] text-[#6b7280]" style={interStyle}>
+            <p className="text-[16px] font-normal leading-[24px]" style={{ ...interStyle, color: "var(--brand-muted)" }}>
               {brand.subtitle}
             </p>
           </div>
@@ -59,9 +59,14 @@ export function LoginBrandHeader({ brand }: { brand: TenantBranding }) {
 }
 
 export function LoginPageShell({ brand, children }: { brand: TenantBranding; children: ReactNode }) {
+  const shellStyle = brandingToCssVars(brand) as CSSProperties;
+
   return (
     <TenantBrandingProvider branding={brand}>
-      <main className="min-h-screen w-full overflow-x-hidden bg-white" style={{ backgroundColor: "#ffffff" }}>
+      <main
+        className="min-h-screen w-full overflow-x-hidden bg-white"
+        style={{ ...shellStyle, backgroundColor: "#ffffff" }}
+      >
         <style>{`
           .login-frame {
             box-sizing: border-box;

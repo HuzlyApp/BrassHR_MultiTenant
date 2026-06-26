@@ -132,7 +132,7 @@ const legacyReferencesDraft: SerializableWorkflowState = {
 };
 
 describe("selectBuilderCanvas", () => {
-  it("loads saved draft canvas when publish status is draft", () => {
+  it("loads saved draft canvas when a builder draft exists", () => {
     const result = selectBuilderCanvas(
       {
         config: publishedConfig,
@@ -144,13 +144,14 @@ describe("selectBuilderCanvas", () => {
 
     expect(result.source).toBe("draft");
     expect(result.nodes.map((n) => n.data.label)).toEqual([
+      "Upload Resume",
       "Skill / Qualification Assessment",
       "Document Upload",
       "Background Check",
     ]);
   });
 
-  it("loads published steps when workflow is published", () => {
+  it("prefers saved draft over published steps when both exist", () => {
     const legacyPublished = {
       ...publishedConfig,
       steps: publishedConfig.steps,
@@ -165,13 +166,8 @@ describe("selectBuilderCanvas", () => {
       []
     );
 
-    expect(result.source).toBe("published");
-    const labels = hydratePublishedCanvas(
-      { config: legacyPublished, publishStatus: "published" },
-      []
-    ).nodes.map((n) => n.data.label);
-
-    expect(result.nodes.map((n) => n.data.label)).toEqual(labels);
+    expect(result.source).toBe("draft");
+    expect(result.nodes.map((n) => n.data.label)).toEqual(["Add Resume", "Add References"]);
   });
 
   it("detects non-empty builder drafts", () => {
@@ -193,6 +189,7 @@ describe("hydrateDraftCanvas", () => {
 
     expect(nodes.map((n) => n.data.label)).not.toContain("Add References");
     expect(nodes.map((n) => n.data.stepId)).toEqual([
+      "resume-basic-profile",
       "skill-qualification-assessment",
       "document-upload",
       "background-check",

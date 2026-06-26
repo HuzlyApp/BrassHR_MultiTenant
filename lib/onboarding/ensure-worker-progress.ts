@@ -7,7 +7,7 @@ export async function ensureWorkerOnboardingProgress(
   workerId: string,
   tenantId: string
 ): Promise<WorkerOnboardingProgressPayload> {
-  const config = await loadTenantOnboardingConfig(supabase, tenantId);
+  const config = await loadTenantOnboardingConfig(supabase, tenantId, { workerFacing: true });
   if (!config) {
     throw new Error("No active onboarding configuration for tenant");
   }

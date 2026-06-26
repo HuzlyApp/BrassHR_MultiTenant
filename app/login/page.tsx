@@ -32,6 +32,7 @@ import {
 } from "@/lib/tenant/client-onboarding-slug";
 import {
   brandingFallbackForSlug,
+  brandingAuthButtonStyle,
   brandingToCssVars,
   PLATFORM_DEFAULT_TENANT_SLUG,
   usesBraasFigmaLoginUi,
@@ -46,11 +47,7 @@ const inputFocusClass =
 const checkboxActiveClass = "border-[#012352] bg-[#012352]";
 
 function primaryButtonStyle(enabled: boolean): React.CSSProperties | undefined {
-  if (!enabled) return undefined;
-  return {
-    backgroundImage: "linear-gradient(90deg, var(--brand-primary) 0%, var(--brand-accent) 100%)",
-    fontFamily: "var(--font-geist-sans), Inter, Arial, sans-serif",
-  };
+  return brandingAuthButtonStyle(enabled);
 }
 
 const inputTypographyStyle = {
@@ -542,11 +539,17 @@ function LoginPageContent() {
         ) : (
           <form onSubmit={handleCredentialsSubmit} className="flex flex-col gap-[40px] pt-[30px]">
             <div>
-          <h1 className="text-[30px] font-semibold leading-[36px] tracking-normal text-black" style={interStyle}>
-            Login
+          <h1
+            className="text-[30px] font-semibold leading-[36px] tracking-normal"
+            style={{ color: "var(--brand-heading)", fontFamily: "var(--brand-font-heading)" }}
+          >
+            {brand.headline}
           </h1>
-          <p className="mt-[8px] text-[16px] font-normal leading-[24px] text-[#6b7280]" style={interStyle}>
-            Account login
+          <p
+            className="mt-[8px] text-[16px] font-normal leading-[24px]"
+            style={{ color: "var(--brand-muted)", fontFamily: "var(--brand-font-body)" }}
+          >
+            {brand.subtitle}
           </p>
         </div>
 
@@ -682,7 +685,7 @@ function LoginPageContent() {
           className="flex h-[54px] w-full items-center justify-center rounded-[12px] text-[16px] font-semibold leading-[22px] tracking-normal transition disabled:cursor-not-allowed disabled:bg-[#dddddd] disabled:text-[#c5c5c5] enabled:text-white enabled:hover:brightness-95"
           style={primaryButtonStyle(canSubmit && !submitting)}
         >
-          {submitting ? "Logging in..." : "Log In"}
+          {submitting ? "Logging in..." : brand.buttonText}
         </button>
 
         <div className="flex items-center gap-[14px]">

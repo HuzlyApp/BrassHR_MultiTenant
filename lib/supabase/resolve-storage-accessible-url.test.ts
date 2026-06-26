@@ -22,11 +22,11 @@ describe("parseStoredStorageReference", () => {
     });
   });
 
-  it("passes through app proxy URLs", () => {
-    const ref = parseStoredStorageReference("/api/zoho-sign/document?request_id=abc");
+  it("passes through external app URLs", () => {
+    const ref = parseStoredStorageReference("/api/external/document?request_id=abc");
     expect(ref).toEqual({
       kind: "external",
-      url: "/api/zoho-sign/document?request_id=abc",
+      url: "/api/external/document?request_id=abc",
     });
   });
 });

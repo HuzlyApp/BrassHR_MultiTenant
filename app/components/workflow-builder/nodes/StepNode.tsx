@@ -1,7 +1,7 @@
 "use client";
 
 import { Handle, Position, type NodeProps, type Node } from "@xyflow/react";
-import { X } from "lucide-react";
+import { X, Lock } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { GOLD } from "../constants";
 import type { WorkflowNodeData } from "../types";
@@ -14,6 +14,7 @@ export default function StepNode(props: NodeProps<StepNodeType>) {
   const [iconBgColor, setIconBgColor] = useState<string>("#eaecf0");
 
   const onDelete = data.onDelete;
+  const lockedFirstStep = data.lockedFirstStep === true;
 
   useEffect(() => {
     const host = iconHostRef.current;
@@ -62,6 +63,15 @@ export default function StepNode(props: NodeProps<StepNodeType>) {
             <span className="flex-1 whitespace-normal break-words text-black text-[11px] font-semibold leading-[14px]">
               {data.label}
             </span>
+
+            {lockedFirstStep ? (
+              <span
+                className="flex h-6 shrink-0 items-center gap-1 rounded-md border border-amber-200 bg-amber-50 px-1.5 text-[10px] font-medium text-amber-900"
+                title="Required first step"
+              >
+                <Lock size={10} strokeWidth={2.5} aria-hidden />
+              </span>
+            ) : null}
 
             {selected && onDelete ? (
               <button

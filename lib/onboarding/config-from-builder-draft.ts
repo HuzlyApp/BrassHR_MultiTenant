@@ -1,6 +1,6 @@
 import type { OnboardingDbClient } from "@/lib/onboarding/load-tenant-config";
 import type { TenantOnboardingConfig } from "@/lib/onboarding/types";
-import { configToDrafts } from "@/lib/onboarding/config-to-drafts";
+import { enabledPublishedStepDrafts } from "@/lib/onboarding/prepare-published-step-drafts";
 import { workflowStateToStepDrafts } from "@/lib/onboarding/workflow-to-drafts";
 import type { SerializableWorkflowState } from "@/lib/onboarding/workflow-builder-serialization";
 import type { OnboardingStepDraft } from "@/lib/onboarding/default-onboarding-steps";
@@ -16,7 +16,7 @@ export function configFromWorkflowDraft(
 ): TenantOnboardingConfig | null {
   if (!published) return null;
 
-  const existingDrafts = configToDrafts(published);
+  const existingDrafts = enabledPublishedStepDrafts(published);
   const stepDrafts = workflowStateToStepDrafts(builderDraft, existingDrafts);
 
   const steps = stepDrafts

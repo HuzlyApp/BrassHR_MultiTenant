@@ -172,16 +172,26 @@ function WorkflowBuilderInner({
     if (!editingTitle) setTitleDraft(title);
   }, [editingTitle, title]);
 
+  const initialCanvasRef = useRef({ nodes: initialNodes, edges: initialEdges });
+  initialCanvasRef.current = { nodes: initialNodes, edges: initialEdges };
+  const lastResetKeyRef = useRef<string | undefined>(undefined);
+
   useEffect(() => {
     if (!resetKey) return;
-    const hydrated = withLeafDropZones(initialNodes, initialEdges);
+    if (lastResetKeyRef.current === resetKey) return;
+    lastResetKeyRef.current = resetKey;
+
+    const hydrated = withLeafDropZones(
+      initialCanvasRef.current.nodes,
+      initialCanvasRef.current.edges
+    );
     setNodes(hydrated.nodes);
     setEdges(hydrated.edges);
     setSelectedNodeId(null);
     setUndoStack([]);
     setRedoStack([]);
     skipChangeAfterReset.current = true;
-  }, [initialEdges, initialNodes, resetKey, setEdges, setNodes]);
+  }, [resetKey, setEdges, setNodes]);
 
   const selectedNode = useMemo((): Node<WorkflowNodeData> | null => {
     const n = nodes.find((node) => node.id === selectedNodeId);

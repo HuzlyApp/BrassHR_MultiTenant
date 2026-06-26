@@ -14,7 +14,14 @@ export async function GET(req: NextRequest) {
     const workerId = auth.applicant.id;
     const tenantId = auth.applicant.tenant_id;
 
-    const [docsRes, reviewsRes, submittedRes, requiredRes, agreementsRes] = await Promise.all([
+    const [firmaRes, docsRes, reviewsRes, submittedRes, requiredRes, agreementsRes] = await Promise.all([
+      auth.supabase
+        .from("worker_firma_signing_sessions")
+        .select("signing_request_id,firma_status,iframe_url,updated_at")
+        .eq("worker_id", workerId)
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
       auth.supabase
         .from("worker_documents")
         .select(
@@ -43,6 +50,7 @@ export async function GET(req: NextRequest) {
         .order("created_at", { ascending: false }),
     ]);
 
+    if (firmaRes.error) throw firmaRes.error;
     if (docsRes.error) throw docsRes.error;
     if (reviewsRes.error) throw reviewsRes.error;
     if (submittedRes.error) throw submittedRes.error;
@@ -134,6 +142,13 @@ export async function GET(req: NextRequest) {
       });
     }
 
+    const firmaSigning = firmaRes.data as {
+      signing_request_id?: string | null;
+      firma_status?: string | null;
+      iframe_url?: string | null;
+      updated_at?: string | null;
+    } | null;
+
     const profile = {
       attachment_requirements: attachmentRequirements,
       legacy_document_reviews: legacyDocumentReviews,
@@ -145,7 +160,12 @@ export async function GET(req: NextRequest) {
       signeasy: {
         document_name: docs?.document_name ? String(docs.document_name) : null,
       },
-      zoho_sign: {},
+      firma_signing: {
+        signing_request_id: firmaSigning?.signing_request_id ?? null,
+        firma_status: firmaSigning?.firma_status ?? null,
+        iframe_url: firmaSigning?.iframe_url ?? null,
+        updated_at: firmaSigning?.updated_at ?? null,
+      },
     };
 
     const agreements = (agreementsRes.data ?? []).map((row) => ({

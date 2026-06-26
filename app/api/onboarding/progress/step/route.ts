@@ -7,6 +7,8 @@ import { loadTenantOnboardingConfig } from "@/lib/onboarding/load-tenant-config"
 import { dispatchWorkflowIntegrationPartner } from "@/lib/onboarding/integration-partner-dispatch";
 import { notifyHrOnOnboardingStepFailure } from "@/lib/onboarding/notify-hr-on-step-failure";
 import { shouldPauseFlowOnStepFailure } from "@/lib/onboarding/workflow-settings";
+import { isUploadResumeStep } from "@/lib/onboarding/enforce-upload-resume-first";
+import { isValidStep1Email } from "@/lib/onboardingStep1Validation";
 import type { OnboardingStepStatus } from "@/lib/onboarding/types";
 
 export const runtime = "nodejs";
@@ -71,6 +73,43 @@ export async function POST(req: NextRequest) {
       workerFacing: false,
     });
     const stepRow = config?.steps.find((s) => s.id === stepId) ?? null;
+
+    if (status === "skipped" && stepRow && isUploadResumeStep(stepRow)) {
+      return NextResponse.json({ error: "Upload Resume cannot be skipped." }, { status: 400 });
+    }
+
+    if (status === "completed" && stepRow && isUploadResumeStep(stepRow)) {
+      const { data: worker } = await supabase
+        .from("workers")
+        .select("email")
+        .eq("id", ctx.workerId)
+        .maybeSingle();
+      const email = String(worker?.email ?? "").trim();
+      if (!email) {
+        return NextResponse.json(
+          { error: "A valid email is required before continuing onboarding." },
+          { status: 400 }
+        );
+      }
+      if (!isValidStep1Email(email)) {
+        return NextResponse.json(
+          { error: "Enter a valid email address before continuing onboarding." },
+          { status: 400 }
+        );
+      }
+
+      const { data: resume } = await supabase
+        .from("worker_resumes")
+        .select("file_url")
+        .eq("worker_id", ctx.workerId)
+        .maybeSingle();
+      if (!resume?.file_url) {
+        return NextResponse.json(
+          { error: "Upload your resume before continuing onboarding." },
+          { status: 400 }
+        );
+      }
+    }
 
     let stepData: Record<string, unknown> =
       body.data && typeof body.data === "object" ? { ...body.data } : {};

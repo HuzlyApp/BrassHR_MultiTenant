@@ -9,6 +9,7 @@ import {
 import { dayFromDatePriority } from "@/lib/onboarding/normalize-workflow-settings";
 import type { OnboardingStepType } from "@/lib/onboarding/types";
 import { workflowStepIdToOnboardingType } from "@/lib/onboarding/workflow-step-mapping";
+import { enforceUploadResumeFirstInDrafts } from "@/lib/onboarding/enforce-upload-resume-first";
 
 function uniqueStepKey(stepType: string, existingKeys: Set<string>, preferred: string): string {
   if (!existingKeys.has(preferred)) return preferred;
@@ -102,14 +103,9 @@ export function workflowStateToStepDrafts(
     });
   });
 
-  if (!drafts.length && existingSteps.length) {
-    return reindexStepSortOrders(existingSteps);
+  if (!drafts.length) {
+    return enforceUploadResumeFirstInDrafts([]).steps;
   }
 
-  const hasReview = drafts.some((s) => s.step_type === "review_submit");
-  if (!hasReview) {
-    drafts.push(createStepDraftForType("review_submit", drafts));
-  }
-
-  return reindexStepSortOrders(drafts);
+  return enforceUploadResumeFirstInDrafts(reindexStepSortOrders(drafts)).steps;
 }

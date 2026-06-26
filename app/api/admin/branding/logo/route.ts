@@ -4,12 +4,20 @@ import { ORGANIZATION_LOGOS_BUCKET } from "@/lib/supabase-storage-buckets";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { requireStaffApiSession } from "@/lib/auth/api-session";
 import { resolveEffectiveAdminTenantId } from "@/lib/email-templates/resolve-effective-tenant";
-import { invalidateTenantBrandingCache } from "@/lib/tenant/branding-fields";
+import { invalidateTenantBrandingCache } from "@/lib/tenant/invalidate-tenant-branding-cache";
 
 export const runtime = "nodejs";
 
 const MAX_BYTES = 2 * 1024 * 1024;
 const ALLOWED = new Set(["image/png", "image/jpeg", "image/webp", "image/svg+xml"]);
+
+type LogoField = "logo" | "login" | "signup";
+
+const LOGO_COLUMN: Record<LogoField, "logo_url" | "login_logo_url" | "signup_logo_url"> = {
+  logo: "logo_url",
+  login: "login_logo_url",
+  signup: "signup_logo_url",
+};
 
 function extForMime(mime: string): string {
   switch (mime) {
@@ -24,6 +32,12 @@ function extForMime(mime: string): string {
     default:
       return "png";
   }
+}
+
+function parseLogoField(value: FormDataEntryValue | null): LogoField {
+  const raw = typeof value === "string" ? value.trim().toLowerCase() : "";
+  if (raw === "login" || raw === "signup") return raw;
+  return "logo";
 }
 
 export async function POST(req: NextRequest) {
@@ -48,6 +62,8 @@ export async function POST(req: NextRequest) {
   try {
     const formData = await req.formData();
     const file = formData.get("file") as File | null;
+    const field = parseLogoField(formData.get("field"));
+    const column = LOGO_COLUMN[field];
 
     if (!file) {
       return NextResponse.json({ error: "Choose a logo file first." }, { status: 400 });
@@ -63,7 +79,7 @@ export async function POST(req: NextRequest) {
     }
 
     const ext = extForMime(mime);
-    const objectPath = `${tenantId}/logo.${ext}`;
+    const objectPath = `${tenantId}/${field}-logo.${ext}`;
     const buffer = Buffer.from(await file.arrayBuffer());
 
     const { error: uploadError } = await svc.storage.from(ORGANIZATION_LOGOS_BUCKET).upload(objectPath, buffer, {
@@ -80,14 +96,19 @@ export async function POST(req: NextRequest) {
       ? `${url}/storage/v1/object/public/${ORGANIZATION_LOGOS_BUCKET}/${objectPath}`
       : objectPath;
 
-    const { error: upErr } = await svc.from("tenants").update({ logo_url: publicUrl }).eq("id", tenantId);
+    const { error: upErr } = await svc.from("tenants").update({ [column]: publicUrl }).eq("id", tenantId);
     if (upErr) {
       return NextResponse.json({ error: upErr.message }, { status: 500 });
     }
 
     await invalidateTenantBrandingCache(tenantId);
 
-    return NextResponse.json({ ok: true, logoUrl: publicUrl, tenantId });
+    return NextResponse.json({
+      ok: true,
+      logoUrl: publicUrl,
+      field,
+      tenantId,
+    });
   } catch (err: unknown) {
     console.error("[admin/branding/logo]", err);
     const msg = err instanceof Error ? err.message : "Unexpected error";

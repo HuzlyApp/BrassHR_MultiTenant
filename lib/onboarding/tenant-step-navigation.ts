@@ -13,6 +13,7 @@ import type {
 import { APPLICATION_ROUTES } from "@/lib/onboarding/application-routes";
 import { filterApplicantVisibleSteps } from "@/lib/onboarding/filter-applicant-steps";
 import { withTenant } from "@/lib/tenant/with-tenant";
+import { isUploadResumeStep } from "@/lib/onboarding/enforce-upload-resume-first";
 
 /** Enabled steps for applicants, ordered by tenant `sort_order`. */
 export function getEnabledTenantSteps(
@@ -146,6 +147,10 @@ export function computeMaxAllowedStepIndex(
     for (let i = 0; i < steps.length; i++) {
       const st = statusByStepId.get(steps[i].id);
       if (st === "completed" || st === "skipped") {
+        if (st === "skipped" && isUploadResumeStep(steps[i])) {
+          max = Math.max(max, i + 1);
+          break;
+        }
         max = Math.max(max, i + 2);
       } else if (st === "in_progress") {
         max = Math.max(max, i + 1);

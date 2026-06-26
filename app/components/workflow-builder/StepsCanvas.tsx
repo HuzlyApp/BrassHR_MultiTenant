@@ -50,6 +50,9 @@ import {
   onlyStepNodes,
 } from "./workflow-canvas-utils";
 import { normalizeWorkflowNodeSettings } from "@/lib/onboarding/normalize-workflow-settings";
+import {
+  isUploadResumeWorkflowStepId,
+} from "@/lib/onboarding/enforce-upload-resume-first";
 
 type StepsCanvasProps = {
   nodes: Node<WorkflowCanvasNodeData>[];
@@ -140,6 +143,12 @@ export default function StepsCanvas({
       if (readOnly) return;
       const target = nodes.find((n) => n.id === id);
       if (!target || isDropZoneNode(target)) return;
+      if (
+        isStepNode(target) &&
+        (target.data.lockedFirstStep === true || isUploadResumeWorkflowStepId(target.data.stepId))
+      ) {
+        return;
+      }
 
       onBeforeChange?.();
 
@@ -194,6 +203,12 @@ export default function StepsCanvas({
       const dropZone = nodes.find((n) => n.id === dropZoneId);
       if (!dropZone || !isDropZoneNode(dropZone)) return;
       if (readOnly) return;
+      if (isUploadResumeWorkflowStepId(def.id)) {
+        const hasResume = onlyStepNodes(nodes).some(
+          (n) => isStepNode(n) && isUploadResumeWorkflowStepId(n.data.stepId)
+        );
+        if (hasResume) return;
+      }
 
       onBeforeChange?.();
 
@@ -421,6 +436,12 @@ export default function StepsCanvas({
 
       const def = stepById.get(stepId);
       if (!def) return;
+      if (isUploadResumeWorkflowStepId(def.id)) {
+        const hasResume = onlyStepNodes(nodes).some(
+          (n) => isStepNode(n) && isUploadResumeWorkflowStepId(n.data.stepId)
+        );
+        if (hasResume) return;
+      }
 
       const flowPosition = screenToFlowPosition({ x: e.clientX, y: e.clientY });
       const hitDropZone = findDropZoneAtPosition(nodes, flowPosition);
@@ -525,7 +546,10 @@ export default function StepsCanvas({
           selected: n.id === selectedNodeId,
           data: {
             ...n.data,
-            onDelete: readOnly ? undefined : handleDeleteNode,
+            onDelete:
+              readOnly || n.data.lockedFirstStep === true || isUploadResumeWorkflowStepId(n.data.stepId)
+                ? undefined
+                : handleDeleteNode,
           },
         };
       }),

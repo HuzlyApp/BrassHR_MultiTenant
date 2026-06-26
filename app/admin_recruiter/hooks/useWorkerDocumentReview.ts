@@ -88,35 +88,18 @@ export function useWorkerDocumentReview(workerId: string | undefined, onSuccess?
     [workerId, onSuccess]
   );
 
-  const requestEsign = useCallback(
-    async (requestId?: string | null, actionId?: string | null) => {
-      if (!workerId) return;
-      setEsignLoading(true);
-      setActionError(null);
-      try {
-        const res = await fetch("/api/admin/worker-request-esign", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            workerId,
-            requestId: requestId ?? undefined,
-            actionId: actionId ?? undefined,
-          }),
-        });
-        const json = (await res.json().catch(() => ({}))) as {
-          error?: string;
-          message?: string;
-        };
-        if (!res.ok) throw new Error(json.error || "Failed to request eSign");
-        await onSuccess?.();
-      } catch (e) {
-        setActionError(e instanceof Error ? e.message : "Failed to request eSign");
-      } finally {
-        setEsignLoading(false);
-      }
-    },
-    [workerId, onSuccess]
-  );
+  const requestEsign = useCallback(async () => {
+    if (!workerId) return;
+    setEsignLoading(true);
+    setActionError(null);
+    try {
+      setActionError(
+        "E-sign is sent automatically when the applicant reaches the Agreement step in onboarding (Firma.dev)."
+      );
+    } finally {
+      setEsignLoading(false);
+    }
+  }, [workerId]);
 
   return {
     reviewLoadingKey,

@@ -4,7 +4,7 @@ import { ORGANIZATION_LOGOS_BUCKET } from "@/lib/supabase-storage-buckets";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { requireStaffApiSession } from "@/lib/auth/api-session";
 import { resolveEffectiveAdminTenantId } from "@/lib/email-templates/resolve-effective-tenant";
-import { invalidateTenantBrandingCache } from "@/lib/tenant/branding-fields";
+import { invalidateTenantBrandingCache } from "@/lib/tenant/invalidate-tenant-branding-cache";
 
 export const runtime = "nodejs";
 

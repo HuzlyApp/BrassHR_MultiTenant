@@ -57,7 +57,7 @@ function isDuplicateStepKey(stepKey: string, stepType: OnboardingStepType): bool
 }
 
 function baseRouteForStep(step: TenantOnboardingStep): string {
-  if (stepUsesFirmaSigning(step)) {
+  if (stepUsesFirmaSigning(step) && step.step_type !== "authorizations") {
     return APPLICATION_ROUTES.firmaSign;
   }
 
@@ -83,7 +83,7 @@ function baseRouteForStep(step: TenantOnboardingStep): string {
 }
 
 export function dedicatedRouteForWorkflowStep(step: TenantOnboardingStep): string | null {
-  if (stepUsesFirmaSigning(step)) {
+  if (stepUsesFirmaSigning(step) && step.step_type !== "authorizations") {
     return APPLICATION_ROUTES.firmaSign;
   }
 

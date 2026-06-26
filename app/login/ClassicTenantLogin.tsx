@@ -7,6 +7,7 @@ import OnboardingCheckbox from "@/app/components/OnboardingCheckbox";
 import OnboardingLayout from "@/app/components/OnboardingLayout";
 import { cn } from "@/lib/cn";
 import type { TenantBranding } from "@/lib/tenant/tenant-branding";
+import { brandingAuthButtonStyle } from "@/lib/tenant/tenant-branding";
 
 export type ClassicLoginFormState = {
   email: string;
@@ -51,7 +52,12 @@ export default function ClassicTenantLogin({
       <div className="flex flex-col justify-center p-6 md:p-10 lg:p-12">
         <div className="mb-10">
           <div className="mb-4 h-1 w-12 rounded-full" style={{ backgroundColor: "var(--brand-primary)" }} />
-          <h1 className="text-3xl font-bold text-gray-900 md:text-4xl">Recruiter sign in</h1>
+          <h1
+            className="text-3xl font-bold md:text-4xl"
+            style={{ color: "var(--brand-heading)", fontFamily: "var(--brand-font-heading)" }}
+          >
+            {brand.headline}
+          </h1>
         </div>
 
         <form onSubmit={onSubmit} className="space-y-6">
@@ -138,13 +144,13 @@ export default function ClassicTenantLogin({
             <button
               type="submit"
               disabled={!canSubmit || submitting}
-              style={{ backgroundColor: "var(--brand-primary)" }}
+              style={brandingAuthButtonStyle(canSubmit && !submitting)}
               className={cn(
                 "flex-1 rounded-lg py-3.5 font-medium text-white transition-colors",
                 "hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60"
               )}
             >
-              {submitting ? "Logging in..." : "Log in"}
+              {submitting ? "Logging in..." : brand.buttonText}
             </button>
           </div>
         </form>

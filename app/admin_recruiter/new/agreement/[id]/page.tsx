@@ -51,10 +51,10 @@ type ProfileApi = {
   signeasy?: {
     document_name?: string | null;
   };
-  zoho_sign?: {
-    request_id?: string | null;
-    document_id?: string | null;
-    status?: string | null;
+  firma_signing?: {
+    signing_request_id?: string | null;
+    firma_status?: string | null;
+    iframe_url?: string | null;
     updated_at?: string | null;
   };
 };
@@ -282,33 +282,19 @@ export default function NewApplicantAgreementPage() {
   };
 
   const openDocument = (section: WorkerAgreementSection, mode: "preview" | "download") => {
-    if (section.zohoRequestId) {
-      const qs = new URLSearchParams({ request_id: section.zohoRequestId, mode });
-      if (section.zohoDocumentId?.trim()) {
-        qs.set("document_id", section.zohoDocumentId.trim());
-        qs.set("specific", "1");
-      }
-      const url = `/api/zoho-sign/document?${qs.toString()}`;
-      if (mode === "download") {
-        window.location.href = url;
-        return;
-      }
-      window.open(url, "_blank", "noopener,noreferrer");
-      return;
-    }
-
-    if (!section.fileUrl) return;
+    const url = section.fileUrl || section.firmaSigningUrl;
+    if (!url) return;
     if (mode === "download") {
-      window.location.href = section.fileUrl;
+      window.location.href = url;
       return;
     }
-    window.open(section.fileUrl, "_blank", "noopener,noreferrer");
+    window.open(url, "_blank", "noopener,noreferrer");
   };
 
   const renderSection = (section: WorkerAgreementSection, index: number) => {
     const reviewTarget = reviewTargetForSection(section);
-    const canPreview = Boolean(section.fileUrl || section.zohoRequestId);
-    const canDownload = section.kind === "upload" && Boolean(section.fileUrl || section.zohoRequestId);
+    const canPreview = Boolean(section.fileUrl || section.firmaSigningUrl);
+    const canDownload = section.kind === "upload" && Boolean(section.fileUrl || section.firmaSigningUrl);
     const uploadAlreadyRequested = section.reviewStatus === "needs_revision";
     const showRequestUpload =
       (section.reviewStatus === "rejected" || !section.hasFile) && !uploadAlreadyRequested;
@@ -358,7 +344,7 @@ export default function NewApplicantAgreementPage() {
             esignLoading={esignLoading}
             onUpload={openSectionUpload}
             onRequestEsign={() =>
-              void requestEsign(section.zohoRequestId, section.zohoDocumentId)
+              void requestEsign()
             }
           />
 
@@ -399,7 +385,7 @@ export default function NewApplicantAgreementPage() {
               showRequestEsign={section.kind === "esign" && section.hasFile && !section.isSigned}
               esignLoading={esignLoading}
               onRequestEsign={() =>
-                void requestEsign(section.zohoRequestId, section.zohoDocumentId)
+                void requestEsign()
               }
             />
           </div>

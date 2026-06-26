@@ -298,7 +298,12 @@ export async function updateOnboardingFlow(
     )
     .single();
 
-  if (error) throw error;
+  if (error) {
+    throw new Error(
+      [error.message, error.details, error.hint].filter(Boolean).join(" — ") ||
+        "Failed to update onboarding flow"
+    );
+  }
 
   const detail = toDetail(data as OnboardingFlowRow);
   if (input.builderDraft) {

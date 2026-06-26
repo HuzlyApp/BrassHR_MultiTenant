@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { loadTenantOnboardingConfig } from "@/lib/onboarding/load-tenant-config";
+import { isValidStep1Email } from "@/lib/onboardingStep1Validation";
 import type { StepProgressRow } from "@/lib/onboarding/types";
 
 export type CompletionValidationResult =
@@ -33,6 +34,19 @@ export async function validateWorkerOnboardingComplete(
     }
 
     if (step.step_type === "resume_upload") {
+      const { data: worker } = await supabase
+        .from("workers")
+        .select("email")
+        .eq("id", workerId)
+        .maybeSingle();
+
+      const email = String(worker?.email ?? "").trim();
+      if (!email) {
+        missing.push({ stepKey: step.step_key, reason: "Applicant email is required" });
+      } else if (!isValidStep1Email(email)) {
+        missing.push({ stepKey: step.step_key, reason: "Applicant email is invalid" });
+      }
+
       const { data: resume } = await supabase
         .from("worker_resumes")
         .select("id, parsing_status, file_url")

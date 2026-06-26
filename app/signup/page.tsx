@@ -4,16 +4,21 @@ import Image from "next/image";
 import Link from "next/link";
 import SignupStepper from "@/app/components/SignupStepper";
 import { Check, ChevronDown, X } from "lucide-react";
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent } from "react";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import type { SignupStateOption } from "@/lib/signup/owner-signup";
 import { zipCodeValidationMessage } from "@/lib/tenant/business-info-validation";
+import {
+  brandingAuthButtonStyle,
+  brandingToCssVars,
+  defaultTenantBranding,
+  type TenantBranding,
+} from "@/lib/tenant/tenant-branding";
 import { FaApple } from "react-icons/fa";
 import { FaXTwitter } from "react-icons/fa6";
 import { FcGoogle } from "react-icons/fc";
 
 const BRAAS_BLUE = "#104b83";
-const BRAAS_BUTTON_GRADIENT = "linear-gradient(90deg, #BC8B41 0%, #E9B771 100%)";
 /** Figma Deep Navy — signup checkboxes (first screen). */
 const SIGNUP_CHECKBOX_ACTIVE_CLASS = "border-[#012352] bg-[#012352]";
 const interStyle = { fontFamily: "Inter, Arial, sans-serif" };
@@ -339,6 +344,25 @@ export default function SignupPage() {
   const [citiesLoading, setCitiesLoading] = useState(false);
   const [emailCheckStatus, setEmailCheckStatus] = useState<"idle" | "checking" | "taken" | "available">("idle");
   const emailCheckRequestId = useRef(0);
+  const [brand, setBrand] = useState<TenantBranding>(() => defaultTenantBranding());
+
+  useEffect(() => {
+    let alive = true;
+    void (async () => {
+      try {
+        const res = await fetch("/api/tenant-branding?slug=braas-hr", { cache: "no-store" });
+        const payload = (await res.json()) as { branding?: TenantBranding };
+        if (alive && payload.branding) setBrand(payload.branding);
+      } catch {
+        /* keep defaults */
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const signupButtonStyle = brandingAuthButtonStyle(true);
 
   useEffect(() => {
     const previousHtmlBg = document.documentElement.style.backgroundColor;
@@ -594,7 +618,10 @@ export default function SignupPage() {
   };
 
   return (
-    <main className="min-h-screen w-full overflow-x-hidden bg-white" style={{ backgroundColor: "#ffffff" }}>
+    <main
+      className="min-h-screen w-full overflow-x-hidden bg-white"
+      style={{ ...(brandingToCssVars(brand) as CSSProperties), backgroundColor: "#ffffff" }}
+    >
       <style>{`
         .signup-frame {
           box-sizing: border-box;
@@ -716,8 +743,8 @@ export default function SignupPage() {
             className="signup-form relative z-10 flex w-full max-w-[590px] flex-col pb-[48px]"
           >
             <Image
-              src="/icons/braas-HR/BrassHR-logo.svg"
-              alt="Brass HR"
+              src={brand.signupLogoUrl}
+              alt={brand.companyName}
               width={160}
               height={80}
               priority
@@ -735,11 +762,17 @@ export default function SignupPage() {
             {step === "details" ? (
               <>
             <div className="mt-[58px]">
-              <h1 className="text-[30px] font-semibold leading-[36px] tracking-normal text-[#0b0f19]" style={interStyle}>
-                Start your free trial
+              <h1
+                className="text-[30px] font-semibold leading-[36px] tracking-normal"
+                style={{ color: "var(--brand-heading)", fontFamily: "var(--brand-font-heading)" }}
+              >
+                {brand.signupHeadline}
               </h1>
-              <p className="mt-[10px] text-[16px] font-normal leading-[24px] tracking-normal text-[#475569]" style={interStyle}>
-                Enter your details to get started
+              <p
+                className="mt-[10px] text-[16px] font-normal leading-[24px] tracking-normal"
+                style={{ color: "var(--brand-muted)", fontFamily: "var(--brand-font-body)" }}
+              >
+                {brand.signupSubheadline}
               </p>
             </div>
 
@@ -872,10 +905,7 @@ export default function SignupPage() {
               type="submit"
               disabled={!canContinue}
               className="relative z-20 mt-[38px] flex h-[52px] w-full shrink-0 items-center justify-center rounded-[8px] text-[16px] font-semibold leading-[22px] tracking-normal transition disabled:cursor-not-allowed disabled:bg-[#dddddd] disabled:text-[#c5c5c5] enabled:text-white enabled:hover:brightness-95"
-              style={{
-                backgroundImage: canContinue ? BRAAS_BUTTON_GRADIENT : undefined,
-                fontFamily: "var(--font-geist-sans), Inter, Arial, sans-serif",
-              }}
+              style={canContinue ? signupButtonStyle : undefined}
             >
               Next
             </button>
@@ -908,10 +938,16 @@ export default function SignupPage() {
             ) : (
               <>
                 <div className="mt-[58px]">
-                  <h1 className="text-[30px] font-semibold leading-[36px] tracking-normal text-[#0b0f19]" style={interStyle}>
-                    Start your free trial
+                  <h1
+                    className="text-[30px] font-semibold leading-[36px] tracking-normal"
+                    style={{ color: "var(--brand-heading)", fontFamily: "var(--brand-font-heading)" }}
+                  >
+                    {brand.signupHeadline}
                   </h1>
-                  <p className="mt-[10px] text-[16px] font-normal leading-[24px] tracking-normal text-[#475569]" style={interStyle}>
+                  <p
+                    className="mt-[10px] text-[16px] font-normal leading-[24px] tracking-normal"
+                    style={{ color: "var(--brand-muted)", fontFamily: "var(--brand-font-body)" }}
+                  >
                     Create a unique new password.
                   </p>
                 </div>
@@ -957,10 +993,7 @@ export default function SignupPage() {
                   type="submit"
                   disabled={!canCreateAccount || submitting}
                   className="mt-[38px] flex h-[52px] w-full items-center justify-center rounded-[8px] align-middle text-[16px] font-semibold leading-[22px] tracking-normal transition disabled:cursor-not-allowed disabled:bg-[#dddddd] disabled:text-[#c5c5c5] enabled:text-white enabled:hover:brightness-95"
-                  style={{
-                    backgroundImage: canCreateAccount && !submitting ? BRAAS_BUTTON_GRADIENT : undefined,
-                    fontFamily: "var(--font-geist-sans), Inter, Arial, sans-serif",
-                  }}
+                  style={canCreateAccount && !submitting ? signupButtonStyle : undefined}
                 >
                   {submitting ? "Creating account…" : "Create an account"}
                 </button>

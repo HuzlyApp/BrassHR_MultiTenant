@@ -1,5 +1,7 @@
 /**
  * Zoho Recruit OAuth + attachment upload. Server-only.
+ * Used for CRM document sync (`/api/zoho/sync-onboarding-documents`) — not applicant e-sign.
+ * Agreement signing uses Firma.dev (`worker_firma_signing_sessions`).
  */
 
 type ZohoTokenResponse = {

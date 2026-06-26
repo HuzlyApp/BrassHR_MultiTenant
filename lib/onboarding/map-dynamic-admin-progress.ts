@@ -25,7 +25,7 @@ export async function mapDynamicAdminOnboardingProgress(
   workerId: string,
   tenantId: string
 ): Promise<DynamicProgressResult> {
-  const config = await loadTenantOnboardingConfig(supabase, tenantId);
+  const config = await loadTenantOnboardingConfig(supabase, tenantId, { workerFacing: true });
   if (!config) {
     return { steps: [], configVersion: 0, completedSteps: 0, totalSteps: 0, completionPercent: 0 };
   }

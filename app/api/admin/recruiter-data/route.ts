@@ -254,7 +254,7 @@ export async function GET(req: NextRequest) {
 
   const agreementData = await queryFirstAvailableRows(supabase, runtimeId, [
     { table: "agreements", idColumns: ["worker_id", "candidate_id", "recruiter_id"], limit: 1 },
-    { table: "zoho_sign_requests", idColumns: ["worker_id", "candidate_id", "recruiter_id"], limit: 1 },
+    { table: "worker_firma_signing_sessions", idColumns: ["worker_id"], limit: 1 },
   ])
   if (agreementData.error) sectionErrors.agreement = toSectionError(agreementData.error)
   response.agreement = coerceObject(agreementData.rows[0])

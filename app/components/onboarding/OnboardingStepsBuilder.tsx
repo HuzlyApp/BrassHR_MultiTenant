@@ -13,6 +13,11 @@ import {
   createStepDraftForType,
 } from "@/lib/onboarding/create-step-draft";
 import type { OnboardingStepType } from "@/lib/onboarding/types";
+import {
+  enforceUploadResumeFirstInDrafts,
+  isUploadResumeStep,
+  UPLOAD_RESUME_TITLE,
+} from "@/lib/onboarding/enforce-upload-resume-first";
 
 const builderInputStyle = {
   color: "#0f172a",
@@ -114,17 +119,33 @@ export default function OnboardingStepsBuilder({ steps, onChange, variant = "ten
 
   const update = (next: OnboardingStepDraft[]) => {
     setDeleteError(null);
-    onChange(reindexStepSortOrders(next));
+    onChange(enforceUploadResumeFirstInDrafts(reindexStepSortOrders(next)).steps);
   };
 
   const patchStep = (index: number, patch: Partial<OnboardingStepDraft>) => {
+    const step = steps[index];
+    if (!step) return;
+    if (isUploadResumeStep(step)) {
+      const allowed: Partial<OnboardingStepDraft> = { ...patch };
+      delete allowed.step_key;
+      delete allowed.step_type;
+      delete allowed.sort_order;
+      delete allowed.is_enabled;
+      delete allowed.is_required;
+      const next = steps.map((s, i) => (i === index ? { ...s, ...allowed } : s));
+      update(next);
+      return;
+    }
     const next = steps.map((s, i) => (i === index ? { ...s, ...patch } : s));
     update(next);
   };
 
   const move = (index: number, dir: -1 | 1) => {
+    const step = steps[index];
+    if (!step || isUploadResumeStep(step)) return;
     const target = index + dir;
     if (target < 0 || target >= steps.length) return;
+    if (isUploadResumeStep(steps[target])) return;
     const next = [...steps];
     const [item] = next.splice(index, 1);
     next.splice(target, 0, item);
@@ -132,6 +153,11 @@ export default function OnboardingStepsBuilder({ steps, onChange, variant = "ten
   };
 
   const removeStep = (index: number) => {
+    const step = steps[index];
+    if (step && isUploadResumeStep(step)) {
+      setDeleteError(`${UPLOAD_RESUME_TITLE} is required and cannot be removed.`);
+      return;
+    }
     if (steps.length <= 1) {
       setDeleteError("At least one onboarding step is required.");
       return;
@@ -194,7 +220,7 @@ export default function OnboardingStepsBuilder({ steps, onChange, variant = "ten
               <div className={`flex shrink-0 flex-col gap-1 ${isAdmin ? "self-center" : ""}`}>
                 <button
                   type="button"
-                  disabled={index === 0}
+                  disabled={index === 0 || isUploadResumeStep(step)}
                   onClick={() => move(index, -1)}
                   className={reorderButtonClass}
                   aria-label="Move step up"
@@ -203,7 +229,7 @@ export default function OnboardingStepsBuilder({ steps, onChange, variant = "ten
                 </button>
                 <button
                   type="button"
-                  disabled={index === steps.length - 1}
+                  disabled={index === steps.length - 1 || isUploadResumeStep(step)}
                   onClick={() => move(index, 1)}
                   className={reorderButtonClass}
                   aria-label="Move step down"
@@ -230,15 +256,21 @@ export default function OnboardingStepsBuilder({ steps, onChange, variant = "ten
                     >
                       {STEP_TYPE_LABELS[step.step_type]}
                     </span>
+                    {isUploadResumeStep(step) ? (
+                      <span className="rounded-md bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-900">
+                        Locked first step
+                      </span>
+                    ) : null}
                     <BuilderCheckbox
                       checked={step.is_enabled}
                       label="Enabled"
                       compact={isAdmin}
+                      disabled={isUploadResumeStep(step)}
                       onChange={(checked) => patchStep(index, { is_enabled: checked })}
                     />
                     <BuilderCheckbox
                       checked={step.is_required}
-                      disabled={!step.is_enabled}
+                      disabled={!step.is_enabled || isUploadResumeStep(step)}
                       label="Required"
                       compact={isAdmin}
                       onChange={(checked) => patchStep(index, { is_required: checked })}
@@ -247,11 +279,17 @@ export default function OnboardingStepsBuilder({ steps, onChange, variant = "ten
                   {isAdmin ? (
                     <button
                       type="button"
-                      disabled={steps.length <= 1}
+                      disabled={steps.length <= 1 || isUploadResumeStep(step)}
                       className={`${deleteButtonClass} h-10 w-10`}
                       onClick={() => removeStep(index)}
                       aria-label="Delete step"
-                      title={steps.length <= 1 ? "At least one step is required" : "Delete step"}
+                      title={
+                        isUploadResumeStep(step)
+                          ? `${UPLOAD_RESUME_TITLE} cannot be removed`
+                          : steps.length <= 1
+                            ? "At least one step is required"
+                            : "Delete step"
+                      }
                     >
                       <BrandedDeleteIcon className="h-6 w-6" />
                     </button>
@@ -428,11 +466,17 @@ export default function OnboardingStepsBuilder({ steps, onChange, variant = "ten
               {!isAdmin ? (
                 <button
                   type="button"
-                  disabled={steps.length <= 1}
+                  disabled={steps.length <= 1 || isUploadResumeStep(step)}
                   className={`${deleteButtonClass} h-10 w-10`}
                   onClick={() => removeStep(index)}
                   aria-label="Delete step"
-                  title={steps.length <= 1 ? "At least one step is required" : "Delete step"}
+                  title={
+                    isUploadResumeStep(step)
+                      ? `${UPLOAD_RESUME_TITLE} cannot be removed`
+                      : steps.length <= 1
+                        ? "At least one step is required"
+                        : "Delete step"
+                  }
                 >
                   <BrandedDeleteIcon className="h-6 w-6" />
                 </button>
@@ -457,7 +501,7 @@ export default function OnboardingStepsBuilder({ steps, onChange, variant = "ten
             className={inputClass}
             style={isAdmin ? undefined : builderInputStyle}
           >
-            {ADDABLE_STEP_TYPES.map((t) => (
+            {ADDABLE_STEP_TYPES.filter((t) => t !== "resume_upload").map((t) => (
               <option key={t} value={t}>
                 {STEP_TYPE_LABELS[t]}
               </option>

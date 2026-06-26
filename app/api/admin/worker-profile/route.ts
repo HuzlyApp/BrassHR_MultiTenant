@@ -32,10 +32,10 @@ function titleCaseStatus(s: string | null | undefined): string {
   return v.charAt(0).toUpperCase() + v.slice(1)
 }
 
-type ZohoSignRow = {
-  request_id: string | null
-  zoho_document_id: string | null
-  status: string | null
+type FirmaSigningRow = {
+  signing_request_id: string | null
+  firma_status: string | null
+  iframe_url: string | null
   updated_at: string | null
 }
 
@@ -340,7 +340,7 @@ export async function GET(req: NextRequest) {
       workerRoleResult,
       activityResult,
       noteResult,
-      zohoResult,
+      firmaSigningResult,
       legacyReviewResult,
       nursingLicenseUrlResolved,
       tbTestUrlResolved,
@@ -371,15 +371,13 @@ export async function GET(req: NextRequest) {
         .eq("worker_id", workerId)
         .order("created_at", { ascending: false })
         .limit(50),
-      workerEmail
-        ? supabase
-            .from("zoho_sign_requests")
-            .select("request_id,zoho_document_id,status,updated_at")
-            .eq("email", workerEmail)
-            .order("updated_at", { ascending: false })
-            .limit(1)
-            .maybeSingle()
-        : Promise.resolve({ data: null, error: null }),
+      supabase
+        .from("worker_firma_signing_sessions")
+        .select("signing_request_id,firma_status,iframe_url,updated_at")
+        .eq("worker_id", workerId)
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
       supabase
         .from("worker_legacy_document_reviews")
         .select("document_key, status")
@@ -556,12 +554,12 @@ export async function GET(req: NextRequest) {
       }
     })
 
-    let zohoSign: ZohoSignRow | null = null
-    const { data: zohoRow, error: zohoErr } = zohoResult
-    if (zohoErr) {
-      console.warn("[admin/worker-profile] zoho_sign_requests", zohoErr)
+    let firmaSigning: FirmaSigningRow | null = null
+    const { data: firmaRow, error: firmaErr } = firmaSigningResult
+    if (firmaErr) {
+      console.warn("[admin/worker-profile] worker_firma_signing_sessions", firmaErr)
     } else {
-      zohoSign = (zohoRow as ZohoSignRow | null) ?? null
+      firmaSigning = (firmaRow as FirmaSigningRow | null) ?? null
     }
 
     const applicantName = `${String(w.first_name ?? "").trim()} ${String(w.last_name ?? "").trim()}`.trim() || "Applicant"
@@ -574,7 +572,7 @@ export async function GET(req: NextRequest) {
       resumePathRaw: resumePathStored,
       candidateBuckets,
       storageHits: listHits,
-      zohoStatus: zohoSign?.status ?? null,
+      firmaSigningStatus: firmaSigning?.firma_status ?? null,
       referencesCount: references.length,
     })
     skillAssessmentRows = mapped.skillAssessments.rows
@@ -593,12 +591,8 @@ export async function GET(req: NextRequest) {
     const statusRaw = (w.status ?? w.worker_status) as string | undefined
     const statusLabel = titleCaseStatus(statusRaw)
 
-    const zohoAuthUrl =
-      zohoSign?.request_id && zohoSign.request_id.trim().length > 0
-        ? `/api/zoho-sign/document?request_id=${encodeURIComponent(zohoSign.request_id)}&mode=preview`
-        : null
     const resolvedDocumentUrl = await resolveDocUrl(docs?.document_url, storageAuthUrlFromFiles)
-    const storageAuthUrl = resolvedDocumentUrl ?? zohoAuthUrl
+    const storageAuthUrl = resolvedDocumentUrl ?? firmaSigning?.iframe_url ?? null
     const agreementW2Url =
       agreementW2UrlResolved ?? storageAgreementW2Url ?? storageAuthUrl
     const agreementI9Url = agreementI9UrlResolved ?? storageAgreementI9Url
@@ -750,11 +744,11 @@ export async function GET(req: NextRequest) {
         document_id:
           docs != null && docs.document_id != null ? String(docs.document_id) : null,
       },
-      zoho_sign: {
-        request_id: zohoSign?.request_id ?? null,
-        document_id: zohoSign?.zoho_document_id ?? null,
-        status: zohoSign?.status ?? null,
-        updated_at: zohoSign?.updated_at ?? null,
+      firma_signing: {
+        signing_request_id: firmaSigning?.signing_request_id ?? null,
+        firma_status: firmaSigning?.firma_status ?? null,
+        iframe_url: firmaSigning?.iframe_url ?? null,
+        updated_at: firmaSigning?.updated_at ?? null,
       },
       references,
       skillAssessments: { completed: saCompleted, total: saTotal, rows: skillAssessmentRows },

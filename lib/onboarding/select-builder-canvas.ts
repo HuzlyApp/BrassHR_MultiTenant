@@ -28,7 +28,7 @@ export function hydratePublishedCanvas(
   stepLibrary: StepCategory[]
 ): { nodes: Node<WorkflowNodeData>[]; edges: Edge[] } {
   if (!payload.config) return { nodes: [], edges: [] };
-  const drafts = mapConfigToDrafts(payload.config);
+  const drafts = mapConfigToDrafts(payload.config).filter((s) => s.is_enabled !== false);
   const stepLookup = buildWorkflowStepLookup(stepLibrary);
   return hydrateWorkflowFromStorage(null, drafts, stepLookup);
 }
@@ -39,7 +39,7 @@ export function hydrateDraftCanvas(
   stepLibrary: StepCategory[]
 ): { nodes: Node<WorkflowNodeData>[]; edges: Edge[] } {
   if (!payload.config) return { nodes: [], edges: [] };
-  const drafts = mapConfigToDrafts(payload.config);
+  const drafts = mapConfigToDrafts(payload.config).filter((s) => s.is_enabled !== false);
   const stepLookup = buildWorkflowStepLookup(stepLibrary);
   const draftForHydrate = builderDraftHasCanvas(payload.builderDraft)
     ? payload.builderDraft
@@ -48,17 +48,15 @@ export function hydrateDraftCanvas(
 }
 
 /**
- * Prefer the unsaved builder draft when publish status is draft and a canvas exists;
- * otherwise show the live published workflow applicants currently receive.
+ * Prefer the saved builder draft whenever a canvas exists so deletions persist
+ * across refresh even when publish_status is still "published".
+ * Fall back to published tenant steps only when no draft canvas is stored.
  */
 export function selectBuilderCanvas(
   payload: BuilderCanvasPayload,
   stepLibrary: StepCategory[]
 ): { nodes: Node<WorkflowNodeData>[]; edges: Edge[]; source: "draft" | "published" } {
-  const useDraft =
-    payload.publishStatus === "draft" && builderDraftHasCanvas(payload.builderDraft);
-
-  if (useDraft) {
+  if (builderDraftHasCanvas(payload.builderDraft)) {
     return { ...hydrateDraftCanvas(payload, stepLibrary), source: "draft" };
   }
 

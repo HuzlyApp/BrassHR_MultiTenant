@@ -1,4 +1,5 @@
 import type { AdminAttachmentRequirement } from "@/lib/onboarding/build-admin-attachment-requirements";
+import { isFirmaSigningComplete } from "@/lib/onboarding/firma-step-settings";
 
 export type AgreementRecord = {
   id: string;
@@ -19,10 +20,10 @@ export type WorkerAgreementProfileInput = {
   signeasy?: {
     document_name?: string | null;
   };
-  zoho_sign?: {
-    request_id?: string | null;
-    document_id?: string | null;
-    status?: string | null;
+  firma_signing?: {
+    signing_request_id?: string | null;
+    firma_status?: string | null;
+    iframe_url?: string | null;
     updated_at?: string | null;
   };
 };
@@ -48,8 +49,8 @@ export type WorkerAgreementSection = {
   legacyDocumentKey: string | null;
   documentField: string | null;
   agreementRecord: AgreementRecord | null;
-  zohoRequestId: string | null;
-  zohoDocumentId: string | null;
+  firmaSigningRequestId: string | null;
+  firmaSigningUrl: string | null;
 };
 
 function titleMatchesW2(title: string): boolean {
@@ -91,11 +92,6 @@ function normalizeAgreementStatus(status: string | null | undefined): "signed" |
   return "pending";
 }
 
-function isZohoCompleted(status: string | null | undefined): boolean {
-  const value = (status ?? "").trim().toLowerCase();
-  return value === "completed" || value === "signed";
-}
-
 function pickRequirement(
   requirements: AdminAttachmentRequirement[],
   matcher: (title: string) => boolean
@@ -119,10 +115,11 @@ function buildW2Section(
 ): WorkerAgreementSection {
   const requirements = profile.attachment_requirements ?? [];
   const requirement = pickRequirement(requirements, titleMatchesW2);
-  const zoho = profile.zoho_sign ?? {};
-  const zohoRequestId = zoho.request_id?.trim() || null;
+  const firma = profile.firma_signing ?? {};
+  const firmaSigningRequestId = firma.signing_request_id?.trim() || null;
+  const firmaSigningUrl = firma.iframe_url?.trim() || null;
   const agreementRecord =
-    agreements.find((row) => row.request_id === zohoRequestId) ??
+    agreements.find((row) => row.request_id === firmaSigningRequestId) ??
     agreements.find((row) => normalizeAgreementStatus(row.status) === "signed") ??
     agreements[0] ??
     null;
@@ -132,17 +129,16 @@ function buildW2Section(
     profile.document_urls?.authorization_document_url?.trim() ||
     null;
   const requirementUrl = requirement?.url?.trim() || null;
-  const zohoUrl = zohoRequestId
-    ? `/api/zoho-sign/document?request_id=${encodeURIComponent(zohoRequestId)}&mode=preview`
-    : null;
 
   const isSigned =
-    isZohoCompleted(zoho.status) ||
+    isFirmaSigningComplete(firma.firma_status) ||
     normalizeAgreementStatus(agreementRecord?.status) === "signed" ||
     requirement?.status === "approved";
 
-  const hasFile = Boolean(zohoRequestId || requirementUrl || legacyW2Url || profile.signeasy?.document_name);
-  const fileUrl = requirementUrl || zohoUrl || legacyW2Url;
+  const hasFile = Boolean(
+    firmaSigningRequestId || requirementUrl || legacyW2Url || profile.signeasy?.document_name
+  );
+  const fileUrl = requirementUrl || legacyW2Url || firmaSigningUrl;
   const fileName = hasFile
     ? requirement?.filename?.trim() && requirement.filename !== "—"
       ? requirement.filename
@@ -191,8 +187,8 @@ function buildW2Section(
     legacyDocumentKey: requirement?.legacy_document_key ?? "agreement_w2_url",
     documentField: "agreement_w2",
     agreementRecord,
-    zohoRequestId,
-    zohoDocumentId: zoho.document_id?.trim() || null,
+    firmaSigningRequestId,
+    firmaSigningUrl,
   };
 }
 
@@ -246,8 +242,8 @@ function buildI9Section(
     legacyDocumentKey: requirement?.legacy_document_key ?? "agreement_i9_url",
     documentField: "agreement_i9",
     agreementRecord: null,
-    zohoRequestId: null,
-    zohoDocumentId: null,
+    firmaSigningRequestId: null,
+    firmaSigningUrl: null,
   };
 }
 

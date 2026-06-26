@@ -4,7 +4,7 @@ import { APPLICATION_ROUTES } from "@/lib/onboarding/application-routes"
 import { applicationPath } from "@/lib/tenant/with-tenant"
 import { useEffect, useState, useCallback, useMemo, useRef } from "react"
 import { useRouter } from "next/navigation"
-import { FileText, Trash2 } from "lucide-react"
+import { Trash2 } from "lucide-react"
 import { supabaseBrowser as supabase } from "@/lib/supabase-browser"
 import { WORKER_REQUIRED_FILES_BUCKET } from "@/lib/supabase-storage-buckets"
 import OnboardingLayout from "@/app/components/OnboardingLayout"
@@ -16,15 +16,8 @@ import { useOnboardingConfigOptional } from "@/app/components/onboarding/Onboard
 import { useOnboardingStepNav } from "@/lib/onboarding/use-onboarding-step-nav"
 import AutosaveStatus from "@/app/components/AutosaveStatus"
 import DocumentFileThumbnail from "@/app/components/DocumentFileThumbnail"
+import { AuthorizationsFirmaAgreementPanel } from "@/app/components/onboarding/AuthorizationsFirmaAgreementPanel"
 import { isPdfFile, resolveStoragePublicUrl } from "@/lib/document-upload-helpers"
-import {
-  fetchZohoSignStatus,
-  mapZohoStatusToLabel,
-  sendAgreement,
-  subscribeToZohoSignStatus,
-  type ZohoSignDbStatus,
-} from "@/lib/zoho-sign-status"
-import { resolveZohoSignEmbedHostForClient } from "@/lib/zoho-sign-embed-host"
 
 type IdentityPaths = {
   ssnFront: string | null
@@ -45,7 +38,6 @@ export default function DocumentsPage() {
   const nav = useOnboardingStepNav()
 
   const [mounted, setMounted] = useState(false)
-  const [showAuthPdf, setShowAuthPdf] = useState(false)
 
   const [applicantId, setApplicantId] = useState<string | null>(null)
   const [agreed, setAgreed] = useState(() => {
@@ -59,34 +51,30 @@ export default function DocumentsPage() {
     dlBack: null,
   })
   const [error, setError] = useState<string | null>(null)
-  const [zohoNote, setZohoNote] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  const [agreementSigned, setAgreementSigned] = useState(false)
 
   const [signerEmail, setSignerEmail] = useState("")
   const [signerName, setSignerName] = useState("")
-
-  const [signingUrl, setSigningUrl] = useState<string | null>(null)
-  const [signingLoading, setSigningLoading] = useState(false)
-  const [envelopeId, setEnvelopeId] = useState<string | null>(null)
-  const [zohoDocumentId, setZohoDocumentId] = useState<string | null>(null)
-  const [isSigned, setIsSigned] = useState(false)
-  const [signingCompleteManual, setSigningCompleteManual] = useState(false)
-  const [signingPopupOpened, setSigningPopupOpened] = useState(false)
-  const [signingStatus, setSigningStatus] = useState<ZohoSignDbStatus>("sent")
-  /** Email already has a non-declined onboarding Zoho row — do not call send-agreement again. */
-  const [onboardingAgreementLocked, setOnboardingAgreementLocked] = useState(false)
   const [docAutosave, setDocAutosave] = useState<"idle" | "saving" | "saved">("idle")
 
-  const signedFromStatus = signingStatus === "signed" || signingStatus === "completed"
-  const effectiveSigned = isSigned || signedFromStatus
+  const authStep = useMemo(() => {
+    return (
+      nav.enabledSteps?.find(
+        (s) => s.step_type === "authorizations" || s.step_key === "authorizations"
+      ) ??
+      nav.currentStep ??
+      null
+    )
+  }, [nav.enabledSteps, nav.currentStep])
+
+  useEffect(() => {
+    if (agreementSigned) setAgreed(true)
+  }, [agreementSigned])
 
   useEffect(() => {
     setMounted(true)
   }, [])
-
-  useEffect(() => {
-    if (signedFromStatus) setAgreed(true)
-  }, [signedFromStatus])
 
   useEffect(() => {
     if (typeof window === "undefined") return
@@ -164,28 +152,6 @@ export default function DocumentsPage() {
   }, [])
 
   useEffect(() => {
-    const existingRequestId = localStorage.getItem("signingRequestId")?.trim()
-    if (existingRequestId) {
-      setEnvelopeId(existingRequestId)
-    }
-    const cachedStatus = (localStorage.getItem("signingStatus") || "").trim().toLowerCase()
-    if (
-      cachedStatus === "sent" ||
-      cachedStatus === "viewed" ||
-      cachedStatus === "signed" ||
-      cachedStatus === "completed" ||
-      cachedStatus === "declined"
-    ) {
-      setSigningStatus(cachedStatus as ZohoSignDbStatus)
-    }
-  }, [])
-
-  useEffect(() => {
-    if (envelopeId) localStorage.setItem("signingRequestId", envelopeId)
-    localStorage.setItem("signingStatus", signingStatus)
-  }, [envelopeId, signingStatus])
-
-  useEffect(() => {
     if (!applicantId) return
     void supabase
       .from("worker")
@@ -246,259 +212,14 @@ export default function DocumentsPage() {
     return supabase.storage.from(WORKER_REQUIRED_FILES_BUCKET).getPublicUrl(path).data.publicUrl
   }, [])
 
-  const startSigning = useCallback(async () => {
-    if (!agreed) {
-      setError("Please agree to the authorization first.")
-      return
-    }
-    if (!signerEmail || !signerName) {
-      setError("Missing your name or email. Complete Step 1 (review your profile) first.")
-      return
-    }
-    if (!applicantId) return
-
-    setSigningLoading(true)
-    setError(null)
-    setSigningCompleteManual(false)
-
-    try {
-      // Zoho requires an https `host`; bare domains in NEXT_PUBLIC_APP_URL are normalized.
-      // On http://localhost, use env or ZOHO_SIGN_EMBED_HOST (Edge secret) for the embed host.
-      const embedHost = resolveZohoSignEmbedHostForClient(
-        process.env.NEXT_PUBLIC_APP_URL || "",
-        window.location.origin,
-      )
-
-      const data = await sendAgreement({
-        name: signerName,
-        email: signerEmail.trim().toLowerCase(),
-        user_id: applicantId,
-        project_id: "onboarding",
-        host: embedHost,
-      })
-
-      setEnvelopeId(data.request_id)
-      setZohoDocumentId(data.zoho_document_id?.trim() || null)
-      setSigningStatus(data.status || "sent")
-      localStorage.setItem("signingRequestId", data.request_id)
-      setOnboardingAgreementLocked(true)
-
-      // Environment detection: use window.open() on localhost, modal iframe on production
-      // Zoho frequently blocks iframe embedding on localhost, so we use a popup instead
-      const isLocalhost =
-        window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
-
-      if (data.signing_url) {
-        if (isLocalhost) {
-          // Localhost: open signing URL in new tab/window to avoid iframe issues
-          console.log("[step-4] Opening Zoho signing in new tab (localhost environment)")
-          window.open(data.signing_url, "_blank", "noopener,noreferrer,width=1024,height=800")
-          setSigningPopupOpened(true)
-          setSigningCompleteManual(false)
-        } else {
-          // Production: show embedded signing modal with iframe
-          console.log("[step-4] Opening Zoho signing modal (production environment)")
-          setSigningUrl(data.signing_url)
-          setSigningPopupOpened(false)
-          setSigningCompleteManual(false)
-        }
-      } else {
-        setSigningUrl(null)
-        setSigningPopupOpened(false)
-        setSigningCompleteManual(true)
-        const hint =
-          (data.signing_url_error && String(data.signing_url_error).trim()) ||
-          "Could not generate embedded signing URL. Set NEXT_PUBLIC_APP_URL=https://your-domain.com in .env.local (restart dev) or set ZOHO_SIGN_EMBED_HOST in Supabase Edge Function secrets."
-        setError(hint)
-      }
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Signing setup failed"
-      setError(message)
-    } finally {
-      setSigningLoading(false)
-    }
-  }, [agreed, applicantId, signerEmail, signerName])
-
-  const refreshSigningStatus = useCallback(async () => {
-    const email = signerEmail.trim().toLowerCase()
-    try {
-      if (email) {
-        const rowByEmail = await fetchZohoSignStatus({ email, reconcile: true })
-        if (rowByEmail?.request_id) {
-          setEnvelopeId(rowByEmail.request_id)
-          setZohoDocumentId(rowByEmail.zoho_document_id?.trim() || null)
-          setSigningStatus(rowByEmail.status || "sent")
-          localStorage.setItem("signingRequestId", rowByEmail.request_id)
-          setOnboardingAgreementLocked(rowByEmail.status !== "declined")
-          if (rowByEmail.status === "signed" || rowByEmail.status === "completed") {
-            setAgreed(true)
-          }
-          return
-        }
-        setOnboardingAgreementLocked(false)
-      }
-      if (envelopeId) {
-        const rowById = await fetchZohoSignStatus({ requestId: envelopeId, reconcile: true })
-        if (rowById?.request_id) {
-          setEnvelopeId(rowById.request_id)
-          setZohoDocumentId(rowById.zoho_document_id?.trim() || null)
-          if (rowById.status) setSigningStatus(rowById.status)
-          localStorage.setItem("signingRequestId", rowById.request_id)
-          setOnboardingAgreementLocked(rowById.status !== "declined")
-          if (rowById.status === "signed" || rowById.status === "completed") {
-            setAgreed(true)
-          }
-          return
-        }
-        // Stored request_id is stale/missing in DB; clear and let email lookup recover.
-        localStorage.removeItem("signingRequestId")
-        setEnvelopeId(null)
-        setZohoDocumentId(null)
-        setOnboardingAgreementLocked(false)
-      }
-    } catch {
-      // ignore
-    }
-  }, [signerEmail, envelopeId])
-
-  useEffect(() => {
-    if (!envelopeId) return
-
-    let cancelled = false
-    void (async () => {
-      try {
-        const row = await fetchZohoSignStatus({ requestId: envelopeId, reconcile: true })
-        if (!cancelled && row?.status) {
-          setSigningStatus(row.status)
-          setZohoDocumentId(row.zoho_document_id?.trim() || null)
-          setOnboardingAgreementLocked(row.status !== "declined")
-          if (row.status === "signed" || row.status === "completed") setAgreed(true)
-        }
-      } catch {
-        // ignore
-      }
-    })()
-
-    const unsubscribe = subscribeToZohoSignStatus({
-      requestId: envelopeId,
-      onStatusChange: (next) => {
-        setSigningStatus(next.status)
-        setZohoDocumentId(next.zoho_document_id?.trim() || null)
-        if (next.status === "signed" || next.status === "completed") {
-          setAgreed(true)
-          setOnboardingAgreementLocked(true)
-        }
-        if (next.status === "declined") setOnboardingAgreementLocked(false)
-      },
-    })
-
-    const pollingInterval = window.setInterval(() => {
-      void refreshSigningStatus()
-    }, 5000)
-
-    return () => {
-      cancelled = true
-      unsubscribe()
-      window.clearInterval(pollingInterval)
-    }
-  }, [envelopeId, refreshSigningStatus])
-
-  // After refresh, localStorage request_id can be stale. Latest row for this email is source of truth.
-  useEffect(() => {
-    const email = signerEmail.trim()
-    if (!email) return
-
-    let cancelled = false
-    void (async () => {
-      try {
-        const row = await fetchZohoSignStatus({ email: email.toLowerCase(), reconcile: true })
-        if (cancelled) return
-        if (!row?.request_id) {
-          setOnboardingAgreementLocked(false)
-          return
-        }
-        setEnvelopeId(row.request_id)
-        setZohoDocumentId(row.zoho_document_id?.trim() || null)
-        setSigningStatus(row.status || "sent")
-        localStorage.setItem("signingRequestId", row.request_id)
-        setOnboardingAgreementLocked(row.status !== "declined")
-        if (row.status === "signed" || row.status === "completed") setAgreed(true)
-      } catch {
-        if (!cancelled) setOnboardingAgreementLocked(false)
-      }
-    })()
-
-    return () => {
-      cancelled = true
-    }
-  }, [signerEmail])
-
-  useEffect(() => {
-    const onVisible = () => {
-      if (document.visibilityState === "visible") void refreshSigningStatus()
-    }
-    const onPageShow = () => {
-      void refreshSigningStatus()
-    }
-    document.addEventListener("visibilitychange", onVisible)
-    window.addEventListener("pageshow", onPageShow)
-    return () => {
-      document.removeEventListener("visibilitychange", onVisible)
-      window.removeEventListener("pageshow", onPageShow)
-    }
-  }, [refreshSigningStatus])
-
-  useEffect(() => {
-    const handler = (event: MessageEvent) => {
-      if (event.origin !== window.location.origin) return
-      const d = event.data
-      if (
-        (d?.source === "zoho-sign" || d?.source === "signing") &&
-        d?.event === "signing_complete"
-      ) {
-        setIsSigned(true)
-        setSigningUrl(null)
-      }
-    }
-
-    window.addEventListener("message", handler)
-    return () => window.removeEventListener("message", handler)
-  }, [])
-
-  const syncZoho = async () => {
-    if (!applicantId) return
-    setZohoNote(null)
-    try {
-      const res = await fetch("/api/zoho/sync-onboarding-documents", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ applicantId }),
-      })
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) {
-        if (res.status === 503 || String(data.error || "").includes("not configured")) {
-          setZohoNote("Zoho sync skipped (not configured on server).")
-          return
-        }
-        setZohoNote(data.error || "Zoho sync did not complete.")
-        return
-      }
-      if (typeof data.synced === "number" && data.synced > 0) {
-        setZohoNote(`Synced ${data.synced} file(s) to Zoho Recruit.`)
-      }
-    } catch {
-      setZohoNote("Zoho sync failed.")
-    }
-  }
-
   const handleSaveAndContinue = async () => {
     if (!agreed) {
       setError("You must agree to the authorization.")
       return
     }
 
-    if (!effectiveSigned) {
-      setError("Please sign the authorization document first.")
+    if (!agreementSigned) {
+      setError("Please sign the authorization document in Firma before continuing.")
       return
     }
 
@@ -537,12 +258,9 @@ export default function DocumentsPage() {
         throw new Error(docJson.error || "Could not save worker documents")
       }
 
-      await syncZoho()
-      const authStep = onboarding?.config?.steps.find(
-        (s) => s.is_enabled && (s.step_key === "authorizations" || s.step_type === "authorizations")
-      )
-      if (authStep?.step_key) {
-        await onboarding?.updateStepStatus?.(authStep.step_key, "completed")
+      const stepKey = authStep?.step_key
+      if (stepKey) {
+        await onboarding?.updateStepStatus?.(stepKey, "completed")
       }
       if (nav.nextRoute) router.push(nav.nextRoute)
     } catch (e: unknown) {
@@ -555,32 +273,12 @@ export default function DocumentsPage() {
 
   const handleSkipForNow = async () => {
     localStorage.setItem("step4Skipped", "1")
-    const authStep = onboarding?.config?.steps.find(
-      (s) => s.is_enabled && (s.step_key === "authorizations" || s.step_type === "authorizations")
-    )
-    if (authStep?.step_key) {
-      await onboarding?.updateStepStatus?.(authStep.step_key, "skipped")
+    const stepKey = authStep?.step_key
+    if (stepKey) {
+      await onboarding?.updateStepStatus?.(stepKey, "skipped")
     }
     if (nav.nextRoute) router.push(nav.nextRoute)
   }
-
-  const openZohoDocument = useCallback(
-    (mode: "preview" | "download") => {
-      if (!envelopeId) return
-      const qs = new URLSearchParams({
-        request_id: envelopeId,
-        mode,
-      })
-      if (zohoDocumentId) qs.set("document_id", zohoDocumentId)
-      const url = `/api/zoho-sign/document?${qs.toString()}`
-      if (mode === "download") {
-        window.location.href = url
-        return
-      }
-      window.open(url, "_blank", "noopener,noreferrer")
-    },
-    [envelopeId, zohoDocumentId]
-  )
 
   function IdentityFileCard({
     path,
@@ -638,37 +336,6 @@ export default function DocumentsPage() {
       rightPanelImageClassName="opacity-60 object-top"
       rightPanelOverlayClassName="bg-white/65"
     >
-      {showAuthPdf && (
-        <div
-          className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Auth Release form"
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget) setShowAuthPdf(false)
-          }}
-        >
-          <div className="w-full max-w-5xl bg-white rounded-2xl shadow-2xl overflow-hidden">
-            <div className="flex items-center justify-between px-5 py-3 border-b bg-gray-50">
-              <p className="text-sm font-semibold text-gray-900 truncate">Auth Release form.pdf</p>
-              <button
-                type="button"
-                onClick={() => setShowAuthPdf(false)}
-                className="rounded-lg px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-200"
-              >
-                Close
-              </button>
-            </div>
-            <div className="h-[80vh] bg-white">
-              <iframe
-                title="Auth Release form"
-                src="/docs/Auth%20Release%20form.pdf"
-                className="w-full h-full"
-              />
-            </div>
-          </div>
-        </div>
-      )}
       <div className="flex h-full flex-col px-10 pb-10 pt-8" style={brandingToCssVars(branding)}>
         <OnboardingStepper />
 
@@ -708,129 +375,22 @@ export default function DocumentsPage() {
           <div className="mb-8">
             <OnboardingCheckbox
               checked={agreed}
-              disabled={signedFromStatus}
+              disabled={agreementSigned}
               onChange={setAgreed}
-              className={signedFromStatus ? "cursor-default opacity-90" : ""}
+              className={agreementSigned ? "cursor-default opacity-90" : ""}
             >
               <span className="text-slate-800 font-medium">I Agree to the Authorization</span>
             </OnboardingCheckbox>
           </div>
 
-          <div className="mb-8 rounded-3xl border border-[color:var(--brand-primary)] bg-[color:var(--brand-primary)]/5 p-6 shadow-sm">
-            <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex items-center gap-4 min-w-0">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[color:var(--brand-primary)]/15 text-[color:var(--brand-primary)]">
-                  <FileText className="h-6 w-6" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold text-slate-900 truncate">Onboarding Agreement</p>
-                  <p className="text-xs text-slate-500">Mandatory</p>
-                </div>
-              </div>
-
-              {!signingUrl && !effectiveSigned && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    // If Zoho signing isn't configured (common in local/dev), fall back to showing the PDF.
-                    // On live, Zoho env vars will be present and this will launch embedded signing.
-                    if (!signerEmail || !signerName || !applicantId) {
-                      setShowAuthPdf(true)
-                      return
-                    }
-                    void startSigning()
-                  }}
-                  disabled={signingLoading || !agreed}
-                  className={`rounded-xl px-5 py-2 text-[12px] font-semibold text-white transition ${
-                    signingLoading || !agreed
-                      ? "bg-gray-400 cursor-not-allowed"
-                      : "bg-[color:var(--brand-primary)] hover:brightness-90"
-                  }`}
-                >
-                  {signingLoading ? "Preparing..." : "Click and Sign"}
-                </button>
-              )}
-
-              {effectiveSigned && (
-                <span className="rounded-xl bg-[color:var(--brand-primary)] px-5 py-2 text-[12px] font-semibold text-white">Signed</span>
-              )}
-            </div>
-
-            {envelopeId && (
-              <p className="mt-4 text-xs text-slate-500 truncate">Request ID: {envelopeId}</p>
-            )}
-
-            <p className="mt-2 text-sm text-slate-700">
-              Status: <span className="font-semibold">{mapZohoStatusToLabel(signingStatus)}</span>
-            </p>
-
-            {envelopeId && (
-              <div className="mt-3 flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => openZohoDocument("preview")}
-                  className="rounded-lg border border-[color:var(--brand-primary)] px-3 py-1.5 text-xs font-semibold text-[color:var(--brand-primary)] hover:bg-[color:var(--brand-primary)]/10"
-                >
-                  Preview document
-                </button>
-                <button
-                  type="button"
-                  onClick={() => openZohoDocument("download")}
-                  className="rounded-lg border border-[color:var(--brand-primary)] px-3 py-1.5 text-xs font-semibold text-[color:var(--brand-primary)] hover:bg-[color:var(--brand-primary)]/10"
-                >
-                  Download PDF
-                </button>
-              </div>
-            )}
-
-            {signingPopupOpened && (
-              <p className="mt-2 text-xs text-slate-500">
-                A signing window has been opened — complete your signature there, then return here.
-              </p>
-            )}
-
-            {/* Fullscreen Modal for Embedded Signing */}
-            {signingUrl && (
-              <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
-                <div className="relative w-full max-w-6xl h-[90vh] sm:h-[95vh] bg-white rounded-xl overflow-hidden shadow-2xl flex flex-col">
-                  {/* Modal Header */}
-                  <div className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3 sm:px-6 sm:py-4 flex-shrink-0">
-                    <div>
-                      <p className="text-sm sm:text-base font-semibold text-slate-900">Sign Agreement</p>
-                      <p className="text-xs text-slate-500 mt-0.5">Use Type, Draw, or Upload to sign</p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setSigningUrl(null)}
-                      className="inline-flex items-center justify-center h-9 w-9 rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-100 transition flex-shrink-0"
-                      aria-label="Close signing modal"
-                    >
-                      <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                      </svg>
-                    </button>
-                  </div>
-
-                  {/* Modal Content - Iframe Container */}
-                  <div className="flex-1 overflow-hidden bg-slate-50">
-                    <iframe
-                      title="Zoho Sign - Embedded Signing"
-                      src={signingUrl}
-                      className="w-full h-full border-0"
-                      allow="clipboard-write; camera; microphone; fullscreen; payment; geolocation; accelerometer; gyroscope"
-                    />
-                  </div>
-
-                  {/* Modal Footer */}
-                  <div className="border-t border-slate-200 bg-white px-4 py-3 sm:px-6 sm:py-4 flex-shrink-0">
-                    <p className="text-xs text-slate-500">
-                      Complete your signature above, then the modal will close automatically upon signing completion.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
+          <AuthorizationsFirmaAgreementPanel
+            applicantId={applicantId}
+            step={authStep}
+            tenantSlug={nav.slug}
+            signerEmail={signerEmail}
+            agreed={agreed}
+            onSignedChange={setAgreementSigned}
+          />
 
           <div className="mb-8">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
@@ -867,7 +427,6 @@ export default function DocumentsPage() {
           </div>
 
           {error && <p className="mb-4 text-red-600 text-sm">{error}</p>}
-          {zohoNote && <p className="mb-4 text-sm text-[color:var(--brand-primary)]">{zohoNote}</p>}
 
           <div className="mt-auto flex flex-wrap items-center justify-end gap-3 pt-2">
             <button
@@ -880,9 +439,9 @@ export default function DocumentsPage() {
             <button
               type="button"
               onClick={() => void handleSaveAndContinue()}
-              disabled={saving || !agreed || !effectiveSigned || !identityDocsComplete}
+              disabled={saving || !agreed || !agreementSigned || !identityDocsComplete}
               className={`rounded-lg px-6 py-2 text-[12px] font-medium text-white transition ${
-                saving || !agreed || !effectiveSigned || !identityDocsComplete
+                saving || !agreed || !agreementSigned || !identityDocsComplete
                   ? "bg-gray-400 cursor-not-allowed"
                   : "bg-[color:var(--brand-primary)] hover:brightness-90"
               }`}

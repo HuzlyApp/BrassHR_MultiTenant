@@ -21,8 +21,8 @@ export function createDefaultOnboardingStepDrafts(): OnboardingStepDraft[] {
   return [
     {
       step_key: "resume_upload",
-      title: "Add Resume",
-      description: "Upload and review your resume",
+      title: "Upload Resume",
+      description: "Upload your resume and confirm your contact information.",
       step_type: "resume_upload",
       sort_order: 10,
       is_required: true,

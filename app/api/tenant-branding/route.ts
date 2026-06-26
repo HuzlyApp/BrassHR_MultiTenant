@@ -3,9 +3,7 @@ import type { TenantBrandingRow } from "@/lib/tenant/tenant-branding";
 import { brandingFromTenantRow, PLATFORM_DEFAULT_TENANT_SLUG } from "@/lib/tenant/tenant-branding";
 import { getConfiguredDefaultTenantId } from "@/lib/tenant/resolve-default-tenant-id";
 import { getSupabaseAnonKey, getSupabaseUrl } from "@/lib/supabase-env";
-
-const TENANT_BRANDING_SELECT =
-  "id, name, slug, logo_url, primary_color, secondary_color, accent_color, welcome_headline, welcome_subtitle, auth_background_image_url";
+import { TENANT_BRANDING_SELECT } from "@/lib/tenant/branding-fields";
 
 export async function GET(req: Request) {
   const url = getSupabaseUrl();
