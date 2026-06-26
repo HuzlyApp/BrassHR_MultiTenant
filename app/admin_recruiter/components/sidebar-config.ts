@@ -300,7 +300,7 @@ export const CLIENT_SIDEBAR_SECTIONS: SidebarSection[] = [
   ...SHARED_TOP_SECTIONS,
   {
     label: "Recruitment",
-    href: "/admin_recruiter/candidates",
+    href: "#",
     iconType: ICON.candidates,
     matchPrefixes: CANDIDATE_ROUTE_PREFIXES,
     children: RECRUITMENT_CHILDREN,
@@ -346,7 +346,7 @@ export const GOD_ADMIN_SIDEBAR_SECTIONS: SidebarSection[] = [
   ...SHARED_TOP_SECTIONS,
   {
     label: "Recruitment",
-    href: "/admin_recruiter/candidates",
+    href: "#",
     iconType: ICON.candidates,
     matchPrefixes: CANDIDATE_ROUTE_PREFIXES,
     children: RECRUITMENT_CHILDREN,

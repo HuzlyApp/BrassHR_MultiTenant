@@ -2,10 +2,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
-import { Loader2, MessageCircle } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { EditColumnsModal } from "./EditColumnsModal";
 import {
   columnLabel,
@@ -15,14 +13,13 @@ import {
   type CandidateColumnId,
 } from "./column-config";
 import { renderListCell } from "./render-list-cell";
+import { CandidateGridCard } from "./CandidateGridCard";
 import type { CandidateRow } from "./types";
 import AdvancedSearchModal from "../components/AdvancedSearchModal";
 import CandidateCommunicationDialog from "../components/CandidateCommunicationDialog";
 import { CandidatesListShell } from "../components/CandidatesListShell";
 import { useCandidatesFilterRowsDefault } from "../hooks/useCandidatesFilterRowsDefault";
-import { CandidateListAvatar } from "../components/CandidateListAvatar";
 import { exportCandidatesCsv } from "./export-candidates-csv";
-import { candidateStatusBadgeClassName } from "./candidate-status-badge";
 
 type WorkerProfile = {
   id: string;
@@ -46,8 +43,6 @@ type WorkerProfile = {
   profile_photo?: string | null;
   profile_photo_url?: string | null;
 };
-
-const BRAND_ICON = "var(--brand-primary)";
 
 function titleCaseStatus(s: string | null | undefined) {
   const v = (s || "").trim();
@@ -147,7 +142,7 @@ export default function CandidatesPage() {
   const [locationFilter, setLocationFilter] = useState("");
   const [dateFilter, setDateFilter] = useState("");
   const [showFilterRows, setShowFilterRows] = useCandidatesFilterRowsDefault();
-  const [view, setView] = useState<"card" | "list">("card");
+  const [view, setView] = useState<"card" | "list">("list");
   const [listColumnOrder, setListColumnOrder] = useState<CandidateColumnId[]>(DEFAULT_CANDIDATE_COLUMNS);
   const [editColumnsOpen, setEditColumnsOpen] = useState(false);
   const [page, setPage] = useState(1);
@@ -519,74 +514,12 @@ export default function CandidatesPage() {
           return (
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
               {paginated.map((c) => (
-                        <div
-                          key={c.id}
-                          className="bg-white border border-[#e3ecea] rounded-lg p-3.5 hover:shadow-sm transition-shadow"
-                        >
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="flex items-start gap-3 min-w-0">
-                              <CandidateListAvatar name={c.name || "NA"} photoUrl={c.profilePhotoUrl} />
-                              <div className="min-w-0">
-                                <div className="font-normal text-black truncate text-sm">{c.name || "Unnamed"}</div>
-                                <div className="text-[10px] text-[#6B7280] mt-0.5">RN #{c.reference}</div>
-                              </div>
-                            </div>
-
-                            <div className="flex items-center gap-1.5 shrink-0">
-                              <button
-                                type="button"
-                                onClick={() => setCommTarget(c)}
-                                disabled={!c.email?.trim() && !c.phone?.trim()}
-                                className="flex h-6 w-6 items-center justify-center rounded-md text-[#4e6462] transition hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_8%,white)] disabled:cursor-not-allowed disabled:opacity-40"
-                                aria-label="Message candidate"
-                              >
-                                <MessageCircle className="h-4 w-4" />
-                              </button>
-                              <Link
-                                href={`/admin_recruiter/new/attachments/${c.id}`}
-                                className="flex h-6 w-6 items-center justify-center rounded-md text-[#4e6462] transition hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_8%,white)]"
-                                aria-label="View document"
-                              >
-                               <BrandedSvgIcon src="/icons/admin-recruiter/save.svg" className="h-4 w-4" color={BRAND_ICON} />
-                              
-                              </Link>
-                              <Link
-                                href={`/admin_recruiter/new/profile/${c.id}`}
-                                className="flex h-6 w-6 items-center justify-center rounded-md text-[#4e6462] transition hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_8%,white)]"
-                                aria-label="View profile"
-                              >
-                                <BrandedSvgIcon src="/icons/admin-recruiter/eye.svg" className="h-4 w-4" color={BRAND_ICON} />
-                              </Link>
-                            </div>
-                          </div>
-
-                          <div className="mt-3 flex items-center border-b border-[#E5E7EB] pb-3 justify-between gap-2 flex-wrap">
-                            <div className="flex items-center gap-1.5 text-[11px] text-[#6f8380]">
-                            <BrandedSvgIcon src="/icons/admin-recruiter/calendar.svg" className="h-4 w-4" color={BRAND_ICON} />
-                              <span>{formatDateTime(c.createdAt)}</span>
-                            </div>
-                            <span
-                              className={`inline-flex items-center px-2 py-0.5 rounded-xl text-[10px] font-semibold ${candidateStatusBadgeClassName(c.status)}`}
-                            >
-                              {c.status}
-                            </span>
-                          </div>
-
-                          <div className="mt-3 space-y-1.5 text-[11px] text-[#4f6462]">
-                            <div className="flex items-start gap-2.5">
-                            <BrandedSvgIcon src="/icons/admin-recruiter/alternate_email.svg" className="h-4 w-4" color={BRAND_ICON} />
-                              <span className="truncate text-black">{c.email || "—"}</span>
-                            </div>
-                            <div className="flex items-center gap-2.5">
-                            <BrandedSvgIcon src="/icons/admin-recruiter/phone.svg" className="h-4 w-4" color={BRAND_ICON} />
-                              <span className="truncate text-black">{c.phone || "—"}</span>
-                            </div>
-                            <div className="flex items-start gap-2.5">
-                            <BrandedSvgIcon src="/icons/admin-recruiter/location-marker.svg" className="h-4 w-4" color={BRAND_ICON} />
-                              <span className="leading-snug text-black">{c.address || "—"}</span>
-                            </div>
-                          </div>
-                        </div>
+                <CandidateGridCard
+                  key={c.id}
+                  candidate={c}
+                  formatDateTime={formatDateTime}
+                  onMessage={setCommTarget}
+                />
               ))}
             </div>
           );

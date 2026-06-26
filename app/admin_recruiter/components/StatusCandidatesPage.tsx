@@ -1,16 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
-import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
 import { CandidatesListShell } from "./CandidatesListShell";
 import AdvancedSearchModal from "./AdvancedSearchModal";
 import { useCandidatesFilterRowsDefault } from "../hooks/useCandidatesFilterRowsDefault";
-import { CandidateListAvatar } from "./CandidateListAvatar";
 import { exportCandidatesCsv } from "../candidates/export-candidates-csv";
-import { candidateStatusBadgeClassName } from "../candidates/candidate-status-badge";
 import { EditColumnsModal } from "../candidates/EditColumnsModal";
 import {
   columnLabel,
@@ -20,6 +16,7 @@ import {
   type CandidateColumnId,
 } from "../candidates/column-config";
 import { renderListCell } from "../candidates/render-list-cell";
+import { CandidateGridCard } from "../candidates/CandidateGridCard";
 import type { CandidateRow } from "../candidates/types";
 
 type WorkerProfile = {
@@ -87,7 +84,6 @@ function formatDateShort(iso: string | null) {
 }
 
 const DEFAULT_PAGE_SIZE = 10;
-const BRAND_ICON = "var(--brand-primary)";
 const ADVANCED_SEARCH_STORAGE_KEY = "admin_recruiter_candidates_advanced_search";
 
 function pickFirstNonEmpty(values: Array<string | null | undefined>): string {
@@ -148,7 +144,7 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
   const [locationFilter, setLocationFilter] = useState("");
   const [dateFilter, setDateFilter] = useState("");
   const [showFilterRows, setShowFilterRows] = useCandidatesFilterRowsDefault();
-  const [view, setView] = useState<"card" | "list">("card");
+  const [view, setView] = useState<"card" | "list">("list");
   const [listColumnOrder, setListColumnOrder] = useState<CandidateColumnId[]>(DEFAULT_CANDIDATE_COLUMNS);
   const [editColumnsOpen, setEditColumnsOpen] = useState(false);
   const [page, setPage] = useState(1);
@@ -387,64 +383,12 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
           return (
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
               {paginated.map((c) => (
-                        <div
-                          key={c.id}
-                          className="bg-white border border-[#e3ecea] rounded-lg p-3.5 hover:shadow-sm transition-shadow"
-                        >
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="flex items-start gap-3 min-w-0">
-                              <CandidateListAvatar name={c.name || "NA"} photoUrl={c.profilePhotoUrl} />
-                              <div className="min-w-0">
-                                <div className="font-normal text-black truncate text-sm">{c.name || "Unnamed"}</div>
-                                <div className="text-[10px] text-[#6B7280] mt-0.5">RN #{c.reference}</div>
-                              </div>
-                            </div>
-
-                            <div className="flex items-center gap-1.5 shrink-0">
-                              <Link
-                                href={`/admin_recruiter/new/attachments/${c.id}`}
-                                className="flex h-6 w-6 items-center justify-center rounded-md text-[#4e6462] transition hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_8%,white)]"
-                                aria-label="View document"
-                              >
-                                <BrandedSvgIcon src="/icons/admin-recruiter/save.svg" className="h-4 w-4" color={BRAND_ICON} />
-                              </Link>
-                              <Link
-                                href={`/admin_recruiter/new/profile/${c.id}`}
-                                className="flex h-6 w-6 items-center justify-center rounded-md text-[#4e6462] transition hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_8%,white)]"
-                                aria-label="View profile"
-                              >
-                                <BrandedSvgIcon src="/icons/admin-recruiter/eye.svg" className="h-4 w-4" color={BRAND_ICON} />
-                              </Link>
-                            </div>
-                          </div>
-
-                          <div className="mt-3 flex items-center border-b border-[#E5E7EB] pb-3 justify-between gap-2 flex-wrap">
-                            <div className="flex items-center gap-1.5 text-[11px] text-[#6f8380]">
-                              <BrandedSvgIcon src="/icons/admin-recruiter/calendar.svg" className="h-4 w-4" color={BRAND_ICON} />
-                              <span>{formatDateTime(c.createdAt)}</span>
-                            </div>
-                            <span
-                              className={`inline-flex items-center rounded-sm px-2 py-0.5 text-[10px] font-semibold ${candidateStatusBadgeClassName(c.status)}`}
-                            >
-                              {c.status}
-                            </span>
-                          </div>
-
-                          <div className="mt-3 space-y-1.5 text-[11px] text-[#4f6462]">
-                            <div className="flex items-start gap-2.5">
-                              <BrandedSvgIcon src="/icons/admin-recruiter/alternate_email.svg" className="h-4 w-4" color={BRAND_ICON} />
-                              <span className="truncate text-black">{c.email || "—"}</span>
-                            </div>
-                            <div className="flex items-center gap-2.5">
-                              <BrandedSvgIcon src="/icons/admin-recruiter/phone.svg" className="h-4 w-4" color={BRAND_ICON} />
-                              <span className="truncate text-black">{c.phone || "—"}</span>
-                            </div>
-                            <div className="flex items-start gap-2.5">
-                              <BrandedSvgIcon src="/icons/admin-recruiter/location-marker.svg" className="h-4 w-4" color={BRAND_ICON} />
-                              <span className="leading-snug text-black">{c.address || "—"}</span>
-                            </div>
-                          </div>
-                        </div>
+                <CandidateGridCard
+                  key={c.id}
+                  candidate={c}
+                  formatDateTime={formatDateTime}
+                  statusBadgeRounded="sm"
+                />
               ))}
             </div>
           );

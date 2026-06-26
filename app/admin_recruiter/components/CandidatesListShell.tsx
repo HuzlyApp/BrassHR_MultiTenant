@@ -577,7 +577,7 @@ export function CandidatesListShell({
                     onClick={() => onPageChange(num)}
                     className={`h-9 min-w-9 rounded-md border px-3 text-sm transition ${
                       num === safePage
-                        ? "border-[color:var(--brand-secondary)] bg-[color:var(--brand-secondary)] text-white"
+                        ? "border-[color:var(--brand-primary)] bg-[color:var(--brand-primary)] text-white"
                         : "border-[#dce6e3] bg-white text-[#334155] hover:bg-zinc-50"
                     }`}
                   >
