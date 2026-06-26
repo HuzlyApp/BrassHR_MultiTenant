@@ -140,8 +140,8 @@ export function AdminRecruiterSidebar({
     const activeParents = sidebarSections
       .filter(
         (section) =>
-          isPathActive(section.matchPrefixes) ||
-          section.children?.some((child) => isLinkActive(child))
+          section.children?.some((child) => isLinkActive(child)) ||
+          (section.matchPrefixes.length > 0 && isPathActive(section.matchPrefixes))
       )
       .map((section) => section.label);
     if (activeParents.length === 0) return;
@@ -288,52 +288,70 @@ export function AdminRecruiterSidebar({
       >
         {renderedSections.map((section) => (
           <div key={section.label} className={`mb-1 ${isMobileRail || isCollapsed ? "w-full" : ""}`}>
-            {section.children?.length && !isCollapsed ? (
-              <div
-                className={`group relative flex min-h-[36px] w-full items-center gap-2 overflow-hidden rounded-md pl-2 pr-0 py-1 transition hover:bg-white ${
-                  section.active
-                    ? "text-[color:var(--brand-primary)]"
-                    : "text-[#012352] hover:text-[color:var(--brand-primary)]"
-                }`}
-              >
-                {section.disabled || section.href === "#" ? (
+            {section.children?.length ? (
+              <>
+                <div
+                  className={`group relative flex min-h-[36px] w-full items-center gap-2 overflow-hidden rounded-md text-[color:var(--brand-primary)] ${
+                    isCollapsed || isMobileRail
+                      ? collapsedRowClass(isCollapsed, isMobileRail)
+                      : "pl-2 pr-0 py-1"
+                  }`}
+                >
                   <div
                     title={section.disabled ? `${section.label} (Coming soon)` : section.label}
-                    className="flex min-w-0 flex-1 items-center gap-3"
+                    className={`flex min-w-0 flex-1 items-center gap-3 ${
+                      isCollapsed || isMobileRail ? "justify-center" : ""
+                    }`}
                   >
-                    <SidebarNavIcon
-                      iconType={section.iconType}
-                      active={!section.disabled && section.active}
-                    />
-                    <span className="truncate font-normal text-[14px] leading-5 tracking-normal transition-colors">
-                      {section.label}
-                    </span>
+                    <SidebarNavIcon iconType={section.iconType} active={section.childActive} />
+                    {!isCollapsed && !isMobileRail ? (
+                      <span className="truncate font-normal text-[14px] leading-5 tracking-normal">
+                        {section.label}
+                      </span>
+                    ) : null}
                   </div>
-                ) : (
-                  <Link href={section.href} onClick={handleNavClick} className="flex min-w-0 flex-1 items-center gap-3">
-                    <SidebarNavIcon
-                      iconType={section.iconType}
-                      active={!section.disabled && section.active}
-                    />
-                    <span className="truncate font-normal text-[14px] leading-5 tracking-normal transition-colors">
-                      {section.label}
-                    </span>
-                  </Link>
-                )}
-                <button
-                  type="button"
-                  title={`${isSectionOpen(section) ? "Collapse" : "Expand"} ${section.label}`}
-                  onClick={(event) => handleSectionToggleClick(section.label, event)}
-                  onMouseDown={(event) => event.preventDefault()}
-                  className="ml-auto flex h-6 w-6 items-center justify-center rounded-md transition hover:bg-white/70"
-                  aria-label={`${isSectionOpen(section) ? "Collapse" : "Expand"} ${section.label}`}
-                >
-                  <SidebarSubmenuToggleIcon open={isSectionOpen(section)} />
-                </button>
-                {section.showIndicator ? (
-                  <span aria-hidden className="admin-recruiter-sidebar-active-indicator" />
+                  {!isCollapsed && !isMobileRail ? (
+                    <button
+                      type="button"
+                      title={`${isSectionOpen(section) ? "Collapse" : "Expand"} ${section.label}`}
+                      onClick={(event) => handleSectionToggleClick(section.label, event)}
+                      onMouseDown={(event) => event.preventDefault()}
+                      className="ml-auto flex h-6 w-6 items-center justify-center rounded-md text-[color:var(--brand-primary)] transition hover:bg-white/70"
+                      aria-label={`${isSectionOpen(section) ? "Collapse" : "Expand"} ${section.label}`}
+                    >
+                      <SidebarSubmenuToggleIcon open={isSectionOpen(section)} />
+                    </button>
+                  ) : null}
+                </div>
+
+                {!isCollapsed && !isMobileRail && isSectionOpen(section) ? (
+                  <div className="admin-recruiter-sidebar-submenu space-y-0.5">
+                    {section.children.map((child) =>
+                      child.disabled ? (
+                        <div
+                          key={`${section.label}-${child.label}`}
+                          className="admin-recruiter-sidebar-submenu-item group relative block overflow-hidden rounded-md font-normal text-[14px] leading-5 tracking-normal text-[#012352]"
+                          aria-disabled
+                        >
+                          <span>{child.label}</span>
+                        </div>
+                      ) : (
+                        <Link
+                          key={`${section.label}-${child.label}`}
+                          href={child.href}
+                          onClick={handleNavClick}
+                          className="admin-recruiter-sidebar-submenu-item group relative block overflow-hidden rounded-md font-normal text-[14px] leading-5 tracking-normal text-[#012352]"
+                        >
+                          <span>{child.label}</span>
+                          {child.active ? (
+                            <span aria-hidden className="admin-recruiter-sidebar-active-indicator" />
+                          ) : null}
+                        </Link>
+                      )
+                    )}
+                  </div>
                 ) : null}
-              </div>
+              </>
             ) : section.disabled ? (
               <div
                 title={`${section.label} (Coming soon)`}
@@ -378,38 +396,6 @@ export function AdminRecruiterSidebar({
                 ) : null}
               </Link>
             )}
-
-            {!isCollapsed && section.children?.length && isSectionOpen(section) ? (
-              <div className="admin-recruiter-sidebar-submenu space-y-0.5">
-                {section.children.map((child) =>
-                  child.disabled ? (
-                    <div
-                      key={`${section.label}-${child.label}`}
-                      className="admin-recruiter-sidebar-submenu-item group relative block overflow-hidden rounded-md font-normal text-[14px] leading-5 tracking-normal text-[#012352]"
-                      aria-disabled
-                    >
-                      <span>{child.label}</span>
-                    </div>
-                  ) : (
-                    <Link
-                      key={`${section.label}-${child.label}`}
-                      href={child.href}
-                      onClick={handleNavClick}
-                      className={`admin-recruiter-sidebar-submenu-item group relative block overflow-hidden rounded-md font-normal text-[14px] leading-5 tracking-normal transition ${
-                        child.active
-                          ? "text-[color:var(--brand-primary)]"
-                          : "text-[#012352] hover:text-[color:var(--brand-primary)]"
-                      }`}
-                    >
-                      <span>{child.label}</span>
-                      {child.active ? (
-                        <span aria-hidden className="admin-recruiter-sidebar-active-indicator" />
-                      ) : null}
-                    </Link>
-                  )
-                )}
-              </div>
-            ) : null}
           </div>
         ))}
       </nav>

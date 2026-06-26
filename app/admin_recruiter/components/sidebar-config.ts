@@ -31,6 +31,7 @@ const ICON = {
   reports: "Reports",
   finance: "Finance",
   taskboard: "Taskboard",
+  shifts: "Tickets",
   templateBuilder: "Template Builder",
   teams: "Teams",
   automation: "Connect",
@@ -135,7 +136,7 @@ const TASKBOARD_CHILDREN: SidebarLink[] = [
   },
 ];
 
-const TASKBOARD_ACTIVE_PREFIXES = ["/admin_recruiter/calendar"];
+const TASKBOARD_ACTIVE_PREFIXES: string[] = [];
 
 const EMAIL_TEMPLATES_ROUTE = "/admin_recruiter/email-templates";
 const TEMPLATE_BUILDER_ROUTE = "/admin_recruiter/template-builder";
@@ -147,7 +148,7 @@ const TEMPLATES_CHILDREN: SidebarLink[] = [
     matchPrefixes: [EMAIL_TEMPLATES_ROUTE],
   },
   {
-    label: "Template Builder",
+    label: "Document Templates",
     href: TEMPLATE_BUILDER_ROUTE,
     matchPrefixes: [TEMPLATE_BUILDER_ROUTE],
   },
@@ -179,6 +180,11 @@ const AUTOMATION_CHILDREN: SidebarLink[] = [
   //   matchPrefixes: [ONBOARDING_BUILDER_ROUTE],
   // }, // Hidden for now; can be uncommented later
   {
+    label: "Workflows",
+    href: WORKFLOWS_ROUTE,
+    matchPrefixes: [WORKFLOWS_ROUTE],
+  },
+  {
     label: "Templates",
     href: TEMPLATES_ROUTE,
     matchPrefixes: [TEMPLATES_ROUTE],
@@ -188,18 +194,13 @@ const AUTOMATION_CHILDREN: SidebarLink[] = [
     href: `${DASHBOARD_BASE}/workflowlibrary`,
     matchPrefixes: [`${DASHBOARD_BASE}/workflowlibrary`],
   },
-  {
-    label: "Workflows",
-    href: WORKFLOWS_ROUTE,
-    matchPrefixes: [WORKFLOWS_ROUTE],
-  },
 ];
 
 const AUTOMATION_ACTIVE_PREFIXES = [
   ONBOARDING_BUILDER_ROUTE,
+  WORKFLOWS_ROUTE,
   TEMPLATES_ROUTE,
   `${DASHBOARD_BASE}/workflowlibrary`,
-  WORKFLOWS_ROUTE,
 ];
 
 const ORGANIZATION_CHILDREN: SidebarLink[] = [
@@ -210,10 +211,7 @@ const ORGANIZATION_CHILDREN: SidebarLink[] = [
   },
 ];
 
-const DASHBOARD_ACTIVE_PREFIXES = [
-  DASHBOARD_BASE,
-  DASHBOARD_OVERVIEW_BASE,
-];
+const DASHBOARD_ACTIVE_PREFIXES = [DASHBOARD_OVERVIEW_BASE];
 
 const MAIL_ROUTE = "/admin_recruiter/mail";
 
@@ -228,7 +226,7 @@ const FIGMA_PRIMARY_SECTIONS: SidebarSection[] = [
   },
   {
     label: "Reports",
-    href: "/admin_recruiter/reports",
+    href: "#",
     iconType: ICON.reports,
     matchPrefixes: ["/admin_recruiter/reports"],
     children: REPORTS_CHILDREN,
@@ -236,7 +234,7 @@ const FIGMA_PRIMARY_SECTIONS: SidebarSection[] = [
   {
     label: "Shifts",
     href: "#",
-    iconType: ICON.taskboard,
+    iconType: ICON.shifts,
     matchPrefixes: [],
     children: SHIFTS_CHILDREN,
   },
@@ -327,7 +325,7 @@ export const CLIENT_SIDEBAR_SECTIONS: SidebarSection[] = [
   },
   {
     label: "Automation",
-    href: TEMPLATES_ROUTE,
+    href: "#",
     iconType: ICON.automation,
     matchPrefixes: AUTOMATION_ACTIVE_PREFIXES,
     children: AUTOMATION_CHILDREN,
@@ -367,7 +365,7 @@ export const GOD_ADMIN_SIDEBAR_SECTIONS: SidebarSection[] = [
   },
   {
     label: "Clients",
-    href: "/godadmin/tenants",
+    href: "#",
     iconType: ICON.clients,
     matchPrefixes: ["/godadmin/tenants", "/godadmin"],
     children: [
@@ -385,7 +383,7 @@ export const GOD_ADMIN_SIDEBAR_SECTIONS: SidebarSection[] = [
   },
   {
     label: "Automation",
-    href: TEMPLATES_ROUTE,
+    href: "#",
     iconType: ICON.automation,
     matchPrefixes: AUTOMATION_ACTIVE_PREFIXES,
     children: AUTOMATION_CHILDREN,
