@@ -7,6 +7,7 @@ import { Check, ChevronDown, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import type { SignupStateOption } from "@/lib/signup/owner-signup";
+import { zipCodeValidationMessage } from "@/lib/tenant/business-info-validation";
 import { FaApple } from "react-icons/fa";
 import { FaXTwitter } from "react-icons/fa6";
 import { FcGoogle } from "react-icons/fc";
@@ -327,6 +328,8 @@ export default function SignupPage() {
   const [verifyPassword, setVerifyPassword] = useState("");
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [touchedEmail, setTouchedEmail] = useState(false);
+  const [touchedZip, setTouchedZip] = useState(false);
+  const [detailsSubmitAttempted, setDetailsSubmitAttempted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [stateRows, setStateRows] = useState<SignupStateOption[]>([]);
@@ -458,6 +461,24 @@ export default function SignupPage() {
       ? "Enter valid email"
       : null;
 
+  const zipValidationContext = useMemo(
+    () => ({
+      stateCode: selectedStateCode || undefined,
+      stateName: form.state || undefined,
+    }),
+    [form.state, selectedStateCode]
+  );
+
+  const zipError = useMemo(() => {
+    if (!detailsSubmitAttempted && !touchedZip) return null;
+    return zipCodeValidationMessage(form.zipCode, zipValidationContext);
+  }, [detailsSubmitAttempted, touchedZip, form.zipCode, zipValidationContext]);
+
+  const zipIsValid = useMemo(
+    () => !zipCodeValidationMessage(form.zipCode, zipValidationContext),
+    [form.zipCode, zipValidationContext]
+  );
+
   const canContinue = useMemo(() => {
     return (
       form.firstName.trim().length > 0 &&
@@ -467,9 +488,9 @@ export default function SignupPage() {
       form.jobTitle.trim().length > 0 &&
       form.city.trim().length > 0 &&
       form.state.trim().length > 0 &&
-      form.zipCode.trim().length > 0
+      zipIsValid
     );
-  }, [emailTaken, form]);
+  }, [emailTaken, form, zipIsValid]);
 
   const passwordRules = useMemo(() => getPasswordRules(password), [password]);
   const passwordScore = passwordRules.filter((rule) => rule.passed).length;
@@ -493,6 +514,8 @@ export default function SignupPage() {
     event.preventDefault();
     if (step === "details") {
       setTouchedEmail(true);
+      setTouchedZip(true);
+      setDetailsSubmitAttempted(true);
       if (!canContinue) return;
       setStep("password");
       return;
@@ -793,13 +816,16 @@ export default function SignupPage() {
                   options={cityOptions}
                 />
               )}
-              <TextField
-                label="Zip Code"
-                required
-                value={form.zipCode}
-                onChange={(value) => update("zipCode", value.replace(/\D/g, "").slice(0, 10))}
-                placeholder="Code"
-              />
+              <div onBlur={() => setTouchedZip(true)}>
+                <TextField
+                  label="Zip Code"
+                  required
+                  value={form.zipCode}
+                  onChange={(value) => update("zipCode", value.replace(/\D/g, "").slice(0, 5))}
+                  placeholder="Code"
+                  error={zipError}
+                />
+              </div>
             </div>
 
             <div className="mt-[30px] space-y-[26px]">

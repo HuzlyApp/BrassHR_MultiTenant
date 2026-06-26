@@ -497,11 +497,12 @@ export function BusinessStep({
   const validationContext = useMemo(
     () => ({
       stateCode: selectedStateCode || undefined,
+      stateName: businessInfo.state || undefined,
       allowedStateNames: stateOptions,
       allowedCityNames: cityOptions.length > 0 ? cityOptions : undefined,
       requireEin: true,
     }),
-    [cityOptions, selectedStateCode, stateOptions]
+    [businessInfo.state, cityOptions, selectedStateCode, stateOptions]
   );
 
   const formInput = useMemo(

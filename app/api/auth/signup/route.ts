@@ -5,6 +5,7 @@ import {
   normalizeOwnerSignupBody,
   validateOwnerSignupDetails,
   validateOwnerSignupPassword,
+  validateOwnerSignupZipForState,
   type OwnerSignupPayload,
 } from "@/lib/signup/owner-signup";
 
@@ -49,6 +50,15 @@ export async function POST(req: Request) {
   }
   if (!stateRow?.code) {
     return NextResponse.json({ error: "Please select a valid state." }, { status: 400 });
+  }
+
+  const zipError = validateOwnerSignupZipForState(
+    payload.zipCode,
+    String(stateRow.code),
+    payload.state
+  );
+  if (zipError) {
+    return NextResponse.json({ error: zipError }, { status: 400 });
   }
 
   const { data: existingProfile, error: profileLookupErr } = await svc

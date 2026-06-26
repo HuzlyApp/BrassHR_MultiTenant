@@ -44,9 +44,9 @@ describe("validateBusinessInfoForm", () => {
   it("rejects zip codes that do not match the state", () => {
     const errors = validateBusinessInfoForm(
       { ...validInput, zipCode: "10001" },
-      { stateCode: "CA", allowedCityNames: ["Los Angeles"] }
+      { stateCode: "CA", stateName: "California", allowedCityNames: ["Los Angeles"] }
     );
-    expect(errors.zipCode).toMatch(/state/i);
+    expect(errors.zipCode).toMatch(/California/i);
   });
 
   it("rejects cities outside the allowed list", () => {
@@ -89,7 +89,7 @@ describe("normalizeBusinessInfoBody", () => {
     });
     expect(normalized.companyName).toBe("Acme");
     expect(normalized.companySize).toBe("1-10");
-    expect(normalized.zipCode).toBe("902101234");
+    expect(normalized.zipCode).toBe("90210");
     expect(normalized.email).toBe("hello@acme.com");
   });
 });

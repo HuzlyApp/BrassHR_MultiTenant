@@ -24,6 +24,8 @@ export type BusinessInfoFieldErrors = Partial<Record<BusinessInfoFieldKey, strin
 export type BusinessInfoValidationContext = {
   /** Two-letter state code for ZIP/state checks. */
   stateCode?: string;
+  /** Full state name for user-facing ZIP errors. */
+  stateName?: string;
   /** When non-empty, city must be one of these names (dropdown mode). */
   allowedCityNames?: string[];
   /** When true, state must appear in this list (state name). */
@@ -57,7 +59,7 @@ const FAKE_PHONE_PATTERNS = [
 ];
 
 export function normalizeBusinessZipInput(raw: string): string {
-  return raw.replace(/\D/g, "").slice(0, 9);
+  return raw.replace(/\D/g, "").slice(0, 5);
 }
 
 export function normalizeEinInput(raw: string): string {
@@ -189,11 +191,13 @@ export function zipCodeValidationMessage(
 ): string | null {
   const digits = normalizeBusinessZipInput(zipCode);
   if (!digits) return "ZIP code is required.";
-  if (!/^\d{5}$/.test(digits)) {
-    return "Enter a valid 5-digit ZIP code.";
+  if (digits.length < 5) return "Enter a valid 5-digit ZIP code.";
+  if (!context?.stateCode) {
+    return "Select a state before entering a ZIP code.";
   }
-  if (context?.stateCode && !zipPrefixBelongsToState(digits, context.stateCode)) {
-    return "ZIP code does not match the selected state.";
+  if (!zipPrefixBelongsToState(digits, context.stateCode)) {
+    const stateLabel = context.stateName?.trim() || "the selected state";
+    return `This ZIP code does not match ${stateLabel}.`;
   }
   return null;
 }

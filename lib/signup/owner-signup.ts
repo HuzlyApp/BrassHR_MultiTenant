@@ -1,3 +1,5 @@
+import { zipCodeValidationMessage } from "@/lib/tenant/business-info-validation";
+
 export type OwnerSignupPayload = {
   firstName: string;
   lastName: string;
@@ -34,7 +36,7 @@ export function normalizeOwnerSignupBody(body: Record<string, unknown>): Partial
     zipCode: String(body.zipCode ?? "")
       .trim()
       .replace(/\D/g, "")
-      .slice(0, 10),
+      .slice(0, 5),
     address1: String(body.address1 ?? "").trim(),
     address2: String(body.address2 ?? "").trim(),
     password: String(body.password ?? ""),
@@ -50,8 +52,17 @@ export function validateOwnerSignupDetails(
   if (!payload.jobTitle) return "Job title is required.";
   if (!payload.city) return "City is required.";
   if (!payload.state) return "State is required.";
-  if (!payload.zipCode || payload.zipCode.length < 5) return "A valid zip code is required.";
+  if (!payload.zipCode || payload.zipCode.length < 5) return "Enter a valid 5-digit ZIP code.";
   return null;
+}
+
+/** Validates ZIP format and that the prefix matches the selected US state. */
+export function validateOwnerSignupZipForState(
+  zipCode: string,
+  stateCode: string,
+  stateName?: string
+): string | null {
+  return zipCodeValidationMessage(zipCode, { stateCode, stateName });
 }
 
 export function validateOwnerSignupPassword(password: string): string | null {
