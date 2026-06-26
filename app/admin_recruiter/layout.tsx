@@ -9,6 +9,7 @@ import {
   AdminRecruiterSidebar,
   SIDEBAR_COLLAPSED_WIDTH,
   SIDEBAR_COLLAPSED_WIDTH_NARROW,
+  SIDEBAR_COLLAPSED_WIDTH_MOBILE,
   SIDEBAR_EXPANDED_WIDTH,
 } from "./components/AdminRecruiterSidebar";
 import { AdminRecruiterHeader } from "./components/AdminRecruiterHeader";
@@ -70,6 +71,7 @@ export default function AdminRecruiterLayout({ children }: { children: ReactNode
           ["--admin-sidebar-width" as string]: `${sidebarWidth}px`,
           ["--admin-sidebar-collapsed-width" as string]: `${SIDEBAR_COLLAPSED_WIDTH}px`,
           ["--admin-sidebar-collapsed-width-narrow" as string]: `${SIDEBAR_COLLAPSED_WIDTH_NARROW}px`,
+          ["--admin-sidebar-collapsed-width-mobile" as string]: `${SIDEBAR_COLLAPSED_WIDTH_MOBILE}px`,
         }}
       >
         <AdminRecruiterSidebar

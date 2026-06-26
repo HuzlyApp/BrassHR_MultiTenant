@@ -201,10 +201,10 @@ export function AdminRecruiterHeader({
 
   return (
     <header
-      className="sticky top-0 z-40 w-full bg-white border-b border-[#E2E8F0]"
+      className="sticky top-0 z-40 w-full bg-white border-b border-[#E2E8F0] max-[999px]:z-30"
       style={{ borderColor: "color-mix(in srgb, var(--brand-accent) 35%, #E2E8F0)" }}
     >
-      <div className="flex h-14 min-w-0 w-full items-center justify-between gap-2 px-3 sm:h-[64px] sm:gap-3 sm:px-5 min-[1000px]:px-8 max-[999px]:pr-3">
+      <div className="flex h-16 min-w-0 w-full items-center justify-between gap-2 px-3 sm:gap-3 sm:px-5 min-[1000px]:px-8 max-[999px]:pr-3">
         <div className="flex min-w-0 shrink-0 items-center gap-1 sm:gap-2">
           {onMenuClick ? (
             <button

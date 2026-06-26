@@ -9,23 +9,45 @@
 @media (min-width: 1000px) {
   .admin-recruiter-shell .admin-recruiter-main-wrap {
     margin-left: var(--admin-sidebar-width, 272px);
-    transition: margin-left 200ms ease-in-out;
+    width: calc(100% - var(--admin-sidebar-width, 272px));
+    transition: margin-left 200ms ease-in-out, width 200ms ease-in-out;
   }
 }
 
 .admin-recruiter-main-wrap {
-  transition: margin-left 200ms ease-in-out;
+  transition: margin-left 200ms ease-in-out, width 200ms ease-in-out;
   margin-left: 0;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.admin-recruiter-sidebar {
+  transition: width 200ms ease-in-out;
+}
+
+/* Mobile collapsed rail — default 80px (500px–999px); overridden in narrower breakpoints below */
+.admin-recruiter-sidebar-mobile-rail {
+  width: var(--admin-sidebar-collapsed-width, 80px);
+  max-width: var(--admin-sidebar-collapsed-width, 80px);
+  min-width: var(--admin-sidebar-collapsed-width, 80px);
+  box-shadow: inset 3px 0 0 var(--brand-primary);
 }
 
 /* Below 1000px: fixed collapsed icon rail (full menu opens via header toggle) */
 @media (max-width: 999px) {
-  .admin-recruiter-main-wrap {
+  .admin-recruiter-sidebar-mobile-rail {
+    z-index: 50;
+  }
+
+  .admin-recruiter-main-wrap:not([data-mobile-nav-open="true"]) {
     margin-left: var(--admin-sidebar-collapsed-width, 80px);
+    width: calc(100% - var(--admin-sidebar-collapsed-width, 80px));
   }
 
   .admin-recruiter-main-wrap[data-mobile-nav-open="true"] {
     margin-left: 0;
+    width: 100%;
   }
 }
 
@@ -35,23 +57,36 @@
     width: var(--admin-sidebar-collapsed-width-narrow, 64px);
     max-width: var(--admin-sidebar-collapsed-width-narrow, 64px);
     min-width: var(--admin-sidebar-collapsed-width-narrow, 64px);
-    box-shadow: inset 3px 0 0 var(--brand-primary);
   }
 
   .admin-recruiter-main-wrap:not([data-mobile-nav-open="true"]) {
     margin-left: var(--admin-sidebar-collapsed-width-narrow, 64px);
+    width: calc(100% - var(--admin-sidebar-collapsed-width-narrow, 64px));
   }
 }
 
-.admin-recruiter-sidebar {
-  transition: width 200ms ease-in-out;
-}
+/* Below 430px: slimmer icon rail (+25% narrower than narrow rail) */
+@media (max-width: 429px) {
+  .admin-recruiter-sidebar-mobile-rail {
+    width: var(--admin-sidebar-collapsed-width-mobile, 48px);
+    max-width: var(--admin-sidebar-collapsed-width-mobile, 48px);
+    min-width: var(--admin-sidebar-collapsed-width-mobile, 48px);
+  }
 
-.admin-recruiter-sidebar-mobile-rail {
-  width: var(--admin-sidebar-collapsed-width, 80px);
-  max-width: var(--admin-sidebar-collapsed-width, 80px);
-  min-width: var(--admin-sidebar-collapsed-width, 80px);
-  box-shadow: inset 3px 0 0 var(--brand-primary);
+  .admin-recruiter-main-wrap:not([data-mobile-nav-open="true"]) {
+    margin-left: var(--admin-sidebar-collapsed-width-mobile, 48px);
+    width: calc(100% - var(--admin-sidebar-collapsed-width-mobile, 48px));
+  }
+
+  .admin-recruiter-sidebar-mobile-rail .admin-recruiter-sidebar-logo-frame {
+    height: 2rem;
+    width: 2rem;
+  }
+
+  .admin-recruiter-sidebar-mobile-rail .admin-recruiter-sidebar-logo-frame img {
+    max-height: 1.75rem;
+    max-width: 1.75rem;
+  }
 }
 
 /* Mobile collapsed rail — center icons in the sidebar */
@@ -386,6 +421,12 @@
   flex-direction: column;
 }
 
+.admin-recruiter-main-wrap > :not(header):not(nav) {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
 .admin-candidate-detail-shell {
   display: flex;
   flex: 1;
@@ -407,13 +448,7 @@
   display: flex;
   flex: 1;
   flex-direction: column;
-  min-height: calc(100dvh - 3.5rem);
-}
-
-@media (min-width: 640px) {
-  .admin-candidate-detail-shell .admin-recruiter-page-pad {
-    min-height: calc(100dvh - 4rem);
-  }
+  min-height: calc(100dvh - 4rem);
 }
 
 .admin-candidate-detail-shell .admin-recruiter-content-width {
@@ -425,7 +460,7 @@
 
 .admin-candidate-detail-shell > .flex.min-h-screen {
   flex: 1;
-  min-height: calc(100dvh - 3.5rem);
+  min-height: calc(100dvh - 4rem);
 }
 
 @media (max-width: 1023px) {

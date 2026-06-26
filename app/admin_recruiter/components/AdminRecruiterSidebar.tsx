@@ -27,6 +27,8 @@ import { supabaseBrowser } from "@/lib/supabase-browser";
 const SIDEBAR_EXPANDED_WIDTH = 272;
 const SIDEBAR_COLLAPSED_WIDTH = 80;
 const SIDEBAR_COLLAPSED_WIDTH_NARROW = Math.round(SIDEBAR_COLLAPSED_WIDTH * 0.8);
+/** Extra-narrow mobile rail — 25% slimmer than narrow rail, only below 430px */
+const SIDEBAR_COLLAPSED_WIDTH_MOBILE = Math.round(SIDEBAR_COLLAPSED_WIDTH_NARROW * 0.75);
 
 type AdminRecruiterSidebarProps = {
   isMobileOpen?: boolean;
@@ -230,7 +232,7 @@ export function AdminRecruiterSidebar({
             }`}
           >
             <div
-              className={`flex shrink-0 items-center justify-center overflow-hidden rounded-xl border bg-white ${
+              className={`admin-recruiter-sidebar-logo-frame flex shrink-0 items-center justify-center overflow-hidden rounded-xl border bg-white ${
                 isMobileRail ? "h-9 w-9" : "h-10 w-10"
               }`}
               style={{ borderColor: "color-mix(in srgb, var(--brand-primary) 55%, #CBD5E1)" }}
@@ -515,5 +517,6 @@ export function AdminRecruiterSidebar({
 export {
   SIDEBAR_COLLAPSED_WIDTH,
   SIDEBAR_COLLAPSED_WIDTH_NARROW,
+  SIDEBAR_COLLAPSED_WIDTH_MOBILE,
   SIDEBAR_EXPANDED_WIDTH,
 };
