@@ -31,6 +31,23 @@ export type TenantBranding = {
 
 export const PLATFORM_DEFAULT_TENANT_SLUG = "braas-hr";
 
+/** Brass HR platform icon used on login / worker-signin shells. */
+export const BRAAS_PLATFORM_FAVICON = "/icons/braas-HR/brassHR favicon 2.svg";
+
+export function isBraasPlatformBranding(brand: Pick<TenantBranding, "slug" | "companyName">): boolean {
+  const slug = brand.slug?.trim().toLowerCase();
+  if (slug === PLATFORM_DEFAULT_TENANT_SLUG) return true;
+  if (!slug) {
+    return brand.companyName.trim().toLowerCase() === "brass hr";
+  }
+  return false;
+}
+
+/** Logo shown in Braas login shell header + art panel. */
+export function braasLoginShellLogoUrl(brand: TenantBranding): string {
+  return isBraasPlatformBranding(brand) ? BRAAS_PLATFORM_FAVICON : brand.logoUrl;
+}
+
 /** Braas Figma login UI; other tenants use classic OnboardingLayout login. */
 export function usesBraasFigmaLoginUi(tenantQuery: string | null | undefined): boolean {
   const key = tenantQuery?.trim().toLowerCase();

@@ -3,11 +3,13 @@
 import Image from "next/image";
 import type { ReactNode } from "react";
 import { TenantBrandingProvider } from "@/app/components/tenant/TenantBrandingContext";
-import type { TenantBranding } from "@/lib/tenant/tenant-branding";
+import { braasLoginShellLogoUrl, type TenantBranding } from "@/lib/tenant/tenant-branding";
 
 export const interStyle = { fontFamily: "Inter, Arial, sans-serif" };
 
 export function LoginArtPanel({ brand }: { brand: TenantBranding }) {
+  const logoSrc = braasLoginShellLogoUrl(brand);
+
   return (
     <aside className="login-art relative flex w-full flex-col items-center justify-center gap-[40px] self-stretch overflow-hidden rounded-[24px] bg-[#111827] p-[30px]">
       <Image src={brand.loginBackgroundSrc} alt="" fill sizes="510px" priority className="object-cover" />
@@ -15,7 +17,7 @@ export function LoginArtPanel({ brand }: { brand: TenantBranding }) {
       <div className="relative z-10 flex flex-col items-center justify-center gap-[40px] text-center">
         <div className="relative flex h-[80px] w-[200px] items-center justify-center">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={brand.logoUrl} alt={brand.companyName} className="max-h-[80px] max-w-[200px] object-contain" />
+          <img src={logoSrc} alt={brand.companyName} className="max-h-[80px] max-w-[200px] object-contain" />
         </div>
         <p
           className="max-w-[352px] text-center text-[24px] font-normal leading-[1.2] text-white"
@@ -29,13 +31,15 @@ export function LoginArtPanel({ brand }: { brand: TenantBranding }) {
 }
 
 export function LoginBrandHeader({ brand }: { brand: TenantBranding }) {
+  const logoSrc = braasLoginShellLogoUrl(brand);
+
   return (
     <>
       <div className="flex h-[115px] items-start">
         <div className="flex items-center gap-[14px]">
           <div className="flex h-[64px] w-[64px] shrink-0 items-center justify-center overflow-hidden rounded-[12px] border border-[#e5e7eb] bg-white p-[8px]">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={brand.logoUrl} alt={brand.companyName} className="max-h-[48px] max-w-[48px] object-contain" />
+            <img src={logoSrc} alt={brand.companyName} className="max-h-[48px] max-w-[48px] object-contain" />
           </div>
           <div>
             <p className="text-[18px] font-semibold uppercase leading-[28px] text-black" style={interStyle}>
