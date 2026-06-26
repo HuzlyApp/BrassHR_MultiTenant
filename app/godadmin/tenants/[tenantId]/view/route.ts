@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { ADMIN_RECRUITER_HOME_ROUTE } from "@/app/admin_recruiter/components/sidebar-config";
 import { requireGodAdminApiSession } from "@/lib/auth/require-god-admin-api";
 import { logGodAdminImpersonation } from "@/lib/godadmin/impersonation-audit";
 import {
@@ -46,7 +47,7 @@ export async function GET(req: Request, context: RouteContext) {
     request: req,
   });
 
-  const res = NextResponse.redirect(new URL("/admin_recruiter/dashboard", req.url));
+  const res = NextResponse.redirect(new URL(ADMIN_RECRUITER_HOME_ROUTE, req.url));
   res.cookies.set(VIEW_AS_TENANT_COOKIE, resolved.tenant.id, VIEW_AS_TENANT_COOKIE_OPTS);
   return res;
 }

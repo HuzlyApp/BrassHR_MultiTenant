@@ -10,6 +10,7 @@ import { SidebarSubmenuToggleIcon } from "@/app/components/sidebar/SidebarSubmen
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import { useAccountData } from "@/app/admin_recruiter/hooks/useAccountData";
 import {
+  ADMIN_RECRUITER_HOME_ROUTE,
   CLIENT_SIDEBAR_SECTIONS,
   GOD_ADMIN_SIDEBAR_SECTIONS,
   SIDEBAR_ICON_TYPES,
@@ -37,7 +38,7 @@ type AdminRecruiterSidebarProps = {
 };
 
 const DEFAULT_TENANT_LOGO = "/images/new-logo-nexus.svg";
-const DASHBOARD_HOME_HREF = "/admin_recruiter/dashboard";
+const DASHBOARD_HOME_HREF = ADMIN_RECRUITER_HOME_ROUTE;
 
 export function AdminRecruiterSidebar({
   isMobileOpen = false,
@@ -230,7 +231,7 @@ export function AdminRecruiterSidebar({
           <Link
             href={DASHBOARD_HOME_HREF}
             onClick={handleNavClick}
-            aria-label="Go to dashboard home"
+            aria-label="Go to home"
             title="Home"
             className={`flex min-w-0 items-center transition hover:opacity-90 ${
               isCollapsed && !isMobileRail ? "justify-center" : isMobileRail ? "justify-center" : "gap-3"

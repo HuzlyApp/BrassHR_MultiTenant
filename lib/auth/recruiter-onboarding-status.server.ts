@@ -1,4 +1,5 @@
 import type { User } from "@supabase/supabase-js";
+import { ADMIN_RECRUITER_HOME_ROUTE } from "@/app/admin_recruiter/components/sidebar-config";
 import { isGodAdminUser } from "@/lib/auth/god-admin";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { resolveTenantIdBySlug } from "@/lib/tenant/resolve-tenant-id-by-slug";
@@ -26,7 +27,7 @@ export type RecruiterOnboardingStatus = {
   requestedTenantId: string | null;
   validTenantAccess: boolean;
   tenantOnboardingCompleted: boolean;
-  redirectTarget: "/godadmin/tenants" | "/admin_recruiter/dashboard" | "/tenant-onboarding";
+  redirectTarget: "/godadmin/tenants" | typeof ADMIN_RECRUITER_HOME_ROUTE | "/tenant-onboarding";
 };
 
 function metadataFlag(user: User, key: string): boolean {
@@ -98,7 +99,7 @@ export async function resolveRecruiterOnboardingStatus(
   const redirectTarget = godAdmin
     ? "/godadmin/tenants"
     : tenantOnboardingCompleted
-      ? "/admin_recruiter/dashboard"
+      ? ADMIN_RECRUITER_HOME_ROUTE
       : "/tenant-onboarding";
 
   return {

@@ -44,7 +44,7 @@ export default function ApplicationReceivedPage() {
           <div>
             <button
               type="button"
-              onClick={() => router.push("/admin_recruiter/dashboard")}
+              onClick={() => router.push("/admin_recruiter/home")}
               className="rounded-lg px-6 py-2.5 font-medium text-white transition hover:brightness-90"
               style={primaryBtnStyle}
             >

@@ -1621,7 +1621,7 @@ export function DoneStep({
       ) : null}
       <div className="mt-[32px] flex flex-wrap justify-center gap-3">
         <Link
-          href="/admin_recruiter/dashboard"
+          href="/admin_recruiter/home"
           className="inline-flex h-[52px] min-w-[200px] items-center justify-center rounded-[12px] px-8 text-[15px] font-semibold text-white"
           style={primaryButtonStyle(true)}
         >

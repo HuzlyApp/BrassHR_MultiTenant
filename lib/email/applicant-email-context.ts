@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { buildApplicationStatusUrl } from "@/lib/email/application-status-url";
+import { buildApplicantPortalUrl } from "@/lib/email/dynamic-template-urls";
 import type { OnboardingEmailTemplateKey } from "@/lib/email-templates/template-keys";
 import {
   createApplicantContinuationLink,
@@ -70,8 +71,7 @@ export async function buildApplicantEmailContext(
     origin: params.origin,
     tenantSlug: slug,
   });
-  const normalizedOrigin = params.origin.trim().replace(/\/+$/, "");
-  const applicantPortalUrl = `${normalizedOrigin}/?tenant=${encodeURIComponent(slug)}`;
+  const applicantPortalUrl = buildApplicantPortalUrl(params.origin, slug);
   const continuation = await createApplicantContinuationLink(supabase, {
     tenantId,
     workerId: String(worker.id),

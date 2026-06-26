@@ -1,9 +1,9 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { requireStaffApiSession } from "@/lib/auth/api-session";
 import { canAccessWorkerRecord } from "@/lib/auth/worker-record-access";
 import { previewCandidateEmailTemplate } from "@/lib/communication/preview-candidate-email-template";
 import { resolveWorkerContact } from "@/lib/communication/resolve-worker";
-import { normalizePublicOrigin } from "@/lib/resolve-app-origin";
+import { resolveAppOrigin } from "@/lib/resolve-app-origin";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { parseRequiredUuid } from "@/lib/validation/uuid";
 
@@ -11,35 +11,8 @@ export const runtime = "nodejs";
 
 type RouteContext = { params: Promise<{ workerId: string }> };
 
-function resolvePreviewOrigin(req: Request): string | null {
-  const url = new URL(req.url);
-  const fromQuery = url.searchParams.get("origin")?.trim();
-  if (fromQuery) {
-    try {
-      return normalizePublicOrigin(fromQuery);
-    } catch {
-      /* fall through */
-    }
-  }
-
-  const env = process.env.NEXT_PUBLIC_APP_URL?.trim();
-  if (env) {
-    try {
-      return normalizePublicOrigin(env);
-    } catch {
-      /* fall through */
-    }
-  }
-
-  try {
-    return normalizePublicOrigin(url.origin);
-  } catch {
-    return null;
-  }
-}
-
 /** GET — render saved email template for a candidate (subject + body with placeholders filled). */
-export async function GET(req: Request, context: RouteContext) {
+export async function GET(req: NextRequest, context: RouteContext) {
   const auth = await requireStaffApiSession();
   if (auth instanceof NextResponse) return auth;
 
@@ -56,7 +29,8 @@ export async function GET(req: Request, context: RouteContext) {
     return NextResponse.json({ error: "templateKey is required" }, { status: 400 });
   }
 
-  const origin = resolvePreviewOrigin(req);
+  const clientOrigin = url.searchParams.get("origin")?.trim() || undefined;
+  const origin = resolveAppOrigin(req, clientOrigin);
   if (!origin) {
     return NextResponse.json({ error: "Could not resolve app origin" }, { status: 400 });
   }

@@ -9,6 +9,7 @@ import { FaApple } from "react-icons/fa";
 import { FaXTwitter } from "react-icons/fa6";
 import { FcGoogle } from "react-icons/fc";
 import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
+import { ADMIN_RECRUITER_HOME_ROUTE } from "@/app/admin_recruiter/components/sidebar-config";
 import VerificationSuccessModal from "@/app/components/VerificationSuccessModal";
 import { TenantBrandingProvider } from "@/app/components/tenant/TenantBrandingContext";
 import ClassicTenantLogin from "@/app/login/ClassicTenantLogin";
@@ -77,7 +78,7 @@ type RecruiterOnboardingStatusResponse = {
   requestedTenantId: string | null;
   validTenantAccess: boolean;
   tenantOnboardingCompleted: boolean;
-  redirectTarget: "/godadmin/tenants" | "/admin_recruiter/dashboard" | "/tenant-onboarding";
+  redirectTarget: "/godadmin/tenants" | typeof ADMIN_RECRUITER_HOME_ROUTE | "/tenant-onboarding";
 };
 
 function FieldLabel({ children }: { children: string }) {

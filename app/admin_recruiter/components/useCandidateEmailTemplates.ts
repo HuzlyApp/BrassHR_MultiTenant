@@ -75,7 +75,13 @@ export function useCandidateEmailTemplates(workerId: string | null) {
       setPreviewError(null);
       try {
         const origin =
-          typeof window !== "undefined" ? window.location.origin : "";
+          typeof window !== "undefined" && window.location?.origin
+            ? window.location.origin
+            : "";
+        if (!origin) {
+          setPreviewError("Could not detect app URL. Refresh and try again.");
+          return null;
+        }
         const res = await fetch(
           `/api/admin/candidates/${encodeURIComponent(targetWorkerId)}/communications/email/template-preview?templateKey=${encodeURIComponent(templateKey)}&origin=${encodeURIComponent(origin)}`,
           { cache: "no-store", headers: await authHeaders() }

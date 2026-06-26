@@ -1,4 +1,5 @@
 import type { SupabaseClient, User } from "@supabase/supabase-js";
+import { ADMIN_RECRUITER_HOME_ROUTE } from "@/app/admin_recruiter/components/sidebar-config";
 import { isGodAdminUser } from "@/lib/auth/god-admin";
 
 export type OwnerOnboardingStatus = {
@@ -85,7 +86,7 @@ export function resolvePostAuthRedirect(
     if (safeNext?.startsWith("/tenant-onboarding")) return safeNext;
     return "/tenant-onboarding";
   }
-  return safeNext ?? "/admin_recruiter/dashboard";
+  return safeNext ?? ADMIN_RECRUITER_HOME_ROUTE;
 }
 
 export function shouldBlockTenantOnboardingAccess(status: OwnerOnboardingStatus): boolean {

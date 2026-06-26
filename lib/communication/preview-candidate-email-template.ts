@@ -1,6 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { buildApplicationStatusUrl } from "@/lib/email/application-status-url";
 import {
+  buildApplicantPortalUrl,
+  restoreDynamicUrlPlaceholders,
+  rewriteEmbeddedAppUrls,
+} from "@/lib/email/dynamic-template-urls";
+import {
   buildApplicantEmailContext,
   contextToTemplateVariables,
 } from "@/lib/email/applicant-email-context";
@@ -73,7 +78,7 @@ async function buildTemplateVariables(
     origin: normalizedOrigin,
     tenantSlug: slug,
   });
-  const applicantPortalUrl = `${normalizedOrigin}/?tenant=${encodeURIComponent(slug)}`;
+  const applicantPortalUrl = buildApplicantPortalUrl(normalizedOrigin, slug);
 
   let applicantContinuationLink = applicationStatusUrl;
   try {
@@ -131,12 +136,33 @@ export async function previewCandidateEmailTemplate(
   );
 
   const tpl = resolved.template;
-  const subject = interpolateTemplate(tpl.subject, variables, { escapeForHtml: false });
+  const urlVariables = {
+    applicantPortalUrl: variables.applicantPortalUrl,
+    applicationStatusUrl: variables.applicationStatusUrl,
+    applicantContinuationLink: variables.applicantContinuationLink,
+  };
+
+  const subject = rewriteEmbeddedAppUrls(
+    interpolateTemplate(restoreDynamicUrlPlaceholders(tpl.subject), variables, {
+      escapeForHtml: false,
+    }),
+    urlVariables
+  );
   const body_html = sanitizeEmailHtml(
-    interpolateTemplate(tpl.body_html, variables, { escapeForHtml: true })
+    rewriteEmbeddedAppUrls(
+      interpolateTemplate(restoreDynamicUrlPlaceholders(tpl.body_html), variables, {
+        escapeForHtml: true,
+      }),
+      urlVariables
+    )
   );
   const body_text = tpl.body_text?.trim()
-    ? interpolateTemplate(tpl.body_text, variables, { escapeForHtml: false })
+    ? rewriteEmbeddedAppUrls(
+        interpolateTemplate(restoreDynamicUrlPlaceholders(tpl.body_text), variables, {
+          escapeForHtml: false,
+        }),
+        urlVariables
+      )
     : htmlToPlainText(body_html);
 
   return {
