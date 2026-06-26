@@ -50,12 +50,6 @@ const TEMPLATES_ROUTE = `${DASHBOARD_BASE}/templates`;
 
 const DASHBOARD_CHILDREN: SidebarLink[] = [
   {
-    label: "Overview",
-    href: DASHBOARD_OVERVIEW_BASE,
-    matchPrefixes: [DASHBOARD_OVERVIEW_BASE, DASHBOARD_BASE],
-    matchExact: true,
-  },
-  {
     label: "Recruitment Analytics",
     href: `${DASHBOARD_OVERVIEW_BASE}/recruitment-analytics`,
     matchPrefixes: [`${DASHBOARD_OVERVIEW_BASE}/recruitment-analytics`],
@@ -125,6 +119,24 @@ const TASKBOARD_CHILDREN: SidebarLink[] = [
 
 const TASKBOARD_ACTIVE_PREFIXES = ["/admin_recruiter/calendar"];
 
+const EMAIL_TEMPLATES_ROUTE = "/admin_recruiter/email-templates";
+const TEMPLATE_BUILDER_ROUTE = "/admin_recruiter/template-builder";
+
+const TEMPLATES_CHILDREN: SidebarLink[] = [
+  {
+    label: "Email Templates",
+    href: EMAIL_TEMPLATES_ROUTE,
+    matchPrefixes: [EMAIL_TEMPLATES_ROUTE],
+  },
+  {
+    label: "Template Builder",
+    href: TEMPLATE_BUILDER_ROUTE,
+    matchPrefixes: [TEMPLATE_BUILDER_ROUTE],
+  },
+];
+
+const TEMPLATES_ACTIVE_PREFIXES = [EMAIL_TEMPLATES_ROUTE, TEMPLATE_BUILDER_ROUTE];
+
 const RECRUITMENT_CHILDREN: SidebarLink[] = [
   {
     label: "Candidates",
@@ -181,6 +193,7 @@ const ORGANIZATION_CHILDREN: SidebarLink[] = [
 ];
 
 const DASHBOARD_ACTIVE_PREFIXES = [
+  DASHBOARD_BASE,
   DASHBOARD_OVERVIEW_BASE,
   `${DASHBOARD_BASE}/home`,
 ];
@@ -188,22 +201,24 @@ const DASHBOARD_ACTIVE_PREFIXES = [
 const SHARED_TOP_SECTIONS: SidebarSection[] = [
   {
     label: "Dashboard",
-    href: "/admin_recruiter/dashboard",
+    href: "#",
     iconType: ICON.dashboard,
     matchPrefixes: DASHBOARD_ACTIVE_PREFIXES,
     children: DASHBOARD_CHILDREN,
   },
   {
     label: "Mail",
-    href: "/admin_recruiter/email-templates",
+    href: "#",
     iconType: ICON.mail,
-    matchPrefixes: ["/admin_recruiter/email-templates"],
+    matchPrefixes: ["/admin_recruiter/mail"],
+    disabled: true,
   },
   {
-    label: "Template Builder",
-    href: "/admin_recruiter/template-builder",
+    label: "Templates",
+    href: "#",
     iconType: ICON.templateBuilder,
-    matchPrefixes: ["/admin_recruiter/template-builder"],
+    matchPrefixes: TEMPLATES_ACTIVE_PREFIXES,
+    children: TEMPLATES_CHILDREN,
   },
   {
     label: "Taskboard",

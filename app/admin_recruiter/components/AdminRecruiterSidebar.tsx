@@ -37,6 +37,7 @@ type AdminRecruiterSidebarProps = {
 };
 
 const DEFAULT_TENANT_LOGO = "/images/new-logo-nexus.svg";
+const DASHBOARD_HOME_HREF = "/admin_recruiter/dashboard";
 
 export function AdminRecruiterSidebar({
   isMobileOpen = false,
@@ -226,9 +227,13 @@ export function AdminRecruiterSidebar({
                   : "gap-3"
           }`}
         >
-          <div
-            className={`flex min-w-0 items-center ${
-              isCollapsed && !isMobileRail ? "" : isMobileRail ? "justify-center" : "gap-3"
+          <Link
+            href={DASHBOARD_HOME_HREF}
+            onClick={handleNavClick}
+            aria-label="Go to dashboard home"
+            title="Home"
+            className={`flex min-w-0 items-center transition hover:opacity-90 ${
+              isCollapsed && !isMobileRail ? "justify-center" : isMobileRail ? "justify-center" : "gap-3"
             }`}
           >
             <div
@@ -256,7 +261,7 @@ export function AdminRecruiterSidebar({
                 </p>
               </div>
             ) : null}
-          </div>
+          </Link>
           {showMobileClose ? (
             <button
               type="button"
