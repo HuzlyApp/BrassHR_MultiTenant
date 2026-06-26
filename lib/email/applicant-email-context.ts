@@ -25,6 +25,8 @@ export type BuildApplicantContextParams = {
   origin: string;
   reason?: string;
   continuationReason?: ContinuationReason;
+  /** When false, preview flows do not persist continuation links as sent. */
+  markContinuationSent?: boolean;
 };
 
 function formatApplicantName(first: string | null, last: string | null): string {
@@ -76,7 +78,7 @@ export async function buildApplicantEmailContext(
     origin: params.origin,
     tenantSlug: slug,
     reason: params.continuationReason ?? "onboarding_reminder",
-    markSent: true,
+    markSent: params.markContinuationSent !== false,
   });
 
   return {

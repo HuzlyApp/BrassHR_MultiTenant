@@ -198,6 +198,8 @@ const DASHBOARD_ACTIVE_PREFIXES = [
   `${DASHBOARD_BASE}/home`,
 ];
 
+const MAIL_ROUTE = "/admin_recruiter/mail";
+
 const SHARED_TOP_SECTIONS: SidebarSection[] = [
   {
     label: "Dashboard",
@@ -208,10 +210,9 @@ const SHARED_TOP_SECTIONS: SidebarSection[] = [
   },
   {
     label: "Mail",
-    href: "#",
+    href: MAIL_ROUTE,
     iconType: ICON.mail,
-    matchPrefixes: ["/admin_recruiter/mail"],
-    disabled: true,
+    matchPrefixes: [MAIL_ROUTE],
   },
   {
     label: "Templates",

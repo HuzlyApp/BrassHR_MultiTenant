@@ -1,30 +1,26 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  Archive,
-  Inbox,
-  LayoutTemplate,
-  Link2,
-  Loader2,
-  Mail,
-  Pencil,
-  Send,
-} from "lucide-react";
-import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
+import { Archive, ChevronLeft, Loader2, Mail, Pencil } from "lucide-react";
 import {
   defaultReplySubject,
   type CommunicationThread,
 } from "@/lib/communication/conversation-client";
 import { communicationDirectionFromRow } from "@/lib/communication/direction";
 import { supabaseBrowser } from "@/lib/supabase-browser";
+import { EmailIntegrationPanel } from "./EmailIntegrationPanel";
+import {
+  EmailInboxSidebar,
+  type EmailInboxFolder,
+} from "./EmailInboxSidebar";
 import {
   CommunicationMessageBubble,
   CommunicationThreadComposer,
   EmailComposeForm,
 } from "./CommunicationThreadParts";
+import { MailEmailTemplateSelect } from "./MailEmailTemplateSelect";
+import { useCandidateEmailTemplates } from "./useCandidateEmailTemplates";
 
 type ContactInfo = {
   name: string;
@@ -32,7 +28,7 @@ type ContactInfo = {
   phone: string | null;
 };
 
-type EmailFolder = "inbox" | "sent" | "drafts" | "compose" | "integration";
+type EmailFolder = EmailInboxFolder;
 
 async function authHeaders(): Promise<HeadersInit> {
   const {
@@ -46,62 +42,6 @@ function isPlaceholderThread(thread: CommunicationThread | null): boolean {
   return Boolean(thread?.conversationId.startsWith("placeholder-"));
 }
 
-function SidebarNavItem({
-  active,
-  label,
-  icon: Icon,
-  count,
-  onClick,
-}: {
-  active: boolean;
-  label: string;
-  icon: typeof Inbox;
-  count?: number;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`flex w-full items-center justify-between rounded-md px-2 py-2.5 text-left text-sm transition ${
-        active
-          ? "font-medium text-(--brand-primary)"
-          : "text-[#374151] hover:bg-white/80"
-      }`}
-    >
-      <span className="inline-flex items-center gap-2.5">
-        <Icon className={`h-4 w-4 shrink-0 ${active ? "text-(--brand-primary)" : "text-[#6B7280]"}`} />
-        {label}
-      </span>
-      {typeof count === "number" && count > 0 ? (
-        <span className="rounded-full bg-[#F3F4F6] px-2 py-0.5 text-[10px] font-semibold text-[#6B7280]">
-          {count}
-        </span>
-      ) : null}
-    </button>
-  );
-}
-
-function SidebarLinkItem({
-  href,
-  label,
-  icon: Icon,
-}: {
-  href: string;
-  label: string;
-  icon: typeof LayoutTemplate;
-}) {
-  return (
-    <Link
-      href={href}
-      className="flex w-full items-center gap-2.5 rounded-md px-2 py-2.5 text-sm text-[#374151] transition hover:bg-white/80"
-    >
-      <Icon className="h-4 w-4 shrink-0 text-[#6B7280]" />
-      {label}
-    </Link>
-  );
-}
-
 type Props = {
   workerId: string;
   candidateName: string;
@@ -110,6 +50,9 @@ type Props = {
   loading: boolean;
   error: string | null;
   onRefresh: () => Promise<void>;
+  hideSidebar?: boolean;
+  initialFolder?: EmailFolder;
+  onBack?: () => void;
 };
 
 export default function CandidateEmailInboxPanel({
@@ -120,12 +63,13 @@ export default function CandidateEmailInboxPanel({
   loading,
   error,
   onRefresh,
+  hideSidebar = false,
+  initialFolder = "inbox",
+  onBack,
 }: Props) {
   const router = useRouter();
-  const branding = useTenantBranding();
-  const companyName = branding.companyName?.trim() || "your organization";
 
-  const [folder, setFolder] = useState<EmailFolder>("inbox");
+  const [folder, setFolder] = useState<EmailFolder>(initialFolder);
   const [emailConfigured, setEmailConfigured] = useState<boolean | null>(null);
   const [configLoading, setConfigLoading] = useState(true);
   const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
@@ -138,8 +82,27 @@ export default function CandidateEmailInboxPanel({
   const [sendSuccess, setSendSuccess] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  const {
+    templates,
+    loadingTemplates,
+    templatesError,
+    selectedTemplateKey,
+    setSelectedTemplateKey,
+    bodyHtml: composeBodyHtml,
+    setBodyHtml: setComposeBodyHtml,
+    previewLoading,
+    previewError,
+    applyTemplate,
+    clearTemplate,
+    resetComposeTemplateState,
+  } = useCandidateEmailTemplates(workerId);
+
   const displayName = candidateName || contact?.name || "Applicant";
   const candidateEmail = contact?.email?.trim() ?? null;
+
+  useEffect(() => {
+    setFolder(initialFolder);
+  }, [initialFolder, workerId]);
 
   const loadEmailConfig = useCallback(async () => {
     setConfigLoading(true);
@@ -150,8 +113,6 @@ export default function CandidateEmailInboxPanel({
       });
       const json = (await res.json().catch(() => ({}))) as {
         resendFromDomain?: string | null;
-        error?: string;
-        code?: string;
       };
       setEmailConfigured(res.ok && Boolean(json.resendFromDomain?.trim()));
     } catch {
@@ -194,11 +155,12 @@ export default function CandidateEmailInboxPanel({
   }, [activeThread, folder]);
 
   useEffect(() => {
+    if (hideSidebar) return;
     if (folder === "compose") return;
     if (!emailConfigured && folder !== "integration") {
       setFolder("integration");
     }
-  }, [emailConfigured, folder]);
+  }, [emailConfigured, folder, hideSidebar]);
 
   useEffect(() => {
     if (folder !== "inbox" && folder !== "sent") return;
@@ -215,7 +177,7 @@ export default function CandidateEmailInboxPanel({
     node.scrollTop = node.scrollHeight;
   }, [visibleMessages, loading, sending, folder]);
 
-  async function sendEmail(subject: string, body: string) {
+  async function sendEmail(subject: string, body: string, bodyHtml?: string | null) {
     if (!body.trim() || !subject.trim()) return;
     setSending(true);
     setSendError(null);
@@ -226,7 +188,11 @@ export default function CandidateEmailInboxPanel({
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ subject: subject.trim(), body: body.trim() }),
+          body: JSON.stringify({
+            subject: subject.trim(),
+            body: body.trim(),
+            bodyHtml: bodyHtml?.trim() || null,
+          }),
         }
       );
       const json = (await res.json().catch(() => ({}))) as {
@@ -244,6 +210,8 @@ export default function CandidateEmailInboxPanel({
       setReplyBody("");
       setComposeBody("");
       setComposeSubject("");
+      setComposeBodyHtml(null);
+      clearTemplate();
       setSendSuccess("Email sent.");
       setFolder("inbox");
       await onRefresh();
@@ -258,12 +226,31 @@ export default function CandidateEmailInboxPanel({
     setFolder("compose");
     setComposeSubject("");
     setComposeBody("");
+    resetComposeTemplateState();
     setSendError(null);
     setSendSuccess(null);
   }
 
+  async function handleTemplateChange(templateKey: string) {
+    setSelectedTemplateKey(templateKey);
+    setSendError(null);
+    setSendSuccess(null);
+
+    if (!templateKey) {
+      setComposeBodyHtml(null);
+      return;
+    }
+
+    const preview = await applyTemplate(templateKey, workerId);
+    if (preview) {
+      setComposeSubject(preview.subject);
+      setComposeBody(preview.body_text);
+      setComposeBodyHtml(preview.body_html);
+    }
+  }
+
   const showIntegration =
-    folder === "integration" || (emailConfigured === false && !configLoading);
+    folder === "integration" || (emailConfigured === false && !configLoading && !hideSidebar);
 
   const mainContent = (() => {
     if (configLoading || (loading && emailThreads.length === 0)) {
@@ -284,49 +271,11 @@ export default function CandidateEmailInboxPanel({
     }
 
     if (showIntegration) {
-      if (emailConfigured) {
-        return (
-          <div className="flex flex-1 flex-col items-center justify-center px-8 py-12 text-center">
-            <h3 className="text-lg font-semibold text-[#111827]">Email is connected</h3>
-            <p className="mt-3 max-w-md text-sm leading-relaxed text-[#6B7280]">
-              Your organization email is set up through {companyName}. You can send emails to
-              candidates and manage templates below.
-            </p>
-            <button
-              type="button"
-              onClick={() => router.push("/admin_recruiter/email-templates")}
-              className="mt-8 rounded-lg bg-(--brand-primary) px-5 py-2.5 text-sm font-semibold text-white hover:opacity-90"
-            >
-              Manage email templates
-            </button>
-          </div>
-        );
-      }
-
       return (
-        <div className="flex flex-1 flex-col items-center justify-center px-8 py-12 text-center">
-          <h3 className="text-lg font-semibold text-[#111827]">
-            Integrate your Google or Outlook email
-          </h3>
-          <p className="mt-3 max-w-md text-sm leading-relaxed text-[#6B7280]">
-            Integrating your email will allow you to seamlessly send and receive emails from
-            candidates in your database directly within {companyName}.
-          </p>
-          <button
-            type="button"
-            onClick={() => router.push("/admin_recruiter/email-templates")}
-            className="mt-2 text-sm font-medium text-(--brand-primary) hover:underline"
-          >
-            Learn more about email integrations
-          </button>
-          <button
-            type="button"
-            onClick={() => router.push("/admin_recruiter/email-templates")}
-            className="mt-8 rounded-lg bg-(--brand-primary) px-5 py-2.5 text-sm font-semibold text-white hover:opacity-90"
-          >
-            Integrate your email
-          </button>
-        </div>
+        <EmailIntegrationPanel
+          emailConfigured={Boolean(emailConfigured)}
+          onManageTemplates={() => router.push("/admin_recruiter/email-templates")}
+        />
       );
     }
 
@@ -343,7 +292,17 @@ export default function CandidateEmailInboxPanel({
     if (folder === "compose") {
       return (
         <div className="flex min-h-0 flex-1 flex-col">
-          <div className="border-b border-[#E5E7EB] px-5 py-3">
+          <div className="flex items-center gap-2 border-b border-[#E5E7EB] px-5 py-3">
+            {onBack ? (
+              <button
+                type="button"
+                onClick={onBack}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-md text-[#64748B] hover:bg-slate-50"
+                aria-label="Back"
+              >
+                <ChevronLeft className="h-5 w-5" />
+              </button>
+            ) : null}
             <div className="inline-flex items-center gap-2 text-sm font-semibold leading-5 text-[#1F2937]">
               <Pencil className="h-4 w-4 text-(--brand-primary)" />
               Compose Email
@@ -354,30 +313,67 @@ export default function CandidateEmailInboxPanel({
             toEmail={candidateEmail}
             subject={composeSubject}
             body={composeBody}
-            sending={sending}
+            sending={sending || previewLoading}
             sendError={sendError}
             sendSuccess={sendSuccess}
-            onSubjectChange={setComposeSubject}
-            onBodyChange={setComposeBody}
-            onSend={() => void sendEmail(composeSubject, composeBody)}
+            onSubjectChange={(value) => {
+              setComposeSubject(value);
+              if (selectedTemplateKey) {
+                setSelectedTemplateKey("");
+                setComposeBodyHtml(null);
+              }
+            }}
+            onBodyChange={(value) => {
+              setComposeBody(value);
+              if (selectedTemplateKey) {
+                setSelectedTemplateKey("");
+                setComposeBodyHtml(null);
+              }
+            }}
+            onSend={() => void sendEmail(composeSubject, composeBody, composeBodyHtml)}
+            templateRow={
+              candidateEmail ? (
+                <MailEmailTemplateSelect
+                  templates={templates}
+                  loading={loadingTemplates}
+                  value={selectedTemplateKey}
+                  disabled={sending}
+                  previewLoading={previewLoading}
+                  error={templatesError ?? previewError}
+                  onChange={(templateKey) => void handleTemplateChange(templateKey)}
+                />
+              ) : null
+            }
           />
         </div>
       );
     }
 
-  return (
+    return (
       <>
         <div className="border-b border-[#E5E7EB] px-5 py-3">
-          <div className="flex items-center justify-between gap-3">
-            <div className="inline-flex items-center gap-2 text-sm font-semibold leading-5 text-[#1F2937]">
-              <Mail className="h-4 w-4 text-(--brand-primary)" />
-              {folder === "sent" ? "Sent" : "Inbox"}
-            </div>
-            {activeThread && !isPlaceholderThread(activeThread) ? (
-              <span className="text-xs text-[#6B7280]">
-                {displayName} · {activeThread.contactEmail ?? candidateEmail ?? "—"}
-              </span>
+          <div className="flex items-center gap-2">
+            {hideSidebar && onBack ? (
+              <button
+                type="button"
+                onClick={onBack}
+                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-[#64748B] hover:bg-slate-50"
+                aria-label="Back"
+              >
+                <ChevronLeft className="h-5 w-5" />
+              </button>
             ) : null}
+            <div className="flex min-w-0 flex-1 items-center justify-between gap-3">
+              <div className="inline-flex items-center gap-2 text-sm font-semibold leading-5 text-[#1F2937]">
+                <Mail className="h-4 w-4 text-(--brand-primary)" />
+                {folder === "sent" ? "Sent" : "Inbox"}
+              </div>
+              {activeThread && !isPlaceholderThread(activeThread) ? (
+                <span className="truncate text-xs text-[#6B7280]">
+                  {displayName} · {activeThread.contactEmail ?? candidateEmail ?? "—"}
+                </span>
+              ) : null}
+            </div>
           </div>
           {activeThread?.rootSubject ? (
             <p className="mt-1 truncate text-xs text-[#64748B]">{activeThread.rootSubject}</p>
@@ -435,71 +431,21 @@ export default function CandidateEmailInboxPanel({
     );
   })();
 
+  if (hideSidebar) {
+    return <div className="flex min-h-0 flex-1 flex-col">{mainContent}</div>;
+  }
+
   return (
     <div className="grid min-h-[420px] grid-cols-12">
-      <aside className="col-span-12 flex flex-col border-b border-[#E5E7EB] bg-[#FAFBFC] md:col-span-3 md:border-b-0 md:border-r">
-        <div className="p-4">
-          <button
-            type="button"
-            onClick={openCompose}
-            disabled={!emailConfigured || !candidateEmail}
-            className="mb-4 flex w-full items-center justify-center gap-2 rounded-lg border border-(--brand-primary) bg-white px-3 py-2.5 text-sm font-semibold text-(--brand-primary) transition hover:bg-[color-mix(in_srgb,var(--brand-primary)_8%,white)] disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <Pencil className="h-4 w-4" />
-            Compose
-          </button>
-
-          <div className="space-y-0.5">
-            <SidebarNavItem
-              active={folder === "inbox"}
-              label="Inbox"
-              icon={Inbox}
-              count={inboxCount}
-              onClick={() => setFolder("inbox")}
-            />
-            <SidebarNavItem
-              active={folder === "sent"}
-              label="Sent"
-              icon={Send}
-              count={sentCount}
-              onClick={() => setFolder("sent")}
-            />
-            <SidebarNavItem
-              active={folder === "drafts"}
-              label="Drafts"
-              icon={Archive}
-              onClick={() => setFolder("drafts")}
-            />
-          </div>
-
-          <div className="my-4 border-t border-[#E5E7EB]" />
-
-          <div className="space-y-0.5">
-            <SidebarLinkItem
-              href="/admin_recruiter/email-templates"
-              label="Manage Templates"
-              icon={LayoutTemplate}
-            />
-            <button
-              type="button"
-              onClick={() => setFolder("integration")}
-              className={`flex w-full items-center gap-2.5 rounded-md px-2 py-2.5 text-sm transition ${
-                folder === "integration"
-                  ? "font-medium text-(--brand-primary)"
-                  : "text-[#374151] hover:bg-white/80"
-              }`}
-            >
-              <Link2
-                className={`h-4 w-4 shrink-0 ${
-                  folder === "integration" ? "text-(--brand-primary)" : "text-[#6B7280]"
-                }`}
-              />
-              Email Integration
-            </button>
-          </div>
-        </div>
-      </aside>
-
+      <EmailInboxSidebar
+        folder={folder}
+        inboxCount={inboxCount}
+        sentCount={sentCount}
+        emailConfigured={Boolean(emailConfigured)}
+        composeDisabled={!emailConfigured || !candidateEmail}
+        onCompose={openCompose}
+        onFolderChange={setFolder}
+      />
       <main className="col-span-12 flex min-w-0 flex-col bg-white md:col-span-9">{mainContent}</main>
     </div>
   );

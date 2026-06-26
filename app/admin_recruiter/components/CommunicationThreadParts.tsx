@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { Loader2, Send } from "lucide-react";
 import { communicationDirectionFromRow } from "@/lib/communication/direction";
 
@@ -109,6 +110,10 @@ export function EmailComposeForm({
   onSubjectChange,
   onBodyChange,
   onSend,
+  leadingRow,
+  templateRow,
+  hideToRow = false,
+  emptyHint,
 }: {
   toName: string;
   toEmail: string | null;
@@ -120,46 +125,66 @@ export function EmailComposeForm({
   onSubjectChange: (value: string) => void;
   onBodyChange: (value: string) => void;
   onSend: () => void;
+  leadingRow?: ReactNode;
+  templateRow?: ReactNode;
+  hideToRow?: boolean;
+  emptyHint?: string;
 }) {
   const canSend = Boolean(toEmail?.trim()) && subject.trim().length > 0 && body.trim().length > 0 && !sending;
+  const fieldLabelWidth = leadingRow || templateRow ? "w-20" : "w-12";
 
   return (
-    <div className="flex flex-1 flex-col">
+    <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex-1 overflow-y-auto px-5 py-4">
-        {!toEmail ? (
-          <p className="text-sm text-[#6B7280]">This candidate does not have an email address on file.</p>
-        ) : (
-          <div className="overflow-hidden rounded-lg border border-[#E5E7EB] bg-white shadow-sm">
-            <div className="flex items-center gap-3 border-b border-[#E5E7EB] bg-[#FAFBFC] px-4 py-2.5">
-              <span className="w-12 shrink-0 text-xs font-medium text-[#64748B]">To</span>
-              <p className="min-w-0 truncate text-sm text-[#111827]">
-                <span className="font-medium">{toName}</span>
-                <span className="text-[#64748B]"> · {toEmail}</span>
-              </p>
+        <div className="overflow-hidden rounded-lg border border-[#E5E7EB] bg-white shadow-sm">
+          {leadingRow || templateRow ? (
+            <div className="relative z-20 grid gap-3 border-b border-[#E5E7EB] bg-[#FAFBFC] px-4 py-3 md:grid-cols-2">
+              {leadingRow ? <div className="min-w-0">{leadingRow}</div> : null}
+              {templateRow ? <div className="min-w-0">{templateRow}</div> : null}
             </div>
+          ) : null}
 
-            <div className="flex items-center gap-3 border-b border-[#E5E7EB] px-4 py-2">
-              <span className="w-12 shrink-0 text-xs font-medium text-[#64748B]">Subject</span>
-              <input
-                type="text"
-                value={subject}
-                onChange={(event) => onSubjectChange(event.target.value)}
+          {!toEmail ? (
+            <p className="px-4 py-8 text-center text-sm text-[#6B7280]">
+              {emptyHint ?? "This candidate does not have an email address on file."}
+            </p>
+          ) : (
+            <>
+              {!hideToRow ? (
+                <div className="flex items-center gap-3 border-b border-[#E5E7EB] bg-[#FAFBFC] px-4 py-2.5">
+                  <span className={`${fieldLabelWidth} shrink-0 text-xs font-medium text-[#64748B]`}>To</span>
+                  <p className="min-w-0 truncate text-sm text-[#111827]">
+                    <span className="font-medium">{toName}</span>
+                    <span className="text-[#64748B]"> · {toEmail}</span>
+                  </p>
+                </div>
+              ) : null}
+
+              <div className="flex items-center gap-3 border-b border-[#E5E7EB] px-4 py-2">
+                <span className={`${fieldLabelWidth} shrink-0 text-xs font-medium text-[#64748B]`}>
+                  Subject
+                </span>
+                <input
+                  type="text"
+                  value={subject}
+                  onChange={(event) => onSubjectChange(event.target.value)}
+                  disabled={sending}
+                  placeholder="Email subject"
+                  className="min-w-0 flex-1 border-0 bg-transparent py-1.5 text-sm text-[#111827] outline-none placeholder:text-[#94A3B8] focus:ring-0"
+                />
+              </div>
+
+              <textarea
+                value={body}
+                onChange={(event) => onBodyChange(event.target.value)}
                 disabled={sending}
-                placeholder="Email subject"
-                className="min-w-0 flex-1 border-0 bg-transparent py-1.5 text-sm text-[#111827] outline-none placeholder:text-[#94A3B8] focus:ring-0"
+                rows={14}
+                placeholder="Write your message..."
+                className="min-h-[300px] w-full resize-y border-0 bg-white px-4 py-3 text-sm leading-relaxed text-[#111827] outline-none placeholder:text-[#94A3B8] focus:ring-0"
               />
-            </div>
-
-            <textarea
-              value={body}
-              onChange={(event) => onBodyChange(event.target.value)}
-              disabled={sending}
-              rows={14}
-              placeholder="Write your message..."
-              className="min-h-[300px] w-full resize-y border-0 bg-white px-4 py-3 text-sm leading-relaxed text-[#111827] outline-none placeholder:text-[#94A3B8] focus:ring-0"
-            />
-          </div>
-        )}
+            </>
+          )}
+        </div>
       </div>
 
       <div className="border-t border-[#E5E7EB] bg-white px-5 py-3">
