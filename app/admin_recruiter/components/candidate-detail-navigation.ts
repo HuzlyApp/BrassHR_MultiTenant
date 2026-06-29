@@ -1,5 +1,5 @@
 const CANDIDATE_DETAIL_TABS =
-  "checklist|profile|attachments|skill-assessments|authorization|activities|facility-assignments|agreement|final-approval|history";
+  "checklist|profile|attachments|skill-assessments|authorization|activities|facility-assignments|agreement|final-approval|onboard-applicant|history";
 
 const UUID_SEGMENT = "[^/]+";
 

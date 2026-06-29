@@ -117,7 +117,7 @@ export default function OnboardApplicantPage() {
       <div className="admin-recruiter-content-width">
         <DetailedTabs
           applicantId={applicantId}
-          activeTab="Onboard Applicant"
+          activeTab="Onboarded Applicant"
           workerStatus={profile?.worker?.status}
         />
 

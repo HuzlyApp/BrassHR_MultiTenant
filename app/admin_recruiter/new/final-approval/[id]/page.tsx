@@ -129,7 +129,6 @@ export default function NewApplicantFinalApprovalPage() {
       <div className="admin-recruiter-content-width">
         <DetailedTabs
           applicantId={applicantId}
-          activeTab="Final Approval"
           workerStatus={profile?.worker?.status}
         />
 

@@ -204,7 +204,7 @@ export default function NewApplicantHistoryPage() {
   return (
     <div className="admin-recruiter-page-pad">
       <div className="admin-recruiter-content-width">
-        <DetailedTabs applicantId={applicantId} />
+        <DetailedTabs applicantId={applicantId} activeTab="History" />
 
         {loadError ? (
           <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
