@@ -2,7 +2,6 @@
 
 import { Suspense } from "react";
 import { usePathname } from "next/navigation";
-import OnboardingLoader from "@/app/components/OnboardingLoader";
 import OnboardingPreviewBanner from "@/app/application/OnboardingPreviewBanner";
 import { useOnboardingConfigOptional } from "@/app/components/onboarding/OnboardingConfigProvider";
 import { getEnabledTenantSteps } from "@/lib/onboarding/tenant-step-navigation";
@@ -17,11 +16,7 @@ function ApplicantOnboardingGateInner({ children }: { children: React.ReactNode 
     return <>{children}</>;
   }
 
-  if (onboarding.loading) {
-    return <OnboardingLoader label="Loading your onboarding steps…" />;
-  }
-
-  if (onboarding.error) {
+  if (!onboarding.loading && onboarding.error) {
     return (
       <div className="mx-auto max-w-lg px-6 py-16 text-center">
         <p className="text-base font-semibold text-slate-900">Could not load onboarding</p>
@@ -43,7 +38,7 @@ function ApplicantOnboardingGateInner({ children }: { children: React.ReactNode 
   }
 
   const enabledCount = getEnabledTenantSteps(onboarding.config).length;
-  if (onboarding.config && enabledCount === 0) {
+  if (!onboarding.loading && onboarding.config && enabledCount === 0) {
     return (
       <div className="mx-auto max-w-lg px-6 py-16 text-center">
         <p className="text-base font-semibold text-slate-900">No onboarding steps yet</p>
@@ -67,7 +62,7 @@ function ApplicantOnboardingGateInner({ children }: { children: React.ReactNode 
 /** Loading, error, and empty states for workflow-driven applicant onboarding. */
 export default function ApplicantOnboardingGate({ children }: { children: React.ReactNode }) {
   return (
-    <Suspense fallback={<OnboardingLoader label="Loading onboarding…" />}>
+    <Suspense fallback={null}>
       <ApplicantOnboardingGateInner>{children}</ApplicantOnboardingGateInner>
     </Suspense>
   );

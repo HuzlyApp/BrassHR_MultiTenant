@@ -12,7 +12,6 @@ import { ensureApplicantWorker } from "@/lib/onboarding/ensure-applicant-worker"
 import OnboardingStepper from "@/app/components/OnboardingStepper"
 import { useOnboardingStepNav } from "@/lib/onboarding/use-onboarding-step-nav"
 import OnboardingLayout from "@/app/components/OnboardingLayout"
-import OnboardingLoader from "@/app/components/OnboardingLoader"
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext"
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding"
 
@@ -142,7 +141,17 @@ export default function AssessmentPage() {
   }
 
   if (loading) {
-    return <OnboardingLoader label="Loading skill categories..." />
+    return (
+      <OnboardingLayout
+        cardClassName="md:h-auto md:min-h-[700px]"
+        rightPanelImageClassName="opacity-60 object-top"
+        rightPanelOverlayClassName="bg-white/65"
+      >
+        <div className="flex h-full flex-col px-10 pb-10 pt-8" style={brandingToCssVars(branding)}>
+          <OnboardingStepper />
+        </div>
+      </OnboardingLayout>
+    )
   }
 
   return (

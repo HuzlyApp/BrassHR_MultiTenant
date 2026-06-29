@@ -6,7 +6,6 @@ import { useEffect, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import OnboardingLayout from "@/app/components/OnboardingLayout"
 import OnboardingStepper from "@/app/components/OnboardingStepper"
-import OnboardingLoader from "@/app/components/OnboardingLoader"
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext"
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding"
 import { useOnboardingStepNav } from "@/lib/onboarding/use-onboarding-step-nav"
@@ -199,8 +198,8 @@ export default function ReferencesPage() {
     setSaving(false)
   }
 
-  if (nav.configLoading || redirecting) {
-    return <OnboardingLoader label="Loading your onboarding step…" />
+  if (redirecting) {
+    return null
   }
 
   return (

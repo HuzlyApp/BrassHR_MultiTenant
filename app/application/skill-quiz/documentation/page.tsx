@@ -9,7 +9,6 @@ import { DOCUMENTATION_CATEGORY_ID } from "@/lib/documentation-category"
 import OnboardingLayout from "@/app/components/OnboardingLayout"
 import OnboardingStepper from "@/app/components/OnboardingStepper"
 import { useOnboardingStepNav } from "@/lib/onboarding/use-onboarding-step-nav"
-import OnboardingLoader from "@/app/components/OnboardingLoader"
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext"
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding"
 import { ChevronRight } from "lucide-react"
@@ -395,7 +394,17 @@ export default function DocumentationQuiz() {
   }
 
   if (loading) {
-    return <OnboardingLoader label="Loading your skill quiz..." />
+    return (
+      <OnboardingLayout
+        cardClassName="md:h-auto md:min-h-[700px]"
+        rightPanelImageClassName="opacity-60 object-top"
+        rightPanelOverlayClassName="bg-white/65"
+      >
+        <div className="flex h-full flex-col px-10 pb-10 pt-8" style={brandingToCssVars(branding)}>
+          <OnboardingStepper />
+        </div>
+      </OnboardingLayout>
+    )
   }
 
   if (loadError) {

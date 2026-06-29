@@ -2,7 +2,6 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
-import OnboardingLoader from "@/app/components/OnboardingLoader";
 import { TenantBrandingProvider } from "@/app/components/tenant/TenantBrandingContext";
 import OnboardingConfigProvider from "@/app/components/onboarding/OnboardingConfigProvider";
 import type { TenantBranding } from "@/lib/tenant/tenant-branding";
@@ -17,20 +16,6 @@ function resolveBootstrapSlug(): string | null {
   return resolveClientOnboardingTenantSlug(window.location.search);
 }
 
-/** Plain loader — no tenant colors until API branding is ready (avoids Braas gold flash). */
-function BootstrapNeutralLoader() {
-  return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-100 p-6">
-      <div className="flex min-w-[260px] flex-col items-center gap-4 rounded-2xl bg-white px-8 py-7 shadow-[0_20px_50px_rgba(0,0,0,0.12)]">
-        <div className="h-11 w-11 animate-spin rounded-full border-4 border-slate-200 border-t-slate-500" />
-        <p className="text-center text-[15px] font-semibold leading-6 text-slate-800">
-          Starting secure session…
-        </p>
-      </div>
-    </div>
-  );
-}
-
 /**
  * Runs before onboarding pages mount so `worker.user_id` FK to `auth.users` is satisfied,
  * and applies tenant-aware branding (`?tenant=slug`, onboarding slug cookie).
@@ -38,9 +23,7 @@ function BootstrapNeutralLoader() {
 export default function ApplicationOnboardingBootstrap({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [error, setError] = useState<string | null>(null);
-  const [ready, setReady] = useState(false);
-  const [brandingReady, setBrandingReady] = useState(false);
-  const [brand, setBrand] = useState<TenantBranding | null>(null);
+  const [brand, setBrand] = useState<TenantBranding>(() => brandingFallbackForSlug(null));
 
   useEffect(() => {
     let alive = true;
@@ -49,6 +32,10 @@ export default function ApplicationOnboardingBootstrap({ children }: { children:
       try {
         const slug = resolveBootstrapSlug();
         if (slug) persistOnboardingSlugCookie(slug);
+
+        if (alive) {
+          setBrand(brandingFallbackForSlug(slug));
+        }
 
         const brandingUrl = slug
           ? `/api/tenant-branding?slug=${encodeURIComponent(slug)}`
@@ -62,9 +49,8 @@ export default function ApplicationOnboardingBootstrap({ children }: { children:
           })
           .catch(() => null)
           .then((resolved) => {
-            if (!alive) return;
-            setBrand(resolved ?? brandingFallbackForSlug(slug));
-            setBrandingReady(true);
+            if (!alive || !resolved) return;
+            setBrand(resolved);
           });
 
         const skipApplicantAuth =
@@ -93,8 +79,6 @@ export default function ApplicationOnboardingBootstrap({ children }: { children:
       } catch (e) {
         if (alive)
           setError(e instanceof Error ? e.message : "Could not start applicant session.");
-      } finally {
-        if (alive) setReady(true);
       }
     })();
 
@@ -102,18 +86,6 @@ export default function ApplicationOnboardingBootstrap({ children }: { children:
       alive = false;
     };
   }, [pathname]);
-
-  if (!brandingReady || !brand) {
-    return <BootstrapNeutralLoader />;
-  }
-
-  if (!ready) {
-    return (
-      <TenantBrandingProvider branding={brand}>
-        <OnboardingLoader label="Starting secure session…" />
-      </TenantBrandingProvider>
-    );
-  }
 
   if (error) {
     return (
@@ -132,7 +104,7 @@ export default function ApplicationOnboardingBootstrap({ children }: { children:
 
   return (
     <TenantBrandingProvider branding={brand}>
-      <Suspense fallback={<OnboardingLoader label="Loading onboarding…" />}>
+      <Suspense fallback={null}>
         <OnboardingConfigProvider>{children}</OnboardingConfigProvider>
       </Suspense>
     </TenantBrandingProvider>

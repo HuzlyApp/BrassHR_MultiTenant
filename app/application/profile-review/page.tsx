@@ -10,7 +10,6 @@ import Image from "next/image"
 import { AlertTriangle, ChevronDown, Pencil, Search, X, XCircle } from "lucide-react"
 import BrandedSvgIcon from "@/app/components/BrandedSvgIcon"
 import OnboardingStepper from "@/app/components/OnboardingStepper"
-import OnboardingLoader from "@/app/components/OnboardingLoader"
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext"
 import {
   brandingShellGradient,
@@ -804,7 +803,7 @@ function Step1ReviewContent() {
       style={shellStyle}
     >
       <div
-        className={`bg-white rounded-xl sm:rounded-2xl shadow-2xl overflow-hidden flex flex-col md:flex-row relative mx-auto w-full max-w-[1060px] md:min-h-[640px] min-h-0 transition-opacity ${loading ? "opacity-50" : "opacity-100"}`}
+        className="bg-white rounded-xl sm:rounded-2xl shadow-2xl overflow-hidden flex flex-col md:flex-row relative mx-auto w-full max-w-[1060px] md:min-h-[640px] min-h-0"
       >
         {/* LEFT - Form */}
         <div className="w-full md:w-[65%] p-4 sm:p-6 md:p-10 flex flex-col justify-between min-w-0">
@@ -1191,10 +1190,6 @@ function Step1ReviewContent() {
           </div>
         </div>
       </div>
-
-      {loading ? (
-        <OnboardingLoader overlay label="Saving your details..." />
-      ) : null}
 
     </div>
   )

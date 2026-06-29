@@ -11,7 +11,6 @@ import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
 import BrandedUploadIcon from "@/app/components/BrandedUploadIcon";
 import OnboardingLayout from "@/app/components/OnboardingLayout";
 import OnboardingStepper from "@/app/components/OnboardingStepper";
-import OnboardingLoader from "@/app/components/OnboardingLoader";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
 import { useOnboardingConfigOptional } from "@/app/components/onboarding/OnboardingConfigProvider";
@@ -526,10 +525,6 @@ export default function Step2License() {
       setSaving(false);
     }
   };
-
-  if (onboarding?.loading) {
-    return <OnboardingLoader label="Loading your organization's requirements…" />;
-  }
 
   const pageTitle = licenseStep?.title?.trim() || "Add Requirements";
 

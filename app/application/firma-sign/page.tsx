@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import OnboardingLayout from "@/app/components/OnboardingLayout";
 import OnboardingStepper from "@/app/components/OnboardingStepper";
-import OnboardingLoader from "@/app/components/OnboardingLoader";
 import { FirmaSigningIframe } from "@/app/components/onboarding/FirmaSigningIframe";
 import { useOnboardingStepNav } from "@/lib/onboarding/use-onboarding-step-nav";
 import { ensureApplicantWorker } from "@/lib/onboarding/ensure-applicant-worker";
@@ -253,10 +252,6 @@ export default function FirmaSignPage() {
     }
   }
 
-  if (nav.configLoading || loading) {
-    return <OnboardingLoader label="Loading document signing..." />;
-  }
-
   const stepTitle =
     nav.currentStep?.title ??
     nav.enabledSteps?.find((step) => step.step_key === stepKey)?.title ??
@@ -274,9 +269,15 @@ export default function FirmaSignPage() {
           {signingRequestId ? (
             <p className="mt-1 text-xs text-[#98a2b3]">Signing request: {signingRequestId}</p>
           ) : null}
-          <p className="mt-1 text-xs font-medium text-[#475467]">Status: {firmaStatus}</p>
+          {!loading ? (
+            <p className="mt-1 text-xs font-medium text-[#475467]">Status: {firmaStatus}</p>
+          ) : null}
         </div>
 
+        {loading ? (
+          <div className="min-h-[420px] rounded-lg border border-slate-200 bg-slate-50" aria-hidden />
+        ) : (
+          <>
         {error ? (
           <div
             data-testid="firma-signing-error"
@@ -309,6 +310,8 @@ export default function FirmaSignPage() {
             {continuing ? "Checking signature..." : "Continue"}
           </button>
         </div>
+          </>
+        )}
       </div>
     </OnboardingLayout>
   );
