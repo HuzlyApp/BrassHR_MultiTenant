@@ -20,7 +20,7 @@ export function AdminRecruiterDashboardSubNav() {
 
   return (
     <nav
-      className="sticky top-[64px] z-30 w-full border-b border-[#E4E7EC] bg-white"
+      className="sticky top-[var(--admin-recruiter-header-height,67px)] z-30 w-full border-b border-[#E4E7EC] bg-white"
       aria-label="Workflow builder toolbar"
     >
       <div className="flex h-[56px] items-center justify-between gap-4 px-5 lg:px-8">

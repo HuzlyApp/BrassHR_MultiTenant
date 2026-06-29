@@ -209,12 +209,12 @@ export function AdminRecruiterSidebar({
     return (
     <div className="flex h-full flex-col overflow-hidden bg-white">
       <div
-        className={`border-b border-[#E2E8F0] ${
+        className={`admin-recruiter-sidebar-brand shrink-0 border-b border-[#E2E8F0] ${
           isMobileRail
-            ? "flex h-16 shrink-0 items-center justify-center px-0"
+            ? "flex items-center justify-center px-0"
             : isCollapsed
-              ? "px-2 py-3"
-              : "px-4 py-3"
+              ? "px-2"
+              : "px-4"
         }`}
       >
         <div

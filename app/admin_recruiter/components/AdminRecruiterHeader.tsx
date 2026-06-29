@@ -24,6 +24,7 @@ import {
   type StaffConversation,
 } from "@/lib/messaging/staff-conversations";
 import { useApplicantConversationsRealtime } from "@/lib/messaging/useApplicantConversationsRealtime";
+import { HeaderIconCountBadge } from "@/app/components/HeaderIconCountBadge";
 
 type HeaderProfile = {
   id: string;
@@ -67,6 +68,9 @@ type AdminRecruiterHeaderProps = {
 };
 
 const DEFAULT_TENANT_LOGO = "/images/new-logo-nexus.svg";
+
+/** Static count for notification badge UI — replace with live data later. */
+const STATIC_NOTIFICATION_COUNT = 1;
 
 export function AdminRecruiterHeader({
   onMenuClick,
@@ -204,7 +208,7 @@ export function AdminRecruiterHeader({
       className="sticky top-0 z-40 w-full bg-white border-b border-[#E2E8F0] max-[999px]:z-30"
       style={{ borderColor: "color-mix(in srgb, var(--brand-accent) 35%, #E2E8F0)" }}
     >
-      <div className="flex h-16 min-w-0 w-full items-center justify-between gap-2 px-3 sm:gap-3 sm:px-5 min-[1000px]:px-8 max-[999px]:pr-3">
+      <div className="admin-recruiter-topbar flex min-w-0 w-full items-center justify-between gap-2 px-3 sm:gap-3 sm:px-5 min-[1000px]:px-8 max-[999px]:pr-3">
         <div className="flex min-w-0 shrink-0 items-center gap-1 sm:gap-2">
           {onMenuClick ? (
             <button
@@ -295,7 +299,7 @@ export function AdminRecruiterHeader({
                   setShowProfileMenu(false);
                 }}
                 className="relative inline-flex h-8 w-8 items-center justify-center rounded-md text-[#94A3B8] transition hover:bg-slate-100"
-                aria-label="Open notifications"
+                aria-label={`Open notifications, ${STATIC_NOTIFICATION_COUNT} unread`}
               >
                 <Image
                   src={NOTIFICATION_ICON}
@@ -305,11 +309,7 @@ export function AdminRecruiterHeader({
                   className="h-5 w-5 shrink-0"
                   aria-hidden
                 />
-                {unreadNotifications > 0 ? (
-                  <span className="absolute -right-0.5 -top-0.5 inline-flex min-h-[16px] min-w-[16px] items-center justify-center rounded-full bg-[#0EA5A4] px-1 text-[10px] font-semibold text-white">
-                    {unreadNotifications > 9 ? "9+" : unreadNotifications}
-                  </span>
-                ) : null}
+                <HeaderIconCountBadge count={STATIC_NOTIFICATION_COUNT} />
               </button>
 
               {showMessages ? (

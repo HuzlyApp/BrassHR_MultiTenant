@@ -42,7 +42,7 @@ export default function DashboardPageLoader({
   if (layout === "page") {
     return (
       <div
-        className={`flex min-h-[calc(100dvh-4rem)] w-full flex-1 items-center justify-center ${className}`}
+        className={`flex min-h-[calc(100dvh-var(--admin-recruiter-header-height,67px))] w-full flex-1 items-center justify-center ${className}`}
         role="status"
         aria-live="polite"
         aria-busy="true"

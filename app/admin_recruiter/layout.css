@@ -1,3 +1,27 @@
+.admin-recruiter-shell {
+  --admin-recruiter-header-height: 67px;
+}
+
+@media (max-width: 999px) {
+  .admin-recruiter-shell {
+    --admin-recruiter-header-height: 64px;
+  }
+}
+
+.admin-recruiter-topbar {
+  height: var(--admin-recruiter-header-height);
+  min-height: var(--admin-recruiter-header-height);
+  box-sizing: border-box;
+}
+
+.admin-recruiter-sidebar-brand {
+  display: flex;
+  align-items: center;
+  height: var(--admin-recruiter-header-height);
+  min-height: var(--admin-recruiter-header-height);
+  box-sizing: border-box;
+}
+
 .admin-recruiter-shell .fixed.inset-y-0.left-0.z-50.w-72 {
   display: none !important;
 }
@@ -448,7 +472,7 @@
   display: flex;
   flex: 1;
   flex-direction: column;
-  min-height: calc(100dvh - 4rem);
+  min-height: calc(100dvh - var(--admin-recruiter-header-height, 67px));
 }
 
 .admin-candidate-detail-shell .admin-recruiter-content-width {
@@ -460,7 +484,7 @@
 
 .admin-candidate-detail-shell > .flex.min-h-screen {
   flex: 1;
-  min-height: calc(100dvh - 4rem);
+  min-height: calc(100dvh - var(--admin-recruiter-header-height, 67px));
 }
 
 @media (max-width: 1023px) {

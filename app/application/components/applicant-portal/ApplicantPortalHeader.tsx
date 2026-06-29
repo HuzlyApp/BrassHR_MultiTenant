@@ -5,11 +5,15 @@ import { useRouter } from "next/navigation";
 import { ChevronDown, Search } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import SidebarNavIcon from "@/app/admin_recruiter/components/SidebarNavIcon";
+import { HeaderIconCountBadge } from "@/app/components/HeaderIconCountBadge";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import { useApplicantPortal } from "./ApplicantPortalProvider";
 import { WorkerPortalUserAvatar } from "./WorkerPortalUserAvatar";
 
 const SIDEBAR_TOGGLE_ICON = "/icons/sidebar-on-off-icon.svg";
+
+/** Static count for notification badge UI — replace with live data later. */
+const STATIC_NOTIFICATION_COUNT = 1;
 
 type Props = {
   applicantName: string;
@@ -127,10 +131,10 @@ export function ApplicantPortalHeader({
             <button
               type="button"
               className="relative inline-flex h-8 w-8 items-center justify-center rounded-md transition hover:bg-[#F8FAFC]"
-              aria-label="Notifications"
+              aria-label={`Notifications, ${STATIC_NOTIFICATION_COUNT} unread`}
             >
               <SidebarNavIcon iconType="Notifications" active={false} />
-              <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-[#E11D48]" />
+              <HeaderIconCountBadge count={STATIC_NOTIFICATION_COUNT} />
             </button>
           </div>
 
