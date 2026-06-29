@@ -52,14 +52,20 @@ export default function AdminRecruiterMailClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const workerFromUrl = searchParams.get("workerId")?.trim() || null;
+  const composeFromUrl =
+    searchParams.get("compose") === "1" || searchParams.get("compose") === "true";
 
-  const [folder, setFolder] = useState<EmailInboxFolder>("inbox");
+  const [folder, setFolder] = useState<EmailInboxFolder>(() =>
+    composeFromUrl && workerFromUrl ? "compose" : "inbox"
+  );
   const [items, setItems] = useState<TenantMailInboxItem[]>([]);
   const [emailConfigured, setEmailConfigured] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedWorkerId, setSelectedWorkerId] = useState<string | null>(workerFromUrl);
-  const [composeWorkerId, setComposeWorkerId] = useState<string | null>(null);
+  const [composeWorkerId, setComposeWorkerId] = useState<string | null>(
+    composeFromUrl && workerFromUrl ? workerFromUrl : null
+  );
   const [activeDraft, setActiveDraft] = useState<MailDraftListItem | null>(null);
   const [drafts, setDrafts] = useState<MailDraftListItem[]>([]);
   const [draftsLoading, setDraftsLoading] = useState(false);
@@ -179,8 +185,13 @@ export default function AdminRecruiterMailClient() {
   }, [selectedWorkerId, loadWorkerMail]);
 
   useEffect(() => {
-    if (workerFromUrl) setSelectedWorkerId(workerFromUrl);
-  }, [workerFromUrl]);
+    if (!workerFromUrl) return;
+    setSelectedWorkerId(workerFromUrl);
+    if (composeFromUrl) {
+      setFolder("compose");
+      setComposeWorkerId(workerFromUrl);
+    }
+  }, [workerFromUrl, composeFromUrl]);
 
   useEffect(() => {
     if (emailConfigured === false && folder !== "integration") {
@@ -219,10 +230,19 @@ export default function AdminRecruiterMailClient() {
     if (draft) {
       setComposeWorkerId(draft.workerId);
       setSelectedWorkerId(draft.workerId);
+      router.replace(
+        `/admin_recruiter/mail?workerId=${encodeURIComponent(draft.workerId)}&compose=1`,
+        { scroll: false }
+      );
     } else if (selectedWorkerId) {
       setComposeWorkerId(selectedWorkerId);
+      router.replace(
+        `/admin_recruiter/mail?workerId=${encodeURIComponent(selectedWorkerId)}&compose=1`,
+        { scroll: false }
+      );
     } else {
       setComposeWorkerId(null);
+      router.replace("/admin_recruiter/mail?compose=1", { scroll: false });
     }
     setFolder("compose");
   }
@@ -363,6 +383,14 @@ export default function AdminRecruiterMailClient() {
             setComposeWorkerId(null);
             setActiveDraft(null);
             setFolder("inbox");
+            if (selectedWorkerId) {
+              router.replace(
+                `/admin_recruiter/mail?workerId=${encodeURIComponent(selectedWorkerId)}`,
+                { scroll: false }
+              );
+            } else {
+              router.replace("/admin_recruiter/mail", { scroll: false });
+            }
           }}
           onSent={refreshMail}
           onDraftSaved={loadDrafts}

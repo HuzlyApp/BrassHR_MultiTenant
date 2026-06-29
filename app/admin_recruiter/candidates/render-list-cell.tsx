@@ -2,11 +2,14 @@ import type { ReactNode } from "react"
 import Link from "next/link"
 import BrandedSvgIcon from "@/app/components/BrandedSvgIcon"
 import { CandidateListAvatar } from "@/app/admin_recruiter/components/CandidateListAvatar"
+import { candidateMailHref, candidateProfileHref } from "./candidate-links"
 import type { CandidateColumnId } from "./column-config"
 import type { CandidateRow } from "./types"
 import { candidateStatusBadgeClassName } from "./candidate-status-badge"
 
 const BRAND_ICON = "var(--brand-primary)"
+const LINK_CLASS =
+  "truncate text-left transition hover:text-[color:var(--brand-primary)] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)]"
 
 export function renderListCell(
   col: CandidateColumnId,
@@ -19,8 +22,23 @@ export function renderListCell(
         <div className="flex items-center gap-3 min-w-0 w-full">
           <CandidateListAvatar name={c.name || "NA"} photoUrl={c.profilePhotoUrl} />
           <div className="min-w-0">
-            <div className="text-sm font-medium text-black truncate">{c.name || "—"}</div>
-            <div className="text-xs text-[#4B5563] truncate">{c.email || "—"}</div>
+            {c.name?.trim() ? (
+              <Link href={candidateProfileHref(c.id)} className={`block text-sm font-medium text-black ${LINK_CLASS}`}>
+                {c.name}
+              </Link>
+            ) : (
+              <div className="text-sm font-medium text-black truncate">—</div>
+            )}
+            {c.email?.trim() ? (
+              <Link
+                href={candidateMailHref(c.id)}
+                className={`block text-xs text-[#4B5563] ${LINK_CLASS}`}
+              >
+                {c.email}
+              </Link>
+            ) : (
+              <div className="text-xs text-[#4B5563] truncate">—</div>
+            )}
           </div>
           
           <div className="ml-auto flex shrink-0 items-center gap-1.5">
@@ -32,7 +50,7 @@ export function renderListCell(
               <BrandedSvgIcon src="/icons/admin-recruiter/save.svg" className="h-4 w-4" color={BRAND_ICON} />
             </Link>
             <Link
-              href={`/admin_recruiter/new/profile/${c.id}`}
+              href={candidateProfileHref(c.id)}
               className="inline-flex h-7 w-7 items-center justify-center rounded-md transition hover:bg-[color-mix(in_srgb,var(--brand-primary)_8%,white)]"
               aria-label="View profile"
             >
@@ -70,7 +88,13 @@ export function renderListCell(
     case "phone":
       return <span className="text-sm text-[#4B5563]">{c.phone || "—"}</span>
     case "email":
-      return <span className="text-sm text-[#4B5563]">{c.email || "—"}</span>
+      return c.email?.trim() ? (
+        <Link href={candidateMailHref(c.id)} className={`text-sm text-[#4B5563] ${LINK_CLASS}`}>
+          {c.email}
+        </Link>
+      ) : (
+        <span className="text-sm text-[#4B5563]">—</span>
+      )
     case "dateOfBirth":
       return <span className="text-sm text-[#4B5563]">{c.dateOfBirth ? formatDate(c.dateOfBirth) : "—"}</span>
     case "firstName":

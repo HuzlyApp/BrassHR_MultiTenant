@@ -8,11 +8,9 @@ import { candidateStatusBadgeClassName } from "./candidate-status-badge";
 import { CANDIDATE_CARD_SURFACE_CLASS } from "./candidate-card-surface";
 import type { CandidateRow } from "./types";
 
-const BRAND_ICON = "var(--brand-primary)";
+import { candidateMailHref, candidateProfileHref } from "./candidate-links";
 
-export function candidateProfileHref(workerId: string) {
-  return `/admin_recruiter/new/profile/${encodeURIComponent(workerId)}`;
-}
+const BRAND_ICON = "var(--brand-primary)";
 
 type CandidateGridCardProps = {
   candidate: CandidateRow;
@@ -95,7 +93,18 @@ export function CandidateGridCard({
               className="h-4 w-4"
               color={BRAND_ICON}
             />
-            <span className="truncate text-black">{c.email || "—"}</span>
+            <span className="truncate text-black">
+              {c.email?.trim() ? (
+                <Link
+                  href={candidateMailHref(c.id)}
+                  className="pointer-events-auto transition hover:text-[color:var(--brand-primary)] hover:underline"
+                >
+                  {c.email}
+                </Link>
+              ) : (
+                "—"
+              )}
+            </span>
           </div>
           <div className="flex items-center gap-2.5">
             <BrandedSvgIcon src="/icons/admin-recruiter/phone.svg" className="h-4 w-4" color={BRAND_ICON} />
