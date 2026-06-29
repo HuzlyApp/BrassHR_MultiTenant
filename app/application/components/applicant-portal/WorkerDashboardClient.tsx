@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { WorkerPortalPageLoader } from "./WorkerPortalPageLoader";
 import { useApplicantPortal } from "@/app/application/components/applicant-portal/ApplicantPortalProvider";
 import { WorkerDashboardOverview } from "@/app/application/components/applicant-portal/WorkerDashboardOverview";
 import type {
@@ -81,10 +80,6 @@ export function WorkerDashboardClient() {
     };
   }, [authHeaders, session, sessionReady]);
 
-  if (!sessionReady || dataLoading) {
-    return <WorkerPortalPageLoader label="Loading dashboard..." />;
-  }
-
   if (!session) return null;
 
   return (
@@ -101,7 +96,7 @@ export function WorkerDashboardClient() {
         selectedSlot={selectedSlot}
         recentAttendance={recentAttendance}
         notes={notes}
-        notesLoading={false}
+        notesLoading={dataLoading}
       />
     </>
   );

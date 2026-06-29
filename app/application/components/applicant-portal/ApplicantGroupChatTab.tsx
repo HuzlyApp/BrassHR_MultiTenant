@@ -3,7 +3,6 @@
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { Users } from "lucide-react";
-import CandidateDetailLoader from "@/app/admin_recruiter/components/CandidateDetailLoader";
 import { formatChatTime, nameInitials } from "@/app/admin_recruiter/messages/chat-ui";
 import { relativeChatMinutes, type GroupMessageRow } from "@/lib/messaging/group-conversations";
 import { useGroupMessagesRealtime } from "@/lib/messaging/useGroupMessagesRealtime";
@@ -170,9 +169,6 @@ export function ApplicantGroupConversation({
         className="flex min-h-[320px] flex-1 flex-col gap-4 overflow-y-auto px-4 py-4"
         style={{ backgroundColor: "#FFFFFF" }}
       >
-        {loading ? (
-          <CandidateDetailLoader label="Loading messages..." className="min-h-0 flex-1 bg-transparent py-8" />
-        ) : null}
         {!loading && messages.length === 0 ? (
           <p className="rounded-2xl bg-[#F8FAFC] px-4 py-3 text-sm text-[#64748B]">
             No messages in this group yet. Say hello to your team.
@@ -343,10 +339,6 @@ export function ApplicantGroupChatTab() {
       alive = false;
     };
   }, [authHeaders, groups, selectedGroupId]);
-
-  if (loading || !applicantWorkerId) {
-    return <p className="px-8 py-10 text-sm text-[#64748B]">Loading group chat...</p>;
-  }
 
   if (error) {
     return (

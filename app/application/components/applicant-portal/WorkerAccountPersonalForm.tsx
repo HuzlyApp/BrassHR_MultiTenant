@@ -1,7 +1,6 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
-import { WorkerPortalPageLoader } from "./WorkerPortalPageLoader";
 import { useApplicantPortal } from "./ApplicantPortalProvider";
 import { useWorkerAccountActions, useWorkerAccountOverview } from "./WorkerAccountContext";
 import { WorkerProfilePhotoUpload } from "./WorkerProfilePhotoUpload";
@@ -141,10 +140,6 @@ export function WorkerAccountPersonalForm() {
     } finally {
       setSaving(false);
     }
-  }
-
-  if (!sessionReady || loading) {
-    return <WorkerPortalPageLoader label="Loading profile..." />;
   }
 
   return (

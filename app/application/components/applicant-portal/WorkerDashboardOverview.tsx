@@ -343,9 +343,7 @@ export function WorkerDashboardOverview({
             </Link>
           }
         >
-          {notesLoading ? (
-            <p className="py-8 text-center text-sm text-[#6B7280]">Loading updates...</p>
-          ) : announcements.length === 0 ? (
+          {announcements.length === 0 ? (
             <p className="py-8 text-center text-sm text-[#6B7280]">No announcements yet.</p>
           ) : (
             <ul className="space-y-[14px]">

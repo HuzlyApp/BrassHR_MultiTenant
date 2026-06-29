@@ -2,7 +2,6 @@
 
 import { FormEvent, Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { WorkerPortalPageLoader } from "@/app/application/components/applicant-portal/WorkerPortalPageLoader";
 import { useApplicantPortal } from "@/app/application/components/applicant-portal/ApplicantPortalProvider";
 import { ApplicantPortalTabs } from "@/app/application/components/applicant-portal/ApplicantPortalTabs";
 import { ApplicantScheduleTab } from "@/app/application/components/applicant-portal/ApplicantScheduleTab";
@@ -47,7 +46,7 @@ function parseTab(value: string | null): ApplicantPortalTab {
 
 export default function ApplicantSchedulePage() {
   return (
-    <Suspense fallback={<WorkerPortalPageLoader label="Loading schedule..." />}>
+    <Suspense fallback={null}>
       <ApplicantSchedulePageContent />
     </Suspense>
   );
@@ -285,10 +284,6 @@ function ApplicantSchedulePageContent() {
     } finally {
       setAttendanceSubmitting(false);
     }
-  }
-
-  if (!sessionReady || dataLoading) {
-    return <WorkerPortalPageLoader label="Loading schedule..." />;
   }
 
   if (!session) return null;

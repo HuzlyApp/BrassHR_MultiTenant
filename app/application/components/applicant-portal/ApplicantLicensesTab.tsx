@@ -2,7 +2,6 @@
 
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { AlertTriangle, Upload } from "lucide-react";
-import { WorkerPortalPageLoader } from "./WorkerPortalPageLoader";
 import { LICENSE_TYPES, LICENSE_TYPE_LABELS } from "@/lib/applicant-portal/documents";
 import { useApplicantPortal } from "./ApplicantPortalProvider";
 import { WorkerFilePicker } from "./WorkerFilePicker";
@@ -143,10 +142,6 @@ export function ApplicantLicensesTab({ embedded = false }: { embedded?: boolean 
     } finally {
       setUploading(false);
     }
-  }
-
-  if (!sessionReady || loading) {
-    return <WorkerPortalPageLoader label="Loading licenses..." />;
   }
 
   return (

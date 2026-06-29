@@ -3,8 +3,6 @@
 import { Suspense, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
 import { Search, Users } from "lucide-react";
-import { WorkerPortalPageLoader } from "@/app/application/components/applicant-portal/WorkerPortalPageLoader";
-import CandidateDetailLoader from "@/app/admin_recruiter/components/CandidateDetailLoader";
 import GroupStackedAvatars, {
   SingleChatAvatar,
 } from "@/app/admin_recruiter/messages/GroupStackedAvatars";
@@ -85,7 +83,7 @@ function ChatHeader({
 
 export function ApplicantChatClient() {
   return (
-    <Suspense fallback={<WorkerPortalPageLoader label="Loading chat..." />}>
+    <Suspense fallback={null}>
       <ApplicantChatClientContent />
     </Suspense>
   );
@@ -178,10 +176,6 @@ function ApplicantChatClientContent() {
       ? messaging.messages[messaging.messages.length - 1]?.body?.trim() || "Attachment"
       : "Chat with your recruiter";
 
-  if (!sessionReady || !applicantWorkerId) {
-    return <WorkerPortalPageLoader label="Loading chat..." />;
-  }
-
   return (
     <div className="px-4 py-6 min-[1000px]:px-8">
       <div className="mb-5">
@@ -249,9 +243,6 @@ function ApplicantChatClientContent() {
 
             {activeTab === "group" ? (
               <>
-                {groupsLoading ? (
-                  <CandidateDetailLoader label="Loading groups..." className="min-h-[240px] py-10" />
-                ) : null}
                 {!groupsLoading && filteredGroups.length === 0 ? (
                   <p className="px-4 py-6 text-sm text-[#64748B]">
                     {searchQuery.trim()
@@ -336,9 +327,7 @@ function ApplicantChatClientContent() {
             </>
           ) : (
             <div className="flex h-full min-h-[360px] flex-1 flex-col items-center justify-center px-6 text-center">
-              {groupsLoading ? (
-                <CandidateDetailLoader label="Loading..." className="min-h-0 bg-transparent py-0" />
-              ) : groups.length === 0 ? (
+              {!groupsLoading && groups.length === 0 ? (
                 <>
                   <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-[#F1F5F9] text-[#64748B]">
                     <Users className="h-6 w-6" />
@@ -350,9 +339,9 @@ function ApplicantChatClientContent() {
                     When your recruiter adds you to a group, it will appear in the Group tab.
                   </p>
                 </>
-              ) : (
+              ) : !groupsLoading ? (
                 <p className="max-w-sm text-sm text-[#64748B]">Pick a group to read and reply.</p>
-              )}
+              ) : null}
             </div>
           )}
         </section>

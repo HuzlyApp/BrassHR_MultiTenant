@@ -2,7 +2,6 @@
 
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { Eye, Upload } from "lucide-react";
-import { WorkerPortalPageLoader } from "./WorkerPortalPageLoader";
 import BrandedFileTypeIcon from "@/app/admin_recruiter/components/BrandedFileTypeIcon";
 import { documentStatusLabel } from "@/lib/applicant-portal/documents";
 import { useApplicantPortal } from "./ApplicantPortalProvider";
@@ -391,10 +390,6 @@ export function ApplicantDocumentsTab({ embedded = false }: { embedded?: boolean
       return !title.includes("i9") && !title.includes("i-9") && !title.includes("w2") && !title.includes("employee agreement");
     })
     .sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime());
-
-  if (!sessionReady || loading) {
-    return <WorkerPortalPageLoader label="Loading documents..." />;
-  }
 
   return (
     <div className={embedded ? "space-y-6" : "space-y-6 px-8 py-6"}>

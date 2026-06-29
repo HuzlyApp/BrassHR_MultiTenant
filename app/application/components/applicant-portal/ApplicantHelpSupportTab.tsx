@@ -4,7 +4,6 @@ import { FormEvent, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { Bot, User } from "lucide-react";
-import { WorkerPortalPageLoader } from "./WorkerPortalPageLoader";
 import type {
   HelpAssistantResponse,
   HelpAssistantButton,
@@ -206,10 +205,6 @@ export function ApplicantHelpSupportTab() {
     } finally {
       setLoading(false);
     }
-  }
-
-  if (!sessionReady) {
-    return <WorkerPortalPageLoader label="Loading help..." />;
   }
 
   return (

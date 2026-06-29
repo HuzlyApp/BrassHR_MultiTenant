@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useState } from "react";
 import Image from "next/image";
 import { Building2, MapPin, Phone, User } from "lucide-react";
-import { WorkerPortalPageLoader } from "./WorkerPortalPageLoader";
 import type { FacilityListItem, WorkerLocationsResponse } from "@/lib/facilities/types";
 import { useApplicantPortalAuthHeaders } from "./useApplicantPortalSession";
 import {
@@ -153,10 +152,6 @@ export function WorkerLocationsTab() {
   useEffect(() => {
     void loadLocations();
   }, [loadLocations]);
-
-  if (loading) {
-    return <WorkerPortalPageLoader label="Loading locations..." />;
-  }
 
   return (
     <div className={`${WORKER_PORTAL_PAGE_PAD_CLASS} max-w-full overflow-x-hidden`}>

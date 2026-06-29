@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { WorkerPortalPageLoader } from "@/app/application/components/applicant-portal/WorkerPortalPageLoader";
 import { useApplicantPortal } from "@/app/application/components/applicant-portal/ApplicantPortalProvider";
 import { ApplicantTimesheetsTab } from "@/app/application/components/applicant-portal/ApplicantTimesheetsTab";
 import type { AttendanceLog } from "@/app/application/components/applicant-portal/types";
@@ -55,10 +54,6 @@ export default function ApplicantTimesheetsPage() {
       alive = false;
     };
   }, [authHeaders, session, sessionReady]);
-
-  if (!sessionReady || loading) {
-    return <WorkerPortalPageLoader label="Loading timesheets..." />;
-  }
 
   if (!session) return null;
 

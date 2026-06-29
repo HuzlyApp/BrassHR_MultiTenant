@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useState, type ReactNode } from "react";
-import { WorkerPortalPageLoader } from "./WorkerPortalPageLoader";
 import { useApplicantPortal } from "./ApplicantPortalProvider";
 import { WorkerAccountProvider } from "./WorkerAccountContext";
 import { WorkerAccountHeader } from "./WorkerAccountHeader";
@@ -45,7 +44,6 @@ type WorkerAccountShellProps = {
 export function WorkerAccountShell({ activeTab, children }: WorkerAccountShellProps) {
   const { sessionReady, authHeaders, setProfilePhotoUrl } = useApplicantPortal();
   const [overview, setOverview] = useState<WorkerAccountOverviewPayload | null>(null);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const loadOverview = useCallback(async () => {
@@ -91,7 +89,6 @@ export function WorkerAccountShell({ activeTab, children }: WorkerAccountShellPr
     if (!sessionReady) return;
 
     let alive = true;
-    setLoading(true);
     setError(null);
 
     void (async () => {
@@ -99,8 +96,6 @@ export function WorkerAccountShell({ activeTab, children }: WorkerAccountShellPr
         await loadOverview();
       } catch (err) {
         if (alive) setError(err instanceof Error ? err.message : "Could not load account.");
-      } finally {
-        if (alive) setLoading(false);
       }
     })();
 
@@ -108,10 +103,6 @@ export function WorkerAccountShell({ activeTab, children }: WorkerAccountShellPr
       alive = false;
     };
   }, [loadOverview, sessionReady]);
-
-  if (!sessionReady || loading) {
-    return <WorkerPortalPageLoader label="Loading account..." />;
-  }
 
   const profile = overview?.profile ?? EMPTY_PROFILE;
 
