@@ -547,7 +547,10 @@ export default function StepsCanvas({
           data: {
             ...n.data,
             onDelete:
-              readOnly || n.data.lockedFirstStep === true || isUploadResumeWorkflowStepId(n.data.stepId)
+              readOnly ||
+              !isStepNode(n) ||
+              n.data.lockedFirstStep === true ||
+              isUploadResumeWorkflowStepId(n.data.stepId)
                 ? undefined
                 : handleDeleteNode,
           },
