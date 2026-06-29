@@ -36,20 +36,24 @@ export function WorkerAccountHeader({
 }: WorkerAccountHeaderProps) {
   const displayName = loading ? "Loading..." : profile.displayName || "Worker";
   const role = loading ? "—" : profile.jobRole.trim() || "Worker";
+  const completionPercent = Math.min(100, Math.max(0, profile.profileCompletionPercent));
+  const isComplete = completionPercent >= 100;
+  const progressBarColor =
+    completionPercent >= 100 ? "#00B546" : completionPercent >= 50 ? "#F59E0B" : "#EF4444";
 
   return (
-    <section className={`${WORKER_SCHEDULE_CARD_CLASS} px-6 py-6`}>
-      <div className="flex flex-col gap-8 xl:flex-row xl:items-stretch xl:gap-0">
+    <section className={`${WORKER_SCHEDULE_CARD_CLASS} px-4 py-5 sm:px-6 sm:py-6`}>
+      <div className="flex flex-col gap-6 xl:flex-row xl:items-stretch xl:gap-0">
         {/* Profile */}
-        <div className="flex min-w-0 flex-1 gap-5 xl:pr-8">
+        <div className="flex min-w-0 flex-1 flex-col items-center gap-4 sm:flex-row sm:items-start sm:gap-5 xl:pr-8">
           <WorkerProfilePhotoUpload
             variant="avatar"
             displayName={displayName}
             photoUrl={profile.profilePhotoUrl}
             onPhotoUpdated={onProfilePhotoUpdated}
           />
-          <div className="min-w-0 flex-1">
-            <h1 className="font-[Inter,sans-serif] text-[24px] font-semibold leading-8 text-[#111827]">
+          <div className="min-w-0 w-full flex-1 text-center sm:text-left">
+            <h1 className="font-[Inter,sans-serif] text-[20px] font-semibold leading-7 text-[#111827] sm:text-[24px] sm:leading-8">
               {displayName}
             </h1>
             <p className="mt-1 font-[Inter,sans-serif] text-[14px] leading-5 text-[#6B7280]">{role}</p>
@@ -59,30 +63,30 @@ export function WorkerAccountHeader({
               {statusLabel(profile.statusLabel)}
             </span>
             <ul className="mt-5 space-y-3">
-              <li className="flex items-center gap-3 text-sm leading-5 text-[#374151]">
+              <li className="flex items-center justify-center gap-3 text-sm leading-5 text-[#374151] sm:justify-start">
                 <span className="flex h-5 w-5 shrink-0 items-center justify-center">
                   <Mail className="h-4 w-4 text-[#9CA3AF]" aria-hidden />
                 </span>
-                <span className="min-w-0 truncate">{profile.email || "—"}</span>
+                <span className="min-w-0 break-all sm:truncate">{profile.email || "—"}</span>
               </li>
-              <li className="flex items-center gap-3 text-sm leading-5 text-[#374151]">
+              <li className="flex items-center justify-center gap-3 text-sm leading-5 text-[#374151] sm:justify-start">
                 <span className="flex h-5 w-5 shrink-0 items-center justify-center">
                   <Phone className="h-4 w-4 text-[#9CA3AF]" aria-hidden />
                 </span>
-                <span>{profile.phone || "—"}</span>
+                <span className="min-w-0">{profile.phone || "—"}</span>
               </li>
-              <li className="flex items-start gap-3 text-sm leading-5 text-[#374151]">
+              <li className="flex items-start justify-center gap-3 text-sm leading-5 text-[#374151] sm:justify-start">
                 <span className="flex h-5 w-5 shrink-0 items-center justify-center pt-0.5">
                   <MapPin className="h-4 w-4 text-[#9CA3AF]" aria-hidden />
                 </span>
-                <span className="min-w-0">{profile.fullAddress}</span>
+                <span className="min-w-0 break-words text-left">{profile.fullAddress}</span>
               </li>
             </ul>
           </div>
         </div>
 
         {/* Employment details */}
-        <div className="min-w-0 flex-1 border-[#E5E7EB] xl:border-x xl:px-8">
+        <div className="min-w-0 flex-1 border-t border-[#E5E7EB] pt-6 xl:border-x xl:border-t-0 xl:px-8 xl:pt-0">
           <dl className="space-y-4">
             {[
               ["Employee ID", profile.employeeId],
@@ -100,28 +104,37 @@ export function WorkerAccountHeader({
             ].map(([label, value]) => (
               <div
                 key={String(label)}
-                className="flex items-center justify-between gap-6 border-b border-[#F3F4F6] pb-3 last:border-b-0 last:pb-0"
+                className="flex flex-col gap-0.5 border-b border-[#F3F4F6] pb-3 last:border-b-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between sm:gap-6"
               >
                 <dt className="shrink-0 text-sm text-[#6B7280]">{label}</dt>
-                <dd className="text-right text-sm font-medium text-[#111827]">{value}</dd>
+                <dd className="text-sm font-medium text-[#111827] sm:text-right">{value}</dd>
               </div>
             ))}
           </dl>
         </div>
 
         {/* Profile completion */}
-        <div className="flex min-w-0 flex-1 flex-col xl:pl-8">
-          <div className="flex h-full flex-col rounded-lg border border-[#E5E7EB] bg-[#FAFAFA] p-5">
+        <div className="flex min-w-0 flex-1 flex-col border-t border-[#E5E7EB] pt-6 xl:border-t-0 xl:pl-8 xl:pt-0">
+          <div className="flex h-full flex-col rounded-lg border border-[#E5E7EB] bg-[#FAFAFA] p-4 sm:p-5">
             <p className="text-sm font-semibold text-[#111827]">Profile Completion</p>
-            <p className="mt-1 text-sm text-[#6B7280]">{profile.profileCompletionPercent}% Complete</p>
-            <div className="mt-4 h-2 overflow-hidden rounded-full bg-[#E5E7EB]">
+            <p className="mt-1 text-sm text-[#6B7280]">
+              {isComplete ? "100% Complete" : `${completionPercent}% Complete`}
+            </p>
+            <div
+              className="mt-4 h-2 overflow-hidden rounded-full bg-[#E5E7EB]"
+              role="progressbar"
+              aria-valuenow={completionPercent}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-label="Profile completion"
+            >
               <div
-                className="h-full rounded-full bg-[#00B546]"
-                style={{ width: `${profile.profileCompletionPercent}%` }}
+                className="h-full rounded-full transition-[width] duration-300"
+                style={{ width: `${completionPercent}%`, backgroundColor: progressBarColor }}
               />
             </div>
             <Link href={workerAccountTabHref("personal")} className={`mt-5 ${WORKER_BTN_LINK}`}>
-              Update Profile
+              {isComplete ? "Update Profile" : "Complete Profile"}
             </Link>
           </div>
         </div>

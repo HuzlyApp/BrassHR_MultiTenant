@@ -6,11 +6,13 @@ import type { WorkerAccountOverviewPayload } from "./worker-account-types";
 type WorkerAccountContextValue = {
   overview: WorkerAccountOverviewPayload | null;
   updateProfilePhoto: (url: string | null) => void;
+  refreshOverview: () => Promise<void>;
 };
 
 const WorkerAccountContext = createContext<WorkerAccountContextValue>({
   overview: null,
   updateProfilePhoto: () => undefined,
+  refreshOverview: async () => undefined,
 });
 
 export function WorkerAccountProvider({
@@ -28,5 +30,6 @@ export function useWorkerAccountOverview() {
 }
 
 export function useWorkerAccountActions() {
-  return useContext(WorkerAccountContext);
+  const { updateProfilePhoto, refreshOverview } = useContext(WorkerAccountContext);
+  return { updateProfilePhoto, refreshOverview };
 }

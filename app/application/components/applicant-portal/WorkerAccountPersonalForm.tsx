@@ -76,7 +76,7 @@ function Field({
 export function WorkerAccountPersonalForm() {
   const { sessionReady, authHeaders } = useApplicantPortal();
   const overview = useWorkerAccountOverview();
-  const { updateProfilePhoto } = useWorkerAccountActions();
+  const { updateProfilePhoto, refreshOverview } = useWorkerAccountActions();
   const [profile, setProfile] = useState<Profile>(EMPTY_PROFILE);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [loading, setLoading] = useState(true);
@@ -135,6 +135,7 @@ export function WorkerAccountPersonalForm() {
       }
       setProfile(payload.profile ?? profile);
       setSaved(true);
+      await refreshOverview();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save profile.");
     } finally {

@@ -110,3 +110,23 @@
 .worker-sidebar-submenu-item {
   padding: 0.375rem 0 0.375rem 0;
 }
+
+/* Worker account tabs — single row with horizontal scroll on mobile */
+.worker-account-tabs-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+  -webkit-overflow-scrolling: touch;
+}
+
+.worker-account-tabs-scroll::-webkit-scrollbar {
+  height: 4px;
+}
+
+.worker-account-tabs-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.worker-account-tabs-scroll::-webkit-scrollbar-thumb {
+  background-color: #cbd5e1;
+  border-radius: 999px;
+}

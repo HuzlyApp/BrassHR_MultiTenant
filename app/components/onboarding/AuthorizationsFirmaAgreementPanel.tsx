@@ -78,11 +78,17 @@ export function AuthorizationsFirmaAgreementPanel({
   useEffect(() => {
     if (!applicantId || !stepKey || !hasFirmaTemplate || !emailValid) return;
 
+    const activeApplicantId = applicantId;
+    const activeStepKey = stepKey;
+
     let cancelled = false;
 
     async function loadExistingSession() {
       try {
-        const query = new URLSearchParams({ applicantId, stepKey });
+        const query = new URLSearchParams({
+          applicantId: activeApplicantId,
+          stepKey: activeStepKey,
+        });
         if (stepId) query.set("stepId", stepId);
         if (tenantSlug) query.set("tenantSlug", tenantSlug);
 
@@ -113,8 +119,13 @@ export function AuthorizationsFirmaAgreementPanel({
 
   const refreshStatus = useCallback(async () => {
     if (!applicantId || !stepKey || !signingRequestId) return;
+    const activeApplicantId = applicantId;
+    const activeStepKey = stepKey;
     try {
-      const query = new URLSearchParams({ applicantId, stepKey });
+      const query = new URLSearchParams({
+        applicantId: activeApplicantId,
+        stepKey: activeStepKey,
+      });
       if (stepId) query.set("stepId", stepId);
       if (tenantSlug) query.set("tenantSlug", tenantSlug);
       const res = await fetch(`/api/onboarding/firma-sign/status?${query.toString()}`, {
@@ -156,6 +167,8 @@ export function AuthorizationsFirmaAgreementPanel({
       setError("Missing applicant session. Return to the first onboarding step.");
       return;
     }
+    const activeApplicantId = applicantId;
+    const activeStepKey = stepKey;
     if (!hasFirmaTemplate) {
       setError("Agreement signing is not configured. Ask your recruiter to attach a Firma template to this step.");
       return;
@@ -165,7 +178,10 @@ export function AuthorizationsFirmaAgreementPanel({
     setError(null);
 
     try {
-      const query = new URLSearchParams({ applicantId, stepKey });
+      const query = new URLSearchParams({
+        applicantId: activeApplicantId,
+        stepKey: activeStepKey,
+      });
       if (stepId) query.set("stepId", stepId);
       if (tenantSlug) query.set("tenantSlug", tenantSlug);
 

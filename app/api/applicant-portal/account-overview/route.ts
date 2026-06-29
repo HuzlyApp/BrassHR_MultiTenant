@@ -4,6 +4,7 @@ import { applicantDisplayName } from "@/lib/applicant-portal";
 import { documentStatusLabel } from "@/lib/applicant-portal/documents";
 import { createSignedPortalFileUrl } from "@/lib/applicant-portal/upload";
 import { requireApprovedApplicant } from "@/lib/applicant-portal/request";
+import { computeWorkerProfileCompletionPercent } from "@/lib/applicant-portal/worker-profile-completion";
 
 export const runtime = "nodejs";
 
@@ -100,62 +101,11 @@ function formatCategoryLabel(slug: string): string {
     .join(" ");
 }
 
-function profileCompletionPercent(worker: WorkerRow): number {
-  const checks = [
-    worker.first_name,
-    worker.last_name,
-    worker.email,
-    worker.phone,
-    worker.address1,
-    worker.city,
-    worker.state,
-    worker.zip,
-    worker.job_role,
-  ];
-  const filled = checks.filter((value) => String(value ?? "").trim().length > 0).length;
-  return Math.round((filled / checks.length) * 100);
-}
-
-function normalizeWorkerRow(data: Record<string, unknown>): WorkerRow {
-  return {
-    id: String(data.id ?? ""),
-    tenant_id: String(data.tenant_id ?? ""),
-    first_name: typeof data.first_name === "string" ? data.first_name : null,
-    last_name: typeof data.last_name === "string" ? data.last_name : null,
-    email: typeof data.email === "string" ? data.email : null,
-    phone: typeof data.phone === "string" ? data.phone : null,
-    address1: typeof data.address1 === "string" ? data.address1 : null,
-    address2: typeof data.address2 === "string" ? data.address2 : null,
-    city: typeof data.city === "string" ? data.city : null,
-    state: typeof data.state === "string" ? data.state : null,
-    zip: typeof data.zip === "string" ? data.zip : null,
-    job_role: typeof data.job_role === "string" ? data.job_role : null,
-    status: typeof data.status === "string" ? data.status : null,
-    created_at: typeof data.created_at === "string" ? data.created_at : null,
-    hourly_rate:
-      typeof data.hourly_rate === "string" || typeof data.hourly_rate === "number"
-        ? data.hourly_rate
-        : null,
-    positions: Array.isArray(data.positions) ? (data.positions as string[]) : null,
-    years_experience: typeof data.years_experience === "number" ? data.years_experience : null,
-    experience_years: typeof data.experience_years === "number" ? data.experience_years : null,
-    profile_photo: typeof data.profile_photo === "string" ? data.profile_photo : null,
-    employee_id: typeof data.employee_id === "string" ? data.employee_id : null,
-    employee_number: typeof data.employee_number === "string" ? data.employee_number : null,
-  };
-}
-
-async function resolveProfilePhotoUrl(
-  supabase: SupabaseClient,
-  profilePhoto: string | null
-): Promise<string | null> {
-  const value = profilePhoto?.trim() ?? "";
-  if (!value) return null;
-  if (value.startsWith("http://") || value.startsWith("https://")) return value;
-  return createSignedPortalFileUrl(supabase, value);
-}
-
-function serializeProfile(worker: WorkerRow, profilePhotoUrl: string | null) {
+function serializeProfile(
+  worker: WorkerRow,
+  profilePhotoUrl: string | null,
+  profileCompletionPercent: number
+) {
   const positions = toStringArray(worker.positions);
   const yearsExperience = worker.years_experience ?? worker.experience_years ?? null;
 
@@ -192,8 +142,47 @@ function serializeProfile(worker: WorkerRow, profilePhotoUrl: string | null) {
     hourlyRate: worker.hourly_rate != null ? String(worker.hourly_rate) : null,
     positions,
     yearsExperience,
-    profileCompletionPercent: profileCompletionPercent(worker),
+    profileCompletionPercent,
     profilePhotoUrl,
+  };
+}
+
+async function resolveProfilePhotoUrl(
+  supabase: SupabaseClient,
+  profilePhoto: string | null
+): Promise<string | null> {
+  const value = profilePhoto?.trim() ?? "";
+  if (!value) return null;
+  if (value.startsWith("http://") || value.startsWith("https://")) return value;
+  return createSignedPortalFileUrl(supabase, value);
+}
+
+function normalizeWorkerRow(data: Record<string, unknown>): WorkerRow {
+  return {
+    id: String(data.id ?? ""),
+    tenant_id: String(data.tenant_id ?? ""),
+    first_name: typeof data.first_name === "string" ? data.first_name : null,
+    last_name: typeof data.last_name === "string" ? data.last_name : null,
+    email: typeof data.email === "string" ? data.email : null,
+    phone: typeof data.phone === "string" ? data.phone : null,
+    address1: typeof data.address1 === "string" ? data.address1 : null,
+    address2: typeof data.address2 === "string" ? data.address2 : null,
+    city: typeof data.city === "string" ? data.city : null,
+    state: typeof data.state === "string" ? data.state : null,
+    zip: typeof data.zip === "string" ? data.zip : null,
+    job_role: typeof data.job_role === "string" ? data.job_role : null,
+    status: typeof data.status === "string" ? data.status : null,
+    created_at: typeof data.created_at === "string" ? data.created_at : null,
+    hourly_rate:
+      typeof data.hourly_rate === "string" || typeof data.hourly_rate === "number"
+        ? data.hourly_rate
+        : null,
+    positions: Array.isArray(data.positions) ? (data.positions as string[]) : null,
+    years_experience: typeof data.years_experience === "number" ? data.years_experience : null,
+    experience_years: typeof data.experience_years === "number" ? data.experience_years : null,
+    profile_photo: typeof data.profile_photo === "string" ? data.profile_photo : null,
+    employee_id: typeof data.employee_id === "string" ? data.employee_id : null,
+    employee_number: typeof data.employee_number === "string" ? data.employee_number : null,
   };
 }
 
@@ -209,7 +198,10 @@ export async function GET(req: NextRequest) {
       workerRes,
       portalDocsRes,
       submittedDocsRes,
+      allSubmittedDocsRes,
+      portalDocsCountRes,
       licensesRes,
+      licensesCountRes,
       attendanceRes,
       assessmentsRes,
     ] = await Promise.all([
@@ -227,11 +219,23 @@ export async function GET(req: NextRequest) {
         .order("uploaded_at", { ascending: false })
         .limit(8),
       auth.supabase
+        .from("worker_submitted_documents")
+        .select("required_document_id")
+        .eq("worker_id", workerId),
+      auth.supabase
+        .from("worker_portal_documents")
+        .select("id", { count: "exact", head: true })
+        .eq("worker_id", workerId),
+      auth.supabase
         .from("worker_license_records")
         .select("id, license_type, original_file_name, expires_at, status, uploaded_at")
         .eq("worker_id", workerId)
         .order("uploaded_at", { ascending: false })
         .limit(6),
+      auth.supabase
+        .from("worker_license_records")
+        .select("id", { count: "exact", head: true })
+        .eq("worker_id", workerId),
       auth.supabase
         .from("applicant_attendance_logs")
         .select("total_seconds, status, clock_in_at")
@@ -249,7 +253,6 @@ export async function GET(req: NextRequest) {
 
     const worker = normalizeWorkerRow(workerRes.data as Record<string, unknown>);
     const profilePhotoUrl = await resolveProfilePhotoUrl(auth.supabase, worker.profile_photo);
-    const profile = serializeProfile(worker, profilePhotoUrl);
 
     const requiredRes = await auth.supabase
       .from("tenant_required_documents")
@@ -258,6 +261,32 @@ export async function GET(req: NextRequest) {
     if (requiredRes.error) {
       console.warn("[applicant-portal/account-overview] tenant_required_documents", requiredRes.error.message);
     }
+
+    const submittedRequiredDocumentIds = (allSubmittedDocsRes.data ?? []).map((row) =>
+      String(row.required_document_id ?? "")
+    );
+    const completedAssessmentCount = (assessmentsRes.data ?? []).filter((row) => row.completed).length;
+    const profileCompletionPercent = computeWorkerProfileCompletionPercent({
+      worker: {
+        first_name: worker.first_name,
+        last_name: worker.last_name,
+        email: worker.email,
+        phone: worker.phone,
+        address1: worker.address1,
+        city: worker.city,
+        state: worker.state,
+        zip: worker.zip,
+        positions: worker.positions,
+      },
+      hasProfilePhoto: Boolean(profilePhotoUrl),
+      requiredDocumentCount: (requiredRes.data ?? []).length,
+      submittedRequiredDocumentIds,
+      portalDocumentCount: portalDocsCountRes.count ?? 0,
+      licenseCount: licensesCountRes.count ?? 0,
+      completedAssessmentCount,
+    });
+
+    const profile = serializeProfile(worker, profilePhotoUrl, profileCompletionPercent);
 
     const requiredMap = new Map(
       (requiredRes.data ?? []).map((row) => [String(row.id), String(row.title ?? "Document")])
@@ -269,8 +298,20 @@ export async function GET(req: NextRequest) {
     if (submittedDocsRes.error) {
       console.warn("[applicant-portal/account-overview] worker_submitted_documents", submittedDocsRes.error.message);
     }
+    if (allSubmittedDocsRes.error) {
+      console.warn(
+        "[applicant-portal/account-overview] worker_submitted_documents (all)",
+        allSubmittedDocsRes.error.message
+      );
+    }
+    if (portalDocsCountRes.error) {
+      console.warn("[applicant-portal/account-overview] worker_portal_documents (count)", portalDocsCountRes.error.message);
+    }
     if (licensesRes.error) {
       console.warn("[applicant-portal/account-overview] worker_license_records", licensesRes.error.message);
+    }
+    if (licensesCountRes.error) {
+      console.warn("[applicant-portal/account-overview] worker_license_records (count)", licensesCountRes.error.message);
     }
     if (attendanceRes.error) {
       console.warn("[applicant-portal/account-overview] applicant_attendance_logs", attendanceRes.error.message);

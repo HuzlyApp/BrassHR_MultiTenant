@@ -48,14 +48,43 @@ export function WorkerAccountShell({ activeTab, children }: WorkerAccountShellPr
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const loadOverview = useCallback(async () => {
+    const headers = await authHeaders();
+    if (!headers) return null;
+
+    const res = await fetch("/api/applicant-portal/account-overview", {
+      headers,
+      cache: "no-store",
+    });
+    const payload = (await res.json().catch(() => ({}))) as WorkerAccountOverviewPayload & {
+      error?: string;
+    };
+    if (!res.ok) throw new Error(payload.error || "Could not load account.");
+
+    setOverview(payload);
+    if (payload.profile?.profilePhotoUrl) {
+      setProfilePhotoUrl(payload.profile.profilePhotoUrl);
+    }
+    return payload;
+  }, [authHeaders, setProfilePhotoUrl]);
+
+  const refreshOverview = useCallback(async () => {
+    try {
+      await loadOverview();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not load account.");
+    }
+  }, [loadOverview]);
+
   const updateProfilePhoto = useCallback(
     (url: string | null) => {
       setProfilePhotoUrl(url);
       setOverview((current) =>
         current ? { ...current, profile: { ...current.profile, profilePhotoUrl: url } } : current
       );
+      void refreshOverview();
     },
-    [setProfilePhotoUrl]
+    [refreshOverview, setProfilePhotoUrl]
   );
 
   useEffect(() => {
@@ -67,21 +96,7 @@ export function WorkerAccountShell({ activeTab, children }: WorkerAccountShellPr
 
     void (async () => {
       try {
-        const headers = await authHeaders();
-        if (!headers) return;
-        const res = await fetch("/api/applicant-portal/account-overview", {
-          headers,
-          cache: "no-store",
-        });
-        const payload = (await res.json().catch(() => ({}))) as WorkerAccountOverviewPayload & {
-          error?: string;
-        };
-        if (!res.ok) throw new Error(payload.error || "Could not load account.");
-        if (!alive) return;
-        setOverview(payload);
-        if (payload.profile?.profilePhotoUrl) {
-          setProfilePhotoUrl(payload.profile.profilePhotoUrl);
-        }
+        await loadOverview();
       } catch (err) {
         if (alive) setError(err instanceof Error ? err.message : "Could not load account.");
       } finally {
@@ -92,7 +107,7 @@ export function WorkerAccountShell({ activeTab, children }: WorkerAccountShellPr
     return () => {
       alive = false;
     };
-  }, [authHeaders, sessionReady, setProfilePhotoUrl]);
+  }, [loadOverview, sessionReady]);
 
   if (!sessionReady || loading) {
     return <WorkerPortalPageLoader label="Loading account..." />;
@@ -101,13 +116,25 @@ export function WorkerAccountShell({ activeTab, children }: WorkerAccountShellPr
   const profile = overview?.profile ?? EMPTY_PROFILE;
 
   return (
-    <div className={`space-y-4 ${WORKER_PORTAL_PAGE_PAD_CLASS}`}>
-      {error ? (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
-      ) : null}
-      <WorkerAccountHeader profile={profile} onProfilePhotoUpdated={updateProfilePhoto} />
-      <WorkerAccountTabNav activeTab={activeTab} />
-      <WorkerAccountProvider value={{ overview, updateProfilePhoto }}>{children}</WorkerAccountProvider>
+    <div className="w-full min-w-0">
+      <div className={`${WORKER_PORTAL_PAGE_PAD_CLASS} pb-4`}>
+        {error ? (
+          <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {error}
+          </div>
+        ) : null}
+        <WorkerAccountHeader profile={profile} onProfilePhotoUpdated={updateProfilePhoto} />
+      </div>
+
+      <div className="sticky top-16 z-20 border-b border-[#E5E7EB] bg-white">
+        <WorkerAccountTabNav activeTab={activeTab} />
+      </div>
+
+      <div className={`${WORKER_PORTAL_PAGE_PAD_CLASS} pt-4`}>
+        <WorkerAccountProvider value={{ overview, updateProfilePhoto, refreshOverview }}>
+          {children}
+        </WorkerAccountProvider>
+      </div>
     </div>
   );
 }
