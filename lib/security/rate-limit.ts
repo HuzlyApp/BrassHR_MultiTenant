@@ -3,6 +3,12 @@ import "server-only";
 import { Redis as UpstashRedis } from "@upstash/redis";
 import { NextResponse } from "next/server";
 import { hashQueryParams } from "@/lib/cache-keys";
+import {
+  getRedisTimeoutMs,
+  isRedisCircuitOpen,
+  markRedisUnavailable,
+  withRedisTimeout,
+} from "@/lib/redis-timeout";
 
 type RateLimitStore = {
   increment(key: string, windowSeconds: number): Promise<number>;
@@ -71,30 +77,56 @@ async function createUpstashStore(url: string, token: string): Promise<RateLimit
 
 async function createNodeRedisStore(url: string): Promise<RateLimitStore> {
   const { createClient } = await import("redis");
-  const client = createClient({ url });
+  const connectMs = getRedisTimeoutMs();
+  const client = createClient({
+    url,
+    socket: {
+      connectTimeout: connectMs,
+      reconnectStrategy: (retries) => (retries > 2 ? false : Math.min(retries * 200, 1000)),
+    },
+  });
   client.on("error", () => {});
-  if (!client.isOpen) await client.connect();
+  try {
+    await withRedisTimeout(
+      (async () => {
+        if (!client.isOpen) await client.connect();
+      })(),
+      "rate-limit-connect",
+    );
+  } catch (error) {
+    markRedisUnavailable();
+    void client.destroy();
+    throw error;
+  }
   return {
     async increment(key, windowSeconds) {
-      const count = await client.incr(key);
-      if (count === 1) await client.expire(key, windowSeconds);
+      const count = await withRedisTimeout(client.incr(key), "rate-limit-incr");
+      if (count === 1) await withRedisTimeout(client.expire(key, windowSeconds), "rate-limit-expire");
       return count;
     },
   };
 }
 
 async function getRedisStore(): Promise<RateLimitStore | null> {
+  if (isRedisCircuitOpen()) return null;
   if (!storePromise) {
-    storePromise = (async () => {
-      const url = process.env.REDIS_URL?.trim();
-      if (!url) return null;
-      const token = process.env.REDIS_TOKEN?.trim();
-      if (token) return createUpstashStore(url, token);
-      if (url.startsWith("redis://") || url.startsWith("rediss://")) {
-        return createNodeRedisStore(url);
-      }
+    storePromise = withRedisTimeout(
+      (async () => {
+        const url = process.env.REDIS_URL?.trim();
+        if (!url) return null;
+        const token = process.env.REDIS_TOKEN?.trim();
+        if (token) return createUpstashStore(url, token);
+        if (url.startsWith("redis://") || url.startsWith("rediss://")) {
+          return createNodeRedisStore(url);
+        }
+        return null;
+      })(),
+      "rate-limit-adapter",
+    ).catch(() => {
+      markRedisUnavailable();
+      storePromise = null;
       return null;
-    })().catch(() => null);
+    });
   }
   return storePromise;
 }
@@ -112,14 +144,19 @@ export async function checkRateLimit(options: RateLimitOptions): Promise<RateLim
   const redis = await getRedisStore();
 
   if (redis) {
-    const count = await redis.increment(key, windowSeconds);
-    return {
-      allowed: count <= options.limit,
-      limit: options.limit,
-      remaining: Math.max(0, options.limit - count),
-      retryAfterSec: windowSeconds,
-      store: "redis",
-    };
+    try {
+      const count = await withRedisTimeout(redis.increment(key, windowSeconds), "rate-limit-check");
+      return {
+        allowed: count <= options.limit,
+        limit: options.limit,
+        remaining: Math.max(0, options.limit - count),
+        retryAfterSec: windowSeconds,
+        store: "redis",
+      };
+    } catch {
+      markRedisUnavailable();
+      /* fall through to memory when Redis is slow/unavailable */
+    }
   }
 
   const count = incrementMemory(key, options.windowMs);

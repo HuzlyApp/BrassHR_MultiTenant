@@ -11,6 +11,12 @@ import {
   tenantPattern,
   userPattern,
 } from "@/lib/cache-keys";
+import {
+  getRedisTimeoutMs,
+  isRedisCircuitOpen,
+  markRedisUnavailable,
+  withRedisTimeout,
+} from "@/lib/redis-timeout";
 
 export {
   buildCacheKey,
@@ -24,21 +30,6 @@ export {
 
 const DEFAULT_TTL_SECONDS = Number(process.env.CACHE_DEFAULT_TTL_SECONDS ?? 300) || 300;
 const DEFAULT_MAX_PAYLOAD_BYTES = 100 * 1024;
-const DEFAULT_REDIS_TIMEOUT_MS = Number(process.env.CACHE_REDIS_TIMEOUT_MS ?? 3000) || 3000;
-
-function getRedisTimeoutMs(): number {
-  return DEFAULT_REDIS_TIMEOUT_MS;
-}
-
-function withCacheTimeout<T>(promise: Promise<T>, label: string): Promise<T> {
-  const ms = getRedisTimeoutMs();
-  return Promise.race([
-    promise,
-    new Promise<T>((_, reject) => {
-      setTimeout(() => reject(new Error(`cache timeout (${label}) after ${ms}ms`)), ms);
-    }),
-  ]);
-}
 
 export function getMaxCachePayloadBytes(): number {
   const raw = process.env.CACHE_MAX_PAYLOAD_BYTES?.trim();
@@ -108,25 +99,31 @@ async function createNodeRedisAdapter(url: string): Promise<CacheAdapter> {
     },
   });
   client.on("error", (error) => logCache("redis-error", error));
-  await withCacheTimeout(
-    (async () => {
-      if (!client.isOpen) await client.connect();
-    })(),
-    "redis-connect",
-  );
+  try {
+    await withRedisTimeout(
+      (async () => {
+        if (!client.isOpen) await client.connect();
+      })(),
+      "redis-connect",
+    );
+  } catch (error) {
+    markRedisUnavailable();
+    void client.destroy();
+    throw error;
+  }
 
   return {
     async get(key) {
-      return withCacheTimeout(client.get(key), "redis-get");
+      return withRedisTimeout(client.get(key), "redis-get");
     },
     async set(key, value, ttlSeconds) {
-      await withCacheTimeout(client.set(key, value, { EX: ttlSeconds }), "redis-set");
+      await withRedisTimeout(client.set(key, value, { EX: ttlSeconds }), "redis-set");
     },
     async delete(key) {
-      await withCacheTimeout(client.del(key), "redis-del");
+      await withRedisTimeout(client.del(key), "redis-del");
     },
     async deleteByPattern(pattern) {
-      await withCacheTimeout(
+      await withRedisTimeout(
         (async () => {
           const keys: string[] = [];
           for await (const key of client.scanIterator({ MATCH: pattern, COUNT: 100 })) {
@@ -145,6 +142,7 @@ async function createNodeRedisAdapter(url: string): Promise<CacheAdapter> {
 
 async function createAdapter(): Promise<CacheAdapter | null> {
   if (!cacheEnabled()) return null;
+  if (isRedisCircuitOpen()) return null;
 
   const url = process.env.REDIS_URL?.trim();
   if (!url) return null;
@@ -165,8 +163,9 @@ async function createAdapter(): Promise<CacheAdapter | null> {
 async function getAdapter(): Promise<CacheAdapter | null> {
   if (testAdapter !== undefined) return testAdapter;
   if (!adapterPromise) {
-    adapterPromise = withCacheTimeout(createAdapter(), "adapter").catch((error) => {
+    adapterPromise = withRedisTimeout(createAdapter(), "adapter").catch((error) => {
       logCache("adapter-error", error);
+      markRedisUnavailable();
       adapterPromise = null;
       return null;
     });
@@ -179,7 +178,7 @@ export async function getCache<T>(key: string): Promise<T | null> {
     const adapter = await getAdapter();
     if (!adapter) return null;
 
-    const cached = await withCacheTimeout(adapter.get(key), "get");
+    const cached = await withRedisTimeout(adapter.get(key), "get");
     if (cached == null) {
       logCache("miss", key);
       return null;
@@ -189,6 +188,7 @@ export async function getCache<T>(key: string): Promise<T | null> {
     return JSON.parse(cached) as T;
   } catch (error) {
     logCache("error", { key, error });
+    markRedisUnavailable();
     return null;
   }
 }
@@ -220,6 +220,7 @@ export async function setCache<T>(
     return true;
   } catch (error) {
     logCache("set-error", { key, error });
+    markRedisUnavailable();
     return false;
   }
 }
@@ -231,6 +232,7 @@ export async function deleteCache(key: string): Promise<void> {
     await adapter.delete(key);
   } catch (error) {
     logCache("delete-error", { key, error });
+    markRedisUnavailable();
   }
 }
 
@@ -241,6 +243,7 @@ export async function deleteByPattern(pattern: string): Promise<void> {
     await adapter.deleteByPattern(pattern);
   } catch (error) {
     logCache("delete-pattern-error", { pattern, error });
+    markRedisUnavailable();
   }
 }
 

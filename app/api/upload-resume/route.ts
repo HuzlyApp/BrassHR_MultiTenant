@@ -13,6 +13,8 @@ import { enforceRateLimit, getClientIp } from "@/lib/security/rate-limit"
 
 export const runtime = "nodejs"
 const MAX_RESUME_BYTES = Number(process.env.MAX_RESUME_UPLOAD_BYTES ?? 10 * 1024 * 1024)
+const STORAGE_UPLOAD_TIMEOUT_MS = Number(process.env.RESUME_STORAGE_UPLOAD_TIMEOUT_MS ?? 45_000)
+const RESUME_DB_TIMEOUT_MS = Number(process.env.RESUME_DB_TIMEOUT_MS ?? 6_000)
 const ALLOWED_RESUME_MIME = new Set([
   "application/pdf",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -23,7 +25,7 @@ function sanitizeFileName(name: string): string {
   return name.replace(/[/\\?%*:|"<>]/g, "_").slice(0, 200)
 }
 
-function resolveFileType(file: File): string {
+function resolveFileType(file: Pick<File, "name" | "type">): string {
   const lower = file.name.toLowerCase()
   const mime = (file.type || "").toLowerCase()
   if (mime === "application/pdf" || lower.endsWith(".pdf")) return "pdf"
@@ -37,7 +39,16 @@ function resolveFileType(file: File): string {
   return "unknown"
 }
 
-async function extractText(buffer: Buffer, file: File): Promise<string> {
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => {
+      setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms)
+    }),
+  ])
+}
+
+async function extractText(buffer: Buffer, file: Pick<File, "name" | "type">): Promise<string> {
   const lower = file.name.toLowerCase()
   const mime = (file.type || "").toLowerCase()
 
@@ -118,12 +129,24 @@ export async function POST(req: Request) {
   const objectPath = `${folder}/${randomUUID()}-${sanitizeFileName(file.name)}`
 
   const storageTimer = createTimer()
-  const { error: uploadError } = await supabase.storage
-    .from(WORKER_RESUMES_BUCKET)
-    .upload(objectPath, buffer, {
-      contentType: file.type || "application/octet-stream",
-      upsert: false,
-    })
+  let uploadError: { message?: string } | null = null
+  try {
+    const uploadResult = await withTimeout(
+      supabase.storage
+        .from(WORKER_RESUMES_BUCKET)
+        .upload(objectPath, buffer, {
+          contentType: file.type || "application/octet-stream",
+          upsert: false,
+        }),
+      STORAGE_UPLOAD_TIMEOUT_MS,
+      "Resume storage upload",
+    )
+    uploadError = uploadResult.error
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Resume storage upload timed out"
+    console.error("[upload-resume] storage upload timeout", msg)
+    return NextResponse.json({ error: msg }, { status: 504 })
+  }
   const storageUploadMs = storageTimer.elapsedMs()
 
   if (uploadError) {
@@ -140,73 +163,103 @@ export async function POST(req: Request) {
     fileSizeBytes,
   })
 
-  let text: string
-  const extractionTimer = createTimer()
-  try {
-    text = await extractText(buffer, file)
-  } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : "Could not read resume"
-    return NextResponse.json({ error: msg }, { status: 400 })
-  }
-  const extractionMs = extractionTimer.elapsedMs()
-  const textLength = text.trim().length
-
-  logResumeTiming("upload-resume", "extraction-complete", {
-    extractionMs,
-    textLength,
-    fileType,
-    fileSizeBytes,
-  })
-
   let resumeId: string | null = null
   const parseStartedAt = new Date().toISOString()
 
   if (applicantId) {
     try {
-      await persistWorkerResumePath(supabase, applicantId, objectPath)
+      await withTimeout(
+        persistWorkerResumePath(supabase, applicantId, objectPath),
+        RESUME_DB_TIMEOUT_MS,
+        "Resume path persistence",
+      )
     } catch (e) {
       console.error("[upload-resume] worker_requirements resume_path", e)
     }
     try {
-      resumeId = await persistWorkerResumeRecord(supabase, applicantId, {
-        fileUrl: objectPath,
-        originalFileName: file.name,
-        parsedData: { text },
-        parsingStatus: "processing",
-        textLength,
-        extractionMs,
-        parseStartedAt,
-      })
+      resumeId = await withTimeout(
+        persistWorkerResumeRecord(supabase, applicantId, {
+          fileUrl: objectPath,
+          originalFileName: file.name,
+          parsedData: {},
+          parsingStatus: "processing",
+          parseStartedAt,
+        }),
+        RESUME_DB_TIMEOUT_MS,
+        "Resume record persistence",
+      )
     } catch (e) {
       console.error("[upload-resume] worker_resumes", e)
     }
   }
 
-  if (resumeId && text.trim()) {
-    after(async () => {
-      await runResumeParseJob({ supabase, resumeId: resumeId!, text })
-    })
-  }
+  const fileMeta = { name: file.name, type: file.type || "application/octet-stream" }
+  const capturedResumeId = resumeId
+
+  after(async () => {
+    const extractionTimer = createTimer()
+    try {
+      const text = await extractText(buffer, fileMeta)
+      const extractionMs = extractionTimer.elapsedMs()
+      const textLength = text.trim().length
+
+      logResumeTiming("upload-resume", "extraction-complete", {
+        extractionMs,
+        textLength,
+        fileType,
+        fileSizeBytes,
+        resumeId: capturedResumeId,
+      })
+
+      if (capturedResumeId) {
+        await supabase
+          .from("worker_resumes")
+          .update({
+            parsed_data: { text },
+            text_length: textLength,
+            extraction_ms: extractionMs,
+          })
+          .eq("id", capturedResumeId)
+
+        if (text.trim()) {
+          await runResumeParseJob({ supabase, resumeId: capturedResumeId, text })
+        }
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Could not read resume"
+      console.error("[upload-resume] background extraction", msg)
+      if (capturedResumeId) {
+        await supabase
+          .from("worker_resumes")
+          .update({
+            parsing_status: "failed",
+            parse_error: msg,
+            parse_completed_at: new Date().toISOString(),
+          })
+          .eq("id", capturedResumeId)
+      }
+    }
+  })
 
   const totalMs = routeTimer.elapsedMs()
   logResumeTiming("upload-resume", "response", {
     totalMs,
     storageUploadMs,
-    extractionMs,
-    textLength,
+    extractionMs: 0,
+    textLength: 0,
     fileType,
     fileSizeBytes,
-    resumeId,
-    parseStatus: resumeId ? "processing" : "pending",
+    resumeId: capturedResumeId,
+    parseStatus: capturedResumeId ? "processing" : "pending",
   })
 
   return NextResponse.json({
-    resumeId,
+    resumeId: capturedResumeId,
     fileName: file.name,
     storagePath: objectPath,
-    parseStatus: resumeId ? "processing" : "pending",
+    parseStatus: capturedResumeId ? "processing" : "pending",
     bucket: WORKER_RESUMES_BUCKET,
-    textLength,
-    extractionMs,
+    textLength: 0,
+    extractionMs: 0,
   })
 }

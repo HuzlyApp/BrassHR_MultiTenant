@@ -1,20 +1,12 @@
 import { Redis as UpstashRedis } from "@upstash/redis";
 export { buildCacheKey, CACHE_TTL_SECONDS } from "@/lib/cache-keys";
+import {
+  isRedisCircuitOpen,
+  markRedisUnavailable,
+  withRedisTimeout,
+} from "@/lib/redis-timeout";
 
 const DEFAULT_TTL_SECONDS = Number(process.env.CACHE_DEFAULT_TTL_SECONDS ?? 300) || 300;
-const DEFAULT_REDIS_TIMEOUT_MS = Number(process.env.CACHE_REDIS_TIMEOUT_MS ?? 3000) || 3000;
-
-function withCacheTimeout<T>(promise: Promise<T>, label: string): Promise<T> {
-  return Promise.race([
-    promise,
-    new Promise<T>((_, reject) => {
-      setTimeout(
-        () => reject(new Error(`cache timeout (${label}) after ${DEFAULT_REDIS_TIMEOUT_MS}ms`)),
-        DEFAULT_REDIS_TIMEOUT_MS,
-      );
-    }),
-  ]);
-}
 
 type CacheAdapter = {
   get(key: string): Promise<string | null>;
@@ -48,6 +40,7 @@ async function createUpstashAdapter(url: string, token: string): Promise<CacheAd
 
 async function createAdapter(): Promise<CacheAdapter | null> {
   if (!cacheEnabled()) return null;
+  if (isRedisCircuitOpen()) return null;
 
   const url = process.env.REDIS_URL?.trim();
   const token = process.env.REDIS_TOKEN?.trim();
@@ -58,8 +51,9 @@ async function createAdapter(): Promise<CacheAdapter | null> {
 
 async function getAdapter(): Promise<CacheAdapter | null> {
   if (!adapterPromise) {
-    adapterPromise = withCacheTimeout(createAdapter(), "adapter").catch((error) => {
+    adapterPromise = withRedisTimeout(createAdapter(), "edge-adapter").catch((error) => {
       logCache("adapter-error", error);
+      markRedisUnavailable();
       adapterPromise = null;
       return null;
     });
@@ -75,7 +69,7 @@ export async function getOrSetCache<T>(
   try {
     const adapter = await getAdapter();
     if (adapter) {
-      const cached = await withCacheTimeout(adapter.get(key), "get");
+      const cached = await withRedisTimeout(adapter.get(key), "edge-get");
       if (cached != null) {
         logCache("hit", key);
         return JSON.parse(cached) as T;
@@ -84,16 +78,18 @@ export async function getOrSetCache<T>(
     }
   } catch (error) {
     logCache("error", { key, error });
+    markRedisUnavailable();
   }
 
   const value = await fetcher();
   try {
     const adapter = await getAdapter();
     if (adapter) {
-      await withCacheTimeout(adapter.set(key, JSON.stringify(value), ttlSeconds), "set");
+      await withRedisTimeout(adapter.set(key, JSON.stringify(value), ttlSeconds), "edge-set");
     }
   } catch (error) {
     logCache("set-error", { key, error });
+    markRedisUnavailable();
   }
   return value;
 }

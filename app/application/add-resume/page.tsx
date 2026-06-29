@@ -24,6 +24,51 @@ import {
 import BrandedSvgIcon from "@/app/components/BrandedSvgIcon"
 import BrandedUploadIcon from "@/app/components/BrandedUploadIcon"
 
+const APPLICANT_SESSION_TIMEOUT_MS = 15_000
+const RESUME_UPLOAD_TIMEOUT_MS = 45_000
+const WORKER_REQUIREMENTS_TIMEOUT_MS = 10_000
+const UPLOAD_WATCHDOG_TIMEOUT_MS = 60_000
+
+function timeoutError(message: string) {
+  return new Error(message)
+}
+
+function promiseWithTimeout<T>(
+  promise: Promise<T>,
+  ms: number,
+  message: string,
+): Promise<T> {
+  let timer: number | undefined
+  return Promise.race([
+    promise.finally(() => {
+      if (timer) window.clearTimeout(timer)
+    }),
+    new Promise<T>((_, reject) => {
+      timer = window.setTimeout(() => reject(timeoutError(message)), ms)
+    }),
+  ])
+}
+
+async function fetchWithTimeout(
+  input: RequestInfo | URL,
+  init: RequestInit,
+  ms: number,
+  message: string,
+): Promise<Response> {
+  const controller = new AbortController()
+  const timer = window.setTimeout(() => controller.abort(timeoutError(message)), ms)
+  try {
+    return await fetch(input, { ...init, signal: controller.signal })
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw timeoutError(message)
+    }
+    throw error
+  } finally {
+    window.clearTimeout(timer)
+  }
+}
+
 export default function Step1Upload() {
   const branding = useTenantBranding()
   const shellStyle: CSSProperties = {
@@ -66,6 +111,7 @@ export default function Step1Upload() {
   const [file, setFile] = useState<File | null>(null)
   const [dragActive, setDragActive] = useState(false)
   const [uploading, setUploading] = useState(false)
+  const [uploadPhase, setUploadPhase] = useState("Uploading resume...")
   const [parseStatus, setParseStatus] = useState<string | null>(null)
   const [parseError, setParseError] = useState<string | null>(null)
   const [fileRequiredError, setFileRequiredError] = useState<string | null>(null)
@@ -85,6 +131,18 @@ export default function Step1Upload() {
       setFileRequiredError(null)
     }
   }, [file, savedResumeName])
+
+  useEffect(() => {
+    if (!uploading) return
+    const timer = window.setTimeout(() => {
+      setUploading(false)
+      setUploadPhase("Uploading resume...")
+      setParseError(
+        `Resume upload is taking too long while ${uploadPhase.toLowerCase()}. Please try again.`
+      )
+    }, UPLOAD_WATCHDOG_TIMEOUT_MS)
+    return () => window.clearTimeout(timer)
+  }, [uploading, uploadPhase])
 
   function formatBytes(bytes: number | null) {
     if (!bytes && bytes !== 0) return ""
@@ -218,26 +276,42 @@ export default function Step1Upload() {
 
     ;(async () => {
       setUploading(true)
+      setUploadPhase("Preparing applicant session...")
       setParseError(null)
       setParseStatus(null)
       try {
+        const { ensureApplicantMatchesAuthSession } = await import(
+          "@/lib/onboarding/ensure-applicant-auth"
+        )
+        const session = await promiseWithTimeout(
+          ensureApplicantMatchesAuthSession(),
+          APPLICANT_SESSION_TIMEOUT_MS,
+          "Applicant session setup timed out. Please refresh and try again.",
+        )
+        if ("error" in session) {
+          throw new Error(session.error)
+        }
+
+        setUploadPhase("Uploading resume...")
         const fd = new FormData()
         fd.append("file", file)
-        const applicantId =
-          typeof window !== "undefined"
-            ? localStorage.getItem("applicantId")
-            : null
-        if (applicantId) {
-          fd.append("applicantId", applicantId)
-        }
-        const uploadRes = await fetch("/api/upload-resume", {
-          method: "POST",
-          body: fd,
-        })
+        fd.append("applicantId", session.applicantId)
+        localStorage.setItem("applicantId", session.applicantId)
+
+        const uploadRes = await fetchWithTimeout(
+          "/api/upload-resume",
+          {
+            method: "POST",
+            body: fd,
+          },
+          RESUME_UPLOAD_TIMEOUT_MS,
+          "Upload timed out. Please check your connection and try again.",
+        )
         if (!uploadRes.ok) {
           const data = await uploadRes.json().catch(() => ({}))
           throw new Error(data?.error || "Failed to upload resume")
         }
+        setUploadPhase("Saving upload details...")
         const uploadJson = (await uploadRes.json()) as {
           fileName?: string
           storagePath?: string
@@ -247,18 +321,21 @@ export default function Step1Upload() {
 
         if (uploadJson.storagePath) {
           localStorage.setItem("resumeStoragePath", uploadJson.storagePath)
-          if (applicantId) {
-            await fetch("/api/onboarding/worker-requirements", {
+          void fetchWithTimeout(
+            "/api/onboarding/worker-requirements",
+            {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
-                applicantId,
+                applicantId: session.applicantId,
                 resume_path: uploadJson.storagePath,
               }),
-            }).catch(() => {
-              // Non-blocking: continue onboarding even if this sync fails.
-            })
-          }
+            },
+            WORKER_REQUIREMENTS_TIMEOUT_MS,
+            "Resume sync timed out.",
+          ).catch(() => {
+            // Non-blocking: continue onboarding even if this sync fails.
+          })
         }
 
         if (uploadJson.resumeId) {
@@ -273,21 +350,20 @@ export default function Step1Upload() {
         localStorage.setItem("step1ReviewCompleted", "false")
         setParseStatus(uploadJson.parseStatus ?? "processing")
 
-        const { ensureApplicantMatchesAuthSession } = await import(
-          "@/lib/onboarding/ensure-applicant-auth"
+        setUploadPhase("Finishing...")
+        void import("@/lib/onboarding/ensure-applicant-worker").then(({ ensureApplicantWorker }) =>
+          ensureApplicantWorker().catch(() => {
+            /* resume-upload-success will retry */
+          }),
         )
-        const { ensureApplicantWorker } = await import("@/lib/onboarding/ensure-applicant-worker")
-        await ensureApplicantMatchesAuthSession()
-        await ensureApplicantWorker().catch(() => {
-          /* best-effort; resume-upload-success will retry */
-        })
+
         router.push(applicationPath(APPLICATION_ROUTES.resumeUploadSuccess))
       } catch (e) {
         const msg = e instanceof Error ? e.message : "Failed to upload resume"
         setParseError(msg)
-        setFile((prev) => prev) // keep selection
       } finally {
         setUploading(false)
+        setUploadPhase("Uploading resume...")
       }
     })()
   }
@@ -527,7 +603,7 @@ export default function Step1Upload() {
       </div>
 
       {uploading ? (
-        <OnboardingLoader overlay label="Uploading resume..." />
+        <OnboardingLoader overlay label={uploadPhase} />
       ) : null}
     </div>
   )

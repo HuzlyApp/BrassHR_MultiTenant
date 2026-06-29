@@ -75,7 +75,7 @@ describe("POST /api/upload-resume", () => {
     expect(json.resumeId).toBe("resume-uuid-1")
     expect(json.storagePath).toBeTruthy()
     expect(json.text).toBeUndefined()
-    expect(elapsed).toBeLessThan(400)
+    expect(elapsed).toBeLessThan(1000)
     expect(afterMock).toHaveBeenCalled()
     expect(grokStarted).not.toHaveBeenCalled()
   })

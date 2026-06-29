@@ -26,6 +26,7 @@ export async function ensureApplicantMatchesAuthSession(
     try {
       const continuationRes = await fetch("/api/onboarding/continuation-session", {
         cache: "no-store",
+        signal: AbortSignal.timeout(10_000),
       });
       if (continuationRes.ok) {
         const continuation = (await continuationRes.json()) as {
