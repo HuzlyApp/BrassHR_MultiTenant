@@ -77,6 +77,7 @@ export default function Home() {
           : `/api/tenant-branding?slug=${encodeURIComponent(brandingSlug)}`;
         const res = await fetch(brandingUrl, {
           cache: "no-store",
+          signal: AbortSignal.timeout(12_000),
         });
         const payload = (await res.json()) as { branding?: TenantBranding };
         if (alive && payload.branding) setBrand(payload.branding);
@@ -86,8 +87,12 @@ export default function Home() {
         if (alive) setBrandLoaded(true);
       }
     })();
+    const safetyTimer = window.setTimeout(() => {
+      if (alive) setBrandLoaded(true);
+    }, 15_000);
     return () => {
       alive = false;
+      window.clearTimeout(safetyTimer);
     };
   }, []);
 
@@ -123,7 +128,9 @@ export default function Home() {
   if (!brandLoaded) {
     return (
       <TenantBrandingProvider branding={brand}>
-        <div className="min-h-screen bg-white" />
+        <div className="flex min-h-screen items-center justify-center bg-white">
+          <p className="text-sm text-slate-500">Loading…</p>
+        </div>
       </TenantBrandingProvider>
     );
   }

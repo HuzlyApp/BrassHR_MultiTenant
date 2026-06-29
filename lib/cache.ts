@@ -24,6 +24,21 @@ export {
 
 const DEFAULT_TTL_SECONDS = Number(process.env.CACHE_DEFAULT_TTL_SECONDS ?? 300) || 300;
 const DEFAULT_MAX_PAYLOAD_BYTES = 100 * 1024;
+const DEFAULT_REDIS_TIMEOUT_MS = Number(process.env.CACHE_REDIS_TIMEOUT_MS ?? 3000) || 3000;
+
+function getRedisTimeoutMs(): number {
+  return DEFAULT_REDIS_TIMEOUT_MS;
+}
+
+function withCacheTimeout<T>(promise: Promise<T>, label: string): Promise<T> {
+  const ms = getRedisTimeoutMs();
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => {
+      setTimeout(() => reject(new Error(`cache timeout (${label}) after ${ms}ms`)), ms);
+    }),
+  ]);
+}
 
 export function getMaxCachePayloadBytes(): number {
   const raw = process.env.CACHE_MAX_PAYLOAD_BYTES?.trim();
@@ -84,29 +99,46 @@ async function createUpstashAdapter(url: string, token: string): Promise<CacheAd
 
 async function createNodeRedisAdapter(url: string): Promise<CacheAdapter> {
   const { createClient } = await import("redis");
-  const client = createClient({ url });
+  const connectMs = getRedisTimeoutMs();
+  const client = createClient({
+    url,
+    socket: {
+      connectTimeout: connectMs,
+      reconnectStrategy: (retries) => (retries > 2 ? false : Math.min(retries * 200, 1000)),
+    },
+  });
   client.on("error", (error) => logCache("redis-error", error));
-  if (!client.isOpen) await client.connect();
+  await withCacheTimeout(
+    (async () => {
+      if (!client.isOpen) await client.connect();
+    })(),
+    "redis-connect",
+  );
 
   return {
     async get(key) {
-      return client.get(key);
+      return withCacheTimeout(client.get(key), "redis-get");
     },
     async set(key, value, ttlSeconds) {
-      await client.set(key, value, { EX: ttlSeconds });
+      await withCacheTimeout(client.set(key, value, { EX: ttlSeconds }), "redis-set");
     },
     async delete(key) {
-      await client.del(key);
+      await withCacheTimeout(client.del(key), "redis-del");
     },
     async deleteByPattern(pattern) {
-      const keys: string[] = [];
-      for await (const key of client.scanIterator({ MATCH: pattern, COUNT: 100 })) {
-        keys.push(String(key));
-        if (keys.length >= 100) {
-          await client.del(keys.splice(0, keys.length));
-        }
-      }
-      if (keys.length > 0) await client.del(keys);
+      await withCacheTimeout(
+        (async () => {
+          const keys: string[] = [];
+          for await (const key of client.scanIterator({ MATCH: pattern, COUNT: 100 })) {
+            keys.push(String(key));
+            if (keys.length >= 100) {
+              await client.del(keys.splice(0, keys.length));
+            }
+          }
+          if (keys.length > 0) await client.del(keys);
+        })(),
+        "redis-scan-del",
+      );
     },
   };
 }
@@ -133,8 +165,9 @@ async function createAdapter(): Promise<CacheAdapter | null> {
 async function getAdapter(): Promise<CacheAdapter | null> {
   if (testAdapter !== undefined) return testAdapter;
   if (!adapterPromise) {
-    adapterPromise = createAdapter().catch((error) => {
+    adapterPromise = withCacheTimeout(createAdapter(), "adapter").catch((error) => {
       logCache("adapter-error", error);
+      adapterPromise = null;
       return null;
     });
   }
@@ -146,7 +179,7 @@ export async function getCache<T>(key: string): Promise<T | null> {
     const adapter = await getAdapter();
     if (!adapter) return null;
 
-    const cached = await adapter.get(key);
+    const cached = await withCacheTimeout(adapter.get(key), "get");
     if (cached == null) {
       logCache("miss", key);
       return null;
