@@ -65,6 +65,13 @@ const PIPELINE_STATUSES = new Set<WorkerStatus>([
   "disapproved",
 ]);
 
+/** Recruiter pipeline stages stored only in text `status` — not the legacy enum. */
+const PIPELINE_TEXT_ONLY = new Set<WorkerStatus>([
+  "pending",
+  "approved",
+  "disapproved",
+]);
+
 /** Legacy employment labels stored in text `status` — not recruiter pipeline stages. */
 const EMPLOYMENT_ONLY_STATUSES = new Set<WorkerStatus>([
   "active",
@@ -72,6 +79,32 @@ const EMPLOYMENT_ONLY_STATUSES = new Set<WorkerStatus>([
   "cancelled",
   "banned",
 ]);
+
+function statusQueryAttempts(
+  status: WorkerStatus | null,
+  pipelineStatus: boolean,
+  pipelineSelectExtra: string
+): Array<{ col: "status" | "worker_status"; extra: string }> {
+  if (pipelineStatus) {
+    if (status && PIPELINE_TEXT_ONLY.has(status)) {
+      return [{ col: "status", extra: pipelineSelectExtra }];
+    }
+    return [
+      { col: "status", extra: pipelineSelectExtra },
+      { col: "worker_status", extra: pipelineSelectExtra },
+    ];
+  }
+  if (status && EMPLOYMENT_ONLY_STATUSES.has(status)) {
+    return [
+      { col: "worker_status", extra: pipelineSelectExtra },
+      { col: "status", extra: pipelineSelectExtra },
+    ];
+  }
+  return [
+    { col: "status", extra: pipelineSelectExtra },
+    { col: "worker_status", extra: "worker_status" },
+  ];
+}
 
 /** Prefer text `status` (recruiter pipeline); fall back to enum `worker_status`. */
 function resolveWorkerDisplayStatus(row: Record<string, unknown>): string | null {
@@ -131,6 +164,16 @@ export async function GET(req: Request) {
       return typeof err.message === "string" && err.message.includes(" does not exist");
     };
 
+    const isInvalidEnumErr = (e: unknown) => {
+      const err = e as { code?: string; message?: string } | null;
+      if (!err) return false;
+      if (err.code === "22P02") return true;
+      return (
+        typeof err.message === "string" &&
+        err.message.includes("invalid input value for enum")
+      );
+    };
+
     for (const key of keys) {
       const supabase = createClient(url, key);
       const baseColsOptions =
@@ -154,16 +197,7 @@ export async function GET(req: Request) {
         status === "approved" ||
         status === "disapproved";
       const pipelineSelectExtra = "status, worker_status";
-      const attempts = pipelineStatus
-        ? [
-            { col: "status" as const, extra: pipelineSelectExtra },
-            { col: "worker_status" as const, extra: pipelineSelectExtra },
-          ]
-        : [
-            // "All" must load pipeline `status` (where approvals are stored), not only `worker_status`.
-            { col: "status" as const, extra: pipelineSelectExtra },
-            { col: "worker_status" as const, extra: "worker_status" as const },
-          ];
+      const attempts = statusQueryAttempts(status, pipelineStatus, pipelineSelectExtra);
 
       let data: unknown[] | null = null;
       let error: SbErr | null = null;
@@ -206,7 +240,7 @@ export async function GET(req: Request) {
               };
               data = null;
               count = null;
-              if (!isMissingColumnErr(error)) break outer;
+              if (!isMissingColumnErr(error) && !isInvalidEnumErr(error)) break outer;
               continue;
             }
 
@@ -255,9 +289,10 @@ export async function GET(req: Request) {
               ? (count ?? 0) > 0
               : ((data as unknown[] | null)?.length ?? 0) > 0;
             if (hasResults) break outer;
+            if (status && PIPELINE_TEXT_ONLY.has(status)) break outer;
             continue;
           }
-          if (!isMissingColumnErr(error)) break outer;
+          if (!isMissingColumnErr(error) && !isInvalidEnumErr(error)) break outer;
         }
       }
 
