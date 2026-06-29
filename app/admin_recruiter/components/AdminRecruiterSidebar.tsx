@@ -24,6 +24,7 @@ import {
   getOrganizationDisplayName,
 } from "@/lib/account/display-name";
 import { useEffectiveBranding } from "@/lib/admin/hooks/use-effective-branding";
+import { supabaseBrowser } from "@/lib/supabase-browser";
 
 const SIDEBAR_EXPANDED_WIDTH = 272;
 const SIDEBAR_COLLAPSED_WIDTH = 80;
