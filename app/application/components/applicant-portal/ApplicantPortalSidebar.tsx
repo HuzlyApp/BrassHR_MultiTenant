@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { X } from "lucide-react";
 import { SidebarSubmenuToggleIcon } from "@/app/components/sidebar/SidebarSubmenuToggleIcon";
@@ -26,7 +26,7 @@ const DEFAULT_LOGO = "/images/new-logo-nexus.svg";
 
 function parentWithSubmenuRowClass(disabled = false): string {
   const base =
-    "group relative flex min-h-[36px] w-full items-center gap-2 overflow-hidden rounded-md pl-2 pr-0 py-1 text-[color:var(--brand-primary)]";
+    "group relative flex min-h-[36px] w-full cursor-pointer items-center gap-2 overflow-hidden rounded-md border-0 bg-transparent pl-2 pr-0 py-1 text-left text-[color:var(--brand-primary)]";
   return disabled ? `${base} opacity-60` : `${base} transition hover:bg-white`;
 }
 
@@ -82,6 +82,8 @@ export function ApplicantPortalSidebar({
   const { profilePhotoUrl } = useApplicantPortal();
   const router = useRouter();
   const pathname = usePathname() ?? "";
+  const searchParams = useSearchParams();
+  const scheduleViewParam = searchParams?.get("view");
   const [logoSrc, setLogoSrc] = useState(
     normalizeBrandingImageSrc(branding.logoUrl, DEFAULT_LOGO, { allowBlob: true })
   );
@@ -100,12 +102,23 @@ export function ApplicantPortalSidebar({
     onMobileClose?.();
   };
 
-  const isLinkActive = (link: Pick<WorkerSidebarLink, "matchPrefixes" | "matchExact">) =>
-    link.matchPrefixes.some((prefix) =>
+  const isLinkActive = (link: WorkerSidebarLink) => {
+    const pathMatches = link.matchPrefixes.some((prefix) =>
       link.matchExact
         ? pathname === prefix || pathname === `${prefix}/`
         : pathname === prefix || pathname.startsWith(`${prefix}/`)
     );
+    if (!pathMatches) return false;
+
+    if (link.scheduleView === "calendar") {
+      return scheduleViewParam === "calendar";
+    }
+    if (link.scheduleView === "attendance") {
+      return scheduleViewParam !== "calendar";
+    }
+
+    return true;
+  };
 
   const isSectionPathActive = (section: Pick<WorkerSidebarSection, "matchPrefixes" | "matchExact">) =>
     section.matchPrefixes.some((prefix) =>
@@ -141,7 +154,7 @@ export function ApplicantPortalSidebar({
             })) ?? [],
         };
       }),
-    [pathname]
+    [pathname, scheduleViewParam]
   );
 
   useEffect(() => {
@@ -151,7 +164,7 @@ export function ApplicantPortalSidebar({
     ).map((section) => section.label);
     if (activeParents.length === 0) return;
     setOpenSectionLabels((prev) => Array.from(new Set([...prev, ...activeParents])));
-  }, [pathname]);
+  }, [pathname, scheduleViewParam]);
 
   useEffect(() => {
     const nav = navRef.current;
@@ -264,30 +277,31 @@ export function ApplicantPortalSidebar({
         {renderedSections.map((section) => (
           <div key={section.label} className="mb-1">
             {section.children?.length && !isCollapsed ? (
-              <div className={parentWithSubmenuRowClass(Boolean(section.disabled))}>
-                <div
-                  title={section.disabled ? `${section.label} (Coming soon)` : section.label}
-                  className="flex min-w-0 flex-1 items-center gap-3"
-                >
+              <button
+                type="button"
+                title={section.disabled ? `${section.label} (Coming soon)` : section.label}
+                onClick={() => toggleSectionOpen(section.label)}
+                onMouseDown={(event) => event.preventDefault()}
+                className={parentWithSubmenuRowClass(Boolean(section.disabled))}
+                aria-expanded={isSectionOpen(section)}
+                aria-label={`${isSectionOpen(section) ? "Collapse" : "Expand"} ${section.label}`}
+              >
+                <div className="flex min-w-0 flex-1 items-center gap-3">
                   <SidebarNavIcon iconType={section.iconType} active={section.childActive} />
                   <span className="truncate font-normal text-[14px] leading-5 tracking-normal">
                     {section.label}
                   </span>
                 </div>
-                <button
-                  type="button"
-                  title={`${isSectionOpen(section) ? "Collapse" : "Expand"} ${section.label}`}
-                  onClick={() => toggleSectionOpen(section.label)}
-                  onMouseDown={(event) => event.preventDefault()}
-                  className="ml-auto flex h-6 w-6 items-center justify-center rounded-md text-[color:var(--brand-primary)] transition hover:bg-white/70"
-                  aria-label={`${isSectionOpen(section) ? "Collapse" : "Expand"} ${section.label}`}
+                <span
+                  className="ml-auto flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[color:var(--brand-primary)]"
+                  aria-hidden
                 >
                   <SidebarSubmenuToggleIcon open={isSectionOpen(section)} />
-                </button>
+                </span>
                 {section.showIndicator ? (
                   <span aria-hidden className="worker-sidebar-active-indicator" />
                 ) : null}
-              </div>
+              </button>
             ) : section.children?.length && isCollapsed ? (
               <div
                 title={section.label}

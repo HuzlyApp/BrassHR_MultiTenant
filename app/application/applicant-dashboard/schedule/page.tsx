@@ -36,6 +36,10 @@ type BrowserLocation = {
   permissionStatus: "granted";
 };
 
+function parseScheduleView(value: string | null): "calendar" | "attendance" {
+  return value === "calendar" ? "calendar" : "attendance";
+}
+
 function parseTab(value: string | null): ApplicantPortalTab {
   if (value === "notes") return value;
   return "schedule";
@@ -56,6 +60,7 @@ function ApplicantSchedulePageContent() {
   const [activeTab, setActiveTab] = useState<ApplicantPortalTab>(() =>
     parseTab(searchParams.get("tab"))
   );
+  const scheduleView = parseScheduleView(searchParams.get("view"));
   const [availableSlots, setAvailableSlots] = useState<AppointmentSlot[]>([]);
   const [appointment, setAppointment] = useState<Appointment | null>(null);
   const [selectedSlot, setSelectedSlot] = useState<AppointmentSlot | null>(null);
@@ -317,6 +322,7 @@ function ApplicantSchedulePageContent() {
           onRequestSchedule={handleRequestSchedule}
           onRequestReschedule={handleRequestReschedule}
           onAttendanceAction={handleAttendanceAction}
+          scheduleView={scheduleView}
         />
       ) : (
         <ApplicantNotesTab notes={notes} loading={notesLoading} />

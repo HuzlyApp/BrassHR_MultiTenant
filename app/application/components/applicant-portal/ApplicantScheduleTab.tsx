@@ -46,6 +46,7 @@ type Props = {
   onRequestSchedule: (event: FormEvent<HTMLFormElement>) => void;
   onRequestReschedule: (event: FormEvent<HTMLFormElement>) => void;
   onAttendanceAction: (action: "clock_in" | "clock_out") => void;
+  scheduleView?: "calendar" | "attendance";
 };
 
 const EMPTY_SCHEDULE_MESSAGE = "There is nothing scheduled today.";
@@ -115,8 +116,10 @@ export function ApplicantScheduleTab({
   onRequestSchedule,
   onRequestReschedule,
   onAttendanceAction,
+  scheduleView = "attendance",
 }: Props) {
   const [now, setNow] = useState(() => Date.now());
+  const isCalendarView = scheduleView === "calendar";
   const currentSession = activeAttendance ?? todayAttendance;
   const isClockedIn = activeAttendance?.status === "clocked_in";
   const isCompleted = !isClockedIn && todayAttendance?.status === "clocked_out";
@@ -154,19 +157,27 @@ export function ApplicantScheduleTab({
   const hasUpcomingSchedules = upcomingAppointments.length > 0;
   const hasUpcomingAppointment = Boolean(appointment);
 
+  useEffect(() => {
+    if (!isCalendarView) return;
+    const calendarSection = document.getElementById("worker-schedule-calendar");
+    calendarSection?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [isCalendarView]);
+
   return (
     <div className="px-8 pb-8 pt-5">
       <div className={`${WORKER_SCHEDULE_CARD_CLASS} p-5`}>
         <div>
           <h1 className={WORKER_SCHEDULE_TITLE_CLASS} style={WORKER_SCHEDULE_TITLE_STYLE}>
-            Schedules
+            {isCalendarView ? "Calendar" : "Attendance"}
           </h1>
           <p className={WORKER_SCHEDULE_SUBTITLE_CLASS} style={WORKER_SCHEDULE_SUBTITLE_STYLE}>
-            Manage Schedules &amp; Appointments
+            {isCalendarView
+              ? "View & request appointments"
+              : "Clock in, clock out & track your day"}
           </p>
         </div>
 
-        <div className="mt-5 grid gap-5 lg:grid-cols-3">
+        <div id="worker-schedule-attendance" className="mt-5 grid gap-5 lg:grid-cols-3">
           <div className={WORKER_SCHEDULE_CARD_CLASS}>
             <SectionHeader icon={<WorkerBrandedIcon src={WORKER_ICONS.timer} />} title="Timer" />
             <div className="flex flex-col items-center px-4 py-6">
@@ -272,7 +283,7 @@ export function ApplicantScheduleTab({
           )}
         </div>
 
-        <div className={`${WORKER_SCHEDULE_CARD_CLASS} mt-5`}>
+        <div id="worker-schedule-calendar" className={`${WORKER_SCHEDULE_CARD_CLASS} mt-5`}>
           <SectionHeader icon={<WorkerBrandedIcon src={WORKER_ICONS.timer} />} title="Schedules" />
 
           <ScheduleTableSection

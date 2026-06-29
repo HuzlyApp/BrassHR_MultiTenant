@@ -6,6 +6,8 @@ export type WorkerSidebarLink = {
   matchPrefixes: string[];
   matchExact?: boolean;
   disabled?: boolean;
+  /** When set on schedule routes, only active for that view (?view=calendar vs attendance default). */
+  scheduleView?: "calendar" | "attendance";
 };
 
 export type WorkerSidebarSection = {
@@ -37,6 +39,9 @@ const ICON = {
 } as const satisfies Record<string, SidebarIconType>;
 
 const PORTAL_HOME = "/application/applicant-dashboard";
+const SCHEDULE_HOME = `${PORTAL_HOME}/schedule`;
+const TIMESHEETS_HOME = `${SCHEDULE_HOME}/timesheets`;
+const SCHEDULE_ACTIVE_PREFIXES = [SCHEDULE_HOME, TIMESHEETS_HOME];
 
 const MY_SHIFTS_CHILDREN: WorkerSidebarLink[] = [
   { label: "Active Shifts", href: "#", matchPrefixes: [], disabled: true },
@@ -45,9 +50,26 @@ const MY_SHIFTS_CHILDREN: WorkerSidebarLink[] = [
 ];
 
 const MY_SCHEDULE_CHILDREN: WorkerSidebarLink[] = [
-  { label: "Calendar", href: "#", matchPrefixes: [], disabled: true },
-  { label: "Attendance", href: "#", matchPrefixes: [], disabled: true },
-  { label: "Time Tracking", href: "#", matchPrefixes: [], disabled: true },
+  {
+    label: "Calendar",
+    href: `${SCHEDULE_HOME}?view=calendar`,
+    matchPrefixes: [SCHEDULE_HOME],
+    matchExact: true,
+    scheduleView: "calendar",
+  },
+  {
+    label: "Attendance",
+    href: SCHEDULE_HOME,
+    matchPrefixes: [SCHEDULE_HOME],
+    matchExact: true,
+    scheduleView: "attendance",
+  },
+  {
+    label: "Time Tracking",
+    href: TIMESHEETS_HOME,
+    matchPrefixes: [TIMESHEETS_HOME],
+    matchExact: true,
+  },
 ];
 
 const PAYROLL_CHILDREN: WorkerSidebarLink[] = [
@@ -111,10 +133,9 @@ export const WORKER_SIDEBAR_SECTIONS: WorkerSidebarSection[] = [
   },
   {
     label: "My Schedule",
-    href: "#",
+    href: SCHEDULE_HOME,
     iconType: ICON.schedule,
-    matchPrefixes: [],
-    disabled: true,
+    matchPrefixes: SCHEDULE_ACTIVE_PREFIXES,
     children: MY_SCHEDULE_CHILDREN,
   },
   {

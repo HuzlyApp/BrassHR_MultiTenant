@@ -290,15 +290,20 @@ export function AdminRecruiterSidebar({
           <div key={section.label} className={`mb-1 ${isMobileRail || isCollapsed ? "w-full" : ""}`}>
             {section.children?.length ? (
               <>
-                <div
-                  className={`group relative flex min-h-[36px] w-full items-center gap-2 overflow-hidden rounded-md text-[color:var(--brand-primary)] ${
+                <button
+                  type="button"
+                  title={section.disabled ? `${section.label} (Coming soon)` : section.label}
+                  onClick={(event) => handleSectionToggleClick(section.label, event)}
+                  onMouseDown={(event) => event.preventDefault()}
+                  className={`group relative flex min-h-[36px] w-full cursor-pointer items-center gap-2 overflow-hidden rounded-md border-0 bg-transparent text-left text-[color:var(--brand-primary)] transition hover:bg-white ${
                     isCollapsed || isMobileRail
                       ? collapsedRowClass(isCollapsed, isMobileRail)
                       : "pl-2 pr-0 py-1"
                   }`}
+                  aria-expanded={isSectionOpen(section)}
+                  aria-label={`${isSectionOpen(section) ? "Collapse" : "Expand"} ${section.label}`}
                 >
                   <div
-                    title={section.disabled ? `${section.label} (Coming soon)` : section.label}
                     className={`flex min-w-0 flex-1 items-center gap-3 ${
                       isCollapsed || isMobileRail ? "justify-center" : ""
                     }`}
@@ -311,18 +316,14 @@ export function AdminRecruiterSidebar({
                     ) : null}
                   </div>
                   {!isCollapsed && !isMobileRail ? (
-                    <button
-                      type="button"
-                      title={`${isSectionOpen(section) ? "Collapse" : "Expand"} ${section.label}`}
-                      onClick={(event) => handleSectionToggleClick(section.label, event)}
-                      onMouseDown={(event) => event.preventDefault()}
-                      className="ml-auto flex h-6 w-6 items-center justify-center rounded-md text-[color:var(--brand-primary)] transition hover:bg-white/70"
-                      aria-label={`${isSectionOpen(section) ? "Collapse" : "Expand"} ${section.label}`}
+                    <span
+                      className="ml-auto flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[color:var(--brand-primary)]"
+                      aria-hidden
                     >
                       <SidebarSubmenuToggleIcon open={isSectionOpen(section)} />
-                    </button>
+                    </span>
                   ) : null}
-                </div>
+                </button>
 
                 {!isCollapsed && !isMobileRail && isSectionOpen(section) ? (
                   <div className="admin-recruiter-sidebar-submenu space-y-0.5">
