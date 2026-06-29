@@ -300,7 +300,7 @@ function ApplicantChatClientContent() {
                 workerName={workerName}
               />
             </>
-          ) : selectedGroup ? (
+          ) : selectedGroup && applicantWorkerId ? (
             <>
               <ChatHeader
                 title={selectedGroup.name}

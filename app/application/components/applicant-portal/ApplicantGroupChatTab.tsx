@@ -394,7 +394,7 @@ export function ApplicantGroupChatTab() {
           </aside>
         ) : null}
         <div className="flex min-w-0 flex-1 flex-col">
-          {selectedGroup ? (
+          {selectedGroup && applicantWorkerId ? (
             <ApplicantGroupConversation
               groupId={selectedGroup.id}
               groupName={selectedGroup.name}
