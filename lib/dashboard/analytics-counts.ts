@@ -1,14 +1,16 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+type HeadFilterBuilder = ReturnType<ReturnType<SupabaseClient["from"]>["select"]>;
+
 type CountResult = { count: number; error: unknown | null };
 
 async function headCount(
   supabase: SupabaseClient,
   table: string,
-  apply: (q: ReturnType<SupabaseClient["from"]>) => ReturnType<SupabaseClient["from"]>,
+  apply: (q: HeadFilterBuilder) => HeadFilterBuilder,
 ): Promise<CountResult> {
   let q = supabase.from(table).select("*", { count: "exact", head: true });
-  q = apply(q) as typeof q;
+  q = apply(q);
   const { count, error } = await q;
   return { count: count ?? 0, error };
 }
@@ -16,7 +18,7 @@ async function headCount(
 export async function countWorkersByTenant(
   supabase: SupabaseClient,
   tenantId: string,
-  apply?: (q: ReturnType<SupabaseClient["from"]>) => ReturnType<SupabaseClient["from"]>,
+  apply?: (q: HeadFilterBuilder) => HeadFilterBuilder,
 ): Promise<number> {
   const { count, error } = await headCount(supabase, "worker", (q) => {
     let next = q.eq("tenant_id", tenantId);
@@ -57,7 +59,7 @@ export async function countTableByTenant(
   supabase: SupabaseClient,
   table: string,
   tenantId: string,
-  apply?: (q: ReturnType<SupabaseClient["from"]>) => ReturnType<SupabaseClient["from"]>,
+  apply?: (q: HeadFilterBuilder) => HeadFilterBuilder,
 ): Promise<number> {
   const { count, error } = await headCount(supabase, table, (q) => {
     let next = q.eq("tenant_id", tenantId);

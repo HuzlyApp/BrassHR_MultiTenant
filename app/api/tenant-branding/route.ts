@@ -1,4 +1,4 @@
-import { createClient as createSb } from "@supabase/supabase-js";
+import { createClient as createSb, type SupabaseClient } from "@supabase/supabase-js";
 import type { TenantBrandingRow } from "@/lib/tenant/tenant-branding";
 import { brandingFromTenantRow, PLATFORM_DEFAULT_TENANT_SLUG } from "@/lib/tenant/tenant-branding";
 import { getConfiguredDefaultTenantId } from "@/lib/tenant/resolve-default-tenant-id";
@@ -8,7 +8,7 @@ import { buildCacheKey, CACHE_TTL_SECONDS, getOrSetCache } from "@/lib/cache";
 import { createPerfTimer, logPerf } from "@/lib/perf";
 
 async function loadTenantBrandingRow(
-  supabase: ReturnType<typeof createSb>,
+  supabase: SupabaseClient,
   lookup: { kind: "slug" | "tenantId" | "subdomain" | "default"; value: string },
 ): Promise<{ row: TenantBrandingRow | null; resolvedSlug: string | null }> {
   const cacheKey = buildCacheKey("tenant_branding", [lookup.kind, lookup.value], {

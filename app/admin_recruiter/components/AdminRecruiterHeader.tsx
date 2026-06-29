@@ -20,6 +20,7 @@ import { supabaseBrowser } from "@/lib/supabase-browser";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import {
   formatMessageTime,
+  type ApplicantMessageListRow,
   type StaffConversation,
 } from "@/lib/messaging/staff-conversations";
 import { useApplicantConversationsRealtime } from "@/lib/messaging/useApplicantConversationsRealtime";
@@ -89,7 +90,7 @@ export function AdminRecruiterHeader({
   }, [showMessages, showProfileMenu]);
 
   const handleConversationInsert = useCallback(
-    (message: Parameters<typeof upsertConversationFromMessage>[1]) => {
+    (_message: ApplicantMessageListRow) => {
       void refetchConversations();
     },
     [refetchConversations]
