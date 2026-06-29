@@ -44,28 +44,15 @@ const MY_SHIFTS_CHILDREN: WorkerSidebarLink[] = [
   { label: "Interviews", href: "#", matchPrefixes: [], disabled: true },
 ];
 
-const SCHEDULE_HOME = "/application/applicant-dashboard/schedule";
-const SCHEDULE_TIMESHEETS = `${SCHEDULE_HOME}/timesheets`;
-
 const MY_SCHEDULE_CHILDREN: WorkerSidebarLink[] = [
   { label: "Calendar", href: "#", matchPrefixes: [], disabled: true },
-  {
-    label: "Timesheets",
-    href: SCHEDULE_TIMESHEETS,
-    matchPrefixes: [SCHEDULE_TIMESHEETS],
-    matchExact: true,
-  },
+  { label: "Attendance", href: "#", matchPrefixes: [], disabled: true },
   { label: "Time Tracking", href: "#", matchPrefixes: [], disabled: true },
 ];
 
 const PAYROLL_CHILDREN: WorkerSidebarLink[] = [
   { label: "Payslips", href: "#", matchPrefixes: [], disabled: true },
   { label: "Earnings", href: "#", matchPrefixes: [], disabled: true },
-];
-
-const TASKBOARD_CHILDREN: WorkerSidebarLink[] = [
-  { label: "Assigned Tasks", href: "#", matchPrefixes: [], disabled: true },
-  { label: "Completed Tasks", href: "#", matchPrefixes: [], disabled: true },
 ];
 
 const TEAMS_CHILDREN: WorkerSidebarLink[] = [
@@ -105,7 +92,7 @@ const PROFILE_CHILDREN: WorkerSidebarLink[] = [
   },
 ];
 
-/** Worker portal sidebar — matches Figma worker menu (not admin recruiter). */
+/** Worker portal sidebar — Figma worker menu order and hierarchy. */
 export const WORKER_SIDEBAR_SECTIONS: WorkerSidebarSection[] = [
   {
     label: "Dashboard",
@@ -117,16 +104,17 @@ export const WORKER_SIDEBAR_SECTIONS: WorkerSidebarSection[] = [
   {
     label: "My Shifts",
     href: "#",
-    iconType: ICON.finance,
+    iconType: ICON.tickets,
     matchPrefixes: [],
     disabled: true,
     children: MY_SHIFTS_CHILDREN,
   },
   {
-    label: "Schedule",
-    href: SCHEDULE_HOME,
+    label: "My Schedule",
+    href: "#",
     iconType: ICON.schedule,
-    matchPrefixes: [SCHEDULE_HOME, SCHEDULE_TIMESHEETS],
+    matchPrefixes: [],
+    disabled: true,
     children: MY_SCHEDULE_CHILDREN,
   },
   {
@@ -143,7 +131,6 @@ export const WORKER_SIDEBAR_SECTIONS: WorkerSidebarSection[] = [
     iconType: ICON.taskboard,
     matchPrefixes: [],
     disabled: true,
-    children: TASKBOARD_CHILDREN,
   },
   {
     label: "Teams",
@@ -155,7 +142,7 @@ export const WORKER_SIDEBAR_SECTIONS: WorkerSidebarSection[] = [
   },
   {
     label: "Organization",
-    href: LOCATIONS_HOME,
+    href: "#",
     iconType: ICON.organization,
     matchPrefixes: [LOCATIONS_HOME],
     children: ORGANIZATION_CHILDREN,
@@ -175,14 +162,8 @@ export const WORKER_SIDEBAR_SECTIONS: WorkerSidebarSection[] = [
     matchExact: true,
   },
   {
-    label: "Tickets",
-    href: "/application/applicant-dashboard/tickets",
-    iconType: ICON.tickets,
-    matchPrefixes: ["/application/applicant-dashboard/tickets"],
-  },
-  {
     label: "Profile",
-    href: "/application/applicant-dashboard/profile",
+    href: "#",
     iconType: ICON.profile,
     matchPrefixes: [
       "/application/applicant-dashboard/profile",

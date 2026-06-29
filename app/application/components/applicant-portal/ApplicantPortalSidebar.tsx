@@ -24,45 +24,42 @@ import { WorkerPortalUserAvatar } from "./WorkerPortalUserAvatar";
 
 const DEFAULT_LOGO = "/images/new-logo-nexus.svg";
 
-function parentNavTextClass(active: boolean, disabled = false): string {
-  const base = "truncate font-normal text-[14px] leading-5 tracking-normal transition-colors";
-  if (disabled) return `${base} text-[#012352]`;
-  return active
-    ? `${base} text-[color:var(--brand-primary)]`
-    : `${base} text-[#012352] group-hover:text-[color:var(--brand-primary)]`;
+function parentWithSubmenuRowClass(disabled = false): string {
+  const base =
+    "group relative flex min-h-[36px] w-full items-center gap-2 overflow-hidden rounded-md pl-2 pr-0 py-1 text-[color:var(--brand-primary)]";
+  return disabled ? `${base} opacity-60` : `${base} transition hover:bg-white`;
 }
 
 function submenuTextClass(active: boolean, disabled = false): string {
   const base =
-    "font-normal text-[14px] leading-5 tracking-normal transition-colors";
-  if (disabled) return `${base} text-[#012352]`;
+    "font-normal text-[14px] leading-5 tracking-normal text-[color:var(--brand-secondary)] transition-colors";
+  if (disabled) return `${base} opacity-60`;
+  return active ? base : `${base} hover:opacity-80`;
+}
+
+function topLevelLabelClass(active: boolean, disabled = false): string {
+  const base = "truncate font-normal text-[14px] leading-5 tracking-normal transition-colors";
+  if (disabled) return `${base} text-[color:var(--brand-secondary)] opacity-60`;
   return active
     ? `${base} text-[color:var(--brand-primary)]`
-    : `${base} text-[#012352] hover:text-[color:var(--brand-primary)]`;
+    : `${base} text-[color:var(--brand-secondary)] group-hover:text-[color:var(--brand-primary)]`;
 }
 
-function parentRowClass(active: boolean, disabled = false): string {
-  if (disabled) {
-    return "group relative flex min-h-[36px] w-full items-center gap-2 overflow-hidden rounded-md pl-2 pr-0 py-1 text-[#012352] opacity-60";
-  }
-  return `group relative flex min-h-[36px] w-full items-center gap-2 overflow-hidden rounded-md pl-2 pr-0 py-1 transition hover:bg-white ${
-    active
-      ? "text-[color:var(--brand-primary)]"
-      : "text-[#012352] hover:text-[color:var(--brand-primary)]"
-  }`;
-}
-
-function topLevelLinkClass(active: boolean, isCollapsed: boolean, isMobileRail: boolean): string {
+function topLevelLinkClass(active: boolean, isCollapsed: boolean, isMobileRail: boolean, disabled = false): string {
   const layout = isCollapsed
     ? isMobileRail
       ? "justify-center pl-1 pr-0 py-1.5"
       : "justify-center pl-2 pr-0 py-2"
     : "gap-3 pl-2 pr-0 py-1";
 
+  if (disabled) {
+    return `group relative flex min-h-[36px] items-center overflow-hidden rounded-md opacity-60 ${layout} text-[color:var(--brand-secondary)]`;
+  }
+
   return `group relative flex min-h-[36px] items-center overflow-hidden rounded-md transition hover:bg-white ${layout} ${
     active
       ? "text-[color:var(--brand-primary)]"
-      : "text-[#012352] hover:text-[color:var(--brand-primary)]"
+      : "text-[color:var(--brand-secondary)] hover:text-[color:var(--brand-primary)]"
   }`;
 }
 
@@ -236,10 +233,10 @@ export function ApplicantPortalSidebar({
             </div>
             {!isCollapsed ? (
               <div className="min-w-0">
-                <p className="truncate text-[18px] leading-[28px] font-semibold text-[#0F3B76]">
+                <p className="truncate text-[18px] leading-[28px] font-semibold text-[color:var(--brand-secondary)]">
                   {firstName}
                 </p>
-                <p className="text-[10px] leading-[15px] font-light uppercase tracking-normal text-[#94A3B8]">
+                <p className="text-[10px] leading-[15px] font-light uppercase tracking-normal text-[color:var(--brand-primary)]">
                   Dashboard
                 </p>
               </div>
@@ -267,34 +264,39 @@ export function ApplicantPortalSidebar({
         {renderedSections.map((section) => (
           <div key={section.label} className="mb-1">
             {section.children?.length && !isCollapsed ? (
-              <div className={parentRowClass(section.active, Boolean(section.disabled))}>
-                {section.disabled || section.href === "#" ? (
-                  <div
-                    title={section.disabled ? `${section.label} (Coming soon)` : section.label}
-                    className="flex min-w-0 flex-1 items-center gap-3"
-                  >
-                    <SidebarNavIcon iconType={section.iconType} active={section.active && !section.disabled} />
-                    <span className={parentNavTextClass(section.active, Boolean(section.disabled))}>
-                      {section.label}
-                    </span>
-                  </div>
-                ) : (
-                  <Link href={section.href} onClick={handleNavClick} className="flex min-w-0 flex-1 items-center gap-3">
-                    <SidebarNavIcon iconType={section.iconType} active={section.active && !section.disabled} />
-                    <span className={parentNavTextClass(section.active, false)}>{section.label}</span>
-                  </Link>
-                )}
+              <div className={parentWithSubmenuRowClass(Boolean(section.disabled))}>
+                <div
+                  title={section.disabled ? `${section.label} (Coming soon)` : section.label}
+                  className="flex min-w-0 flex-1 items-center gap-3"
+                >
+                  <SidebarNavIcon iconType={section.iconType} active={section.childActive} />
+                  <span className="truncate font-normal text-[14px] leading-5 tracking-normal">
+                    {section.label}
+                  </span>
+                </div>
                 <button
                   type="button"
                   title={`${isSectionOpen(section) ? "Collapse" : "Expand"} ${section.label}`}
                   onClick={() => toggleSectionOpen(section.label)}
                   onMouseDown={(event) => event.preventDefault()}
-                  className="ml-auto flex h-6 w-6 items-center justify-center rounded-md transition hover:bg-white/70"
+                  className="ml-auto flex h-6 w-6 items-center justify-center rounded-md text-[color:var(--brand-primary)] transition hover:bg-white/70"
                   aria-label={`${isSectionOpen(section) ? "Collapse" : "Expand"} ${section.label}`}
                 >
                   <SidebarSubmenuToggleIcon open={isSectionOpen(section)} />
                 </button>
                 {section.showIndicator ? (
+                  <span aria-hidden className="worker-sidebar-active-indicator" />
+                ) : null}
+              </div>
+            ) : section.children?.length && isCollapsed ? (
+              <div
+                title={section.label}
+                className={`group relative flex min-h-[36px] w-full items-center justify-center overflow-hidden rounded-md py-2 pl-2 pr-0 text-[color:var(--brand-primary)] ${
+                  section.childActive ? "" : "opacity-80"
+                }`}
+              >
+                <SidebarNavIcon iconType={section.iconType} active={section.childActive} />
+                {section.childActive ? (
                   <span aria-hidden className="worker-sidebar-active-indicator" />
                 ) : null}
               </div>
@@ -305,11 +307,11 @@ export function ApplicantPortalSidebar({
                   onOpenMessages?.();
                   handleNavClick();
                 }}
-                className={topLevelLinkClass(section.active, isCollapsed, isMobileRail)}
+                className={topLevelLinkClass(section.active, isCollapsed, isMobileRail, false)}
               >
                 <SidebarNavIcon iconType={section.iconType} active={section.active && !section.disabled} />
                 {!isCollapsed ? (
-                  <span className={parentNavTextClass(section.active, Boolean(section.disabled))}>
+                  <span className={topLevelLabelClass(section.active, Boolean(section.disabled))}>
                     {section.label}
                   </span>
                 ) : null}
@@ -317,18 +319,12 @@ export function ApplicantPortalSidebar({
             ) : section.disabled ? (
               <div
                 title={`${section.label} (Coming soon)`}
-                className={`group relative flex min-h-[36px] items-center overflow-hidden rounded-md opacity-60 ${
-                  isCollapsed
-                    ? isMobileRail
-                      ? "justify-center pl-1 pr-0 py-1.5"
-                      : "justify-center pl-2 pr-0 py-2"
-                    : "gap-3 pl-2 pr-0 py-1"
-                } text-[#012352]`}
+                className={topLevelLinkClass(false, isCollapsed, isMobileRail, true)}
                 aria-disabled
               >
                 <SidebarNavIcon iconType={section.iconType} active={false} />
                 {!isCollapsed ? (
-                  <span className={parentNavTextClass(false, true)}>{section.label}</span>
+                  <span className={topLevelLabelClass(false, true)}>{section.label}</span>
                 ) : null}
               </div>
             ) : (
@@ -336,11 +332,11 @@ export function ApplicantPortalSidebar({
                 href={section.href}
                 onClick={handleNavClick}
                 title={isCollapsed ? section.label : undefined}
-                className={topLevelLinkClass(section.active, isCollapsed, isMobileRail)}
+                className={topLevelLinkClass(section.active, isCollapsed, isMobileRail, false)}
               >
                 <SidebarNavIcon iconType={section.iconType} active={section.active && !section.disabled} />
                 {!isCollapsed ? (
-                  <span className={parentNavTextClass(section.active, false)}>{section.label}</span>
+                  <span className={topLevelLabelClass(section.active, false)}>{section.label}</span>
                 ) : null}
                 {section.showIndicator || (isCollapsed && section.active) ? (
                   <span aria-hidden className="worker-sidebar-active-indicator" />
@@ -354,7 +350,7 @@ export function ApplicantPortalSidebar({
                   child.disabled || !child.href || child.href === "#" ? (
                     <div
                       key={`${section.label}-${child.label}`}
-                      className="worker-sidebar-submenu-item group relative block overflow-hidden rounded-md font-normal text-[14px] leading-5 tracking-normal text-[#012352]"
+                      className="worker-sidebar-submenu-item group relative block overflow-hidden rounded-md font-normal text-[14px] leading-5 tracking-normal text-[color:var(--brand-secondary)] opacity-60"
                       aria-disabled={child.disabled}
                     >
                       <span>{child.label}</span>
@@ -396,7 +392,7 @@ export function ApplicantPortalSidebar({
           />
           {!isCollapsed ? (
             <div className="min-w-0 flex-1">
-              <p className="truncate text-[14px] leading-5 font-semibold text-[#0F2F60]">{applicantName}</p>
+              <p className="truncate text-[14px] leading-5 font-semibold text-[color:var(--brand-secondary)]">{applicantName}</p>
               <p className="truncate text-[10px] leading-[15px] font-light text-[#94A3B8]">Worker</p>
             </div>
           ) : null}
