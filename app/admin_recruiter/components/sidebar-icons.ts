@@ -10,6 +10,7 @@ export type SidebarIconType =
   | "Taskboard"
   | "Template Builder"
   | "Teams"
+  | "Automation"
   | "Connect"
   | "Applicant"
   | "Clients"

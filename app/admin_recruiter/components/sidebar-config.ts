@@ -34,7 +34,7 @@ const ICON = {
   shifts: "Tickets",
   templateBuilder: "Template Builder",
   teams: "Teams",
-  automation: "Connect",
+  automation: "Automation",
   candidates: "Applicant",
   clients: "Clients",
   organization: "Organization",
@@ -301,7 +301,13 @@ const SHARED_FOOTER_SECTIONS: SidebarSection[] = [
 
 /** Company owner / admin recruiter (client login). */
 export const CLIENT_SIDEBAR_SECTIONS: SidebarSection[] = [
-  ...FIGMA_PRIMARY_SECTIONS,
+  {
+    label: "Dashboard",
+    href: "#",
+    iconType: ICON.dashboard,
+    matchPrefixes: DASHBOARD_ACTIVE_PREFIXES,
+    children: DASHBOARD_CHILDREN,
+  },
   {
     label: "Recruitment",
     href: "#",
@@ -324,13 +330,52 @@ export const CLIENT_SIDEBAR_SECTIONS: SidebarSection[] = [
     children: ORGANIZATION_CHILDREN,
   },
   {
+    label: "Scheduling",
+    href: "#",
+    iconType: ICON.schedule,
+    matchPrefixes: ["/admin_recruiter/calendar/shifts", "/admin_recruiter/attendance"],
+    children: SCHEDULING_CHILDREN,
+  },
+  {
     label: "Automation",
     href: "#",
     iconType: ICON.automation,
     matchPrefixes: AUTOMATION_ACTIVE_PREFIXES,
     children: AUTOMATION_CHILDREN,
   },
-  ...EXTRA_TOP_SECTIONS,
+  {
+    label: "Reports",
+    href: "#",
+    iconType: ICON.reports,
+    matchPrefixes: ["/admin_recruiter/reports"],
+    children: REPORTS_CHILDREN,
+  },
+  {
+    label: "Templates",
+    href: "#",
+    iconType: ICON.templateBuilder,
+    matchPrefixes: TEMPLATES_ACTIVE_PREFIXES,
+    children: TEMPLATES_CHILDREN,
+  },
+  {
+    label: "Taskboard",
+    href: "#",
+    iconType: ICON.taskboard,
+    matchPrefixes: TASKBOARD_ACTIVE_PREFIXES,
+    children: TASKBOARD_CHILDREN,
+  },
+  {
+    label: "Mail",
+    href: MAIL_ROUTE,
+    iconType: ICON.mail,
+    matchPrefixes: [MAIL_ROUTE],
+  },
+  {
+    label: "Chat",
+    href: "/admin_recruiter/messages",
+    iconType: ICON.chat,
+    matchPrefixes: ["/admin_recruiter/messages"],
+  },
   {
     label: "Profile",
     href: "/admin_recruiter/account/personal",
