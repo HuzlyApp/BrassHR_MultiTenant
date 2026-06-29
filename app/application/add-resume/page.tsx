@@ -65,9 +65,9 @@ export default function Step1Upload() {
 
   const [file, setFile] = useState<File | null>(null)
   const [dragActive, setDragActive] = useState(false)
-  const [parsing, setParsing] = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const [parseStatus, setParseStatus] = useState<string | null>(null)
   const [parseError, setParseError] = useState<string | null>(null)
-  const [parseMissingFields, setParseMissingFields] = useState<string[]>([])
   const [fileRequiredError, setFileRequiredError] = useState<string | null>(null)
   const [savedResumeName, setSavedResumeName] = useState("")
   const [savedResumeSizeBytes, setSavedResumeSizeBytes] = useState<number | null>(null)
@@ -101,6 +101,7 @@ export default function Step1Upload() {
     localStorage.setItem("resumeMimeType", selected.type || "")
     // Clear previous parsing results when choosing a new file.
     localStorage.removeItem("parsedResume")
+    localStorage.removeItem("resumeId")
     setSavedResumeName(selected.name)
     setSavedResumeSizeBytes(selected.size)
   }
@@ -111,7 +112,7 @@ export default function Step1Upload() {
 
     setFileRequiredError(null)
     setParseError(null)
-    setParseMissingFields([])
+    setParseStatus(null)
 
     const validationError = validateResumeFile(selected)
     if (validationError) {
@@ -138,7 +139,7 @@ export default function Step1Upload() {
 
     setFileRequiredError(null)
     setParseError(null)
-    setParseMissingFields([])
+    setParseStatus(null)
 
     const validationError = validateResumeFile(dropped)
     if (validationError) {
@@ -173,7 +174,7 @@ export default function Step1Upload() {
       if (hasSavedResume) {
         setFileRequiredError(null)
         setParseError(null)
-        setParseMissingFields([])
+        setParseStatus(null)
         try {
           const raw = localStorage.getItem("parsedResume")?.trim()
           if (raw) {
@@ -182,27 +183,21 @@ export default function Step1Upload() {
               parsed = JSON.parse(raw) as unknown
             } catch {
               setParseError(RESUME_PARSE_FAILED_USER_MESSAGE)
-              setParseMissingFields([])
               localStorage.removeItem("parsedResume")
               return
             }
             const quality = evaluateResumeParseQuality(parsed)
             if (!quality.ok) {
-              setParseError(quality.message)
-              setParseMissingFields(quality.missingFieldLabels)
               localStorage.removeItem("parsedResume")
-              return
+            } else {
+              localStorage.setItem(
+                "parsedResume",
+                JSON.stringify(normalizedResumeToStoredJson(quality.normalized)),
+              )
             }
-            localStorage.setItem(
-              "parsedResume",
-              JSON.stringify(normalizedResumeToStoredJson(quality.normalized)),
-            )
           }
         } catch {
-          setParseError(RESUME_PARSE_FAILED_USER_MESSAGE)
-          setParseMissingFields([])
           localStorage.removeItem("parsedResume")
-          return
         }
         void (async () => {
           const { ensureApplicantMatchesAuthSession } = await import(
@@ -222,11 +217,10 @@ export default function Step1Upload() {
     }
 
     ;(async () => {
-      setParsing(true)
+      setUploading(true)
       setParseError(null)
-      setParseMissingFields([])
+      setParseStatus(null)
       try {
-        // 1) Extract text from the uploaded PDF
         const fd = new FormData()
         fd.append("file", file)
         const applicantId =
@@ -242,14 +236,15 @@ export default function Step1Upload() {
         })
         if (!uploadRes.ok) {
           const data = await uploadRes.json().catch(() => ({}))
-          throw new Error(data?.error || "Failed to read resume")
+          throw new Error(data?.error || "Failed to upload resume")
         }
         const uploadJson = (await uploadRes.json()) as {
-          text: string
           fileName?: string
           storagePath?: string
+          resumeId?: string | null
+          parseStatus?: string
         }
-        const text = uploadJson?.text
+
         if (uploadJson.storagePath) {
           localStorage.setItem("resumeStoragePath", uploadJson.storagePath)
           if (applicantId) {
@@ -265,44 +260,19 @@ export default function Step1Upload() {
             })
           }
         }
-        if (!text || typeof text !== "string" || !text.trim()) {
-          throw new Error("Could not extract text from the resume file")
+
+        if (uploadJson.resumeId) {
+          localStorage.setItem("resumeId", uploadJson.resumeId)
+        } else {
+          localStorage.removeItem("resumeId")
         }
 
-        // 2) Convert extracted text into structured JSON
-        const processRes = await fetch("/api/process-resume", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ text }),
-        })
-        if (processRes.status === 422) {
-          const data = (await processRes.json().catch(() => ({}))) as {
-            error?: string
-            missingFields?: string[]
-          }
-          setParseError(data?.error || RESUME_PARSE_FAILED_USER_MESSAGE)
-          setParseMissingFields(Array.isArray(data?.missingFields) ? data.missingFields : [])
-          return
-        }
-        if (!processRes.ok) {
-          const data = await processRes.json().catch(() => ({}))
-          throw new Error(data?.error || "Failed to parse resume")
-        }
-        const parsed = await processRes.json()
-        const quality = evaluateResumeParseQuality(parsed)
-        if (!quality.ok) {
-          setParseError(quality.message)
-          setParseMissingFields(quality.missingFieldLabels)
-          return
-        }
-
-        localStorage.setItem(
-          "parsedResume",
-          JSON.stringify(normalizedResumeToStoredJson(quality.normalized)),
-        )
         localStorage.setItem("resumeName", uploadJson?.fileName || file.name)
+        localStorage.removeItem("parsedResume")
         localStorage.setItem("step1TermsAccepted", "false")
         localStorage.setItem("step1ReviewCompleted", "false")
+        setParseStatus(uploadJson.parseStatus ?? "processing")
+
         const { ensureApplicantMatchesAuthSession } = await import(
           "@/lib/onboarding/ensure-applicant-auth"
         )
@@ -313,11 +283,11 @@ export default function Step1Upload() {
         })
         router.push(applicationPath(APPLICATION_ROUTES.resumeUploadSuccess))
       } catch (e) {
-        const msg = e instanceof Error ? e.message : "Failed to parse resume"
+        const msg = e instanceof Error ? e.message : "Failed to upload resume"
         setParseError(msg)
         setFile((prev) => prev) // keep selection
       } finally {
-        setParsing(false)
+        setUploading(false)
       }
     })()
   }
@@ -328,12 +298,13 @@ export default function Step1Upload() {
     setSavedResumeSizeBytes(null)
     setFileRequiredError(null)
     setParseError(null)
-    setParseMissingFields([])
+    setParseStatus(null)
     localStorage.removeItem("resumeName")
     localStorage.removeItem("resumeSizeBytes")
     localStorage.removeItem("resumeMimeType")
     localStorage.removeItem("resumeStoragePath")
     localStorage.removeItem("parsedResume")
+    localStorage.removeItem("resumeId")
     localStorage.setItem("step1TermsAccepted", "false")
     localStorage.setItem("step1ReviewCompleted", "false")
   }
@@ -345,7 +316,7 @@ export default function Step1Upload() {
     >
 
       <div
-        className={`bg-white w-full max-w-5xl rounded-2xl shadow-2xl flex overflow-hidden min-h-[540px] transition-opacity ${parsing ? "opacity-50" : "opacity-100"}`}
+        className={`bg-white w-full max-w-5xl rounded-2xl shadow-2xl flex overflow-hidden min-h-[540px] transition-opacity ${uploading ? "opacity-50" : "opacity-100"}`}
       >
 
         <div className="w-full md:w-2/3 p-8 md:p-10">
@@ -470,14 +441,13 @@ export default function Step1Upload() {
               className="mt-4 text-sm text-rose-700 bg-rose-50 border border-rose-200 rounded-xl px-4 py-3"
             >
               <p className="font-medium">{parseError}</p>
-              {parseMissingFields.length > 0 ? (
-                <ul className="mt-2 list-disc pl-5 text-rose-800/90">
-                  {parseMissingFields.map((label) => (
-                    <li key={label}>{label}</li>
-                  ))}
-                </ul>
-              ) : null}
             </div>
+          ) : null}
+
+          {parseStatus === "processing" ? (
+            <p className="mt-3 text-sm text-slate-600">
+              Resume uploaded. Profile details will be filled in automatically when parsing finishes.
+            </p>
           ) : null}
 
           <div className="flex justify-end gap-4 mt-10">
@@ -491,11 +461,11 @@ export default function Step1Upload() {
 
             <button
               onClick={next}
-              disabled={parsing}
-              className={`cursor-pointer rounded-lg px-8 py-2 text-sm text-white transition hover:brightness-90 ${parsing ? "cursor-not-allowed opacity-70" : ""}`}
+              disabled={uploading}
+              className={`cursor-pointer rounded-lg px-8 py-2 text-sm text-white transition hover:brightness-90 ${uploading ? "cursor-not-allowed opacity-70" : ""}`}
               style={primaryBtnStyle}
             >
-              {parsing ? "Parsing..." : "Next"}
+              {uploading ? "Uploading..." : "Next"}
             </button>
           </div>
 
@@ -556,8 +526,8 @@ export default function Step1Upload() {
 
       </div>
 
-      {parsing ? (
-        <OnboardingLoader overlay label="Resume parsing..." />
+      {uploading ? (
+        <OnboardingLoader overlay label="Uploading resume..." />
       ) : null}
     </div>
   )

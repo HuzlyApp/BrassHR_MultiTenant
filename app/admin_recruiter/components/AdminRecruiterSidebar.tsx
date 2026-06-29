@@ -23,7 +23,7 @@ import {
   getAccountDisplayName,
   getOrganizationDisplayName,
 } from "@/lib/account/display-name";
-import { supabaseBrowser } from "@/lib/supabase-browser";
+import { useEffectiveBranding } from "@/lib/admin/hooks/use-effective-branding";
 
 const SIDEBAR_EXPANDED_WIDTH = 272;
 const SIDEBAR_COLLAPSED_WIDTH = 80;
@@ -51,7 +51,8 @@ export function AdminRecruiterSidebar({
   const pathname = usePathname() ?? "";
   const router = useRouter();
   const [openSectionLabels, setOpenSectionLabels] = useState<string[]>([]);
-  const [isGodAdmin, setIsGodAdmin] = useState(false);
+  const { viewer } = useEffectiveBranding();
+  const isGodAdmin = viewer?.godAdmin === true;
   const [sidebarHovered, setSidebarHovered] = useState(false);
   const navRef = useRef<HTMLElement>(null);
 
@@ -64,27 +65,6 @@ export function AdminRecruiterSidebar({
   useEffect(() => {
     setLogoSrc(branding.logoUrl?.trim() || DEFAULT_TENANT_LOGO);
   }, [branding.logoUrl]);
-
-  useEffect(() => {
-    let alive = true;
-    void (async () => {
-      const {
-        data: { session },
-      } = await supabaseBrowser.auth.getSession();
-      const res = await fetch("/api/admin/effective-branding", {
-        cache: "no-store",
-        headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : undefined,
-      });
-      if (!res.ok) return;
-      const payload = (await res.json().catch(() => ({}))) as {
-        viewer?: { godAdmin?: boolean };
-      };
-      if (alive) setIsGodAdmin(payload.viewer?.godAdmin === true);
-    })();
-    return () => {
-      alive = false;
-    };
-  }, []);
 
   const handleLogout = async () => {
     const { error } = await supabaseBrowser.auth.signOut();

@@ -13,22 +13,13 @@ import GroupConversationClient from "@/app/admin_recruiter/messages/GroupConvers
 import GroupStackedAvatars from "@/app/admin_recruiter/messages/GroupStackedAvatars";
 import { formatChatTime, nameInitials } from "@/app/admin_recruiter/messages/chat-ui";
 import type { StaffGroupConversation } from "@/lib/messaging/group-conversations";
-import {
-  upsertConversationFromMessage,
-  type StaffConversation,
-} from "@/lib/messaging/staff-conversations";
+import type { StaffConversation } from "@/lib/messaging/staff-conversations";
+import { useStaffConversations } from "@/lib/messaging/hooks/use-staff-conversations";
 import { useApplicantConversationsRealtime } from "@/lib/messaging/useApplicantConversationsRealtime";
 import { safeFetchJson } from "@/lib/api/safe-fetch-json";
 import type { SupportTicketConversationItem, SupportTicketStatus } from "@/lib/support-tickets/types";
 
 type ChatTab = "worker" | "group" | "support";
-
-type ConversationsResponse = {
-  conversations?: StaffConversation[];
-  tenantId?: string | null;
-  unreadMessages?: number;
-  error?: string;
-};
 
 type GroupsResponse = {
   groups?: StaffGroupConversation[];
@@ -114,11 +105,15 @@ export default function AdminRecruiterMessagesClient({
   initialWorkerId?: string | null;
 }) {
   const [activeTab, setActiveTab] = useState<ChatTab>("worker");
-  const [conversations, setConversations] = useState<StaffConversation[]>([]);
+  const {
+    conversations,
+    tenantId,
+    isLoading: conversationsLoading,
+    refetch: refetchConversations,
+  } = useStaffConversations();
   const [groups, setGroups] = useState<StaffGroupConversation[]>([]);
   const [selectedWorkerId, setSelectedWorkerId] = useState<string | null>(initialWorkerId ?? null);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
-  const [tenantId, setTenantId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [groupsLoading, setGroupsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -133,15 +128,6 @@ export default function AdminRecruiterMessagesClient({
     setPinnedWorkerIds(readPinnedWorkerIds());
   }, []);
 
-  const loadConversations = useCallback(async () => {
-    const res = await fetch("/api/admin/messages/conversations", { cache: "no-store" });
-    const payload = (await res.json().catch(() => ({}))) as ConversationsResponse;
-    if (!res.ok) throw new Error(payload.error || "Could not load conversations.");
-    setConversations(payload.conversations ?? []);
-    setTenantId(payload.tenantId ?? null);
-    return payload.conversations ?? [];
-  }, []);
-
   const loadGroups = useCallback(async () => {
     setGroupsLoading(true);
     try {
@@ -149,7 +135,6 @@ export default function AdminRecruiterMessagesClient({
       const payload = (await res.json().catch(() => ({}))) as GroupsResponse;
       if (!res.ok) throw new Error(payload.error || "Could not load groups.");
       setGroups(payload.groups ?? []);
-      if (payload.tenantId) setTenantId(payload.tenantId);
       return payload.groups ?? [];
     } finally {
       setGroupsLoading(false);
@@ -172,13 +157,9 @@ export default function AdminRecruiterMessagesClient({
     }
   }, []);
 
-  const handleRealtimeInsert = useCallback(
-    (message: Parameters<typeof upsertConversationFromMessage>[1]) => {
-      setConversations((current) => upsertConversationFromMessage(current, message));
-      void loadConversations();
-    },
-    [loadConversations]
-  );
+  const handleRealtimeInsert = useCallback(() => {
+    void refetchConversations();
+  }, [refetchConversations]);
 
   useApplicantConversationsRealtime(tenantId, handleRealtimeInsert, !loading && activeTab === "worker");
 
@@ -190,22 +171,10 @@ export default function AdminRecruiterMessagesClient({
   }, [initialWorkerId]);
 
   useEffect(() => {
-    let alive = true;
-    void (async () => {
-      try {
-        const items = await loadConversations();
-        if (!alive) return;
-        setSelectedWorkerId((current) => current ?? items[0]?.workerId ?? null);
-      } catch (err) {
-        if (alive) setError(err instanceof Error ? err.message : "Could not load conversations.");
-      } finally {
-        if (alive) setLoading(false);
-      }
-    })();
-    return () => {
-      alive = false;
-    };
-  }, [loadConversations]);
+    if (conversationsLoading) return;
+    setSelectedWorkerId((current) => current ?? conversations[0]?.workerId ?? null);
+    setLoading(false);
+  }, [conversations, conversationsLoading]);
 
   useEffect(() => {
     if (activeTab !== "group") return;

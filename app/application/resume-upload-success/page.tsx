@@ -2,7 +2,7 @@
 
 import { APPLICATION_ROUTES } from "@/lib/onboarding/application-routes"
 import { applicationPath } from "@/lib/tenant/with-tenant"
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import BrandedSvgIcon from "@/app/components/BrandedSvgIcon"
@@ -19,6 +19,7 @@ import {
 import { useOnboardingStepNav } from "@/lib/onboarding/use-onboarding-step-nav"
 import { adjacentStepRoute } from "@/lib/onboarding/tenant-step-navigation"
 import { ensureApplicantWorker } from "@/lib/onboarding/ensure-applicant-worker"
+import { useResumeParsePoll } from "@/lib/resume/use-resume-parse-poll"
 
 export default function Step1Success() {
   const branding = useTenantBranding()
@@ -61,45 +62,14 @@ export default function Step1Success() {
   const [termsRequiredError, setTermsRequiredError] = useState<string | null>(null)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [continuing, setContinuing] = useState(false)
-  const [parseQualityFailed, setParseQualityFailed] = useState(false)
-  const [parseQualityMessage, setParseQualityMessage] = useState<string | null>(null)
-  const [parseMissingFields, setParseMissingFields] = useState<string[]>([])
+  const [resumeId] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null
+    return localStorage.getItem("resumeId")?.trim() || null
+  })
 
-  const resumeQuality = useMemo(() => {
-    if (typeof window === "undefined") return "pending" as const
-    const raw = localStorage.getItem("parsedResume")?.trim()
-    if (!raw) return "no_resume_json" as const
-    try {
-      return evaluateResumeParseQuality(JSON.parse(raw) as unknown)
-    } catch {
-      return {
-        ok: false as const,
-        parseStatus: "Parse Failed" as const,
-        message: RESUME_PARSE_FAILED_USER_MESSAGE,
-        missingFieldLabels: [] as string[],
-      }
-    }
-  }, [])
-
-  useEffect(() => {
-    if (resumeQuality === "pending") return
-    if (resumeQuality === "no_resume_json") {
-      setParseQualityFailed(false)
-      setParseQualityMessage(null)
-      setParseMissingFields([])
-      return
-    }
-    if (resumeQuality.ok) {
-      setParseQualityFailed(false)
-      setParseQualityMessage(null)
-      setParseMissingFields([])
-      return
-    }
-    setParseQualityFailed(true)
-    setParseQualityMessage(resumeQuality.message)
-    setParseMissingFields(resumeQuality.missingFieldLabels)
-    localStorage.removeItem("parsedResume")
-  }, [resumeQuality])
+  const parsePoll = useResumeParsePoll(resumeId)
+  const parseStatus = parsePoll.status
+  const isParsing = parseStatus === "processing" || parseStatus === "pending" || parsePoll.isPolling
 
   useEffect(() => {
     if (typeof window === "undefined") return
@@ -135,32 +105,24 @@ export default function Step1Success() {
     localStorage.removeItem("parsedResume")
     localStorage.removeItem("resumeStoragePath")
     localStorage.removeItem("resumeSizeBytes")
+    localStorage.removeItem("resumeId")
 
     router.push(applicationPath(APPLICATION_ROUTES.addResume))
   }
 
   function handleContinue() {
-    if (parseQualityFailed || continuing) {
+    if (continuing) {
       return
     }
     const raw = typeof window !== "undefined" ? localStorage.getItem("parsedResume")?.trim() : ""
     if (raw) {
       try {
         const q = evaluateResumeParseQuality(JSON.parse(raw) as unknown)
-        if (!q.ok) {
-          setParseQualityFailed(true)
-          setParseQualityMessage(q.message)
-          setParseMissingFields(q.missingFieldLabels)
-          localStorage.removeItem("parsedResume")
-          return
+        if (q.ok) {
+          localStorage.setItem("parsedResume", JSON.stringify(normalizedResumeToStoredJson(q.normalized)))
         }
-        localStorage.setItem("parsedResume", JSON.stringify(normalizedResumeToStoredJson(q.normalized)))
       } catch {
-        setParseQualityFailed(true)
-        setParseQualityMessage(RESUME_PARSE_FAILED_USER_MESSAGE)
-        setParseMissingFields([])
         localStorage.removeItem("parsedResume")
-        return
       }
     }
     if (!agree) {
@@ -223,23 +185,44 @@ export default function Step1Success() {
         </div>
 
         <div className="flex flex-1 flex-col px-6 pb-8 pt-2 sm:px-8 md:px-10">
-          {parseQualityFailed ? (
+          {isParsing ? (
+            <div className="mt-6 flex items-start gap-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-4 text-slate-800">
+              <div className="mt-0.5 flex h-6 w-6 flex-none items-center justify-center rounded-full">
+                <BrandedSvgIcon
+                  src="/icons/circle-star-icon.svg"
+                  className="h-6 w-6 animate-pulse"
+                  color={branding.primaryHex}
+                />
+              </div>
+              <p className="text-[14px] leading-6">
+                Resume uploaded. We&apos;re extracting your profile details in the background — you can
+                continue now and review or enter them manually on the next step.
+              </p>
+            </div>
+          ) : parseStatus === "failed" ? (
             <div
               role="alert"
-              className="mt-6 flex flex-col gap-2 rounded-lg border border-rose-200 bg-rose-50 px-4 py-4 text-rose-900"
+              className="mt-6 flex flex-col gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-4 text-amber-950"
             >
               <p className="text-[14px] font-semibold leading-6">
-                {parseQualityMessage || RESUME_PARSE_FAILED_USER_MESSAGE}
+                {parsePoll.parseError || RESUME_PARSE_FAILED_USER_MESSAGE}
               </p>
-              {parseMissingFields.length > 0 ? (
-                <ul className="list-disc pl-5 text-[13px] leading-snug text-rose-800/95">
-                  {parseMissingFields.map((label) => (
-                    <li key={label}>{label}</li>
-                  ))}
-                </ul>
-              ) : null}
-              <p className="text-[13px] text-rose-800/90">
-                Upload a clearer resume from the previous step, or continue after the file is replaced.
+              <p className="text-[13px] text-amber-900/90">
+                Your resume is saved. Continue and fill in your profile manually — no need to re-upload.
+              </p>
+            </div>
+          ) : parsePoll.parsedResume ? (
+            <div className="mt-6 flex items-start gap-3 rounded-lg border px-4 py-4" style={brandSurfaceStyle}>
+              <div className="mt-0.5 flex h-6 w-6 flex-none items-center justify-center rounded-full">
+                <BrandedSvgIcon
+                  src="/icons/yes-sign-icon.svg"
+                  className="h-6 w-6"
+                  color={branding.primaryHex}
+                />
+              </div>
+              <p className="text-[14px] leading-6">
+                Resume parsed successfully. Carefully review your information before submitting the
+                application.
               </p>
             </div>
           ) : (
@@ -252,8 +235,7 @@ export default function Step1Success() {
                 />
               </div>
               <p className="text-[14px] leading-6">
-                Resume parsed successfully. Carefully review your information before submitting the
-                application.
+                Resume uploaded. You can continue and enter your profile details on the next step.
               </p>
             </div>
           )}
@@ -360,7 +342,7 @@ export default function Step1Success() {
             <button
               type="button"
               onClick={handleContinue}
-              disabled={!agree || parseQualityFailed || continuing}
+              disabled={!agree || continuing}
               className="cursor-pointer inline-flex h-11 items-center justify-center rounded-lg px-10 text-[16px] font-semibold text-white transition hover:brightness-90 disabled:cursor-not-allowed disabled:opacity-50"
               style={primaryBtnStyle}
             >

@@ -1,3 +1,4 @@
+/** @deprecated Legacy parse endpoint — only used by add-resume-v2. Active flow uses upload-resume + async Grok job. */
 import { NextResponse } from "next/server"
 import {
   evaluateResumeParseQuality,

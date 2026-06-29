@@ -1,15 +1,22 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+export type WorkerResumeParsingStatus = "pending" | "processing" | "completed" | "failed";
+
+export type PersistWorkerResumeRecordOpts = {
+  fileUrl: string;
+  originalFileName?: string | null;
+  parsedData?: Record<string, unknown>;
+  parsingStatus?: WorkerResumeParsingStatus;
+  textLength?: number | null;
+  extractionMs?: number | null;
+  parseStartedAt?: string | null;
+};
+
 export async function persistWorkerResumeRecord(
   supabase: SupabaseClient,
   applicantId: string,
-  opts: {
-    fileUrl: string;
-    originalFileName?: string | null;
-    parsedData?: Record<string, unknown>;
-    parsingStatus?: "pending" | "processing" | "completed" | "failed";
-  }
-): Promise<void> {
+  opts: PersistWorkerResumeRecordOpts
+): Promise<string | null> {
   const { data: worker, error: wErr } = await supabase
     .from("worker")
     .select("id, tenant_id")
@@ -17,7 +24,7 @@ export async function persistWorkerResumeRecord(
     .maybeSingle();
 
   if (wErr) throw wErr;
-  if (!worker?.id || worker.tenant_id == null) return;
+  if (!worker?.id || worker.tenant_id == null) return null;
 
   const workerId = String(worker.id);
   const tenantId = String(worker.tenant_id);
@@ -33,6 +40,13 @@ export async function persistWorkerResumeRecord(
     parsing_status: parsingStatus,
     parsed_at: parsingStatus === "completed" ? now : null,
     uploaded_at: now,
+    text_length: opts.textLength ?? null,
+    extraction_ms: opts.extractionMs ?? null,
+    parse_started_at: opts.parseStartedAt ?? (parsingStatus === "processing" ? now : null),
+    parse_completed_at: null,
+    parse_error: null,
+    parsed_json: null,
+    ai_parse_ms: null,
   };
 
   const { data: existing } = await supabase
@@ -44,8 +58,14 @@ export async function persistWorkerResumeRecord(
   if (existing?.id) {
     const { error } = await supabase.from("worker_resumes").update(row).eq("id", existing.id);
     if (error) throw error;
-  } else {
-    const { error } = await supabase.from("worker_resumes").insert(row);
-    if (error) throw error;
+    return String(existing.id);
   }
+
+  const { data: inserted, error } = await supabase
+    .from("worker_resumes")
+    .insert(row)
+    .select("id")
+    .single();
+  if (error) throw error;
+  return inserted?.id ? String(inserted.id) : null;
 }

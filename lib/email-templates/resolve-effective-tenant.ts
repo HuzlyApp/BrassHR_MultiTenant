@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 import type { User } from "@supabase/supabase-js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { tenantIdFromUser } from "@/lib/auth/staff-tenant-scope";
+import { loadStaffUserProfileCached } from "@/lib/auth/staff-user-profile";
 import { readValidatedViewAsTenantId } from "@/lib/godadmin/view-as-tenant";
 import { ONBOARDING_TENANT_SLUG_COOKIE } from "@/lib/tenant/constants";
 import { resolveTenantIdBySlug } from "@/lib/tenant/resolve-tenant-id-by-slug";
@@ -33,14 +34,9 @@ export async function resolveEffectiveAdminTenantId(
   const fromJwt = tenantIdFromUser(params.authUser);
   if (fromJwt) return fromJwt;
 
-  const { data } = await supabase
-    .from("users")
-    .select("tenant_id")
-    .eq("id", params.userId)
-    .maybeSingle<{ tenant_id: string | null }>();
-
-  if (data?.tenant_id && UUID_RE.test(data.tenant_id)) {
-    return String(data.tenant_id).toLowerCase();
+  const profile = await loadStaffUserProfileCached(params.userId);
+  if (profile?.tenant_id && UUID_RE.test(profile.tenant_id)) {
+    return profile.tenant_id.toLowerCase();
   }
   return null;
 }

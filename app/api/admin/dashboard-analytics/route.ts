@@ -1,7 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireStaffApiSession } from "@/lib/auth/api-session";
-import { resolveStaffTenantScope } from "@/lib/auth/staff-tenant-scope";
+import { getCachedStaffApiSession, getCachedStaffTenantScope } from "@/lib/auth/cached-staff-auth";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
+import { buildCacheKey, CACHE_TTL_SECONDS, getOrSetCache } from "@/lib/cache";
+import {
+  countTableByTenant,
+  countWorkersByTenant,
+  countWorkersCreatedBetween,
+} from "@/lib/dashboard/analytics-counts";
+import { fetchWorkerStatusMetrics } from "@/lib/dashboard/worker-status-metrics";
+import { createPerfTimer, logPerf } from "@/lib/perf";
 
 export const runtime = "nodejs";
 
@@ -16,21 +23,6 @@ type InterviewRow = {
   id: string;
   scheduled_date: string;
   status: string;
-};
-
-type ShiftRow = {
-  id: string;
-  start_date: string | null;
-};
-
-type DocumentRow = {
-  id: string;
-  status: string | null;
-};
-
-type LicenseRow = {
-  id: string;
-  expires_at: string | null;
 };
 
 type AttendanceRow = {
@@ -97,16 +89,6 @@ function comparisonPeriodLabel(now = new Date()): string {
   return `vs ${fmt(start)} – ${fmt(end)}`;
 }
 
-function countInRange(rows: { created_at: string | null }[], start: Date, end: Date): number {
-  const startMs = start.getTime();
-  const endMs = end.getTime();
-  return rows.filter((row) => {
-    if (!row.created_at) return false;
-    const ms = new Date(row.created_at).getTime();
-    return ms >= startMs && ms <= endMs;
-  }).length;
-}
-
 function buildDailyTrend(
   rows: { date: string }[],
   days: number,
@@ -131,30 +113,46 @@ function buildDailyTrend(
   return points;
 }
 
-function classifyWorkforce(status: string): "active" | "onLeave" | "inactive" | "terminated" {
-  if (["active", "approved"].includes(status)) return "active";
-  if (["pending", "new"].includes(status)) return "onLeave";
-  if (["inactive", "cancelled"].includes(status)) return "inactive";
-  if (["disapproved", "banned", "rejected"].includes(status)) return "terminated";
-  return "inactive";
-}
-
 export async function GET(_req: NextRequest) {
+  const routeTimer = createPerfTimer();
   try {
-    const auth = await requireStaffApiSession();
+    const auth = await getCachedStaffApiSession();
     if (auth instanceof NextResponse) return auth;
 
-    const scope = await resolveStaffTenantScope(auth.authUser);
+    const scope = await getCachedStaffTenantScope(auth.authUser);
     if (scope.mode !== "scoped") {
       return NextResponse.json({ error: "Select a tenant before viewing analytics." }, { status: 400 });
     }
 
+    const tenantId = scope.tenantId;
+    const dayKey = isoDateOnly(new Date());
+    const cacheKey = buildCacheKey("dashboard_analytics", ["tenant", tenantId], { day: dayKey });
+
+    const payload = await getOrSetCache(
+      cacheKey,
+      async () => buildDashboardAnalyticsPayload(tenantId),
+      CACHE_TTL_SECONDS.dashboards,
+    );
+
+    logPerf("GET /api/admin/dashboard-analytics", {
+      totalMs: routeTimer.elapsedMs(),
+      tenantId,
+      cacheKey,
+    });
+    return NextResponse.json(payload);
+  } catch (err) {
+    console.error("[admin/dashboard-analytics:get]", err);
+    const message = err instanceof Error ? err.message : "Unexpected error";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
+
+async function buildDashboardAnalyticsPayload(tenantId: string) {
     const supabase = createServiceRoleClient();
     if (!supabase) {
-      return NextResponse.json({ error: "Supabase service role not configured" }, { status: 503 });
+      throw new Error("Supabase service role not configured");
     }
 
-    const tenantId = scope.tenantId;
     const now = new Date();
     const currentStart = addDays(now, -6);
     currentStart.setHours(0, 0, 0, 0);
@@ -164,85 +162,94 @@ export async function GET(_req: NextRequest) {
     previousStart.setHours(0, 0, 0, 0);
 
     const trendStart = isoDateOnly(addDays(now, -20));
+    const trendStartIso = `${trendStart}T00:00:00.000Z`;
     const licenseExpiryCutoff = isoDateOnly(addDays(now, 30));
+    const attendanceStart = isoDateOnly(addDays(now, -6));
+    const currentStartIso = currentStart.toISOString();
+    const previousStartIso = previousStart.toISOString();
+    const previousEndIso = previousEnd.toISOString();
 
     const [
-      workersRes,
-      shiftsRes,
+      totalWorkforce,
+      newHiresCurrent,
+      newHiresPrevious,
+      shiftsTotal,
+      shiftsCurrent,
       interviewsRes,
-      documentsRes,
-      licensesRes,
-      attendanceRes,
+      documentsPending,
+      documentsTotal,
+      documentsApproved,
+      licensesCount,
+      agreementsCount,
       assignmentsRes,
-      agreementsRes,
+      workerStatusMetrics,
+      workerTrendRes,
+      attendanceRes,
     ] = await Promise.all([
-      supabase
-        .from("worker")
-        .select("id, status, worker_status, created_at")
-        .eq("tenant_id", tenantId),
-      supabase.from("shifts").select("id, start_date").eq("tenant_id", tenantId),
+      countWorkersByTenant(supabase, tenantId),
+      countWorkersCreatedBetween(supabase, tenantId, currentStartIso, now.toISOString()),
+      countWorkersCreatedBetween(supabase, tenantId, previousStartIso, previousEndIso),
+      countTableByTenant(supabase, "shifts", tenantId),
+      countTableByTenant(supabase, "shifts", tenantId, (q) =>
+        q.or(`start_date.gte.${trendStart},start_date.is.null`),
+      ),
       supabase
         .from("interview_schedules")
         .select("id, scheduled_date, status")
         .eq("tenant_id", tenantId)
         .gte("scheduled_date", trendStart)
         .neq("status", "cancelled"),
+      countTableByTenant(supabase, "worker_submitted_documents", tenantId, (q) =>
+        q.in("status", ["uploaded", "under_review", "pending", "needs_revision"]),
+      ),
+      countTableByTenant(supabase, "worker_submitted_documents", tenantId),
+      countTableByTenant(supabase, "worker_submitted_documents", tenantId, (q) =>
+        q.eq("status", "approved"),
+      ),
+      countTableByTenant(supabase, "worker_license_records", tenantId, (q) =>
+        q.not("expires_at", "is", null).lte("expires_at", licenseExpiryCutoff),
+      ),
+      countTableByTenant(supabase, "agreements", tenantId, (q) =>
+        q.in("status", ["pending", "sent"]),
+      ),
       supabase
-        .from("worker_submitted_documents")
-        .select("id, status")
+        .from("worker_shift_assignments")
+        .select("shift_id")
         .eq("tenant_id", tenantId),
+      fetchWorkerStatusMetrics(supabase, tenantId),
       supabase
-        .from("worker_license_records")
-        .select("id, expires_at")
+        .from("worker")
+        .select("created_at, status, worker_status")
         .eq("tenant_id", tenantId)
-        .not("expires_at", "is", null)
-        .lte("expires_at", licenseExpiryCutoff),
+        .gte("created_at", trendStartIso),
       supabase
         .from("applicant_attendance_logs")
         .select("id, worker_id, attendance_date, clock_in_at")
         .eq("tenant_id", tenantId)
-        .gte("attendance_date", isoDateOnly(addDays(now, -6))),
-      supabase
-        .from("worker_shift_assignments")
-        .select("id, shift_id")
-        .eq("tenant_id", tenantId),
-      supabase
-        .from("agreements")
-        .select("id, status")
-        .eq("tenant_id", tenantId)
-        .in("status", ["pending", "sent"]),
+        .gte("attendance_date", attendanceStart),
     ]);
 
-    if (workersRes.error) throw workersRes.error;
-    if (shiftsRes.error) throw shiftsRes.error;
     if (interviewsRes.error) throw interviewsRes.error;
 
-    const workers = (workersRes.data ?? []) as WorkerRow[];
-    const shifts = (shiftsRes.data ?? []) as ShiftRow[];
     const interviews = (interviewsRes.data ?? []) as InterviewRow[];
-    const documents = (documentsRes.error ? [] : (documentsRes.data ?? [])) as DocumentRow[];
-    const licenses = (licensesRes.error ? [] : (licensesRes.data ?? [])) as LicenseRow[];
+    const workerTrendRows = (workerTrendRes.error ? [] : (workerTrendRes.data ?? [])) as WorkerRow[];
     const attendance = (attendanceRes.error ? [] : (attendanceRes.data ?? [])) as AttendanceRow[];
-    const assignments = (assignmentsRes.error ? [] : (assignmentsRes.data ?? [])) as {
-      id: string;
+    const assignmentShiftIds = (assignmentsRes.error ? [] : (assignmentsRes.data ?? [])) as {
       shift_id: string;
     }[];
-    const agreements = (agreementsRes.error ? [] : (agreementsRes.data ?? [])) as DocumentRow[];
 
-    const totalWorkforce = workers.length;
-    const newHiresCurrent = countInRange(workers, currentStart, now);
-    const newHiresPrevious = countInRange(workers, previousStart, previousEnd);
+    const shiftsPrevious = Math.max(0, shiftsTotal - shiftsCurrent);
 
-    const shiftsCurrent = shifts.filter((s) => {
-      if (!s.start_date) return true;
-      const d = new Date(`${s.start_date}T12:00:00`);
-      return d >= currentStart;
-    }).length;
-    const shiftsPrevious = Math.max(0, shifts.length - shiftsCurrent);
+    const applications = workerStatusMetrics.applications;
+    const offerExtended = workerStatusMetrics.offer_extended;
+    const hires = workerStatusMetrics.hires;
 
-    const applications = workers.filter((w) => ["new", "pending"].includes(normalizeStatus(w))).length;
-    const offerExtended = workers.filter((w) => normalizeStatus(w) === "approved").length;
-    const hires = workers.filter((w) => ["approved", "active"].includes(normalizeStatus(w))).length;
+    const workforceBuckets = {
+      active: workerStatusMetrics.active,
+      onLeave: workerStatusMetrics.on_leave,
+      inactive: workerStatusMetrics.inactive,
+      terminated: workerStatusMetrics.terminated,
+    };
 
     const interviewsCurrent = interviews.filter((row) => {
       const d = new Date(`${row.scheduled_date}T12:00:00`);
@@ -251,35 +258,24 @@ export async function GET(_req: NextRequest) {
     const interviewsPrevious = Math.max(0, interviews.length - interviewsCurrent);
 
     const applicationTrend = buildDailyTrend(
-      workers
+      workerTrendRows
         .filter((w) => ["new", "pending"].includes(normalizeStatus(w)))
         .map((w) => ({ date: w.created_at ? isoDateOnly(new Date(w.created_at)) : "" }))
         .filter((w) => w.date),
       20,
-      now
+      now,
     );
 
     const interviewTrend = buildDailyTrend(
       interviews.map((row) => ({ date: row.scheduled_date })),
       20,
-      now
+      now,
     );
 
     const recruitmentTrend = applicationTrend.map((point, index) => ({
       ...point,
       value: point.value + (interviewTrend[index]?.value ?? 0),
     }));
-
-    const workforceBuckets = {
-      active: 0,
-      onLeave: 0,
-      inactive: 0,
-      terminated: 0,
-    };
-    for (const worker of workers) {
-      const bucket = classifyWorkforce(normalizeStatus(worker));
-      workforceBuckets[bucket] += 1;
-    }
 
     const workforceTotal = Math.max(1, totalWorkforce);
     const workforceBreakdown: BreakdownSlice[] = [
@@ -325,41 +321,35 @@ export async function GET(_req: NextRequest) {
     const onTimeStart =
       attendance.length > 0 ? Math.round((onTimeCount / attendance.length) * 100) : 0;
 
-    const coveredShifts = new Set(assignments.map((a) => a.shift_id)).size;
+    const coveredShifts = new Set(assignmentShiftIds.map((a) => a.shift_id)).size;
     const shiftCoverage =
-      shifts.length > 0 ? Math.round((coveredShifts / shifts.length) * 100) : 0;
+      shiftsTotal > 0 ? Math.round((coveredShifts / shiftsTotal) * 100) : 0;
 
-    const pendingDocs = documents.filter((d) =>
-      ["uploaded", "under_review", "pending", "needs_revision"].includes(
-        (d.status ?? "").toLowerCase()
-      )
-    ).length;
-    const pendingWorkers = workers.filter((w) => normalizeStatus(w) === "pending").length;
-    const pendingApproval = pendingDocs + pendingWorkers + agreements.length;
+    const pendingWorkers = workerStatusMetrics.pending_workers;
+    const pendingApproval = documentsPending + pendingWorkers + agreementsCount;
 
-    const approvedDocs = documents.filter((d) => (d.status ?? "").toLowerCase() === "approved").length;
     const complianceRate =
-      documents.length > 0 ? Math.round((approvedDocs / documents.length) * 100) : 100;
+      documentsTotal > 0 ? Math.round((documentsApproved / documentsTotal) * 100) : 100;
 
     const pendingApprovalsByType: PendingApprovalBar[] = [
       { type: "timesheets", label: "Timesheets", count: Math.min(pendingWorkers, 12) },
-      { type: "shiftApproval", label: "Shift Approval", count: Math.max(0, shifts.length - coveredShifts) },
-      { type: "expenseClaims", label: "Expense Claims", count: agreements.length },
-      { type: "documents", label: "Documents", count: pendingDocs },
+      { type: "shiftApproval", label: "Shift Approval", count: Math.max(0, shiftsTotal - coveredShifts) },
+      { type: "expenseClaims", label: "Expense Claims", count: agreementsCount },
+      { type: "documents", label: "Documents", count: documentsPending },
     ];
 
     const revenueTrend = buildDailyTrend(
-      workers
+      workerTrendRows
         .filter((w) => ["approved", "active"].includes(normalizeStatus(w)))
         .map((w) => ({ date: w.created_at ? isoDateOnly(new Date(w.created_at)) : "" }))
         .filter((w) => w.date),
       20,
-      now
+      now,
     );
 
     const comparisonLabel = comparisonPeriodLabel(now);
 
-    return NextResponse.json({
+    return {
       comparisonLabel,
       summary: {
         totalWorkforce: {
@@ -367,7 +357,7 @@ export async function GET(_req: NextRequest) {
           changePct: pctChange(totalWorkforce, Math.max(0, totalWorkforce - newHiresCurrent)),
         },
         shiftPositions: {
-          value: shifts.length,
+          value: shiftsTotal,
           changePct: pctChange(shiftsCurrent, shiftsPrevious),
         },
         newHires: {
@@ -422,17 +412,12 @@ export async function GET(_req: NextRequest) {
       },
       operational: {
         metrics: {
-          unifiedShifts: { value: shifts.length, changePct: pctChange(shiftsCurrent, shiftsPrevious) },
+          unifiedShifts: { value: shiftsTotal, changePct: pctChange(shiftsCurrent, shiftsPrevious) },
           pendingApproval: { value: pendingApproval, changePct: pctChange(pendingApproval, Math.max(0, pendingApproval - 3)) },
-          expiringDocuments: { value: licenses.length, changePct: pctChange(licenses.length, Math.max(0, licenses.length - 2)) },
+          expiringDocuments: { value: licensesCount, changePct: pctChange(licensesCount, Math.max(0, licensesCount - 2)) },
           complianceRate: { value: complianceRate, changePct: pctChange(complianceRate, Math.max(0, complianceRate - 5)) },
         },
         pendingApprovalsByType,
       },
-    });
-  } catch (err) {
-    console.error("[admin/dashboard-analytics:get]", err);
-    const message = err instanceof Error ? err.message : "Unexpected error";
-    return NextResponse.json({ error: message }, { status: 500 });
-  }
+    };
 }

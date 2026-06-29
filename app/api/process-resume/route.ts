@@ -1,19 +1,25 @@
 import { NextResponse } from "next/server"
-import OpenAI from "openai"
+import { createClient } from "@supabase/supabase-js"
+import { getSupabaseUrl } from "@/lib/supabase-env"
 import {
   evaluateResumeParseQuality,
-  extractJsonObjectFromModelText,
+  normalizeParsedResume,
   normalizedResumeToStoredJson,
   RESUME_PARSE_FAILED_USER_MESSAGE,
 } from "@/lib/resumeParseQuality"
+import { grokParseResume } from "@/lib/resume/grok-parse-resume"
+import { runResumeParseJob } from "@/lib/resume/run-resume-parse-job"
+import { createTimer, logResumeTiming } from "@/lib/resume/timing"
 import { enforceRateLimit, getClientIp } from "@/lib/security/rate-limit"
 
-const client = new OpenAI({
-  apiKey: process.env.XAI_API_KEY,
-  baseURL: "https://api.x.ai/v1",
-})
+type ProcessResumeBody = {
+  text?: string
+  resumeId?: string
+}
 
 export async function POST(req: Request) {
+  const routeTimer = createTimer()
+
   const limited = await enforceRateLimit(req, {
     namespace: "process-resume",
     key: getClientIp(req),
@@ -23,69 +29,104 @@ export async function POST(req: Request) {
   })
   if (limited) return limited
 
-  const body = await req.json()
+  const body = (await req.json()) as ProcessResumeBody
+  const resumeId = typeof body.resumeId === "string" ? body.resumeId.trim() : ""
 
-  const completion = await client.chat.completions.create({
-    model: "grok-4-fast",
-    messages: [
-      {
-        role: "system",
-        content: `
-You are an ATS resume parser.
+  const url = getSupabaseUrl()
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
+  const supabase = url && key ? createClient(url, key) : null
 
-Extract structured information from the resume.
+  if (resumeId && supabase) {
+    const { data: row } = await supabase
+      .from("worker_resumes")
+      .select("parsed_data")
+      .eq("id", resumeId)
+      .maybeSingle()
 
-Return JSON ONLY (no markdown, no commentary).
+    const storedText =
+      row?.parsed_data &&
+      typeof row.parsed_data === "object" &&
+      !Array.isArray(row.parsed_data) &&
+      typeof (row.parsed_data as Record<string, unknown>).text === "string"
+        ? String((row.parsed_data as Record<string, unknown>).text)
+        : ""
 
-Schema:
+    const text = (body.text?.trim() || storedText).trim()
+    if (!text) {
+      return NextResponse.json({ error: "Resume text not found" }, { status: 400 })
+    }
 
-{
-"first_name":"",
-"last_name":"",
-"address1":"",
-"address2":"",
-"city":"",
-"state":"",
-"zip":"",
-"phone":"",
-"email":"",
-"job_role":""
-}
+    const result = await runResumeParseJob({ supabase, resumeId, text })
 
-Rules:
+    logResumeTiming("process-resume", "resume-id-complete", {
+      totalMs: routeTimer.elapsedMs(),
+      resumeId,
+      parsingStatus: result.parsingStatus,
+      aiParseMs: result.aiParseMs,
+    })
 
-Split full name into first_name and last_name.
+    const normalized = result.parsedJson
+      ? normalizeParsedResume(result.parsedJson)
+      : null
 
-Extract ZIP / postal code into zip when present.
-
-Detect healthcare roles such as:
-CNA, RN, LPN, Caregiver, Medical Assistant.
-
-If a field is missing return an empty string.
-`,
-      },
-      {
-        role: "user",
-        content: body.text,
-      },
-    ],
-  })
-
-  const result = completion.choices?.[0]?.message?.content || ""
-  const extracted = extractJsonObjectFromModelText(result)
-  const rawParsed: unknown = extracted ?? {}
-
-  const quality = evaluateResumeParseQuality(rawParsed)
-  if (!quality.ok) {
-    return NextResponse.json(
-      {
-        parseStatus: quality.parseStatus,
-        error: quality.message ?? RESUME_PARSE_FAILED_USER_MESSAGE,
-        missingFields: quality.missingFieldLabels,
-      },
-      { status: 422 },
-    )
+    return NextResponse.json({
+      parseStatus: result.parsingStatus,
+      parsedJson: result.parsedJson,
+      parseError: result.parseError,
+      qualityPassed: result.qualityPassed,
+      ...(normalized ? normalizedResumeToStoredJson(normalized) : {}),
+    })
   }
 
-  return NextResponse.json(normalizedResumeToStoredJson(quality.normalized))
+  const text = body.text?.trim()
+  if (!text) {
+    return NextResponse.json({ error: "text is required" }, { status: 400 })
+  }
+
+  try {
+    const grok = await grokParseResume(text)
+    const qualityTimer = createTimer()
+    const quality = evaluateResumeParseQuality(grok.normalized)
+    const qualityMs = qualityTimer.elapsedMs()
+
+    logResumeTiming("process-resume", "complete", {
+      totalMs: routeTimer.elapsedMs(),
+      aiParseMs: grok.aiParseMs,
+      qualityMs,
+      textLength: text.length,
+      grokSnippetLength: grok.grokSnippet.length,
+      grokSnippetReduced: grok.grokSnippetReduced,
+      qualityPassed: quality.ok,
+    })
+
+    const stored = normalizedResumeToStoredJson(grok.normalized)
+
+    if (!quality.ok) {
+      return NextResponse.json({
+        parseStatus: "failed",
+        parsedJson: stored,
+        parseError: quality.message ?? RESUME_PARSE_FAILED_USER_MESSAGE,
+        missingFields: quality.missingFieldLabels,
+        qualityPassed: false,
+        ...stored,
+      })
+    }
+
+    return NextResponse.json({
+      parseStatus: "completed",
+      parsedJson: stored,
+      qualityPassed: true,
+      ...stored,
+    })
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : "Failed to parse resume"
+    logResumeTiming("process-resume", "error", {
+      totalMs: routeTimer.elapsedMs(),
+      parseError: msg,
+    })
+    return NextResponse.json(
+      { parseStatus: "failed", parseError: msg, qualityPassed: false },
+      { status: 500 },
+    )
+  }
 }

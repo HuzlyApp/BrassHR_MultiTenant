@@ -1,89 +1,55 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { supabaseBrowser } from "@/lib/supabase-browser";
+import { useQuery } from "@tanstack/react-query";
+import { useMemo } from "react";
+import { staffFetchInit } from "@/lib/staff-auth-headers";
+import { useEffectiveBranding } from "@/lib/admin/hooks/use-effective-branding";
 
 type TenantRow = { id: string; name: string; slug: string };
+
+const ADMIN_TENANTS_QUERY_KEY = ["admin-tenants-list"] as const;
+
+async function fetchAdminTenants(): Promise<TenantRow[]> {
+  const res = await fetch("/api/admin/tenants", {
+    ...(await staffFetchInit()),
+    cache: "no-store",
+  });
+  const js = (await res.json()) as { tenants?: TenantRow[]; error?: string; detail?: string };
+  if (!res.ok) {
+    throw new Error(js.detail || js.error || `Failed to load tenants (${res.status})`);
+  }
+  return js.tenants ?? [];
+}
 
 /**
  * Scoped “view as” tenant for platform god admins (`app_metadata.god_admin` / `role: god_admin`).
  * Cookie is HTTP-only — selection syncs via `reload` after POST.
  */
 export default function GodAdminTenantSwitcher() {
-  const [isGodAdmin, setIsGodAdmin] = useState(false);
-  const [tenants, setTenants] = useState<TenantRow[]>([]);
-  const [selected, setSelected] = useState<string>("");
-  const [loadingTenants, setLoadingTenants] = useState(false);
-  const [tenantError, setTenantError] = useState<string | null>(null);
+  const { branding, viewer } = useEffectiveBranding();
+  const isGodAdmin = viewer?.godAdmin === true;
 
-  useEffect(() => {
-    let alive = true;
-    void (async () => {
-      const {
-        data: { session },
-      } = await supabaseBrowser.auth.getSession();
-      const accessToken = session?.access_token ?? null;
+  const tenantsQuery = useQuery({
+    queryKey: ADMIN_TENANTS_QUERY_KEY,
+    queryFn: fetchAdminTenants,
+    enabled: isGodAdmin,
+    staleTime: 60_000,
+  });
 
-      const authHeaders: HeadersInit = accessToken
-        ? { Authorization: `Bearer ${accessToken}` }
-        : {};
-
-      const syncRes = await fetch("/api/admin/effective-branding", {
-        cache: "no-store",
-        headers: authHeaders,
-      });
-      const sync = (await syncRes.json().catch(() => ({}))) as {
-        branding?: { id?: string | null };
-        viewer?: { scoped?: boolean; godAdmin?: boolean };
-        error?: string;
-        detail?: string;
-      };
-      if (!alive) return;
-      const god = sync.viewer?.godAdmin === true;
-      setIsGodAdmin(god);
-      if (!god) return;
-
-      setSelected(sync.viewer?.scoped && sync.branding?.id ? String(sync.branding.id) : "");
-
-      setLoadingTenants(true);
-      setTenantError(null);
-      try {
-        const tr = await fetch("/api/admin/tenants", {
-          cache: "no-store",
-          headers: authHeaders,
-        });
-        const js = (await tr.json().catch(() => ({}))) as {
-          tenants?: TenantRow[];
-          error?: string;
-          detail?: string;
-        };
-        if (process.env.NODE_ENV !== "production") {
-          console.info("[GodAdminTenantSwitcher] /api/admin/tenants", {
-            status: tr.status,
-            payload: js,
-          });
-        }
-        if (!alive) return;
-        if (!tr.ok) {
-          setTenants([]);
-          if (process.env.NODE_ENV !== "production") {
-            setTenantError(js.detail || js.error || `Failed to load tenants (${tr.status})`);
-          }
-          return;
-        }
-        setTenants((js.tenants as TenantRow[]) ?? []);
-      } finally {
-        if (alive) setLoadingTenants(false);
-      }
-    })();
-    return () => {
-      alive = false;
-    };
-  }, []);
+  const selected = useMemo(() => {
+    if (!viewer?.scoped) return "";
+    return branding?.id ? String(branding.id) : viewer.tenantId ?? "";
+  }, [branding?.id, viewer?.scoped, viewer?.tenantId]);
 
   if (!isGodAdmin) {
     return null;
   }
+
+  const tenants = tenantsQuery.data ?? [];
+  const tenantError =
+    tenantsQuery.isError && tenantsQuery.error instanceof Error
+      ? tenantsQuery.error.message
+      : null;
 
   return (
     <label className="mr-6 flex items-center gap-2 text-[12px] text-[#475569]">
@@ -94,7 +60,6 @@ export default function GodAdminTenantSwitcher() {
         value={selected}
         onChange={async (e) => {
           const tenantId = e.target.value.trim();
-          setSelected(tenantId);
           await fetch("/api/admin/view-as-tenant", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -106,7 +71,7 @@ export default function GodAdminTenantSwitcher() {
         }}
       >
         <option value="">All tenants</option>
-        {loadingTenants ? (
+        {tenantsQuery.isLoading ? (
           <option value="" disabled>
             Loading tenants...
           </option>

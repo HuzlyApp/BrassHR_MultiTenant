@@ -1,7 +1,7 @@
 import type { User } from "@supabase/supabase-js";
 import { isGodAdminUser } from "@/lib/auth/god-admin";
+import { loadStaffUserProfileCached } from "@/lib/auth/staff-user-profile";
 import { readValidatedViewAsTenantId } from "@/lib/godadmin/view-as-tenant";
-import { createServiceRoleClient } from "@/lib/supabase/service-role";
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -23,24 +23,15 @@ export function tenantIdFromUser(user: User | null): string | null {
 
 async function isGodAdminMerged(user: User): Promise<boolean> {
   if (isGodAdminUser(user)) return true;
-  const sb = createServiceRoleClient();
-  if (!sb) return false;
-  const { data } = await sb.from("users").select("god_admin").eq("id", user.id).maybeSingle();
-  return (data as { god_admin?: boolean } | null)?.god_admin === true;
+  const profile = await loadStaffUserProfileCached(user.id);
+  return profile?.god_admin === true;
 }
 
 async function tenantIdFromProfilesTable(userId: string): Promise<string | null> {
-  const sb = createServiceRoleClient();
-  if (!sb) return null;
-  const { data } = await sb
-    .from("users")
-    .select("tenant_id, god_admin")
-    .eq("id", userId)
-    .maybeSingle();
-  const row = data as { tenant_id?: unknown; god_admin?: boolean } | null;
-  if (!row || row.god_admin) return null;
-  if (row.tenant_id === undefined || row.tenant_id === null) return null;
-  const s = String(row.tenant_id).trim();
+  const profile = await loadStaffUserProfileCached(userId);
+  if (!profile || profile.god_admin) return null;
+  if (profile.tenant_id === null) return null;
+  const s = profile.tenant_id.trim();
   return UUID_RE.test(s) ? s : null;
 }
 
@@ -50,6 +41,17 @@ async function tenantIdFromProfilesTable(userId: string): Promise<string | null>
  * - God admin: narrowed when `view_as_tenant_id` cookie is set; otherwise all tenants (`mode: all`).
  */
 export async function resolveStaffTenantScope(authUser: User): Promise<StaffTenantScope> {
+  if (process.env.NODE_ENV !== "production") {
+    const devTenant = process.env.DEV_BENCHMARK_TENANT_ID?.trim();
+    if (devTenant && UUID_RE.test(devTenant)) {
+      return { mode: "scoped", tenantId: devTenant };
+    }
+    const devViewAs = await readValidatedViewAsTenantId();
+    if (devViewAs) {
+      return { mode: "scoped", tenantId: devViewAs };
+    }
+  }
+
   if (await isGodAdminMerged(authUser)) {
     const viewAsId = await readValidatedViewAsTenantId();
     if (viewAsId) {

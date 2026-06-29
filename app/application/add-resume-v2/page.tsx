@@ -1,5 +1,6 @@
 "use client"
 
+/** @deprecated Legacy upload prototype — use /application/add-resume instead. */
 import { APPLICATION_ROUTES } from "@/lib/onboarding/application-routes"
 import { applicationPath } from "@/lib/tenant/with-tenant"
 import { useState } from "react"

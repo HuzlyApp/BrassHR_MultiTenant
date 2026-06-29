@@ -2,7 +2,7 @@ import type { User } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
-import { createServiceRoleClient } from "@/lib/supabase/service-role";
+import { loadStaffUserProfileCached } from "@/lib/auth/staff-user-profile";
 import { isGodAdminUser } from "@/lib/auth/god-admin";
 import { isStaffRole, parseAppRole, type AppRole } from "@/lib/auth/app-role";
 import { resolveAppRoleForUser } from "@/lib/auth/resolve-role";
@@ -60,10 +60,8 @@ export type StaffApiAuthContext = ApiAuthContext & {
 };
 
 async function hasGodAdminDbFlag(userId: string): Promise<boolean> {
-  const sb = createServiceRoleClient();
-  if (!sb) return false;
-  const { data } = await sb.from("users").select("god_admin").eq("id", userId).maybeSingle();
-  return (data as { god_admin?: boolean } | null)?.god_admin === true;
+  const profile = await loadStaffUserProfileCached(userId);
+  return profile?.god_admin === true;
 }
 
 async function extractBearerToken(): Promise<string | null> {
@@ -80,32 +78,28 @@ function isAnonymousAuthUser(user: User | null | undefined): boolean {
 
 async function getSessionUser(): Promise<{ user: User | null; error: unknown }> {
   const supabase = await createClient();
-  const first = await supabase.auth.getUser();
-  const cookieUser = first.data.user ?? null;
-
   const bearer = await extractBearerToken();
+
   if (bearer) {
-    const second = await supabase.auth.getUser(bearer);
-    const bearerUser = second.data.user ?? null;
-    if (bearerUser?.id) {
-      const cookieAnonymous = isAnonymousAuthUser(cookieUser);
-      const bearerAnonymous = isAnonymousAuthUser(bearerUser);
-      if (!cookieUser?.id || (cookieAnonymous && !bearerAnonymous)) {
-        return { user: bearerUser, error: second.error ?? first.error };
-      }
+    const bearerResult = await supabase.auth.getUser(bearer);
+    const bearerUser = bearerResult.data.user ?? null;
+    if (bearerUser?.id && !isAnonymousAuthUser(bearerUser)) {
+      return { user: bearerUser, error: bearerResult.error };
     }
   }
 
+  const cookieResult = await supabase.auth.getUser();
+  const cookieUser = cookieResult.data.user ?? null;
   if (cookieUser?.id) {
-    return { user: cookieUser, error: first.error };
+    return { user: cookieUser, error: cookieResult.error };
   }
 
   if (bearer) {
-    const second = await supabase.auth.getUser(bearer);
-    return { user: second.data.user ?? null, error: second.error ?? first.error };
+    const bearerResult = await supabase.auth.getUser(bearer);
+    return { user: bearerResult.data.user ?? null, error: bearerResult.error ?? cookieResult.error };
   }
 
-  return { user: null, error: first.error };
+  return { user: null, error: cookieResult.error };
 }
 
 /**

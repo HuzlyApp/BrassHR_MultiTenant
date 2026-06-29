@@ -1,6 +1,7 @@
 import "server-only";
 
 import { Redis as UpstashRedis } from "@upstash/redis";
+import { logPerf } from "@/lib/perf";
 import {
   buildCacheKey,
   CACHE_TTL_SECONDS,
@@ -22,6 +23,14 @@ export {
 };
 
 const DEFAULT_TTL_SECONDS = Number(process.env.CACHE_DEFAULT_TTL_SECONDS ?? 300) || 300;
+const DEFAULT_MAX_PAYLOAD_BYTES = 100 * 1024;
+
+export function getMaxCachePayloadBytes(): number {
+  const raw = process.env.CACHE_MAX_PAYLOAD_BYTES?.trim();
+  if (!raw) return DEFAULT_MAX_PAYLOAD_BYTES;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_MAX_PAYLOAD_BYTES;
+}
 
 type CacheAdapter = {
   get(key: string): Promise<string | null>;
@@ -38,8 +47,14 @@ function cacheEnabled(): boolean {
 }
 
 function logCache(event: string, detail: unknown) {
-  if (process.env.NODE_ENV !== "production") {
-    console.debug(`[cache:${event}]`, detail);
+  if (process.env.NODE_ENV !== "production" || process.env.PERF_LOG === "true") {
+    const hit = event === "hit";
+    const miss = event === "miss";
+    if (hit || miss) {
+      console.info(`[cache] key=${String(detail)} hit=${hit} ttl=—`);
+      return;
+    }
+    console.info(`[cache:${event}]`, detail);
   }
 }
 
@@ -149,15 +164,30 @@ export async function setCache<T>(
   key: string,
   value: T,
   ttlSeconds = DEFAULT_TTL_SECONDS
-): Promise<void> {
-  if (value === undefined) return;
+): Promise<boolean> {
+  if (value === undefined) return false;
 
   try {
     const adapter = await getAdapter();
-    if (!adapter) return;
-    await adapter.set(key, JSON.stringify(value), ttlSeconds);
+    if (!adapter) return false;
+
+    const serialized = JSON.stringify(value);
+    const sizeBytes = Buffer.byteLength(serialized, "utf8");
+    const maxBytes = getMaxCachePayloadBytes();
+    if (sizeBytes > maxBytes) {
+      if (process.env.NODE_ENV !== "production" || process.env.PERF_LOG === "true") {
+        console.info(
+          `[cache] key=${key} skipped=true reason=payload_too_large sizeBytes=${sizeBytes} maxBytes=${maxBytes}`
+        );
+      }
+      return false;
+    }
+
+    await adapter.set(key, serialized, ttlSeconds);
+    return true;
   } catch (error) {
     logCache("set-error", { key, error });
+    return false;
   }
 }
 
@@ -187,8 +217,12 @@ export async function getOrSetCache<T>(
   ttlSeconds = DEFAULT_TTL_SECONDS
 ): Promise<T> {
   const cached = await getCache<T>(key);
-  if (cached !== null) return cached;
+  if (cached !== null) {
+    logPerf("getOrSetCache", { key, cacheHit: true, ttlSeconds });
+    return cached;
+  }
 
+  logPerf("getOrSetCache", { key, cacheHit: false, ttlSeconds });
   const value = await fetcher();
   await setCache(key, value, ttlSeconds);
   return value;

@@ -1,6 +1,7 @@
 import type { User } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
+import { loadStaffUserProfileCached } from "@/lib/auth/staff-user-profile";
 import { isStaffRole, parseAppRole, roleAtLeast, type AppRole } from "@/lib/auth/app-role";
 
 function bestRoleFromRows(rows: { role?: string }[] | null | undefined): AppRole | null {
@@ -67,36 +68,62 @@ export async function resolveAppRoleForUser(user: User): Promise<AppRole> {
   const sb = createServiceRoleClient();
   let profileTenantId: string | null = null;
 
+  const cachedProfile = await loadStaffUserProfileCached(user.id);
+
   if (sb) {
-    const { data: profile, error: profileError } = await sb
-      .from("users")
-      .select("god_admin, tenant_id, role")
-      .eq("id", user.id)
-      .maybeSingle();
+    const row = cachedProfile
+      ? {
+          god_admin: cachedProfile.god_admin,
+          tenant_id: cachedProfile.tenant_id,
+          role: cachedProfile.role,
+        }
+      : null;
 
-    if (profileError && process.env.AUTH_DEBUG === "true") {
-      console.warn("[resolve-role] service profile lookup failed", profileError.message);
+    if (!row) {
+      const { data: profile, error: profileError } = await sb
+        .from("users")
+        .select("god_admin, tenant_id, role")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (profileError && process.env.AUTH_DEBUG === "true") {
+        console.warn("[resolve-role] service profile lookup failed", profileError.message);
+      }
+
+      const fetched = profile as {
+        god_admin?: boolean;
+        tenant_id?: string | null;
+        role?: string | null;
+      } | null;
+
+      if (fetched?.god_admin === true) {
+        return "admin";
+      }
+
+      const profileRole = roleFromProfileRow(fetched);
+      if (profileRole && roleAtLeast(profileRole, best)) {
+        best = profileRole;
+      }
+
+      profileTenantId =
+        fetched?.tenant_id != null && String(fetched.tenant_id).trim() !== ""
+          ? String(fetched.tenant_id).trim()
+          : null;
+    } else {
+      if (row.god_admin === true) {
+        return "admin";
+      }
+
+      const profileRole = roleFromProfileRow(row);
+      if (profileRole && roleAtLeast(profileRole, best)) {
+        best = profileRole;
+      }
+
+      profileTenantId =
+        row.tenant_id != null && String(row.tenant_id).trim() !== ""
+          ? String(row.tenant_id).trim()
+          : null;
     }
-
-    const row = profile as {
-      god_admin?: boolean;
-      tenant_id?: string | null;
-      role?: string | null;
-    } | null;
-
-    if (row?.god_admin === true) {
-      return "admin";
-    }
-
-    const profileRole = roleFromProfileRow(row);
-    if (profileRole && roleAtLeast(profileRole, best)) {
-      best = profileRole;
-    }
-
-    profileTenantId =
-      row?.tenant_id != null && String(row.tenant_id).trim() !== ""
-        ? String(row.tenant_id).trim()
-        : null;
 
     const scopedTenantId = jwtTenantId ?? profileTenantId;
 
