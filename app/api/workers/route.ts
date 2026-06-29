@@ -4,17 +4,10 @@ import { attachWorkerProfilePhotoUrls } from "@/lib/applicant-portal/worker-prof
 import { requireStaffApiSession } from "@/lib/auth/api-session";
 import { resolveStaffTenantScope } from "@/lib/auth/staff-tenant-scope";
 import { getSupabaseAnonKey, getSupabaseUrl } from "@/lib/supabase-env";
-import { narrowWorkerRowsByTenant } from "@/lib/workers/tenant-query";
+import { applyWorkerTenantEq } from "@/lib/workers/tenant-query";
+import type { WorkerStatus } from "@/lib/workers/workers-status-types";
+import { parseWorkersListParams, statusOrFilter } from "@/lib/workers/workers-status-filter";
 
-type WorkerStatus =
-  | "new"
-  | "pending"
-  | "approved"
-  | "disapproved"
-  | "active"
-  | "inactive"
-  | "cancelled"
-  | "banned";
 type SbErr = { message: string; code?: string };
 type ContactLookupRow = {
   id: string | null;
@@ -38,24 +31,6 @@ function parseStatus(v: string | null): WorkerStatus | null {
     return s;
   }
   return null;
-}
-
-function statusVariants(s: WorkerStatus): string[] {
-  // Text column `status` may store Title Case; match all casings.
-  const title = s.slice(0, 1).toUpperCase() + s.slice(1);
-  const upper = s.toUpperCase();
-  return Array.from(new Set([s, title, upper]));
-}
-
-/** Enum `worker_status` only accepts declared labels (typically lowercase); never pass "New"/"NEW". */
-function statusFilterValues(
-  s: WorkerStatus,
-  col: "worker_status" | "status"
-): string[] {
-  if (col === "worker_status") {
-    return [s];
-  }
-  return statusVariants(s);
 }
 
 const PIPELINE_STATUSES = new Set<WorkerStatus>([
@@ -138,6 +113,8 @@ export async function GET(req: Request) {
         urlObj.searchParams.get("status")
     );
     const headOnly = urlObj.searchParams.get("head") === "1";
+    const includePhotoUrls = urlObj.searchParams.get("includePhotoUrls") === "1";
+    const { limit, offset } = parseWorkersListParams(urlObj.searchParams);
 
     const url = getSupabaseUrl();
     const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
@@ -207,82 +184,22 @@ export async function GET(req: Request) {
         for (const a of attempts) {
           const select = `${baseCols}, ${a.extra}`;
 
-          if (status === "new") {
-            const variants = statusFilterValues(status, a.col);
-            const [rIn, rNull] = await Promise.all([
-              headOnly
-                ? supabase
-                    .from("worker")
-                    .select(select, { count: "exact", head: true })
-                    .in(a.col, variants)
-                : supabase
-                    .from("worker")
-                    .select(select)
-                    .in(a.col, variants)
-                    .order("created_at", { ascending: false }),
-              headOnly
-                ? supabase
-                    .from("worker")
-                    .select(select, { count: "exact", head: true })
-                    .is(a.col, null)
-                : supabase
-                    .from("worker")
-                    .select(select)
-                    .is(a.col, null)
-                    .order("created_at", { ascending: false }),
-            ]);
-
-            if (rIn.error || rNull.error) {
-              const e = rIn.error ?? rNull.error!;
-              error = {
-                message: e.message || "Supabase query failed",
-                code: (e as { code?: string }).code,
-              };
-              data = null;
-              count = null;
-              if (!isMissingColumnErr(error) && !isInvalidEnumErr(error)) break outer;
-              continue;
-            }
-
-            if (headOnly) {
-              data = [];
-              count = (rIn.count ?? 0) + (rNull.count ?? 0);
-              error = null;
-            } else {
-              const map = new Map<string, unknown>();
-              const combined = [
-                ...((rIn.data as unknown[] | null) ?? []),
-                ...((rNull.data as unknown[] | null) ?? []),
-              ];
-              for (const row of combined) {
-                const rec = row as Record<string, unknown>;
-                const id = rec.id != null ? String(rec.id) : "";
-                if (!id) continue;
-                if (!map.has(id)) map.set(id, row);
-              }
-              const merged = [...map.values()].sort((x, y) => {
-                const ax = new Date(
-                  String((x as { created_at?: string }).created_at ?? 0)
-                ).getTime();
-                const ay = new Date(
-                  String((y as { created_at?: string }).created_at ?? 0)
-                ).getTime();
-                return ay - ax;
-              });
-              data = merged;
-              count = merged.length;
-              error = null;
-            }
-          } else {
-            let q = supabase.from("worker").select(select, { count: "exact", head: headOnly });
-            if (status) q = q.in(a.col, statusFilterValues(status, a.col));
-            const res = await q.order("created_at", { ascending: false });
-            data = (res.data as unknown[] | null) ?? null;
-            error = res.error
-              ? { message: res.error.message, code: (res.error as { code?: string }).code }
-              : null;
-            count = typeof res.count === "number" ? res.count : null;
+          let q = supabase.from("worker").select(select, { count: "exact", head: headOnly });
+          q = applyWorkerTenantEq(q, tenantScope) as typeof q;
+          if (status) {
+            q = q.or(statusOrFilter(a.col, status)) as typeof q;
           }
+          q = q.order("created_at", { ascending: false }) as typeof q;
+          if (!headOnly) {
+            q = q.range(offset, offset + limit - 1) as typeof q;
+          }
+
+          const res = await q;
+          data = (res.data as unknown[] | null) ?? null;
+          error = res.error
+            ? { message: res.error.message, code: (res.error as { code?: string }).code }
+            : null;
+          count = typeof res.count === "number" ? res.count : null;
 
           if (!error) {
             const hasResults = headOnly
@@ -303,23 +220,13 @@ export async function GET(req: Request) {
           return { ...r, status: s };
         });
 
-        const statusFiltered =
-          pipelineStatus && status
-            ? normalized.filter((row) => {
-                const display = (row as { status?: string | null }).status;
-                return typeof display === "string" && display.toLowerCase() === status;
-              })
-            : normalized;
-
-        const narrowed = await narrowWorkerRowsByTenant(
-          supabase,
-          tenantScope,
-          statusFiltered as Record<string, unknown>[]
-        );
+        const paged = normalized;
+        const total = count ?? paged.length;
+        const hasMore = !headOnly && offset + paged.length < total;
 
         const withContacts = async () => {
           if (headOnly) return [];
-          const rows = narrowed as Array<Record<string, unknown>>;
+          const rows = paged as Array<Record<string, unknown>>;
           if (rows.length === 0) return [];
 
           const userIds = Array.from(
@@ -389,15 +296,20 @@ export async function GET(req: Request) {
         const enriched = await withContacts();
         const withPhotos = headOnly
           ? []
-          : await attachWorkerProfilePhotoUrls(supabase, enriched as Record<string, unknown>[]);
-        const total =
-          tenantScope.mode === "scoped"
-            ? headOnly
-              ? narrowed.length
-              : withPhotos.length
-            : (count ?? withPhotos.length ?? 0);
+          : includePhotoUrls
+            ? await attachWorkerProfilePhotoUrls(supabase, enriched as Record<string, unknown>[])
+            : (enriched as Record<string, unknown>[]).map((row) => ({
+                ...row,
+                profile_photo_url:
+                  typeof row.profile_photo === "string" && row.profile_photo.startsWith("http")
+                    ? row.profile_photo
+                    : null,
+              }));
         return Response.json({
           total,
+          limit,
+          offset,
+          hasMore,
           workers: headOnly ? [] : withPhotos,
         });
       }

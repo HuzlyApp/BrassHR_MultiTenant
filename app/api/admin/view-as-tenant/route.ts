@@ -9,6 +9,7 @@ import {
 } from "@/lib/godadmin/view-as-tenant";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { VIEW_AS_TENANT_COOKIE } from "@/lib/tenant/constants";
+import { invalidateStaffAuthCaches } from "@/lib/auth/invalidate-staff-auth-cache";
 import { resolveTenantIdBySlug } from "@/lib/tenant/resolve-tenant-id-by-slug";
 
 type Body = { tenantId?: string | null; slug?: string | null };
@@ -59,6 +60,7 @@ export async function POST(req: Request) {
 
     const res = NextResponse.json({ ok: true, tenantId: null });
     res.cookies.set(VIEW_AS_TENANT_COOKIE, "", { ...VIEW_AS_TENANT_COOKIE_OPTS, maxAge: 0 });
+    await invalidateStaffAuthCaches(auth.userId);
     return res;
   }
 
@@ -106,5 +108,6 @@ export async function POST(req: Request) {
     tenantSlug: resolved.tenant.slug,
   });
   res.cookies.set(VIEW_AS_TENANT_COOKIE, resolved.tenant.id, VIEW_AS_TENANT_COOKIE_OPTS);
+  await invalidateStaffAuthCaches(auth.userId);
   return res;
 }

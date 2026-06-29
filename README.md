@@ -50,6 +50,15 @@ CACHE_DEFAULT_TTL_SECONDS=300
 
 Use `REDIS_TOKEN` for HTTP Redis providers such as Upstash. For local development, a plain `redis://` or `rediss://` URL works without a token. Set `CACHE_ENABLED=false` or omit `REDIS_URL` to disable caching locally.
 
+Connect to Redis Cloud from the command line:
+
+```bash
+npm run redis:cli
+npm run redis:cli -- PING
+```
+
+This reads `REDIS_URL` from `.env`. If `redis-cli` is not installed, the script prints the equivalent `redis-cli -u "..."` command.
+
 Cache keys follow `supabase:{table}:{scope}:{hash}`. Include the user or tenant in the scope for private data, for example `supabase:profiles:user:{userId}` or `supabase:projects:tenant:{tenantId}:{queryHash}`. Large query params are hashed deterministically so keys stay readable without leaking full payloads.
 
 TTL strategy lives in `CACHE_TTL_SECONDS`:

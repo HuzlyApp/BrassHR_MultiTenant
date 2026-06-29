@@ -163,13 +163,39 @@ export async function enrichTicketsWithMessagePreviews(
   if (tickets.length === 0) return [];
 
   const ticketIds = tickets.map((ticket) => ticket.id);
-  const { data, error } = await supabase
-    .from("support_ticket_messages")
-    .select("ticket_id, message, created_at")
-    .in("ticket_id", ticketIds)
-    .order("created_at", { ascending: false });
+  const { data, error } = await supabase.rpc("latest_support_ticket_message_previews", {
+    p_ticket_ids: ticketIds,
+  });
 
-  if (error) throw error;
+  if (error) {
+    const { data: fallback, error: fallbackErr } = await supabase
+      .from("support_ticket_messages")
+      .select("ticket_id, message, created_at")
+      .in("ticket_id", ticketIds)
+      .order("created_at", { ascending: false })
+      .limit(Math.min(ticketIds.length * 5, 200));
+
+    if (fallbackErr) throw fallbackErr;
+
+    const previewByTicket = new Map<string, { preview: string; lastMessageAt: string }>();
+    for (const row of fallback ?? []) {
+      if (!previewByTicket.has(row.ticket_id)) {
+        previewByTicket.set(row.ticket_id, {
+          preview: row.message as string,
+          lastMessageAt: row.created_at as string,
+        });
+      }
+    }
+
+    return tickets.map((ticket) => {
+      const preview = previewByTicket.get(ticket.id);
+      return {
+        ...ticket,
+        lastMessagePreview: messagePreview(preview?.preview ?? null),
+        lastMessageAt: preview?.lastMessageAt ?? ticket.updated_at,
+      };
+    });
+  }
 
   const previewByTicket = new Map<string, { preview: string; lastMessageAt: string }>();
   for (const row of data ?? []) {

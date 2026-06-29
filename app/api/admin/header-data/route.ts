@@ -1,23 +1,15 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { getSupabaseUrl } from "@/lib/supabase-env";
-import { requireStaffApiSession } from "@/lib/auth/api-session";
-import { resolveStaffTenantScope } from "@/lib/auth/staff-tenant-scope";
+import { getCachedStaffApiSession, getCachedStaffTenantScope } from "@/lib/auth/cached-staff-auth";
 import {
   buildCacheKey,
   CACHE_TTL_SECONDS,
   getOrSetCache,
   invalidateUserCache,
 } from "@/lib/cache";
-
-type HeaderProfile = {
-  id: string;
-  first_name: string | null;
-  last_name: string | null;
-  role: string | null;
-  profile_photo: string | null;
-  email: string | null;
-};
+import { invalidateStaffAuthCaches } from "@/lib/auth/invalidate-staff-auth-cache";
+import { requireStaffApiSession } from "@/lib/auth/api-session";
 
 type HeaderNotification = {
   id: string;
@@ -28,12 +20,6 @@ type HeaderNotification = {
   sent_at: string | null;
 };
 
-import {
-  groupApplicantMessagesIntoConversations,
-  type ApplicantMessageListRow,
-  type WorkerSummary,
-} from "@/lib/messaging/staff-conversations";
-
 function getServiceClient() {
   const url = getSupabaseUrl();
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -42,7 +28,7 @@ function getServiceClient() {
 }
 
 export async function GET() {
-  const auth = await requireStaffApiSession();
+  const auth = await getCachedStaffApiSession();
   if (auth instanceof NextResponse) return auth;
 
   const supabase = getServiceClient();
@@ -51,73 +37,35 @@ export async function GET() {
   }
 
   const userId = auth.userId;
-  const cacheKey = buildCacheKey("admin_header_data", ["user", userId], { limit: 40 });
+  const scope = await getCachedStaffTenantScope(auth.authUser);
+  const scopeKey = scope.mode === "scoped" ? scope.tenantId : "all";
+  const cacheKey = buildCacheKey("admin_header_data", ["user", userId, "tenant", scopeKey], {
+    v: 2,
+  });
   try {
     const data = await getOrSetCache(
       cacheKey,
       async () => {
-        const scope = await resolveStaffTenantScope(auth.authUser);
+        const notificationsRes = await supabase
+          .from("notifications")
+          .select("id, title, body, type, is_read, sent_at")
+          .eq("user_id", userId)
+          .order("sent_at", { ascending: false })
+          .limit(8);
 
-        const [profileRes, notificationsRes] = await Promise.all([
-          supabase
-            .from("users")
-            .select("id, first_name, last_name, role, profile_photo, email")
-            .eq("id", userId)
-            .maybeSingle<HeaderProfile>(),
-          supabase
-            .from("notifications")
-            .select("id, title, body, type, is_read, sent_at")
-            .eq("user_id", userId)
-            .order("sent_at", { ascending: false })
-            .limit(8),
-        ]);
-
-        if (profileRes.error || notificationsRes.error) {
+        if (notificationsRes.error) {
           throw new Error("Failed to fetch header data");
         }
 
-        let messagesQuery = supabase
-          .from("applicant_messages")
-          .select("id, worker_id, tenant_id, sender_role, body, created_at")
-          .order("created_at", { ascending: false })
-          .limit(80);
-
-        if (scope.mode === "scoped") {
-          messagesQuery = messagesQuery.eq("tenant_id", scope.tenantId);
-        }
-
-        const messagesRes = await messagesQuery;
-        if (messagesRes.error) {
-          throw new Error("Failed to fetch applicant messages");
-        }
-
         const notifications = (notificationsRes.data ?? []) as HeaderNotification[];
-        const messages = (messagesRes.data ?? []) as ApplicantMessageListRow[];
-        const workerIds = Array.from(new Set(messages.map((msg) => msg.worker_id).filter(Boolean)));
-
-        const workerProfiles = workerIds.length
-          ? await supabase
-              .from("worker")
-              .select("id, first_name, last_name, email")
-              .in("id", workerIds)
-          : { data: [], error: null };
-        if (workerProfiles.error) {
-          throw new Error("Failed to fetch conversation applicants");
-        }
-
-        const workerMap = new Map((workerProfiles.data ?? []).map((worker) => [worker.id, worker as WorkerSummary]));
-        const conversations = groupApplicantMessagesIntoConversations(messages, workerMap);
 
         return {
           userId,
-          profile: profileRes.data ?? null,
           notifications,
-          conversations,
           unreadNotifications: notifications.filter((n) => !n.is_read).length,
-          unreadMessages: conversations.reduce((sum, c) => sum + c.unreadCount, 0),
         };
       },
-      CACHE_TTL_SECONDS.searchResults
+      CACHE_TTL_SECONDS.userScoped
     );
 
     return NextResponse.json(data);

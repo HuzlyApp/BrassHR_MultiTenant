@@ -1,3 +1,4 @@
+/** @deprecated Legacy Grok helper — unused by the active upload flow. See lib/resume/grok-parse-resume.ts */
 export async function grokParseResume(text:string){
 
 const res = await fetch("https://api.x.ai/v1/chat/completions",{

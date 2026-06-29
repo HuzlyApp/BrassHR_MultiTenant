@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireStaffApiSession } from "@/lib/auth/api-session";
-import { resolveStaffTenantScope } from "@/lib/auth/staff-tenant-scope";
+import { getCachedStaffApiSession, getCachedStaffTenantScope } from "@/lib/auth/cached-staff-auth";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { loadFacilitiesForTenant } from "@/lib/facilities/facility-management-service";
+import { buildCacheKey, CACHE_TTL_SECONDS, getOrSetCache } from "@/lib/cache";
+import { createPerfTimer, logPerf } from "@/lib/perf";
 import {
   applicantDisplayName,
   interviewOrdinalTitle,
@@ -105,21 +106,46 @@ function greetingForHour(hour: number): string {
 }
 
 export async function GET(req: NextRequest) {
+  const routeTimer = createPerfTimer();
   try {
-    const auth = await requireStaffApiSession();
+    const auth = await getCachedStaffApiSession();
     if (auth instanceof NextResponse) return auth;
 
-    const scope = await resolveStaffTenantScope(auth.authUser);
+    const scope = await getCachedStaffTenantScope(auth.authUser);
     if (scope.mode !== "scoped") {
       return NextResponse.json({ error: "Select a tenant before viewing the dashboard." }, { status: 400 });
     }
 
+    const selectedDate = parseDateParam(req.nextUrl.searchParams.get("date"));
+    const cacheKey = buildCacheKey("dashboard_overview", ["tenant", scope.tenantId], {
+      date: selectedDate,
+    });
+
+    const payload = await getOrSetCache(
+      cacheKey,
+      async () => buildDashboardOverviewPayload(scope.tenantId, selectedDate, auth.userId),
+      CACHE_TTL_SECONDS.dashboards,
+    );
+
+    logPerf("GET /api/admin/dashboard-overview", {
+      totalMs: routeTimer.elapsedMs(),
+      tenantId: scope.tenantId,
+      date: selectedDate,
+    });
+    return NextResponse.json(payload);
+  } catch (err) {
+    console.error("[admin/dashboard-overview:get]", err);
+    const message = err instanceof Error ? err.message : "Unexpected error";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
+
+async function buildDashboardOverviewPayload(tenantId: string, selectedDate: string, userId: string) {
     const supabase = createServiceRoleClient();
     if (!supabase) {
-      return NextResponse.json({ error: "Supabase service role not configured" }, { status: 503 });
+      throw new Error("Supabase service role not configured");
     }
 
-    const selectedDate = parseDateParam(req.nextUrl.searchParams.get("date"));
     const todayKey = localDateString(new Date());
 
     const [
@@ -133,14 +159,14 @@ export async function GET(req: NextRequest) {
       supabase
         .from("users")
         .select("first_name, last_name")
-        .eq("id", auth.userId)
+        .eq("id", userId)
         .maybeSingle(),
       supabase
         .from("interview_schedules")
         .select(
           "id, applicant_id, worker_id, title, description, scheduled_date, start_time, end_time, status"
         )
-        .eq("tenant_id", scope.tenantId)
+        .eq("tenant_id", tenantId)
         .eq("scheduled_date", selectedDate)
         .neq("status", "cancelled")
         .order("start_time", { ascending: true })
@@ -148,24 +174,24 @@ export async function GET(req: NextRequest) {
       supabase
         .from("notifications")
         .select("id, title, body, sent_at, is_read")
-        .eq("user_id", auth.userId)
+        .eq("user_id", userId)
         .order("sent_at", { ascending: false })
         .limit(6),
       supabase
         .from("shifts")
         .select("id, title, start_date, end_date, facility_id")
-        .eq("tenant_id", scope.tenantId)
+        .eq("tenant_id", tenantId)
         .gte("start_date", todayKey)
         .order("start_date", { ascending: true })
         .limit(8),
       supabase
         .from("worker")
         .select("id, first_name, last_name, job_role, status, created_at")
-        .eq("tenant_id", scope.tenantId)
+        .eq("tenant_id", tenantId)
         .in("status", ["new", "approved", "pending", "New", "Approved", "Pending"])
         .order("created_at", { ascending: false })
         .limit(6),
-      loadFacilitiesForTenant(supabase, scope.tenantId),
+      loadFacilitiesForTenant(supabase, tenantId),
     ]);
 
     if (profileRes.error) throw profileRes.error;
@@ -233,7 +259,7 @@ export async function GET(req: NextRequest) {
         ? supabase
             .from("worker_shift_assignments")
             .select("shift_id, worker_id")
-            .eq("tenant_id", scope.tenantId)
+            .eq("tenant_id", tenantId)
             .in("shift_id", shiftIds)
         : Promise.resolve({ data: [] }),
       facilityIds.length
@@ -299,7 +325,7 @@ export async function GET(req: NextRequest) {
       isRead: Boolean(item.is_read),
     }));
 
-    return NextResponse.json({
+    return {
       greeting: greetingForHour(new Date().getHours()),
       userName: profileName,
       selectedDate,
@@ -314,10 +340,5 @@ export async function GET(req: NextRequest) {
       shifts,
       onboardHires,
       facilityWorkers,
-    });
-  } catch (err) {
-    console.error("[admin/dashboard-overview:get]", err);
-    const message = err instanceof Error ? err.message : "Unexpected error";
-    return NextResponse.json({ error: message }, { status: 500 });
-  }
+    };
 }

@@ -20,45 +20,14 @@ import { supabaseBrowser } from "@/lib/supabase-browser";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import {
   formatMessageTime,
-  upsertConversationFromMessage,
   type StaffConversation,
 } from "@/lib/messaging/staff-conversations";
 import { useApplicantConversationsRealtime } from "@/lib/messaging/useApplicantConversationsRealtime";
 import { HeaderIconCountBadge } from "@/app/components/HeaderIconCountBadge";
-
-type HeaderProfile = {
-  id: string;
-  first_name: string | null;
-  last_name: string | null;
-  role: string | null;
-  profile_photo: string | null;
-  email: string | null;
-};
-
-type HeaderNotification = {
-  id: string;
-  title: string | null;
-  body: string | null;
-  type: string | null;
-  is_read: boolean | null;
-  sent_at: string | null;
-};
+import { useAdminHeaderData } from "@/lib/admin/hooks/use-admin-header-data";
+import { useStaffConversations } from "@/lib/messaging/hooks/use-staff-conversations";
 
 type ConversationItem = StaffConversation;
-
-type HeaderDataResponse = {
-  userId: string;
-  profile: HeaderProfile | null;
-  notifications: HeaderNotification[];
-  unreadNotifications: number;
-};
-
-type ConversationsResponse = {
-  conversations?: ConversationItem[];
-  tenantId?: string | null;
-  unreadMessages?: number;
-  error?: string;
-};
 
 type AdminRecruiterHeaderProps = {
   onMenuClick?: () => void;
@@ -80,14 +49,21 @@ export function AdminRecruiterHeader({
 }: AdminRecruiterHeaderProps) {
   const branding = useTenantBranding();
   const { user, profile, loading: accountLoading } = useAccountData();
+  const {
+    notifications,
+    isLoading: headerDataLoading,
+    isError: headerDataError,
+    error: headerDataErrorObj,
+  } = useAdminHeaderData();
+  const {
+    conversations,
+    tenantId,
+    unreadMessages,
+    isLoading: conversationsLoading,
+    refetch: refetchConversations,
+  } = useStaffConversations();
   const router = useRouter();
   const pathname = usePathname();
-  const [loading, setLoading] = useState(true);
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const [notifications, setNotifications] = useState<HeaderNotification[]>([]);
-  const [conversations, setConversations] = useState<ConversationItem[]>([]);
-  const [tenantId, setTenantId] = useState<string | null>(null);
-  const [unreadMessages, setUnreadMessages] = useState(0);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showMessages, setShowMessages] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
@@ -112,87 +88,27 @@ export function AdminRecruiterHeader({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [showMessages, showProfileMenu]);
 
-  const loadConversations = useCallback(async () => {
-    const response = await fetch("/api/admin/messages/conversations", { cache: "no-store" });
-    if (!response.ok) return;
-    const payload = (await response.json()) as ConversationsResponse;
-    setConversations(payload.conversations ?? []);
-    setTenantId(payload.tenantId ?? null);
-    setUnreadMessages(payload.unreadMessages ?? 0);
-  }, []);
-
   const handleConversationInsert = useCallback(
     (message: Parameters<typeof upsertConversationFromMessage>[1]) => {
-      setConversations((current) => upsertConversationFromMessage(current, message));
-      setUnreadMessages((count) => count + (message.sender_role === "applicant" ? 1 : 0));
-      void loadConversations();
+      void refetchConversations();
     },
-    [loadConversations]
+    [refetchConversations]
   );
 
-  useApplicantConversationsRealtime(tenantId, handleConversationInsert, !loading);
+  useApplicantConversationsRealtime(
+    tenantId,
+    handleConversationInsert,
+    !headerDataLoading && !conversationsLoading
+  );
 
   useEffect(() => {
     setTenantLogoSrc(branding.logoUrl?.trim() || DEFAULT_TENANT_LOGO);
   }, [branding.logoUrl]);
 
-  useEffect(() => {
-    let cancelled = false;
-
-    const loadHeaderData = async () => {
-      setLoading(true);
-
-      const response = await fetch("/api/admin/header-data", { cache: "no-store" });
-      if (!response.ok) {
-        const errPayload = await response.json().catch(() => ({}));
-        const isAuthError = response.status === 401 || response.status === 403;
-        if (isAuthError) {
-          const next = `${pathname || "/admin_recruiter"}${window.location.search}`;
-          const nextParam = encodeURIComponent(next);
-          const payload = errPayload as { detail?: string };
-          const staffSessionLost = String(payload?.detail ?? "")
-            .toLowerCase()
-            .includes("staff role required");
-          router.replace(
-            staffSessionLost
-              ? `/signin?role=admin_recruiter&next=${nextParam}&error=session`
-              : response.status === 403
-                ? `/login?next=${nextParam}&error=platform`
-                : `/login?next=${nextParam}`
-          );
-          return;
-        }
-        // console.error("[AdminRecruiterHeader] Supabase error", errPayload);
-        if (!cancelled) {
-          setCurrentUserId(null);
-          setNotifications([]);
-          setConversations([]);
-          setLoading(false);
-        }
-        return;
-      }
-
-      const payload = (await response.json()) as HeaderDataResponse;
-      const notificationsData = payload.notifications ?? [];
-
-      if (!cancelled) {
-        setCurrentUserId(payload.userId);
-        setNotifications(notificationsData);
-        setLoading(false);
-      }
-    };
-
-    void loadHeaderData();
-    void loadConversations();
-    return () => {
-      cancelled = true;
-    };
-  }, [pathname, router, loadConversations]);
-
   const displayName = getAccountDisplayName(profile, user);
   const displayRole = formatRoleLabel(profile?.role);
   const profilePhoto = profile?.avatar_url ?? null;
-  const headerLoading = loading || accountLoading;
+  const headerLoading = headerDataLoading || conversationsLoading || accountLoading;
   const unreadNotifications = useMemo(
     () => notifications.filter((notification) => !notification.is_read).length,
     [notifications]

@@ -1,11 +1,13 @@
 import { randomUUID } from "node:crypto"
-import { NextResponse } from "next/server"
+import { after, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import pdfParse from "pdf-parse"
 import mammoth from "mammoth"
 import { getSupabaseUrl } from "@/lib/supabase-env"
 import { persistWorkerResumePath } from "@/lib/onboarding/persist-worker-resume-path"
 import { persistWorkerResumeRecord } from "@/lib/onboarding/persist-worker-resume-record"
+import { runResumeParseJob } from "@/lib/resume/run-resume-parse-job"
+import { createTimer, logResumeTiming } from "@/lib/resume/timing"
 import { WORKER_RESUMES_BUCKET } from "@/lib/supabase-storage-buckets"
 import { enforceRateLimit, getClientIp } from "@/lib/security/rate-limit"
 
@@ -19,6 +21,20 @@ const ALLOWED_RESUME_MIME = new Set([
 
 function sanitizeFileName(name: string): string {
   return name.replace(/[/\\?%*:|"<>]/g, "_").slice(0, 200)
+}
+
+function resolveFileType(file: File): string {
+  const lower = file.name.toLowerCase()
+  const mime = (file.type || "").toLowerCase()
+  if (mime === "application/pdf" || lower.endsWith(".pdf")) return "pdf"
+  if (
+    mime === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+    lower.endsWith(".docx")
+  ) {
+    return "docx"
+  }
+  if (mime === "application/msword" || lower.endsWith(".doc")) return "doc"
+  return "unknown"
 }
 
 async function extractText(buffer: Buffer, file: File): Promise<string> {
@@ -49,6 +65,8 @@ async function extractText(buffer: Buffer, file: File): Promise<string> {
 }
 
 export async function POST(req: Request) {
+  const routeTimer = createTimer()
+
   const limited = await enforceRateLimit(req, {
     namespace: "upload-resume",
     key: getClientIp(req),
@@ -69,10 +87,18 @@ export async function POST(req: Request) {
   }
   const lowerName = file.name.toLowerCase()
   const mime = (file.type || "").toLowerCase()
+  const fileType = resolveFileType(file)
+  const fileSizeBytes = file.size
+
   if (file.size > MAX_RESUME_BYTES) {
     return NextResponse.json({ error: "Resume file is too large" }, { status: 400 })
   }
-  if (!ALLOWED_RESUME_MIME.has(mime) && !lowerName.endsWith(".pdf") && !lowerName.endsWith(".docx") && !lowerName.endsWith(".doc")) {
+  if (
+    !ALLOWED_RESUME_MIME.has(mime) &&
+    !lowerName.endsWith(".pdf") &&
+    !lowerName.endsWith(".docx") &&
+    !lowerName.endsWith(".doc")
+  ) {
     return NextResponse.json({ error: "Only PDF, DOC, and DOCX resumes are supported" }, { status: 400 })
   }
 
@@ -91,12 +117,14 @@ export async function POST(req: Request) {
   const folder = applicantId || "pending"
   const objectPath = `${folder}/${randomUUID()}-${sanitizeFileName(file.name)}`
 
+  const storageTimer = createTimer()
   const { error: uploadError } = await supabase.storage
     .from(WORKER_RESUMES_BUCKET)
     .upload(objectPath, buffer, {
       contentType: file.type || "application/octet-stream",
       upsert: false,
     })
+  const storageUploadMs = storageTimer.elapsedMs()
 
   if (uploadError) {
     console.error("[upload-resume] storage upload", uploadError)
@@ -106,13 +134,32 @@ export async function POST(req: Request) {
     )
   }
 
+  logResumeTiming("upload-resume", "storage-complete", {
+    storageUploadMs,
+    fileType,
+    fileSizeBytes,
+  })
+
   let text: string
+  const extractionTimer = createTimer()
   try {
     text = await extractText(buffer, file)
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Could not read resume"
     return NextResponse.json({ error: msg }, { status: 400 })
   }
+  const extractionMs = extractionTimer.elapsedMs()
+  const textLength = text.trim().length
+
+  logResumeTiming("upload-resume", "extraction-complete", {
+    extractionMs,
+    textLength,
+    fileType,
+    fileSizeBytes,
+  })
+
+  let resumeId: string | null = null
+  const parseStartedAt = new Date().toISOString()
 
   if (applicantId) {
     try {
@@ -121,21 +168,45 @@ export async function POST(req: Request) {
       console.error("[upload-resume] worker_requirements resume_path", e)
     }
     try {
-      await persistWorkerResumeRecord(supabase, applicantId, {
+      resumeId = await persistWorkerResumeRecord(supabase, applicantId, {
         fileUrl: objectPath,
         originalFileName: file.name,
         parsedData: { text },
-        parsingStatus: "completed",
+        parsingStatus: "processing",
+        textLength,
+        extractionMs,
+        parseStartedAt,
       })
     } catch (e) {
       console.error("[upload-resume] worker_resumes", e)
     }
   }
 
+  if (resumeId && text.trim()) {
+    after(async () => {
+      await runResumeParseJob({ supabase, resumeId: resumeId!, text })
+    })
+  }
+
+  const totalMs = routeTimer.elapsedMs()
+  logResumeTiming("upload-resume", "response", {
+    totalMs,
+    storageUploadMs,
+    extractionMs,
+    textLength,
+    fileType,
+    fileSizeBytes,
+    resumeId,
+    parseStatus: resumeId ? "processing" : "pending",
+  })
+
   return NextResponse.json({
+    resumeId,
     fileName: file.name,
-    text,
     storagePath: objectPath,
+    parseStatus: resumeId ? "processing" : "pending",
     bucket: WORKER_RESUMES_BUCKET,
+    textLength,
+    extractionMs,
   })
 }
