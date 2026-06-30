@@ -86,6 +86,22 @@ export default function TenantOnboardingPage() {
 
   const publicRootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN?.trim() ?? "";
 
+  const buildAdminRecruiterLoginUrl = (slug: string | null, domain: string | null): string | null => {
+    const cleanedSlug = slug?.trim() ?? "";
+    const cleanedDomain = domain?.trim() ?? "";
+    if (!cleanedSlug || !cleanedDomain) return null;
+
+    const normalizedDomain = cleanedDomain.replace(/^https?:\/\//i, "").replace(/\/+$/, "");
+    if (!normalizedDomain) return null;
+
+    const protocol =
+      typeof window !== "undefined" && window.location.protocol
+        ? window.location.protocol
+        : "https:";
+
+    return `${protocol}//${normalizedDomain}/login?tenant=${encodeURIComponent(cleanedSlug)}&role=admin_recruiter`;
+  };
+
   useEffect(() => {
     let alive = true;
     void (async () => {
@@ -260,6 +276,12 @@ export default function TenantOnboardingPage() {
           setSubmitting(false);
           return;
         }
+      }
+
+      const adminLoginUrl = buildAdminRecruiterLoginUrl(payload.slug ?? null, payload.domain ?? null);
+      if (adminLoginUrl && typeof window !== "undefined") {
+        window.location.assign(adminLoginUrl);
+        return;
       }
 
       setStep("done");

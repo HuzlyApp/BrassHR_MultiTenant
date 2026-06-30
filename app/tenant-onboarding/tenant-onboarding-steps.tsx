@@ -46,6 +46,7 @@ const inputTextClass =
 
 /** Fixed validation red — never tied to tenant brand colors. */
 const VALIDATION_ERROR_RED = "#DC2626";
+const REQUIRED_ASTERISK_RED = "#DC2626";
 
 const inputErrorClass =
   "!border-[#DC2626] bg-white text-[#0f172a] focus:!border-[#DC2626] focus:ring-2 focus:ring-[#DC2626]/30";
@@ -72,7 +73,15 @@ function FieldLabel({ children, required = true }: { children: string; required?
       style={interStyle}
     >
       {children}
-      {required ? <span className="ml-1 text-[#e11d48]">*</span> : null}
+      {required ? (
+        <span
+          className="ml-1 !text-[#DC2626]"
+          style={{ color: REQUIRED_ASTERISK_RED, fontWeight: 700 }}
+          aria-hidden="true"
+        >
+          *
+        </span>
+      ) : null}
     </label>
   );
 }

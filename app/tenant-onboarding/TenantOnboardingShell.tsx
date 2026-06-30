@@ -111,7 +111,7 @@ export default function TenantOnboardingShell({
               className="mt-[18px] text-[34px] font-semibold leading-[40px] tracking-normal"
               style={{ ...interStyle, color: "var(--brand-primary)" }}
             >
-              Welcome to {brand.companyName}!
+              Welcome to Brass HR!
             </h1>
             <p className="mt-[6px] w-full text-[18px] font-semibold leading-[28px] tracking-normal text-[#0f172a]" style={shellSubtitleStyle}>
               Get started by following these 4 easy steps.

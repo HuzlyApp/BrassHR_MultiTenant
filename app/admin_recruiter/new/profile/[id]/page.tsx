@@ -538,6 +538,8 @@ export default function NewApplicantProfilePage() {
     ];
   }, [data?.nursing_licenses, w?.state]);
 
+  const nursingLicenseRedirectHref = `${base}/attachments/${id}`;
+
   const onboardingCompleted = useMemo(
     () => (data?.onboardingSteps ?? []).length > 0 && (data?.onboardingSteps ?? []).every((s) => s.state === "complete"),
     [data?.onboardingSteps]
@@ -761,7 +763,7 @@ export default function NewApplicantProfilePage() {
               </div>
 
               <div className="grid grid-cols-1 gap-0 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] lg:items-stretch">
-                <section className="space-y-4">
+                <section className="space-y-0 border-r border-[#D1D5DB]">
                   <div className="overflow-hidden bg-white">
                     <div className="flex h-11 items-center gap-2 border-b border-[#E5E7EB] px-5">
                       <h2 className="text-[20px] font-semibold leading-7 text-[#111827]">Candidate Details</h2>
@@ -966,7 +968,7 @@ export default function NewApplicantProfilePage() {
                     </div>
                   </div>
 
-                  <div className="rounded-2xl bg-white">
+                  <div className="border-t border-[#E5E7EB] bg-white">
                     <div className="flex h-11 items-center justify-between gap-2 border-b border-[#E5E7EB] px-5">
                       <div className="text-[20px] font-semibold leading-7 text-[#111827]">Nursing Licenses</div>
                     </div>
@@ -1015,6 +1017,7 @@ export default function NewApplicantProfilePage() {
                       <div className="mt-3 flex items-center justify-center border-t border-[#E5E7EB] py-4">
                         <button
                           type="button"
+                          onClick={() => router.push(nursingLicenseRedirectHref)}
                           className="inline-flex h-9 min-w-[175px] items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-[#0D9488] px-4 py-2 text-sm font-semibold text-[#0D9488]"
                         >
                           <span className="text-base leading-none">+</span>
@@ -1024,7 +1027,7 @@ export default function NewApplicantProfilePage() {
                     </div>
                   </div>
 
-                  <div className="rounded-2xl bg-white">
+                  <div className="border-t border-[#E5E7EB] bg-white">
                     <div className="flex h-11 items-center gap-2 border-b border-[#E5E7EB] px-5">
                       <div className="text-[20px] font-semibold leading-7 text-[#111827]">Activity Logs</div>
                     </div>
@@ -1053,7 +1056,7 @@ export default function NewApplicantProfilePage() {
                     </div>
                   </div>
 
-                  <div className="rounded-2xl bg-white">
+                  <div className="border-t border-[#E5E7EB] bg-white">
                     <div className="flex h-11 items-center gap-2 border-b border-[#E5E7EB] px-5">
                       <div className="text-[20px] font-semibold leading-7 text-[#111827]">Activity History</div>
                     </div>
