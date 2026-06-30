@@ -21,4 +21,4 @@ export const CANDIDATES_FILTER_LABEL_CLASS =
   "shrink-0 text-[14px] font-normal leading-6 tracking-normal text-[#475569] align-middle whitespace-nowrap";
 
 export const CANDIDATES_FILTER_CONTROL_CLASS =
-  "h-10 w-full min-w-0 rounded-md border border-[#dce6e3] bg-white px-2.5 text-sm font-normal leading-6 text-[#334155] hover:bg-zinc-50 focus:border-[color:var(--brand-primary)] focus:outline-none focus:ring-0 sm:h-8 sm:min-w-[72px] sm:max-w-[140px] sm:w-auto";
+  "h-10 w-full min-w-0 rounded-md border border-[#dce6e3] bg-white px-2.5 text-sm font-normal leading-6 text-[#334155] hover:bg-zinc-50 focus:border-[color:var(--brand-primary)] focus:outline-none focus:ring-0 sm:h-8 sm:min-w-[100px] sm:max-w-[160px] sm:w-auto appearance-auto cursor-pointer";

@@ -1,10 +1,11 @@
 "use client";
 
 import { useMemo } from "react";
-import { Columns2, Download, Filter, LayoutGrid, List, Search } from "lucide-react";
+import { Columns2, Filter, LayoutGrid, List, Search } from "lucide-react";
 import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
 import { CandidatesSubTabs } from "./CandidatesSubTabs";
 import { CandidatesPageHeader } from "./CandidatesPageHeader";
+import { ListExportDropdown } from "./ListExportDropdown";
 import {
   CANDIDATES_FILTER_CONTROL_CLASS,
   CANDIDATES_FILTER_LABEL_CLASS,
@@ -31,7 +32,8 @@ export type CandidatesListShellProps = {
   view: "card" | "list";
   onViewChange: (view: "card" | "list") => void;
   onEditColumns: () => void;
-  onExport: () => void;
+  onExportCsv: () => void;
+  onExportXls: () => void;
   onAdvancedSearch?: () => void;
   totalCount: number | null;
   loading: boolean;
@@ -239,7 +241,8 @@ export function CandidatesListShell({
   view,
   onViewChange,
   onEditColumns,
-  onExport,
+  onExportCsv,
+  onExportXls,
   onAdvancedSearch,
   totalCount,
   loading,
@@ -296,7 +299,7 @@ export function CandidatesListShell({
       <div className="w-full overflow-hidden rounded-[12px] border border-[#E5E7EB] bg-white">
         <CandidatesPageHeader title="Candidates" subtitle="Manage applicants in one place" />
 
-        <div className="flex w-full flex-col overflow-hidden rounded-t-[8px] border-y border-[#E5E7EB] bg-white">
+        <div className="flex w-full flex-col overflow-visible rounded-t-[8px] border-y border-[#E5E7EB] bg-white">
           {/* Compact / tablet toolbar — below 1280px */}
           <div className="flex flex-col gap-2 border-b border-[#E5E7EB] px-3 py-2.5 xl:hidden">
             <div className="flex w-full items-center gap-2">
@@ -330,9 +333,11 @@ export function CandidatesListShell({
                   <MobileIconButton onClick={onEditColumns} label="Columns">
                     <Columns2 className="h-4 w-4" />
                   </MobileIconButton>
-                  <MobileIconButton onClick={onExport} label="Export">
-                    <Download className="h-4 w-4" />
-                  </MobileIconButton>
+                  <ListExportDropdown
+                    variant="icon"
+                    onExportCsv={onExportCsv}
+                    onExportXls={onExportXls}
+                  />
                   <MobileIconButton onClick={onRefresh} label={refreshLabel}>
                     <BrandedSvgIcon
                       src="/icons/admin-recruiter/candidates/refresh.svg"
@@ -345,9 +350,10 @@ export function CandidatesListShell({
                   <ToolbarIconButton onClick={onEditColumns} label="Columns">
                     <Columns2 className="h-4 w-4 shrink-0" />
                   </ToolbarIconButton>
-                  <ToolbarIconButton onClick={onExport} label="Export">
-                    <Download className="h-4 w-4 shrink-0" />
-                  </ToolbarIconButton>
+                  <ListExportDropdown
+                    onExportCsv={onExportCsv}
+                    onExportXls={onExportXls}
+                  />
                   <button
                     type="button"
                     onClick={onRefresh}
@@ -380,7 +386,7 @@ export function CandidatesListShell({
                   <select
                     value={jobRoleFilter}
                     onChange={(e) => onJobRoleFilterChange(e.target.value)}
-                    className="h-10 w-full min-w-0 rounded-md border border-[#dce6e3] bg-white px-2 text-sm text-[#334155] sm:h-9"
+                    className="h-10 w-full min-w-0 rounded-md border border-[#dce6e3] bg-white px-2 text-sm text-[#334155] sm:h-9 appearance-auto cursor-pointer relative z-10"
                   >
                     <option value="">All</option>
                     {jobRoleOptions.map((role) => (
@@ -394,7 +400,7 @@ export function CandidatesListShell({
                   <select
                     value={locationFilter}
                     onChange={(e) => onLocationFilterChange(e.target.value)}
-                    className="h-10 w-full min-w-0 rounded-md border border-[#dce6e3] bg-white px-2 text-sm text-[#334155] sm:h-9"
+                    className="h-10 w-full min-w-0 rounded-md border border-[#dce6e3] bg-white px-2 text-sm text-[#334155] sm:h-9 appearance-auto cursor-pointer relative z-10"
                   >
                     <option value="">All</option>
                     {locationOptions.map((loc) => (
@@ -445,9 +451,10 @@ export function CandidatesListShell({
                 <ToolbarIconButton onClick={onEditColumns} label="Columns">
                   <Columns2 className="h-4 w-4 shrink-0" />
                 </ToolbarIconButton>
-                <ToolbarIconButton onClick={onExport} label="Export">
-                  <Download className="h-4 w-4 shrink-0" />
-                </ToolbarIconButton>
+                <ListExportDropdown
+                  onExportCsv={onExportCsv}
+                  onExportXls={onExportXls}
+                />
                 <button
                   type="button"
                   onClick={onRefresh}
@@ -476,7 +483,7 @@ export function CandidatesListShell({
                     <select
                       value={jobRoleFilter}
                       onChange={(e) => onJobRoleFilterChange(e.target.value)}
-                      className={CANDIDATES_FILTER_CONTROL_CLASS}
+                      className={`${CANDIDATES_FILTER_CONTROL_CLASS} relative z-10`}
                       style={CANDIDATES_PAGE_SUBTITLE_STYLE}
                     >
                       <option value="">All</option>
@@ -491,7 +498,7 @@ export function CandidatesListShell({
                     <select
                       value={locationFilter}
                       onChange={(e) => onLocationFilterChange(e.target.value)}
-                      className={CANDIDATES_FILTER_CONTROL_CLASS}
+                      className={`${CANDIDATES_FILTER_CONTROL_CLASS} relative z-10`}
                       style={CANDIDATES_PAGE_SUBTITLE_STYLE}
                     >
                       <option value="">All</option>
@@ -507,7 +514,7 @@ export function CandidatesListShell({
                       type="date"
                       value={dateFilter}
                       onChange={(e) => onDateFilterChange(e.target.value)}
-                      className={`${CANDIDATES_FILTER_CONTROL_CLASS} scheme-light`}
+                      className={`${CANDIDATES_FILTER_CONTROL_CLASS} relative z-10 scheme-light`}
                       style={CANDIDATES_PAGE_SUBTITLE_STYLE}
                     />
                   </InlineFilterField>

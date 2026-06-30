@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { CandidatesListShell } from "./CandidatesListShell";
 import AdvancedSearchModal from "./AdvancedSearchModal";
 import { useCandidatesFilterRowsDefault } from "../hooks/useCandidatesFilterRowsDefault";
-import { exportCandidatesCsv } from "../candidates/export-candidates-csv";
+import { exportCandidatesCsv, exportCandidatesXls } from "../candidates/export-candidates";
 import { EditColumnsModal } from "../candidates/EditColumnsModal";
 import {
   columnLabel,
@@ -297,7 +297,8 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
         view={view}
         onViewChange={setView}
         onEditColumns={() => setEditColumnsOpen(true)}
-        onExport={() => exportCandidatesCsv(filtered)}
+        onExportCsv={() => exportCandidatesCsv(filtered)}
+        onExportXls={() => exportCandidatesXls(filtered)}
         onAdvancedSearch={() => setAdvancedSearchOpen(true)}
         totalCount={totalFromApi}
         loading={loading}

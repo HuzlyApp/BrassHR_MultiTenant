@@ -18,7 +18,7 @@ import AdvancedSearchModal from "../components/AdvancedSearchModal";
 import CandidateCommunicationDialog from "../components/CandidateCommunicationDialog";
 import { CandidatesListShell } from "../components/CandidatesListShell";
 import { useCandidatesFilterRowsDefault } from "../hooks/useCandidatesFilterRowsDefault";
-import { exportCandidatesCsv } from "./export-candidates-csv";
+import { exportCandidatesCsv, exportCandidatesXls } from "./export-candidates";
 
 type WorkerProfile = {
   id: string;
@@ -410,7 +410,8 @@ export default function CandidatesPage() {
         view={view}
         onViewChange={setView}
         onEditColumns={() => setEditColumnsOpen(true)}
-        onExport={() => exportCandidatesCsv(filtered)}
+        onExportCsv={() => exportCandidatesCsv(filtered)}
+        onExportXls={() => exportCandidatesXls(filtered)}
         onAdvancedSearch={() => setAdvancedSearchOpen(true)}
         totalCount={totalFromApi}
         loading={loading}

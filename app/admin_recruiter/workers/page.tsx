@@ -9,6 +9,7 @@ import {
 } from "@/app/admin_recruiter/candidates/candidates-typography";
 import { CandidatesPageHeader } from "@/app/admin_recruiter/components/CandidatesPageHeader";
 import { ColumnsEditorModal } from "@/app/admin_recruiter/components/ColumnsEditorModal";
+import { ListExportDropdown } from "@/app/admin_recruiter/components/ListExportDropdown";
 import {
   employmentWorkerTabLabel,
   type EmploymentWorkerTab,
@@ -30,6 +31,7 @@ import {
   type WorkerColumnId,
 } from "./worker-columns";
 import { renderWorkerListCell, type WorkerListRow } from "./render-worker-list-cell";
+import { exportWorkersCsv, exportWorkersXls } from "./export-workers";
 
 type EmploymentWorkerRow = {
   id: string;
@@ -226,7 +228,7 @@ export default function WorkersPage() {
         <CandidatesPageHeader title="Workers" subtitle="Manage workers in one place" />
 
         <div
-          className={`flex w-full flex-col gap-0 overflow-hidden rounded-t-[8px] border-y border-[#E5E7EB] bg-white ${
+          className={`flex w-full flex-col gap-0 overflow-visible rounded-t-[8px] border-y border-[#E5E7EB] bg-white ${
             showFilterRows ? "min-h-[104px]" : "min-h-[52px]"
           }`}
         >
@@ -261,6 +263,10 @@ export default function WorkersPage() {
                 <Columns2 className="h-4 w-4 shrink-0" />
                 Columns
               </button>
+              <ListExportDropdown
+                onExportCsv={() => exportWorkersCsv(filtered)}
+                onExportXls={() => exportWorkersXls(filtered)}
+              />
               <button
                 type="button"
                 onClick={() => void loadWorkers()}
@@ -282,7 +288,7 @@ export default function WorkersPage() {
           </div>
 
           {showFilterRows ? (
-            <div className="flex h-[52px] w-full shrink-0 items-center gap-3 px-[14px]">
+            <div className="flex min-h-[52px] w-full shrink-0 items-center gap-3 px-[14px] py-2">
               <div className="flex min-w-0 items-center gap-4 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
                 <BrandedSvgIcon
                   src="/icons/admin-recruiter/candidates/filtered.svg.svg"
@@ -296,7 +302,7 @@ export default function WorkersPage() {
                   <select
                     value={jobRoleFilter}
                     onChange={(e) => setJobRoleFilter(e.target.value)}
-                    className={CANDIDATES_FILTER_CONTROL_CLASS}
+                    className={`${CANDIDATES_FILTER_CONTROL_CLASS} relative z-10`}
                     style={CANDIDATES_PAGE_SUBTITLE_STYLE}
                   >
                     <option value="">All</option>
@@ -314,7 +320,7 @@ export default function WorkersPage() {
                   <select
                     value={locationFilter}
                     onChange={(e) => setLocationFilter(e.target.value)}
-                    className={CANDIDATES_FILTER_CONTROL_CLASS}
+                    className={`${CANDIDATES_FILTER_CONTROL_CLASS} relative z-10`}
                     style={CANDIDATES_PAGE_SUBTITLE_STYLE}
                   >
                     <option value="">All</option>
@@ -333,7 +339,7 @@ export default function WorkersPage() {
                     type="date"
                     value={dateFilter}
                     onChange={(e) => setDateFilter(e.target.value)}
-                    className={`${CANDIDATES_FILTER_CONTROL_CLASS} min-w-[132px] scheme-light`}
+                    className={`${CANDIDATES_FILTER_CONTROL_CLASS} relative z-10 min-w-[132px] scheme-light`}
                     style={CANDIDATES_PAGE_SUBTITLE_STYLE}
                   />
                 </label>
