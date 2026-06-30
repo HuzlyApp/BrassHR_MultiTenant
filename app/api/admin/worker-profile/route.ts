@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { createClient } from "@supabase/supabase-js"
+import { createClient, type SupabaseClient } from "@supabase/supabase-js"
 import {
   buildWorkerUpdatePayload,
   isWorkerProfileFieldKey,
@@ -867,7 +867,7 @@ function isMissingColumnErr(e: unknown) {
 }
 
 async function upsertWorkerReference(
-  supabase: ReturnType<typeof createClient>,
+  supabase: SupabaseClient,
   workerId: string,
   tenantId: string,
   referenceIndex: number,
@@ -908,11 +908,12 @@ async function upsertWorkerReference(
     .maybeSingle()
 
   if (error) throw error
-  return { id: inserted?.id != null ? String(inserted.id) : null }
+  const insertedRow = inserted as { id?: string | number } | null
+  return { id: insertedRow?.id != null ? String(insertedRow.id) : null }
 }
 
 async function upsertPrimaryLicenseRecord(
-  supabase: ReturnType<typeof createClient>,
+  supabase: SupabaseClient,
   workerId: string,
   tenantId: string,
   patch: { license_type?: string; expires_at?: string }
@@ -937,7 +938,7 @@ async function upsertPrimaryLicenseRecord(
 
     const { error } = await supabase
       .from("worker_license_records")
-      .update(updateRow)
+      .update(updateRow as never)
       .eq("id", existing.id)
     if (error) throw error
     return { id: String(existing.id) }
@@ -952,12 +953,13 @@ async function upsertPrimaryLicenseRecord(
       license_type: licenseType,
       expires_at: patch.expires_at ?? null,
       status: "under_review",
-    })
+    } as never)
     .select("id")
     .maybeSingle()
 
   if (error) throw error
-  return { id: inserted?.id != null ? String(inserted.id) : null }
+  const licenseRow = inserted as { id?: string | number } | null
+  return { id: licenseRow?.id != null ? String(licenseRow.id) : null }
 }
 
 export async function PATCH(req: NextRequest) {
@@ -1123,7 +1125,7 @@ export async function PATCH(req: NextRequest) {
 
     const { data: updated, error: updateErr } = await supabase
       .from("worker")
-      .update(updatePayload)
+      .update(updatePayload as never)
       .eq("id", workerId)
       .select("id")
       .maybeSingle()
