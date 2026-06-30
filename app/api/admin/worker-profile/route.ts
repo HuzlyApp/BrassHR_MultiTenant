@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { createClient, type SupabaseClient } from "@supabase/supabase-js"
+import { createClient } from "@supabase/supabase-js"
 import {
   buildWorkerUpdatePayload,
   isWorkerProfileFieldKey,
@@ -30,6 +30,8 @@ import { resolveWorkerProfilePhotoUrl } from "@/lib/applicant-portal/worker-prof
 import { parseRequiredUuid } from "@/lib/validation/uuid"
 
 export const runtime = "nodejs"
+
+type WorkerProfileSupabaseClient = ReturnType<typeof createClient<any, "public", any>>
 
 function hasUrl(v: unknown): boolean {
   return typeof v === "string" && v.trim().length > 0
@@ -867,7 +869,7 @@ function isMissingColumnErr(e: unknown) {
 }
 
 async function upsertWorkerReference(
-  supabase: SupabaseClient,
+  supabase: WorkerProfileSupabaseClient,
   workerId: string,
   tenantId: string,
   referenceIndex: number,
@@ -908,12 +910,12 @@ async function upsertWorkerReference(
     .maybeSingle()
 
   if (error) throw error
-  const insertedRow = inserted as { id?: string | number } | null
+  const insertedRow = inserted as { id?: string | number | null } | null
   return { id: insertedRow?.id != null ? String(insertedRow.id) : null }
 }
 
 async function upsertPrimaryLicenseRecord(
-  supabase: SupabaseClient,
+  supabase: WorkerProfileSupabaseClient,
   workerId: string,
   tenantId: string,
   patch: { license_type?: string; expires_at?: string }
@@ -958,8 +960,8 @@ async function upsertPrimaryLicenseRecord(
     .maybeSingle()
 
   if (error) throw error
-  const licenseRow = inserted as { id?: string | number } | null
-  return { id: licenseRow?.id != null ? String(licenseRow.id) : null }
+  const insertedRow = inserted as { id?: string | number | null } | null
+  return { id: insertedRow?.id != null ? String(insertedRow.id) : null }
 }
 
 export async function PATCH(req: NextRequest) {

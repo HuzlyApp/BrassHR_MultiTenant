@@ -25,6 +25,7 @@ import BrandedSvgIcon from "@/app/components/BrandedSvgIcon"
 import BrandedUploadIcon from "@/app/components/BrandedUploadIcon"
 
 const APPLICANT_SESSION_TIMEOUT_MS = 15_000
+const WORKER_ENSURE_TIMEOUT_MS = 15_000
 const RESUME_UPLOAD_TIMEOUT_MS = 45_000
 const WORKER_REQUIREMENTS_TIMEOUT_MS = 10_000
 const UPLOAD_WATCHDOG_TIMEOUT_MS = 60_000
@@ -292,10 +293,32 @@ export default function Step1Upload() {
           throw new Error(session.error)
         }
 
+        setUploadPhase("Preparing applicant profile...")
+        const { ensureApplicantWorker } = await import("@/lib/onboarding/ensure-applicant-worker")
+        const workerResult = await promiseWithTimeout(
+          ensureApplicantWorker(),
+          WORKER_ENSURE_TIMEOUT_MS,
+          "Profile setup timed out. Please refresh and try again.",
+        )
+        if (!workerResult.ok) {
+          throw new Error(workerResult.error)
+        }
+
         setUploadPhase("Uploading resume...")
         const fd = new FormData()
         fd.append("file", file)
         fd.append("applicantId", session.applicantId)
+        const tenantSlug =
+          new URLSearchParams(window.location.search).get("tenant")?.trim().toLowerCase() || ""
+        if (tenantSlug) {
+          fd.append("tenantSlug", tenantSlug)
+        }
+        if (workerResult.workerId) {
+          fd.append("workerId", workerResult.workerId)
+        }
+        if (workerResult.tenantId) {
+          fd.append("tenantId", workerResult.tenantId)
+        }
         localStorage.setItem("applicantId", session.applicantId)
 
         const uploadRes = await fetchWithTimeout(

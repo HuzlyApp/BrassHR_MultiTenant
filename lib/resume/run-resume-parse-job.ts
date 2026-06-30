@@ -28,6 +28,7 @@ export async function runResumeParseJob(params: {
     .from("worker_resumes")
     .update({
       parsing_status: "processing",
+      parse_status: "processing",
       parse_started_at: now,
       parse_error: null,
     })
@@ -63,8 +64,10 @@ export async function runResumeParseJob(params: {
         .from("worker_resumes")
         .update({
           parsing_status: "completed",
+          parse_status: "completed",
           parsed_json: parsedJson,
           parsed_data: { text, pre_extracted: grok.preExtracted },
+          extracted_text: text,
           parse_error: null,
           parse_completed_at: completedAt,
           parsed_at: completedAt,
@@ -93,8 +96,10 @@ export async function runResumeParseJob(params: {
       .from("worker_resumes")
       .update({
         parsing_status: "failed",
+        parse_status: "failed",
         parsed_json: parsedJson,
         parsed_data: { text, pre_extracted: grok.preExtracted },
+        extracted_text: text,
         parse_error: parseError,
         parse_completed_at: completedAt,
         parsed_at: null,
@@ -124,6 +129,7 @@ export async function runResumeParseJob(params: {
       .from("worker_resumes")
       .update({
         parsing_status: "failed",
+        parse_status: "failed",
         parse_error: parseError,
         parse_completed_at: completedAt,
         ai_parse_ms: aiParseMs || null,

@@ -54,12 +54,21 @@ export async function POST(req: NextRequest) {
 
     let stepId = body.stepId?.trim() || "";
     if (!stepId && body.stepKey) {
-      const { data: stepRow } = await supabase
+      let { data: stepRow } = await supabase
         .from("tenant_onboarding_steps")
-        .select("id")
+        .select("id, step_key, step_type")
         .eq("tenant_id", ctx.tenantId)
         .eq("step_key", body.stepKey.trim())
         .maybeSingle();
+      if (!stepRow && body.stepKey.trim() === "resume_upload") {
+        const fallback = await supabase
+          .from("tenant_onboarding_steps")
+          .select("id, step_key, step_type")
+          .eq("tenant_id", ctx.tenantId)
+          .eq("step_type", "resume_upload")
+          .maybeSingle();
+        stepRow = fallback.data;
+      }
       stepId = stepRow?.id ? String(stepRow.id) : "";
     }
 
@@ -79,19 +88,14 @@ export async function POST(req: NextRequest) {
     }
 
     if (status === "completed" && stepRow && isUploadResumeStep(stepRow)) {
-      const { data: worker } = await supabase
-        .from("workers")
+      const { data: worker, error: workerErr } = await supabase
+        .from("worker")
         .select("email")
         .eq("id", ctx.workerId)
         .maybeSingle();
+      if (workerErr) throw workerErr;
       const email = String(worker?.email ?? "").trim();
-      if (!email) {
-        return NextResponse.json(
-          { error: "A valid email is required before continuing onboarding." },
-          { status: 400 }
-        );
-      }
-      if (!isValidStep1Email(email)) {
+      if (email && !isValidStep1Email(email)) {
         return NextResponse.json(
           { error: "Enter a valid email address before continuing onboarding." },
           { status: 400 }
@@ -103,7 +107,13 @@ export async function POST(req: NextRequest) {
         .select("file_url")
         .eq("worker_id", ctx.workerId)
         .maybeSingle();
-      if (!resume?.file_url) {
+      const { data: requirements } = await supabase
+        .from("worker_requirements")
+        .select("resume_path")
+        .or(`worker_id.eq.${ctx.workerId},worker_id.eq.${applicantId}`)
+        .maybeSingle();
+      const resumePath = String(requirements?.resume_path ?? "").trim();
+      if (!resume?.file_url && !resumePath) {
         return NextResponse.json(
           { error: "Upload your resume before continuing onboarding." },
           { status: 400 }

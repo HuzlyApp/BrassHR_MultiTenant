@@ -45,6 +45,12 @@ type CacheAdapter = {
   deleteByPattern?(pattern: string): Promise<void>;
 };
 
+type MemoryCacheEntry = { value: string; expiresAt: number };
+
+const memoryCache: Map<string, MemoryCacheEntry> =
+  ((globalThis as typeof globalThis & { __brassMemoryCache?: Map<string, MemoryCacheEntry> })
+    .__brassMemoryCache ??= new Map());
+
 let adapterPromise: Promise<CacheAdapter | null> | null = null;
 let testAdapter: CacheAdapter | null | undefined;
 
@@ -61,6 +67,27 @@ function logCache(event: string, detail: unknown) {
       return;
     }
     console.info(`[cache:${event}]`, detail);
+  }
+}
+
+function memoryGet(key: string): string | null {
+  const entry = memoryCache.get(key);
+  if (!entry) return null;
+  if (entry.expiresAt <= Date.now()) {
+    memoryCache.delete(key);
+    return null;
+  }
+  return entry.value;
+}
+
+function memorySet(key: string, value: string, ttlSeconds: number): void {
+  memoryCache.set(key, { value, expiresAt: Date.now() + ttlSeconds * 1000 });
+}
+
+function memoryDeleteByPattern(pattern: string): void {
+  const re = new RegExp(`^${pattern.replace(/[.+?^${}()|[\]\\]/g, "\\$&").replaceAll("*", ".*")}$`);
+  for (const key of memoryCache.keys()) {
+    if (re.test(key)) memoryCache.delete(key);
   }
 }
 
@@ -175,6 +202,12 @@ async function getAdapter(): Promise<CacheAdapter | null> {
 
 export async function getCache<T>(key: string): Promise<T | null> {
   try {
+    const memoryCached = memoryGet(key);
+    if (memoryCached != null) {
+      logCache("hit", `${key} source=memory`);
+      return JSON.parse(memoryCached) as T;
+    }
+
     const adapter = await getAdapter();
     if (!adapter) return null;
 
@@ -201,9 +234,6 @@ export async function setCache<T>(
   if (value === undefined) return false;
 
   try {
-    const adapter = await getAdapter();
-    if (!adapter) return false;
-
     const serialized = JSON.stringify(value);
     const sizeBytes = Buffer.byteLength(serialized, "utf8");
     const maxBytes = getMaxCachePayloadBytes();
@@ -216,11 +246,23 @@ export async function setCache<T>(
       return false;
     }
 
+    memorySet(key, serialized, ttlSeconds);
+    const adapter = await getAdapter();
+    if (!adapter) return true;
     await adapter.set(key, serialized, ttlSeconds);
     return true;
   } catch (error) {
     logCache("set-error", { key, error });
     markRedisUnavailable();
+    try {
+      const serialized = JSON.stringify(value);
+      if (Buffer.byteLength(serialized, "utf8") <= getMaxCachePayloadBytes()) {
+        memorySet(key, serialized, ttlSeconds);
+        return true;
+      }
+    } catch {
+      /* ignore memory fallback serialization errors */
+    }
     return false;
   }
 }
@@ -228,6 +270,7 @@ export async function setCache<T>(
 export async function deleteCache(key: string): Promise<void> {
   try {
     const adapter = await getAdapter();
+    memoryCache.delete(key);
     if (!adapter) return;
     await adapter.delete(key);
   } catch (error) {
@@ -239,6 +282,7 @@ export async function deleteCache(key: string): Promise<void> {
 export async function deleteByPattern(pattern: string): Promise<void> {
   try {
     const adapter = await getAdapter();
+    memoryDeleteByPattern(pattern);
     if (!adapter?.deleteByPattern) return;
     await adapter.deleteByPattern(pattern);
   } catch (error) {

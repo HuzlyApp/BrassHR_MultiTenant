@@ -38,6 +38,6 @@ describe("resolveApplicantEnabledSteps", () => {
     const steps = resolveApplicantEnabledSteps(null, false);
 
     expect(steps?.map((s) => s.title)).toContain("Add References");
-    expect(steps?.map((s) => s.title)).toContain("Add Resume");
+    expect(steps?.map((s) => s.title)).toContain("Upload Resume");
   });
 });

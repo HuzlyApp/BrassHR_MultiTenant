@@ -25,6 +25,8 @@ export type PersistWorkerRowInput = {
   addressLat?: number
   addressLng?: number
   addressNormalized?: string
+  /** Skip slow onboarding progress bootstrap (e.g. resume upload ensure path). */
+  skipOnboardingProgressInit?: boolean
 }
 
 export type PersistWorkerRowResult =
@@ -167,10 +169,12 @@ export async function persistWorkerRow(
     return { ok: false, error: "Worker row missing after save", status: 500 }
   }
 
-  try {
-    await ensureWorkerOnboardingProgress(supabase, workerId, tenantId)
-  } catch (e) {
-    console.error("[persist-worker-row] progress init", e)
+  if (!input.skipOnboardingProgressInit) {
+    try {
+      await ensureWorkerOnboardingProgress(supabase, workerId, tenantId)
+    } catch (e) {
+      console.error("[persist-worker-row] progress init", e)
+    }
   }
 
   await Promise.all([

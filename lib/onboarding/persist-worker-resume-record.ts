@@ -10,6 +10,9 @@ export type PersistWorkerResumeRecordOpts = {
   textLength?: number | null;
   extractionMs?: number | null;
   parseStartedAt?: string | null;
+  fileType?: string | null;
+  fileSizeBytes?: number | null;
+  extractedText?: string | null;
 };
 
 export async function persistWorkerResumeRecord(
@@ -35,13 +38,19 @@ export async function persistWorkerResumeRecord(
     worker_id: workerId,
     tenant_id: tenantId,
     file_url: opts.fileUrl.trim(),
+    storage_path: opts.fileUrl.trim(),
     original_file_name: opts.originalFileName?.trim() || null,
+    file_name: opts.originalFileName?.trim() || null,
+    file_type: opts.fileType ?? null,
+    file_size_bytes: opts.fileSizeBytes ?? null,
     parsed_data: opts.parsedData ?? {},
     parsing_status: parsingStatus,
+    parse_status: parsingStatus,
     parsed_at: parsingStatus === "completed" ? now : null,
     uploaded_at: now,
     text_length: opts.textLength ?? null,
     extraction_ms: opts.extractionMs ?? null,
+    extracted_text: opts.extractedText ?? null,
     parse_started_at: opts.parseStartedAt ?? (parsingStatus === "processing" ? now : null),
     parse_completed_at: null,
     parse_error: null,

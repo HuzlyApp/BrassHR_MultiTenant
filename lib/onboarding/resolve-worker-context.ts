@@ -5,7 +5,6 @@ import { isDraftPreviewApplicantId } from "@/lib/onboarding/is-draft-preview";
 import { persistWorkerRow } from "@/lib/onboarding/persist-worker-row";
 import { resumeToStep1Fields } from "@/lib/onboarding/resume-to-step1-fields";
 import { resolveTenantIdBySlug } from "@/lib/onboarding/resolve-tenant-id-by-slug";
-import { resolveOnboardingTenantId } from "@/lib/tenant/resolve-onboarding-tenant-id";
 
 export { resolveTenantIdBySlug } from "@/lib/onboarding/resolve-tenant-id-by-slug";
 
@@ -77,24 +76,24 @@ export async function resolveOrEnsureWorkerForApplicant(
 ): Promise<WorkerContext | null> {
   if (isDraftPreviewApplicantId(applicantId)) return null;
 
+  // Fast path: worker already exists (common during resume upload).
+  const existing = await resolveWorkerByApplicantId(supabase, applicantId);
+  if (existing) return existing;
+
   const slug = tenantSlug?.trim().toLowerCase() || "";
-  const tenantRes = slug ? await resolveOnboardingTenantId(supabase, slug) : null;
-  const tenantId = tenantRes?.ok ? tenantRes.tenantId : null;
+  if (!slug) return null;
 
-  if (tenantId) {
-    const scoped = await resolveWorkerByApplicantId(supabase, applicantId, tenantId);
-    if (scoped) return scoped;
-  } else {
-    const existing = await resolveWorkerByApplicantId(supabase, applicantId);
-    if (existing) return existing;
-  }
-
+  const tenantId = await resolveTenantIdBySlug(supabase, slug);
   if (!tenantId) return null;
+
+  const scoped = await resolveWorkerByApplicantId(supabase, applicantId, tenantId);
+  if (scoped) return scoped;
 
   const saved = await persistWorkerRow(supabase, {
     applicantId,
     tenantId,
     fields: resumeToStep1Fields({}, applicantId),
+    skipOnboardingProgressInit: true,
   });
   if (!saved.ok) return null;
 

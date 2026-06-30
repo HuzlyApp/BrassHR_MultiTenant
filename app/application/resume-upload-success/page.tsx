@@ -144,19 +144,20 @@ export default function Step1Success() {
 
         const applicantId = localStorage.getItem("applicantId")?.trim() || ""
         if (applicantId) {
-          try {
-            await fetch("/api/onboarding/progress/step", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                applicantId,
-                stepKey: "resume_upload",
-                status: "completed",
-              }),
-            })
-          } catch {
+          void fetch("/api/onboarding/progress/step", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              applicantId,
+              stepKey: "resume_upload",
+              status: "completed",
+              data: {
+                resume_path: localStorage.getItem("resumeStoragePath")?.trim() || null,
+              },
+            }),
+          }).catch(() => {
             /* progress is best-effort */
-          }
+          })
         }
 
         const resumeStep =

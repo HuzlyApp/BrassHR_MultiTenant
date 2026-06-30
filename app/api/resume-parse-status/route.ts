@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
   const { data: resume, error } = await supabase
     .from("worker_resumes")
     .select(
-      "id, worker_id, parsing_status, parsed_json, parse_error, parse_started_at, parse_completed_at, extraction_ms, ai_parse_ms, text_length",
+      "id, worker_id, parsing_status, parse_status, parsed_json, parse_error, parse_started_at, parse_completed_at, extraction_ms, ai_parse_ms, text_length",
     )
     .eq("id", resumeId)
     .maybeSingle()
@@ -45,7 +45,7 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({
     resumeId: resume.id,
-    parseStatus: resume.parsing_status ?? "pending",
+    parseStatus: resume.parse_status ?? resume.parsing_status ?? "pending",
     parsedJson: resume.parsed_json ?? null,
     parseError: resume.parse_error ?? null,
     parseStartedAt: resume.parse_started_at ?? null,
