@@ -82,8 +82,12 @@ export default function CandidateDetailReferenceField({
 
     const phoneDigits = validateCandidateFieldInput("phone", draft.phone);
     const emailValue = validateCandidateFieldInput("email", draft.email);
-    if (!phoneDigits.ok || !emailValue.ok) {
-      setSaveError(phoneDigits.ok ? emailValue.error : phoneDigits.error);
+    if (!phoneDigits.ok) {
+      setSaveError(phoneDigits.error);
+      return;
+    }
+    if (!emailValue.ok) {
+      setSaveError(emailValue.error);
       return;
     }
 

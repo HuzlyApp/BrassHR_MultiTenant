@@ -883,7 +883,7 @@ async function upsertWorkerReference(
   if (listErr) throw listErr
 
   const existing = (existingRows ?? [])[referenceIndex] as { id?: string } | undefined
-  const row = {
+  const row: Record<string, unknown> = {
     tenant_id: tenantId,
     worker_id: workerId,
     reference_first_name: value.first,
@@ -893,14 +893,17 @@ async function upsertWorkerReference(
   }
 
   if (existing?.id) {
-    const { error } = await supabase.from("worker_references").update(row).eq("id", existing.id)
+    const { error } = await supabase
+      .from("worker_references")
+      .update(row as never)
+      .eq("id", existing.id)
     if (error) throw error
     return { id: String(existing.id) }
   }
 
   const { data: inserted, error } = await supabase
     .from("worker_references")
-    .insert(row)
+    .insert(row as never)
     .select("id")
     .maybeSingle()
 
