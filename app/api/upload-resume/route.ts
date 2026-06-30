@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto"
 import { after, NextResponse } from "next/server"
-import { createClient } from "@supabase/supabase-js"
+import { createClient, type SupabaseClient } from "@supabase/supabase-js"
 import pdfParse from "pdf-parse"
 import mammoth from "mammoth"
 import { getSupabaseUrl } from "@/lib/supabase-env"
@@ -54,7 +54,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
 }
 
 async function resolveWorkerForUpload(
-  supabase: ReturnType<typeof createClient>,
+  supabase: SupabaseClient,
   applicantId: string,
   tenantSlug: string,
   workerIdHint: string,
