@@ -248,7 +248,6 @@ export function ApplicantHelpSupportTab() {
               />
             )
           )}
-          {loading ? <p className="text-sm text-[#64748B]">Searching help articles...</p> : null}
         </div>
 
         <form onSubmit={handleSubmit} className="border-t border-[#E8EDF2] bg-white px-5 py-4">

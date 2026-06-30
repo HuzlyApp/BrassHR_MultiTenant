@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, type ReactNode } from "react";
-import AdminBrandingLoader from "@/app/admin_recruiter/components/AdminBrandingLoader";
 import { TenantBrandingProvider } from "@/app/components/tenant/TenantBrandingContext";
 import { prefetchSidebarIconMarkups } from "@/lib/sidebar/sidebar-icon-markup";
 import { useEffectiveBranding } from "@/lib/admin/hooks/use-effective-branding";
@@ -21,7 +20,7 @@ export function AdminTenantBrandingProvider({ children }: { children: ReactNode 
   }, [branding?.primaryHex]);
 
   if (isLoading) {
-    return <AdminBrandingLoader />;
+    return null;
   }
 
   if (isError || !branding) {

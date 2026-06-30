@@ -7,7 +7,6 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { WorkerPortalPageLoader } from "@/app/application/components/applicant-portal/WorkerPortalPageLoader";
 import {
   TenantBrandingProvider,
   useTenantBranding,
@@ -201,11 +200,7 @@ function ApplicantPortalLayoutInner({ children }: { children: ReactNode }) {
             </div>
           ) : null}
 
-          {showSessionLoader ? (
-            <WorkerPortalPageLoader label="Loading..." />
-          ) : (
-            children
-          )}
+          {showSessionLoader ? null : children}
         </ApplicantPortalShell>
       </TenantBrandingProvider>
     </ApplicantPortalContext.Provider>

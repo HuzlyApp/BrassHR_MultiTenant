@@ -176,7 +176,7 @@ export function WorkerLocationsTab() {
         </div>
       ) : null}
 
-      {locations.length === 0 ? (
+      {loading ? null : locations.length === 0 ? (
         <EmptyLocationsState />
       ) : (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">

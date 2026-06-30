@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Loader2 } from "lucide-react";
 import type { WorkerNoteDto } from "@/lib/worker-notes";
 
 type Props = {
@@ -64,12 +63,7 @@ export default function ApplicantRecruiterNotes({
   }, []);
 
   if (loading) {
-    return (
-      <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-        <Loader2 className="h-4 w-4 animate-spin text-[color:var(--brand-primary)]" aria-hidden />
-        Loading recruiter message...
-      </div>
-    );
+    return null;
   }
 
   if (notes.length === 0) {

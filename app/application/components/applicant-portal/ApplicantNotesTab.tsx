@@ -1,6 +1,5 @@
 "use client";
 
-import { Loader2 } from "lucide-react";
 import type { ApplicantNote } from "./types";
 
 type Props = {
@@ -22,12 +21,7 @@ function formatNoteDate(value: string): string {
 
 export function ApplicantNotesTab({ notes, loading }: Props) {
   if (loading) {
-    return (
-      <div className="flex min-h-[280px] items-center justify-center px-8 py-12">
-        <Loader2 className="h-9 w-9 animate-spin text-[color:var(--brand-primary)]" aria-hidden />
-        <span className="sr-only">Loading notes</span>
-      </div>
-    );
+    return null;
   }
 
   if (notes.length === 0) {
