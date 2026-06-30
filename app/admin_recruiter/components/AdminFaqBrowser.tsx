@@ -162,6 +162,8 @@ type AdminFaqBrowserProps = {
   sectionTitle?: string;
   loadingLabel?: string;
   emptyConfiguredMessage?: string;
+  searchInputId?: string;
+  showSearchBar?: boolean;
 };
 
 export default function AdminFaqBrowser({
@@ -170,6 +172,8 @@ export default function AdminFaqBrowser({
   sectionTitle = "Frequently Asked Questions",
   loadingLabel = "Loading FAQs...",
   emptyConfiguredMessage = "No FAQ articles are configured yet.",
+  searchInputId,
+  showSearchBar = true,
 }: AdminFaqBrowserProps) {
   const [faqs, setFaqs] = useState<FaqListItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -305,27 +309,44 @@ export default function AdminFaqBrowser({
           <DashboardPageLoader label={loadingLabel} className="min-h-[320px]" />
         ) : (
           <>
-            <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+            <div
+              className={`mb-5 flex flex-wrap items-center gap-3 ${
+                showSearchBar ? "justify-between" : ""
+              }`}
+            >
               <h2
-                className="text-xl font-semibold leading-7 text-[#1d2739]"
+                className="text-xl font-semibold leading-7 text-[#012352]"
                 style={CANDIDATES_PAGE_TITLE_STYLE}
               >
                 {sectionTitle}
               </h2>
-              <label className="relative w-full max-w-[320px] sm:w-[320px]">
-                <Search
-                  className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94A3B8]"
-                  aria-hidden
-                />
+              {showSearchBar ? (
+                <label className="relative w-full max-w-[320px] sm:w-[320px]">
+                  <Search
+                    className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94A3B8]"
+                    aria-hidden
+                  />
+                  <input
+                    id={searchInputId}
+                    type="search"
+                    value={searchQuery}
+                    onChange={(event) => setSearchQuery(event.target.value)}
+                    placeholder="Search questions..."
+                    className="w-full rounded-lg border border-[#E5E7EB] bg-white py-2.5 pl-9 pr-3 text-sm text-[#1d2739] placeholder:text-[#94A3B8] focus:border-(--brand-primary) focus:outline-none focus:ring-1 focus:ring-(--brand-primary)"
+                    style={CANDIDATES_PAGE_SUBTITLE_STYLE}
+                  />
+                </label>
+              ) : searchInputId ? (
                 <input
+                  id={searchInputId}
                   type="search"
                   value={searchQuery}
                   onChange={(event) => setSearchQuery(event.target.value)}
-                  placeholder="Search questions..."
-                  className="w-full rounded-lg border border-[#E5E7EB] bg-white py-2.5 pl-9 pr-3 text-sm text-[#1d2739] placeholder:text-[#94A3B8] focus:border-(--brand-primary) focus:outline-none focus:ring-1 focus:ring-(--brand-primary)"
-                  style={CANDIDATES_PAGE_SUBTITLE_STYLE}
+                  className="sr-only"
+                  tabIndex={-1}
+                  aria-hidden
                 />
-              </label>
+              ) : null}
             </div>
 
             {filteredFaqs.length === 0 ? (
