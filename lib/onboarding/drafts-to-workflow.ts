@@ -32,14 +32,16 @@ function resolveStepDefinition(
 
 export function draftsToWorkflowNodes(
   drafts: OnboardingStepDraft[],
-  stepById: Map<string, StepDefinition>
+  stepById: Map<string, StepDefinition>,
+  options?: { includeDisabled?: boolean }
 ): { nodes: Node<WorkflowNodeData>[]; edges: Edge[] } {
   const { steps: normalizedDrafts } = enforceUploadResumeFirstInDrafts(drafts);
-  const enabled = normalizedDrafts
-    .filter((s) => s.is_enabled)
-    .sort((a, b) => a.sort_order - b.sort_order);
+  const visibleDrafts = (options?.includeDisabled === false
+    ? normalizedDrafts.filter((s) => s.is_enabled)
+    : normalizedDrafts
+  ).sort((a, b) => a.sort_order - b.sort_order);
 
-  const nodes: Node<WorkflowNodeData>[] = enabled.map((step, index) => {
+  const nodes: Node<WorkflowNodeData>[] = visibleDrafts.map((step, index) => {
     const workflowStepId =
       typeof step.metadata?.workflow_step_id === "string"
         ? step.metadata.workflow_step_id
@@ -85,7 +87,8 @@ export function draftsToWorkflowNodes(
 export function hydrateWorkflowFromStorage(
   builderDraft: unknown,
   drafts: OnboardingStepDraft[],
-  stepById: Map<string, StepDefinition>
+  stepById: Map<string, StepDefinition>,
+  options?: { includeDisabled?: boolean }
 ): { nodes: Node<WorkflowNodeData>[]; edges: Edge[] } {
   if (isSerializableWorkflowState(builderDraft) && builderDraft.nodes.length > 0) {
     const enforced = enforceUploadResumeFirstInWorkflowState(builderDraft, drafts);
@@ -121,7 +124,7 @@ export function hydrateWorkflowFromStorage(
     return { nodes, edges };
   }
 
-  return draftsToWorkflowNodes(drafts, stepById);
+  return draftsToWorkflowNodes(drafts, stepById, options);
 }
 
 export type BuilderMeta = {

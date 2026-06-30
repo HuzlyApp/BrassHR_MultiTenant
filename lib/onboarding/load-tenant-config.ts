@@ -93,8 +93,14 @@ async function loadTenantOnboardingConfigUncached(
     stepsQuery = stepsQuery.eq("is_enabled", true);
   }
 
-  const { data: stepsRaw, error: stepsErr } = await stepsQuery;
+  let { data: stepsRaw, error: stepsErr } = await stepsQuery;
   if (stepsErr) throw stepsErr;
+
+  if (!(stepsRaw ?? []).length) {
+    await seedDefaultTenantOnboarding(supabase, tenantId);
+    ({ data: stepsRaw, error: stepsErr } = await stepsQuery);
+    if (stepsErr) throw stepsErr;
+  }
 
   let steps: TenantOnboardingStep[] = (stepsRaw ?? []).map((s) => ({
     id: String(s.id),

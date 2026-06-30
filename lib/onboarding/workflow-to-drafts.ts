@@ -24,9 +24,11 @@ function isSummaryWorkflowNode(node: SerializableWorkflowNode): boolean {
   const desc = node.description?.trim().toLowerCase() ?? "";
   return (
     label === "summary" ||
+    label.includes("final review") ||
     label.includes("review and submit") ||
     desc.includes("review and submit") ||
-    desc.includes("submit application")
+    desc.includes("submit application") ||
+    desc.includes("complete onboarding")
   );
 }
 

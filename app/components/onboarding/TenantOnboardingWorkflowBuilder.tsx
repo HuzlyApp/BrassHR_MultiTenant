@@ -13,17 +13,16 @@ import { WorkflowBuilder } from "@/app/components/workflow-builder";
 import type { StepCategory } from "@/app/components/workflow-builder";
 import type { WorkflowNodeData, WorkflowState } from "@/app/components/workflow-builder";
 import {
-  buildWorkflowStepLookup,
   hydrateWorkflowStepLibrary,
 } from "@/app/components/onboarding/workflow-step-library";
 import type { WorkflowStepLibraryCategory } from "@/lib/onboarding/workflow-step-library-data";
 import {
   hydrateCanvasFromBuilderDraft,
+  hydrateCanvasFromFlowDraft,
   hydrateDraftCanvas,
   hydratePublishedCanvas,
   selectBuilderCanvas,
 } from "@/lib/onboarding/select-builder-canvas";
-import { hydrateWorkflowFromStorage } from "@/lib/onboarding/drafts-to-workflow";
 import type { TenantOnboardingConfig } from "@/lib/onboarding/types";
 import { safeFetchJson } from "@/lib/api/safe-fetch-json";
 import { applyApplicantConfigFilters } from "@/lib/onboarding/filter-applicant-steps";
@@ -338,11 +337,15 @@ export default function TenantOnboardingWorkflowBuilder({
         if (cancelled || !payload.flow) return;
 
         const flow = payload.flow;
-        const stepLookup = buildWorkflowStepLookup(stepLibrary);
-        const { nodes, edges } = hydrateWorkflowFromStorage(
+        const builderPayload = data?.payload;
+        const { nodes, edges } = hydrateCanvasFromFlowDraft(
           flow.builderDraft,
-          [],
-          stepLookup
+          {
+            config: builderPayload?.config,
+            publishStatus: builderPayload?.publishStatus,
+            builderDraft: builderPayload?.builderDraft,
+          },
+          stepLibrary
         );
 
         setEditingFlow({ id: flow.id, updatedAt: flow.updatedAt });
@@ -366,7 +369,7 @@ export default function TenantOnboardingWorkflowBuilder({
     return () => {
       cancelled = true;
     };
-  }, [flowIdFromUrl, tenantId, stepLibrary]);
+  }, [data, flowIdFromUrl, tenantId, stepLibrary]);
 
   useEffect(() => {
     const prev = prevPathnameRef.current;
@@ -440,11 +443,11 @@ export default function TenantOnboardingWorkflowBuilder({
         if (cancelled || !payload.template) return;
 
         const template = payload.template;
-        const stepLookup = buildWorkflowStepLookup(stepLibrary);
-        const { nodes, edges } = hydrateWorkflowFromStorage(
-          template.builderDraft,
-          [],
-          stepLookup
+        const { nodes, edges } = hydrateCanvasFromBuilderDraft(
+          isSerializableWorkflowState(template.builderDraft)
+            ? template.builderDraft
+            : { nodes: [], edges: [] },
+          stepLibrary
         );
         const displayTitle =
           template.flowName?.trim() || template.name.replace(/\.tpl$/i, "");

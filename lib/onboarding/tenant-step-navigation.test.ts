@@ -40,8 +40,14 @@ describe("resolveApplicantEnabledSteps", () => {
   it("falls back to legacy steps only when config is unavailable", () => {
     const steps = resolveApplicantEnabledSteps(null, false);
 
-    expect(steps?.map((s) => s.title)).toContain("Add References");
-    expect(steps?.map((s) => s.title)).toContain("Upload Resume");
+    expect(steps?.map((s) => s.title)).toEqual([
+      "Upload Resume",
+      "Professional License",
+      "Skill Assessment",
+      "Authorization / Background Check",
+      "Agreement / Signature",
+      "Final Review / Completion",
+    ]);
   });
 });
 

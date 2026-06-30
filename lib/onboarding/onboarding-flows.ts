@@ -10,6 +10,7 @@ import {
 } from "@/lib/onboarding/flow-steps-sync";
 import { normalizeFlowNameKey } from "@/lib/onboarding/validate-flow-name";
 import { resolveOnboardingLibraryForFlows } from "@/lib/onboarding/onboarding-libraries";
+import { createDefaultWorkflowState } from "@/lib/onboarding/default-workflow";
 
 export type OnboardingFlowStatus = "draft" | "published" | "unpublished";
 
@@ -109,6 +110,46 @@ export type OnboardingFlowsListResult = {
   library: { id: string; name: string; slug: string } | null;
 };
 
+export const DEFAULT_ONBOARDING_FLOW_NAME = "Worker Onboarding";
+
+export async function ensureDefaultTenantOnboardingFlow(
+  supabase: OnboardingDbClient,
+  tenantId: string,
+  libraryId: string,
+  createdBy?: string | null
+): Promise<void> {
+  const { count, error: countError } = await supabase
+    .from("onboarding_flows")
+    .select("id", { count: "exact", head: true })
+    .eq("tenant_id", tenantId)
+    .eq("library_id", libraryId);
+
+  if (countError) throw countError;
+  if (count && count > 0) return;
+
+  const builderDraft = createDefaultWorkflowState();
+  const { data, error } = await supabase
+    .from("onboarding_flows")
+    .insert({
+      tenant_id: tenantId,
+      library_id: libraryId,
+      name: DEFAULT_ONBOARDING_FLOW_NAME,
+      status: "published",
+      created_as_blank: false,
+      builder_draft: builderDraft,
+      sort_order: 1,
+      created_by: createdBy ?? null,
+      updated_by: createdBy ?? null,
+    })
+    .select("id")
+    .single();
+
+  if (error) throw error;
+  if (data?.id) {
+    await replaceFlowStepsFromDraft(supabase, String(data.id), builderDraft);
+  }
+}
+
 export async function listOnboardingFlows(
   supabase: OnboardingDbClient,
   tenantId: string,
@@ -122,6 +163,8 @@ export async function listOnboardingFlows(
   if (!library) {
     return { flows: [], publishedCount: 0, unpublishedCount: 0, library: null };
   }
+
+  await ensureDefaultTenantOnboardingFlow(supabase, tenantId, library.id);
 
   const baseQuery = supabase
     .from("onboarding_flows")
