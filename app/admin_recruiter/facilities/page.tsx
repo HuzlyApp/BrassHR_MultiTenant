@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import toast from "react-hot-toast";
-import { Building2, Loader2, Plus, Search } from "lucide-react";
+import { Building2, Plus, Search } from "lucide-react";
 import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
 import CreateFacilityModal from "@/app/admin_recruiter/components/CreateFacilityModal";
 import { CandidatesViewToggle } from "@/app/admin_recruiter/components/CandidatesListShell";
@@ -597,12 +597,6 @@ export default function FacilitiesPage() {
         />
       ) : null}
 
-      {loadingFacilities ? (
-        <div className="pointer-events-none fixed bottom-6 right-6 hidden items-center gap-2 rounded-full bg-white px-4 py-2 text-sm text-[#64748B] shadow lg:flex">
-          <Loader2 className="h-4 w-4 animate-spin" />
-          Loading facilities...
-        </div>
-      ) : null}
     </div>
   );
 }

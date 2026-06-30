@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Archive, Loader2, Mail } from "lucide-react";
+import { Archive, Mail } from "lucide-react";
 import toast from "react-hot-toast";
 import CandidateEmailInboxPanel from "@/app/admin_recruiter/components/CandidateEmailInboxPanel";
 import { MailComposePanel } from "@/app/admin_recruiter/components/MailComposePanel";
@@ -290,12 +290,7 @@ export default function AdminRecruiterMailClient() {
 
   const mainContent = (() => {
     if (loading && emailConfigured === null) {
-      return (
-        <div className="flex flex-1 items-center justify-center gap-2 text-sm text-[#6B7280]">
-          <Loader2 className="h-4 w-4 animate-spin text-(--brand-primary)" />
-          Loading mail...
-        </div>
-      );
+      return null;
     }
 
     if (folder === "integration" || emailConfigured === false) {
@@ -312,12 +307,7 @@ export default function AdminRecruiterMailClient() {
             </p>
           </div>
           <div className="flex-1 overflow-y-auto">
-            {draftsLoading ? (
-              <div className="flex items-center justify-center gap-2 px-6 py-16 text-sm text-[#6B7280]">
-                <Loader2 className="h-4 w-4 animate-spin text-(--brand-primary)" />
-                Loading drafts...
-              </div>
-            ) : drafts.length === 0 ? (
+            {draftsLoading ? null : drafts.length === 0 ? (
               <div className="flex flex-col items-center justify-center px-6 py-16 text-center">
                 <Archive className="mb-3 h-10 w-10 text-[#CBD5E1]" />
                 <p className="text-sm font-medium text-[#374151]">No drafts</p>

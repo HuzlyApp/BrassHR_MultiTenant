@@ -254,12 +254,7 @@ export default function CandidateEmailInboxPanel({
 
   const mainContent = (() => {
     if (configLoading || (loading && emailThreads.length === 0)) {
-      return (
-        <div className="flex flex-1 items-center justify-center gap-2 text-sm text-[#6B7280]">
-          <Loader2 className="h-4 w-4 animate-spin text-(--brand-primary)" />
-          Loading email...
-        </div>
-      );
+      return null;
     }
 
     if (error && emailThreads.length === 0) {
@@ -381,12 +376,7 @@ export default function CandidateEmailInboxPanel({
         </div>
 
         <div ref={scrollRef} className="flex-1 space-y-4 overflow-y-auto bg-white px-5 py-4">
-          {loading ? (
-            <div className="flex h-full items-center justify-center gap-2 text-sm text-[#6B7280]">
-              <Loader2 className="h-4 w-4 animate-spin text-(--brand-primary)" />
-              Loading messages...
-            </div>
-          ) : !activeThread || visibleMessages.length === 0 ? (
+          {loading ? null : !activeThread || visibleMessages.length === 0 ? (
             <div className="flex h-full min-h-[200px] flex-col items-center justify-center text-center">
               <Mail className="mb-3 h-10 w-10 text-[#CBD5E1]" />
               <p className="text-sm font-medium text-[#374151]">

@@ -305,12 +305,7 @@ export default function WorkersPage() {
         </div>
 
         <div className="bg-white px-[14px] py-4">
-          {loading ? (
-            <div className="flex items-center justify-center gap-3 py-16 text-gray-600">
-              <Loader2 className="h-6 w-6 animate-spin text-(--brand-primary)" />
-              Loading workers...
-            </div>
-          ) : filtered.length === 0 ? (
+          {loading ? null : filtered.length === 0 ? (
             <div className="py-16 text-center text-gray-600">No workers found.</div>
           ) : (
             <div className="overflow-hidden rounded-md border border-[#E5E7EB]">

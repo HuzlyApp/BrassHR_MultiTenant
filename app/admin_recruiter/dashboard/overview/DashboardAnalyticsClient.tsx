@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
-import DashboardPageLoader from "@/app/admin_recruiter/components/DashboardPageLoader";
 import {
   ArrowDownRight,
   ArrowUpRight,
@@ -391,14 +390,6 @@ export default function DashboardAnalyticsClient({ focusSection }: DashboardAnal
     });
   }, [focusSection, data]);
 
-  if (loading && !data) {
-    return (
-      <div className="px-4 py-5 min-[1000px]:px-8">
-        <DashboardPageLoader label="Loading overview..." />
-      </div>
-    );
-  }
-
   if (error && !data) {
     return (
       <div className="px-4 py-5 min-[1000px]:px-8">
@@ -413,7 +404,6 @@ export default function DashboardAnalyticsClient({ focusSection }: DashboardAnal
 
   return (
     <div className="relative w-full min-w-0 space-y-[14px] px-4 py-5 min-[1000px]:px-8">
-      {loading && data ? <DashboardPageLoader label="Updating overview..." overlay /> : null}
         <header className="space-y-1">
           <h1 className="align-middle font-[Inter,sans-serif] text-[30px] font-semibold leading-[36px] text-[#000000]">
             Dashboard Overview

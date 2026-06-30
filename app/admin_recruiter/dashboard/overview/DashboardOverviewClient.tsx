@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import DashboardPageLoader from "@/app/admin_recruiter/components/DashboardPageLoader";
 import {
   ChevronDown,
   ChevronLeft,
@@ -156,17 +155,8 @@ export default function DashboardOverviewClient() {
     return scheduleTab === "meetings" ? data.schedule.meetings : data.schedule.interviews;
   }, [data, scheduleTab]);
 
-  if (loading && !data) {
-    return (
-      <div className="px-4 py-5 min-[1000px]:px-8">
-        <DashboardPageLoader label="Loading your day..." />
-      </div>
-    );
-  }
-
   return (
     <div className="relative w-full min-w-0 space-y-[14px] admin-recruiter-page-pad">
-      {loading && data ? <DashboardPageLoader label="Updating..." overlay /> : null}
         <header className="space-y-1">
           <h1 className="inline-flex items-center gap-1 font-[Inter,sans-serif] text-[18px] font-semibold leading-[28px] text-[#012352]">
             {data?.greeting ?? "Good morning"}, {data?.userName ?? "there"}!
@@ -234,9 +224,7 @@ export default function DashboardOverviewClient() {
               })}
             </div>
 
-            {loading ? (
-              <DashboardPageLoader label="Loading schedule..." className="min-h-[120px] py-8" />
-            ) : scheduleItems.length === 0 ? (
+            {loading ? null : scheduleItems.length === 0 ? (
               <EmptyState message={`No ${scheduleTab} for this day.`} />
             ) : (
               <ul className="space-y-4">
@@ -370,9 +358,7 @@ export default function DashboardOverviewClient() {
               </button>
             }
           >
-            {loading ? (
-              <EmptyState message="Loading facilities..." />
-            ) : !data?.facilityWorkers.length ? (
+            {loading ? null : !data?.facilityWorkers.length ? (
               <EmptyState message="No active facility workers yet." />
             ) : (
               <div className="overflow-x-auto">

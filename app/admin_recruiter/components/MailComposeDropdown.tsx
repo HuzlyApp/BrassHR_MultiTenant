@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
-import { Check, ChevronDown, Loader2 } from "lucide-react";
+import { Check, ChevronDown } from "lucide-react";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
 import { CandidateListAvatar } from "./CandidateListAvatar";
@@ -135,13 +135,11 @@ export function MailComposeDropdown({
   if (loading) {
     return (
       <div
-        className={`flex min-w-0 flex-1 items-center justify-center gap-2 rounded-md border border-[#E5E7EB] bg-white px-3 py-2 text-[#6B7280] ${
+        className={`flex min-w-0 flex-1 items-center rounded-md border border-[#E5E7EB] bg-white px-3 text-[#6B7280] ${
           tallTrigger ? `${TALL_TRIGGER_CLASS} text-lg font-medium` : "text-sm"
         }`}
-      >
-        <Loader2 className="h-4 w-4 shrink-0 animate-spin text-(--brand-primary)" />
-        {loadingLabel}
-      </div>
+        aria-busy="true"
+      />
     );
   }
 

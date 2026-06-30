@@ -326,12 +326,7 @@ export default function CandidateCommunicationHistory({
               ref={scrollRef}
               className="flex-1 space-y-4 overflow-y-auto bg-white px-5 py-4"
             >
-              {loading ? (
-                <div className="flex h-full items-center justify-center gap-2 text-sm text-[#6B7280]">
-                  <Loader2 className="h-4 w-4 animate-spin text-(--brand-primary)" />
-                  Loading messages...
-                </div>
-              ) : isPlaceholderThread(selectedThread) || selectedThread.messages.length === 0 ? (
+              {loading ? null : isPlaceholderThread(selectedThread) || selectedThread.messages.length === 0 ? (
                 <div className="flex h-full min-h-[200px] flex-col items-center justify-center text-center">
                   <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-[color-mix(in_srgb,var(--brand-primary)_10%,white)]">
                     <MessageSquare className="h-5 w-5 text-(--brand-primary)" />

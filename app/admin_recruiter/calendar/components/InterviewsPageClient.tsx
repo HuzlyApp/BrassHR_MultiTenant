@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, Loader2, Plus } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import type { AdminInterviewItem } from "@/app/api/admin/applicant-appointments/route";
 import { formatInterviewDate, formatInterviewTimeRange } from "@/lib/interviews/format";
 import { localDateString } from "@/lib/interviews/schedule-fields";
@@ -169,10 +169,6 @@ function InterviewsLoadingSkeleton({ viewMode, monthTitle }: { viewMode: ViewMod
             ))}
           </div>
         </div>
-        <div className="mt-6 flex items-center justify-center gap-2 text-sm text-[#475569]">
-          <Loader2 className="h-5 w-5 animate-spin text-[color:var(--brand-primary,#bc8b41)]" aria-hidden />
-          <span>Loading interviews…</span>
-        </div>
       </div>
     );
   }
@@ -205,10 +201,6 @@ function InterviewsLoadingSkeleton({ viewMode, monthTitle }: { viewMode: ViewMod
             </div>
           </div>
         ))}
-      </div>
-      <div className="mt-6 flex items-center justify-center gap-2 text-sm text-[#475569]">
-        <Loader2 className="h-5 w-5 animate-spin text-[color:var(--brand-primary,#bc8b41)]" aria-hidden />
-        <span>Loading interviews…</span>
       </div>
     </div>
   );

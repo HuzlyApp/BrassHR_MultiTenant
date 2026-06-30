@@ -2,6 +2,7 @@
 
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { Columns2, Filter, RefreshCw, Search } from "lucide-react";
 import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
 import {
   CANDIDATES_FILTER_CONTROL_CLASS,
@@ -23,7 +24,6 @@ import {
   attendanceBucketEmptyMessage,
   parseAttendanceBucket,
 } from "@/lib/attendance/attendance-buckets";
-import { Columns2, Filter, Loader2, RefreshCw, Search } from "lucide-react";
 
 function columnHeaderClass(colId: AttendanceColumnId): string {
   const base =
@@ -211,12 +211,7 @@ function AttendancePageContent() {
         ) : null}
 
         <div className="bg-white px-[14px] pb-4">
-          {loading ? (
-            <div className="flex items-center justify-center gap-3 py-16 text-gray-600">
-              <Loader2 className="h-6 w-6 animate-spin text-[color:var(--brand-primary)]" />
-              Loading attendance logs...
-            </div>
-          ) : logs.length === 0 ? (
+          {loading ? null : logs.length === 0 ? (
             <div className="py-16 text-center text-gray-600">{attendanceBucketEmptyMessage(bucket)}</div>
           ) : listColumnOrder.length === 0 ? (
             <div className="py-16 text-center text-gray-600">
@@ -286,14 +281,7 @@ function AttendancePageContent() {
 
 export default function AdminApplicantAttendancePage() {
   return (
-    <Suspense
-      fallback={
-        <div className="flex items-center justify-center gap-3 px-5 py-24 text-gray-600 lg:px-8">
-          <Loader2 className="h-6 w-6 animate-spin text-[color:var(--brand-primary)]" />
-          Loading attendance...
-        </div>
-      }
-    >
+    <Suspense fallback={null}>
       <AttendancePageContent />
     </Suspense>
   );

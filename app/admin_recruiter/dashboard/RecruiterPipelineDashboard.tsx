@@ -192,9 +192,7 @@ export default function RecruiterPipelineDashboard() {
             </Link>
           </div>
 
-          {loading ? (
-            <div className="px-5 py-8 text-sm text-[#6B7280]">Loading...</div>
-          ) : recent.length === 0 ? (
+          {loading ? null : recent.length === 0 ? (
             <div className="px-5 py-8 text-sm text-[#6B7280]">No workers found.</div>
           ) : (
             <div className="overflow-auto">

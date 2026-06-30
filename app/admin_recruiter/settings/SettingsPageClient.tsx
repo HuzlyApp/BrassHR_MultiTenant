@@ -40,13 +40,7 @@ function SettingsContent() {
 
 export default function SettingsPageClient() {
   return (
-    <Suspense
-      fallback={
-        <div className="mx-auto max-w-[1200px] p-6">
-          <p className="text-sm text-slate-500">Loading branding settings…</p>
-        </div>
-      }
-    >
+    <Suspense fallback={null}>
       <SettingsContent />
     </Suspense>
   );

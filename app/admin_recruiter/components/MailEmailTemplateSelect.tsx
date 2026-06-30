@@ -1,6 +1,5 @@
 "use client";
 
-import { Loader2 } from "lucide-react";
 import type { AdminEmailTemplateItem } from "@/lib/email-templates/types";
 import { MailComposeDropdown } from "./MailComposeDropdown";
 import { MailComposeFieldRow } from "./MailComposeFieldRow";
@@ -34,12 +33,7 @@ export function MailEmailTemplateSelect({
   return (
     <MailComposeFieldRow label="Template">
       <div className="relative min-w-0">
-        {previewLoading ? (
-          <div className="flex min-h-[3.25rem] items-center justify-center gap-2 rounded-md border border-[#E5E7EB] bg-white px-3 py-2 text-lg font-medium text-[#6B7280]">
-            <Loader2 className="h-4 w-4 shrink-0 animate-spin text-(--brand-primary)" />
-            Loading template...
-          </div>
-        ) : (
+        {previewLoading ? null : (
           <MailComposeDropdown
             id="mail-compose-template"
             value={value}

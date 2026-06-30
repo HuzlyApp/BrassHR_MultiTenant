@@ -636,9 +636,7 @@ export default function NewApplicantFacilityAssignmentsPage() {
 
             <div className="px-8 pb-8 pt-5">
               <div className="max-h-[64vh] space-y-8 overflow-auto pr-2">
-                {assignModalLoading ? (
-                  <div className="py-8 text-center text-sm text-[#6B7280]">Loading facilities...</div>
-                ) : facilitiesError ? (
+                {assignModalLoading ? null : facilitiesError ? (
                   <div className="py-8 text-center text-sm text-red-700">{FACILITIES_LOAD_ERROR}</div>
                 ) : (
                   <>

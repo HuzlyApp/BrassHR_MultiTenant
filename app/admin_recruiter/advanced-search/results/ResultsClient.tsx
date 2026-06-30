@@ -206,9 +206,7 @@ export default function ResultsClient() {
           <div className="bg-white border border-zinc-200 rounded-3xl overflow-hidden">
             {error ? (
               <div className="p-6 text-red-600">{error}</div>
-            ) : loading ? (
-              <div className="p-6">Loading…</div>
-            ) : (
+            ) : loading ? null : (
               <div className="overflow-auto">
                 <table className="min-w-[1180px] w-full">
                   <thead>

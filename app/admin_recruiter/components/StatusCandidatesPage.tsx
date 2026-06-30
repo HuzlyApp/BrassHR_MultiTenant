@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2 } from "lucide-react";
 import { CandidatesListShell } from "./CandidatesListShell";
 import AdvancedSearchModal from "./AdvancedSearchModal";
 import { useCandidatesFilterRowsDefault } from "../hooks/useCandidatesFilterRowsDefault";
@@ -313,12 +312,7 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
           const formatDate = formatDateShort;
 
           if (loading) {
-            return (
-              <div className="flex flex-col items-center justify-center gap-3 py-24 text-gray-600">
-                <Loader2 className="h-8 w-8 animate-spin text-[color:var(--brand-primary)]" />
-                Loading candidates…
-              </div>
-            );
+            return null;
           }
           if (filtered.length === 0) {
             return <div className="py-24 text-center text-gray-600">{emptyMessage}</div>;

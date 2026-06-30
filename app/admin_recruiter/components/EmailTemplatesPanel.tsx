@@ -153,7 +153,7 @@ export default function EmailTemplatesPanel() {
   };
 
   if (loading) {
-    return <p className="text-sm text-[#64748B]">Loading email templates...</p>;
+    return null;
   }
 
   if (tenantMissing) {

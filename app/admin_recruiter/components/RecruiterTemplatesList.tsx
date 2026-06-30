@@ -207,11 +207,7 @@ export default function RecruiterTemplatesList() {
         </select>
       </div>
 
-      {loading ? (
-        <div className="rounded-xl border border-[#EAECF0] bg-white p-10 text-center text-sm text-[#667085]">
-          Loading templates...
-        </div>
-      ) : templates.length === 0 ? (
+      {loading ? null : templates.length === 0 ? (
         <div className="rounded-xl border border-dashed border-[#D0D5DD] bg-white px-6 py-16 text-center">
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#F2F4F7]">
             <FileSignature className="h-6 w-6 text-[#667085]" />

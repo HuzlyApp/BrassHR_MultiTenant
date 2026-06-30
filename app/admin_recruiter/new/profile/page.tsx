@@ -247,13 +247,7 @@ export default function ProfileIndexPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {loading ? (
-                      <tr>
-                        <td colSpan={5} className="px-5 py-16 text-center text-gray-600">
-                          Loading workers…
-                        </td>
-                      </tr>
-                    ) : filtered.length === 0 ? (
+                    {loading ? null : filtered.length === 0 ? (
                       <tr>
                         <td colSpan={5} className="px-5 py-16 text-center text-gray-600">
                           No workers found.{" "}
