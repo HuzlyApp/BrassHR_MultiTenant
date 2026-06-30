@@ -38,6 +38,16 @@ type AdminRecruiterSidebarProps = {
   collapsed?: boolean;
 };
 
+/** First enabled child link for collapsed-rail navigation. */
+function getFirstNavigableChildHref(children: SidebarLink[]): string | null {
+  for (const child of children) {
+    if (child.disabled) continue;
+    const href = child.href?.trim();
+    if (href && href !== "#") return href;
+  }
+  return null;
+}
+
 const DEFAULT_TENANT_LOGO = "/images/new-logo-nexus.svg";
 const DASHBOARD_HOME_HREF = ADMIN_RECRUITER_HOME_ROUTE;
 
@@ -267,16 +277,46 @@ export function AdminRecruiterSidebar({
               : "py-3 pl-3 pr-0"
         }`}
       >
-        {renderedSections.map((section) => (
+        {renderedSections.map((section) => {
+          const collapsedNavHref =
+            (isCollapsed || isMobileRail) && section.children?.length
+              ? getFirstNavigableChildHref(section.children)
+              : null;
+
+          return (
           <div key={section.label} className={`mb-1 ${isMobileRail || isCollapsed ? "w-full" : ""}`}>
             {section.children?.length ? (
+              collapsedNavHref ? (
+                <Link
+                  href={collapsedNavHref}
+                  onClick={handleNavClick}
+                  title={section.label}
+                  className={`group relative flex min-h-[36px] w-full cursor-pointer items-center overflow-hidden rounded-md transition hover:bg-white ${collapsedRowClass(
+                    isCollapsed,
+                    isMobileRail
+                  )} ${
+                    section.childActive
+                      ? "text-[color:var(--brand-primary)]"
+                      : "text-[#012352] hover:text-[color:var(--brand-primary)]"
+                  }`}
+                >
+                  <SidebarNavIcon iconType={section.iconType} active={section.childActive} />
+                  {section.childActive ? (
+                    <span aria-hidden className="admin-recruiter-sidebar-active-indicator" />
+                  ) : null}
+                </Link>
+              ) : (
               <>
                 <button
                   type="button"
                   title={section.disabled ? `${section.label} (Coming soon)` : section.label}
-                  onClick={(event) => handleSectionToggleClick(section.label, event)}
+                  onClick={(event) => {
+                    if (isCollapsed || isMobileRail) return;
+                    handleSectionToggleClick(section.label, event);
+                  }}
                   onMouseDown={(event) => event.preventDefault()}
-                  className={`group relative flex min-h-[36px] w-full cursor-pointer items-center gap-2 overflow-hidden rounded-md border-0 bg-transparent text-left text-[color:var(--brand-primary)] transition hover:bg-white ${
+                  disabled={isCollapsed || isMobileRail}
+                  className={`group relative flex min-h-[36px] w-full cursor-pointer items-center gap-2 overflow-hidden rounded-md border-0 bg-transparent text-left text-[color:var(--brand-primary)] transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60 ${
                     isCollapsed || isMobileRail
                       ? collapsedRowClass(isCollapsed, isMobileRail)
                       : "pl-2 pr-0 py-1"
@@ -334,6 +374,7 @@ export function AdminRecruiterSidebar({
                   </div>
                 ) : null}
               </>
+              )
             ) : section.disabled ? (
               <div
                 title={`${section.label} (Coming soon)`}
@@ -379,7 +420,8 @@ export function AdminRecruiterSidebar({
               </Link>
             )}
           </div>
-        ))}
+          );
+        })}
       </nav>
 
       <div
