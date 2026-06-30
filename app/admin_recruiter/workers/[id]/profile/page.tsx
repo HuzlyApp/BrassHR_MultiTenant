@@ -1,11 +1,10 @@
-import { redirect } from "next/navigation";
+import { AdminWorkerProfileClient } from "./AdminWorkerProfileClient";
 
-export default async function WorkerProfileRedirectPage({
+export default async function AdminWorkerProfilePage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  redirect(`/admin_recruiter/new/profile/${id}`);
+  return <AdminWorkerProfileClient workerId={id} />;
 }
-

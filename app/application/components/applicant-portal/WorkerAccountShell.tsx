@@ -2,39 +2,9 @@
 
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { useApplicantPortal } from "./ApplicantPortalProvider";
-import { WorkerAccountProvider } from "./WorkerAccountContext";
-import { WorkerAccountHeader } from "./WorkerAccountHeader";
-import { WorkerAccountTabNav } from "./WorkerAccountTabNav";
+import { WorkerAccountShellLayout } from "./WorkerAccountShellLayout";
 import type { WorkerAccountOverviewPayload, WorkerAccountTab } from "./worker-account-types";
-import { WORKER_PORTAL_PAGE_PAD_CLASS } from "./worker-schedule-typography";
-
-const EMPTY_PROFILE: WorkerAccountOverviewPayload["profile"] = {
-  id: "",
-  tenantId: "",
-  firstName: "",
-  lastName: "",
-  email: "",
-  phone: "",
-  address1: "",
-  address2: "",
-  city: "",
-  state: "",
-  zip: "",
-  jobRole: "",
-  statusLabel: "approved",
-  displayName: "",
-  fullAddress: "—",
-  employeeId: "—",
-  hireDateLabel: "—",
-  employmentType: "Part Time",
-  department: "—",
-  supervisorName: null,
-  hourlyRate: null,
-  positions: [],
-  yearsExperience: null,
-  profileCompletionPercent: 0,
-  profilePhotoUrl: null,
-};
+import { workerAccountTabHref } from "./worker-account-types";
 
 type WorkerAccountShellProps = {
   activeTab: WorkerAccountTab;
@@ -104,28 +74,18 @@ export function WorkerAccountShell({ activeTab, children }: WorkerAccountShellPr
     };
   }, [loadOverview, sessionReady]);
 
-  const profile = overview?.profile ?? EMPTY_PROFILE;
-
   return (
-    <div className="w-full min-w-0">
-      <div className={`${WORKER_PORTAL_PAGE_PAD_CLASS} pb-4`}>
-        {error ? (
-          <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            {error}
-          </div>
-        ) : null}
-        <WorkerAccountHeader profile={profile} onProfilePhotoUpdated={updateProfilePhoto} />
-      </div>
-
-      <div className="sticky top-16 z-20 border-b border-[#E5E7EB] bg-white">
-        <WorkerAccountTabNav activeTab={activeTab} />
-      </div>
-
-      <div className={`${WORKER_PORTAL_PAGE_PAD_CLASS} pt-4`}>
-        <WorkerAccountProvider value={{ overview, updateProfilePhoto, refreshOverview }}>
-          {children}
-        </WorkerAccountProvider>
-      </div>
-    </div>
+    <WorkerAccountShellLayout
+      activeTab={activeTab}
+      overview={overview}
+      error={error}
+      readOnly={false}
+      tabHref={workerAccountTabHref}
+      updateProfilePhoto={updateProfilePhoto}
+      refreshOverview={refreshOverview}
+      loading={!overview && !error && sessionReady}
+    >
+      {children}
+    </WorkerAccountShellLayout>
   );
 }

@@ -4,10 +4,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
 import { CandidateListAvatar } from "@/app/admin_recruiter/components/CandidateListAvatar";
-import {
-  candidateMailHref,
-  candidateProfileHref,
-} from "@/app/admin_recruiter/candidates/candidate-links";
+import { adminWorkerProfileHref } from "./worker-profile-links";
+import { candidateMailHref } from "@/app/admin_recruiter/candidates/candidate-links";
 import {
   CANDIDATES_FILTER_CONTROL_CLASS,
   CANDIDATES_FILTER_LABEL_CLASS,
@@ -356,7 +354,7 @@ export default function WorkersPage() {
                             />
                             <div className="min-w-0">
                               <Link
-                                href={candidateProfileHref(w.profileId)}
+                                href={adminWorkerProfileHref(w.profileId)}
                                 className={`block text-sm font-medium text-black ${LINK_CLASS}`}
                               >
                                 {w.name}
@@ -385,10 +383,10 @@ export default function WorkersPage() {
                         </td>
                         <td className="px-4 py-4 text-right">
                           <Link
-                            href={candidateProfileHref(w.profileId)}
-                            className="inline-flex items-center gap-1 rounded-full bg-(--brand-primary) px-3 py-1.5 text-xs font-semibold text-white transition hover:brightness-95"
+                            href={adminWorkerProfileHref(w.profileId)}
+                            className="inline-flex h-8 shrink-0 items-center justify-center rounded-[8px] border border-[color:var(--brand-primary)] px-4 py-2 text-xs font-semibold leading-4 text-[color:var(--brand-primary)] transition hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_8%,white)]"
                           >
-                            Open <span aria-hidden>-&gt;</span>
+                            Details
                           </Link>
                         </td>
                       </tr>

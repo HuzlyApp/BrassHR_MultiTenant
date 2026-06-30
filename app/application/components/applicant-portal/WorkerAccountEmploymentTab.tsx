@@ -9,9 +9,13 @@ import {
 
 type WorkerAccountEmploymentTabProps = {
   profile: WorkerAccountProfile;
+  readOnly?: boolean;
 };
 
-export function WorkerAccountEmploymentTab({ profile }: WorkerAccountEmploymentTabProps) {
+export function WorkerAccountEmploymentTab({
+  profile,
+  readOnly = false,
+}: WorkerAccountEmploymentTabProps) {
   const rows = [
     ["Employee ID", profile.employeeId],
     ["Hire Date", profile.hireDateLabel],
@@ -32,7 +36,9 @@ export function WorkerAccountEmploymentTab({ profile }: WorkerAccountEmploymentT
         <h2 className={WORKER_SECTION_TITLE_CLASS} style={WORKER_SECTION_TITLE_STYLE}>
           Employment Details
         </h2>
-        <p className="mt-1 text-sm text-[#64748B]">Your work information from the company.</p>
+        <p className="mt-1 text-sm text-[#64748B]">
+          {readOnly ? "Work information on file." : "Your work information from the company."}
+        </p>
       </div>
       <dl className="divide-y divide-[#F3F4F6] p-4">
         {rows.map(([label, value]) => (

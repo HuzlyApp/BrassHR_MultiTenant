@@ -3,10 +3,38 @@
 import Link from "next/link";
 import { Mail, MapPin, Phone } from "lucide-react";
 import { WorkerProfilePhotoUpload } from "./WorkerProfilePhotoUpload";
-import type { WorkerAccountProfile } from "./worker-account-types";
+import type { WorkerAccountProfile, WorkerAccountTab } from "./worker-account-types";
 import { workerAccountTabHref } from "./worker-account-types";
 import { WORKER_BTN_LINK } from "./worker-portal-buttons";
 import { WORKER_SCHEDULE_CARD_CLASS } from "./worker-schedule-typography";
+
+function profileInitials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "NA";
+  const first = parts[0]?.[0] ?? "";
+  const last = parts[parts.length - 1]?.[0] ?? "";
+  return (first + last).toUpperCase();
+}
+
+function WorkerProfileAvatar({
+  displayName,
+  photoUrl,
+}: {
+  displayName: string;
+  photoUrl: string | null;
+}) {
+  return (
+    <div className="flex w-[96px] shrink-0 flex-col items-center">
+      <div className="flex h-[96px] w-[96px] items-center justify-center overflow-hidden rounded-full bg-[#E5E7EB] text-[28px] font-semibold text-[#4B5563]">
+        {photoUrl ? (
+          <img src={photoUrl} alt="" className="h-full w-full object-cover" />
+        ) : (
+          profileInitials(displayName)
+        )}
+      </div>
+    </div>
+  );
+}
 
 function statusTone(status: string): string {
   const value = status.trim().toLowerCase();
@@ -26,12 +54,16 @@ function statusLabel(status: string): string {
 type WorkerAccountHeaderProps = {
   profile: WorkerAccountProfile;
   loading?: boolean;
+  readOnly?: boolean;
+  tabHref?: (tab: WorkerAccountTab) => string;
   onProfilePhotoUpdated?: (url: string | null) => void;
 };
 
 export function WorkerAccountHeader({
   profile,
   loading = false,
+  readOnly = false,
+  tabHref = workerAccountTabHref,
   onProfilePhotoUpdated,
 }: WorkerAccountHeaderProps) {
   const displayName = loading ? "Loading..." : profile.displayName || "Worker";
@@ -46,12 +78,16 @@ export function WorkerAccountHeader({
       <div className="flex flex-col gap-6 xl:flex-row xl:items-stretch xl:gap-0">
         {/* Profile */}
         <div className="flex min-w-0 flex-1 flex-col items-center gap-4 sm:flex-row sm:items-start sm:gap-5 xl:pr-8">
-          <WorkerProfilePhotoUpload
-            variant="avatar"
-            displayName={displayName}
-            photoUrl={profile.profilePhotoUrl}
-            onPhotoUpdated={onProfilePhotoUpdated}
-          />
+          {readOnly ? (
+            <WorkerProfileAvatar displayName={displayName} photoUrl={profile.profilePhotoUrl} />
+          ) : (
+            <WorkerProfilePhotoUpload
+              variant="avatar"
+              displayName={displayName}
+              photoUrl={profile.profilePhotoUrl}
+              onPhotoUpdated={onProfilePhotoUpdated}
+            />
+          )}
           <div className="min-w-0 w-full flex-1 text-center sm:text-left">
             <h1 className="font-[Inter,sans-serif] text-[20px] font-semibold leading-7 text-[#111827] sm:text-[24px] sm:leading-8">
               {displayName}
@@ -133,9 +169,11 @@ export function WorkerAccountHeader({
                 style={{ width: `${completionPercent}%`, backgroundColor: progressBarColor }}
               />
             </div>
-            <Link href={workerAccountTabHref("personal")} className={`mt-5 ${WORKER_BTN_LINK}`}>
-              {isComplete ? "Update Profile" : "Complete Profile"}
-            </Link>
+            {!readOnly ? (
+              <Link href={tabHref("personal")} className={`mt-5 ${WORKER_BTN_LINK}`}>
+                {isComplete ? "Update Profile" : "Complete Profile"}
+              </Link>
+            ) : null}
           </div>
         </div>
       </div>

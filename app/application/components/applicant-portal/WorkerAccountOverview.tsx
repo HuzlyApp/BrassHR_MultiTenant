@@ -5,7 +5,7 @@ import { CalendarDays, Clock, Download, Pencil, Plus, Star, Wallet } from "lucid
 import BrandedFileTypeIcon from "@/app/admin_recruiter/components/BrandedFileTypeIcon";
 import { formatDecimalHours } from "./worker-dashboard-utils";
 import type { WorkerAccountOverviewPayload } from "./worker-account-types";
-import { workerAccountTabHref } from "./worker-account-types";
+import { useWorkerAccountReadOnly, useWorkerAccountTabHref } from "./WorkerAccountContext";
 import { WORKER_BTN_GHOST_ICON, WORKER_BTN_OUTLINE } from "./worker-portal-buttons";
 import {
   WORKER_SCHEDULE_CARD_CLASS,
@@ -95,6 +95,8 @@ type WorkerAccountOverviewProps = {
 };
 
 export function WorkerAccountOverview({ data, onDownloadDocument }: WorkerAccountOverviewProps) {
+  const readOnly = useWorkerAccountReadOnly();
+  const tabHref = useWorkerAccountTabHref();
   const { aboutMe, skills, certifications, recentDocuments, workSummary } = data;
 
   return (
@@ -103,10 +105,12 @@ export function WorkerAccountOverview({ data, onDownloadDocument }: WorkerAccoun
         <AccountCard
           title="About Me"
           action={
-            <span className="inline-flex items-center gap-1 text-sm text-[#9CA3AF]">
-              <Pencil className="h-4 w-4" aria-hidden />
-              Edit About Me
-            </span>
+            readOnly ? undefined : (
+              <span className="inline-flex items-center gap-1 text-sm text-[#9CA3AF]">
+                <Pencil className="h-4 w-4" aria-hidden />
+                Edit About Me
+              </span>
+            )
           }
         >
           <p className="text-sm leading-6 text-[#374151]">{aboutMe}</p>
@@ -115,7 +119,13 @@ export function WorkerAccountOverview({ data, onDownloadDocument }: WorkerAccoun
         <AccountCard
           title="Skills"
           action={
-            <CardActionLink href={workerAccountTabHref("skills")} label="Edit Skills" icon={<Pencil className="h-4 w-4" aria-hidden />} />
+            readOnly ? undefined : (
+              <CardActionLink
+                href={tabHref("skills")}
+                label="Edit Skills"
+                icon={<Pencil className="h-4 w-4" aria-hidden />}
+              />
+            )
           }
         >
           {skills.length === 0 ? (
@@ -137,11 +147,13 @@ export function WorkerAccountOverview({ data, onDownloadDocument }: WorkerAccoun
         <AccountCard
           title="Certifications"
           action={
-            <CardActionLink
-              href="/application/applicant-dashboard/licenses"
-              label="Add Certification"
-              icon={<Plus className="h-4 w-4" aria-hidden />}
-            />
+            readOnly ? undefined : (
+              <CardActionLink
+                href={tabHref("skills")}
+                label="Add Certification"
+                icon={<Plus className="h-4 w-4" aria-hidden />}
+              />
+            )
           }
         >
           {certifications.length === 0 ? (
@@ -162,12 +174,11 @@ export function WorkerAccountOverview({ data, onDownloadDocument }: WorkerAccoun
                       </p>
                     </div>
                   </div>
-                  <Link
-                    href="/application/applicant-dashboard/licenses"
-                    className={WORKER_BTN_OUTLINE}
-                  >
-                    Update
-                  </Link>
+                  {!readOnly ? (
+                    <Link href={tabHref("skills")} className={WORKER_BTN_OUTLINE}>
+                      Update
+                    </Link>
+                  ) : null}
                 </li>
               ))}
             </ul>
@@ -212,7 +223,9 @@ export function WorkerAccountOverview({ data, onDownloadDocument }: WorkerAccoun
         <AccountCard
           title="Recent Documents"
           action={
-            <CardActionLink href="/application/applicant-dashboard/documents" label="View All" />
+            readOnly ? undefined : (
+              <CardActionLink href="/application/applicant-dashboard/documents" label="View All" />
+            )
           }
         >
           {recentDocuments.length === 0 ? (
