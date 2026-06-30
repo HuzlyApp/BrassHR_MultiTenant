@@ -17,7 +17,7 @@ function SettingsContent() {
   }, [legacyTab, router]);
 
   return (
-    <main className="mx-auto max-w-[1200px] space-y-6 p-4 sm:p-6 lg:p-8">
+    <main className="w-full min-w-0 max-w-full space-y-6 px-5 pb-8 pt-5 lg:px-8">
       <div>
         <h1 className="font-[Inter,sans-serif] text-[22px] font-semibold leading-8 tracking-tight text-[#012352]">
           Settings

@@ -25,6 +25,23 @@ import { supabaseBrowser } from "@/lib/supabase-browser";
 type PreviewMode = "login" | "signup";
 type LogoField = "logo" | "login" | "signup";
 
+function normalizePresetHex(hex: string): string {
+  return hex.trim().toLowerCase();
+}
+
+function isPresetActive(
+  preset: (typeof BRAND_COLOR_PRESETS)[number],
+  primaryHex: string,
+  secondaryHex: string,
+  accentHex: string
+): boolean {
+  return (
+    normalizePresetHex(preset.primary) === normalizePresetHex(primaryHex) &&
+    normalizePresetHex(preset.secondary) === normalizePresetHex(secondaryHex) &&
+    normalizePresetHex(preset.accent) === normalizePresetHex(accentHex)
+  );
+}
+
 function actionButtonClass(variant: "primary" | "secondary", disabled?: boolean): string {
   const base =
     "inline-flex h-10 cursor-pointer items-center justify-center gap-2 px-5 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-60";
@@ -544,7 +561,9 @@ export default function BrandingSettingsPanel() {
               <div>
                 <p className="text-sm font-semibold text-[#0F172A]">Quick presets</p>
                 <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                  {BRAND_COLOR_PRESETS.map((preset) => (
+                  {BRAND_COLOR_PRESETS.map((preset) => {
+                    const active = isPresetActive(preset, primaryHex, secondaryHex, accentHex);
+                    return (
                     <button
                       key={preset.label}
                       type="button"
@@ -554,8 +573,18 @@ export default function BrandingSettingsPanel() {
                         setAccentHex(preset.accent);
                         setButtonColor(preset.primary);
                       }}
-                      className="cursor-pointer rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] p-4 text-left transition hover:border-[color:var(--brand-primary)]"
+                      aria-pressed={active}
+                      className={`relative cursor-pointer rounded-lg p-4 text-left transition ${
+                        active
+                          ? "border-2 border-[color:var(--brand-primary)] bg-white shadow-sm"
+                          : "border border-[#E2E8F0] bg-[#F8FAFC] hover:border-[color:var(--brand-primary)]"
+                      }`}
                     >
+                      {active ? (
+                        <span className="absolute right-3 top-3 text-xs font-semibold text-[color:var(--brand-primary)]">
+                          Active
+                        </span>
+                      ) : null}
                       <div className="flex gap-2">
                         <span
                           className="h-7 w-7 rounded-full border border-black/10"
@@ -572,7 +601,8 @@ export default function BrandingSettingsPanel() {
                       </div>
                       <p className="mt-2 text-sm font-semibold text-[#0F172A]">{preset.label}</p>
                     </button>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
               <div className="grid gap-4 md:grid-cols-3">

@@ -1,8 +1,8 @@
 "use client";
 
-import { Check } from "lucide-react";
+import { Check, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type ClipboardEvent, type FormEvent, type KeyboardEvent } from "react";
-import LoginFormError, { loginInputErrorClass } from "@/app/login/LoginFormError";
+import { loginInputErrorClass } from "@/app/login/LoginFormError";
 import type { LoginAuthErrorPayload } from "@/lib/auth/login-api-errors";
 import { LOGIN_OTP_LENGTH } from "@/lib/auth/supabase-magic-link-otp-template";
 
@@ -12,6 +12,12 @@ const SEND_AGAIN_SECONDS = 30;
 
 const inputFocusClass =
   "focus:border-[color:var(--brand-primary)] focus:ring-2 focus:ring-[color:color-mix(in_srgb,var(--brand-primary)_20%,transparent)]";
+
+/** Fixed OTP status colors — not tied to tenant branding. */
+const OTP_STATUS_ICON = {
+  successBg: "#16a34a",
+  errorBg: "#dc2626",
+} as const;
 
 type LoginOtpStepProps = {
   email: string;
@@ -132,16 +138,36 @@ export default function LoginOtpStep({
       </div>
 
       <div className="pt-[20px]">
-        {isComplete && !otpHasError ? (
+        {otpHasError ? (
+          <div
+            role="alert"
+            aria-live="polite"
+            className="mb-[20px] flex items-center gap-[8px] text-[14px] font-normal leading-[20px] text-[#374151]"
+            style={interStyle}
+          >
+            <span
+              className="flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full text-white"
+              style={{ backgroundColor: OTP_STATUS_ICON.errorBg }}
+              aria-hidden
+            >
+              <X className="h-[12px] w-[12px]" strokeWidth={3} />
+            </span>
+            <span>
+              <span className="font-semibold text-[#991b1b]">Wrong OTP.</span>{" "}
+              {authError?.error ?? "Check the code and try again."}
+            </span>
+          </div>
+        ) : isComplete ? (
           <div className="mb-[20px] flex items-center gap-[8px] text-[14px] font-normal leading-[20px] text-[#374151]" style={interStyle}>
             <span
               className="flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full text-white"
-              style={{ backgroundColor: "var(--brand-primary)" }}
+              style={{ backgroundColor: OTP_STATUS_ICON.successBg }}
+              aria-hidden
             >
               <Check className="h-[12px] w-[12px]" strokeWidth={3} />
             </span>
             <span>
-              <span className="font-semibold text-black">OTP Passed!</span> Verify to continue.
+              <span className="font-semibold text-[#166534]">OTP Passed!</span> Verify to continue.
             </span>
           </div>
         ) : null}
@@ -189,8 +215,6 @@ export default function LoginOtpStep({
           </button>
         </div>
       </div>
-
-      {authError ? <LoginFormError message={authError.error} code={authError.code} /> : null}
 
       <button
         type="submit"
