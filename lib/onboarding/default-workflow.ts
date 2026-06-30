@@ -10,7 +10,10 @@ import { mapConfigToDrafts } from "@/lib/onboarding/config-to-drafts";
 import { draftsToWorkflowNodes } from "@/lib/onboarding/drafts-to-workflow";
 import { stepDraftsToSerializableWorkflow } from "@/lib/onboarding/step-drafts-to-workflow-state";
 import type { TenantOnboardingConfig } from "@/lib/onboarding/types";
-import { isSerializableWorkflowState } from "@/lib/onboarding/workflow-builder-serialization";
+import {
+  isSerializableWorkflowState,
+  type SerializableWorkflowState,
+} from "@/lib/onboarding/workflow-builder-serialization";
 
 export const DEFAULT_WORKFLOW_STEP_LABELS = [
   "Upload Resume",
