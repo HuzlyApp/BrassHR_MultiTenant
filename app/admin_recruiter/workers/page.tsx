@@ -3,6 +3,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
+import { CandidateListAvatar } from "@/app/admin_recruiter/components/CandidateListAvatar";
+import {
+  candidateMailHref,
+  candidateProfileHref,
+} from "@/app/admin_recruiter/candidates/candidate-links";
 import {
   CANDIDATES_FILTER_CONTROL_CLASS,
   CANDIDATES_FILTER_LABEL_CLASS,
@@ -27,11 +32,16 @@ type EmploymentWorkerRow = {
   candidate_id: string;
   first_name: string | null;
   last_name: string | null;
+  email: string | null;
   job_role: string | null;
   location: string | null;
   status: string | null;
   created_at: string | null;
+  profile_photo_url?: string | null;
 };
+
+const LINK_CLASS =
+  "truncate text-left transition hover:text-[color:var(--brand-primary)] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)]";
 
 const WORKER_TABS: Array<{ id: EmploymentWorkerTab; label: string }> = [
   { id: "new", label: "New only" },
@@ -53,10 +63,12 @@ export default function WorkersPage() {
       id: string;
       profileId: string;
       name: string;
+      email: string;
       role: string;
       location: string;
       status: string;
       createdAt: string | null;
+      profilePhotoUrl: string | null;
     }>
   >([]);
   const [totalFromApi, setTotalFromApi] = useState<number | null>(null);
@@ -101,10 +113,12 @@ export default function WorkersPage() {
           id: w.id,
           profileId: w.candidate_id,
           name,
+          email: w.email?.trim() || "",
           role: w.job_role || "—",
           location: w.location?.trim() || "—",
           status: titleCaseStatus(w.status),
           createdAt: w.created_at ?? null,
+          profilePhotoUrl: w.profile_photo_url ?? null,
         };
       });
       setWorkers(mapped);
@@ -129,6 +143,7 @@ export default function WorkersPage() {
       out = out.filter((c) => {
         return (
           c.name.toLowerCase().includes(q) ||
+          c.email.toLowerCase().includes(q) ||
           c.role.toLowerCase().includes(q) ||
           c.location.toLowerCase().includes(q) ||
           c.id.toLowerCase().includes(q)
@@ -333,7 +348,32 @@ export default function WorkersPage() {
                   <tbody>
                     {filtered.map((w) => (
                       <tr key={w.id} className="border-b border-[#E9EDF3] hover:bg-[#F9FBFB]">
-                        <td className="px-4 py-4 text-sm font-medium text-[#111827]">{w.name}</td>
+                        <td className="px-4 py-4">
+                          <div className="flex min-w-0 items-center gap-3">
+                            <CandidateListAvatar
+                              name={w.name || "NA"}
+                              photoUrl={w.profilePhotoUrl}
+                            />
+                            <div className="min-w-0">
+                              <Link
+                                href={candidateProfileHref(w.profileId)}
+                                className={`block text-sm font-medium text-black ${LINK_CLASS}`}
+                              >
+                                {w.name}
+                              </Link>
+                              {w.email ? (
+                                <Link
+                                  href={candidateMailHref(w.profileId)}
+                                  className={`block text-xs text-[#4B5563] ${LINK_CLASS}`}
+                                >
+                                  {w.email}
+                                </Link>
+                              ) : (
+                                <div className="truncate text-xs text-[#4B5563]">—</div>
+                              )}
+                            </div>
+                          </div>
+                        </td>
                         <td className="px-4 py-4 text-sm text-[#374151]">{w.role}</td>
                         <td className="px-4 py-4 text-sm text-[#374151]">{w.location}</td>
                         <td className="px-4 py-4">
@@ -345,7 +385,7 @@ export default function WorkersPage() {
                         </td>
                         <td className="px-4 py-4 text-right">
                           <Link
-                            href={`/admin_recruiter/workers/${w.profileId}/profile`}
+                            href={candidateProfileHref(w.profileId)}
                             className="inline-flex items-center gap-1 rounded-full bg-(--brand-primary) px-3 py-1.5 text-xs font-semibold text-white transition hover:brightness-95"
                           >
                             Open <span aria-hidden>-&gt;</span>

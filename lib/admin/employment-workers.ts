@@ -14,6 +14,7 @@ export type EmploymentWorkerRecord = {
   employment_classification: string | null;
   created_at: string | null;
   converted_at: string | null;
+  profile_photo_url?: string | null;
 };
 
 export function parseEmploymentWorkerTab(value: string | null | undefined): EmploymentWorkerTab {

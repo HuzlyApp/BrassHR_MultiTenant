@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { resolveWorkerProfilePhotoUrl } from "@/lib/applicant-portal/worker-profile-photo";
 import {
   employmentWorkerTabLabel,
   parseEmploymentWorkerTab,
@@ -101,6 +102,41 @@ async function fetchEmploymentWorkers(
   return rows.map(normalizeWorkerRow);
 }
 
+async function attachWorkerProfilePhotos(
+  supabase: NonNullable<ReturnType<typeof createServiceRoleClient>>,
+  workers: EmploymentWorkerRecord[]
+): Promise<EmploymentWorkerRecord[]> {
+  if (workers.length === 0) return workers;
+
+  const candidateIds = [
+    ...new Set(workers.map((row) => row.candidate_id).filter(Boolean)),
+  ] as string[];
+
+  const photoByCandidateId = new Map<string, unknown>();
+  if (candidateIds.length > 0) {
+    const { data, error } = await supabase
+      .from("worker")
+      .select("id, profile_photo")
+      .in("id", candidateIds);
+    if (!error) {
+      for (const row of data ?? []) {
+        const id = row.id != null ? String(row.id) : "";
+        if (id) photoByCandidateId.set(id, (row as { profile_photo?: unknown }).profile_photo);
+      }
+    }
+  }
+
+  return Promise.all(
+    workers.map(async (worker) => ({
+      ...worker,
+      profile_photo_url: await resolveWorkerProfilePhotoUrl(
+        supabase,
+        photoByCandidateId.get(worker.candidate_id)
+      ),
+    }))
+  );
+}
+
 export async function GET(req: NextRequest) {
   try {
     const auth = await requireStaffApiSession();
@@ -115,7 +151,10 @@ export async function GET(req: NextRequest) {
     const tenantScope = await resolveStaffTenantScope(auth.authUser);
     const tenantId = tenantScope.mode === "scoped" ? tenantScope.tenantId : null;
 
-    const workers = await fetchEmploymentWorkers(supabase, tab, tenantId);
+    const workers = await attachWorkerProfilePhotos(
+      supabase,
+      await fetchEmploymentWorkers(supabase, tab, tenantId)
+    );
 
     return NextResponse.json({
       tab,
