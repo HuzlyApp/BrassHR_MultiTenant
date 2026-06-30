@@ -16,8 +16,8 @@ import {
   mergeQuestionCatalogWithDb,
   remapLegacySyntheticAnswerKeys,
 } from "@/lib/merge-skill-quiz-catalog"
-import { resolveWorkerSessionContext } from "@/lib/onboarding-worker-pk"
-import { fetchApplicantSkillAnswers } from "@/lib/skill-assessment-answer-rows"
+import { getSkillAssessmentWorkerKey } from "@/lib/onboarding-worker-pk"
+import { fetchApplicantSkillAnswers, persistSkillAssessment } from "@/lib/skill-assessment-answer-rows"
 import { useQuizAutosave } from "@/lib/useQuizAutosave"
 import AutosaveStatus from "@/app/components/AutosaveStatus"
 
@@ -228,12 +228,7 @@ export default function DocumentationQuiz() {
         return
       }
 
-      const { data: worker } = await supabase
-        .from("worker")
-        .select("id")
-        .eq("user_id", uid)
-        .maybeSingle()
-      const workerId = worker?.id ? String(worker.id) : uid
+      const workerId = (await getSkillAssessmentWorkerKey(supabase)) ?? uid
 
       const { data: row } = await supabase
         .from("skill_assessments")
@@ -293,62 +288,15 @@ export default function DocumentationQuiz() {
       if (completed) localStorage.setItem("documentation_done", "true")
       return true
     }
-    const ctx = await resolveWorkerSessionContext(supabase, { ensure: true })
-    if (!ctx) {
-      alert("Could not save your answers. Go back and upload your resume again.")
+
+    const result = await persistSkillAssessment(supabase, {
+      categorySlug: CATEGORY_SLUG,
+      answers,
+      completed,
+    })
+    if (!result.ok) {
+      alert(result.error)
       return false
-    }
-    const workerId = ctx.id
-    const cleanAnswers = JSON.parse(JSON.stringify(answers)) as Record<string, number>
-
-    const { data: existing, error: findErr } = await supabase
-      .from("skill_assessments")
-      .select("id")
-      .eq("worker_id", workerId)
-      .eq("category", CATEGORY_SLUG)
-      .maybeSingle()
-
-    if (findErr) {
-      console.error(findErr)
-      alert(findErr.message)
-      return false
-    }
-
-    if (existing?.id) {
-      const { error: upErr } = await supabase
-        .from("skill_assessments")
-        .update({
-          answers: cleanAnswers,
-          completed,
-        })
-        .eq("id", existing.id)
-
-      if (upErr) {
-        console.error(upErr)
-        alert(upErr.message)
-        return false
-      }
-    } else {
-      const { error: insErr } = await supabase.from("skill_assessments").insert({
-        tenant_id: ctx.tenantId,
-        worker_id: workerId,
-        category: CATEGORY_SLUG,
-        answers: cleanAnswers,
-        completed,
-      })
-
-      if (insErr) {
-        console.error(insErr)
-        const e = insErr as { code?: string; message?: string }
-        if (e.code === "23505" && (e.message || "").includes("skill_assessments_worker_id_key")) {
-          alert(
-            'Database constraint is still UNIQUE(worker_id). Apply the migration that replaces it with UNIQUE(worker_id, category) (see supabase/migrations/20260410194500_create_skill_assessments.sql), then try again.'
-          )
-        } else {
-          alert(insErr.message)
-        }
-        return false
-      }
     }
 
     if (completed) {

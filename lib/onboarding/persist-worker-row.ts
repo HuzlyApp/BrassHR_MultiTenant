@@ -100,6 +100,7 @@ export async function persistWorkerRow(
     .from("worker")
     .select("id")
     .eq("user_id", applicantId)
+    .eq("tenant_id", tenantId)
     .limit(1)
 
   if (selErr) throw selErr
@@ -162,6 +163,7 @@ export async function persistWorkerRow(
     .from("worker")
     .select("id")
     .eq("user_id", applicantId)
+    .eq("tenant_id", tenantId)
     .maybeSingle()
 
   const workerId = workerAfter?.id ? String(workerAfter.id) : existingId

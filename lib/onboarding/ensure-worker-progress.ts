@@ -14,7 +14,7 @@ export async function ensureWorkerOnboardingProgress(
 
   const { data: existing, error: exErr } = await supabase
     .from("worker_onboarding_progress")
-    .select("id, status")
+    .select("id, status, submitted_at, submitted_with_incomplete_steps, incomplete_step_keys")
     .eq("worker_id", workerId)
     .eq("onboarding_config_id", config.configId)
     .maybeSingle();
@@ -82,5 +82,14 @@ export async function ensureWorkerOnboardingProgress(
     data: (r.data as Record<string, unknown>) ?? {},
   }));
 
-  return { progressId: progressId!, status, steps };
+  return {
+    progressId: progressId!,
+    status,
+    steps,
+    submittedAt: existing?.submitted_at != null ? String(existing.submitted_at) : null,
+    submittedWithIncompleteSteps: Boolean(existing?.submitted_with_incomplete_steps),
+    incompleteStepKeys: Array.isArray(existing?.incomplete_step_keys)
+      ? (existing.incomplete_step_keys as string[])
+      : [],
+  };
 }

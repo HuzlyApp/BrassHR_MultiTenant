@@ -6,6 +6,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -20,6 +21,7 @@ import { applyApplicantConfigFilters } from "@/lib/onboarding/filter-applicant-s
 import { readOnboardingPreview } from "@/lib/onboarding/onboarding-preview-storage";
 import { computeMaxAllowedStepIndex } from "@/lib/onboarding/tenant-step-navigation";
 import { safeFetchJson } from "@/lib/api/safe-fetch-json";
+import { useApplicantSession } from "@/lib/onboarding/applicant-session-context";
 
 export type OnboardingConfigSource = "published" | "draft-preview" | "draft-api" | null;
 
@@ -27,6 +29,9 @@ type Ctx = {
   config: TenantOnboardingConfig | null;
   progress: WorkerOnboardingProgressPayload | null;
   loading: boolean;
+  loadingConfig: boolean;
+  loadingProgress: boolean;
+  progressHydrated: boolean;
   error: string | null;
   source: OnboardingConfigSource;
   isDraftPreview: boolean;
@@ -63,6 +68,33 @@ function readApplicantId(): string | null {
   }
 }
 
+const PROGRESS_STATUS_RANK: Record<OnboardingStepStatus, number> = {
+  pending: 0,
+  in_progress: 1,
+  failed: 2,
+  skipped: 3,
+  completed: 4,
+};
+
+/** Keep the furthest-along status per step when a stale progress fetch returns. */
+function mergeProgressMonotonic(
+  prev: WorkerOnboardingProgressPayload,
+  incoming: WorkerOnboardingProgressPayload
+): WorkerOnboardingProgressPayload {
+  const byStepId = new Map(incoming.steps.map((row) => [row.onboarding_step_id, row]));
+  for (const row of prev.steps) {
+    const next = byStepId.get(row.onboarding_step_id);
+    const prevRank = PROGRESS_STATUS_RANK[row.status as OnboardingStepStatus] ?? 0;
+    const nextRank = next
+      ? PROGRESS_STATUS_RANK[next.status as OnboardingStepStatus] ?? 0
+      : -1;
+    if (prevRank > nextRank) {
+      byStepId.set(row.onboarding_step_id, row);
+    }
+  }
+  return { ...incoming, steps: Array.from(byStepId.values()) };
+}
+
 type ConfigPayload = {
   config?: TenantOnboardingConfig;
   error?: string;
@@ -76,16 +108,48 @@ export default function OnboardingConfigProvider({ children }: { children: React
   const searchParams = useSearchParams();
   const tenantFromUrl = searchParams.get("tenant");
   const isDraftPreview = searchParams.get("preview") === "draft";
+  const { sessionReady, sessionLoading } = useApplicantSession();
+
   const [config, setConfig] = useState<TenantOnboardingConfig | null>(null);
   const [progress, setProgress] = useState<WorkerOnboardingProgressPayload | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loadingConfig, setLoadingConfig] = useState(true);
+  const [loadingProgress, setLoadingProgress] = useState(true);
+  const [progressHydrated, setProgressHydrated] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [source, setSource] = useState<OnboardingConfigSource>(null);
   const [applicantId, setApplicantId] = useState<string | null>(null);
 
-  const refresh = useCallback(async () => {
-    const aid = readApplicantId();
-    setApplicantId(aid);
+  const progressFetchSeq = useRef(0);
+  const configFetchSeq = useRef(0);
+
+  const fetchProgress = useCallback(async (aid: string, slug: string) => {
+    const requestId = ++progressFetchSeq.current;
+    setLoadingProgress(true);
+    try {
+      const progRes = await safeFetchJson<{ progress?: WorkerOnboardingProgressPayload | null }>(
+        `/api/onboarding/progress?applicantId=${encodeURIComponent(aid)}&tenant=${encodeURIComponent(slug)}`,
+        { cache: "no-store" }
+      );
+      if (requestId !== progressFetchSeq.current) return;
+      if (progRes.ok) {
+        const incoming = progRes.data.progress ?? null;
+        setProgress((prev) => {
+          if (!incoming) return null;
+          if (!prev) return incoming;
+          return mergeProgressMonotonic(prev, incoming);
+        });
+        setProgressHydrated(true);
+      }
+    } finally {
+      if (requestId === progressFetchSeq.current) {
+        setLoadingProgress(false);
+      }
+    }
+  }, []);
+
+  const refreshConfig = useCallback(async () => {
+    const requestId = ++configFetchSeq.current;
+    setLoadingConfig(true);
     setError(null);
 
     const search = typeof window !== "undefined" ? window.location.search : "";
@@ -93,8 +157,8 @@ export default function OnboardingConfigProvider({ children }: { children: React
 
     try {
       if (!slug) {
+        if (requestId !== configFetchSeq.current) return;
         setConfig(null);
-        setProgress(null);
         setSource(null);
         setError("Select a tenant to load onboarding.");
         return;
@@ -103,8 +167,8 @@ export default function OnboardingConfigProvider({ children }: { children: React
       if (isDraftPreview) {
         const preview = readOnboardingPreview(slug);
         if (preview?.config) {
+          if (requestId !== configFetchSeq.current) return;
           setConfig(applyApplicantConfigFilters(preview.config));
-          setProgress(null);
           setSource("draft-preview");
           return;
         }
@@ -114,15 +178,15 @@ export default function OnboardingConfigProvider({ children }: { children: React
           { cache: "no-store" }
         );
 
+        if (requestId !== configFetchSeq.current) return;
+
         if (draftRes.ok && draftRes.data.config) {
           setConfig(applyApplicantConfigFilters(draftRes.data.config));
-          setProgress(null);
           setSource("draft-api");
           return;
         }
 
         setConfig(null);
-        setProgress(null);
         setSource(null);
         const draftMessage = !draftRes.ok
           ? draftRes.data?.error ?? draftRes.error
@@ -139,9 +203,10 @@ export default function OnboardingConfigProvider({ children }: { children: React
         { cache: "no-store" }
       );
 
+      if (requestId !== configFetchSeq.current) return;
+
       if (!configRes.ok) {
         setConfig(null);
-        setProgress(null);
         setSource(null);
         setError(
           configRes.data?.detail ??
@@ -160,27 +225,52 @@ export default function OnboardingConfigProvider({ children }: { children: React
         setSource(null);
         setError("Onboarding configuration is missing for this tenant.");
       }
-
-      if (aid) {
-        const progRes = await safeFetchJson<{ progress?: WorkerOnboardingProgressPayload | null }>(
-          `/api/onboarding/progress?applicantId=${encodeURIComponent(aid)}&tenant=${encodeURIComponent(slug)}`,
-          { cache: "no-store" }
-        );
-        if (progRes.ok) {
-          setProgress(progRes.data.progress ?? null);
-        }
-      } else {
-        setProgress(null);
-      }
     } finally {
-      setLoading(false);
+      if (requestId === configFetchSeq.current) {
+        setLoadingConfig(false);
+      }
     }
-  }, [isDraftPreview, searchParams]);
+  }, [isDraftPreview]);
+
+  const refreshProgressOnly = useCallback(async () => {
+    const aid = readApplicantId();
+    setApplicantId(aid);
+    const search = typeof window !== "undefined" ? window.location.search : "";
+    const slug = resolveClientOnboardingTenantSlug(search);
+
+    if (isDraftPreview) {
+      setProgress(null);
+      setProgressHydrated(true);
+      setLoadingProgress(false);
+      return;
+    }
+
+    if (!sessionReady || sessionLoading) {
+      setLoadingProgress(true);
+      return;
+    }
+
+    if (aid && slug) {
+      await fetchProgress(aid, slug);
+    } else {
+      setProgress(null);
+      setProgressHydrated(true);
+      setLoadingProgress(false);
+    }
+  }, [fetchProgress, isDraftPreview, sessionReady, sessionLoading]);
+
+  const refresh = useCallback(async () => {
+    await refreshConfig();
+    await refreshProgressOnly();
+  }, [refreshConfig, refreshProgressOnly]);
 
   useEffect(() => {
-    setLoading(true);
-    void refresh();
-  }, [refresh, tenantFromUrl, searchParams]);
+    void refreshConfig();
+  }, [refreshConfig, tenantFromUrl]);
+
+  useEffect(() => {
+    void refreshProgressOnly();
+  }, [refreshProgressOnly, tenantFromUrl, sessionReady, sessionLoading]);
 
   const updateStepStatus = useCallback(
     async (stepKey: string, status: OnboardingStepStatus, data?: Record<string, unknown>) => {
@@ -200,13 +290,40 @@ export default function OnboardingConfigProvider({ children }: { children: React
           data,
         }),
       });
+      const responsePayload = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        progress?: WorkerOnboardingProgressPayload;
+      };
       if (!res.ok) {
-        const payload = (await res.json().catch(() => ({}))) as { error?: string };
-        throw new Error(payload.error || "Could not update onboarding progress.");
+        throw new Error(responsePayload.error || "Could not update onboarding progress.");
       }
-      await refresh();
+
+      if (responsePayload.progress) {
+        setProgress(responsePayload.progress);
+        setProgressHydrated(true);
+        return;
+      }
+
+      const step = config?.steps.find((s) => s.step_key === stepKey);
+      if (step) {
+        setProgress((prev) => {
+          if (!prev) return prev;
+          const rows = prev.steps.slice();
+          const idx = rows.findIndex((row) => row.onboarding_step_id === step.id);
+          const nextRow = {
+            onboarding_step_id: step.id,
+            status,
+            completed_at: status === "completed" ? new Date().toISOString() : null,
+            data: data ?? rows[idx]?.data ?? {},
+          };
+          if (idx >= 0) rows[idx] = nextRow;
+          else rows.push(nextRow);
+          return { ...prev, steps: rows };
+        });
+        setProgressHydrated(true);
+      }
     },
-    [refresh, isDraftPreview]
+    [isDraftPreview, config?.steps]
   );
 
   const maxAllowedStepIndex = useMemo(
@@ -214,11 +331,16 @@ export default function OnboardingConfigProvider({ children }: { children: React
     [config, progress, pathname]
   );
 
+  const loading = loadingConfig || loadingProgress || sessionLoading || !sessionReady;
+
   const value = useMemo(
     () => ({
       config,
       progress,
       loading,
+      loadingConfig,
+      loadingProgress,
+      progressHydrated,
       error,
       source,
       isDraftPreview,
@@ -231,6 +353,9 @@ export default function OnboardingConfigProvider({ children }: { children: React
       config,
       progress,
       loading,
+      loadingConfig,
+      loadingProgress,
+      progressHydrated,
       error,
       source,
       isDraftPreview,

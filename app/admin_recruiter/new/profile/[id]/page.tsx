@@ -92,6 +92,12 @@ type ProfilePayload = {
     totalSteps: number;
     percent: number;
   };
+  onboardingSubmission?: {
+    submittedAt: string;
+    submittedWithIncompleteSteps: boolean;
+    incompleteStepKeys: string[];
+    incompleteStepLabels: string[];
+  } | null;
   activity: { source: string; created_at: string | null; updated_at: string | null };
   activity_logs?: Array<{
     id: string | null;
@@ -1191,6 +1197,19 @@ export default function NewApplicantProfilePage() {
                       </div>
 
                       <div className="p-5">
+                      {data?.onboardingSubmission?.submittedWithIncompleteSteps ? (
+                        <div
+                          role="status"
+                          className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"
+                        >
+                          <p className="font-semibold">Submitted with incomplete onboarding items</p>
+                          {data.onboardingSubmission.incompleteStepLabels.length > 0 ? (
+                            <p className="mt-1">
+                              Missing: {data.onboardingSubmission.incompleteStepLabels.join(", ")}
+                            </p>
+                          ) : null}
+                        </div>
+                      ) : null}
                       <div className="relative space-y-0 text-xs text-gray-600">
                         <div className="absolute left-4 top-8 bottom-8 w-[2px] -translate-x-1/2 bg-[color:var(--brand-primary)]" />
                         {(data?.onboardingSteps ?? []).map((s, idx) => (

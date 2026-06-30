@@ -24,16 +24,6 @@ export async function POST(req: NextRequest) {
 
     const supabase = createClient(url, key)
 
-    const existing = await resolveWorkerByApplicantId(supabase, applicantId)
-    if (existing) {
-      return NextResponse.json({
-        ok: true,
-        workerId: existing.workerId,
-        tenantId: existing.tenantId,
-        created: false,
-      })
-    }
-
     const tenantSlug =
       typeof body.tenantSlug === "string" ? body.tenantSlug.trim().toLowerCase() : ""
     const tenantRes = await resolveOnboardingTenantId(supabase, tenantSlug || null)
@@ -42,6 +32,20 @@ export async function POST(req: NextRequest) {
         { error: tenantRes.error, code: "MISSING_TENANT" },
         { status: 503 }
       )
+    }
+
+    const existing = await resolveWorkerByApplicantId(
+      supabase,
+      applicantId,
+      tenantRes.tenantId
+    )
+    if (existing) {
+      return NextResponse.json({
+        ok: true,
+        workerId: existing.workerId,
+        tenantId: existing.tenantId,
+        created: false,
+      })
     }
 
     const fields = resumeToStep1Fields(body.resume ?? body, applicantId)

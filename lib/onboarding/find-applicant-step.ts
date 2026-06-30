@@ -63,7 +63,7 @@ export function resolveApplicantStepFromPath(
     }
   }
 
-  return steps[0] ?? null;
+  return null;
 }
 
 export function stepIndexForApplicantStep(

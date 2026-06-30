@@ -31,6 +31,8 @@ import AutosaveStatus from "@/app/components/AutosaveStatus"
 import { resolveClientOnboardingTenantSlug } from "@/lib/tenant/client-onboarding-slug"
 import { getClientOnboardingTenantIdFallback } from "@/lib/tenant/client-onboarding-tenant-fallback"
 import { useOnboardingStepNav } from "@/lib/onboarding/use-onboarding-step-nav"
+import { useOnboardingConfigOptional } from "@/app/components/onboarding/OnboardingConfigProvider"
+import { persistStepProgress } from "@/lib/onboarding/use-mark-step-in-progress-if-pending"
 import { adjacentStepRoute } from "@/lib/onboarding/tenant-step-navigation"
 import { useResumeParsePoll } from "@/lib/resume/use-resume-parse-poll"
 import { RESUME_PARSE_FAILED_USER_MESSAGE } from "@/lib/resumeParseQuality"
@@ -263,6 +265,7 @@ function Step1ReviewContent() {
     "focus:outline-none focus:border-[color:var(--brand-primary)] focus:ring-2 focus:ring-[color:var(--brand-primary)]/20"
   const router = useRouter()
   const nav = useOnboardingStepNav()
+  const onboarding = useOnboardingConfigOptional()
   const searchParams = useSearchParams()
   const urlJobTitle = useMemo(() => {
     return (
@@ -791,24 +794,35 @@ function Step1ReviewContent() {
       )
       localStorage.setItem("step1ReviewCompleted", "true")
 
-      try {
-        await fetch("/api/onboarding/progress/step", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            applicantId,
-            stepKey: "resume_upload",
-            status: "completed",
-          }),
-        })
-      } catch {
-        /* progress is best-effort; step 2 should still open */
-      }
-
       const resumeStep =
         nav.enabledSteps?.find(
           (s) => s.step_type === "resume_upload" || s.step_key === "resume_upload"
         ) ?? null
+      const resumeStepKey = resumeStep?.step_key ?? "resume_upload"
+
+      try {
+        await persistStepProgress(
+          onboarding?.updateStepStatus,
+          resumeStepKey,
+          "completed",
+          undefined,
+          verified
+            ? {
+                address_validation: {
+                  originalAddress: verified.originalAddress,
+                  normalizedAddress: verified.normalizedAddress,
+                  coordinates: verified.coordinates,
+                  confidence: verified.confidence,
+                  source: verified.source,
+                  isValid: verified.isValid,
+                },
+              }
+            : undefined
+        )
+      } catch {
+        /* progress is best-effort; step 2 should still open */
+      }
+
       const next =
         adjacentStepRoute(nav.config, resumeStep, 1, nav.slug) ??
         applicationPath(APPLICATION_ROUTES.professionalLicense)

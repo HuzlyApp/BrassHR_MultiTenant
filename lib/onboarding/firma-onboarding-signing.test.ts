@@ -25,6 +25,12 @@ import { workflowStateToStepDrafts } from "@/lib/onboarding/workflow-to-drafts";
 import { DEFAULT_STEP_SETTINGS } from "@/app/components/workflow-builder/types";
 import type { SerializableWorkflowState } from "@/lib/onboarding/workflow-builder-serialization";
 
+const mockEnsureRecruiterTemplateForApplicantSigning = vi.hoisted(() => vi.fn());
+
+vi.mock("@/lib/recruiter-templates/service", () => ({
+  ensureRecruiterTemplateForApplicantSigning: mockEnsureRecruiterTemplateForApplicantSigning,
+}));
+
 describe("firma step settings", () => {
   it("detects Firma-enabled onboarding steps from workflow settings", () => {
     const step = {
@@ -297,6 +303,8 @@ describe("ensureFirmaSigningSession", () => {
   }
 
   beforeEach(() => {
+    mockEnsureRecruiterTemplateForApplicantSigning.mockReset();
+    mockEnsureRecruiterTemplateForApplicantSigning.mockResolvedValue(undefined);
     process.env.FIRMA_API_KEY = "firma_test_key";
     process.env.FIRMA_WORKSPACE_ID = workspaceId;
     vi.stubGlobal(
@@ -1113,28 +1121,80 @@ describe("ensureFirmaSigningSession", () => {
     expect(fetchMock).toHaveBeenCalled();
   });
 
-  it("throws TEMPLATE_WORKSPACE_MISMATCH when recruiter template workspace is stale", async () => {
+  it("auto-heals stale recruiter template workspace before signing", async () => {
+    const tenantWorkspace = "workspace_current";
+    let recruiterTemplateLoads = 0;
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/signing-requests/create-and-send")) {
+        return new Response(
+          JSON.stringify({
+            id: "signing-request-healed",
+            status: "sent",
+            recipients: [
+              {
+                id: "recipient-healed",
+                email: "applicant@example.com",
+                signing_url: "https://app.firma.dev/signing/recipient-healed",
+              },
+            ],
+          }),
+          { status: 201 }
+        );
+      }
+      if (url.includes("/templates/firma-template-healed")) {
+        return new Response(JSON.stringify({ id: "firma-template-healed" }), { status: 200 });
+      }
+      return new Response(JSON.stringify({ error: "not found" }), { status: 404 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
     const supabase = {
       from: vi.fn((table: string) => {
         if (table === "tenants") {
-          return tenantSupabaseTable(table);
+          return {
+            select: () => ({
+              eq: () => ({
+                maybeSingle: async () => ({
+                  data: { firma_workspace_id: tenantWorkspace },
+                  error: null,
+                }),
+              }),
+            }),
+          };
         }
         if (table === "recruiter_templates") {
           return {
             select: () => ({
               eq: () => ({
                 eq: () => ({
-                  maybeSingle: async () => ({
-                    data: {
-                      id: "recruiter-template-1",
-                      tenant_id: "tenant-1",
-                      name: "Employee Agreement",
-                      status: "active",
-                      firma_template_id: "firma-template-1",
-                      firma_workspace_id: "workspace_old",
-                    },
-                    error: null,
-                  }),
+                  maybeSingle: async () => {
+                    recruiterTemplateLoads += 1;
+                    if (recruiterTemplateLoads === 1) {
+                      return {
+                        data: {
+                          id: "recruiter-template-1",
+                          tenant_id: "tenant-1",
+                          name: "Employee Agreement",
+                          status: "active",
+                          firma_template_id: "firma-template-1",
+                          firma_workspace_id: "workspace_old",
+                        },
+                        error: null,
+                      };
+                    }
+                    return {
+                      data: {
+                        id: "recruiter-template-1",
+                        tenant_id: "tenant-1",
+                        name: "Employee Agreement",
+                        status: "active",
+                        firma_template_id: "firma-template-healed",
+                        firma_workspace_id: tenantWorkspace,
+                      },
+                      error: null,
+                    };
+                  },
                 }),
               }),
             }),
@@ -1149,37 +1209,65 @@ describe("ensureFirmaSigningSession", () => {
                 }),
               }),
             }),
+            upsert: () => ({
+              select: () => ({
+                maybeSingle: async () => ({
+                  data: {
+                    id: "session-healed",
+                    tenant_id: "tenant-1",
+                    worker_id: "worker-1",
+                    onboarding_step_id: "step-1",
+                    recruiter_template_id: "recruiter-template-1",
+                    firma_template_id: "firma-template-healed",
+                    firma_workspace_id: tenantWorkspace,
+                    signing_request_id: "signing-request-healed",
+                    signing_request_user_id: "recipient-healed",
+                    firma_status: "sent",
+                    iframe_url: "https://app.firma.dev/signing/recipient-healed",
+                    created_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString(),
+                  },
+                  error: null,
+                }),
+              }),
+            }),
           };
         }
         throw new Error(`Unexpected table ${table}`);
       }),
     };
 
-    await expect(
-      ensureFirmaSigningSession({
-        supabase: supabase as never,
-        tenantId: "tenant-1",
-        workerId: "worker-1",
-        applicantEmail: "applicant@example.com",
-        applicantFirstName: "Jane",
-        step: {
-          id: "step-1",
-          step_key: "employee_agreement",
-          title: "Employee Agreement",
-          description: null,
-          step_type: "authorizations",
-          sort_order: 10,
-          is_required: true,
-          is_enabled: true,
-          metadata: {
-            workflow_settings: {
-              ...DEFAULT_STEP_SETTINGS,
-              firmaRecruiterTemplateId: "recruiter-template-1",
-            },
+    const session = await ensureFirmaSigningSession({
+      supabase: supabase as never,
+      tenantId: "tenant-1",
+      workerId: "worker-1",
+      applicantEmail: "applicant@example.com",
+      applicantFirstName: "Jane",
+      step: {
+        id: "step-1",
+        step_key: "employee_agreement",
+        title: "Employee Agreement",
+        description: null,
+        step_type: "authorizations",
+        sort_order: 10,
+        is_required: true,
+        is_enabled: true,
+        metadata: {
+          workflow_settings: {
+            ...DEFAULT_STEP_SETTINGS,
+            firmaRecruiterTemplateId: "recruiter-template-1",
           },
         },
-      })
-    ).rejects.toMatchObject({ code: "TEMPLATE_WORKSPACE_MISMATCH", status: 409 });
+      },
+    });
+
+    expect(mockEnsureRecruiterTemplateForApplicantSigning).toHaveBeenCalledWith(
+      supabase,
+      "tenant-1",
+      "recruiter-template-1",
+      expect.objectContaining({ forceRecreate: true })
+    );
+    expect(session.signing_request_id).toBe("signing-request-healed");
   });
 
   it("creates signing session using global fallback when tenant workspace is null", async () => {

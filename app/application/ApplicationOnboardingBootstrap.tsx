@@ -1,13 +1,13 @@
 "use client";
 
 import { Suspense, useEffect, useState } from "react";
-import { usePathname } from "next/navigation";
 import { TenantBrandingProvider } from "@/app/components/tenant/TenantBrandingContext";
 import OnboardingConfigProvider from "@/app/components/onboarding/OnboardingConfigProvider";
 import type { TenantBranding } from "@/lib/tenant/tenant-branding";
 import { brandingFallbackForSlug } from "@/lib/tenant/tenant-branding";
 import { DRAFT_PREVIEW_APPLICANT_ID, isOnboardingDraftPreview } from "@/lib/onboarding/is-draft-preview";
 import { persistOnboardingSlugCookie, resolveClientOnboardingTenantSlug } from "@/lib/tenant/client-onboarding-slug";
+import { ApplicantSessionProvider } from "@/lib/onboarding/applicant-session-context";
 
 function resolveBootstrapSlug(): string | null {
   if (typeof window === "undefined") return null;
@@ -16,14 +16,22 @@ function resolveBootstrapSlug(): string | null {
   return resolveClientOnboardingTenantSlug(window.location.search);
 }
 
+function readApplicantIdOrPreview(): string {
+  if (isOnboardingDraftPreview(window.location.search)) {
+    return DRAFT_PREVIEW_APPLICANT_ID;
+  }
+  return localStorage.getItem("applicantId")?.trim() || "";
+}
+
 /**
  * Runs before onboarding pages mount so `worker.user_id` FK to `auth.users` is satisfied,
  * and applies tenant-aware branding (`?tenant=slug`, onboarding slug cookie).
  */
 export default function ApplicationOnboardingBootstrap({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname();
   const [error, setError] = useState<string | null>(null);
   const [brand, setBrand] = useState<TenantBranding>(() => brandingFallbackForSlug(null));
+  const [sessionReady, setSessionReady] = useState(false);
+  const [sessionLoading, setSessionLoading] = useState(true);
 
   useEffect(() => {
     let alive = true;
@@ -54,7 +62,7 @@ export default function ApplicationOnboardingBootstrap({ children }: { children:
           });
 
         const skipApplicantAuth =
-          pathname.startsWith("/application/applicant-dashboard") ||
+          window.location.pathname.startsWith("/application/applicant-dashboard") ||
           isOnboardingDraftPreview(window.location.search);
 
         if (skipApplicantAuth && isOnboardingDraftPreview(window.location.search)) {
@@ -62,7 +70,7 @@ export default function ApplicationOnboardingBootstrap({ children }: { children:
         }
 
         const authPromise = skipApplicantAuth
-          ? Promise.resolve({ ok: true as const })
+          ? Promise.resolve({ applicantId: readApplicantIdOrPreview() } as const)
           : (async () => {
               const { ensureApplicantMatchesAuthSession } = await import(
                 "@/lib/onboarding/ensure-applicant-auth"
@@ -75,17 +83,23 @@ export default function ApplicationOnboardingBootstrap({ children }: { children:
         const authResult = await authPromise;
         if (!alive) return;
 
-        if (authResult && "error" in authResult) setError(authResult.error);
+        if (authResult && "error" in authResult) {
+          setError(authResult.error);
+        } else {
+          setSessionReady(true);
+        }
       } catch (e) {
         if (alive)
           setError(e instanceof Error ? e.message : "Could not start applicant session.");
+      } finally {
+        if (alive) setSessionLoading(false);
       }
     })();
 
     return () => {
       alive = false;
     };
-  }, [pathname]);
+  }, []);
 
   if (error) {
     return (
@@ -104,9 +118,11 @@ export default function ApplicationOnboardingBootstrap({ children }: { children:
 
   return (
     <TenantBrandingProvider branding={brand}>
-      <Suspense fallback={null}>
-        <OnboardingConfigProvider>{children}</OnboardingConfigProvider>
-      </Suspense>
+      <ApplicantSessionProvider value={{ sessionReady, sessionLoading }}>
+        <Suspense fallback={null}>
+          <OnboardingConfigProvider>{children}</OnboardingConfigProvider>
+        </Suspense>
+      </ApplicantSessionProvider>
     </TenantBrandingProvider>
   );
 }

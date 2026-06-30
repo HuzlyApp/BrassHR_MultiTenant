@@ -13,6 +13,7 @@ import type {
 import { APPLICATION_ROUTES } from "@/lib/onboarding/application-routes";
 import { filterApplicantVisibleSteps } from "@/lib/onboarding/filter-applicant-steps";
 import { withTenant } from "@/lib/tenant/with-tenant";
+import { computeMaxAllowedStepIndexFromProgress } from "@/lib/onboarding/compute-max-allowed-from-progress";
 import { isUploadResumeStep } from "@/lib/onboarding/enforce-upload-resume-first";
 
 /** Enabled steps for applicants, ordered by tenant `sort_order`. */
@@ -158,29 +159,7 @@ export function computeMaxAllowedStepIndex(
     }
   }
 
-  const statusByStepId = new Map(
-    (progress?.steps ?? []).map((p) => [p.onboarding_step_id, p.status])
-  );
-
-  let max = 1;
-  if (progress?.steps?.length) {
-    for (let i = 0; i < steps.length; i++) {
-      const st = statusByStepId.get(steps[i].id);
-      if (st === "completed" || st === "skipped") {
-        if (st === "skipped" && isUploadResumeStep(steps[i])) {
-          max = Math.max(max, i + 1);
-          break;
-        }
-        max = Math.max(max, i + 2);
-      } else if (st === "in_progress") {
-        max = Math.max(max, i + 1);
-        break;
-      } else {
-        max = Math.max(max, i + 1);
-        break;
-      }
-    }
-  }
+  let max = computeMaxAllowedStepIndexFromProgress(steps, progress);
 
   if (typeof window !== "undefined") {
     if (localStorage.getItem("step1ReviewCompleted") === "true") {

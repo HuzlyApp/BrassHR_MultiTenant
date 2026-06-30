@@ -2,13 +2,17 @@
 
 import { APPLICATION_ROUTES } from "@/lib/onboarding/application-routes"
 import { applicationPath } from "@/lib/tenant/with-tenant"
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import OnboardingLayout from "@/app/components/OnboardingLayout"
 import OnboardingStepper from "@/app/components/OnboardingStepper"
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext"
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding"
 import { useOnboardingStepNav } from "@/lib/onboarding/use-onboarding-step-nav"
+import {
+  persistStepProgress,
+  useMarkStepInProgressIfPending,
+} from "@/lib/onboarding/use-mark-step-in-progress-if-pending"
 import { resolveLegacyAddReferencesTarget } from "@/lib/onboarding/legacy-add-references-redirect"
 import { ensureApplicantWorker } from "@/lib/onboarding/ensure-applicant-worker"
 import { isDraftPreviewApplicantId, isOnboardingDraftPreview } from "@/lib/onboarding/is-draft-preview"
@@ -53,7 +57,20 @@ export default function ReferencesPage() {
   const searchParams = useSearchParams()
   const search = searchParams.toString() ? `?${searchParams.toString()}` : ""
   const nav = useOnboardingStepNav()
+  const completingRef = useRef(false)
   const [redirecting, setRedirecting] = useState(false)
+
+  const referencesStep =
+    nav.currentStep ??
+    nav.enabledSteps?.find((s) => s.step_type === "references" || s.step_key === "references") ??
+    null
+
+  useMarkStepInProgressIfPending({
+    step: referencesStep,
+    disabled: nav.configLoading || isOnboardingDraftPreview(search) || redirecting,
+    updateStepStatus: nav.updateStepStatus,
+    completingRef,
+  })
 
   const [refs, setRefs] = useState<RefRow[]>(() => loadRefsFromStorage())
   const [error, setError] = useState("")
@@ -185,11 +202,20 @@ export default function ReferencesPage() {
         return
       }
     }
-    // router.push(applicationPath(APPLICATION_ROUTES.applicationSummary))
     localStorage.setItem("referenceData", JSON.stringify(completeRefs))
     localStorage.removeItem("referenceDataDraft")
     localStorage.setItem("referencesCount", String(completeRefs.length))
-    localStorage.setItem("step5Completed", "false")
+    localStorage.setItem("step5Completed", "true")
+
+    if (referencesStep?.step_key && nav.updateStepStatus && !isPreview) {
+      await persistStepProgress(
+        nav.updateStepStatus,
+        referencesStep.step_key,
+        "completed",
+        completingRef
+      )
+    }
+
     if (nav.nextRoute) {
       nav.push(nav.nextRoute)
     } else {
@@ -301,7 +327,7 @@ export default function ReferencesPage() {
           <div className="mt-auto flex items-center justify-end gap-3 pt-8">
             <button
               type="button"
-              onClick={() => router.back()}
+              onClick={() => (nav.prevRoute ? nav.goPrev() : router.back())}
               className="cursor-pointer rounded-md border border-[color:var(--brand-primary)] bg-white px-5 py-2 text-[12px] font-medium leading-5 text-[color:var(--brand-primary)] transition hover:bg-[color:var(--brand-primary)]/5"
             >
               Back

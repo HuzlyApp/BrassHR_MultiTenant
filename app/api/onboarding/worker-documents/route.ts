@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { getSupabaseUrl } from "@/lib/supabase-env"
 import { buildCacheKey, CACHE_TTL_SECONDS, getOrSetCache, invalidateResourceCache, invalidateTenantCache, invalidateUserCache } from "@/lib/cache"
+import {
+  readOnboardingTenantSlugFromRequest,
+  resolveOnboardingWorker,
+} from "@/lib/onboarding/resolve-onboarding-worker"
 
 export const runtime = "nodejs"
 
@@ -43,6 +47,9 @@ const URL_KEYS = [
 export async function GET(req: NextRequest) {
   try {
     const applicantId = req.nextUrl.searchParams.get("applicantId")?.trim() || ""
+    const tenantSlug =
+      req.nextUrl.searchParams.get("tenant")?.trim().toLowerCase() ||
+      readOnboardingTenantSlugFromRequest(req)
     // This endpoint is used by client pages to *poll status*.
     // During hydration/localStorage bootstrapping, applicantId can be missing briefly.
     // Return an empty status instead of throwing/4xx so the UI doesn’t trip an error overlay.
@@ -60,8 +67,23 @@ export async function GET(req: NextRequest) {
     const supabase = createClient(url, key)
 
     const documents = await getOrSetCache(
-      buildCacheKey("worker_documents", ["user", applicantId], { status: true }),
+      buildCacheKey("worker_documents", ["user", applicantId, tenantSlug ?? ""], { status: true }),
       async () => {
+        const ctx = await resolveOnboardingWorker(supabase, applicantId, tenantSlug)
+        if (ctx?.workerId) {
+          const { data, error } = await supabase
+            .from("worker_documents")
+            .select("*")
+            .eq("worker_id", ctx.workerId)
+            .limit(1)
+
+          if (error) {
+            if (isMissingRelationError(error)) return null
+            throw error
+          }
+          return data?.[0] ?? null
+        }
+
         const { data: worker, error: wErr } = await supabase
           .from("worker")
           .select("id")

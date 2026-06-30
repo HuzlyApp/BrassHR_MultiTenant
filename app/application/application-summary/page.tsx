@@ -17,9 +17,12 @@ import {
   evaluateApplicantSummaryReadiness,
   type ApplicantSummarySnapshot,
 } from "@/lib/onboarding/applicant-summary-sections"
+import { readAuthorizationSigningState, mergeAuthorizationSigningState, signingStateFromFirmaStatus } from "@/lib/onboardingSummaryData"
+import { stepUsesFirmaSigning } from "@/lib/onboarding/firma-step-settings"
+import { getEnabledTenantSteps } from "@/lib/onboarding/tenant-step-navigation"
+import { useOnboardingConfigOptional } from "@/app/components/onboarding/OnboardingConfigProvider"
 import { useOnboardingStepNav } from "@/lib/onboarding/use-onboarding-step-nav"
 import type { SkillCategoryRow } from "@/lib/onboardingSummaryData"
-import { readAuthorizationSigningState } from "@/lib/onboardingSummaryData"
 
 function SummaryRow({
   title,
@@ -68,6 +71,7 @@ export default function SummaryPage() {
   const branding = useTenantBranding()
   const router = useRouter()
   const nav = useOnboardingStepNav()
+  const onboarding = useOnboardingConfigOptional()
 
   const [snapshot, setSnapshot] = useState<ApplicantSummarySnapshot>(() =>
     createApplicantSummarySnapshot()
@@ -75,11 +79,9 @@ export default function SummaryPage() {
   const [submitGuardError, setSubmitGuardError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [success, setSuccess] = useState(false)
-  const [showIncompleteWarningModal, setShowIncompleteWarningModal] = useState(false)
+  const [showIncompleteConfirmModal, setShowIncompleteConfirmModal] = useState(false)
   /** After mount, safe to read localStorage during render (legacy skill counts). */
   const [clientStorageReady, setClientStorageReady] = useState(false)
-  /** Single ref for async handlers; synced each render after `allSectionsReady` is computed. */
-  const submissionReadinessRef = useRef(false)
   const incompleteModalRef = useRef<HTMLDivElement>(null)
 
   const loadSnapshot = useCallback(async () => {
@@ -87,8 +89,8 @@ export default function SummaryPage() {
 
     setSubmitGuardError(null)
     const base = createApplicantSummarySnapshot()
-    base.authState = readAuthorizationSigningState()
     base.referencesCount = countCompleteReferencesFromStorage()
+    const tenantSlug = nav.slug?.trim() || ""
 
     try {
       const raw = localStorage.getItem("identityDocuments")
@@ -104,9 +106,11 @@ export default function SummaryPage() {
 
     const applicantId = localStorage.getItem("applicantId")?.trim() || ""
     if (applicantId) {
+      const tenantQuery = tenantSlug ? `&tenant=${encodeURIComponent(tenantSlug)}` : ""
       try {
         const res = await fetch(
-          `/api/onboarding/worker-documents?applicantId=${encodeURIComponent(applicantId)}`,
+          `/api/onboarding/worker-documents?applicantId=${encodeURIComponent(applicantId)}${tenantQuery}`,
+          { cache: "no-store" }
         )
         const json = (await res.json().catch(() => ({}))) as {
           error?: string
@@ -120,8 +124,62 @@ export default function SummaryPage() {
       } catch {
         base.workerDocs = null
       }
+
+      try {
+        const res = await fetch(
+          `/api/onboarding/submitted-documents?applicantId=${encodeURIComponent(applicantId)}${tenantQuery}`,
+          { cache: "no-store" }
+        )
+        const json = (await res.json().catch(() => ({}))) as {
+          documents?: ApplicantSummarySnapshot["submittedDocuments"]
+        }
+        base.submittedDocuments = Array.isArray(json.documents) ? json.documents : []
+      } catch {
+        base.submittedDocuments = []
+      }
+
+      let serverAuthState = null
+      const enabledSteps = getEnabledTenantSteps(nav.config)
+      const authStep =
+        enabledSteps.find((s) => s.step_type === "authorizations" && stepUsesFirmaSigning(s)) ??
+        enabledSteps.find((s) => s.step_type === "authorizations")
+      if (authStep) {
+        try {
+          const query = new URLSearchParams({
+            applicantId,
+            stepKey: authStep.step_key,
+            stepId: authStep.id,
+          })
+          if (tenantSlug) query.set("tenantSlug", tenantSlug)
+          const signingRequestId = localStorage.getItem("signingRequestId")?.trim()
+          if (signingRequestId) query.set("signingRequestId", signingRequestId)
+          const res = await fetch(`/api/onboarding/firma-sign/status?${query.toString()}`, {
+            cache: "no-store",
+          })
+          const json = (await res.json().catch(() => ({}))) as {
+            completed?: boolean
+            session?: { firma_status?: string | null }
+          }
+          if (res.ok) {
+            const firmaStatus = json.session?.firma_status
+            if (json.completed || firmaStatus) {
+              serverAuthState = json.completed
+                ? signingStateFromFirmaStatus(firmaStatus ?? "signed")
+                : signingStateFromFirmaStatus(firmaStatus)
+            }
+          }
+        } catch {
+          /* ignore firma hydration errors */
+        }
+      }
+      base.authState = mergeAuthorizationSigningState(
+        readAuthorizationSigningState(),
+        serverAuthState
+      )
     } else {
       base.workerDocs = null
+      base.submittedDocuments = []
+      base.authState = readAuthorizationSigningState()
     }
 
     try {
@@ -143,7 +201,7 @@ export default function SummaryPage() {
       base.skillCategories = []
     }
     setSnapshot({ ...base })
-  }, [])
+  }, [nav.config, nav.slug])
 
   useEffect(() => {
     setClientStorageReady(true)
@@ -159,7 +217,12 @@ export default function SummaryPage() {
   }, [loadSnapshot])
 
   useEffect(() => {
-    if (!showIncompleteWarningModal) return
+    if (!onboarding?.progressHydrated) return
+    void loadSnapshot()
+  }, [loadSnapshot, onboarding?.progressHydrated, onboarding?.progress])
+
+  useEffect(() => {
+    if (!showIncompleteConfirmModal) return
 
     const prevOverflow = document.body.style.overflow
     document.body.style.overflow = "hidden"
@@ -177,7 +240,7 @@ export default function SummaryPage() {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         e.preventDefault()
-        setShowIncompleteWarningModal(false)
+        setShowIncompleteConfirmModal(false)
         return
       }
       if (e.key !== "Tab" || !panel) return
@@ -201,7 +264,7 @@ export default function SummaryPage() {
 
     window.addEventListener("keydown", onKeyDown)
     const raf = window.requestAnimationFrame(() => {
-      document.getElementById("summary-incomplete-primary")?.focus()
+      document.getElementById("summary-incomplete-submit")?.focus()
     })
 
     return () => {
@@ -209,7 +272,7 @@ export default function SummaryPage() {
       window.removeEventListener("keydown", onKeyDown)
       window.cancelAnimationFrame(raf)
     }
-  }, [showIncompleteWarningModal])
+  }, [showIncompleteConfirmModal])
 
   const summarySnapshot = useMemo(
     () => ({ ...snapshot, clientStorageReady }),
@@ -217,43 +280,74 @@ export default function SummaryPage() {
   )
 
   const summarySections = useMemo(
-    () => buildApplicantSummarySections(nav.config, nav.slug, summarySnapshot),
-    [nav.config, nav.slug, summarySnapshot]
+    () => buildApplicantSummarySections(nav.config, nav.slug, summarySnapshot, onboarding?.progress ?? null),
+    [nav.config, nav.slug, summarySnapshot, onboarding?.progress]
   )
 
-  const { allReady: allSectionsReady, incomplete: incompleteSections } = useMemo(
+  const { incomplete: incompleteSections } = useMemo(
     () => evaluateApplicantSummaryReadiness(nav.config, summarySections),
     [nav.config, summarySections]
   )
 
   const completedSections = summarySections.filter((s) => s.complete).length
   const totalSections = summarySections.length
+  const hasIncompleteSections = incompleteSections.length > 0
 
-  submissionReadinessRef.current = allSectionsReady
+  const clearLocalOnboardingDrafts = () => {
+    localStorage.removeItem("parsedResume")
+    localStorage.removeItem("identityDocuments")
+    localStorage.removeItem("skillStatus")
+    localStorage.removeItem("referencesCount")
+    localStorage.removeItem("referenceData")
+    localStorage.removeItem("referenceDataDraft")
+  }
+
+  const submitApplication = async () => {
+    setSubmitGuardError(null)
+    const applicantId = localStorage.getItem("applicantId")?.trim() || ""
+    if (!applicantId) {
+      setSubmitGuardError("Your session has expired. Please sign in again to submit your application.")
+      return
+    }
+
+    const tenantSlug = nav.slug?.trim() || ""
+    if (!tenantSlug) {
+      setSubmitGuardError("Missing tenant context. Refresh the page and try again.")
+      return
+    }
+
+    setLoading(true)
+    try {
+      const res = await fetch("/api/onboarding/submit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ applicantId, tenantSlug }),
+      })
+      const json = (await res.json().catch(() => ({}))) as { error?: string }
+      if (!res.ok) {
+        throw new Error(json.error || "Could not submit your application.")
+      }
+      await onboarding?.refresh?.()
+      setShowIncompleteConfirmModal(false)
+      setSuccess(true)
+    } catch (e) {
+      setSubmitGuardError(e instanceof Error ? e.message : "Could not submit your application.")
+      setLoading(false)
+    }
+  }
 
   const handleFinalSubmit = () => {
     setSubmitGuardError(null)
-    if (!submissionReadinessRef.current) {
-      setShowIncompleteWarningModal(true)
+    if (hasIncompleteSections) {
+      setShowIncompleteConfirmModal(true)
       return
     }
-    setLoading(true)
-    setSuccess(true)
-    setTimeout(() => {
-      if (!submissionReadinessRef.current) {
-        setSuccess(false)
-        setLoading(false)
-        setShowIncompleteWarningModal(true)
-        return
-      }
-      localStorage.removeItem("parsedResume")
-      localStorage.removeItem("identityDocuments")
-      localStorage.removeItem("skillStatus")
-      localStorage.removeItem("referencesCount")
-      localStorage.removeItem("referenceData")
-      localStorage.removeItem("referenceDataDraft")
-      router.push(applicationPath("/application/success"))
-    }, 3000)
+    void submitApplication()
+  }
+
+  const handleSuccessContinue = () => {
+    clearLocalOnboardingDrafts()
+    router.push(applicationPath("/application/success"))
   }
 
   return (
@@ -293,6 +387,12 @@ export default function SummaryPage() {
             ))}
           </div>
 
+          {hasIncompleteSections ? (
+            <p className="mt-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+              Some sections are incomplete. You can still submit your application, but the recruiting team may ask you to complete missing items later.
+            </p>
+          ) : null}
+
           {submitGuardError ? (
             <div
               role="alert"
@@ -318,35 +418,21 @@ export default function SummaryPage() {
                 loading ? "cursor-not-allowed bg-gray-400 opacity-70" : "cursor-pointer bg-[color:var(--brand-primary)] hover:brightness-90"
               }`}
             >
-              {loading ? "Finalizing..." : "Save & continue"}
+              {loading ? "Submitting..." : "Submit Application"}
             </button>
           </div>
         </div>
       </div>
       <OnboardingSuccessPopup
         open={success}
-        onContinue={() => {
-          if (!submissionReadinessRef.current) {
-            setSuccess(false)
-            setLoading(false)
-            setShowIncompleteWarningModal(true)
-            return
-          }
-          localStorage.removeItem("parsedResume")
-          localStorage.removeItem("identityDocuments")
-          localStorage.removeItem("skillStatus")
-          localStorage.removeItem("referencesCount")
-          localStorage.removeItem("referenceData")
-          localStorage.removeItem("referenceDataDraft")
-          router.push(applicationPath("/application/success"))
-        }}
+        onContinue={handleSuccessContinue}
       />
     </OnboardingLayout>
 
-    {showIncompleteWarningModal ? (
+    {showIncompleteConfirmModal ? (
       <div
         className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 p-3 sm:p-4"
-        onClick={() => setShowIncompleteWarningModal(false)}
+        onClick={() => setShowIncompleteConfirmModal(false)}
         role="presentation"
         aria-hidden
       >
@@ -363,13 +449,13 @@ export default function SummaryPage() {
             id="incomplete-modal-title"
             className="text-[22px] font-bold leading-tight tracking-tight text-[#111827] sm:text-2xl"
           >
-            Complete Required Sections
+            Submit with incomplete sections?
           </h2>
           <p
             id="incomplete-modal-desc"
             className="mt-3 text-[15px] leading-relaxed text-[#4B5563] sm:text-base"
           >
-            Some sections are still incomplete. Please finish them before continuing.
+            Some onboarding sections are still incomplete. You can submit now, and the recruiting team may request the missing information later.
           </p>
 
           {incompleteSections.length > 0 ? (
@@ -384,13 +470,9 @@ export default function SummaryPage() {
                     strokeWidth={2}
                     aria-hidden
                   />
-                  <Link
-                    href={s.href}
-                    className="min-w-0 flex-1 text-left text-[15px] font-medium leading-snug text-[#374151] underline-offset-2 transition hover:text-[#2563EB] hover:underline focus:outline-none focus-visible:rounded-sm focus-visible:text-[#2563EB] focus-visible:ring-2 focus-visible:ring-[#0F766E] focus-visible:ring-offset-2 sm:text-base"
-                    onClick={() => setShowIncompleteWarningModal(false)}
-                  >
+                  <span className="min-w-0 flex-1 text-left text-[15px] font-medium leading-snug text-[#374151] sm:text-base">
                     {s.title}
-                  </Link>
+                  </span>
                 </li>
               ))}
             </ul>
@@ -399,24 +481,20 @@ export default function SummaryPage() {
           <div className="mt-8 flex w-full flex-col gap-3 sm:mt-10 sm:flex-row sm:justify-end sm:gap-3">
             <button
               type="button"
-              onClick={() => setShowIncompleteWarningModal(false)}
+              onClick={() => setShowIncompleteConfirmModal(false)}
               className="w-full rounded-lg border border-[#D1D5DB] bg-[#FFFFFF] px-4 py-2.5 text-sm font-semibold text-[#374151] transition hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0F766E] focus-visible:ring-offset-2 sm:w-auto sm:min-w-[7.5rem]"
             >
-              Close
+              Cancel
             </button>
             <button
-              id="summary-incomplete-primary"
+              id="summary-incomplete-submit"
               type="button"
-              disabled={incompleteSections.length === 0}
-              onClick={() => {
-                const first = incompleteSections[0]
-                setShowIncompleteWarningModal(false)
-                if (first?.href) router.push(first.href)
-              }}
+              disabled={loading}
+              onClick={() => void submitApplication()}
               style={{ backgroundColor: "var(--brand-primary)", color: "#FFFFFF" }}
               className="w-full rounded-lg px-4 py-2.5 text-sm font-semibold shadow-sm transition hover:brightness-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0F766E] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto sm:min-w-[10rem]"
             >
-              Continue
+              {loading ? "Submitting..." : "Submit Anyway"}
             </button>
           </div>
         </div>

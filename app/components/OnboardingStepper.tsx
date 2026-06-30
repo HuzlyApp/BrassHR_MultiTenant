@@ -6,7 +6,7 @@ import Image from "next/image"
 
 import { Check } from "lucide-react"
 
-import { useEffect, useMemo } from "react"
+import { useMemo } from "react"
 
 import { usePathname, useSearchParams } from "next/navigation"
 
@@ -64,7 +64,7 @@ export default function OnboardingStepper({
 
   const branding = useTenantBranding()
 
-  const { slug, push, replace } = useOnboardingTenant()
+  const { slug, push } = useOnboardingTenant()
 
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -120,8 +120,6 @@ export default function OnboardingStepper({
 
   const maxAllowedStep = onboarding?.maxAllowedStepIndex ?? currentStep
 
-
-
   const progressByStepId = useMemo(() => {
 
     const m = new Map<string, string>()
@@ -135,48 +133,6 @@ export default function OnboardingStepper({
     return m
 
   }, [onboarding?.progress?.steps])
-
-
-
-  useEffect(() => {
-
-    if (!enabledSteps?.length || onboarding?.loading || !slug) return
-
-    const earnedThrough = completedThrough ?? 0
-
-    if (currentStep > maxAllowedStep && earnedThrough < currentStep - 1) {
-
-      const targetPath = stepRoutes[Math.max(0, maxAllowedStep - 1)] ?? stepRoutes[0]
-
-      if (!targetPath || pathname?.includes(targetPath.split("?")[0])) return
-
-      replace(targetPath)
-
-    }
-
-  }, [
-
-    enabledSteps,
-
-    onboarding?.loading,
-
-    maxAllowedStep,
-
-    currentStep,
-
-    completedThrough,
-
-    replace,
-
-    stepRoutes,
-
-    slug,
-
-    pathname,
-
-  ])
-
-
 
   if (!enabledSteps?.length) {
 

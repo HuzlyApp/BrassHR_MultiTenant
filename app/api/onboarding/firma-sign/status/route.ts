@@ -11,7 +11,7 @@ import { mapFirmaStatusToOnboardingStatus } from "@/lib/onboarding/firma-step-se
 import { resolveDraftPreviewFirmaSignerEmail } from "@/lib/onboarding/is-draft-preview";
 import { ensureWorkerOnboardingProgress } from "@/lib/onboarding/ensure-worker-progress";
 import { resolveFirmaOnboardingContext } from "@/lib/onboarding/resolve-firma-onboarding-context";
-import { isDeliverableApplicantEmail } from "@/lib/onboardingStep1Validation";
+import { resolveApplicantSigningProfile } from "@/lib/onboarding/resolve-applicant-signing-profile";
 
 export const runtime = "nodejs";
 
@@ -83,20 +83,8 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const { data: worker } = await supabase
-      .from("worker")
-      .select("first_name, last_name, email")
-      .eq("id", workerId)
-      .maybeSingle();
-
-    const workerRow = worker as {
-      first_name?: string | null;
-      last_name?: string | null;
-      email?: string | null;
-    } | null;
-
-    const applicantEmail = workerRow?.email?.trim() || "";
-    if (!isDeliverableApplicantEmail(applicantEmail)) {
+    const profile = await resolveApplicantSigningProfile(supabase, workerId, applicantId);
+    if (!profile) {
       return NextResponse.json(
         {
           error:
@@ -113,9 +101,9 @@ export async function GET(req: NextRequest) {
       supabase,
       tenantId: resolved.tenantId,
       workerId,
-      applicantEmail: applicantEmail.toLowerCase(),
-      applicantFirstName: workerRow?.first_name?.trim() || "Applicant",
-      applicantLastName: workerRow?.last_name?.trim() || null,
+      applicantEmail: profile.email,
+      applicantFirstName: profile.firstName,
+      applicantLastName: profile.lastName,
       step: resolved.step,
       signingRequestId: signingRequestId || undefined,
     });

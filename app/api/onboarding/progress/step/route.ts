@@ -121,6 +121,25 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    const { data: existingRow } = await supabase
+      .from("worker_onboarding_step_progress")
+      .select("status")
+      .eq("worker_onboarding_progress_id", payload.progressId)
+      .eq("onboarding_step_id", stepId)
+      .maybeSingle();
+
+    const existingStatus = existingRow?.status as OnboardingStepStatus | undefined;
+    const terminalStatuses: OnboardingStepStatus[] = ["completed", "skipped"];
+    const downgradeStatuses: OnboardingStepStatus[] = ["pending", "in_progress"];
+    if (
+      existingStatus &&
+      terminalStatuses.includes(existingStatus) &&
+      downgradeStatuses.includes(status)
+    ) {
+      const progress = await ensureWorkerOnboardingProgress(supabase, ctx.workerId, ctx.tenantId);
+      return NextResponse.json({ progress, noop: true });
+    }
+
     let stepData: Record<string, unknown> =
       body.data && typeof body.data === "object" ? { ...body.data } : {};
 

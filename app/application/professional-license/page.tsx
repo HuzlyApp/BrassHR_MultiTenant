@@ -24,6 +24,8 @@ import {
   resolveApplicantId,
   uploadRequiredOnboardingFile,
 } from "@/lib/onboarding/upload-required-file-client";
+import { useOnboardingStepNav } from "@/lib/onboarding/use-onboarding-step-nav";
+import { useMarkStepInProgressIfPending } from "@/lib/onboarding/use-mark-step-in-progress-if-pending";
 import { resolveClientOnboardingTenantSlug } from "@/lib/tenant/client-onboarding-slug";
 import type { Step2FileType } from "@/lib/onboardingSummaryData";
 
@@ -79,6 +81,7 @@ export default function Step2License() {
     searchParams.toString() ? `?${searchParams.toString()}` : ""
   );
   const onboarding = useOnboardingConfigOptional();
+  const stepNav = useOnboardingStepNav();
   const [files, setFiles] = useState<Record<UploadType, UploadSlot | null>>(emptySlots);
   const [dynamicFiles, setDynamicFiles] = useState<Record<string, UploadSlot | null>>({});
   const [error, setError] = useState<string | null>(null);
@@ -227,29 +230,11 @@ export default function Step2License() {
     }
   }, [useTenantRequirements, hydrateDynamicFromServer]);
 
-  useEffect(() => {
-    if (onboarding?.loading || !licenseStep?.step_key || !licenseStep?.id) return;
-
-    const currentStatus = onboarding?.progress?.steps?.find(
-      (row) => row.onboarding_step_id === licenseStep.id
-    )?.status;
-
-    if (
-      currentStatus === "completed" ||
-      currentStatus === "skipped" ||
-      currentStatus === "in_progress"
-    ) {
-      return;
-    }
-
-    void onboarding?.updateStepStatus?.(licenseStep.step_key, "in_progress");
-  }, [
-    onboarding?.loading,
-    licenseStep?.step_key,
-    licenseStep?.id,
-    onboarding?.progress?.steps,
-    onboarding?.updateStepStatus,
-  ]);
+  useMarkStepInProgressIfPending({
+    step: licenseStep,
+    disabled: onboarding?.loading,
+    updateStepStatus: onboarding?.updateStepStatus,
+  });
 
   const uploadForRequirement = async (file: File, doc: TenantRequiredDocument) => {
     const maxBytes = (doc.max_file_size_mb || 10) * 1024 * 1024;
@@ -628,7 +613,7 @@ export default function Step2License() {
           <div className="mt-auto flex items-center justify-end gap-3 pt-8">
             <button
               type="button"
-              onClick={() => router.back()}
+              onClick={() => stepNav.goPrev()}
               className="cursor-pointer rounded-md border border-[color:var(--brand-primary)] px-5 py-2 text-[12px] font-medium leading-5 text-[color:var(--brand-primary)] transition hover:bg-[color:var(--brand-primary)]/10"
             >
               Back

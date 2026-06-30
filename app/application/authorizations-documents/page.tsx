@@ -14,10 +14,13 @@ import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding"
 import { useOnboardingConfigOptional } from "@/app/components/onboarding/OnboardingConfigProvider"
 import { useOnboardingStepNav } from "@/lib/onboarding/use-onboarding-step-nav"
+import { useMarkStepInProgressIfPending } from "@/lib/onboarding/use-mark-step-in-progress-if-pending"
 import AutosaveStatus from "@/app/components/AutosaveStatus"
 import DocumentFileThumbnail from "@/app/components/DocumentFileThumbnail"
 import { AuthorizationsFirmaAgreementPanel } from "@/app/components/onboarding/AuthorizationsFirmaAgreementPanel"
 import { stepUsesFirmaSigning } from "@/lib/onboarding/firma-step-settings"
+import { getWorkerSessionContext } from "@/lib/onboarding-worker-pk"
+import { isDeliverableApplicantEmail } from "@/lib/onboardingStep1Validation"
 import { isPdfFile, resolveStoragePublicUrl } from "@/lib/document-upload-helpers"
 
 type IdentityPaths = {
@@ -73,6 +76,12 @@ export default function DocumentsPage() {
       null
     )
   }, [nav.enabledSteps, nav.currentStep])
+
+  useMarkStepInProgressIfPending({
+    step: authStep,
+    disabled: !mounted,
+    updateStepStatus: onboarding?.updateStepStatus,
+  })
 
   useEffect(() => {
     if (agreementSigned) setAgreed(true)
@@ -159,17 +168,27 @@ export default function DocumentsPage() {
 
   useEffect(() => {
     if (!applicantId) return
-    void supabase
-      .from("worker")
-      .select("email, first_name, last_name")
-      .eq("user_id", applicantId)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (data?.email?.trim()) setSignerEmail(data.email.trim().toLowerCase())
-        const fn = (data?.first_name || "").trim()
-        const ln = (data?.last_name || "").trim()
-        if (fn || ln) setSignerName(`${fn} ${ln}`.trim())
-      })
+
+    void (async () => {
+      const { data: authData } = await supabase.auth.getUser()
+      const authEmail = authData?.user?.email?.trim() || ""
+      if (isDeliverableApplicantEmail(authEmail)) {
+        setSignerEmail((prev) => (prev.trim() ? prev : authEmail.toLowerCase()))
+      }
+
+      const ctx = await getWorkerSessionContext(supabase)
+      const workerQuery = ctx
+        ? supabase.from("worker").select("email, first_name, last_name").eq("id", ctx.id)
+        : supabase.from("worker").select("email, first_name, last_name").eq("user_id", applicantId)
+
+      const { data } = await workerQuery.maybeSingle()
+      if (data?.email?.trim() && isDeliverableApplicantEmail(data.email)) {
+        setSignerEmail(data.email.trim().toLowerCase())
+      }
+      const fn = (data?.first_name || "").trim()
+      const ln = (data?.last_name || "").trim()
+      if (fn || ln) setSignerName(`${fn} ${ln}`.trim())
+    })()
   }, [applicantId])
 
   const refreshIdentityDocsStatus = useCallback(async () => {

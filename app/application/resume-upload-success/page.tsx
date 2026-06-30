@@ -16,13 +16,17 @@ import {
   normalizedResumeToStoredJson,
   RESUME_PARSE_FAILED_USER_MESSAGE,
 } from "@/lib/resumeParseQuality"
+import { useOnboardingConfigOptional } from "@/app/components/onboarding/OnboardingConfigProvider"
 import { useOnboardingStepNav } from "@/lib/onboarding/use-onboarding-step-nav"
+import { persistStepProgress } from "@/lib/onboarding/use-mark-step-in-progress-if-pending"
 import { ensureApplicantWorker } from "@/lib/onboarding/ensure-applicant-worker"
 import { useResumeParsePoll } from "@/lib/resume/use-resume-parse-poll"
 
 export default function Step1Success() {
   const branding = useTenantBranding()
   const router = useRouter()
+  const nav = useOnboardingStepNav()
+  const onboarding = useOnboardingConfigOptional()
   const brandSurfaceStyle = {
     borderColor: branding.primaryHex,
     backgroundColor: hexToRgba(branding.primaryHex, 0.1),
@@ -140,22 +144,24 @@ export default function Step1Success() {
 
         localStorage.setItem("step1ReviewCompleted", "true")
 
-        const applicantId = localStorage.getItem("applicantId")?.trim() || ""
-        if (applicantId) {
-          void fetch("/api/onboarding/progress/step", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              applicantId,
-              stepKey: "resume_upload",
-              status: "completed",
-              data: {
-                resume_path: localStorage.getItem("resumeStoragePath")?.trim() || null,
-              },
-            }),
-          }).catch(() => {
-            /* progress is best-effort */
-          })
+        const resumeStep =
+          nav.enabledSteps?.find(
+            (s) => s.step_type === "resume_upload" || s.step_key === "resume_upload"
+          ) ?? null
+        const resumeStepKey = resumeStep?.step_key ?? "resume_upload"
+
+        try {
+          await persistStepProgress(
+            onboarding?.updateStepStatus,
+            resumeStepKey,
+            "completed",
+            undefined,
+            {
+              resume_path: localStorage.getItem("resumeStoragePath")?.trim() || null,
+            }
+          )
+        } catch {
+          /* progress is best-effort */
         }
 
         const next = applicationPath(APPLICATION_ROUTES.profileReview)

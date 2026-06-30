@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { createClient } from "@supabase/supabase-js";
 import { getSupabaseUrl } from "@/lib/supabase-env";
 import {
   FirmaOnboardingSigningError,
@@ -7,36 +7,9 @@ import {
   ensureFirmaSigningSession,
 } from "@/lib/onboarding/firma-onboarding-signing";
 import { resolveFirmaOnboardingContext } from "@/lib/onboarding/resolve-firma-onboarding-context";
-import { isDeliverableApplicantEmail } from "@/lib/onboardingStep1Validation";
+import { resolveApplicantSigningProfile } from "@/lib/onboarding/resolve-applicant-signing-profile";
 
 export const runtime = "nodejs";
-
-async function resolveApplicantProfile(
-  supabase: SupabaseClient,
-  workerId: string,
-  applicantId: string
-) {
-  const { data, error } = await supabase
-    .from("worker")
-    .select("first_name, last_name, email")
-    .eq("id", workerId)
-    .maybeSingle();
-
-  if (error) throw error;
-
-  const row = data as { first_name?: string | null; last_name?: string | null; email?: string | null } | null;
-
-  const email = row?.email?.trim() || "";
-  if (!isDeliverableApplicantEmail(email)) {
-    return null;
-  }
-
-  return {
-    firstName: row?.first_name?.trim() || "Applicant",
-    lastName: row?.last_name?.trim() || null,
-    email: email.toLowerCase(),
-  };
-}
 
 export async function GET(req: NextRequest) {
   try {
@@ -81,7 +54,11 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ session });
     }
 
-    const profile = await resolveApplicantProfile(supabase, resolved.workerId!, applicantId);
+    const profile = await resolveApplicantSigningProfile(
+      supabase,
+      resolved.workerId!,
+      applicantId
+    );
     if (!profile) {
       return NextResponse.json(
         {

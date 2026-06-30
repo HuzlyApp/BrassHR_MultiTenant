@@ -8,10 +8,42 @@ import OnboardingLayout from "@/app/components/OnboardingLayout"
 import OnboardingStepper from "@/app/components/OnboardingStepper"
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext"
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding"
+import { useOnboardingConfigOptional } from "@/app/components/onboarding/OnboardingConfigProvider"
+import { useOnboardingStepNav } from "@/lib/onboarding/use-onboarding-step-nav"
+import {
+  persistStepProgress,
+  useMarkStepInProgressIfPending,
+} from "@/lib/onboarding/use-mark-step-in-progress-if-pending"
 
 export default function SkillAssessmentIntro() {
     const branding = useTenantBranding()
     const router = useRouter()
+    const nav = useOnboardingStepNav()
+    const onboarding = useOnboardingConfigOptional()
+
+    const skillStep =
+      nav.currentStep ??
+      nav.enabledSteps?.find(
+        (s) => s.step_type === "skill_assessment" || s.step_key === "skill_assessment"
+      ) ??
+      null
+
+    useMarkStepInProgressIfPending({
+      step: skillStep,
+      disabled: nav.configLoading,
+      updateStepStatus: onboarding?.updateStepStatus,
+    })
+
+    const skipSkillAssessment = async () => {
+      if (skillStep?.step_key) {
+        try {
+          await persistStepProgress(onboarding?.updateStepStatus, skillStep.step_key, "skipped")
+        } catch {
+          /* continue even if progress sync fails */
+        }
+      }
+      if (nav.nextRoute) router.push(nav.nextRoute)
+    }
 
     const proficiencyLevels = [
         {
@@ -56,7 +88,7 @@ export default function SkillAssessmentIntro() {
                         </h2>
                         <button
                             type="button"
-                            onClick={() => router.push(applicationPath(APPLICATION_ROUTES.skillAssessment))}
+                            onClick={() => void skipSkillAssessment()}
                             className="cursor-pointer text-[12px] font-medium leading-5 text-[color:var(--brand-primary)]"
                         >
                             Skip for Now →
@@ -95,7 +127,7 @@ export default function SkillAssessmentIntro() {
                     <div className="mt-auto flex items-center justify-end gap-3 pt-8">
                         <button
                             type="button"
-                            onClick={() => router.back()}
+                            onClick={() => (nav.prevRoute ? nav.goPrev() : router.back())}
                             className="cursor-pointer rounded-md border border-slate-300 px-5 py-2 text-[12px] font-medium leading-5 text-slate-600 transition hover:bg-slate-50"
                         >
                             Back

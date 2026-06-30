@@ -61,6 +61,75 @@ export function step2HasAnyUpload(files: Record<Step2FileType, Step2UploadedFile
   return STEP2_FILE_TYPES.some((k) => Boolean(files[k]?.name))
 }
 
+export function mergeStep2FileRecords(
+  local: Record<Step2FileType, Step2UploadedFile | null> | null,
+  server: Record<Step2FileType, Step2UploadedFile | null> | null
+): Record<Step2FileType, Step2UploadedFile | null> {
+  const out: Record<Step2FileType, Step2UploadedFile | null> = {
+    license: null,
+    tb: null,
+    cpr: null,
+  }
+  for (const k of STEP2_FILE_TYPES) {
+    out[k] = local?.[k] ?? server?.[k] ?? null
+  }
+  return out
+}
+
+export function step2FilesFromDocumentUrls(docs: {
+  nursing_license_url?: string | null
+  tb_test_url?: string | null
+  cpr_certification_url?: string | null
+} | null | undefined): Record<Step2FileType, Step2UploadedFile | null> | null {
+  if (!docs) return null
+  const urlByType: Record<Step2FileType, string | null | undefined> = {
+    license: docs.nursing_license_url,
+    tb: docs.tb_test_url,
+    cpr: docs.cpr_certification_url,
+  }
+  const out: Record<Step2FileType, Step2UploadedFile | null> = {
+    license: null,
+    tb: null,
+    cpr: null,
+  }
+  let any = false
+  for (const k of STEP2_FILE_TYPES) {
+    const url = urlByType[k]?.trim()
+    if (!url) continue
+    any = true
+    out[k] = { name: displayNameFromStoragePath(url), size: "" }
+  }
+  return any ? out : null
+}
+
+export function signingStateFromFirmaStatus(firmaStatus: unknown): {
+  statusRaw: string
+  display: SigningDisplayStatus
+  hasActivity: boolean
+} {
+  const raw = typeof firmaStatus === "string" ? firmaStatus.trim().toLowerCase() : ""
+  if (raw === "signed" || raw === "completed" || raw === "complete") {
+    return { statusRaw: raw || "signed", display: "signed", hasActivity: true }
+  }
+  if (raw === "sent" || raw === "viewed" || raw === "declined") {
+    return { statusRaw: raw, display: "pending", hasActivity: true }
+  }
+  if (raw) {
+    return { statusRaw: raw, display: "pending", hasActivity: true }
+  }
+  return { statusRaw: "", display: "none", hasActivity: false }
+}
+
+export function mergeAuthorizationSigningState(
+  local: ReturnType<typeof readAuthorizationSigningState>,
+  server: ReturnType<typeof readAuthorizationSigningState> | null
+): ReturnType<typeof readAuthorizationSigningState> {
+  if (server?.display === "signed") return server
+  if (local.display === "signed") return local
+  if (server?.hasActivity) return server
+  return local
+}
+
 /** Legacy quiz slug → localStorage completion flag (matches step-3-assessment / quizzes). */
 const SLUG_TO_DONE_KEY: Record<string, string> = {
   "basic-care": "basic_care_done",

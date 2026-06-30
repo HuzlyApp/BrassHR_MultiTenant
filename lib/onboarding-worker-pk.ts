@@ -1,14 +1,67 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
+import { resolveTenantIdBySlug } from "@/lib/onboarding/resolve-tenant-id-by-slug"
 import { resolveDefaultTenantId } from "@/lib/tenant/resolve-default-tenant-id"
+import { resolveClientOnboardingTenantSlug } from "@/lib/tenant/client-onboarding-slug"
 
 export type WorkerSessionContext = {
   id: string
   tenantId: string
 }
 
+type WorkerRow = {
+  id: string
+  tenant_id: string | null
+}
+
+/** Active onboarding tenant from ?tenant= or subdomain cookie (browser only). */
+async function resolveActiveOnboardingTenantId(
+  supabase: SupabaseClient
+): Promise<string | null> {
+  if (typeof window === "undefined") return null
+  const slug = resolveClientOnboardingTenantSlug(window.location.search)
+  if (!slug) return null
+  try {
+    return await resolveTenantIdBySlug(supabase, slug)
+  } catch (err) {
+    console.warn("[resolveActiveOnboardingTenantId]", err)
+    return null
+  }
+}
+
+async function loadWorkerRowForUser(
+  supabase: SupabaseClient,
+  uid: string,
+  tenantId?: string | null
+): Promise<WorkerRow | null> {
+  let query = supabase.from("worker").select("id, tenant_id").eq("user_id", uid)
+
+  if (tenantId) {
+    const { data: worker, error } = await query.eq("tenant_id", tenantId).maybeSingle()
+    if (error) {
+      console.warn("[loadWorkerRowForUser]", error.message)
+      return null
+    }
+    return worker?.id ? worker : null
+  }
+
+  const { data: rows, error } = await query.limit(2)
+  if (error) {
+    console.warn("[loadWorkerRowForUser]", error.message)
+    return null
+  }
+  if (!rows?.length) return null
+  if (rows.length > 1) {
+    console.warn(
+      "[loadWorkerRowForUser] Multiple worker rows without tenant scope; use tenant subdomain or ?tenant=."
+    )
+    return null
+  }
+  return rows[0]
+}
+
 /**
  * Signed-in applicant worker row (`user_id` matches session) plus tenant for FK columns
- * (`skill_assessments.tenant_id`, etc.). Uses `tenant_id` on worker when present, else resolves default.
+ * (`skill_assessments.tenant_id`, etc.). Scoped to the active onboarding tenant when known.
  */
 export async function getWorkerSessionContext(
   supabase: SupabaseClient
@@ -20,13 +73,9 @@ export async function getWorkerSessionContext(
   const uid = authId ?? applicantFromLs
   if (!uid) return null
 
-  const { data: worker, error } = await supabase
-    .from("worker")
-    .select("id, tenant_id")
-    .eq("user_id", uid)
-    .maybeSingle()
-
-  if (error || !worker?.id) return null
+  const scopedTenantId = await resolveActiveOnboardingTenantId(supabase)
+  const worker = await loadWorkerRowForUser(supabase, uid, scopedTenantId)
+  if (!worker?.id) return null
 
   const wt = worker.tenant_id as string | null
   if (wt) {

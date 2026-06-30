@@ -19,6 +19,7 @@ import {
 } from "@/lib/cache"
 import { mapAdminOnboardingProgress } from "@/lib/admin-onboarding-progress"
 import { loadAdminAttachmentRequirements } from "@/lib/onboarding/load-admin-attachment-requirements"
+import { loadOnboardingApplicationSubmission } from "@/lib/onboarding/load-onboarding-application-submission"
 import { requireApiSession, requireStaffApiSession } from "@/lib/auth/api-session"
 import { isStaffRole } from "@/lib/auth/app-role"
 import { canAccessWorkerRecord } from "@/lib/auth/worker-record-access"
@@ -631,6 +632,19 @@ export async function GET(req: NextRequest) {
       percent: mapped.completionPercent,
     }
 
+    let onboardingSubmission: Awaited<ReturnType<typeof loadOnboardingApplicationSubmission>> = null
+    if (tenantIdForWorker) {
+      try {
+        onboardingSubmission = await loadOnboardingApplicationSubmission(
+          supabase,
+          workerId,
+          tenantIdForWorker
+        )
+      } catch (submissionErr) {
+        console.warn("[admin/worker-profile] onboarding submission", submissionErr)
+      }
+    }
+
     const createdAt = w.created_at != null ? String(w.created_at) : null
     const updatedAt = w.updated_at != null ? String(w.updated_at) : createdAt
 
@@ -800,6 +814,7 @@ export async function GET(req: NextRequest) {
       skillAssessments: { completed: saCompleted, total: saTotal, rows: skillAssessmentRows },
       onboardingSteps,
       onboardingCompletion,
+      onboardingSubmission,
       nursing_licenses:
         licenseRecords.length > 0
           ? licenseRecords.map((row) => ({

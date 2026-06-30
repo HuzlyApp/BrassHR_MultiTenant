@@ -20,8 +20,8 @@ import {
   mergeQuestionCatalogWithDb,
   remapLegacySyntheticAnswerKeys,
 } from "@/lib/merge-skill-quiz-catalog"
-import { resolveWorkerSessionContext } from "@/lib/onboarding-worker-pk"
-import { fetchApplicantSkillAnswers } from "@/lib/skill-assessment-answer-rows"
+import { getSkillAssessmentWorkerKey } from "@/lib/onboarding-worker-pk"
+import { fetchApplicantSkillAnswers, persistSkillAssessment } from "@/lib/skill-assessment-answer-rows"
 import { useQuizAutosave } from "@/lib/useQuizAutosave"
 import AutosaveStatus from "@/app/components/AutosaveStatus"
 
@@ -214,12 +214,7 @@ export default function BasicCareQuiz() {
         return
       }
 
-      const { data: worker } = await supabase
-        .from("worker")
-        .select("id")
-        .eq("user_id", uid)
-        .maybeSingle()
-      const workerId = worker?.id ? String(worker.id) : uid
+      const workerId = (await getSkillAssessmentWorkerKey(supabase)) ?? uid
 
       let raw: unknown = null
       const { data: rowNew } = await supabase
@@ -311,55 +306,14 @@ export default function BasicCareQuiz() {
       return true
     }
 
-    const ctx = await resolveWorkerSessionContext(supabase, { ensure: true })
-    if (!ctx) {
-      alert("Could not save your answers. Go back and upload your resume again.")
+    const result = await persistSkillAssessment(supabase, {
+      categorySlug: CATEGORY_SLUG,
+      answers,
+      completed,
+    })
+    if (!result.ok) {
+      alert(result.error)
       return false
-    }
-    const workerId = ctx.id
-    const cleanAnswers = JSON.parse(JSON.stringify(answers)) as Record<string, number>
-
-    const { data: existing, error: findErr } = await supabase
-      .from("skill_assessments")
-      .select("id")
-      .eq("worker_id", workerId)
-      .eq("category", CATEGORY_SLUG)
-      .maybeSingle()
-
-    if (findErr) {
-      console.error(findErr)
-      alert(findErr.message)
-      return false
-    }
-
-    if (existing?.id) {
-      const { error: upErr } = await supabase
-        .from("skill_assessments")
-        .update({
-          answers: cleanAnswers,
-          completed,
-        })
-        .eq("id", existing.id)
-
-      if (upErr) {
-        console.error(upErr)
-        alert(upErr.message)
-        return false
-      }
-    } else {
-      const { error: insErr } = await supabase.from("skill_assessments").insert({
-        tenant_id: ctx.tenantId,
-        worker_id: workerId,
-        category: CATEGORY_SLUG,
-        answers: cleanAnswers,
-        completed,
-      })
-
-      if (insErr) {
-        console.error(insErr)
-        alert(insErr.message)
-        return false
-      }
     }
 
     if (completed) {

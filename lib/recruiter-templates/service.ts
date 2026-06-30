@@ -802,6 +802,29 @@ export async function publishRecruiterTemplate(
   return getRecruiterTemplateDetail(supabase, tenantId, templateId);
 }
 
+/** System actor when no template editor user is recorded (applicant signing auto-heal). */
+const APPLICANT_SIGNING_ACTOR_USER_ID = "00000000-0000-0000-0000-000000000001";
+
+/**
+ * Ensures a published recruiter template's Firma copy exists in the tenant's current workspace.
+ * Used when applicants sign and the stored Firma template id/workspace is stale.
+ */
+export async function ensureRecruiterTemplateForApplicantSigning(
+  supabase: SupabaseClient,
+  tenantId: string,
+  templateId: string,
+  options: { forceRecreate?: boolean } = {}
+): Promise<RecruiterTemplateDetail> {
+  const template = await getRecruiterTemplateDetail(supabase, tenantId, templateId);
+  const userId = template.updated_by ?? template.created_by ?? APPLICANT_SIGNING_ACTOR_USER_ID;
+  const workspaceId = await resolveFirmaWorkspace(supabase, tenantId);
+  const workspaceMismatch = isStoredFirmaWorkspaceMismatch(template.firma_workspace_id, workspaceId);
+
+  return ensureFirmaTemplateForBuilder(supabase, tenantId, templateId, userId, {
+    forceRecreate: options.forceRecreate === true || workspaceMismatch,
+  });
+}
+
 export async function archiveRecruiterTemplate(
   supabase: SupabaseClient,
   tenantId: string,

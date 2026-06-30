@@ -6,6 +6,8 @@ import OnboardingLayout from "@/app/components/OnboardingLayout";
 import OnboardingStepper from "@/app/components/OnboardingStepper";
 import { FirmaSigningIframe } from "@/app/components/onboarding/FirmaSigningIframe";
 import { useOnboardingStepNav } from "@/lib/onboarding/use-onboarding-step-nav";
+import { useOnboardingConfigOptional } from "@/app/components/onboarding/OnboardingConfigProvider";
+import { useMarkStepInProgressIfPending } from "@/lib/onboarding/use-mark-step-in-progress-if-pending";
 import { resolvePostStepContinueRoute } from "@/lib/onboarding/tenant-step-navigation";
 import { ensureApplicantWorker } from "@/lib/onboarding/ensure-applicant-worker";
 import {
@@ -124,6 +126,7 @@ export default function FirmaSignPage() {
   const searchParams = useSearchParams();
   const search = searchParams.toString() ? `?${searchParams.toString()}` : "";
   const nav = useOnboardingStepNav();
+  const onboarding = useOnboardingConfigOptional();
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -135,6 +138,13 @@ export default function FirmaSignPage() {
   const autoContinuedRef = useRef(false);
 
   const { stepKey, stepId } = resolveFirmaStepContext(searchParams, nav);
+  const matchedStep = resolveMatchedStep(nav, stepKey, stepId);
+
+  useMarkStepInProgressIfPending({
+    step: matchedStep,
+    disabled: nav.configLoading || loading,
+    updateStepStatus: onboarding?.updateStepStatus ?? nav.updateStepStatus,
+  });
 
   useEffect(() => {
     if (nav.configLoading) return;

@@ -82,4 +82,8 @@ export type WorkerOnboardingProgressPayload = {
   progressId: string;
   status: string;
   steps: StepProgressRow[];
+  submittedAt?: string | null;
+  submittedWithIncompleteSteps?: boolean;
+  incompleteStepKeys?: string[];
+  applicationStatus?: string | null;
 };

@@ -125,6 +125,28 @@ export async function upsertSkillAnswerRow(
   return { ok: true }
 }
 
+/** Avoid PostgREST PGRST116 when duplicate legacy rows exist. */
+export async function findSkillAssessmentRowId(
+  supabase: SupabaseClient,
+  workerId: string,
+  categorySlug: string
+): Promise<string | null> {
+  const { data, error } = await supabase
+    .from("skill_assessments")
+    .select("id")
+    .eq("worker_id", workerId)
+    .eq("category", categorySlug)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (error) {
+    console.warn("[findSkillAssessmentRowId]", error.message)
+    return null
+  }
+  return data?.id ? String(data.id) : null
+}
+
 /** Keep `skill_assessments.answers` JSON in sync for reporting (best-effort). */
 export async function syncSkillAssessmentJson(
   supabase: SupabaseClient,
@@ -137,18 +159,13 @@ export async function syncSkillAssessmentJson(
   if (!workerKey) return
 
   const cleanAnswers = JSON.parse(JSON.stringify(answers)) as Record<string, number>
-  const { data: existing } = await supabase
-    .from("skill_assessments")
-    .select("id")
-    .eq("worker_id", workerKey)
-    .eq("category", categorySlug)
-    .maybeSingle()
+  const existingId = await findSkillAssessmentRowId(supabase, workerKey, categorySlug)
 
-  if (existing?.id) {
+  if (existingId) {
     await supabase
       .from("skill_assessments")
       .update({ answers: cleanAnswers, completed })
-      .eq("id", existing.id)
+      .eq("id", existingId)
   } else {
     const tenantId = ctx?.tenantId
     if (!tenantId) return
@@ -160,4 +177,54 @@ export async function syncSkillAssessmentJson(
       completed,
     })
   }
+}
+
+/** Save or update the JSON snapshot for a skill assessment category. */
+export async function persistSkillAssessment(
+  supabase: SupabaseClient,
+  params: {
+    categorySlug: string
+    answers: Record<string, number>
+    completed: boolean
+  }
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const ctx = await resolveWorkerSessionContext(supabase, { ensure: true })
+  if (!ctx) {
+    return {
+      ok: false,
+      error: "Could not save your answers. Go back and upload your resume again.",
+    }
+  }
+
+  const cleanAnswers = JSON.parse(JSON.stringify(params.answers)) as Record<string, number>
+  const existingId = await findSkillAssessmentRowId(supabase, ctx.id, params.categorySlug)
+
+  if (existingId) {
+    const { error } = await supabase
+      .from("skill_assessments")
+      .update({ answers: cleanAnswers, completed: params.completed })
+      .eq("id", existingId)
+    if (error) return { ok: false, error: error.message }
+  } else {
+    const { error } = await supabase.from("skill_assessments").insert({
+      tenant_id: ctx.tenantId,
+      worker_id: ctx.id,
+      category: params.categorySlug,
+      answers: cleanAnswers,
+      completed: params.completed,
+    })
+    if (error) {
+      const e = error as { code?: string; message?: string }
+      if (e.code === "23505" && (e.message || "").includes("skill_assessments_worker_id_key")) {
+        return {
+          ok: false,
+          error:
+            'Database constraint is still UNIQUE(worker_id). Apply the migration that replaces it with UNIQUE(worker_id, category) (see supabase/migrations/20260410194500_create_skill_assessments.sql), then try again.',
+        }
+      }
+      return { ok: false, error: error.message }
+    }
+  }
+
+  return { ok: true }
 }

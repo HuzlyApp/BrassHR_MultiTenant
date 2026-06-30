@@ -25,6 +25,8 @@ import {
   normalizeFirmaSigningStatus,
   resolveFirmaSigningStatusFromSources,
 } from "@/lib/onboarding/firma-step-settings";
+import { ensureRecruiterTemplateForApplicantSigning } from "@/lib/recruiter-templates/service";
+import { RecruiterTemplateError } from "@/lib/recruiter-templates/errors";
 import {
   DRAFT_PREVIEW_APPLICANT_EMAIL,
   getDraftPreviewFirmaSignerEmailFallback,
@@ -311,7 +313,7 @@ async function resolveRecruiterTemplateForStep(
     throw new FirmaOnboardingSigningError("Firma API is not configured", "FIRMA_NOT_CONFIGURED", 503);
   }
 
-  const recruiterTemplate = await loadRecruiterTemplate(supabase, tenantId, recruiterTemplateId);
+  let recruiterTemplate = await loadRecruiterTemplate(supabase, tenantId, recruiterTemplateId);
   if (!recruiterTemplate?.id) {
     throw new FirmaOnboardingSigningError("Firma template not found", "MISSING_TEMPLATE", 404);
   }
@@ -323,12 +325,47 @@ async function resolveRecruiterTemplateForStep(
     );
   }
 
-  if (isStoredFirmaWorkspaceMismatch(recruiterTemplate.firma_workspace_id, workspaceId)) {
-    throw new FirmaOnboardingSigningError(
-      "This template belongs to a different Firma workspace. Re-publish the template in Template Builder before applicants can sign.",
-      "TEMPLATE_WORKSPACE_MISMATCH",
-      409
-    );
+  const workspaceMismatch = isStoredFirmaWorkspaceMismatch(
+    recruiterTemplate.firma_workspace_id,
+    workspaceId
+  );
+  let firmaTemplateAvailable = false;
+
+  if (!workspaceMismatch) {
+    try {
+      await getFirmaTemplate(String(recruiterTemplate.firma_template_id), workspaceId);
+      firmaTemplateAvailable = true;
+    } catch (err) {
+      if (
+        !(
+          err instanceof FirmaError &&
+          (err.code === "NOT_FOUND" || isFirmaWorkspaceMismatchMessage(err.message))
+        )
+      ) {
+        throw mapFirmaSigningCreateError(err);
+      }
+    }
+  }
+
+  if (workspaceMismatch || !firmaTemplateAvailable) {
+    try {
+      await ensureRecruiterTemplateForApplicantSigning(supabase, tenantId, recruiterTemplateId, {
+        forceRecreate: workspaceMismatch || !firmaTemplateAvailable,
+      });
+      recruiterTemplate = await loadRecruiterTemplate(supabase, tenantId, recruiterTemplateId);
+      if (!recruiterTemplate?.firma_template_id) {
+        throw new FirmaOnboardingSigningError(
+          "Publish the Firma template before applicants can sign",
+          "TEMPLATE_NOT_PUBLISHED",
+          400
+        );
+      }
+    } catch (err) {
+      if (err instanceof RecruiterTemplateError) {
+        throw new FirmaOnboardingSigningError(err.message, "TEMPLATE_WORKSPACE_MISMATCH", err.status);
+      }
+      throw mapFirmaSigningCreateError(err);
+    }
   }
 
   return { recruiterTemplateId, recruiterTemplate };
@@ -671,12 +708,6 @@ export async function ensureFirmaSigningSession(
         }
       }
     }
-  }
-
-  try {
-    await getFirmaTemplate(firmaTemplateId, workspaceId);
-  } catch (err) {
-    throw mapFirmaSigningCreateError(err);
   }
 
   try {

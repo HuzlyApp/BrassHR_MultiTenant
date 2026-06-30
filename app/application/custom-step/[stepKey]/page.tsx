@@ -1,7 +1,7 @@
 "use client";
 
 import type { CSSProperties } from "react";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import OnboardingLayout from "@/app/components/OnboardingLayout";
 import OnboardingStepper from "@/app/components/OnboardingStepper";
@@ -9,6 +9,10 @@ import ApplicantWorkflowStepRedirect from "@/app/components/onboarding/Applicant
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
 import { useOnboardingStepNav } from "@/lib/onboarding/use-onboarding-step-nav";
+import {
+  persistStepProgress,
+  useMarkStepInProgressIfPending,
+} from "@/lib/onboarding/use-mark-step-in-progress-if-pending";
 import {
   getWorkflowSettings,
   integrationProviderLabel,
@@ -24,6 +28,7 @@ export default function CustomOnboardingStepPage() {
   const params = useParams();
   const stepKey = decodeURIComponent(String(params?.stepKey ?? "")).trim();
   const nav = useOnboardingStepNav();
+  const completingRef = useRef(false);
   const [answer, setAnswer] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -45,6 +50,13 @@ export default function CustomOnboardingStepPage() {
       step.metadata.workflow_step_id === "custom-step" ||
       step.metadata.workflow_step_id === "custom-form");
 
+  useMarkStepInProgressIfPending({
+    step,
+    disabled: nav.configLoading || !step,
+    updateStepStatus: nav.updateStepStatus,
+    completingRef,
+  });
+
   async function handleComplete() {
     if (!step) return;
     setError("");
@@ -54,10 +66,16 @@ export default function CustomOnboardingStepPage() {
     }
     setSaving(true);
     try {
-      await nav.updateStepStatus?.(step.step_key, "completed", {
-        response: answer.trim(),
-        step_type: step.step_type,
-      });
+      await persistStepProgress(
+        nav.updateStepStatus,
+        step.step_key,
+        "completed",
+        completingRef,
+        {
+          response: answer.trim(),
+          step_type: step.step_type,
+        }
+      );
       nav.goNext();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not save progress");

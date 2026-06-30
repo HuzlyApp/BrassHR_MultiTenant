@@ -2,7 +2,7 @@
 
 import { APPLICATION_ROUTES } from "@/lib/onboarding/application-routes"
 import { applicationPath } from "@/lib/tenant/with-tenant"
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
@@ -10,7 +10,12 @@ import { Check, ChevronRight } from "lucide-react"
 import { getApplicantSupabaseClient } from "@/lib/supabase-applicant-browser"
 import { ensureApplicantWorker } from "@/lib/onboarding/ensure-applicant-worker"
 import OnboardingStepper from "@/app/components/OnboardingStepper"
+import { useOnboardingConfigOptional } from "@/app/components/onboarding/OnboardingConfigProvider"
 import { useOnboardingStepNav } from "@/lib/onboarding/use-onboarding-step-nav"
+import {
+  persistStepProgress,
+  useMarkStepInProgressIfPending,
+} from "@/lib/onboarding/use-mark-step-in-progress-if-pending"
 import OnboardingLayout from "@/app/components/OnboardingLayout"
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext"
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding"
@@ -74,6 +79,8 @@ export default function AssessmentPage() {
   const branding = useTenantBranding()
   const router = useRouter()
   const nav = useOnboardingStepNav()
+  const onboarding = useOnboardingConfigOptional()
+  const completingRef = useRef(false)
   const [categories, setCategories] = useState<Category[]>([])
   const [completedSlugs, setCompletedSlugs] = useState<Set<string>>(() => new Set())
   const [loading, setLoading] = useState(true)
@@ -135,9 +142,62 @@ export default function AssessmentPage() {
     void ensureApplicantWorker()
   }, [])
 
+  const skillStep =
+    nav.currentStep ??
+    nav.enabledSteps?.find(
+      (s) => s.step_type === "skill_assessment" || s.step_key === "skill_assessment"
+    ) ??
+    null
+
+  useMarkStepInProgressIfPending({
+    step: skillStep,
+    disabled: loading,
+    updateStepStatus: onboarding?.updateStepStatus,
+    completingRef,
+  })
+
+  const allCategoriesComplete =
+    categories.length > 0 &&
+    categories.every((cat) => {
+      const slug = categoryQuizSlug(cat)
+      return slug != null && completedSlugs.has(slug)
+    })
+
   const goToCategory = (cat: Category) => {
     const href = quizHref(cat)
     if (href) router.push(href)
+  }
+
+  const skipSkillAssessment = async () => {
+    if (skillStep?.step_key) {
+      try {
+        await persistStepProgress(
+          onboarding?.updateStepStatus,
+          skillStep.step_key,
+          "skipped",
+          completingRef
+        )
+      } catch {
+        /* continue to next step even if progress sync fails */
+      }
+    }
+    if (nav.nextRoute) router.push(nav.nextRoute)
+  }
+
+  const continueSkillAssessment = async () => {
+    if (skillStep?.step_key) {
+      try {
+        await persistStepProgress(
+          onboarding?.updateStepStatus,
+          skillStep.step_key,
+          allCategoriesComplete ? "completed" : "skipped",
+          completingRef
+        )
+      } catch {
+        /* continue even if progress sync fails */
+      }
+    }
+    if (nav.nextRoute) router.push(nav.nextRoute)
   }
 
   if (loading) {
@@ -171,7 +231,7 @@ export default function AssessmentPage() {
             </h2>
             <button
               type="button"
-              onClick={() => nav.nextRoute && router.push(nav.nextRoute)}
+              onClick={() => void skipSkillAssessment()}
               className="mt-1 cursor-pointer text-[12px] font-medium leading-5 text-[color:var(--brand-primary)]"
             >
               Skip for Now →
@@ -240,9 +300,7 @@ export default function AssessmentPage() {
             </button>
             <button
               type="button"
-              onClick={() => {
-                if (nav.nextRoute) router.push(nav.nextRoute)
-              }}
+              onClick={() => void continueSkillAssessment()}
               className="cursor-pointer rounded-md bg-[color:var(--brand-primary)] px-6 py-2 text-[12px] font-medium leading-5 text-white transition hover:brightness-90"
             >
               Save &amp; continue
