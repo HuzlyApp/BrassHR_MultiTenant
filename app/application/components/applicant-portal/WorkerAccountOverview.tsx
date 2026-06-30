@@ -203,20 +203,25 @@ export function WorkerAccountOverview({ data, onDownloadDocument }: WorkerAccoun
               iconBg="#D6FFE6"
               iconColor="#00B546"
             />
-            <WorkSummaryStat
-              label="Earnings"
-              value={formatCurrency(workSummary.earnings)}
-              icon={<Wallet className="h-8 w-8" strokeWidth={1.5} aria-hidden />}
-              iconBg="#FFECD6"
-              iconColor="#F97316"
-            />
-            <WorkSummaryStat
-              label="Rating"
-              value={workSummary.rating != null ? `${workSummary.rating.toFixed(1)} / 5` : "Soon"}
-              icon={<Star className="h-8 w-8" strokeWidth={1.5} aria-hidden />}
-              iconBg="#FEF9C3"
-              iconColor="#CA8A04"
-            />
+            {/* Earnings and Rating hidden for now in admin worker profile */}
+            {!readOnly ? (
+              <WorkSummaryStat
+                label="Earnings"
+                value={formatCurrency(workSummary.earnings)}
+                icon={<Wallet className="h-8 w-8" strokeWidth={1.5} aria-hidden />}
+                iconBg="#FFECD6"
+                iconColor="#F97316"
+              />
+            ) : null}
+            {!readOnly ? (
+              <WorkSummaryStat
+                label="Rating"
+                value={workSummary.rating != null ? `${workSummary.rating.toFixed(1)} / 5` : "Soon"}
+                icon={<Star className="h-8 w-8" strokeWidth={1.5} aria-hidden />}
+                iconBg="#FEF9C3"
+                iconColor="#CA8A04"
+              />
+            ) : null}
           </div>
         </AccountCard>
 

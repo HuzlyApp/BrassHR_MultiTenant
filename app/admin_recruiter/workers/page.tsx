@@ -1,29 +1,35 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
-import { CandidateListAvatar } from "@/app/admin_recruiter/components/CandidateListAvatar";
-import { adminWorkerProfileHref } from "./worker-profile-links";
-import { candidateMailHref } from "@/app/admin_recruiter/candidates/candidate-links";
 import {
   CANDIDATES_FILTER_CONTROL_CLASS,
   CANDIDATES_FILTER_LABEL_CLASS,
   CANDIDATES_PAGE_SUBTITLE_STYLE,
 } from "@/app/admin_recruiter/candidates/candidates-typography";
 import { CandidatesPageHeader } from "@/app/admin_recruiter/components/CandidatesPageHeader";
-import { candidateStatusBadgeClassName } from "@/app/admin_recruiter/candidates/candidate-status-badge";
+import { ColumnsEditorModal } from "@/app/admin_recruiter/components/ColumnsEditorModal";
 import {
   employmentWorkerTabLabel,
   type EmploymentWorkerTab,
 } from "@/lib/admin/employment-workers";
 import {
+  Columns2,
   Plus,
   Search,
   RefreshCw,
   Filter,
   Loader2,
 } from "lucide-react";
+import {
+  DEFAULT_WORKER_COLUMNS,
+  WORKER_COLUMN_OPTIONS,
+  loadWorkerColumnOrder,
+  saveWorkerColumnOrder,
+  workerColumnLabel,
+  type WorkerColumnId,
+} from "./worker-columns";
+import { renderWorkerListCell, type WorkerListRow } from "./render-worker-list-cell";
 
 type EmploymentWorkerRow = {
   id: string;
@@ -31,15 +37,15 @@ type EmploymentWorkerRow = {
   first_name: string | null;
   last_name: string | null;
   email: string | null;
+  phone: string | null;
   job_role: string | null;
   location: string | null;
   status: string | null;
+  worker_type: string | null;
+  employment_classification: string | null;
   created_at: string | null;
   profile_photo_url?: string | null;
 };
-
-const LINK_CLASS =
-  "truncate text-left transition hover:text-[color:var(--brand-primary)] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)]";
 
 const WORKER_TABS: Array<{ id: EmploymentWorkerTab; label: string }> = [
   { id: "new", label: "New only" },
@@ -55,20 +61,26 @@ function titleCaseStatus(s: string | null | undefined) {
   return low.slice(0, 1).toUpperCase() + low.slice(1);
 }
 
+function workerTypeLabel(value: string | null | undefined): string {
+  const v = (value || "").trim().toLowerCase();
+  if (v === "w2") return "W-2";
+  if (v === "1099") return "1099";
+  return value?.trim() || "";
+}
+
+function formatDateShort(iso: string | null) {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+}
+
 export default function WorkersPage() {
-  const [workers, setWorkers] = useState<
-    Array<{
-      id: string;
-      profileId: string;
-      name: string;
-      email: string;
-      role: string;
-      location: string;
-      status: string;
-      createdAt: string | null;
-      profilePhotoUrl: string | null;
-    }>
-  >([]);
+  const [workers, setWorkers] = useState<WorkerListRow[]>([]);
   const [totalFromApi, setTotalFromApi] = useState<number | null>(null);
   const [tabLabel, setTabLabel] = useState("workers");
   const [loading, setLoading] = useState(true);
@@ -78,6 +90,12 @@ export default function WorkersPage() {
   const [jobRoleFilter, setJobRoleFilter] = useState("");
   const [locationFilter, setLocationFilter] = useState("");
   const [dateFilter, setDateFilter] = useState("");
+  const [listColumnOrder, setListColumnOrder] = useState<WorkerColumnId[]>(DEFAULT_WORKER_COLUMNS);
+  const [editColumnsOpen, setEditColumnsOpen] = useState(false);
+
+  useEffect(() => {
+    setListColumnOrder(loadWorkerColumnOrder());
+  }, []);
 
   const loadWorkers = useCallback(async () => {
     setLoading(true);
@@ -105,7 +123,7 @@ export default function WorkersPage() {
         typeof data?.tabLabel === "string" ? data.tabLabel : employmentWorkerTabLabel(workerTab)
       );
 
-      const mapped = list.map((w) => {
+      const mapped: WorkerListRow[] = list.map((w) => {
         const name = `${w.first_name ?? ""} ${w.last_name ?? ""}`.trim() || "Unnamed";
         return {
           id: w.id,
@@ -117,6 +135,10 @@ export default function WorkersPage() {
           status: titleCaseStatus(w.status),
           createdAt: w.created_at ?? null,
           profilePhotoUrl: w.profile_photo_url ?? null,
+          phone: w.phone?.trim() || "",
+          workerType: workerTypeLabel(w.worker_type),
+          employmentType: w.employment_classification?.trim() || "",
+          reference: (w.candidate_id || w.id).slice(0, 7).toUpperCase(),
         };
       });
       setWorkers(mapped);
@@ -232,6 +254,15 @@ export default function WorkersPage() {
               </button>
               <button
                 type="button"
+                onClick={() => setEditColumnsOpen(true)}
+                className="inline-flex h-8 items-center gap-1.5 rounded-md border border-[#dce6e3] bg-white px-3 text-sm font-normal leading-6 text-[#334155] transition hover:bg-zinc-50"
+                style={CANDIDATES_PAGE_SUBTITLE_STYLE}
+              >
+                <Columns2 className="h-4 w-4 shrink-0" />
+                Columns
+              </button>
+              <button
+                type="button"
                 onClick={() => void loadWorkers()}
                 className="inline-flex h-8 items-center gap-1.5 rounded-md border border-[#dce6e3] bg-white px-3 text-sm font-normal leading-6 text-[#334155] transition hover:bg-zinc-50"
                 style={CANDIDATES_PAGE_SUBTITLE_STYLE}
@@ -321,83 +352,64 @@ export default function WorkersPage() {
           {loading ? null : filtered.length === 0 ? (
             <div className="py-16 text-center text-gray-600">No workers found.</div>
           ) : (
-            <div className="overflow-hidden rounded-md border border-[#E5E7EB]">
-              <div className="overflow-auto">
-                <table className="min-w-[760px] w-full border-collapse">
-                  <thead className="bg-[#F8FAFC]">
-                    <tr className="border-b border-[#E5E7EB]">
-                      <th className="bg-[#E5E7EB] px-4 py-3 text-left text-sm font-medium uppercase tracking-[0.08em] text-black">
-                        Name
-                      </th>
-                      <th className="bg-[#E5E7EB] px-4 py-3 text-left text-sm font-medium uppercase tracking-[0.08em] text-black">
-                        Job Role
-                      </th>
-                      <th className="bg-[#E5E7EB] px-4 py-3 text-left text-sm font-medium uppercase tracking-[0.08em] text-black">
-                        Location
-                      </th>
-                      <th className="bg-[#E5E7EB] px-4 py-3 text-left text-sm font-medium uppercase tracking-[0.08em] text-black">
-                        Status
-                      </th>
-                      <th className="bg-[#E5E7EB] px-4 py-3 text-right text-sm font-medium uppercase tracking-[0.08em] text-black">
-                        Profile
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filtered.map((w) => (
-                      <tr key={w.id} className="border-b border-[#E9EDF3] hover:bg-[#F9FBFB]">
-                        <td className="px-4 py-4">
-                          <div className="flex min-w-0 items-center gap-3">
-                            <CandidateListAvatar
-                              name={w.name || "NA"}
-                              photoUrl={w.profilePhotoUrl}
-                            />
-                            <div className="min-w-0">
-                              <Link
-                                href={adminWorkerProfileHref(w.profileId)}
-                                className={`block text-sm font-medium text-black ${LINK_CLASS}`}
+            (() => {
+              const cols = listColumnOrder.length ? listColumnOrder : DEFAULT_WORKER_COLUMNS;
+              return (
+                <div className="overflow-hidden rounded-md border border-[#E5E7EB]">
+                  <div className="overflow-auto">
+                    <table className="min-w-[760px] w-full border-collapse">
+                      <thead className="bg-[#F8FAFC]">
+                        <tr className="border-b border-[#E5E7EB]">
+                          {cols.map((colId) => (
+                            <th
+                              key={colId}
+                              className={`bg-[#E5E7EB] px-4 py-3 text-sm font-medium uppercase tracking-[0.08em] text-black first:pl-6 last:pr-6 ${
+                                colId === "name" ? "text-left" : "text-center"
+                              } ${colId === "createdDate" ? "min-w-[140px] whitespace-nowrap" : ""}`}
+                            >
+                              {workerColumnLabel(colId)}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filtered.map((w) => (
+                          <tr key={w.id} className="border-b border-[#E9EDF3] hover:bg-[#F9FBFB]">
+                            {cols.map((colId) => (
+                              <td
+                                key={colId}
+                                className={`px-4 py-4 align-middle first:pl-6 last:pr-6 ${
+                                  colId === "name" ? "text-left" : "text-center"
+                                } ${colId === "createdDate" ? "min-w-[140px] whitespace-nowrap" : ""}`}
                               >
-                                {w.name}
-                              </Link>
-                              {w.email ? (
-                                <Link
-                                  href={candidateMailHref(w.profileId)}
-                                  className={`block text-xs text-[#4B5563] ${LINK_CLASS}`}
-                                >
-                                  {w.email}
-                                </Link>
-                              ) : (
-                                <div className="truncate text-xs text-[#4B5563]">—</div>
-                              )}
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-4 py-4 text-sm text-[#374151]">{w.role}</td>
-                        <td className="px-4 py-4 text-sm text-[#374151]">{w.location}</td>
-                        <td className="px-4 py-4">
-                          <span
-                            className={`inline-flex items-center rounded-sm px-2 py-0.5 text-[10px] font-semibold ${candidateStatusBadgeClassName(w.status)}`}
-                          >
-                            {w.status}
-                          </span>
-                        </td>
-                        <td className="px-4 py-4 text-right">
-                          <Link
-                            href={adminWorkerProfileHref(w.profileId)}
-                            className="inline-flex h-8 shrink-0 items-center justify-center rounded-[8px] border border-[color:var(--brand-primary)] px-4 py-2 text-xs font-semibold leading-4 text-[color:var(--brand-primary)] transition hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_8%,white)]"
-                          >
-                            Details
-                          </Link>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+                                {renderWorkerListCell(colId, w, formatDateShort)}
+                              </td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              );
+            })()
           )}
         </div>
       </div>
+
+      <ColumnsEditorModal
+        key={editColumnsOpen ? "worker-cols-open" : "worker-cols-closed"}
+        open={editColumnsOpen}
+        onOpenChange={setEditColumnsOpen}
+        options={WORKER_COLUMN_OPTIONS}
+        value={listColumnOrder}
+        title="Edit Columns"
+        description="Choose which columns appear in the workers list and drag to reorder them."
+        onSave={(order) => {
+          setListColumnOrder(order);
+          saveWorkerColumnOrder(order);
+        }}
+      />
     </div>
   );
 }
