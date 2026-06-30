@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useMemo, useState } from "react";
-import { Check } from "lucide-react";
+import { Check, X } from "lucide-react";
 import { useAccountData } from "@/app/admin_recruiter/hooks/useAccountData";
 import { getAccountDisplayName } from "@/lib/account/display-name";
 import { withSecurityCompleted } from "@/lib/account/completion";
@@ -23,29 +23,73 @@ type PasswordRules = {
   passwordsMatch: boolean;
 };
 
+/** Fixed validation colors — never tied to tenant brand colors. */
+const VALID_GREEN = "#16a34a";
+const MEDIUM_YELLOW = "#d89b35";
+const INVALID_RED = "#ef4565";
+
 function FieldStatusIcon({ showValid }: { showValid: boolean }) {
-  const base =
-    "flex h-[19.2px] w-[19.2px] shrink-0 items-center justify-center rounded-full border border-[color:var(--brand-primary)]";
+  const base = "flex h-[19.2px] w-[19.2px] shrink-0 items-center justify-center rounded-full";
 
   if (showValid) {
     return (
-      <span className={`${base} bg-[color:var(--brand-primary)]`} aria-hidden>
+      <span className={`${base}`} style={{ backgroundColor: VALID_GREEN }} aria-hidden>
         <Check className="h-2.5 w-2.5 text-white" strokeWidth={3} />
       </span>
     );
   }
 
-  return <span className={`${base} bg-white`} aria-hidden />;
+  return (
+    <span
+      className={`${base} bg-white border`}
+      style={{ borderColor: INVALID_RED }}
+      aria-hidden
+    >
+      <X className="h-2.5 w-2.5" strokeWidth={3} style={{ color: INVALID_RED }} />
+    </span>
+  );
 }
 
 function RequirementItem({ met, label }: { met: boolean; label: string }) {
   return (
     <li className="flex items-center gap-2.5">
       <FieldStatusIcon showValid={met} />
-      <span className={`text-sm ${met ? "text-[color:var(--brand-primary)]" : "text-[#64748B]"}`}>
+      <span className="text-sm" style={{ color: met ? VALID_GREEN : INVALID_RED }}>
         {label}
       </span>
     </li>
+  );
+}
+
+function getPasswordStrength(score: number) {
+  if (score >= 4) {
+    return { label: "Strong", color: VALID_GREEN, filledSegments: 4 };
+  }
+  if (score === 3) {
+    return { label: "Medium", color: MEDIUM_YELLOW, filledSegments: 3 };
+  }
+  return { label: "Weak", color: INVALID_RED, filledSegments: score > 0 ? Math.max(score, 1) : 0 };
+}
+
+function PasswordStrengthMeter({ score }: { score: number }) {
+  const strength = getPasswordStrength(score);
+
+  return (
+    <div className="mt-1">
+      <div className="grid grid-cols-4 gap-1">
+        {[0, 1, 2, 3].map((index) => (
+          <span
+            key={index}
+            className="h-[5px] rounded-full"
+            style={{ backgroundColor: index < strength.filledSegments ? strength.color : "#e4e9f0" }}
+            aria-hidden
+          />
+        ))}
+      </div>
+      <p className="mt-1.5 text-right text-xs font-medium" style={{ color: strength.color }}>
+        {strength.label}
+      </p>
+    </div>
   );
 }
 
@@ -108,6 +152,10 @@ export default function SecurityTab() {
   const newValid = rules.minLength && rules.hasNumber && rules.hasUpper && rules.hasLower;
   const confirmValid = confirmPassword.length > 0 && rules.passwordsMatch;
   const canSubmit = newValid && confirmValid;
+
+  const strengthScore = [rules.minLength, rules.hasNumber, rules.hasUpper, rules.hasLower].filter(
+    Boolean
+  ).length;
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -181,6 +229,8 @@ export default function SecurityTab() {
             onChange={setConfirmPassword}
             showValid={confirmValid}
           />
+
+          {newPassword.length > 0 ? <PasswordStrengthMeter score={strengthScore} /> : null}
         </div>
 
         <ul className="mt-6 flex flex-col gap-3" aria-label="Password requirements">
