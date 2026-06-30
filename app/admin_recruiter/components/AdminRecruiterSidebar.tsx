@@ -190,7 +190,7 @@ export function AdminRecruiterSidebar({
     return (
     <div className="flex h-full flex-col overflow-hidden bg-white">
       <div
-        className={`admin-recruiter-sidebar-brand shrink-0 border-b border-[#E2E8F0] ${
+        className={`admin-recruiter-sidebar-brand shrink-0 ${
           isMobileRail
             ? "flex items-center justify-center px-0"
             : isCollapsed
@@ -444,7 +444,7 @@ export function AdminRecruiterSidebar({
   return (
     <>
       <aside
-        className={`admin-recruiter-sidebar fixed inset-y-0 left-0 z-40 hidden h-screen overflow-hidden border-r border-[#E2E8F0] bg-white transition-[width] duration-200 ease-in-out min-[1000px]:block ${sidebarHoverClass}`}
+        className={`admin-recruiter-sidebar fixed inset-y-0 left-0 z-40 hidden h-screen overflow-hidden border-r border-[#E2E8F0] admin-recruiter-chrome-border-r bg-white transition-[width] duration-200 ease-in-out min-[1000px]:block ${sidebarHoverClass}`}
         style={asideStyle}
         data-collapsed={collapsed ? "true" : "false"}
         {...sidebarHoverProps}
@@ -453,7 +453,7 @@ export function AdminRecruiterSidebar({
       </aside>
 
       <aside
-        className={`admin-recruiter-sidebar admin-recruiter-sidebar-mobile-rail fixed inset-y-0 left-0 z-40 h-screen overflow-hidden border-r border-[#E2E8F0] bg-white min-[1000px]:hidden ${sidebarHoverClass} ${
+        className={`admin-recruiter-sidebar admin-recruiter-sidebar-mobile-rail fixed inset-y-0 left-0 z-40 h-screen overflow-hidden border-r border-[#E2E8F0] admin-recruiter-chrome-border-r bg-white min-[1000px]:hidden ${sidebarHoverClass} ${
           isMobileOpen ? "hidden" : "block"
         }`}
         data-collapsed="true"

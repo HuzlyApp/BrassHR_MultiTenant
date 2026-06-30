@@ -1,3 +1,28 @@
+.applicant-portal-shell {
+  --worker-portal-header-height: 64px;
+  --worker-portal-chrome-border: #e2e8f0;
+}
+
+.worker-portal-topbar {
+  height: var(--worker-portal-header-height);
+  min-height: var(--worker-portal-header-height);
+  box-sizing: border-box;
+  border-bottom: 1px solid var(--worker-portal-chrome-border);
+}
+
+.worker-portal-sidebar-brand {
+  display: flex;
+  align-items: center;
+  height: var(--worker-portal-header-height);
+  min-height: var(--worker-portal-header-height);
+  box-sizing: border-box;
+  border-bottom: 1px solid var(--worker-portal-chrome-border);
+}
+
+.worker-portal-chrome-border-r {
+  border-right-color: var(--worker-portal-chrome-border);
+}
+
 .applicant-portal-main > main {
   width: 100%;
   min-width: 0;

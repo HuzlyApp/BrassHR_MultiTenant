@@ -121,11 +121,8 @@ export function AdminRecruiterHeader({
   }, [router, pathname]);
 
   return (
-    <header
-      className="sticky top-0 z-40 w-full bg-white border-b border-[#E2E8F0] max-[999px]:z-30"
-      style={{ borderColor: "color-mix(in srgb, var(--brand-accent) 35%, #E2E8F0)" }}
-    >
-      <div className="admin-recruiter-topbar flex min-w-0 w-full items-center justify-between gap-2 px-3 sm:gap-3 sm:px-5 min-[1000px]:px-8 max-[999px]:pr-3">
+    <header className="admin-recruiter-topbar sticky top-0 z-40 w-full bg-white max-[999px]:z-30">
+      <div className="flex h-full min-w-0 w-full items-center justify-between gap-2 px-3 sm:gap-3 sm:px-5 min-[1000px]:px-8 max-[999px]:pr-3">
         <div className="flex min-w-0 shrink-0 items-center gap-1 sm:gap-2">
           {onMenuClick ? (
             <button

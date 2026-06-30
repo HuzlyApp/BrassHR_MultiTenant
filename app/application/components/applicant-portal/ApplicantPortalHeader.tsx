@@ -65,8 +65,8 @@ export function ApplicantPortalHeader({
   }
 
   return (
-    <header className="sticky top-0 z-30 border-b border-[#E2E8F0] bg-white">
-      <div className="flex h-16 items-center gap-2 px-4 min-[1000px]:gap-3 min-[1000px]:px-8 max-[999px]:px-3 max-[499px]:pl-4 max-[499px]:pr-2">
+    <header className="worker-portal-topbar sticky top-0 z-30 bg-white">
+      <div className="flex h-full items-center gap-2 px-4 min-[1000px]:gap-3 min-[1000px]:px-8 max-[999px]:px-3 max-[499px]:pl-4 max-[499px]:pr-2">
         <div className="flex shrink-0 items-center gap-2">
           {onMenuClick ? (
             <button

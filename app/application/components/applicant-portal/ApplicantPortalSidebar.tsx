@@ -208,12 +208,12 @@ export function ApplicantPortalSidebar({
   }) => (
     <div className="flex h-full flex-col overflow-hidden bg-white">
       <div
-        className={`border-b border-[#E2E8F0] ${
+        className={`worker-portal-sidebar-brand shrink-0 ${
           isMobileRail
-            ? "flex h-16 shrink-0 items-center justify-center px-1"
+            ? "justify-center px-1"
             : isCollapsed
-              ? "px-2 py-3"
-              : "px-4 py-3"
+              ? "px-2"
+              : "px-4"
         }`}
       >
         <div
@@ -436,7 +436,7 @@ export function ApplicantPortalSidebar({
   return (
     <>
       <aside
-        className={`applicant-portal-sidebar fixed inset-y-0 left-0 z-40 hidden h-screen overflow-hidden border-r border-[#E2E8F0] bg-white min-[1000px]:block ${sidebarHoverClass}`}
+        className={`applicant-portal-sidebar fixed inset-y-0 left-0 z-40 hidden h-screen overflow-hidden border-r border-[#E2E8F0] worker-portal-chrome-border-r bg-white min-[1000px]:block ${sidebarHoverClass}`}
         style={asideStyle}
         data-collapsed={collapsed ? "true" : "false"}
         {...sidebarHoverProps}
@@ -445,7 +445,7 @@ export function ApplicantPortalSidebar({
       </aside>
 
       <aside
-        className={`applicant-portal-sidebar applicant-portal-sidebar-mobile-rail fixed inset-y-0 left-0 z-40 h-screen overflow-hidden border-r border-[#E2E8F0] bg-white min-[1000px]:hidden ${sidebarHoverClass} ${
+        className={`applicant-portal-sidebar applicant-portal-sidebar-mobile-rail fixed inset-y-0 left-0 z-40 h-screen overflow-hidden border-r border-[#E2E8F0] worker-portal-chrome-border-r bg-white min-[1000px]:hidden ${sidebarHoverClass} ${
           mobileOpen ? "hidden" : "block"
         }`}
         data-collapsed="true"
@@ -462,7 +462,7 @@ export function ApplicantPortalSidebar({
         aria-hidden={!mobileOpen}
       >
         <aside
-          className={`applicant-portal-sidebar h-full border-r border-[#E2E8F0] bg-white transition-transform duration-200 ease-in-out ${sidebarHoverClass} ${
+          className={`applicant-portal-sidebar h-full border-r border-[#E2E8F0] worker-portal-chrome-border-r bg-white transition-transform duration-200 ease-in-out ${sidebarHoverClass} ${
             mobileOpen ? "translate-x-0" : "-translate-x-full"
           }`}
           style={{

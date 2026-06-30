@@ -157,12 +157,11 @@ export default function DetailedTabs({ applicantId, activeTab, workerStatus }: D
       <CandidatePipelineStepper
         steps={pipelineSteps ?? undefined}
         applicantId={applicantId}
-        className="mb-4"
+        className="mb-6"
       />
 
-      <div className="rounded-md border border-[#E5E7EB] bg-white px-3 py-3 sm:px-5 sm:py-4">
-        <nav className="w-full min-w-0" aria-label="Applicant sections">
-          <div className="candidate-detail-tabs-scroll overflow-x-auto pb-1">
+      <nav className="w-full min-w-0" aria-label="Applicant sections">
+        <div className="candidate-detail-tabs-scroll overflow-x-auto pb-1">
             <div className="mx-auto flex w-max min-w-full justify-center gap-1">
               {tabs.map((tab) => {
                 const isActive = activeTab != null && tab === activeTab;
@@ -187,9 +186,8 @@ export default function DetailedTabs({ applicantId, activeTab, workerStatus }: D
                 );
               })}
             </div>
-          </div>
-        </nav>
-      </div>
+        </div>
+      </nav>
     </div>
   );
 }
