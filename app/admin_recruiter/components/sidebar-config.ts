@@ -170,7 +170,11 @@ const WORKFORCE_CHILDREN: SidebarLink[] = [
     href: "/admin_recruiter/workers",
     matchPrefixes: ["/admin_recruiter/workers"],
   },
-  { label: "Managers", href: "#", matchPrefixes: [], disabled: true },
+  {
+    label: "Managers",
+    href: "/admin_recruiter/managers",
+    matchPrefixes: ["/admin_recruiter/managers"],
+  },
 ];
 
 const AUTOMATION_CHILDREN: SidebarLink[] = [
@@ -319,7 +323,7 @@ export const CLIENT_SIDEBAR_SECTIONS: SidebarSection[] = [
     label: "Workforce",
     href: "#",
     iconType: ICON.teams,
-    matchPrefixes: ["/admin_recruiter/workers"],
+    matchPrefixes: ["/admin_recruiter/workers", "/admin_recruiter/managers"],
     children: WORKFORCE_CHILDREN,
   },
   {
@@ -405,7 +409,7 @@ export const GOD_ADMIN_SIDEBAR_SECTIONS: SidebarSection[] = [
     label: "Workforce",
     href: "#",
     iconType: ICON.teams,
-    matchPrefixes: ["/admin_recruiter/workers"],
+    matchPrefixes: ["/admin_recruiter/workers", "/admin_recruiter/managers"],
     children: WORKFORCE_CHILDREN,
   },
   {
