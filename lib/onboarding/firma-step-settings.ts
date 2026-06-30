@@ -58,18 +58,43 @@ export const FIRMA_SIGNING_STATUSES = [
 
 export type FirmaSigningStatus = (typeof FIRMA_SIGNING_STATUSES)[number];
 
+function normalizeFirmaSigningStatusFromFlags(
+  flags: Record<string, unknown>
+): FirmaSigningStatus | null {
+  if (
+    !("sent" in flags ||
+      "finished" in flags ||
+      "cancelled" in flags ||
+      "declined" in flags ||
+      "expired" in flags)
+  ) {
+    return null;
+  }
+
+  if (flags.finished === true) return "completed";
+  if (flags.declined === true) return "cancelled";
+  if (flags.cancelled === true) return "cancelled";
+  if (flags.expired === true) return "expired";
+  if (flags.sent === true) return "sent";
+  return "draft";
+}
+
 export function normalizeFirmaSigningStatus(value: unknown): FirmaSigningStatus {
   let status = "";
   if (typeof value === "string") {
     status = value.trim().toLowerCase();
   } else if (typeof value === "number" && Number.isFinite(value)) {
     status = String(value).trim().toLowerCase();
-  } else if (value && typeof value === "object") {
+  } else if (value && typeof value === "object" && !Array.isArray(value)) {
+    const record = value as Record<string, unknown>;
+    const fromFlags = normalizeFirmaSigningStatusFromFlags(record);
+    if (fromFlags) return fromFlags;
+
     const nested =
-      "status" in value
-        ? (value as { status?: unknown }).status
-        : "name" in value
-          ? (value as { name?: unknown }).name
+      "status" in record
+        ? record.status
+        : "name" in record
+          ? record.name
           : null;
     if (nested != null && nested !== value) {
       return normalizeFirmaSigningStatus(nested);
@@ -77,10 +102,44 @@ export function normalizeFirmaSigningStatus(value: unknown): FirmaSigningStatus 
   }
 
   if (status === "complete") return "completed";
+  if (status === "not_sent" || status === "not-sent") return "draft";
+  if (status === "in_progress" || status === "in-progress") return "sent";
+  if (status === "finished") return "completed";
+  if (status === "recipient_signed" || status === "recipient-signed") return "signed";
   if ((FIRMA_SIGNING_STATUSES as readonly string[]).includes(status)) {
     return status as FirmaSigningStatus;
   }
   return "draft";
+}
+
+type FirmaSigningStatusRecipient = {
+  status?: unknown;
+  finished_date?: string | null;
+};
+
+/** Prefer applicant recipient completion over request-level in-progress states. */
+export function resolveFirmaSigningStatusFromSources(input: {
+  requestStatus?: unknown;
+  recipient?: FirmaSigningStatusRecipient | null;
+  fallback?: unknown;
+}): FirmaSigningStatus {
+  if (input.recipient?.finished_date?.trim()) {
+    return "signed";
+  }
+
+  const recipientStatus =
+    input.recipient?.status != null
+      ? normalizeFirmaSigningStatus(input.recipient.status)
+      : null;
+  const requestStatus =
+    input.requestStatus != null ? normalizeFirmaSigningStatus(input.requestStatus) : null;
+
+  if (recipientStatus && isFirmaSigningComplete(recipientStatus)) return recipientStatus;
+  if (requestStatus && isFirmaSigningComplete(requestStatus)) return requestStatus;
+  if (recipientStatus && recipientStatus !== "draft") return recipientStatus;
+  if (requestStatus && requestStatus !== "draft") return requestStatus;
+
+  return normalizeFirmaSigningStatus(input.fallback ?? "draft");
 }
 
 export function mapFirmaStatusToOnboardingStatus(firmaStatus: unknown): OnboardingStepStatus {

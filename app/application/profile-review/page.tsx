@@ -32,8 +32,43 @@ import { resolveClientOnboardingTenantSlug } from "@/lib/tenant/client-onboardin
 import { getClientOnboardingTenantIdFallback } from "@/lib/tenant/client-onboarding-tenant-fallback"
 import { useOnboardingStepNav } from "@/lib/onboarding/use-onboarding-step-nav"
 import { adjacentStepRoute } from "@/lib/onboarding/tenant-step-navigation"
+import { useResumeParsePoll } from "@/lib/resume/use-resume-parse-poll"
+import { RESUME_PARSE_FAILED_USER_MESSAGE } from "@/lib/resumeParseQuality"
 
 type ContactConflictKind = "email" | "phone"
+
+function step1FormFromParsedRecord(
+  parsed: Record<string, unknown>,
+  urlJobTitle: string,
+): {
+  firstName: string
+  lastName: string
+  address1: string
+  address2: string
+  city: string
+  state: string
+  zipCode: string
+  phone: string
+  email: string
+  jobRole: string
+  sameAsAddress1: boolean
+} {
+  return {
+    firstName: String(parsed.first_name || parsed.firstName || parsed.FirstName || "").trim(),
+    lastName: String(parsed.last_name || parsed.lastName || parsed.LastName || "").trim(),
+    address1: String(parsed.address1 || parsed.address || parsed.Address || "").trim(),
+    address2: String(parsed.address2 || "").trim(),
+    city: String(parsed.city || parsed.City || "").trim(),
+    state: String(parsed.state || parsed.State || "").trim(),
+    zipCode: String(parsed.zipCode || parsed.zip || "")
+      .replace(/\D/g, "")
+      .slice(0, 5),
+    phone: normalizePhoneInput(String(parsed.phone || parsed.Phone || "")),
+    email: String(parsed.email || parsed.Email || "").trim(),
+    jobRole: urlJobTitle || String(parsed.job_role || parsed.jobRole || parsed.JobRole || parsed.job_title || "").trim(),
+    sameAsAddress1: false,
+  }
+}
 
 const US_STATES = [
   "Alabama", "Alaska", "Arizona", "Arkansas", "California", "Colorado", "Connecticut", "Delaware",
@@ -263,6 +298,15 @@ function Step1ReviewContent() {
   const [genericError, setGenericError] = useState<string | null>(null)
   /** After first "Save & continue", show incomplete-field message until the form is valid. */
   const [submitAttempted, setSubmitAttempted] = useState(false)
+  const [resumeId] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null
+    return localStorage.getItem("resumeId")?.trim() || null
+  })
+  const parsePoll = useResumeParsePoll(resumeId)
+  const isParsing =
+    parsePoll.status === "processing" ||
+    parsePoll.status === "pending" ||
+    parsePoll.isPolling
 
   const addressParts = useMemo(
     () => ({
@@ -280,31 +324,10 @@ function Step1ReviewContent() {
     validateOnMount: true,
   })
 
-  // Load parsed resume data from PDF
+  // Load parsed resume data from localStorage or background Grok parse.
   useEffect(() => {
-    // `applicantId` is set by `app/application/layout.tsx` to match `auth.users.id` (anon sign-in).
-    // Do not mint random UUIDs here — `worker.user_id` has a foreign key to Auth.
-
-    const saved = localStorage.getItem("parsedResume")
-    if (!saved) return
-
-    try {
-      const parsed = JSON.parse(saved)
-      const loaded = {
-        firstName: parsed.first_name || parsed.FirstName || "",
-        lastName: parsed.last_name || parsed.LastName || "",
-        address1: parsed.address1 || parsed.address || parsed.Address || "",
-        address2: parsed.address2 || "",
-        city: parsed.city || parsed.City || "",
-        state: parsed.state || parsed.State || "",
-        zipCode: String(parsed.zipCode || parsed.zip || "")
-          .replace(/\D/g, "")
-          .slice(0, 5),
-        phone: normalizePhoneInput(parsed.phone || parsed.Phone || ""),
-        email: parsed.email || parsed.Email || "",
-        jobRole: urlJobTitle || parsed.job_role || parsed.JobRole || parsed.job_title || "",
-        sameAsAddress1: false,
-      }
+    const applyParsed = (parsed: Record<string, unknown>) => {
+      const loaded = step1FormFromParsedRecord(parsed, urlJobTitle)
       setForm(loaded)
       const parsedAddressQuery = buildAddressQuery({
         address1: loaded.address1,
@@ -316,10 +339,22 @@ function Step1ReviewContent() {
       if (parsedAddressQuery.trim()) {
         addressValidation.captureOriginalParsedAddress(parsedAddressQuery)
       }
-    } catch (e) {
-      console.error("Failed to parse resume data", e)
     }
-  }, [urlJobTitle])
+
+    const saved = localStorage.getItem("parsedResume")
+    if (saved) {
+      try {
+        applyParsed(JSON.parse(saved) as Record<string, unknown>)
+      } catch (e) {
+        console.error("Failed to parse resume data", e)
+      }
+      return
+    }
+
+    if (parsePoll.parsedResume) {
+      applyParsed(parsePoll.parsedResume)
+    }
+  }, [urlJobTitle, parsePoll.parsedResume])
 
   useEffect(() => {
     if (!urlJobTitle) return
@@ -829,6 +864,21 @@ function Step1ReviewContent() {
                 {genericError || validationBannerText}
               </div>
             )}
+
+            {isParsing ? (
+              <div className="mb-5 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800">
+                Resume uploaded. We&apos;re extracting your profile details in the background — you
+                can review or edit the fields below while parsing finishes.
+              </div>
+            ) : parsePoll.status === "failed" ? (
+              <div
+                role="alert"
+                className="mb-5 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950"
+              >
+                {parsePoll.parseError || RESUME_PARSE_FAILED_USER_MESSAGE} You can still enter your
+                details manually below.
+              </div>
+            ) : null}
 
             <div className="space-y-4 sm:space-y-5">
               {/* Name */}

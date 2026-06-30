@@ -18,9 +18,7 @@ export function resumeToStep1Fields(
       ? phoneDigits.slice(-10)
       : "0000000000"
   const zip = isValidStep1Zip5(n.zip) ? n.zip.trim() : "00000"
-  const email = isValidStep1Email(n.email)
-    ? n.email.trim()
-    : `applicant+${applicantId.slice(0, 8)}@placeholder.local`
+  const email = isValidStep1Email(n.email) ? n.email.trim() : ""
 
   return {
     firstName: n.first_name.trim() || "Applicant",

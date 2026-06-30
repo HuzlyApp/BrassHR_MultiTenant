@@ -19,6 +19,7 @@ export const APPLICATION_ROUTES = {
   addReferences: "/application/add-references",
   referenceReview: "/application/reference-review",
   applicationSummary: "/application/application-summary",
+  applicationStatus: "/application/application-status",
   customStep: (stepKey: string) => `/application/custom-step/${encodeURIComponent(stepKey)}`,
 } as const;
 

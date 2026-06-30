@@ -64,6 +64,7 @@ export type FirmaSigningRequestRecipient = {
   status?: string | null;
   signing_url?: string | null;
   signing_link?: string | null;
+  finished_date?: string | null;
 };
 
 export type FirmaApiErrorBody = {

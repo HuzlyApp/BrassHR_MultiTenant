@@ -17,14 +17,12 @@ import {
   RESUME_PARSE_FAILED_USER_MESSAGE,
 } from "@/lib/resumeParseQuality"
 import { useOnboardingStepNav } from "@/lib/onboarding/use-onboarding-step-nav"
-import { adjacentStepRoute } from "@/lib/onboarding/tenant-step-navigation"
 import { ensureApplicantWorker } from "@/lib/onboarding/ensure-applicant-worker"
 import { useResumeParsePoll } from "@/lib/resume/use-resume-parse-poll"
 
 export default function Step1Success() {
   const branding = useTenantBranding()
   const router = useRouter()
-  const nav = useOnboardingStepNav()
   const brandSurfaceStyle = {
     borderColor: branding.primaryHex,
     backgroundColor: hexToRgba(branding.primaryHex, 0.1),
@@ -160,13 +158,7 @@ export default function Step1Success() {
           })
         }
 
-        const resumeStep =
-          nav.enabledSteps?.find(
-            (s) => s.step_type === "resume_upload" || s.step_key === "resume_upload"
-          ) ?? null
-        const next =
-          adjacentStepRoute(nav.config, resumeStep, 1, nav.slug) ??
-          applicationPath(APPLICATION_ROUTES.profileReview)
+        const next = applicationPath(APPLICATION_ROUTES.profileReview)
         router.push(next)
       } finally {
         setContinuing(false)

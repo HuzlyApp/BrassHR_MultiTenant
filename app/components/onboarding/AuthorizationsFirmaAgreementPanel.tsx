@@ -8,7 +8,7 @@ import {
   normalizeFirmaSigningStatus,
   stepUsesFirmaSigning,
 } from "@/lib/onboarding/firma-step-settings";
-import { isValidStep1Email } from "@/lib/onboardingStep1Validation";
+import { isDeliverableApplicantEmail } from "@/lib/onboardingStep1Validation";
 import type { TenantOnboardingStep } from "@/lib/onboarding/types";
 
 type FirmaSessionResponse = {
@@ -68,7 +68,7 @@ export function AuthorizationsFirmaAgreementPanel({
   const stepKey = step?.step_key ?? "";
   const stepId = step?.id ?? "";
   const hasFirmaTemplate = step ? stepUsesFirmaSigning(step) : false;
-  const emailValid = isValidStep1Email(signerEmail);
+  const emailValid = isDeliverableApplicantEmail(signerEmail);
   const signed = isFirmaSigningComplete(firmaStatus);
 
   useEffect(() => {

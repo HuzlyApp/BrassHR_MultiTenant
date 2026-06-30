@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import OnboardingLayout from "@/app/components/OnboardingLayout";
 import OnboardingStepper from "@/app/components/OnboardingStepper";
 import { FirmaSigningIframe } from "@/app/components/onboarding/FirmaSigningIframe";
 import { useOnboardingStepNav } from "@/lib/onboarding/use-onboarding-step-nav";
+import { resolvePostStepContinueRoute } from "@/lib/onboarding/tenant-step-navigation";
 import { ensureApplicantWorker } from "@/lib/onboarding/ensure-applicant-worker";
 import {
   DRAFT_PREVIEW_APPLICANT_ID,
@@ -13,6 +14,7 @@ import {
   isOnboardingDraftPreview,
 } from "@/lib/onboarding/is-draft-preview";
 import { stepUsesFirmaSigning } from "@/lib/onboarding/firma-step-settings";
+import type { TenantOnboardingStep } from "@/lib/onboarding/types";
 import { resolveClientOnboardingTenantSlug } from "@/lib/tenant/client-onboarding-slug";
 
 type FirmaSessionResponse = {
@@ -61,6 +63,63 @@ function resolveFirmaStepContext(
   return { stepKey, stepId };
 }
 
+function resolveMatchedStep(
+  nav: ReturnType<typeof useOnboardingStepNav>,
+  stepKey: string,
+  stepId: string
+): TenantOnboardingStep | null {
+  return (
+    nav.enabledSteps?.find((step) => step.id === stepId || step.step_key === stepKey) ??
+    nav.currentStep
+  );
+}
+
+function resolveContinueRoute(
+  nav: ReturnType<typeof useOnboardingStepNav>,
+  stepKey: string,
+  stepId: string
+): string {
+  return resolvePostStepContinueRoute(nav.config, resolveMatchedStep(nav, stepKey, stepId), nav.slug);
+}
+
+async function persistFirmaStepCompletion(
+  nav: ReturnType<typeof useOnboardingStepNav>,
+  input: {
+    applicantId: string;
+    stepKey: string;
+    stepId: string;
+    signingRequestId: string | null;
+    firmaStatus: string;
+  }
+): Promise<void> {
+  const progressData = {
+    signing_provider: "firma",
+    signing_request_id: input.signingRequestId,
+    firma_status: input.firmaStatus,
+  };
+
+  if (nav.updateStepStatus) {
+    await nav.updateStepStatus(input.stepKey, "completed", progressData);
+    return;
+  }
+
+  const progressRes = await fetch("/api/onboarding/progress/step", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      applicantId: input.applicantId,
+      stepKey: input.stepKey,
+      stepId: input.stepId || undefined,
+      status: "completed",
+      data: progressData,
+    }),
+  });
+  const progressBody = (await progressRes.json().catch(() => ({}))) as { error?: string };
+  if (!progressRes.ok) {
+    throw new Error(progressBody.error || "Could not save onboarding progress");
+  }
+}
+
 export default function FirmaSignPage() {
   const searchParams = useSearchParams();
   const search = searchParams.toString() ? `?${searchParams.toString()}` : "";
@@ -73,6 +132,7 @@ export default function FirmaSignPage() {
   const [signingRequestId, setSigningRequestId] = useState<string | null>(null);
   const [firmaStatus, setFirmaStatus] = useState<string>("draft");
   const [continuing, setContinuing] = useState(false);
+  const autoContinuedRef = useRef(false);
 
   const { stepKey, stepId } = resolveFirmaStepContext(searchParams, nav);
 
@@ -175,13 +235,35 @@ export default function FirmaSignPage() {
           const query = new URLSearchParams({ applicantId, stepKey });
           if (stepId) query.set("stepId", stepId);
           if (tenantSlug) query.set("tenantSlug", tenantSlug);
+          if (signingRequestId) query.set("signingRequestId", signingRequestId);
           if (isPreview) query.set("preview", "draft");
           const res = await fetch(`/api/onboarding/firma-sign/status?${query.toString()}`, {
             cache: "no-store",
           });
           const data = await res.json();
           if (!res.ok) return;
-          setFirmaStatus(data.session?.firma_status ?? firmaStatus);
+          const nextStatus = data.session?.firma_status;
+          if (typeof nextStatus === "string" && nextStatus.length > 0) {
+            setFirmaStatus(nextStatus);
+          }
+          if (data.completed && !autoContinuedRef.current) {
+            autoContinuedRef.current = true;
+            setContinuing(true);
+            try {
+              await persistFirmaStepCompletion(nav, {
+                applicantId,
+                stepKey,
+                stepId,
+                signingRequestId: data.session?.signing_request_id ?? signingRequestId,
+                firmaStatus: nextStatus ?? "completed",
+              });
+              nav.push(resolveContinueRoute(nav, stepKey, stepId));
+            } catch {
+              autoContinuedRef.current = false;
+            } finally {
+              setContinuing(false);
+            }
+          }
         } catch {
           /* ignore polling errors */
         }
@@ -189,7 +271,7 @@ export default function FirmaSignPage() {
     }, 8000);
 
     return () => window.clearInterval(interval);
-  }, [stepKey, stepId, signingRequestId, loading, error, firmaStatus, nav.slug, search, searchParams]);
+  }, [stepKey, stepId, signingRequestId, loading, error, nav, search, searchParams]);
 
   async function handleContinue() {
     const applicantId = resolveApplicantId(search);
@@ -221,30 +303,20 @@ export default function FirmaSignPage() {
 
       setFirmaStatus(statusData.session?.firma_status ?? firmaStatus);
 
-      const progressStatus = statusData.completed ? "completed" : "in_progress";
-      await fetch("/api/onboarding/progress/step", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          applicantId,
-          stepKey,
-          status: progressStatus,
-          data: {
-            signing_provider: "firma",
-            signing_request_id: statusData.session?.signing_request_id ?? signingRequestId,
-            firma_status: statusData.session?.firma_status ?? firmaStatus,
-          },
-        }),
-      });
-
       if (!statusData.completed) {
         setError("Please finish signing the document before continuing.");
         return;
       }
 
-      if (nav.nextRoute) {
-        nav.push(nav.nextRoute);
-      }
+      await persistFirmaStepCompletion(nav, {
+        applicantId,
+        stepKey,
+        stepId,
+        signingRequestId: statusData.session?.signing_request_id ?? signingRequestId,
+        firmaStatus: statusData.session?.firma_status ?? firmaStatus,
+      });
+
+      nav.push(resolveContinueRoute(nav, stepKey, stepId));
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Could not continue onboarding");
     } finally {

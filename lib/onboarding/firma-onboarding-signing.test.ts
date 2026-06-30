@@ -4,6 +4,8 @@ import {
   stepUsesFirmaSigning,
   getFirmaRecruiterTemplateId,
   findOnboardingStepForFirmaSession,
+  normalizeFirmaSigningStatus,
+  resolveFirmaSigningStatusFromSources,
 } from "@/lib/onboarding/firma-step-settings";
 import {
   shouldCompleteOnboardingStepFromFirmaStatus,
@@ -147,6 +149,24 @@ describe("firma status mapping", () => {
     expect(mapFirmaStatusToOnboardingStatus({ status: "sent" })).toBe("in_progress");
     expect(mapFirmaStatusToOnboardingStatus(null)).toBe("pending");
     expect(mapFirmaStatusToOnboardingStatus(undefined)).toBe("pending");
+  });
+
+  it("normalizes Firma status flag objects from the current API", () => {
+    expect(normalizeFirmaSigningStatus({ sent: true, finished: false })).toBe("sent");
+    expect(normalizeFirmaSigningStatus({ sent: true, finished: true })).toBe("completed");
+    expect(mapFirmaStatusToOnboardingStatus({ sent: true, finished: true })).toBe("completed");
+    expect(shouldCompleteOnboardingStepFromFirmaStatus({ sent: true, finished: true })).toBe(
+      true
+    );
+  });
+
+  it("prefers applicant recipient completion over in-progress request status", () => {
+    const status = resolveFirmaSigningStatusFromSources({
+      requestStatus: { sent: true, finished: false },
+      recipient: { finished_date: "2026-06-30T12:00:00.000Z" },
+    });
+    expect(status).toBe("signed");
+    expect(shouldCompleteOnboardingStepFromFirmaStatus(status)).toBe(true);
   });
 
   it("updates onboarding completion when Firma status becomes signed", async () => {

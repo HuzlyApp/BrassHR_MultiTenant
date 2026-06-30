@@ -7,7 +7,7 @@ import {
   ensureFirmaSigningSession,
 } from "@/lib/onboarding/firma-onboarding-signing";
 import { resolveFirmaOnboardingContext } from "@/lib/onboarding/resolve-firma-onboarding-context";
-import { isValidStep1Email } from "@/lib/onboardingStep1Validation";
+import { isDeliverableApplicantEmail } from "@/lib/onboardingStep1Validation";
 
 export const runtime = "nodejs";
 
@@ -27,7 +27,7 @@ async function resolveApplicantProfile(
   const row = data as { first_name?: string | null; last_name?: string | null; email?: string | null } | null;
 
   const email = row?.email?.trim() || "";
-  if (!email || !isValidStep1Email(email)) {
+  if (!isDeliverableApplicantEmail(email)) {
     return null;
   }
 

@@ -25,6 +25,18 @@ export function isValidStep1Email(email: string): boolean {
   return EMAIL_RE.test(email.trim())
 }
 
+/** Internal placeholder addresses used before step 1 review — not deliverable by Firma. */
+export function isPlaceholderApplicantEmail(email: string): boolean {
+  const normalized = email.trim().toLowerCase()
+  if (!normalized) return false
+  return normalized.endsWith(".local") || normalized.endsWith("@placeholder.local")
+}
+
+/** Real inbox suitable for Firma signing (format valid and not a placeholder). */
+export function isDeliverableApplicantEmail(email: string): boolean {
+  return isValidStep1Email(email) && !isPlaceholderApplicantEmail(email)
+}
+
 /** US phone: exactly 10 digits (normalized). */
 export function isValidStep1Phone(phone: string): boolean {
   return /^\d{10}$/.test(phone.replace(/\D/g, ""))

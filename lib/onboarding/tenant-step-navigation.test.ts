@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { resolveApplicantEnabledSteps } from "@/lib/onboarding/tenant-step-navigation";
+import {
+  resolveApplicantEnabledSteps,
+  resolvePostStepContinueRoute,
+} from "@/lib/onboarding/tenant-step-navigation";
 import type { TenantOnboardingConfig } from "@/lib/onboarding/types";
 import { publishedWorkflow } from "@/lib/onboarding/applicant-workflow-fixtures";
 import { publishedWorkflowToTenantConfig } from "@/lib/onboarding/applicant-workflow";
@@ -39,5 +42,26 @@ describe("resolveApplicantEnabledSteps", () => {
 
     expect(steps?.map((s) => s.title)).toContain("Add References");
     expect(steps?.map((s) => s.title)).toContain("Upload Resume");
+  });
+});
+
+describe("resolvePostStepContinueRoute", () => {
+  it("routes to the next enabled step when one exists", () => {
+    const steps = resolveApplicantEnabledSteps(publishedConfig, false)!;
+    const route = resolvePostStepContinueRoute(publishedConfig, steps[0], "subdomaintest");
+    expect(route).toContain("/application/");
+    expect(route).toContain("stepKey=");
+    expect(route).toContain("tenant=subdomaintest");
+  });
+
+  it("routes to applicant status when the current step is last", () => {
+    const twoStepConfig: TenantOnboardingConfig = {
+      ...publishedConfig,
+      steps: publishedConfig.steps.slice(0, 2),
+    };
+    const steps = resolveApplicantEnabledSteps(twoStepConfig, false)!;
+    const lastStep = steps[steps.length - 1]!;
+    const route = resolvePostStepContinueRoute(twoStepConfig, lastStep, "subdomaintest");
+    expect(route).toBe("/application/application-status?tenant=subdomaintest");
   });
 });

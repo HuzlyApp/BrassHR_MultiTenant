@@ -11,7 +11,7 @@ import { mapFirmaStatusToOnboardingStatus } from "@/lib/onboarding/firma-step-se
 import { resolveDraftPreviewFirmaSignerEmail } from "@/lib/onboarding/is-draft-preview";
 import { ensureWorkerOnboardingProgress } from "@/lib/onboarding/ensure-worker-progress";
 import { resolveFirmaOnboardingContext } from "@/lib/onboarding/resolve-firma-onboarding-context";
-import { isValidStep1Email } from "@/lib/onboardingStep1Validation";
+import { isDeliverableApplicantEmail } from "@/lib/onboardingStep1Validation";
 
 export const runtime = "nodejs";
 
@@ -96,7 +96,7 @@ export async function GET(req: NextRequest) {
     } | null;
 
     const applicantEmail = workerRow?.email?.trim() || "";
-    if (!applicantEmail || !isValidStep1Email(applicantEmail)) {
+    if (!isDeliverableApplicantEmail(applicantEmail)) {
       return NextResponse.json(
         {
           error:
@@ -107,6 +107,8 @@ export async function GET(req: NextRequest) {
       );
     }
 
+    const signingRequestId = req.nextUrl.searchParams.get("signingRequestId")?.trim() || "";
+
     const session = await syncFirmaSigningSessionStatus({
       supabase,
       tenantId: resolved.tenantId,
@@ -115,6 +117,7 @@ export async function GET(req: NextRequest) {
       applicantFirstName: workerRow?.first_name?.trim() || "Applicant",
       applicantLastName: workerRow?.last_name?.trim() || null,
       step: resolved.step,
+      signingRequestId: signingRequestId || undefined,
     });
 
     const onboardingStatus = mapFirmaStatusToOnboardingStatus(session.firma_status);

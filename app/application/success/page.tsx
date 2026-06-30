@@ -3,7 +3,7 @@
 import type { CSSProperties } from "react"
 import { useEffect, useRef } from "react"
 import { applicationPath } from "@/lib/tenant/with-tenant"
-import { resolveClientOnboardingTenantSlug } from "@/lib/tenant/client-onboarding-slug"
+import { sendApplicationSubmissionEmail } from "@/lib/onboarding/send-application-submission-email"
 import Image from "next/image"
 import Link from "next/link"
 import { Check } from "lucide-react"
@@ -47,20 +47,7 @@ export default function SuccessPage() {
       /* best-effort tracking only */
     })
 
-    const tenantSlug =
-      typeof window !== "undefined"
-        ? resolveClientOnboardingTenantSlug(window.location.search)
-        : null
-
-    void fetch("/api/onboarding/send-application-emails", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        applicantId,
-        clientOrigin: typeof window !== "undefined" ? window.location.origin : undefined,
-        ...(tenantSlug ? { tenantSlug } : {}),
-      }),
-    }).catch(() => {
+    void sendApplicationSubmissionEmail(applicantId).catch(() => {
       /* best-effort; applicant still sees success UI */
     })
   }, [])

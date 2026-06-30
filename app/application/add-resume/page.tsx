@@ -267,7 +267,7 @@ export default function Step1Upload() {
           await ensureApplicantWorker().catch(() => {
             /* best-effort; resume-upload-success will retry */
           })
-          router.push(applicationPath(APPLICATION_ROUTES.resumeUploadSuccess))
+          router.push(applicationPath(APPLICATION_ROUTES.profileReview))
         })()
         return
       }
@@ -380,7 +380,7 @@ export default function Step1Upload() {
           }),
         )
 
-        router.push(applicationPath(APPLICATION_ROUTES.resumeUploadSuccess))
+        router.push(applicationPath(APPLICATION_ROUTES.profileReview))
       } catch (e) {
         const msg = e instanceof Error ? e.message : "Failed to upload resume"
         setParseError(msg)

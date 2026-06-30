@@ -111,6 +111,26 @@ export function adjacentStepRoute(
   return routeForApplicantStep(next, tenantSlug);
 }
 
+/** Route after completing the current step (next step, review, or applicant status). */
+export function resolvePostStepContinueRoute(
+  config: TenantOnboardingConfig | null | undefined,
+  current: TenantOnboardingStep | null,
+  tenantSlug?: string | null
+): string {
+  const next = adjacentStepRoute(config, current, 1, tenantSlug);
+  if (next) return next;
+
+  const enabled = getEnabledTenantSteps(config);
+  const reviewStep = enabled.find(
+    (step) => step.step_key === "review_submit" || step.step_type === "review_submit"
+  );
+  if (reviewStep) {
+    return routeForApplicantStep(reviewStep, tenantSlug);
+  }
+
+  return withTenant(APPLICATION_ROUTES.applicationStatus, tenantSlug);
+}
+
 export function firstOnboardingStepRoute(
   config: TenantOnboardingConfig | null | undefined,
   tenantSlug?: string | null
