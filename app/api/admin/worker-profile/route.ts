@@ -1,9 +1,22 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
+import {
+  buildWorkerUpdatePayload,
+  isWorkerProfileFieldKey,
+  normalizeReferenceFieldValue,
+  normalizeWorkerFieldValue,
+  type ReferenceFieldValue,
+  type WorkerProfileFieldKey,
+} from "@/lib/admin/worker-profile-field-update"
 import { writeActivityLog } from "@/lib/audit/activity-log"
+import {
+  invalidateResourceCache,
+  invalidateTableCache,
+  invalidateTenantCache,
+} from "@/lib/cache"
 import { mapAdminOnboardingProgress } from "@/lib/admin-onboarding-progress"
 import { loadAdminAttachmentRequirements } from "@/lib/onboarding/load-admin-attachment-requirements"
-import { requireApiSession } from "@/lib/auth/api-session"
+import { requireApiSession, requireStaffApiSession } from "@/lib/auth/api-session"
 import { isStaffRole } from "@/lib/auth/app-role"
 import { canAccessWorkerRecord } from "@/lib/auth/worker-record-access"
 import { normalizeResumeStorageObjectPath } from "@/lib/onboarding/normalize-resume-storage-path"
@@ -797,6 +810,227 @@ export async function GET(req: NextRequest) {
     })
   } catch (err: unknown) {
     console.error("[admin/worker-profile]", err)
+    const msg = err instanceof Error ? err.message : "Unexpected error"
+    return NextResponse.json({ error: msg }, { status: 500 })
+  }
+}
+
+function isMissingColumnErr(e: unknown) {
+  const err = e as { code?: string; message?: string } | null
+  if (!err) return false
+  if (err.code === "42703") return true
+  return typeof err.message === "string" && err.message.includes(" does not exist")
+}
+
+async function upsertWorkerReference(
+  supabase: ReturnType<typeof createClient>,
+  workerId: string,
+  tenantId: string,
+  referenceIndex: number,
+  value: ReferenceFieldValue
+) {
+  const { data: existingRows, error: listErr } = await supabase
+    .from("worker_references")
+    .select("id")
+    .eq("worker_id", workerId)
+    .order("created_at", { ascending: true })
+    .limit(10)
+
+  if (listErr) throw listErr
+
+  const existing = (existingRows ?? [])[referenceIndex] as { id?: string } | undefined
+  const row = {
+    tenant_id: tenantId,
+    worker_id: workerId,
+    reference_first_name: value.first,
+    reference_last_name: value.last,
+    reference_phone: value.phone,
+    reference_email: value.email,
+  }
+
+  if (existing?.id) {
+    const { error } = await supabase.from("worker_references").update(row).eq("id", existing.id)
+    if (error) throw error
+    return { id: String(existing.id) }
+  }
+
+  const { data: inserted, error } = await supabase
+    .from("worker_references")
+    .insert(row)
+    .select("id")
+    .maybeSingle()
+
+  if (error) throw error
+  return { id: inserted?.id != null ? String(inserted.id) : null }
+}
+
+export async function PATCH(req: NextRequest) {
+  try {
+    const auth = await requireStaffApiSession()
+    if (auth instanceof NextResponse) return auth
+
+    const body = (await req.json().catch(() => ({}))) as {
+      workerId?: string
+      field?: string
+      value?: unknown
+      referenceIndex?: number
+    }
+
+    const idCheck = parseRequiredUuid(body.workerId?.trim() ?? "", "workerId")
+    if (!idCheck.ok) {
+      return NextResponse.json({ error: idCheck.error }, { status: 400 })
+    }
+    const workerId = idCheck.value
+
+    const url = getSupabaseUrl()
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY
+    if (!url || !key) {
+      return NextResponse.json({ error: "Supabase service role not configured" }, { status: 503 })
+    }
+
+    const supabase = createClient(url, key)
+
+    const { data: worker, error: workerErr } = await supabase
+      .from("worker")
+      .select("id, user_id, tenant_id, email")
+      .eq("id", workerId)
+      .maybeSingle()
+
+    if (workerErr) throw workerErr
+    if (!worker?.id || !worker.tenant_id) {
+      return NextResponse.json({ error: "Worker not found" }, { status: 404 })
+    }
+
+    if (!canAccessWorkerRecord(auth, { id: String(worker.id), user_id: worker.user_id })) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+    }
+
+    const tenantId = String(worker.tenant_id)
+    const field = typeof body.field === "string" ? body.field.trim() : ""
+
+    if (field === "reference") {
+      const referenceIndex =
+        typeof body.referenceIndex === "number" && body.referenceIndex >= 0
+          ? Math.floor(body.referenceIndex)
+          : -1
+      if (referenceIndex < 0 || referenceIndex > 9) {
+        return NextResponse.json({ error: "Invalid reference index" }, { status: 400 })
+      }
+
+      const parsed = normalizeReferenceFieldValue(body.value)
+      if (!parsed.ok) {
+        return NextResponse.json({ error: parsed.error }, { status: 400 })
+      }
+
+      const saved = await upsertWorkerReference(
+        supabase,
+        workerId,
+        tenantId,
+        referenceIndex,
+        parsed.value
+      )
+
+      void writeActivityLog({
+        actorUserId: auth.devBypass ? null : auth.userId,
+        tenantId,
+        action: "worker.profile.reference_update",
+        entityType: "worker",
+        entityId: workerId,
+        metadata: {
+          route: "PATCH /api/admin/worker-profile",
+          reference_index: referenceIndex,
+          reference_id: saved.id,
+        },
+        request: req,
+      })
+
+      return NextResponse.json({ ok: true, reference: saved })
+    }
+
+    if (!isWorkerProfileFieldKey(field)) {
+      return NextResponse.json({ error: "Invalid field" }, { status: 400 })
+    }
+
+    const normalized = normalizeWorkerFieldValue(field as WorkerProfileFieldKey, body.value)
+    if (!normalized.ok) {
+      return NextResponse.json({ error: normalized.error }, { status: 400 })
+    }
+
+    if (field === "email" && typeof normalized.dbValue === "string") {
+      const { data: dupRows, error: dupErr } = await supabase
+        .from("worker")
+        .select("id")
+        .eq("tenant_id", tenantId)
+        .eq("email", normalized.dbValue)
+        .neq("id", workerId)
+        .limit(1)
+
+      if (dupErr) throw dupErr
+      if (dupRows && dupRows.length > 0) {
+        return NextResponse.json(
+          { error: "This email is already used by another candidate." },
+          { status: 409 }
+        )
+      }
+    }
+
+    const updatePayload = buildWorkerUpdatePayload(
+      field as WorkerProfileFieldKey,
+      normalized.dbValue
+    )
+
+    const { data: updated, error: updateErr } = await supabase
+      .from("worker")
+      .update(updatePayload)
+      .eq("id", workerId)
+      .select("id")
+      .maybeSingle()
+
+    if (updateErr) {
+      if (isMissingColumnErr(updateErr)) {
+        return NextResponse.json(
+          {
+            error: "This field is not available in the database yet. Apply the latest migrations.",
+          },
+          { status: 503 }
+        )
+      }
+      throw updateErr
+    }
+
+    if (!updated?.id) {
+      return NextResponse.json({ error: "Update failed" }, { status: 500 })
+    }
+
+    const userIdForLegacy =
+      worker.user_id != null && String(worker.user_id).trim() !== ""
+        ? String(worker.user_id)
+        : null
+
+    await Promise.all([
+      invalidateResourceCache("worker", workerId),
+      invalidateTenantCache("worker_search", tenantId),
+      invalidateTenantCache("worker", tenantId),
+      userIdForLegacy ? invalidateResourceCache("worker", userIdForLegacy) : Promise.resolve(),
+      invalidateTableCache("worker_search"),
+    ])
+
+    void writeActivityLog({
+      actorUserId: auth.devBypass ? null : auth.userId,
+      tenantId,
+      action: "worker.profile.field_update",
+      entityType: "worker",
+      entityId: workerId,
+      metadata: {
+        route: "PATCH /api/admin/worker-profile",
+        field,
+      },
+      request: req,
+    })
+
+    return NextResponse.json({ ok: true, field, workerId })
+  } catch (err: unknown) {
+    console.error("[admin/worker-profile] PATCH", err)
     const msg = err instanceof Error ? err.message : "Unexpected error"
     return NextResponse.json({ error: msg }, { status: 500 })
   }

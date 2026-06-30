@@ -10,6 +10,14 @@ import DetailedTabs from "../../../components/DetailedTabs";
 import CandidateDetailLoader from "../../../components/CandidateDetailLoader";
 import ProfileSubTabs from "../../../components/ProfileSubTabs";
 import BrandedPlusIcon from "../../../components/BrandedPlusIcon";
+import CandidateDetailEditableField from "../../../components/CandidateDetailEditableField";
+import CandidateDetailReferenceField, {
+  type ReferenceFormValue,
+} from "../../../components/CandidateDetailReferenceField";
+import {
+  formatReferenceDisplay,
+  referenceIsMissing,
+} from "@/lib/admin/worker-profile-field-display";
 import BrandedHistoryIcon from "../../../components/BrandedHistoryIcon";
 import BrandedStepperCompleteIcon from "../../../components/BrandedStepperCompleteIcon";
 import {
@@ -178,6 +186,43 @@ function isMissingValue(value: unknown) {
   return false;
 }
 
+function referenceToFormValue(
+  ref: ProfilePayload["references"][number] | undefined
+): ReferenceFormValue {
+  const name = (ref?.name ?? "").trim();
+  const parts = name.split(/\s+/).filter(Boolean);
+  const first = parts[0] ?? "";
+  const last = parts.slice(1).join(" ");
+  return {
+    first,
+    last,
+    email: ref?.email ?? "",
+    phone: ref?.phone ?? "",
+  };
+}
+
+function formatHourlyRate(value: string | null | undefined) {
+  if (!value?.trim()) return "—";
+  const cleaned = value.replace(/[^0-9.]/g, "");
+  if (!cleaned) return "—";
+  return `$ ${cleaned} / hr`;
+}
+
+function formatYearsExperience(value: number | null | undefined) {
+  if (value == null || Number.isNaN(value)) return "—";
+  return `${value} yrs`;
+}
+
+function formatDobForEdit(iso: string | null | undefined) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  const year = d.getFullYear();
+  return `${month}/${day}/${year}`;
+}
+
 export default function NewApplicantProfilePage() {
   const pathname = usePathname();
   const router = useRouter();
@@ -194,6 +239,66 @@ export default function NewApplicantProfilePage() {
   const [commOpen, setCommOpen] = useState(false);
   const pageLoading = loading;
   const [approvingForWork, setApprovingForWork] = useState(false);
+  const [fieldSaving, setFieldSaving] = useState(false);
+
+  async function reloadProfile() {
+    if (!applicantId) return;
+    const res = await fetch(
+      `/api/admin/worker-profile?workerId=${encodeURIComponent(applicantId)}`
+    );
+    const json = (await res.json()) as ProfilePayload & { error?: string };
+    if (!res.ok) throw new Error(json.error || "Failed to reload profile");
+    setData(json);
+  }
+
+  async function saveWorkerField(field: string, value: string) {
+    if (!applicantId) return;
+    setFieldSaving(true);
+    try {
+      const res = await fetch("/api/admin/worker-profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ workerId: applicantId, field, value }),
+      });
+      const json = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) throw new Error(json.error || "Could not save");
+      await reloadProfile();
+      toast.success("Saved");
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "Could not save";
+      toast.error(message);
+      throw e;
+    } finally {
+      setFieldSaving(false);
+    }
+  }
+
+  async function saveReference(referenceIndex: number, value: ReferenceFormValue) {
+    if (!applicantId) return;
+    setFieldSaving(true);
+    try {
+      const res = await fetch("/api/admin/worker-profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          workerId: applicantId,
+          field: "reference",
+          referenceIndex,
+          value,
+        }),
+      });
+      const json = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) throw new Error(json.error || "Could not save reference");
+      await reloadProfile();
+      toast.success("Saved");
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "Could not save";
+      toast.error(message);
+      throw e;
+    } finally {
+      setFieldSaving(false);
+    }
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -493,32 +598,132 @@ export default function NewApplicantProfilePage() {
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2">
+                      <CandidateDetailEditableField
+                        label="First Name"
+                        displayValue={w?.first_name ?? "—"}
+                        editValue={w?.first_name ?? ""}
+                        isMissing={isMissingValue(w?.first_name)}
+                        saving={fieldSaving}
+                        onSave={(value) => saveWorkerField("first_name", value)}
+                      />
+                      <CandidateDetailEditableField
+                        label="Last Name"
+                        displayValue={w?.last_name ?? "—"}
+                        editValue={w?.last_name ?? ""}
+                        isMissing={isMissingValue(w?.last_name)}
+                        saving={fieldSaving}
+                        onSave={(value) => saveWorkerField("last_name", value)}
+                      />
+                      <CandidateDetailEditableField
+                        label="Date of Birth(MM/DD/YYYY)"
+                        displayValue={w?.date_of_birth ? formatDate(w.date_of_birth) : "—"}
+                        editValue={formatDobForEdit(w?.date_of_birth)}
+                        isMissing={isMissingValue(w?.date_of_birth)}
+                        placeholder="MM/DD/YYYY"
+                        saving={fieldSaving}
+                        onSave={(value) => saveWorkerField("date_of_birth", value)}
+                      />
+                      <CandidateDetailEditableField
+                        label="Email Address"
+                        displayValue={w?.email ?? "—"}
+                        editValue={w?.email ?? ""}
+                        isMissing={isMissingValue(w?.email)}
+                        inputType="email"
+                        highlightValue
+                        saving={fieldSaving}
+                        onSave={(value) => saveWorkerField("email", value)}
+                      />
+                      <CandidateDetailEditableField
+                        label="Total Years of Experience in Your Profession"
+                        displayValue={formatYearsExperience(w?.years_experience)}
+                        editValue={w?.years_experience != null ? String(w.years_experience) : ""}
+                        isMissing={w?.years_experience == null}
+                        inputType="number"
+                        placeholder="Years"
+                        saving={fieldSaving}
+                        onSave={(value) => saveWorkerField("years_experience", value)}
+                      />
+                      <CandidateDetailEditableField
+                        label="Address"
+                        displayValue={w?.address1 ?? "—"}
+                        editValue={w?.address1 ?? ""}
+                        isMissing={isMissingValue(w?.address1)}
+                        saving={fieldSaving}
+                        onSave={(value) => saveWorkerField("address1", value)}
+                      />
+                      <CandidateDetailEditableField
+                        label="City"
+                        displayValue={w?.city ?? "—"}
+                        editValue={w?.city ?? ""}
+                        isMissing={isMissingValue(w?.city)}
+                        saving={fieldSaving}
+                        onSave={(value) => saveWorkerField("city", value)}
+                      />
+                      <CandidateDetailEditableField
+                        label="Zip Code"
+                        displayValue={w?.zip ?? "—"}
+                        editValue={w?.zip ?? ""}
+                        isMissing={isMissingValue(w?.zip)}
+                        inputType="tel"
+                        placeholder="12345"
+                        saving={fieldSaving}
+                        onSave={(value) => saveWorkerField("zip", value)}
+                      />
+                      <CandidateDetailEditableField
+                        label="Phone Number"
+                        displayValue={w?.phone ?? "—"}
+                        editValue={w?.phone ?? ""}
+                        isMissing={isMissingValue(w?.phone)}
+                        inputType="tel"
+                        saving={fieldSaving}
+                        onSave={(value) => saveWorkerField("phone", value)}
+                      />
+                      <CandidateDetailEditableField
+                        label="Last Four Digits of SSN"
+                        displayValue={w?.ssn_last_four ?? "—"}
+                        editValue={w?.ssn_last_four ?? ""}
+                        isMissing={isMissingValue(w?.ssn_last_four)}
+                        inputType="tel"
+                        placeholder="1234"
+                        saving={fieldSaving}
+                        onSave={(value) => saveWorkerField("ssn_last_four", value)}
+                      />
+                      <div className="contents">
+                        <div className="border-b border-r border-[#E5E7EB] px-5 py-3 text-[14px] font-normal leading-5 text-[#374151]">
+                          Work Status
+                        </div>
+                        <div className="border-b border-[#E5E7EB] px-5 py-3 text-[14px] font-normal leading-5 text-[#111827]">
+                          {w?.status_label ?? "—"}
+                        </div>
+                      </div>
+                      <CandidateDetailEditableField
+                        label="Hourly Rate"
+                        displayValue={formatHourlyRate(w?.hourly_rate)}
+                        editValue={w?.hourly_rate ?? ""}
+                        isMissing={isMissingValue(w?.hourly_rate)}
+                        inputType="number"
+                        placeholder="25.00"
+                        saving={fieldSaving}
+                        onSave={(value) => saveWorkerField("hourly_rate", value)}
+                      />
+                      <CandidateDetailReferenceField
+                        label="Reference 1 (Name, Email, Phone, Relationship)"
+                        displayValue={formatReferenceDisplay(data?.references?.[0])}
+                        value={referenceToFormValue(data?.references?.[0])}
+                        isMissing={referenceIsMissing(data?.references?.[0])}
+                        saving={fieldSaving}
+                        onSave={(value) => saveReference(0, value)}
+                      />
+                      <CandidateDetailReferenceField
+                        label="Reference 2 (Name, Email, Phone, Relationship)"
+                        displayValue={formatReferenceDisplay(data?.references?.[1])}
+                        value={referenceToFormValue(data?.references?.[1])}
+                        isMissing={referenceIsMissing(data?.references?.[1])}
+                        saving={fieldSaving}
+                        onSave={(value) => saveReference(1, value)}
+                      />
                       {(
                         [
-                          ["First Name", w?.first_name ?? "—"],
-                          ["Last Name", w?.last_name ?? "—"],
-                          ["Date of Birth(MM/DD/YYYY)", w?.date_of_birth ? formatDate(w.date_of_birth) : "—"],
-                          ["Email Address", w?.email ?? "—"],
-                          [
-                            "Total Years of Experience in Your Profession",
-                            w?.years_experience != null ? `${w.years_experience} yrs` : "—",
-                          ],
-                          ["Address", w?.address1 ?? "—"],
-                          ["City", w?.city ?? "—"],
-                          ["Zip Code", w?.zip ?? "—"],
-                          ["Phone Number", w?.phone ?? "—"],
-                          ["Last Four Digits of SSN", w?.ssn_last_four ?? "—"],
-                          ["Work Status", w?.status_label ?? "—"],
-                          ["Hourly Rate", w?.hourly_rate ? `$ ${w.hourly_rate} / hr` : "—"],
-                          ["Reference 1 (Name, Email, Phone, Relationship)", data?.references?.[0]?.name ?? "—"],
-                          [
-                            "Reference 1 (Name, Email, Phone, Relationship)",
-                            data?.references?.[1]?.name ?? "—",
-                          ],
-                          [
-                            "Reference 2 (Name, Email, Phone, Relationship)",
-                            data?.references?.[2]?.name ?? "—",
-                          ],
                           [
                             "Primary Practice Setting",
                             data?.facilities_assigned?.[0]?.facility_name ?? candidateLocation,
@@ -534,14 +739,17 @@ export default function NewApplicantProfilePage() {
                             data?.nursing_licenses?.[0]?.license_type ?? "—",
                           ],
                           ["License Expiration Date", formatDate(data?.nursing_licenses?.[0]?.expires_at)],
-                          ["Which State are you applying for?", data?.nursing_licenses?.[0]?.state ?? w?.state ?? "—"],
+                          [
+                            "Which State are you applying for?",
+                            data?.nursing_licenses?.[0]?.state ?? w?.state ?? "—",
+                          ],
                           [
                             "Resume file",
                             data?.requirements?.resume_url ? (
                               <Link
                                 key="resume-link"
                                 href={`${base}/profile/resume/${id}`}
-                                className="text-[#0D9488] hover:underline"
+                                className="text-[var(--brand-primary)] hover:underline"
                               >
                                 View / download
                               </Link>
@@ -550,24 +758,16 @@ export default function NewApplicantProfilePage() {
                             ),
                           ],
                         ] as const
-                      ).map(([k, v], idx) => {
-                        const showAsAdd = typeof v === "string" && isMissingValue(v) && k !== "Work Status";
-                        const isEmail = k === "Email Address" && !isMissingValue(v);
-                        return (
-                          <div key={`${k}-${idx}`} className="contents">
-                            <div className="border-b border-r border-[#E5E7EB] px-5 py-3 text-[14px] font-normal leading-5 text-[#374151]">
-                              {k}
-                            </div>
-                            <div className="border-b border-[#E5E7EB] px-5 py-3 text-[14px] font-normal leading-5 break-all text-[#111827]">
-                              {showAsAdd ? (
-                                <span className="text-[#0D9488]">+ Add</span>
-                              ) : (
-                                <span className={isEmail ? "text-[#0D9488]" : ""}>{v}</span>
-                              )}
-                            </div>
+                      ).map(([k, v], idx) => (
+                        <div key={`${k}-${idx}`} className="contents">
+                          <div className="border-b border-r border-[#E5E7EB] px-5 py-3 text-[14px] font-normal leading-5 text-[#374151]">
+                            {k}
                           </div>
-                        );
-                      })}
+                          <div className="border-b border-[#E5E7EB] px-5 py-3 text-[14px] font-normal leading-5 break-all text-[#111827]">
+                            {v}
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
 
