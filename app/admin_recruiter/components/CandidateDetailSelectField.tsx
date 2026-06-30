@@ -1,65 +1,53 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import BrandedEditIcon from "./BrandedEditIcon";
 import CandidateDetailAddButton from "./CandidateDetailAddButton";
-import {
-  type CandidateFieldKind,
-  filterCandidateFieldInput,
-  validateCandidateFieldInput,
-} from "@/lib/admin/worker-profile-field-client";
 
-type CandidateDetailEditableFieldProps = {
+export type SelectOption = {
+  value: string;
+  label: string;
+};
+
+type CandidateDetailSelectFieldProps = {
   label: string;
   displayValue: string;
   editValue: string;
   isMissing: boolean;
-  fieldKind: CandidateFieldKind;
-  editable?: boolean;
+  options: SelectOption[];
+  optionsLoading?: boolean;
   placeholder?: string;
+  emptyMessage?: string;
   highlightValue?: boolean;
   saving?: boolean;
   onSave: (value: string) => Promise<void>;
 };
 
-export default function CandidateDetailEditableField({
+export default function CandidateDetailSelectField({
   label,
   displayValue,
   editValue,
   isMissing,
-  fieldKind,
-  editable = true,
-  placeholder,
+  options,
+  optionsLoading = false,
+  placeholder = "Select…",
+  emptyMessage = "No options available.",
   highlightValue = false,
   saving = false,
   onSave,
-}: CandidateDetailEditableFieldProps) {
+}: CandidateDetailSelectFieldProps) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(editValue);
   const [localSaving, setLocalSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const busy = saving || localSaving;
 
-  const inputMode =
-    fieldKind === "email"
-      ? "email"
-      : fieldKind === "phone" || fieldKind === "ssn_last_four"
-        ? "tel"
-        : fieldKind === "years_experience" || fieldKind === "hourly_rate"
-          ? "decimal"
-          : "text";
-
-  const inputType =
-    fieldKind === "email"
-      ? "email"
-      : fieldKind === "phone" || fieldKind === "ssn_last_four"
-        ? "tel"
-        : fieldKind === "years_experience" || fieldKind === "hourly_rate"
-          ? "text"
-          : "text";
+  useEffect(() => {
+    if (!editing) setDraft(editValue);
+  }, [editValue, editing]);
 
   function openEditor() {
-    if (!editable || busy) return;
+    if (busy) return;
     setDraft(editValue);
     setSaveError(null);
     setEditing(true);
@@ -71,23 +59,17 @@ export default function CandidateDetailEditableField({
     setEditing(false);
   }
 
-  function handleDraftChange(next: string) {
-    setDraft(filterCandidateFieldInput(fieldKind, next));
-    if (saveError) setSaveError(null);
-  }
-
   async function handleSave() {
     if (busy) return;
-    const validated = validateCandidateFieldInput(fieldKind, draft);
-    if (!validated.ok) {
-      setSaveError(validated.error);
+    if (!draft.trim()) {
+      setSaveError("Please pick a value.");
       return;
     }
 
     setLocalSaving(true);
     setSaveError(null);
     try {
-      await onSave(validated.value);
+      await onSave(draft);
       setEditing(false);
     } catch (e) {
       const message = e instanceof Error ? e.message : "Could not save";
@@ -103,38 +85,32 @@ export default function CandidateDetailEditableField({
         {label}
       </div>
       <div className="border-b border-[#E5E7EB] px-5 py-3 text-[14px] font-normal leading-5 break-all text-[#111827]">
-        {!editable ? (
-          <span className={highlightValue ? "text-[var(--brand-primary)]" : ""}>{displayValue}</span>
-        ) : editing ? (
+        {editing ? (
           <div className="flex flex-col gap-2">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-              <input
-                type={inputType}
-                inputMode={inputMode}
+              <select
                 value={draft}
-                onChange={(e) => handleDraftChange(e.target.value)}
-                placeholder={placeholder}
-                disabled={busy}
-                maxLength={
-                  fieldKind === "ssn_last_four"
-                    ? 4
-                    : fieldKind === "date_of_birth"
-                      ? 10
-                      : fieldKind === "phone"
-                        ? 14
-                        : fieldKind === "zip"
-                          ? 10
-                          : undefined
-                }
-                className={`min-h-10 w-full min-w-0 flex-1 rounded-lg border px-3 py-2 text-[14px] text-[#111827] outline-none focus:border-[var(--brand-primary)] ${
+                onChange={(e) => {
+                  setDraft(e.target.value);
+                  if (saveError) setSaveError(null);
+                }}
+                disabled={busy || optionsLoading}
+                className={`min-h-10 w-full min-w-0 flex-1 rounded-lg border bg-white px-3 py-2 text-[14px] text-[#111827] outline-none focus:border-[var(--brand-primary)] ${
                   saveError ? "border-red-400" : "border-[#D1D5DB]"
                 }`}
-              />
+              >
+                <option value="">{optionsLoading ? "Loading…" : placeholder}</option>
+                {options.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
               <div className="flex shrink-0 items-center gap-2">
                 <button
                   type="button"
                   onClick={() => void handleSave()}
-                  disabled={busy}
+                  disabled={busy || optionsLoading}
                   className="inline-flex min-h-10 items-center justify-center rounded-lg bg-[var(--brand-primary)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
                 >
                   {busy ? "Saving…" : "Save"}
@@ -149,6 +125,9 @@ export default function CandidateDetailEditableField({
                 </button>
               </div>
             </div>
+            {!optionsLoading && options.length === 0 ? (
+              <p className="text-sm text-[#6B7280]">{emptyMessage}</p>
+            ) : null}
             {saveError ? <p className="text-sm text-red-600">{saveError}</p> : null}
           </div>
         ) : isMissing ? (

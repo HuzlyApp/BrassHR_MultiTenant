@@ -3,11 +3,14 @@ import { createClient } from "@supabase/supabase-js"
 import {
   buildWorkerUpdatePayload,
   isWorkerProfileFieldKey,
+  normalizeLicenseExpiresValue,
+  normalizeLicenseTypeValue,
   normalizeReferenceFieldValue,
   normalizeWorkerFieldValue,
   type ReferenceFieldValue,
   type WorkerProfileFieldKey,
 } from "@/lib/admin/worker-profile-field-update"
+import { LICENSE_TYPE_LABELS } from "@/lib/applicant-portal/documents"
 import { writeActivityLog } from "@/lib/audit/activity-log"
 import {
   invalidateResourceCache,
@@ -429,6 +432,34 @@ export async function GET(req: NextRequest) {
       }
     })
 
+    const { data: licenseRecordRows } = await supabase
+      .from("worker_license_records")
+      .select(
+        "id, license_type, license_number, expires_at, file_url, storage_path, status, uploaded_at"
+      )
+      .eq("worker_id", workerId)
+      .order("uploaded_at", { ascending: false })
+      .limit(5)
+
+    const licenseRecords = ((licenseRecordRows ?? []) as Record<string, unknown>[]).map((row) => {
+      const licenseType = asTrimmedString(row.license_type) ?? ""
+      return {
+        id: row.id != null ? String(row.id) : null,
+        license_type: licenseType,
+        license_type_label:
+          licenseType in LICENSE_TYPE_LABELS
+            ? LICENSE_TYPE_LABELS[licenseType as keyof typeof LICENSE_TYPE_LABELS]
+            : licenseType,
+        license_number: asTrimmedString(row.license_number),
+        expires_at: row.expires_at != null ? String(row.expires_at) : null,
+        has_file: Boolean(asTrimmedString(row.storage_path) || asTrimmedString(row.file_url)),
+        status: asTrimmedString(row.status),
+        uploaded_at: asTrimmedString(row.uploaded_at),
+      }
+    })
+
+    const primaryLicense = licenseRecords[0] ?? null
+
     let skillAssessmentRows: Record<string, unknown>[] = []
     let saCompleted = 0
     let saTotal = 0
@@ -767,14 +798,27 @@ export async function GET(req: NextRequest) {
       skillAssessments: { completed: saCompleted, total: saTotal, rows: skillAssessmentRows },
       onboardingSteps,
       onboardingCompletion,
-      nursing_licenses: [
-        {
-          license_url: urlOrNull(docs?.nursing_license_url),
-          state: asTrimmedString(w.state),
-          license_type: asTrimmedString(w.job_role),
-          expires_at: null,
-        },
-      ].filter((row) => row.license_url != null),
+      nursing_licenses:
+        licenseRecords.length > 0
+          ? licenseRecords.map((row) => ({
+              id: row.id,
+              license_url: row.has_file ? "attached" : null,
+              state: asTrimmedString(w.state),
+              license_type: row.license_type_label || row.license_type,
+              license_type_key: row.license_type,
+              expires_at: row.expires_at,
+            }))
+          : [
+              {
+                license_url: urlOrNull(docs?.nursing_license_url),
+                state: asTrimmedString(w.state),
+                license_type: asTrimmedString(w.job_role),
+                license_type_key: null,
+                expires_at: null,
+              },
+            ].filter((row) => row.license_url != null),
+      profile_license: primaryLicense,
+      license_records: licenseRecords,
       education: {
         source: resumePathCanonical ? "worker_requirements.resume_path" : "none",
         resume_available: Boolean(resumePathCanonical),
@@ -864,6 +908,55 @@ async function upsertWorkerReference(
   return { id: inserted?.id != null ? String(inserted.id) : null }
 }
 
+async function upsertPrimaryLicenseRecord(
+  supabase: ReturnType<typeof createClient>,
+  workerId: string,
+  tenantId: string,
+  patch: { license_type?: string; expires_at?: string }
+) {
+  const { data: existingRows, error: listErr } = await supabase
+    .from("worker_license_records")
+    .select("id, license_type, expires_at")
+    .eq("worker_id", workerId)
+    .order("uploaded_at", { ascending: false })
+    .limit(1)
+
+  if (listErr) throw listErr
+
+  const existing = (existingRows ?? [])[0] as
+    | { id?: string; license_type?: string; expires_at?: string | null }
+    | undefined
+
+  if (existing?.id) {
+    const updateRow: Record<string, unknown> = { updated_at: new Date().toISOString() }
+    if (patch.license_type) updateRow.license_type = patch.license_type
+    if (patch.expires_at) updateRow.expires_at = patch.expires_at
+
+    const { error } = await supabase
+      .from("worker_license_records")
+      .update(updateRow)
+      .eq("id", existing.id)
+    if (error) throw error
+    return { id: String(existing.id) }
+  }
+
+  const licenseType = patch.license_type ?? "nursing_license"
+  const { data: inserted, error } = await supabase
+    .from("worker_license_records")
+    .insert({
+      worker_id: workerId,
+      tenant_id: tenantId,
+      license_type: licenseType,
+      expires_at: patch.expires_at ?? null,
+      status: "under_review",
+    })
+    .select("id")
+    .maybeSingle()
+
+  if (error) throw error
+  return { id: inserted?.id != null ? String(inserted.id) : null }
+}
+
 export async function PATCH(req: NextRequest) {
   try {
     const auth = await requireStaffApiSession()
@@ -945,6 +1038,52 @@ export async function PATCH(req: NextRequest) {
       })
 
       return NextResponse.json({ ok: true, reference: saved })
+    }
+
+    if (field === "license_type") {
+      const parsed = normalizeLicenseTypeValue(body.value)
+      if (!parsed.ok) {
+        return NextResponse.json({ error: parsed.error }, { status: 400 })
+      }
+
+      const saved = await upsertPrimaryLicenseRecord(supabase, workerId, tenantId, {
+        license_type: parsed.value,
+      })
+
+      void writeActivityLog({
+        actorUserId: auth.devBypass ? null : auth.userId,
+        tenantId,
+        action: "worker.profile.license_type_update",
+        entityType: "worker",
+        entityId: workerId,
+        metadata: { route: "PATCH /api/admin/worker-profile", license_id: saved.id },
+        request: req,
+      })
+
+      return NextResponse.json({ ok: true, license: saved })
+    }
+
+    if (field === "license_expires_at") {
+      const parsed = normalizeLicenseExpiresValue(body.value)
+      if (!parsed.ok) {
+        return NextResponse.json({ error: parsed.error }, { status: 400 })
+      }
+
+      const saved = await upsertPrimaryLicenseRecord(supabase, workerId, tenantId, {
+        expires_at: parsed.value,
+      })
+
+      void writeActivityLog({
+        actorUserId: auth.devBypass ? null : auth.userId,
+        tenantId,
+        action: "worker.profile.license_expires_update",
+        entityType: "worker",
+        entityId: workerId,
+        metadata: { route: "PATCH /api/admin/worker-profile", license_id: saved.id },
+        request: req,
+      })
+
+      return NextResponse.json({ ok: true, license: saved })
     }
 
     if (!isWorkerProfileFieldKey(field)) {

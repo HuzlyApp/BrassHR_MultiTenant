@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useParams, usePathname, useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import CandidateCommunicationDialog from "../../../components/CandidateCommunicationDialog";
 import DetailedCandidateHeader from "../../../components/DetailedCandidateHeader";
@@ -11,13 +11,25 @@ import CandidateDetailLoader from "../../../components/CandidateDetailLoader";
 import ProfileSubTabs from "../../../components/ProfileSubTabs";
 import BrandedPlusIcon from "../../../components/BrandedPlusIcon";
 import CandidateDetailEditableField from "../../../components/CandidateDetailEditableField";
+import CandidateDetailSelectField, {
+  type SelectOption,
+} from "../../../components/CandidateDetailSelectField";
+import CandidateDetailCityField from "../../../components/CandidateDetailCityField";
+import CandidateDetailResumeField from "../../../components/CandidateDetailResumeField";
 import CandidateDetailReferenceField, {
   type ReferenceFormValue,
 } from "../../../components/CandidateDetailReferenceField";
 import {
   formatReferenceDisplay,
+  isMissingCandidateValue,
+  isPlaceholderPhone,
+  isPlaceholderZip,
   referenceIsMissing,
 } from "@/lib/admin/worker-profile-field-display";
+import {
+  formatPhoneForDisplay,
+  formatPhoneForEdit,
+} from "@/lib/admin/worker-profile-field-client";
 import BrandedHistoryIcon from "../../../components/BrandedHistoryIcon";
 import BrandedStepperCompleteIcon from "../../../components/BrandedStepperCompleteIcon";
 import {
@@ -101,11 +113,23 @@ type ProfilePayload = {
     resume_url: string | null;
   } | null;
   nursing_licenses?: Array<{
+    id?: string | null;
     license_url: string | null;
     state: string | null;
     license_type: string | null;
+    license_type_key?: string | null;
     expires_at: string | null;
   }>;
+  profile_license?: {
+    id: string | null;
+    license_type: string;
+    license_type_label: string;
+    license_number: string | null;
+    expires_at: string | null;
+    has_file: boolean;
+    status: string | null;
+    uploaded_at: string | null;
+  } | null;
   education?: {
     source: string;
     resume_available: boolean;
@@ -177,15 +201,6 @@ function formatDateTimeLabel(iso: string | null | undefined) {
   return `${datePart} - ${timePart}`;
 }
 
-function isMissingValue(value: unknown) {
-  if (value == null) return true;
-  if (typeof value === "string") {
-    const trimmed = value.trim();
-    return trimmed.length === 0 || trimmed === "—";
-  }
-  return false;
-}
-
 function referenceToFormValue(
   ref: ProfilePayload["references"][number] | undefined
 ): ReferenceFormValue {
@@ -240,6 +255,16 @@ export default function NewApplicantProfilePage() {
   const pageLoading = loading;
   const [approvingForWork, setApprovingForWork] = useState(false);
   const [fieldSaving, setFieldSaving] = useState(false);
+  const [fieldOptions, setFieldOptions] = useState<{
+    states: SelectOption[];
+    cities: SelectOption[];
+    alliedHealthRoles: SelectOption[];
+    licenseTypes: SelectOption[];
+    workerStateCode: string;
+    workerStateName: string;
+  } | null>(null);
+  const [cityOptions, setCityOptions] = useState<SelectOption[]>([]);
+  const [citiesLoading, setCitiesLoading] = useState(false);
 
   async function reloadProfile() {
     if (!applicantId) return;
@@ -261,7 +286,9 @@ export default function NewApplicantProfilePage() {
         body: JSON.stringify({ workerId: applicantId, field, value }),
       });
       const json = (await res.json().catch(() => ({}))) as { error?: string };
-      if (!res.ok) throw new Error(json.error || "Could not save");
+      if (!res.ok) {
+        throw new Error(json.error || "Could not save");
+      }
       await reloadProfile();
       toast.success("Saved");
     } catch (e) {
@@ -337,6 +364,98 @@ export default function NewApplicantProfilePage() {
     };
   }, [applicantId]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadFieldOptions() {
+      if (!applicantId) return;
+      try {
+        const res = await fetch(
+          `/api/admin/worker-profile/field-options?workerId=${encodeURIComponent(applicantId)}`
+        );
+        const json = (await res.json()) as {
+          states?: SelectOption[];
+          cities?: SelectOption[];
+          alliedHealthRoles?: SelectOption[];
+          licenseTypes?: SelectOption[];
+          workerStateCode?: string;
+          workerStateName?: string;
+          error?: string;
+        };
+        if (!res.ok || cancelled) return;
+        setFieldOptions({
+          states: json.states ?? [],
+          cities: json.cities ?? [],
+          alliedHealthRoles: json.alliedHealthRoles ?? [],
+          licenseTypes: json.licenseTypes ?? [],
+          workerStateCode: json.workerStateCode ?? "",
+          workerStateName: json.workerStateName ?? "",
+        });
+        setCityOptions(json.cities ?? []);
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    void loadFieldOptions();
+    return () => {
+      cancelled = true;
+    };
+  }, [applicantId, data?.worker?.state, data?.worker?.job_role]);
+
+  const loadCitiesForState = useCallback(
+    async (stateCode: string) => {
+      if (!applicantId || !stateCode) {
+        setCityOptions([]);
+        return;
+      }
+      setCitiesLoading(true);
+      try {
+        const res = await fetch(
+          `/api/admin/worker-profile/field-options?workerId=${encodeURIComponent(applicantId)}&stateCode=${encodeURIComponent(stateCode)}`
+        );
+        const json = (await res.json()) as { cities?: SelectOption[] };
+        if (res.ok) setCityOptions(json.cities ?? []);
+      } finally {
+        setCitiesLoading(false);
+      }
+    },
+    [applicantId]
+  );
+
+  async function saveCityWithState(city: string, stateCode: string) {
+    if (!applicantId) return;
+    setFieldSaving(true);
+    try {
+      if (stateCode) {
+        const stateRes = await fetch("/api/admin/worker-profile", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ workerId: applicantId, field: "state", value: stateCode }),
+        });
+        const stateJson = (await stateRes.json().catch(() => ({}))) as { error?: string };
+        if (!stateRes.ok) throw new Error(stateJson.error || "Could not save state");
+      }
+
+      const cityRes = await fetch("/api/admin/worker-profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ workerId: applicantId, field: "city", value: city }),
+      });
+      const cityJson = (await cityRes.json().catch(() => ({}))) as { error?: string };
+      if (!cityRes.ok) throw new Error(cityJson.error || "Could not save city");
+
+      await reloadProfile();
+      toast.success("Saved");
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "Could not save";
+      toast.error(message);
+      throw e;
+    } finally {
+      setFieldSaving(false);
+    }
+  }
+
   const w = data?.worker;
   const candidateName = useMemo(() => {
     const n = `${w?.first_name ?? ""} ${w?.last_name ?? ""}`.trim();
@@ -350,6 +469,56 @@ export default function NewApplicantProfilePage() {
   }, [w?.city, w?.state, w?.zip]);
 
   const id = applicantId ?? "";
+
+  const alliedHealthRoleValue = useMemo(() => {
+    return (
+      data?.experience?.role_assignments?.[0]?.role ??
+      data?.skills?.positions?.[0] ??
+      w?.job_role ??
+      ""
+    );
+  }, [data?.experience?.role_assignments, data?.skills?.positions, w?.job_role]);
+
+  const licenseTypeKey = useMemo(() => {
+    return (
+      data?.profile_license?.license_type ??
+      data?.nursing_licenses?.[0]?.license_type_key ??
+      ""
+    );
+  }, [data?.profile_license?.license_type, data?.nursing_licenses]);
+
+  const licenseTypeDisplay = useMemo(() => {
+    return (
+      data?.profile_license?.license_type_label ??
+      data?.nursing_licenses?.[0]?.license_type ??
+      ""
+    );
+  }, [data?.profile_license?.license_type_label, data?.nursing_licenses]);
+
+  const licenseExpiresAt = useMemo(() => {
+    return data?.profile_license?.expires_at ?? data?.nursing_licenses?.[0]?.expires_at ?? null;
+  }, [data?.profile_license?.expires_at, data?.nursing_licenses]);
+
+  const applyingStateCode = useMemo(() => {
+    const raw = (w?.state ?? "").trim();
+    if (!raw) return fieldOptions?.workerStateCode ?? "";
+    if (raw.length === 2) return raw.toUpperCase();
+    return (
+      fieldOptions?.states.find((s) => s.label.toLowerCase() === raw.toLowerCase())?.value ?? raw
+    );
+  }, [w?.state, fieldOptions]);
+
+  const applyingStateDisplay = useMemo(() => {
+    if (!applyingStateCode) return "";
+    return (
+      fieldOptions?.states.find((s) => s.value === applyingStateCode)?.label ??
+      fieldOptions?.workerStateName ??
+      w?.state ??
+      ""
+    );
+  }, [applyingStateCode, fieldOptions, w?.state]);
+
+  const resumeAttached = Boolean(data?.requirements?.resume_url || data?.requirements?.resume_path);
   const nursingLicenseRows = useMemo(() => {
     const fromApi = (data?.nursing_licenses ?? []).map((license, idx) => ({
       tag: `L${idx + 1}`,
@@ -602,7 +771,8 @@ export default function NewApplicantProfilePage() {
                         label="First Name"
                         displayValue={w?.first_name ?? "—"}
                         editValue={w?.first_name ?? ""}
-                        isMissing={isMissingValue(w?.first_name)}
+                        fieldKind="person_name"
+                        isMissing={isMissingCandidateValue(w?.first_name)}
                         saving={fieldSaving}
                         onSave={(value) => saveWorkerField("first_name", value)}
                       />
@@ -610,7 +780,8 @@ export default function NewApplicantProfilePage() {
                         label="Last Name"
                         displayValue={w?.last_name ?? "—"}
                         editValue={w?.last_name ?? ""}
-                        isMissing={isMissingValue(w?.last_name)}
+                        fieldKind="person_name"
+                        isMissing={isMissingCandidateValue(w?.last_name)}
                         saving={fieldSaving}
                         onSave={(value) => saveWorkerField("last_name", value)}
                       />
@@ -618,7 +789,8 @@ export default function NewApplicantProfilePage() {
                         label="Date of Birth(MM/DD/YYYY)"
                         displayValue={w?.date_of_birth ? formatDate(w.date_of_birth) : "—"}
                         editValue={formatDobForEdit(w?.date_of_birth)}
-                        isMissing={isMissingValue(w?.date_of_birth)}
+                        fieldKind="date_of_birth"
+                        isMissing={isMissingCandidateValue(w?.date_of_birth)}
                         placeholder="MM/DD/YYYY"
                         saving={fieldSaving}
                         onSave={(value) => saveWorkerField("date_of_birth", value)}
@@ -627,8 +799,8 @@ export default function NewApplicantProfilePage() {
                         label="Email Address"
                         displayValue={w?.email ?? "—"}
                         editValue={w?.email ?? ""}
-                        isMissing={isMissingValue(w?.email)}
-                        inputType="email"
+                        fieldKind="email"
+                        isMissing={isMissingCandidateValue(w?.email)}
                         highlightValue
                         saving={fieldSaving}
                         onSave={(value) => saveWorkerField("email", value)}
@@ -637,8 +809,8 @@ export default function NewApplicantProfilePage() {
                         label="Total Years of Experience in Your Profession"
                         displayValue={formatYearsExperience(w?.years_experience)}
                         editValue={w?.years_experience != null ? String(w.years_experience) : ""}
+                        fieldKind="years_experience"
                         isMissing={w?.years_experience == null}
-                        inputType="number"
                         placeholder="Years"
                         saving={fieldSaving}
                         onSave={(value) => saveWorkerField("years_experience", value)}
@@ -647,34 +819,42 @@ export default function NewApplicantProfilePage() {
                         label="Address"
                         displayValue={w?.address1 ?? "—"}
                         editValue={w?.address1 ?? ""}
-                        isMissing={isMissingValue(w?.address1)}
+                        fieldKind="address"
+                        isMissing={isMissingCandidateValue(w?.address1)}
                         saving={fieldSaving}
                         onSave={(value) => saveWorkerField("address1", value)}
                       />
-                      <CandidateDetailEditableField
+                      <CandidateDetailCityField
                         label="City"
                         displayValue={w?.city ?? "—"}
                         editValue={w?.city ?? ""}
-                        isMissing={isMissingValue(w?.city)}
+                        isMissing={isMissingCandidateValue(w?.city)}
+                        stateCode={applyingStateCode}
+                        stateDisplay={applyingStateDisplay}
+                        states={fieldOptions?.states ?? []}
+                        cities={cityOptions}
+                        citiesLoading={citiesLoading}
                         saving={fieldSaving}
-                        onSave={(value) => saveWorkerField("city", value)}
+                        onLoadCities={loadCitiesForState}
+                        onSave={saveCityWithState}
                       />
                       <CandidateDetailEditableField
                         label="Zip Code"
                         displayValue={w?.zip ?? "—"}
                         editValue={w?.zip ?? ""}
-                        isMissing={isMissingValue(w?.zip)}
-                        inputType="tel"
+                        fieldKind="zip"
+                        isMissing={isMissingCandidateValue(w?.zip) || isPlaceholderZip(w?.zip)}
                         placeholder="12345"
                         saving={fieldSaving}
                         onSave={(value) => saveWorkerField("zip", value)}
                       />
                       <CandidateDetailEditableField
                         label="Phone Number"
-                        displayValue={w?.phone ?? "—"}
-                        editValue={w?.phone ?? ""}
-                        isMissing={isMissingValue(w?.phone)}
-                        inputType="tel"
+                        displayValue={formatPhoneForDisplay(w?.phone)}
+                        editValue={formatPhoneForEdit(w?.phone)}
+                        fieldKind="phone"
+                        isMissing={isMissingCandidateValue(w?.phone) || isPlaceholderPhone(w?.phone)}
+                        placeholder="(555) 555-5555"
                         saving={fieldSaving}
                         onSave={(value) => saveWorkerField("phone", value)}
                       />
@@ -682,8 +862,8 @@ export default function NewApplicantProfilePage() {
                         label="Last Four Digits of SSN"
                         displayValue={w?.ssn_last_four ?? "—"}
                         editValue={w?.ssn_last_four ?? ""}
-                        isMissing={isMissingValue(w?.ssn_last_four)}
-                        inputType="tel"
+                        fieldKind="ssn_last_four"
+                        isMissing={isMissingCandidateValue(w?.ssn_last_four)}
                         placeholder="1234"
                         saving={fieldSaving}
                         onSave={(value) => saveWorkerField("ssn_last_four", value)}
@@ -700,8 +880,8 @@ export default function NewApplicantProfilePage() {
                         label="Hourly Rate"
                         displayValue={formatHourlyRate(w?.hourly_rate)}
                         editValue={w?.hourly_rate ?? ""}
-                        isMissing={isMissingValue(w?.hourly_rate)}
-                        inputType="number"
+                        fieldKind="hourly_rate"
+                        isMissing={isMissingCandidateValue(w?.hourly_rate)}
                         placeholder="25.00"
                         saving={fieldSaving}
                         onSave={(value) => saveWorkerField("hourly_rate", value)}
@@ -722,52 +902,66 @@ export default function NewApplicantProfilePage() {
                         saving={fieldSaving}
                         onSave={(value) => saveReference(1, value)}
                       />
-                      {(
-                        [
-                          [
-                            "Primary Practice Setting",
-                            data?.facilities_assigned?.[0]?.facility_name ?? candidateLocation,
-                          ],
-                          [
-                            "Primary Allied Health Role",
-                            data?.experience?.role_assignments?.[0]?.role ??
-                              data?.skills?.positions?.[0] ??
-                              "—",
-                          ],
-                          [
-                            "Professional License / Certification Type",
-                            data?.nursing_licenses?.[0]?.license_type ?? "—",
-                          ],
-                          ["License Expiration Date", formatDate(data?.nursing_licenses?.[0]?.expires_at)],
-                          [
-                            "Which State are you applying for?",
-                            data?.nursing_licenses?.[0]?.state ?? w?.state ?? "—",
-                          ],
-                          [
-                            "Resume file",
-                            data?.requirements?.resume_url ? (
-                              <Link
-                                key="resume-link"
-                                href={`${base}/profile/resume/${id}`}
-                                className="text-[var(--brand-primary)] hover:underline"
-                              >
-                                View / download
-                              </Link>
-                            ) : (
-                              "—"
-                            ),
-                          ],
-                        ] as const
-                      ).map(([k, v], idx) => (
-                        <div key={`${k}-${idx}`} className="contents">
-                          <div className="border-b border-r border-[#E5E7EB] px-5 py-3 text-[14px] font-normal leading-5 text-[#374151]">
-                            {k}
-                          </div>
-                          <div className="border-b border-[#E5E7EB] px-5 py-3 text-[14px] font-normal leading-5 break-all text-[#111827]">
-                            {v}
-                          </div>
+                      <div className="contents">
+                        <div className="border-b border-r border-[#E5E7EB] px-5 py-3 text-[14px] font-normal leading-5 text-[#374151]">
+                          Primary Practice Setting
                         </div>
-                      ))}
+                        <div className="border-b border-[#E5E7EB] px-5 py-3 text-[14px] font-normal leading-5 break-all text-[#111827]">
+                          {data?.facilities_assigned?.[0]?.facility_name ?? candidateLocation}
+                        </div>
+                      </div>
+                      <CandidateDetailSelectField
+                        label="Primary Allied Health Role"
+                        displayValue={alliedHealthRoleValue || "—"}
+                        editValue={alliedHealthRoleValue}
+                        isMissing={isMissingCandidateValue(alliedHealthRoleValue)}
+                        options={fieldOptions?.alliedHealthRoles ?? []}
+                        optionsLoading={!fieldOptions}
+                        placeholder="Pick role"
+                        emptyMessage="No roles found for this company."
+                        saving={fieldSaving}
+                        onSave={(value) => saveWorkerField("job_role", value)}
+                      />
+                      <CandidateDetailSelectField
+                        label="Professional License / Certification Type"
+                        displayValue={licenseTypeDisplay || "—"}
+                        editValue={licenseTypeKey}
+                        isMissing={isMissingCandidateValue(licenseTypeKey)}
+                        options={fieldOptions?.licenseTypes ?? []}
+                        optionsLoading={!fieldOptions}
+                        placeholder="Pick license type"
+                        saving={fieldSaving}
+                        onSave={(value) => saveWorkerField("license_type", value)}
+                      />
+                      <CandidateDetailEditableField
+                        label="License Expiration Date"
+                        displayValue={licenseExpiresAt ? formatDate(licenseExpiresAt) : "—"}
+                        editValue={formatDobForEdit(licenseExpiresAt)}
+                        fieldKind="date_of_birth"
+                        isMissing={isMissingCandidateValue(licenseExpiresAt)}
+                        placeholder="MM/DD/YYYY"
+                        saving={fieldSaving}
+                        onSave={(value) => saveWorkerField("license_expires_at", value)}
+                      />
+                      <CandidateDetailSelectField
+                        label="Which State are you applying for?"
+                        displayValue={applyingStateDisplay || "—"}
+                        editValue={applyingStateCode}
+                        isMissing={
+                          isMissingCandidateValue(applyingStateCode) &&
+                          isMissingCandidateValue(w?.state)
+                        }
+                        options={fieldOptions?.states ?? []}
+                        optionsLoading={!fieldOptions}
+                        placeholder="Pick state"
+                        saving={fieldSaving}
+                        onSave={(value) => saveWorkerField("state", value)}
+                      />
+                      <CandidateDetailResumeField
+                        label="Resume file"
+                        attached={resumeAttached}
+                        resumeHref={`${base}/profile/resume/${id}`}
+                      />
                     </div>
                   </div>
 

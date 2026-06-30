@@ -1,5 +1,7 @@
 import "server-only"
 
+import { LICENSE_TYPES, type LicenseType } from "@/lib/applicant-portal/documents"
+
 export type WorkerProfileFieldKey =
   | "first_name"
   | "last_name"
@@ -13,6 +15,7 @@ export type WorkerProfileFieldKey =
   | "years_experience"
   | "hourly_rate"
   | "ssn_last_four"
+  | "job_role"
 
 export type ReferenceFieldValue = {
   first: string
@@ -34,6 +37,7 @@ const WORKER_COLUMN_MAP: Record<WorkerProfileFieldKey, string> = {
   years_experience: "experience_years",
   hourly_rate: "hourly_rate",
   ssn_last_four: "ssn_last_four",
+  job_role: "job_role",
 }
 
 export function isWorkerProfileFieldKey(value: string): value is WorkerProfileFieldKey {
@@ -86,11 +90,33 @@ export function normalizeWorkerFieldValue(
   switch (field) {
     case "first_name":
     case "last_name":
+      if (!value) return { ok: false, error: "This field cannot be empty." }
+      if (/\d/.test(value)) return { ok: false, error: "Name cannot include numbers." }
+      if (!/^[a-zA-Z\s'.-]+$/.test(value)) {
+        return { ok: false, error: "Use letters only." }
+      }
+      return { ok: true, dbValue: value }
+
     case "address1":
-    case "city":
-    case "state":
       if (!value) return { ok: false, error: "This field cannot be empty." }
       return { ok: true, dbValue: value }
+
+    case "city":
+      if (!value) return { ok: false, error: "City is required." }
+      if (/\d/.test(value)) return { ok: false, error: "City cannot include numbers." }
+      if (!/^[a-zA-Z\s'.-]+$/.test(value)) {
+        return { ok: false, error: "Use letters only." }
+      }
+      return { ok: true, dbValue: value }
+
+    case "state": {
+      if (!value) return { ok: false, error: "State is required." }
+      const trimmed = value.trim()
+      if (trimmed.length === 2) {
+        return { ok: true, dbValue: trimmed.toUpperCase() }
+      }
+      return { ok: true, dbValue: trimmed }
+    }
 
     case "email": {
       if (!value) return { ok: false, error: "Email is required." }
@@ -111,8 +137,13 @@ export function normalizeWorkerFieldValue(
     case "zip": {
       if (!value) return { ok: false, error: "Zip code is required." }
       const digits = value.replace(/\D/g, "")
-      if (digits.length < 5) return { ok: false, error: "Enter a 5-digit zip code." }
-      return { ok: true, dbValue: digits.slice(0, 5) }
+      if (digits.length === 0) return { ok: false, error: "Zip code is required." }
+      if (digits.length > 9) {
+        return { ok: false, error: "Enter a valid 5-digit zip code." }
+      }
+      const normalized =
+        digits.length <= 5 ? digits.padStart(5, "0") : `${digits.slice(0, 5)}-${digits.slice(5, 9)}`
+      return { ok: true, dbValue: normalized }
     }
 
     case "date_of_birth": {
@@ -150,6 +181,11 @@ export function normalizeWorkerFieldValue(
       return { ok: true, dbValue: digits }
     }
 
+    case "job_role": {
+      if (!value) return { ok: false, error: "Role is required." }
+      return { ok: true, dbValue: value }
+    }
+
     default:
       return { ok: false, error: "Unknown field." }
   }
@@ -182,6 +218,12 @@ export function normalizeReferenceFieldValue(
   if (!first || !last || !email || !phone) {
     return { ok: false, error: "Name, email, and phone are all required." }
   }
+  if (/\d/.test(first) || /\d/.test(last)) {
+    return { ok: false, error: "Name cannot include numbers." }
+  }
+  if (!/^[a-zA-Z\s'.-]+$/.test(first) || !/^[a-zA-Z\s'.-]+$/.test(last)) {
+    return { ok: false, error: "Use letters only in names." }
+  }
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return { ok: false, error: "Enter a valid email address." }
   }
@@ -198,4 +240,41 @@ export function normalizeReferenceFieldValue(
       phone: phone.slice(-10),
     },
   }
+}
+
+export function normalizeLicenseTypeValue(
+  raw: unknown
+): { ok: true; value: LicenseType } | { ok: false; error: string } {
+  const value = raw == null ? "" : String(raw).trim()
+  if (!value) return { ok: false, error: "License type is required." }
+  if (!(LICENSE_TYPES as readonly string[]).includes(value)) {
+    return { ok: false, error: "Pick a valid license type." }
+  }
+  return { ok: true, value: value as LicenseType }
+}
+
+export function normalizeLicenseExpiresValue(
+  raw: unknown
+): { ok: true; value: string } | { ok: false; error: string } {
+  const value = raw == null ? "" : String(raw).trim()
+  if (!value) return { ok: false, error: "Expiration date is required." }
+
+  const slash = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(value)
+  if (slash) {
+    const month = Number(slash[1])
+    const day = Number(slash[2])
+    const year = Number(slash[3])
+    const d = new Date(year, month - 1, day)
+    if (d.getFullYear() !== year || d.getMonth() !== month - 1 || d.getDate() !== day) {
+      return { ok: false, error: "Enter a valid date." }
+    }
+    const mm = String(month).padStart(2, "0")
+    const dd = String(day).padStart(2, "0")
+    return { ok: true, value: `${year}-${mm}-${dd}` }
+  }
+
+  const iso = /^\d{4}-\d{2}-\d{2}$/.exec(value)
+  if (iso) return { ok: true, value }
+
+  return { ok: false, error: "Use MM/DD/YYYY format." }
 }
