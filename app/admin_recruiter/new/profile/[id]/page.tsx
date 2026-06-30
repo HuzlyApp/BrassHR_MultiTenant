@@ -10,6 +10,7 @@ import DetailedTabs from "../../../components/DetailedTabs";
 import CandidateDetailLoader from "../../../components/CandidateDetailLoader";
 import ProfileSubTabs from "../../../components/ProfileSubTabs";
 import BrandedPlusIcon from "../../../components/BrandedPlusIcon";
+import CandidateNotesPanel from "../../../components/CandidateNotesPanel";
 import CandidateDetailEditableField from "../../../components/CandidateDetailEditableField";
 import CandidateDetailSelectField, {
   type SelectOption,
@@ -1258,23 +1259,12 @@ export default function NewApplicantProfilePage() {
                     </div>
                   </div>
 
-                  <div className="w-full border-t border-[#E5E7EB] bg-white pr-px">
-                    <div className="flex h-11 items-center justify-between gap-2 border-b border-[#E5E7EB] px-5">
-                      <div className="text-[20px] font-semibold leading-7 text-[#111827]">Notes</div>
-                    </div>
-                    <div className="p-5">
-                      <div className="flex items-center justify-between gap-3">
-                      <div className="text-xs text-[#9CA3AF]">
-                        {data?.notes?.length ? `${data.notes.length} notes found` : "No notes records found"}
-                      </div>
-                      <Link
-                        href={`${base}/profile/notes/${id}`}
-                        className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-[#0D9488] px-4 text-xs font-semibold text-white"
-                      >
-                        + Add
-                      </Link>
-                    </div>
-                    </div>
+                  <div className="w-full border-t border-[#E5E7EB]">
+                    <CandidateNotesPanel
+                      workerId={id}
+                      candidateName={candidateName}
+                      layout="sidebar"
+                    />
                   </div>
                 </section>
               </div>
