@@ -17,6 +17,7 @@ import { useOnboardingStepNav } from "@/lib/onboarding/use-onboarding-step-nav"
 import AutosaveStatus from "@/app/components/AutosaveStatus"
 import DocumentFileThumbnail from "@/app/components/DocumentFileThumbnail"
 import { AuthorizationsFirmaAgreementPanel } from "@/app/components/onboarding/AuthorizationsFirmaAgreementPanel"
+import { stepUsesFirmaSigning } from "@/lib/onboarding/firma-step-settings"
 import { isPdfFile, resolveStoragePublicUrl } from "@/lib/document-upload-helpers"
 
 type IdentityPaths = {
@@ -59,8 +60,13 @@ export default function DocumentsPage() {
   const [docAutosave, setDocAutosave] = useState<"idle" | "saving" | "saved">("idle")
 
   const authStep = useMemo(() => {
+    const enabled = nav.enabledSteps ?? []
+    const firmaAuth = enabled.find(
+      (s) => s.step_type === "authorizations" && stepUsesFirmaSigning(s)
+    )
+    if (firmaAuth) return firmaAuth
     return (
-      nav.enabledSteps?.find(
+      enabled.find(
         (s) => s.step_type === "authorizations" || s.step_key === "authorizations"
       ) ??
       nav.currentStep ??
@@ -389,6 +395,7 @@ export default function DocumentsPage() {
             tenantSlug={nav.slug}
             signerEmail={signerEmail}
             agreed={agreed}
+            configLoading={nav.configLoading}
             onSignedChange={setAgreementSigned}
           />
 

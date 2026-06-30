@@ -9,9 +9,11 @@ import type {
   TenantSkillAssessment,
   TenantSkillQuestion,
 } from "@/lib/onboarding/types";
-import { buildCacheKey, CACHE_TTL_SECONDS, getOrSetCache } from "@/lib/cache";
+import { buildCacheKey, CACHE_TTL_SECONDS, getOrSetCache, invalidateTenantCache } from "@/lib/cache";
 import { enforceUploadResumeFirstInTenantSteps } from "@/lib/onboarding/enforce-upload-resume-first";
 import { mapConfigToDrafts } from "@/lib/onboarding/config-to-drafts";
+import { ensureProfessionalLicenseRequiredDocuments } from "@/lib/onboarding/ensure-professional-license-documents";
+import { enrichTenantConfigFromPublishedFlow } from "@/lib/onboarding/enrich-config-from-published-flow";
 
 export async function seedDefaultTenantOnboarding(
   supabase: OnboardingDbClient,
@@ -30,11 +32,14 @@ export async function loadTenantOnboardingConfig(
   options?: { workerFacing?: boolean }
 ): Promise<TenantOnboardingConfig | null> {
   const workerFacing = options?.workerFacing ?? false;
-  return getOrSetCache(
+  const config = await getOrSetCache(
     buildCacheKey("tenant_onboarding_configs", ["tenant", tenantId], { workerFacing }),
     () => loadTenantOnboardingConfigUncached(supabase, tenantId, { workerFacing }),
     CACHE_TTL_SECONDS.tenantConfig
   );
+
+  if (!config || !workerFacing) return config;
+  return enrichTenantConfigFromPublishedFlow(supabase, tenantId, config);
 }
 
 async function loadTenantOnboardingConfigUncached(
@@ -117,6 +122,15 @@ async function loadTenantOnboardingConfigUncached(
   const { steps: normalizedSteps, changed: resumeOrderChanged } =
     enforceUploadResumeFirstInTenantSteps(steps);
   steps = normalizedSteps;
+
+  const licenseDocsSeeded = await ensureProfessionalLicenseRequiredDocuments(
+    supabase,
+    tenantId,
+    steps
+  );
+  if (licenseDocsSeeded) {
+    await invalidateTenantCache("tenant_required_documents", tenantId);
+  }
 
   const stepIds = steps.map((s) => s.id);
 

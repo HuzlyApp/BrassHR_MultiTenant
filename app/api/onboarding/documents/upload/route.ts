@@ -2,7 +2,10 @@ import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { getSupabaseUrl } from "@/lib/supabase-env";
-import { resolveWorkerByApplicantId } from "@/lib/onboarding/resolve-worker-context";
+import {
+  readOnboardingTenantSlugFromRequest,
+  resolveOnboardingWorker,
+} from "@/lib/onboarding/resolve-onboarding-worker";
 import { WORKER_REQUIRED_FILES_BUCKET } from "@/lib/supabase-storage-buckets";
 import { enforceRateLimit, getClientIp } from "@/lib/security/rate-limit";
 
@@ -27,6 +30,7 @@ export async function POST(req: NextRequest) {
     const file = formData.get("file") as File | null;
     const applicantId = String(formData.get("applicantId") ?? "").trim();
     const requiredDocumentId = String(formData.get("requiredDocumentId") ?? "").trim();
+    const tenantSlug = readOnboardingTenantSlugFromRequest(req, formData);
 
     if (!file || !applicantId || !requiredDocumentId) {
       return NextResponse.json({ error: "Missing file, applicantId, or requiredDocumentId" }, { status: 400 });
@@ -39,21 +43,37 @@ export async function POST(req: NextRequest) {
     }
 
     const supabase = createClient(url, key);
-    const ctx = await resolveWorkerByApplicantId(supabase, applicantId);
+    const ctx = await resolveOnboardingWorker(supabase, applicantId, tenantSlug);
     if (!ctx) {
-      return NextResponse.json({ error: "Worker not found" }, { status: 404 });
+      return NextResponse.json(
+        { error: "Worker not found for this organization. Complete resume upload first." },
+        { status: 404 }
+      );
     }
 
     const { data: reqDoc, error: docErr } = await supabase
       .from("tenant_required_documents")
-      .select("id, tenant_id, max_file_size_mb, accepted_file_types")
+      .select("id, tenant_id, onboarding_step_id, max_file_size_mb, accepted_file_types")
       .eq("id", requiredDocumentId)
       .eq("tenant_id", ctx.tenantId)
       .maybeSingle();
 
     if (docErr) throw docErr;
     if (!reqDoc) {
-      return NextResponse.json({ error: "Document requirement not found" }, { status: 404 });
+      console.warn("[onboarding/documents/upload] requirement missing", {
+        requiredDocumentId,
+        tenantId: ctx.tenantId,
+        tenantSlug,
+        workerId: ctx.workerId,
+        applicantId,
+      });
+      return NextResponse.json(
+        {
+          error:
+            "Document requirement not found for this organization. Refresh the page and try again.",
+        },
+        { status: 404 }
+      );
     }
 
     const maxMb = Number(reqDoc.max_file_size_mb) || 10;

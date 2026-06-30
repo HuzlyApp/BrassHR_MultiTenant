@@ -58,6 +58,10 @@ export async function resolveWorkerByApplicantId(
   if (tenantId) {
     const scoped = await loadWorkerContext(supabase, "user_id", applicantId, tenantId);
     if (scoped) return scoped;
+    if (isUuidLike(applicantId)) {
+      return loadWorkerContext(supabase, "id", applicantId, tenantId);
+    }
+    return null;
   }
 
   const byUserId = await loadWorkerContext(supabase, "user_id", applicantId);
@@ -65,7 +69,7 @@ export async function resolveWorkerByApplicantId(
 
   if (!isUuidLike(applicantId)) return null;
 
-  return loadWorkerContext(supabase, "id", applicantId, tenantId);
+  return loadWorkerContext(supabase, "id", applicantId);
 }
 
 /** Ensures a worker row exists for onboarding APIs when only the auth applicant id is known. */
@@ -76,26 +80,27 @@ export async function resolveOrEnsureWorkerForApplicant(
 ): Promise<WorkerContext | null> {
   if (isDraftPreviewApplicantId(applicantId)) return null;
 
-  // Fast path: worker already exists (common during resume upload).
+  const slug = tenantSlug?.trim().toLowerCase() || "";
+  if (slug) {
+    const tenantId = await resolveTenantIdBySlug(supabase, slug);
+    if (!tenantId) return null;
+
+    const scoped = await resolveWorkerByApplicantId(supabase, applicantId, tenantId);
+    if (scoped) return scoped;
+
+    const saved = await persistWorkerRow(supabase, {
+      applicantId,
+      tenantId,
+      fields: resumeToStep1Fields({}, applicantId),
+      skipOnboardingProgressInit: true,
+    });
+    if (!saved.ok) return null;
+
+    return resolveWorkerByApplicantId(supabase, applicantId, tenantId);
+  }
+
   const existing = await resolveWorkerByApplicantId(supabase, applicantId);
   if (existing) return existing;
 
-  const slug = tenantSlug?.trim().toLowerCase() || "";
-  if (!slug) return null;
-
-  const tenantId = await resolveTenantIdBySlug(supabase, slug);
-  if (!tenantId) return null;
-
-  const scoped = await resolveWorkerByApplicantId(supabase, applicantId, tenantId);
-  if (scoped) return scoped;
-
-  const saved = await persistWorkerRow(supabase, {
-    applicantId,
-    tenantId,
-    fields: resumeToStep1Fields({}, applicantId),
-    skipOnboardingProgressInit: true,
-  });
-  if (!saved.ok) return null;
-
-  return resolveWorkerByApplicantId(supabase, applicantId, tenantId);
+  return null;
 }

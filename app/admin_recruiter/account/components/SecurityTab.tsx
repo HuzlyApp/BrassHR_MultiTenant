@@ -6,6 +6,13 @@ import { useAccountData } from "@/app/admin_recruiter/hooks/useAccountData";
 import { getAccountDisplayName } from "@/lib/account/display-name";
 import { withSecurityCompleted } from "@/lib/account/completion";
 import { syncAccountChecklist } from "@/lib/account/fetch-account-data";
+import {
+  getPasswordRules,
+  isPasswordStrongEnough,
+  PASSWORD_UPDATE_SUCCESS_MESSAGE,
+  updateAuthUserPassword,
+  validatePasswordUpdate,
+} from "@/lib/account/password-update";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import { FIELD, FieldLabel } from "./account-form-fields";
 import {
@@ -14,14 +21,6 @@ import {
   AccountSaveButton,
   AccountSuccessBanner,
 } from "./AccountFormStatus";
-
-type PasswordRules = {
-  minLength: boolean;
-  hasNumber: boolean;
-  hasUpper: boolean;
-  hasLower: boolean;
-  passwordsMatch: boolean;
-};
 
 /** Fixed validation colors — never tied to tenant brand colors. */
 const VALID_GREEN = "#16a34a";
@@ -121,16 +120,6 @@ function PasswordField({
   );
 }
 
-function getPasswordRules(newPassword: string, confirmPassword: string): PasswordRules {
-  return {
-    minLength: newPassword.length >= 8,
-    hasNumber: /\d/.test(newPassword),
-    hasUpper: /[A-Z]/.test(newPassword),
-    hasLower: /[a-z]/.test(newPassword),
-    passwordsMatch: newPassword.length > 0 && newPassword === confirmPassword,
-  };
-}
-
 export default function SecurityTab() {
   const { user, profile, organization, settings, checklist, loading, error, refresh } =
     useAccountData();
@@ -149,7 +138,7 @@ export default function SecurityTab() {
     [newPassword, confirmPassword]
   );
 
-  const newValid = rules.minLength && rules.hasNumber && rules.hasUpper && rules.hasLower;
+  const newValid = isPasswordStrongEnough(rules);
   const confirmValid = confirmPassword.length > 0 && rules.passwordsMatch;
   const canSubmit = newValid && confirmValid;
 
@@ -159,17 +148,21 @@ export default function SecurityTab() {
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
-    if (!user?.id || !canSubmit) return;
+    if (!user?.id) return;
+
+    const validationError = validatePasswordUpdate(newPassword, confirmPassword);
+    if (validationError) {
+      setSaveError(validationError);
+      setSaveSuccess(null);
+      return;
+    }
 
     setSaving(true);
     setSaveError(null);
     setSaveSuccess(null);
 
     try {
-      const { error: passwordError } = await supabaseBrowser.auth.updateUser({
-        password: newPassword,
-      });
-      if (passwordError) throw passwordError;
+      await updateAuthUserPassword(supabaseBrowser, newPassword);
 
       await syncAccountChecklist(supabaseBrowser, {
         user,
@@ -182,9 +175,13 @@ export default function SecurityTab() {
 
       setNewPassword("");
       setConfirmPassword("");
-      setSaveSuccess("Password updated successfully.");
+      setSaveSuccess(PASSWORD_UPDATE_SUCCESS_MESSAGE);
     } catch (err) {
-      setSaveError(err instanceof Error ? err.message : "Failed to update password");
+      const message =
+        err && typeof err === "object" && "message" in err && typeof err.message === "string"
+          ? err.message
+          : "Failed to update password";
+      setSaveError(message);
     } finally {
       setSaving(false);
     }

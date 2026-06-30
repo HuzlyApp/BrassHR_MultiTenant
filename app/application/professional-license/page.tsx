@@ -86,10 +86,13 @@ export default function Step2License() {
   const [saving, setSaving] = useState(false);
 
   const configLoaded = Boolean(onboarding?.config && !onboarding.loading);
-  const tenantSlug =
-    typeof window !== "undefined"
-      ? resolveClientOnboardingTenantSlug(window.location.search)
-      : null;
+  const tenantSlug = useMemo(
+    () =>
+      resolveClientOnboardingTenantSlug(
+        searchParams.toString() ? `?${searchParams.toString()}` : ""
+      ),
+    [searchParams]
+  );
 
   const licenseStep = useMemo(
     () => findProfessionalLicenseStep(onboarding?.config, stepKey),
@@ -177,7 +180,9 @@ export default function Step2License() {
     if (!applicantId) return;
 
     const res = await fetch(
-      `/api/onboarding/submitted-documents?applicantId=${encodeURIComponent(applicantId)}`,
+      `/api/onboarding/submitted-documents?applicantId=${encodeURIComponent(applicantId)}${
+        tenantSlug ? `&tenant=${encodeURIComponent(tenantSlug)}` : ""
+      }`,
       { cache: "no-store" }
     );
     if (!res.ok) return;
@@ -223,9 +228,28 @@ export default function Step2License() {
   }, [useTenantRequirements, hydrateDynamicFromServer]);
 
   useEffect(() => {
-    if (onboarding?.loading || !licenseStep?.step_key) return;
+    if (onboarding?.loading || !licenseStep?.step_key || !licenseStep?.id) return;
+
+    const currentStatus = onboarding?.progress?.steps?.find(
+      (row) => row.onboarding_step_id === licenseStep.id
+    )?.status;
+
+    if (
+      currentStatus === "completed" ||
+      currentStatus === "skipped" ||
+      currentStatus === "in_progress"
+    ) {
+      return;
+    }
+
     void onboarding?.updateStepStatus?.(licenseStep.step_key, "in_progress");
-  }, [onboarding?.loading, licenseStep?.step_key, onboarding?.updateStepStatus]);
+  }, [
+    onboarding?.loading,
+    licenseStep?.step_key,
+    licenseStep?.id,
+    onboarding?.progress?.steps,
+    onboarding?.updateStepStatus,
+  ]);
 
   const uploadForRequirement = async (file: File, doc: TenantRequiredDocument) => {
     const maxBytes = (doc.max_file_size_mb || 10) * 1024 * 1024;
@@ -254,6 +278,9 @@ export default function Step2License() {
       fd.append("file", file);
       fd.append("applicantId", applicantId);
       fd.append("requiredDocumentId", doc.id);
+      if (tenantSlug) {
+        fd.append("tenantSlug", tenantSlug);
+      }
 
       const res = await fetch("/api/onboarding/documents/upload", { method: "POST", body: fd });
       const json = (await res.json().catch(() => ({}))) as { error?: string };

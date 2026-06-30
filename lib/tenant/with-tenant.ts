@@ -4,8 +4,12 @@ import { resolveClientOnboardingTenantSlug } from "@/lib/tenant/client-onboardin
 export function withTenant(path: string, tenant?: string | null): string {
   const slug = tenant?.trim().toLowerCase();
   if (!slug || slug.length < 2) return path;
-  const separator = path.includes("?") ? "&" : "?";
-  return `${path}${separator}tenant=${encodeURIComponent(slug)}`;
+
+  const [pathname, query = ""] = path.split("?");
+  const params = new URLSearchParams(query);
+  params.set("tenant", slug);
+  const nextQuery = params.toString();
+  return nextQuery ? `${pathname}?${nextQuery}` : pathname;
 }
 
 /** Resolves tenant slug from the current browser URL or onboarding cookie. */

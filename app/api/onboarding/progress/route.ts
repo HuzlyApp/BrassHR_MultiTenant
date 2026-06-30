@@ -2,13 +2,16 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { getSupabaseUrl } from "@/lib/supabase-env";
 import { ensureWorkerOnboardingProgress } from "@/lib/onboarding/ensure-worker-progress";
-import { resolveWorkerByApplicantId } from "@/lib/onboarding/resolve-worker-context";
+import { resolveOnboardingWorker, readOnboardingTenantSlugFromRequest } from "@/lib/onboarding/resolve-onboarding-worker";
 
 export const runtime = "nodejs";
 
 export async function GET(req: NextRequest) {
   try {
     const applicantId = req.nextUrl.searchParams.get("applicantId")?.trim() || "";
+    const tenantSlug =
+      req.nextUrl.searchParams.get("tenant")?.trim().toLowerCase() ||
+      readOnboardingTenantSlugFromRequest(req);
     if (!applicantId) {
       return NextResponse.json({ error: "Missing applicantId" }, { status: 400 });
     }
@@ -20,7 +23,7 @@ export async function GET(req: NextRequest) {
     }
 
     const supabase = createClient(url, key);
-    const ctx = await resolveWorkerByApplicantId(supabase, applicantId);
+    const ctx = await resolveOnboardingWorker(supabase, applicantId, tenantSlug);
     if (!ctx) {
       return NextResponse.json({ progress: null });
     }

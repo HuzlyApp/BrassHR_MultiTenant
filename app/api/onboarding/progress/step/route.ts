@@ -2,7 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { getSupabaseUrl } from "@/lib/supabase-env";
 import { ensureWorkerOnboardingProgress } from "@/lib/onboarding/ensure-worker-progress";
-import { resolveWorkerByApplicantId } from "@/lib/onboarding/resolve-worker-context";
+import {
+  readOnboardingTenantSlugFromRequest,
+  resolveOnboardingWorker,
+} from "@/lib/onboarding/resolve-onboarding-worker";
 import { loadTenantOnboardingConfig } from "@/lib/onboarding/load-tenant-config";
 import { dispatchWorkflowIntegrationPartner } from "@/lib/onboarding/integration-partner-dispatch";
 import { notifyHrOnOnboardingStepFailure } from "@/lib/onboarding/notify-hr-on-step-failure";
@@ -15,6 +18,7 @@ export const runtime = "nodejs";
 
 type Body = {
   applicantId?: string;
+  tenantSlug?: string;
   stepId?: string;
   stepKey?: string;
   status?: OnboardingStepStatus;
@@ -45,30 +49,29 @@ export async function POST(req: NextRequest) {
     }
 
     const supabase = createClient(url, key);
-    const ctx = await resolveWorkerByApplicantId(supabase, applicantId);
+    const tenantSlug =
+      (typeof body.tenantSlug === "string" ? body.tenantSlug.trim().toLowerCase() : "") ||
+      readOnboardingTenantSlugFromRequest(req);
+    const ctx = await resolveOnboardingWorker(supabase, applicantId, tenantSlug);
     if (!ctx) {
       return NextResponse.json({ error: "Worker not found" }, { status: 404 });
     }
 
     const payload = await ensureWorkerOnboardingProgress(supabase, ctx.workerId, ctx.tenantId);
 
+    const config = await loadTenantOnboardingConfig(supabase, ctx.tenantId, {
+      workerFacing: true,
+    });
+
     let stepId = body.stepId?.trim() || "";
-    if (!stepId && body.stepKey) {
-      let { data: stepRow } = await supabase
-        .from("tenant_onboarding_steps")
-        .select("id, step_key, step_type")
-        .eq("tenant_id", ctx.tenantId)
-        .eq("step_key", body.stepKey.trim())
-        .maybeSingle();
-      if (!stepRow && body.stepKey.trim() === "resume_upload") {
-        const fallback = await supabase
-          .from("tenant_onboarding_steps")
-          .select("id, step_key, step_type")
-          .eq("tenant_id", ctx.tenantId)
-          .eq("step_type", "resume_upload")
-          .maybeSingle();
-        stepRow = fallback.data;
-      }
+    if (!stepId && body.stepKey && config) {
+      const stepKey = body.stepKey.trim();
+      const stepRow =
+        config.steps.find((s) => s.step_key === stepKey && s.is_enabled) ??
+        config.steps.find((s) => s.step_key === stepKey) ??
+        (stepKey === "resume_upload"
+          ? config.steps.find((s) => s.step_type === "resume_upload" && s.is_enabled)
+          : null);
       stepId = stepRow?.id ? String(stepRow.id) : "";
     }
 
@@ -78,9 +81,6 @@ export async function POST(req: NextRequest) {
 
     const completed_at = status === "completed" ? new Date().toISOString() : null;
 
-    const config = await loadTenantOnboardingConfig(supabase, ctx.tenantId, {
-      workerFacing: false,
-    });
     const stepRow = config?.steps.find((s) => s.id === stepId) ?? null;
 
     if (status === "skipped" && stepRow && isUploadResumeStep(stepRow)) {

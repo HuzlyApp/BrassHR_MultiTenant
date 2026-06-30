@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { getSupabaseUrl } from "@/lib/supabase-env";
-import { resolveWorkerByApplicantId } from "@/lib/onboarding/resolve-worker-context";
+import {
+  readOnboardingTenantSlugFromRequest,
+  resolveOnboardingWorker,
+} from "@/lib/onboarding/resolve-onboarding-worker";
 
 export const runtime = "nodejs";
 
@@ -9,6 +12,9 @@ export const runtime = "nodejs";
 export async function GET(req: NextRequest) {
   try {
     const applicantId = req.nextUrl.searchParams.get("applicantId")?.trim() || "";
+    const tenantSlug =
+      req.nextUrl.searchParams.get("tenant")?.trim().toLowerCase() ||
+      readOnboardingTenantSlugFromRequest(req);
     if (!applicantId) {
       return NextResponse.json({ documents: [] });
     }
@@ -20,7 +26,7 @@ export async function GET(req: NextRequest) {
     }
 
     const supabase = createClient(url, key);
-    const ctx = await resolveWorkerByApplicantId(supabase, applicantId);
+    const ctx = await resolveOnboardingWorker(supabase, applicantId, tenantSlug);
     if (!ctx) {
       return NextResponse.json({ documents: [] });
     }

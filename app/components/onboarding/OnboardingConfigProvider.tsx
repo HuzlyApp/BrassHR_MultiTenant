@@ -163,7 +163,7 @@ export default function OnboardingConfigProvider({ children }: { children: React
 
       if (aid) {
         const progRes = await safeFetchJson<{ progress?: WorkerOnboardingProgressPayload | null }>(
-          `/api/onboarding/progress?applicantId=${encodeURIComponent(aid)}`,
+          `/api/onboarding/progress?applicantId=${encodeURIComponent(aid)}&tenant=${encodeURIComponent(slug)}`,
           { cache: "no-store" }
         );
         if (progRes.ok) {
@@ -187,11 +187,23 @@ export default function OnboardingConfigProvider({ children }: { children: React
       if (isDraftPreview) return;
       const aid = readApplicantId();
       if (!aid) return;
-      await fetch("/api/onboarding/progress/step", {
+      const search = typeof window !== "undefined" ? window.location.search : "";
+      const slug = resolveClientOnboardingTenantSlug(search);
+      const res = await fetch("/api/onboarding/progress/step", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ applicantId: aid, stepKey, status, data }),
+        body: JSON.stringify({
+          applicantId: aid,
+          tenantSlug: slug,
+          stepKey,
+          status,
+          data,
+        }),
       });
+      if (!res.ok) {
+        const payload = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(payload.error || "Could not update onboarding progress.");
+      }
       await refresh();
     },
     [refresh, isDraftPreview]

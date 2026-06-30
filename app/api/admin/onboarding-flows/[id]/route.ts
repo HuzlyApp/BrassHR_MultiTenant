@@ -10,6 +10,7 @@ import {
   updateOnboardingFlow,
   type OnboardingFlowStatus,
 } from "@/lib/onboarding/onboarding-flows";
+import { publishOnboardingFromWorkflow } from "@/lib/onboarding/publish-onboarding-from-workflow";
 import {
   isSerializableWorkflowState,
   type SerializableWorkflowState,
@@ -119,6 +120,20 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
       builderDraft,
       updatedBy: auth.userId,
     });
+
+    if (body.publish === true) {
+      const draftToPublish = builderDraft ?? flow.builderDraft;
+      if (!isSerializableWorkflowState(draftToPublish)) {
+        return NextResponse.json({ error: "Invalid builder draft" }, { status: 400 });
+      }
+      await publishOnboardingFromWorkflow(
+        supabase as OnboardingDbClient,
+        tenantId,
+        draftToPublish,
+        auth.userId,
+        body.name?.trim() || flow.name
+      );
+    }
 
     let savedTemplate: { templateId: string } | null = null;
     if (body.saveTemplate && builderDraft) {
