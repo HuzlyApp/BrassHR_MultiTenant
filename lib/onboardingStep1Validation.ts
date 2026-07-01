@@ -1,5 +1,8 @@
 /** Shared step-1 review validation (client + API). */
 
+import { getStateCodeFromName } from "@/lib/us-state-names"
+import { zipPrefixBelongsToState } from "@/lib/us-zip-by-state"
+
 export const STEP1_INCOMPLETE_MESSAGE =
   "Please complete all required fields before proceeding."
 
@@ -17,6 +20,16 @@ export type Step1FormFields = {
   phone: string
   email: string
   jobRole: string
+  /** When true, address2 mirrors address1 and is not required separately. */
+  sameAsAddress1?: boolean
+}
+
+/** Address line 2 stored on the worker row (mirrors line 1 when flagged). */
+export function resolveStep1Address2(
+  fields: Pick<Step1FormFields, "address1" | "address2" | "sameAsAddress1">
+): string {
+  if (fields.sameAsAddress1) return fields.address1.trim()
+  return fields.address2.trim()
 }
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -48,11 +61,12 @@ export function isValidStep1Zip5(zip: string): boolean {
 }
 
 function allRequiredTrimmedNonEmpty(b: Step1FormFields): boolean {
+  const address2Ok = Boolean(b.sameAsAddress1) || b.address2.trim().length > 0
   return (
     b.firstName.trim().length > 0 &&
     b.lastName.trim().length > 0 &&
     b.address1.trim().length > 0 &&
-    b.address2.trim().length > 0 &&
+    address2Ok &&
     b.city.trim().length > 0 &&
     b.state.trim().length > 0 &&
     b.zipCode.trim().length > 0 &&
@@ -88,6 +102,10 @@ export function validateStep1Form(
   if (!isValidStep1Zip5(b.zipCode)) {
     return { code: "ZIP", message: "Enter a valid 5-digit ZIP code." }
   }
+  const zipStateMessage = step1ZipStateMessage(b.zipCode, b.state)
+  if (zipStateMessage) {
+    return { code: "ZIP", message: zipStateMessage }
+  }
   if (!isValidStep1Email(b.email)) {
     return { code: "EMAIL", message: "Enter a valid email address." }
   }
@@ -97,9 +115,26 @@ export function validateStep1Form(
   return null
 }
 
-export function step1ZipInlineMessage(zipCode: string): string | null {
+export function step1ZipInlineMessage(zipCode: string, stateName?: string): string | null {
   const t = zipCode.trim()
   if (!t) return null
   if (!isValidStep1Zip5(zipCode)) return "Enter a valid 5-digit ZIP code."
+  return step1ZipStateMessage(zipCode, stateName)
+}
+
+/** US ZIP must match the selected state (country is US on this step). */
+export function step1ZipStateMessage(zipCode: string, stateName?: string): string | null {
+  if (!isValidStep1Zip5(zipCode)) return null
+
+  const state = stateName?.trim()
+  if (!state) return "Select a state before entering a ZIP code."
+
+  const stateCode = getStateCodeFromName(state)
+  if (!stateCode) return null
+
+  if (!zipPrefixBelongsToState(zipCode, stateCode)) {
+    return `This ZIP code does not match ${state}.`
+  }
+
   return null
 }

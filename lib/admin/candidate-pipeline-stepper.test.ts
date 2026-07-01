@@ -58,6 +58,14 @@ describe("buildCandidatePipelineSteps", () => {
     );
     expect(steps.find((step) => step.id === "final_approval")?.completed).toBe(true);
   });
+
+  it("marks final approval when checklist worker uses status_label", () => {
+    const steps = buildCandidatePipelineSteps(
+      {},
+      { worker: { id: "w1", status_label: "Approved" } }
+    );
+    expect(steps.find((step) => step.id === "final_approval")?.completed).toBe(true);
+  });
 });
 
 describe("pipelineConnectorFillPercent", () => {

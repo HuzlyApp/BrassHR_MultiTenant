@@ -7,3 +7,24 @@
 .workflow-builder-flow .react-flow__edgelabel-renderer > * {
   pointer-events: all;
 }
+
+@media (max-width: 999px) {
+  .workflow-builder-flow .react-flow__pane,
+  .workflow-builder-flow .react-flow__viewport {
+    touch-action: none;
+  }
+}
+
+/* Phone, iPad, and other touch screens: let finger drags reach the canvas pan layer */
+.workflow-builder-flow--touch-pan .react-flow__pane,
+.workflow-builder-flow--touch-pan .react-flow__viewport {
+  touch-action: none;
+}
+
+.workflow-builder-flow--touch-pan .react-flow__node {
+  pointer-events: none;
+}
+
+.workflow-builder-flow--touch-pan .react-flow__node button {
+  pointer-events: auto;
+}

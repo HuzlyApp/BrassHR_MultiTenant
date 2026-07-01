@@ -10,7 +10,9 @@ export const CANDIDATE_PIPELINE_STEP_LABELS = [
   "Reference Check",
 ] as const;
 
-export type CandidatePipelineStepLabel = (typeof CANDIDATE_PIPELINE_STEP_LABELS)[number];
+export type CandidatePipelineStepLabel =
+  | (typeof CANDIDATE_PIPELINE_STEP_LABELS)[number]
+  | "Final Approval";
 
 export type CandidatePipelineStep = {
   id: string;
@@ -42,6 +44,18 @@ type ProfileWorker = {
   status?: string | null;
 };
 
+/** Worker fields returned by the checklist API (also used by DetailedTabs). */
+export type CandidatePipelineChecklistWorker = ProfileWorker & {
+  status_label?: string | null;
+  first_name?: string | null;
+  last_name?: string | null;
+  job_role?: string | null;
+  city?: string | null;
+  state?: string | null;
+  updated_at?: string | null;
+  profile_photo_url?: string | null;
+};
+
 export type CandidatePipelineProfilePayload = {
   worker?: ProfileWorker;
   skillAssessments?: SkillAssessments;
@@ -49,10 +63,15 @@ export type CandidatePipelineProfilePayload = {
 };
 
 export type CandidatePipelineChecklistPayload = {
-  worker?: { status?: string | null };
+  worker?: CandidatePipelineChecklistWorker;
   sections?: ChecklistSection[];
   meta?: {
     skillAssessments?: SkillAssessments;
+    daysInStage?: number;
+    progressPercent?: number;
+    completedItems?: number;
+    totalItems?: number;
+    verifiedDocuments?: { done: number; total: number };
   };
 };
 
@@ -102,7 +121,9 @@ export function buildCandidatePipelineSteps(
 ): CandidatePipelineStep[] {
   const sections = checklist.sections ?? [];
   const worker = profile.worker ?? {};
-  const statusNorm = (worker.status ?? checklist.worker?.status ?? "new")
+  const statusNorm = (
+    worker.status ?? checklist.worker?.status ?? checklist.worker?.status_label ?? "new"
+  )
     .toString()
     .trim()
     .toLowerCase();

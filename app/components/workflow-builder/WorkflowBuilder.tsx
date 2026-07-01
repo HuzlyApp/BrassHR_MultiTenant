@@ -23,6 +23,7 @@ import {
   Settings,
   Redo2,
   Undo2,
+  SlidersHorizontal,
 } from "lucide-react";
 
 import SuccessModal from "../SuccessModal";
@@ -46,6 +47,15 @@ import type {
   WorkflowState,
 } from "./types";
 import { withLeafDropZones } from "./workflow-canvas-utils";
+
+const FOOTER_BTN =
+  "flex h-10 shrink-0 items-center gap-2 whitespace-nowrap rounded-lg border bg-white px-3 text-sm font-medium transition hover:bg-[#fafafa] disabled:cursor-not-allowed disabled:opacity-50 max-[999px]:h-5 max-[999px]:gap-1 max-[999px]:rounded-md max-[999px]:px-1.5 max-[999px]:text-[10px] max-[999px]:leading-none";
+const FOOTER_BTN_PRIMARY =
+  "flex h-10 shrink-0 items-center gap-2 whitespace-nowrap rounded-lg px-4 text-sm font-semibold text-white transition hover:brightness-[0.97] disabled:cursor-not-allowed disabled:opacity-70 max-[999px]:h-5 max-[999px]:gap-1 max-[999px]:rounded-md max-[999px]:px-2 max-[999px]:text-[10px] max-[999px]:leading-none";
+const FOOTER_ICON = "h-3.5 w-3.5 max-[999px]:h-2 max-[999px]:w-2";
+const CANVAS_PANEL_BTN =
+  "pointer-events-auto inline-flex h-10 items-center gap-2 rounded-lg border bg-white px-3 text-sm font-semibold shadow-sm max-[999px]:h-[22px] max-[999px]:gap-1 max-[999px]:rounded-md max-[999px]:px-2 max-[999px]:text-[11px] max-[999px]:leading-none";
+const CANVAS_PANEL_ICON = "h-4 w-4 max-[999px]:h-[9px] max-[999px]:w-[9px]";
 
 export type WorkflowBuilderProps = {
   title: string;
@@ -160,6 +170,10 @@ function WorkflowBuilderInner({
   const [activeToolbar, setActiveToolbar] = useState<
     "templates" | "flows" | "library" | "settings" | null
   >(null);
+  const [mobileLibraryOpen, setMobileLibraryOpen] = useState(false);
+  const [mobileSettingsOpen, setMobileSettingsOpen] = useState(false);
+  const [isCompactBuilder, setIsCompactBuilder] = useState(false);
+  const [isTouchDevice, setIsTouchDevice] = useState(false);
   const didMount = useRef(false);
   const onChangeRef = useRef(onChange);
   const skipChangeAfterReset = useRef(false);
@@ -167,6 +181,40 @@ function WorkflowBuilderInner({
   useEffect(() => {
     onChangeRef.current = onChange;
   }, [onChange]);
+
+  useEffect(() => {
+    const media = window.matchMedia("(max-width: 999px)");
+    const syncPanelsForViewport = () => {
+      const compact = media.matches;
+      setIsCompactBuilder(compact);
+      if (!compact) {
+        setMobileLibraryOpen(false);
+        setMobileSettingsOpen(false);
+      }
+    };
+    syncPanelsForViewport();
+    media.addEventListener("change", syncPanelsForViewport);
+    return () => media.removeEventListener("change", syncPanelsForViewport);
+  }, []);
+
+  useEffect(() => {
+    const touchMedia = window.matchMedia("(hover: none) and (pointer: coarse)");
+    const syncTouchDevice = () => {
+      const isIosTablet =
+        /iPad|iPhone|iPod/i.test(navigator.userAgent) ||
+        (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+      setIsTouchDevice(touchMedia.matches || isIosTablet);
+    };
+    syncTouchDevice();
+    touchMedia.addEventListener("change", syncTouchDevice);
+    return () => touchMedia.removeEventListener("change", syncTouchDevice);
+  }, []);
+
+  useEffect(() => {
+    if (!isCompactBuilder || !selectedNodeId) return;
+    setMobileSettingsOpen(true);
+    setMobileLibraryOpen(false);
+  }, [isCompactBuilder, selectedNodeId]);
 
   useEffect(() => {
     if (!editingTitle) setTitleDraft(title);
@@ -464,10 +512,67 @@ function WorkflowBuilderInner({
         />
       ) : null}
 
-      <div className="flex flex-1 overflow-hidden">
-        <StepsLibrary categories={stepLibrary} searchTerm={searchTerm} readOnly={readOnly} />
+      <div className="relative flex min-h-0 flex-1 overflow-hidden">
+        {isCompactBuilder && (mobileLibraryOpen || mobileSettingsOpen) ? (
+          <button
+            type="button"
+            className="fixed inset-0 z-40 bg-black/40"
+            aria-label="Close panels"
+            onClick={() => {
+              setMobileLibraryOpen(false);
+              setMobileSettingsOpen(false);
+            }}
+          />
+        ) : null}
 
-        <main className="flex flex-1 flex-col overflow-hidden px-4 pb-4 pt-2">
+        <StepsLibrary
+          categories={stepLibrary}
+          searchTerm={searchTerm}
+          readOnly={readOnly}
+          compactMode={isCompactBuilder}
+          panelOpen={!isCompactBuilder || mobileLibraryOpen}
+          onPanelClose={
+            isCompactBuilder ? () => setMobileLibraryOpen(false) : undefined
+          }
+        />
+
+        <main className="relative flex min-h-0 flex-1 flex-col overflow-hidden px-2 pb-2 pt-1.5 min-[1000px]:px-4 min-[1000px]:pb-4 min-[1000px]:pt-2">
+          {isCompactBuilder ? (
+            <div className="pointer-events-none absolute left-3 top-3 z-20 flex gap-2">
+              {!mobileLibraryOpen ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMobileLibraryOpen(true);
+                    setMobileSettingsOpen(false);
+                  }}
+                  className={CANVAS_PANEL_BTN}
+                  style={{ borderColor: CARD_BORDER, color: TEXT_PRIMARY }}
+                >
+                  <Library className={CANVAS_PANEL_ICON} />
+                  Steps
+                </button>
+              ) : null}
+            </div>
+          ) : null}
+          {isCompactBuilder ? (
+            <div className="pointer-events-none absolute right-3 top-3 z-20 flex gap-2">
+              {!mobileSettingsOpen ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMobileSettingsOpen(true);
+                    setMobileLibraryOpen(false);
+                  }}
+                  className={CANVAS_PANEL_BTN}
+                  style={{ borderColor: CARD_BORDER, color: TEXT_PRIMARY }}
+                >
+                  <SlidersHorizontal className={CANVAS_PANEL_ICON} />
+                  Settings
+                </button>
+              ) : null}
+            </div>
+          ) : null}
           {!hideCanvasHeader ? (
           <div
             className={`relative flex shrink-0 items-center ${titleCentered ? "justify-center" : "justify-between"}`}
@@ -575,6 +680,8 @@ function WorkflowBuilderInner({
               canPasteWorkflow={canPasteWorkflow}
               pastingWorkflow={pastingWorkflow}
               onPasteWorkflow={onPasteWorkflow}
+              compactMode={isCompactBuilder}
+              touchPan={isTouchDevice}
             />
 
             {savingTemplate ? (
@@ -612,32 +719,32 @@ function WorkflowBuilderInner({
           </div>
 
           <div
-            className="flex shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-2 border-t bg-white px-4 py-3"
+            className="flex shrink-0 items-center gap-1 overflow-x-auto overscroll-x-contain border-t bg-white px-3 py-2 max-[999px]:flex-nowrap min-[1000px]:flex-wrap min-[1000px]:justify-between min-[1000px]:gap-x-3 min-[1000px]:gap-y-2 min-[1000px]:overflow-visible min-[1000px]:px-4 min-[1000px]:py-3"
             style={{ borderColor: "#d0d5dd" }}
           >
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex shrink-0 items-center gap-1 min-[1000px]:flex-wrap min-[1000px]:gap-2">
               {!readOnly ? (
               <>
               <button
                 type="button"
                 onClick={handleUndo}
                 disabled={undoStack.length === 0}
-                className="flex h-10 shrink-0 items-center gap-2 whitespace-nowrap rounded-lg border bg-white px-3 text-sm font-medium transition hover:bg-[#fafafa] disabled:cursor-not-allowed disabled:opacity-50"
+                className={FOOTER_BTN}
                 style={{ borderColor: "#d0d5dd", color: TEXT_PRIMARY }}
                 aria-label="Undo"
               >
-                <Undo2 size={14} />
+                <Undo2 className={FOOTER_ICON} />
                 Undo
               </button>
               <button
                 type="button"
                 onClick={handleRedo}
                 disabled={redoStack.length === 0}
-                className="flex h-10 shrink-0 items-center gap-2 whitespace-nowrap rounded-lg border bg-white px-3 text-sm font-medium transition hover:bg-[#fafafa] disabled:cursor-not-allowed disabled:opacity-50"
+                className={FOOTER_BTN}
                 style={{ borderColor: "#d0d5dd", color: TEXT_PRIMARY }}
                 aria-label="Redo"
               >
-                <Redo2 size={14} />
+                <Redo2 className={FOOTER_ICON} />
                 Redo
               </button>
               </>
@@ -654,17 +761,18 @@ function WorkflowBuilderInner({
                   type="button"
                   onClick={onPasteWorkflow}
                   disabled={pastingWorkflow}
-                  className="flex h-10 shrink-0 items-center gap-2 whitespace-nowrap rounded-lg border bg-white px-3 text-sm font-semibold transition hover:bg-[#faf6ef] disabled:cursor-not-allowed disabled:opacity-60"
+                  className={`${FOOTER_BTN} font-semibold hover:bg-[#faf6ef] max-[999px]:font-semibold`}
                   style={{ borderColor: "var(--brand-primary)", color: "var(--brand-primary)" }}
                 >
-                  {pastingWorkflow ? "Pasting…" : "Paste workflow"}
+                  <span className="max-[999px]:hidden">{pastingWorkflow ? "Pasting…" : "Paste workflow"}</span>
+                  <span className="hidden max-[999px]:inline">{pastingWorkflow ? "…" : "Paste"}</span>
                 </button>
               ) : null}
               {!readOnly && onResetCanvas ? (
                 <button
                   type="button"
                   onClick={onResetCanvas}
-                  className="flex h-10 shrink-0 items-center gap-2 whitespace-nowrap rounded-lg border bg-white px-3 text-sm font-medium transition hover:bg-[#fafafa]"
+                  className={FOOTER_BTN}
                   style={{ borderColor: "#d0d5dd", color: TEXT_PRIMARY }}
                 >
                   Reset
@@ -672,15 +780,15 @@ function WorkflowBuilderInner({
               ) : null}
             </div>
 
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex shrink-0 items-center gap-1 max-[999px]:ml-auto min-[1000px]:gap-2">
               {!readOnly ? (
               <button
                 type="button"
                 onClick={() => onPreview?.(currentState)}
-                className="flex h-10 shrink-0 items-center gap-2 whitespace-nowrap rounded-lg border bg-white px-3.5 text-sm font-semibold transition hover:bg-[#fafafa]"
+                className={FOOTER_BTN}
                 style={{ borderColor: "#d0d5dd", color: TEXT_PRIMARY }}
               >
-                <Play size={14} />
+                <Play className={FOOTER_ICON} />
                 Preview
               </button>
               ) : null}
@@ -689,11 +797,12 @@ function WorkflowBuilderInner({
                 type="button"
                 onClick={() => onPublish?.(currentState)}
                 disabled={savingPublish || savingTemplate}
-                className="flex h-10 shrink-0 items-center gap-2 whitespace-nowrap rounded-lg px-4 text-sm font-semibold text-white transition hover:brightness-[0.97] disabled:cursor-not-allowed disabled:opacity-70"
+                className={FOOTER_BTN_PRIMARY}
                 style={{ background: BRAND_CTA_GRADIENT }}
               >
-                {savingPublish ? <Loader2 size={14} className="animate-spin" /> : null}
-                {savingPublish ? "Publishing…" : "Publish to All"}
+                {savingPublish ? <Loader2 className={`${FOOTER_ICON} animate-spin`} /> : null}
+                <span className="max-[999px]:hidden">{savingPublish ? "Publishing…" : "Publish to All"}</span>
+                <span className="hidden max-[999px]:inline">{savingPublish ? "…" : "Publish"}</span>
               </button>
               ) : null}
             </div>
@@ -704,6 +813,11 @@ function WorkflowBuilderInner({
           node={selectedNode}
           onUpdate={handleUpdateNode}
           readOnly={readOnly}
+          compactMode={isCompactBuilder}
+          panelOpen={!isCompactBuilder || mobileSettingsOpen}
+          onPanelClose={
+            isCompactBuilder ? () => setMobileSettingsOpen(false) : undefined
+          }
           onSaveStep={() => {
             onChange?.(currentState);
             setSuccessOpen(true);
@@ -738,17 +852,17 @@ function SaveTemplateButton({
       onClick={onClick}
       disabled={saving || disabled}
       className={`flex shrink-0 items-center gap-2 whitespace-nowrap rounded-lg border bg-white text-sm font-medium transition hover:bg-[#fafafa] disabled:cursor-not-allowed disabled:opacity-70 ${
-        compact ? "h-9 px-3.5" : "h-10 px-3"
+        compact ? "h-9 px-3.5 max-[999px]:h-[22px] max-[999px]:rounded-md max-[999px]:px-1.5 max-[999px]:text-[10px] max-[999px]:leading-none" : "h-10 px-3 max-[999px]:h-5 max-[999px]:rounded-md max-[999px]:px-1.5 max-[999px]:text-[10px] max-[999px]:leading-none"
       }`}
       style={{ borderColor: compact ? CARD_BORDER : "#d0d5dd", color: TEXT_PRIMARY }}
       aria-busy={saving}
     >
       {saving ? (
-        <Loader2 size={14} className="animate-spin" style={{ color: "var(--brand-primary)" }} />
+        <Loader2 className="h-3.5 w-3.5 animate-spin max-[999px]:h-2 max-[999px]:w-2" style={{ color: "var(--brand-primary)" }} />
       ) : (
-        <Save size={14} />
+        <Save className="h-3.5 w-3.5 max-[999px]:h-2 max-[999px]:w-2" />
       )}
-      {saving ? "Saving…" : "Save as template"}
+      <span className="max-[999px]:hidden">{saving ? "Saving…" : "Save as template"}</span>
     </button>
   );
 }

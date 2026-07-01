@@ -5,8 +5,10 @@ import TenantOnboardingWorkflowBuilder from "@/app/components/onboarding/TenantO
 
 export default function AdminRecruiterOnboardingBuilderPage() {
   return (
-    <Suspense fallback={null}>
-      <TenantOnboardingWorkflowBuilder variant="dashboard" />
-    </Suspense>
+    <div className="admin-recruiter-builder-page">
+      <Suspense fallback={null}>
+        <TenantOnboardingWorkflowBuilder variant="dashboard" />
+      </Suspense>
+    </div>
   );
 }

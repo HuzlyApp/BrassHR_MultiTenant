@@ -1002,7 +1002,7 @@ export default function TenantOnboardingWorkflowBuilder({
     .filter(Boolean)
     .join(" · ");
 
-  const dashboardShellClass = "flex h-[calc(100vh-64px-56px)] flex-col overflow-hidden";
+  const dashboardShellClass = "flex min-h-0 flex-1 flex-col overflow-hidden";
   const isDraft = editingTemplate ? true : publishStatus === "draft";
 
   const setUndoControlsRef = useRef(workflowHeader?.setUndoControls);
@@ -1105,7 +1105,7 @@ export default function TenantOnboardingWorkflowBuilder({
   }
 
   const builderContent = (
-    <div className={isDashboard ? "flex h-full min-h-0 flex-col" : "space-y-3"}>
+    <div className={isDashboard ? "flex h-full min-h-0 flex-col overflow-hidden" : "space-y-3"}>
       {saveError ? (
         <OnboardingBuilderSaveErrorBanner
           message={saveError}

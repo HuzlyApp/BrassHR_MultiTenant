@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, PanelRightClose } from "lucide-react";
 import type { Node } from "@xyflow/react";
 import {
   BRAND_CTA_GRADIENT,
@@ -26,6 +26,9 @@ type StepsSettingsPanelProps = {
   onSaveStep?: (id: string) => void;
   onCloneWorkflow?: () => void;
   readOnly?: boolean;
+  compactMode?: boolean;
+  panelOpen?: boolean;
+  onPanelClose?: () => void;
 };
 
 export default function StepsSettingsPanel({
@@ -34,19 +37,40 @@ export default function StepsSettingsPanel({
   onSaveStep,
   onCloneWorkflow,
   readOnly = false,
+  compactMode = false,
+  panelOpen = true,
+  onPanelClose,
 }: StepsSettingsPanelProps) {
   return (
     <aside
-      className="flex h-full w-[320px] shrink-0 flex-col border-l bg-[#ECF1F9]"
+      className={
+        compactMode
+          ? `flex h-full min-h-0 w-[320px] shrink-0 flex-col border-l bg-[#ECF1F9] fixed inset-y-0 right-0 z-50 shadow-xl transition-transform duration-200 ${
+              panelOpen ? "translate-x-0" : "pointer-events-none translate-x-full"
+            }`
+          : "flex h-full min-h-0 w-[320px] shrink-0 flex-col border-l bg-[#ECF1F9]"
+      }
       style={{ borderColor: CARD_BORDER }}
+      aria-hidden={compactMode && !panelOpen ? true : undefined}
     >
       <div
-        className="flex items-center justify-between border-b px-5 py-4"
+        className="flex shrink-0 items-center justify-between border-b px-5 py-4"
         style={{ borderColor: CARD_BORDER }}
       >
         <h2 className="text-sm font-semibold leading-5" style={{ color: TEXT_PRIMARY }}>
           Steps Settings
         </h2>
+        {compactMode && onPanelClose ? (
+          <button
+            type="button"
+            onClick={onPanelClose}
+            className="inline-flex h-8 w-8 items-center justify-center rounded-md border bg-white transition hover:bg-[#F9FAFB]"
+            style={{ borderColor: CARD_BORDER }}
+            aria-label="Close steps settings"
+          >
+            <PanelRightClose size={16} color={TEXT_SECONDARY} />
+          </button>
+        ) : null}
       </div>
 
       {!node ? (

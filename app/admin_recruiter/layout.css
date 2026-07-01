@@ -1,11 +1,13 @@
 .admin-recruiter-shell {
   --admin-recruiter-header-height: 67px;
+  --admin-recruiter-subnav-height: 56px;
   --admin-recruiter-chrome-border: #e2e8f0;
 }
 
 @media (max-width: 999px) {
   .admin-recruiter-shell {
     --admin-recruiter-header-height: 64px;
+    --admin-recruiter-subnav-height: 48px;
   }
 }
 
@@ -50,7 +52,10 @@
   margin-left: 0;
   width: 100%;
   min-width: 0;
+  min-height: 100dvh;
   box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
 }
 
 .admin-recruiter-sidebar {
@@ -447,15 +452,22 @@
 }
 
 /* Candidate detail pages — full-height shell, unified background, centered mobile loader */
-.admin-recruiter-main-wrap {
-  display: flex;
-  flex-direction: column;
-}
-
 .admin-recruiter-main-wrap > :not(header):not(nav) {
   width: 100%;
   min-width: 0;
   box-sizing: border-box;
+}
+
+.admin-recruiter-builder-page {
+  display: flex;
+  flex-direction: column;
+  height: calc(
+    100dvh - var(--admin-recruiter-header-height, 67px) - var(--admin-recruiter-subnav-height, 56px)
+  );
+  max-height: calc(
+    100dvh - var(--admin-recruiter-header-height, 67px) - var(--admin-recruiter-subnav-height, 56px)
+  );
+  overflow: hidden;
 }
 
 .admin-candidate-detail-shell {
