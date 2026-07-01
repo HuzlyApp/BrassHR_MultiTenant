@@ -3,6 +3,11 @@ import {
   loginAuthErrorResponse,
   LOGIN_OTP_INVALID_MESSAGE,
 } from "@/lib/auth/login-api-errors";
+import {
+  createLoginOtpProof,
+  loginOtpProofCookieName,
+  loginOtpProofTtlSeconds,
+} from "@/lib/auth/login-otp-proof";
 import { verifyLoginOtp } from "@/lib/auth/login-otp-store";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { enforceRateLimit, getClientIp } from "@/lib/security/rate-limit";
@@ -49,7 +54,15 @@ export async function POST(req: NextRequest) {
       return loginAuthErrorResponse(LOGIN_OTP_INVALID_MESSAGE, "OTP_INVALID", 401);
     }
 
-    return NextResponse.json({ ok: true });
+    const response = NextResponse.json({ ok: true });
+    response.cookies.set(loginOtpProofCookieName(), createLoginOtpProof(email), {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: loginOtpProofTtlSeconds(),
+      path: "/",
+    });
+    return response;
   } catch (err: unknown) {
     console.error("[auth/login-otp/verify]", err);
     const msg = err instanceof Error ? err.message : "Unexpected error";

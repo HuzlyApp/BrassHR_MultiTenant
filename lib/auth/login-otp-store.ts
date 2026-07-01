@@ -67,6 +67,29 @@ export async function invalidatePreviousLoginOtps(
   if (error) throw error;
 }
 
+async function issueLoginOtpRow(
+  supabase: SupabaseClient,
+  params: {
+    email: string;
+    purpose: string;
+    userId?: string | null;
+    otpHash: string;
+    createdAtIso: string;
+    expiresAt: string;
+  }
+): Promise<void> {
+  const { error } = await supabase.rpc("issue_auth_login_otp", {
+    p_email: params.email,
+    p_purpose: params.purpose,
+    p_otp_hash: params.otpHash,
+    p_user_id: params.userId ?? null,
+    p_expires_at: params.expiresAt,
+    p_now: params.createdAtIso,
+  });
+
+  if (error) throw error;
+}
+
 export type CreateLoginOtpParams = {
   email: string;
   userId?: string | null;
@@ -89,22 +112,18 @@ export async function createLoginOtp(
   const now = params.now ?? new Date();
   const nowIso = now.toISOString();
 
-  await invalidatePreviousLoginOtps(supabase, { email, purpose, now: nowIso });
-
   const code = params.code ?? generateOtpCode();
   const otpHash = hashLoginOtp({ email, purpose, code });
   const expiresAt = loginOtpExpiryIso(now);
 
-  const { error } = await supabase.from("auth_login_otps").insert({
+  await issueLoginOtpRow(supabase, {
     email,
-    user_id: params.userId ?? null,
     purpose,
-    otp_hash: otpHash,
-    created_at: nowIso,
-    expires_at: expiresAt,
+    userId: params.userId,
+    otpHash,
+    createdAtIso: nowIso,
+    expiresAt,
   });
-
-  if (error) throw error;
 
   return { code, expiresAt };
 }

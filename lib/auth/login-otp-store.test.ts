@@ -47,6 +47,19 @@ function createInMemoryOtpSupabase(initialRows: OtpRow[] = []) {
   const rows = [...initialRows];
   let nextId = 1;
 
+  const invalidateActive = (email: string, purpose: string, now: string) => {
+    for (const row of rows) {
+      if (
+        row.email === email &&
+        row.purpose === purpose &&
+        row.used_at === null &&
+        row.invalidated_at == null
+      ) {
+        row.invalidated_at = now;
+      }
+    }
+  };
+
   const from = vi.fn((table: string) => {
     if (table !== "auth_login_otps") {
       throw new Error(`Unexpected table: ${table}`);
@@ -104,14 +117,38 @@ function createInMemoryOtpSupabase(initialRows: OtpRow[] = []) {
     return builder;
   });
 
-  const rpc = vi.fn(async (fn: string, args: { p_email: string; p_purpose: string; p_otp_hash: string }) => {
-    if (fn !== "consume_auth_login_otp") {
-      throw new Error(`Unexpected rpc: ${fn}`);
+  const rpc = vi.fn(async (fn: string, args: Record<string, unknown>) => {
+    if (fn === "consume_auth_login_otp") {
+      const email = String(args.p_email ?? "");
+      const purpose = String(args.p_purpose ?? "");
+      const otpHash = String(args.p_otp_hash ?? "");
+      return {
+        data: consumeAuthLoginOtp(rows, email, purpose, otpHash),
+        error: null,
+      };
     }
-    return {
-      data: consumeAuthLoginOtp(rows, args.p_email, args.p_purpose, args.p_otp_hash),
-      error: null,
-    };
+
+    if (fn === "issue_auth_login_otp") {
+      const email = String(args.p_email ?? "").trim().toLowerCase();
+      const purpose = String(args.p_purpose ?? "");
+      const now = String(args.p_now ?? new Date().toISOString());
+      const expiresAt = String(args.p_expires_at ?? "");
+      invalidateActive(email, purpose, now);
+      rows.push({
+        id: `otp-${nextId++}`,
+        email,
+        user_id: (args.p_user_id as string | null) ?? null,
+        purpose,
+        otp_hash: String(args.p_otp_hash ?? ""),
+        created_at: now,
+        expires_at: expiresAt,
+        used_at: null,
+        invalidated_at: null,
+      });
+      return { data: null, error: null };
+    }
+
+    throw new Error(`Unexpected rpc: ${fn}`);
   });
 
   return {

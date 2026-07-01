@@ -433,6 +433,19 @@ function LoginPageContent() {
     setSubmitting(true);
     clearAuthError();
 
+    const assertRes = await fetch("/api/auth/login-otp/assert-verified", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: login.email }),
+    });
+    if (!assertRes.ok) {
+      setShowSuccess(false);
+      setStep("otp");
+      setAuthError(await parseLoginApiError(assertRes));
+      setSubmitting(false);
+      return;
+    }
+
     const {
       data: { session },
     } = await supabaseBrowser.auth.getSession();
