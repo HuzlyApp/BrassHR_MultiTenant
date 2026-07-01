@@ -62,11 +62,6 @@ export type CandidatePipelineProfilePayload = {
   references?: unknown[];
 };
 
-export type CandidatePipelineChecklistWorker = {
-  status?: string | null;
-  status_label?: string | null;
-} & Record<string, unknown>;
-
 export type CandidatePipelineChecklistPayload = {
   worker?: CandidatePipelineChecklistWorker;
   sections?: ChecklistSection[];
