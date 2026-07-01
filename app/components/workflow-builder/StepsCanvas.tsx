@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, type RefObject } from "react";
 import {
   Background,
   BackgroundVariant,
   Controls,
+  PanOnScrollMode,
   ReactFlow,
   addEdge,
   useReactFlow,
@@ -69,7 +70,155 @@ type StepsCanvasProps = {
   canPasteWorkflow?: boolean;
   pastingWorkflow?: boolean;
   onPasteWorkflow?: () => void;
+  /** Tablet/mobile layout (narrow viewport). */
+  compactMode?: boolean;
+  /** Touch screen (phone, iPad, etc.) — enables finger panning. */
+  touchPan?: boolean;
 };
+
+const COMPACT_FIT_VIEW = {
+  padding: 0.75,
+  minZoom: 0.08,
+  maxZoom: 0.9,
+} as const;
+
+function MobileCanvasFitView({
+  enabled,
+  stepCount,
+}: {
+  enabled: boolean;
+  stepCount: number;
+}) {
+  const { fitView } = useReactFlow();
+  const lastFitKeyRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!enabled || stepCount === 0) return;
+
+    const fitKey = `${enabled}:${stepCount}`;
+    if (lastFitKeyRef.current === fitKey) return;
+    lastFitKeyRef.current = fitKey;
+
+    const frame = requestAnimationFrame(() => {
+      void fitView({ ...COMPACT_FIT_VIEW, duration: 0 });
+    });
+
+    return () => cancelAnimationFrame(frame);
+  }, [enabled, stepCount, fitView]);
+
+  return null;
+}
+
+const TOUCH_PAN_THRESHOLD = 6;
+
+function isInteractiveTouchTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof Element)) return false;
+  return !!target.closest(
+    "button, a, input, textarea, select, [contenteditable='true'], .nodrag, .nopan, .react-flow__controls"
+  );
+}
+
+function MobileTouchPan({
+  containerRef,
+  enabled,
+  onTapSelect,
+}: {
+  containerRef: RefObject<HTMLDivElement | null>;
+  enabled: boolean;
+  onTapSelect?: (nodeId: string | null) => void;
+}) {
+  const { getViewport, setViewport, screenToFlowPosition, getNodes } = useReactFlow();
+
+  useEffect(() => {
+    const root = containerRef.current;
+    if (!enabled || !root) return;
+
+    let activeTouch: { x: number; y: number; id: number } | null = null;
+    let moved = false;
+
+    const onTouchStart = (event: TouchEvent) => {
+      if (event.touches.length !== 1) {
+        activeTouch = null;
+        return;
+      }
+      if (isInteractiveTouchTarget(event.target)) return;
+
+      const touch = event.touches[0];
+      activeTouch = { x: touch.clientX, y: touch.clientY, id: touch.identifier };
+      moved = false;
+    };
+
+    const onTouchMove = (event: TouchEvent) => {
+      if (!activeTouch || event.touches.length !== 1) return;
+
+      const touch = Array.from(event.touches).find((t) => t.identifier === activeTouch?.id);
+      if (!touch) return;
+
+      const dx = touch.clientX - activeTouch.x;
+      const dy = touch.clientY - activeTouch.y;
+
+      if (!moved && Math.hypot(dx, dy) < TOUCH_PAN_THRESHOLD) return;
+
+      moved = true;
+      event.preventDefault();
+      event.stopPropagation();
+
+      const viewport = getViewport();
+      setViewport({
+        x: viewport.x + dx,
+        y: viewport.y + dy,
+        zoom: viewport.zoom,
+      });
+
+      activeTouch = { x: touch.clientX, y: touch.clientY, id: touch.identifier };
+    };
+
+    const finishTouch = (event: TouchEvent) => {
+      if (!activeTouch) return;
+
+      if (!moved && onTapSelect) {
+        const touch = Array.from(event.changedTouches).find(
+          (t) => t.identifier === activeTouch?.id
+        );
+        if (touch && !isInteractiveTouchTarget(event.target)) {
+          const flowPoint = screenToFlowPosition({
+            x: touch.clientX,
+            y: touch.clientY,
+          });
+          const hit = getNodes().find((node) => {
+            if (node.type !== "step") return false;
+            const width = node.measured?.width ?? node.width ?? 232;
+            const height = node.measured?.height ?? node.height ?? 70;
+            return (
+              flowPoint.x >= node.position.x &&
+              flowPoint.x <= node.position.x + width &&
+              flowPoint.y >= node.position.y &&
+              flowPoint.y <= node.position.y + height
+            );
+          });
+          onTapSelect(hit?.id ?? null);
+        }
+      }
+
+      activeTouch = null;
+      moved = false;
+    };
+
+    root.addEventListener("touchstart", onTouchStart, { capture: true, passive: true });
+    root.addEventListener("touchmove", onTouchMove, { capture: true, passive: false });
+    root.addEventListener("touchend", finishTouch, { capture: true, passive: true });
+    root.addEventListener("touchcancel", finishTouch, { capture: true, passive: true });
+
+    return () => {
+      root.removeEventListener("touchstart", onTouchStart, { capture: true });
+      root.removeEventListener("touchmove", onTouchMove, { capture: true });
+      root.removeEventListener("touchend", finishTouch, { capture: true });
+      root.removeEventListener("touchcancel", finishTouch, { capture: true });
+    };
+  }, [containerRef, enabled, getViewport, setViewport, screenToFlowPosition, getNodes, onTapSelect]);
+
+  return null;
+}
 
 const nodeTypes = { step: StepNode, dropZone: DropZoneNode };
 const edgeTypes = { [WORKFLOW_EDGE_TYPE]: WorkflowConnectorEdge };
@@ -125,7 +274,11 @@ export default function StepsCanvas({
   canPasteWorkflow = false,
   pastingWorkflow = false,
   onPasteWorkflow,
+  compactMode = false,
+  touchPan = false,
 }: StepsCanvasProps) {
+  const canvasRef = useRef<HTMLDivElement>(null);
+  const useTouchCanvas = compactMode || touchPan;
   const { screenToFlowPosition } = useReactFlow<
     Node<WorkflowCanvasNodeData>,
     Edge
@@ -539,7 +692,7 @@ export default function StepsCanvas({
     () =>
       nodes.map((n) => {
         if (isDropZoneNode(n)) {
-          return { ...n, selected: false };
+          return { ...n, selected: false, draggable: false };
         }
         return {
           ...n,
@@ -586,11 +739,21 @@ export default function StepsCanvas({
     [edges, nodes, handleConnectorAction, readOnly]
   );
 
-  const hasStepNodes = onlyStepNodes(nodes).length > 0;
+  const handleTouchTapSelect = useCallback(
+    (nodeId: string | null) => {
+      onSelectNode(nodeId);
+    },
+    [onSelectNode]
+  );
+
+  const stepNodes = onlyStepNodes(nodes);
+  const hasStepNodes = stepNodes.length > 0;
+  const fitViewOptions = compactMode ? COMPACT_FIT_VIEW : { padding: 0.3 };
 
   return (
     <div
-      className="workflow-builder-flow relative h-full flex-1 overflow-hidden"
+      ref={canvasRef}
+      className={`workflow-builder-flow relative h-full flex-1 overflow-hidden${useTouchCanvas ? " workflow-builder-flow--touch-pan" : ""}`}
       style={{ backgroundColor: "transparent" }}
       onDrop={readOnly ? undefined : onDrop}
       onDragOver={readOnly ? undefined : onDragOver}
@@ -609,11 +772,19 @@ export default function StepsCanvas({
         edgeTypes={edgeTypes}
         edgesFocusable={!readOnly}
         edgesReconnectable={false}
-        nodesDraggable={!readOnly}
+        nodesDraggable={!readOnly && !useTouchCanvas}
         deleteKeyCode={null}
         onPaneContextMenu={(e) => e.preventDefault()}
-        fitView
-        fitViewOptions={{ padding: 0.3 }}
+        fitView={!compactMode}
+        fitViewOptions={fitViewOptions}
+        minZoom={useTouchCanvas ? 0.08 : 0.5}
+        maxZoom={2}
+        panOnDrag={!useTouchCanvas}
+        panOnScroll={useTouchCanvas}
+        panOnScrollMode={PanOnScrollMode.Free}
+        selectNodesOnDrag={false}
+        zoomOnPinch
+        preventScrolling
         defaultEdgeOptions={{
           type: WORKFLOW_EDGE_TYPE,
           style: {
@@ -630,6 +801,16 @@ export default function StepsCanvas({
           color="#d0d5dd"
         />
         <Controls showInteractive={false} />
+        {useTouchCanvas ? (
+          <MobileTouchPan
+            containerRef={canvasRef}
+            enabled={useTouchCanvas}
+            onTapSelect={handleTouchTapSelect}
+          />
+        ) : null}
+        {compactMode ? (
+          <MobileCanvasFitView enabled={compactMode} stepCount={stepNodes.length} />
+        ) : null}
       </ReactFlow>
 
       {!hasStepNodes ? (

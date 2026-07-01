@@ -3,6 +3,7 @@ import {
   isDeliverableApplicantEmail,
   isPlaceholderApplicantEmail,
   STEP1_ADDRESS_NOT_VERIFIED_MESSAGE,
+  step1ZipInlineMessage,
   validateStep1Form,
 } from "@/lib/onboardingStep1Validation"
 import { assertValidApplicantEmailForSigning, FirmaOnboardingSigningError } from "@/lib/onboarding/firma-onboarding-signing"
@@ -33,6 +34,42 @@ describe("validateStep1Form address verification", () => {
 
   it("skips address check when addressVerified is omitted", () => {
     expect(validateStep1Form(completeForm)).toBeNull()
+  })
+
+  it("allows empty address2 when sameAsAddress1 is checked", () => {
+    expect(
+      validateStep1Form(
+        { ...completeForm, address2: "", sameAsAddress1: true },
+        { addressVerified: true }
+      )
+    ).toBeNull()
+  })
+
+  it("still requires address2 when not same as address1", () => {
+    const issue = validateStep1Form(
+      { ...completeForm, address2: "", sameAsAddress1: false },
+      { addressVerified: true }
+    )
+    expect(issue?.code).toBe("INCOMPLETE")
+  })
+})
+
+describe("validateStep1Form ZIP and state", () => {
+  it("accepts a California ZIP when state is California", () => {
+    expect(validateStep1Form(completeForm, { addressVerified: true })).toBeNull()
+  })
+
+  it("rejects a New York ZIP when state is California", () => {
+    const issue = validateStep1Form(
+      { ...completeForm, zipCode: "10001" },
+      { addressVerified: true }
+    )
+    expect(issue?.code).toBe("ZIP")
+    expect(issue?.message).toMatch(/California/i)
+  })
+
+  it("requires state before validating ZIP prefix", () => {
+    expect(step1ZipInlineMessage("90012", "")).toMatch(/state/i)
   })
 })
 

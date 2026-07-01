@@ -20,12 +20,14 @@ export function AdminRecruiterDashboardSubNav() {
 
   return (
     <nav
-      className="sticky top-[var(--admin-recruiter-header-height,67px)] z-30 w-full border-b border-[#E4E7EC] bg-white"
+      className="sticky top-[var(--admin-recruiter-header-height,67px)] z-30 w-full shrink-0 border-b border-[#E4E7EC] bg-white"
       aria-label="Workflow builder toolbar"
     >
-      <div className="flex h-[56px] items-center justify-between gap-4 px-5 lg:px-8">
-        <div className="flex min-w-0 flex-1 items-center">{center ?? null}</div>
-        <div className="flex shrink-0 items-center justify-end">{right ?? null}</div>
+      <div className="flex min-h-[var(--admin-recruiter-subnav-height,56px)] items-center gap-2 px-3 py-1.5 min-[1000px]:gap-3 min-[1000px]:px-4 min-[1000px]:py-2 sm:min-[1000px]:px-5 lg:min-[1000px]:px-8">
+        <div className="min-w-0 flex-1 overflow-hidden">{center ?? null}</div>
+        <div className="flex shrink-0 flex-nowrap items-center justify-end gap-1 overflow-x-auto min-[1000px]:gap-2">
+          {right ?? null}
+        </div>
       </div>
     </nav>
   );

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ChevronDown, MoreHorizontal, Plus, Search } from "lucide-react";
+import { ChevronDown, MoreHorizontal, PanelLeftClose, Plus, Search } from "lucide-react";
 import { CARD_BORDER, DRAG_DATA_TYPE, TEXT_PRIMARY, TEXT_SECONDARY } from "./constants";
 import type { StepCategory, StepDefinition } from "./types";
 
@@ -10,6 +10,10 @@ type StepsLibraryProps = {
   title?: string;
   searchTerm?: string;
   readOnly?: boolean;
+  /** Tablet/phone drawer mode — desktop leaves panels in normal flex layout. */
+  compactMode?: boolean;
+  panelOpen?: boolean;
+  onPanelClose?: () => void;
 };
 
 export default function StepsLibrary({
@@ -17,6 +21,9 @@ export default function StepsLibrary({
   title = "Steps Library",
   searchTerm = "",
   readOnly = false,
+  compactMode = false,
+  panelOpen = true,
+  onPanelClose,
 }: StepsLibraryProps) {
   const [localSearch, setLocalSearch] = useState("");
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
@@ -36,16 +43,34 @@ export default function StepsLibrary({
 
   return (
     <aside
-      className="flex h-full w-[280px] shrink-0 flex-col border-r bg-[#ECF1F9]"
+      className={
+        compactMode
+          ? `flex h-full min-h-0 w-[280px] shrink-0 flex-col border-r bg-[#ECF1F9] fixed inset-y-0 left-0 z-50 shadow-xl transition-transform duration-200 ${
+              panelOpen ? "translate-x-0" : "pointer-events-none -translate-x-full"
+            }`
+          : "flex h-full min-h-0 w-[280px] shrink-0 flex-col border-r bg-[#ECF1F9]"
+      }
       style={{ borderColor: CARD_BORDER }}
+      aria-hidden={compactMode && !panelOpen ? true : undefined}
     >
       <div
-        className="flex items-center justify-between border-b px-4 py-3"
+        className="flex shrink-0 items-center justify-between border-b px-4 py-3"
         style={{ borderColor: CARD_BORDER }}
       >
         <h2 className="text-sm font-semibold leading-5" style={{ color: TEXT_PRIMARY }}>
           {title}
         </h2>
+        {compactMode && onPanelClose ? (
+          <button
+            type="button"
+            onClick={onPanelClose}
+            className="inline-flex h-8 w-8 items-center justify-center rounded-md border bg-white transition hover:bg-[#F9FAFB]"
+            style={{ borderColor: CARD_BORDER }}
+            aria-label="Close steps library"
+          >
+            <PanelLeftClose size={16} color={TEXT_SECONDARY} />
+          </button>
+        ) : null}
       </div>
 
       <div className="border-b px-4 py-3" style={{ borderColor: CARD_BORDER }}>
@@ -66,7 +91,7 @@ export default function StepsLibrary({
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-3 py-3">
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-3 py-3">
         {filtered.length === 0 ? (
           <p className="px-2 py-8 text-center text-xs" style={{ color: TEXT_SECONDARY }}>
             No steps found

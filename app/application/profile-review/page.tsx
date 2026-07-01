@@ -20,10 +20,12 @@ import {
 import { formatPhoneNumber, normalizePhoneInput } from "@/lib/phone"
 import {
   isValidStep1Email,
-  validateStep1Form,
+  resolveStep1Address2,
   step1ZipInlineMessage,
+  validateStep1Form,
 } from "@/lib/onboardingStep1Validation"
 import ValidatedAddressField from "@/app/components/onboarding/ValidatedAddressField"
+import OnboardingCheckbox from "@/app/components/OnboardingCheckbox"
 import { buildAddressQuery, shouldValidateAddressQuery } from "@/lib/mapbox/address-validation"
 import { useAddressValidation } from "@/lib/mapbox/use-address-validation"
 import type { AddressValidationResult } from "@/lib/mapbox/address-validation-types"
@@ -55,11 +57,18 @@ function step1FormFromParsedRecord(
   jobRole: string
   sameAsAddress1: boolean
 } {
+  const address1 = String(parsed.address1 || parsed.address || parsed.Address || "").trim()
+  const address2 = String(parsed.address2 || "").trim()
+  const sameAsAddress1 =
+    Boolean(parsed.sameAsAddress1) ||
+    (Boolean(address1) &&
+      Boolean(address2) &&
+      address1.localeCompare(address2, undefined, { sensitivity: "accent" }) === 0)
   return {
     firstName: String(parsed.first_name || parsed.firstName || parsed.FirstName || "").trim(),
     lastName: String(parsed.last_name || parsed.lastName || parsed.LastName || "").trim(),
-    address1: String(parsed.address1 || parsed.address || parsed.Address || "").trim(),
-    address2: String(parsed.address2 || "").trim(),
+    address1,
+    address2: sameAsAddress1 ? address1 : address2,
     city: String(parsed.city || parsed.City || "").trim(),
     state: String(parsed.state || parsed.State || "").trim(),
     zipCode: String(parsed.zipCode || parsed.zip || "")
@@ -68,7 +77,7 @@ function step1FormFromParsedRecord(
     phone: normalizePhoneInput(String(parsed.phone || parsed.Phone || "")),
     email: String(parsed.email || parsed.Email || "").trim(),
     jobRole: urlJobTitle || String(parsed.job_role || parsed.jobRole || parsed.JobRole || parsed.job_title || "").trim(),
-    sameAsAddress1: false,
+    sameAsAddress1,
   }
 }
 
@@ -314,12 +323,12 @@ function Step1ReviewContent() {
   const addressParts = useMemo(
     () => ({
       address1: form.address1,
-      address2: form.address2,
+      address2: form.sameAsAddress1 ? "" : form.address2,
       city: form.city,
       state: form.state,
       zipCode: form.zipCode,
     }),
-    [form.address1, form.address2, form.city, form.state, form.zipCode],
+    [form.address1, form.address2, form.sameAsAddress1, form.city, form.state, form.zipCode],
   )
 
   const addressValidation = useAddressValidation(addressParts, {
@@ -334,7 +343,7 @@ function Step1ReviewContent() {
       setForm(loaded)
       const parsedAddressQuery = buildAddressQuery({
         address1: loaded.address1,
-        address2: loaded.address2,
+        address2: loaded.sameAsAddress1 ? "" : loaded.address2,
         city: loaded.city,
         state: loaded.state,
         zipCode: loaded.zipCode,
@@ -367,7 +376,10 @@ function Step1ReviewContent() {
     }))
   }, [urlJobTitle])
 
-  const zipFieldError = useMemo(() => step1ZipInlineMessage(form.zipCode), [form.zipCode])
+  const zipFieldError = useMemo(
+    () => step1ZipInlineMessage(form.zipCode, form.state),
+    [form.zipCode, form.state],
+  )
 
   const emailFieldError = useMemo(() => {
     if (!form.email.trim()) return null
@@ -406,6 +418,7 @@ function Step1ReviewContent() {
     if (
       key === "address1" ||
       key === "address2" ||
+      key === "sameAsAddress1" ||
       key === "city" ||
       key === "state" ||
       key === "zipCode"
@@ -414,6 +427,22 @@ function Step1ReviewContent() {
     }
     if (key === "zipCode" && typeof value === "string") {
       setForm((prev) => ({ ...prev, zipCode: value.replace(/\D/g, "").slice(0, 5) }))
+      return
+    }
+    if (key === "sameAsAddress1" && typeof value === "boolean") {
+      setForm((prev) => ({
+        ...prev,
+        sameAsAddress1: value,
+        address2: value ? prev.address1 : "",
+      }))
+      return
+    }
+    if (key === "address1" && typeof value === "string") {
+      setForm((prev) => ({
+        ...prev,
+        address1: value,
+        ...(prev.sameAsAddress1 ? { address2: value } : {}),
+      }))
       return
     }
     setForm((prev) => ({ ...prev, [key]: value }))
@@ -426,7 +455,9 @@ function Step1ReviewContent() {
     setForm((prev) => ({
       ...prev,
       address1: components.address1 || prev.address1,
-      address2: components.address2 || prev.address2,
+      address2: prev.sameAsAddress1
+        ? components.address1 || prev.address1
+        : components.address2 || prev.address2,
       city: components.city || prev.city,
       state: components.state || prev.state,
       zipCode: components.zipCode || prev.zipCode,
@@ -455,7 +486,7 @@ function Step1ReviewContent() {
       firstName: form.firstName,
       lastName: form.lastName,
       address1: form.address1,
-      address2: form.address2,
+      address2: resolveStep1Address2(form),
       city: form.city,
       state: form.state,
       zipCode: form.zipCode,
@@ -487,7 +518,7 @@ function Step1ReviewContent() {
         first_name: form.firstName,
         last_name: form.lastName,
         address1: form.address1,
-        address2: form.address2,
+        address2: resolveStep1Address2(form),
         city: form.city,
         state: form.state,
         zipCode: form.zipCode,
@@ -497,6 +528,7 @@ function Step1ReviewContent() {
         firstName: form.firstName,
         lastName: form.lastName,
         jobRole: form.jobRole,
+        sameAsAddress1: form.sameAsAddress1,
         ...(verifiedForStorage
           ? {
               address_validation: {
@@ -587,7 +619,7 @@ function Step1ReviewContent() {
           first_name: form.firstName.trim(),
           last_name: form.lastName.trim(),
           address1: form.address1.trim(),
-          address2: form.address2.trim(),
+          address2: resolveStep1Address2(form),
           city: form.city.trim(),
           state: form.state.trim(),
           zip_code: form.zipCode.trim(),
@@ -613,7 +645,7 @@ function Step1ReviewContent() {
         firstName: form.firstName,
         lastName: form.lastName,
         address1: form.address1,
-        address2: form.address2,
+        address2: resolveStep1Address2(form),
         city: form.city,
         state: form.state,
         zipCode: form.zipCode,
@@ -639,7 +671,7 @@ function Step1ReviewContent() {
         first_name: form.firstName.trim(),
         last_name: form.lastName.trim(),
         address1: form.address1.trim(),
-        address2: form.address2.trim(),
+        address2: resolveStep1Address2(form),
         city: form.city.trim(),
         state: form.state.trim(),
         zip: form.zipCode.trim(),
@@ -768,7 +800,7 @@ function Step1ReviewContent() {
           first_name: form.firstName,
           last_name: form.lastName,
           address1: form.address1,
-          address2: form.address2,
+          address2: resolveStep1Address2(form),
           city: form.city,
           state: form.state,
           zipCode: form.zipCode,
@@ -932,18 +964,35 @@ function Step1ReviewContent() {
               />
 
               {/* Address 2 */}
-              <EditableInput
-                label="Address 2"
-                required
-                hint="Apt, Suite, Building, Floor, etc..."
-                value={form.address2}
-                onChange={(value) => handleChange("address2", value)}
-                disabled={form.sameAsAddress1}
-                className={`w-full px-4 h-[56px] border border-gray-200 rounded-md focus:border-[color:var(--brand-primary)] focus:outline-none text-[#1e293b] text-sm pr-10 ${
-                  form.sameAsAddress1 ? "bg-gray-50 text-gray-500" : "bg-white"
-                }`}
-                placeholder="Same as address 1"
-              />
+              <div>
+                <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
+                  <label className="block text-[13px] font-medium text-gray-600">
+                    Address 2
+                    {!form.sameAsAddress1 ? <span className="text-red-500 ml-0.5">*</span> : null}
+                  </label>
+                  <OnboardingCheckbox
+                    checked={form.sameAsAddress1}
+                    onChange={(checked) => handleChange("sameAsAddress1", checked)}
+                    className="items-center gap-2"
+                  >
+                    <span className="text-[13px] font-medium text-gray-600">Same as address 1</span>
+                  </OnboardingCheckbox>
+                </div>
+                <span className="mb-1.5 block text-[11px] text-gray-400">
+                  Apt, Suite, Building, Floor, etc...
+                </span>
+                <div className="group relative">
+                  <input
+                    value={form.sameAsAddress1 ? form.address1 : form.address2}
+                    onChange={(e) => handleChange("address2", e.target.value)}
+                    disabled={form.sameAsAddress1}
+                    className={`w-full px-4 h-[56px] border border-gray-200 rounded-md focus:border-[color:var(--brand-primary)] focus:outline-none text-[#1e293b] text-sm pr-10 ${
+                      form.sameAsAddress1 ? "bg-gray-50 text-gray-500" : "bg-white"
+                    }`}
+                    placeholder={form.sameAsAddress1 ? "Same as address 1" : "Apt, Suite, Unit, etc."}
+                  />
+                </div>
+              </div>
 
               {/* City, State */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
