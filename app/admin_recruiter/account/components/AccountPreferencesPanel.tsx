@@ -12,15 +12,10 @@ import {
   AccountSaveButton,
   AccountSuccessBanner,
 } from "./AccountFormStatus";
-
-const TIMEZONE_OPTIONS = [
-  "America/New_York",
-  "America/Chicago",
-  "America/Denver",
-  "America/Los_Angeles",
-  "America/Phoenix",
-  "UTC",
-];
+import {
+  buildTimezoneSelectOptions,
+  timezoneRegionsForOptions,
+} from "@/lib/account/us-timezones";
 
 const LANGUAGE_OPTIONS = [
   { value: "en", label: "English" },
@@ -47,6 +42,9 @@ export default function AccountPreferencesPanel() {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
+
+  const timezoneOptions = buildTimezoneSelectOptions(timezone);
+  const timezoneRegions = timezoneRegionsForOptions(timezoneOptions);
 
   useEffect(() => {
     if (!settings) return;
@@ -134,10 +132,16 @@ export default function AccountPreferencesPanel() {
             onChange={(e) => setTimezone(e.target.value)}
             className={FIELD}
           >
-            {TIMEZONE_OPTIONS.map((tz) => (
-              <option key={tz} value={tz}>
-                {tz}
-              </option>
+            {timezoneRegions.map((region) => (
+              <optgroup key={region} label={region}>
+                {timezoneOptions
+                  .filter((option) => option.region === region)
+                  .map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+              </optgroup>
             ))}
           </select>
         </label>
