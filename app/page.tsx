@@ -136,19 +136,9 @@ export default function Home() {
   };
 
   const resolvedPortalSlug =
-    (activeTenantSlug && isTenantApplicantPortalSlug(activeTenantSlug)
+    activeTenantSlug && isTenantApplicantPortalSlug(activeTenantSlug)
       ? activeTenantSlug
-      : null) ||
-    (() => {
-      const fromQuery = resolveClientOnboardingTenantSlug(
-        typeof window !== "undefined" ? window.location.search : ""
-      );
-      return isTenantApplicantPortalSlug(fromQuery) ? fromQuery : null;
-    })() ||
-    (() => {
-      const fromHost = getClientTenantHostLabel();
-      return isTenantApplicantPortalSlug(fromHost) ? fromHost : null;
-    })();
+      : null;
 
   const recruiterSignInUrl = recruiterSignInHref({
     tenant: resolvedPortalSlug,

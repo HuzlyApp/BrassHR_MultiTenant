@@ -10,7 +10,9 @@ export const CANDIDATE_PIPELINE_STEP_LABELS = [
   "Reference Check",
 ] as const;
 
-export type CandidatePipelineStepLabel = (typeof CANDIDATE_PIPELINE_STEP_LABELS)[number];
+export type CandidatePipelineStepLabel =
+  | (typeof CANDIDATE_PIPELINE_STEP_LABELS)[number]
+  | "Final Approval";
 
 export type CandidatePipelineStep = {
   id: string;
@@ -48,13 +50,18 @@ export type CandidatePipelineProfilePayload = {
   references?: unknown[];
 };
 
+export type CandidatePipelineChecklistWorker = {
+  status?: string | null;
+  status_label?: string | null;
+} & Record<string, unknown>;
+
 export type CandidatePipelineChecklistPayload = {
-  worker?: { status?: string | null };
+  worker?: CandidatePipelineChecklistWorker;
   sections?: ChecklistSection[];
   meta?: {
     skillAssessments?: SkillAssessments;
-  };
-};
+  } & Record<string, unknown>;
+} & Record<string, unknown>;
 
 function findChecklistRow(
   sections: ChecklistSection[] | undefined,
@@ -102,7 +109,12 @@ export function buildCandidatePipelineSteps(
 ): CandidatePipelineStep[] {
   const sections = checklist.sections ?? [];
   const worker = profile.worker ?? {};
-  const statusNorm = (worker.status ?? checklist.worker?.status ?? "new")
+  const statusNorm = (
+    worker.status ??
+    checklist.worker?.status ??
+    checklist.worker?.status_label ??
+    "new"
+  )
     .toString()
     .trim()
     .toLowerCase();
