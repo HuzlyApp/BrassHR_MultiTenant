@@ -123,10 +123,27 @@ function isMissingTableError(error: { message?: string }, tablePattern: RegExp):
   )
 }
 
+function shouldPreferPipelineRow(
+  current: PipelineChecklistItemRow,
+  candidate: PipelineChecklistItemRow
+): boolean {
+  const currentComplete = pipelineItemIsComplete(current)
+  const candidateComplete = pipelineItemIsComplete(candidate)
+  if (candidateComplete && !currentComplete) return true
+  if (candidateComplete !== currentComplete) return false
+
+  const currentUpdated = current.updated_at ?? ""
+  const candidateUpdated = candidate.updated_at ?? ""
+  return candidateUpdated > currentUpdated
+}
+
 export async function loadWorkerPipelineChecklistItems(
   supabase: SupabaseClient,
   workerId: string
 ): Promise<Map<PipelineChecklistItemKey, PipelineChecklistItemRow>> {
+  const merged = new Map<PipelineChecklistItemKey, PipelineChecklistItemRow>()
+  let loadedAnyTable = false
+
   for (const table of TABLE_NAMES) {
     const { data, error } = await supabase
       .from(table)
@@ -143,16 +160,19 @@ export async function loadWorkerPipelineChecklistItems(
       throw error
     }
 
-    const map = new Map<PipelineChecklistItemKey, PipelineChecklistItemRow>()
+    loadedAnyTable = true
     for (const raw of data ?? []) {
       const row = raw as PipelineChecklistItemRow
       if (!isPipelineChecklistItemKey(row.item_key)) continue
-      map.set(row.item_key, row)
+
+      const existing = merged.get(row.item_key)
+      if (!existing || shouldPreferPipelineRow(existing, row)) {
+        merged.set(row.item_key, row)
+      }
     }
-    return map
   }
 
-  return new Map()
+  return loadedAnyTable ? merged : new Map()
 }
 
 export function pipelineSectionComplete(

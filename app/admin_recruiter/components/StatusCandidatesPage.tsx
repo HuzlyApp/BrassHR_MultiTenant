@@ -158,7 +158,13 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
   const loadCandidates = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(fetchUrl, { cache: "no-store" });
+      const resolvedUrl = (() => {
+        const sep = fetchUrl.includes("?") ? "&" : "?";
+        return fetchUrl.includes("includePhotoUrls=")
+          ? fetchUrl
+          : `${fetchUrl}${sep}includePhotoUrls=1`;
+      })();
+      const res = await fetch(resolvedUrl, { cache: "no-store" });
       const data = await res.json();
       const authError =
         res.status === 401 ||

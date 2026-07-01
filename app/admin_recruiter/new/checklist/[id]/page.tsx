@@ -9,6 +9,7 @@ import CandidateDetailLoader from "../../../components/CandidateDetailLoader";
 import CandidateAvatarIcon from "../../../components/CandidateAvatarIcon";
 import BrandedHistoryIcon from "../../../components/BrandedHistoryIcon";
 import { checklistSectionDetailHref } from "@/lib/admin/checklist-section-navigation";
+import { dispatchCandidatePipelineRefresh } from "@/lib/admin/candidate-pipeline-events";
 import { Check, CheckCircle2, MoreVertical } from "lucide-react";
 
 type ItemState = "pending" | "complete" | "uploaded" | "answered" | "warning" | "not_reachable" | "not_applicable";
@@ -318,6 +319,10 @@ export default function NewApplicantChecklistPage() {
           };
         });
       }
+
+      if (applicantId) {
+        dispatchCandidatePipelineRefresh(applicantId);
+      }
     } catch (e) {
       console.error(e);
       setData(previousData);
@@ -365,7 +370,7 @@ export default function NewApplicantChecklistPage() {
   return (
     <div className="w-full min-w-0 overflow-auto admin-recruiter-page-pad">
       <div className="admin-recruiter-content-width">
-            <DetailedTabs applicantId={applicantId} activeTab="Checklist" />
+            <DetailedTabs applicantId={applicantId} activeTab="Checklist" checklistPayload={data} />
 
             {error ? (
               <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">

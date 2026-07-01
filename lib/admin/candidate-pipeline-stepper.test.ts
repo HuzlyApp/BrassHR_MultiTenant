@@ -22,6 +22,35 @@ describe("buildCandidatePipelineSteps", () => {
     expect(steps.find((step) => step.id === "assessment")?.completed).toBe(true);
   });
 
+  it("marks interview complete when call 2 is done via call log sync", () => {
+    const steps = buildCandidatePipelineSteps(
+      {},
+      {
+        sections: [
+          {
+            id: "screening",
+            rows: [
+              { id: "call_1", state: "complete", checked: true },
+              { id: "call_2", callLogCompleted: true },
+            ],
+          },
+        ],
+      }
+    );
+    expect(steps.find((step) => step.id === "screening")?.completed).toBe(true);
+    expect(steps.find((step) => step.id === "interview")?.completed).toBe(true);
+  });
+
+  it("marks assessment complete from checklist meta when profile counts are missing", () => {
+    const steps = buildCandidatePipelineSteps(
+      {},
+      {
+        meta: { skillAssessments: { completed: 2, total: 2 } },
+      }
+    );
+    expect(steps.find((step) => step.id === "assessment")?.completed).toBe(true);
+  });
+
   it("marks final approval when worker status is approved", () => {
     const steps = buildCandidatePipelineSteps(
       { worker: { id: "w1", status: "approved" } },

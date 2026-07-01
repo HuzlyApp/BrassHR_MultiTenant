@@ -36,9 +36,11 @@ function StepIcon({ completed }: { completed: boolean }) {
 
   return (
     <span
-      className="relative z-10 inline-flex h-[15px] w-[15px] shrink-0 items-center justify-center rounded-full border border-[color:var(--brand-primary)] bg-white"
+      className="relative z-10 inline-flex h-[15px] w-[15px] shrink-0 items-center justify-center rounded-full border border-[#D7DEE8] bg-white"
       aria-hidden
-    />
+    >
+      <span className="inline-flex h-[7px] w-[7px] rounded-full bg-[#D7DEE8]" />
+    </span>
   );
 }
 
@@ -47,8 +49,12 @@ export default function CandidatePipelineStepper({
   className = "",
   applicantId,
 }: CandidatePipelineStepperProps) {
-  const fillPercent = pipelineConnectorFillPercent(steps);
-  const firstIncomplete = steps.findIndex((item) => !item.completed);
+  const visibleSteps = steps.length > 0 ? steps : DEFAULT_STEPS;
+  const fillPercent = pipelineConnectorFillPercent(visibleSteps);
+  const firstIncomplete = visibleSteps.findIndex((item) => !item.completed);
+  const stepsCount = Math.max(visibleSteps.length, 1);
+  const trackInsetPercent = 100 / (stepsCount * 2);
+  const trackWidthPercent = 100 - trackInsetPercent * 2;
 
   return (
     <div
@@ -58,24 +64,33 @@ export default function CandidatePipelineStepper({
     >
       <div className="relative mx-auto w-full max-w-[760px] px-2">
         <div
-          className="pointer-events-none absolute top-[7px] right-[8%] left-[8%] h-0.5 bg-[#E8EDF4]"
+          className="pointer-events-none absolute top-[7px] h-0.5 bg-[#E8EDF4]"
+          style={{
+            left: `${trackInsetPercent}%`,
+            right: `${trackInsetPercent}%`,
+          }}
           aria-hidden
         />
         <div
-          className="pointer-events-none absolute top-[7px] left-[8%] h-0.5 bg-[color:var(--brand-primary)] transition-all duration-300"
-          style={{ width: `calc(84% * ${fillPercent / 100})` }}
+          className="pointer-events-none absolute top-[7px] h-0.5 bg-[color:var(--brand-primary)] transition-all duration-300"
+          style={{
+            left: `${trackInsetPercent}%`,
+            width: `${trackWidthPercent * (fillPercent / 100)}%`,
+          }}
           aria-hidden
         />
 
-        <div className="relative grid grid-cols-6 gap-1 sm:gap-3">
-          {steps.map((step, index) => {
+        <div
+          className="relative grid gap-1 sm:gap-3"
+          style={{ gridTemplateColumns: `repeat(${Math.max(visibleSteps.length, 1)}, minmax(0, 1fr))` }}
+        >
+          {visibleSteps.map((step, index) => {
             const isCurrent =
               firstIncomplete === -1
-                ? index === steps.length - 1
+                ? index === visibleSteps.length - 1
                 : index === firstIncomplete;
-            const isFinalStep = index === steps.length - 1;
             const finalApprovalHref =
-              isFinalStep && applicantId
+              step.id === "final_approval" && applicantId
                 ? `/admin_recruiter/new/final-approval/${encodeURIComponent(applicantId)}`
                 : null;
 

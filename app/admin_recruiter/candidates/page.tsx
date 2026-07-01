@@ -257,7 +257,7 @@ export default function CandidatesPage() {
         return;
       }
 
-      const res = await fetch("/api/workers", { cache: "no-store" });
+      const res = await fetch("/api/workers?includePhotoUrls=1", { cache: "no-store" });
       const data = await res.json();
       const authError =
         res.status === 401 ||

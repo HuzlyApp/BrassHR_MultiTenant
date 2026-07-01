@@ -108,16 +108,16 @@ async function attachWorkerProfilePhotos(
 ): Promise<EmploymentWorkerRecord[]> {
   if (workers.length === 0) return workers;
 
-  const candidateIds = [
-    ...new Set(workers.map((row) => row.candidate_id).filter(Boolean)),
-  ] as string[];
+  const workerIds = workers.map((row) => row.id).filter(Boolean) as string[];
+  const candidateIds = workers.map((row) => row.candidate_id).filter(Boolean) as string[];
+  const lookupIds = [...new Set([...candidateIds, ...workerIds])] as string[];
 
   const photoByCandidateId = new Map<string, unknown>();
-  if (candidateIds.length > 0) {
+  if (lookupIds.length > 0) {
     const { data, error } = await supabase
       .from("worker")
       .select("id, profile_photo")
-      .in("id", candidateIds);
+      .in("id", lookupIds);
     if (!error) {
       for (const row of data ?? []) {
         const id = row.id != null ? String(row.id) : "";
@@ -131,7 +131,7 @@ async function attachWorkerProfilePhotos(
       ...worker,
       profile_photo_url: await resolveWorkerProfilePhotoUrl(
         supabase,
-        photoByCandidateId.get(worker.candidate_id)
+        photoByCandidateId.get(worker.candidate_id) ?? photoByCandidateId.get(worker.id)
       ),
     }))
   );

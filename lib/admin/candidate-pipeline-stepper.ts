@@ -4,7 +4,6 @@ export const CANDIDATE_PIPELINE_STEP_LABELS = [
   "Assessment",
   "Interview",
   "Reference Check",
-  "Final Approval",
 ] as const;
 
 export type CandidatePipelineStepLabel = (typeof CANDIDATE_PIPELINE_STEP_LABELS)[number];
@@ -19,6 +18,7 @@ type ChecklistRow = {
   id: string;
   state?: string;
   checked?: boolean;
+  callLogCompleted?: boolean;
 };
 
 type ChecklistSection = {
@@ -46,6 +46,9 @@ export type CandidatePipelineProfilePayload = {
 export type CandidatePipelineChecklistPayload = {
   worker?: { status?: string | null };
   sections?: ChecklistSection[];
+  meta?: {
+    skillAssessments?: SkillAssessments;
+  };
 };
 
 function findChecklistRow(
@@ -63,10 +66,17 @@ function rowIsPassed(row: ChecklistRow | null): boolean {
   if (!row) return false;
   return (
     row.checked === true ||
+    row.callLogCompleted === true ||
     row.state === "complete" ||
     row.state === "uploaded" ||
     row.state === "answered"
   );
+}
+
+function skillAssessmentsComplete(skillAssessments: SkillAssessments | undefined): boolean {
+  const total = skillAssessments?.total ?? 0;
+  const completed = skillAssessments?.completed ?? 0;
+  return total > 0 && completed >= total;
 }
 
 function sectionRowsPassed(sections: ChecklistSection[] | undefined, sectionId: string): boolean {
@@ -86,9 +96,9 @@ export function buildCandidatePipelineSteps(
     .trim()
     .toLowerCase();
 
-  const skillTotal = profile.skillAssessments?.total ?? 0;
-  const skillCompleted = profile.skillAssessments?.completed ?? 0;
-  const assessmentDone = skillTotal > 0 && skillCompleted >= skillTotal;
+  const assessmentDone =
+    skillAssessmentsComplete(profile.skillAssessments) ||
+    skillAssessmentsComplete(checklist.meta?.skillAssessments);
 
   const referencesCount = Array.isArray(profile.references) ? profile.references.length : 0;
 
@@ -96,20 +106,27 @@ export function buildCandidatePipelineSteps(
   const screeningDone = rowIsPassed(findChecklistRow(sections, "call_1"));
   const interviewDone = rowIsPassed(findChecklistRow(sections, "call_2"));
   const referenceDone = referencesCount > 0;
+  const finalReady = sectionRowsPassed(sections, "final");
   const finalDone =
     statusNorm === "approved" ||
     statusNorm === "converted" ||
     statusNorm === "disapproved" ||
-    sectionRowsPassed(sections, "final");
+    finalReady;
 
-  return [
+  const steps: CandidatePipelineStep[] = [
     { id: "application_received", label: "Application Received", completed: applicationReceived },
     { id: "screening", label: "Screening", completed: screeningDone },
     { id: "assessment", label: "Assessment", completed: assessmentDone },
     { id: "interview", label: "Interview", completed: interviewDone },
     { id: "reference_check", label: "Reference Check", completed: referenceDone },
-    { id: "final_approval", label: "Final Approval", completed: finalDone },
   ];
+
+  const showFinalApprovalStep = finalReady || statusNorm === "approved" || statusNorm === "converted";
+  if (showFinalApprovalStep) {
+    steps.push({ id: "final_approval", label: "Final Approval", completed: finalDone });
+  }
+
+  return steps;
 }
 
 export function pipelineConnectorFillPercent(steps: CandidatePipelineStep[]): number {

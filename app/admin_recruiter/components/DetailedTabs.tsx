@@ -1,11 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { isCandidateAlreadyConverted } from "@/lib/admin/convert-candidate-to-worker";
 import {
+  CANDIDATE_PIPELINE_REFRESH_EVENT,
+  type CandidatePipelineRefreshDetail,
+} from "@/lib/admin/candidate-pipeline-events";
+import {
   buildCandidatePipelineSteps,
-  type CandidatePipelineStep,
+  type CandidatePipelineChecklistPayload,
+  type CandidatePipelineProfilePayload,
 } from "@/lib/admin/candidate-pipeline-stepper";
 import CandidatePipelineStepper from "./CandidatePipelineStepper";
 
@@ -31,6 +36,8 @@ type DetailedTabsProps = {
   activeTab?: TabName;
   /** When the parent page already loaded worker status, skip the extra profile fetch delay. */
   workerStatus?: string | null;
+  /** Live checklist payload from the Checklist tab — keeps the stepper in sync without a second fetch. */
+  checklistPayload?: CandidatePipelineChecklistPayload | null;
 };
 
 const ONBOARDED_CACHE_PREFIX = "brasshr-onboarded-worker:";
@@ -73,12 +80,25 @@ function tabHref(tab: TabName, applicantId?: string) {
   }
 }
 
-export default function DetailedTabs({ applicantId, activeTab, workerStatus }: DetailedTabsProps) {
+export default function DetailedTabs({
+  applicantId,
+  activeTab,
+  workerStatus,
+  checklistPayload,
+}: DetailedTabsProps) {
   const [isOnboarded, setIsOnboarded] = useState(() => {
     if (workerStatus != null) return isCandidateAlreadyConverted({ status: workerStatus });
     return readOnboardedCache(applicantId);
   });
-  const [pipelineSteps, setPipelineSteps] = useState<CandidatePipelineStep[] | null>(null);
+  const [profilePayload, setProfilePayload] = useState<CandidatePipelineProfilePayload | null>(null);
+  const [fetchedChecklist, setFetchedChecklist] = useState<CandidatePipelineChecklistPayload | null>(null);
+  const [pipelineRefreshToken, setPipelineRefreshToken] = useState(0);
+  const hasLiveChecklistRef = useRef(false);
+  hasLiveChecklistRef.current = checklistPayload != null;
+
+  const refreshPipelineData = useCallback(() => {
+    setPipelineRefreshToken((value) => value + 1);
+  }, []);
 
   useEffect(() => {
     if (workerStatus != null) {
@@ -89,7 +109,8 @@ export default function DetailedTabs({ applicantId, activeTab, workerStatus }: D
 
     if (!applicantId) {
       if (workerStatus == null) setIsOnboarded(false);
-      setPipelineSteps(null);
+      setProfilePayload(null);
+      setFetchedChecklist(null);
       return;
     }
 
@@ -98,49 +119,73 @@ export default function DetailedTabs({ applicantId, activeTab, workerStatus }: D
     }
 
     let cancelled = false;
+    const skipChecklistFetch = hasLiveChecklistRef.current;
 
     void Promise.all([
       fetch(`/api/admin/worker-profile?workerId=${encodeURIComponent(applicantId)}`, {
         cache: "no-store",
       }),
-      fetch(`/api/admin/worker-checklist?workerId=${encodeURIComponent(applicantId)}`, {
-        cache: "no-store",
-      }),
+      skipChecklistFetch
+        ? Promise.resolve(null)
+        : fetch(`/api/admin/worker-checklist?workerId=${encodeURIComponent(applicantId)}`, {
+            cache: "no-store",
+          }),
     ])
       .then(async ([profileRes, checklistRes]) => {
         const profile = profileRes.ok
-          ? ((await profileRes.json()) as Record<string, unknown>)
+          ? ((await profileRes.json()) as CandidatePipelineProfilePayload)
           : {};
-        const checklist = checklistRes.ok
-          ? ((await checklistRes.json()) as Record<string, unknown>)
+        const checklist = checklistRes?.ok
+          ? ((await checklistRes.json()) as CandidatePipelineChecklistPayload)
           : {};
 
         if (cancelled) return;
 
         if (workerStatus == null) {
-          const worker = profile.worker as { status?: string | null } | undefined;
+          const worker = profile.worker;
           const onboarded = isCandidateAlreadyConverted(worker ?? {});
           setIsOnboarded(onboarded);
           writeOnboardedCache(applicantId, onboarded);
         }
 
-        setPipelineSteps(
-          buildCandidatePipelineSteps(
-            profile as Parameters<typeof buildCandidatePipelineSteps>[0],
-            checklist as Parameters<typeof buildCandidatePipelineSteps>[1]
-          )
-        );
+        setProfilePayload(profile);
+        if (!skipChecklistFetch) {
+          setFetchedChecklist(checklist);
+        }
       })
       .catch(() => {
         if (cancelled) return;
         if (workerStatus == null) setIsOnboarded(readOnboardedCache(applicantId));
-        setPipelineSteps(null);
+        setProfilePayload(null);
+        if (!skipChecklistFetch) setFetchedChecklist(null);
       });
 
     return () => {
       cancelled = true;
     };
-  }, [applicantId, workerStatus]);
+  }, [applicantId, workerStatus, pipelineRefreshToken]);
+
+  useEffect(() => {
+    if (!applicantId) return;
+
+    function handlePipelineRefresh(event: Event) {
+      const detail = (event as CustomEvent<CandidatePipelineRefreshDetail>).detail;
+      if (detail?.workerId === applicantId) {
+        refreshPipelineData();
+      }
+    }
+
+    window.addEventListener(CANDIDATE_PIPELINE_REFRESH_EVENT, handlePipelineRefresh);
+    return () => {
+      window.removeEventListener(CANDIDATE_PIPELINE_REFRESH_EVENT, handlePipelineRefresh);
+    };
+  }, [applicantId, refreshPipelineData]);
+
+  const pipelineSteps = useMemo(() => {
+    if (!applicantId) return null;
+    const checklist = checklistPayload ?? fetchedChecklist ?? {};
+    return buildCandidatePipelineSteps(profilePayload ?? {}, checklist);
+  }, [applicantId, checklistPayload, fetchedChecklist, profilePayload]);
 
   const showOnboardedTab =
     activeTab === ONBOARDED_TAB ||
