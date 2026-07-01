@@ -111,7 +111,10 @@ export async function PUT(req: Request) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  await invalidateTenantBrandingCache(tenantId);
+  await invalidateTenantBrandingCache({
+    tenantId,
+    slug: data?.slug,
+  });
 
   return Response.json({
     ok: true,
