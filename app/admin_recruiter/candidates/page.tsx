@@ -19,6 +19,7 @@ import CandidateCommunicationDialog from "../components/CandidateCommunicationDi
 import { CandidatesListShell } from "../components/CandidatesListShell";
 import { useCandidatesFilterRowsDefault } from "../hooks/useCandidatesFilterRowsDefault";
 import { exportCandidatesCsv, exportCandidatesXls } from "./export-candidates";
+import { formatCandidateStatusLabel } from "./candidate-status-badge";
 
 type WorkerProfile = {
   id: string;
@@ -42,13 +43,6 @@ type WorkerProfile = {
   profile_photo?: string | null;
   profile_photo_url?: string | null;
 };
-
-function titleCaseStatus(s: string | null | undefined) {
-  const v = (s || "").trim();
-  if (!v) return "New";
-  const low = v.toLowerCase();
-  return low.slice(0, 1).toUpperCase() + low.slice(1);
-}
 
 /** Fixed `en-US` locale so SSR and browser produce identical strings (avoids hydration mismatch). */
 function formatDateTime(iso: string | null) {
@@ -249,7 +243,7 @@ export default function CandidatesPage() {
           zip: item.zip ?? "",
           address1: item.address1 ?? "",
           address2: item.address2 ?? "",
-          status: titleCaseStatus(item.status as string | undefined),
+          status: formatCandidateStatusLabel(item.status as string | undefined),
           createdAt: item.created_at,
           reference: item.id.slice(0, 7).toUpperCase(),
           dateOfBirth: null,
@@ -300,7 +294,7 @@ export default function CandidatesPage() {
         zip: item.zip ?? "",
         address1: item.address1 ?? "",
         address2: item.address2 ?? "",
-        status: titleCaseStatus(item.status as string | undefined),
+        status: formatCandidateStatusLabel(item.status as string | undefined),
         createdAt: item.created_at,
         reference: item.id.slice(0, 7).toUpperCase(),
         dateOfBirth: null,

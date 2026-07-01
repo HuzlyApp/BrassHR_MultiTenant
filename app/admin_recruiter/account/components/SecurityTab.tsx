@@ -9,6 +9,7 @@ import { syncAccountChecklist } from "@/lib/account/fetch-account-data";
 import {
   getPasswordRules,
   isPasswordStrongEnough,
+  PASSWORD_MIN_LENGTH,
   PASSWORD_UPDATE_SUCCESS_MESSAGE,
   updateAuthUserPassword,
   validatePasswordUpdate,
@@ -60,23 +61,26 @@ function RequirementItem({ met, label }: { met: boolean; label: string }) {
   );
 }
 
-function getPasswordStrength(score: number) {
-  if (score >= 4) {
-    return { label: "Strong", color: VALID_GREEN, filledSegments: 4 };
+function getPasswordStrength(score: number, maxScore: number) {
+  if (score >= maxScore) {
+    return { label: "Strong", color: VALID_GREEN, filledSegments: 5 };
   }
-  if (score === 3) {
-    return { label: "Medium", color: MEDIUM_YELLOW, filledSegments: 3 };
+  if (score >= maxScore - 1) {
+    return { label: "Medium", color: MEDIUM_YELLOW, filledSegments: 4 };
+  }
+  if (score >= 2) {
+    return { label: "Medium", color: MEDIUM_YELLOW, filledSegments: Math.max(score, 2) };
   }
   return { label: "Weak", color: INVALID_RED, filledSegments: score > 0 ? Math.max(score, 1) : 0 };
 }
 
-function PasswordStrengthMeter({ score }: { score: number }) {
-  const strength = getPasswordStrength(score);
+function PasswordStrengthMeter({ score, maxScore }: { score: number; maxScore: number }) {
+  const strength = getPasswordStrength(score, maxScore);
 
   return (
     <div className="mt-1">
-      <div className="grid grid-cols-4 gap-1">
-        {[0, 1, 2, 3].map((index) => (
+      <div className="grid grid-cols-5 gap-1">
+        {[0, 1, 2, 3, 4].map((index) => (
           <span
             key={index}
             className="h-[5px] rounded-full"
@@ -142,9 +146,16 @@ export default function SecurityTab() {
   const confirmValid = confirmPassword.length > 0 && rules.passwordsMatch;
   const canSubmit = newValid && confirmValid;
 
-  const strengthScore = [rules.minLength, rules.hasNumber, rules.hasUpper, rules.hasLower].filter(
-    Boolean
-  ).length;
+  const strengthChecks = [
+    rules.minLength,
+    rules.hasUpper,
+    rules.hasLower,
+    rules.hasNumber,
+    rules.hasSpecial,
+    rules.notCommon,
+  ];
+  const strengthScore = strengthChecks.filter(Boolean).length;
+  const strengthMaxScore = strengthChecks.length;
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -227,14 +238,18 @@ export default function SecurityTab() {
             showValid={confirmValid}
           />
 
-          {newPassword.length > 0 ? <PasswordStrengthMeter score={strengthScore} /> : null}
+          {newPassword.length > 0 ? (
+            <PasswordStrengthMeter score={strengthScore} maxScore={strengthMaxScore} />
+          ) : null}
         </div>
 
         <ul className="mt-6 flex flex-col gap-3" aria-label="Password requirements">
-          <RequirementItem met={rules.minLength} label="8 or more characters" />
+          <RequirementItem met={rules.minLength} label={`${PASSWORD_MIN_LENGTH} or more characters`} />
+          <RequirementItem met={rules.hasUpper} label="Uppercase letter" />
+          <RequirementItem met={rules.hasLower} label="Lowercase letter" />
           <RequirementItem met={rules.hasNumber} label="At least 1 number" />
-          <RequirementItem met={rules.hasUpper} label="Uppercase" />
-          <RequirementItem met={rules.hasLower} label="Lowercase" />
+          <RequirementItem met={rules.hasSpecial} label="Special character (! @ # $ …)" />
+          <RequirementItem met={rules.notCommon} label="Not a common password" />
           <RequirementItem met={rules.passwordsMatch} label="Passwords match" />
         </ul>
 
