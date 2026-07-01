@@ -14,7 +14,6 @@ import { getEnabledTenantSteps } from "@/lib/onboarding/tenant-step-navigation";
 import { withTenant } from "@/lib/tenant/with-tenant";
 import {
   isSkillQuizDoneLocal,
-  mergeAuthorizationSigningState,
   mergeStep2FileRecords,
   parseStep2Files,
   quizSlugForCategory,
@@ -212,7 +211,7 @@ function sectionForStep(
     }
     case "authorizations": {
       const authState = snapshot.authState;
-      const authSigned = progressComplete || authState.display === "signed";
+      const authSigned = authState.display === "signed";
       const hasSsn = Boolean(snapshot.workerDocs?.ssn_url?.trim() || snapshot.identityLs?.ssn?.name);
       const hasDl = Boolean(
         snapshot.workerDocs?.drivers_license_url?.trim() || snapshot.identityLs?.license?.name
@@ -223,8 +222,8 @@ function sectionForStep(
         rows.push({
           key: "auth",
           title: "Authorization agreement",
-          subtitle: progressComplete || authState.display === "signed"
-            ? authState.statusRaw && authState.display === "signed"
+          subtitle: authSigned
+            ? authState.statusRaw
               ? `Signed (${authState.statusRaw})`
               : "Signed"
             : authState.statusRaw

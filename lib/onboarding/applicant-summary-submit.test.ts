@@ -82,7 +82,7 @@ describe("application summary submit readiness", () => {
       "zipstaff",
       snapshot({
         step2Files: null,
-        authState: { statusRaw: "sent", display: "pending", hasActivity: true },
+        authState: { statusRaw: "signed", display: "signed", hasActivity: true },
       }),
       progress
     );
@@ -91,5 +91,34 @@ describe("application summary submit readiness", () => {
     expect(license?.complete).toBe(true);
     expect(auth?.complete).toBe(true);
     expect(auth?.rows[0]?.subtitle).toMatch(/Signed/i);
+    expect(auth?.rows[0]?.complete).toBe(true);
+  });
+
+  it("shows pending authorization on summary when step was skipped without signing", () => {
+    const config = buildConfig();
+    const authStep = config.steps.find((s) => s.step_type === "authorizations")!;
+    const progress: WorkerOnboardingProgressPayload = {
+      progressId: "p1",
+      status: "in_progress",
+      steps: [
+        { onboarding_step_id: authStep.id, status: "skipped", completed_at: "2026-01-01", data: {} },
+      ],
+    };
+    const sections = buildApplicantSummarySections(
+      config,
+      "zipstaff",
+      snapshot({
+        authState: { statusRaw: "", display: "pending", hasActivity: true },
+        workerDocs: {
+          ssn_url: "tenant/worker/ssn.pdf",
+          drivers_license_url: "tenant/worker/dl.pdf",
+        },
+      }),
+      progress
+    );
+    const auth = sections.find((s) => s.id === authStep.step_key);
+    const authRow = auth?.rows.find((r) => r.key === "auth");
+    expect(authRow?.subtitle).toBe("Pending signature");
+    expect(authRow?.complete).toBe(false);
   });
 });
