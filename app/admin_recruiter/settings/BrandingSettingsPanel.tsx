@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { ImageIcon, Palette, RefreshCw, Type } from "lucide-react";
 import {
   AccountErrorBanner,
@@ -13,6 +14,10 @@ import {
   TENANT_BRANDING_FONT_OPTIONS,
   type TenantBrandingFontId,
 } from "@/app/tenant-onboarding/constants";
+import {
+  EFFECTIVE_BRANDING_QUERY_KEY,
+  patchEffectiveBrandingCache,
+} from "@/lib/admin/hooks/use-effective-branding";
 import { notifyBrandingUpdated } from "@/lib/tenant/branding-events";
 import { isValidBrandingHex } from "@/lib/tenant/branding-validation";
 import {
@@ -239,6 +244,7 @@ async function uploadLogo(field: LogoField, file: File): Promise<string> {
 }
 
 export default function BrandingSettingsPanel() {
+  const queryClient = useQueryClient();
   const currentBranding = useTenantBranding();
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -313,14 +319,17 @@ export default function BrandingSettingsPanel() {
         error?: string;
       };
       if (!res.ok) throw new Error(payload.error || "Could not load branding.");
-      if (payload.branding) applyBranding(payload.branding);
+      if (payload.branding) {
+        applyBranding(payload.branding);
+        patchEffectiveBrandingCache(queryClient, payload.branding);
+      }
       setTenantId(payload.tenantId ?? null);
     } catch (err) {
       setLoadError(err instanceof Error ? err.message : "Could not load branding.");
     } finally {
       setLoading(false);
     }
-  }, [applyBranding]);
+  }, [applyBranding, queryClient]);
 
   useEffect(() => {
     void loadBranding();
@@ -502,8 +511,12 @@ export default function BrandingSettingsPanel() {
         error?: string;
       };
       if (!res.ok) throw new Error(payload.error || "Could not save branding.");
-      if (payload.branding) applyBranding(payload.branding);
+      if (payload.branding) {
+        applyBranding(payload.branding);
+        patchEffectiveBrandingCache(queryClient, payload.branding);
+      }
 
+      void queryClient.invalidateQueries({ queryKey: EFFECTIVE_BRANDING_QUERY_KEY });
       notifyBrandingUpdated();
       setSuccess("Saved! Your team and workers will see the new look.");
     } catch (err) {
@@ -576,12 +589,16 @@ export default function BrandingSettingsPanel() {
                       aria-pressed={active}
                       className={`relative cursor-pointer rounded-lg p-4 text-left transition ${
                         active
-                          ? "border-2 border-[color:var(--brand-primary)] bg-white shadow-sm"
-                          : "border border-[#E2E8F0] bg-[#F8FAFC] hover:border-[color:var(--brand-primary)]"
+                          ? "border-2 bg-white shadow-sm"
+                          : "border border-[#E2E8F0] bg-[#F8FAFC] hover:border-[#94A3B8]"
                       }`}
+                      style={active ? { borderColor: primaryHex } : undefined}
                     >
                       {active ? (
-                        <span className="absolute right-3 top-3 text-xs font-semibold text-[color:var(--brand-primary)]">
+                        <span
+                          className="absolute right-3 top-3 text-xs font-semibold"
+                          style={{ color: primaryHex }}
+                        >
                           Active
                         </span>
                       ) : null}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 import type { TenantBranding } from "@/lib/tenant/tenant-branding";
 import { BRANDING_UPDATED_EVENT } from "@/lib/tenant/branding-events";
@@ -20,6 +20,16 @@ export type EffectiveBrandingPayload = {
 };
 
 export const EFFECTIVE_BRANDING_QUERY_KEY = ["admin-effective-branding"] as const;
+
+/** Apply fresh branding to the admin chrome cache without waiting for a refetch. */
+export function patchEffectiveBrandingCache(
+  queryClient: QueryClient,
+  branding: TenantBranding
+): void {
+  queryClient.setQueryData<EffectiveBrandingPayload>(EFFECTIVE_BRANDING_QUERY_KEY, (prev) =>
+    prev ? { ...prev, branding } : prev
+  );
+}
 
 async function fetchEffectiveBranding(): Promise<EffectiveBrandingPayload> {
   const res = await fetch("/api/admin/effective-branding", {
