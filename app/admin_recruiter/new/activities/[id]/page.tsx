@@ -10,12 +10,18 @@ import CandidateCommunicationHistory, {
   InboxChannelTabButtons,
   type InboxChannel,
 } from "../../../components/CandidateCommunicationHistory";
+import AddCallLogModal from "../../../components/AddCallLogModal";
 import BrandedHistoryIcon from "../../../components/BrandedHistoryIcon";
 import BrandedPhoneIcon from "../../../components/BrandedPhoneIcon";
 import InterviewsPageClient from "../../../calendar/components/InterviewsPageClient";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
-import type { CommunicationThread } from "@/lib/communication/conversation-client";
-import type { CandidateCommunicationRow } from "@/lib/communication/record";
+import { dispatchCandidatePipelineRefresh } from "@/lib/admin/candidate-pipeline-events";
+import {
+  callLogOutcomeLabel,
+  formatCallDuration,
+  ordinalCallAttempt,
+  type WorkerCallLog,
+} from "@/lib/admin/worker-call-logs";
 import {
   Briefcase,
   Calendar,
@@ -56,15 +62,6 @@ type WorkerProfileResponse = {
 
 type ActivityTab = "Calls" | "Inbox" | "Interview";
 
-function ordinalAttempt(n: number): string {
-  const mod10 = n % 10;
-  const mod100 = n % 100;
-  if (mod10 === 1 && mod100 !== 11) return `${n}st call attempt`;
-  if (mod10 === 2 && mod100 !== 12) return `${n}nd call attempt`;
-  if (mod10 === 3 && mod100 !== 13) return `${n}rd call attempt`;
-  return `${n}th call attempt`;
-}
-
 function initials(name: string) {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) return "NA";
@@ -84,12 +81,13 @@ export default function NewApplicantActivitiesPage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [profile, setProfile] = useState<WorkerProfileResponse | null>(null);
-  const [commLoading, setCommLoading] = useState(false);
-  const [commError, setCommError] = useState<string | null>(null);
-  const [commThreads, setCommThreads] = useState<CommunicationThread[]>([]);
   const [commRefreshKey, setCommRefreshKey] = useState(0);
   const [inboxChannel, setInboxChannel] = useState<InboxChannel>("sms");
   const [inboxRefreshing, setInboxRefreshing] = useState(false);
+  const [callLogs, setCallLogs] = useState<WorkerCallLog[]>([]);
+  const [callLogsLoading, setCallLogsLoading] = useState(false);
+  const [callLogsError, setCallLogsError] = useState<string | null>(null);
+  const [showAddCallLogModal, setShowAddCallLogModal] = useState(false);
 
   const branding = useTenantBranding();
   const companyName = branding.companyName?.trim() || "Company";
@@ -130,51 +128,43 @@ export default function NewApplicantActivitiesPage() {
   const candidateRole = applicant?.job_role || "N/A";
   const statusLabel = applicant?.status_label?.trim() || "New Applicant";
 
-  useEffect(() => {
-    async function fetchCommunicationData() {
-      if (!applicantId) return;
-      setCommLoading(true);
-      setCommError(null);
-      try {
-        const res = await fetch(
-          `/api/admin/candidates/${encodeURIComponent(applicantId)}/communications`,
-          { cache: "no-store" }
-        );
-        const json = (await res.json().catch(() => ({}))) as {
-          threads?: CommunicationThread[];
-          error?: string;
-        };
-        if (!res.ok) throw new Error(json.error || `Failed to load communications (${res.status})`);
-        setCommThreads(json.threads ?? []);
-      } catch (e) {
-        setCommThreads([]);
-        setCommError(e instanceof Error ? e.message : "Failed to load communications.");
-      } finally {
-        setCommLoading(false);
-      }
+  const reloadCallLogs = async () => {
+    if (!applicantId) return;
+    setCallLogsLoading(true);
+    setCallLogsError(null);
+    try {
+      const res = await fetch(
+        `/api/admin/worker-call-logs?workerId=${encodeURIComponent(applicantId)}`,
+        { cache: "no-store" }
+      );
+      const json = (await res.json().catch(() => ({}))) as {
+        callLogs?: WorkerCallLog[];
+        error?: string;
+      };
+      if (!res.ok) throw new Error(json.error || "Failed to load call logs");
+      setCallLogs(json.callLogs ?? []);
+    } catch (e) {
+      setCallLogs([]);
+      setCallLogsError(e instanceof Error ? e.message : "Failed to load call logs.");
+    } finally {
+      setCallLogsLoading(false);
     }
-    void fetchCommunicationData();
-  }, [applicantId, commRefreshKey]);
+  };
 
-  const smsThreads = useMemo(
-    () => commThreads.filter((thread) => thread.channel === "sms"),
-    [commThreads]
-  );
-
-  const smsRows = useMemo(() => {
-    const rows: CandidateCommunicationRow[] = smsThreads.flatMap((thread) => thread.messages);
-    return rows.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-  }, [smsThreads]);
-
-  const historyRows = useMemo(
-    () => [...smsRows].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()),
-    [smsRows]
-  );
+  useEffect(() => {
+    void reloadCallLogs();
+  }, [applicantId]);
 
   const activityHistory = profile?.activity_history ?? [];
   const historyCount = activityHistory.length;
 
-  const visibleCallRows = leftNav === "Recent Logs" ? smsRows : historyRows;
+  const sortedCallLogs = useMemo(
+    () =>
+      [...callLogs].sort(
+        (a, b) => new Date(b.call_at).getTime() - new Date(a.call_at).getTime()
+      ),
+    [callLogs]
+  );
 
   function relativeTimeLabel(iso: string): string {
     const t = new Date(iso).getTime();
@@ -189,11 +179,8 @@ export default function NewApplicantActivitiesPage() {
     return `${days}d ago`;
   }
 
-  function callOutcome(status: CandidateCommunicationRow["status"]): "Answered" | "Did not answer" {
-    return status === "failed" ? "Did not answer" : "Answered";
-  }
   function activityTabClass(isActive: boolean): string {
-    return `shrink-0 px-0 pb-3 pt-1 text-sm font-medium leading-5 whitespace-nowrap transition-colors ${
+    return `shrink-0 px-1 py-3 text-sm font-medium leading-5 whitespace-nowrap transition-colors ${
       isActive
         ? "-mb-px border-b-2 border-(--brand-primary) text-(--brand-primary)"
         : "border-b-2 border-transparent text-[#2B3D51] hover:text-(--brand-primary)"
@@ -334,7 +321,7 @@ export default function NewApplicantActivitiesPage() {
             />
 
             <nav
-              className="mb-4 flex w-full min-w-0 admin-recruiter-content-width items-end justify-center gap-x-8"
+              className="mb-3 flex w-full items-center justify-center gap-x-5"
               aria-label="Activity sections"
             >
               {(["Calls", "Inbox", "Interview"] as const).map((t) => {
@@ -355,31 +342,31 @@ export default function NewApplicantActivitiesPage() {
 
             {active === "Inbox" ? (
               <nav
-                className="mb-4 grid w-full min-w-0 admin-recruiter-content-width grid-cols-[1fr_auto_1fr] items-end"
+                className="mb-3 flex w-full items-center justify-center gap-x-5"
                 aria-label="Inbox channels"
               >
-                <div aria-hidden />
-                <div className="flex items-end justify-center gap-x-8">
-                  <InboxChannelTabButtons
-                    active={inboxChannel}
-                    onChange={setInboxChannel}
-                  />
-                </div>
-                <div className="flex justify-end">
-                  <button
-                    type="button"
-                    onClick={() => setCommRefreshKey((key) => key + 1)}
-                    disabled={inboxRefreshing}
-                    className="mb-2 inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-(--brand-primary) bg-white px-3 text-xs font-semibold text-(--brand-primary) transition hover:bg-[color-mix(in_srgb,var(--brand-primary)_8%,white)] disabled:opacity-50"
-                  >
-                    <RefreshCw className={`h-3.5 w-3.5 ${inboxRefreshing ? "animate-spin" : ""}`} />
-                    Refresh
-                  </button>
-                </div>
+                <InboxChannelTabButtons
+                  active={inboxChannel}
+                  onChange={setInboxChannel}
+                />
               </nav>
             ) : null}
 
-            <div className="w-full min-w-0 admin-recruiter-content-width overflow-hidden rounded-md border border-[#D1D5DB] bg-white">
+            <div className="w-full min-w-0 overflow-hidden rounded-md border border-[#D1D5DB] bg-white">
+            {active === "Inbox" ? (
+              <div className="flex justify-end border-b border-[#E5E7EB] px-5 py-2">
+                <button
+                  type="button"
+                  onClick={() => setCommRefreshKey((key) => key + 1)}
+                  disabled={inboxRefreshing}
+                  className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-(--brand-primary) bg-white px-3 text-xs font-semibold text-(--brand-primary) transition hover:bg-[color-mix(in_srgb,var(--brand-primary)_8%,white)] disabled:opacity-50"
+                >
+                  <RefreshCw className={`h-3.5 w-3.5 ${inboxRefreshing ? "animate-spin" : ""}`} />
+                  Refresh
+                </button>
+              </div>
+            ) : null}
+
               {active === "Inbox" ? (
                 <CandidateCommunicationHistory
                   workerId={applicantId ?? ""}
@@ -399,7 +386,7 @@ export default function NewApplicantActivitiesPage() {
                   candidateStatus={statusLabel}
                 />
               ) : (
-                <div className="grid min-h-[420px] grid-cols-12">
+                <div className="grid grid-cols-12">
                   <aside className="col-span-12 border-b border-[#E5E7EB] bg-[#FAFBFC] md:col-span-3 md:border-b-0 md:border-r">
                     <div className="space-y-2 p-4">
                       <button
@@ -416,7 +403,7 @@ export default function NewApplicantActivitiesPage() {
                           Recent Logs
                         </span>
                         <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-semibold text-[#6B7280] ring-1 ring-[#E5E7EB]">
-                          {smsRows.length}
+                          {sortedCallLogs.length}
                         </span>
                       </button>
                       <button
@@ -443,6 +430,7 @@ export default function NewApplicantActivitiesPage() {
                     <div className="flex items-center justify-end gap-2 border-b border-[#E5E7EB] px-5 py-3">
                       <button
                         type="button"
+                        onClick={() => setShowAddCallLogModal(true)}
                         className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-(--brand-primary) bg-white px-4 text-xs font-semibold text-(--brand-primary) transition hover:bg-[color-mix(in_srgb,var(--brand-primary)_8%,white)]"
                       >
                         + Add a call log
@@ -466,7 +454,7 @@ export default function NewApplicantActivitiesPage() {
                         <div className="text-xs text-[#6B7280]">
                           Actions taken{" "}
                           <span className="font-semibold text-[#111827]">
-                            {leftNav === "Recent Logs" ? visibleCallRows.length : historyCount}
+                            {leftNav === "Recent Logs" ? sortedCallLogs.length : historyCount}
                           </span>
                         </div>
                       </div>
@@ -500,29 +488,30 @@ export default function NewApplicantActivitiesPage() {
                             ))}
                           </div>
                         )
-                      ) : commLoading ? (
+                      ) : callLogsLoading ? (
                         <div className="py-10 text-sm text-[#6B7280]">Loading call logs...</div>
-                      ) : commError ? (
+                      ) : callLogsError ? (
                         <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                          {commError}
+                          {callLogsError}
                         </div>
-                      ) : visibleCallRows.length === 0 ? (
+                      ) : sortedCallLogs.length === 0 ? (
                         <div className="rounded-md border border-dashed border-[#D1D5DB] py-10 text-center text-sm text-[#6B7280]">
                           No call logs for <span className="font-medium text-[#374151]">{candidateName}</span> yet.
                         </div>
                       ) : (
                         <div className="space-y-0">
-                          {visibleCallRows.map((row, idx) => {
-                            const outcome = callOutcome(row.status);
+                          {sortedCallLogs.map((row, idx) => {
+                            const outcome = callLogOutcomeLabel(row.outcome);
                             const badge =
                               outcome === "Answered"
                                 ? "bg-emerald-100 text-emerald-800"
                                 : "bg-rose-100 text-rose-800";
+                            const attemptNumber = sortedCallLogs.length - idx;
                             return (
                               <div
                                 key={row.id}
                                 className={`grid grid-cols-12 items-center gap-3 py-4 ${
-                                  idx < visibleCallRows.length - 1 ? "border-b border-[#F1F5F9]" : ""
+                                  idx < sortedCallLogs.length - 1 ? "border-b border-[#F1F5F9]" : ""
                                 }`}
                               >
                                 <div className="col-span-12 flex items-start gap-3 lg:col-span-5">
@@ -535,23 +524,26 @@ export default function NewApplicantActivitiesPage() {
                                       <span className="font-semibold text-(--brand-primary)">{candidateName}</span>
                                     </div>
                                     <div className="mt-0.5 text-[11px] text-[#6B7280]">
-                                      {relativeTimeLabel(row.created_at)} •{" "}
-                                      {new Date(row.created_at).toLocaleDateString("en-US", {
+                                      {relativeTimeLabel(row.call_at)} •{" "}
+                                      {new Date(row.call_at).toLocaleDateString("en-US", {
                                         month: "2-digit",
                                         day: "2-digit",
                                         year: "numeric",
                                       })}{" "}
                                       •{" "}
-                                      {new Date(row.created_at).toLocaleTimeString("en-US", {
+                                      {new Date(row.call_at).toLocaleTimeString("en-US", {
                                         hour: "numeric",
                                         minute: "2-digit",
                                       })}
                                     </div>
+                                    {row.notes ? (
+                                      <div className="mt-1 text-[11px] text-[#6B7280]">{row.notes}</div>
+                                    ) : null}
                                   </div>
                                 </div>
 
                                 <div className="col-span-4 text-[11px] text-[#6B7280] lg:col-span-2">
-                                  Duration: —
+                                  Duration: {formatCallDuration(row.duration_seconds)}
                                 </div>
 
                                 <div className="col-span-4 lg:col-span-2">
@@ -561,7 +553,7 @@ export default function NewApplicantActivitiesPage() {
                                 </div>
 
                                 <div className="col-span-4 text-right text-[11px] text-[#6B7280] lg:col-span-3">
-                                  {ordinalAttempt(idx + 1)}
+                                  {ordinalCallAttempt(attemptNumber)}
                                 </div>
                               </div>
                             );
@@ -573,6 +565,17 @@ export default function NewApplicantActivitiesPage() {
                 </div>
               )}
             </div>
+            {applicantId ? (
+              <AddCallLogModal
+                open={showAddCallLogModal}
+                workerId={applicantId}
+                onClose={() => setShowAddCallLogModal(false)}
+                onAdded={async () => {
+                  await reloadCallLogs();
+                  dispatchCandidatePipelineRefresh(applicantId);
+                }}
+              />
+            ) : null}
               </>
             )}
           </div>
