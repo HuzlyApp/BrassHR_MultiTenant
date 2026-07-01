@@ -94,6 +94,13 @@ const nextConfig: NextConfig = {
     ];
     return [
       {
+        source: "/api/tenant-branding",
+        headers: [
+          { key: "Cache-Control", value: "private, no-store" },
+          { key: "Vary", value: "Host" },
+        ],
+      },
+      {
         source: "/:path*",
         headers: securityHeaders,
       },

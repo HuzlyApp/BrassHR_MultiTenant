@@ -6,6 +6,10 @@ import {
   DRAFT_PREVIEW_APPLICANT_ID,
   isOnboardingDraftPreview,
 } from "@/lib/onboarding/is-draft-preview";
+import {
+  getScopedApplicantId,
+  setScopedApplicantId,
+} from "@/lib/tenant/scoped-storage";
 
 export type ApplicantBootstrapResult = { applicantId: string } | { error: string };
 
@@ -35,7 +39,7 @@ export async function ensureApplicantMatchesAuthSession(
         };
         const applicantId = continuation.applicantId?.trim();
         if (continuation.active === true && applicantId) {
-          localStorage.setItem("applicantId", applicantId);
+          setScopedApplicantId(applicantId);
           return { applicantId };
         }
       }
@@ -74,11 +78,11 @@ export async function ensureApplicantMatchesAuthSession(
   }
 
   if (typeof window !== "undefined") {
-    const prev = localStorage.getItem("applicantId")?.trim();
+    const prev = getScopedApplicantId();
     if (prev && prev !== uid) {
       console.info("[onboarding] applicantId synced to applicant auth user id", { prev, uid });
     }
-    localStorage.setItem("applicantId", uid);
+    setScopedApplicantId(uid);
   }
 
   return { applicantId: uid };

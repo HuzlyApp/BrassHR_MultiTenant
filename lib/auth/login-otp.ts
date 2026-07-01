@@ -5,6 +5,12 @@ import {
 } from "@/lib/auth/login-api-errors";
 
 export { LOGIN_OTP_LENGTH } from "@/lib/auth/supabase-magic-link-otp-template";
+export {
+  LOGIN_OTP_PURPOSE,
+  createLoginOtp,
+  hashLoginOtp,
+  verifyLoginOtp,
+} from "@/lib/auth/login-otp-store";
 
 export type LoginOtpSendResult = {
   ok: true;

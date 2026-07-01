@@ -1,5 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { ONBOARDING_TENANT_SLUG_COOKIE } from "@/lib/tenant/constants";
+import {
+  forwardedHostFromHeaders,
+  getRootDomainFromEnv,
+  isRootDomainHost,
+} from "@/lib/tenant/tenant-host-resolution";
 
 const COOKIE_OPTS = {
   path: "/",
@@ -7,15 +12,60 @@ const COOKIE_OPTS = {
   sameSite: "lax" as const,
 };
 
-/** Persists `?tenant=` to cookie; redirects to add tenant when cookie exists but query is missing. */
+function copyCookies(from: NextResponse, to: NextResponse) {
+  from.cookies.getAll().forEach((cookie) => {
+    to.cookies.set(cookie.name, cookie.value, cookie);
+  });
+}
+
+function clearTenantSlugCookie(response: NextResponse) {
+  response.cookies.delete(ONBOARDING_TENANT_SLUG_COOKIE);
+}
+
+/**
+ * Persists `?tenant=` to cookie on apex; on vanity hosts hostname cookie wins over mismatched query.
+ * Never propagates a stale cookie onto the root marketing site.
+ */
 export function ensureApplicationTenantQuery(
   request: NextRequest,
-  response: NextResponse
+  response: NextResponse,
+  hostSubdomainLabel?: string | null
 ): NextResponse {
   const pathname = request.nextUrl.pathname;
   const needsTenant =
     pathname.startsWith("/application") || pathname === "/worker-onboarding";
   if (!needsTenant) return response;
+
+  const rootDomain = getRootDomainFromEnv();
+  const hostNorm = forwardedHostFromHeaders(request.headers);
+  const onRootDomain =
+    Boolean(rootDomain && hostNorm && isRootDomainHost(hostNorm, rootDomain));
+
+  if (hostSubdomainLabel) {
+    const cookieSlug = request.cookies
+      .get(ONBOARDING_TENANT_SLUG_COOKIE)
+      ?.value?.trim()
+      .toLowerCase();
+    const tenantParam = request.nextUrl.searchParams.get("tenant")?.trim().toLowerCase();
+
+    if (tenantParam && cookieSlug && tenantParam !== cookieSlug) {
+      const url = request.nextUrl.clone();
+      url.searchParams.set("tenant", cookieSlug);
+      const redirect = NextResponse.redirect(url);
+      copyCookies(response, redirect);
+      return redirect;
+    }
+
+    if (!tenantParam && cookieSlug) {
+      const url = request.nextUrl.clone();
+      url.searchParams.set("tenant", cookieSlug);
+      const redirect = NextResponse.redirect(url);
+      copyCookies(response, redirect);
+      return redirect;
+    }
+
+    return response;
+  }
 
   const tenantParam = request.nextUrl.searchParams.get("tenant")?.trim().toLowerCase();
   if (tenantParam && tenantParam.length >= 2) {
@@ -23,7 +73,15 @@ export function ensureApplicationTenantQuery(
     return response;
   }
 
-  const cookieSlug = request.cookies.get(ONBOARDING_TENANT_SLUG_COOKIE)?.value?.trim().toLowerCase();
+  if (onRootDomain) {
+    clearTenantSlugCookie(response);
+    return response;
+  }
+
+  const cookieSlug = request.cookies
+    .get(ONBOARDING_TENANT_SLUG_COOKIE)
+    ?.value?.trim()
+    .toLowerCase();
   if (!cookieSlug || cookieSlug.length < 2) return response;
 
   const url = request.nextUrl.clone();
@@ -35,8 +93,26 @@ export function ensureApplicationTenantQuery(
   }
 
   const redirect = NextResponse.redirect(url);
-  response.cookies.getAll().forEach((cookie) => {
-    redirect.cookies.set(cookie.name, cookie.value, cookie);
-  });
+  copyCookies(response, redirect);
   return redirect;
+}
+
+/** Clears tenant slug cookie on root marketing/login surfaces. */
+export function clearTenantSlugCookieOnRootHost(
+  request: NextRequest,
+  response: NextResponse
+): NextResponse {
+  const rootDomain = getRootDomainFromEnv();
+  const hostNorm = forwardedHostFromHeaders(request.headers);
+  if (!rootDomain || !hostNorm || !isRootDomainHost(hostNorm, rootDomain)) {
+    return response;
+  }
+
+  const tenantParam = request.nextUrl.searchParams.get("tenant")?.trim();
+  if (tenantParam && tenantParam.length >= 2) {
+    return response;
+  }
+
+  clearTenantSlugCookie(response);
+  return response;
 }

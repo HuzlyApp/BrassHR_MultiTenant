@@ -6,21 +6,26 @@ import OnboardingConfigProvider from "@/app/components/onboarding/OnboardingConf
 import type { TenantBranding } from "@/lib/tenant/tenant-branding";
 import { brandingFallbackForSlug } from "@/lib/tenant/tenant-branding";
 import { DRAFT_PREVIEW_APPLICANT_ID, isOnboardingDraftPreview } from "@/lib/onboarding/is-draft-preview";
-import { persistOnboardingSlugCookie, resolveClientOnboardingTenantSlug } from "@/lib/tenant/client-onboarding-slug";
+import { persistOnboardingSlugCookie } from "@/lib/tenant/client-onboarding-slug";
+import {
+  buildTenantBrandingApiUrl,
+  resolveTenantSlugForClient,
+} from "@/lib/tenant/resolve-tenant-context";
+import { getScopedApplicantId, setScopedApplicantId } from "@/lib/tenant/scoped-storage";
 import { ApplicantSessionProvider } from "@/lib/onboarding/applicant-session-context";
 
 function resolveBootstrapSlug(): string | null {
   if (typeof window === "undefined") return null;
-  const qp = new URLSearchParams(window.location.search).get("tenant")?.trim();
-  if (qp && qp.length >= 2) return qp.toLowerCase();
-  return resolveClientOnboardingTenantSlug(window.location.search);
+  return resolveTenantSlugForClient(window.location.search, {
+    path: window.location.pathname,
+  }).slug;
 }
 
 function readApplicantIdOrPreview(): string {
   if (isOnboardingDraftPreview(window.location.search)) {
     return DRAFT_PREVIEW_APPLICANT_ID;
   }
-  return localStorage.getItem("applicantId")?.trim() || "";
+  return getScopedApplicantId() || "";
 }
 
 /**
@@ -38,16 +43,17 @@ export default function ApplicationOnboardingBootstrap({ children }: { children:
 
     void (async () => {
       try {
-        const slug = resolveBootstrapSlug();
+        const resolved = resolveTenantSlugForClient(window.location.search, {
+          path: window.location.pathname,
+        });
+        const slug = resolved.slug;
         if (slug) persistOnboardingSlugCookie(slug);
 
         if (alive) {
           setBrand(brandingFallbackForSlug(slug));
         }
 
-        const brandingUrl = slug
-          ? `/api/tenant-branding?slug=${encodeURIComponent(slug)}`
-          : "/api/tenant-branding";
+        const brandingUrl = buildTenantBrandingApiUrl(resolved);
 
         const brandingPromise = fetch(brandingUrl, { cache: "no-store" })
           .then(async (tenantRes) => {
@@ -66,7 +72,7 @@ export default function ApplicationOnboardingBootstrap({ children }: { children:
           isOnboardingDraftPreview(window.location.search);
 
         if (skipApplicantAuth && isOnboardingDraftPreview(window.location.search)) {
-          localStorage.setItem("applicantId", DRAFT_PREVIEW_APPLICANT_ID);
+          setScopedApplicantId(DRAFT_PREVIEW_APPLICANT_ID);
         }
 
         const authPromise = skipApplicantAuth

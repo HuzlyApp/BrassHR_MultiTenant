@@ -18,26 +18,20 @@ import { recruiterSignInHref } from "@/lib/auth/recruiter-sign-in";
 import { workerSignInHref } from "@/lib/auth/worker-sign-in";
 import {
   persistOnboardingSlugCookie,
-  resolveClientOnboardingTenantSlug,
 } from "@/lib/tenant/client-onboarding-slug";
-import { getClientTenantHostLabel } from "@/lib/tenant/client-host-subdomain";
+import {
+  buildTenantBrandingApiUrl,
+  clearOnboardingTenantSlugCookie,
+  resolveTenantSlugForClient,
+} from "@/lib/tenant/resolve-tenant-context";
 
 export default function Home() {
   const router = useRouter();
-  const [brand, setBrand] = useState<TenantBranding>(() => {
-    if (typeof window === "undefined") {
-      return brandingFallbackForSlug(PLATFORM_DEFAULT_TENANT_SLUG);
-    }
-    const slug = resolveClientOnboardingTenantSlug(window.location.search);
-    return isTenantApplicantPortalSlug(slug)
-      ? brandingFallbackForSlug(slug)
-      : brandingFallbackForSlug(PLATFORM_DEFAULT_TENANT_SLUG);
-  });
+  const [brand, setBrand] = useState<TenantBranding>(() =>
+    brandingFallbackForSlug(PLATFORM_DEFAULT_TENANT_SLUG)
+  );
   const [brandLoaded, setBrandLoaded] = useState(false);
-  const [activeTenantSlug, setActiveTenantSlug] = useState<string | null>(() => {
-    if (typeof window === "undefined") return null;
-    return resolveClientOnboardingTenantSlug(window.location.search);
-  });
+  const [activeTenantSlug, setActiveTenantSlug] = useState<string | null>(null);
   const [applicationEntryUrl, setApplicationEntryUrl] = useState<string | null>(null);
   const [startingApplication, setStartingApplication] = useState(false);
 
@@ -52,13 +46,18 @@ export default function Home() {
   useEffect(() => {
     let alive = true;
     void (async () => {
-      const hostLabel = getClientTenantHostLabel();
-      const slugFromQuery = resolveClientOnboardingTenantSlug(window.location.search);
-      const rawSlug = slugFromQuery ?? hostLabel ?? null;
-      const applicantPortalSlug = isTenantApplicantPortalSlug(rawSlug)
-        ? rawSlug!.trim().toLowerCase()
-        : null;
-      const brandingSlug = applicantPortalSlug ?? PLATFORM_DEFAULT_TENANT_SLUG;
+      const resolved = resolveTenantSlugForClient(window.location.search, {
+        path: window.location.pathname,
+      });
+
+      if (resolved.isRootDomain && !resolved.slug) {
+        clearOnboardingTenantSlugCookie();
+      }
+
+      const applicantPortalSlug =
+        resolved.slug && isTenantApplicantPortalSlug(resolved.slug)
+          ? resolved.slug.trim().toLowerCase()
+          : null;
 
       if (applicantPortalSlug) {
         persistOnboardingSlugCookie(applicantPortalSlug);
@@ -67,14 +66,10 @@ export default function Home() {
         setActiveTenantSlug(null);
       }
 
-      if (hostLabel && !slugFromQuery && isTenantApplicantPortalSlug(hostLabel)) {
-        persistOnboardingSlugCookie(hostLabel);
-      }
+      const brandingSlug = applicantPortalSlug ?? PLATFORM_DEFAULT_TENANT_SLUG;
 
       try {
-        const brandingUrl = hostLabel
-          ? `/api/tenant-branding?subdomain=${encodeURIComponent(hostLabel)}`
-          : `/api/tenant-branding?slug=${encodeURIComponent(brandingSlug)}`;
+        const brandingUrl = buildTenantBrandingApiUrl(resolved);
         const res = await fetch(brandingUrl, {
           cache: "no-store",
           signal: AbortSignal.timeout(12_000),

@@ -15,7 +15,7 @@ import {
   forwardedHostFromHeaders,
   getRootDomainFromEnv,
 } from "@/lib/tenant/tenant-host-resolution";
-import { ensureApplicationTenantQuery } from "@/lib/tenant/ensure-application-tenant-query";
+import { ensureApplicationTenantQuery, clearTenantSlugCookieOnRootHost } from "@/lib/tenant/ensure-application-tenant-query";
 import {
   fetchOwnerOnboardingStatus,
   resolvePostAuthRedirect,
@@ -79,6 +79,7 @@ export async function middleware(request: NextRequest) {
     pathname === "/" ||
     pathname.startsWith("/application") ||
     pathname === "/worker-onboarding" ||
+    pathname === "/worker-signin" ||
     pathname === "/login" ||
     pathname.startsWith("/login/");
 
@@ -104,6 +105,10 @@ export async function middleware(request: NextRequest) {
       });
       return rew;
     }
+  }
+
+  if (!tenantLabel && hostNorm && rootDomain) {
+    clearTenantSlugCookieOnRootHost(request, response);
   }
 
   const platformOn = isPlatformEnforcementEnabled();
@@ -267,7 +272,7 @@ export async function middleware(request: NextRequest) {
    * Do not apply recruiter platform/auth gates here — that sent applicants to /login.
    */
   if (pathname.startsWith("/application") || pathname === "/worker-onboarding") {
-    return ensureApplicationTenantQuery(request, response);
+    return ensureApplicationTenantQuery(request, response, tenantLabel);
   }
 
   return response;
@@ -288,6 +293,8 @@ export const config = {
     "/application",
     "/application/:path*",
     "/worker-onboarding",
+    "/worker-signin",
+    "/api/tenant-branding",
     "/api/workers",
     "/api/workers/:path*",
     "/api/search-workers",

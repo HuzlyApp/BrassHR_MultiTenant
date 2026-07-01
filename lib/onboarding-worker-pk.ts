@@ -1,7 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { resolveTenantIdBySlug } from "@/lib/onboarding/resolve-tenant-id-by-slug"
 import { resolveDefaultTenantId } from "@/lib/tenant/resolve-default-tenant-id"
-import { resolveClientOnboardingTenantSlug } from "@/lib/tenant/client-onboarding-slug"
+import { resolveTenantSlugForClient } from "@/lib/tenant/resolve-tenant-context"
+import { getScopedApplicantId } from "@/lib/tenant/scoped-storage"
 
 export type WorkerSessionContext = {
   id: string
@@ -18,7 +19,9 @@ async function resolveActiveOnboardingTenantId(
   supabase: SupabaseClient
 ): Promise<string | null> {
   if (typeof window === "undefined") return null
-  const slug = resolveClientOnboardingTenantSlug(window.location.search)
+  const slug = resolveTenantSlugForClient(window.location.search, {
+    path: window.location.pathname,
+  }).slug
   if (!slug) return null
   try {
     return await resolveTenantIdBySlug(supabase, slug)
@@ -69,7 +72,7 @@ export async function getWorkerSessionContext(
   const { data: userData } = await supabase.auth.getUser()
   const authId = userData?.user?.id
   const applicantFromLs =
-    typeof window !== "undefined" ? localStorage.getItem("applicantId")?.trim() || null : null
+    typeof window !== "undefined" ? getScopedApplicantId() : null
   const uid = authId ?? applicantFromLs
   if (!uid) return null
 

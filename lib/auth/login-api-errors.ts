@@ -6,8 +6,11 @@ export type LoginAuthErrorCode =
   | "EMAIL_NOT_CONFIRMED"
   | "RATE_LIMIT"
   | "OTP_SEND_FAILED"
+  | "OTP_INVALID"
   | "AUTH_NOT_CONFIGURED"
   | "UNKNOWN";
+
+export const LOGIN_OTP_INVALID_MESSAGE = "Invalid or expired OTP.";
 
 export type LoginAuthErrorField = "email" | "password" | null;
 
@@ -66,7 +69,7 @@ export function classifyVerifyMessage(message: string | undefined): Pick<LoginAu
     return { error: "Too many tries. Wait 1 minute, then try again.", code: "RATE_LIMIT", field: null };
   }
   if (m.includes("expired") || m.includes("invalid") || m.includes("otp") || m.includes("token")) {
-    return { error: "Code is wrong or expired. Try again or tap Send again.", code: "OTP_SEND_FAILED", field: null };
+    return { error: LOGIN_OTP_INVALID_MESSAGE, code: "OTP_INVALID", field: null };
   }
 
   return { error: raw, code: "UNKNOWN", field: null };
@@ -112,6 +115,7 @@ function isLoginAuthErrorCode(value: string): value is LoginAuthErrorCode {
     "EMAIL_NOT_CONFIRMED",
     "RATE_LIMIT",
     "OTP_SEND_FAILED",
+    "OTP_INVALID",
     "AUTH_NOT_CONFIGURED",
     "UNKNOWN",
   ].includes(value);
@@ -128,6 +132,7 @@ export function titleForLoginError(code: LoginAuthErrorCode): string | null {
     case "VALIDATION_ERROR":
       return "Check your details";
     case "OTP_SEND_FAILED":
+    case "OTP_INVALID":
       return "Code problem";
     case "AUTH_NOT_CONFIGURED":
       return "Setup error";

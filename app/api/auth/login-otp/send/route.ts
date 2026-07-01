@@ -12,7 +12,7 @@ export const runtime = "nodejs";
 
 /**
  * Step 1 of Braas login: validate email/password, check god admin via API/DB.
- * God admin → no OTP. Everyone else → Supabase sends email OTP.
+ * God admin → no OTP. Everyone else → app-managed OTP emailed via Resend.
  */
 export async function POST(req: NextRequest) {
   try {
@@ -71,7 +71,7 @@ export async function POST(req: NextRequest) {
 
     await auth.auth.signOut();
 
-    const sent = await sendSupabaseLoginOtp(email);
+    const sent = await sendSupabaseLoginOtp(email, signInData.user.id);
     if (!sent.ok) {
       const classified = classifyAuthMessage(sent.message);
       return loginAuthErrorResponse(
@@ -87,7 +87,7 @@ export async function POST(req: NextRequest) {
       godAdmin: false,
       requiresOtp: true,
       email,
-      otpDelivery: "supabase",
+      otpDelivery: "resend",
     });
   } catch (err: unknown) {
     console.error("[auth/login-otp/send]", err);

@@ -22,18 +22,27 @@ import {
   parseLoginApiError,
   type LoginAuthErrorPayload,
 } from "@/lib/auth/login-api-errors";
-import { toOtpVerifyError } from "@/lib/auth/login-otp";
 import { resolveGodAdminClient } from "@/lib/auth/resolve-god-admin-client";
 import { isNexusPlatformUser, isPlatformEnforcementEnabled } from "@/lib/auth/platform-shared";
 import { isRecruiterSignInRole } from "@/lib/auth/recruiter-sign-in";
 import {
   persistOnboardingSlugCookie,
-  resolveClientOnboardingTenantSlug,
 } from "@/lib/tenant/client-onboarding-slug";
+import { getClientTenantHostLabel } from "@/lib/tenant/client-host-subdomain";
+import {
+  buildTenantBrandingApiUrl,
+  resolveTenantSlugForClient,
+} from "@/lib/tenant/resolve-tenant-context";
+import {
+  readHostnameScopedItem,
+  removeHostnameScopedItem,
+  writeHostnameScopedItem,
+} from "@/lib/tenant/scoped-storage";
 import {
   brandingFallbackForSlug,
   brandingAuthButtonStyle,
   brandingToCssVars,
+  isTenantApplicantPortalSlug,
   PLATFORM_DEFAULT_TENANT_SLUG,
   usesBraasFigmaLoginUi,
   type TenantBranding,
@@ -135,24 +144,47 @@ function LoginPageContent() {
   useEffect(() => {
     let alive = true;
     void (async () => {
+      const resolved = resolveTenantSlugForClient(
+        typeof window !== "undefined" ? window.location.search : "",
+        { path: "/login" }
+      );
+      const hostLabel = getClientTenantHostLabel();
       const qpRaw = searchParams.get("tenant")?.trim().toLowerCase();
       const qp = qpRaw != null && qpRaw.length >= 2 ? qpRaw : null;
-      if (qp) persistOnboardingSlugCookie(qp);
-      const slug =
-        qp ??
-        resolveClientOnboardingTenantSlug(
-          typeof window !== "undefined" ? window.location.search : ""
-        ) ??
-        PLATFORM_DEFAULT_TENANT_SLUG;
+
+      const applicantPortalSlug =
+        resolved.slug && isTenantApplicantPortalSlug(resolved.slug)
+          ? resolved.slug
+          : hostLabel && isTenantApplicantPortalSlug(hostLabel)
+            ? hostLabel
+            : null;
+
+      if (applicantPortalSlug) {
+        persistOnboardingSlugCookie(applicantPortalSlug);
+      } else if (qp) {
+        persistOnboardingSlugCookie(qp);
+      }
+
+      const brandingResolved = applicantPortalSlug
+        ? { ...resolved, slug: applicantPortalSlug, subdomainLabel: hostLabel ?? resolved.subdomainLabel }
+        : resolved.isRootDomain && !applicantPortalSlug
+          ? { ...resolved, slug: null, subdomainLabel: null, isRootDomain: true }
+          : resolved;
 
       try {
-        const res = await fetch(`/api/tenant-branding?slug=${encodeURIComponent(slug)}`, {
+        const res = await fetch(buildTenantBrandingApiUrl(brandingResolved), {
           cache: "no-store",
         });
         const payload = (await res.json()) as { branding?: TenantBranding };
         if (alive && payload.branding) setBrand(payload.branding);
       } catch {
-        /* keep default branding */
+        if (alive) {
+          setBrand(
+            brandingFallbackForSlug(
+              applicantPortalSlug ?? (resolved.isRootDomain ? PLATFORM_DEFAULT_TENANT_SLUG : null)
+            )
+          );
+        }
       } finally {
         if (alive) setBrandLoaded(true);
       }
@@ -176,7 +208,7 @@ function LoginPageContent() {
 
     if (useBraasUi) {
       try {
-        const savedEmail = localStorage.getItem("braasLoginEmail");
+        const savedEmail = readHostnameScopedItem("braasLoginEmail");
         if (savedEmail) {
           setForm((prev) => ({ ...prev, email: savedEmail, rememberMe: true }));
         }
@@ -228,9 +260,9 @@ function LoginPageContent() {
   ) => {
     try {
       if (login.rememberMe) {
-        localStorage.setItem("braasLoginEmail", login.email);
+        writeHostnameScopedItem("braasLoginEmail", login.email);
       } else {
-        localStorage.removeItem("braasLoginEmail");
+        removeHostnameScopedItem("braasLoginEmail");
       }
     } catch {
       /* ignore storage errors */
@@ -458,14 +490,14 @@ function LoginPageContent() {
     setSubmitting(true);
     clearAuthError();
 
-    const { error: verifyError } = await supabaseBrowser.auth.verifyOtp({
-      email: login.email,
-      token: code,
-      type: "email",
+    const res = await fetch("/api/auth/login-otp/verify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: login.email, code }),
     });
 
-    if (verifyError) {
-      setAuthError(toOtpVerifyError(verifyError.message));
+    if (!res.ok) {
+      setAuthError(await parseLoginApiError(res));
       setSubmitting(false);
       return;
     }
