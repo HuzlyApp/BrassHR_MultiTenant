@@ -28,6 +28,16 @@ export function normalizeHostHeader(host: string | null | undefined): string | n
   return h || null;
 }
 
+export function isRootDomainHost(
+  normalizedHost: string | null,
+  rootDomain: string
+): boolean {
+  if (!normalizedHost || !rootDomain) return false;
+  const apex = rootDomain.toLowerCase();
+  const host = normalizedHost.toLowerCase();
+  return host === apex || host === `www.${apex}`;
+}
+
 /**
  * If host is `{label}.{rootDomain}`, returns lowercase label (single label only).
  * Returns null for apex, www apex, mismatched domains, localhost, nested subdomains (a.b.domain).

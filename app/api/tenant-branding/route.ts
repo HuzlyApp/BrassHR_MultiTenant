@@ -4,6 +4,12 @@ import { brandingFromTenantRow, PLATFORM_DEFAULT_TENANT_SLUG } from "@/lib/tenan
 import { getConfiguredDefaultTenantId } from "@/lib/tenant/resolve-default-tenant-id";
 import { getSupabaseAnonKey, getSupabaseUrl } from "@/lib/supabase-env";
 import { TENANT_BRANDING_SELECT } from "@/lib/tenant/branding-fields";
+import {
+  forwardedHostFromHeaders,
+  getRootDomainFromEnv,
+  extractTenantSubdomainLabel,
+  isRootDomainHost,
+} from "@/lib/tenant/tenant-host-resolution";
 import { buildCacheKey, CACHE_TTL_SECONDS, getOrSetCache } from "@/lib/cache";
 import { createPerfTimer, logPerf } from "@/lib/perf";
 
@@ -94,6 +100,18 @@ export async function GET(req: Request) {
     return Response.json({ error: "Supabase is not configured" }, { status: 503 });
   }
 
+  const tenantResponseHeaders = {
+    "Cache-Control": "private, no-store",
+    Vary: "Host",
+  };
+
+  const rootDomain = getRootDomainFromEnv();
+  const hostNorm = forwardedHostFromHeaders(req.headers);
+  const hostSubdomain =
+    rootDomain && hostNorm ? extractTenantSubdomainLabel(hostNorm, rootDomain) : null;
+  const onRootDomain =
+    Boolean(rootDomain && hostNorm && isRootDomainHost(hostNorm, rootDomain));
+
   const { searchParams } = new URL(req.url);
   const slugParam = searchParams.get("slug")?.trim();
   const tenantIdParam = searchParams.get("tenantId")?.trim();
@@ -104,7 +122,14 @@ export async function GET(req: Request) {
   let row: TenantBrandingRow | null = null;
 
   try {
-    if (subdomainParam && !slugParam) {
+    if (hostSubdomain && !slugParam) {
+      const loaded = await loadTenantBrandingRow(supabase, {
+        kind: "subdomain",
+        value: hostSubdomain,
+      });
+      row = loaded.row;
+      resolvedSlug = loaded.resolvedSlug;
+    } else if (subdomainParam && !slugParam) {
       const loaded = await loadTenantBrandingRow(supabase, {
         kind: "subdomain",
         value: subdomainParam,
@@ -119,6 +144,10 @@ export async function GET(req: Request) {
       const loaded = await loadTenantBrandingRow(supabase, { kind: "tenantId", value: tenantIdParam });
       row = loaded.row;
       resolvedSlug = loaded.resolvedSlug;
+    } else if (onRootDomain) {
+      const loaded = await loadTenantBrandingRow(supabase, { kind: "default", value: "platform" });
+      row = loaded.row;
+      resolvedSlug = loaded.resolvedSlug;
     } else {
       const loaded = await loadTenantBrandingRow(supabase, { kind: "default", value: "platform" });
       row = loaded.row;
@@ -127,13 +156,17 @@ export async function GET(req: Request) {
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Tenant branding lookup failed";
     console.error("[tenant-branding]", msg);
-    return Response.json({ error: msg }, { status: 500 });
+    return Response.json({ error: msg }, { status: 500, headers: tenantResponseHeaders });
   }
 
   const brandingSlug = resolvedSlug ?? PLATFORM_DEFAULT_TENANT_SLUG;
   logPerf("GET /api/tenant-branding", {
     totalMs: routeTimer.elapsedMs(),
-    lookup: subdomainParam || slugParam || tenantIdParam || "default",
+    lookup: hostSubdomain || subdomainParam || slugParam || tenantIdParam || "default",
+    host: hostNorm,
   });
-  return Response.json({ branding: brandingFromTenantRow(row, brandingSlug) });
+  return Response.json(
+    { branding: brandingFromTenantRow(row, brandingSlug) },
+    { headers: tenantResponseHeaders }
+  );
 }

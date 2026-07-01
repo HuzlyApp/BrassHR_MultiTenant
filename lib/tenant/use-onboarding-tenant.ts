@@ -4,8 +4,8 @@ import { useCallback, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   persistOnboardingSlugCookie,
-  resolveClientOnboardingTenantSlug,
 } from "@/lib/tenant/client-onboarding-slug";
+import { resolveTenantSlugForClient } from "@/lib/tenant/resolve-tenant-context";
 import { applicationPath, withTenant } from "@/lib/tenant/with-tenant";
 
 /**
@@ -24,18 +24,19 @@ export function useOnboardingTenant() {
         : searchParams.toString()
           ? `?${searchParams.toString()}`
           : "";
-    return resolveClientOnboardingTenantSlug(fromSearch);
+    return resolveTenantSlugForClient(fromSearch, {
+      path: typeof window !== "undefined" ? window.location.pathname : "/application",
+    }).slug;
   }, [searchParams]);
 
   const withTenantPath = useCallback((path: string) => withTenant(path, slug), [slug]);
 
   const push = useCallback(
     (path: string) => {
-      const resolved =
-        slug ??
-        resolveClientOnboardingTenantSlug(
-          typeof window !== "undefined" ? window.location.search : ""
-        );
+      const resolved = resolveTenantSlugForClient(
+        typeof window !== "undefined" ? window.location.search : "",
+        { path: typeof window !== "undefined" ? window.location.pathname : "/application" }
+      ).slug;
       if (!resolved) {
         router.push(path);
         return;
@@ -48,11 +49,10 @@ export function useOnboardingTenant() {
 
   const replace = useCallback(
     (path: string) => {
-      const resolved =
-        slug ??
-        resolveClientOnboardingTenantSlug(
-          typeof window !== "undefined" ? window.location.search : ""
-        );
+      const resolved = resolveTenantSlugForClient(
+        typeof window !== "undefined" ? window.location.search : "",
+        { path: typeof window !== "undefined" ? window.location.pathname : "/application" }
+      ).slug;
       if (!resolved) {
         router.replace(path);
         return;

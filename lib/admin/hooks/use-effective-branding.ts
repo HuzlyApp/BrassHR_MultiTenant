@@ -19,15 +19,23 @@ export type EffectiveBrandingPayload = {
   debug?: Record<string, unknown>;
 };
 
-export const EFFECTIVE_BRANDING_QUERY_KEY = ["admin-effective-branding"] as const;
+export function effectiveBrandingQueryKey(hostname?: string | null) {
+  const host =
+    hostname ??
+    (typeof window !== "undefined" ? window.location.hostname.toLowerCase() : "server");
+  return ["admin-effective-branding", host] as const;
+}
+
+export const EFFECTIVE_BRANDING_QUERY_KEY = effectiveBrandingQueryKey();
 
 /** Apply fresh branding to the admin chrome cache without waiting for a refetch. */
 export function patchEffectiveBrandingCache(
   queryClient: QueryClient,
   branding: TenantBranding
 ): void {
-  queryClient.setQueryData<EffectiveBrandingPayload>(EFFECTIVE_BRANDING_QUERY_KEY, (prev) =>
-    prev ? { ...prev, branding } : prev
+  queryClient.setQueryData<EffectiveBrandingPayload>(
+    effectiveBrandingQueryKey(typeof window !== "undefined" ? window.location.hostname : null),
+    (prev) => (prev ? { ...prev, branding } : prev)
   );
 }
 
@@ -50,14 +58,20 @@ export function useEffectiveBranding() {
   const queryClient = useQueryClient();
 
   const query = useQuery({
-    queryKey: EFFECTIVE_BRANDING_QUERY_KEY,
+    queryKey: effectiveBrandingQueryKey(
+      typeof window !== "undefined" ? window.location.hostname : null
+    ),
     queryFn: fetchEffectiveBranding,
     staleTime: 60_000,
   });
 
   useEffect(() => {
     const handler = () => {
-      void queryClient.invalidateQueries({ queryKey: EFFECTIVE_BRANDING_QUERY_KEY });
+      void queryClient.invalidateQueries({
+        queryKey: effectiveBrandingQueryKey(
+          typeof window !== "undefined" ? window.location.hostname : null
+        ),
+      });
     };
     window.addEventListener(BRANDING_UPDATED_EVENT, handler);
     return () => window.removeEventListener(BRANDING_UPDATED_EVENT, handler);
