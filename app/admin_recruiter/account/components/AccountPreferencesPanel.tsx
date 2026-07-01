@@ -1,9 +1,7 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useAccountData } from "@/app/admin_recruiter/hooks/useAccountData";
-import { syncAccountChecklist } from "@/lib/account/fetch-account-data";
-import { supabaseBrowser } from "@/lib/supabase-browser";
 import { FIELD, FieldLabel } from "./account-form-fields";
 import AccountCheckbox from "./AccountCheckbox";
 import {
@@ -14,7 +12,8 @@ import {
 } from "./AccountFormStatus";
 import {
   buildTimezoneSelectOptions,
-  timezoneRegionsForOptions,
+  groupTimezoneOptionsByRegion,
+  type UsTimezoneOption,
 } from "@/lib/account/us-timezones";
 
 const LANGUAGE_OPTIONS = [
@@ -27,8 +26,7 @@ const DATE_FORMAT_OPTIONS = ["MM/DD/YYYY", "DD/MM/YYYY", "YYYY-MM-DD"];
 const THEME_OPTIONS = ["system", "light", "dark"];
 
 export default function AccountPreferencesPanel() {
-  const { user, profile, organization, settings, checklist, loading, error, refresh } =
-    useAccountData();
+  const { user, settings, loading, error, refresh } = useAccountData();
 
   const [timezone, setTimezone] = useState("America/New_York");
   const [language, setLanguage] = useState("en");
@@ -39,12 +37,60 @@ export default function AccountPreferencesPanel() {
   const [pushNotifications, setPushNotifications] = useState(true);
   const [marketingEmails, setMarketingEmails] = useState(false);
 
+  const [timezoneCatalog, setTimezoneCatalog] = useState<UsTimezoneOption[]>([]);
+  const [timezoneCatalogLoading, setTimezoneCatalogLoading] = useState(true);
+  const [timezoneCatalogError, setTimezoneCatalogError] = useState<string | null>(null);
+
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
 
-  const timezoneOptions = buildTimezoneSelectOptions(timezone);
-  const timezoneRegions = timezoneRegionsForOptions(timezoneOptions);
+  const timezoneOptions = useMemo(
+    () => buildTimezoneSelectOptions(timezoneCatalog, timezone),
+    [timezoneCatalog, timezone]
+  );
+  const timezoneRegions = useMemo(
+    () => groupTimezoneOptionsByRegion(timezoneOptions),
+    [timezoneOptions]
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadTimezoneOptions() {
+      setTimezoneCatalogLoading(true);
+      setTimezoneCatalogError(null);
+      try {
+        const res = await fetch("/api/account/timezone-options", { cache: "no-store" });
+        const json = (await res.json().catch(() => ({}))) as {
+          options?: UsTimezoneOption[];
+          error?: string;
+        };
+        if (!res.ok) {
+          throw new Error(json.error || "Failed to load timezones");
+        }
+        if (!cancelled) {
+          setTimezoneCatalog(json.options ?? []);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setTimezoneCatalog([]);
+          setTimezoneCatalogError(
+            err instanceof Error ? err.message : "Failed to load timezones"
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setTimezoneCatalogLoading(false);
+        }
+      }
+    }
+
+    void loadTimezoneOptions();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (!settings) return;
@@ -67,28 +113,10 @@ export default function AccountPreferencesPanel() {
     setSaveSuccess(null);
 
     try {
-      const { error: upsertError } = await supabaseBrowser.from("account_settings").upsert({
-        user_id: user.id,
-        timezone,
-        language,
-        date_format: dateFormat,
-        theme,
-        email_notifications: emailNotifications,
-        sms_notifications: smsNotifications,
-        push_notifications: pushNotifications,
-        marketing_emails: marketingEmails,
-        updated_at: new Date().toISOString(),
-      });
-
-      if (upsertError) throw upsertError;
-
-      await refresh();
-      await syncAccountChecklist(supabaseBrowser, {
-        user,
-        profile,
-        organization,
-        settings: {
-          user_id: user.id,
+      const res = await fetch("/api/account/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
           timezone,
           language,
           date_format: dateFormat,
@@ -97,11 +125,13 @@ export default function AccountPreferencesPanel() {
           sms_notifications: smsNotifications,
           push_notifications: pushNotifications,
           marketing_emails: marketingEmails,
-          created_at: settings?.created_at ?? null,
-          updated_at: new Date().toISOString(),
-        },
-        checklist,
+        }),
       });
+      const json = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        throw new Error(json.error || "Failed to save settings");
+      }
+
       await refresh();
       setSaveSuccess("Account settings saved.");
     } catch (err) {
@@ -121,6 +151,7 @@ export default function AccountPreferencesPanel() {
       <p className="mt-1 text-sm text-[#64748B]">Timezone, language, and notification settings.</p>
 
       {error ? <AccountErrorBanner message={error} /> : null}
+      {timezoneCatalogError ? <AccountErrorBanner message={timezoneCatalogError} /> : null}
       {saveError ? <AccountErrorBanner message={saveError} /> : null}
       {saveSuccess ? <AccountSuccessBanner message={saveSuccess} /> : null}
 
@@ -131,18 +162,21 @@ export default function AccountPreferencesPanel() {
             value={timezone}
             onChange={(e) => setTimezone(e.target.value)}
             className={FIELD}
+            disabled={timezoneCatalogLoading || timezoneCatalog.length === 0}
           >
-            {timezoneRegions.map((region) => (
-              <optgroup key={region} label={region}>
-                {timezoneOptions
-                  .filter((option) => option.region === region)
-                  .map((option) => (
+            {timezoneCatalogLoading ? (
+              <option value={timezone}>Loading timezones...</option>
+            ) : (
+              timezoneRegions.map((group) => (
+                <optgroup key={group.region} label={group.region}>
+                  {group.options.map((option) => (
                     <option key={option.value} value={option.value}>
                       {option.label}
                     </option>
                   ))}
-              </optgroup>
-            ))}
+                </optgroup>
+              ))
+            )}
           </select>
         </label>
         <label className="block">
