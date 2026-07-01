@@ -133,7 +133,21 @@ function buildPdfDisplayData(detail: AssessmentDetailResponse): PdfDisplayData {
 
 function buildAssessmentPdf(pdfDisplayData: PdfDisplayData): jsPDF {
   const doc = new jsPDF();
+  appendAssessmentPdfContent(doc, pdfDisplayData, { addPageBefore: false });
+  return doc;
+}
+
+function appendAssessmentPdfContent(
+  doc: jsPDF,
+  pdfDisplayData: PdfDisplayData,
+  options: { addPageBefore: boolean }
+): void {
   let y = 14;
+
+  if (options.addPageBefore) {
+    doc.addPage();
+    y = 14;
+  }
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(14);
@@ -195,7 +209,7 @@ function buildAssessmentPdf(pdfDisplayData: PdfDisplayData): jsPDF {
     doc.setFont("helvetica", "normal");
     doc.setFontSize(10);
     doc.text("No question/answer data available for this assessment.", 14, y);
-    return doc;
+    return;
   }
 
   for (const row of pdfDisplayData.questions) {
@@ -221,7 +235,13 @@ function buildAssessmentPdf(pdfDisplayData: PdfDisplayData): jsPDF {
     doc.setDrawColor(235, 235, 235);
     doc.line(14, y - 1, 195, y - 1);
   }
+}
 
+function buildCombinedAssessmentsPdf(items: PdfDisplayData[]): jsPDF {
+  const doc = new jsPDF();
+  items.forEach((item, index) => {
+    appendAssessmentPdfContent(doc, item, { addPageBefore: index > 0 });
+  });
   return doc;
 }
 
@@ -235,6 +255,7 @@ export default function NewApplicantSkillAssessmentsPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [resultError, setResultError] = useState<string | null>(null);
   const [busyAssessmentId, setBusyAssessmentId] = useState<string | null>(null);
+  const [busyAllDownload, setBusyAllDownload] = useState(false);
   const [applicant, setApplicant] = useState<WorkerProfile | null>(null);
   const [assessments, setAssessments] = useState<Assessment[]>([]);
   const { status: candidateStatus, profilePhotoUrl } = useCandidateHeader(applicantId);
@@ -326,6 +347,46 @@ export default function NewApplicantSkillAssessmentsPage() {
     const n = `${applicant?.first_name ?? ""} ${applicant?.last_name ?? ""}`.trim();
     return n || "Applicant";
   }, [applicant]);
+
+  async function handleDownloadAll() {
+    if (assessments.length === 0) {
+      setResultError("No skill assessments available to download.");
+      return;
+    }
+
+    setResultError(null);
+    setBusyAllDownload(true);
+
+    try {
+      const pdfDataList: PdfDisplayData[] = [];
+
+      for (const assessment of assessments) {
+        const detail = await fetchAssessmentDetail(assessment.id);
+        const pdfDisplayData = buildPdfDisplayData(detail);
+        const hasData =
+          pdfDisplayData.questions.length > 0 ||
+          pdfDisplayData.assessmentTitle !== "Untitled Assessment";
+        if (hasData) {
+          pdfDataList.push(pdfDisplayData);
+        }
+      }
+
+      if (pdfDataList.length === 0) {
+        setResultError("No assessment data is available to download.");
+        return;
+      }
+
+      const doc = buildCombinedAssessmentsPdf(pdfDataList);
+      const namePart = candidateName.replace(/\s+/g, "-").toLowerCase() || "candidate";
+      doc.save(`${namePart}-all-skill-assessments.pdf`);
+    } catch (e) {
+      setResultError(
+        e instanceof Error ? e.message : "Failed to download all assessment results"
+      );
+    } finally {
+      setBusyAllDownload(false);
+    }
+  }
 
   const candidateRole = applicant?.job_role || "N/A";
   const completedCount = useMemo(
@@ -531,19 +592,15 @@ export default function NewApplicantSkillAssessmentsPage() {
 
               <div className="mt-8 flex justify-center">
                 <button
-                  onClick={async () => {
-                    if (assessments.length === 0) {
-                      setResultError("No skill assessments available to download.");
-                      return;
-                    }
-                    for (const assessment of assessments) {
-                      await handleDownload(assessment.id);
-                    }
-                  }}
-                  className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-[color:var(--brand-primary)] px-6 text-sm font-semibold text-[color:var(--brand-primary)]"
+                  type="button"
+                  onClick={() => void handleDownloadAll()}
+                  disabled={busyAllDownload || assessments.length === 0}
+                  className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-[color:var(--brand-primary)] px-6 text-sm font-semibold text-[color:var(--brand-primary)] disabled:opacity-50"
                 >
                   <BrandedFileTypeIcon type="pdf" className="h-4 w-4" />
-                  Download skill assessment full results
+                  {busyAllDownload
+                    ? "Preparing download..."
+                    : "Download all skill assessment full results"}
                 </button>
               </div>
             </div>

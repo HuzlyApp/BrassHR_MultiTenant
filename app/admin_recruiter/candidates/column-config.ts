@@ -100,3 +100,10 @@ export function saveColumnOrder(order: CandidateColumnId[]) {
 export function columnLabel(id: CandidateColumnId): string {
   return CANDIDATE_COLUMN_OPTIONS.find((c) => c.id === id)?.label ?? id
 }
+
+/** List table sizing — keeps status labels like "Under Review" on one line. */
+export function candidateListColumnClassName(colId: CandidateColumnId): string {
+  if (colId === "createdDate") return "min-w-[140px] whitespace-nowrap"
+  if (colId === "status") return "min-w-[132px] whitespace-nowrap"
+  return ""
+}

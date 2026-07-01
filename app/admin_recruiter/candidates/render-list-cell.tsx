@@ -63,7 +63,7 @@ export function renderListCell(
       return (
         <div className="flex w-full justify-center">
           <span
-            className={`inline-flex items-center rounded-xl px-2.5 py-0.5 text-sm font-medium ${candidateStatusBadgeClassName(c.status)}`}
+            className={`inline-flex items-center whitespace-nowrap rounded-xl px-2.5 py-0.5 text-sm font-medium ${candidateStatusBadgeClassName(c.status)}`}
           >
             {c.status}
           </span>

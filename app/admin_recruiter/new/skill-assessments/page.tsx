@@ -276,7 +276,7 @@ export default function NewApplicantSkillAssessmentsDemoPage() {
 
                     <div className="flex justify-center mt-8">
                       <button className="text-xs px-5 py-2.5 rounded-2xl border border-zinc-200 bg-white/70 hover:bg-white transition text-gray-600">
-                        Download skill assessment full results
+                        Download all skill assessment full results
                       </button>
                     </div>
                   </section>

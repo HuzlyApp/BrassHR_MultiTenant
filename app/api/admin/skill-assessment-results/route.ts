@@ -31,6 +31,52 @@ function toIsoIfDateLike(value: unknown): string | null {
   return d.toISOString()
 }
 
+function rowTimestampMs(row: JsonMap): number {
+  const updated = toIsoIfDateLike(row.updated_at)
+  if (updated) {
+    const t = Date.parse(updated)
+    if (!Number.isNaN(t)) return t
+  }
+  const created = toIsoIfDateLike(row.created_at)
+  if (created) {
+    const t = Date.parse(created)
+    if (!Number.isNaN(t)) return t
+  }
+  return 0
+}
+
+/**
+ * Keep one assessment row per category slug.
+ * Preference: completed row first, otherwise latest row.
+ */
+function dedupeAssessmentRowsByCategory(rows: JsonMap[]): JsonMap[] {
+  const bestByKey = new Map<string, JsonMap>()
+
+  for (const row of rows) {
+    const slug = String(row.category ?? "").trim().toLowerCase()
+    const fallbackId = asNullableString(row.id) ?? ""
+    const key = slug || `id:${fallbackId}`
+    const existing = bestByKey.get(key)
+
+    if (!existing) {
+      bestByKey.set(key, row)
+      continue
+    }
+
+    const existingCompleted = existing.completed === true
+    const nextCompleted = row.completed === true
+    if (nextCompleted && !existingCompleted) {
+      bestByKey.set(key, row)
+      continue
+    }
+    if (nextCompleted === existingCompleted && rowTimestampMs(row) > rowTimestampMs(existing)) {
+      bestByKey.set(key, row)
+    }
+  }
+
+  return Array.from(bestByKey.values())
+}
+
 export async function GET(req: NextRequest) {
   try {
     const workerIdRaw = req.nextUrl.searchParams.get("workerId")?.trim() || ""
@@ -79,7 +125,7 @@ export async function GET(req: NextRequest) {
         .order("created_at", { ascending: false })
       if (assessmentsErr) throw assessmentsErr
 
-      const rows = (assessments ?? []) as JsonMap[]
+      const rows = dedupeAssessmentRowsByCategory((assessments ?? []) as JsonMap[])
       const categorySlugs = rows
         .map((row) => String(row.category ?? "").trim())
         .filter((v) => v.length > 0)

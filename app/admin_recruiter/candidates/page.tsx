@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { EditColumnsModal } from "./EditColumnsModal";
 import {
   columnLabel,
+  candidateListColumnClassName,
   DEFAULT_CANDIDATE_COLUMNS,
   loadColumnOrder,
   saveColumnOrder,
@@ -449,7 +450,7 @@ export default function CandidatesPage() {
             return (
               <div className="overflow-hidden rounded-md border border-[#E5E7EB]">
                 <div className="overflow-auto">
-                  <table className="min-w-[760px] w-full border-collapse">
+                  <table className="min-w-[820px] w-full border-collapse">
                     <thead className="bg-[#F8FAFC]">
                       <tr className="border-b border-[#E5E7EB]">
                         <th className="w-12 border-r border-[#E5E7EB] bg-[#E5E7EB] px-3 py-3 text-center">
@@ -464,7 +465,7 @@ export default function CandidatesPage() {
                             key={colId}
                             className={`border-r border-[#E5E7EB] bg-[#E5E7EB] px-4 py-3 text-sm font-medium uppercase tracking-[0.08em] text-black last:border-r-0 first:pl-6 last:pr-6 ${
                               colId === "name" ? "text-left" : "text-center"
-                            } ${colId === "createdDate" ? "min-w-[140px] whitespace-nowrap" : ""}`}
+                            } ${candidateListColumnClassName(colId)}`}
                           >
                             {columnLabel(colId)}
                           </th>
@@ -486,7 +487,7 @@ export default function CandidatesPage() {
                               key={colId}
                               className={`border-r border-[#EEF2F7] px-4 py-4 align-middle last:border-r-0 first:pl-6 last:pr-6 ${
                                 colId === "name" ? "text-left" : "text-center"
-                              } ${colId === "createdDate" ? "min-w-[140px] whitespace-nowrap" : ""}`}
+                              } ${candidateListColumnClassName(colId)}`}
                             >
                               {renderListCell(colId, c, formatDate)}
                             </td>
