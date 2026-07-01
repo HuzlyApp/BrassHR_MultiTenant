@@ -13,7 +13,7 @@ import { lookupTenantSlugBySubdomain } from "@/lib/tenant/lookup-tenant-subdomai
 import {
   extractTenantSubdomainLabel,
   forwardedHostFromHeaders,
-  getRootDomainFromEnv,
+  getEffectiveRootDomain,
 } from "@/lib/tenant/tenant-host-resolution";
 import { ensureApplicationTenantQuery, clearTenantSlugCookieOnRootHost } from "@/lib/tenant/ensure-application-tenant-query";
 import {
@@ -36,6 +36,19 @@ function isPublicUiPath(pathname: string): boolean {
 
 function isAnonymousAuthUser(user: { is_anonymous?: boolean } | null | undefined): boolean {
   return user?.is_anonymous === true;
+}
+
+/** Public APIs used by marketing / applicant landing pages (no session required). */
+function isPublicApiPath(pathname: string): boolean {
+  if (pathname === "/api/tenant-branding") return true;
+  if (pathname === "/api/tenant-favicon") return true;
+  if (pathname === "/api/worker-onboarding/entry") return true;
+  if (pathname === "/api/auth/login-otp/send") return true;
+  if (pathname === "/api/auth/login-otp/verify") return true;
+  if (pathname === "/api/auth/signup") return true;
+  if (pathname === "/api/auth/signup/check-email") return true;
+  if (pathname === "/api/auth/signup/options") return true;
+  return false;
 }
 
 /**
@@ -71,10 +84,9 @@ export async function middleware(request: NextRequest) {
   const isAnonymousUser = isAnonymousAuthUser(user);
 
   /** `{sub}.{ROOT_DOMAIN}` → onboarding cookie + fallback rewrite for applicant surfaces */
-  const rootDomain = getRootDomainFromEnv();
+  const rootDomain = getEffectiveRootDomain();
   const hostNorm = forwardedHostFromHeaders(request.headers);
-  const tenantLabel =
-    rootDomain && hostNorm ? extractTenantSubdomainLabel(hostNorm, rootDomain) : null;
+  const tenantLabel = hostNorm ? extractTenantSubdomainLabel(hostNorm, rootDomain) : null;
   const subdomainRoutingPaths =
     pathname === "/" ||
     pathname.startsWith("/application") ||
@@ -107,8 +119,13 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  if (!tenantLabel && hostNorm && rootDomain) {
+  if (!tenantLabel && hostNorm) {
     clearTenantSlugCookieOnRootHost(request, response);
+  }
+
+  if (pathname === "/") {
+    response.headers.set("Cache-Control", "private, no-store");
+    response.headers.set("Vary", "Host");
   }
 
   const platformOn = isPlatformEnforcementEnabled();
@@ -121,7 +138,7 @@ export async function middleware(request: NextRequest) {
     platform: user ? getUserPlatform(user) : null,
   });
 
-  if (isApi && gateApiInMiddleware) {
+  if (isApi && gateApiInMiddleware && !isPublicApiPath(pathname)) {
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -294,7 +311,6 @@ export const config = {
     "/application/:path*",
     "/worker-onboarding",
     "/worker-signin",
-    "/api/tenant-branding",
     "/api/workers",
     "/api/workers/:path*",
     "/api/search-workers",

@@ -5,9 +5,9 @@ import { getConfiguredDefaultTenantId } from "@/lib/tenant/resolve-default-tenan
 import { getSupabaseAnonKey, getSupabaseUrl } from "@/lib/supabase-env";
 import { TENANT_BRANDING_SELECT } from "@/lib/tenant/branding-fields";
 import {
-  forwardedHostFromHeaders,
-  getRootDomainFromEnv,
   extractTenantSubdomainLabel,
+  forwardedHostFromHeaders,
+  getEffectiveRootDomain,
   isRootDomainHost,
 } from "@/lib/tenant/tenant-host-resolution";
 import { buildCacheKey, CACHE_TTL_SECONDS, getOrSetCache } from "@/lib/cache";
@@ -105,10 +105,9 @@ export async function GET(req: Request) {
     Vary: "Host",
   };
 
-  const rootDomain = getRootDomainFromEnv();
+  const rootDomain = getEffectiveRootDomain();
   const hostNorm = forwardedHostFromHeaders(req.headers);
-  const hostSubdomain =
-    rootDomain && hostNorm ? extractTenantSubdomainLabel(hostNorm, rootDomain) : null;
+  const hostSubdomain = hostNorm ? extractTenantSubdomainLabel(hostNorm, rootDomain) : null;
   const onRootDomain =
     Boolean(rootDomain && hostNorm && isRootDomainHost(hostNorm, rootDomain));
 

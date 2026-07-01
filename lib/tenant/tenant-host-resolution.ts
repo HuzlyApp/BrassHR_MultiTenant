@@ -14,6 +14,15 @@ export function getRootDomainFromEnv(): string | null {
   return r && r.length > 0 ? r : null;
 }
 
+/** Server + client root domain (ROOT_DOMAIN with NEXT_PUBLIC_ROOT_DOMAIN fallback). */
+export function getEffectiveRootDomain(): string {
+  return (
+    getRootDomainFromEnv() ??
+    process.env.NEXT_PUBLIC_ROOT_DOMAIN?.trim().toLowerCase() ??
+    "brasshr.com"
+  );
+}
+
 /** Strip brackets (IPv6) and port */
 export function normalizeHostHeader(host: string | null | undefined): string | null {
   if (!host) return null;

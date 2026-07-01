@@ -1,7 +1,7 @@
 import { ONBOARDING_TENANT_SLUG_COOKIE } from "@/lib/tenant/constants";
 import {
   forwardedHostFromHeaders,
-  getRootDomainFromEnv,
+  getEffectiveRootDomain,
   isRootDomainHost,
   normalizeHostHeader,
   extractTenantSubdomainLabel,
@@ -16,14 +16,6 @@ export type ResolvedTenantSlug = {
   isRootDomain: boolean;
   source: TenantResolutionSource;
 };
-
-export function getEffectiveRootDomain(): string {
-  return (
-    getRootDomainFromEnv() ??
-    process.env.NEXT_PUBLIC_ROOT_DOMAIN?.trim().toLowerCase() ??
-    "brasshr.com"
-  );
-}
 
 export function resolveTenantHostFromHostname(
   hostname: string | null | undefined,
@@ -99,13 +91,13 @@ export function resolveTenantSlugForClient(
     options?.allowCookieOnRoot ?? isApplicantTenantPath(options?.path);
 
   if (subdomainLabel) {
-    const slug = fromCookie ?? fromQuery ?? subdomainLabel;
+    const slug = fromCookie ?? subdomainLabel;
     return {
       slug,
       subdomainLabel,
       hostname,
       isRootDomain: false,
-      source: "hostname",
+      source: fromCookie ? "cookie" : "hostname",
     };
   }
 

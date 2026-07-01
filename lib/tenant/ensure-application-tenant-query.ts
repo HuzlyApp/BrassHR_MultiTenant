@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { ONBOARDING_TENANT_SLUG_COOKIE } from "@/lib/tenant/constants";
 import {
   forwardedHostFromHeaders,
-  getRootDomainFromEnv,
+  getEffectiveRootDomain,
   isRootDomainHost,
 } from "@/lib/tenant/tenant-host-resolution";
 
@@ -36,10 +36,9 @@ export function ensureApplicationTenantQuery(
     pathname.startsWith("/application") || pathname === "/worker-onboarding";
   if (!needsTenant) return response;
 
-  const rootDomain = getRootDomainFromEnv();
+  const rootDomain = getEffectiveRootDomain();
   const hostNorm = forwardedHostFromHeaders(request.headers);
-  const onRootDomain =
-    Boolean(rootDomain && hostNorm && isRootDomainHost(hostNorm, rootDomain));
+  const onRootDomain = Boolean(hostNorm && isRootDomainHost(hostNorm, rootDomain));
 
   if (hostSubdomainLabel) {
     const cookieSlug = request.cookies
@@ -102,9 +101,9 @@ export function clearTenantSlugCookieOnRootHost(
   request: NextRequest,
   response: NextResponse
 ): NextResponse {
-  const rootDomain = getRootDomainFromEnv();
+  const rootDomain = getEffectiveRootDomain();
   const hostNorm = forwardedHostFromHeaders(request.headers);
-  if (!rootDomain || !hostNorm || !isRootDomainHost(hostNorm, rootDomain)) {
+  if (!hostNorm || !isRootDomainHost(hostNorm, rootDomain)) {
     return response;
   }
 
