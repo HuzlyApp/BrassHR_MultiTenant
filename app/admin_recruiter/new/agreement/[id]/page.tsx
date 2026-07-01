@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useParams, usePathname } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import DetailedCandidateHeader from "../../../components/DetailedCandidateHeader";
 import DetailedTabs from "../../../components/DetailedTabs";
 import CandidateDetailLoader from "../../../components/CandidateDetailLoader";
@@ -126,6 +126,19 @@ function AgreementFileCard({
               {esignLoading ? "Sending..." : "Request eSign"}
             </button>
           ) : null}
+          {/*
+          Recruiter agreement review only — admin upload disabled on agreement page.
+          {section.kind === "upload" ? (
+            <button
+              type="button"
+              disabled={uploading}
+              onClick={onUpload}
+              className="inline-flex h-8 items-center justify-center rounded-md border border-[color:color-mix(in_srgb,var(--brand-primary)_30%,white)] bg-white px-4 text-xs font-semibold text-[color:var(--brand-primary)] disabled:opacity-50"
+            >
+              {uploading ? "Uploading..." : "Upload"}
+            </button>
+          ) : null}
+          */}
         </div>
       </div>
     );
@@ -161,10 +174,12 @@ export default function NewApplicantAgreementPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [profile, setProfile] = useState<ProfileApi | null>(null);
   const [agreements, setAgreements] = useState<AgreementRecord[]>([]);
+  /* Recruiter agreement review only — admin upload disabled on agreement page.
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [pendingUploadSlot, setPendingUploadSlot] = useState<UploadSlot | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  */
 
   const fetchData = useCallback(async () => {
     if (!applicantId) return;
@@ -235,6 +250,7 @@ export default function NewApplicantAgreementPage() {
   const w2Section = sections.find((section) => section.id === "w2") ?? null;
   const i9Section = sections.find((section) => section.id === "i9") ?? null;
 
+  /* Recruiter agreement review only — admin upload disabled on agreement page.
   const openUploadPicker = (slot: UploadSlot) => {
     setUploadError(null);
     setPendingUploadSlot(slot);
@@ -280,6 +296,7 @@ export default function NewApplicantAgreementPage() {
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
   };
+  */
 
   const openDocument = (section: WorkerAgreementSection, mode: "preview" | "download") => {
     const url = section.fileUrl || section.firmaSigningUrl;
@@ -300,6 +317,7 @@ export default function NewApplicantAgreementPage() {
       (section.reviewStatus === "rejected" || !section.hasFile) && !uploadAlreadyRequested;
     const actionsEnabled = section.hasFile || section.kind === "upload" || showRequestUpload || uploadAlreadyRequested;
 
+    /* Recruiter agreement review only — admin upload disabled on agreement page.
     const openSectionUpload = () =>
       openUploadPicker({
         sectionId: section.id,
@@ -307,6 +325,7 @@ export default function NewApplicantAgreementPage() {
         requiredDocumentId: section.requiredDocumentId,
         documentField: section.documentField ?? undefined,
       });
+    */
 
     const handleRequestUpload = () =>
       void requestAgreementUpload({
@@ -318,8 +337,8 @@ export default function NewApplicantAgreementPage() {
 
     const sectionBusy =
       isReviewLoading(reviewTarget) ||
-      isUploadRequestLoading(section.id) ||
-      uploadingId === section.id;
+      isUploadRequestLoading(section.id);
+      /* || uploadingId === section.id */
 
     return (
       <section key={section.id} className="rounded-md border border-[#D1D5DB]">
@@ -340,9 +359,9 @@ export default function NewApplicantAgreementPage() {
         <div className="flex items-center justify-between gap-4 px-5 py-3">
           <AgreementFileCard
             section={section}
-            uploading={uploadingId === section.id}
+            uploading={false}
             esignLoading={esignLoading}
-            onUpload={openSectionUpload}
+            onUpload={() => undefined}
             onRequestEsign={() =>
               void requestEsign()
             }
@@ -508,6 +527,8 @@ export default function NewApplicantAgreementPage() {
           <div className="admin-recruiter-content-width">
             <DetailedTabs applicantId={applicantId} activeTab="Agreement" />
 
+            {/*
+            Recruiter agreement review only — admin upload disabled on agreement page.
             <input
               ref={fileInputRef}
               type="file"
@@ -518,6 +539,7 @@ export default function NewApplicantAgreementPage() {
                 void handleFileSelected(file);
               }}
             />
+            */}
 
             {loadError ? (
               <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
@@ -525,11 +547,13 @@ export default function NewApplicantAgreementPage() {
               </div>
             ) : null}
 
+            {/*
             {uploadError ? (
               <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
                 {uploadError}
               </div>
             ) : null}
+            */}
 
             {actionError ? (
               <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">

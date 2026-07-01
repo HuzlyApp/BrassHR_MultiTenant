@@ -198,7 +198,7 @@ function FiltersToggleButton({
   );
 }
 
-function AdvancedSearchButton({
+export function AdvancedSearchButton({
   onClick,
   disabled,
   size = "md",

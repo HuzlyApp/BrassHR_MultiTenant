@@ -6,7 +6,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import DetailedCandidateHeader from "../../../components/DetailedCandidateHeader";
 import DetailedTabs from "../../../components/DetailedTabs";
 import CandidateDetailLoader from "../../../components/CandidateDetailLoader";
-import BrandedPlusIcon from "../../../components/BrandedPlusIcon";
 import BrandedFileTypeIcon from "../../../components/BrandedFileTypeIcon";
 import DocumentReviewActions from "../../../components/DocumentReviewActions";
 import { useWorkerDocumentReview } from "../../../hooks/useWorkerDocumentReview";
@@ -462,6 +461,8 @@ export default function NewApplicantAttachmentsFilledPage() {
               <div className="border-b border-[#9CC3FF]/20 bg-white/30" />
 
               <div className="p-5">
+                {/*
+                Recruiters review documents on attachments — upload bar hidden.
                 <div className="flex h-[52px] w-full items-center justify-between rounded-md border border-[#D1D5DB] px-5 py-[14px]">
                   <button
                     type="button"
@@ -477,8 +478,9 @@ export default function NewApplicantAttachmentsFilledPage() {
                     <BrandedPlusIcon className="h-6 w-6" />
                   </button>
                 </div>
+                */}
 
-                <div className="mt-5">
+                <div>
                   <div className="mb-4 flex items-center justify-between border-b border-[#E5E7EB] pb-4">
                     <h3 className="text-[20px] font-semibold leading-7 text-[#111827]">Requirements Submitted</h3>
                     <p className="text-sm font-medium text-[#6B7280]">

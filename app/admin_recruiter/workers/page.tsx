@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
 import {
   CANDIDATES_FILTER_CONTROL_CLASS,
@@ -8,7 +9,9 @@ import {
   CANDIDATES_PAGE_SUBTITLE_STYLE,
 } from "@/app/admin_recruiter/candidates/candidates-typography";
 import { CandidatesPageHeader } from "@/app/admin_recruiter/components/CandidatesPageHeader";
+import { AdvancedSearchButton } from "@/app/admin_recruiter/components/CandidatesListShell";
 import { ColumnsEditorModal } from "@/app/admin_recruiter/components/ColumnsEditorModal";
+import AdvancedSearchModal from "@/app/admin_recruiter/components/AdvancedSearchModal";
 import { ListExportDropdown } from "@/app/admin_recruiter/components/ListExportDropdown";
 import {
   employmentWorkerTabLabel,
@@ -16,11 +19,9 @@ import {
 } from "@/lib/admin/employment-workers";
 import {
   Columns2,
-  Plus,
   Search,
   RefreshCw,
   Filter,
-  Loader2,
 } from "lucide-react";
 import {
   DEFAULT_WORKER_COLUMNS,
@@ -48,6 +49,73 @@ type EmploymentWorkerRow = {
   created_at: string | null;
   profile_photo_url?: string | null;
 };
+
+type SearchWorkerRow = {
+  id: string;
+  first_name: string | null;
+  last_name: string | null;
+  email: string | null;
+  phone: string | null;
+  job_role: string | null;
+  city: string | null;
+  state: string | null;
+  created_at: string | null;
+  status?: string | null;
+  worker_type?: string | null;
+  employment_classification?: string | null;
+  profile_photo_url?: string | null;
+  candidate_id?: string | null;
+};
+
+const ADVANCED_SEARCH_STORAGE_KEY = "admin_recruiter_workers_advanced_search";
+type AdvancedSearchParams = { lat: number; lng: number; radius: number; place?: string };
+
+function mapEmploymentWorkerRow(w: EmploymentWorkerRow): WorkerListRow {
+  const name = `${w.first_name ?? ""} ${w.last_name ?? ""}`.trim() || "Unnamed";
+  return {
+    id: w.id,
+    profileId: w.candidate_id,
+    name,
+    email: w.email?.trim() || "",
+    role: w.job_role || "—",
+    location: w.location?.trim() || "—",
+    status: titleCaseStatus(w.status),
+    createdAt: w.created_at ?? null,
+    profilePhotoUrl: w.profile_photo_url ?? null,
+    phone: w.phone?.trim() || "",
+    workerType: workerTypeLabel(w.worker_type),
+    employmentType: w.employment_classification?.trim() || "",
+    reference: (w.candidate_id || w.id).slice(0, 7).toUpperCase(),
+  };
+}
+
+function mapSearchWorkerRow(w: SearchWorkerRow): WorkerListRow {
+  const name = `${w.first_name ?? ""} ${w.last_name ?? ""}`.trim() || "Unnamed";
+  const location = [w.city?.trim(), w.state?.trim()].filter(Boolean).join(", ") || "—";
+  return {
+    id: w.id,
+    profileId: w.candidate_id || w.id,
+    name,
+    email: w.email?.trim() || "",
+    role: w.job_role || "—",
+    location,
+    status: titleCaseStatus(w.status),
+    createdAt: w.created_at ?? null,
+    profilePhotoUrl: w.profile_photo_url ?? null,
+    phone: w.phone?.trim() || "",
+    workerType: workerTypeLabel(w.worker_type),
+    employmentType: w.employment_classification?.trim() || "",
+    reference: (w.candidate_id || w.id).slice(0, 7).toUpperCase(),
+  };
+}
+
+function matchesWorkerTab(row: WorkerListRow, tab: EmploymentWorkerTab): boolean {
+  if (tab === "all") return true;
+  if (tab === "new") return row.status.toLowerCase() === "new";
+  if (tab === "w2") return row.workerType === "W-2";
+  if (tab === "1099") return row.workerType === "1099";
+  return true;
+}
 
 const WORKER_TABS: Array<{ id: EmploymentWorkerTab; label: string }> = [
   { id: "new", label: "New only" },
@@ -82,6 +150,7 @@ function formatDateShort(iso: string | null) {
 }
 
 export default function WorkersPage() {
+  const router = useRouter();
   const [workers, setWorkers] = useState<WorkerListRow[]>([]);
   const [totalFromApi, setTotalFromApi] = useState<number | null>(null);
   const [tabLabel, setTabLabel] = useState("workers");
@@ -94,14 +163,87 @@ export default function WorkersPage() {
   const [dateFilter, setDateFilter] = useState("");
   const [listColumnOrder, setListColumnOrder] = useState<WorkerColumnId[]>(DEFAULT_WORKER_COLUMNS);
   const [editColumnsOpen, setEditColumnsOpen] = useState(false);
+  const [advancedSearchOpen, setAdvancedSearchOpen] = useState(false);
+  const [advancedSearchParams, setAdvancedSearchParams] = useState<AdvancedSearchParams | null>(null);
+
+  const advancedSearchContext = useMemo(() => {
+    if (!advancedSearchParams) {
+      return { active: false, lat: 0, lng: 0, radius: 0, place: "" };
+    }
+    return {
+      active: true,
+      lat: advancedSearchParams.lat,
+      lng: advancedSearchParams.lng,
+      radius: advancedSearchParams.radius,
+      place: (advancedSearchParams.place ?? "").trim(),
+    };
+  }, [advancedSearchParams]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const raw = window.sessionStorage.getItem(ADVANCED_SEARCH_STORAGE_KEY);
+    if (!raw) return;
+    try {
+      const parsed = JSON.parse(raw) as Partial<AdvancedSearchParams>;
+      const lat = Number(parsed.lat);
+      const lng = Number(parsed.lng);
+      const radius = Number(parsed.radius);
+      if (Number.isFinite(lat) && Number.isFinite(lng) && Number.isFinite(radius) && radius > 0) {
+        setAdvancedSearchParams({
+          lat,
+          lng,
+          radius,
+          place: typeof parsed.place === "string" ? parsed.place : "",
+        });
+      }
+    } catch {
+      window.sessionStorage.removeItem(ADVANCED_SEARCH_STORAGE_KEY);
+    }
+  }, []);
+
+  const applyAdvancedSearchParams = useCallback((params: AdvancedSearchParams | null) => {
+    setAdvancedSearchParams(params);
+    if (typeof window === "undefined") return;
+    if (!params) {
+      window.sessionStorage.removeItem(ADVANCED_SEARCH_STORAGE_KEY);
+      return;
+    }
+    window.sessionStorage.setItem(ADVANCED_SEARCH_STORAGE_KEY, JSON.stringify(params));
+  }, []);
 
   useEffect(() => {
     setListColumnOrder(loadWorkerColumnOrder());
   }, []);
 
-  const loadWorkers = useCallback(async () => {
+  const loadWorkers = useCallback(async (overrideAdvancedSearch?: AdvancedSearchParams | null) => {
+    const activeSearch = overrideAdvancedSearch === undefined ? advancedSearchParams : overrideAdvancedSearch;
     setLoading(true);
     try {
+      if (activeSearch) {
+        const res = await fetch("/api/search-workers", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            lat: activeSearch.lat,
+            lng: activeSearch.lng,
+            radius: activeSearch.radius,
+            ...(activeSearch.place ? { place: activeSearch.place } : {}),
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data?.error || "Failed to fetch search results");
+
+        const rows: SearchWorkerRow[] = Array.isArray(data)
+          ? data
+          : Array.isArray(data?.workers)
+            ? data.workers
+            : [];
+        setTotalFromApi(rows.length);
+        setTabLabel("Results");
+        setWorkers(rows.map(mapSearchWorkerRow));
+        return;
+      }
+
       const res = await fetch(`/api/admin/employment-workers?tab=${workerTab}`, {
         cache: "no-store",
       });
@@ -125,41 +267,32 @@ export default function WorkersPage() {
         typeof data?.tabLabel === "string" ? data.tabLabel : employmentWorkerTabLabel(workerTab)
       );
 
-      const mapped: WorkerListRow[] = list.map((w) => {
-        const name = `${w.first_name ?? ""} ${w.last_name ?? ""}`.trim() || "Unnamed";
-        return {
-          id: w.id,
-          profileId: w.candidate_id,
-          name,
-          email: w.email?.trim() || "",
-          role: w.job_role || "—",
-          location: w.location?.trim() || "—",
-          status: titleCaseStatus(w.status),
-          createdAt: w.created_at ?? null,
-          profilePhotoUrl: w.profile_photo_url ?? null,
-          phone: w.phone?.trim() || "",
-          workerType: workerTypeLabel(w.worker_type),
-          employmentType: w.employment_classification?.trim() || "",
-          reference: (w.candidate_id || w.id).slice(0, 7).toUpperCase(),
-        };
-      });
-      setWorkers(mapped);
+      setWorkers(list.map(mapEmploymentWorkerRow));
     } catch (err) {
       console.error("Failed to fetch workers:", err);
       setWorkers([]);
       setTotalFromApi(null);
-      setTabLabel(employmentWorkerTabLabel(workerTab));
+      setTabLabel(advancedSearchParams ? "Results" : employmentWorkerTabLabel(workerTab));
     } finally {
       setLoading(false);
     }
-  }, [workerTab]);
+  }, [workerTab, advancedSearchParams]);
 
   useEffect(() => {
+    if (advancedSearchParams) return;
     void loadWorkers();
-  }, [loadWorkers]);
+  }, [workerTab, advancedSearchParams, loadWorkers]);
+
+  useEffect(() => {
+    if (!advancedSearchParams) return;
+    void loadWorkers();
+  }, [advancedSearchParams, loadWorkers]);
 
   const filtered = useMemo(() => {
     let out = workers;
+    if (advancedSearchContext.active) {
+      out = out.filter((row) => matchesWorkerTab(row, workerTab));
+    }
     const q = query.trim().toLowerCase();
     if (q) {
       out = out.filter((c) => {
@@ -184,7 +317,7 @@ export default function WorkersPage() {
       });
     }
     return out;
-  }, [workers, query, jobRoleFilter, locationFilter, dateFilter]);
+  }, [workers, query, jobRoleFilter, locationFilter, dateFilter, advancedSearchContext.active, workerTab]);
 
   const jobRoleOptions = useMemo(() => {
     const s = new Set<string>();
@@ -269,21 +402,21 @@ export default function WorkersPage() {
               />
               <button
                 type="button"
-                onClick={() => void loadWorkers()}
+                onClick={() => {
+                  if (advancedSearchContext.active) {
+                    applyAdvancedSearchParams(null);
+                    void loadWorkers(null);
+                    return;
+                  }
+                  void loadWorkers();
+                }}
                 className="inline-flex h-8 items-center gap-1.5 rounded-md border border-[#dce6e3] bg-white px-3 text-sm font-normal leading-6 text-[#334155] transition hover:bg-zinc-50"
                 style={CANDIDATES_PAGE_SUBTITLE_STYLE}
               >
                 <RefreshCw className={`h-4 w-4 shrink-0 ${loading ? "animate-spin" : ""}`} />
-                Refresh
+                {advancedSearchContext.active ? "Reset Search" : "Refresh"}
               </button>
-              <button
-                type="button"
-                className="inline-flex h-8 items-center gap-1.5 rounded-md border border-[#dce6e3] bg-white px-3 text-sm font-normal leading-6 text-[#334155] transition hover:bg-zinc-50"
-                style={CANDIDATES_PAGE_SUBTITLE_STYLE}
-              >
-                <Plus className="h-4 w-4 shrink-0" />
-                Create Worker
-              </button>
+              <AdvancedSearchButton onClick={() => setAdvancedSearchOpen(true)} size="sm" />
             </div>
           </div>
 
@@ -350,13 +483,46 @@ export default function WorkersPage() {
 
         <div className="flex w-full items-center gap-3 px-[14px] py-3">
           <div className="text-xs leading-4 text-[#5e7371]">
-            Total: <span className="font-semibold text-[#203130]">{loading ? "—" : totalFromApi ?? workers.length}</span> {tabLabel}
+            {advancedSearchContext.active ? (
+              <>
+                Total:{" "}
+                <span className="font-semibold text-[#203130]">{loading ? "—" : totalFromApi ?? filtered.length}</span>{" "}
+                Results
+                {advancedSearchContext.place ? (
+                  <>
+                    {" "}
+                    found in{" "}
+                    <span className="font-semibold text-[#203130]">{advancedSearchContext.place}</span>
+                  </>
+                ) : null}
+              </>
+            ) : (
+              <>
+                Total:{" "}
+                <span className="font-semibold text-[#203130]">{loading ? "—" : totalFromApi ?? workers.length}</span>{" "}
+                {tabLabel}
+              </>
+            )}
           </div>
         </div>
 
         <div className="bg-white px-[14px] py-4">
           {loading ? null : filtered.length === 0 ? (
-            <div className="py-16 text-center text-gray-600">No workers found.</div>
+            <div className="py-16 text-center text-gray-600">
+              <div>No workers found.</div>
+              {advancedSearchContext.active ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    applyAdvancedSearchParams(null);
+                    void loadWorkers(null);
+                  }}
+                  className="mt-4 inline-flex h-10 items-center justify-center rounded-md bg-[color:var(--brand-primary)] px-5 text-sm font-semibold text-white hover:brightness-95"
+                >
+                  Reset Search
+                </button>
+              ) : null}
+            </div>
           ) : (
             (() => {
               const cols = listColumnOrder.length ? listColumnOrder : DEFAULT_WORKER_COLUMNS;
@@ -414,6 +580,33 @@ export default function WorkersPage() {
         onSave={(order) => {
           setListColumnOrder(order);
           saveWorkerColumnOrder(order);
+        }}
+      />
+
+      <AdvancedSearchModal
+        open={advancedSearchOpen}
+        onClose={() => setAdvancedSearchOpen(false)}
+        initialParams={
+          advancedSearchContext.active
+            ? {
+                lat: advancedSearchContext.lat,
+                lng: advancedSearchContext.lng,
+                radius: advancedSearchContext.radius,
+                place: advancedSearchContext.place,
+              }
+            : undefined
+        }
+        onViewResults={(params) => {
+          const nextParams: AdvancedSearchParams = {
+            lat: params.lat,
+            lng: params.lng,
+            radius: params.radius,
+            ...(params.place ? { place: params.place } : {}),
+          };
+          applyAdvancedSearchParams(nextParams);
+          void loadWorkers(nextParams);
+          router.replace("/admin_recruiter/workers");
+          setAdvancedSearchOpen(false);
         }}
       />
     </div>
