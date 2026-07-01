@@ -91,9 +91,10 @@ describe("SecurityTab", () => {
     const user = userEvent.setup();
     render(<SecurityTab />);
 
-    const inputs = screen.getAllByLabelText(/password/i);
-    await user.type(inputs[0], "Secret1a");
-    await user.type(inputs[1], "Secret1b");
+    const newPassword = screen.getByLabelText("New Password");
+    const confirmPassword = screen.getByLabelText("Confirm Password");
+    await user.type(newPassword, "BrassHRPass1!");
+    await user.type(confirmPassword, "BrassHRPass2!");
 
     expect(screen.getByRole("button", { name: /update password/i })).toBeDisabled();
   });
@@ -102,9 +103,10 @@ describe("SecurityTab", () => {
     const user = userEvent.setup();
     render(<SecurityTab />);
 
-    const inputs = screen.getAllByLabelText(/password/i);
-    await user.type(inputs[0], "weak");
-    await user.type(inputs[1], "weak");
+    const newPassword = screen.getByLabelText("New Password");
+    const confirmPassword = screen.getByLabelText("Confirm Password");
+    await user.type(newPassword, "weak");
+    await user.type(confirmPassword, "weak");
 
     expect(screen.getByRole("button", { name: /update password/i })).toBeDisabled();
   });
@@ -113,13 +115,14 @@ describe("SecurityTab", () => {
     const user = userEvent.setup();
     render(<SecurityTab />);
 
-    const inputs = screen.getAllByLabelText(/password/i);
-    await user.type(inputs[0], "Secret1a");
-    await user.type(inputs[1], "Secret1a");
+    const newPassword = screen.getByLabelText("New Password");
+    const confirmPassword = screen.getByLabelText("Confirm Password");
+    await user.type(newPassword, "BrassHRPass1!");
+    await user.type(confirmPassword, "BrassHRPass1!");
     await user.click(screen.getByRole("button", { name: /update password/i }));
 
     await waitFor(() => {
-      expect(mockUpdateUser).toHaveBeenCalledWith({ password: "Secret1a" });
+      expect(mockUpdateUser).toHaveBeenCalledWith({ password: "BrassHRPass1!" });
     });
 
     expect(screen.getByRole("status")).toHaveTextContent(PASSWORD_UPDATE_SUCCESS_MESSAGE);
@@ -135,9 +138,10 @@ describe("SecurityTab", () => {
     const user = userEvent.setup();
     render(<SecurityTab />);
 
-    const inputs = screen.getAllByLabelText(/password/i);
-    await user.type(inputs[0], "Secret1a");
-    await user.type(inputs[1], "Secret1a");
+    const newPassword = screen.getByLabelText("New Password");
+    const confirmPassword = screen.getByLabelText("Confirm Password");
+    await user.type(newPassword, "BrassHRPass1!");
+    await user.type(confirmPassword, "BrassHRPass1!");
     await user.click(screen.getByRole("button", { name: /update password/i }));
 
     await waitFor(() => {
@@ -151,9 +155,10 @@ describe("SecurityTab", () => {
     const user = userEvent.setup();
     render(<SecurityTab />);
 
-    const inputs = screen.getAllByLabelText(/password/i);
-    await user.type(inputs[0], "Secret1a");
-    await user.type(inputs[1], "Secret1a");
+    const newPassword = screen.getByLabelText("New Password");
+    const confirmPassword = screen.getByLabelText("Confirm Password");
+    await user.type(newPassword, "BrassHRPass1!");
+    await user.type(confirmPassword, "BrassHRPass1!");
     await user.click(screen.getByRole("button", { name: /update password/i }));
 
     await waitFor(() => {

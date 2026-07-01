@@ -5,7 +5,9 @@ import { useRouter } from "next/navigation";
 import type { FormEvent } from "react";
 import OnboardingCheckbox from "@/app/components/OnboardingCheckbox";
 import OnboardingLayout from "@/app/components/OnboardingLayout";
+import LoginOtpStep from "@/app/login/LoginOtpStep";
 import { cn } from "@/lib/cn";
+import type { LoginAuthErrorPayload } from "@/lib/auth/login-api-errors";
 import type { TenantBranding } from "@/lib/tenant/tenant-branding";
 import { brandingAuthButtonStyle } from "@/lib/tenant/tenant-branding";
 
@@ -21,6 +23,12 @@ type ClassicTenantLoginProps = {
   showPassword: boolean;
   submitting: boolean;
   error: string | null;
+  otpStep?: boolean;
+  otpEmail?: string;
+  otpAuthError?: LoginAuthErrorPayload | null;
+  onOtpClearError?: () => void;
+  onOtpVerify?: (code: string) => void | Promise<void>;
+  onOtpSendAgain?: () => void | Promise<void>;
   onFormChange: (patch: Partial<ClassicLoginFormState>) => void;
   onTogglePassword: () => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
@@ -32,6 +40,12 @@ export default function ClassicTenantLogin({
   showPassword,
   submitting,
   error,
+  otpStep = false,
+  otpEmail = "",
+  otpAuthError,
+  onOtpClearError,
+  onOtpVerify,
+  onOtpSendAgain,
   onFormChange,
   onTogglePassword,
   onSubmit,
@@ -50,6 +64,17 @@ export default function ClassicTenantLogin({
       taglineClassName="text-[15px] leading-6 text-slate-700"
     >
       <div className="flex flex-col justify-center p-6 md:p-10 lg:p-12">
+        {otpStep && otpEmail && onOtpVerify && onOtpSendAgain ? (
+          <LoginOtpStep
+            email={otpEmail}
+            submitting={submitting}
+            authError={otpAuthError}
+            onClearError={onOtpClearError}
+            onVerify={onOtpVerify}
+            onSendAgain={onOtpSendAgain}
+          />
+        ) : (
+          <>
         <div className="mb-10">
           <div className="mb-4 h-1 w-12 rounded-full" style={{ backgroundColor: "var(--brand-primary)" }} />
           <h1
@@ -154,6 +179,8 @@ export default function ClassicTenantLogin({
             </button>
           </div>
         </form>
+          </>
+        )}
       </div>
     </OnboardingLayout>
   );

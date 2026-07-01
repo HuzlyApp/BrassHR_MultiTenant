@@ -1,7 +1,7 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
-import { Check, X } from "lucide-react";
+import { FormEvent, useId, useMemo, useState } from "react";
+import { Check, Eye, EyeOff, X } from "lucide-react";
 import { useAccountData } from "@/app/admin_recruiter/hooks/useAccountData";
 import { getAccountDisplayName } from "@/lib/account/display-name";
 import { withSecurityCompleted } from "@/lib/account/completion";
@@ -107,20 +107,34 @@ function PasswordField({
   onChange: (value: string) => void;
   showValid: boolean;
 }) {
+  const inputId = useId();
+  const [visible, setVisible] = useState(false);
+
   return (
-    <label className="block">
-      <FieldLabel>{label}</FieldLabel>
+    <div className="block">
+      <FieldLabel htmlFor={inputId}>{label}</FieldLabel>
       <div className="flex items-center gap-3">
-        <input
-          type="password"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          className={`${FIELD} flex-1`}
-          autoComplete="new-password"
-        />
+        <div className="relative flex-1">
+          <input
+            id={inputId}
+            type={visible ? "text" : "password"}
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            className={`${FIELD} w-full pr-10`}
+            autoComplete="new-password"
+          />
+          <button
+            type="button"
+            onClick={() => setVisible((current) => !current)}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-[#64748B] transition-colors hover:text-[#012352]"
+            aria-label={visible ? "Hide password" : "Show password"}
+          >
+            {visible ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+          </button>
+        </div>
         <FieldStatusIcon showValid={showValid} />
       </div>
-    </label>
+    </div>
   );
 }
 

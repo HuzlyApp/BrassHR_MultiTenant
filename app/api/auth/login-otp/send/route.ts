@@ -11,8 +11,8 @@ import { enforceRateLimit, getClientIp } from "@/lib/security/rate-limit";
 export const runtime = "nodejs";
 
 /**
- * Step 1 of Braas login: validate email/password, check god admin via API/DB.
- * God admin → no OTP. Everyone else → app-managed OTP emailed via Resend.
+ * Step 1 of recruiter login: validate email/password, then email app-managed OTP via Resend.
+ * God admin skips OTP; all other accounts must verify a code.
  */
 export async function POST(req: NextRequest) {
   try {

@@ -369,17 +369,8 @@ function LoginPageContent() {
     };
   };
 
-  const handleCredentialsSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!canSubmit) return;
-
+  const submitCredentialsForOtp = async (login: PendingLogin) => {
     clearAuthError();
-    const login: PendingLogin = {
-      email: form.email.trim().toLowerCase(),
-      password: form.password,
-      rememberMe: form.rememberMe,
-    };
-
     setSubmitting(true);
     try {
       const gate = await sendLoginOtp(login);
@@ -421,6 +412,18 @@ function LoginPageContent() {
       }
       setSubmitting(false);
     }
+  };
+
+  const handleCredentialsSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!canSubmit) return;
+
+    const login: PendingLogin = {
+      email: form.email.trim().toLowerCase(),
+      password: form.password,
+      rememberMe: form.rememberMe,
+    };
+    await submitCredentialsForOtp(login);
   };
 
   const completeLogin = async (credentials?: PendingLogin) => {
@@ -513,7 +516,7 @@ function LoginPageContent() {
   const handleClassicSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!form.email.trim() || !form.password || !form.agree) return;
-    void completeLogin({
+    void submitCredentialsForOtp({
       email: form.email.trim().toLowerCase(),
       password: form.password,
       rememberMe: false,
@@ -527,12 +530,27 @@ function LoginPageContent() {
   if (!useBraasUi) {
     return (
       <TenantBrandingProvider branding={brand}>
+        {showSuccess ? (
+          <VerificationSuccessModal
+            title="Success!"
+            message="Verification complete"
+            buttonLabel={submitting ? "Continuing..." : "Continue"}
+            loading={submitting}
+            onAction={handleSuccessContinue}
+          />
+        ) : null}
         <ClassicTenantLogin
           brand={brand}
           form={form}
           showPassword={showPassword}
           submitting={submitting}
           error={authError?.error ?? null}
+          otpStep={step === "otp" && pendingLogin != null}
+          otpEmail={pendingLogin?.email ?? ""}
+          otpAuthError={authError}
+          onOtpClearError={clearAuthError}
+          onOtpVerify={handleOtpVerify}
+          onOtpSendAgain={handleOtpSendAgain}
           onFormChange={(patch) => {
             clearAuthError();
             setForm((prev) => ({ ...prev, ...patch }));
