@@ -28,6 +28,7 @@ import { getSupabaseUrl } from "@/lib/supabase-env"
 import { WORKER_RESUMES_BUCKET } from "@/lib/supabase-storage-buckets"
 import { resolveStorageAccessibleUrl } from "@/lib/supabase/resolve-storage-accessible-url"
 import { resolveWorkerProfilePhotoUrl } from "@/lib/applicant-portal/worker-profile-photo"
+import { loadWorkerProfileSkills } from "@/lib/worker-profile-skills"
 import { parseRequiredUuid } from "@/lib/validation/uuid"
 
 export const runtime = "nodejs"
@@ -601,6 +602,8 @@ export async function GET(req: NextRequest) {
       }
     })
 
+    const profileSkills = await loadWorkerProfileSkills(supabase, workerId)
+
     let firmaSigning: FirmaSigningRow | null = null
     const { data: firmaRow, error: firmaErr } = firmaSigningResult
     if (firmaErr) {
@@ -857,6 +860,7 @@ export async function GET(req: NextRequest) {
         })),
       },
       facilities_assigned: facilityAssignments,
+      profile_skills: profileSkills,
       notes: workerNotes,
       attachment_files: attachmentFiles,
       attachment_requirements: attachmentRequirements,

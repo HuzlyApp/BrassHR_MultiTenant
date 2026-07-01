@@ -10,6 +10,8 @@ import DetailedTabs from "../../../components/DetailedTabs";
 import CandidateDetailLoader from "../../../components/CandidateDetailLoader";
 import ProfileSubTabs from "../../../components/ProfileSubTabs";
 import BrandedPlusIcon from "../../../components/BrandedPlusIcon";
+import AssignFacilityModal from "../../../components/AssignFacilityModal";
+import AddWorkerSkillModal from "../../../components/AddWorkerSkillModal";
 import CandidateNotesPanel from "../../../components/CandidateNotesPanel";
 import CandidateDetailEditableField from "../../../components/CandidateDetailEditableField";
 import CandidateDetailSelectField, {
@@ -27,6 +29,12 @@ import {
   isPlaceholderZip,
   referenceIsMissing,
 } from "@/lib/admin/worker-profile-field-display";
+import {
+  buildProfileEducationLines,
+  candidateProfileSectionHref,
+  PROFILE_YEARS_EXPERIENCE_ANCHOR_ID,
+  scrollToProfileField,
+} from "@/lib/admin/candidate-profile-sections";
 import {
   formatPhoneForDisplay,
   formatPhoneForEdit,
@@ -161,6 +169,11 @@ type ProfilePayload = {
     facility_name: string | null;
     facility_address: string | null;
   }>;
+  profile_skills?: Array<{
+    id: string;
+    skill_name: string;
+    created_at: string | null;
+  }>;
   notes?: Array<Record<string, unknown>>;
 };
 
@@ -235,6 +248,36 @@ function formatYearsExperience(value: number | null | undefined) {
   return `${value} yrs`;
 }
 
+function ProfileSectionNavLink({
+  href,
+  ariaLabel,
+  openEditAnchorId,
+}: {
+  href: string;
+  ariaLabel: string;
+  openEditAnchorId?: string;
+}) {
+  const hashIndex = href.indexOf("#");
+  const path = hashIndex >= 0 ? href.slice(0, hashIndex) : href;
+  const hash = hashIndex >= 0 ? href.slice(hashIndex + 1) : "";
+
+  return (
+    <Link
+      href={href}
+      aria-label={ariaLabel}
+      className="inline-flex shrink-0 rounded-full transition-opacity hover:opacity-80"
+      onClick={(event) => {
+        if (!hash || typeof window === "undefined") return;
+        if (window.location.pathname !== path) return;
+        event.preventDefault();
+        scrollToProfileField(hash, Boolean(openEditAnchorId && hash === openEditAnchorId));
+      }}
+    >
+      <BrandedPlusIcon className="h-6 w-6 cursor-pointer" />
+    </Link>
+  );
+}
+
 function formatDobForEdit(iso: string | null | undefined) {
   if (!iso) return "";
   const d = new Date(iso);
@@ -272,6 +315,9 @@ export default function NewApplicantProfilePage() {
   } | null>(null);
   const [cityOptions, setCityOptions] = useState<SelectOption[]>([]);
   const [citiesLoading, setCitiesLoading] = useState(false);
+  const [showAssignFacilityModal, setShowAssignFacilityModal] = useState(false);
+  const [showAddSkillModal, setShowAddSkillModal] = useState(false);
+  const [unassignedFacilityCount, setUnassignedFacilityCount] = useState(0);
 
   async function reloadProfile() {
     if (!applicantId) return;
@@ -281,6 +327,26 @@ export default function NewApplicantProfilePage() {
     const json = (await res.json()) as ProfilePayload & { error?: string };
     if (!res.ok) throw new Error(json.error || "Failed to reload profile");
     setData(json);
+  }
+
+  async function reloadFacilityMeta() {
+    if (!applicantId) return;
+    try {
+      const res = await fetch(
+        `/api/admin/facility-assignments?workerId=${encodeURIComponent(applicantId)}`,
+        { cache: "no-store" }
+      );
+      const json = (await res.json()) as {
+        meta?: { unassignedCount?: number };
+        potential?: unknown[];
+      };
+      if (!res.ok) return;
+      setUnassignedFacilityCount(
+        json.meta?.unassignedCount ?? (Array.isArray(json.potential) ? json.potential.length : 0)
+      );
+    } catch (e) {
+      console.error(e);
+    }
   }
 
   async function saveWorkerField(field: string, value: string) {
@@ -370,6 +436,40 @@ export default function NewApplicantProfilePage() {
       cancelled = true;
     };
   }, [applicantId]);
+
+  useEffect(() => {
+    if (!applicantId) return;
+    let cancelled = false;
+
+    void (async () => {
+      try {
+        const res = await fetch(
+          `/api/admin/facility-assignments?workerId=${encodeURIComponent(applicantId)}`,
+          { cache: "no-store" }
+        );
+        const json = (await res.json()) as {
+          meta?: { unassignedCount?: number };
+          potential?: unknown[];
+        };
+        if (!res.ok || cancelled) return;
+        setUnassignedFacilityCount(
+          json.meta?.unassignedCount ?? (Array.isArray(json.potential) ? json.potential.length : 0)
+        );
+      } catch (e) {
+        console.error(e);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [applicantId]);
+
+  useEffect(() => {
+    if (pageLoading || typeof window === "undefined") return;
+    if (window.location.hash !== `#${PROFILE_YEARS_EXPERIENCE_ANCHOR_ID}`) return;
+    scrollToProfileField(PROFILE_YEARS_EXPERIENCE_ANCHOR_ID, true);
+  }, [pageLoading]);
 
   useEffect(() => {
     let cancelled = false;
@@ -557,6 +657,38 @@ export default function NewApplicantProfilePage() {
     return 44 + 40 + stepCount * stepRowHeight;
   }, [data?.onboardingSteps?.length]);
 
+  const profileSectionLinks = useMemo(
+    () => ({
+      education: candidateProfileSectionHref("education", id, isWorkerRoute),
+      experience: candidateProfileSectionHref("experience", id, isWorkerRoute),
+      facilities: candidateProfileSectionHref("facilities", id, isWorkerRoute),
+    }),
+    [id, isWorkerRoute]
+  );
+
+  const educationSummaryLines = useMemo(
+    () =>
+      buildProfileEducationLines({
+        profile_license: data?.profile_license,
+        nursing_licenses: data?.nursing_licenses,
+        requirements: data?.requirements ?? undefined,
+        education: data?.education,
+        formatDate,
+      }),
+    [data?.profile_license, data?.nursing_licenses, data?.requirements, data?.education]
+  );
+
+  const experienceRoleLabels = useMemo(() => {
+    const fromAssignments = (data?.experience?.role_assignments ?? [])
+      .map((item) => item.role || item.job_category_name)
+      .filter(Boolean) as string[];
+    if (fromAssignments.length > 0) return fromAssignments;
+    return (data?.experience?.positions ?? []).filter(Boolean);
+  }, [data?.experience]);
+
+  const profileSkills = data?.profile_skills ?? [];
+  const canAssignMoreFacilities = unassignedFacilityCount > 0;
+
   const handleApproveForWork = async () => {
     if (!applicantId) return;
     setApprovingForWork(true);
@@ -736,6 +868,24 @@ export default function NewApplicantProfilePage() {
               email={w?.email ?? null}
               phone={w?.phone ?? null}
             />
+            {applicantId ? (
+              <AssignFacilityModal
+                open={showAssignFacilityModal}
+                workerId={applicantId}
+                onClose={() => setShowAssignFacilityModal(false)}
+                onAssigned={async () => {
+                  await Promise.all([reloadProfile(), reloadFacilityMeta()]);
+                }}
+              />
+            ) : null}
+            {applicantId ? (
+              <AddWorkerSkillModal
+                open={showAddSkillModal}
+                workerId={applicantId}
+                onClose={() => setShowAddSkillModal(false)}
+                onAdded={reloadProfile}
+              />
+            ) : null}
 
             <div className="w-full min-w-0 admin-recruiter-content-width overflow-x-auto rounded-lg border border-[#D1D5DB] bg-white">
               <div className="hidden p-6 items-start justify-between gap-6 border-b border-[#9CC3FF]/30 bg-white/40">
@@ -815,6 +965,7 @@ export default function NewApplicantProfilePage() {
                         onSave={(value) => saveWorkerField("email", value)}
                       />
                       <CandidateDetailEditableField
+                        anchorId={PROFILE_YEARS_EXPERIENCE_ANCHOR_ID}
                         label="Total Years of Experience in Your Profession"
                         displayValue={formatYearsExperience(w?.years_experience)}
                         editValue={w?.years_experience != null ? String(w.years_experience) : ""}
@@ -1094,85 +1245,138 @@ export default function NewApplicantProfilePage() {
                 </section>
 
                 <section className="h-full w-full min-w-0 space-y-0 border-l border-r border-[#D1D5DB]">
-                  <div className="h-[160px] w-full bg-white pr-px">
+                  <div className="w-full bg-white pr-px">
                       <div className="flex h-11 items-center justify-between gap-2 border-b border-[#E5E7EB] px-5">
                         <div className="text-[20px] font-semibold leading-7 text-[#111827]">Education</div>
-                        <BrandedPlusIcon className="h-6 w-6 cursor-pointer" />
+                        <ProfileSectionNavLink
+                          href={profileSectionLinks.education}
+                          ariaLabel="Open resume and education"
+                        />
                       </div>
-                      <div className="px-5 pt-4">
-                      <div className="text-xs text-gray-600">
-                        Source: {data?.education?.source ?? "none"}
-                      </div>
-                      <div className="mt-2 text-xs text-gray-600">
-                        {data?.education?.resume_available
-                          ? "Resume available for education verification."
-                          : "N/A"}
-                      </div>
+                      <div className="px-5 pb-5 pt-4">
+                      {educationSummaryLines.length > 0 ? (
+                        <div className="space-y-2">
+                          {educationSummaryLines.map((line) => (
+                            <div key={`${line.label}-${line.value}`} className="text-xs text-gray-600">
+                              <span className="font-medium text-[#374151]">{line.label}: </span>
+                              {line.href ? (
+                                <a
+                                  href={line.href}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-[#0D9488] underline"
+                                >
+                                  {line.value}
+                                </a>
+                              ) : (
+                                line.value
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-xs text-gray-600">No education details on file yet.</div>
+                      )}
                       </div>
                   </div>
 
-                    <div className="h-[288px] w-full border-t border-[#E5E7EB] bg-white pr-px">
+                    <div className="w-full border-t border-[#E5E7EB] bg-white pr-px">
                       <div className="flex h-11 items-center justify-between gap-2 border-b border-[#E5E7EB] px-5">
                         <div className="text-[20px] font-semibold leading-7 text-[#111827]">Experience</div>
-                        <BrandedPlusIcon className="h-6 w-6 cursor-pointer" />
+                        <ProfileSectionNavLink
+                          href={profileSectionLinks.experience}
+                          ariaLabel="Edit years of experience"
+                          openEditAnchorId={PROFILE_YEARS_EXPERIENCE_ANCHOR_ID}
+                        />
                       </div>
-                      <div className="px-5 pt-4">
+                      <div className="px-5 pb-5 pt-4">
                       <div className="text-xs text-gray-600">Job role</div>
-                      <div className="mt-2 text-xs text-gray-600">{data?.experience?.job_role ?? candidateRole}</div>
-                      <div className="mt-2 text-xs text-gray-600">
-                        Years: {data?.experience?.years != null ? data.experience.years : "N/A"}
+                      <div className="mt-2 text-sm text-[#111827]">
+                        {data?.experience?.job_role ?? candidateRole}
                       </div>
-                      <div className="mt-2 text-xs text-gray-600">
-                        Roles:{" "}
-                        {data?.experience?.role_assignments?.length
-                          ? data.experience.role_assignments
-                              .map((x) => x.role || x.job_category_name)
-                              .filter(Boolean)
-                              .join(", ")
-                          : "N/A"}
+                      <div className="mt-3 text-xs text-gray-600">Years in profession</div>
+                      <div className="mt-2 text-sm text-[#111827]">
+                        {data?.experience?.years != null
+                          ? formatYearsExperience(data.experience.years)
+                          : formatYearsExperience(w?.years_experience)}
+                      </div>
+                      <div className="mt-3 text-xs text-gray-600">Roles</div>
+                      <div className="mt-2 text-sm text-[#111827]">
+                        {experienceRoleLabels.length > 0 ? experienceRoleLabels.join(", ") : "N/A"}
                       </div>
                       </div>
                     </div>
 
-                    <div className="h-[200px] min-h-[200px] w-full border-t border-[#E5E7EB] bg-white pr-px">
+                    <div className="w-full border-t border-[#E5E7EB] bg-white pr-px">
                       <div className="flex h-11 items-center justify-between gap-2 border-b border-[#E5E7EB] px-5">
                         <div className="text-[20px] font-semibold leading-7 text-[#111827]">Skills</div>
-                        <BrandedPlusIcon className="h-6 w-6 cursor-pointer" />
+                        <button
+                          type="button"
+                          onClick={() => setShowAddSkillModal(true)}
+                          aria-label="Add skill"
+                          className="inline-flex shrink-0 rounded-full transition-opacity hover:opacity-80"
+                        >
+                          <BrandedPlusIcon className="h-6 w-6 cursor-pointer" />
+                        </button>
                       </div>
-                      <div className="px-5 pt-4">
-                      <div className="text-xs text-gray-600">
-                        Positions: {data?.skills?.positions?.length ? data.skills.positions.join(", ") : "N/A"}
+                      <div className="px-5 pb-5 pt-4">
+                      <div className="text-xs text-gray-600">Positions</div>
+                      <div className="mt-2 text-sm text-[#111827]">
+                        {data?.skills?.positions?.length ? data.skills.positions.join(", ") : "N/A"}
                       </div>
-                      <div className="mt-2 text-xs text-gray-600">
-                        Assessed categories:{" "}
-                        {data?.skills?.assessed_categories?.length
-                          ? data.skills.assessed_categories
-                              .map((x) => x.category_title || "Category")
-                              .join(", ")
-                          : "N/A"}
+                      <div className="mt-3 text-xs text-gray-600">Skills</div>
+                      <div className="mt-2 space-y-1">
+                        {profileSkills.length > 0 ? (
+                          profileSkills.map((skill) => (
+                            <div key={skill.id} className="text-sm text-[#111827]">
+                              {skill.skill_name}
+                            </div>
+                          ))
+                        ) : (
+                          <div className="text-sm text-[#6B7280]">No skills added yet.</div>
+                        )}
                       </div>
                       </div>
                     </div>
 
-                    <div className="h-[200px] min-h-[200px] w-full border-t border-b border-[#E5E7EB] bg-white pr-px">
+                    <div className="w-full border-t border-b border-[#E5E7EB] bg-white pr-px">
                       <div className="flex h-11 items-center justify-between gap-2 border-b border-[#E5E7EB] px-5">
                         <div className="text-[20px] font-semibold leading-7 text-[#111827]">Facilities Assigned</div>
-                        <BrandedPlusIcon className="h-6 w-6 cursor-pointer" />
+                        <ProfileSectionNavLink
+                          href={profileSectionLinks.facilities}
+                          ariaLabel="Open facility assignments"
+                        />
                       </div>
-                      <div className="flex items-start justify-between px-5 pt-4">
-                        <div className="text-xs text-gray-600">
-                          {data?.facilities_assigned?.length
-                            ? data.facilities_assigned
-                                .map((f) => f.facility_name || f.shift_title || "Assignment")
-                                .join(", ")
-                            : "No facility assignments found"}
+                      <div className="flex items-start justify-between gap-3 px-5 pb-5 pt-4">
+                        <div className="min-w-0 flex-1 text-xs text-gray-600">
+                          {data?.facilities_assigned?.length ? (
+                            <div className="space-y-2">
+                              {data.facilities_assigned.map((facility, index) => (
+                                <div key={facility.assignment_id ?? `${facility.facility_name}-${index}`}>
+                                  <div className="text-sm font-medium text-[#111827]">
+                                    {facility.facility_name || facility.shift_title || "Assignment"}
+                                  </div>
+                                  {facility.facility_address ? (
+                                    <div className="mt-0.5 text-xs text-[#6B7280]">
+                                      {facility.facility_address}
+                                    </div>
+                                  ) : null}
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            "No facility assignments found"
+                          )}
                         </div>
-                        <button
-                          type="button"
-                          className="inline-flex h-9 w-[78px] items-center justify-center gap-1.5 rounded-lg bg-[#0D9488] px-4 py-2 text-sm font-semibold text-white"
-                        >
-                          + Add
-                        </button>
+                        {canAssignMoreFacilities ? (
+                          <button
+                            type="button"
+                            onClick={() => setShowAssignFacilityModal(true)}
+                            className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-lg bg-[#0D9488] px-4 py-2 text-sm font-semibold text-white"
+                          >
+                            + Add
+                          </button>
+                        ) : null}
                       </div>
                     </div>
 

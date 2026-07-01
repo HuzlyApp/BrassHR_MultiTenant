@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import { normalizeResumeStorageObjectPath } from "@/lib/onboarding/normalize-resume-storage-path"
 import { mapDynamicAdminOnboardingProgress } from "@/lib/onboarding/map-dynamic-admin-progress"
 import { isFirmaSigningComplete } from "@/lib/onboarding/firma-step-settings"
+import { loadWorkerSkillAssessmentProgress } from "@/lib/admin/worker-skill-assessment-progress"
 
 type JsonRow = Record<string, unknown>
 
@@ -92,6 +93,11 @@ export async function mapAdminOnboardingProgress({
       ? String((workerTenant as { tenant_id: string }).tenant_id)
       : null
 
+  const skillProgress = await loadWorkerSkillAssessmentProgress(supabase, workerId, userId)
+  const skillAssessmentRows = skillProgress.rows
+  const saCompleted = skillProgress.completed
+  const saTotal = skillProgress.total
+
   if (tenantId) {
     try {
       const { data: tenantRow } = await supabase
@@ -110,7 +116,11 @@ export async function mapAdminOnboardingProgress({
               state: s.state,
               detail: s.detail,
             })),
-            skillAssessments: { completed: 0, total: 0, rows: [] },
+            skillAssessments: {
+              completed: saCompleted,
+              total: saTotal,
+              rows: skillAssessmentRows,
+            },
             completedSteps: dynamic.completedSteps,
             totalSteps: dynamic.totalSteps,
             completionPercent: dynamic.completionPercent,
@@ -153,89 +163,6 @@ export async function mapAdminOnboardingProgress({
   ]
   const licenseCount = licenseChecks.filter(Boolean).length
   const licenseRequiredCount = licenseChecks.length
-
-  const { data: skillAssessmentRowsRaw } = await supabase
-    .from("skill_assessments")
-    .select("*")
-    .eq("worker_id", workerId)
-  const skillAssessmentRows = (skillAssessmentRowsRaw ?? []) as JsonRow[]
-
-  const categorySlugs = skillAssessmentRows
-    .map((row) => String(row.category ?? "").trim())
-    .filter((slug) => slug.length > 0)
-
-  const { data: categoryRowsRaw } = await supabase
-    .from("skill_categories")
-    .select("id,slug,title")
-    .in("slug", categorySlugs.length > 0 ? categorySlugs : ["__none__"])
-  const categoryRows = (categoryRowsRaw ?? []) as JsonRow[]
-  const categoryBySlug = new Map<string, JsonRow>(
-    categoryRows.map((row) => [String(row.slug ?? "").trim(), row])
-  )
-
-  const categoryIds = categoryRows
-    .map((row) => String(row.id ?? "").trim())
-    .filter((id) => id.length > 0)
-
-  const { data: questionRowsRaw } = await supabase
-    .from("skill_questions")
-    .select("id,category_id")
-    .in("category_id", categoryIds.length > 0 ? categoryIds : ["00000000-0000-0000-0000-000000000000"])
-  const questionRows = (questionRowsRaw ?? []) as JsonRow[]
-  const requiredByCategory = new Map<string, number>()
-  for (const row of questionRows) {
-    const categoryId = String(row.category_id ?? "").trim()
-    if (!categoryId) continue
-    requiredByCategory.set(categoryId, (requiredByCategory.get(categoryId) ?? 0) + 1)
-  }
-
-  const applicantIdCandidates = [workerId, userId].filter((id): id is string => Boolean(id && id.trim()))
-  const { data: answerRowsRaw } = await supabase
-    .from("applicant_skill_assessment_answers")
-    .select("applicant_id,category_id,skill_id")
-    .in("applicant_id", applicantIdCandidates.length > 0 ? applicantIdCandidates : [workerId])
-  const answerRows = (answerRowsRaw ?? []) as JsonRow[]
-  const answeredByCategory = new Map<string, number>()
-  for (const row of answerRows) {
-    const categoryId = String(row.category_id ?? "").trim()
-    if (!categoryId) continue
-    answeredByCategory.set(categoryId, (answeredByCategory.get(categoryId) ?? 0) + 1)
-  }
-
-  let saCompleted = 0
-  let saTotal = skillAssessmentRows.length
-  for (const row of skillAssessmentRows) {
-    const slug = String(row.category ?? "").trim()
-    const category = categoryBySlug.get(slug)
-    const categoryId = String(category?.id ?? "").trim()
-    const required = categoryId ? (requiredByCategory.get(categoryId) ?? 0) : 0
-    const normalizedAnswered = categoryId ? (answeredByCategory.get(categoryId) ?? 0) : 0
-    const answersJson =
-      row.answers && typeof row.answers === "object" && !Array.isArray(row.answers)
-        ? (row.answers as Record<string, unknown>)
-        : {}
-    const jsonAnswered = Object.keys(answersJson).length
-    const answered = Math.max(normalizedAnswered, jsonAnswered)
-    const rowCompleted = row.completed === true || (required > 0 ? answered >= required : answered > 0)
-    row.category_id = categoryId || null
-    row.category_title = String(category?.title ?? slug)
-    row.answered_count = answered
-    row.required_question_count = required
-    row.completed = rowCompleted
-    if (rowCompleted) saCompleted += 1
-  }
-
-  // If rows are missing but answer rows exist, derive dynamic totals from answer categories.
-  if (saTotal === 0 && answeredByCategory.size > 0) {
-    saTotal = answeredByCategory.size
-    saCompleted = 0
-    for (const [categoryId, answered] of answeredByCategory.entries()) {
-      const required = requiredByCategory.get(categoryId) ?? 0
-      if ((required > 0 && answered >= required) || (required === 0 && answered > 0)) {
-        saCompleted += 1
-      }
-    }
-  }
 
   const ssnUploaded =
     hasUrl(workerDocuments?.ssn_url) ||
@@ -327,9 +254,8 @@ export async function mapAdminOnboardingProgress({
     storage_path_checked: null,
     records_found: {
       skill_assessment_rows: skillAssessmentRows.length,
-      answer_rows: answerRows.length,
-      categories_from_skill_assessments: categorySlugs.length,
-      categories_with_answers: answeredByCategory.size,
+      completed_assessments: saCompleted,
+      total_assessments: saTotal,
     },
     computed_count: saCompleted,
     required_count: saTotal,

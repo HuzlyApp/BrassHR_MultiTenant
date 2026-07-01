@@ -1,3 +1,7 @@
+import {
+  isWorkerSkillAssessmentProgressComplete,
+} from "@/lib/admin/worker-skill-assessment-progress";
+
 export const CANDIDATE_PIPELINE_STEP_LABELS = [
   "Application Received",
   "Screening",
@@ -29,6 +33,7 @@ type ChecklistSection = {
 type SkillAssessments = {
   completed?: number;
   total?: number;
+  rows?: Array<{ completed?: boolean }>;
 };
 
 type ProfileWorker = {
@@ -74,9 +79,15 @@ function rowIsPassed(row: ChecklistRow | null): boolean {
 }
 
 function skillAssessmentsComplete(skillAssessments: SkillAssessments | undefined): boolean {
-  const total = skillAssessments?.total ?? 0;
-  const completed = skillAssessments?.completed ?? 0;
-  return total > 0 && completed >= total;
+  return isWorkerSkillAssessmentProgressComplete(
+    skillAssessments
+      ? {
+          completed: skillAssessments.completed ?? 0,
+          total: skillAssessments.total ?? 0,
+          rows: skillAssessments.rows ?? [],
+        }
+      : undefined
+  );
 }
 
 function sectionRowsPassed(sections: ChecklistSection[] | undefined, sectionId: string): boolean {

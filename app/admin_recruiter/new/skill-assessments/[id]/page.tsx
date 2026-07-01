@@ -8,6 +8,7 @@ import DetailedCandidateHeader from "../../../components/DetailedCandidateHeader
 import DetailedTabs from "../../../components/DetailedTabs";
 import CandidateDetailLoader from "../../../components/CandidateDetailLoader";
 import { useCandidateHeader } from "../../../hooks/useCandidateHeader";
+import { dispatchCandidatePipelineRefresh } from "@/lib/admin/candidate-pipeline-events";
 import BrandedStepperCompleteIcon from "../../../components/BrandedStepperCompleteIcon";
 import BrandedFileTypeIcon from "../../../components/BrandedFileTypeIcon";
 import {
@@ -275,6 +276,9 @@ export default function NewApplicantSkillAssessmentsPage() {
         }
         setApplicant(json.worker ?? null);
         setAssessments(Array.isArray(json.skill_assessments) ? json.skill_assessments : []);
+        if (applicantId) {
+          dispatchCandidatePipelineRefresh(applicantId);
+        }
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         setLoadError(msg);

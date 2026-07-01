@@ -123,6 +123,139 @@ function isMissingTableError(error: { message?: string }, tablePattern: RegExp):
   )
 }
 
+function isForeignKeyViolation(error: unknown): boolean {
+  return typeof error === "object" && error !== null && (error as { code?: string }).code === "23503"
+}
+
+const PIPELINE_ITEM_COLUMNS =
+  "id, item_key, manual_completed, manual_completed_by, manual_completed_at, call_log_completed, call_log_completed_at, call_log_ref, updated_at"
+
+async function listPipelineChecklistTables(supabase: SupabaseClient): Promise<string[]> {
+  const tables: string[] = []
+  for (const table of TABLE_NAMES) {
+    const { error } = await supabase.from(table).select("id").limit(1)
+    if (!error) {
+      tables.push(table)
+      continue
+    }
+    if (isMissingTableError(error, /worker_pipeline_checklist_items|worker_screening_checklist_items/i)) {
+      continue
+    }
+    throw error
+  }
+  return tables
+}
+
+async function findPipelineItemRecord(
+  supabase: SupabaseClient,
+  workerId: string,
+  itemKey: PipelineChecklistItemKey
+): Promise<{ table: string; id: string; row: PipelineChecklistItemRow } | null> {
+  for (const table of TABLE_NAMES) {
+    const { data, error } = await supabase
+      .from(table)
+      .select(PIPELINE_ITEM_COLUMNS)
+      .eq("worker_id", workerId)
+      .eq("item_key", itemKey)
+      .maybeSingle()
+
+    if (error) {
+      if (isMissingTableError(error, /worker_pipeline_checklist_items|worker_screening_checklist_items/i)) {
+        continue
+      }
+      throw error
+    }
+
+    const record = data as ({ id?: string } & PipelineChecklistItemRow) | null
+    if (record?.id) {
+      return { table, id: String(record.id), row: record }
+    }
+  }
+  return null
+}
+
+export async function saveWorkerPipelineChecklistItem(
+  supabase: SupabaseClient,
+  input: {
+    workerId: string
+    tenantId: string
+    itemKey: PipelineChecklistItemKey
+    completed: boolean
+    completedBy: string | null
+  }
+): Promise<PipelineChecklistItemRow> {
+  const tables = await listPipelineChecklistTables(supabase)
+  if (tables.length === 0) {
+    throw new Error("Checklist table not configured")
+  }
+
+  const existing = await findPipelineItemRecord(supabase, input.workerId, input.itemKey)
+  const now = new Date().toISOString()
+  const targetTable = existing?.table ?? tables[0]!
+
+  const buildManualPayload = (completedBy: string | null) =>
+    input.completed
+      ? {
+          manual_completed: true,
+          manual_completed_by: completedBy,
+          manual_completed_at: now,
+        }
+      : {
+          manual_completed: false,
+          manual_completed_by: null,
+          manual_completed_at: null,
+        }
+
+  async function persist(completedBy: string | null): Promise<PipelineChecklistItemRow> {
+    const manualPayload = buildManualPayload(completedBy)
+
+    if (existing?.id) {
+      const { data, error } = await supabase
+        .from(targetTable)
+        .update({ ...manualPayload, updated_at: now })
+        .eq("id", existing.id)
+        .select(
+          "item_key, manual_completed, manual_completed_by, manual_completed_at, call_log_completed, call_log_completed_at, call_log_ref, updated_at"
+        )
+        .maybeSingle()
+
+      if (error) throw error
+      if (!data) throw new Error("Failed to update checklist item")
+      return data as PipelineChecklistItemRow
+    }
+
+    const { data, error } = await supabase
+      .from(targetTable)
+      .insert({
+        tenant_id: input.tenantId,
+        worker_id: input.workerId,
+        item_key: input.itemKey,
+        ...manualPayload,
+        call_log_completed: false,
+        call_log_completed_at: null,
+        call_log_ref: null,
+        updated_at: now,
+      })
+      .select(
+        "item_key, manual_completed, manual_completed_by, manual_completed_at, call_log_completed, call_log_completed_at, call_log_ref, updated_at"
+      )
+      .maybeSingle()
+
+    if (error) throw error
+    if (!data) throw new Error("Failed to create checklist item")
+    return data as PipelineChecklistItemRow
+  }
+
+  try {
+    return await persist(input.completedBy)
+  } catch (error) {
+    if (input.completedBy && isForeignKeyViolation(error)) {
+      return persist(null)
+    }
+    throw error
+  }
+}
+
 function shouldPreferPipelineRow(
   current: PipelineChecklistItemRow,
   candidate: PipelineChecklistItemRow

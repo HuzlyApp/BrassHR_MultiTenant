@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { writeActivityLog } from "@/lib/audit/activity-log"
+import { formatApiError } from "@/lib/api/format-api-error"
 import { requireStaffApiSession } from "@/lib/auth/api-session"
 import { resolveStaffTenantScope } from "@/lib/auth/staff-tenant-scope"
 import { canAccessWorkerRecord } from "@/lib/auth/worker-record-access"
@@ -10,6 +11,7 @@ import {
   isPipelineChecklistItemKey,
   pipelineCheckboxLabel,
   pipelineItemIsComplete,
+  saveWorkerPipelineChecklistItem,
   type PipelineChecklistItemKey,
   type PipelineChecklistItemRow,
 } from "@/lib/worker-pipeline-checklist"
@@ -17,8 +19,6 @@ import { createServiceRoleClient } from "@/lib/supabase/service-role"
 import { parseRequiredUuid } from "@/lib/validation/uuid"
 
 export const runtime = "nodejs"
-
-const TABLE_NAMES = ["worker_pipeline_checklist_items", "worker_screening_checklist_items"] as const
 
 type ItemState = "pending" | "complete" | "not_applicable"
 
@@ -40,17 +40,6 @@ function pipelineRowResponse(itemKey: PipelineChecklistItemKey, row: PipelineChe
     manualCompleted: row?.manual_completed === true,
     callLogCompleted: row?.call_log_completed === true,
   }
-}
-
-async function resolveTable(supabase: ReturnType<typeof createServiceRoleClient>): Promise<string | null> {
-  if (!supabase) return null
-  for (const table of TABLE_NAMES) {
-    const { error } = await supabase.from(table).select("id").limit(1)
-    if (!error) return table
-    if (/not find|does not exist|schema cache/i.test(error.message ?? "")) continue
-    throw error
-  }
-  return null
 }
 
 export async function PATCH(req: NextRequest) {
@@ -82,11 +71,6 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: "Supabase service role not configured" }, { status: 503 })
     }
 
-    const table = await resolveTable(supabase)
-    if (!table) {
-      return NextResponse.json({ error: "Checklist table not configured" }, { status: 503 })
-    }
-
     const { data: worker, error: workerError } = await supabase
       .from("worker")
       .select("id, user_id, tenant_id")
@@ -109,67 +93,15 @@ export async function PATCH(req: NextRequest) {
     }
 
     const itemKey = body.itemKey
-    const now = new Date().toISOString()
     const completedBy = auth.devBypass ? null : auth.userId
 
-    const { data: existing, error: existingError } = await supabase
-      .from(table)
-      .select(
-        "id, manual_completed, manual_completed_by, manual_completed_at, call_log_completed, call_log_completed_at, call_log_ref, updated_at"
-      )
-      .eq("worker_id", idCheck.value)
-      .eq("item_key", itemKey)
-      .maybeSingle()
-
-    if (existingError) throw existingError
-
-    const manualPayload = body.completed
-      ? {
-          manual_completed: true,
-          manual_completed_by: completedBy,
-          manual_completed_at: now,
-        }
-      : {
-          manual_completed: false,
-          manual_completed_by: null,
-          manual_completed_at: null,
-        }
-
-    let savedRow: PipelineChecklistItemRow | undefined
-
-    if (existing?.id) {
-      const { data: updated, error: updateError } = await supabase
-        .from(table)
-        .update({ ...manualPayload, updated_at: now })
-        .eq("id", existing.id)
-        .select(
-          "item_key, manual_completed, manual_completed_by, manual_completed_at, call_log_completed, call_log_completed_at, call_log_ref, updated_at"
-        )
-        .maybeSingle()
-
-      if (updateError) throw updateError
-      savedRow = (updated as PipelineChecklistItemRow | null) ?? undefined
-    } else {
-      const { data: inserted, error: insertError } = await supabase
-        .from(table)
-        .insert({
-          tenant_id: tenantId,
-          worker_id: idCheck.value,
-          item_key: itemKey,
-          ...manualPayload,
-          call_log_completed: false,
-          call_log_completed_at: null,
-          call_log_ref: null,
-          updated_at: now,
-        })
-        .select(
-          "item_key, manual_completed, manual_completed_by, manual_completed_at, call_log_completed, call_log_completed_at, call_log_ref, updated_at"
-        )
-        .maybeSingle()
-
-      if (insertError) throw insertError
-      savedRow = (inserted as PipelineChecklistItemRow | null) ?? undefined
-    }
+    const savedRow = await saveWorkerPipelineChecklistItem(supabase, {
+      workerId: idCheck.value,
+      tenantId,
+      itemKey,
+      completed: body.completed,
+      completedBy,
+    })
 
     void writeActivityLog({
       actorUserId: auth.devBypass ? null : auth.userId,
@@ -196,7 +128,8 @@ export async function PATCH(req: NextRequest) {
     })
   } catch (err: unknown) {
     console.error("[admin/worker-checklist/items]", err)
-    const msg = err instanceof Error ? err.message : "Unexpected error"
-    return NextResponse.json({ error: msg }, { status: 500 })
+    const msg = formatApiError(err)
+    const status = msg === "Checklist table not configured" ? 503 : 500
+    return NextResponse.json({ error: msg }, { status })
   }
 }

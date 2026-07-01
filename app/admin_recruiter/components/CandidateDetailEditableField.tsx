@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import BrandedEditIcon from "./BrandedEditIcon";
 import CandidateDetailAddButton from "./CandidateDetailAddButton";
 import {
@@ -8,6 +8,7 @@ import {
   filterCandidateFieldInput,
   validateCandidateFieldInput,
 } from "@/lib/admin/worker-profile-field-client";
+import { PROFILE_FIELD_OPEN_EDIT_EVENT } from "@/lib/admin/candidate-profile-sections";
 
 type CandidateDetailEditableFieldProps = {
   label: string;
@@ -19,6 +20,7 @@ type CandidateDetailEditableFieldProps = {
   placeholder?: string;
   highlightValue?: boolean;
   saving?: boolean;
+  anchorId?: string;
   onSave: (value: string) => Promise<void>;
 };
 
@@ -32,6 +34,7 @@ export default function CandidateDetailEditableField({
   placeholder,
   highlightValue = false,
   saving = false,
+  anchorId,
   onSave,
 }: CandidateDetailEditableFieldProps) {
   const [editing, setEditing] = useState(false);
@@ -64,6 +67,20 @@ export default function CandidateDetailEditableField({
     setSaveError(null);
     setEditing(true);
   }
+
+  useEffect(() => {
+    if (!anchorId) return;
+    const handler = (event: Event) => {
+      const customEvent = event as CustomEvent<{ id?: string }>;
+      if (customEvent.detail?.id !== anchorId) return;
+      if (!editable || busy) return;
+      setDraft(editValue);
+      setSaveError(null);
+      setEditing(true);
+    };
+    window.addEventListener(PROFILE_FIELD_OPEN_EDIT_EVENT, handler);
+    return () => window.removeEventListener(PROFILE_FIELD_OPEN_EDIT_EVENT, handler);
+  }, [anchorId, editable, busy, editValue]);
 
   function cancelEditor() {
     setDraft(editValue);
@@ -99,7 +116,10 @@ export default function CandidateDetailEditableField({
 
   return (
     <>
-      <div className="border-b border-r border-[#E5E7EB] px-5 py-3 text-[14px] font-normal leading-5 text-[#374151]">
+      <div
+        id={anchorId}
+        className={`border-b border-r border-[#E5E7EB] px-5 py-3 text-[14px] font-normal leading-5 text-[#374151] ${anchorId ? "scroll-mt-24" : ""}`}
+      >
         {label}
       </div>
       <div className="border-b border-[#E5E7EB] px-5 py-3 text-[14px] font-normal leading-5 break-all text-[#111827]">

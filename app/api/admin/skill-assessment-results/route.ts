@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
+import { dedupeSkillAssessmentRowsByCategory } from "@/lib/admin/worker-skill-assessment-progress"
 import { requireApiSession } from "@/lib/auth/api-session"
 import { canAccessWorkerRecord } from "@/lib/auth/worker-record-access"
 import { getSupabaseUrl } from "@/lib/supabase-env"
@@ -29,52 +30,6 @@ function toIsoIfDateLike(value: unknown): string | null {
   const d = new Date(String(value))
   if (Number.isNaN(d.getTime())) return asNullableString(value)
   return d.toISOString()
-}
-
-function rowTimestampMs(row: JsonMap): number {
-  const updated = toIsoIfDateLike(row.updated_at)
-  if (updated) {
-    const t = Date.parse(updated)
-    if (!Number.isNaN(t)) return t
-  }
-  const created = toIsoIfDateLike(row.created_at)
-  if (created) {
-    const t = Date.parse(created)
-    if (!Number.isNaN(t)) return t
-  }
-  return 0
-}
-
-/**
- * Keep one assessment row per category slug.
- * Preference: completed row first, otherwise latest row.
- */
-function dedupeAssessmentRowsByCategory(rows: JsonMap[]): JsonMap[] {
-  const bestByKey = new Map<string, JsonMap>()
-
-  for (const row of rows) {
-    const slug = String(row.category ?? "").trim().toLowerCase()
-    const fallbackId = asNullableString(row.id) ?? ""
-    const key = slug || `id:${fallbackId}`
-    const existing = bestByKey.get(key)
-
-    if (!existing) {
-      bestByKey.set(key, row)
-      continue
-    }
-
-    const existingCompleted = existing.completed === true
-    const nextCompleted = row.completed === true
-    if (nextCompleted && !existingCompleted) {
-      bestByKey.set(key, row)
-      continue
-    }
-    if (nextCompleted === existingCompleted && rowTimestampMs(row) > rowTimestampMs(existing)) {
-      bestByKey.set(key, row)
-    }
-  }
-
-  return Array.from(bestByKey.values())
 }
 
 export async function GET(req: NextRequest) {
@@ -125,7 +80,7 @@ export async function GET(req: NextRequest) {
         .order("created_at", { ascending: false })
       if (assessmentsErr) throw assessmentsErr
 
-      const rows = dedupeAssessmentRowsByCategory((assessments ?? []) as JsonMap[])
+      const rows = dedupeSkillAssessmentRowsByCategory((assessments ?? []) as JsonMap[])
       const categorySlugs = rows
         .map((row) => String(row.category ?? "").trim())
         .filter((v) => v.length > 0)
