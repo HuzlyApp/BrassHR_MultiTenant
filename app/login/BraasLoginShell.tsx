@@ -75,23 +75,64 @@ export function LoginPageShell({ brand, children }: { brand: TenantBranding; chi
 
           .login-layout {
             display: grid;
-            grid-template-columns: minmax(520px, 770px) minmax(340px, 510px);
-            gap: 0;
+            grid-template-columns: minmax(0, 1fr) 510px;
+            gap: clamp(20px, 2.4vw, 40px);
             justify-content: center;
-            align-items: stretch;
+            align-items: start;
           }
 
           .login-content {
             width: 100%;
-            max-width: 770px;
-            min-height: 980px;
-            padding: 20px 80px 20px 20px;
+            max-width: 100%;
+            min-height: auto;
+            padding: 20px 24px 20px 20px;
           }
 
           .login-art {
-            width: 100%;
+            width: 510px;
             max-width: 510px;
             min-height: 980px;
+          }
+
+          @media (max-width: 1280px) {
+            .login-frame {
+              padding: 24px;
+            }
+
+            .login-layout {
+              grid-template-columns: minmax(0, 56%) minmax(0, 44%);
+              gap: 16px;
+            }
+
+            .login-content {
+              padding: 14px;
+            }
+
+            .login-art {
+              width: 100%;
+              max-width: 100%;
+              min-height: 780px;
+            }
+          }
+
+          @media (max-width: 768px) {
+            .login-frame {
+              padding: 10px;
+            }
+
+            .login-layout {
+              grid-template-columns: minmax(0, 58%) minmax(0, 42%);
+              gap: 10px;
+            }
+
+            .login-content {
+              padding: 10px;
+            }
+
+            .login-art {
+              min-height: 620px;
+              border-radius: 14px;
+            }
           }
 
           @media (min-width: 1440px) {
@@ -105,11 +146,12 @@ export function LoginPageShell({ brand, children }: { brand: TenantBranding; chi
             .login-layout {
               width: 1280px;
               grid-template-columns: 770px 510px;
+              gap: 40px;
             }
 
             .login-content {
               width: 770px;
-              min-height: 980px;
+              min-height: auto;
             }
 
             .login-art {

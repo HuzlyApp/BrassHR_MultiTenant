@@ -153,13 +153,13 @@ export default function Home() {
   return (
     <TenantBrandingProvider branding={brand}>
       <main style={shell} className="flex min-h-screen items-center justify-center p-4 sm:p-6 lg:p-8">
-        <section className="w-full overflow-hidden rounded-2xl bg-white shadow-[0_24px_70px_rgba(0,0,0,0.18)] md:min-h-[720px] md:w-[1060px] md:grid md:grid-cols-[620px_440px]">
-          <div className="flex min-h-[650px] flex-col items-center justify-center gap-7 px-8 py-10 text-center sm:px-10 md:min-h-[720px] md:px-10 md:py-10">
+        <section className="grid w-full max-w-[1060px] grid-cols-1 overflow-hidden rounded-2xl bg-white shadow-[0_24px_70px_rgba(0,0,0,0.18)] min-[640px]:grid-cols-[58%_42%] min-[900px]:grid-cols-[620px_440px]">
+          <div className="flex flex-col items-center justify-center gap-5 px-6 py-7 text-center sm:px-8 sm:py-8 min-[900px]:min-h-[720px] min-[900px]:px-10 min-[900px]:py-10">
             <div className="space-y-3">
-              <h1 className="text-[34px] font-semibold leading-[48px] tracking-normal text-slate-800 sm:text-[42px] md:text-[48px]">
+              <h1 className="whitespace-nowrap text-[22px] font-semibold leading-[30px] tracking-normal text-slate-800 sm:text-[34px] sm:leading-[44px] min-[900px]:text-[48px] min-[900px]:leading-[60px]">
                 {brand.headline}
               </h1>
-              <p className="text-[16px] font-normal leading-6 tracking-normal text-slate-500">{brand.subtitle}</p>
+              <p className="text-[14px] font-normal leading-5 tracking-normal text-slate-500 sm:text-[16px] sm:leading-6">{brand.subtitle}</p>
             </div>
 
             <button
@@ -198,7 +198,7 @@ export default function Home() {
                 router.push("/signup");
               }}
               style={{ backgroundColor: "var(--brand-primary)", boxShadow: "0 10px 20px color-mix(in srgb, var(--brand-primary) 22%, transparent)" }}
-              className="inline-flex min-h-14 min-w-[210px] cursor-pointer items-center justify-center rounded-xl px-8 py-4 text-[22px] font-semibold leading-[22px] text-white transition hover:brightness-105 focus:outline-none disabled:cursor-wait disabled:opacity-80"
+              className="inline-flex min-h-12 min-w-[170px] cursor-pointer items-center justify-center rounded-xl px-6 py-3 text-[20px] font-semibold leading-[22px] text-white transition hover:brightness-105 focus:outline-none disabled:cursor-wait disabled:opacity-80 sm:min-h-14 sm:min-w-[210px] sm:px-8 sm:py-4 sm:text-[22px]"
             >
               {startingApplication ? "Starting…" : primaryCtaLabel}
             </button>
@@ -229,20 +229,20 @@ export default function Home() {
 
           </div>
 
-          <div className="relative flex min-h-[430px] items-center justify-center overflow-hidden border-t border-slate-200 md:min-h-[720px] md:w-[440px] md:border-l md:border-t-0">
+          <div className="relative flex min-h-[260px] items-center justify-center overflow-hidden border-t border-slate-200 min-[640px]:min-h-[620px] min-[640px]:border-l min-[640px]:border-t-0 min-[900px]:min-h-[720px] min-[900px]:w-[440px]">
             <Image
               src={brand.loginBackgroundSrc}
               alt=""
               fill
-              sizes="(max-width: 767px) 100vw, 440px"
+              sizes="(max-width: 639px) 100vw, (max-width: 899px) 42vw, 440px"
               className="object-cover grayscale"
               priority
             />
             <div className="absolute inset-0 bg-white/75" />
 
-            <div className="relative z-10 flex w-full flex-col items-center justify-center gap-5 px-8 text-center md:px-12">
-              <div className="relative flex h-[80px] w-[270px] items-center justify-center">
-                <img src={brand.logoUrl} alt="" className="max-h-[80px] max-w-[270px] object-contain" />
+            <div className="relative z-10 flex w-full flex-col items-center justify-center gap-4 px-5 text-center sm:gap-5 sm:px-8 min-[900px]:px-12">
+              <div className="relative flex h-[48px] w-[150px] items-center justify-center sm:h-[64px] sm:w-[220px] min-[900px]:h-[80px] min-[900px]:w-[270px]">
+                <img src={brand.logoUrl} alt="" className="max-h-[48px] max-w-[150px] object-contain sm:max-h-[64px] sm:max-w-[220px] min-[900px]:max-h-[80px] min-[900px]:max-w-[270px]" />
               </div>
 
               <div className="flex w-full max-w-[340px] items-center justify-center gap-4">
@@ -257,7 +257,7 @@ export default function Home() {
                 <div className="h-px flex-1 bg-slate-400/40" />
               </div>
 
-              <p className="max-w-[300px] text-center text-[15px] font-normal leading-6 tracking-normal text-black">
+              <p className="max-w-[260px] text-center text-[13px] font-normal leading-5 tracking-normal text-black sm:max-w-[300px] sm:text-[15px] sm:leading-6">
                 {brand.tagline}
               </p>
             </div>
