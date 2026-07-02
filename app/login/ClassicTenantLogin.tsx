@@ -25,6 +25,7 @@ type ClassicTenantLoginProps = {
   error: string | null;
   otpStep?: boolean;
   otpEmail?: string;
+  otpVerified?: boolean;
   otpAuthError?: LoginAuthErrorPayload | null;
   onOtpClearError?: () => void;
   onOtpVerify?: (code: string) => void | Promise<void>;
@@ -42,6 +43,7 @@ export default function ClassicTenantLogin({
   error,
   otpStep = false,
   otpEmail = "",
+  otpVerified = false,
   otpAuthError,
   onOtpClearError,
   onOtpVerify,
@@ -68,6 +70,7 @@ export default function ClassicTenantLogin({
           <LoginOtpStep
             email={otpEmail}
             submitting={submitting}
+            verified={otpVerified}
             authError={otpAuthError}
             onClearError={onOtpClearError}
             onVerify={onOtpVerify}

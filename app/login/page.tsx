@@ -11,7 +11,6 @@ import { FcGoogle } from "react-icons/fc";
 import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
 import { ADMIN_RECRUITER_HOME_ROUTE } from "@/app/admin_recruiter/components/sidebar-config";
 import RedirectionProgressModal from "@/app/components/RedirectionProgressModal";
-import VerificationSuccessModal from "@/app/components/VerificationSuccessModal";
 import { TenantBrandingProvider } from "@/app/components/tenant/TenantBrandingContext";
 import ClassicTenantLogin from "@/app/login/ClassicTenantLogin";
 import { LoginBrandHeader, LoginPageShell, interStyle, loginFieldLabelClass, loginInputClass, loginPasswordInputClass, loginPrimaryButtonClass } from "@/app/login/BraasLoginShell";
@@ -83,6 +82,8 @@ type RecruiterOnboardingStatusResponse = {
 
 type LoginStep = "credentials" | "otp";
 
+const OTP_SUCCESS_REDIRECT_DELAY_MS = 900;
+
 function LoginLoadingShell({
   tenantQuery,
   preferClassicUi = false,
@@ -128,8 +129,8 @@ function LoginPageContent() {
     isAdminRoute || (recruiterSignIn && Boolean(tenantQuery?.trim()));
   const useBraasUi = usesBraasFigmaLoginUi(tenantQuery) && !useClassicRecruiterLogin;
   const [step, setStep] = useState<LoginStep>("credentials");
-  const [showSuccess, setShowSuccess] = useState(false);
   const [showRedirecting, setShowRedirecting] = useState(false);
+  const [otpVerified, setOtpVerified] = useState(false);
   const [pendingLogin, setPendingLogin] = useState<PendingLogin | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -312,8 +313,8 @@ function LoginPageContent() {
       (!userData.user || (!isNexusPlatformUser(userData.user) && !godAdmin))
     ) {
       await supabaseBrowser.auth.signOut();
-      setShowSuccess(false);
       setShowRedirecting(false);
+      setOtpVerified(false);
       setStep("credentials");
       setAuthError({
         error: "This account is not authorized for this platform.",
@@ -367,9 +368,9 @@ function LoginPageContent() {
         statusRes.status === 403
           ? "This account does not have access to the selected tenant."
           : "Could not verify onboarding status. Try again.";
-      setShowSuccess(false);
       setShowRedirecting(false);
-      setStep("credentials");
+      setOtpVerified(false);
+      setStep(step === "otp" ? "otp" : "credentials");
       setAuthError({ error: message, code: "UNKNOWN", field: null });
       return false;
     }
@@ -406,7 +407,7 @@ function LoginPageContent() {
 
   const submitCredentialsForOtp = async (login: PendingLogin) => {
     clearAuthError();
-    setShowSuccess(false);
+    setOtpVerified(false);
     setShowRedirecting(false);
     setSubmitting(true);
     try {
@@ -476,8 +477,8 @@ function LoginPageContent() {
       body: JSON.stringify({ email: login.email }),
     });
     if (!assertRes.ok) {
-      setShowSuccess(false);
       setShowRedirecting(false);
+      setOtpVerified(false);
       setStep("otp");
       setAuthError(await parseLoginApiError(assertRes));
       setSubmitting(false);
@@ -505,8 +506,8 @@ function LoginPageContent() {
       });
 
       if (signInError) {
-        setShowSuccess(false);
         setShowRedirecting(false);
+        setOtpVerified(false);
         setStep(step === "otp" ? "otp" : "credentials");
         setAuthError(classifyAuthMessage(signInError.message));
         setSubmitting(false);
@@ -516,6 +517,8 @@ function LoginPageContent() {
 
     const ok = await finishAuthenticatedSession(login);
     if (!ok) {
+      setShowRedirecting(false);
+      setOtpVerified(false);
       setSubmitting(false);
       return;
     }
@@ -526,6 +529,7 @@ function LoginPageContent() {
     const login = pendingLogin;
     if (!login) return;
     clearAuthError();
+    setOtpVerified(false);
     try {
       await sendLoginOtp(login);
     } catch (e) {
@@ -543,6 +547,7 @@ function LoginPageContent() {
     if (!login) return;
 
     setSubmitting(true);
+    setOtpVerified(false);
     clearAuthError();
 
     const res = await fetch("/api/auth/login-otp/verify", {
@@ -557,15 +562,12 @@ function LoginPageContent() {
       return;
     }
 
-    setShowSuccess(true);
+    setOtpVerified(true);
     setSubmitting(false);
-  };
 
-  const handleSuccessContinue = () => {
-    if (submitting) return;
-    setShowSuccess(false);
+    await new Promise((resolve) => window.setTimeout(resolve, OTP_SUCCESS_REDIRECT_DELAY_MS));
     setShowRedirecting(true);
-    void completeLogin();
+    await completeLogin();
   };
 
   const handleClassicSubmit = (event: FormEvent<HTMLFormElement>) => {
@@ -591,15 +593,6 @@ function LoginPageContent() {
     return (
       <TenantBrandingProvider branding={brand}>
         {showRedirecting ? <RedirectionProgressModal /> : null}
-        {showSuccess ? (
-          <VerificationSuccessModal
-            title="Success!"
-            message="Verification complete"
-            buttonLabel={submitting ? "Continuing..." : "Continue"}
-            loading={submitting}
-            onAction={handleSuccessContinue}
-          />
-        ) : null}
         <ClassicTenantLogin
           brand={brand}
           form={form}
@@ -608,6 +601,7 @@ function LoginPageContent() {
           error={authError?.error ?? null}
           otpStep={step === "otp" && pendingLogin != null}
           otpEmail={pendingLogin?.email ?? ""}
+          otpVerified={otpVerified}
           otpAuthError={authError}
           onOtpClearError={clearAuthError}
           onOtpVerify={handleOtpVerify}
@@ -627,21 +621,13 @@ function LoginPageContent() {
     <>
       <LoginPageShell brand={brand}>
         {showRedirecting ? <RedirectionProgressModal /> : null}
-        {showSuccess ? (
-          <VerificationSuccessModal
-            title="Success!"
-            message="Verification complete"
-            buttonLabel={submitting ? "Continuing..." : "Continue"}
-            loading={submitting}
-            onAction={handleSuccessContinue}
-          />
-        ) : null}
         <LoginBrandHeader brand={brand} />
 
         {step === "otp" && pendingLogin ? (
           <LoginOtpStep
             email={pendingLogin.email}
             submitting={submitting}
+            verified={otpVerified}
             authError={authError}
             onClearError={clearAuthError}
             onVerify={handleOtpVerify}

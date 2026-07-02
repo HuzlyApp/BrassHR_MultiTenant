@@ -1,7 +1,6 @@
 "use client";
 
 import RedirectionProgressModal from "@/app/components/RedirectionProgressModal";
-import VerificationSuccessModal from "@/app/components/VerificationSuccessModal";
 import Link from "next/link";
 import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
 import LoginFormError, { loginInputErrorClass } from "@/app/login/LoginFormError";
@@ -185,16 +184,17 @@ export default function WorkerSignInForm({ tenantSlug, brand }: Props) {
     }
   }, [setEmail]);
 
+  useEffect(() => {
+    if (!signInReady || redirecting) return;
+    setRedirecting(true);
+    completeSignIn(rememberMe);
+  }, [signInReady, redirecting, rememberMe, completeSignIn]);
+
   const emailLocked = mode === "password" || mode === "setup";
   const canSubmitEmail = email.trim().length > 0 && Boolean(tenantSlug);
   const canSubmitSetup =
     password.length >= 8 && confirmPassword.length >= 8 && agree && Boolean(tenantSlug);
   const canSubmitPassword = password.length > 0 && agree && Boolean(tenantSlug);
-
-  function handleSuccessContinue() {
-    setRedirecting(true);
-    completeSignIn(rememberMe);
-  }
 
   function handleResetToEmail() {
     setAgree(false);
@@ -208,15 +208,6 @@ export default function WorkerSignInForm({ tenantSlug, brand }: Props) {
   return (
     <>
       {redirecting ? <RedirectionProgressModal /> : null}
-      {signInReady && !redirecting ? (
-        <VerificationSuccessModal
-          title="Success!"
-          message="Verification complete"
-          buttonLabel={redirecting ? "Continuing..." : "Continue"}
-          loading={redirecting}
-          onAction={handleSuccessContinue}
-        />
-      ) : null}
 
       <div className="flex flex-col gap-4 pt-3 sm:gap-[40px] sm:pt-[30px]">
       <div>

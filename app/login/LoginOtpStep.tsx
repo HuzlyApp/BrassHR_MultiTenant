@@ -1,6 +1,6 @@
 "use client";
 
-import { X } from "lucide-react";
+import { Check, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type ClipboardEvent, type FormEvent, type KeyboardEvent } from "react";
 import { loginInputErrorClass } from "@/app/login/LoginFormError";
 import type { LoginAuthErrorPayload } from "@/lib/auth/login-api-errors";
@@ -22,6 +22,7 @@ const OTP_STATUS_ICON = {
 type LoginOtpStepProps = {
   email: string;
   submitting?: boolean;
+  verified?: boolean;
   authError?: LoginAuthErrorPayload | null;
   onClearError?: () => void;
   onVerify: (code: string) => void | Promise<void>;
@@ -46,6 +47,7 @@ function verifyButtonStyle(enabled: boolean): React.CSSProperties | undefined {
 export default function LoginOtpStep({
   email,
   submitting = false,
+  verified = false,
   authError = null,
   onClearError,
   onVerify,
@@ -117,7 +119,7 @@ export default function LoginOtpStep({
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!isComplete || submitting) return;
+    if (!isComplete || submitting || verified) return;
     void onVerify(code);
   };
 
@@ -157,6 +159,21 @@ export default function LoginOtpStep({
               {authError?.error ?? "Check the code and try again."}
             </span>
           </div>
+        ) : verified ? (
+          <div
+            aria-live="polite"
+            className="mb-[20px] flex items-center gap-[8px] text-[14px] font-normal leading-[20px] text-[#374151]"
+            style={interStyle}
+          >
+            <span
+              className="flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full text-white"
+              style={{ backgroundColor: OTP_STATUS_ICON.successBg }}
+              aria-hidden
+            >
+              <Check className="h-[12px] w-[12px]" strokeWidth={3} />
+            </span>
+            <span className="font-semibold text-[#166534]">OTP verified.</span>
+          </div>
         ) : isComplete ? (
           <div
             aria-live="polite"
@@ -186,6 +203,7 @@ export default function LoginOtpStep({
               onChange={(event) => updateDigit(index, event.target.value)}
               onKeyDown={(event) => handleKeyDown(index, event)}
               onPaste={handlePaste}
+              disabled={submitting || verified}
               aria-label={`Digit ${index + 1}`}
               aria-invalid={otpHasError}
               className={`h-[56px] w-[56px] rounded-[8px] border border-[#94a3b8] bg-white text-center text-[20px] font-semibold leading-[24px] text-[#0f172a] outline-none transition ${inputFocusClass} ${otpHasError ? loginInputErrorClass : ""}`}
@@ -202,7 +220,7 @@ export default function LoginOtpStep({
           <button
             type="button"
             onClick={() => void handleSendAgain()}
-            disabled={secondsLeft > 0 || sendingAgain || submitting}
+            disabled={secondsLeft > 0 || sendingAgain || submitting || verified}
             className="font-normal hover:underline disabled:cursor-not-allowed disabled:text-[#94a3b8] disabled:no-underline"
             style={{ color: secondsLeft > 0 || sendingAgain ? "#94a3b8" : "var(--brand-secondary)" }}
           >
@@ -213,11 +231,11 @@ export default function LoginOtpStep({
 
       <button
         type="submit"
-        disabled={!isComplete || submitting}
+        disabled={!isComplete || submitting || verified}
         className="flex h-[54px] w-full items-center justify-center rounded-[12px] text-[16px] font-semibold leading-[22px] tracking-normal transition disabled:cursor-not-allowed disabled:bg-[#dddddd] disabled:text-[#94a3b8] enabled:text-white enabled:hover:brightness-95"
-        style={verifyButtonStyle(isComplete && !submitting)}
+        style={verifyButtonStyle(isComplete && !submitting && !verified)}
       >
-        {submitting ? "Verifying..." : "Verify Code"}
+        {submitting ? "Verifying..." : verified ? "Verified" : "Verify Code"}
       </button>
     </form>
   );
