@@ -1,9 +1,14 @@
 "use client";
 
-import { createContext, useContext, useEffect } from "react";
+import { createContext, useContext, useLayoutEffect } from "react";
 import type { TenantBranding } from "@/lib/tenant/tenant-branding";
 import { brandingToCssVars, defaultTenantBranding } from "@/lib/tenant/tenant-branding";
-import { pushActiveBranding } from "@/lib/tenant/branding-head-registry";
+import { applyBrandingHead } from "@/lib/tenant/apply-branding-head";
+import {
+  getActiveBranding,
+  pushActiveBranding,
+  subscribeActiveBranding,
+} from "@/lib/tenant/branding-head-registry";
 
 const TenantBrandingContext = createContext<TenantBranding>(defaultTenantBranding());
 
@@ -17,17 +22,30 @@ export function TenantBrandingProvider({
   const safe = branding ?? defaultTenantBranding();
   const vars = brandingToCssVars(safe) as React.CSSProperties;
 
-  useEffect(
-    () => pushActiveBranding(safe),
-    [
-      safe.slug,
-      safe.logoUrl,
-      safe.companyName,
-      safe.primaryHex,
-      safe.secondaryHex,
-      safe.accentHex,
-    ]
-  );
+  useLayoutEffect(() => {
+    const pop = pushActiveBranding(safe);
+
+    const syncHead = () => {
+      if (getActiveBranding() === safe) {
+        applyBrandingHead(safe);
+      }
+    };
+
+    syncHead();
+    const unsubscribe = subscribeActiveBranding(syncHead);
+
+    return () => {
+      unsubscribe();
+      pop();
+    };
+  }, [
+    safe.slug,
+    safe.logoUrl,
+    safe.companyName,
+    safe.primaryHex,
+    safe.secondaryHex,
+    safe.accentHex,
+  ]);
 
   return (
     <TenantBrandingContext.Provider value={safe}>

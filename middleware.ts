@@ -292,7 +292,31 @@ export async function middleware(request: NextRequest) {
    * Do not apply recruiter platform/auth gates here — that sent applicants to /login.
    */
   if (pathname.startsWith("/application") || pathname === "/worker-onboarding") {
-    return ensureApplicationTenantQuery(request, response, tenantLabel);
+    const tenantFromQuery = request.nextUrl.searchParams.get("tenant")?.trim().toLowerCase();
+    const tenantFromCookie = request.cookies
+      .get(ONBOARDING_TENANT_SLUG_COOKIE)
+      ?.value?.trim()
+      .toLowerCase();
+    const tenantSlug =
+      tenantFromQuery && tenantFromQuery.length >= 2
+        ? tenantFromQuery
+        : tenantFromCookie && tenantFromCookie.length >= 2
+          ? tenantFromCookie
+          : null;
+
+    let outgoing = response;
+    if (tenantSlug) {
+      const requestHeaders = new Headers(request.headers);
+      requestHeaders.set("x-tenant-slug", tenantSlug);
+      outgoing = NextResponse.next({
+        request: { headers: requestHeaders },
+      });
+      response.cookies.getAll().forEach((cookie) => {
+        outgoing.cookies.set(cookie.name, cookie.value, cookie);
+      });
+    }
+
+    return ensureApplicationTenantQuery(request, outgoing, tenantLabel);
   }
 
   return response;

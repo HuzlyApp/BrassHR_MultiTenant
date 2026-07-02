@@ -1,10 +1,11 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useLayoutEffect, useState } from "react";
 import { TenantBrandingProvider } from "@/app/components/tenant/TenantBrandingContext";
 import OnboardingConfigProvider from "@/app/components/onboarding/OnboardingConfigProvider";
 import type { TenantBranding } from "@/lib/tenant/tenant-branding";
 import { brandingFallbackForSlug, isTenantApplicantPortalSlug } from "@/lib/tenant/tenant-branding";
+import { applyBrandingHead } from "@/lib/tenant/apply-branding-head";
 import { DRAFT_PREVIEW_APPLICANT_ID, isOnboardingDraftPreview } from "@/lib/onboarding/is-draft-preview";
 import { persistOnboardingSlugCookie } from "@/lib/tenant/client-onboarding-slug";
 import {
@@ -113,6 +114,12 @@ export default function ApplicationOnboardingBootstrap({ children }: { children:
       alive = false;
     };
   }, []);
+
+  useLayoutEffect(() => {
+    if (brandingReady) {
+      applyBrandingHead(brand);
+    }
+  }, [brandingReady, brand.slug, brand.companyName, brand.logoUrl]);
 
   if (error) {
     return (

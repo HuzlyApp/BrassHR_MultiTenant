@@ -39,11 +39,26 @@ export function removeHostnameScopedItem(baseKey: string): void {
 const APPLICANT_ID_KEY = "applicantId";
 
 export function getScopedApplicantId(): string | null {
-  return readHostnameScopedItem(APPLICANT_ID_KEY)?.trim() || null;
+  const scoped = readHostnameScopedItem(APPLICANT_ID_KEY)?.trim();
+  if (scoped) return scoped;
+
+  if (typeof window === "undefined") return null;
+  try {
+    return localStorage.getItem(APPLICANT_ID_KEY)?.trim() || null;
+  } catch {
+    return null;
+  }
 }
 
 export function setScopedApplicantId(applicantId: string): void {
-  writeHostnameScopedItem(APPLICANT_ID_KEY, applicantId.trim());
+  const value = applicantId.trim();
+  writeHostnameScopedItem(APPLICANT_ID_KEY, value);
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(APPLICANT_ID_KEY, value);
+  } catch {
+    /* ignore quota / privacy errors */
+  }
 }
 
 export function clearScopedApplicantId(): void {

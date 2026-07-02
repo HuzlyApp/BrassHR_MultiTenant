@@ -2,18 +2,21 @@
 
 import { isDraftPreviewApplicantId } from "@/lib/onboarding/is-draft-preview"
 import { resolveClientOnboardingTenantSlug } from "@/lib/tenant/client-onboarding-slug"
+import { getScopedApplicantId } from "@/lib/tenant/scoped-storage"
 
 export type EnsureApplicantWorkerResult =
   | { ok: true; workerId?: string; tenantId?: string; created?: boolean }
   | { ok: false; error: string }
 
 /** Creates a `worker` row from parsed resume when profile review was skipped. */
-export async function ensureApplicantWorker(): Promise<EnsureApplicantWorkerResult> {
+export async function ensureApplicantWorker(
+  applicantIdOverride?: string
+): Promise<EnsureApplicantWorkerResult> {
   if (typeof window === "undefined") {
     return { ok: false, error: "Not available during server render." }
   }
 
-  const applicantId = localStorage.getItem("applicantId")?.trim() || ""
+  const applicantId = applicantIdOverride?.trim() || getScopedApplicantId() || ""
   if (!applicantId) {
     return { ok: false, error: "Applicant session not found. Refresh and try again." }
   }

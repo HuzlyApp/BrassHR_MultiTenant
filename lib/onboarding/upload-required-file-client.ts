@@ -35,16 +35,18 @@ export async function uploadRequiredOnboardingFile(
   };
 }
 
+import { getScopedApplicantId, setScopedApplicantId } from "@/lib/tenant/scoped-storage";
+
 export async function resolveApplicantId(): Promise<string> {
   if (typeof window === "undefined") return "";
-  let applicantId = localStorage.getItem("applicantId")?.trim() || "";
+  let applicantId = getScopedApplicantId() || "";
   if (applicantId) return applicantId;
 
   const { supabaseBrowser } = await import("@/lib/supabase-browser");
   const { data } = await supabaseBrowser.auth.getUser();
   applicantId = data?.user?.id?.trim() || "";
   if (applicantId) {
-    localStorage.setItem("applicantId", applicantId);
+    setScopedApplicantId(applicantId);
   }
   return applicantId;
 }

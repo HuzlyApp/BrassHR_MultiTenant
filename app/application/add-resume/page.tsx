@@ -23,6 +23,7 @@ import {
 } from "@/lib/resumeParseQuality"
 import BrandedSvgIcon from "@/app/components/BrandedSvgIcon"
 import BrandedUploadIcon from "@/app/components/BrandedUploadIcon"
+import { setScopedApplicantId } from "@/lib/tenant/scoped-storage"
 
 const APPLICANT_SESSION_TIMEOUT_MS = 15_000
 const WORKER_ENSURE_TIMEOUT_MS = 15_000
@@ -263,8 +264,13 @@ export default function Step1Upload() {
             "@/lib/onboarding/ensure-applicant-auth"
           )
           const { ensureApplicantWorker } = await import("@/lib/onboarding/ensure-applicant-worker")
-          await ensureApplicantMatchesAuthSession()
-          await ensureApplicantWorker().catch(() => {
+          const session = await ensureApplicantMatchesAuthSession()
+          if ("error" in session) {
+            setParseError(session.error)
+            return
+          }
+          setScopedApplicantId(session.applicantId)
+          await ensureApplicantWorker(session.applicantId).catch(() => {
             /* best-effort; resume-upload-success will retry */
           })
           router.push(applicationPath(APPLICATION_ROUTES.profileReview))
@@ -293,10 +299,12 @@ export default function Step1Upload() {
           throw new Error(session.error)
         }
 
+        setScopedApplicantId(session.applicantId)
+
         setUploadPhase("Preparing applicant profile...")
         const { ensureApplicantWorker } = await import("@/lib/onboarding/ensure-applicant-worker")
         const workerResult = await promiseWithTimeout(
-          ensureApplicantWorker(),
+          ensureApplicantWorker(session.applicantId),
           WORKER_ENSURE_TIMEOUT_MS,
           "Profile setup timed out. Please refresh and try again.",
         )
@@ -319,7 +327,6 @@ export default function Step1Upload() {
         if (workerResult.tenantId) {
           fd.append("tenantId", workerResult.tenantId)
         }
-        localStorage.setItem("applicantId", session.applicantId)
 
         const uploadRes = await fetchWithTimeout(
           "/api/upload-resume",
@@ -375,7 +382,7 @@ export default function Step1Upload() {
 
         setUploadPhase("Finishing...")
         void import("@/lib/onboarding/ensure-applicant-worker").then(({ ensureApplicantWorker }) =>
-          ensureApplicantWorker().catch(() => {
+          ensureApplicantWorker(session.applicantId).catch(() => {
             /* resume-upload-success will retry */
           }),
         )

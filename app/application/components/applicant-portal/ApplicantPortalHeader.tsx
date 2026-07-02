@@ -37,7 +37,7 @@ export function ApplicantPortalHeader({
   const [profileOpen, setProfileOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const profileAreaRef = useRef<HTMLDivElement>(null);
-  const firstName = applicantName.split(" ")[0] || "Applicant";
+  const firstName = applicantName.split(" ")[0] || "Worker";
 
   useEffect(() => {
     if (!profileOpen) return;
@@ -151,7 +151,7 @@ export function ApplicantPortalHeader({
             {profileOpen ? (
               <div className="absolute right-0 top-full z-50 mt-1 w-52 rounded-lg border border-[#E2E8F0] bg-white p-2 shadow-lg">
                 <p className="px-2 py-1 text-[12px] font-semibold text-[#012352]">{applicantName}</p>
-                <p className="px-2 pb-2 text-[11px] text-[#64748B]">Applicant</p>
+                <p className="px-2 pb-2 text-[11px] text-[#64748B]">Worker</p>
                 <button
                   type="button"
                   onClick={() => void handleLogout()}
