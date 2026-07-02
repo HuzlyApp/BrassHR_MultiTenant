@@ -19,6 +19,10 @@ import {
   isFirmaSigningSessionStale,
 } from "@/lib/firma/session-staleness";
 import {
+  logFirmaWorkspaceBrandingSyncFailure,
+  syncTenantBrandingToFirmaWorkspace,
+} from "@/lib/firma/sync-workspace-branding";
+import {
   getFirmaRecruiterTemplateId,
   isFirmaSigningComplete,
   mapFirmaStatusToOnboardingStatus,
@@ -382,6 +386,22 @@ function assertSigningRequestIsEmbeddable(firmaStatus: string): void {
   }
 }
 
+async function syncSigningWorkspaceBranding(
+  supabase: SupabaseClient,
+  tenantId: string,
+  workspaceId: string
+): Promise<void> {
+  try {
+    await syncTenantBrandingToFirmaWorkspace(supabase, tenantId, workspaceId);
+  } catch (err) {
+    logFirmaWorkspaceBrandingSyncFailure(
+      "applicant signing branding sync failed",
+      { tenantId, workspaceId },
+      err
+    );
+  }
+}
+
 async function createFirmaSigningSessionFromTemplate(
   input: {
     applicantEmail: string;
@@ -443,6 +463,8 @@ export async function ensureFirmaDraftPreviewSigningSession(
     input.step,
     workspaceId
   );
+
+  await syncSigningWorkspaceBranding(input.supabase, input.tenantId, workspaceId);
 
   const primaryEmail = input.applicantEmail?.trim() || DRAFT_PREVIEW_APPLICANT_EMAIL;
   const fallbackEmail = getDraftPreviewFirmaSignerEmailFallback();
@@ -675,6 +697,8 @@ export async function ensureFirmaSigningSession(
     workspaceId
   );
   const firmaTemplateId = String(recruiterTemplate.firma_template_id);
+
+  await syncSigningWorkspaceBranding(input.supabase, input.tenantId, workspaceId);
 
   const existing = await loadExistingSession(input.supabase, input.workerId, input.step.id);
   if (existing?.signing_request_id) {

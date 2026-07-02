@@ -31,6 +31,18 @@ export type FirmaWorkspaceBrandingSyncResult = {
   colors: FirmaWorkspaceAppearanceSettings;
 };
 
+/** Log Firma branding sync issues in all environments (prod failures were previously silent). */
+export function logFirmaWorkspaceBrandingSyncFailure(
+  context: string,
+  detail: Record<string, unknown>,
+  err: unknown
+): void {
+  console.error(`[firma-branding] ${context}`, {
+    ...detail,
+    error: err instanceof Error ? err.message : err,
+  });
+}
+
 /**
  * Pushes tenant branding colors to the Firma workspace before opening embedded editors.
  * Firma applies these to template builder + signing UI chrome (not via embed init options).
@@ -49,7 +61,7 @@ export async function syncTenantBrandingToFirmaWorkspace(
   }
 
   const row = await loadTenantBrandingRow(supabase, tenantId);
-  const branding = brandingFromTenantRow(row);
+  const branding = brandingFromTenantRow(row, row?.slug ?? undefined);
   const colors = tenantBrandingToFirmaWorkspaceSettings(branding);
 
   await updateFirmaWorkspaceSettings(workspaceId, colors);

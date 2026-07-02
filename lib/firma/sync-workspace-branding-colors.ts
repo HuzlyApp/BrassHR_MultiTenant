@@ -5,7 +5,20 @@ const HEX_RE = /^#[0-9A-Fa-f]{6}$/;
 
 function normalizeHex(value: string | null | undefined, fallback: string): string {
   const raw = value?.trim();
-  if (raw && HEX_RE.test(raw)) return raw.toLowerCase();
+  if (!raw) return fallback.toLowerCase();
+
+  if (HEX_RE.test(raw)) return raw.toLowerCase();
+
+  const bare = raw.replace(/^#/, "");
+  if (/^[0-9A-Fa-f]{6}$/.test(bare)) return `#${bare.toLowerCase()}`;
+  if (/^[0-9A-Fa-f]{3}$/.test(bare)) {
+    const expanded = bare
+      .split("")
+      .map((char) => char + char)
+      .join("");
+    return `#${expanded.toLowerCase()}`;
+  }
+
   return fallback.toLowerCase();
 }
 
@@ -27,9 +40,9 @@ export function contrastForegroundOnHex(hex: string): string {
 export function tenantBrandingToFirmaWorkspaceSettings(
   branding: TenantBranding
 ): FirmaWorkspaceAppearanceSettings {
-  const primary = normalizeHex(branding.primaryHex, "#bc8b41");
+  const primary = normalizeHex(branding.buttonColor || branding.primaryHex, "#bc8b41");
   const secondary = normalizeHex(branding.secondaryHex, "#104b83");
-  const accent = normalizeHex(branding.accentHex, primary);
+  const accent = normalizeHex(branding.primaryHex, primary);
   const primaryFg = contrastForegroundOnHex(primary);
   const accentFg = contrastForegroundOnHex(accent);
 

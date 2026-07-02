@@ -21,7 +21,7 @@ import {
   resolveTenantFirmaWorkspaceId,
   FirmaWorkspaceConfigError,
 } from "@/lib/firma/resolve-tenant-workspace";
-import { syncTenantBrandingToFirmaWorkspace } from "@/lib/firma/sync-workspace-branding";
+import { syncTenantBrandingToFirmaWorkspace, logFirmaWorkspaceBrandingSyncFailure } from "@/lib/firma/sync-workspace-branding";
 import { RECRUITER_TEMPLATE_DOCUMENT_BUCKET } from "@/lib/recruiter-templates/constants";
 import { RecruiterTemplateError } from "@/lib/recruiter-templates/errors";
 import type {
@@ -608,7 +608,7 @@ export async function createRecruiterTemplateBuilderSession(
         tenantId,
         workspaceId
       );
-      if (brandingSync.synced && process.env.NODE_ENV !== "production") {
+      if (brandingSync.synced) {
         console.info("[firma-template-builder] workspace branding synced", {
           tenantId,
           workspaceId,
@@ -617,9 +617,10 @@ export async function createRecruiterTemplateBuilderSession(
         });
       }
     } catch (brandingErr) {
-      console.warn(
-        "[firma-template-builder] workspace branding sync failed (editor will use Firma defaults)",
-        brandingErr instanceof Error ? brandingErr.message : brandingErr
+      logFirmaWorkspaceBrandingSyncFailure(
+        "template builder session branding sync failed",
+        { tenantId, workspaceId, templateId },
+        brandingErr
       );
     }
 
@@ -946,6 +947,16 @@ export async function buildRecruiterTemplatePreview(
   if (template.firma_template_id && isFirmaConfigured()) {
     const workspaceId = await resolveFirmaWorkspace(supabase, tenantId);
     assertTemplateFirmaWorkspace(template, workspaceId);
+
+    try {
+      await syncTenantBrandingToFirmaWorkspace(supabase, tenantId, workspaceId);
+    } catch (brandingErr) {
+      logFirmaWorkspaceBrandingSyncFailure(
+        "template preview branding sync failed",
+        { tenantId, workspaceId, templateId },
+        brandingErr
+      );
+    }
 
     try {
       const [firmaTemplate, users, fields] = await Promise.all([

@@ -10,6 +10,11 @@ import {
 import { invalidateTenantBrandingCache } from "@/lib/tenant/invalidate-tenant-branding-cache";
 import { requireStaffApiSession } from "@/lib/auth/api-session";
 import { resolveEffectiveAdminTenantId } from "@/lib/email-templates/resolve-effective-tenant";
+import { FirmaWorkspaceConfigError, resolveTenantFirmaWorkspaceId } from "@/lib/firma/resolve-tenant-workspace";
+import {
+  logFirmaWorkspaceBrandingSyncFailure,
+  syncTenantBrandingToFirmaWorkspace,
+} from "@/lib/firma/sync-workspace-branding";
 
 async function loadTenantRow(tenantId: string): Promise<TenantBrandingRow | null> {
   const sb = createServiceRoleClient();
@@ -115,6 +120,19 @@ export async function PUT(req: Request) {
     tenantId,
     slug: data?.slug,
   });
+
+  try {
+    const workspaceId = await resolveTenantFirmaWorkspaceId(supabase, tenantId);
+    await syncTenantBrandingToFirmaWorkspace(supabase, tenantId, workspaceId);
+  } catch (err) {
+    if (!(err instanceof FirmaWorkspaceConfigError)) {
+      logFirmaWorkspaceBrandingSyncFailure(
+        "admin branding save sync failed",
+        { tenantId },
+        err
+      );
+    }
+  }
 
   return Response.json({
     ok: true,

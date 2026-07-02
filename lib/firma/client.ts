@@ -455,7 +455,7 @@ export async function updateFirmaWorkspaceSettings(
     method: "PUT",
     body: settings,
     includeWorkspaceScope: false,
-    retries: 0,
+    retries: 1,
   });
 }
 
