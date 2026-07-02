@@ -11,6 +11,7 @@ import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding"
 import OnboardingSuccessPopup from "@/app/components/OnboardingSuccessPopup"
 import { countCompleteReferencesFromStorage } from "@/lib/referencesValidation"
+import type { SummaryDisplayStatus } from "@/lib/onboarding/applicant-summary-sections"
 import {
   buildApplicantSummarySections,
   createApplicantSummarySnapshot,
@@ -34,12 +35,13 @@ function SummaryRow({
   title: string
   subtitle?: string | null
   complete: boolean
-  stepStatus?: "completed" | "skipped" | "incomplete"
+  stepStatus?: SummaryDisplayStatus
   editHref?: string
 }) {
-  const status = stepStatus ?? (complete ? "completed" : "incomplete")
+  const status: SummaryDisplayStatus = stepStatus ?? (complete ? "completed" : "incomplete")
   const isSkipped = status === "skipped"
-  const isIncomplete = status === "incomplete"
+  const isRequiredMissing = status === "required_missing"
+  const isIncomplete = status === "incomplete" || isRequiredMissing
 
   return (
     <div
@@ -65,6 +67,10 @@ function SummaryRow({
             {isSkipped ? (
               <span className="rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-600">
                 Skipped
+              </span>
+            ) : isRequiredMissing ? (
+              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800">
+                Required
               </span>
             ) : isIncomplete ? (
               <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800">

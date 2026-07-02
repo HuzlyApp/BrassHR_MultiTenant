@@ -9,6 +9,7 @@ import { MOBILITY_CATEGORY_ID } from "@/lib/mobility-category"
 import OnboardingLayout from "@/app/components/OnboardingLayout"
 import OnboardingStepper from "@/app/components/OnboardingStepper"
 import { useOnboardingStepNav } from "@/lib/onboarding/use-onboarding-step-nav"
+import { useSkipSkillAssessment } from "@/lib/onboarding/use-skip-skill-assessment"
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext"
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding"
 import { ChevronRight } from "lucide-react"
@@ -70,6 +71,7 @@ export default function MobilityQuiz() {
   const branding = useTenantBranding()
   const router = useRouter()
   const nav = useOnboardingStepNav()
+  const { skipSkillAssessment } = useSkipSkillAssessment()
   const [category, setCategory] = useState<CategoryRow | null>(null)
   const [questions, setQuestions] = useState<QuestionRow[]>([])
   const [answers, setAnswers] = useState<Record<string, number>>({})
@@ -350,7 +352,7 @@ export default function MobilityQuiz() {
               <AutosaveStatus state={saveState} />
               <button
                 type="button"
-                onClick={() => nav.nextRoute && router.push(nav.nextRoute)}
+                onClick={skipSkillAssessment}
                 className="cursor-pointer text-[12px] font-medium leading-5 text-[color:var(--brand-primary)]"
               >
                 Skip for Now →

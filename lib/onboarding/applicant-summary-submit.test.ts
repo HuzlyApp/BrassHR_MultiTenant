@@ -124,13 +124,16 @@ describe("application summary submit readiness", () => {
 
   it("shows skipped and incomplete sections distinctly on summary", () => {
     const config = buildConfig();
+    config.steps = config.steps.map((step) =>
+      step.step_key === "skill_assessment" ? { ...step, is_required: false } : step
+    );
     const skillStep = config.steps.find((s) => s.step_type === "skill_assessment")!;
     const licenseStep = config.steps.find((s) => s.step_type === "professional_license")!;
     const progress: WorkerOnboardingProgressPayload = {
       progressId: "p1",
       status: "in_progress",
       steps: [
-        { onboarding_step_id: skillStep.id, status: "skipped", completed_at: "2026-01-01", data: {} },
+        { onboarding_step_id: skillStep.id, status: "skipped", completed_at: null, data: {} },
       ],
     };
     const sections = buildApplicantSummarySections(
@@ -143,7 +146,35 @@ describe("application summary submit readiness", () => {
     const license = sections.find((s) => s.id === licenseStep.step_key);
     expect(skill?.stepStatus).toBe("skipped");
     expect(skill?.rows[0]?.subtitle).toBe("Skipped");
-    expect(license?.stepStatus).toBe("incomplete");
-    expect(license?.rows[0]?.subtitle).toMatch(/Required — not complete|No documents uploaded yet/);
+    expect(license?.stepStatus).toBe("required_missing");
+    expect(license?.rows[0]?.subtitle).toMatch(/Incomplete \/ Required|No documents uploaded yet/);
+  });
+
+  it("shows required skipped references as required_missing on summary", () => {
+    const config = buildConfig();
+    const referencesStep: (typeof config.steps)[number] = {
+      id: "step-references",
+      step_key: "references",
+      title: "References",
+      description: "",
+      step_type: "references",
+      sort_order: 55,
+      is_required: true,
+      is_enabled: true,
+      metadata: {},
+    };
+    config.steps.push(referencesStep);
+    const progress: WorkerOnboardingProgressPayload = {
+      progressId: "p1",
+      status: "in_progress",
+      steps: [
+        { onboarding_step_id: referencesStep.id, status: "skipped", completed_at: null, data: {} },
+      ],
+    };
+    const sections = buildApplicantSummarySections(config, "zipstaff", snapshot({}), progress);
+    const refs = sections.find((s) => s.id === "references");
+    expect(refs?.stepStatus).toBe("required_missing");
+    expect(refs?.complete).toBe(false);
+    expect(refs?.rows[0]?.subtitle).toMatch(/Incomplete \/ Required|At least \d+ complete references required/);
   });
 });

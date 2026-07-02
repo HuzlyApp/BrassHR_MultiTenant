@@ -29,13 +29,19 @@ import {
   type Step2UploadedFile,
 } from "@/lib/onboardingSummaryData";
 
+export type SummaryDisplayStatus =
+  | "completed"
+  | "skipped"
+  | "incomplete"
+  | "required_missing";
+
 export type SummaryRowModel = {
   key: string;
   title: string;
   subtitle: string | null;
   complete: boolean;
   /** Progress-derived display state for summary review. */
-  stepStatus?: "completed" | "skipped" | "incomplete";
+  stepStatus?: SummaryDisplayStatus;
 };
 
 export type SummarySectionModel = {
@@ -44,7 +50,7 @@ export type SummarySectionModel = {
   complete: boolean;
   editHref: string;
   rows: SummaryRowModel[];
-  stepStatus?: "completed" | "skipped" | "incomplete";
+  stepStatus?: SummaryDisplayStatus;
   isRequired?: boolean;
 };
 
@@ -91,21 +97,27 @@ function isProgressStepComplete(status: OnboardingStepStatus | null): boolean {
 
 function summaryStepStatus(
   progressStatus: OnboardingStepStatus | null,
-  locallyComplete: boolean
-): "completed" | "skipped" | "incomplete" {
-  if (progressStatus === "skipped") return "skipped";
+  locallyComplete: boolean,
+  isRequired: boolean
+): SummaryDisplayStatus {
+  if (progressStatus === "skipped") {
+    return isRequired ? "required_missing" : "skipped";
+  }
   if (progressStatus === "completed" || locallyComplete) return "completed";
-  return "incomplete";
+  return isRequired ? "required_missing" : "incomplete";
 }
 
 function statusSubtitle(
-  stepStatus: "completed" | "skipped" | "incomplete",
+  stepStatus: SummaryDisplayStatus,
   detail: string | null,
   isRequired: boolean
 ): string | null {
   if (stepStatus === "skipped") return "Skipped";
+  if (stepStatus === "required_missing") {
+    return detail ?? "Incomplete / Required";
+  }
   if (stepStatus === "incomplete") {
-    return detail ?? (isRequired ? "Required — not complete" : "Incomplete");
+    return detail ?? (isRequired ? "Incomplete / Required" : "Incomplete");
   }
   return detail;
 }
@@ -136,7 +148,7 @@ function sectionForStep(
     case "resume_upload":
     case "profile_information": {
       const complete = progressStatus === "completed" || snapshot.resumeInfo.hasUploadedFile;
-      const stepStatus = summaryStepStatus(progressStatus, complete);
+      const stepStatus = summaryStepStatus(progressStatus, complete, isRequired);
       return {
         id: step.step_key,
         heading: step.title,
@@ -168,7 +180,7 @@ function sectionForStep(
         (d) => Boolean(d.original_file_name?.trim()) || d.status === "uploaded" || d.status === "approved"
       );
       const locallyComplete = step2HasAnyUpload(step2Files) || hasSubmittedDocs;
-      const stepStatus = summaryStepStatus(progressStatus, locallyComplete);
+      const stepStatus = summaryStepStatus(progressStatus, locallyComplete, isRequired);
       const requirementRows = STEP2_FILE_TYPES.filter((k) =>
         Boolean(step2Files?.[k]?.name)
       ).map((k) => ({
@@ -237,7 +249,7 @@ function sectionForStep(
         locallyComplete = completedCount === slugs.length;
         label = `${completedCount} of ${slugs.length} ${slugs.length === 1 ? "assessment" : "assessments"} completed`;
       }
-      const stepStatus = summaryStepStatus(progressStatus, locallyComplete);
+      const stepStatus = summaryStepStatus(progressStatus, locallyComplete, isRequired);
       return {
         id: step.step_key,
         heading: step.title,
@@ -264,7 +276,7 @@ function sectionForStep(
         snapshot.workerDocs?.drivers_license_url?.trim() || snapshot.identityLs?.license?.name
       );
       const locallyComplete = authSigned && hasSsn && hasDl;
-      const stepStatus = summaryStepStatus(progressStatus, locallyComplete);
+      const stepStatus = summaryStepStatus(progressStatus, locallyComplete, isRequired);
       const rows: SummaryRowModel[] = [];
       if (progressComplete || authState.hasActivity) {
         rows.push({
@@ -325,7 +337,7 @@ function sectionForStep(
     case "references": {
       const min = referencesMinForStep(step);
       const locallyComplete = snapshot.referencesCount >= min;
-      const stepStatus = summaryStepStatus(progressStatus, locallyComplete);
+      const stepStatus = summaryStepStatus(progressStatus, locallyComplete, isRequired);
       return {
         id: step.step_key,
         heading: step.title,
@@ -353,7 +365,7 @@ function sectionForStep(
     case "review_submit":
       return null;
     default: {
-      const stepStatus = summaryStepStatus(progressStatus, progressStatus === "completed");
+      const stepStatus = summaryStepStatus(progressStatus, progressStatus === "completed", isRequired);
       return {
         id: step.step_key,
         heading: step.title,

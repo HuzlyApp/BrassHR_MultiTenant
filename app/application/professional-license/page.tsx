@@ -3,7 +3,7 @@
 import { APPLICATION_ROUTES } from "@/lib/onboarding/application-routes"
 import { applicationPath } from "@/lib/tenant/with-tenant";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useId, useMemo, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import type { TenantRequiredDocument } from "@/lib/onboarding/types";
 import AutosaveStatus from "@/app/components/AutosaveStatus";
 import { ChevronRight } from "lucide-react";
@@ -26,6 +26,7 @@ import {
 } from "@/lib/onboarding/upload-required-file-client";
 import { useOnboardingStepNav } from "@/lib/onboarding/use-onboarding-step-nav";
 import { useMarkStepInProgressIfPending } from "@/lib/onboarding/use-mark-step-in-progress-if-pending";
+import { skipOnboardingStep } from "@/lib/onboarding/skip-onboarding-step";
 import { resolveClientOnboardingTenantSlug } from "@/lib/tenant/client-onboarding-slug";
 import type { Step2FileType } from "@/lib/onboardingSummaryData";
 
@@ -87,6 +88,7 @@ export default function Step2License() {
   const [error, setError] = useState<string | null>(null);
   const [fileAutosave, setFileAutosave] = useState<"idle" | "saved">("idle");
   const [saving, setSaving] = useState(false);
+  const completingRef = useRef(false);
 
   const configLoaded = Boolean(onboarding?.config && !onboarding.loading);
   const tenantSlug = useMemo(
@@ -234,7 +236,20 @@ export default function Step2License() {
     step: licenseStep,
     disabled: onboarding?.loading,
     updateStepStatus: onboarding?.updateStepStatus,
+    completingRef,
   });
+
+  const skipProfessionalLicense = () => {
+    const next =
+      nextStepRouteAfter(onboarding?.config, licenseStep, tenantSlug) ??
+      applicationPath(APPLICATION_ROUTES.skillsIntro);
+    void skipOnboardingStep({
+      step: licenseStep,
+      updateStepStatus: onboarding?.updateStepStatus,
+      completingRef,
+      onNavigate: () => router.push(next),
+    });
+  };
 
   const uploadForRequirement = async (file: File, doc: TenantRequiredDocument) => {
     const maxBytes = (doc.max_file_size_mb || 10) * 1024 * 1024;
@@ -557,12 +572,7 @@ export default function Step2License() {
               <AutosaveStatus state={fileAutosave === "saved" ? "saved" : "idle"} />
               <button
                 type="button"
-                onClick={() => {
-                  const next =
-                    nextStepRouteAfter(onboarding?.config, licenseStep, tenantSlug) ??
-                    applicationPath(APPLICATION_ROUTES.skillsIntro);
-                  router.push(next);
-                }}
+                onClick={skipProfessionalLicense}
                 className="cursor-pointer text-[12px] font-medium leading-5 text-[color:var(--brand-primary)]"
               >
                 Skip for Now {"\u2192"}

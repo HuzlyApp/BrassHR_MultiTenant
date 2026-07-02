@@ -16,6 +16,7 @@ import {
   persistStepProgress,
   useMarkStepInProgressIfPending,
 } from "@/lib/onboarding/use-mark-step-in-progress-if-pending"
+import { skipOnboardingStep } from "@/lib/onboarding/skip-onboarding-step"
 import {
   countCompleteReferences,
   MIN_COMPLETE_REFERENCES,
@@ -79,6 +80,18 @@ export default function ReferenceReviewPage() {
     router.push(applicationPath(APPLICATION_ROUTES.addReferences))
   }
 
+  const handleSkip = () => {
+    void skipOnboardingStep({
+      step: referencesStep,
+      updateStepStatus: nav.updateStepStatus,
+      completingRef,
+      onNavigate: () => {
+        if (nav.nextRoute) router.push(nav.nextRoute)
+        else router.push(applicationPath(APPLICATION_ROUTES.applicationSummary))
+      },
+    })
+  }
+
   const handleContinue = async () => {
     setContinueError(null)
     if (!hasMinimumReferences) {
@@ -125,6 +138,13 @@ export default function ReferenceReviewPage() {
                 the summary. Use the edit button to update any contact details.
               </p>
             </div>
+            <button
+              type="button"
+              onClick={handleSkip}
+              className="shrink-0 text-[12px] font-medium leading-5 text-[color:var(--brand-primary)]"
+            >
+              Skip for Now →
+            </button>
           </div>
 
           {!hasAnyReference ? (

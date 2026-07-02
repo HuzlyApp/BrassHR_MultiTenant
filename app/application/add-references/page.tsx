@@ -13,6 +13,7 @@ import {
   persistStepProgress,
   useMarkStepInProgressIfPending,
 } from "@/lib/onboarding/use-mark-step-in-progress-if-pending"
+import { skipOnboardingStep } from "@/lib/onboarding/skip-onboarding-step"
 import { resolveLegacyAddReferencesTarget } from "@/lib/onboarding/legacy-add-references-redirect"
 import { ensureApplicantWorker } from "@/lib/onboarding/ensure-applicant-worker"
 import { isDraftPreviewApplicantId, isOnboardingDraftPreview } from "@/lib/onboarding/is-draft-preview"
@@ -121,6 +122,18 @@ export default function ReferencesPage() {
   function addReference() {
     if (refs.length >= 3) return
     setRefs([...refs, { first: "", last: "", phone: "", email: "" }])
+  }
+
+  async function skipReferences() {
+    void skipOnboardingStep({
+      step: referencesStep,
+      updateStepStatus: nav.updateStepStatus,
+      completingRef,
+      onNavigate: () => {
+        if (nav.nextRoute) nav.push(nav.nextRoute)
+        else router.push(applicationPath(APPLICATION_ROUTES.referenceReview))
+      },
+    })
   }
 
   async function saveReferences() {
@@ -247,6 +260,13 @@ export default function ReferencesPage() {
                   autosaveState === "saving" ? "saving" : autosaveState === "saved" ? "saved" : "idle"
                 }
               />
+              <button
+                type="button"
+                onClick={() => void skipReferences()}
+                className="cursor-pointer text-[12px] font-medium leading-5 text-[color:var(--brand-primary)]"
+              >
+                Skip for Now →
+              </button>
             </div>
           </div>
           <p className="text-[13px] text-slate-500 mb-1">Trusted feedback, verified integrity.</p>
