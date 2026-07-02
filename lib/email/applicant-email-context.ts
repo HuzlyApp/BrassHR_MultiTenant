@@ -125,6 +125,7 @@ export function contextToTemplateVariables(
     applicationStatusUrl: ctx.applicationStatusUrl,
     applicantPortalUrl: ctx.applicantPortalUrl,
     applicantContinuationLink: ctx.applicantContinuationLink,
+    statusLink: ctx.applicantContinuationLink,
     supportEmail: ctx.supportEmail,
     ...(ctx.reason ? { reason: ctx.reason } : {}),
   };

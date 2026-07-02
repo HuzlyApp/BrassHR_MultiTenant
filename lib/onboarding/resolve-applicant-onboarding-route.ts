@@ -167,6 +167,10 @@ export function resolveApplicantOnboardingRoute(
 
   const currentIndex = stepIndexForApplicantStep(currentStep, enabledSteps);
 
+  if (currentStep.step_type === "review_submit" || currentStep.step_key === "review_submit") {
+    return { status: "allow" };
+  }
+
   const currentStatus = progressStatusForStep(enabledSteps, progress, currentStep);
   if (
     currentStatus === "in_progress" ||

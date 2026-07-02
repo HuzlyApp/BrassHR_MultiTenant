@@ -19,6 +19,7 @@ vi.mock("@/lib/email/applicant-email-context", () => ({
     applicantName: ctx.applicantName,
     tenantName: ctx.tenantName,
     applicantContinuationLink: ctx.applicantContinuationLink,
+    statusLink: ctx.applicantContinuationLink,
     supportEmail: ctx.supportEmail,
   }),
 }));
@@ -37,7 +38,19 @@ import {
 function makeSupabase(options?: {
   alreadySent?: boolean;
   workerEmail?: string | null;
+  authUserEmail?: string | null;
 }) {
+  const authAdmin = {
+    getUserById: vi.fn(async () => ({
+      data: {
+        user: options?.authUserEmail
+          ? { email: options.authUserEmail }
+          : null,
+      },
+      error: null,
+    })),
+  };
+
   const continuationUpdate = vi.fn(async () => ({ error: null }));
   const continuationQuery = {
     eq: vi.fn().mockReturnThis(),
@@ -51,6 +64,7 @@ function makeSupabase(options?: {
     update: vi.fn(() => ({ eq: continuationUpdate })),
   };
 
+  const workerUpdate = vi.fn(() => ({ eq: vi.fn(async () => ({ error: null })) }));
   const workerQuery = {
     eq: vi.fn().mockReturnThis(),
     maybeSingle: vi.fn(async () => ({
@@ -58,12 +72,15 @@ function makeSupabase(options?: {
         id: "worker-1",
         tenant_id: "tenant-1",
         email: options?.workerEmail ?? null,
+        user_id: "auth-user-1",
       },
       error: null,
     })),
+    update: workerUpdate,
   };
 
   return {
+    auth: { admin: authAdmin },
     from: vi.fn((table: string) => {
       if (table === "applicant_continuation_links") {
         return {
@@ -72,7 +89,10 @@ function makeSupabase(options?: {
         };
       }
       if (table === "worker") {
-        return { select: vi.fn(() => workerQuery) };
+        return {
+          select: vi.fn(() => workerQuery),
+          update: workerQuery.update,
+        };
       }
       throw new Error(`Unexpected table: ${table}`);
     }),
@@ -95,6 +115,14 @@ describe("resolveResumeContinuationRecipientEmail", () => {
         parsedResume: { email: "parsed@example.com" },
       })
     ).toBe("parsed@example.com");
+  });
+
+  it("falls back to auth user email when worker email is missing", () => {
+    expect(
+      resolveResumeContinuationRecipientEmail({
+        authUserEmail: "signup@example.com",
+      })
+    ).toBe("signup@example.com");
   });
 
   it("extracts email from resume text", () => {
@@ -197,7 +225,7 @@ describe("sendResumeContinuationEmail", () => {
   });
 
   it("skips when no recipient email can be resolved", async () => {
-    const supabase = makeSupabase({ workerEmail: null });
+    const supabase = makeSupabase({ workerEmail: null, authUserEmail: null });
     const result = await sendResumeContinuationEmail(supabase as never, {
       workerId: "worker-1",
       tenantId: "tenant-1",
@@ -210,18 +238,45 @@ describe("sendResumeContinuationEmail", () => {
     expect(result).toEqual({ outcome: "skipped", reason: "NO_EMAIL" });
     expect(sendTemplatedEmailMock).not.toHaveBeenCalled();
   });
+
+  it("uses auth signup email when worker profile email is not set yet", async () => {
+    const supabase = makeSupabase({ workerEmail: null, authUserEmail: "signup@example.com" });
+    const result = await sendResumeContinuationEmail(supabase as never, {
+      workerId: "worker-1",
+      tenantId: "tenant-1",
+      resumeId: "resume-1",
+      origin: "https://tenant.example.com",
+      trigger: "resume_upload",
+      extractedText: "Jane Doe only",
+    });
+
+    expect(result).toEqual({ outcome: "sent", messageId: "msg-1" });
+    expect(sendTemplatedEmailMock).toHaveBeenCalledWith(
+      supabase,
+      expect.objectContaining({
+        to: "signup@example.com",
+        variables: expect.objectContaining({
+          statusLink: "https://tenant.example.com/application/continue?token=abc",
+        }),
+      })
+    );
+  });
 });
 
 describe("resume continuation template rendering", () => {
-  it("interpolates continuation link into seeded template body", async () => {
+  it("interpolates status link into seeded template body", async () => {
     const { interpolateTemplate } = await import("@/lib/email-templates/interpolation");
     const subject = "Complete Your Application";
     const body = `<p>Hello {{applicantName}},</p>
-<p><a href="{{applicantContinuationLink}}">Continue Application</a></p>
+<p>Please complete your application and finish all required onboarding steps.</p>
+<p>You can continue your application using the secure status link below:</p>
+<p><a href="{{statusLink}}">Continue Application</a></p>
+<p>This link will take you back to your application so you can complete any missing steps.</p>
 <p>Thank you,<br>{{tenantName}} Team</p>`;
     const variables = {
       applicantName: "Jane Doe",
       tenantName: "Acme Health",
+      statusLink: "https://acme.example.com/application/continue?token=secure",
       applicantContinuationLink: "https://acme.example.com/application/continue?token=secure",
       supportEmail: "support@acme.com",
     };
@@ -232,6 +287,8 @@ describe("resume continuation template rendering", () => {
     expect(interpolateTemplate(body, variables, { escapeForHtml: true })).toContain(
       "https://acme.example.com/application/continue?token=secure"
     );
-    expect(interpolateTemplate(body, variables, { escapeForHtml: true })).toContain("Jane Doe");
+    expect(interpolateTemplate(body, variables, { escapeForHtml: true })).toContain(
+      "finish all required onboarding steps"
+    );
   });
 });

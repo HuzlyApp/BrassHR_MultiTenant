@@ -7,7 +7,10 @@ import {
 import { SendEmailError } from "@/lib/email/errors";
 import { sendTemplatedEmail } from "@/lib/email/send-templated-email";
 import { EMAIL_TEMPLATE_TYPE } from "@/lib/email-templates/template-keys";
-import { isValidStep1Email } from "@/lib/onboardingStep1Validation";
+import {
+  isDeliverableApplicantEmail,
+  isValidStep1Email,
+} from "@/lib/onboardingStep1Validation";
 import { normalizeParsedResume } from "@/lib/resumeParseQuality";
 
 const EMAIL_FROM_TEXT_RE = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/;
@@ -50,12 +53,16 @@ export function resolveResumeContinuationRecipientEmail(params: {
   extractedText?: string | null;
   parsedResume?: Record<string, unknown> | null;
   override?: string | null;
+  authUserEmail?: string | null;
 }): string | null {
   const override = params.override?.trim().toLowerCase();
-  if (override && isValidStep1Email(override)) return override;
+  if (override && isDeliverableApplicantEmail(override)) return override;
 
   const workerEmail = params.workerEmail?.trim().toLowerCase();
-  if (workerEmail && isValidStep1Email(workerEmail)) return workerEmail;
+  if (workerEmail && isDeliverableApplicantEmail(workerEmail)) return workerEmail;
+
+  const authUserEmail = params.authUserEmail?.trim().toLowerCase();
+  if (authUserEmail && isDeliverableApplicantEmail(authUserEmail)) return authUserEmail;
 
   if (params.parsedResume && Object.keys(params.parsedResume).length > 0) {
     const parsed = normalizeParsedResume(params.parsedResume);
@@ -156,7 +163,7 @@ export async function sendResumeContinuationEmail(
 
     const { data: worker, error: workerError } = await supabase
       .from("worker")
-      .select("id, tenant_id, email")
+      .select("id, tenant_id, email, user_id")
       .eq("id", workerId)
       .maybeSingle();
 
@@ -170,11 +177,34 @@ export async function sendResumeContinuationEmail(
       return result;
     }
 
+    let authUserEmail: string | null = null;
+    const applicantUserId =
+      worker.user_id != null ? String(worker.user_id).trim() : "";
+    if (applicantUserId) {
+      const { data: authData, error: authErr } =
+        await supabase.auth.admin.getUserById(applicantUserId);
+      if (!authErr) {
+        authUserEmail = authData?.user?.email?.trim().toLowerCase() ?? null;
+      }
+    }
+
     const recipientEmail = resolveResumeContinuationRecipientEmail({
       workerEmail: worker.email != null ? String(worker.email) : null,
+      authUserEmail,
       extractedText: params.extractedText,
       parsedResume: params.parsedResume,
       override: params.recipientEmailOverride,
+    });
+
+    console.info("[resume-continuation-email] recipient resolved", {
+      workerId,
+      resumeId,
+      trigger: params.trigger,
+      hasWorkerEmail: Boolean(worker.email?.toString().trim()),
+      hasAuthUserEmail: Boolean(authUserEmail),
+      hasExtractedText: Boolean(params.extractedText?.trim()),
+      hasParsedResume: Boolean(params.parsedResume && Object.keys(params.parsedResume).length > 0),
+      recipientFound: Boolean(recipientEmail),
     });
 
     if (!recipientEmail) {
@@ -184,6 +214,17 @@ export async function sendResumeContinuationEmail(
       };
       await logResumeContinuationOutcome(params, result);
       return result;
+    }
+
+    if (
+      authUserEmail &&
+      recipientEmail === authUserEmail.toLowerCase() &&
+      !worker.email?.toString().trim()
+    ) {
+      await supabase
+        .from("worker")
+        .update({ email: recipientEmail, updated_at: new Date().toISOString() })
+        .eq("id", workerId);
     }
 
     const ctx = await buildApplicantEmailContext(supabase, {
@@ -208,6 +249,13 @@ export async function sendResumeContinuationEmail(
       return result;
     }
 
+    console.info("[resume-continuation-email] status link generated", {
+      workerId,
+      resumeId,
+      continuationLinkId: ctx.continuationLinkId ?? null,
+      statusLink: ctx.applicantContinuationLink,
+    });
+
     const sendResult = await sendTemplatedEmail(supabase, {
       to: recipientEmail,
       tenantId,
@@ -216,13 +264,25 @@ export async function sendResumeContinuationEmail(
     });
 
     if (!sendResult.sent) {
+      console.warn("[resume-continuation-email] template send skipped", {
+        workerId,
+        resumeId,
+        reason: sendResult.reason ?? "NOT_SENT",
+      });
       const result: ResumeContinuationEmailResult = {
-        outcome: "skipped",
+        outcome: sendResult.skipped ? "skipped" : "failed",
         reason: sendResult.reason ?? "NOT_SENT",
       };
       await logResumeContinuationOutcome(params, result);
       return result;
     }
+
+    console.info("[resume-continuation-email] email sent", {
+      workerId,
+      resumeId,
+      messageId: sendResult.messageId ?? null,
+      to: recipientEmail,
+    });
 
     if (ctx.continuationLinkId) {
       await supabase

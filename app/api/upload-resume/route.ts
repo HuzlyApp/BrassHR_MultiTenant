@@ -318,6 +318,14 @@ export async function POST(req: Request) {
         process.env.NEXT_PUBLIC_APP_URL?.trim().replace(/\/+$/, "") ??
         null
 
+      console.info("[upload-resume] resume upload success", {
+        workerId: capturedWorkerId,
+        tenantId: capturedTenantId,
+        resumeId: capturedResumeId,
+        textLength,
+        origin: origin ?? null,
+      })
+
       if (origin) {
         await sendResumeContinuationEmail(supabase, {
           workerId: capturedWorkerId,
@@ -328,6 +336,11 @@ export async function POST(req: Request) {
           extractedText: capturedText,
           trigger: "resume_upload",
           request: req,
+        })
+      } else {
+        console.warn("[upload-resume] skipping continuation email — could not resolve app origin", {
+          workerId: capturedWorkerId,
+          resumeId: capturedResumeId,
         })
       }
 

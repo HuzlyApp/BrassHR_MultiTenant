@@ -28,29 +28,62 @@ function SummaryRow({
   title,
   subtitle,
   complete,
+  stepStatus,
   editHref,
 }: {
   title: string
   subtitle?: string | null
   complete: boolean
+  stepStatus?: "completed" | "skipped" | "incomplete"
   editHref?: string
 }) {
+  const status = stepStatus ?? (complete ? "completed" : "incomplete")
+  const isSkipped = status === "skipped"
+  const isIncomplete = status === "incomplete"
+
   return (
     <div
       className={`group flex items-center justify-between rounded-xl border px-4 py-3 ${
-        complete ? "border-[color:var(--brand-primary)] bg-[color:var(--brand-primary)]/5" : "border-slate-200 bg-slate-50"
+        complete
+          ? "border-[color:var(--brand-primary)] bg-[color:var(--brand-primary)]/5"
+          : isSkipped
+            ? "border-slate-200 bg-slate-100"
+            : "border-amber-200 bg-amber-50/60"
       }`}
     >
       <div className="flex min-w-0 flex-1 items-center gap-3">
         {complete ? (
           <CheckCircle2 className="h-5 w-5 shrink-0 text-[color:var(--brand-primary)]" aria-hidden />
+        ) : isSkipped ? (
+          <Circle className="h-5 w-5 shrink-0 text-slate-400" aria-hidden />
         ) : (
-          <Circle className="h-5 w-5 shrink-0 text-slate-300" aria-hidden />
+          <CircleAlert className="h-5 w-5 shrink-0 text-amber-500" aria-hidden />
         )}
         <div className="min-w-0">
-          <p className="text-[13px] font-semibold text-slate-800">{title}</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-[13px] font-semibold text-slate-800">{title}</p>
+            {isSkipped ? (
+              <span className="rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-600">
+                Skipped
+              </span>
+            ) : isIncomplete ? (
+              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800">
+                Incomplete
+              </span>
+            ) : null}
+          </div>
           {subtitle ? (
-            <p className={`text-[11px] ${complete ? "text-[color:var(--brand-primary)]" : "text-slate-500"}`}>{subtitle}</p>
+            <p
+              className={`text-[11px] ${
+                complete
+                  ? "text-[color:var(--brand-primary)]"
+                  : isSkipped
+                    ? "text-slate-500"
+                    : "text-amber-800"
+              }`}
+            >
+              {subtitle}
+            </p>
           ) : null}
         </div>
       </div>
@@ -379,6 +412,7 @@ export default function SummaryPage() {
                       title={row.title}
                       subtitle={row.subtitle}
                       complete={row.complete}
+                      stepStatus={row.stepStatus}
                       editHref={section.editHref}
                     />
                   ))}

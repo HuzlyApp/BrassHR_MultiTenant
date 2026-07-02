@@ -34,6 +34,8 @@ export type SummaryRowModel = {
   title: string;
   subtitle: string | null;
   complete: boolean;
+  /** Progress-derived display state for summary review. */
+  stepStatus?: "completed" | "skipped" | "incomplete";
 };
 
 export type SummarySectionModel = {
@@ -42,6 +44,8 @@ export type SummarySectionModel = {
   complete: boolean;
   editHref: string;
   rows: SummaryRowModel[];
+  stepStatus?: "completed" | "skipped" | "incomplete";
+  isRequired?: boolean;
 };
 
 export type ApplicantSummarySnapshot = {
@@ -85,6 +89,27 @@ function isProgressStepComplete(status: OnboardingStepStatus | null): boolean {
   return status === "completed" || status === "skipped";
 }
 
+function summaryStepStatus(
+  progressStatus: OnboardingStepStatus | null,
+  locallyComplete: boolean
+): "completed" | "skipped" | "incomplete" {
+  if (progressStatus === "skipped") return "skipped";
+  if (progressStatus === "completed" || locallyComplete) return "completed";
+  return "incomplete";
+}
+
+function statusSubtitle(
+  stepStatus: "completed" | "skipped" | "incomplete",
+  detail: string | null,
+  isRequired: boolean
+): string | null {
+  if (stepStatus === "skipped") return "Skipped";
+  if (stepStatus === "incomplete") {
+    return detail ?? (isRequired ? "Required — not complete" : "Incomplete");
+  }
+  return detail;
+}
+
 function resolvedStep2Files(snapshot: ApplicantSummarySnapshot): Record<Step2FileType, Step2UploadedFile | null> {
   const fromServer = step2FilesFromDocumentUrls(snapshot.workerDocs);
   return mergeStep2FileRecords(snapshot.step2Files, fromServer);
@@ -103,25 +128,35 @@ function sectionForStep(
   progress: WorkerOnboardingProgressPayload | null | undefined
 ): SummarySectionModel | null {
   const editHref = withTenant(routeForApplicantStep(step), tenantSlug);
-  const progressComplete = isProgressStepComplete(progressStatusForStep(config, progress, step));
+  const progressStatus = progressStatusForStep(config, progress, step);
+  const progressComplete = isProgressStepComplete(progressStatus);
+  const isRequired = step.is_required !== false;
 
   switch (step.step_type) {
     case "resume_upload":
     case "profile_information": {
-      const complete = progressComplete || snapshot.resumeInfo.hasUploadedFile;
+      const complete = progressStatus === "completed" || snapshot.resumeInfo.hasUploadedFile;
+      const stepStatus = summaryStepStatus(progressStatus, complete);
       return {
         id: step.step_key,
         heading: step.title,
-        complete,
+        complete: stepStatus === "completed",
+        stepStatus,
+        isRequired,
         editHref,
         rows: [
           {
             key: "resume",
             title: "Resume file",
-            subtitle: complete
-              ? snapshot.resumeInfo.fileName || "File on file"
-              : "No resume file uploaded yet",
-            complete,
+            subtitle: statusSubtitle(
+              stepStatus,
+              complete
+                ? snapshot.resumeInfo.fileName || "File on file"
+                : "No resume file uploaded yet",
+              isRequired
+            ),
+            complete: stepStatus === "completed",
+            stepStatus,
           },
         ],
       };
@@ -132,7 +167,8 @@ function sectionForStep(
       const hasSubmittedDocs = snapshot.submittedDocuments.some(
         (d) => Boolean(d.original_file_name?.trim()) || d.status === "uploaded" || d.status === "approved"
       );
-      const complete = progressComplete || step2HasAnyUpload(step2Files) || hasSubmittedDocs;
+      const locallyComplete = step2HasAnyUpload(step2Files) || hasSubmittedDocs;
+      const stepStatus = summaryStepStatus(progressStatus, locallyComplete);
       const requirementRows = STEP2_FILE_TYPES.filter((k) =>
         Boolean(step2Files?.[k]?.name)
       ).map((k) => ({
@@ -143,6 +179,7 @@ function sectionForStep(
             .filter(Boolean)
             .join(" · ") || step2Files![k]!.name,
         complete: true,
+        stepStatus: "completed" as const,
       }));
       const submittedRows = snapshot.submittedDocuments
         .filter((d) => Boolean(d.original_file_name?.trim()))
@@ -151,33 +188,32 @@ function sectionForStep(
           title: d.original_file_name!.trim(),
           subtitle: d.status ? `Status: ${d.status}` : "Uploaded",
           complete: true,
+          stepStatus: "completed" as const,
         }));
       const rows = [...requirementRows, ...submittedRows];
       return {
         id: step.step_key,
         heading: step.title,
-        complete,
+        complete: stepStatus === "completed",
+        stepStatus,
+        isRequired,
         editHref,
         rows:
           rows.length > 0
             ? rows
-            : progressComplete
-              ? [
-                  {
-                    key: "requirements",
-                    title: step.title,
-                    subtitle: "Completed",
-                    complete: true,
-                  },
-                ]
-              : [
-                  {
-                    key: "requirements",
-                    title: step.title,
-                    subtitle: "No documents uploaded yet",
-                    complete: false,
-                  },
-                ],
+            : [
+                {
+                  key: "requirements",
+                  title: step.title,
+                  subtitle: statusSubtitle(
+                    stepStatus,
+                    stepStatus === "completed" ? "Completed" : "No documents uploaded yet",
+                    isRequired
+                  ),
+                  complete: stepStatus === "completed",
+                  stepStatus,
+                },
+              ],
       };
     }
     case "skill_assessment": {
@@ -185,28 +221,39 @@ function sectionForStep(
         .map((c) => quizSlugForCategory(c))
         .filter((s): s is string => Boolean(s));
       let label: string;
-      let complete: boolean;
+      let locallyComplete: boolean;
       if (slugs.length === 0) {
         const fb = snapshot.clientStorageReady
           ? countLocalLegacyQuizDone()
           : { completed: 0, total: 0 };
-        complete = progressComplete || (fb.total > 0 && fb.completed === fb.total);
+        locallyComplete = fb.total > 0 && fb.completed === fb.total;
         label = snapshot.skillLoadError
           ? `Could not load assessment list (${snapshot.skillLoadError}). Showing progress saved on this device.`
           : fb.total > 0
             ? `${fb.completed} of ${fb.total} assessments completed (saved on this device)`
             : "No skill assessments recorded yet";
       } else {
-        const completed = slugs.filter((slug) => isSkillQuizDoneLocal(slug)).length;
-        complete = progressComplete || completed === slugs.length;
-        label = `${completed} of ${slugs.length} ${slugs.length === 1 ? "assessment" : "assessments"} completed`;
+        const completedCount = slugs.filter((slug) => isSkillQuizDoneLocal(slug)).length;
+        locallyComplete = completedCount === slugs.length;
+        label = `${completedCount} of ${slugs.length} ${slugs.length === 1 ? "assessment" : "assessments"} completed`;
       }
+      const stepStatus = summaryStepStatus(progressStatus, locallyComplete);
       return {
         id: step.step_key,
         heading: step.title,
-        complete,
+        complete: stepStatus === "completed",
+        stepStatus,
+        isRequired,
         editHref: withTenant(APPLICATION_ROUTES.skillAssessment, tenantSlug),
-        rows: [{ key: "skills", title: step.title, subtitle: label, complete }],
+        rows: [
+          {
+            key: "skills",
+            title: step.title,
+            subtitle: statusSubtitle(stepStatus, label, isRequired),
+            complete: stepStatus === "completed",
+            stepStatus,
+          },
+        ],
       };
     }
     case "authorizations": {
@@ -216,7 +263,8 @@ function sectionForStep(
       const hasDl = Boolean(
         snapshot.workerDocs?.drivers_license_url?.trim() || snapshot.identityLs?.license?.name
       );
-      const complete = progressComplete || (authSigned && hasSsn && hasDl);
+      const locallyComplete = authSigned && hasSsn && hasDl;
+      const stepStatus = summaryStepStatus(progressStatus, locallyComplete);
       const rows: SummaryRowModel[] = [];
       if (progressComplete || authState.hasActivity) {
         rows.push({
@@ -230,61 +278,104 @@ function sectionForStep(
               ? `Status: ${authState.statusRaw}`
               : "Pending signature",
           complete: authSigned,
+          stepStatus: authSigned ? "completed" : "incomplete",
         });
       }
       if (hasSsn) {
-        rows.push({ key: "ssn", title: "SSN card", subtitle: "Uploaded", complete: true });
+        rows.push({
+          key: "ssn",
+          title: "SSN card",
+          subtitle: "Uploaded",
+          complete: true,
+          stepStatus: "completed",
+        });
       }
       if (hasDl) {
-        rows.push({ key: "dl", title: "Driver's license", subtitle: "Uploaded", complete: true });
+        rows.push({
+          key: "dl",
+          title: "Driver's license",
+          subtitle: "Uploaded",
+          complete: true,
+          stepStatus: "completed",
+        });
       }
       if (rows.length === 0) {
         rows.push({
           key: "auth-empty",
           title: step.title,
-          subtitle: "No signed authorization or identity documents recorded yet",
-          complete: false,
+          subtitle: statusSubtitle(
+            stepStatus,
+            "No signed authorization or identity documents recorded yet",
+            isRequired
+          ),
+          complete: stepStatus === "completed",
+          stepStatus,
         });
       }
-      return { id: step.step_key, heading: step.title, complete, editHref, rows };
-    }
-    case "references": {
-      const min = referencesMinForStep(step);
-      const complete = progressComplete || snapshot.referencesCount >= min;
       return {
         id: step.step_key,
         heading: step.title,
-        complete,
+        complete: stepStatus === "completed",
+        stepStatus,
+        isRequired,
+        editHref,
+        rows,
+      };
+    }
+    case "references": {
+      const min = referencesMinForStep(step);
+      const locallyComplete = snapshot.referencesCount >= min;
+      const stepStatus = summaryStepStatus(progressStatus, locallyComplete);
+      return {
+        id: step.step_key,
+        heading: step.title,
+        complete: stepStatus === "completed",
+        stepStatus,
+        isRequired,
         editHref,
         rows: [
           {
             key: "refs",
             title: `${snapshot.referencesCount} reference(s) added`,
-            subtitle: complete
-              ? null
-              : `At least ${min} complete reference${min === 1 ? "" : "s"} required`,
-            complete,
+            subtitle: statusSubtitle(
+              stepStatus,
+              stepStatus === "completed"
+                ? null
+                : `At least ${min} complete reference${min === 1 ? "" : "s"} required`,
+              isRequired
+            ),
+            complete: stepStatus === "completed",
+            stepStatus,
           },
         ],
       };
     }
     case "review_submit":
       return null;
-    default:
+    default: {
+      const stepStatus = summaryStepStatus(progressStatus, progressStatus === "completed");
       return {
         id: step.step_key,
         heading: step.title,
-        complete: progressComplete,
+        complete: stepStatus === "completed",
+        stepStatus,
+        isRequired,
         editHref,
         rows: [
           {
             key: step.step_key,
             title: step.title,
-            subtitle: progressComplete ? "Completed" : "Complete this step",
-            complete: progressComplete,
+            subtitle: statusSubtitle(
+              stepStatus,
+              stepStatus === "completed" ? "Completed" : "Complete this step",
+              isRequired
+            ),
+            complete: stepStatus === "completed",
+            stepStatus,
           },
         ],
       };
+    }
   }
 }
 

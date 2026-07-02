@@ -121,4 +121,29 @@ describe("application summary submit readiness", () => {
     expect(authRow?.subtitle).toBe("Pending signature");
     expect(authRow?.complete).toBe(false);
   });
+
+  it("shows skipped and incomplete sections distinctly on summary", () => {
+    const config = buildConfig();
+    const skillStep = config.steps.find((s) => s.step_type === "skill_assessment")!;
+    const licenseStep = config.steps.find((s) => s.step_type === "professional_license")!;
+    const progress: WorkerOnboardingProgressPayload = {
+      progressId: "p1",
+      status: "in_progress",
+      steps: [
+        { onboarding_step_id: skillStep.id, status: "skipped", completed_at: "2026-01-01", data: {} },
+      ],
+    };
+    const sections = buildApplicantSummarySections(
+      config,
+      "zipstaff",
+      snapshot({ step2Files: null }),
+      progress
+    );
+    const skill = sections.find((s) => s.id === skillStep.step_key);
+    const license = sections.find((s) => s.id === licenseStep.step_key);
+    expect(skill?.stepStatus).toBe("skipped");
+    expect(skill?.rows[0]?.subtitle).toBe("Skipped");
+    expect(license?.stepStatus).toBe("incomplete");
+    expect(license?.rows[0]?.subtitle).toMatch(/Required — not complete|No documents uploaded yet/);
+  });
 });

@@ -57,6 +57,8 @@ export function computeMaxAllowedStepIndexFromProgress(
       } else if (st === "in_progress") {
         max = Math.max(max, i + 1);
         break;
+      } else if (!enabledSteps[i]!.is_required) {
+        max = Math.max(max, i + 2);
       } else {
         max = Math.max(max, i + 1);
         break;

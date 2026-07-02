@@ -64,4 +64,22 @@ describe("computeMaxAllowedStepIndexFromProgress", () => {
 
     expect(computeMaxAllowedStepIndexFromProgress(steps, progress)).toBe(4);
   });
+
+  it("allows advancing past optional pending steps", () => {
+    const steps = legacySteps().map((step) =>
+      step.step_key === "skill_assessment" ? { ...step, is_required: false } : step
+    );
+    const progress: WorkerOnboardingProgressPayload = {
+      progressId: "p1",
+      status: "in_progress",
+      steps: [
+        { onboarding_step_id: steps[0]!.id, status: "completed", completed_at: "2026-01-01", data: {} },
+        { onboarding_step_id: steps[1]!.id, status: "completed", completed_at: "2026-01-01", data: {} },
+        { onboarding_step_id: steps[2]!.id, status: "pending", completed_at: null, data: {} },
+        { onboarding_step_id: steps[3]!.id, status: "completed", completed_at: "2026-01-01", data: {} },
+      ],
+    };
+
+    expect(computeMaxAllowedStepIndexFromProgress(steps, progress)).toBeGreaterThan(3);
+  });
 });
