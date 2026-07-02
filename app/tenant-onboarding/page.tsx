@@ -50,6 +50,7 @@ export default function TenantOnboardingPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [selectedGoals, setSelectedGoals] = useState<TenantGoalId[]>([]);
   const [businessInfoSkipped, setBusinessInfoSkipped] = useState(false);
   const [businessInfo, setBusinessInfo] = useState(initialBusinessInfoForm);
   const [orgName, setOrgName] = useState("");
