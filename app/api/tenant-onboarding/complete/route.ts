@@ -7,6 +7,7 @@ import {
   firstBusinessInfoError,
   isBusinessInfoValid,
   normalizeBusinessInfoBody,
+  resolveTenantDisplayName,
   validateBusinessInfoForm,
 } from "@/lib/tenant/business-info-validation";
 import { validateTenantSubdomainInput, subdomainErrorMessage } from "@/lib/tenant/subdomain-validation";
@@ -34,6 +35,8 @@ type Body = {
   email?: string;
   zipCode?: string;
   ein?: string;
+  /** When true, business information step was skipped — fields are optional. */
+  businessInfoSkipped?: boolean;
 };
 
 /**
@@ -98,9 +101,22 @@ export async function POST(req: Request) {
     companyName: org,
     organizationName: org,
   });
-  const businessContext = await resolveBusinessInfoValidationContext(svc, businessInput.state);
-  const businessErrors = validateBusinessInfoForm(businessInput, businessContext);
-  if (!isBusinessInfoValid(businessInput, businessContext)) {
+  const businessInfoSkipped = body.businessInfoSkipped === true;
+  const businessContext = {
+    ...(await resolveBusinessInfoValidationContext(svc, businessInput.state)),
+    requireEin: false,
+    requireAllFields: !businessInfoSkipped,
+  };
+  const resolvedCompanyName = resolveTenantDisplayName({
+    organizationName: businessInput.companyName,
+    subdomain: subdomainFinal,
+    adminEmail: effectiveAdminEmail,
+  });
+  const businessInputForValidation = businessInfoSkipped
+    ? { ...businessInput, companyName: businessInput.companyName || resolvedCompanyName }
+    : businessInput;
+  const businessErrors = validateBusinessInfoForm(businessInputForValidation, businessContext);
+  if (!isBusinessInfoValid(businessInputForValidation, businessContext)) {
     return NextResponse.json(
       {
         error: firstBusinessInfoError(businessErrors) ?? "Business information is invalid.",
@@ -148,8 +164,11 @@ export async function POST(req: Request) {
     tenantId = String(bySlug.id);
   }
 
+  const tenantDisplayName =
+    businessInput.companyName.trim() || resolvedCompanyName;
+
   const brandingRow = {
-    name: businessInput.companyName,
+    name: tenantDisplayName,
     slug: slugFinal,
     subdomain: subdomainFinal,
     domain: domainFinal,
@@ -157,7 +176,7 @@ export async function POST(req: Request) {
     primary_color: body.primaryColor?.trim() || "#0d9488",
     secondary_color: body.secondaryColor?.trim() || "#0f766e",
     accent_color: body.accentColor?.trim() || "#99f6e4",
-    welcome_headline: body.welcomeHeadline?.trim() || `Welcome to ${businessInput.companyName}`,
+    welcome_headline: body.welcomeHeadline?.trim() || `Welcome to ${tenantDisplayName}`,
     welcome_subtitle: body.welcomeSubtitle?.trim() || "Your applicant experience starts here.",
     auth_background_image_url: body.authBackgroundImageUrl?.trim() || null,
     industry: businessInput.industry,

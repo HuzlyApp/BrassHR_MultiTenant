@@ -1,9 +1,9 @@
 import { APPLICATION_ROUTES } from "@/lib/onboarding/application-routes";
 import {
   computeMaxAllowedStepIndexFromProgress,
-  progressStatusForStep,
   resolveNextIncompleteStepIndex,
 } from "@/lib/onboarding/compute-max-allowed-from-progress";
+import { resolveApplicantNavBoundaries } from "@/lib/onboarding/farthest-reached-step";
 import { resolveApplicantStepFromPath, stepIndexForApplicantStep } from "@/lib/onboarding/find-applicant-step";
 import { mergeOnboardingQuery } from "@/lib/onboarding/legacy-add-references-redirect";
 import { routeForApplicantStep } from "@/lib/onboarding/resolve-applicant-step-route";
@@ -154,7 +154,12 @@ export function resolveApplicantOnboardingRoute(
   }
 
   const currentStep = resolveApplicantStepFromPath(normalizedPath, search, enabledSteps);
-  const maxAllowed = computeMaxAllowedStepIndexFromProgress(enabledSteps, progress);
+  const naturalFrontier = computeMaxAllowedStepIndexFromProgress(enabledSteps, progress);
+  const { farthestReachedIndex } = resolveApplicantNavBoundaries(
+    enabledSteps,
+    progress,
+    naturalFrontier
+  );
 
   if (!currentStep) {
     const nextIndex = resolveNextIncompleteStepIndex(enabledSteps, progress);
@@ -167,24 +172,15 @@ export function resolveApplicantOnboardingRoute(
 
   const currentIndex = stepIndexForApplicantStep(currentStep, enabledSteps);
 
-  if (currentStep.step_type === "review_submit" || currentStep.step_key === "review_submit") {
+  if (currentIndex <= farthestReachedIndex) {
     return { status: "allow" };
   }
 
-  const currentStatus = progressStatusForStep(enabledSteps, progress, currentStep);
-  if (
-    currentStatus === "in_progress" ||
-    currentStatus === "completed" ||
-    currentStatus === "skipped"
-  ) {
-    return { status: "allow" };
-  }
-
-  if (currentIndex <= maxAllowed) {
-    return { status: "allow" };
-  }
-
-  const href = routeForStepIndex(enabledSteps, maxAllowed, tenantSlug, search);
+  const redirectIndex = Math.min(
+    resolveNextIncompleteStepIndex(enabledSteps, progress),
+    naturalFrontier
+  );
+  const href = routeForStepIndex(enabledSteps, redirectIndex, tenantSlug, search);
   if (pathsEqual(href, normalizedPath)) {
     return { status: "allow" };
   }

@@ -23,6 +23,7 @@ import { stepUsesFirmaSigning } from "@/lib/onboarding/firma-step-settings"
 import { getEnabledTenantSteps } from "@/lib/onboarding/tenant-step-navigation"
 import { useOnboardingConfigOptional } from "@/app/components/onboarding/OnboardingConfigProvider"
 import { useOnboardingStepNav } from "@/lib/onboarding/use-onboarding-step-nav"
+import { useMarkStepInProgressIfPending } from "@/lib/onboarding/use-mark-step-in-progress-if-pending"
 import type { SkillCategoryRow } from "@/lib/onboardingSummaryData"
 
 function SummaryRow({
@@ -122,6 +123,20 @@ export default function SummaryPage() {
   /** After mount, safe to read localStorage during render (legacy skill counts). */
   const [clientStorageReady, setClientStorageReady] = useState(false)
   const incompleteModalRef = useRef<HTMLDivElement>(null)
+
+  const reviewStep = useMemo(
+    () =>
+      nav.enabledSteps?.find(
+        (step) => step.step_type === "review_submit" || step.step_key === "review_submit"
+      ) ?? null,
+    [nav.enabledSteps]
+  )
+
+  useMarkStepInProgressIfPending({
+    step: reviewStep,
+    disabled: nav.configLoading,
+    updateStepStatus: onboarding?.updateStepStatus,
+  })
 
   const loadSnapshot = useCallback(async () => {
     if (typeof window === "undefined") return

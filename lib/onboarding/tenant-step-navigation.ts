@@ -14,7 +14,7 @@ import { APPLICATION_ROUTES } from "@/lib/onboarding/application-routes";
 import { filterApplicantVisibleSteps } from "@/lib/onboarding/filter-applicant-steps";
 import { withTenant } from "@/lib/tenant/with-tenant";
 import { computeMaxAllowedStepIndexFromProgress } from "@/lib/onboarding/compute-max-allowed-from-progress";
-import { isUploadResumeStep } from "@/lib/onboarding/enforce-upload-resume-first";
+import { resolveApplicantNavBoundaries } from "@/lib/onboarding/farthest-reached-step";
 
 /** Enabled steps for applicants, ordered by tenant `sort_order`. */
 export function getEnabledTenantSteps(
@@ -159,7 +159,14 @@ export function computeMaxAllowedStepIndex(
     }
   }
 
-  let max = computeMaxAllowedStepIndexFromProgress(steps, progress);
+  const naturalFrontier = computeMaxAllowedStepIndexFromProgress(steps, progress);
+  const { farthestReachedIndex } = resolveApplicantNavBoundaries(
+    steps,
+    progress,
+    naturalFrontier
+  );
+
+  let max = farthestReachedIndex;
 
   if (typeof window !== "undefined") {
     if (localStorage.getItem("step1ReviewCompleted") === "true") {
@@ -174,10 +181,6 @@ export function computeMaxAllowedStepIndex(
       );
       if (authIdx >= 0) max = Math.max(max, authIdx + 2);
     }
-  }
-
-  if (pathname?.trim()) {
-    max = Math.max(max, stepIndexFromPathname(pathname, steps));
   }
 
   return Math.min(max, steps.length);

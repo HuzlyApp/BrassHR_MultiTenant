@@ -1,6 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { StepProgressRow, WorkerOnboardingProgressPayload } from "@/lib/onboarding/types";
 import { loadTenantOnboardingConfig } from "@/lib/onboarding/load-tenant-config";
+import { backfillFarthestReachedStepIndex } from "@/lib/onboarding/persist-farthest-reached-step";
+import { getEnabledTenantSteps } from "@/lib/onboarding/tenant-step-navigation";
 
 export async function ensureWorkerOnboardingProgress(
   supabase: SupabaseClient,
@@ -14,7 +16,9 @@ export async function ensureWorkerOnboardingProgress(
 
   const { data: existing, error: exErr } = await supabase
     .from("worker_onboarding_progress")
-    .select("id, status, submitted_at, submitted_with_incomplete_steps, incomplete_step_keys")
+    .select(
+      "id, status, submitted_at, submitted_with_incomplete_steps, incomplete_step_keys, farthest_reached_step_index"
+    )
     .eq("worker_id", workerId)
     .eq("onboarding_config_id", config.configId)
     .maybeSingle();
@@ -82,14 +86,29 @@ export async function ensureWorkerOnboardingProgress(
     data: (r.data as Record<string, unknown>) ?? {},
   }));
 
-  return {
+  const enabledSteps = getEnabledTenantSteps(config);
+  const persistedFarthest = Number(existing?.farthest_reached_step_index ?? 1);
+  const payloadWithoutFarthest: WorkerOnboardingProgressPayload = {
     progressId: progressId!,
     status,
     steps,
+    farthestReachedStepIndex: persistedFarthest,
     submittedAt: existing?.submitted_at != null ? String(existing.submitted_at) : null,
     submittedWithIncompleteSteps: Boolean(existing?.submitted_with_incomplete_steps),
     incompleteStepKeys: Array.isArray(existing?.incomplete_step_keys)
       ? (existing.incomplete_step_keys as string[])
       : [],
+  };
+
+  const farthestReachedStepIndex = await backfillFarthestReachedStepIndex(
+    supabase,
+    progressId!,
+    config,
+    payloadWithoutFarthest
+  );
+
+  return {
+    ...payloadWithoutFarthest,
+    farthestReachedStepIndex,
   };
 }

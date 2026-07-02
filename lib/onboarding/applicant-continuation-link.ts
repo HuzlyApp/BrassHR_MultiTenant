@@ -1,6 +1,8 @@
 import { createHash, randomBytes } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { ensureWorkerOnboardingProgress } from "@/lib/onboarding/ensure-worker-progress";
+import { resolveApplicantNavBoundaries } from "@/lib/onboarding/farthest-reached-step";
+import { computeMaxAllowedStepIndexFromProgress } from "@/lib/onboarding/compute-max-allowed-from-progress";
 import { loadTenantOnboardingConfig } from "@/lib/onboarding/load-tenant-config";
 import { routeForOnboardingStep } from "@/lib/onboarding/step-routes";
 import { getEnabledTenantSteps } from "@/lib/onboarding/tenant-step-navigation";
@@ -73,13 +75,24 @@ export async function resolveApplicantContinuationTarget(
   const enabled = getEnabledTenantSteps(config);
   const progress = await ensureWorkerOnboardingProgress(supabase, params.workerId, params.tenantId);
   const byStep = new Map(progress.steps.map((step) => [step.onboarding_step_id, step]));
+  const naturalFrontier = computeMaxAllowedStepIndexFromProgress(enabled, progress);
+  const { farthestReachedIndex } = resolveApplicantNavBoundaries(
+    enabled,
+    progress,
+    naturalFrontier
+  );
 
   const target =
-    enabled.find((step) => {
+    enabled.find((step, index) => {
       const status = byStep.get(step.id)?.status ?? "pending";
-      return status !== "completed" && status !== "skipped";
+      return index + 1 <= farthestReachedIndex && status !== "completed" && status !== "skipped";
     }) ??
-    enabled.find((step) => step.step_key === "review_submit" || step.step_type === "review_submit") ??
+    enabled.find(
+      (step, index) =>
+        index + 1 <= farthestReachedIndex &&
+        (step.step_key === "review_submit" || step.step_type === "review_submit")
+    ) ??
+    enabled[Math.min(Math.max(farthestReachedIndex, 1), enabled.length) - 1] ??
     enabled[0] ??
     null;
 

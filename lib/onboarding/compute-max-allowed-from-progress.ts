@@ -4,7 +4,7 @@ import type {
   WorkerOnboardingProgressPayload,
 } from "@/lib/onboarding/types";
 
-function buildProgressStatusMaps(
+export function buildProgressStatusMaps(
   enabledSteps: TenantOnboardingStep[],
   progress: WorkerOnboardingProgressPayload | null
 ): Map<string, string> {

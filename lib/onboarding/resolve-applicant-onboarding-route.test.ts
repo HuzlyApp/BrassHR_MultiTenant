@@ -293,6 +293,7 @@ describe("resolveApplicantOnboardingRoute", () => {
     const authStep = enabled.find((s) => s.step_key === "agreement_signature")!;
     const referencesStep = enabled.find((s) => s.step_key === "references")!;
     const summaryStep = enabled.find((s) => s.step_key === "review_submit")!;
+    const summaryIndex = enabled.findIndex((s) => s.id === summaryStep.id) + 1;
 
     const decision = resolveApplicantOnboardingRoute({
       isLoadingSession: false,
@@ -304,6 +305,7 @@ describe("resolveApplicantOnboardingRoute", () => {
       progress: {
         progressId: "p1",
         status: "in_progress",
+        farthestReachedStepIndex: summaryIndex,
         steps: [
           { onboarding_step_id: resumeStep.id, status: "completed", completed_at: "2026-01-01", data: {} },
           { onboarding_step_id: licenseStep.id, status: "completed", completed_at: "2026-01-01", data: {} },
@@ -311,6 +313,7 @@ describe("resolveApplicantOnboardingRoute", () => {
           { onboarding_step_id: backgroundStep.id, status: "completed", completed_at: "2026-01-01", data: {} },
           { onboarding_step_id: authStep.id, status: "completed", completed_at: "2026-01-01", data: {} },
           { onboarding_step_id: referencesStep.id, status: "completed", completed_at: "2026-01-01", data: {} },
+          { onboarding_step_id: summaryStep.id, status: "in_progress", completed_at: null, data: {} },
         ],
       },
       pathname: APPLICATION_ROUTES.applicationSummary,
@@ -320,7 +323,7 @@ describe("resolveApplicantOnboardingRoute", () => {
     expect(decision).toEqual({ status: "allow" });
   });
 
-  it("allows application summary when references are still pending", () => {
+  it("allows application summary when references are still pending but summary was reached before", () => {
     const config = zipstaffConfigWithReferences();
     const enabled = resolveApplicantOnboardingSteps(config);
     const resumeStep = enabled.find((s) => s.step_key === "resume_upload")!;
@@ -329,6 +332,45 @@ describe("resolveApplicantOnboardingRoute", () => {
     const backgroundStep = enabled.find((s) => s.step_key === "authorization_background_check")!;
     const authStep = enabled.find((s) => s.step_key === "agreement_signature")!;
     const referencesStep = enabled.find((s) => s.step_key === "references")!;
+    const summaryStep = enabled.find((s) => s.step_key === "review_submit")!;
+    const summaryIndex = enabled.findIndex((s) => s.id === summaryStep.id) + 1;
+
+    const decision = resolveApplicantOnboardingRoute({
+      isLoadingSession: false,
+      isLoadingTenant: false,
+      isLoadingConfig: false,
+      isLoadingProgress: false,
+      tenantSlug: "zipstaff",
+      config,
+      progress: {
+        progressId: "p1",
+        status: "in_progress",
+        farthestReachedStepIndex: summaryIndex,
+        steps: [
+          { onboarding_step_id: resumeStep.id, status: "completed", completed_at: "2026-01-01", data: {} },
+          { onboarding_step_id: licenseStep.id, status: "completed", completed_at: "2026-01-01", data: {} },
+          { onboarding_step_id: skillStep.id, status: "skipped", completed_at: "2026-01-01", data: {} },
+          { onboarding_step_id: backgroundStep.id, status: "completed", completed_at: "2026-01-01", data: {} },
+          { onboarding_step_id: authStep.id, status: "completed", completed_at: "2026-01-01", data: {} },
+          { onboarding_step_id: summaryStep.id, status: "in_progress", completed_at: null, data: {} },
+        ],
+      },
+      pathname: APPLICATION_ROUTES.applicationSummary,
+      search: `?stepKey=${encodeURIComponent(summaryStep.step_key)}&tenant=zipstaff`,
+    });
+
+    expect(decision).toEqual({ status: "allow" });
+    expect(referencesStep.is_required).toBe(true);
+  });
+
+  it("redirects first-time applicants away from summary before they reach it", () => {
+    const config = zipstaffConfigWithReferences();
+    const enabled = resolveApplicantOnboardingSteps(config);
+    const resumeStep = enabled.find((s) => s.step_key === "resume_upload")!;
+    const licenseStep = enabled.find((s) => s.step_key === "professional_license")!;
+    const skillStep = enabled.find((s) => s.step_key === "skill_assessment")!;
+    const backgroundStep = enabled.find((s) => s.step_key === "authorization_background_check")!;
+    const authStep = enabled.find((s) => s.step_key === "agreement_signature")!;
     const summaryStep = enabled.find((s) => s.step_key === "review_submit")!;
 
     const decision = resolveApplicantOnboardingRoute({
@@ -341,6 +383,7 @@ describe("resolveApplicantOnboardingRoute", () => {
       progress: {
         progressId: "p1",
         status: "in_progress",
+        farthestReachedStepIndex: 1,
         steps: [
           { onboarding_step_id: resumeStep.id, status: "completed", completed_at: "2026-01-01", data: {} },
           { onboarding_step_id: licenseStep.id, status: "completed", completed_at: "2026-01-01", data: {} },
@@ -353,8 +396,42 @@ describe("resolveApplicantOnboardingRoute", () => {
       search: `?stepKey=${encodeURIComponent(summaryStep.step_key)}&tenant=zipstaff`,
     });
 
+    expect(decision.status).toBe("redirect");
+    if (decision.status === "redirect") {
+      expect(decision.href).not.toContain("application-summary");
+    }
+  });
+
+  it("allows returning applicants to navigate back to earlier reached steps", () => {
+    const config = legacyZipstaffConfig();
+    const enabled = resolveApplicantOnboardingSteps(config);
+    const resumeStep = enabled[0]!;
+    const licenseStep = enabled[1]!;
+    const summaryStep = enabled.find((s) => s.step_key === "review_submit")!;
+    const summaryIndex = enabled.findIndex((s) => s.id === summaryStep!.id) + 1;
+
+    const decision = resolveApplicantOnboardingRoute({
+      isLoadingSession: false,
+      isLoadingTenant: false,
+      isLoadingConfig: false,
+      isLoadingProgress: false,
+      tenantSlug: "zipstaff",
+      config,
+      progress: {
+        progressId: "p1",
+        status: "in_progress",
+        farthestReachedStepIndex: summaryIndex,
+        steps: [
+          { onboarding_step_id: resumeStep.id, status: "completed", completed_at: "2026-01-01", data: {} },
+          { onboarding_step_id: licenseStep.id, status: "pending", completed_at: null, data: {} },
+          { onboarding_step_id: summaryStep!.id, status: "in_progress", completed_at: null, data: {} },
+        ],
+      },
+      pathname: APPLICATION_ROUTES.professionalLicense,
+      search: "?tenant=zipstaff",
+    });
+
     expect(decision).toEqual({ status: "allow" });
-    expect(referencesStep.is_required).toBe(true);
   });
 
   it("allows application summary when optional references were skipped", () => {
@@ -371,6 +448,7 @@ describe("resolveApplicantOnboardingRoute", () => {
     const authStep = enabled.find((s) => s.step_key === "agreement_signature")!;
     const referencesStep = enabled.find((s) => s.step_key === "references")!;
     const summaryStep = enabled.find((s) => s.step_key === "review_submit")!;
+    const summaryIndex = enabled.findIndex((s) => s.id === summaryStep.id) + 1;
 
     const decision = resolveApplicantOnboardingRoute({
       isLoadingSession: false,
@@ -382,6 +460,7 @@ describe("resolveApplicantOnboardingRoute", () => {
       progress: {
         progressId: "p1",
         status: "in_progress",
+        farthestReachedStepIndex: summaryIndex,
         steps: [
           { onboarding_step_id: resumeStep.id, status: "completed", completed_at: "2026-01-01", data: {} },
           { onboarding_step_id: licenseStep.id, status: "completed", completed_at: "2026-01-01", data: {} },

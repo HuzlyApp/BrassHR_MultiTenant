@@ -12,6 +12,8 @@ import { notifyHrOnOnboardingStepFailure } from "@/lib/onboarding/notify-hr-on-s
 import { shouldPauseFlowOnStepFailure } from "@/lib/onboarding/workflow-settings";
 import { isUploadResumeStep } from "@/lib/onboarding/enforce-upload-resume-first";
 import { isValidStep1Email } from "@/lib/onboardingStep1Validation";
+import { getEnabledTenantSteps } from "@/lib/onboarding/tenant-step-navigation";
+import { persistFarthestReachedStepIndex } from "@/lib/onboarding/persist-farthest-reached-step";
 import type { OnboardingStepStatus } from "@/lib/onboarding/types";
 
 export const runtime = "nodejs";
@@ -197,6 +199,18 @@ export async function POST(req: NextRequest) {
       .eq("onboarding_step_id", stepId);
 
     if (upErr) throw upErr;
+
+    if (config) {
+      const enabledSteps = getEnabledTenantSteps(config);
+      await persistFarthestReachedStepIndex(
+        supabase,
+        payload.progressId,
+        enabledSteps,
+        stepId,
+        status,
+        payload.farthestReachedStepIndex ?? 1
+      );
+    }
 
     const progress = await ensureWorkerOnboardingProgress(supabase, ctx.workerId, ctx.tenantId);
     return NextResponse.json({ progress });

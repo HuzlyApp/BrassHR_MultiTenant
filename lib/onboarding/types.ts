@@ -82,6 +82,8 @@ export type WorkerOnboardingProgressPayload = {
   progressId: string;
   status: string;
   steps: StepProgressRow[];
+  /** Highest 1-based step index the applicant has reached in this flow. */
+  farthestReachedStepIndex?: number;
   submittedAt?: string | null;
   submittedWithIncompleteSteps?: boolean;
   incompleteStepKeys?: string[];

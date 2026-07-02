@@ -97,7 +97,7 @@ vi.mock("@/lib/supabase/service-role", () => ({
   })),
 }));
 
-async function completeTenant() {
+async function completeTenant(body: Record<string, unknown> = {}) {
   const { POST } = await import("@/app/api/tenant-onboarding/complete/route");
   return POST(
     new Request("http://localhost/api/tenant-onboarding/complete", {
@@ -115,6 +115,7 @@ async function completeTenant() {
         phone: "2135550198",
         email: authState.email,
         zipCode: "90012",
+        ...body,
       }),
     })
   );
@@ -177,5 +178,26 @@ describe("tenant-onboarding complete route", () => {
     expect(body.ok).toBe(true);
     expect(body.firmaProvisioning.status).toBe("failed");
     expect(body.firmaProvisioning.workspaceId).toBeNull();
+  });
+
+  it("creates tenant when business info was skipped", async () => {
+    const response = await completeTenant({
+      organizationName: "",
+      businessInfoSkipped: true,
+      industry: "",
+      companySize: "",
+      state: "",
+      city: "",
+      address: "",
+      phone: "",
+      email: "",
+      zipCode: "",
+      ein: "",
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.ok).toBe(true);
+    expect(insertPayload.current?.name).toBe("Workspacetesty");
   });
 });

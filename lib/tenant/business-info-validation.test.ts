@@ -3,6 +3,7 @@ import { zipPrefixBelongsToState } from "@/lib/us-zip-by-state";
 import {
   isBusinessInfoValid,
   normalizeBusinessInfoBody,
+  resolveTenantDisplayName,
   validateBusinessInfoForm,
 } from "@/lib/tenant/business-info-validation";
 
@@ -69,12 +70,62 @@ describe("validateBusinessInfoForm", () => {
     );
     expect(errors.ein).toMatch(/required/i);
   });
+
+  it("allows empty business fields when requireAllFields is false", () => {
+    expect(
+      isBusinessInfoValid(
+        {
+          companyName: "",
+          industry: "",
+          companySize: "",
+          state: "",
+          city: "",
+          address: "",
+          phone: "",
+          email: "",
+          zipCode: "",
+          ein: "",
+        },
+        { requireAllFields: false, requireEin: false }
+      )
+    ).toBe(true);
+  });
+
+  it("still validates provided values when requireAllFields is false", () => {
+    const errors = validateBusinessInfoForm(
+      {
+        companyName: "12345",
+        industry: "",
+        companySize: "",
+        state: "",
+        city: "",
+        address: "",
+        phone: "",
+        email: "",
+        zipCode: "",
+        ein: "",
+      },
+      { requireAllFields: false, requireEin: false }
+    );
+    expect(errors.companyName).toBeTruthy();
+  });
 });
 
 describe("zipPrefixBelongsToState", () => {
   it("matches California ZIP prefixes", () => {
     expect(zipPrefixBelongsToState("90012", "CA")).toBe(true);
     expect(zipPrefixBelongsToState("10001", "CA")).toBe(false);
+  });
+});
+
+describe("resolveTenantDisplayName", () => {
+  it("falls back to subdomain when organization name is blank", () => {
+    expect(
+      resolveTenantDisplayName({
+        organizationName: "",
+        subdomain: "acme-staffing",
+      })
+    ).toBe("Acme Staffing");
   });
 });
 

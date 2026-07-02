@@ -32,7 +32,13 @@ export type BusinessInfoValidationContext = {
   allowedStateNames?: string[];
   /** Tenant onboarding requires a valid EIN; admin profile may leave it blank. */
   requireEin?: boolean;
+  /** When false, empty fields are allowed (tenant onboarding business step skipped). */
+  requireAllFields?: boolean;
 };
+
+function fieldProvided(value: string): boolean {
+  return value.trim().length > 0;
+}
 
 const EMAIL_RE =
   /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/;
@@ -84,27 +90,67 @@ export function isValidBusinessCompanyName(name: string): boolean {
   return true;
 }
 
-export function companyNameValidationMessage(name: string): string | null {
+export function companyNameValidationMessage(
+  name: string,
+  options?: { required?: boolean }
+): string | null {
   const trimmed = name.trim();
-  if (!trimmed) return "Company name is required.";
+  const required = options?.required !== false;
+  if (!trimmed) return required ? "Company name is required." : null;
   if (!isValidBusinessCompanyName(name)) {
     return "Enter a valid business name (must include letters, not only numbers or symbols).";
   }
   return null;
 }
 
-export function industryValidationMessage(industry: string): string | null {
+/** Tenant display name when business info was skipped or company name left blank. */
+export function resolveTenantDisplayName(params: {
+  organizationName?: string;
+  subdomain?: string;
+  adminEmail?: string;
+}): string {
+  const org = params.organizationName?.trim() ?? "";
+  if (org && isValidBusinessCompanyName(org)) return org;
+
+  const sub = params.subdomain?.trim();
+  if (sub) {
+    return sub
+      .split("-")
+      .filter(Boolean)
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(" ");
+  }
+
+  const localPart = params.adminEmail?.trim().split("@")[0]?.trim();
+  if (localPart) {
+    return localPart
+      .replace(/[._-]+/g, " ")
+      .replace(/\b\w/g, (char) => char.toUpperCase());
+  }
+
+  return "My Organization";
+}
+
+export function industryValidationMessage(
+  industry: string,
+  options?: { required?: boolean }
+): string | null {
   const value = industry.trim();
-  if (!value) return "Industry is required.";
+  const required = options?.required !== false;
+  if (!value) return required ? "Industry is required." : null;
   if (!(INDUSTRY_OPTIONS as readonly string[]).includes(value)) {
     return "Select a valid industry.";
   }
   return null;
 }
 
-export function companySizeValidationMessage(companySize: string): string | null {
+export function companySizeValidationMessage(
+  companySize: string,
+  options?: { required?: boolean }
+): string | null {
   const value = companySize.trim();
-  if (!value) return "Number of employees is required.";
+  const required = options?.required !== false;
+  if (!value) return required ? "Number of employees is required." : null;
   if (!(COMPANY_SIZE_OPTIONS as readonly string[]).includes(value)) {
     return "Select a valid employee range.";
   }
@@ -116,7 +162,8 @@ export function stateValidationMessage(
   context?: BusinessInfoValidationContext
 ): string | null {
   const value = state.trim();
-  if (!value) return "State is required.";
+  const required = context?.requireAllFields !== false;
+  if (!value) return required ? "State is required." : null;
   if (context?.allowedStateNames?.length && !context.allowedStateNames.includes(value)) {
     return "Select a valid state.";
   }
@@ -128,7 +175,8 @@ export function cityValidationMessage(
   context?: BusinessInfoValidationContext
 ): string | null {
   const value = city.trim();
-  if (!value) return "City is required.";
+  const required = context?.requireAllFields !== false;
+  if (!value) return required ? "City is required." : null;
   if (context?.allowedCityNames?.length && !context.allowedCityNames.includes(value)) {
     return "Select a valid city for the selected state.";
   }
@@ -138,9 +186,13 @@ export function cityValidationMessage(
   return null;
 }
 
-export function addressValidationMessage(address: string): string | null {
+export function addressValidationMessage(
+  address: string,
+  options?: { required?: boolean }
+): string | null {
   const trimmed = address.trim();
-  if (!trimmed) return "Business address is required.";
+  const required = options?.required !== false;
+  if (!trimmed) return required ? "Business address is required." : null;
   if (trimmed.length < 5) return "Enter a complete street address.";
   if (!/\d/.test(trimmed)) return "Enter a valid street address with a street number.";
   if (!/[a-zA-Z]{2,}/.test(trimmed)) return "Enter a valid street address.";
@@ -150,9 +202,13 @@ export function addressValidationMessage(address: string): string | null {
   return null;
 }
 
-export function phoneValidationMessage(phone: string): string | null {
+export function phoneValidationMessage(
+  phone: string,
+  options?: { required?: boolean }
+): string | null {
   const trimmed = phone.trim();
-  if (!trimmed) return "Business phone is required.";
+  const required = options?.required !== false;
+  if (!trimmed) return required ? "Business phone is required." : null;
   if (/[a-zA-Z]/.test(trimmed)) return "Phone number cannot contain letters.";
   const digits = normalizeBusinessPhoneDigits(trimmed);
   if (digits.length !== 10) {
@@ -167,9 +223,13 @@ export function phoneValidationMessage(phone: string): string | null {
   return null;
 }
 
-export function emailValidationMessage(email: string): string | null {
+export function emailValidationMessage(
+  email: string,
+  options?: { required?: boolean }
+): string | null {
   const trimmed = email.trim();
-  if (!trimmed) return "Business email address is required.";
+  const required = options?.required !== false;
+  if (!trimmed) return required ? "Business email address is required." : null;
   if (!trimmed.includes("@")) return "Enter a valid email address (e.g. name@company.com).";
   const parts = trimmed.split("@");
   if (parts.length !== 2 || !parts[0] || !parts[1]) {
@@ -187,13 +247,18 @@ export function emailValidationMessage(email: string): string | null {
 
 export function zipCodeValidationMessage(
   zipCode: string,
-  context?: BusinessInfoValidationContext
+  context?: BusinessInfoValidationContext,
+  inputState?: string
 ): string | null {
   const digits = normalizeBusinessZipInput(zipCode);
-  if (!digits) return "ZIP code is required.";
+  const required = context?.requireAllFields !== false;
+  if (!digits) return required ? "ZIP code is required." : null;
   if (digits.length < 5) return "Enter a valid 5-digit ZIP code.";
   if (!context?.stateCode) {
-    return "Select a state before entering a ZIP code.";
+    if (fieldProvided(inputState ?? "") || required) {
+      return "Select a state before entering a ZIP code.";
+    }
+    return null;
   }
   if (!zipPrefixBelongsToState(digits, context.stateCode)) {
     const stateLabel = context.stateName?.trim() || "the selected state";
@@ -226,14 +291,21 @@ export function validateBusinessInfoForm(
   context?: BusinessInfoValidationContext
 ): BusinessInfoFieldErrors {
   const errors: BusinessInfoFieldErrors = {};
+  const requireAll = context?.requireAllFields !== false;
 
-  const companyNameError = companyNameValidationMessage(input.companyName);
+  const companyNameError = companyNameValidationMessage(input.companyName, {
+    required: requireAll,
+  });
   if (companyNameError) errors.companyName = companyNameError;
 
-  const industryError = industryValidationMessage(input.industry);
+  const industryError = industryValidationMessage(input.industry, {
+    required: requireAll,
+  });
   if (industryError) errors.industry = industryError;
 
-  const companySizeError = companySizeValidationMessage(input.companySize);
+  const companySizeError = companySizeValidationMessage(input.companySize, {
+    required: requireAll,
+  });
   if (companySizeError) errors.companySize = companySizeError;
 
   const stateError = stateValidationMessage(input.state, context);
@@ -242,19 +314,27 @@ export function validateBusinessInfoForm(
   const cityError = cityValidationMessage(input.city, context);
   if (cityError) errors.city = cityError;
 
-  const addressError = addressValidationMessage(input.address);
+  const addressError = addressValidationMessage(input.address, {
+    required: requireAll,
+  });
   if (addressError) errors.address = addressError;
 
-  const phoneError = phoneValidationMessage(input.phone);
+  const phoneError = phoneValidationMessage(input.phone, {
+    required: requireAll,
+  });
   if (phoneError) errors.phone = phoneError;
 
-  const emailError = emailValidationMessage(input.email);
+  const emailError = emailValidationMessage(input.email, {
+    required: requireAll,
+  });
   if (emailError) errors.email = emailError;
 
-  const zipError = zipCodeValidationMessage(input.zipCode, context);
+  const zipError = zipCodeValidationMessage(input.zipCode, context, input.state);
   if (zipError) errors.zipCode = zipError;
 
-  const einError = einValidationMessage(input.ein, { required: context?.requireEin });
+  const einError = einValidationMessage(input.ein, {
+    required: requireAll && context?.requireEin === true,
+  });
   if (einError) errors.ein = einError;
 
   return errors;

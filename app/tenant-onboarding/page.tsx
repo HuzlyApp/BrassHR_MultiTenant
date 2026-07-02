@@ -50,7 +50,7 @@ export default function TenantOnboardingPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const [selectedGoals, setSelectedGoals] = useState<TenantGoalId[]>([]);
+  const [businessInfoSkipped, setBusinessInfoSkipped] = useState(false);
   const [businessInfo, setBusinessInfo] = useState(initialBusinessInfoForm);
   const [orgName, setOrgName] = useState("");
   const [subdomain, setSubdomain] = useState("");
@@ -181,6 +181,9 @@ export default function TenantOnboardingPage() {
   };
 
   const handleSkip = () => {
+    if (step === "business") {
+      setBusinessInfoSkipped(true);
+    }
     const nextStep: Partial<Record<Step, Step>> = {
       goals: "business",
       business: "company_logo",
@@ -229,6 +232,7 @@ export default function TenantOnboardingPage() {
           email: businessInfo.email,
           zipCode: businessInfo.zipCode,
           ein: businessInfo.ein,
+          businessInfoSkipped,
         }),
       });
 
@@ -315,7 +319,10 @@ export default function TenantOnboardingPage() {
           businessInfo={businessInfo}
           onOrgNameChange={setOrgName}
           onBusinessInfoChange={(patch) => setBusinessInfo((prev) => ({ ...prev, ...patch }))}
-          onContinue={() => setStep("company_logo")}
+          onContinue={() => {
+            setBusinessInfoSkipped(false);
+            setStep("company_logo");
+          }}
           onBack={() => setStep("goals")}
           onSkip={handleSkip}
         />
