@@ -4,7 +4,7 @@ import { Suspense, useEffect, useState } from "react";
 import { TenantBrandingProvider } from "@/app/components/tenant/TenantBrandingContext";
 import OnboardingConfigProvider from "@/app/components/onboarding/OnboardingConfigProvider";
 import type { TenantBranding } from "@/lib/tenant/tenant-branding";
-import { brandingFallbackForSlug } from "@/lib/tenant/tenant-branding";
+import { brandingFallbackForSlug, isTenantApplicantPortalSlug } from "@/lib/tenant/tenant-branding";
 import { DRAFT_PREVIEW_APPLICANT_ID, isOnboardingDraftPreview } from "@/lib/onboarding/is-draft-preview";
 import { persistOnboardingSlugCookie } from "@/lib/tenant/client-onboarding-slug";
 import {
@@ -35,6 +35,7 @@ function readApplicantIdOrPreview(): string {
 export default function ApplicationOnboardingBootstrap({ children }: { children: React.ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const [brand, setBrand] = useState<TenantBranding>(() => brandingFallbackForSlug(null));
+  const [brandingReady, setBrandingReady] = useState(false);
   const [sessionReady, setSessionReady] = useState(false);
   const [sessionLoading, setSessionLoading] = useState(true);
 
@@ -47,10 +48,12 @@ export default function ApplicationOnboardingBootstrap({ children }: { children:
           path: window.location.pathname,
         });
         const slug = resolved.slug;
+        const tenantPortal = isTenantApplicantPortalSlug(slug);
         if (slug) persistOnboardingSlugCookie(slug);
 
-        if (alive) {
+        if (alive && !tenantPortal) {
           setBrand(brandingFallbackForSlug(slug));
+          setBrandingReady(true);
         }
 
         const brandingUrl = buildTenantBrandingApiUrl(resolved);
@@ -69,6 +72,7 @@ export default function ApplicationOnboardingBootstrap({ children }: { children:
 
         const skipApplicantAuth =
           window.location.pathname.startsWith("/application/applicant-dashboard") ||
+          window.location.pathname.startsWith("/application/home") ||
           isOnboardingDraftPreview(window.location.search);
 
         if (skipApplicantAuth && isOnboardingDraftPreview(window.location.search)) {
@@ -98,7 +102,10 @@ export default function ApplicationOnboardingBootstrap({ children }: { children:
         if (alive)
           setError(e instanceof Error ? e.message : "Could not start applicant session.");
       } finally {
-        if (alive) setSessionLoading(false);
+        if (alive) {
+          setSessionLoading(false);
+          setBrandingReady(true);
+        }
       }
     })();
 
@@ -120,6 +127,10 @@ export default function ApplicationOnboardingBootstrap({ children }: { children:
         </div>
       </TenantBrandingProvider>
     );
+  }
+
+  if (!brandingReady) {
+    return <div className="min-h-screen bg-white" aria-hidden="true" />;
   }
 
   return (

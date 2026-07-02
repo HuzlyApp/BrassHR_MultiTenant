@@ -18,6 +18,7 @@ import {
 } from "@/app/application/components/applicant-portal/worker-sidebar-config";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import { applicationPath } from "@/lib/tenant/with-tenant";
+import { withTenant } from "@/lib/tenant/with-tenant";
 import { isRemoteOrBlobImageSrc, normalizeBrandingImageSrc } from "@/lib/tenant/tenant-branding";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import { useApplicantPortal } from "./ApplicantPortalProvider";
@@ -426,7 +427,8 @@ export function ApplicantPortalSidebar({
             type="button"
             onClick={async () => {
               await supabaseBrowser.auth.signOut();
-              router.replace("/");
+              const loginHref = withTenant("/worker-signin", tenantQuery ?? branding.slug);
+              router.replace(loginHref);
             }}
             title="Sign out"
             className={`rounded-md p-1 hover:bg-white/80 ${isCollapsed ? "" : "ml-auto"}`}

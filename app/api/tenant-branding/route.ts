@@ -10,86 +10,75 @@ import {
   getEffectiveRootDomain,
   isRootDomainHost,
 } from "@/lib/tenant/tenant-host-resolution";
-import { buildCacheKey, CACHE_TTL_SECONDS, getOrSetCache } from "@/lib/cache";
 import { createPerfTimer, logPerf } from "@/lib/perf";
 
 async function loadTenantBrandingRow(
   supabase: SupabaseClient,
   lookup: { kind: "slug" | "tenantId" | "subdomain" | "default"; value: string },
 ): Promise<{ row: TenantBrandingRow | null; resolvedSlug: string | null }> {
-  const cacheKey = buildCacheKey("tenant_branding", [lookup.kind, lookup.value], {
-    fields: TENANT_BRANDING_SELECT,
-  });
+  if (lookup.kind === "subdomain") {
+    const label = lookup.value;
+    const { data: bySub, error: subErr } = await supabase
+      .from("tenants")
+      .select(TENANT_BRANDING_SELECT)
+      .eq("subdomain", label)
+      .eq("is_active", true)
+      .maybeSingle<TenantBrandingRow>();
+    if (subErr) throw subErr;
+    if (bySub) return { row: bySub, resolvedSlug: bySub.slug };
 
-  return getOrSetCache(
-    cacheKey,
-    async () => {
-      if (lookup.kind === "subdomain") {
-        const label = lookup.value;
-        const { data: bySub, error: subErr } = await supabase
-          .from("tenants")
-          .select(TENANT_BRANDING_SELECT)
-          .eq("subdomain", label)
-          .eq("is_active", true)
-          .maybeSingle<TenantBrandingRow>();
-        if (subErr) throw subErr;
-        if (bySub) return { row: bySub, resolvedSlug: bySub.slug };
+    const { data: bySlug, error: slugErr } = await supabase
+      .from("tenants")
+      .select(TENANT_BRANDING_SELECT)
+      .eq("slug", label)
+      .eq("is_active", true)
+      .maybeSingle<TenantBrandingRow>();
+    if (slugErr) throw slugErr;
+    return { row: bySlug ?? null, resolvedSlug: bySlug?.slug ?? label };
+  }
 
-        const { data: bySlug, error: slugErr } = await supabase
-          .from("tenants")
-          .select(TENANT_BRANDING_SELECT)
-          .eq("slug", label)
-          .eq("is_active", true)
-          .maybeSingle<TenantBrandingRow>();
-        if (slugErr) throw slugErr;
-        return { row: bySlug ?? null, resolvedSlug: bySlug?.slug ?? label };
-      }
+  if (lookup.kind === "slug") {
+    const { data, error } = await supabase
+      .from("tenants")
+      .select(TENANT_BRANDING_SELECT)
+      .eq("slug", lookup.value)
+      .eq("is_active", true)
+      .maybeSingle<TenantBrandingRow>();
+    if (error) throw error;
+    return { row: data ?? null, resolvedSlug: lookup.value };
+  }
 
-      if (lookup.kind === "slug") {
-        const { data, error } = await supabase
-          .from("tenants")
-          .select(TENANT_BRANDING_SELECT)
-          .eq("slug", lookup.value)
-          .eq("is_active", true)
-          .maybeSingle<TenantBrandingRow>();
-        if (error) throw error;
-        return { row: data ?? null, resolvedSlug: lookup.value };
-      }
+  if (lookup.kind === "tenantId") {
+    const { data, error } = await supabase
+      .from("tenants")
+      .select(TENANT_BRANDING_SELECT)
+      .eq("id", lookup.value)
+      .eq("is_active", true)
+      .maybeSingle<TenantBrandingRow>();
+    if (error) throw error;
+    return { row: data ?? null, resolvedSlug: data?.slug ?? null };
+  }
 
-      if (lookup.kind === "tenantId") {
-        const { data, error } = await supabase
-          .from("tenants")
-          .select(TENANT_BRANDING_SELECT)
-          .eq("id", lookup.value)
-          .eq("is_active", true)
-          .maybeSingle<TenantBrandingRow>();
-        if (error) throw error;
-        return { row: data ?? null, resolvedSlug: data?.slug ?? null };
-      }
-
-      const { data: platformDefault, error: platformErr } = await supabase
-        .from("tenants")
-        .select(TENANT_BRANDING_SELECT)
-        .eq("slug", PLATFORM_DEFAULT_TENANT_SLUG)
-        .eq("is_active", true)
-        .maybeSingle<TenantBrandingRow>();
-      if (platformErr) throw platformErr;
-      let row = platformDefault ?? null;
-      const configured = getConfiguredDefaultTenantId();
-      if (!row && configured) {
-        const { data, error } = await supabase
-          .from("tenants")
-          .select(TENANT_BRANDING_SELECT)
-          .eq("id", configured)
-          .eq("is_active", true)
-          .maybeSingle<TenantBrandingRow>();
-        if (error) throw error;
-        row = data ?? null;
-      }
-      return { row, resolvedSlug: row?.slug ?? PLATFORM_DEFAULT_TENANT_SLUG };
-    },
-    CACHE_TTL_SECONDS.tenantConfig,
-  );
+  const { data: platformDefault, error: platformErr } = await supabase
+    .from("tenants")
+    .select(TENANT_BRANDING_SELECT)
+    .eq("slug", PLATFORM_DEFAULT_TENANT_SLUG)
+    .eq("is_active", true)
+    .maybeSingle<TenantBrandingRow>();
+  if (platformErr) throw platformErr;
+  let row = platformDefault ?? null;
+  const configured = getConfiguredDefaultTenantId();
+  if (!row && configured) {
+    const { data, error } = await supabase
+      .from("tenants")
+      .select(TENANT_BRANDING_SELECT)
+      .eq("id", configured)
+      .eq("is_active", true)
+      .maybeSingle<TenantBrandingRow>();
+    if (error) throw error;
+    row = data ?? null;
+  }
+  return { row, resolvedSlug: row?.slug ?? PLATFORM_DEFAULT_TENANT_SLUG };
 }
 
 export async function GET(req: Request) {

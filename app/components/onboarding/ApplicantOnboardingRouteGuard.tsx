@@ -27,7 +27,9 @@ function OnboardingRouteGuardInner({ children }: { children: React.ReactNode }) 
   }, [searchParams]);
 
   const isDraftPreview = searchParams.get("preview") === "draft";
-  const isApplicantDashboard = pathname.startsWith("/application/applicant-dashboard");
+  const isApplicantDashboard =
+    pathname.startsWith("/application/applicant-dashboard") ||
+    pathname.startsWith("/application/home");
 
   const decision = useMemo(() => {
     if (isApplicantDashboard || !onboarding) {
