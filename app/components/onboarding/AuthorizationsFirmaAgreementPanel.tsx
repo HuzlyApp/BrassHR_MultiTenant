@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { FileText } from "lucide-react";
+import { FileText, X } from "lucide-react";
 import { FirmaSigningIframe } from "@/app/components/onboarding/FirmaSigningIframe";
 import {
   isFirmaSigningComplete,
@@ -294,24 +294,18 @@ export function AuthorizationsFirmaAgreementPanel({
       {error ? <p className="mt-3 text-sm text-rose-600">{error}</p> : null}
 
       {showSigningModal && iframeUrl ? (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
-          <div className="relative w-full max-w-6xl h-[90vh] sm:h-[95vh] bg-white rounded-xl overflow-hidden shadow-2xl flex flex-col">
-            <div className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3 sm:px-6 sm:py-4 flex-shrink-0">
-              <div>
-                <p className="text-sm sm:text-base font-semibold text-slate-900">Sign Agreement</p>
-                <p className="text-xs text-slate-500 mt-0.5">Complete signing in Firma</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowSigningModal(false)}
-                className="inline-flex items-center justify-center h-9 w-9 rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-100 transition flex-shrink-0"
-                aria-label="Close signing modal"
-              >
-                ×
-              </button>
-            </div>
-            <div className="flex-1 overflow-hidden bg-slate-50 p-2">
-              <FirmaSigningIframe iframeUrl={iframeUrl} title="Sign Agreement" />
+        <div className="fixed inset-0 z-50 flex bg-black/50 p-0">
+          <div className="relative flex h-[100dvh] w-full max-w-none flex-col overflow-hidden bg-slate-50 shadow-2xl sm:mx-auto sm:max-w-6xl sm:rounded-xl">
+            <button
+              type="button"
+              onClick={() => setShowSigningModal(false)}
+              className="absolute right-3 top-3 z-10 inline-flex h-10 w-10 items-center justify-center rounded-full bg-black text-white shadow-md transition hover:opacity-90"
+              aria-label="Close signing modal"
+            >
+              <X className="h-5 w-5" strokeWidth={2.5} aria-hidden />
+            </button>
+            <div className="min-h-0 flex-1 overflow-hidden">
+              <FirmaSigningIframe iframeUrl={iframeUrl} title="Sign Agreement" variant="modal" />
             </div>
           </div>
         </div>
