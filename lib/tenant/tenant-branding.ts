@@ -84,11 +84,9 @@ export function brandingAuthButtonStyle(enabled: boolean): Record<string, string
   };
 }
 
-/** Braas Figma login UI; other tenants use classic OnboardingLayout login. */
-export function usesBraasFigmaLoginUi(tenantQuery: string | null | undefined): boolean {
-  const key = tenantQuery?.trim().toLowerCase();
-  if (!key || key.length < 2) return true;
-  return key === PLATFORM_DEFAULT_TENANT_SLUG;
+/** Braas Figma split login UI for all tenants (company branding from API / subdomain). */
+export function usesBraasFigmaLoginUi(_tenantQuery?: string | null): boolean {
+  return true;
 }
 
 /** CTA on marketing / welcome landings for tenant-owned applicant portals. */

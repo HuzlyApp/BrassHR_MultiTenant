@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, X } from "lucide-react";
+import { X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type ClipboardEvent, type FormEvent, type KeyboardEvent } from "react";
 import { loginInputErrorClass } from "@/app/login/LoginFormError";
 import type { LoginAuthErrorPayload } from "@/lib/auth/login-api-errors";
@@ -158,17 +158,12 @@ export default function LoginOtpStep({
             </span>
           </div>
         ) : isComplete ? (
-          <div className="mb-[20px] flex items-center gap-[8px] text-[14px] font-normal leading-[20px] text-[#374151]" style={interStyle}>
-            <span
-              className="flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full text-white"
-              style={{ backgroundColor: OTP_STATUS_ICON.successBg }}
-              aria-hidden
-            >
-              <Check className="h-[12px] w-[12px]" strokeWidth={3} />
-            </span>
-            <span>
-              <span className="font-semibold text-[#166534]">OTP Passed!</span> Verify to continue.
-            </span>
+          <div
+            aria-live="polite"
+            className="mb-[20px] text-[14px] font-normal leading-[20px] text-[#334155]"
+            style={interStyle}
+          >
+            <span className="font-semibold text-[#0f172a]">Code entered.</span> Tap Verify Code.
           </div>
         ) : null}
 

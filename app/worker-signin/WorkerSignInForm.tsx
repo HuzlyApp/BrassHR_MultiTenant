@@ -1,5 +1,6 @@
 "use client";
 
+import RedirectionProgressModal from "@/app/components/RedirectionProgressModal";
 import VerificationSuccessModal from "@/app/components/VerificationSuccessModal";
 import Link from "next/link";
 import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
@@ -220,6 +221,7 @@ export default function WorkerSignInForm({ tenantSlug, brand }: Props) {
 
   return (
     <>
+      {redirecting ? <RedirectionProgressModal /> : null}
       {signInReady ? (
         <VerificationSuccessModal
           title="Success!"

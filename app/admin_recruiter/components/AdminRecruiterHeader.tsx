@@ -17,6 +17,7 @@ import GodAdminTenantSwitcher from "./GodAdminTenantSwitcher";
 import { useAccountData } from "@/app/admin_recruiter/hooks/useAccountData";
 import { formatRoleLabel, getAccountDisplayName } from "@/lib/account/display-name";
 import { supabaseBrowser } from "@/lib/supabase-browser";
+import { recruiterLogoutLoginHref } from "@/lib/auth/recruiter-sign-in";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import {
   formatMessageTime,
@@ -49,7 +50,7 @@ export function AdminRecruiterHeader({
   onSidebarToggle,
 }: AdminRecruiterHeaderProps) {
   const branding = useTenantBranding();
-  const { user, profile, loading: accountLoading } = useAccountData();
+  const { user, profile, organization, loading: accountLoading } = useAccountData();
   const {
     notifications,
     isLoading: headerDataLoading,
@@ -338,7 +339,12 @@ export function AdminRecruiterHeader({
                     console.error("[AdminRecruiterHeader] Supabase error", error);
                     return;
                   }
-                  router.push("/login");
+                  router.push(
+                    recruiterLogoutLoginHref({
+                      brandingSlug: branding.slug,
+                      organizationSubdomain: organization?.subdomain,
+                    })
+                  );
                 }}
                 className="mt-1 block w-full rounded-md px-2 py-1 text-left text-xs text-[#0F172A] hover:bg-[#f2f8f7]"
               >

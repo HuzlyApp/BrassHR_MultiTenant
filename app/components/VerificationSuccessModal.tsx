@@ -24,7 +24,6 @@ export default function VerificationSuccessModal({
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 py-8 backdrop-blur-[2px]"
       role="presentation"
-      onClick={onAction}
     >
       <div
         role="dialog"

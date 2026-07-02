@@ -25,6 +25,7 @@ import {
 } from "@/lib/account/display-name";
 import { useEffectiveBranding } from "@/lib/admin/hooks/use-effective-branding";
 import { supabaseBrowser } from "@/lib/supabase-browser";
+import { recruiterLogoutLoginHref } from "@/lib/auth/recruiter-sign-in";
 
 const SIDEBAR_EXPANDED_WIDTH = 272;
 const SIDEBAR_COLLAPSED_WIDTH = 80;
@@ -81,7 +82,12 @@ export function AdminRecruiterSidebar({
     const { error } = await supabaseBrowser.auth.signOut();
     if (error) return;
     onMobileClose?.();
-    router.push("/login");
+    router.push(
+      recruiterLogoutLoginHref({
+        brandingSlug: branding.slug,
+        organizationSubdomain: organization?.subdomain,
+      })
+    );
   };
 
   const profileName = getAccountDisplayName(profile, user);

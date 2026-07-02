@@ -10,6 +10,7 @@ import { FaXTwitter } from "react-icons/fa6";
 import { FcGoogle } from "react-icons/fc";
 import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
 import { ADMIN_RECRUITER_HOME_ROUTE } from "@/app/admin_recruiter/components/sidebar-config";
+import RedirectionProgressModal from "@/app/components/RedirectionProgressModal";
 import VerificationSuccessModal from "@/app/components/VerificationSuccessModal";
 import { TenantBrandingProvider } from "@/app/components/tenant/TenantBrandingContext";
 import ClassicTenantLogin from "@/app/login/ClassicTenantLogin";
@@ -128,6 +129,7 @@ function LoginPageContent() {
   const useBraasUi = usesBraasFigmaLoginUi(tenantQuery);
   const [step, setStep] = useState<LoginStep>("credentials");
   const [showSuccess, setShowSuccess] = useState(false);
+  const [showRedirecting, setShowRedirecting] = useState(false);
   const [pendingLogin, setPendingLogin] = useState<PendingLogin | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -280,6 +282,7 @@ function LoginPageContent() {
     ) {
       await supabaseBrowser.auth.signOut();
       setShowSuccess(false);
+      setShowRedirecting(false);
       setStep("credentials");
       setAuthError({
         error: "This account is not authorized for this platform.",
@@ -334,6 +337,7 @@ function LoginPageContent() {
           ? "This account does not have access to the selected tenant."
           : "Could not verify onboarding status. Try again.";
       setShowSuccess(false);
+      setShowRedirecting(false);
       setStep("credentials");
       setAuthError({ error: message, code: "UNKNOWN", field: null });
       return false;
@@ -371,6 +375,8 @@ function LoginPageContent() {
 
   const submitCredentialsForOtp = async (login: PendingLogin) => {
     clearAuthError();
+    setShowSuccess(false);
+    setShowRedirecting(false);
     setSubmitting(true);
     try {
       const gate = await sendLoginOtp(login);
@@ -440,6 +446,7 @@ function LoginPageContent() {
     });
     if (!assertRes.ok) {
       setShowSuccess(false);
+      setShowRedirecting(false);
       setStep("otp");
       setAuthError(await parseLoginApiError(assertRes));
       setSubmitting(false);
@@ -468,6 +475,7 @@ function LoginPageContent() {
 
       if (signInError) {
         setShowSuccess(false);
+        setShowRedirecting(false);
         setStep(step === "otp" ? "otp" : "credentials");
         setAuthError(classifyAuthMessage(signInError.message));
         setSubmitting(false);
@@ -523,6 +531,9 @@ function LoginPageContent() {
   };
 
   const handleSuccessContinue = () => {
+    if (submitting) return;
+    setShowSuccess(false);
+    setShowRedirecting(true);
     void completeLogin();
   };
 
@@ -543,6 +554,7 @@ function LoginPageContent() {
   if (!useBraasUi) {
     return (
       <TenantBrandingProvider branding={brand}>
+        {showRedirecting ? <RedirectionProgressModal /> : null}
         {showSuccess ? (
           <VerificationSuccessModal
             title="Success!"
@@ -578,6 +590,7 @@ function LoginPageContent() {
   return (
     <>
       <LoginPageShell brand={brand}>
+        {showRedirecting ? <RedirectionProgressModal /> : null}
         {showSuccess ? (
           <VerificationSuccessModal
             title="Success!"
@@ -587,7 +600,6 @@ function LoginPageContent() {
             onAction={handleSuccessContinue}
           />
         ) : null}
-
         <LoginBrandHeader brand={brand} />
 
         {step === "otp" && pendingLogin ? (

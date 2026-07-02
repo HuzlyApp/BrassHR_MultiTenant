@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import RedirectionProgressModal from "@/app/components/RedirectionProgressModal";
 import SignupStepper from "@/app/components/SignupStepper";
 import { Check, ChevronDown, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent } from "react";
@@ -345,6 +346,7 @@ export default function SignupPage() {
   const [emailCheckStatus, setEmailCheckStatus] = useState<"idle" | "checking" | "taken" | "available">("idle");
   const emailCheckRequestId = useRef(0);
   const [brand, setBrand] = useState<TenantBranding>(() => defaultTenantBranding());
+  const [redirecting, setRedirecting] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -609,7 +611,10 @@ export default function SignupPage() {
           /* ignore storage errors */
         }
 
-        window.location.assign("/tenant-onboarding");
+        setRedirecting(true);
+        window.setTimeout(() => {
+          window.location.assign("/tenant-onboarding");
+        }, 80);
       } catch {
         setSubmitError("Something went wrong. Please try again.");
         setSubmitting(false);
@@ -622,6 +627,7 @@ export default function SignupPage() {
       className="min-h-screen w-full overflow-x-hidden bg-white"
       style={{ ...(brandingToCssVars(brand) as CSSProperties), backgroundColor: "#ffffff" }}
     >
+      {redirecting ? <RedirectionProgressModal /> : null}
       <style>{`
         .signup-frame {
           box-sizing: border-box;

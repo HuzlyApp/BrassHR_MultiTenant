@@ -20,7 +20,7 @@ export function AdminTenantBrandingProvider({ children }: { children: ReactNode 
   }, [branding?.primaryHex]);
 
   if (isLoading) {
-    return null;
+    return <div className="min-h-screen bg-[#F4F4F4]" aria-hidden="true" />;
   }
 
   if (isError || !branding) {
