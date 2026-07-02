@@ -612,25 +612,25 @@ function LoginPageContent() {
             onSendAgain={handleOtpSendAgain}
           />
         ) : (
-          <form onSubmit={handleCredentialsSubmit} className="flex flex-col gap-[40px] pt-[30px]">
+          <form onSubmit={handleCredentialsSubmit} className="flex flex-col gap-6 pt-3 sm:gap-[40px] sm:pt-[30px]">
             <div>
           <h1
-            className="text-[30px] font-semibold leading-[36px] tracking-normal"
+            className="text-[22px] font-semibold leading-[30px] tracking-normal sm:text-[30px] sm:leading-[36px]"
             style={{ color: "var(--brand-heading)", fontFamily: "var(--brand-font-heading)" }}
           >
             {brand.headline}
           </h1>
           <p
-            className="mt-[8px] text-[16px] font-normal leading-[24px]"
+            className="mt-1 text-[14px] font-normal leading-[20px] sm:mt-[8px] sm:text-[16px] sm:leading-[24px]"
             style={{ color: "var(--brand-muted)", fontFamily: "var(--brand-font-body)" }}
           >
             {brand.subtitle}
           </p>
         </div>
 
-        <div className="flex flex-col gap-[30px]">
-          <div className="flex flex-col gap-[20px]">
-            <div className="flex flex-col gap-[40px]">
+        <div className="flex flex-col gap-5 sm:gap-[30px]">
+          <div className="flex flex-col gap-4 sm:gap-[20px]">
+            <div className="flex flex-col gap-5 sm:gap-[40px]">
               <div>
                 <FieldLabel>Email</FieldLabel>
                 <input

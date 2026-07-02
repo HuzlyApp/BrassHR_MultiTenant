@@ -232,15 +232,15 @@ export default function WorkerSignInForm({ tenantSlug, brand }: Props) {
         />
       ) : null}
 
-      <div className="flex flex-col gap-[40px] pt-[30px]">
+      <div className="flex flex-col gap-6 pt-3 sm:gap-[40px] sm:pt-[30px]">
       <div>
-        <h1 className="text-[30px] font-semibold leading-[36px] tracking-normal text-black" style={interStyle}>
+        <h1 className="text-[22px] font-semibold leading-[30px] tracking-normal text-black sm:text-[30px] sm:leading-[36px]" style={interStyle}>
           Login
         </h1>
-        <p className="mt-[8px] text-[16px] font-normal leading-[24px] text-[#6b7280]" style={interStyle}>
+        <p className="mt-1 text-[14px] font-normal leading-[20px] text-[#6b7280] sm:mt-[8px] sm:text-[16px] sm:leading-[24px]" style={interStyle}>
           Worker sign in
         </p>
-        <p className="mt-[8px] text-[14px] font-normal leading-[20px] text-[#6b7280]" style={interStyle}>
+        <p className="mt-1 text-[13px] font-normal leading-[18px] text-[#6b7280] sm:mt-[8px] sm:text-[14px] sm:leading-[20px]" style={interStyle}>
           Approved applicants can sign in to view status, message your recruiter, and complete next steps.
         </p>
       </div>
@@ -253,7 +253,7 @@ export default function WorkerSignInForm({ tenantSlug, brand }: Props) {
       ) : null}
 
       {mode === "email" ? (
-        <form onSubmit={handleLookup} className="flex flex-col gap-[30px]">
+        <form onSubmit={handleLookup} className="flex flex-col gap-5 sm:gap-[30px]">
           <div>
             <FieldLabel>Email</FieldLabel>
             <input
