@@ -13,21 +13,21 @@ export function recruiterSignInHref(options?: {
   next?: string | null;
 }): string {
   const params = new URLSearchParams();
+  params.set("role", "admin_recruiter");
   const tenant = options?.tenant?.trim().toLowerCase();
   if (tenant && tenant.length >= 2) {
     params.set("tenant", tenant);
   }
-  params.set("role", "admin_recruiter");
   const next = options?.next?.trim();
   if (next && next.startsWith("/") && !next.startsWith("//")) {
     params.set("next", next);
   }
   const qs = params.toString();
-  return qs ? `/signin?${qs}` : "/signin";
+  return `/signin?${qs}`;
 }
 
-/** Recruiter login page with tenant branding (`/login?tenant=…&role=admin_recruiter`). */
-export function recruiterLoginHref(options?: {
+/** Public recruiter/admin login URL (`/admin?tenant=company`). */
+export function adminRecruiterEntryHref(options?: {
   tenant?: string | null;
   next?: string | null;
 }): string {
@@ -36,7 +36,25 @@ export function recruiterLoginHref(options?: {
   if (tenant && tenant.length >= 2) {
     params.set("tenant", tenant);
   }
+  const next = options?.next?.trim();
+  if (next && next.startsWith("/") && !next.startsWith("//")) {
+    params.set("next", next);
+  }
+  const qs = params.toString();
+  return qs ? `/admin?${qs}` : "/admin";
+}
+
+/** Recruiter login with tenant branding (`/login?role=admin_recruiter`). */
+export function recruiterLoginHref(options?: {
+  tenant?: string | null;
+  next?: string | null;
+}): string {
+  const params = new URLSearchParams();
   params.set("role", "admin_recruiter");
+  const tenant = options?.tenant?.trim().toLowerCase();
+  if (tenant && tenant.length >= 2) {
+    params.set("tenant", tenant);
+  }
   const next = options?.next?.trim();
   if (next && next.startsWith("/") && !next.startsWith("//")) {
     params.set("next", next);
@@ -76,12 +94,12 @@ export function resolveRecruiterLoginTenantSlug(options?: {
   return null;
 }
 
-/** Post-logout redirect — tenant-branded recruiter login, not platform Brass HR. */
+/** Post-logout redirect — tenant-branded recruiter login at `/admin?tenant=…`. */
 export function recruiterLogoutLoginHref(options?: {
   brandingSlug?: string | null;
   organizationSubdomain?: string | null;
 }): string {
-  return recruiterLoginHref({ tenant: resolveRecruiterLoginTenantSlug(options) });
+  return adminRecruiterEntryHref({ tenant: resolveRecruiterLoginTenantSlug(options) });
 }
 
 export function isRecruiterSignInRole(

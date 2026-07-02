@@ -14,7 +14,7 @@ import {
   PLATFORM_DEFAULT_TENANT_SLUG,
   type TenantBranding,
 } from "@/lib/tenant/tenant-branding";
-import { recruiterSignInHref } from "@/lib/auth/recruiter-sign-in";
+// import { recruiterSignInHref } from "@/lib/auth/recruiter-sign-in";
 import { workerSignInHref } from "@/lib/auth/worker-sign-in";
 import {
   persistOnboardingSlugCookie,
@@ -140,9 +140,9 @@ export default function Home() {
       ? activeTenantSlug
       : null;
 
-  const recruiterSignInUrl = recruiterSignInHref({
-    tenant: resolvedPortalSlug,
-  });
+  // const recruiterSignInUrl = recruiterSignInHref({
+  //   tenant: resolvedPortalSlug,
+  // });
 
   const workerSignInUrl = workerSignInHref({
     tenant: resolvedPortalSlug,
@@ -216,6 +216,7 @@ export default function Home() {
               </p>
             ) : null}
 
+            {/* Hidden for Brass HR platform landing — recruiter sign-in link
             <p className="text-center text-[14px] font-normal leading-5 tracking-normal text-slate-500">
               Need to sign in as a recruiter?{" "}
               <Link
@@ -226,6 +227,7 @@ export default function Home() {
                 Sign in
               </Link>
             </p>
+            */}
 
           </div>
 

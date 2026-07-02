@@ -52,6 +52,21 @@ function syncFaviconLinks(href: string) {
 export function resolveFaviconHref(branding: TenantBranding): string {
   const slug = branding.slug?.trim().toLowerCase() ?? "";
 
+  if (typeof window !== "undefined") {
+    const path = window.location.pathname;
+    const isRecruiterAuthEntry =
+      path === "/admin" ||
+      path.startsWith("/admin/") ||
+      path === "/login" ||
+      path.startsWith("/login/") ||
+      path === "/signin" ||
+      path.startsWith("/signin/");
+    if (isRecruiterAuthEntry) {
+      const fallback = brandingFallbackForSlug(branding.slug).logoUrl || DEFAULT_FAVICON;
+      return normalizeBrandingImageSrc(branding.logoUrl, fallback, { allowBlob: true });
+    }
+  }
+
   if (isTenantApplicantPortalSlug(slug)) {
     return `/api/tenant-favicon?slug=${encodeURIComponent(slug)}`;
   }

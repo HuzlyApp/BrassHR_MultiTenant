@@ -26,6 +26,7 @@ import {
 function isPublicUiPath(pathname: string): boolean {
   if (pathname === "/login" || pathname.startsWith("/login/")) return true;
   if (pathname === "/signin" || pathname.startsWith("/signin/")) return true;
+  if (pathname === "/admin" || pathname.startsWith("/admin/")) return true;
   if (pathname === "/forgot" || pathname.startsWith("/forgot/")) return true;
   if (pathname === "/reset-password" || pathname.startsWith("/reset-password/")) return true;
   if (pathname === "/auth/callback" || pathname.startsWith("/auth/callback/")) return true;
@@ -95,6 +96,8 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith("/application") ||
     pathname === "/worker-onboarding" ||
     pathname === "/worker-signin" ||
+    pathname === "/admin" ||
+    pathname.startsWith("/admin/") ||
     pathname === "/login" ||
     pathname.startsWith("/login/");
 
@@ -124,6 +127,20 @@ export async function middleware(request: NextRequest) {
 
   if (!tenantLabel && hostNorm) {
     clearTenantSlugCookieOnRootHost(request, response);
+  }
+
+  /** `/admin?tenant=…` → login page (URL stays `/admin`, adds recruiter role). */
+  if (pathname === "/admin" || pathname === "/admin/") {
+    const rewriteUrl = request.nextUrl.clone();
+    rewriteUrl.pathname = "/login";
+    if (!rewriteUrl.searchParams.get("role")) {
+      rewriteUrl.searchParams.set("role", "admin_recruiter");
+    }
+    const rewriteResponse = NextResponse.rewrite(rewriteUrl);
+    response.cookies.getAll().forEach((cookie) => {
+      rewriteResponse.cookies.set(cookie.name, cookie.value, cookie);
+    });
+    return rewriteResponse;
   }
 
   if (pathname === "/") {
@@ -166,9 +183,8 @@ export async function middleware(request: NextRequest) {
 
   async function requireGodAdminSession(): Promise<NextResponse | null> {
     if (!user || isAnonymousUser) {
-      const signin = new URL("/signin", request.url);
+      const signin = new URL("/admin", request.url);
       signin.searchParams.set("next", `${request.nextUrl.pathname}${request.nextUrl.search}`);
-      signin.searchParams.set("role", "admin_recruiter");
       return NextResponse.redirect(signin);
     }
     const onboardingStatus = await fetchOwnerOnboardingStatus(supabase, user);
@@ -176,7 +192,7 @@ export async function middleware(request: NextRequest) {
       if (isGodAdminApiPath) {
         return NextResponse.json({ error: "Forbidden", detail: "God Admin role required." }, { status: 403 });
       }
-      const signin = new URL("/signin", request.url);
+      const signin = new URL("/admin", request.url);
       signin.searchParams.set("error", "forbidden");
       return NextResponse.redirect(signin);
     }
@@ -223,9 +239,8 @@ export async function middleware(request: NextRequest) {
   }
 
   if (isTenantOnboardingPath && (!user || isAnonymousUser)) {
-    const signin = new URL("/signin", request.url);
+    const signin = new URL("/admin", request.url);
     signin.searchParams.set("next", `${request.nextUrl.pathname}${request.nextUrl.search}`);
-    signin.searchParams.set("role", "admin_recruiter");
     const tenant = request.nextUrl.searchParams.get("tenant")?.trim().toLowerCase();
     if (tenant && tenant.length >= 2) {
       signin.searchParams.set("tenant", tenant);
@@ -237,7 +252,9 @@ export async function middleware(request: NextRequest) {
     pathname === "/login" ||
     pathname.startsWith("/login/") ||
     pathname === "/signin" ||
-    pathname.startsWith("/signin/");
+    pathname.startsWith("/signin/") ||
+    pathname === "/admin" ||
+    pathname.startsWith("/admin/");
 
   if (isLoginPath && user && !isAnonymousUser) {
     const onboardingStatus = await fetchOwnerOnboardingStatus(supabase, user);
@@ -257,9 +274,8 @@ export async function middleware(request: NextRequest) {
 
   if (isAdminRecruiterPath) {
     if (!user || isAnonymousAuthUser(user)) {
-      const login = new URL("/signin", request.url);
+      const login = new URL("/admin", request.url);
       login.searchParams.set("next", `${request.nextUrl.pathname}${request.nextUrl.search}`);
-      login.searchParams.set("role", "admin_recruiter");
       if (user && isAnonymousAuthUser(user)) {
         login.searchParams.set("error", "session");
       }
@@ -273,9 +289,8 @@ export async function middleware(request: NextRequest) {
     }
     if (platformOn && !isNexusPlatformUser(user) && !isGodAdminUser(user)) {
       await supabase.auth.signOut();
-      const login = new URL("/signin", request.url);
+      const login = new URL("/admin", request.url);
       login.searchParams.set("next", `${request.nextUrl.pathname}${request.nextUrl.search}`);
-      login.searchParams.set("role", "admin_recruiter");
       login.searchParams.set("error", "platform");
       const tenant =
         request.nextUrl.searchParams.get("tenant")?.trim().toLowerCase() ||
@@ -329,6 +344,8 @@ export const config = {
     "/login/:path*",
     "/signin",
     "/signin/:path*",
+    "/admin",
+    "/admin/:path*",
     "/signup",
     "/tenant-onboarding",
     "/tenant-onboarding/:path*",

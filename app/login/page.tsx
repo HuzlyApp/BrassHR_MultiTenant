@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { Check } from "lucide-react";
 import { Suspense, useEffect, useMemo, useState, type FormEvent } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { FaApple } from "react-icons/fa";
 import { FaXTwitter } from "react-icons/fa6";
 import { FcGoogle } from "react-icons/fc";
@@ -83,8 +83,14 @@ type RecruiterOnboardingStatusResponse = {
 
 type LoginStep = "credentials" | "otp";
 
-function LoginLoadingShell({ tenantQuery }: { tenantQuery: string | null }) {
-  if (usesBraasFigmaLoginUi(tenantQuery)) {
+function LoginLoadingShell({
+  tenantQuery,
+  preferClassicUi = false,
+}: {
+  tenantQuery: string | null;
+  preferClassicUi?: boolean;
+}) {
+  if (!preferClassicUi && usesBraasFigmaLoginUi(tenantQuery)) {
     return <div className="min-h-screen bg-white" />;
   }
   const slug = tenantQuery?.trim().toLowerCase() || "nexus";
@@ -109,10 +115,18 @@ function SocialButton({ children, label }: { children: React.ReactNode; label: s
 
 function LoginPageContent() {
   const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const tenantQuery = searchParams.get("tenant");
-  const recruiterSignIn = isRecruiterSignInRole(searchParams.get("role"));
-  const useBraasUi = usesBraasFigmaLoginUi(tenantQuery);
+  const roleQuery = searchParams.get("role");
+  const isAdminRoute =
+    pathname === "/admin" ||
+    (typeof window !== "undefined" && window.location.pathname.startsWith("/admin"));
+  const recruiterSignIn =
+    isRecruiterSignInRole(roleQuery) || isAdminRoute;
+  const useClassicRecruiterLogin =
+    isAdminRoute || (recruiterSignIn && Boolean(tenantQuery?.trim()));
+  const useBraasUi = usesBraasFigmaLoginUi(tenantQuery) && !useClassicRecruiterLogin;
   const [step, setStep] = useState<LoginStep>("credentials");
   const [showSuccess, setShowSuccess] = useState(false);
   const [showRedirecting, setShowRedirecting] = useState(false);
@@ -134,7 +148,13 @@ function LoginPageContent() {
     void (async () => {
       const resolved = resolveTenantSlugForClient(
         typeof window !== "undefined" ? window.location.search : "",
-        { path: "/login" }
+        {
+          path:
+            pathname === "/admin" ||
+            (typeof window !== "undefined" && window.location.pathname.startsWith("/admin"))
+              ? "/admin"
+              : "/login",
+        }
       );
       const hostLabel = getClientTenantHostLabel();
       const qpRaw = searchParams.get("tenant")?.trim().toLowerCase();
@@ -147,40 +167,65 @@ function LoginPageContent() {
             ? hostLabel
             : null;
 
-      if (applicantPortalSlug) {
+      if (recruiterSignIn && qp) {
+        persistOnboardingSlugCookie(qp);
+      } else if (applicantPortalSlug) {
         persistOnboardingSlugCookie(applicantPortalSlug);
       } else if (qp) {
         persistOnboardingSlugCookie(qp);
       }
 
-      const brandingResolved = applicantPortalSlug
-        ? { ...resolved, slug: applicantPortalSlug, subdomainLabel: hostLabel ?? resolved.subdomainLabel }
-        : resolved.isRootDomain && !applicantPortalSlug
-          ? { ...resolved, slug: null, subdomainLabel: null, isRootDomain: true }
-          : resolved;
+      const brandingResolved =
+        recruiterSignIn && qp
+          ? {
+              ...resolved,
+              slug: qp,
+              subdomainLabel: hostLabel ?? qp,
+              isRootDomain: resolved.isRootDomain,
+            }
+          : applicantPortalSlug
+            ? { ...resolved, slug: applicantPortalSlug, subdomainLabel: hostLabel ?? resolved.subdomainLabel }
+            : resolved.isRootDomain && !applicantPortalSlug
+              ? { ...resolved, slug: null, subdomainLabel: null, isRootDomain: true }
+              : resolved;
+
+      const brandingSlug =
+        applicantPortalSlug ?? (recruiterSignIn ? qp : null) ?? (resolved.isRootDomain ? PLATFORM_DEFAULT_TENANT_SLUG : null);
 
       try {
         const res = await fetch(buildTenantBrandingApiUrl(brandingResolved), {
           cache: "no-store",
+          signal: AbortSignal.timeout(12_000),
         });
         const payload = (await res.json()) as { branding?: TenantBranding };
-        if (alive && payload.branding) setBrand(payload.branding);
+        if (alive && payload.branding) {
+          setBrand(payload.branding);
+        } else if (alive) {
+          setBrand(brandingFallbackForSlug(brandingSlug));
+        }
       } catch {
         if (alive) {
-          setBrand(
-            brandingFallbackForSlug(
-              applicantPortalSlug ?? (resolved.isRootDomain ? PLATFORM_DEFAULT_TENANT_SLUG : null)
-            )
-          );
+          setBrand(brandingFallbackForSlug(brandingSlug));
         }
       } finally {
         if (alive) setBrandLoaded(true);
       }
     })();
+    const safetyTimer = window.setTimeout(() => {
+      if (alive) {
+        setBrand((current) => {
+          if (current) return current;
+          const slug = tenantQuery?.trim().toLowerCase() || PLATFORM_DEFAULT_TENANT_SLUG;
+          return brandingFallbackForSlug(slug);
+        });
+        setBrandLoaded(true);
+      }
+    }, 15_000);
     return () => {
       alive = false;
+      window.clearTimeout(safetyTimer);
     };
-  }, [searchParams]);
+  }, [tenantQuery, roleQuery, pathname, recruiterSignIn]);
 
   useEffect(() => {
     const previousHtmlBg = document.documentElement.style.backgroundColor;
@@ -534,7 +579,12 @@ function LoginPageContent() {
   };
 
   if (!brandLoaded || !brand) {
-    return <LoginLoadingShell tenantQuery={tenantQuery} />;
+    return (
+      <LoginLoadingShell
+        tenantQuery={tenantQuery}
+        preferClassicUi={useClassicRecruiterLogin}
+      />
+    );
   }
 
   if (!useBraasUi) {

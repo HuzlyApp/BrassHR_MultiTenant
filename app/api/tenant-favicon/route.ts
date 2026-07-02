@@ -45,7 +45,10 @@ async function readPublicAsset(iconSrc: string): Promise<Buffer | null> {
 
 async function fetchRemoteAsset(url: string): Promise<{ body: ArrayBuffer; contentType: string } | null> {
   try {
-    const res = await fetch(url, { cache: "force-cache" });
+    const res = await fetch(url, {
+      cache: "force-cache",
+      signal: AbortSignal.timeout(8_000),
+    });
     if (!res.ok) return null;
     const contentType = res.headers.get("content-type")?.split(";")[0]?.trim();
     return {

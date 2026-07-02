@@ -22,17 +22,29 @@ export default function TenantBrandingRoot({ children }: { children: ReactNode }
     let alive = true;
 
     void (async () => {
+      const pathname = window.location.pathname;
+      const isRecruiterAuthEntry =
+        pathname === "/admin" ||
+        pathname.startsWith("/admin/") ||
+        pathname === "/login" ||
+        pathname.startsWith("/login/") ||
+        pathname === "/signin" ||
+        pathname.startsWith("/signin/");
+
       const resolved = resolveTenantSlugForClient(window.location.search, {
-        path: window.location.pathname,
+        path: pathname,
       });
       const tenantPortal = isTenantApplicantPortalSlug(resolved.slug);
-      if (!tenantPortal) {
+      if (!tenantPortal || isRecruiterAuthEntry) {
         setBranding(brandingFallbackForSlug(resolved.slug));
         setBrandingReady(true);
       }
 
       try {
-        const res = await fetch(buildTenantBrandingApiUrl(resolved), { cache: "no-store" });
+        const res = await fetch(buildTenantBrandingApiUrl(resolved), {
+          cache: "no-store",
+          signal: AbortSignal.timeout(12_000),
+        });
         const payload = (await res.json().catch(() => ({}))) as { branding?: TenantBranding };
         if (alive && payload.branding) {
           setBranding(payload.branding);
