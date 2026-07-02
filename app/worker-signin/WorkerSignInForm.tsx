@@ -222,7 +222,7 @@ export default function WorkerSignInForm({ tenantSlug, brand }: Props) {
   return (
     <>
       {redirecting ? <RedirectionProgressModal /> : null}
-      {signInReady ? (
+      {signInReady && !redirecting ? (
         <VerificationSuccessModal
           title="Success!"
           message="Verification complete"

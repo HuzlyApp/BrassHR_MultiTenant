@@ -17,6 +17,7 @@ import {
   type WorkerSidebarSection,
 } from "@/app/application/components/applicant-portal/worker-sidebar-config";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
+import { applicationPath } from "@/lib/tenant/with-tenant";
 import { isRemoteOrBlobImageSrc, normalizeBrandingImageSrc } from "@/lib/tenant/tenant-branding";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import { useApplicantPortal } from "./ApplicantPortalProvider";
@@ -83,6 +84,7 @@ export function ApplicantPortalSidebar({
   const router = useRouter();
   const pathname = usePathname() ?? "";
   const searchParams = useSearchParams();
+  const tenantQuery = searchParams?.get("tenant");
   const scheduleViewParam = searchParams?.get("view");
   const [logoSrc, setLogoSrc] = useState(
     normalizeBrandingImageSrc(branding.logoUrl, DEFAULT_LOGO, { allowBlob: true })
@@ -220,30 +222,40 @@ export function ApplicantPortalSidebar({
           className={`flex w-full items-center ${isCollapsed && !isMobileRail ? "justify-center" : showMobileClose ? "justify-between gap-3" : isMobileRail ? "justify-center" : "gap-3"}`}
         >
           <div className={`flex min-w-0 items-center ${isCollapsed && !isMobileRail ? "" : isMobileRail ? "justify-center" : "gap-3"}`}>
-            <div
-              className={`flex shrink-0 items-center justify-center overflow-hidden rounded-xl border bg-white ${
-                isMobileRail ? "h-9 w-9" : "h-10 w-10"
-              }`}
-              style={{ borderColor: "color-mix(in srgb, var(--brand-primary) 55%, #CBD5E1)" }}
+            <button
+              type="button"
+              onClick={() => {
+                router.push(applicationPath("/application/home", tenantQuery));
+                handleNavClick();
+              }}
+              aria-label="Go to home"
+              className="rounded-xl"
             >
-              {logoUseNativeImg ? (
-                <img
-                  src={logoSrc}
-                  alt={branding.companyName}
-                  className={`object-contain ${isMobileRail ? "max-h-[32px] max-w-[32px]" : "max-h-[40px] max-w-[40px]"}`}
-                  onError={() => setLogoSrc(DEFAULT_LOGO)}
-                />
-              ) : (
-                <Image
-                  src={logoSrc}
-                  alt={branding.companyName}
-                  width={40}
-                  height={40}
-                  className={`object-contain ${isMobileRail ? "max-h-[32px] max-w-[32px]" : "max-h-[40px] max-w-[40px]"}`}
-                  onError={() => setLogoSrc(DEFAULT_LOGO)}
-                />
-              )}
-            </div>
+              <div
+                className={`flex shrink-0 items-center justify-center overflow-hidden rounded-xl border bg-white ${
+                  isMobileRail ? "h-9 w-9" : "h-10 w-10"
+                }`}
+                style={{ borderColor: "color-mix(in srgb, var(--brand-primary) 55%, #CBD5E1)" }}
+              >
+                {logoUseNativeImg ? (
+                  <img
+                    src={logoSrc}
+                    alt={branding.companyName}
+                    className={`object-contain ${isMobileRail ? "max-h-[32px] max-w-[32px]" : "max-h-[40px] max-w-[40px]"}`}
+                    onError={() => setLogoSrc(DEFAULT_LOGO)}
+                  />
+                ) : (
+                  <Image
+                    src={logoSrc}
+                    alt={branding.companyName}
+                    width={40}
+                    height={40}
+                    className={`object-contain ${isMobileRail ? "max-h-[32px] max-w-[32px]" : "max-h-[40px] max-w-[40px]"}`}
+                    onError={() => setLogoSrc(DEFAULT_LOGO)}
+                  />
+                )}
+              </div>
+            </button>
             {!isCollapsed ? (
               <div className="min-w-0">
                 <p className="truncate text-[18px] leading-[28px] font-semibold text-[color:var(--brand-secondary)]">

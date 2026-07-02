@@ -159,7 +159,7 @@ export function useApplicantSignIn(tenantSlug: string | null) {
     }
 
     if (!tenantSlug) return;
-    router.push(applicationPath("/application/applicant-dashboard", tenantSlug));
+    router.push(applicationPath("/application/home", tenantSlug));
   }
 
   function resetToEmail() {
