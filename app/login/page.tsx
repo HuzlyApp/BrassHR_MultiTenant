@@ -14,7 +14,7 @@ import RedirectionProgressModal from "@/app/components/RedirectionProgressModal"
 import VerificationSuccessModal from "@/app/components/VerificationSuccessModal";
 import { TenantBrandingProvider } from "@/app/components/tenant/TenantBrandingContext";
 import ClassicTenantLogin from "@/app/login/ClassicTenantLogin";
-import { LoginBrandHeader, LoginPageShell, interStyle } from "@/app/login/BraasLoginShell";
+import { LoginBrandHeader, LoginPageShell, interStyle, loginFieldLabelClass, loginInputClass, loginPasswordInputClass, loginPrimaryButtonClass } from "@/app/login/BraasLoginShell";
 import LoginFormError, { loginInputErrorClass } from "@/app/login/LoginFormError";
 import LoginOtpStep from "@/app/login/LoginOtpStep";
 import { isGodAdminUser } from "@/lib/auth/god-admin";
@@ -50,27 +50,20 @@ import {
 } from "@/lib/tenant/tenant-branding";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 
-const inputFocusClass =
-  "focus:border-[color:var(--brand-primary)] focus:ring-2 focus:ring-[color:color-mix(in_srgb,var(--brand-primary)_20%,transparent)]";
-
-/** Figma Brand Brass / Deep Navy — sign-in checkboxes only (not from API). */
 const checkboxActiveClass = "border-[#012352] bg-[#012352]";
 
 function primaryButtonStyle(enabled: boolean): React.CSSProperties | undefined {
   return brandingAuthButtonStyle(enabled);
 }
 
-const inputTypographyStyle = {
-  fontFamily: "Inter, Arial, sans-serif",
-  fontSize: "16px",
-  lineHeight: "24px",
-  fontWeight: 400,
-  letterSpacing: "0",
-} as const;
-const inputTextClass =
-  "text-[16px] font-normal leading-[24px] tracking-normal placeholder:text-[16px] placeholder:leading-[24px] placeholder:font-normal";
-
-type LoginStep = "credentials" | "otp";
+function FieldLabel({ children }: { children: string }) {
+  return (
+    <label className={loginFieldLabelClass} style={interStyle}>
+      {children}
+      <span className="ml-1 text-[#e11d48]">*</span>
+    </label>
+  );
+}
 
 type PendingLogin = {
   email: string;
@@ -88,14 +81,7 @@ type RecruiterOnboardingStatusResponse = {
   redirectTarget: "/godadmin/tenants" | typeof ADMIN_RECRUITER_HOME_ROUTE | "/tenant-onboarding";
 };
 
-function FieldLabel({ children }: { children: string }) {
-  return (
-    <label className="mb-[8px] block text-[14px] font-normal leading-[20px] tracking-normal text-[#374151]" style={interStyle}>
-      {children}
-      <span className="ml-1 text-[#e11d48]">*</span>
-    </label>
-  );
-}
+type LoginStep = "credentials" | "otp";
 
 function LoginLoadingShell({ tenantQuery }: { tenantQuery: string | null }) {
   if (usesBraasFigmaLoginUi(tenantQuery)) {
@@ -612,7 +598,7 @@ function LoginPageContent() {
             onSendAgain={handleOtpSendAgain}
           />
         ) : (
-          <form onSubmit={handleCredentialsSubmit} className="flex flex-col gap-6 pt-3 sm:gap-[40px] sm:pt-[30px]">
+          <form onSubmit={handleCredentialsSubmit} className="flex flex-col gap-4 pt-3 sm:gap-[40px] sm:pt-[30px]">
             <div>
           <h1
             className="text-[22px] font-semibold leading-[30px] tracking-normal sm:text-[30px] sm:leading-[36px]"
@@ -628,9 +614,9 @@ function LoginPageContent() {
           </p>
         </div>
 
-        <div className="flex flex-col gap-5 sm:gap-[30px]">
-          <div className="flex flex-col gap-4 sm:gap-[20px]">
-            <div className="flex flex-col gap-5 sm:gap-[40px]">
+        <div className="flex flex-col gap-4 sm:gap-[30px]">
+          <div className="flex flex-col gap-3 sm:gap-[20px]">
+            <div className="flex flex-col gap-3 sm:gap-[40px]">
               <div>
                 <FieldLabel>Email</FieldLabel>
                 <input
@@ -645,8 +631,7 @@ function LoginPageContent() {
                   placeholder="Email"
                   autoComplete="email"
                   aria-invalid={emailHasError}
-                  style={inputTypographyStyle}
-                  className={`h-[56px] w-full rounded-[8px] border border-[#cbd5e1] bg-white px-[14px] ${inputTextClass} text-[#0f172a] outline-none transition placeholder:text-[#94a3b8] ${inputFocusClass} ${emailHasError ? loginInputErrorClass : ""}`}
+                  className={`${loginInputClass} ${emailHasError ? loginInputErrorClass : ""}`}
                   required
                 />
               </div>
@@ -666,8 +651,7 @@ function LoginPageContent() {
                     placeholder="Password"
                     autoComplete="current-password"
                     aria-invalid={passwordHasError}
-                    style={inputTypographyStyle}
-                    className={`h-[56px] w-full rounded-[8px] border border-[#cbd5e1] bg-white px-[14px] pr-12 ${inputTextClass} text-[#0f172a] outline-none transition placeholder:text-[#94a3b8] ${inputFocusClass} ${passwordHasError ? loginInputErrorClass : ""}`}
+                    className={`${loginPasswordInputClass} ${passwordHasError ? loginInputErrorClass : ""}`}
                     required
                   />
                   <button
@@ -692,7 +676,7 @@ function LoginPageContent() {
 
             <div className="flex items-center justify-between">
               <label
-                className="flex cursor-pointer items-center gap-[8px] text-[14px] font-normal leading-[20px] text-[#374151]"
+                className="flex cursor-pointer items-center gap-2 text-[13px] font-normal leading-[18px] text-[#374151] sm:gap-[8px] sm:text-[14px] sm:leading-[20px]"
                 style={interStyle}
               >
                 <span
@@ -722,7 +706,7 @@ function LoginPageContent() {
           </div>
 
           <label
-            className="flex cursor-pointer items-start gap-[8px] text-[14px] font-normal leading-[20px] text-[#4b5563]"
+            className="flex cursor-pointer items-start gap-2 text-[13px] font-normal leading-[18px] text-[#4b5563] sm:gap-[8px] sm:text-[14px] sm:leading-[20px]"
             style={interStyle}
           >
             <span
@@ -757,7 +741,7 @@ function LoginPageContent() {
         <button
           type="submit"
           disabled={!canSubmit || submitting}
-          className="flex h-[54px] w-full items-center justify-center rounded-[12px] text-[16px] font-semibold leading-[22px] tracking-normal transition disabled:cursor-not-allowed disabled:bg-[#dddddd] disabled:text-[#c5c5c5] enabled:text-white enabled:hover:brightness-95"
+          className={loginPrimaryButtonClass}
           style={primaryButtonStyle(canSubmit && !submitting)}
         >
           {submitting ? "Logging in..." : brand.buttonText}

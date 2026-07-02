@@ -143,14 +143,14 @@ const TEMPLATE_BUILDER_ROUTE = "/admin_recruiter/template-builder";
 
 const TEMPLATES_CHILDREN: SidebarLink[] = [
   {
-    label: "Email Templates",
-    href: EMAIL_TEMPLATES_ROUTE,
-    matchPrefixes: [EMAIL_TEMPLATES_ROUTE],
-  },
-  {
     label: "Document Templates",
     href: TEMPLATE_BUILDER_ROUTE,
     matchPrefixes: [TEMPLATE_BUILDER_ROUTE],
+  },
+  {
+    label: "Email Templates",
+    href: EMAIL_TEMPLATES_ROUTE,
+    matchPrefixes: [EMAIL_TEMPLATES_ROUTE],
   },
 ];
 

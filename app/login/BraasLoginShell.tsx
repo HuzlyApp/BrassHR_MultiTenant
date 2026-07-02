@@ -7,6 +7,22 @@ import { braasLoginShellLogoUrl, brandingToCssVars, type TenantBranding } from "
 
 export const interStyle = { fontFamily: "Inter, Arial, sans-serif" };
 
+export const loginInputFocusClass =
+  "focus:border-[color:var(--brand-primary)] focus:ring-2 focus:ring-[color:color-mix(in_srgb,var(--brand-primary)_20%,transparent)]";
+
+export const loginInputTextClass =
+  "text-[15px] font-normal leading-[22px] tracking-normal placeholder:text-[15px] placeholder:leading-[22px] placeholder:font-normal sm:text-[16px] sm:leading-[24px] sm:placeholder:text-[16px] sm:placeholder:leading-[24px]";
+
+export const loginInputClass = `h-[44px] w-full rounded-[8px] border border-[#cbd5e1] px-3 sm:h-[56px] sm:px-[14px] ${loginInputTextClass} text-[#0f172a] outline-none transition placeholder:text-[#94a3b8] ${loginInputFocusClass}`;
+
+export const loginPasswordInputClass = `${loginInputClass} pr-11 sm:pr-12`;
+
+export const loginPrimaryButtonClass =
+  "flex h-[46px] w-full items-center justify-center rounded-[10px] text-[15px] font-semibold leading-[20px] tracking-normal transition disabled:cursor-not-allowed disabled:bg-[#dddddd] disabled:text-[#c5c5c5] enabled:text-white enabled:hover:brightness-95 sm:h-[54px] sm:rounded-[12px] sm:text-[16px] sm:leading-[22px]";
+
+export const loginFieldLabelClass =
+  "mb-1.5 block text-[13px] font-normal leading-[18px] tracking-normal text-[#374151] sm:mb-[8px] sm:text-[14px] sm:leading-[20px]";
+
 export function LoginArtPanel({ brand }: { brand: TenantBranding }) {
   const logoSrc = braasLoginShellLogoUrl(brand);
 
@@ -39,7 +55,7 @@ export function LoginBrandHeader({ brand }: { brand: TenantBranding }) {
 
   return (
     <>
-      <div className="flex items-start pb-2 sm:pb-0">
+      <div className="flex items-start pb-2 pt-1 sm:pb-0 sm:pt-0">
         <div className="flex items-center gap-3 sm:gap-[14px]">
           <div className="flex h-[44px] w-[44px] shrink-0 items-center justify-center overflow-hidden rounded-[10px] border border-[#e5e7eb] bg-white p-[6px] sm:h-[64px] sm:w-[64px] sm:rounded-[12px] sm:p-[8px]">
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -125,7 +141,7 @@ export function LoginPageShell({ brand, children }: { brand: TenantBranding; chi
 
           @media (max-width: 768px) {
             .login-frame {
-              padding: 8px;
+              padding: 16px;
             }
 
             .login-layout {
@@ -134,7 +150,7 @@ export function LoginPageShell({ brand, children }: { brand: TenantBranding; chi
             }
 
             .login-content {
-              padding: 8px;
+              padding: 16px 20px;
             }
 
             .login-art {
@@ -145,19 +161,19 @@ export function LoginPageShell({ brand, children }: { brand: TenantBranding; chi
 
           @media (max-width: 600px) {
             .login-frame {
-              padding: 6px;
+              padding: 16px;
             }
 
             .login-layout {
               grid-template-columns: 1fr;
-              gap: 8px;
+              gap: 12px;
             }
 
             .login-content {
               width: 100%;
               max-width: 100%;
               margin: 0 auto;
-              padding: 8px 10px;
+              padding: 20px 20px 16px;
             }
 
             .login-art {

@@ -5,7 +5,7 @@ import VerificationSuccessModal from "@/app/components/VerificationSuccessModal"
 import Link from "next/link";
 import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
 import LoginFormError, { loginInputErrorClass } from "@/app/login/LoginFormError";
-import { interStyle } from "@/app/login/BraasLoginShell";
+import { interStyle, loginFieldLabelClass, loginInputClass, loginPasswordInputClass, loginPrimaryButtonClass } from "@/app/login/BraasLoginShell";
 import { useApplicantSignIn } from "@/lib/applicant-portal/use-applicant-sign-in";
 import { recruiterSignInHref } from "@/lib/auth/recruiter-sign-in";
 import type { TenantBranding } from "@/lib/tenant/tenant-branding";
@@ -17,20 +17,6 @@ import { FaApple } from "react-icons/fa";
 import { FaXTwitter } from "react-icons/fa6";
 import { FcGoogle } from "react-icons/fc";
 
-const inputFocusClass =
-  "focus:border-[color:var(--brand-primary)] focus:ring-2 focus:ring-[color:color-mix(in_srgb,var(--brand-primary)_20%,transparent)]";
-
-const inputTypographyStyle = {
-  fontFamily: "Inter, Arial, sans-serif",
-  fontSize: "16px",
-  lineHeight: "24px",
-  fontWeight: 400,
-  letterSpacing: "0",
-} as const;
-
-const inputTextClass =
-  "text-[16px] font-normal leading-[24px] tracking-normal placeholder:text-[16px] placeholder:leading-[24px] placeholder:font-normal";
-
 const checkboxActiveClass = "border-[#012352] bg-[#012352]";
 
 function primaryButtonStyle(enabled: boolean): CSSProperties | undefined {
@@ -39,7 +25,7 @@ function primaryButtonStyle(enabled: boolean): CSSProperties | undefined {
 
 function FieldLabel({ children }: { children: string }) {
   return (
-    <label className="mb-[8px] block text-[14px] font-normal leading-[20px] tracking-normal text-[#374151]" style={interStyle}>
+    <label className={loginFieldLabelClass} style={interStyle}>
       {children}
       <span className="ml-1 text-[#e11d48]">*</span>
     </label>
@@ -96,7 +82,7 @@ function LoginFormOptions({ rememberMe, setRememberMe, agree, setAgree }: LoginF
     <>
       <div className="flex items-center justify-between">
         <label
-          className="flex cursor-pointer items-center gap-[8px] text-[14px] font-normal leading-[20px] text-[#374151]"
+          className="flex cursor-pointer items-center gap-2 text-[13px] font-normal leading-[18px] text-[#374151] sm:gap-[8px] sm:text-[14px] sm:leading-[20px]"
           style={interStyle}
         >
           <span
@@ -125,7 +111,7 @@ function LoginFormOptions({ rememberMe, setRememberMe, agree, setAgree }: LoginF
       </div>
 
       <label
-        className="flex cursor-pointer items-start gap-[8px] text-[14px] font-normal leading-[20px] text-[#4b5563]"
+        className="flex cursor-pointer items-start gap-2 text-[13px] font-normal leading-[18px] text-[#4b5563] sm:gap-[8px] sm:text-[14px] sm:leading-[20px]"
         style={interStyle}
       >
         <span
@@ -215,8 +201,8 @@ export default function WorkerSignInForm({ tenantSlug, brand }: Props) {
     resetToEmail();
   }
 
-  const emailInputClass = `h-[56px] w-full rounded-[8px] border border-[#cbd5e1] px-[14px] ${inputTextClass} text-[#0f172a] outline-none transition placeholder:text-[#94a3b8] ${
-    emailLocked ? "bg-[#f8fafc] text-[#64748b]" : `bg-white ${inputFocusClass}`
+  const emailInputClass = `${loginInputClass} ${
+    emailLocked ? "bg-[#f8fafc] text-[#64748b]" : "bg-white"
   } ${mode === "email" && error ? loginInputErrorClass : ""}`;
 
   return (
@@ -232,7 +218,7 @@ export default function WorkerSignInForm({ tenantSlug, brand }: Props) {
         />
       ) : null}
 
-      <div className="flex flex-col gap-6 pt-3 sm:gap-[40px] sm:pt-[30px]">
+      <div className="flex flex-col gap-4 pt-3 sm:gap-[40px] sm:pt-[30px]">
       <div>
         <h1 className="text-[22px] font-semibold leading-[30px] tracking-normal text-black sm:text-[30px] sm:leading-[36px]" style={interStyle}>
           Login
@@ -253,7 +239,7 @@ export default function WorkerSignInForm({ tenantSlug, brand }: Props) {
       ) : null}
 
       {mode === "email" ? (
-        <form onSubmit={handleLookup} className="flex flex-col gap-5 sm:gap-[30px]">
+        <form onSubmit={handleLookup} className="flex flex-col gap-4 sm:gap-[30px]">
           <div>
             <FieldLabel>Email</FieldLabel>
             <input
@@ -267,7 +253,6 @@ export default function WorkerSignInForm({ tenantSlug, brand }: Props) {
               placeholder="Email"
               autoComplete="email"
               aria-invalid={Boolean(error)}
-              style={inputTypographyStyle}
               className={emailInputClass}
             />
             {error ? (
@@ -280,7 +265,7 @@ export default function WorkerSignInForm({ tenantSlug, brand }: Props) {
           <button
             type="submit"
             disabled={!canSubmitEmail || loading}
-            className="flex h-[54px] w-full items-center justify-center rounded-[12px] text-[16px] font-semibold leading-[22px] tracking-normal transition disabled:cursor-not-allowed disabled:bg-[#dddddd] disabled:text-[#c5c5c5] enabled:text-white enabled:hover:brightness-95"
+            className={loginPrimaryButtonClass}
             style={primaryButtonStyle(canSubmitEmail && !loading)}
           >
             {loading ? "Checking..." : "Continue"}
@@ -291,7 +276,7 @@ export default function WorkerSignInForm({ tenantSlug, brand }: Props) {
       ) : null}
 
       {mode === "setup" ? (
-        <form onSubmit={handleSetup} className="flex flex-col gap-[20px]">
+        <form onSubmit={handleSetup} className="flex flex-col gap-3 sm:gap-[20px]">
           <div>
             <FieldLabel>Email</FieldLabel>
             <input
@@ -299,7 +284,6 @@ export default function WorkerSignInForm({ tenantSlug, brand }: Props) {
               value={email}
               readOnly
               aria-readonly="true"
-              style={inputTypographyStyle}
               className={emailInputClass}
             />
           </div>
@@ -318,8 +302,7 @@ export default function WorkerSignInForm({ tenantSlug, brand }: Props) {
                 }}
                 placeholder="Password"
                 autoComplete="new-password"
-                style={inputTypographyStyle}
-                className={`h-[56px] w-full rounded-[8px] border border-[#cbd5e1] bg-white px-[14px] pr-12 ${inputTextClass} text-[#0f172a] outline-none transition placeholder:text-[#94a3b8] ${inputFocusClass}`}
+                className={loginPasswordInputClass}
               />
               <button
                 type="button"
@@ -351,8 +334,7 @@ export default function WorkerSignInForm({ tenantSlug, brand }: Props) {
                 placeholder="Re-enter password"
                 autoComplete="new-password"
                 aria-invalid={Boolean(error)}
-                style={inputTypographyStyle}
-                className={`h-[56px] w-full rounded-[8px] border border-[#cbd5e1] bg-white px-[14px] pr-12 ${inputTextClass} text-[#0f172a] outline-none transition placeholder:text-[#94a3b8] ${inputFocusClass} ${error ? loginInputErrorClass : ""}`}
+                className={`${loginPasswordInputClass} ${error ? loginInputErrorClass : ""}`}
               />
               <button
                 type="button"
@@ -384,7 +366,7 @@ export default function WorkerSignInForm({ tenantSlug, brand }: Props) {
           <button
             type="submit"
             disabled={!canSubmitSetup || loading}
-            className="flex h-[54px] w-full items-center justify-center rounded-[12px] text-[16px] font-semibold leading-[22px] tracking-normal transition disabled:cursor-not-allowed disabled:bg-[#dddddd] disabled:text-[#c5c5c5] enabled:text-white enabled:hover:brightness-95"
+            className={loginPrimaryButtonClass}
             style={primaryButtonStyle(canSubmitSetup && !loading)}
           >
             {loading ? "Saving..." : "Create password and continue"}
@@ -404,7 +386,7 @@ export default function WorkerSignInForm({ tenantSlug, brand }: Props) {
       ) : null}
 
       {mode === "password" ? (
-        <form onSubmit={handlePasswordLogin} className="flex flex-col gap-[20px]">
+        <form onSubmit={handlePasswordLogin} className="flex flex-col gap-3 sm:gap-[20px]">
           <div>
             <FieldLabel>Email</FieldLabel>
             <input
@@ -412,7 +394,6 @@ export default function WorkerSignInForm({ tenantSlug, brand }: Props) {
               value={email}
               readOnly
               aria-readonly="true"
-              style={inputTypographyStyle}
               className={emailInputClass}
             />
           </div>
@@ -431,8 +412,7 @@ export default function WorkerSignInForm({ tenantSlug, brand }: Props) {
                 placeholder="Password"
                 autoComplete="current-password"
                 aria-invalid={Boolean(error)}
-                style={inputTypographyStyle}
-                className={`h-[56px] w-full rounded-[8px] border border-[#cbd5e1] bg-white px-[14px] pr-12 ${inputTextClass} text-[#0f172a] outline-none transition placeholder:text-[#94a3b8] ${inputFocusClass} ${error ? loginInputErrorClass : ""}`}
+                className={`${loginPasswordInputClass} ${error ? loginInputErrorClass : ""}`}
               />
               <button
                 type="button"
@@ -464,7 +444,7 @@ export default function WorkerSignInForm({ tenantSlug, brand }: Props) {
           <button
             type="submit"
             disabled={!canSubmitPassword || loading}
-            className="flex h-[54px] w-full items-center justify-center rounded-[12px] text-[16px] font-semibold leading-[22px] tracking-normal transition disabled:cursor-not-allowed disabled:bg-[#dddddd] disabled:text-[#c5c5c5] enabled:text-white enabled:hover:brightness-95"
+            className={loginPrimaryButtonClass}
             style={primaryButtonStyle(canSubmitPassword && !loading)}
           >
             {loading ? "Signing in..." : "Log In"}
