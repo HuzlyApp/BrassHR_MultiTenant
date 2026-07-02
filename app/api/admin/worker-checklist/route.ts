@@ -100,7 +100,7 @@ export async function GET(req: NextRequest) {
     const { data: worker, error: wErr } = await supabase
       .from("worker")
       .select(
-        "id, user_id, tenant_id, first_name, last_name, job_role, created_at, updated_at, city, state, status, profile_photo"
+        "id, user_id, tenant_id, first_name, last_name, email, job_role, created_at, updated_at, city, state, status, profile_photo"
       )
       .eq("id", workerId)
       .maybeSingle()
@@ -447,6 +447,7 @@ export async function GET(req: NextRequest) {
         id: String(worker.id),
         first_name: worker.first_name,
         last_name: worker.last_name,
+        email: worker.email != null ? String(worker.email) : null,
         job_role: worker.job_role,
         city: worker.city,
         state: worker.state,

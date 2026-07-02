@@ -1,4 +1,75 @@
-import type { NextRequest } from "next/server"
+import { LEGACY_EMAIL_DOMAIN } from "@/lib/email/email-domain";
+
+type OriginRequest = Pick<Request, "headers"> & {
+  nextUrl?: { origin: string }
+}
+
+/** Legacy Nexus platform host labels (not tenant vanity subdomains). */
+const LEGACY_PLATFORM_HOST_LABELS = new Set(["hr", "www"]);
+
+function currentRootDomain(): string {
+  return (
+    process.env.ROOT_DOMAIN?.trim().toLowerCase() ||
+    process.env.NEXT_PUBLIC_ROOT_DOMAIN?.trim().toLowerCase() ||
+    "brasshr.com"
+  );
+}
+
+function isLocalDevHost(hostname: string): boolean {
+  const host = hostname.toLowerCase();
+  return (
+    host === "localhost" ||
+    host.startsWith("127.0.0.1") ||
+    host === "[::1]" ||
+    host === "::1"
+  );
+}
+
+/**
+ * Rewrites legacy Nexus MedPro hostnames to Brass HR hosts.
+ * Platform app (`hr.nexusmedpro.com`) → apex `brasshr.com`.
+ * Tenant vanity (`test.nexusmedpro.com`) → `test.brasshr.com`.
+ */
+export function migrateLegacyAppOrigin(origin: string): string {
+  try {
+    const url = new URL(origin);
+    const legacySuffix = `.${LEGACY_EMAIL_DOMAIN}`;
+    const legacyHost = LEGACY_EMAIL_DOMAIN;
+    const root = currentRootDomain();
+
+    let nextHost: string | null = null;
+    if (url.hostname === legacyHost) {
+      nextHost = root;
+    } else if (url.hostname.endsWith(legacySuffix)) {
+      const label = url.hostname.slice(0, -legacySuffix.length);
+      if (!label || LEGACY_PLATFORM_HOST_LABELS.has(label.toLowerCase())) {
+        nextHost = root;
+      } else {
+        nextHost = `${label}.${root}`;
+      }
+    }
+
+    if (!nextHost) return origin;
+    url.hostname = nextHost;
+    return url.origin;
+  } catch {
+    return origin;
+  }
+}
+
+function collapseMistakenPlatformSubdomain(origin: string): string {
+  try {
+    const url = new URL(origin);
+    const root = currentRootDomain();
+    if (url.hostname.toLowerCase() === `hr.${root}`) {
+      url.hostname = root;
+      return url.origin;
+    }
+    return origin;
+  } catch {
+    return origin;
+  }
+}
 
 /**
  * Ensures a valid absolute origin for redirects and third-party callback URLs.
@@ -37,11 +108,37 @@ export function normalizeRedirectUrl(url: string): string {
  * Public origin for redirects / DocuSign return URLs.
  * Prefer client-provided origin (browser), then env, then proxy headers, then Host.
  */
-export function resolveAppOrigin(req: NextRequest, clientOrigin?: string | null): string | null {
+function finalizeResolvedOrigin(origin: string): string {
+  return collapseMistakenPlatformSubdomain(migrateLegacyAppOrigin(normalizePublicOrigin(origin)))
+}
+
+/**
+ * Origin for platform-level flows (owner signup, tenant-onboarding).
+ * Uses the marketing apex (`brasshr.com`), not legacy `hr.*` or tenant vanity hosts.
+ */
+export function resolvePlatformAppOrigin(req: OriginRequest): string | null {
+  const resolved = resolveAppOrigin(req);
+  if (!resolved) return null;
+
+  try {
+    const url = new URL(resolved);
+    if (isLocalDevHost(url.hostname)) return resolved;
+
+    const root = currentRootDomain();
+    const host = url.hostname.toLowerCase();
+    if (host === root || host === `www.${root}`) return url.origin;
+
+    return `https://${root}`;
+  } catch {
+    return resolved;
+  }
+}
+
+export function resolveAppOrigin(req: OriginRequest, clientOrigin?: string | null): string | null {
   const fromClient = clientOrigin?.trim().replace(/\/$/, "")
   if (fromClient) {
     try {
-      return normalizePublicOrigin(fromClient)
+      return finalizeResolvedOrigin(fromClient)
     } catch {
       /* ignore */
     }
@@ -50,10 +147,10 @@ export function resolveAppOrigin(req: NextRequest, clientOrigin?: string | null)
   const env = process.env.NEXT_PUBLIC_APP_URL?.trim().replace(/\/$/, "")
   if (env) {
     try {
-      return normalizePublicOrigin(new URL(env).origin)
+      return finalizeResolvedOrigin(new URL(env).origin)
     } catch {
       try {
-        return normalizePublicOrigin(env)
+        return finalizeResolvedOrigin(env)
       } catch {
         /* ignore */
       }
@@ -65,7 +162,7 @@ export function resolveAppOrigin(req: NextRequest, clientOrigin?: string | null)
   if (forwardedProto && forwardedHost) {
     const proto = /^https?$/i.test(forwardedProto) ? forwardedProto.toLowerCase() : "https"
     try {
-      return normalizePublicOrigin(`${proto}://${forwardedHost}`)
+      return finalizeResolvedOrigin(`${proto}://${forwardedHost}`)
     } catch {
       /* ignore */
     }
@@ -79,7 +176,7 @@ export function resolveAppOrigin(req: NextRequest, clientOrigin?: string | null)
       host.startsWith("[::1]")
     const proto = isLocal ? "http" : "https"
     try {
-      return normalizePublicOrigin(`${proto}://${host}`)
+      return finalizeResolvedOrigin(`${proto}://${host}`)
     } catch {
       /* ignore */
     }
@@ -87,7 +184,7 @@ export function resolveAppOrigin(req: NextRequest, clientOrigin?: string | null)
 
   try {
     const o = req.nextUrl?.origin
-    if (o && o !== "null" && !o.includes("0.0.0.0")) return normalizePublicOrigin(o)
+    if (o && o !== "null" && !o.includes("0.0.0.0")) return finalizeResolvedOrigin(o)
   } catch {
     /* ignore */
   }

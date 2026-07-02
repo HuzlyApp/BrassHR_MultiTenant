@@ -13,6 +13,7 @@ const TOKEN_BYTES = 32;
 export type ContinuationReason =
   | "onboarding_reminder"
   | "application_status"
+  | "resume_continuation"
   | "welcome"
   | "manual_notification";
 

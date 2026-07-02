@@ -18,43 +18,56 @@ const STATUS_ITEMS = [
 
 const STATUS_ICON_BOX_SIZE = 64;
 const STATUS_CONNECTOR_HEIGHT = 50;
+const STEP_DELAY_MS = 1400;
 
-function StatusList({ isCreated }: { isCreated: boolean }) {
-  const innerIconSize = isCreated ? 42 : 36;
+function delay(ms: number) {
+  return new Promise<void>((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
+}
 
+function StatusList({ completedThrough }: { completedThrough: number }) {
   return (
     <div className="mt-[48px]">
-      {STATUS_ITEMS.map((item, index) => (
-        <Fragment key={item.label}>
-          {index > 0 ? (
-            <div
-              className="flex items-center justify-center"
-              style={{ height: STATUS_CONNECTOR_HEIGHT, width: STATUS_ICON_BOX_SIZE }}
-              aria-hidden
-            >
-              <span className="w-px bg-[#e8edf4]" style={{ height: STATUS_CONNECTOR_HEIGHT }} />
+      {STATUS_ITEMS.map((item, index) => {
+        const isComplete = index <= completedThrough;
+        const innerIconSize = isComplete ? 42 : 36;
+
+        return (
+          <Fragment key={item.label}>
+            {index > 0 ? (
+              <div
+                className="flex items-center justify-center"
+                style={{ height: STATUS_CONNECTOR_HEIGHT, width: STATUS_ICON_BOX_SIZE }}
+                aria-hidden
+              >
+                <span className="w-px bg-[#e8edf4]" style={{ height: STATUS_CONNECTOR_HEIGHT }} />
+              </div>
+            ) : null}
+            <div className="flex items-center gap-[16px]">
+              <span
+                className="flex shrink-0 items-center justify-center rounded-[12px] bg-[#F3F4F6]"
+                style={{ width: STATUS_ICON_BOX_SIZE, height: STATUS_ICON_BOX_SIZE }}
+              >
+                <Image
+                  src={isComplete ? RIGHT_CHECK_ICON : item.icon}
+                  alt=""
+                  width={innerIconSize}
+                  height={innerIconSize}
+                  className="object-contain"
+                  style={{ width: innerIconSize, height: innerIconSize }}
+                />
+              </span>
+              <span
+                className="text-[16px] font-normal leading-[24px] tracking-normal text-[#0f172a]"
+                style={interStyle}
+              >
+                {item.label}
+              </span>
             </div>
-          ) : null}
-          <div className="flex items-center gap-[16px]">
-            <span
-              className="flex shrink-0 items-center justify-center rounded-[12px] bg-[#F3F4F6]"
-              style={{ width: STATUS_ICON_BOX_SIZE, height: STATUS_ICON_BOX_SIZE }}
-            >
-              <Image
-                src={isCreated ? RIGHT_CHECK_ICON : item.icon}
-                alt=""
-                width={innerIconSize}
-                height={innerIconSize}
-                className="object-contain"
-                style={{ width: innerIconSize, height: innerIconSize }}
-              />
-            </span>
-            <span className="text-[16px] font-normal leading-[24px] tracking-normal text-[#0f172a]" style={interStyle}>
-              {item.label}
-            </span>
-          </div>
-        </Fragment>
-      ))}
+          </Fragment>
+        );
+      })}
     </div>
   );
 }
@@ -91,33 +104,117 @@ function TrialArtPanel() {
   );
 }
 
-const DEFAULT_VERIFICATION_EMAIL = "seandoe@gmail.com";
-
 function YourTrialContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const isAccountReady = searchParams.get("account-ready") === "true";
-  const isCreated = searchParams.get("created") === "true" || isAccountReady;
-  const [verificationEmail, setVerificationEmail] = useState(DEFAULT_VERIFICATION_EMAIL);
+  const [verificationEmail, setVerificationEmail] = useState("");
+  const [completedThrough, setCompletedThrough] = useState(0);
+  const [prepareError, setPrepareError] = useState<string | null>(null);
+  const [resending, setResending] = useState(false);
 
   useEffect(() => {
-    if (!isAccountReady) return;
-
     try {
       const draft = localStorage.getItem("braasOwnerSignupDraft");
       if (!draft) return;
-
       const parsed = JSON.parse(draft) as { workEmail?: string };
       if (parsed.workEmail?.trim()) {
         setVerificationEmail(parsed.workEmail.trim());
       }
     } catch {
-      // Keep default email when draft is missing or invalid.
+      // ignore invalid draft
     }
-  }, [isAccountReady]);
+  }, []);
+
+  useEffect(() => {
+    if (isAccountReady) return;
+
+    let cancelled = false;
+
+    async function runPreparation() {
+      setCompletedThrough(0);
+      await delay(STEP_DELAY_MS);
+      if (cancelled) return;
+
+      setCompletedThrough(1);
+      let emailDelivered = false;
+      try {
+        const res = await fetch("/api/auth/signup/prepare-trial", { method: "POST" });
+        const json = (await res.json().catch(() => ({}))) as {
+          error?: string;
+          sent?: boolean;
+          skipped?: boolean;
+          failed?: boolean;
+          reason?: string | null;
+        };
+
+        if (!res.ok) {
+          setPrepareError(json.error || "Could not finish preparing your trial.");
+        } else if (json.sent || (json.skipped && json.reason === "ALREADY_SENT")) {
+          emailDelivered = true;
+        } else if (json.failed || json.skipped) {
+          setPrepareError(
+            json.reason === "RESEND_NOT_CONFIGURED"
+              ? "Email delivery is not configured on this server. Contact support for your setup link."
+              : "We could not send your setup email. Use Resend setup link below to try again."
+          );
+        } else {
+          setPrepareError("We could not confirm your setup email was sent. Use Resend setup link below.");
+        }
+      } catch {
+        setPrepareError("Network error while preparing your trial.");
+      }
+
+      await delay(STEP_DELAY_MS);
+      if (cancelled) return;
+      setCompletedThrough(2);
+
+      await delay(STEP_DELAY_MS);
+      if (cancelled) return;
+
+      if (emailDelivered) {
+        router.replace("/your-trial?account-ready=true");
+      }
+    }
+
+    void runPreparation();
+    return () => {
+      cancelled = true;
+    };
+  }, [isAccountReady, router]);
 
   const handleExit = () => {
     router.push("/login");
+  };
+
+  const handleResendSetupLink = async () => {
+    setResending(true);
+    setPrepareError(null);
+    try {
+      const res = await fetch("/api/auth/signup/resend-onboarding-link", { method: "POST" });
+      const json = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        sent?: boolean;
+        skipped?: boolean;
+        reason?: string | null;
+      };
+
+      if (!res.ok) {
+        setPrepareError(json.error || "Could not resend setup link.");
+        return;
+      }
+
+      if (json.sent || (json.skipped && json.reason === "ALREADY_SENT")) {
+        router.replace("/your-trial?account-ready=true");
+        return;
+      }
+
+      setPrepareError("Could not resend setup link. Please try again in a moment.");
+    } catch {
+      setPrepareError("Network error while resending setup link.");
+    } finally {
+      setResending(false);
+    }
   };
 
   useEffect(() => {
@@ -135,7 +232,12 @@ function YourTrialContent() {
   return (
     <>
       {isAccountReady ? (
-        <AccountReadyModal email={verificationEmail} onExit={handleExit} />
+        <AccountReadyModal
+          email={verificationEmail || "your email"}
+          onExit={handleExit}
+          onResend={handleResendSetupLink}
+          resending={resending}
+        />
       ) : null}
 
       <main
@@ -143,7 +245,7 @@ function YourTrialContent() {
         style={{ backgroundColor: "#ffffff" }}
         aria-hidden={isAccountReady}
       >
-      <style>{`
+        <style>{`
         .trial-frame {
           box-sizing: border-box;
           padding: clamp(32px, 5.55vw, 80px);
@@ -199,42 +301,64 @@ function YourTrialContent() {
         }
       `}</style>
 
-      <section className="trial-frame mx-auto w-full rounded-[24px] bg-white">
-        <div className="trial-layout w-full rounded-[12px] bg-white">
-          <div className="trial-content">
-            <Image
-              src="/icons/braas-HR/BrassHR-logo.svg"
-              alt="Brass HR"
-              width={160}
-              height={80}
-              priority
-              className="h-[80px] w-[160px] object-contain"
-            />
+        <section className="trial-frame mx-auto w-full rounded-[24px] bg-white">
+          <div className="trial-layout w-full rounded-[12px] bg-white">
+            <div className="trial-content">
+              <Image
+                src="/icons/braas-HR/BrassHR-logo.svg"
+                alt="Brass HR"
+                width={160}
+                height={80}
+                priority
+                className="h-[80px] w-[160px] object-contain"
+              />
 
-            <SignupStepper phase={isCreated ? "ready" : "preparing"} />
+              <SignupStepper phase={isAccountReady ? "ready" : "preparing"} />
 
-            <div className="mt-[58px]">
-              <h1 className="text-[30px] font-semibold leading-[36px] tracking-normal text-[#0b0f19]" style={interStyle}>
-                We&apos;re preparing your trial
-              </h1>
-              <p className="mt-[10px] text-[16px] font-normal leading-[24px] tracking-normal text-[#475569]" style={interStyle}>
-                This only takes a few minutes. Please hang on a bit...
+              <div className="mt-[58px]">
+                <h1
+                  className="text-[30px] font-semibold leading-[36px] tracking-normal text-[#0b0f19]"
+                  style={interStyle}
+                >
+                  We&apos;re preparing your trial
+                </h1>
+                <p
+                  className="mt-[10px] text-[16px] font-normal leading-[24px] tracking-normal text-[#475569]"
+                  style={interStyle}
+                >
+                  This only takes a few minutes. Please hang on a bit...
+                </p>
+                {prepareError ? (
+                  <div className="mt-3 space-y-3">
+                    <p className="text-sm text-red-700">{prepareError}</p>
+                    <button
+                      type="button"
+                      onClick={() => void handleResendSetupLink()}
+                      disabled={resending}
+                      className="rounded-[8px] border border-[#BC8B41] px-4 py-2 text-sm font-semibold text-[#BC8B41] transition hover:bg-[#BC8B41]/5 disabled:opacity-60"
+                    >
+                      {resending ? "Sending…" : "Resend setup link"}
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+
+              <StatusList completedThrough={completedThrough} />
+
+              <div className="min-h-[140px] flex-1" aria-hidden />
+
+              <p
+                className="text-[12px] font-normal leading-[16px] tracking-normal text-[#94a3b8]"
+                style={interStyle}
+              >
+                Join 20,000+ companies in 190+ countries using Brass - HRsimplified
               </p>
             </div>
 
-            <StatusList isCreated={isCreated} />
-
-            <div className="min-h-[140px] flex-1" aria-hidden />
-
-            <p className="text-[12px] font-normal leading-[16px] tracking-normal text-[#94a3b8]" style={interStyle}>
-              Join 20,000+ companies in 190+ countries using Brass - HRsimplified
-            </p>
+            <TrialArtPanel />
           </div>
-
-          <TrialArtPanel />
-        </div>
-      </section>
-    </main>
+        </section>
+      </main>
     </>
   );
 }

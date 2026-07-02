@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from "next/server"
+import { after } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { getSupabaseUrl } from "@/lib/supabase-env"
 import { validateStep1Form } from "@/lib/onboardingStep1Validation"
 import { resolveOnboardingTenantId } from "@/lib/tenant/resolve-onboarding-tenant-id"
 import { persistWorkerRow } from "@/lib/onboarding/persist-worker-row"
+import { sendResumeContinuationEmail } from "@/lib/onboarding/send-resume-continuation-email"
+import { resolveAppOrigin } from "@/lib/resolve-app-origin"
 
 export const runtime = "nodejs"
 
@@ -90,6 +93,42 @@ export async function POST(req: NextRequest) {
         { status: saved.status ?? 500 }
       )
     }
+
+    const capturedWorkerId = saved.workerId
+    const capturedTenantId = tenantId
+    const capturedEmail = step1Fields.email.trim().toLowerCase()
+    after(async () => {
+      const origin =
+        resolveAppOrigin(req) ??
+        process.env.NEXT_PUBLIC_APP_URL?.trim().replace(/\/+$/, "") ??
+        null
+      if (!origin || !capturedWorkerId) return
+
+      const { data: resumeRow } = await supabase
+        .from("worker_resumes")
+        .select("id, extracted_text, parsed_json")
+        .eq("worker_id", capturedWorkerId)
+        .maybeSingle()
+
+      if (!resumeRow?.id) return
+
+      await sendResumeContinuationEmail(supabase, {
+        workerId: capturedWorkerId,
+        tenantId: capturedTenantId,
+        resumeId: String(resumeRow.id),
+        origin,
+        tenantSlug: tenantSlug || null,
+        extractedText:
+          resumeRow.extracted_text != null ? String(resumeRow.extracted_text) : null,
+        parsedResume:
+          resumeRow.parsed_json && typeof resumeRow.parsed_json === "object"
+            ? (resumeRow.parsed_json as Record<string, unknown>)
+            : null,
+        recipientEmailOverride: capturedEmail,
+        trigger: "profile_save",
+        request: req,
+      })
+    })
 
     return NextResponse.json({ ok: true })
   } catch (err: unknown) {

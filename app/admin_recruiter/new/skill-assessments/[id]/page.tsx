@@ -259,7 +259,8 @@ export default function NewApplicantSkillAssessmentsPage() {
   const [busyAllDownload, setBusyAllDownload] = useState(false);
   const [applicant, setApplicant] = useState<WorkerProfile | null>(null);
   const [assessments, setAssessments] = useState<Assessment[]>([]);
-  const { status: candidateStatus, profilePhotoUrl } = useCandidateHeader(applicantId);
+  const { status: candidateStatus, profilePhotoUrl, email: candidateEmail } =
+    useCandidateHeader(applicantId);
 
   useEffect(() => {
     async function fetchAssessmentList() {
@@ -535,6 +536,8 @@ export default function NewApplicantSkillAssessmentsPage() {
               role={candidateRole}
               status={candidateStatus ?? applicant?.status_label}
               profilePhotoUrl={profilePhotoUrl}
+              workerId={applicantId}
+              candidateEmail={candidateEmail}
             />
 
             <div className="w-full min-w-0 admin-recruiter-content-width">

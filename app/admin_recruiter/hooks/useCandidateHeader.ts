@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 export type CandidateHeaderWorker = {
   first_name: string | null;
   last_name: string | null;
+  email?: string | null;
   job_role: string | null;
   city?: string | null;
   state?: string | null;
@@ -59,5 +60,7 @@ export function useCandidateHeader(workerId: string | undefined) {
 
   const profilePhotoUrl = worker?.profile_photo_url ?? null;
 
-  return { worker, name, role, status, profilePhotoUrl, loading };
+  const email = worker?.email?.trim() || null;
+
+  return { worker, name, role, status, profilePhotoUrl, email, loading };
 }

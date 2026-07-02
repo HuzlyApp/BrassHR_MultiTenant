@@ -11,6 +11,7 @@ type ProfilePayload = {
   worker?: {
     first_name?: string | null;
     last_name?: string | null;
+    email?: string | null;
     job_role?: string | null;
     status_label?: string | null;
     profile_photo_url?: string | null;
@@ -221,6 +222,8 @@ export default function NewApplicantHistoryPage() {
               role={candidateRole}
               status={applicant?.status_label ?? undefined}
               profilePhotoUrl={applicant?.profile_photo_url ?? undefined}
+              workerId={applicantId}
+              candidateEmail={applicant?.email ?? null}
             />
 
             <div className="rounded-xl border border-[#D1D5DB] bg-white p-5 shadow-sm">

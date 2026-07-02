@@ -84,7 +84,7 @@ export function resolvePostAuthRedirect(
   }
   if (!status.tenantOnboardingCompleted) {
     if (safeNext?.startsWith("/tenant-onboarding")) return safeNext;
-    return "/tenant-onboarding";
+    return "/your-trial?account-ready=true";
   }
   return safeNext ?? ADMIN_RECRUITER_HOME_ROUTE;
 }

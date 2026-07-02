@@ -15,7 +15,7 @@ const bodySchema = z.object({
   clientOrigin: z.string().trim().optional(),
   markSent: z.boolean().optional(),
   reason: z
-    .enum(["onboarding_reminder", "application_status", "welcome", "manual_notification"])
+    .enum(["onboarding_reminder", "application_status", "resume_continuation", "welcome", "manual_notification"])
     .optional(),
 });
 

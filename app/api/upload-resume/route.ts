@@ -9,6 +9,8 @@ import { persistWorkerResumeRecord } from "@/lib/onboarding/persist-worker-resum
 import { resolveOrEnsureWorkerForApplicant, resolveWorkerByApplicantId, type WorkerContext } from "@/lib/onboarding/resolve-worker-context"
 import { runResumeParseJob } from "@/lib/resume/run-resume-parse-job"
 import { createTimer, logResumeTiming } from "@/lib/resume/timing"
+import { sendResumeContinuationEmail } from "@/lib/onboarding/send-resume-continuation-email"
+import { resolveAppOrigin } from "@/lib/resolve-app-origin"
 import { WORKER_RESUMES_BUCKET } from "@/lib/supabase-storage-buckets"
 import { enforceRateLimit, getClientIp } from "@/lib/security/rate-limit"
 
@@ -305,13 +307,69 @@ export async function POST(req: Request) {
   }
 
   const capturedResumeId = resumeId
+  const capturedWorkerId = workerCtx.workerId
+  const capturedTenantId = workerCtx.tenantId
+  const capturedText = text
+  const capturedTenantSlug = tenantSlug
   if (text.trim()) {
     after(async () => {
+      const origin =
+        resolveAppOrigin(req) ??
+        process.env.NEXT_PUBLIC_APP_URL?.trim().replace(/\/+$/, "") ??
+        null
+
+      if (origin) {
+        await sendResumeContinuationEmail(supabase, {
+          workerId: capturedWorkerId,
+          tenantId: capturedTenantId,
+          resumeId: capturedResumeId,
+          origin,
+          tenantSlug: capturedTenantSlug || null,
+          extractedText: capturedText,
+          trigger: "resume_upload",
+          request: req,
+        })
+      }
+
       logResumeTiming("upload-resume", "ai-parse-enqueued", {
         resumeId: capturedResumeId,
         textLength,
       })
-      await runResumeParseJob({ supabase, resumeId: capturedResumeId, text })
+      await runResumeParseJob({
+        supabase,
+        resumeId: capturedResumeId,
+        text: capturedText,
+        continuationEmail:
+          origin && capturedWorkerId && capturedTenantId
+            ? {
+                workerId: capturedWorkerId,
+                tenantId: capturedTenantId,
+                resumeId: capturedResumeId,
+                origin,
+                tenantSlug: capturedTenantSlug || null,
+                request: req,
+              }
+            : undefined,
+      })
+    })
+  } else if (capturedResumeId) {
+    after(async () => {
+      const origin =
+        resolveAppOrigin(req) ??
+        process.env.NEXT_PUBLIC_APP_URL?.trim().replace(/\/+$/, "") ??
+        null
+      if (!origin) return
+
+      await sendResumeContinuationEmail(supabase, {
+        workerId: capturedWorkerId,
+        tenantId: capturedTenantId,
+        resumeId: capturedResumeId,
+        origin,
+        tenantSlug: capturedTenantSlug || null,
+        extractedText: capturedText,
+        trigger: "resume_upload",
+        request: req,
+      })
     })
   }
 

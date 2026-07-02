@@ -30,6 +30,13 @@ vi.mock("@/lib/onboarding/persist-worker-resume-path", () => ({
 vi.mock("@/lib/onboarding/persist-worker-resume-record", () => ({
   persistWorkerResumeRecord: (...args: unknown[]) => persistRecordMock(...args),
 }))
+const sendResumeContinuationEmailMock = vi.hoisted(() => vi.fn(async () => ({ outcome: "skipped" })))
+vi.mock("@/lib/onboarding/send-resume-continuation-email", () => ({
+  sendResumeContinuationEmail: (...args: unknown[]) => sendResumeContinuationEmailMock(...args),
+}))
+vi.mock("@/lib/resolve-app-origin", () => ({
+  resolveAppOrigin: () => "http://localhost:3000",
+}))
 vi.mock("@/lib/security/rate-limit", () => ({
   enforceRateLimit: vi.fn(async () => null),
   getClientIp: vi.fn(() => "127.0.0.1"),
@@ -109,6 +116,20 @@ describe("POST /api/upload-resume", () => {
     )
     expect(afterMock).toHaveBeenCalled()
     expect(grokStarted).not.toHaveBeenCalled()
+
+    const afterCallback = afterMock.mock.calls[0]?.[0] as () => Promise<void>
+    await afterCallback()
+    expect(sendResumeContinuationEmailMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        workerId: "worker-1",
+        tenantId: "tenant-1",
+        resumeId: "resume-uuid-1",
+        trigger: "resume_upload",
+        extractedText: "Jane Doe\njane@example.com",
+      }),
+    )
+    expect(grokStarted).toHaveBeenCalled()
   })
 
   it("uploads a DOCX, extracts text, and returns a resumeId", async () => {

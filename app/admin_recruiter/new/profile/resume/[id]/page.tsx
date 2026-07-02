@@ -25,6 +25,7 @@ type WorkerProfilePayload = {
     id: string;
     first_name: string | null;
     last_name: string | null;
+    email?: string | null;
     job_role: string | null;
     city: string | null;
     state: string | null;
@@ -253,6 +254,8 @@ export default function NewApplicantProfileResumePage() {
               role={candidateRole}
               status={candidateStatus}
               profilePhotoUrl={w?.profile_photo_url}
+              workerId={applicantId}
+              candidateEmail={w?.email ?? null}
             />
             <ProfileSubTabs applicantId={applicantId} activeTab="Resume" />
 

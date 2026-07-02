@@ -1,6 +1,7 @@
 import type { User } from "@supabase/supabase-js";
 import { ADMIN_RECRUITER_HOME_ROUTE } from "@/app/admin_recruiter/components/sidebar-config";
 import { isGodAdminUser } from "@/lib/auth/god-admin";
+import { fetchTenantVanityLabel } from "@/lib/auth/recruiter-dashboard-redirect";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { resolveTenantIdBySlug } from "@/lib/tenant/resolve-tenant-id-by-slug";
 
@@ -27,6 +28,7 @@ export type RecruiterOnboardingStatus = {
   requestedTenantId: string | null;
   validTenantAccess: boolean;
   tenantOnboardingCompleted: boolean;
+  tenantSubdomain: string | null;
   redirectTarget: "/godadmin/tenants" | typeof ADMIN_RECRUITER_HOME_ROUTE | "/tenant-onboarding";
 };
 
@@ -102,6 +104,11 @@ export async function resolveRecruiterOnboardingStatus(
       ? ADMIN_RECRUITER_HOME_ROUTE
       : "/tenant-onboarding";
 
+  let tenantSubdomain: string | null = null;
+  if (!godAdmin && activeTenantId) {
+    tenantSubdomain = await fetchTenantVanityLabel(sb, activeTenantId);
+  }
+
   return {
     userId: user.id,
     role: roleForRequestedTenant?.role ?? fallbackRole ?? null,
@@ -110,6 +117,7 @@ export async function resolveRecruiterOnboardingStatus(
     requestedTenantId,
     validTenantAccess,
     tenantOnboardingCompleted,
+    tenantSubdomain,
     redirectTarget,
   };
 }

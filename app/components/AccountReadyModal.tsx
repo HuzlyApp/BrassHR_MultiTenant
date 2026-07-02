@@ -9,9 +9,16 @@ const ACCOUNT_READY_ICON = "/icons/braas-HR/account-ready-icon.svg";
 type AccountReadyModalProps = {
   email: string;
   onExit: () => void;
+  onResend?: () => void | Promise<void>;
+  resending?: boolean;
 };
 
-export default function AccountReadyModal({ email, onExit }: AccountReadyModalProps) {
+export default function AccountReadyModal({
+  email,
+  onExit,
+  onResend,
+  resending = false,
+}: AccountReadyModalProps) {
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 py-8 backdrop-blur-[2px]"
@@ -47,9 +54,9 @@ export default function AccountReadyModal({ email, onExit }: AccountReadyModalPr
             className="w-full text-center text-[18px] font-normal leading-[28px] tracking-normal text-[#475569]"
             style={interStyle}
           >
-            We&apos;ve sent a verification link to{" "}
-            <span className="font-semibold text-[#0f172a]">{email}</span>. Click the link in your email to
-            activate your free trial.
+            We&apos;ve sent a verification/status link to{" "}
+            <span className="font-semibold text-[#0f172a]">{email}</span>. Click the link in your
+            email to continue setting up your trial.
           </p>
 
           <button
@@ -63,6 +70,17 @@ export default function AccountReadyModal({ email, onExit }: AccountReadyModalPr
           >
             Exit
           </button>
+
+          {onResend ? (
+            <button
+              type="button"
+              onClick={() => void onResend()}
+              disabled={resending}
+              className="text-sm font-semibold text-[#BC8B41] transition hover:underline disabled:opacity-60"
+            >
+              {resending ? "Sending…" : "Didn't receive it? Resend setup link"}
+            </button>
+          ) : null}
         </div>
       </div>
     </div>

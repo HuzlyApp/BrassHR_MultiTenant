@@ -1,7 +1,8 @@
 "use client";
 
-import { Mail } from "lucide-react";
+import { Link2, Loader2, Mail } from "lucide-react";
 import CandidateAvatarIcon from "./CandidateAvatarIcon";
+import { useResendApplicationStatusLink } from "@/app/admin_recruiter/hooks/useResendApplicationStatusLink";
 
 const CANDIDATE_DETAIL_ICON = "/icons/candidate-detail-icon.svg";
 
@@ -11,6 +12,8 @@ type DetailedCandidateHeaderProps = {
   status?: string;
   loading?: boolean;
   profilePhotoUrl?: string | null;
+  workerId?: string | null;
+  candidateEmail?: string | null;
   onMessageClick?: () => void;
   messageDisabled?: boolean;
   onResendStatusClick?: () => void;
@@ -24,9 +27,22 @@ export default function DetailedCandidateHeader({
   status,
   loading = false,
   profilePhotoUrl,
+  workerId,
+  candidateEmail,
   onMessageClick,
   messageDisabled = false,
+  onResendStatusClick,
+  resendStatusDisabled,
+  resendingStatus,
 }: DetailedCandidateHeaderProps) {
+  const internalResend = useResendApplicationStatusLink(workerId);
+  const showResendStatus = Boolean(workerId?.trim());
+  const resendHandler = onResendStatusClick ?? internalResend.resend;
+  const resending = resendingStatus ?? internalResend.resending;
+  const resendDisabled =
+    resendStatusDisabled ??
+    (!candidateEmail?.trim() || loading || resending);
+
   const displayName = loading ? "Loading..." : name.trim() || "Applicant";
   const displayRole = loading ? "—" : role.trim() || "—";
   const displayStatus = status?.trim();
@@ -56,11 +72,32 @@ export default function DetailedCandidateHeader({
           </div>
         </div>
 
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
           {displayStatus ? (
             <span className="inline-flex h-7 max-w-[96px] items-center justify-center truncate rounded-md border border-[#D1D5DB] bg-white px-2 text-center text-[10px] font-semibold leading-4 text-[#111827] sm:h-8 sm:max-w-none sm:px-3 sm:text-xs">
               {displayStatus}
             </span>
+          ) : null}
+          {showResendStatus ? (
+            <button
+              type="button"
+              onClick={() => void resendHandler()}
+              disabled={resendDisabled}
+              title={
+                candidateEmail?.trim()
+                  ? "Email application status link to applicant"
+                  : "Add an email address on the profile to send a status link"
+              }
+              className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-[#D1D5DB] bg-white px-2.5 text-center text-xs font-semibold leading-4 text-[#374151] hover:bg-[#F8FAFC] disabled:cursor-not-allowed disabled:opacity-50 sm:px-3"
+            >
+              {resending ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+              ) : (
+                <Link2 className="h-3.5 w-3.5" aria-hidden />
+              )}
+              <span className="hidden sm:inline">Resend status link</span>
+              <span className="sm:hidden">Status link</span>
+            </button>
           ) : null}
           {onMessageClick ? (
             <button

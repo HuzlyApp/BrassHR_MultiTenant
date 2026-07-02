@@ -14,7 +14,7 @@ import {
 } from "@/lib/email-templates/interpolation";
 import { resolveEmailTemplate } from "@/lib/email-templates/resolver";
 import { sanitizeEmailHtml } from "@/lib/email-templates/sanitize-html";
-import type { OnboardingEmailTemplateKey } from "@/lib/email-templates/template-keys";
+import type { ManagedEmailTemplateKey } from "@/lib/email-templates/template-keys";
 import { isEmailTemplateActive } from "@/lib/email-templates/types";
 import { buildResendFromHeader } from "@/lib/email/from-address";
 import type { ContinuationReason } from "@/lib/onboarding/applicant-continuation-link";
@@ -40,7 +40,7 @@ export type SendTemplatedEmailResult = {
 export type SendTemplatedEmailOptions = {
   to: string;
   tenantId: string;
-  templateKey: OnboardingEmailTemplateKey;
+  templateKey: ManagedEmailTemplateKey;
   variables: Record<string, string>;
   locale?: string;
 };
@@ -137,6 +137,8 @@ export async function sendOnboardingApplicantEmail(
     params.continuationReason ??
     (params.templateKey === "welcome"
       ? "welcome"
+      : params.templateKey === "resume_continuation"
+        ? "resume_continuation"
       : params.templateKey === "application_status" || params.templateKey === "approved"
         ? "application_status"
         : "manual_notification");

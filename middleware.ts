@@ -1,19 +1,23 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import type { User } from "@supabase/supabase-js";
 import { getSupabaseAnonKey, getSupabaseUrl } from "@/lib/supabase-env";
 import { isGodAdminUser } from "@/lib/auth/god-admin";
+import { resolveAuthenticatedRecruiterRedirectUrl } from "@/lib/auth/recruiter-dashboard-redirect";
 import {
   getUserPlatform,
   isNexusPlatformUser,
   isPlatformEnforcementEnabled,
   logAuthDebug,
 } from "@/lib/auth/platform-shared";
-import { ONBOARDING_TENANT_SLUG_COOKIE } from "@/lib/tenant/constants";
+import { createServiceRoleClient } from "@/lib/supabase/service-role";
+import { ONBOARDING_TENANT_SLUG_COOKIE, OWNER_ONBOARDING_CONTINUATION_SESSION_COOKIE } from "@/lib/tenant/constants";
 import { lookupTenantSlugBySubdomain } from "@/lib/tenant/lookup-tenant-subdomain";
 import {
   extractTenantSubdomainLabel,
   forwardedHostFromHeaders,
   getEffectiveRootDomain,
+  isRootDomainHost,
 } from "@/lib/tenant/tenant-host-resolution";
 import { ensureApplicationTenantQuery, clearTenantSlugCookieOnRootHost } from "@/lib/tenant/ensure-application-tenant-query";
 import {
@@ -22,6 +26,36 @@ import {
   shouldBlockAdminDashboardAccess,
   shouldBlockTenantOnboardingAccess,
 } from "@/lib/auth/owner-onboarding-status";
+
+async function redirectAuthenticatedUser(
+  request: NextRequest,
+  user: User,
+  destination: string
+): Promise<NextResponse> {
+  const svc = createServiceRoleClient();
+  const host = forwardedHostFromHeaders(request.headers);
+  const proto = request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim().toLowerCase();
+  const protocol = proto === "http" ? "http" : "https";
+
+  if (!svc) {
+    return NextResponse.redirect(new URL(destination, request.url));
+  }
+
+  try {
+    const redirectUrl = await resolveAuthenticatedRecruiterRedirectUrl(svc, user, {
+      path: destination,
+      currentHostname: host,
+      protocol,
+    });
+    if (/^https?:\/\//i.test(redirectUrl)) {
+      return NextResponse.redirect(redirectUrl);
+    }
+    return NextResponse.redirect(new URL(redirectUrl, request.url));
+  } catch (error) {
+    console.error("[middleware] recruiter vanity redirect failed", error);
+    return NextResponse.redirect(new URL(destination, request.url));
+  }
+}
 
 function isPublicUiPath(pathname: string): boolean {
   if (pathname === "/login" || pathname.startsWith("/login/")) return true;
@@ -174,12 +208,18 @@ export async function middleware(request: NextRequest) {
   }
 
   const isSignupPath = pathname === "/signup";
+  const isYourTrialPath = pathname === "/your-trial";
+  const isTenantOnboardingContinuePath = pathname === "/tenant-onboarding/continue";
+  const isTenantOnboardingLinkErrorPath =
+    pathname === "/tenant-onboarding/link-error" ||
+    pathname.startsWith("/tenant-onboarding/link-error/");
   const isTenantOnboardingPath =
     pathname === "/tenant-onboarding" || pathname.startsWith("/tenant-onboarding/");
   const isAdminRecruiterPath = pathname.startsWith("/admin_recruiter");
   const isGodAdminPath = pathname.startsWith("/godadmin");
   const isGodAdminApiPath = pathname.startsWith("/api/godadmin");
-  const ownerFlowPath = isSignupPath || isTenantOnboardingPath || isAdminRecruiterPath;
+  const ownerFlowPath =
+    isSignupPath || isYourTrialPath || isTenantOnboardingPath || isAdminRecruiterPath;
 
   async function requireGodAdminSession(): Promise<NextResponse | null> {
     if (!user || isAnonymousUser) {
@@ -217,7 +257,7 @@ export async function middleware(request: NextRequest) {
         request.nextUrl.searchParams.get("next")
       );
       if (destination !== "/signup") {
-        return NextResponse.redirect(new URL(destination, request.url));
+        return redirectAuthenticatedUser(request, user, destination);
       }
     }
 
@@ -226,7 +266,15 @@ export async function middleware(request: NextRequest) {
         onboardingStatus,
         request.nextUrl.searchParams.get("next")
       );
-      return NextResponse.redirect(new URL(destination, request.url));
+      return redirectAuthenticatedUser(request, user, destination);
+    }
+
+    if (
+      isYourTrialPath &&
+      !onboardingStatus.signupCompleted &&
+      !onboardingStatus.tenantOnboardingCompleted
+    ) {
+      return NextResponse.redirect(new URL("/signup", request.url));
     }
 
     if (isAdminRecruiterPath && shouldBlockAdminDashboardAccess(onboardingStatus)) {
@@ -234,11 +282,34 @@ export async function middleware(request: NextRequest) {
         onboardingStatus,
         request.nextUrl.searchParams.get("next")
       );
-      return NextResponse.redirect(new URL(destination, request.url));
+      return redirectAuthenticatedUser(request, user, destination);
     }
   }
 
-  if (isTenantOnboardingPath && (!user || isAnonymousUser)) {
+  const tenantOnboardingSetupPath =
+    isTenantOnboardingPath &&
+    !isTenantOnboardingContinuePath &&
+    !isTenantOnboardingLinkErrorPath;
+
+  if (isYourTrialPath && (!user || isAnonymousUser)) {
+    return NextResponse.redirect(new URL("/signup", request.url));
+  }
+
+  if (tenantOnboardingSetupPath) {
+    const continuationCookie = request.cookies.get(
+      OWNER_ONBOARDING_CONTINUATION_SESSION_COOKIE
+    )?.value;
+    if (!continuationCookie?.trim()) {
+      if (user && !isAnonymousUser) {
+        return NextResponse.redirect(new URL("/your-trial?account-ready=true", request.url));
+      }
+    }
+  }
+
+  if (
+    tenantOnboardingSetupPath &&
+    (!user || isAnonymousUser)
+  ) {
     const signin = new URL("/admin", request.url);
     signin.searchParams.set("next", `${request.nextUrl.pathname}${request.nextUrl.search}`);
     const tenant = request.nextUrl.searchParams.get("tenant")?.trim().toLowerCase();
@@ -264,7 +335,7 @@ export async function middleware(request: NextRequest) {
     );
     const destPath = destination.split("?")[0];
     if (destPath !== pathname) {
-      return NextResponse.redirect(new URL(destination, request.url));
+      return redirectAuthenticatedUser(request, user, destination);
     }
   }
 
@@ -299,6 +370,30 @@ export async function middleware(request: NextRequest) {
         login.searchParams.set("tenant", tenant);
       }
       return NextResponse.redirect(login);
+    }
+
+    if (!isGodAdminUser(user)) {
+      const host = forwardedHostFromHeaders(request.headers);
+      const root = getEffectiveRootDomain();
+      if (host && isRootDomainHost(host, root)) {
+        const svc = createServiceRoleClient();
+        if (svc) {
+          try {
+            const currentPath = `${pathname}${request.nextUrl.search}`;
+            const proto = request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim().toLowerCase();
+            const redirectUrl = await resolveAuthenticatedRecruiterRedirectUrl(svc, user, {
+              path: currentPath,
+              currentHostname: host,
+              protocol: proto === "http" ? "http" : "https",
+            });
+            if (/^https?:\/\//i.test(redirectUrl)) {
+              return NextResponse.redirect(redirectUrl);
+            }
+          } catch (error) {
+            console.error("[middleware] admin_recruiter vanity redirect", error);
+          }
+        }
+      }
     }
   }
 
@@ -347,6 +442,7 @@ export const config = {
     "/admin",
     "/admin/:path*",
     "/signup",
+    "/your-trial",
     "/tenant-onboarding",
     "/tenant-onboarding/:path*",
     "/tenant-host-not-found",

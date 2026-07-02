@@ -31,6 +31,7 @@ type WorkerProfile = {
   id: string;
   first_name: string | null;
   last_name: string | null;
+  email?: string | null;
   job_role: string | null;
   status_label?: string;
   profile_photo_url?: string | null;
@@ -552,6 +553,8 @@ export default function NewApplicantAuthorizationFilledPage() {
               role={candidateRole}
               status={applicant?.status_label}
               profilePhotoUrl={applicant?.profile_photo_url}
+              workerId={applicantId}
+              candidateEmail={applicant?.email ?? null}
             />
 
             <div className="w-full min-w-0 admin-recruiter-content-width">

@@ -6,3 +6,6 @@ export const ONBOARDING_TENANT_SLUG_COOKIE = "onboarding_tenant_slug";
 
 /** Short-lived HTTP-only resume context set after a continuation link is redeemed. */
 export const APPLICANT_CONTINUATION_SESSION_COOKIE = "applicant_continuation_session";
+
+/** Short-lived HTTP-only owner context set after tenant signup continuation link is redeemed. */
+export const OWNER_ONBOARDING_CONTINUATION_SESSION_COOKIE = "owner_onboarding_continuation_session";

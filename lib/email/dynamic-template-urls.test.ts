@@ -10,8 +10,8 @@ describe("buildApplicantPortalUrl", () => {
     expect(buildApplicantPortalUrl("http://localhost:3000", "remotecompany")).toBe(
       "http://localhost:3000/?tenant=remotecompany"
     );
-    expect(buildApplicantPortalUrl("https://hr.brasshr.com", "remotecompany")).toBe(
-      "https://hr.brasshr.com/?tenant=remotecompany"
+    expect(buildApplicantPortalUrl("https://test.brasshr.com", "remotecompany")).toBe(
+      "https://test.brasshr.com/?tenant=remotecompany"
     );
   });
 });
@@ -31,8 +31,8 @@ describe("rewriteEmbeddedAppUrls", () => {
     const input =
       "Sign in here: http://localhost:3000/?tenant=remotecompany";
     const output = rewriteEmbeddedAppUrls(input, {
-      applicantPortalUrl: "https://hr.brasshr.com/?tenant=remotecompany",
+      applicantPortalUrl: "https://test.brasshr.com/?tenant=remotecompany",
     });
-    expect(output).toBe("Sign in here: https://hr.brasshr.com/?tenant=remotecompany");
+    expect(output).toBe("Sign in here: https://test.brasshr.com/?tenant=remotecompany");
   });
 });

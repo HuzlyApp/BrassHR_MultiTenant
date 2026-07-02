@@ -856,6 +856,8 @@ export default function NewApplicantProfilePage() {
               role={candidateRole}
               status={candidateStatus}
               profilePhotoUrl={w?.profile_photo_url}
+              workerId={applicantId}
+              candidateEmail={w?.email ?? null}
               onMessageClick={() => setCommOpen(true)}
               messageDisabled={!w?.email?.trim() && !w?.phone?.trim()}
             />

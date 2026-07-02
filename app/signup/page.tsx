@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import Image from "next/image";
 import Link from "next/link";
@@ -613,7 +613,7 @@ export default function SignupPage() {
 
         setRedirecting(true);
         window.setTimeout(() => {
-          window.location.assign("/tenant-onboarding");
+          window.location.assign("/your-trial");
         }, 80);
       } catch {
         setSubmitError("Something went wrong. Please try again.");

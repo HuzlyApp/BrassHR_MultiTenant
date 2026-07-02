@@ -17,6 +17,7 @@ export default function NewApplicantProfileNotesPage() {
     role: candidateRole,
     status: candidateStatus,
     profilePhotoUrl,
+    email: candidateEmail,
     loading: headerLoading,
   } = useCandidateHeader(id);
 
@@ -34,6 +35,8 @@ export default function NewApplicantProfileNotesPage() {
               role={candidateRole}
               status={candidateStatus}
               profilePhotoUrl={profilePhotoUrl}
+              workerId={id}
+              candidateEmail={candidateEmail}
             />
             <ProfileSubTabs applicantId={id} activeTab="Notes" />
 

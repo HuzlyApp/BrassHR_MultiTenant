@@ -6,6 +6,7 @@ import {
 } from "@/lib/resumeParseQuality"
 import { grokParseResume } from "@/lib/resume/grok-parse-resume"
 import { createTimer, logResumeTiming } from "@/lib/resume/timing"
+import { sendResumeContinuationEmail } from "@/lib/onboarding/send-resume-continuation-email"
 
 export type ResumeParseJobResult = {
   parsingStatus: "completed" | "failed"
@@ -15,10 +16,20 @@ export type ResumeParseJobResult = {
   qualityPassed: boolean
 }
 
+export type ResumeParseContinuationEmailParams = {
+  workerId: string
+  tenantId: string
+  resumeId: string
+  origin: string
+  tenantSlug?: string | null
+  request?: Request
+}
+
 export async function runResumeParseJob(params: {
   supabase: SupabaseClient
   resumeId: string
   text: string
+  continuationEmail?: ResumeParseContinuationEmailParams
 }): Promise<ResumeParseJobResult> {
   const { supabase, resumeId, text } = params
   const jobTimer = createTimer()
@@ -81,6 +92,20 @@ export async function runResumeParseJob(params: {
         aiParseMs,
         qualityPassed: true,
       })
+
+      if (params.continuationEmail) {
+        await sendResumeContinuationEmail(params.supabase, {
+          workerId: params.continuationEmail.workerId,
+          tenantId: params.continuationEmail.tenantId,
+          resumeId: params.continuationEmail.resumeId,
+          origin: params.continuationEmail.origin,
+          tenantSlug: params.continuationEmail.tenantSlug ?? null,
+          extractedText: text,
+          parsedResume: parsedJson,
+          trigger: "resume_parse",
+          request: params.continuationEmail.request,
+        })
+      }
 
       return {
         parsingStatus: "completed",

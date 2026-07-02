@@ -6,6 +6,7 @@ import {
   createApplicantContinuationLink,
   type ContinuationReason,
 } from "@/lib/onboarding/applicant-continuation-link";
+import { isValidStep1Email } from "@/lib/onboardingStep1Validation";
 
 export type ApplicantEmailContext = {
   tenantId: string;
@@ -16,6 +17,7 @@ export type ApplicantEmailContext = {
   applicationStatusUrl: string;
   applicantPortalUrl: string;
   applicantContinuationLink: string;
+  continuationLinkId?: string;
   supportEmail: string;
   reason?: string;
 };
@@ -28,6 +30,10 @@ export type BuildApplicantContextParams = {
   continuationReason?: ContinuationReason;
   /** When false, preview flows do not persist continuation links as sent. */
   markContinuationSent?: boolean;
+  /** Use when worker.email is not set yet (e.g. resume upload before profile review). */
+  recipientEmailOverride?: string | null;
+  /** Stored on applicant_continuation_links.metadata for auditing/dedup. */
+  continuationMetadata?: Record<string, unknown>;
 };
 
 function formatApplicantName(first: string | null, last: string | null): string {
@@ -54,7 +60,17 @@ export async function buildApplicantEmailContext(
     .maybeSingle();
 
   if (wErr) throw wErr;
-  if (!worker?.id || !worker.email) return null;
+  if (!worker?.id) return null;
+
+  const overrideEmail = params.recipientEmailOverride?.trim().toLowerCase();
+  const workerEmail = worker.email != null ? String(worker.email).trim().toLowerCase() : "";
+  const applicantEmail =
+    overrideEmail && isValidStep1Email(overrideEmail)
+      ? overrideEmail
+      : workerEmail && isValidStep1Email(workerEmail)
+        ? workerEmail
+        : null;
+  if (!applicantEmail) return null;
 
   const tenantId = String(worker.tenant_id ?? params.tenantId);
   const { data: tenant, error: tErr } = await supabase
@@ -79,6 +95,7 @@ export async function buildApplicantEmailContext(
     tenantSlug: slug,
     reason: params.continuationReason ?? "onboarding_reminder",
     markSent: params.markContinuationSent !== false,
+    metadata: params.continuationMetadata,
   });
 
   return {
@@ -89,10 +106,11 @@ export async function buildApplicantEmailContext(
       worker.first_name as string | null,
       worker.last_name as string | null
     ),
-    applicantEmail: String(worker.email).trim().toLowerCase(),
+    applicantEmail,
     applicationStatusUrl,
     applicantPortalUrl,
     applicantContinuationLink: continuation?.url ?? applicationStatusUrl,
+    continuationLinkId: continuation?.id,
     supportEmail: resolveSupportEmail(slug),
     reason: params.reason?.trim() || undefined,
   };

@@ -49,6 +49,7 @@ type ChecklistPayload = {
     id: string;
     first_name: string | null;
     last_name: string | null;
+    email?: string | null;
     job_role: string | null;
     city: string | null;
     state: string | null;
@@ -393,6 +394,8 @@ export default function NewApplicantChecklistPage() {
               role={candidateRole}
               status={data?.worker?.status_label}
               profilePhotoUrl={data?.worker?.profile_photo_url}
+              workerId={applicantId}
+              candidateEmail={data?.worker?.email ?? null}
             />
 
             <div className="flex w-full min-w-0 admin-recruiter-content-width flex-col gap-[30px] overflow-hidden rounded-md border border-[#E5E7EB] bg-white p-5">

@@ -77,7 +77,9 @@ type RecruiterOnboardingStatusResponse = {
   requestedTenantId: string | null;
   validTenantAccess: boolean;
   tenantOnboardingCompleted: boolean;
+  tenantSubdomain: string | null;
   redirectTarget: "/godadmin/tenants" | typeof ADMIN_RECRUITER_HOME_ROUTE | "/tenant-onboarding";
+  redirectUrl?: string;
 };
 
 type LoginStep = "credentials" | "otp";
@@ -382,11 +384,18 @@ function LoginPageContent() {
       activeTenantId: onboardingStatus.activeTenantId,
       requestedTenantId: onboardingStatus.requestedTenantId,
       tenantOnboardingCompleted: onboardingStatus.tenantOnboardingCompleted,
+      tenantSubdomain: onboardingStatus.tenantSubdomain,
       redirectTarget: onboardingStatus.redirectTarget,
+      redirectUrl: onboardingStatus.redirectUrl,
     });
 
-    router.push(onboardingStatus.redirectTarget);
-    router.refresh();
+    const destination = onboardingStatus.redirectUrl ?? onboardingStatus.redirectTarget;
+    if (/^https?:\/\//i.test(destination)) {
+      window.location.assign(destination);
+    } else {
+      router.push(destination);
+      router.refresh();
+    }
     return true;
   };
 
