@@ -45,6 +45,8 @@ export function renderWorkerListCell(
             {w.email ? (
               <Link
                 href={candidateMailHref(w.profileId)}
+                target="_blank"
+                rel="noopener noreferrer"
                 className={`block text-xs text-[#4B5563] ${LINK_CLASS}`}
               >
                 {w.email}
@@ -69,7 +71,12 @@ export function renderWorkerListCell(
       )
     case "email":
       return w.email ? (
-        <Link href={candidateMailHref(w.profileId)} className={`text-sm text-[#4B5563] ${LINK_CLASS}`}>
+        <Link
+          href={candidateMailHref(w.profileId)}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={`text-sm text-[#4B5563] ${LINK_CLASS}`}
+        >
           {w.email}
         </Link>
       ) : (

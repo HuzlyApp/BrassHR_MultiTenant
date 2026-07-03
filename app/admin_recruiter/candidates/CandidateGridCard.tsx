@@ -97,6 +97,8 @@ export function CandidateGridCard({
               {c.email?.trim() ? (
                 <Link
                   href={candidateMailHref(c.id)}
+                  target="_blank"
+                  rel="noopener noreferrer"
                   className="pointer-events-auto transition hover:text-[color:var(--brand-primary)] hover:underline"
                 >
                   {c.email}

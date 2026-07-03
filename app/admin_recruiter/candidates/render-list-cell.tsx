@@ -32,6 +32,8 @@ export function renderListCell(
             {c.email?.trim() ? (
               <Link
                 href={candidateMailHref(c.id)}
+                target="_blank"
+                rel="noopener noreferrer"
                 className={`block text-xs text-[#4B5563] ${LINK_CLASS}`}
               >
                 {c.email}
@@ -89,7 +91,12 @@ export function renderListCell(
       return <span className="text-sm text-[#4B5563]">{c.phone || "—"}</span>
     case "email":
       return c.email?.trim() ? (
-        <Link href={candidateMailHref(c.id)} className={`text-sm text-[#4B5563] ${LINK_CLASS}`}>
+        <Link
+          href={candidateMailHref(c.id)}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={`text-sm text-[#4B5563] ${LINK_CLASS}`}
+        >
           {c.email}
         </Link>
       ) : (
