@@ -24,6 +24,11 @@ import {
 import BrandedSvgIcon from "@/app/components/BrandedSvgIcon"
 import BrandedUploadIcon from "@/app/components/BrandedUploadIcon"
 import { setScopedApplicantId } from "@/lib/tenant/scoped-storage"
+import { useOnboardingConfigOptional } from "@/app/components/onboarding/OnboardingConfigProvider"
+import {
+  findResumeUploadStep,
+  markResumeUploadStepComplete,
+} from "@/lib/onboarding/mark-resume-upload-step-complete"
 
 const APPLICANT_SESSION_TIMEOUT_MS = 15_000
 const WORKER_ENSURE_TIMEOUT_MS = 15_000
@@ -109,6 +114,7 @@ export default function Step1Upload() {
 
   const router = useRouter()
   const fileInput = useRef<HTMLInputElement>(null)
+  const onboarding = useOnboardingConfigOptional()
 
   const [file, setFile] = useState<File | null>(null)
   const [dragActive, setDragActive] = useState(false)
@@ -273,6 +279,21 @@ export default function Step1Upload() {
           await ensureApplicantWorker(session.applicantId).catch(() => {
             /* best-effort; resume-upload-success will retry */
           })
+          try {
+            const resumeStep = findResumeUploadStep(onboarding?.config)
+            const resumeStepStatus = resumeStep
+              ? onboarding?.progress?.steps?.find(
+                  (row) => row.onboarding_step_id === resumeStep.id
+                )?.status
+              : undefined
+            await markResumeUploadStepComplete({
+              updateStepStatus: onboarding?.updateStepStatus,
+              config: onboarding?.config,
+              currentStatus: resumeStepStatus,
+            })
+          } catch {
+            /* progress sync is best-effort */
+          }
           router.push(applicationPath(APPLICATION_ROUTES.profileReview))
         })()
         return
@@ -381,6 +402,23 @@ export default function Step1Upload() {
         setParseStatus(uploadJson.parseStatus ?? "processing")
 
         setUploadPhase("Finishing...")
+        try {
+          const resumeStep = findResumeUploadStep(onboarding?.config)
+          const resumeStepStatus = resumeStep
+            ? onboarding?.progress?.steps?.find(
+                (row) => row.onboarding_step_id === resumeStep.id
+              )?.status
+            : undefined
+          await markResumeUploadStepComplete({
+            updateStepStatus: onboarding?.updateStepStatus,
+            config: onboarding?.config,
+            resumePath: uploadJson.storagePath ?? null,
+            currentStatus: resumeStepStatus,
+          })
+        } catch {
+          /* progress sync is best-effort */
+        }
+
         void import("@/lib/onboarding/ensure-applicant-worker").then(({ ensureApplicantWorker }) =>
           ensureApplicantWorker(session.applicantId).catch(() => {
             /* resume-upload-success will retry */

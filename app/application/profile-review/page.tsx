@@ -35,6 +35,11 @@ import { getClientOnboardingTenantIdFallback } from "@/lib/tenant/client-onboard
 import { useOnboardingStepNav } from "@/lib/onboarding/use-onboarding-step-nav"
 import { useOnboardingConfigOptional } from "@/app/components/onboarding/OnboardingConfigProvider"
 import { persistStepProgress } from "@/lib/onboarding/use-mark-step-in-progress-if-pending"
+import {
+  findResumeUploadStep,
+  hasLocalResumeUpload,
+  markResumeUploadStepComplete,
+} from "@/lib/onboarding/mark-resume-upload-step-complete"
 import { adjacentStepRoute } from "@/lib/onboarding/tenant-step-navigation"
 import { useResumeParsePoll } from "@/lib/resume/use-resume-parse-poll"
 import { RESUME_PARSE_FAILED_USER_MESSAGE } from "@/lib/resumeParseQuality"
@@ -319,6 +324,27 @@ function Step1ReviewContent() {
     parsePoll.status === "processing" ||
     parsePoll.status === "pending" ||
     parsePoll.isPolling
+
+  useEffect(() => {
+    if (!hasLocalResumeUpload() || !onboarding?.updateStepStatus) return
+    const resumeStep = findResumeUploadStep(onboarding.config)
+    const resumeStepStatus = resumeStep
+      ? onboarding.progress?.steps?.find((row) => row.onboarding_step_id === resumeStep.id)
+          ?.status
+      : undefined
+    if (resumeStepStatus === "completed" || resumeStepStatus === "skipped") return
+    void markResumeUploadStepComplete({
+      updateStepStatus: onboarding.updateStepStatus,
+      config: onboarding.config,
+      currentStatus: resumeStepStatus,
+    }).catch(() => {
+      /* best-effort */
+    })
+  }, [
+    onboarding?.config,
+    onboarding?.progress?.steps,
+    onboarding?.updateStepStatus,
+  ])
 
   const addressParts = useMemo(
     () => ({
@@ -684,6 +710,8 @@ function Step1ReviewContent() {
         updated_at: new Date().toISOString(),
       }
 
+      let usedBrowserFallback = false
+
       const saveRes = await fetch("/api/onboarding/save-worker", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -761,10 +789,27 @@ function Step1ReviewContent() {
             )
           }
         }
+        usedBrowserFallback = true
       } else if (!saveRes.ok) {
         throw new Error(
           saveJson.hint || saveJson.error || `Save failed (${saveRes.status})`
         )
+      }
+
+      if (usedBrowserFallback) {
+        try {
+          await fetch("/api/onboarding/send-profile-status-link", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              applicantId,
+              email: form.email.trim(),
+              ...(tenantSlug ? { tenantSlug } : {}),
+            }),
+          })
+        } catch (e) {
+          console.warn("[step-1-review] profile status link email", e)
+        }
       }
 
       const resumeStoragePath =

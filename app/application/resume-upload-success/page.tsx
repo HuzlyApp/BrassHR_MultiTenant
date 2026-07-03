@@ -17,15 +17,13 @@ import {
   RESUME_PARSE_FAILED_USER_MESSAGE,
 } from "@/lib/resumeParseQuality"
 import { useOnboardingConfigOptional } from "@/app/components/onboarding/OnboardingConfigProvider"
-import { useOnboardingStepNav } from "@/lib/onboarding/use-onboarding-step-nav"
-import { persistStepProgress } from "@/lib/onboarding/use-mark-step-in-progress-if-pending"
+import { findResumeUploadStep, markResumeUploadStepComplete } from "@/lib/onboarding/mark-resume-upload-step-complete"
 import { ensureApplicantWorker } from "@/lib/onboarding/ensure-applicant-worker"
 import { useResumeParsePoll } from "@/lib/resume/use-resume-parse-poll"
 
 export default function Step1Success() {
   const branding = useTenantBranding()
   const router = useRouter()
-  const nav = useOnboardingStepNav()
   const onboarding = useOnboardingConfigOptional()
   const brandSurfaceStyle = {
     borderColor: branding.primaryHex,
@@ -144,22 +142,20 @@ export default function Step1Success() {
 
         localStorage.setItem("step1ReviewCompleted", "true")
 
-        const resumeStep =
-          nav.enabledSteps?.find(
-            (s) => s.step_type === "resume_upload" || s.step_key === "resume_upload"
-          ) ?? null
-        const resumeStepKey = resumeStep?.step_key ?? "resume_upload"
+        const resumeStep = findResumeUploadStep(onboarding?.config)
 
         try {
-          await persistStepProgress(
-            onboarding?.updateStepStatus,
-            resumeStepKey,
-            "completed",
-            undefined,
-            {
-              resume_path: localStorage.getItem("resumeStoragePath")?.trim() || null,
-            }
-          )
+          const resumeStepStatus = resumeStep
+            ? onboarding?.progress?.steps?.find(
+                (row) => row.onboarding_step_id === resumeStep.id
+              )?.status
+            : undefined
+          await markResumeUploadStepComplete({
+            updateStepStatus: onboarding?.updateStepStatus,
+            config: onboarding?.config,
+            resumePath: localStorage.getItem("resumeStoragePath")?.trim() || null,
+            currentStatus: resumeStepStatus,
+          })
         } catch {
           /* progress is best-effort */
         }
