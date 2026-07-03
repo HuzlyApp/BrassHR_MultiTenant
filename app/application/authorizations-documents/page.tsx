@@ -193,8 +193,9 @@ export default function DocumentsPage() {
 
   const refreshIdentityDocsStatus = useCallback(async () => {
     if (!applicantId) return
+    const tenantQuery = nav.slug ? `&tenant=${encodeURIComponent(nav.slug)}` : ""
     const res = await fetch(
-      `/api/onboarding/worker-documents?applicantId=${encodeURIComponent(applicantId)}`
+      `/api/onboarding/worker-documents?applicantId=${encodeURIComponent(applicantId)}${tenantQuery}`
     )
     const json = (await res.json().catch(() => ({}))) as {
       error?: string
@@ -219,7 +220,7 @@ export default function DocumentsPage() {
       dlFront: t(docs?.drivers_license_url),
       dlBack: t(docs?.drivers_license_back_url),
     })
-  }, [applicantId])
+  }, [applicantId, nav.slug])
 
   useEffect(() => {
     void refreshIdentityDocsStatus()
@@ -272,6 +273,7 @@ export default function DocumentsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           applicantId,
+          ...(nav.slug ? { tenant: nav.slug } : {}),
           ssn_url,
           ssn_back_url,
           drivers_license_url,

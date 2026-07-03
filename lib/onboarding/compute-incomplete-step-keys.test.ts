@@ -28,6 +28,27 @@ describe("computeIncompleteStepKeys", () => {
     step({ id: "s5", step_key: "review_submit", step_type: "review_submit" }),
   ];
 
+  it("ignores optional incomplete steps", () => {
+    const withOptional: TenantOnboardingStep[] = [
+      ...enabledSteps,
+      step({
+        id: "s6",
+        step_key: "optional_docs",
+        step_type: "document_upload",
+        is_required: false,
+      }),
+    ];
+    const keys = computeIncompleteStepKeys(withOptional, [
+      { onboarding_step_id: "s1", status: "completed", completed_at: null, data: {} },
+      { onboarding_step_id: "s2", status: "completed", completed_at: null, data: {} },
+      { onboarding_step_id: "s3", status: "completed", completed_at: null, data: {} },
+      { onboarding_step_id: "s4", status: "completed", completed_at: null, data: {} },
+      { onboarding_step_id: "s6", status: "pending", completed_at: null, data: {} },
+    ]);
+    expect(keys).not.toContain("optional_docs");
+    expect(keys).toHaveLength(0);
+  });
+
   it("returns keys for steps that are not completed or skipped", () => {
     const keys = computeIncompleteStepKeys(enabledSteps, [
       { onboarding_step_id: "s1", status: "completed", completed_at: null, data: {} },

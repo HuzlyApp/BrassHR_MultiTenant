@@ -2,9 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { getSupabaseUrl } from "@/lib/supabase-env"
 import { isDraftPreviewApplicantId } from "@/lib/onboarding/is-draft-preview"
-import { persistWorkerRow } from "@/lib/onboarding/persist-worker-row"
-import { resumeToStep1Fields } from "@/lib/onboarding/resume-to-step1-fields"
-import { resolveWorkerByApplicantId } from "@/lib/onboarding/resolve-worker-context"
+import { resolveOrEnsureWorkerForApplicant } from "@/lib/onboarding/resolve-worker-context"
 import { resolveOnboardingTenantId } from "@/lib/tenant/resolve-onboarding-tenant-id"
 import {
   isReferenceComplete,
@@ -62,24 +60,24 @@ export async function POST(req: NextRequest) {
 
     const supabase = createClient(url, key)
 
-    let worker = await resolveWorkerByApplicantId(supabase, applicantId)
-
-    if (!worker) {
-      const tenantSlug =
-        typeof body.tenantSlug === "string" ? body.tenantSlug.trim().toLowerCase() : ""
-      const tenantRes = await resolveOnboardingTenantId(supabase, tenantSlug || null)
-      if (tenantRes.ok) {
-        const fields = resumeToStep1Fields({}, applicantId)
-        const saved = await persistWorkerRow(supabase, {
-          applicantId,
-          tenantId: tenantRes.tenantId,
-          fields,
-        })
-        if (saved.ok) {
-          worker = await resolveWorkerByApplicantId(supabase, applicantId)
-        }
-      }
+    const tenantSlug =
+      typeof body.tenantSlug === "string" ? body.tenantSlug.trim().toLowerCase() : ""
+    if (!tenantSlug) {
+      return NextResponse.json(
+        { error: "Missing tenant context. Re-open your application link and try again." },
+        { status: 400 },
+      )
     }
+
+    const tenantRes = await resolveOnboardingTenantId(supabase, tenantSlug)
+    if (!tenantRes.ok) {
+      return NextResponse.json(
+        { error: tenantRes.error, code: "MISSING_TENANT" },
+        { status: 503 },
+      )
+    }
+
+    const worker = await resolveOrEnsureWorkerForApplicant(supabase, applicantId, tenantSlug)
 
     if (!worker?.workerId || !worker.tenantId) {
       return NextResponse.json(

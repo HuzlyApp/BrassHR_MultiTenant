@@ -1,3 +1,5 @@
+import { isApplicantMessageUnread } from "@/lib/messaging/conversation-reads";
+
 export type ApplicantMessageListRow = {
   id: string;
   worker_id: string;
@@ -38,14 +40,16 @@ export function applicantDisplayName(worker: WorkerSummary | undefined): string 
 
 export function groupApplicantMessagesIntoConversations(
   messages: ApplicantMessageListRow[],
-  workerMap: Map<string, WorkerSummary>
+  workerMap: Map<string, WorkerSummary>,
+  lastReadAtByWorker: Map<string, string> = new Map()
 ): StaffConversation[] {
   const grouped = new Map<string, StaffConversation>();
 
   for (const msg of messages) {
     const worker = workerMap.get(msg.worker_id);
     const applicantName = applicantDisplayName(worker);
-    const isUnread = msg.sender_role === "applicant";
+    const lastReadAt = lastReadAtByWorker.get(msg.worker_id);
+    const isUnread = isApplicantMessageUnread(msg, lastReadAt);
     const href = `/admin_recruiter/messages/${msg.worker_id}`;
     const preview = msg.body?.trim() || msg.attachment_name?.trim() || "(attachment)";
     const existing = grouped.get(msg.worker_id);
@@ -77,12 +81,13 @@ export function groupApplicantMessagesIntoConversations(
 export function upsertConversationFromMessage(
   conversations: StaffConversation[],
   message: ApplicantMessageListRow,
-  worker?: WorkerSummary
+  worker?: WorkerSummary,
+  lastReadAt?: string | null
 ): StaffConversation[] {
   const next = [...conversations];
   const index = next.findIndex((item) => item.workerId === message.worker_id);
   const applicantName = applicantDisplayName(worker);
-  const isUnread = message.sender_role === "applicant";
+  const isUnread = isApplicantMessageUnread(message, lastReadAt);
   const preview = message.body?.trim() || message.attachment_name?.trim() || "(attachment)";
 
   if (index === -1) {

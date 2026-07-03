@@ -23,8 +23,26 @@ function isMissingRelationError(err: unknown) {
   )
 }
 
+function supabaseErrorMessage(err: unknown, fallback = "Unexpected error"): string {
+  if (err instanceof Error && err.message.trim()) return err.message
+  if (err && typeof err === "object") {
+    const o = err as { message?: unknown; details?: unknown; hint?: unknown }
+    const parts = [o.message, o.details, o.hint].filter(
+      (p): p is string => typeof p === "string" && p.trim().length > 0
+    )
+    if (parts.length) return parts.join(" — ")
+  }
+  return fallback
+}
+
+function workerDocumentsUpdatedAt(): string {
+  // worker_documents.updated_at is a Postgres `date` column.
+  return new Date().toISOString().slice(0, 10)
+}
+
 type Body = {
   applicantId: string
+  tenant?: string
   nursing_license_url?: string | null
   tb_test_url?: string | null
   cpr_certification_url?: string | null
@@ -127,6 +145,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Missing applicantId" }, { status: 400 })
     }
 
+    const tenantSlug =
+      (typeof body.tenant === "string" ? body.tenant.trim().toLowerCase() : "") ||
+      readOnboardingTenantSlugFromRequest(req)
+
     const url = getSupabaseUrl()
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY
     if (!url || !key) {
@@ -135,20 +157,15 @@ export async function POST(req: NextRequest) {
 
     const supabase = createClient(url, key)
 
-    const { data: worker, error: wErr } = await supabase
-      .from("worker")
-      .select("id, tenant_id")
-      .eq("user_id", applicantId)
-      .maybeSingle()
-
-    if (wErr) throw wErr
-    if (!worker?.id || worker.tenant_id == null) {
+    const ctx = await resolveOnboardingWorker(supabase, applicantId, tenantSlug)
+    if (!ctx?.workerId) {
       return NextResponse.json(
         { error: "Worker not found; complete Step 1 (profile) before uploading documents." },
         { status: 400 }
       )
     }
-    const workerTenantId = String(worker.tenant_id)
+    const worker = { id: ctx.workerId, tenant_id: ctx.tenantId }
+    const workerTenantId = ctx.tenantId
     console.info("[debug-doc-upload] worker-documents:start", {
       route: "/api/onboarding/worker-documents",
       applicantId,
@@ -170,7 +187,13 @@ export async function POST(req: NextRequest) {
       .eq("worker_id", worker.id)
       .limit(1)
 
-    if (selErr) throw selErr
+    if (selErr) {
+      console.error("[onboarding/worker-documents] select", selErr)
+      return NextResponse.json(
+        { error: supabaseErrorMessage(selErr, "Database error") },
+        { status: 500 }
+      )
+    }
 
     const existing = existingRows?.[0] as Record<string, unknown> | undefined
     const ex = (existing || {}) as Record<string, string | null | undefined>
@@ -178,7 +201,7 @@ export async function POST(req: NextRequest) {
     const merged: Record<string, unknown> = {
       tenant_id: workerTenantId,
       worker_id: worker.id,
-      updated_at: new Date().toISOString(),
+      updated_at: workerDocumentsUpdatedAt(),
     }
 
     for (const k of URL_KEYS) {
@@ -237,7 +260,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true })
   } catch (err: unknown) {
     console.error("[onboarding/worker-documents]", err)
-    const msg = err instanceof Error ? err.message : "Unexpected error"
-    return NextResponse.json({ error: msg }, { status: 500 })
+    return NextResponse.json(
+      { error: supabaseErrorMessage(err) },
+      { status: 500 }
+    )
   }
 }

@@ -15,6 +15,7 @@ import { formatChatTime, nameInitials } from "@/app/admin_recruiter/messages/cha
 import type { StaffGroupConversation } from "@/lib/messaging/group-conversations";
 import type { StaffConversation } from "@/lib/messaging/staff-conversations";
 import { useStaffConversations } from "@/lib/messaging/hooks/use-staff-conversations";
+import { useMarkConversationRead } from "@/lib/messaging/hooks/use-mark-conversation-read";
 import { useApplicantConversationsRealtime } from "@/lib/messaging/useApplicantConversationsRealtime";
 import { safeFetchJson } from "@/lib/api/safe-fetch-json";
 import type { SupportTicketConversationItem, SupportTicketStatus } from "@/lib/support-tickets/types";
@@ -111,6 +112,7 @@ export default function AdminRecruiterMessagesClient({
     isLoading: conversationsLoading,
     refetch: refetchConversations,
   } = useStaffConversations();
+  const markConversationRead = useMarkConversationRead();
   const [groups, setGroups] = useState<StaffGroupConversation[]>([]);
   const [selectedWorkerId, setSelectedWorkerId] = useState<string | null>(initialWorkerId ?? null);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
@@ -127,6 +129,19 @@ export default function AdminRecruiterMessagesClient({
   useEffect(() => {
     setPinnedWorkerIds(readPinnedWorkerIds());
   }, []);
+
+  useEffect(() => {
+    if (!selectedWorkerId || activeTab !== "worker") return;
+    void markConversationRead(selectedWorkerId);
+  }, [selectedWorkerId, activeTab, markConversationRead]);
+
+  const selectWorkerConversation = useCallback(
+    (workerId: string) => {
+      setSelectedWorkerId(workerId);
+      setSelectedGroupId(null);
+    },
+    []
+  );
 
   const loadGroups = useCallback(async () => {
     setGroupsLoading(true);
@@ -341,10 +356,7 @@ export default function AdminRecruiterMessagesClient({
                         conversation={conversation}
                         active={conversation.workerId === selectedWorkerId}
                         pinned
-                        onSelect={() => {
-                          setSelectedWorkerId(conversation.workerId);
-                          setSelectedGroupId(null);
-                        }}
+                          onSelect={() => selectWorkerConversation(conversation.workerId)}
                         onTogglePin={() => togglePin(conversation.workerId)}
                       />
                     ))}
@@ -361,10 +373,7 @@ export default function AdminRecruiterMessagesClient({
                         key={conversation.workerId}
                         conversation={conversation}
                         active={conversation.workerId === selectedWorkerId}
-                        onSelect={() => {
-                          setSelectedWorkerId(conversation.workerId);
-                          setSelectedGroupId(null);
-                        }}
+                          onSelect={() => selectWorkerConversation(conversation.workerId)}
                         onTogglePin={() => togglePin(conversation.workerId)}
                       />
                     ))}

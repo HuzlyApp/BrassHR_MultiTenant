@@ -170,7 +170,42 @@ describe("submitOnboardingApplication", () => {
     }
   });
 
-  it("submits with incomplete steps and preserves incomplete keys", async () => {
+  it("rejects submit when required steps are incomplete", async () => {
+    const result = await submitOnboardingApplication(createSupabaseMock(), {
+      applicantId: "user-1",
+      tenantSlug: TEN,
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.status).toBe(400);
+      expect(result.error).toMatch(/required steps/i);
+    }
+    expect(updateCalls).toHaveLength(0);
+  });
+
+  it("submits when all required steps are complete", async () => {
+    vi.mocked(ensureWorkerOnboardingProgress).mockReset();
+    vi.mocked(ensureWorkerOnboardingProgress)
+      .mockResolvedValueOnce(
+        progressPayload({
+          steps: [
+            { onboarding_step_id: "s1", status: "completed", completed_at: "2026-01-01T00:00:00.000Z", data: {} },
+            { onboarding_step_id: "s2", status: "completed", completed_at: "2026-01-01T00:00:00.000Z", data: {} },
+            { onboarding_step_id: "s3", status: "completed", completed_at: "2026-01-01T00:00:00.000Z", data: {} },
+            { onboarding_step_id: "s4", status: "completed", completed_at: "2026-01-01T00:00:00.000Z", data: {} },
+            { onboarding_step_id: "s5", status: "pending", completed_at: null, data: {} },
+          ],
+        })
+      )
+      .mockResolvedValueOnce(
+        progressPayload({
+          submittedAt: "2026-07-01T12:00:00.000Z",
+          submittedWithIncompleteSteps: false,
+          incompleteStepKeys: [],
+        })
+      );
+
     const supabase = createSupabaseMock();
     const result = await submitOnboardingApplication(supabase, {
       applicantId: "user-1",
@@ -179,27 +214,10 @@ describe("submitOnboardingApplication", () => {
 
     expect(result.ok).toBe(true);
     if (result.ok) {
-      expect(result.submittedWithIncompleteSteps).toBe(true);
-      expect(result.incompleteStepKeys).toEqual([
-        "professional_license",
-        "skill_assessment",
-        "authorizations",
-      ]);
+      expect(result.submittedWithIncompleteSteps).toBe(false);
+      expect(result.incompleteStepKeys).toEqual([]);
       expect(result.applicationStatus).toBe("under_review");
-      expect(result.submittedAt).toBeTruthy();
     }
-
-    const progressUpdate = updateCalls.find((c) => c.table === "worker_onboarding_progress");
-    expect(progressUpdate?.payload.status).toBe("in_progress");
-    expect(progressUpdate?.payload.submitted_with_incomplete_steps).toBe(true);
-    expect(progressUpdate?.payload.incomplete_step_keys).toEqual([
-      "professional_license",
-      "skill_assessment",
-      "authorizations",
-    ]);
-
-    const workerUpdate = updateCalls.find((c) => c.table === "worker");
-    expect(workerUpdate?.payload.status).toBe("under_review");
   });
 
   it("returns existing submission without overwriting (idempotent)", async () => {

@@ -5,6 +5,10 @@ import { requireStaffApiSession } from "@/lib/auth/api-session";
 import { resolveStaffTenantScope } from "@/lib/auth/staff-tenant-scope";
 import { getSupabaseAnonKey, getSupabaseUrl } from "@/lib/supabase-env";
 import { applyWorkerTenantEq } from "@/lib/workers/tenant-query";
+import {
+  isApprovedPendingConversion,
+  shouldExcludeFromApprovedCandidates,
+} from "@/lib/workers/candidate-conversion-filter";
 import type { WorkerStatus } from "@/lib/workers/workers-status-types";
 import { parseWorkersListParams, statusOrFilter } from "@/lib/workers/workers-status-filter";
 
@@ -114,7 +118,13 @@ export async function GET(req: Request) {
     );
     const headOnly = urlObj.searchParams.get("head") === "1";
     const includePhotoUrls = urlObj.searchParams.get("includePhotoUrls") === "1";
+    const conversionFilter = urlObj.searchParams.get("conversion")?.trim().toLowerCase() ?? "";
     const { limit, offset } = parseWorkersListParams(urlObj.searchParams);
+    const needsConversionFilter =
+      conversionFilter === "pending" ||
+      (status === "approved" && conversionFilter !== "all");
+    const queryLimit = needsConversionFilter && !headOnly ? 500 : limit;
+    const queryOffset = needsConversionFilter && !headOnly ? 0 : offset;
 
     const url = getSupabaseUrl();
     const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
@@ -191,7 +201,7 @@ export async function GET(req: Request) {
           }
           q = q.order("created_at", { ascending: false }) as typeof q;
           if (!headOnly) {
-            q = q.range(offset, offset + limit - 1) as typeof q;
+            q = q.range(queryOffset, queryOffset + queryLimit - 1) as typeof q;
           }
 
           const res = await q;
@@ -214,14 +224,48 @@ export async function GET(req: Request) {
       }
 
       if (!error) {
-        const normalized = (data ?? []).map((row) => {
+        let normalized = (data ?? []).map((row) => {
           const r = row as Record<string, unknown>;
           const s = resolveWorkerDisplayStatus(r);
           return { ...r, status: s };
         });
 
-        const paged = normalized;
-        const total = count ?? paged.length;
+        const shouldFilterConversion = !headOnly && needsConversionFilter;
+
+        if (shouldFilterConversion && normalized.length > 0) {
+          const candidateIds = normalized
+            .map((row) => (typeof row.id === "string" ? row.id : ""))
+            .filter(Boolean);
+          const { data: employmentRows, error: employmentErr } = await supabase
+            .from("workers")
+            .select("candidate_id")
+            .in("candidate_id", candidateIds);
+          if (employmentErr && !isMissingColumnErr(employmentErr)) {
+            error = { message: employmentErr.message, code: (employmentErr as { code?: string }).code };
+          } else {
+            const convertedIds = new Set(
+              ((employmentRows as { candidate_id?: string }[] | null) ?? [])
+                .map((row) => String(row.candidate_id ?? ""))
+                .filter(Boolean)
+            );
+            normalized = normalized.filter((row) => {
+              const rowStatus = typeof row.status === "string" ? row.status : null;
+              const rowId = typeof row.id === "string" ? row.id : "";
+              const hasEmployment = convertedIds.has(rowId);
+              if (conversionFilter === "pending") {
+                return isApprovedPendingConversion(rowStatus, hasEmployment);
+              }
+              return !shouldExcludeFromApprovedCandidates(rowStatus, hasEmployment);
+            });
+          }
+        }
+
+        const filteredTotal = normalized.length;
+        const paged =
+          shouldFilterConversion && !headOnly
+            ? normalized.slice(offset, offset + limit)
+            : normalized;
+        const total = shouldFilterConversion ? filteredTotal : (count ?? paged.length);
         const hasMore = !headOnly && offset + paged.length < total;
 
         const withContacts = async () => {

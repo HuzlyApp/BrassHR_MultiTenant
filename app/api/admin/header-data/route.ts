@@ -57,12 +57,22 @@ export async function GET() {
           throw new Error("Failed to fetch header data");
         }
 
+        const unreadCountRes = await supabase
+          .from("notifications")
+          .select("id", { count: "exact", head: true })
+          .eq("user_id", userId)
+          .eq("is_read", false);
+
+        if (unreadCountRes.error) {
+          throw new Error("Failed to fetch unread notification count");
+        }
+
         const notifications = (notificationsRes.data ?? []) as HeaderNotification[];
 
         return {
           userId,
           notifications,
-          unreadNotifications: notifications.filter((n) => !n.is_read).length,
+          unreadNotifications: unreadCountRes.count ?? 0,
         };
       },
       CACHE_TTL_SECONDS.userScoped

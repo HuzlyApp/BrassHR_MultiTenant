@@ -89,6 +89,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Upload Resume cannot be skipped." }, { status: 400 });
     }
 
+    if (
+      status === "skipped" &&
+      stepRow &&
+      stepRow.is_required !== false &&
+      stepRow.metadata.allow_skip !== true
+    ) {
+      return NextResponse.json(
+        { error: "This required step cannot be skipped." },
+        { status: 400 }
+      );
+    }
+
     if (status === "completed" && stepRow && isUploadResumeStep(stepRow)) {
       const { data: worker, error: workerErr } = await supabase
         .from("worker")

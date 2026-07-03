@@ -12,6 +12,7 @@ export function computeIncompleteStepKeys(
   const incomplete: string[] = [];
   for (const step of enabledSteps) {
     if (!step.is_enabled || step.step_type === "review_submit") continue;
+    if (step.is_required === false) continue;
     const status = statusByStepId.get(step.id) ?? "pending";
     if (status !== "completed" && status !== "skipped") {
       incomplete.push(step.step_key);

@@ -26,8 +26,10 @@ import {
 } from "@/lib/messaging/staff-conversations";
 import { useApplicantConversationsRealtime } from "@/lib/messaging/useApplicantConversationsRealtime";
 import { HeaderIconCountBadge } from "@/app/components/HeaderIconCountBadge";
-import { useAdminHeaderData } from "@/lib/admin/hooks/use-admin-header-data";
+import { useAdminHeaderData, ADMIN_HEADER_DATA_QUERY_KEY } from "@/lib/admin/hooks/use-admin-header-data";
 import { useStaffConversations } from "@/lib/messaging/hooks/use-staff-conversations";
+import { useMarkConversationRead } from "@/lib/messaging/hooks/use-mark-conversation-read";
+import { useQueryClient } from "@tanstack/react-query";
 
 type ConversationItem = StaffConversation;
 
@@ -40,8 +42,7 @@ type AdminRecruiterHeaderProps = {
 
 const DEFAULT_TENANT_LOGO = "/images/new-logo-nexus.svg";
 
-/** Static count for notification badge UI — replace with live data later. */
-const STATIC_NOTIFICATION_COUNT = 1;
+/** Static count removed — use live unreadNotifications from header data API. */
 
 export function AdminRecruiterHeader({
   onMenuClick,
@@ -53,10 +54,14 @@ export function AdminRecruiterHeader({
   const { user, profile, organization, loading: accountLoading } = useAccountData();
   const {
     notifications,
+    unreadNotifications,
     isLoading: headerDataLoading,
     isError: headerDataError,
     error: headerDataErrorObj,
+    refetch: refetchHeaderData,
   } = useAdminHeaderData();
+  const queryClient = useQueryClient();
+  const markConversationRead = useMarkConversationRead();
   const {
     conversations,
     tenantId,
@@ -72,6 +77,25 @@ export function AdminRecruiterHeader({
   const [tenantLogoSrc, setTenantLogoSrc] = useState(branding.logoUrl || DEFAULT_TENANT_LOGO);
   const messagesAreaRef = useRef<HTMLDivElement>(null);
   const profileAreaRef = useRef<HTMLDivElement>(null);
+
+  const markNotificationsRead = useCallback(async () => {
+    try {
+      const res = await fetch("/api/admin/header-data", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "mark_notifications_read" }),
+      });
+      if (!res.ok) return;
+      await queryClient.invalidateQueries({ queryKey: ADMIN_HEADER_DATA_QUERY_KEY });
+    } catch {
+      /* ignore */
+    }
+  }, [queryClient]);
+
+  useEffect(() => {
+    if (!showNotifications) return;
+    void markNotificationsRead();
+  }, [showNotifications, markNotificationsRead]);
 
   useEffect(() => {
     if (!showMessages && !showProfileMenu) return;
@@ -111,10 +135,6 @@ export function AdminRecruiterHeader({
   const displayRole = formatRoleLabel(profile?.role);
   const profilePhoto = profile?.avatar_url ?? null;
   const headerLoading = headerDataLoading || conversationsLoading || accountLoading;
-  const unreadNotifications = useMemo(
-    () => notifications.filter((notification) => !notification.is_read).length,
-    [notifications]
-  );
   const showBackButton = isCandidateDetailPage(pathname ?? "");
 
   const handleBackClick = useCallback(() => {
@@ -214,7 +234,7 @@ export function AdminRecruiterHeader({
                   setShowProfileMenu(false);
                 }}
                 className="relative inline-flex h-8 w-8 items-center justify-center rounded-md text-[#94A3B8] transition hover:bg-slate-100"
-                aria-label={`Open notifications, ${STATIC_NOTIFICATION_COUNT} unread`}
+                aria-label={`Open notifications${unreadNotifications > 0 ? `, ${unreadNotifications} unread` : ""}`}
               >
                 <Image
                   src={NOTIFICATION_ICON}
@@ -224,8 +244,35 @@ export function AdminRecruiterHeader({
                   className="h-5 w-5 shrink-0"
                   aria-hidden
                 />
-                <HeaderIconCountBadge count={STATIC_NOTIFICATION_COUNT} />
+                <HeaderIconCountBadge count={unreadNotifications} />
               </button>
+
+              {showNotifications ? (
+                <div className="absolute right-0 top-10 z-50 w-[320px] overflow-hidden rounded-lg border border-[#d7e4e1] bg-white shadow-xl">
+                  <div className="border-b border-[#E2E8F0] px-4 py-3">
+                    <p className="text-sm font-semibold text-[#0F172A]">Notifications</p>
+                  </div>
+                  <div className="max-h-[320px] overflow-y-auto">
+                    {notifications.length === 0 ? (
+                      <p className="px-4 py-4 text-sm text-[#64748B]">No notifications yet.</p>
+                    ) : (
+                      notifications.map((notification) => (
+                        <div
+                          key={notification.id}
+                          className={`border-b border-[#F1F5F9] px-4 py-3 ${notification.is_read ? "opacity-70" : "bg-[#F8FAFC]"}`}
+                        >
+                          <p className="text-sm font-semibold text-[#0F172A]">
+                            {notification.title?.trim() || "Notification"}
+                          </p>
+                          {notification.body ? (
+                            <p className="mt-1 text-sm text-[#64748B]">{notification.body}</p>
+                          ) : null}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              ) : null}
 
               {showMessages ? (
                 <div className="absolute right-0 top-10 z-50 w-[320px] overflow-hidden rounded-lg border border-[#d7e4e1] bg-white shadow-xl">
@@ -241,7 +288,10 @@ export function AdminRecruiterHeader({
                         <Link
                           key={conversation.workerId}
                           href={conversation.href}
-                          onClick={() => setShowMessages(false)}
+                          onClick={() => {
+                            setShowMessages(false);
+                            void markConversationRead(conversation.workerId);
+                          }}
                           className="block border-b border-[#F1F5F9] px-4 py-3 transition hover:bg-[#F8FAFC]"
                         >
                           <div className="flex items-start justify-between gap-3">

@@ -13,12 +13,14 @@ import OnboardingLayout from "@/app/components/OnboardingLayout"
 import OnboardingStepper from "@/app/components/OnboardingStepper"
 import DocumentFileThumbnail from "@/app/components/DocumentFileThumbnail"
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext"
+import { useOnboardingTenant } from "@/lib/tenant/use-onboarding-tenant"
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding"
 
 type UploadSlot = { file: File | null; name?: string; url?: string }
 
 export default function Step4Identity() {
   const branding = useTenantBranding()
+  const { slug: tenantSlug } = useOnboardingTenant()
   const router = useRouter()
 
   const [ssnFile, setSsnFile] = useState<UploadSlot>({ file: null })
@@ -107,6 +109,7 @@ export default function Step4Identity() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           applicantId,
+          ...(tenantSlug ? { tenant: tenantSlug } : {}),
           ssn_url: ssnUrl,
           drivers_license_url: licenseUrl,
         }),

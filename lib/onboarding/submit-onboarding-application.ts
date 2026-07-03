@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { computeIncompleteStepKeys } from "@/lib/onboarding/compute-incomplete-step-keys";
+import { computeIncompleteStepKeys, stepTitlesForKeys } from "@/lib/onboarding/compute-incomplete-step-keys";
 import { ensureWorkerOnboardingProgress } from "@/lib/onboarding/ensure-worker-progress";
 import { loadTenantOnboardingConfig } from "@/lib/onboarding/load-tenant-config";
 import { resolveOnboardingWorker } from "@/lib/onboarding/resolve-onboarding-worker";
@@ -59,6 +59,16 @@ export async function submitOnboardingApplication(
   }
 
   const enabledSteps = config.steps.filter((s) => s.is_enabled);
+  const requiredIncompleteKeys = computeIncompleteStepKeys(enabledSteps, progress.steps);
+  if (requiredIncompleteKeys.length > 0) {
+    const labels = stepTitlesForKeys(enabledSteps, requiredIncompleteKeys);
+    return {
+      ok: false,
+      status: 400,
+      error: `Please complete all required steps before submitting: ${labels.join(", ")}`,
+    };
+  }
+
   const incompleteStepKeys = computeIncompleteStepKeys(enabledSteps, progress.steps);
   const submittedWithIncompleteSteps = incompleteStepKeys.length > 0;
   const now = new Date().toISOString();

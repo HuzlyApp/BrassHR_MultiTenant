@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { getSupabaseUrl } from "@/lib/supabase-env";
 import { requireStaffApiSession } from "@/lib/auth/api-session";
 import { resolveStaffTenantScope } from "@/lib/auth/staff-tenant-scope";
+import { lastReadAtByWorkerId } from "@/lib/messaging/conversation-reads";
 import {
   groupApplicantMessagesIntoConversations,
   type ApplicantMessageListRow,
@@ -74,7 +75,28 @@ export async function GET() {
         })
       )
     );
-    const conversations = groupApplicantMessagesIntoConversations(messages, workerMap);
+
+    const workerIdsForReads = Array.from(
+      new Set(messages.map((msg) => msg.worker_id).filter(Boolean))
+    );
+    let readRows: { worker_id: string; last_read_at: string }[] = [];
+    if (workerIdsForReads.length > 0) {
+      const readsRes = await supabase
+        .from("applicant_conversation_reads")
+        .select("worker_id, last_read_at")
+        .eq("user_id", auth.userId)
+        .in("worker_id", workerIdsForReads);
+      if (readsRes.error && !/does not exist|schema cache/i.test(readsRes.error.message)) {
+        throw readsRes.error;
+      }
+      readRows = (readsRes.data ?? []) as { worker_id: string; last_read_at: string }[];
+    }
+
+    const conversations = groupApplicantMessagesIntoConversations(
+      messages,
+      workerMap,
+      lastReadAtByWorkerId(readRows)
+    );
 
     return NextResponse.json({
       conversations,
