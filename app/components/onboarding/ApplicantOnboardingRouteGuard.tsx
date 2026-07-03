@@ -79,10 +79,12 @@ function OnboardingRouteGuardInner({ children }: { children: React.ReactNode }) 
 
   if (showLoading) {
     return (
-      <div className="flex min-h-[40vh] items-center justify-center px-6">
+      <div className="flex min-h-screen w-full items-center justify-center px-6">
         <div className="text-center">
-          <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-slate-200 border-t-slate-700" />
-          <p className="mt-4 text-sm text-slate-600">Loading your onboarding progress…</p>
+          <div className="mx-auto h-10 w-10 animate-spin rounded-full border-2 border-slate-200 border-t-slate-700" />
+          <p className="mt-5 text-lg font-medium text-slate-700">
+            Loading the Application Steps....
+          </p>
         </div>
       </div>
     );

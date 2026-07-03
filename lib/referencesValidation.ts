@@ -30,6 +30,21 @@ export function hasPartiallyFilledReference(refs: ReferenceRow[]): boolean {
   })
 }
 
+/** User-facing error when references cannot be saved yet. */
+export function getReferencesSaveError(refs: ReferenceRow[]): string | null {
+  if (hasPartiallyFilledReference(refs)) {
+    return "All fields are required."
+  }
+  const completeCount = countCompleteReferences(refs)
+  if (completeCount === 1) {
+    return "2 References are necessary, please add more 1 reference"
+  }
+  if (completeCount < MIN_COMPLETE_REFERENCES) {
+    return "All fields are required."
+  }
+  return null
+}
+
 export function parseReferenceRowsFromLocalStorage(raw: string | null): ReferenceRow[] {
   if (!raw?.trim()) return []
   try {

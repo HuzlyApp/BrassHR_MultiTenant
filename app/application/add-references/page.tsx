@@ -21,7 +21,7 @@ import { resolveClientOnboardingTenantSlug } from "@/lib/tenant/client-onboardin
 import { formatPhoneNumber, normalizePhoneInput } from "@/lib/phone"
 import AutosaveStatus from "@/app/components/AutosaveStatus"
 import {
-  hasPartiallyFilledReference,
+  getReferencesSaveError,
   isReferenceComplete,
   MIN_COMPLETE_REFERENCES,
   type ReferenceRow,
@@ -139,8 +139,9 @@ export default function ReferencesPage() {
   async function saveReferences() {
     setError("")
     setSaving(true)
-    if (hasPartiallyFilledReference(refs)) {
-      setError("Finish every reference you started, or clear unused rows, before saving.")
+    const validationError = getReferencesSaveError(refs)
+    if (validationError) {
+      setError(validationError)
       setSaving(false)
       return
     }
@@ -150,11 +151,6 @@ export default function ReferencesPage() {
       .filter((n) => n !== "-")
     if (new Set(names).size !== names.length) {
       setError("Duplicate reference names are not allowed.")
-      setSaving(false)
-      return
-    }
-    if (completeRefs.length < MIN_COMPLETE_REFERENCES) {
-      setError(`Add at least ${MIN_COMPLETE_REFERENCES} complete references (first name, last name, phone, and email each) before continuing.`)
       setSaving(false)
       return
     }

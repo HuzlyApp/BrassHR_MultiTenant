@@ -66,6 +66,22 @@ function stepCircleClass(state: StepIndicatorState): string {
   }
 }
 
+function ConnectorSegment({ filled }: { filled: boolean }) {
+  return (
+    <div
+      className="pointer-events-none absolute top-3 z-0 h-[2px] w-full"
+      style={{ left: "50%" }}
+      aria-hidden
+    >
+      <div className="absolute inset-0 bg-[#f1f5f9]" />
+      <div
+        className="absolute inset-y-0 left-0 bg-[color:var(--brand-primary)] transition-all duration-300"
+        style={{ width: filled ? "100%" : "0%" }}
+      />
+    </div>
+  )
+}
+
 function stepLabelClass(state: StepIndicatorState): string {
   if (state === "completed" || state === "current") {
     return "text-[color:var(--brand-primary)] font-medium"
@@ -146,58 +162,56 @@ export default function OnboardingStepper({
   }
 
   const furthestStep = furthestProgressStepIndex(stepStates, currentStep)
-  const progress =
-    stepLabels.length <= 1
-      ? 0
-      : ((Math.min(furthestStep, stepLabels.length) - 1) / Math.max(stepLabels.length - 1, 1)) * 100
 
   return (
     <>
       <div className="w-full border-b border-slate-200 pb-6" style={brandingToCssVars(branding)}>
         <div className="relative mx-auto mt-2 w-full max-w-3xl px-2">
-          <div className="absolute left-10 right-10 top-3 h-[2px] bg-[#f1f5f9]" />
-
           <div
-            className="absolute left-10 top-3 h-[2px] bg-[color:var(--brand-primary)] transition-all"
-            style={{ width: `${progress}%` }}
-          />
-
-          <div className="relative flex justify-between">
+            className="grid w-full"
+            style={{ gridTemplateColumns: `repeat(${stepLabels.length}, minmax(0, 1fr))` }}
+          >
             {stepLabels.map((step, index) => {
               const stepNumber = index + 1
               const configStep = enabledSteps[index]!
               const state = stepStates[index] ?? "not_started"
               const isClickable = isStepIndicatorAccessible(state, stepNumber, maxAllowedStep)
+              const connectorFilled = furthestStep > index + 1
 
               return (
-                <button
-                  key={`${configStep.id}-${step}`}
-                  type="button"
-                  onClick={() => {
-                    if (!isClickable) return
-                    push(stepRoutes[index])
-                  }}
-                  disabled={!isClickable}
-                  className={`group flex w-24 flex-col items-center rounded-lg px-1.5 py-1 text-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)]/40 ${
-                    isClickable ? "cursor-pointer" : "cursor-not-allowed"
-                  }`}
-                  aria-label={`${isClickable ? "Go to" : "Locked"} ${step.replace("\n", " ")}${
-                    state === "skipped" ? " (skipped)" : state === "required_missing" ? " (required)" : ""
-                  }`}
-                  title={`${isClickable ? "Go to" : "Locked"} ${step.replace("\n", " ")}`}
-                >
-                  <div className={stepCircleClass(state)}>
-                    <StepIcon state={state} />
-                  </div>
+                <div key={`${configStep.id}-${step}`} className="relative flex min-w-0 flex-col items-center">
+                  {index < stepLabels.length - 1 ? (
+                    <ConnectorSegment filled={connectorFilled} />
+                  ) : null}
 
-                  <span
-                    className={`mt-3 whitespace-pre-line text-[12px] leading-tight ${stepLabelClass(state)} ${
-                      isClickable ? "group-hover:text-[color:var(--brand-primary)] group-hover:underline" : ""
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!isClickable) return
+                      push(stepRoutes[index])
+                    }}
+                    disabled={!isClickable}
+                    className={`group relative z-10 flex w-full max-w-24 flex-col items-center rounded-lg px-1.5 py-1 text-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)]/40 ${
+                      isClickable ? "cursor-pointer" : "cursor-not-allowed"
                     }`}
+                    aria-label={`${isClickable ? "Go to" : "Locked"} ${step.replace("\n", " ")}${
+                      state === "skipped" ? " (skipped)" : state === "required_missing" ? " (required)" : ""
+                    }`}
+                    title={`${isClickable ? "Go to" : "Locked"} ${step.replace("\n", " ")}`}
                   >
-                    {step}
-                  </span>
-                </button>
+                    <div className={stepCircleClass(state)}>
+                      <StepIcon state={state} />
+                    </div>
+
+                    <span
+                      className={`mt-3 whitespace-pre-line text-[12px] leading-tight ${stepLabelClass(state)} ${
+                        isClickable ? "group-hover:text-[color:var(--brand-primary)] group-hover:underline" : ""
+                      }`}
+                    >
+                      {step}
+                    </span>
+                  </button>
+                </div>
               )
             })}
           </div>
