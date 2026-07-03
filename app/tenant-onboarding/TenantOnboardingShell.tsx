@@ -6,6 +6,7 @@ import TenantOnboardingStepper, {
   tenantOnboardingStepToPhase,
   type TenantOnboardingStepperPhase,
 } from "@/app/components/TenantOnboardingStepper";
+import type { TenantStepIndicatorState } from "@/lib/tenant/tenant-onboarding-stepper-status";
 import { TenantBrandingProvider } from "@/app/components/tenant/TenantBrandingContext";
 import { brandingToCssVars, type TenantBranding } from "@/lib/tenant/tenant-branding";
 
@@ -67,6 +68,8 @@ type TenantOnboardingShellProps = {
   hideStepper?: boolean;
   /** Override stepper phase (e.g. extended setup steps) */
   stepperPhase?: TenantOnboardingStepperPhase;
+  /** Check vs warning icons from form completion */
+  stepperStates?: TenantStepIndicatorState[];
   /** Advance to the next step without filling the form */
   onSkip?: () => void;
 };
@@ -85,6 +88,7 @@ export default function TenantOnboardingShell({
   children,
   hideStepper = false,
   stepperPhase,
+  stepperStates,
   onSkip,
 }: TenantOnboardingShellProps) {
   const phase = stepperPhase ?? tenantOnboardingStepToPhase(step);
@@ -117,7 +121,9 @@ export default function TenantOnboardingShell({
               Get started by following these 4 easy steps.
             </p>
 
-            {!hideStepper ? <TenantOnboardingStepper phase={phase} className="w-full" /> : null}
+            {!hideStepper ? (
+              <TenantOnboardingStepper phase={phase} stepStates={stepperStates} className="w-full" />
+            ) : null}
             {showSkip ? <SkipForNowButton onClick={onSkip!} /> : null}
           </div>
 

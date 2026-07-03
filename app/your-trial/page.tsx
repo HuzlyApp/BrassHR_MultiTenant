@@ -107,11 +107,20 @@ function TrialArtPanel() {
 function YourTrialContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const isAccountReady = searchParams.get("account-ready") === "true";
+  const isAccountReadyFromUrl = searchParams.get("account-ready") === "true";
+  const [showAccountReadyModal, setShowAccountReadyModal] = useState(false);
+  const [trialPrepared, setTrialPrepared] = useState(false);
   const [verificationEmail, setVerificationEmail] = useState("");
   const [completedThrough, setCompletedThrough] = useState(0);
   const [prepareError, setPrepareError] = useState<string | null>(null);
   const [resending, setResending] = useState(false);
+
+  useEffect(() => {
+    if (!isAccountReadyFromUrl) return;
+    setShowAccountReadyModal(true);
+    setTrialPrepared(true);
+    setCompletedThrough(2);
+  }, [isAccountReadyFromUrl]);
 
   useEffect(() => {
     try {
@@ -127,7 +136,7 @@ function YourTrialContent() {
   }, []);
 
   useEffect(() => {
-    if (isAccountReady) return;
+    if (trialPrepared || isAccountReadyFromUrl) return;
 
     let cancelled = false;
 
@@ -173,6 +182,9 @@ function YourTrialContent() {
       if (cancelled) return;
 
       if (emailDelivered) {
+        setTrialPrepared(true);
+        setCompletedThrough(2);
+        setShowAccountReadyModal(true);
         router.replace("/your-trial?account-ready=true");
       }
     }
@@ -181,10 +193,13 @@ function YourTrialContent() {
     return () => {
       cancelled = true;
     };
-  }, [isAccountReady, router]);
+  }, [trialPrepared, isAccountReadyFromUrl, router]);
 
   const handleExit = () => {
-    router.push("/login");
+    setShowAccountReadyModal(false);
+    if (isAccountReadyFromUrl) {
+      router.replace("/your-trial", { scroll: false });
+    }
   };
 
   const handleResendSetupLink = async () => {
@@ -205,6 +220,9 @@ function YourTrialContent() {
       }
 
       if (json.sent || (json.skipped && json.reason === "ALREADY_SENT")) {
+        setTrialPrepared(true);
+        setCompletedThrough(2);
+        setShowAccountReadyModal(true);
         router.replace("/your-trial?account-ready=true");
         return;
       }
@@ -231,7 +249,7 @@ function YourTrialContent() {
 
   return (
     <>
-      {isAccountReady ? (
+      {showAccountReadyModal ? (
         <AccountReadyModal
           email={verificationEmail || "your email"}
           onExit={handleExit}
@@ -241,9 +259,9 @@ function YourTrialContent() {
       ) : null}
 
       <main
-        className={`min-h-screen w-full overflow-x-hidden bg-white${isAccountReady ? " pointer-events-none select-none" : ""}`}
+        className={`min-h-screen w-full overflow-x-hidden bg-white${showAccountReadyModal ? " pointer-events-none select-none" : ""}`}
         style={{ backgroundColor: "#ffffff" }}
-        aria-hidden={isAccountReady}
+        aria-hidden={showAccountReadyModal}
       >
         <style>{`
         .trial-frame {
@@ -313,7 +331,7 @@ function YourTrialContent() {
                 className="h-[80px] w-[160px] object-contain"
               />
 
-              <SignupStepper phase={isAccountReady ? "ready" : "preparing"} />
+              <SignupStepper phase={trialPrepared ? "ready" : "preparing"} />
 
               <div className="mt-[58px]">
                 <h1

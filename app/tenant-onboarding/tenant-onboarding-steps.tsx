@@ -32,6 +32,7 @@ import type { OnboardingStepDraft } from "@/lib/onboarding/default-onboarding-st
 import { subdomainErrorMessage, validateTenantSubdomainInput } from "@/lib/tenant/subdomain-validation";
 import type { TenantBranding } from "@/lib/tenant/tenant-branding";
 import { withTenant } from "@/lib/tenant/with-tenant";
+import SearchableSelectField from "@/app/tenant-onboarding/SearchableSelectField";
 
 const inputTypographyStyle = {
   fontFamily: "Inter, Arial, sans-serif",
@@ -686,23 +687,25 @@ export function BusinessStep({
               error={showFieldError("city")}
             />
           ) : (
-            <SelectField
+            <SearchableSelectField
               label="City"
               required
-              disabled={!businessInfo.state || citiesLoading}
+              disabled={!businessInfo.state}
+              loading={citiesLoading}
               value={businessInfo.city}
               onChange={(value) => handleBusinessFieldChange({ city: value })}
+              onBlur={() => handleFieldBlur("city")}
               placeholder={
                 !businessInfo.state
                   ? "Select state first"
                   : citiesLoading
                     ? "Loading…"
-                    : cityOptions.length > 0
-                      ? "Select city"
-                      : "No cities listed"
+                    : "Search city"
               }
+              searchPlaceholder="Type to search cities"
               options={cityOptions}
               error={showFieldError("city")}
+              emptyMessage="No cities found. Try another search."
             />
           )}
         </div>

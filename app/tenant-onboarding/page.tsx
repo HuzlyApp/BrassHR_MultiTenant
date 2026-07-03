@@ -30,6 +30,7 @@ import {
   PLATFORM_DEFAULT_TENANT_SLUG,
   type TenantBranding,
 } from "@/lib/tenant/tenant-branding";
+import { deriveTenantOnboardingStepStates } from "@/lib/tenant/tenant-onboarding-stepper-status";
 
 type Step =
   | "goals"
@@ -51,7 +52,9 @@ export default function TenantOnboardingPage() {
   const [error, setError] = useState<string | null>(null);
 
   const [selectedGoals, setSelectedGoals] = useState<TenantGoalId[]>([]);
+  const [goalsSkipped, setGoalsSkipped] = useState(false);
   const [businessInfoSkipped, setBusinessInfoSkipped] = useState(false);
+  const [brandingSkipped, setBrandingSkipped] = useState(false);
   const [businessInfo, setBusinessInfo] = useState(initialBusinessInfoForm);
   const [orgName, setOrgName] = useState("");
   const [subdomain, setSubdomain] = useState("");
@@ -166,6 +169,19 @@ export default function TenantOnboardingPage() {
     };
   }, [accentHex, backgroundUrl, brand, headline, logoUrl, orgName, primaryHex, secondaryHex, subtitle]);
 
+  const stepperStates = useMemo(
+    () =>
+      deriveTenantOnboardingStepStates({
+        step,
+        skippedSteps: {
+          goals: goalsSkipped,
+          business: businessInfoSkipped,
+          branding: brandingSkipped,
+        },
+      }),
+    [step, goalsSkipped, businessInfoSkipped, brandingSkipped]
+  );
+
   const handleBrandingThemeMode = (mode: TenantBrandingThemeMode) => {
     setBrandingThemeMode(mode);
     if (mode === "system") {
@@ -182,8 +198,14 @@ export default function TenantOnboardingPage() {
   };
 
   const handleSkip = () => {
+    if (step === "goals") {
+      setGoalsSkipped(true);
+    }
     if (step === "business") {
       setBusinessInfoSkipped(true);
+    }
+    if (step === "company_logo" || step === "branding") {
+      setBrandingSkipped(true);
     }
     const nextStep: Partial<Record<Step, Step>> = {
       goals: "business",
@@ -302,14 +324,17 @@ export default function TenantOnboardingPage() {
   }
 
   return (
-    <TenantOnboardingShell brand={preview} step={step} hideStepper={step === "done"}>
+    <TenantOnboardingShell brand={preview} step={step} hideStepper={step === "done"} stepperStates={stepperStates}>
       {error ? <ErrorBanner message={error} /> : null}
 
       {step === "goals" ? (
         <GoalsStep
           selectedGoals={selectedGoals}
           onToggleGoal={toggleGoal}
-          onContinue={() => setStep("business")}
+          onContinue={() => {
+            setGoalsSkipped(false);
+            setStep("business");
+          }}
           onSkip={handleSkip}
         />
       ) : null}
@@ -343,7 +368,10 @@ export default function TenantOnboardingPage() {
           onLogoUrlChange={setLogoUrl}
           onLogoDisplayNameChange={setLogoDisplayName}
           onLogoTaglineChange={setLogoTagline}
-          onContinue={() => setStep("branding")}
+          onContinue={() => {
+            setBrandingSkipped(false);
+            setStep("branding");
+          }}
           onBack={() => setStep("business")}
           onSkip={handleSkip}
         />
@@ -370,7 +398,10 @@ export default function TenantOnboardingPage() {
           onHeadlineChange={setHeadline}
           onSubtitleChange={setSubtitle}
           onBackgroundChange={setBackgroundUrl}
-          onContinue={() => setStep("domain")}
+          onContinue={() => {
+            setBrandingSkipped(false);
+            setStep("domain");
+          }}
           onBack={() => setStep("company_logo")}
           onSkip={handleSkip}
         />
