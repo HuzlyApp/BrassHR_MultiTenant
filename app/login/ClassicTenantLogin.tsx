@@ -186,8 +186,9 @@ export default function ClassicTenantLogin({
               disabled={!canSubmit || submitting}
               style={brandingAuthButtonStyle(canSubmit && !submitting)}
               className={cn(
-                "flex-1 rounded-lg py-3.5 font-medium text-white transition-colors",
-                "hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60"
+                "flex-1 rounded-lg py-3.5 font-medium transition-colors",
+                "disabled:cursor-not-allowed",
+                canSubmit && !submitting && "hover:brightness-105"
               )}
             >
               {submitting ? "Logging in..." : brand.buttonText}

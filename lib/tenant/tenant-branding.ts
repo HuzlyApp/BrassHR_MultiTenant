@@ -75,11 +75,18 @@ export function braasLoginShellLogoUrl(brand: TenantBranding): string {
   return brand.loginLogoUrl || brand.logoUrl;
 }
 
-/** Primary auth CTA style — uses tenant button color when enabled. */
-export function brandingAuthButtonStyle(enabled: boolean): Record<string, string> | undefined {
-  if (!enabled) return undefined;
+/** Primary auth CTA style — gradient when enabled, visible gray when disabled. */
+export function brandingAuthButtonStyle(enabled: boolean): Record<string, string> {
+  if (!enabled) {
+    return {
+      backgroundColor: "#dddddd",
+      color: "#94a3b8",
+      fontFamily: "var(--brand-font-body)",
+    };
+  }
   return {
     backgroundImage: "linear-gradient(90deg, var(--brand-button) 0%, var(--brand-accent) 100%)",
+    color: "#ffffff",
     fontFamily: "var(--brand-font-body)",
   };
 }

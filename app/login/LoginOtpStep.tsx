@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, X } from "lucide-react";
+import { Check, Clock, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type ClipboardEvent, type FormEvent, type KeyboardEvent } from "react";
 import { loginInputErrorClass } from "@/app/login/LoginFormError";
 import type { LoginAuthErrorPayload } from "@/lib/auth/login-api-errors";
@@ -17,6 +17,7 @@ const inputFocusClass =
 const OTP_STATUS_ICON = {
   successBg: "#16a34a",
   errorBg: "#dc2626",
+  expiredBg: "#d97706",
 } as const;
 
 type LoginOtpStepProps = {
@@ -73,6 +74,7 @@ export default function LoginOtpStep({
   const code = useMemo(() => digits.join(""), [digits]);
   const isComplete = code.length === OTP_LENGTH && digits.every((digit) => digit.length === 1);
   const otpHasError = authError != null;
+  const otpExpired = authError?.code === "OTP_EXPIRED";
 
   const updateDigit = (index: number, value: string) => {
     onClearError?.();
@@ -149,14 +151,27 @@ export default function LoginOtpStep({
           >
             <span
               className="flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full text-white"
-              style={{ backgroundColor: OTP_STATUS_ICON.errorBg }}
+              style={{ backgroundColor: otpExpired ? OTP_STATUS_ICON.expiredBg : OTP_STATUS_ICON.errorBg }}
               aria-hidden
             >
-              <X className="h-[12px] w-[12px]" strokeWidth={3} />
+              {otpExpired ? (
+                <Clock className="h-[12px] w-[12px]" strokeWidth={3} />
+              ) : (
+                <X className="h-[12px] w-[12px]" strokeWidth={3} />
+              )}
             </span>
             <span>
-              <span className="font-semibold text-[#991b1b]">Wrong OTP.</span>{" "}
-              {authError?.error ?? "Check the code and try again."}
+              {otpExpired ? (
+                <>
+                  <span className="font-semibold text-[#92400e]">OTP expired.</span>{" "}
+                  {authError?.error ?? "Request a new code and try again."}
+                </>
+              ) : (
+                <>
+                  <span className="font-semibold text-[#991b1b]">Wrong OTP.</span>{" "}
+                  {authError?.error ?? "Check the code and try again."}
+                </>
+              )}
             </span>
           </div>
         ) : verified ? (

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
   loginAuthErrorResponse,
+  LOGIN_OTP_EXPIRED_MESSAGE,
   LOGIN_OTP_INVALID_MESSAGE,
 } from "@/lib/auth/login-api-errors";
 import {
@@ -51,6 +52,9 @@ export async function POST(req: NextRequest) {
 
     const verified = await verifyLoginOtp(supabase, { email, code });
     if (!verified.ok) {
+      if (verified.reason === "expired") {
+        return loginAuthErrorResponse(LOGIN_OTP_EXPIRED_MESSAGE, "OTP_EXPIRED", 401);
+      }
       return loginAuthErrorResponse(LOGIN_OTP_INVALID_MESSAGE, "OTP_INVALID", 401);
     }
 

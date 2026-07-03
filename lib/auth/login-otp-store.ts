@@ -128,7 +128,97 @@ export async function createLoginOtp(
   return { code, expiresAt };
 }
 
-export type VerifyLoginOtpResult = { ok: true } | { ok: false; reason: "invalid" | "error" };
+export type VerifyLoginOtpResult =
+  | { ok: true }
+  | { ok: false; reason: "invalid" | "expired" | "error" };
+
+type LoginOtpStatusRow = {
+  email: string;
+  purpose: string;
+  expires_at: string;
+  used_at: string | null;
+  invalidated_at: string | null;
+  created_at: string;
+};
+
+export function classifyLoginOtpFailureFromRows(
+  rows: LoginOtpStatusRow[],
+  params: { email: string; purpose: string; now?: Date }
+): "expired" | "invalid" {
+  const email = normalizeLoginOtpEmail(params.email);
+  const purpose = params.purpose.trim();
+  const nowMs = (params.now ?? new Date()).getTime();
+
+  const relevant = rows.filter((row) => row.email === email && row.purpose === purpose);
+  const hasActiveOtp = relevant.some(
+    (row) =>
+      row.used_at == null &&
+      row.invalidated_at == null &&
+      new Date(row.expires_at).getTime() > nowMs
+  );
+  if (hasActiveOtp) {
+    return "invalid";
+  }
+
+  const latest = relevant
+    .slice()
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
+  if (!latest) {
+    return "invalid";
+  }
+  if (
+    latest.used_at == null &&
+    latest.invalidated_at == null &&
+    new Date(latest.expires_at).getTime() <= nowMs
+  ) {
+    return "expired";
+  }
+
+  return "invalid";
+}
+
+async function classifyLoginOtpFailure(
+  supabase: SupabaseClient,
+  params: { email: string; purpose: string }
+): Promise<"expired" | "invalid"> {
+  const email = normalizeLoginOtpEmail(params.email);
+  const purpose = params.purpose.trim();
+  const now = new Date().toISOString();
+
+  const { data: activeRows, error: activeError } = await supabase
+    .from("auth_login_otps")
+    .select("id")
+    .eq("email", email)
+    .eq("purpose", purpose)
+    .is("used_at", null)
+    .is("invalidated_at", null)
+    .gt("expires_at", now)
+    .limit(1);
+
+  if (activeError) {
+    return "invalid";
+  }
+  if (activeRows && activeRows.length > 0) {
+    return "invalid";
+  }
+
+  const { data: latestRows, error: latestError } = await supabase
+    .from("auth_login_otps")
+    .select("expires_at, used_at, invalidated_at, created_at, email, purpose")
+    .eq("email", email)
+    .eq("purpose", purpose)
+    .order("created_at", { ascending: false })
+    .limit(1);
+
+  if (latestError || !latestRows?.length) {
+    return "invalid";
+  }
+
+  return classifyLoginOtpFailureFromRows(latestRows as LoginOtpStatusRow[], {
+    email,
+    purpose,
+  });
+}
 
 export async function verifyLoginOtp(
   supabase: SupabaseClient,
@@ -153,5 +243,10 @@ export async function verifyLoginOtp(
     return { ok: false, reason: "error" };
   }
 
-  return data === true ? { ok: true } : { ok: false, reason: "invalid" };
+  if (data === true) {
+    return { ok: true };
+  }
+
+  const failureReason = await classifyLoginOtpFailure(supabase, { email, purpose });
+  return { ok: false, reason: failureReason };
 }

@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { LOGIN_OTP_INVALID_MESSAGE } from "@/lib/auth/login-api-errors";
+import { LOGIN_OTP_EXPIRED_MESSAGE, LOGIN_OTP_INVALID_MESSAGE } from "@/lib/auth/login-api-errors";
 import {
+  classifyLoginOtpFailureFromRows,
   createLoginOtp,
   hashLoginOtp,
   LOGIN_OTP_PURPOSE,
@@ -65,9 +66,75 @@ function createInMemoryOtpSupabase(initialRows: OtpRow[] = []) {
       throw new Error(`Unexpected table: ${table}`);
     }
 
-    const filters: Array<{ type: "eq" | "is"; column: string; value: unknown }> = [];
+    const filters: Array<{ type: "eq" | "is" | "gt"; column: string; value: unknown }> = [];
+    let orderColumn: string | null = null;
+    let orderAscending = true;
+    let limitCount: number | null = null;
+    let selectedColumns: string[] | null = null;
+
+    const matchesFilters = (row: OtpRow) =>
+      filters.every((filter) => {
+        const cell = (row as Record<string, unknown>)[filter.column];
+        if (filter.type === "eq") return cell === filter.value;
+        if (filter.type === "is") return cell == filter.value;
+        if (filter.type === "gt") {
+          return new Date(String(cell)).getTime() > new Date(String(filter.value)).getTime();
+        }
+        return false;
+      });
+
+    const runSelect = () => {
+      let result = rows.filter(matchesFilters);
+      if (orderColumn) {
+        result = result
+          .slice()
+          .sort((a, b) => {
+            const left = new Date(String((a as Record<string, unknown>)[orderColumn!])).getTime();
+            const right = new Date(String((b as Record<string, unknown>)[orderColumn!])).getTime();
+            return orderAscending ? left - right : right - left;
+          });
+      }
+      if (limitCount != null) {
+        result = result.slice(0, limitCount);
+      }
+      if (selectedColumns) {
+        result = result.map((row) => {
+          const picked: Record<string, unknown> = {};
+          for (const column of selectedColumns!) {
+            picked[column] = (row as Record<string, unknown>)[column];
+          }
+          return picked as OtpRow;
+        });
+      }
+      return Promise.resolve({ data: result, error: null });
+    };
 
     const builder = {
+      select(columns: string) {
+        selectedColumns = columns.split(",").map((column) => column.trim());
+        return builder;
+      },
+      eq(column: string, value: unknown) {
+        filters.push({ type: "eq", column, value });
+        return builder;
+      },
+      is(column: string, value: unknown) {
+        filters.push({ type: "is", column, value });
+        return builder;
+      },
+      gt(column: string, value: unknown) {
+        filters.push({ type: "gt", column, value });
+        return builder;
+      },
+      order(column: string, options?: { ascending?: boolean }) {
+        orderColumn = column;
+        orderAscending = options?.ascending !== false;
+        return builder;
+      },
+      limit(count: number) {
+        limitCount = count;
+        return runSelect();
+      },
       update(payload: Partial<OtpRow>) {
         return {
           eq(column: string, value: unknown) {
@@ -160,7 +227,7 @@ function createInMemoryOtpSupabase(initialRows: OtpRow[] = []) {
 describe("login OTP store", () => {
   const email = "user@example.com";
   const otherEmail = "other@example.com";
-  const baseTime = new Date("2026-07-02T12:00:00.000Z");
+  const baseTime = new Date(Date.now() - 30_000);
 
   beforeEach(() => {
     process.env.LOGIN_OTP_PEPPER = "test-pepper";
@@ -223,7 +290,7 @@ describe("login OTP store", () => {
 
     await expect(verifyLoginOtp(supabase, { email, code: created.code })).resolves.toEqual({
       ok: false,
-      reason: "invalid",
+      reason: "expired",
     });
   });
 
@@ -287,7 +354,46 @@ describe("login OTP store", () => {
     });
   });
 
-  it("uses the expected invalid OTP message constant", () => {
-    expect(LOGIN_OTP_INVALID_MESSAGE).toBe("Invalid or expired OTP.");
+  it("uses the expected OTP error message constants", () => {
+    expect(LOGIN_OTP_INVALID_MESSAGE).toBe("Check the code and try again.");
+    expect(LOGIN_OTP_EXPIRED_MESSAGE).toBe("Request a new code and try again.");
+  });
+
+  it("classifies expired OTPs from row data", () => {
+    const now = new Date("2026-07-02T12:10:00.000Z");
+    expect(
+      classifyLoginOtpFailureFromRows(
+        [
+          {
+            email,
+            purpose: LOGIN_OTP_PURPOSE,
+            created_at: "2026-07-02T12:00:00.000Z",
+            expires_at: "2026-07-02T12:05:00.000Z",
+            used_at: null,
+            invalidated_at: null,
+          },
+        ],
+        { email, purpose: LOGIN_OTP_PURPOSE, now }
+      )
+    ).toBe("expired");
+  });
+
+  it("classifies wrong OTP when an active code still exists", () => {
+    const now = new Date("2026-07-02T12:03:00.000Z");
+    expect(
+      classifyLoginOtpFailureFromRows(
+        [
+          {
+            email,
+            purpose: LOGIN_OTP_PURPOSE,
+            created_at: "2026-07-02T12:00:00.000Z",
+            expires_at: "2026-07-02T12:10:00.000Z",
+            used_at: null,
+            invalidated_at: null,
+          },
+        ],
+        { email, purpose: LOGIN_OTP_PURPOSE, now }
+      )
+    ).toBe("invalid");
   });
 });
