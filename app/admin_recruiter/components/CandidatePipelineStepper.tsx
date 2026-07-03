@@ -14,13 +14,23 @@ type CandidatePipelineStepperProps = {
   applicantId?: string;
 };
 
-const DEFAULT_STEPS: CandidatePipelineStep[] = CANDIDATE_PIPELINE_STEP_LABELS.map(
-  (label, index) => ({
+const DEFAULT_STEPS: CandidatePipelineStep[] = [
+  ...CANDIDATE_PIPELINE_STEP_LABELS.map((label, index) => ({
     id: label.toLowerCase().replace(/\s+/g, "_"),
     label,
+    subtitle: index === 0 ? "Completed" : undefined,
     completed: index === 0,
-  })
-);
+    clickable: false,
+    href: null,
+  })),
+  {
+    id: "final_approval",
+    label: "Final Approval",
+    completed: false,
+    clickable: false,
+    href: null,
+  },
+];
 
 function StepIcon({ completed }: { completed: boolean }) {
   if (completed) {
@@ -44,10 +54,39 @@ function StepIcon({ completed }: { completed: boolean }) {
   );
 }
 
+function StepLabel({
+  step,
+  isCurrent,
+}: {
+  step: CandidatePipelineStep;
+  isCurrent: boolean;
+}) {
+  const titleClass = step.completed ? "text-[#111827]" : "text-[#6B7280]";
+  const subtitleClass = step.id === "onboarded" ? "text-[#111827]" : "text-[#6B7280]";
+
+  return (
+    <span className="mt-2 flex w-full min-w-0 flex-col items-center px-0.5">
+      <span
+        className={`w-full text-[10px] leading-3 font-medium sm:text-[11px] sm:leading-4 ${titleClass}`}
+      >
+        {step.label}
+      </span>
+      {step.subtitle ? (
+        <span className={`mt-0.5 w-full text-[9px] leading-3 font-medium sm:text-[10px] ${subtitleClass}`}>
+          {step.subtitle}
+        </span>
+      ) : null}
+      {isCurrent && !step.completed ? (
+        <span className="sr-only">Current step</span>
+      ) : null}
+    </span>
+  );
+}
+
 export default function CandidatePipelineStepper({
   steps = DEFAULT_STEPS,
   className = "",
-  applicantId,
+  applicantId: _applicantId,
 }: CandidatePipelineStepperProps) {
   const visibleSteps = steps.length > 0 ? steps : DEFAULT_STEPS;
   const fillPercent = pipelineConnectorFillPercent(visibleSteps);
@@ -62,7 +101,7 @@ export default function CandidatePipelineStepper({
       role="list"
       aria-label="Recruitment progress"
     >
-      <div className="relative mx-auto w-full max-w-[760px] px-2">
+      <div className="relative mx-auto w-full max-w-[980px] px-2">
         <div
           className="pointer-events-none absolute top-[7px] h-0.5 bg-[#E8EDF4]"
           style={{
@@ -81,7 +120,7 @@ export default function CandidatePipelineStepper({
         />
 
         <div
-          className="relative grid gap-1 sm:gap-3"
+          className="relative grid gap-1 sm:gap-2"
           style={{ gridTemplateColumns: `repeat(${Math.max(visibleSteps.length, 1)}, minmax(0, 1fr))` }}
         >
           {visibleSteps.map((step, index) => {
@@ -89,38 +128,26 @@ export default function CandidatePipelineStepper({
               firstIncomplete === -1
                 ? index === visibleSteps.length - 1
                 : index === firstIncomplete;
-            const finalApprovalHref =
-              step.id === "final_approval" && applicantId
-                ? `/admin_recruiter/new/final-approval/${encodeURIComponent(applicantId)}`
-                : null;
+            const canNavigate = step.clickable && step.href;
 
             return (
               <div key={step.id} role="listitem" className="flex min-w-0 flex-col items-center text-center">
-                {finalApprovalHref ? (
+                {canNavigate ? (
                   <Link
-                    href={finalApprovalHref}
+                    href={step.href!}
+                    className="flex min-w-0 flex-col items-center text-center hover:opacity-90"
+                    aria-current={isCurrent ? "step" : undefined}
+                  >
+                    <StepIcon completed={step.completed} />
+                    <StepLabel step={step} isCurrent={isCurrent} />
+                  </Link>
+                ) : (
+                  <div
                     className="flex min-w-0 flex-col items-center text-center"
                     aria-current={isCurrent ? "step" : undefined}
                   >
                     <StepIcon completed={step.completed} />
-                    <span
-                      className={`mt-2 w-full px-0.5 text-[10px] leading-3 font-medium hover:underline sm:text-[11px] sm:leading-4 ${
-                        step.completed ? "text-[#111827]" : "text-[#6B7280]"
-                      }`}
-                    >
-                      {step.label}
-                    </span>
-                  </Link>
-                ) : (
-                  <div className="flex min-w-0 flex-col items-center text-center" aria-current={isCurrent ? "step" : undefined}>
-                    <StepIcon completed={step.completed} />
-                    <span
-                      className={`mt-2 w-full px-0.5 text-[10px] leading-3 font-medium sm:text-[11px] sm:leading-4 ${
-                        step.completed ? "text-[#111827]" : "text-[#6B7280]"
-                      }`}
-                    >
-                      {step.label}
-                    </span>
+                    <StepLabel step={step} isCurrent={isCurrent} />
                   </div>
                 )}
               </div>

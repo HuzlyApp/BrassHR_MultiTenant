@@ -184,13 +184,14 @@ export default function DetailedTabs({
   const pipelineSteps = useMemo(() => {
     if (!applicantId) return null;
     const checklist = checklistPayload ?? fetchedChecklist ?? {};
-    return buildCandidatePipelineSteps(profilePayload ?? {}, checklist);
+    return buildCandidatePipelineSteps(profilePayload ?? {}, checklist, applicantId);
   }, [applicantId, checklistPayload, fetchedChecklist, profilePayload]);
 
   const showOnboardedTab =
     activeTab === ONBOARDED_TAB ||
     isOnboarded ||
-    isCandidateAlreadyConverted({ status: workerStatus });
+    isCandidateAlreadyConverted({ status: workerStatus }) ||
+    (workerStatus ?? "").trim().toLowerCase() === "approved";
 
   const tabs = useMemo<TabName[]>(
     () => (showOnboardedTab ? [...BASE_TABS, ONBOARDED_TAB] : [...BASE_TABS]),
