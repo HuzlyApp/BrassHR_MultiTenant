@@ -196,6 +196,16 @@ export function AdminRecruiterSidebar({
         : "w-full justify-center px-0 py-2"
       : "gap-3 pl-2 pr-0 py-1";
 
+  const navTextClass = (active: boolean) =>
+    active
+      ? "text-[color:var(--brand-primary)]"
+      : "text-[color:var(--brand-secondary)] hover:text-[color:var(--brand-primary)]";
+
+  const submenuTextClass = (active: boolean, disabled = false) => {
+    const color = active ? "text-[color:var(--brand-primary)]" : "text-[color:var(--brand-secondary)]";
+    return `${color}${disabled ? " opacity-60" : ""}`;
+  };
+
   const renderSidebarContent = (
     isCollapsed: boolean,
     options?: { isMobileRail?: boolean; showMobileClose?: boolean }
@@ -300,11 +310,7 @@ export function AdminRecruiterSidebar({
                   className={`group relative flex min-h-[36px] w-full cursor-pointer items-center overflow-hidden rounded-md transition hover:bg-white ${collapsedRowClass(
                     isCollapsed,
                     isMobileRail
-                  )} ${
-                    section.childActive
-                      ? "text-[color:var(--brand-primary)]"
-                      : "text-[#012352] hover:text-[color:var(--brand-primary)]"
-                  }`}
+                  )} ${navTextClass(section.childActive)}`}
                 >
                   <SidebarNavIcon iconType={section.iconType} active={section.childActive} />
                   {section.childActive ? (
@@ -322,7 +328,7 @@ export function AdminRecruiterSidebar({
                   }}
                   onMouseDown={(event) => event.preventDefault()}
                   disabled={isCollapsed || isMobileRail}
-                  className={`group relative flex min-h-[36px] w-full cursor-pointer items-center gap-2 overflow-hidden rounded-md border-0 bg-transparent text-left text-[color:var(--brand-primary)] transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60 ${
+                  className={`group relative flex min-h-[36px] w-full cursor-pointer items-center gap-2 overflow-hidden rounded-md border-0 bg-transparent text-left transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60 ${navTextClass(section.childActive)} ${
                     isCollapsed || isMobileRail
                       ? collapsedRowClass(isCollapsed, isMobileRail)
                       : "pl-2 pr-0 py-1"
@@ -344,7 +350,9 @@ export function AdminRecruiterSidebar({
                   </div>
                   {!isCollapsed && !isMobileRail ? (
                     <span
-                      className="ml-auto flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[color:var(--brand-primary)]"
+                      className={`ml-auto flex h-6 w-6 shrink-0 items-center justify-center rounded-md ${
+                        section.childActive ? "text-[color:var(--brand-primary)]" : "text-[color:var(--brand-secondary)]"
+                      }`}
                       aria-hidden
                     >
                       <SidebarSubmenuToggleIcon open={isSectionOpen(section)} />
@@ -358,7 +366,7 @@ export function AdminRecruiterSidebar({
                       child.disabled ? (
                         <div
                           key={`${section.label}-${child.label}`}
-                          className="admin-recruiter-sidebar-submenu-item group relative block overflow-hidden rounded-md font-normal text-[14px] leading-5 tracking-normal text-[#012352]"
+                          className={`admin-recruiter-sidebar-submenu-item group relative block overflow-hidden rounded-md font-normal text-[14px] leading-5 tracking-normal ${submenuTextClass(false, true)}`}
                           aria-disabled
                         >
                           <span>{child.label}</span>
@@ -368,7 +376,7 @@ export function AdminRecruiterSidebar({
                           key={`${section.label}-${child.label}`}
                           href={child.href}
                           onClick={handleNavClick}
-                          className="admin-recruiter-sidebar-submenu-item group relative block overflow-hidden rounded-md font-normal text-[14px] leading-5 tracking-normal text-[#012352]"
+                          className={`admin-recruiter-sidebar-submenu-item group relative block overflow-hidden rounded-md font-normal text-[14px] leading-5 tracking-normal transition-colors hover:text-[color:var(--brand-primary)] ${submenuTextClass(child.active)}`}
                         >
                           <span>{child.label}</span>
                           {child.active ? (
@@ -386,7 +394,7 @@ export function AdminRecruiterSidebar({
                 title={`${section.label} (Coming soon)`}
                 className={`group relative flex min-h-[36px] items-center overflow-hidden rounded-md ${
                   collapsedRowClass(isCollapsed, isMobileRail)
-                } text-[#012352]`}
+                } text-[color:var(--brand-secondary)]`}
                 aria-disabled
               >
                 <SidebarNavIcon
@@ -405,11 +413,7 @@ export function AdminRecruiterSidebar({
                 className={`group relative flex min-h-[36px] items-center overflow-hidden rounded-md transition hover:bg-white ${collapsedRowClass(
                   isCollapsed,
                   isMobileRail
-                )} ${
-                  section.active
-                    ? "text-[color:var(--brand-primary)]"
-                    : "text-[#012352] hover:text-[color:var(--brand-primary)]"
-                }`}
+                )} ${navTextClass(section.active)}`}
               >
                 <SidebarNavIcon
                   iconType={section.iconType}

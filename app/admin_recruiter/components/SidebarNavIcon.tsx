@@ -26,17 +26,17 @@ function SidebarIconPlaceholder() {
   );
 }
 
-/** Sidebar menu icon — inline SVG tinted with tenant primary (mask-image breaks on these Figma assets). */
+/** Sidebar menu icon — inline SVG tinted with tenant active/inactive colors. */
 export default function SidebarNavIcon({ iconType, active }: SidebarNavIconProps) {
   const branding = useTenantBranding();
   const src = getSidebarIconSrc(iconType, active);
-  const primaryHex = branding.primaryHex;
+  const tintHex = active ? branding.primaryHex : branding.secondaryHex;
   const [markup, setMarkup] = useState<string | null>(() =>
-    getTintedSidebarIconMarkup(src, primaryHex)
+    getTintedSidebarIconMarkup(src, tintHex)
   );
 
   useEffect(() => {
-    const cached = getTintedSidebarIconMarkup(src, primaryHex);
+    const cached = getTintedSidebarIconMarkup(src, tintHex);
     if (cached) {
       setMarkup(cached);
       return;
@@ -45,7 +45,7 @@ export default function SidebarNavIcon({ iconType, active }: SidebarNavIconProps
     let cancelled = false;
     setMarkup(null);
 
-    void ensureTintedSidebarIconMarkup(src, primaryHex).then((next) => {
+    void ensureTintedSidebarIconMarkup(src, tintHex).then((next) => {
       if (cancelled) return;
       setMarkup(next);
     });
@@ -53,7 +53,7 @@ export default function SidebarNavIcon({ iconType, active }: SidebarNavIconProps
     return () => {
       cancelled = true;
     };
-  }, [src, primaryHex]);
+  }, [src, tintHex]);
 
   if (!markup) {
     return <SidebarIconPlaceholder />;

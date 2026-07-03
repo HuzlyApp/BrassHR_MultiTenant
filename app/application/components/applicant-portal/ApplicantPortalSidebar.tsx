@@ -26,17 +26,21 @@ import { WorkerPortalUserAvatar } from "./WorkerPortalUserAvatar";
 
 const DEFAULT_LOGO = "/images/new-logo-nexus.svg";
 
-function parentWithSubmenuRowClass(disabled = false): string {
+function parentWithSubmenuRowClass(active: boolean, disabled = false): string {
   const base =
-    "group relative flex min-h-[36px] w-full cursor-pointer items-center gap-2 overflow-hidden rounded-md border-0 bg-transparent pl-2 pr-0 py-1 text-left text-[color:var(--brand-primary)]";
-  return disabled ? `${base} opacity-60` : `${base} transition hover:bg-white`;
+    "group relative flex min-h-[36px] w-full cursor-pointer items-center gap-2 overflow-hidden rounded-md border-0 bg-transparent pl-2 pr-0 py-1 text-left";
+  const color = active
+    ? "text-[color:var(--brand-primary)]"
+    : "text-[color:var(--brand-secondary)]";
+  return disabled ? `${base} ${color} opacity-60` : `${base} ${color} transition hover:bg-white`;
 }
 
 function submenuTextClass(active: boolean, disabled = false): string {
   const base =
-    "font-normal text-[14px] leading-5 tracking-normal text-[color:var(--brand-secondary)] transition-colors";
-  if (disabled) return `${base} opacity-60`;
-  return active ? base : `${base} hover:opacity-80`;
+    "font-normal text-[14px] leading-5 tracking-normal transition-colors";
+  const color = active ? "text-[color:var(--brand-primary)]" : "text-[color:var(--brand-secondary)]";
+  if (disabled) return `${base} ${color} opacity-60`;
+  return active ? `${base} ${color}` : `${base} ${color} hover:text-[color:var(--brand-primary)]`;
 }
 
 function topLevelLabelClass(active: boolean, disabled = false): string {
@@ -295,7 +299,7 @@ export function ApplicantPortalSidebar({
                 title={section.disabled ? `${section.label} (Coming soon)` : section.label}
                 onClick={() => toggleSectionOpen(section.label)}
                 onMouseDown={(event) => event.preventDefault()}
-                className={parentWithSubmenuRowClass(Boolean(section.disabled))}
+                className={parentWithSubmenuRowClass(section.childActive, Boolean(section.disabled))}
                 aria-expanded={isSectionOpen(section)}
                 aria-label={`${isSectionOpen(section) ? "Collapse" : "Expand"} ${section.label}`}
               >
@@ -306,7 +310,9 @@ export function ApplicantPortalSidebar({
                   </span>
                 </div>
                 <span
-                  className="ml-auto flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[color:var(--brand-primary)]"
+                  className={`ml-auto flex h-6 w-6 shrink-0 items-center justify-center rounded-md ${
+                    section.childActive ? "text-[color:var(--brand-primary)]" : "text-[color:var(--brand-secondary)]"
+                  }`}
                   aria-hidden
                 >
                   <SidebarSubmenuToggleIcon open={isSectionOpen(section)} />
@@ -318,8 +324,8 @@ export function ApplicantPortalSidebar({
             ) : section.children?.length && isCollapsed ? (
               <div
                 title={section.label}
-                className={`group relative flex min-h-[36px] w-full items-center justify-center overflow-hidden rounded-md py-2 pl-2 pr-0 text-[color:var(--brand-primary)] ${
-                  section.childActive ? "" : "opacity-80"
+                className={`group relative flex min-h-[36px] w-full items-center justify-center overflow-hidden rounded-md py-2 pl-2 pr-0 ${
+                  section.childActive ? "text-[color:var(--brand-primary)]" : "text-[color:var(--brand-secondary)]"
                 }`}
               >
                 <SidebarNavIcon iconType={section.iconType} active={section.childActive} />
