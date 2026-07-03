@@ -13,6 +13,11 @@ import {
 import { validateTenantSubdomainInput, subdomainErrorMessage } from "@/lib/tenant/subdomain-validation";
 import { registerTenantDomain } from "@/lib/vercel";
 import { resolveBusinessInfoValidationContext } from "@/lib/tenant/resolve-business-info-context";
+import {
+  findStaffTenantEmailConflict,
+  normalizeTenantEmail,
+  TENANT_EMAIL_TAKEN_MESSAGE,
+} from "@/lib/tenant/tenant-email-uniqueness";
 
 type Body = {
   organizationName?: string;
@@ -90,7 +95,7 @@ export async function POST(req: Request) {
     );
   }
 
-  const effectiveAdminEmail = sessionEmail || adminEmail;
+  const effectiveAdminEmail = normalizeTenantEmail(sessionEmail || adminEmail);
 
   if (!effectiveAdminEmail.includes("@")) {
     return NextResponse.json({ error: "A valid admin email is required." }, { status: 400 });
@@ -298,6 +303,21 @@ export async function POST(req: Request) {
   }
 
   const completedAt = new Date().toISOString();
+
+  if (tenantId) {
+    const staffEmailConflict = await findStaffTenantEmailConflict(svc, {
+      tenantId,
+      email: effectiveAdminEmail,
+      excludeUserId: userId,
+    });
+    if (staffEmailConflict) {
+      if (createdNewTenant) {
+        await svc.from("tenants").delete().eq("id", tenantId);
+      }
+      return NextResponse.json({ error: TENANT_EMAIL_TAKEN_MESSAGE, code: "DUPLICATE_EMAIL" }, { status: 409 });
+    }
+  }
+
   const { error: uErr } = await svc.from("users").upsert(
     {
       id: userId,

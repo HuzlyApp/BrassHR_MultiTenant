@@ -73,7 +73,23 @@ vi.mock("@/lib/supabase/service-role", () => ({
         };
       }
       if (table === "users") {
-        return { upsert: async () => ({ error: null }) };
+        return {
+          select: () => ({
+            eq: () => ({
+              ilike: () => ({
+                neq: () => ({
+                  limit: () => ({
+                    maybeSingle: async () => ({ data: null, error: null }),
+                  }),
+                }),
+                limit: () => ({
+                  maybeSingle: async () => ({ data: null, error: null }),
+                }),
+              }),
+            }),
+          }),
+          upsert: async () => ({ error: null }),
+        };
       }
       if (table === "user_roles") {
         return { upsert: async () => ({ error: null }) };

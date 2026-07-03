@@ -9,6 +9,12 @@ import {
   invalidateTenantCache,
   invalidateUserCache,
 } from "@/lib/cache"
+import {
+  findWorkerTenantEmailConflict,
+  isWorkerTenantEmailUniqueViolation,
+  normalizeTenantEmail,
+  tenantEmailTakenResult,
+} from "@/lib/tenant/tenant-email-uniqueness"
 
 function isMissingColumnErr(e: unknown) {
   const err = e as { code?: string; message?: string } | null
@@ -39,7 +45,7 @@ export async function persistWorkerRow(
   input: PersistWorkerRowInput
 ): Promise<PersistWorkerRowResult> {
   const { applicantId, tenantId, fields } = input
-  const emailNorm = fields.email.trim().toLowerCase()
+  const emailNorm = normalizeTenantEmail(fields.email)
 
   const baseRow: Record<string, unknown> = {
     tenant_id: tenantId,
@@ -69,23 +75,14 @@ export async function persistWorkerRow(
   }
 
   if (emailNorm) {
-    const { data: dupRows, error: dupErr } = await supabase
-      .from("worker")
-      .select("id")
-      .eq("tenant_id", tenantId)
-      .eq("email", emailNorm)
-      .neq("user_id", applicantId)
-      .limit(1)
-
-    if (dupErr) throw dupErr
-    if (dupRows && dupRows.length > 0) {
-      return {
-        ok: false,
-        error:
-          "This email is already used by another application. Sign in or use a different email.",
-        code: "DUPLICATE_EMAIL",
-        status: 409,
-      }
+    const conflict = await findWorkerTenantEmailConflict(supabase, {
+      tenantId,
+      email: emailNorm,
+      excludeUserId: applicantId,
+    })
+    if (conflict) {
+      const taken = tenantEmailTakenResult()
+      return { ok: false, error: taken.error, code: taken.code, status: taken.status }
     }
   }
 
@@ -120,14 +117,9 @@ export async function persistWorkerRow(
     }
     if (lastErr) {
       const upErr = lastErr as { message?: string; details?: string; hint?: string; code?: string }
-      if (upErr.code === "23505" && /email|worker/i.test(String(upErr.message))) {
-        return {
-          ok: false,
-          error:
-            "This email is already used by another application. Sign in or use a different email.",
-          code: "DUPLICATE_EMAIL",
-          status: 409,
-        }
+      if (isWorkerTenantEmailUniqueViolation(upErr)) {
+        const taken = tenantEmailTakenResult()
+        return { ok: false, error: taken.error, code: taken.code, status: taken.status }
       }
       const msg = [upErr.message, upErr.details, upErr.hint].filter(Boolean).join(" — ")
       return { ok: false, error: msg || "Database error", status: 500 }
@@ -145,14 +137,9 @@ export async function persistWorkerRow(
     }
     if (lastErr) {
       const insErr = lastErr as { message?: string; details?: string; hint?: string; code?: string }
-      if (insErr.code === "23505" && /email|worker/i.test(String(insErr.message))) {
-        return {
-          ok: false,
-          error:
-            "This email is already used by another application. Sign in or use a different email.",
-          code: "DUPLICATE_EMAIL",
-          status: 409,
-        }
+      if (isWorkerTenantEmailUniqueViolation(insErr)) {
+        const taken = tenantEmailTakenResult()
+        return { ok: false, error: taken.error, code: taken.code, status: taken.status }
       }
       const msg = [insErr.message, insErr.details, insErr.hint].filter(Boolean).join(" — ")
       return { ok: false, error: msg || "Database error", status: 500 }

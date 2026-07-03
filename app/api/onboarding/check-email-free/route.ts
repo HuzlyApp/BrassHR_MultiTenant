@@ -3,6 +3,12 @@ import { createClient } from "@supabase/supabase-js"
 import { getSupabaseUrl } from "@/lib/supabase-env"
 import { resolveOnboardingTenantId } from "@/lib/tenant/resolve-onboarding-tenant-id"
 import { enforceRateLimit, getClientIp } from "@/lib/security/rate-limit"
+import {
+  findWorkerTenantEmailConflict,
+  normalizeTenantEmail,
+  TENANT_EMAIL_TAKEN_CODE,
+  TENANT_EMAIL_TAKEN_MESSAGE,
+} from "@/lib/tenant/tenant-email-uniqueness"
 
 export const runtime = "nodejs"
 
@@ -28,7 +34,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Missing applicantId" }, { status: 400 })
     }
 
-    const emailNorm = emailRaw.toLowerCase()
+    const emailNorm = normalizeTenantEmail(emailRaw)
     if (!emailNorm) {
       return NextResponse.json({ ok: true })
     }
@@ -49,20 +55,16 @@ export async function POST(req: NextRequest) {
     if (!tenantRes.ok) {
       return NextResponse.json({ error: tenantRes.error }, { status: 503 })
     }
-    const { data: dupRows, error: dupErr } = await supabase
-      .from("worker")
-      .select("id")
-      .eq("tenant_id", tenantRes.tenantId)
-      .eq("email", emailNorm)
-      .neq("user_id", applicantId)
-      .limit(1)
-
-    if (dupErr) throw dupErr
-    if (dupRows && dupRows.length > 0) {
+    const conflict = await findWorkerTenantEmailConflict(supabase, {
+      tenantId: tenantRes.tenantId,
+      email: emailNorm,
+      excludeUserId: applicantId,
+    })
+    if (conflict) {
       return NextResponse.json(
         {
-          error: "This email is already used by another application. Sign in or use a different email.",
-          code: "DUPLICATE_EMAIL",
+          error: TENANT_EMAIL_TAKEN_MESSAGE,
+          code: TENANT_EMAIL_TAKEN_CODE,
         },
         { status: 409 },
       )

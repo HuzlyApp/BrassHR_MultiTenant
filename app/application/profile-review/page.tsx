@@ -873,7 +873,7 @@ function Step1ReviewContent() {
   const phoneConflict = fieldConflict?.kind === "phone"
   const conflictBannerText =
     fieldConflict?.kind === "email"
-      ? "Email was already used. Click to login using Email"
+      ? "This email is already used in this organization. Click to login using Email"
       : fieldConflict?.kind === "phone"
         ? "Phone was already used. Click to login using phone"
         : ""
@@ -1106,7 +1106,9 @@ function Step1ReviewContent() {
                       Email<span className="text-red-500 ml-0.5">*</span>
                     </label>
                     {emailConflict ? (
-                      <span className="text-[11px] font-medium text-red-600">Email was already used</span>
+                      <span className="text-[11px] font-medium text-red-600">
+                        This email is already used in this organization.
+                      </span>
                     ) : null}
                   </div>
                   <div className="group relative">

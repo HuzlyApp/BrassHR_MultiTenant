@@ -8,6 +8,10 @@ import {
   validateOwnerSignupZipForState,
   type OwnerSignupPayload,
 } from "@/lib/signup/owner-signup";
+import {
+  findPlatformOwnerEmailConflict,
+  normalizeTenantEmail,
+} from "@/lib/tenant/tenant-email-uniqueness";
 
 /**
  * Creates the Braas HR owner account (auth + public.users) after the signup UI.
@@ -37,6 +41,7 @@ export async function POST(req: Request) {
   }
 
   const payload = partial as OwnerSignupPayload;
+  payload.workEmail = normalizeTenantEmail(payload.workEmail);
   const completedAt = new Date().toISOString();
 
   const { data: stateRow, error: stateErr } = await svc
@@ -61,31 +66,26 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: zipError }, { status: 400 });
   }
 
-  const { data: existingProfile, error: profileLookupErr } = await svc
-    .from("users")
-    .select("id, signup_completed_at")
-    .eq("email", payload.workEmail)
-    .maybeSingle();
-
-  if (profileLookupErr) {
-    return NextResponse.json({ error: profileLookupErr.message }, { status: 500 });
-  }
-
-  if (existingProfile?.signup_completed_at) {
-    return NextResponse.json(
-      { error: "An account with this email already exists. Sign in instead.", code: "EMAIL_TAKEN" },
-      { status: 409 }
-    );
-  }
-
   const { data: list, error: listErr } = await svc.auth.admin.listUsers({ page: 1, perPage: 200 });
   if (listErr) {
     return NextResponse.json({ error: listErr.message }, { status: 500 });
   }
 
   const existingAuth = list?.users?.find(
-    (u) => (u.email || "").toLowerCase() === payload.workEmail
+    (u) => normalizeTenantEmail(u.email || "") === payload.workEmail
   );
+
+  const platformConflict = await findPlatformOwnerEmailConflict(
+    svc,
+    payload.workEmail,
+    existingAuth?.id
+  );
+  if (platformConflict) {
+    return NextResponse.json(
+      { error: "An account with this email already exists. Sign in instead.", code: "EMAIL_TAKEN" },
+      { status: 409 }
+    );
+  }
 
   if (existingAuth?.id) {
     const userId = existingAuth.id;

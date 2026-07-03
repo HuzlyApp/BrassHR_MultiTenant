@@ -30,6 +30,10 @@ import { resolveStorageAccessibleUrl } from "@/lib/supabase/resolve-storage-acce
 import { resolveWorkerProfilePhotoUrl } from "@/lib/applicant-portal/worker-profile-photo"
 import { loadWorkerProfileSkills } from "@/lib/worker-profile-skills"
 import { parseRequiredUuid } from "@/lib/validation/uuid"
+import {
+  findWorkerTenantEmailConflict,
+  TENANT_EMAIL_TAKEN_MESSAGE,
+} from "@/lib/tenant/tenant-email-uniqueness"
 
 export const runtime = "nodejs"
 
@@ -1122,20 +1126,13 @@ export async function PATCH(req: NextRequest) {
     }
 
     if (field === "email" && typeof normalized.dbValue === "string") {
-      const { data: dupRows, error: dupErr } = await supabase
-        .from("worker")
-        .select("id")
-        .eq("tenant_id", tenantId)
-        .eq("email", normalized.dbValue)
-        .neq("id", workerId)
-        .limit(1)
-
-      if (dupErr) throw dupErr
-      if (dupRows && dupRows.length > 0) {
-        return NextResponse.json(
-          { error: "This email is already used by another candidate." },
-          { status: 409 }
-        )
+      const conflict = await findWorkerTenantEmailConflict(supabase, {
+        tenantId,
+        email: normalized.dbValue,
+        excludeWorkerId: workerId,
+      })
+      if (conflict) {
+        return NextResponse.json({ error: TENANT_EMAIL_TAKEN_MESSAGE }, { status: 409 })
       }
     }
 
