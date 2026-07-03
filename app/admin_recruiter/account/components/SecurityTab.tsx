@@ -1,7 +1,8 @@
 "use client";
 
 import { FormEvent, useId, useMemo, useState } from "react";
-import { Check, Eye, EyeOff, X } from "lucide-react";
+import { Check, X } from "lucide-react";
+import { PasswordVisibilityToggle } from "@/app/components/PasswordVisibilityToggle";
 import { useAccountData } from "@/app/admin_recruiter/hooks/useAccountData";
 import { getAccountDisplayName } from "@/lib/account/display-name";
 import { withSecurityCompleted } from "@/lib/account/completion";
@@ -123,14 +124,11 @@ function PasswordField({
             className={`${FIELD} w-full pr-10`}
             autoComplete="new-password"
           />
-          <button
-            type="button"
-            onClick={() => setVisible((current) => !current)}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-[#64748B] transition-colors hover:text-[#012352]"
-            aria-label={visible ? "Hide password" : "Show password"}
-          >
-            {visible ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-          </button>
+          <PasswordVisibilityToggle
+            visible={visible}
+            onToggle={() => setVisible((current) => !current)}
+            label={label}
+          />
         </div>
         <FieldStatusIcon showValid={showValid} />
       </div>

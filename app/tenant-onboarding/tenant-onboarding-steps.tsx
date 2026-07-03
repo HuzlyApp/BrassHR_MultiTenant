@@ -7,6 +7,7 @@ import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ComponentP
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import type { SignupStateOption } from "@/lib/signup/owner-signup";
 import OnboardingStepsBuilder from "@/app/components/onboarding/OnboardingStepsBuilder";
+import { PasswordVisibilityToggle } from "@/app/components/PasswordVisibilityToggle";
 import { interStyle, primaryButtonStyle } from "@/app/tenant-onboarding/TenantOnboardingShell";
 import {
   COMPANY_SIZE_OPTIONS,
@@ -1512,6 +1513,7 @@ export function AdminStep({
 }) {
   const passwordOk = passwordOptional || adminPassword.length >= 6;
   const canSubmit = adminEmail.length >= 4 && passwordOk && !submitting;
+  const [showAdminPassword, setShowAdminPassword] = useState(false);
 
   return (
     <div>
@@ -1535,14 +1537,21 @@ export function AdminStep({
           <FieldLabel>
             {passwordOptional ? "New password (optional)" : "Password (min 6 chars)"}
           </FieldLabel>
-          <input
-            type="password"
-            value={adminPassword}
-            onChange={(e) => onPasswordChange(e.target.value)}
-            style={inputTypographyStyle}
-            className={`h-[56px] w-full rounded-[8px] border border-[#cbd5e1] bg-white px-[14px] ${inputTextClass} text-[#0f172a] outline-none transition placeholder:text-[#94a3b8] ${inputFocusClass}`}
-            required={!passwordOptional}
-          />
+          <div className="relative">
+            <input
+              type={showAdminPassword ? "text" : "password"}
+              value={adminPassword}
+              onChange={(e) => onPasswordChange(e.target.value)}
+              style={inputTypographyStyle}
+              className={`h-[56px] w-full rounded-[8px] border border-[#cbd5e1] bg-white px-[14px] pr-12 ${inputTextClass} text-[#0f172a] outline-none transition placeholder:text-[#94a3b8] ${inputFocusClass}`}
+              required={!passwordOptional}
+            />
+            <PasswordVisibilityToggle
+              visible={showAdminPassword}
+              onToggle={() => setShowAdminPassword((current) => !current)}
+              label="admin password"
+            />
+          </div>
         </div>
       </div>
       <StepActions

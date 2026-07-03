@@ -1,10 +1,11 @@
 "use client";
 
-import { Eye, EyeOff } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { FormEvent } from "react";
 import OnboardingCheckbox from "@/app/components/OnboardingCheckbox";
 import OnboardingLayout from "@/app/components/OnboardingLayout";
+import { PasswordVisibilityToggle } from "@/app/components/PasswordVisibilityToggle";
 import LoginOtpStep from "@/app/login/LoginOtpStep";
 import { cn } from "@/lib/cn";
 import type { LoginAuthErrorPayload } from "@/lib/auth/login-api-errors";
@@ -33,6 +34,7 @@ type ClassicTenantLoginProps = {
   onFormChange: (patch: Partial<ClassicLoginFormState>) => void;
   onTogglePassword: () => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  forgotReturnTo?: string;
 };
 
 export default function ClassicTenantLogin({
@@ -51,9 +53,13 @@ export default function ClassicTenantLogin({
   onFormChange,
   onTogglePassword,
   onSubmit,
+  forgotReturnTo,
 }: ClassicTenantLoginProps) {
   const router = useRouter();
   const canSubmit = form.email.trim().length > 0 && form.password.length > 0 && form.agree;
+  const forgotHref = forgotReturnTo
+    ? `/forgot?return=${encodeURIComponent(forgotReturnTo)}`
+    : "/forgot";
 
   return (
     <OnboardingLayout
@@ -134,14 +140,20 @@ export default function ClassicTenantLogin({
                 )}
                 required
               />
-              <button
-                type="button"
-                onClick={onTogglePassword}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 transition-colors hover:text-gray-700"
-                aria-label={showPassword ? "Hide password" : "Show password"}
+              <PasswordVisibilityToggle
+                visible={showPassword}
+                onToggle={onTogglePassword}
+                className="right-4"
+              />
+            </div>
+            <div className="mt-2 flex justify-end">
+              <Link
+                href={forgotHref}
+                className="text-sm font-medium hover:underline"
+                style={{ color: "var(--brand-primary)" }}
               >
-                {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-              </button>
+                Forgot Password?
+              </Link>
             </div>
           </div>
 

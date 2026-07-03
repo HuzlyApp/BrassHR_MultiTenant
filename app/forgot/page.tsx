@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { interStyle } from "@/app/login/BraasLoginShell";
 import { supabaseBrowser } from "@/lib/supabase-browser";
@@ -20,7 +21,14 @@ const inputTypographyStyle = {
 const inputTextClass =
   "text-[16px] font-normal leading-[24px] tracking-normal placeholder:text-[16px] placeholder:leading-[24px] placeholder:font-normal";
 
+function safeReturnPath(value: string | null): string {
+  if (!value || !value.startsWith("/") || value.startsWith("//")) return "/login";
+  return value;
+}
+
 export default function ForgotPasswordPage() {
+  const searchParams = useSearchParams();
+  const signInHref = safeReturnPath(searchParams.get("return"));
   const [email, setEmail] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -75,7 +83,7 @@ export default function ForgotPasswordPage() {
               link to reset your password.
             </p>
             <Link
-              href="/login"
+              href={signInHref}
               className="mt-[28px] flex h-[52px] w-full items-center justify-center rounded-[8px] text-[16px] font-semibold leading-[22px] text-white transition hover:brightness-95"
               style={{
                 backgroundImage: BRAAS_BUTTON_GRADIENT,
@@ -132,7 +140,7 @@ export default function ForgotPasswordPage() {
               </button>
 
               <p className="mt-6 text-center text-[14px] text-[#64748b]">
-                <Link href="/login" className="font-medium text-[#104b83] hover:underline">
+                <Link href={signInHref} className="font-medium text-[#104b83] hover:underline">
                   Back to sign in
                 </Link>
               </p>

@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useId, useState, type FormEvent } from "react";
-import { Eye, EyeOff } from "lucide-react";
+import { PasswordVisibilityToggle } from "@/app/components/PasswordVisibilityToggle";
 import { interStyle } from "@/app/login/BraasLoginShell";
 import {
   PASSWORD_UPDATE_SUCCESS_MESSAGE,
@@ -61,14 +61,11 @@ function PasswordInput({
           style={inputTypographyStyle}
           className={`h-[56px] w-full rounded-[8px] border border-[#cbd5e1] bg-white pl-[44px] pr-12 ${inputTextClass} text-[#0f172a] outline-none transition placeholder:text-[#94a3b8] focus:border-[#BC8B41] focus:ring-2 focus:ring-[#BC8B4120]`}
         />
-        <button
-          type="button"
-          aria-label={visible ? "Hide password" : "Show password"}
-          onClick={() => setVisible((current) => !current)}
-          className={`absolute right-3 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full text-[#94A3B8] transition hover:bg-[#f8fafc] hover:text-[#BC8B41]`}
-        >
-          {visible ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-        </button>
+        <PasswordVisibilityToggle
+          visible={visible}
+          onToggle={() => setVisible((current) => !current)}
+          label={label}
+        />
       </div>
     </div>
   );

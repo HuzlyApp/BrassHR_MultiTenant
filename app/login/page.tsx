@@ -8,7 +8,7 @@ import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { FaApple } from "react-icons/fa";
 import { FaXTwitter } from "react-icons/fa6";
 import { FcGoogle } from "react-icons/fc";
-import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
+import { PasswordVisibilityToggle } from "@/app/components/PasswordVisibilityToggle";
 import { ADMIN_RECRUITER_HOME_ROUTE } from "@/app/admin_recruiter/components/sidebar-config";
 import RedirectionProgressModal from "@/app/components/RedirectionProgressModal";
 import { TenantBrandingProvider } from "@/app/components/tenant/TenantBrandingContext";
@@ -621,6 +621,7 @@ function LoginPageContent() {
           }}
           onTogglePassword={() => setShowPassword((current) => !current)}
           onSubmit={handleClassicSubmit}
+          forgotReturnTo={isAdminRoute ? "/admin" : undefined}
         />
       </TenantBrandingProvider>
     );
@@ -699,22 +700,10 @@ function LoginPageContent() {
                     className={`${loginPasswordInputClass} ${passwordHasError ? loginInputErrorClass : ""}`}
                     required
                   />
-                  <button
-                    type="button"
-                    aria-label={showPassword ? "Hide password" : "Show password"}
-                    onClick={() => setShowPassword((current) => !current)}
-                    className={`absolute right-3 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full transition ${
-                      showPassword
-                        ? "bg-[color:color-mix(in_srgb,var(--brand-primary)_12%,white)] ring-1 ring-[color:color-mix(in_srgb,var(--brand-primary)_25%,transparent)]"
-                        : "hover:bg-[#f8fafc]"
-                    }`}
-                  >
-                    <BrandedSvgIcon
-                      src="/icons/braas-HR/eye.svg"
-                      className="h-[20px] w-[20px]"
-                      color={showPassword ? brand.primaryHex : "#94A3B8"}
-                    />
-                  </button>
+                  <PasswordVisibilityToggle
+                    visible={showPassword}
+                    onToggle={() => setShowPassword((current) => !current)}
+                  />
                 </div>
               </div>
             </div>

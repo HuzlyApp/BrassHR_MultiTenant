@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { PasswordInputWithToggle } from "@/app/components/PasswordVisibilityToggle";
 import { useApplicantSignIn } from "@/lib/applicant-portal/use-applicant-sign-in";
 
 type Props = {
@@ -79,8 +80,7 @@ export default function ApplicantSignInCard({ tenantSlug }: Props) {
 
       {mode === "setup" ? (
         <form onSubmit={handleSetup} className="space-y-3">
-          <input
-            type="password"
+          <PasswordInputWithToggle
             required
             minLength={8}
             value={password}
@@ -91,9 +91,9 @@ export default function ApplicantSignInCard({ tenantSlug }: Props) {
             placeholder="Password"
             autoComplete="new-password"
             className="h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-[14px] text-slate-900 outline-none transition focus:border-[var(--brand-primary)]"
+            toggleLabel="password"
           />
-          <input
-            type="password"
+          <PasswordInputWithToggle
             required
             minLength={8}
             value={confirmPassword}
@@ -104,6 +104,7 @@ export default function ApplicantSignInCard({ tenantSlug }: Props) {
             placeholder="Re-enter password"
             autoComplete="new-password"
             className="h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-[14px] text-slate-900 outline-none transition focus:border-[var(--brand-primary)]"
+            toggleLabel="confirm password"
           />
           {error ? (
             <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-[14px] font-medium text-red-700">
@@ -123,8 +124,7 @@ export default function ApplicantSignInCard({ tenantSlug }: Props) {
 
       {mode === "password" ? (
         <form onSubmit={handlePasswordLogin} className="space-y-3">
-          <input
-            type="password"
+          <PasswordInputWithToggle
             required
             value={password}
             onChange={(event) => {
@@ -134,6 +134,7 @@ export default function ApplicantSignInCard({ tenantSlug }: Props) {
             placeholder="Password"
             autoComplete="current-password"
             className="h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-[14px] text-slate-900 outline-none transition focus:border-[var(--brand-primary)]"
+            toggleLabel="password"
           />
           {error ? (
             <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-[14px] font-medium text-red-700">

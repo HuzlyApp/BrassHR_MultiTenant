@@ -1,8 +1,8 @@
 "use client";
 
 import RedirectionProgressModal from "@/app/components/RedirectionProgressModal";
+import { PasswordVisibilityToggle } from "@/app/components/PasswordVisibilityToggle";
 import Link from "next/link";
-import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
 import LoginFormError, { loginInputErrorClass } from "@/app/login/LoginFormError";
 import { interStyle, loginFieldLabelClass, loginInputClass, loginPasswordInputClass, loginPrimaryButtonClass } from "@/app/login/BraasLoginShell";
 import { useApplicantSignIn } from "@/lib/applicant-portal/use-applicant-sign-in";
@@ -295,18 +295,10 @@ export default function WorkerSignInForm({ tenantSlug, brand }: Props) {
                 autoComplete="new-password"
                 className={loginPasswordInputClass}
               />
-              <button
-                type="button"
-                aria-label={showPassword ? "Hide password" : "Show password"}
-                onClick={() => setShowPassword((current) => !current)}
-                className="absolute right-3 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full transition hover:bg-[#f8fafc]"
-              >
-                <BrandedSvgIcon
-                  src="/icons/braas-HR/eye.svg"
-                  className="h-[20px] w-[20px]"
-                  color={showPassword ? brand.primaryHex : "#94A3B8"}
-                />
-              </button>
+              <PasswordVisibilityToggle
+                visible={showPassword}
+                onToggle={() => setShowPassword((current) => !current)}
+              />
             </div>
           </div>
 
@@ -327,18 +319,11 @@ export default function WorkerSignInForm({ tenantSlug, brand }: Props) {
                 aria-invalid={Boolean(error)}
                 className={`${loginPasswordInputClass} ${error ? loginInputErrorClass : ""}`}
               />
-              <button
-                type="button"
-                aria-label={showConfirmPassword ? "Hide password" : "Show password"}
-                onClick={() => setShowConfirmPassword((current) => !current)}
-                className="absolute right-3 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full transition hover:bg-[#f8fafc]"
-              >
-                <BrandedSvgIcon
-                  src="/icons/braas-HR/eye.svg"
-                  className="h-[20px] w-[20px]"
-                  color={showConfirmPassword ? brand.primaryHex : "#94A3B8"}
-                />
-              </button>
+              <PasswordVisibilityToggle
+                visible={showConfirmPassword}
+                onToggle={() => setShowConfirmPassword((current) => !current)}
+                label="confirm password"
+              />
             </div>
             {error ? (
               <div className="mt-[12px]">
@@ -405,18 +390,10 @@ export default function WorkerSignInForm({ tenantSlug, brand }: Props) {
                 aria-invalid={Boolean(error)}
                 className={`${loginPasswordInputClass} ${error ? loginInputErrorClass : ""}`}
               />
-              <button
-                type="button"
-                aria-label={showPassword ? "Hide password" : "Show password"}
-                onClick={() => setShowPassword((current) => !current)}
-                className="absolute right-3 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full transition hover:bg-[#f8fafc]"
-              >
-                <BrandedSvgIcon
-                  src="/icons/braas-HR/eye.svg"
-                  className="h-[20px] w-[20px]"
-                  color={showPassword ? brand.primaryHex : "#94A3B8"}
-                />
-              </button>
+              <PasswordVisibilityToggle
+                visible={showPassword}
+                onToggle={() => setShowPassword((current) => !current)}
+              />
             </div>
             {error ? (
               <div className="mt-[12px]">

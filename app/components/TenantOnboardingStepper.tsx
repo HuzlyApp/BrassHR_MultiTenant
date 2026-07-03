@@ -79,10 +79,13 @@ function StepIcon({ state }: { state: TenantStepIndicatorState }) {
   if (state === "skipped") {
     return (
       <span
-        className="relative z-10 flex items-center justify-center rounded-full border-[2px] border-amber-500 bg-amber-50 text-amber-600"
+        className="relative z-10 shrink-0 rounded-full border-[2px] border-amber-500 bg-amber-50 text-amber-600"
         style={{ width: ICON_SIZE, height: ICON_SIZE }}
       >
-        <AlertCircle className="h-[10px] w-[10px]" strokeWidth={2.5} />
+        <AlertCircle
+          className="absolute left-1/2 top-1/2 h-[10px] w-[10px] -translate-x-1/2 -translate-y-1/2"
+          strokeWidth={2.5}
+        />
       </span>
     );
   }

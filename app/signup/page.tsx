@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import RedirectionProgressModal from "@/app/components/RedirectionProgressModal";
+import { PasswordVisibilityToggle } from "@/app/components/PasswordVisibilityToggle";
 import SignupStepper from "@/app/components/SignupStepper";
 import { Check, ChevronDown, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent } from "react";
@@ -215,27 +216,11 @@ function PasswordField({
           style={inputTypographyStyle}
           className={`h-[56px] w-full rounded-[6px] border border-[#d7e0ea] bg-white px-[14px] pr-12 ${inputTextClass} text-[#0f172a] outline-none transition placeholder:text-[#b5c0cf] focus:border-[#d89b35] focus:ring-2 focus:ring-[#d89b35]/20`}
         />
-        <button
-          type="button"
-          aria-label={visible ? `Hide ${label}` : `Show ${label}`}
-          onClick={() => setVisible((current) => !current)}
-          className={`absolute right-3 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full transition ${
-            visible ? "bg-[#fbf4ea] ring-1 ring-[#BC8B41]/25" : "hover:bg-[#f8fafc]"
-          }`}
-        >
-          <Image
-            src="/icons/braas-HR/eye.svg"
-            alt=""
-            width={20}
-            height={20}
-            className="h-[20px] w-[20px]"
-            style={{
-              filter: visible
-                ? "brightness(0) saturate(100%) invert(55%) sepia(33%) saturate(738%) hue-rotate(359deg) brightness(88%) contrast(86%)"
-                : undefined,
-            }}
-          />
-        </button>
+        <PasswordVisibilityToggle
+          visible={visible}
+          onToggle={() => setVisible((current) => !current)}
+          label={label}
+        />
       </div>
     </div>
   );

@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { PasswordInputWithToggle } from "@/app/components/PasswordVisibilityToggle"
 import { supabase } from '@/lib/supabase'
 import { useRouter } from "next/navigation"
 import { APPLICATION_ROUTES } from "@/lib/onboarding/application-routes"
@@ -87,12 +88,12 @@ onChange={(e)=>setEmail(e.target.value)}
 className="w-full border rounded-xl p-4 mb-5 text-gray-600"
 />
 
-<input
-type="password"
+<PasswordInputWithToggle
 placeholder="Password"
 value={password}
 onChange={(e)=>setPassword(e.target.value)}
-className="w-full border rounded-xl p-4 mb-6  text-gray-600"
+className="w-full border rounded-xl p-4 mb-6 text-gray-600"
+toggleLabel="password"
 />
 
 <button
