@@ -216,7 +216,12 @@ export function buildFinalApprovalViewModel(
   const onboardingCompletionPercent = clampPercent(profile.onboardingCompletion?.percent ?? 0);
   const trackerDoneCount = (checklist.tracker?.done ?? []).filter(Boolean).length;
 
-  const eligible = true;
+  const eligible = isEligibleForFinalApprovalView({
+    workerStatus: statusNorm,
+    checklistProgressPercent,
+    onboardingCompletionPercent,
+    trackerDoneCount,
+  });
 
   const showActions = statusNorm !== "approved" && statusNorm !== "disapproved";
 

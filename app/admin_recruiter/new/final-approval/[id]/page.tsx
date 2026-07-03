@@ -1,13 +1,20 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import DetailedTabs from "../../../components/DetailedTabs";
 import CandidateDetailLoader from "../../../components/CandidateDetailLoader";
 import FinalApprovalPanel from "../../../components/FinalApprovalPanel";
+import {
+  isApplicantReadyForFinalApproval,
+  isFinalApprovalDecisionMade,
+  type CandidatePipelineChecklistPayload,
+  type CandidatePipelineProfilePayload,
+} from "@/lib/admin/candidate-pipeline-stepper";
 import { buildFinalApprovalViewModel } from "@/lib/admin/final-approval";
 
-type ProfilePayload = {
+type ProfilePayload = CandidatePipelineProfilePayload & {
   worker?: {
     id?: string;
     first_name?: string | null;
@@ -36,9 +43,7 @@ type ProfilePayload = {
       result_status?: string | null;
     }>;
   };
-  onboardingCompletion?: { percent?: number };
   onboardingSteps?: Array<{ id: string; label: string; state: string }>;
-  references?: unknown[];
   attachment_requirements?: Array<{
     id: string;
     title: string;
@@ -53,10 +58,8 @@ type ProfilePayload = {
   error?: string;
 };
 
-type ChecklistPayload = {
+type ChecklistPayload = CandidatePipelineChecklistPayload & {
   worker?: { status?: string | null };
-  meta?: { progressPercent?: number };
-  tracker?: { done?: boolean[] };
   sections?: Array<{
     id: string;
     rows: Array<{
@@ -72,6 +75,7 @@ type ChecklistPayload = {
 
 export default function NewApplicantFinalApprovalPage() {
   const params = useParams<{ id: string }>();
+  const router = useRouter();
   const applicantId = params?.id;
 
   const [loading, setLoading] = useState(true);
@@ -119,10 +123,32 @@ export default function NewApplicantFinalApprovalPage() {
     void loadData();
   }, [loadData]);
 
+  const workerStatus = profile?.worker?.status ?? checklist?.worker?.status ?? null;
+  const decisionMade = isFinalApprovalDecisionMade(workerStatus);
+  const applicantReady = useMemo(
+    () => isApplicantReadyForFinalApproval(profile ?? {}, checklist ?? {}),
+    [profile, checklist]
+  );
+
+  useEffect(() => {
+    if (!applicantId || loading || !profile) return;
+    const statusNorm = (workerStatus ?? "").trim().toLowerCase();
+    if (statusNorm === "approved" || statusNorm === "converted") {
+      router.replace(`/admin_recruiter/new/onboard-applicant/${encodeURIComponent(applicantId)}`);
+    }
+  }, [applicantId, loading, profile, router, workerStatus]);
+
   const finalApprovalData = useMemo(
     () => buildFinalApprovalViewModel(profile ?? {}, checklist ?? {}),
     [profile, checklist]
   );
+
+  const showNotReadyPanel = !loading && profile && !applicantReady && !decisionMade;
+  const redirectingAfterApproval =
+    !loading &&
+    profile &&
+    ((workerStatus ?? "").trim().toLowerCase() === "approved" ||
+      (workerStatus ?? "").trim().toLowerCase() === "converted");
 
   return (
     <div className="admin-recruiter-page-pad">
@@ -140,6 +166,22 @@ export default function NewApplicantFinalApprovalPage() {
 
         {loading && !profile ? (
           <CandidateDetailLoader label="Loading final approval..." />
+        ) : redirectingAfterApproval ? (
+          <CandidateDetailLoader label="Opening onboarded applicant..." />
+        ) : showNotReadyPanel ? (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-900">
+            <p className="font-semibold">Final approval is not ready yet.</p>
+            <p className="mt-2">
+              The applicant still has pending steps. Complete screening, assessments, documents, and
+              other checklist items first.
+            </p>
+            <Link
+              href={`/admin_recruiter/new/checklist/${encodeURIComponent(applicantId ?? "")}`}
+              className="mt-3 inline-flex font-semibold text-[color:var(--brand-primary)] underline"
+            >
+              Go to Checklist
+            </Link>
+          </div>
         ) : (
           <FinalApprovalPanel
             workerId={applicantId ?? ""}
