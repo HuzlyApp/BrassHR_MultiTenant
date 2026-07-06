@@ -118,6 +118,24 @@ export function workerConversionLabel(type: ConvertWorkerType): string {
   return type === "w2" ? "W-2 Employee" : "1099 Contractor";
 }
 
+export function workerConversionActiveLabel(type: ConvertWorkerType): string {
+  return type === "w2" ? "W-2 Active Worker" : "1099 Active Contractor";
+}
+
+export function workerConversionEmploymentTypeShort(type: ConvertWorkerType): string {
+  return type === "w2" ? "W2-Employee" : "1099-Contractor";
+}
+
+export function formatWorkerDisplayId(
+  workerRecordId: string,
+  employeeId?: string | null
+): string {
+  const emp = employeeId?.trim();
+  if (emp && emp !== "—" && emp !== "-") return emp;
+  const compact = workerRecordId.replace(/-/g, "").toUpperCase();
+  return `WRK-${compact.slice(0, 4)}`;
+}
+
 export function buildEmploymentWorkerRow(
   candidate: CandidateConversionSnapshot,
   type: ConvertWorkerType,

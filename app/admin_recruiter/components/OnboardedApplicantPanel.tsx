@@ -31,9 +31,11 @@ import {
   convertedWorkerSummaryMessage,
   formatConversionDate,
   resolveConvertedWorkerTypeLabel,
-  workerConversionLabel,
   type ConvertWorkerType,
 } from "@/lib/admin/convert-candidate-to-worker";
+import ConvertWorkerSuccessModal, {
+  type ConvertWorkerSuccessData,
+} from "@/app/admin_recruiter/components/ConvertWorkerSuccessModal";
 
 type Props = {
   workerId: string;
@@ -238,7 +240,7 @@ function ConvertedWorkerStatusCard({
   const convertedOn = formatConversionDate(convertedAt);
 
   return (
-    <div className="mt-5 max-w-xl rounded-xl border border-emerald-200 bg-white p-5">
+    <div className="mt-5 max-w-xl rounded-xl border border-[color:color-mix(in_srgb,var(--brand-primary)_25%,white)] bg-white p-5">
       <div className="flex items-start gap-3">
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[color:color-mix(in_srgb,var(--brand-primary)_12%,white)]">
           <Icon className="h-5 w-5 text-[color:var(--brand-primary)]" strokeWidth={2} />
@@ -255,7 +257,7 @@ function ConvertedWorkerStatusCard({
         <div className="flex items-center justify-between gap-4">
           <dt className="text-[#6B7280]">Status</dt>
           <dd>
-            <span className="inline-flex rounded-md bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-800">
+            <span className="inline-flex rounded-md bg-[color:color-mix(in_srgb,var(--brand-primary)_12%,white)] px-2.5 py-1 text-xs font-semibold text-[color:var(--brand-primary)]">
               Already converted
             </span>
           </dd>
@@ -288,6 +290,7 @@ export default function OnboardedApplicantPanel({ workerId, data, onConversionCo
   const router = useRouter();
   const [hoveredWorkerType, setHoveredWorkerType] = useState<WorkerType | null>(null);
   const [convertingType, setConvertingType] = useState<WorkerType | null>(null);
+  const [conversionSuccess, setConversionSuccess] = useState<ConvertWorkerSuccessData | null>(null);
   const activeWorkerType: WorkerType = hoveredWorkerType ?? data.convertedWorkerType ?? "w2";
 
   const firstName = data.candidateName.split(/\s+/)[0] || data.candidateName;
@@ -306,13 +309,21 @@ export default function OnboardedApplicantPanel({ workerId, data, onConversionCo
         ok?: boolean;
         error?: string;
         profilePath?: string;
+        workerRecordId?: string;
+        workerType?: ConvertWorkerType;
       };
 
       if (!res.ok || !payload.ok) {
         throw new Error(payload.error || `Conversion failed (${res.status})`);
       }
 
-      toast.success(`Converted to ${workerConversionLabel(type)}.`);
+      setConversionSuccess({
+        workerType: payload.workerType ?? type,
+        workerRecordId: payload.workerRecordId ?? workerId,
+        profilePath: payload.profilePath ?? `/admin_recruiter/workers/${workerId}/profile`,
+        candidateName: data.candidateName,
+        employeeId: data.employeeId,
+      });
       await onConversionComplete?.();
       router.refresh();
     } catch (error) {
@@ -712,6 +723,12 @@ export default function OnboardedApplicantPanel({ workerId, data, onConversionCo
           </>
         )}
       </section>
+
+      <ConvertWorkerSuccessModal
+        open={conversionSuccess != null}
+        data={conversionSuccess}
+        onClose={() => setConversionSuccess(null)}
+      />
     </div>
   );
 }

@@ -41,6 +41,10 @@ export default function StepsSettingsPanel({
   panelOpen = true,
   onPanelClose,
 }: StepsSettingsPanelProps) {
+  if (!compactMode && !panelOpen) {
+    return null;
+  }
+
   return (
     <aside
       className={
@@ -51,26 +55,26 @@ export default function StepsSettingsPanel({
           : "flex h-full min-h-0 w-[320px] shrink-0 flex-col border-l bg-[#ECF1F9]"
       }
       style={{ borderColor: CARD_BORDER }}
-      aria-hidden={compactMode && !panelOpen ? true : undefined}
+      aria-hidden={!panelOpen ? true : undefined}
     >
       <div
-        className="flex shrink-0 items-center justify-between border-b px-5 py-4"
+        className="flex shrink-0 items-center gap-2 border-b px-5 py-4"
         style={{ borderColor: CARD_BORDER }}
       >
-        <h2 className="text-sm font-semibold leading-5" style={{ color: TEXT_PRIMARY }}>
-          Steps Settings
-        </h2>
-        {compactMode && onPanelClose ? (
+        {onPanelClose ? (
           <button
             type="button"
             onClick={onPanelClose}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-md border bg-white transition hover:bg-[#F9FAFB]"
+            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border bg-white transition hover:bg-[#F9FAFB]"
             style={{ borderColor: CARD_BORDER }}
             aria-label="Close steps settings"
           >
             <PanelRightClose size={16} color={TEXT_SECONDARY} />
           </button>
         ) : null}
+        <h2 className="text-sm font-semibold leading-5" style={{ color: TEXT_PRIMARY }}>
+          Steps Settings
+        </h2>
       </div>
 
       {!node ? (

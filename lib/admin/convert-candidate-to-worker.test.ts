@@ -7,6 +7,9 @@ import {
   resolveConvertedWorkerTypeLabel,
   workerConversionFields,
   workerConversionLabel,
+  workerConversionActiveLabel,
+  workerConversionEmploymentTypeShort,
+  formatWorkerDisplayId,
 } from "./convert-candidate-to-worker";
 
 describe("convert-candidate-to-worker", () => {
@@ -94,5 +97,11 @@ describe("convert-candidate-to-worker", () => {
     expect(isCandidateAlreadyConverted({ status: "converted" })).toBe(true);
     expect(resolveConvertedWorkerTypeLabel("w2")).toBe("W-2 Employee");
     expect(resolveConvertedWorkerTypeLabel("1099")).toBe("1099 Contractor");
+    expect(workerConversionActiveLabel("w2")).toBe("W-2 Active Worker");
+    expect(workerConversionActiveLabel("1099")).toBe("1099 Active Contractor");
+    expect(workerConversionEmploymentTypeShort("w2")).toBe("W2-Employee");
+    expect(workerConversionEmploymentTypeShort("1099")).toBe("1099-Contractor");
+    expect(formatWorkerDisplayId("abcd-efgh-ijkl-mnop", "EMP-42")).toBe("EMP-42");
+    expect(formatWorkerDisplayId("abcd-efgh-ijkl-mnop")).toBe("WRK-ABCD");
   });
 });

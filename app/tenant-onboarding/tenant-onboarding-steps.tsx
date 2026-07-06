@@ -1607,7 +1607,7 @@ export function InviteTeamMembersStep({
         {inviteEmails.map((email, index) => (
           <div key={`invite-email-${index}`} className="flex items-start gap-3">
             <div className="min-w-0 flex-1">
-              <FieldLabel>{index === 0 ? "Email" : `Email ${index + 1}`}</FieldLabel>
+              <FieldLabel required={false}>{index === 0 ? "Email" : `Email ${index + 1}`}</FieldLabel>
               <input
                 type="email"
                 value={email}

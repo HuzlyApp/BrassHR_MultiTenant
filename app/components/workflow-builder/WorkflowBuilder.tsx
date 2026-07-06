@@ -172,6 +172,8 @@ function WorkflowBuilderInner({
   >(null);
   const [mobileLibraryOpen, setMobileLibraryOpen] = useState(false);
   const [mobileSettingsOpen, setMobileSettingsOpen] = useState(false);
+  const [desktopLibraryOpen, setDesktopLibraryOpen] = useState(true);
+  const [desktopSettingsOpen, setDesktopSettingsOpen] = useState(true);
   const [isCompactBuilder, setIsCompactBuilder] = useState(false);
   const [isTouchDevice, setIsTouchDevice] = useState(false);
   const didMount = useRef(false);
@@ -215,6 +217,37 @@ function WorkflowBuilderInner({
     setMobileSettingsOpen(true);
     setMobileLibraryOpen(false);
   }, [isCompactBuilder, selectedNodeId]);
+
+  const libraryPanelOpen = isCompactBuilder ? mobileLibraryOpen : desktopLibraryOpen;
+  const settingsPanelOpen = isCompactBuilder ? mobileSettingsOpen : desktopSettingsOpen;
+
+  const closeLibraryPanel = useCallback(() => {
+    if (isCompactBuilder) setMobileLibraryOpen(false);
+    else setDesktopLibraryOpen(false);
+  }, [isCompactBuilder]);
+
+  const openLibraryPanel = useCallback(() => {
+    if (isCompactBuilder) {
+      setMobileLibraryOpen(true);
+      setMobileSettingsOpen(false);
+    } else {
+      setDesktopLibraryOpen(true);
+    }
+  }, [isCompactBuilder]);
+
+  const closeSettingsPanel = useCallback(() => {
+    if (isCompactBuilder) setMobileSettingsOpen(false);
+    else setDesktopSettingsOpen(false);
+  }, [isCompactBuilder]);
+
+  const openSettingsPanel = useCallback(() => {
+    if (isCompactBuilder) {
+      setMobileSettingsOpen(true);
+      setMobileLibraryOpen(false);
+    } else {
+      setDesktopSettingsOpen(true);
+    }
+  }, [isCompactBuilder]);
 
   useEffect(() => {
     if (!editingTitle) setTitleDraft(title);
@@ -513,7 +546,7 @@ function WorkflowBuilderInner({
       ) : null}
 
       <div className="relative flex min-h-0 flex-1 overflow-hidden">
-        {isCompactBuilder && (mobileLibraryOpen || mobileSettingsOpen) ? (
+        {isCompactBuilder && (libraryPanelOpen || settingsPanelOpen) ? (
           <button
             type="button"
             className="fixed inset-0 z-40 bg-black/40"
@@ -530,47 +563,35 @@ function WorkflowBuilderInner({
           searchTerm={searchTerm}
           readOnly={readOnly}
           compactMode={isCompactBuilder}
-          panelOpen={!isCompactBuilder || mobileLibraryOpen}
-          onPanelClose={
-            isCompactBuilder ? () => setMobileLibraryOpen(false) : undefined
-          }
+          panelOpen={libraryPanelOpen}
+          onPanelClose={closeLibraryPanel}
         />
 
         <main className="relative flex min-h-0 flex-1 flex-col overflow-hidden px-2 pb-2 pt-1.5 min-[1000px]:px-4 min-[1000px]:pb-4 min-[1000px]:pt-2">
-          {isCompactBuilder ? (
+          {!libraryPanelOpen ? (
             <div className="pointer-events-none absolute left-3 top-3 z-20 flex gap-2">
-              {!mobileLibraryOpen ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMobileLibraryOpen(true);
-                    setMobileSettingsOpen(false);
-                  }}
-                  className={CANVAS_PANEL_BTN}
-                  style={{ borderColor: CARD_BORDER, color: TEXT_PRIMARY }}
-                >
-                  <Library className={CANVAS_PANEL_ICON} />
-                  Steps
-                </button>
-              ) : null}
+              <button
+                type="button"
+                onClick={openLibraryPanel}
+                className={CANVAS_PANEL_BTN}
+                style={{ borderColor: CARD_BORDER, color: TEXT_PRIMARY }}
+              >
+                <Library className={CANVAS_PANEL_ICON} />
+                Steps
+              </button>
             </div>
           ) : null}
-          {isCompactBuilder ? (
+          {!settingsPanelOpen ? (
             <div className="pointer-events-none absolute right-3 top-3 z-20 flex gap-2">
-              {!mobileSettingsOpen ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMobileSettingsOpen(true);
-                    setMobileLibraryOpen(false);
-                  }}
-                  className={CANVAS_PANEL_BTN}
-                  style={{ borderColor: CARD_BORDER, color: TEXT_PRIMARY }}
-                >
-                  <SlidersHorizontal className={CANVAS_PANEL_ICON} />
-                  Settings
-                </button>
-              ) : null}
+              <button
+                type="button"
+                onClick={openSettingsPanel}
+                className={CANVAS_PANEL_BTN}
+                style={{ borderColor: CARD_BORDER, color: TEXT_PRIMARY }}
+              >
+                <SlidersHorizontal className={CANVAS_PANEL_ICON} />
+                Settings
+              </button>
             </div>
           ) : null}
           {!hideCanvasHeader ? (
@@ -814,10 +835,8 @@ function WorkflowBuilderInner({
           onUpdate={handleUpdateNode}
           readOnly={readOnly}
           compactMode={isCompactBuilder}
-          panelOpen={!isCompactBuilder || mobileSettingsOpen}
-          onPanelClose={
-            isCompactBuilder ? () => setMobileSettingsOpen(false) : undefined
-          }
+          panelOpen={settingsPanelOpen}
+          onPanelClose={closeSettingsPanel}
           onSaveStep={() => {
             onChange?.(currentState);
             setSuccessOpen(true);

@@ -41,6 +41,10 @@ export default function StepsLibrary({
       .filter((cat) => cat.steps.length > 0);
   }, [effectiveSearch, categories]);
 
+  if (!compactMode && !panelOpen) {
+    return null;
+  }
+
   return (
     <aside
       className={
@@ -51,7 +55,7 @@ export default function StepsLibrary({
           : "flex h-full min-h-0 w-[280px] shrink-0 flex-col border-r bg-[#ECF1F9]"
       }
       style={{ borderColor: CARD_BORDER }}
-      aria-hidden={compactMode && !panelOpen ? true : undefined}
+      aria-hidden={!panelOpen ? true : undefined}
     >
       <div
         className="flex shrink-0 items-center justify-between border-b px-4 py-3"
@@ -60,7 +64,7 @@ export default function StepsLibrary({
         <h2 className="text-sm font-semibold leading-5" style={{ color: TEXT_PRIMARY }}>
           {title}
         </h2>
-        {compactMode && onPanelClose ? (
+        {onPanelClose ? (
           <button
             type="button"
             onClick={onPanelClose}
