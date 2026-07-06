@@ -5,11 +5,13 @@ import { ChevronLeft, Loader2, Pencil, Save } from "lucide-react";
 import toast from "react-hot-toast";
 import BrandedDeleteIcon from "./BrandedDeleteIcon";
 import { EmailComposeForm } from "./CommunicationThreadParts";
-import { MailComposeDropdown } from "./MailComposeDropdown";
+import { MailComposeCandidateDropdown } from "./MailComposeCandidateDropdown";
+import type { MailComposeDropdownOption } from "./MailComposeDropdown";
 import { MailComposeFieldRow } from "./MailComposeFieldRow";
 import { MailEmailTemplateSelect } from "./MailEmailTemplateSelect";
 import { useCandidateEmailTemplates } from "./useCandidateEmailTemplates";
 import { useMailDraftSave } from "./useMailDraftSave";
+import type { EmploymentWorkerRecord } from "@/lib/admin/employment-workers";
 import type { TenantMailInboxItem } from "@/lib/communication/list-tenant-mail-inbox";
 import type { MailDraftListItem } from "@/lib/communication/mail-drafts";
 import { supabaseBrowser } from "@/lib/supabase-browser";
@@ -48,6 +50,26 @@ function workerEmail(row: WorkerRow): string | null {
   return email || null;
 }
 
+function employmentWorkerDisplayName(row: EmploymentWorkerRecord): string {
+  const name = `${row.first_name || ""} ${row.last_name || ""}`.trim();
+  return name || "Worker";
+}
+
+function employmentWorkerEmail(row: EmploymentWorkerRecord): string | null {
+  const email = row.email?.trim();
+  return email || null;
+}
+
+function toDropdownOption(candidate: CandidateOption): MailComposeDropdownOption | null {
+  if (!candidate.email?.trim()) return null;
+  return {
+    value: candidate.workerId,
+    label: candidate.name,
+    sublabel: candidate.email,
+    avatarUrl: candidate.photoUrl,
+  };
+}
+
 type MailComposePanelProps = {
   initialWorkerId?: string | null;
   initialDraft?: MailDraftListItem | null;
@@ -75,7 +97,8 @@ export function MailComposePanel({
   onDraftSaved,
   onDraftDeleted,
 }: MailComposePanelProps) {
-  const [candidates, setCandidates] = useState<CandidateOption[]>([]);
+  const [applicantCandidates, setApplicantCandidates] = useState<CandidateOption[]>([]);
+  const [workerCandidates, setWorkerCandidates] = useState<CandidateOption[]>([]);
   const [loadingCandidates, setLoadingCandidates] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [selectedWorkerId, setSelectedWorkerId] = useState(
@@ -136,23 +159,60 @@ export function MailComposePanel({
     setLoadingCandidates(true);
     setLoadError(null);
     try {
-      const res = await fetch("/api/workers", { cache: "no-store" });
-      const data = (await res.json().catch(() => ({}))) as {
+      const [applicantsRes, workersRes] = await Promise.all([
+        fetch("/api/workers?includePhotoUrls=1&limit=500", { cache: "no-store" }),
+        fetch("/api/admin/employment-workers?tab=all", { cache: "no-store", headers: await authHeaders() }),
+      ]);
+
+      const applicantsData = (await applicantsRes.json().catch(() => ({}))) as {
         workers?: WorkerRow[];
         error?: string;
       };
-      if (!res.ok) {
-        throw new Error(data.error || `Could not load candidates (${res.status})`);
+      const workersData = (await workersRes.json().catch(() => ({}))) as {
+        workers?: EmploymentWorkerRecord[];
+        error?: string;
+      };
+
+      if (!applicantsRes.ok) {
+        throw new Error(applicantsData.error || `Could not load applicants (${applicantsRes.status})`);
       }
-      const rows = Array.isArray(data.workers) ? data.workers : [];
-      const options: CandidateOption[] = rows.map((row) => ({
-        workerId: String(row.id),
-        name: workerDisplayName(row),
-        email: workerEmail(row),
-        photoUrl: row.profile_photo_url?.trim() || null,
-      }));
-      options.sort((a, b) => a.name.localeCompare(b.name));
-      setCandidates(options);
+
+      const applicantRows = Array.isArray(applicantsData.workers) ? applicantsData.workers : [];
+      const employmentRows = workersRes.ok && Array.isArray(workersData.workers) ? workersData.workers : [];
+
+      const convertedCandidateIds = new Set(
+        employmentRows
+          .map((row) => row.candidate_id?.trim())
+          .filter((id): id is string => Boolean(id))
+      );
+
+      const applicants: CandidateOption[] = applicantRows
+        .filter((row) => !convertedCandidateIds.has(String(row.id)))
+        .map((row) => ({
+          workerId: String(row.id),
+          name: workerDisplayName(row),
+          email: workerEmail(row),
+          photoUrl: row.profile_photo_url?.trim() || null,
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name));
+
+      const workers: CandidateOption[] = employmentRows
+        .filter((row) => Boolean(row.candidate_id?.trim()))
+        .map((row) => ({
+          workerId: String(row.candidate_id),
+          name: employmentWorkerDisplayName(row),
+          email: employmentWorkerEmail(row),
+          photoUrl: row.profile_photo_url?.trim() || null,
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name));
+
+      const uniqueWorkers = Array.from(
+        new Map(workers.map((worker) => [worker.workerId, worker])).values()
+      );
+
+      setApplicantCandidates(applicants);
+      setWorkerCandidates(uniqueWorkers);
+      setLoadError(workersRes.ok ? null : workersData.error || "Could not load workers list.");
     } catch (err) {
       const fallback = inboxCandidates.map((item) => ({
         workerId: item.workerId,
@@ -160,7 +220,8 @@ export function MailComposePanel({
         email: item.contactEmail,
         photoUrl: null,
       }));
-      setCandidates(fallback);
+      setApplicantCandidates(fallback);
+      setWorkerCandidates([]);
       setLoadError(
         fallback.length === 0
           ? err instanceof Error
@@ -208,14 +269,30 @@ export function MailComposePanel({
     };
   }, [initialDraft?.workerId, selectedWorkerId, setBodyHtml, setSelectedTemplateKey]);
 
-  const selected = useMemo(
-    () => candidates.find((candidate) => candidate.workerId === selectedWorkerId) ?? null,
-    [candidates, selectedWorkerId]
+  const allCandidates = useMemo(
+    () => [...applicantCandidates, ...workerCandidates],
+    [applicantCandidates, workerCandidates]
   );
 
-  const candidatesWithEmail = useMemo(
-    () => candidates.filter((candidate) => Boolean(candidate.email?.trim())),
-    [candidates]
+  const selected = useMemo(
+    () => allCandidates.find((candidate) => candidate.workerId === selectedWorkerId) ?? null,
+    [allCandidates, selectedWorkerId]
+  );
+
+  const applicantOptions = useMemo(
+    () =>
+      applicantCandidates
+        .map(toDropdownOption)
+        .filter((option): option is MailComposeDropdownOption => option != null),
+    [applicantCandidates]
+  );
+
+  const workerOptions = useMemo(
+    () =>
+      workerCandidates
+        .map(toDropdownOption)
+        .filter((option): option is MailComposeDropdownOption => option != null),
+    [workerCandidates]
   );
 
   const composeEmail = selected?.email?.trim() ? selected.email.trim() : null;
@@ -401,30 +478,17 @@ export function MailComposePanel({
     }
   }
 
-  const candidateOptions = useMemo(
-    () =>
-      candidatesWithEmail.map((candidate) => ({
-        value: candidate.workerId,
-        label: candidate.name,
-        sublabel: candidate.email ?? undefined,
-        avatarUrl: candidate.photoUrl,
-      })),
-    [candidatesWithEmail]
-  );
-
   const candidateSelect = (
     <MailComposeFieldRow label="Candidate">
-      <MailComposeDropdown
+      <MailComposeCandidateDropdown
         id="mail-compose-candidate"
         value={selectedWorkerId}
-        options={candidateOptions}
+        applicantOptions={applicantOptions}
+        workerOptions={workerOptions}
         placeholder="Pick a candidate"
         disabled={sending}
         loading={loadingCandidates}
         loadingLabel="Loading..."
-        alignLabel="stacked"
-        showAvatars
-        tallTrigger
         onChange={(workerId) => void handleCandidateChange(workerId)}
       />
     </MailComposeFieldRow>

@@ -118,7 +118,7 @@ function matchesWorkerTab(row: WorkerListRow, tab: EmploymentWorkerTab): boolean
 }
 
 const WORKER_TABS: Array<{ id: EmploymentWorkerTab; label: string }> = [
-  { id: "new", label: "New only" },
+  // { id: "new", label: "New only" }, // Hidden for now — keep tab logic for future use.
   { id: "all", label: "All workers" },
   { id: "w2", label: "W-2" },
   { id: "1099", label: "1099" },

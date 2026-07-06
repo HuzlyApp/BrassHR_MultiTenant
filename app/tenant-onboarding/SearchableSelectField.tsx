@@ -15,9 +15,13 @@ const inputTextClass =
   "text-[16px] font-normal leading-[24px] tracking-normal placeholder:text-[16px] placeholder:leading-[24px] placeholder:font-normal"
 
 const inputFocusClass =
-  "focus:border-[#3b82f6] focus:ring-2 focus:ring-[#3b82f6]/20"
+  "focus:border-[color:var(--brand-primary)] focus:ring-2 focus:ring-[color:color-mix(in_srgb,var(--brand-primary)_20%,transparent)]"
 
-const inputErrorClass = "border-[#DC2626] focus:border-[#DC2626] focus:ring-[#DC2626]/20"
+const activeBorderClass =
+  "border-[color:var(--brand-primary)] ring-2 ring-[color:color-mix(in_srgb,var(--brand-primary)_20%,transparent)]"
+
+const inputErrorClass =
+  "border-[#DC2626] focus:border-[#DC2626] focus:ring-[#DC2626]/20"
 
 type SearchableSelectFieldProps = {
   label: string
@@ -98,7 +102,9 @@ export default function SearchableSelectField({
           className={`flex h-[56px] w-full items-center justify-between rounded-[8px] border bg-white px-[14px] pr-10 text-left outline-none transition disabled:cursor-not-allowed disabled:bg-[#f7f8fa] disabled:text-[#94a3b8] ${
             error
               ? inputErrorClass
-              : `border-[#cbd5e1] ${inputFocusClass} ${value ? "text-[#0f172a]" : "text-[#94a3b8]"}`
+              : open
+                ? `${activeBorderClass} ${value ? "text-[#0f172a]" : "text-[#94a3b8]"}`
+                : `border-[#cbd5e1] ${inputFocusClass} ${value ? "text-[#0f172a]" : "text-[#94a3b8]"}`
           } ${inputTextClass}`}
         >
           <span className="truncate">{value || displayPlaceholder}</span>
@@ -120,7 +126,7 @@ export default function SearchableSelectField({
                 placeholder={searchPlaceholder ?? `Search ${label.toLowerCase()}`}
                 autoFocus
                 style={inputTypographyStyle}
-                className={`h-[44px] w-full rounded-[6px] border border-[#cbd5e1] bg-white py-2 pl-9 pr-3 text-[#0f172a] outline-none placeholder:text-[#94a3b8] ${inputFocusClass}`}
+                className={`h-[44px] w-full rounded-[6px] border bg-white py-2 pl-9 pr-3 text-[#0f172a] outline-none placeholder:text-[#94a3b8] border-[#cbd5e1] ${inputFocusClass}`}
               />
             </div>
             <div className="max-h-[220px] overflow-y-auto py-1">

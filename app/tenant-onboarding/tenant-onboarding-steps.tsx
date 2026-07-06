@@ -1377,9 +1377,8 @@ export function DomainStep({
               style={inputTypographyStyle}
               className={`min-w-[180px] flex-1 border-0 bg-transparent py-[10px] ${inputTextClass} text-[#0f172a] outline-none`}
             />
-            <span className="text-[20px] leading-none text-[#0b3a70]">.</span>
-            <span className="text-[20px] font-semibold leading-none text-[#0b3a70]" style={interStyle}>
-              {publicRootDomain || "brasshr.com"}
+            <span className="whitespace-nowrap text-[20px] font-semibold leading-none text-[#0b3a70]" style={interStyle}>
+              .{publicRootDomain || "brasshr.com"}
             </span>
           </div>
           <div className="mt-[14px] text-[16px] leading-[24px] text-[#0f172a]" style={interStyle}>
