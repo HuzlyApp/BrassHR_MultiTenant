@@ -23,32 +23,34 @@ import { isRemoteOrBlobImageSrc, normalizeBrandingImageSrc } from "@/lib/tenant/
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import { useApplicantPortal } from "./ApplicantPortalProvider";
 import { WorkerPortalUserAvatar } from "./WorkerPortalUserAvatar";
+import {
+  SIDEBAR_NAV_ACTIVE_TEXT_CLASS,
+  SIDEBAR_NAV_INACTIVE_TEXT_CLASS,
+  sidebarNavTextClass,
+  sidebarSubmenuTextClass,
+} from "@/lib/sidebar/sidebar-nav-styles";
 
 const DEFAULT_LOGO = "/images/new-logo-nexus.svg";
 
 function parentWithSubmenuRowClass(active: boolean, disabled = false): string {
   const base =
     "group relative flex min-h-[36px] w-full cursor-pointer items-center gap-2 overflow-hidden rounded-md border-0 bg-transparent pl-2 pr-0 py-1 text-left";
-  const color = active
-    ? "text-[color:var(--brand-primary)]"
-    : "text-[color:var(--brand-secondary)]";
+  const color = sidebarNavTextClass(active);
   return disabled ? `${base} ${color} opacity-60` : `${base} ${color} transition hover:bg-white`;
 }
 
 function submenuTextClass(active: boolean, disabled = false): string {
   const base =
     "font-normal text-[14px] leading-5 tracking-normal transition-colors";
-  const color = active ? "text-[color:var(--brand-primary)]" : "text-[color:var(--brand-secondary)]";
-  if (disabled) return `${base} ${color} opacity-60`;
-  return active ? `${base} ${color}` : `${base} ${color} hover:text-[color:var(--brand-primary)]`;
+  return `${base} ${sidebarSubmenuTextClass(active, disabled)}`;
 }
 
 function topLevelLabelClass(active: boolean, disabled = false): string {
   const base = "truncate font-normal text-[14px] leading-5 tracking-normal transition-colors";
-  if (disabled) return `${base} text-[color:var(--brand-secondary)] opacity-60`;
+  if (disabled) return `${base} ${SIDEBAR_NAV_INACTIVE_TEXT_CLASS} opacity-60`;
   return active
-    ? `${base} text-[color:var(--brand-primary)]`
-    : `${base} text-[color:var(--brand-secondary)] group-hover:text-[color:var(--brand-primary)]`;
+    ? `${base} ${SIDEBAR_NAV_ACTIVE_TEXT_CLASS}`
+    : `${base} ${SIDEBAR_NAV_INACTIVE_TEXT_CLASS} group-hover:text-[color:var(--brand-primary)]`;
 }
 
 function topLevelLinkClass(active: boolean, isCollapsed: boolean, isMobileRail: boolean, disabled = false): string {
@@ -59,14 +61,10 @@ function topLevelLinkClass(active: boolean, isCollapsed: boolean, isMobileRail: 
     : "gap-3 pl-2 pr-0 py-1";
 
   if (disabled) {
-    return `group relative flex min-h-[36px] items-center overflow-hidden rounded-md opacity-60 ${layout} text-[color:var(--brand-secondary)]`;
+    return `group relative flex min-h-[36px] items-center overflow-hidden rounded-md opacity-60 ${layout} ${SIDEBAR_NAV_INACTIVE_TEXT_CLASS}`;
   }
 
-  return `group relative flex min-h-[36px] items-center overflow-hidden rounded-md transition hover:bg-white ${layout} ${
-    active
-      ? "text-[color:var(--brand-primary)]"
-      : "text-[color:var(--brand-secondary)] hover:text-[color:var(--brand-primary)]"
-  }`;
+  return `group relative flex min-h-[36px] items-center overflow-hidden rounded-md transition hover:bg-white ${layout} ${sidebarNavTextClass(active)}`;
 }
 
 type Props = {
@@ -311,7 +309,7 @@ export function ApplicantPortalSidebar({
                 </div>
                 <span
                   className={`ml-auto flex h-6 w-6 shrink-0 items-center justify-center rounded-md ${
-                    section.childActive ? "text-[color:var(--brand-primary)]" : "text-[color:var(--brand-secondary)]"
+                    section.childActive ? SIDEBAR_NAV_ACTIVE_TEXT_CLASS : SIDEBAR_NAV_INACTIVE_TEXT_CLASS
                   }`}
                   aria-hidden
                 >
@@ -325,7 +323,7 @@ export function ApplicantPortalSidebar({
               <div
                 title={section.label}
                 className={`group relative flex min-h-[36px] w-full items-center justify-center overflow-hidden rounded-md py-2 pl-2 pr-0 ${
-                  section.childActive ? "text-[color:var(--brand-primary)]" : "text-[color:var(--brand-secondary)]"
+                  section.childActive ? SIDEBAR_NAV_ACTIVE_TEXT_CLASS : SIDEBAR_NAV_INACTIVE_TEXT_CLASS
                 }`}
               >
                 <SidebarNavIcon iconType={section.iconType} active={section.childActive} />
@@ -383,7 +381,7 @@ export function ApplicantPortalSidebar({
                   child.disabled || !child.href || child.href === "#" ? (
                     <div
                       key={`${section.label}-${child.label}`}
-                      className="worker-sidebar-submenu-item group relative block overflow-hidden rounded-md font-normal text-[14px] leading-5 tracking-normal text-[color:var(--brand-secondary)] opacity-60"
+                      className={`worker-sidebar-submenu-item group relative block overflow-hidden rounded-md font-normal text-[14px] leading-5 tracking-normal ${SIDEBAR_NAV_INACTIVE_TEXT_CLASS} opacity-60`}
                       aria-disabled={child.disabled}
                     >
                       <span>{child.label}</span>

@@ -11,6 +11,7 @@ import {
   ensureTintedSidebarIconMarkup,
   getTintedSidebarIconMarkup,
 } from "@/lib/sidebar/sidebar-icon-markup";
+import { SIDEBAR_NAV_INACTIVE_HEX } from "@/lib/sidebar/sidebar-nav-styles";
 
 type SidebarNavIconProps = {
   iconType: SidebarIconType;
@@ -30,7 +31,7 @@ function SidebarIconPlaceholder() {
 export default function SidebarNavIcon({ iconType, active }: SidebarNavIconProps) {
   const branding = useTenantBranding();
   const src = getSidebarIconSrc(iconType, active);
-  const tintHex = active ? branding.primaryHex : branding.secondaryHex;
+  const tintHex = active ? branding.primaryHex : SIDEBAR_NAV_INACTIVE_HEX;
   const [markup, setMarkup] = useState<string | null>(() =>
     getTintedSidebarIconMarkup(src, tintHex)
   );

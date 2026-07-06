@@ -26,6 +26,12 @@ import {
 import { useEffectiveBranding } from "@/lib/admin/hooks/use-effective-branding";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import { recruiterLogoutLoginHref } from "@/lib/auth/recruiter-sign-in";
+import {
+  SIDEBAR_NAV_ACTIVE_TEXT_CLASS,
+  SIDEBAR_NAV_INACTIVE_TEXT_CLASS,
+  sidebarNavTextClass,
+  sidebarSubmenuTextClass,
+} from "@/lib/sidebar/sidebar-nav-styles";
 
 const SIDEBAR_EXPANDED_WIDTH = 272;
 const SIDEBAR_COLLAPSED_WIDTH = 80;
@@ -196,15 +202,9 @@ export function AdminRecruiterSidebar({
         : "w-full justify-center px-0 py-2"
       : "gap-3 pl-2 pr-0 py-1";
 
-  const navTextClass = (active: boolean) =>
-    active
-      ? "text-[color:var(--brand-primary)]"
-      : "text-[color:var(--brand-secondary)] hover:text-[color:var(--brand-primary)]";
+  const navTextClass = sidebarNavTextClass;
 
-  const submenuTextClass = (active: boolean, disabled = false) => {
-    const color = active ? "text-[color:var(--brand-primary)]" : "text-[color:var(--brand-secondary)]";
-    return `${color}${disabled ? " opacity-60" : ""}`;
-  };
+  const submenuTextClass = sidebarSubmenuTextClass;
 
   const renderSidebarContent = (
     isCollapsed: boolean,
@@ -351,7 +351,7 @@ export function AdminRecruiterSidebar({
                   {!isCollapsed && !isMobileRail ? (
                     <span
                       className={`ml-auto flex h-6 w-6 shrink-0 items-center justify-center rounded-md ${
-                        section.childActive ? "text-[color:var(--brand-primary)]" : "text-[color:var(--brand-secondary)]"
+                        section.childActive ? SIDEBAR_NAV_ACTIVE_TEXT_CLASS : SIDEBAR_NAV_INACTIVE_TEXT_CLASS
                       }`}
                       aria-hidden
                     >
@@ -394,7 +394,7 @@ export function AdminRecruiterSidebar({
                 title={`${section.label} (Coming soon)`}
                 className={`group relative flex min-h-[36px] items-center overflow-hidden rounded-md ${
                   collapsedRowClass(isCollapsed, isMobileRail)
-                } text-[color:var(--brand-secondary)]`}
+                } ${SIDEBAR_NAV_INACTIVE_TEXT_CLASS} opacity-60`}
                 aria-disabled
               >
                 <SidebarNavIcon

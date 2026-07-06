@@ -221,7 +221,7 @@
   width: 2px;
   transform: translateY(-50%);
   border-radius: 9999px;
-  background-color: var(--brand-secondary);
+  background-color: var(--brand-primary);
   pointer-events: none;
 }
 

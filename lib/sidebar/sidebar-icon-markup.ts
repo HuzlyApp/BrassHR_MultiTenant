@@ -2,6 +2,7 @@ import {
   getSidebarIconSrc,
   type SidebarIconType,
 } from "@/app/admin_recruiter/components/sidebar-icons";
+import { SIDEBAR_NAV_INACTIVE_HEX } from "@/lib/sidebar/sidebar-nav-styles";
 
 const FIGMA_ICON_COLOR = /#BC8B41/gi;
 
@@ -76,15 +77,12 @@ export async function ensureTintedSidebarIconMarkup(
   return markup;
 }
 
-/** Warm the sidebar icon cache so menu icons render with tenant color immediately. */
+/** Warm the sidebar icon cache so menu icons render immediately. */
 export async function prefetchSidebarIconMarkups(primaryHex: string): Promise<void> {
-  const urls = new Set<string>();
+  const jobs: Promise<string | null>[] = [];
   for (const iconType of ALL_SIDEBAR_ICON_TYPES) {
-    urls.add(getSidebarIconSrc(iconType, false));
-    urls.add(getSidebarIconSrc(iconType, true));
+    jobs.push(ensureTintedSidebarIconMarkup(getSidebarIconSrc(iconType, false), SIDEBAR_NAV_INACTIVE_HEX));
+    jobs.push(ensureTintedSidebarIconMarkup(getSidebarIconSrc(iconType, true), primaryHex));
   }
-
-  await Promise.all(
-    [...urls].map((src) => ensureTintedSidebarIconMarkup(src, primaryHex))
-  );
+  await Promise.all(jobs);
 }
