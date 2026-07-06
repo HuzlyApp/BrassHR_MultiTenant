@@ -180,20 +180,7 @@ function ApplicantPortalLayoutInner({ children }: { children: ReactNode }) {
       }}
     >
       <TenantBrandingProvider branding={branding}>
-        <ApplicantPortalShell
-          session={session}
-          messages={messages}
-          messageBody={messageBody}
-          sending={sending}
-          aiTyping={aiTyping}
-          recruiterDirectHint={recruiterDirectHint}
-          lastInquiry={lastInquiry}
-          onMessageBodyChange={setMessageBody}
-          onSendMessage={onSendMessage}
-          onContactRecruiter={handleContactRecruiter}
-          authHeaders={authHeaders}
-          onSupportTicketCreated={handleSupportTicketCreated}
-        >
+        <ApplicantPortalShell session={session}>
           {pageError || error ? (
             <div className="mx-4 mt-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700 min-[1000px]:mx-8">
               {pageError || error}

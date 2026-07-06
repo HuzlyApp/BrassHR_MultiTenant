@@ -2,7 +2,7 @@
 
 import type { CSSProperties } from "react";
 import { useCallback, useEffect, useState } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
 import { ApplicantPortalHeader } from "./ApplicantPortalHeader";
@@ -12,47 +12,21 @@ import {
   WORKER_SIDEBAR_COLLAPSED_WIDTH_NARROW,
   WORKER_SIDEBAR_EXPANDED_WIDTH,
 } from "./ApplicantPortalSidebar";
-import { ApplicantMessagesPanel } from "./ApplicantMessagesPanel";
 import { ApplicantPortalUiProvider } from "./ApplicantPortalUiContext";
-import type { ApplicantMessage, ApplicantSession } from "./types";
+import type { ApplicantSession } from "./types";
 import "./applicant-portal.css";
+
+const GROUP_CHAT_HREF = "/application/applicant-dashboard/group-chat?tab=recruiter";
 
 type Props = {
   session: ApplicantSession | null;
-  messages: ApplicantMessage[];
-  messageBody: string;
-  sending: boolean;
-  aiTyping?: boolean;
-  recruiterDirectHint?: boolean;
-  lastInquiry?: string;
-  onMessageBodyChange: (value: string) => void;
-  onSendMessage: (file?: File | null) => Promise<void>;
-  onContactRecruiter?: () => void;
-  authHeaders?: () => Promise<Record<string, string> | null>;
-  onSupportTicketCreated?: (payload: { ticketId?: string; chatMessage?: ApplicantMessage }) => void;
   children: React.ReactNode;
 };
 
-export function ApplicantPortalShell({
-  session,
-  messages,
-  messageBody,
-  sending,
-  aiTyping,
-  recruiterDirectHint,
-  lastInquiry,
-  onMessageBodyChange,
-  onSendMessage,
-  onContactRecruiter,
-  authHeaders,
-  onSupportTicketCreated,
-  children,
-}: Props) {
+export function ApplicantPortalShell({ session, children }: Props) {
   const branding = useTenantBranding();
-  const pathname = usePathname() ?? "";
   const router = useRouter();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
-  const [messagesOpen, setMessagesOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const shellStyle: CSSProperties = brandingToCssVars(branding);
 
@@ -78,14 +52,8 @@ export function ApplicantPortalShell({
   };
 
   const openMessages = useCallback(() => {
-    if (pathname.startsWith("/application/applicant-dashboard/group-chat")) {
-      const params = new URLSearchParams(window.location.search);
-      params.set("tab", "recruiter");
-      router.push(`/application/applicant-dashboard/group-chat?${params.toString()}`);
-      return;
-    }
-    setMessagesOpen(true);
-  }, [pathname, router]);
+    router.push(GROUP_CHAT_HREF);
+  }, [router]);
 
   const sidebarWidth = sidebarCollapsed ? WORKER_SIDEBAR_COLLAPSED_WIDTH : WORKER_SIDEBAR_EXPANDED_WIDTH;
 
@@ -125,22 +93,6 @@ export function ApplicantPortalShell({
           />
           <main className="flex flex-1 flex-col bg-[#F4F4F4]">{children}</main>
         </div>
-
-        <ApplicantMessagesPanel
-          open={messagesOpen}
-          onClose={() => setMessagesOpen(false)}
-          messages={messages}
-          messageBody={messageBody}
-          sending={sending}
-          aiTyping={aiTyping}
-          recruiterDirectHint={recruiterDirectHint}
-          lastInquiry={lastInquiry}
-          onMessageBodyChange={onMessageBodyChange}
-          onSendMessage={onSendMessage}
-          onContactRecruiter={onContactRecruiter}
-          authHeaders={authHeaders}
-          onSupportTicketCreated={onSupportTicketCreated}
-        />
       </div>
     </ApplicantPortalUiProvider>
   );

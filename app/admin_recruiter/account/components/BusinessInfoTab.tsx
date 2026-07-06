@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useAccountData } from "@/app/admin_recruiter/hooks/useAccountData";
 import { syncAccountChecklist } from "@/lib/account/fetch-account-data";
+import { formatPhoneNumber } from "@/lib/phone";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import {
   isBusinessInfoValid,
@@ -64,7 +65,7 @@ export default function BusinessInfoTab() {
     setCity(organization.city ?? "");
     setState(organization.state ?? "");
     setAddress(organization.address_line_1 ?? "");
-    setBusinessPhone(organization.phone ?? "");
+    setBusinessPhone(organization.phone ? formatPhoneNumber(organization.phone) : "");
     setBusinessEmail(organization.email ?? "");
     setZipCode(organization.postal_code ?? "");
     setEin(organization.ein ?? "");
@@ -315,7 +316,7 @@ export default function BusinessInfoTab() {
               <TextField
                 label="Business Phone"
                 value={businessPhone}
-                onChange={(value) => updateField("phone", value, setBusinessPhone)}
+                onChange={(value) => updateField("phone", formatPhoneNumber(value), setBusinessPhone)}
                 type="tel"
                 required
                 error={submitAttempted ? fieldErrors.phone : null}

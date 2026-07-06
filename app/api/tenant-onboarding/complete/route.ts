@@ -327,6 +327,11 @@ export async function POST(req: Request) {
       email_verified: true,
       signup_completed_at: completedAt,
       tenant_onboarding_completed_at: completedAt,
+      phone: businessInput.phone?.trim() || null,
+      address_line1: businessInput.address?.trim() || null,
+      city: businessInput.city?.trim() || null,
+      state: businessInput.state?.trim() || null,
+      zip_code: businessInput.zipCode?.trim() || null,
     },
     { onConflict: "id" }
   );

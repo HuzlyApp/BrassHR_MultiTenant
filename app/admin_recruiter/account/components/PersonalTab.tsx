@@ -1,9 +1,21 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useAccountData } from "@/app/admin_recruiter/hooks/useAccountData";
 import { getAccountDisplayName, formatRoleLabel } from "@/lib/account/display-name";
 import { syncAccountChecklist } from "@/lib/account/fetch-account-data";
+import { resolvePersonalProfileFields } from "@/lib/account/resolve-personal-profile-fields";
+import {
+  filterCandidateFieldInput,
+  validateCandidateFieldInput,
+} from "@/lib/admin/worker-profile-field-client";
+import { formatPhoneNumber } from "@/lib/phone";
+import { isValidStep1Zip5, step1ZipStateMessage } from "@/lib/onboardingStep1Validation";
+import {
+  addressValidationMessage,
+  normalizeBusinessZipInput,
+  phoneValidationMessage,
+} from "@/lib/tenant/business-info-validation";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import { FIELD, FieldLabel, SelectField, US_STATES } from "./account-form-fields";
 import { StaffProfilePhotoUpload } from "./StaffProfilePhotoUpload";
@@ -33,20 +45,28 @@ export default function PersonalTab() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
   const [emailChangeNotice, setEmailChangeNotice] = useState<string | null>(null);
+  const [phoneError, setPhoneError] = useState<string | null>(null);
+  const [addressError, setAddressError] = useState<string | null>(null);
+  const [zipError, setZipError] = useState<string | null>(null);
+
+  const resolvedFields = useMemo(
+    () => resolvePersonalProfileFields(profile, organization),
+    [profile, organization]
+  );
 
   useEffect(() => {
-    if (!profile && !user) return;
-    setFirstName(profile?.first_name ?? "");
-    setLastName(profile?.last_name ?? "");
-    setWorkEmail(user?.email ?? profile?.email ?? "");
-    setJobTitle(profile?.job_title ?? "");
-    setPhone(profile?.phone ?? user?.phone ?? "");
+    if (!profile && !user && !organization) return;
+    setFirstName(resolvedFields.firstName);
+    setLastName(resolvedFields.lastName);
+    setWorkEmail(user?.email ?? resolvedFields.workEmail);
+    setJobTitle(resolvedFields.jobTitle);
+    setPhone(resolvedFields.phone);
     setPhotoUrl(profile?.avatar_url ?? null);
-    setCity(profile?.city ?? "");
-    setState(profile?.state ?? "");
-    setZipCode(profile?.zip_code ?? "");
-    setAddress(profile?.address_line1 ?? "");
-  }, [profile, user]);
+    setCity(resolvedFields.city);
+    setState(resolvedFields.state);
+    setZipCode(resolvedFields.zipCode);
+    setAddress(resolvedFields.address);
+  }, [profile, user, organization, resolvedFields]);
 
   const displayName = getAccountDisplayName(profile, user);
   const roleLabel = formatRoleLabel(profile?.role);
@@ -59,6 +79,46 @@ export default function PersonalTab() {
     setSaveError(null);
     setSaveSuccess(null);
     setEmailChangeNotice(null);
+    setPhoneError(null);
+    setAddressError(null);
+    setZipError(null);
+
+    const nextPhoneError = phone.trim()
+      ? phoneValidationMessage(phone, { required: false })
+      : null;
+    const nextAddressError = address.trim()
+      ? addressValidationMessage(address, { required: false })
+      : null;
+    let nextZipError: string | null = null;
+    if (zipCode.trim()) {
+      if (!isValidStep1Zip5(zipCode)) {
+        nextZipError = "Enter a valid 5-digit ZIP code.";
+      } else if (state.trim()) {
+        nextZipError = step1ZipStateMessage(zipCode, state);
+      }
+    }
+
+    setPhoneError(nextPhoneError);
+    setAddressError(nextAddressError);
+    setZipError(nextZipError);
+
+    if (nextPhoneError || nextAddressError || nextZipError) {
+      setSaving(false);
+      return;
+    }
+
+    let phoneToSave: string | null = null;
+    if (phone.trim()) {
+      const phoneCheck = validateCandidateFieldInput("phone", phone);
+      if (!phoneCheck.ok) {
+        setPhoneError(phoneCheck.error);
+        setSaving(false);
+        return;
+      }
+      phoneToSave = formatPhoneNumber(phoneCheck.value);
+    }
+
+    const zipToSave = zipCode.trim() ? normalizeBusinessZipInput(zipCode).slice(0, 5) : null;
 
     try {
       const trimmedEmail = workEmail.trim();
@@ -69,12 +129,12 @@ export default function PersonalTab() {
         .update({
           first_name: firstName.trim() || null,
           last_name: lastName.trim() || null,
-          phone: phone.trim() || null,
+          phone: phoneToSave,
           job_title: jobTitle.trim() || null,
           address_line1: address.trim() || null,
           city: city.trim() || null,
           state: state.trim() || null,
-          zip_code: zipCode.trim() || null,
+          zip_code: zipToSave,
           updated_at: new Date().toISOString(),
         })
         .eq("id", user.id);
@@ -100,7 +160,7 @@ export default function PersonalTab() {
           last_name: lastName.trim() || null,
           full_name: [firstName, lastName].filter(Boolean).join(" ").trim() || null,
           email: trimmedEmail,
-          phone: phone.trim() || null,
+          phone: phoneToSave,
           avatar_url: photoUrl,
           role: profile?.role ?? null,
           job_title: jobTitle.trim() || null,
@@ -109,7 +169,7 @@ export default function PersonalTab() {
           address_line2: profile?.address_line2 ?? null,
           city: city.trim() || null,
           state: state.trim() || null,
-          zip_code: zipCode.trim() || null,
+          zip_code: zipToSave,
           created_at: profile?.created_at ?? null,
           updated_at: new Date().toISOString(),
         },
@@ -211,9 +271,14 @@ export default function PersonalTab() {
             <input
               type="tel"
               value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              className={FIELD}
+              onChange={(e) => {
+                setPhone(filterCandidateFieldInput("phone", e.target.value));
+                if (phoneError) setPhoneError(null);
+              }}
+              className={`${FIELD}${phoneError ? " border-[#FCA5A5] focus:border-[#EF4444] focus:ring-[#EF4444]" : ""}`}
+              autoComplete="tel"
             />
+            {phoneError ? <p className="mt-1 text-xs text-[#B91C1C]">{phoneError}</p> : null}
           </label>
 
           <StaffProfilePhotoUpload
@@ -239,10 +304,15 @@ export default function PersonalTab() {
               <FieldLabel>Zip Code</FieldLabel>
               <input
                 type="text"
+                inputMode="numeric"
                 value={zipCode}
-                onChange={(e) => setZipCode(e.target.value)}
-                className={FIELD}
+                onChange={(e) => {
+                  setZipCode(normalizeBusinessZipInput(e.target.value).slice(0, 5));
+                  if (zipError) setZipError(null);
+                }}
+                className={`${FIELD}${zipError ? " border-[#FCA5A5] focus:border-[#EF4444] focus:ring-[#EF4444]" : ""}`}
               />
+              {zipError ? <p className="mt-1 text-xs text-[#B91C1C]">{zipError}</p> : null}
             </label>
           </div>
 
@@ -251,9 +321,14 @@ export default function PersonalTab() {
             <input
               type="text"
               value={address}
-              onChange={(e) => setAddress(e.target.value)}
-              className={FIELD}
+              onChange={(e) => {
+                setAddress(filterCandidateFieldInput("address", e.target.value));
+                if (addressError) setAddressError(null);
+              }}
+              className={`${FIELD}${addressError ? " border-[#FCA5A5] focus:border-[#EF4444] focus:ring-[#EF4444]" : ""}`}
+              autoComplete="street-address"
             />
+            {addressError ? <p className="mt-1 text-xs text-[#B91C1C]">{addressError}</p> : null}
           </label>
         </div>
 
