@@ -20,7 +20,7 @@ import {
   ErrorBanner,
   GoalsStep,
   PreviewStep,
-  WorkerOnboardingStep,
+  // WorkerOnboardingStep, // Hidden during tenant onboarding — default 6 steps apply automatically.
 } from "@/app/tenant-onboarding/tenant-onboarding-steps";
 import type { OnboardingStepDraft } from "@/lib/onboarding/default-onboarding-steps";
 import { ONBOARDING_TENANT_SLUG_COOKIE } from "@/lib/tenant/constants";
@@ -212,8 +212,7 @@ export default function TenantOnboardingPage() {
       business: "company_logo",
       company_logo: "branding",
       branding: "domain",
-      domain: "onboarding",
-      onboarding: "preview",
+      domain: "preview",
       preview: "admin",
     };
     const next = nextStep[step];
@@ -412,25 +411,26 @@ export default function TenantOnboardingPage() {
           subdomain={subdomain}
           publicRootDomain={publicRootDomain}
           onSubdomainChange={setSubdomain}
-          onContinue={() => setStep("onboarding")}
+          onContinue={() => setStep("preview")}
           onBack={() => setStep("branding")}
         />
       ) : null}
 
-      {step === "onboarding" ? (
+      {/* Worker onboarding customization hidden — default 6 steps are saved on complete. */}
+      {/* {step === "onboarding" ? (
         <WorkerOnboardingStep
           steps={onboardingSteps}
           onStepsChange={setOnboardingSteps}
           onContinue={() => setStep("preview")}
           onBack={() => setStep("domain")}
         />
-      ) : null}
+      ) : null} */}
 
       {step === "preview" ? (
         <PreviewStep
           preview={preview}
           onContinue={() => setStep("admin")}
-          onBack={() => setStep("onboarding")}
+          onBack={() => setStep("domain")}
         />
       ) : null}
 

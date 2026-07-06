@@ -59,26 +59,26 @@ const DASHBOARD_CHILDREN: SidebarLink[] = [
     matchPrefixes: [DASHBOARD_OVERVIEW_BASE],
     matchExact: true,
   },
-  {
-    label: "Recruitment Analytics",
-    href: `${DASHBOARD_OVERVIEW_BASE}/recruitment-analytics`,
-    matchPrefixes: [`${DASHBOARD_OVERVIEW_BASE}/recruitment-analytics`],
-  },
-  {
-    label: "Workforce Analytics",
-    href: `${DASHBOARD_OVERVIEW_BASE}/workforce-analytics`,
-    matchPrefixes: [`${DASHBOARD_OVERVIEW_BASE}/workforce-analytics`],
-  },
-  {
-    label: "Financial Analytics",
-    href: `${DASHBOARD_OVERVIEW_BASE}/financial-analytics`,
-    matchPrefixes: [`${DASHBOARD_OVERVIEW_BASE}/financial-analytics`],
-  },
-  {
-    label: "Operational Insights",
-    href: `${DASHBOARD_OVERVIEW_BASE}/operational-insights`,
-    matchPrefixes: [`${DASHBOARD_OVERVIEW_BASE}/operational-insights`],
-  },
+  // {
+  //   label: "Recruitment Analytics",
+  //   href: `${DASHBOARD_OVERVIEW_BASE}/recruitment-analytics`,
+  //   matchPrefixes: [`${DASHBOARD_OVERVIEW_BASE}/recruitment-analytics`],
+  // }, // Hidden for now — keep for future use.
+  // {
+  //   label: "Workforce Analytics",
+  //   href: `${DASHBOARD_OVERVIEW_BASE}/workforce-analytics`,
+  //   matchPrefixes: [`${DASHBOARD_OVERVIEW_BASE}/workforce-analytics`],
+  // }, // Hidden for now — keep for future use.
+  // {
+  //   label: "Financial Analytics",
+  //   href: `${DASHBOARD_OVERVIEW_BASE}/financial-analytics`,
+  //   matchPrefixes: [`${DASHBOARD_OVERVIEW_BASE}/financial-analytics`],
+  // }, // Hidden for now — keep for future use.
+  // {
+  //   label: "Operational Insights",
+  //   href: `${DASHBOARD_OVERVIEW_BASE}/operational-insights`,
+  //   matchPrefixes: [`${DASHBOARD_OVERVIEW_BASE}/operational-insights`],
+  // }, // Hidden for now — keep for future use.
 ];
 
 const FINANCE_CHILDREN: SidebarLink[] = [
@@ -86,11 +86,19 @@ const FINANCE_CHILDREN: SidebarLink[] = [
   { label: "Invoices", href: "#", matchPrefixes: [], disabled: true },
 ];
 
+const REPORTS_BASE = "/admin_recruiter/reports";
+
 const REPORTS_CHILDREN: SidebarLink[] = [
-  { label: "Recruitment Reports", href: "#", matchPrefixes: [], disabled: true },
-  { label: "Workforce Reports", href: "#", matchPrefixes: [], disabled: true },
-  { label: "Payroll Reports", href: "#", matchPrefixes: [], disabled: true },
-  { label: "Financial Reports", href: "#", matchPrefixes: [], disabled: true },
+  {
+    label: "Overview",
+    href: REPORTS_BASE,
+    matchPrefixes: [REPORTS_BASE],
+    matchExact: true,
+  },
+  // { label: "Recruitment Reports", href: "#", matchPrefixes: [], disabled: true }, // Hidden for now — keep for future use.
+  // { label: "Workforce Reports", href: "#", matchPrefixes: [], disabled: true }, // Hidden for now — keep for future use.
+  // { label: "Payroll Reports", href: "#", matchPrefixes: [], disabled: true }, // Hidden for now — keep for future use.
+  // { label: "Financial Reports", href: "#", matchPrefixes: [], disabled: true }, // Hidden for now — keep for future use.
 ];
 
 const SHIFTS_CHILDREN: SidebarLink[] = [
@@ -116,24 +124,24 @@ const SCHEDULING_CHILDREN: SidebarLink[] = [
 ];
 
 const TASKBOARD_CHILDREN: SidebarLink[] = [
-  {
-    label: "Onboarding",
-    href: "#",
-    matchPrefixes: [],
-    disabled: true,
-  },
+  // {
+  //   label: "Onboarding",
+  //   href: "#",
+  //   matchPrefixes: [],
+  //   disabled: true,
+  // }, // Hidden for now — keep for future use.
   {
     label: "Interviews",
     href: "/admin_recruiter/calendar",
     matchPrefixes: ["/admin_recruiter/calendar"],
     matchExact: true,
   },
-  {
-    label: "Calls",
-    href: "#",
-    matchPrefixes: [],
-    disabled: true,
-  },
+  // {
+  //   label: "Calls",
+  //   href: "#",
+  //   matchPrefixes: [],
+  //   disabled: true,
+  // }, // Hidden for now — keep for future use.
 ];
 
 const TASKBOARD_ACTIVE_PREFIXES: string[] = [];
