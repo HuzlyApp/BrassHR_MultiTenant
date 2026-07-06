@@ -224,7 +224,7 @@ export async function GET(req: Request) {
       }
 
       if (!error) {
-        let normalized = (data ?? []).map((row) => {
+        let normalized: Record<string, unknown>[] = (data ?? []).map((row) => {
           const r = row as Record<string, unknown>;
           const s = resolveWorkerDisplayStatus(r);
           return { ...r, status: s };

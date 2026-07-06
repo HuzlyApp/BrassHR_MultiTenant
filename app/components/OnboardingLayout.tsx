@@ -65,7 +65,7 @@ export default function OnboardingLayout({
           cardClassName
         )}
       >
-        <div className="min-w-0 border-b border-slate-200 md:border-b-0 md:border-r md:border-slate-200">
+        <div className="flex min-h-0 min-w-0 flex-col overflow-y-auto border-b border-slate-200 md:border-b-0 md:border-r md:border-slate-200">
           {children}
         </div>
 

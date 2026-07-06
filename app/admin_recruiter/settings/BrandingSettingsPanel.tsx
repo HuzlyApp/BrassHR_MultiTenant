@@ -22,9 +22,9 @@ import { notifyBrandingUpdated } from "@/lib/tenant/branding-events";
 import { isValidBrandingHex } from "@/lib/tenant/branding-validation";
 import {
   brandingFontFamily,
-  brandingToCssVars,
   type TenantBranding,
 } from "@/lib/tenant/tenant-branding";
+import BrandingAuthPreview from "@/app/admin_recruiter/settings/BrandingAuthPreview";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 
 type PreviewMode = "login" | "signup";
@@ -426,8 +426,6 @@ export default function BrandingSettingsPanel() {
     ]
   );
 
-  const previewVars = brandingToCssVars(preview);
-
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
     setSaving(true);
@@ -770,64 +768,7 @@ export default function BrandingSettingsPanel() {
               ))}
             </div>
 
-            <div
-              className="overflow-hidden rounded-xl border border-[#E2E8F0]"
-              style={previewVars as React.CSSProperties}
-            >
-              <div
-                className="grid gap-0"
-                style={{
-                  background: `linear-gradient(135deg, ${preview.primaryHex}18 0%, ${preview.secondaryHex}28 100%)`,
-                }}
-              >
-                <div className="grid gap-0 md:grid-cols-2">
-                  <div className="space-y-4 bg-white p-5">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={
-                        previewMode === "login"
-                          ? preview.loginLogoUrl
-                          : preview.signupLogoUrl
-                      }
-                      alt=""
-                      className="h-11 max-w-[160px] object-contain"
-                    />
-                    <p
-                      className="text-lg font-semibold"
-                      style={{
-                        color: preview.headingColor,
-                        fontFamily: brandingFontFamily(preview.headingFontId),
-                      }}
-                    >
-                      {previewMode === "login" ? preview.headline : preview.signupHeadline}
-                    </p>
-                    <p
-                      className="text-sm"
-                      style={{
-                        color: preview.mutedTextColor,
-                        fontFamily: brandingFontFamily(preview.bodyFontId),
-                      }}
-                    >
-                      {previewMode === "login" ? preview.subtitle : preview.signupSubheadline}
-                    </p>
-                    <div
-                      className="inline-flex h-10 items-center rounded-lg px-5 text-sm font-medium text-white"
-                      style={{
-                        background: `linear-gradient(90deg, ${preview.buttonColor} 0%, ${preview.accentHex} 100%)`,
-                        fontFamily: brandingFontFamily(preview.bodyFontId),
-                      }}
-                    >
-                      {previewMode === "login" ? preview.buttonText : "Create an account"}
-                    </div>
-                  </div>
-                  <div
-                    className="min-h-[140px] bg-cover bg-center"
-                    style={{ backgroundImage: `url(${preview.loginBackgroundSrc})` }}
-                    aria-hidden
-                  />
-                </div>
-              </div>
-            </div>
+            <BrandingAuthPreview branding={preview} mode={previewMode} />
           </SectionCard>
         </div>
       </div>

@@ -63,7 +63,7 @@ export default function ClassicTenantLogin({
 
   return (
     <OnboardingLayout
-      cardClassName="md:w-[950px] md:min-w-[950px] md:max-w-[950px] md:h-[622px] md:min-h-[550px] md:grid-cols-[560px_390px]"
+      cardClassName="md:w-[950px] md:min-w-[950px] md:max-w-[950px] md:min-h-[622px] md:grid-cols-[560px_390px]"
       rightPanelImageSrc={brand.loginBackgroundSrc}
       rightPanelImageAlt=""
       rightPanelImageClassName="object-cover opacity-60 grayscale"
@@ -71,7 +71,7 @@ export default function ClassicTenantLogin({
       rightPanelContentClassName="p-6"
       taglineClassName="text-[15px] leading-6 text-slate-700"
     >
-      <div className="flex flex-col justify-center p-6 md:p-10 lg:p-12">
+      <div className="flex min-h-full flex-col overflow-y-auto p-6 pb-8 md:p-10 md:pb-10 lg:p-12 lg:pb-12">
         {otpStep && otpEmail && onOtpVerify && onOtpSendAgain ? (
           <LoginOtpStep
             email={otpEmail}
@@ -108,17 +108,15 @@ export default function ClassicTenantLogin({
               placeholder="Email"
               autoComplete="email"
               className={cn(
-                "w-full rounded-lg border border-gray-300 px-4 py-3.5",
+                "w-full rounded-lg border px-4 py-3.5",
                 "text-black outline-none placeholder-gray-400 transition-all",
-                "focus:border-[color:var(--brand-primary)] focus:ring-2 focus:ring-[color:color-mix(in_srgb,var(--brand-primary)_45%,transparent)]"
+                error
+                  ? "border-red-400 bg-red-50/40 focus:border-red-500 focus:ring-2 focus:ring-red-200"
+                  : "border-gray-300 focus:border-[color:var(--brand-primary)] focus:ring-2 focus:ring-[color:color-mix(in_srgb,var(--brand-primary)_45%,transparent)]"
               )}
               required
             />
           </div>
-
-          {error ? (
-            <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
-          ) : null}
 
           <div>
             <label htmlFor="classic-password" className="mb-1.5 block text-sm font-medium text-gray-700">
@@ -133,10 +131,13 @@ export default function ClassicTenantLogin({
                 onChange={(event) => onFormChange({ password: event.target.value })}
                 placeholder="Password"
                 autoComplete="current-password"
+                aria-invalid={Boolean(error)}
                 className={cn(
-                  "w-full rounded-lg border border-gray-300 px-4 py-3.5 pr-11",
+                  "w-full rounded-lg border px-4 py-3.5 pr-11",
                   "text-black outline-none placeholder-gray-400 transition-all",
-                  "focus:border-[color:var(--brand-primary)] focus:ring-2 focus:ring-[color:color-mix(in_srgb,var(--brand-primary)_45%,transparent)]"
+                  error
+                    ? "border-red-400 bg-red-50/40 focus:border-red-500 focus:ring-2 focus:ring-red-200"
+                    : "border-gray-300 focus:border-[color:var(--brand-primary)] focus:ring-2 focus:ring-[color:color-mix(in_srgb,var(--brand-primary)_45%,transparent)]"
                 )}
                 required
               />
@@ -146,6 +147,11 @@ export default function ClassicTenantLogin({
                 className="right-4"
               />
             </div>
+            {error ? (
+              <p className="mt-2 text-sm font-medium text-red-600" role="alert" aria-live="polite">
+                {error}
+              </p>
+            ) : null}
             <div className="mt-2 flex justify-end">
               <Link
                 href={forgotHref}
@@ -172,7 +178,7 @@ export default function ClassicTenantLogin({
             </OnboardingCheckbox>
           </div>
 
-          <div className="flex flex-col gap-4 pt-6 sm:flex-row">
+          <div className="mt-2 flex flex-col gap-4 pt-4 sm:flex-row">
             <button
               type="button"
               onClick={() => router.back()}

@@ -35,14 +35,13 @@ export async function POST(_req: Request, context: RouteContext) {
     let workerQuery = supabase
       .from("worker")
       .select("id, tenant_id")
-      .eq("id", workerId)
-      .maybeSingle();
+      .eq("id", workerId);
 
     if (scope.mode === "scoped") {
       workerQuery = workerQuery.eq("tenant_id", scope.tenantId);
     }
 
-    const { data: worker, error: workerErr } = await workerQuery;
+    const { data: worker, error: workerErr } = await workerQuery.maybeSingle();
     if (workerErr) throw workerErr;
     if (!worker?.id || !worker.tenant_id) {
       return NextResponse.json({ error: "Conversation not found" }, { status: 404 });
