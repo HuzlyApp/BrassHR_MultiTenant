@@ -11,7 +11,7 @@ import {
   type TenantGoalId,
 } from "@/app/tenant-onboarding/constants";
 import {
-  AdminStep,
+  InviteTeamMembersStep,
   BrandingStep,
   BusinessStep,
   CompanyLogoStep,
@@ -79,7 +79,8 @@ export default function TenantOnboardingPage() {
   const [subtitle, setSubtitle] = useState("");
   const [backgroundUrl, setBackgroundUrl] = useState("");
   const [adminEmail, setAdminEmail] = useState("");
-  const [adminPassword, setAdminPassword] = useState("");
+  const [inviteEmails, setInviteEmails] = useState<string[]>([""]);
+  const [inviteNotice, setInviteNotice] = useState<string | null>(null);
   const [createdSlug, setCreatedSlug] = useState<string | null>(null);
   const [createdDomain, setCreatedDomain] = useState<string | null>(null);
   const [firmaProvisioning, setFirmaProvisioning] = useState<{
@@ -219,9 +220,10 @@ export default function TenantOnboardingPage() {
     if (next) setStep(next);
   };
 
-  const finalize = async () => {
+  const finalize = async (options?: { redirectToDashboard?: boolean }) => {
     setSubmitting(true);
     setError(null);
+    setInviteNotice(null);
     try {
       const validated = validateTenantSubdomainInput(subdomain);
       if ("failure" in validated) {
@@ -244,7 +246,7 @@ export default function TenantOnboardingPage() {
           welcomeSubtitle: subtitle.trim() || null,
           authBackgroundImageUrl: backgroundUrl.trim() || null,
           adminEmail: adminEmail.trim().toLowerCase(),
-          adminPassword,
+          adminPassword: "",
           industry: businessInfo.industry,
           companySize: businessInfo.companySize,
           city: businessInfo.city,
@@ -302,6 +304,11 @@ export default function TenantOnboardingPage() {
           setSubmitting(false);
           return;
         }
+      }
+
+      if (options?.redirectToDashboard && typeof window !== "undefined") {
+        window.location.assign("/admin_recruiter/home");
+        return;
       }
 
       const adminLoginUrl = buildAdminRecruiterLoginUrl(payload.slug ?? null, payload.domain ?? null);
@@ -435,14 +442,25 @@ export default function TenantOnboardingPage() {
       ) : null}
 
       {step === "admin" ? (
-        <AdminStep
-          adminEmail={adminEmail}
-          adminPassword={adminPassword}
+        <InviteTeamMembersStep
+          inviteEmails={inviteEmails}
           submitting={submitting}
-          passwordOptional={Boolean(adminEmail.trim())}
-          onEmailChange={setAdminEmail}
-          onPasswordChange={setAdminPassword}
-          onSubmit={() => void finalize()}
+          inviteNotice={inviteNotice}
+          onInviteEmailsChange={(index, value) =>
+            setInviteEmails((current) => current.map((email, i) => (i === index ? value : email)))
+          }
+          onAddEmail={() => setInviteEmails((current) => [...current, ""])}
+          onRemoveEmail={(index) =>
+            setInviteEmails((current) =>
+              current.length <= 1 ? current : current.filter((_, i) => i !== index)
+            )
+          }
+          onSkip={() => void finalize({ redirectToDashboard: true })}
+          onSendInvites={() => {
+            setInviteNotice(
+              "Team invites are coming soon. Tap Skip for now to finish setup and go to your dashboard."
+            );
+          }}
           onBack={() => setStep("preview")}
         />
       ) : null}

@@ -9,7 +9,7 @@ export const TENANT_ONBOARDING_STEPPER_ITEMS = [
   "Select Goals",
   "Business Information",
   "Customize Branding",
-  "Setting up Brass Domain",
+  "Invite Team Members",
 ] as const;
 
 export type TenantOnboardingStepperPhase =

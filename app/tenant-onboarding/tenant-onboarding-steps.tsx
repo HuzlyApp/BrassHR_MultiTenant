@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { Check, ChevronDown, ChevronRight, Link2, Trash2 } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, Link2, Plus, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ComponentProps, type CSSProperties, type DragEvent } from "react";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import type { SignupStateOption } from "@/lib/signup/owner-signup";
@@ -146,16 +146,60 @@ function SkipForNowButton({ onClick }: { onClick: () => void }) {
   );
 }
 
-function BackButton({ onClick, className = "" }: { onClick: () => void; className?: string }) {
+function BackButton({
+  onClick,
+  className = "",
+  disabled = false,
+}: {
+  onClick: () => void;
+  className?: string;
+  disabled?: boolean;
+}) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`flex h-[54px] w-full items-center justify-center rounded-[12px] border border-[#012352] bg-white text-[16px] font-semibold leading-[22px] tracking-normal text-md text-[#012352] transition hover:bg-[#f8fafc] ${className}`.trim()}
+      disabled={disabled}
+      className={`flex h-[54px] w-full items-center justify-center rounded-[12px] border border-[#012352] bg-white text-[16px] font-semibold leading-[22px] tracking-normal text-md text-[#012352] transition hover:bg-[#f8fafc] disabled:cursor-not-allowed disabled:opacity-60 ${className}`.trim()}
       style={interStyle}
     >
       Back
     </button>
+  );
+}
+
+function InviteStepActions({
+  onBack,
+  onSkip,
+  onSendInvites,
+  skipping = false,
+  sending = false,
+}: {
+  onBack: () => void;
+  onSkip: () => void;
+  onSendInvites: () => void;
+  skipping?: boolean;
+  sending?: boolean;
+}) {
+  return (
+    <div className="mt-[32px] flex flex-col gap-3 sm:flex-row sm:items-stretch">
+      <BackButton onClick={onBack} className="sm:flex-1" disabled={skipping || sending} />
+      <button
+        type="button"
+        onClick={onSkip}
+        disabled={skipping || sending}
+        className="flex h-[54px] w-full items-center justify-center rounded-[12px] border border-[#104b83] bg-white text-[16px] font-semibold leading-[22px] text-[#104b83] transition hover:bg-[#f0f7ff] disabled:cursor-not-allowed disabled:opacity-60 sm:flex-1"
+        style={interStyle}
+      >
+        {skipping ? "Finishing..." : "Skip for now"}
+      </button>
+      <ContinueButton
+        className="sm:flex-1"
+        label={sending ? "Sending..." : "Send Invites"}
+        disabled={skipping || sending}
+        onClick={onSendInvites}
+      />
+    </div>
   );
 }
 
@@ -1525,78 +1569,93 @@ export function PreviewStep({
       <div className="mt-[28px]">
         <PreviewCard b={preview} />
       </div>
-      <StepActions onBack={onBack} onContinue={onContinue} continueLabel="Continue to admin" />
+      <StepActions onBack={onBack} onContinue={onContinue} continueLabel="Continue" />
     </div>
   );
 }
 
-export function AdminStep({
-  adminEmail,
-  adminPassword,
+export function InviteTeamMembersStep({
+  inviteEmails,
   submitting,
-  passwordOptional = false,
-  onEmailChange,
-  onPasswordChange,
-  onSubmit,
+  inviteNotice,
+  onInviteEmailsChange,
+  onAddEmail,
+  onRemoveEmail,
+  onSkip,
+  onSendInvites,
   onBack,
 }: {
-  adminEmail: string;
-  adminPassword: string;
+  inviteEmails: string[];
   submitting: boolean;
-  passwordOptional?: boolean;
-  onEmailChange: (value: string) => void;
-  onPasswordChange: (value: string) => void;
-  onSubmit: () => void;
+  inviteNotice: string | null;
+  onInviteEmailsChange: (index: number, value: string) => void;
+  onAddEmail: () => void;
+  onRemoveEmail: (index: number) => void;
+  onSkip: () => void;
+  onSendInvites: () => void;
   onBack: () => void;
 }) {
-  const passwordOk = passwordOptional || adminPassword.length >= 6;
-  const canSubmit = adminEmail.length >= 4 && passwordOk && !submitting;
-  const [showAdminPassword, setShowAdminPassword] = useState(false);
+  const skipping = submitting;
 
   return (
     <div>
       <StepHeading
-        title="First recruiting admin"
-        subtitle="Create the recruiter account for your new organization."
+        title="Invite Team Members"
+        subtitle="Add team emails. You can skip and invite later from your dashboard."
       />
-      <div className="mt-[28px] space-y-[24px]">
-        <div>
-          <FieldLabel>Admin email</FieldLabel>
-          <input
-            type="email"
-            value={adminEmail}
-            onChange={(e) => onEmailChange(e.target.value)}
-            style={inputTypographyStyle}
-            className={`h-[56px] w-full rounded-[8px] border border-[#cbd5e1] bg-white px-[14px] ${inputTextClass} text-[#0f172a] outline-none transition placeholder:text-[#94a3b8] ${inputFocusClass}`}
-            required
-          />
-        </div>
-        <div>
-          <FieldLabel>
-            {passwordOptional ? "New password (optional)" : "Password (min 6 chars)"}
-          </FieldLabel>
-          <div className="relative">
-            <input
-              type={showAdminPassword ? "text" : "password"}
-              value={adminPassword}
-              onChange={(e) => onPasswordChange(e.target.value)}
-              style={inputTypographyStyle}
-              className={`h-[56px] w-full rounded-[8px] border border-[#cbd5e1] bg-white px-[14px] pr-12 ${inputTextClass} text-[#0f172a] outline-none transition placeholder:text-[#94a3b8] ${inputFocusClass}`}
-              required={!passwordOptional}
-            />
-            <PasswordVisibilityToggle
-              visible={showAdminPassword}
-              onToggle={() => setShowAdminPassword((current) => !current)}
-              label="admin password"
-            />
+      <div className="mt-[28px] space-y-[20px]">
+        {inviteEmails.map((email, index) => (
+          <div key={`invite-email-${index}`} className="flex items-start gap-3">
+            <div className="min-w-0 flex-1">
+              <FieldLabel>{index === 0 ? "Email" : `Email ${index + 1}`}</FieldLabel>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => onInviteEmailsChange(index, e.target.value)}
+                placeholder="name@company.com"
+                style={inputTypographyStyle}
+                className={`h-[56px] w-full rounded-[8px] border border-[#cbd5e1] bg-white px-[14px] ${inputTextClass} text-[#0f172a] outline-none transition placeholder:text-[#94a3b8] ${inputFocusClass}`}
+              />
+            </div>
+            {inviteEmails.length > 1 ? (
+              <button
+                type="button"
+                onClick={() => onRemoveEmail(index)}
+                className="mt-[30px] shrink-0 text-[13px] font-semibold text-[#64748b] transition hover:text-[#0f172a]"
+              >
+                Remove
+              </button>
+            ) : null}
           </div>
-        </div>
+        ))}
+
+        {inviteEmails.length < 5 ? (
+          <button
+            type="button"
+            onClick={onAddEmail}
+            className="inline-flex items-center gap-2 text-[14px] font-semibold text-[#104b83] transition hover:text-[#0b3a70]"
+          >
+            <Plus className="h-4 w-4" strokeWidth={2.5} />
+            Add email
+          </button>
+        ) : null}
       </div>
-      <StepActions
+
+      {inviteNotice ? (
+        <div
+          className="mt-[20px] rounded-[8px] border border-[#BFDBFE] bg-[#EFF6FF] px-[14px] py-[12px] text-[14px] leading-[20px] text-[#1E40AF]"
+          style={interStyle}
+          role="status"
+        >
+          {inviteNotice}
+        </div>
+      ) : null}
+
+      <InviteStepActions
         onBack={onBack}
-        onContinue={onSubmit}
-        continueLabel={submitting ? "Saving..." : "Save tenant & invite admin"}
-        continueDisabled={!canSubmit}
+        onSkip={onSkip}
+        onSendInvites={onSendInvites}
+        skipping={skipping}
       />
     </div>
   );
