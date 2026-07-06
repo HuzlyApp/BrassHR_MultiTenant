@@ -3,10 +3,11 @@
 import Image from "next/image";
 import Link from "next/link";
 import { Check, ChevronDown, ChevronRight, Link2, Trash2 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ComponentProps, type DragEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ComponentProps, type CSSProperties, type DragEvent } from "react";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import type { SignupStateOption } from "@/lib/signup/owner-signup";
 import OnboardingStepsBuilder from "@/app/components/onboarding/OnboardingStepsBuilder";
+import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
 import { PasswordVisibilityToggle } from "@/app/components/PasswordVisibilityToggle";
 import { interStyle, primaryButtonStyle } from "@/app/tenant-onboarding/TenantOnboardingShell";
 import {
@@ -32,6 +33,11 @@ import { formatPhoneNumber } from "@/lib/phone";
 import type { OnboardingStepDraft } from "@/lib/onboarding/default-onboarding-steps";
 import { subdomainErrorMessage, validateTenantSubdomainInput } from "@/lib/tenant/subdomain-validation";
 import type { TenantBranding } from "@/lib/tenant/tenant-branding";
+import {
+  APPLICANT_PORTAL_CTA_START_APPLICATION,
+  brandingToCssVars,
+  normalizeBrandingImageSrc,
+} from "@/lib/tenant/tenant-branding";
 import { withTenant } from "@/lib/tenant/with-tenant";
 import SearchableSelectField from "@/app/tenant-onboarding/SearchableSelectField";
 
@@ -1429,39 +1435,72 @@ export function WorkerOnboardingStep({
 }
 
 function PreviewCard({ b }: { b: TenantBranding }) {
+  const shellStyle = brandingToCssVars(b) as CSSProperties;
+  const logoSrc = normalizeBrandingImageSrc(b.logoUrl, "/images/new-logo-nexus.svg", { allowBlob: true });
+  const panelSrc = normalizeBrandingImageSrc(b.loginBackgroundSrc, "/images/handshake.jpg", { allowBlob: true });
+
   return (
-    <div className="overflow-hidden rounded-[16px] border border-[#e2e8f0] bg-white shadow-sm">
-      <div
-        className="grid gap-6 p-8 md:grid-cols-[1fr_minmax(0,280px)]"
-        style={{
-          background: `linear-gradient(135deg, ${b.primaryHex}33 0%, ${b.secondaryHex}44 100%)`,
-        }}
-      >
-        <div className="space-y-4 text-left">
-          <h3 className="text-[24px] font-semibold text-[#0f172a]" style={interStyle}>
-            {b.headline}
-          </h3>
-          <p className="text-[15px] text-[#64748b]" style={interStyle}>
-            {b.subtitle}
-          </p>
-          <button
-            type="button"
-            style={{ backgroundColor: b.primaryHex }}
-            className="rounded-[10px] px-6 py-3 text-[14px] font-semibold text-white"
+    <div
+      className="overflow-hidden rounded-[16px] border border-[#e2e8f0] bg-white shadow-sm"
+      style={shellStyle}
+    >
+      <div className="grid grid-cols-1 min-[520px]:grid-cols-[58%_42%]">
+        <div className="flex flex-col items-center justify-center gap-4 px-5 py-7 text-center min-[520px]:px-6 min-[520px]:py-8">
+          <div className="space-y-2">
+            <h3
+              className="text-[20px] font-semibold leading-[28px] text-slate-800 sm:text-[24px] sm:leading-[32px]"
+              style={{ fontFamily: "var(--brand-font-heading)", color: "var(--brand-heading)" }}
+            >
+              {b.headline}
+            </h3>
+            <p
+              className="text-[14px] leading-5 text-slate-500 sm:text-[15px] sm:leading-6"
+              style={{ fontFamily: "var(--brand-font-body)", color: "var(--brand-muted)" }}
+            >
+              {b.subtitle}
+            </p>
+          </div>
+
+          <p
+            className="text-[16px] font-semibold leading-[22px] sm:text-[18px]"
+            style={{ color: "var(--brand-primary)" }}
           >
-            Start application (preview)
-          </button>
+            {APPLICANT_PORTAL_CTA_START_APPLICATION}
+          </p>
+
+          <p className="text-center text-[13px] leading-5 text-slate-500">
+            Already approved?{" "}
+            <span className="font-semibold" style={{ color: "var(--brand-primary)" }}>
+              Worker sign in
+            </span>
+          </p>
         </div>
-        <div className="relative flex min-h-[200px] flex-col items-center justify-center gap-3 rounded-[12px] border border-white/60 bg-white/80 p-4 text-center backdrop-blur">
+
+        <div className="relative flex min-h-[220px] items-center justify-center overflow-hidden border-t border-slate-200 min-[520px]:min-h-[260px] min-[520px]:border-l min-[520px]:border-t-0">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={b.logoUrl} alt="" className="h-14 max-w-[200px] object-contain" />
-          <p className="text-[12px] text-[#64748b]">{b.tagline}</p>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={b.loginBackgroundSrc}
-            alt=""
-            className="pointer-events-none absolute inset-x-4 bottom-3 h-[84px] rounded-lg object-cover opacity-60"
-          />
+          <img src={panelSrc} alt="" className="absolute inset-0 h-full w-full object-cover grayscale" />
+          <div className="absolute inset-0 bg-white/75" />
+
+          <div className="relative z-10 flex w-full max-w-[200px] flex-col items-center gap-3 px-4 text-center sm:gap-4">
+            <div className="flex h-[40px] w-[120px] items-center justify-center sm:h-[48px] sm:w-[140px]">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={logoSrc} alt="" className="max-h-[40px] max-w-[120px] object-contain sm:max-h-[48px] sm:max-w-[140px]" />
+            </div>
+
+            <div className="flex w-full max-w-[180px] items-center justify-center gap-3">
+              <div className="h-px flex-1 bg-slate-400/40" />
+              <BrandedSvgIcon
+                src="/icons/circle-star-icon.svg"
+                className="h-4 w-4 flex-none sm:h-5 sm:w-5"
+                color={b.primaryHex}
+              />
+              <div className="h-px flex-1 bg-slate-400/40" />
+            </div>
+
+            <p className="max-w-[180px] text-center text-[12px] leading-5 text-black sm:text-[13px] sm:leading-6">
+              {b.tagline}
+            </p>
+          </div>
         </div>
       </div>
     </div>

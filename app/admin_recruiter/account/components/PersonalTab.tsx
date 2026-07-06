@@ -1,13 +1,12 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
-import { ImageIcon } from "lucide-react";
 import { useAccountData } from "@/app/admin_recruiter/hooks/useAccountData";
 import { getAccountDisplayName, formatRoleLabel } from "@/lib/account/display-name";
 import { syncAccountChecklist } from "@/lib/account/fetch-account-data";
-import { resolveImageSrc } from "@/lib/images/resolve-image-src";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import { FIELD, FieldLabel, SelectField, US_STATES } from "./account-form-fields";
+import { StaffProfilePhotoUpload } from "./StaffProfilePhotoUpload";
 import {
   AccountErrorBanner,
   AccountLoadingSkeleton,
@@ -24,7 +23,7 @@ export default function PersonalTab() {
   const [workEmail, setWorkEmail] = useState("");
   const [jobTitle, setJobTitle] = useState("");
   const [phone, setPhone] = useState("");
-  const [avatarUrl, setAvatarUrl] = useState("");
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const [city, setCity] = useState("");
   const [state, setState] = useState("");
   const [zipCode, setZipCode] = useState("");
@@ -42,7 +41,7 @@ export default function PersonalTab() {
     setWorkEmail(user?.email ?? profile?.email ?? "");
     setJobTitle(profile?.job_title ?? "");
     setPhone(profile?.phone ?? user?.phone ?? "");
-    setAvatarUrl(profile?.avatar_url ?? "");
+    setPhotoUrl(profile?.avatar_url ?? null);
     setCity(profile?.city ?? "");
     setState(profile?.state ?? "");
     setZipCode(profile?.zip_code ?? "");
@@ -51,7 +50,6 @@ export default function PersonalTab() {
 
   const displayName = getAccountDisplayName(profile, user);
   const roleLabel = formatRoleLabel(profile?.role);
-  const avatarPreviewSrc = resolveImageSrc(avatarUrl);
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -72,7 +70,6 @@ export default function PersonalTab() {
           first_name: firstName.trim() || null,
           last_name: lastName.trim() || null,
           phone: phone.trim() || null,
-          profile_photo: avatarUrl.trim() || null,
           job_title: jobTitle.trim() || null,
           address_line1: address.trim() || null,
           city: city.trim() || null,
@@ -104,7 +101,7 @@ export default function PersonalTab() {
           full_name: [firstName, lastName].filter(Boolean).join(" ").trim() || null,
           email: trimmedEmail,
           phone: phone.trim() || null,
-          avatar_url: avatarUrl.trim() || null,
+          avatar_url: photoUrl,
           role: profile?.role ?? null,
           job_title: jobTitle.trim() || null,
           organization_id: profile?.organization_id ?? null,
@@ -147,19 +144,12 @@ export default function PersonalTab() {
 
       <div className="mb-6 flex items-center justify-between gap-4 rounded-lg border border-[#E5E7EB] bg-white px-4 py-4 sm:px-5 sm:py-5">
         <div className="flex min-w-0 items-center gap-4">
-          <div className="flex h-[72px] w-[72px] shrink-0 items-center justify-center overflow-hidden rounded-lg border border-[#E2E8F0] bg-[#F8FAFC]">
-            {avatarPreviewSrc ? (
-              <img
-                src={avatarPreviewSrc}
-                alt=""
-                width={72}
-                height={72}
-                className="h-full w-full object-cover"
-              />
-            ) : (
-              <ImageIcon className="h-8 w-8 text-[#CBD5E1]" strokeWidth={1.25} aria-hidden />
-            )}
-          </div>
+          <StaffProfilePhotoUpload
+            displayName={displayName}
+            photoUrl={photoUrl}
+            onPhotoUpdated={setPhotoUrl}
+            variant="card"
+          />
           <div className="min-w-0">
             <p className="truncate text-xl font-semibold text-[#012352]">{displayName}</p>
             <p className="mt-0.5 text-sm text-[#64748B]">{roleLabel}</p>
@@ -226,16 +216,11 @@ export default function PersonalTab() {
             />
           </label>
 
-          <label className="block">
-            <FieldLabel>Avatar URL</FieldLabel>
-            <input
-              type="text"
-              value={avatarUrl}
-              onChange={(e) => setAvatarUrl(e.target.value)}
-              placeholder="https://"
-              className={FIELD}
-            />
-          </label>
+          <StaffProfilePhotoUpload
+            displayName={displayName}
+            photoUrl={photoUrl}
+            onPhotoUpdated={setPhotoUrl}
+          />
 
           <div className="grid grid-cols-1 gap-x-6 gap-y-5 md:grid-cols-[1.15fr_1.15fr_0.85fr]">
             <label className="block">

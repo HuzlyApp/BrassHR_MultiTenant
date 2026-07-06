@@ -12,3 +12,6 @@ export const APPLICANT_CHAT_BUCKET = "applicant-chat"
 
 /** Private support ticket thread attachments. */
 export const SUPPORT_TICKET_FILES_BUCKET = "support-ticket-files"
+
+/** Private staff / admin recruiter profile photos. */
+export const STAFF_PROFILE_PHOTOS_BUCKET = "staff-profile-photos"

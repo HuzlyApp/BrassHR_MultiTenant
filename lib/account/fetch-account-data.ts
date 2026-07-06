@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { User } from "@supabase/supabase-js";
 import { computeChecklistState } from "./completion";
 import { buildFullName } from "./display-name";
+import { resolveStaffProfilePhotoUrl } from "./staff-profile-photo";
 import type {
   AccountChecklist,
   AccountData,
@@ -30,7 +31,11 @@ type RawUserRow = {
   updated_at: string | null;
 };
 
-function mapProfileRow(row: RawUserRow | null, authUser: User | null): AccountProfile | null {
+function mapProfileRow(
+  row: RawUserRow | null,
+  authUser: User | null,
+  avatarUrl: string | null
+): AccountProfile | null {
   if (!row && !authUser) return null;
 
   const first_name = row?.first_name ?? null;
@@ -43,10 +48,7 @@ function mapProfileRow(row: RawUserRow | null, authUser: User | null): AccountPr
     full_name: buildFullName(first_name, last_name),
     email: authUser?.email ?? row?.email ?? null,
     phone: row?.phone ?? authUser?.phone ?? null,
-    avatar_url:
-      row?.profile_photo ??
-      (authUser?.user_metadata as { avatar_url?: string } | undefined)?.avatar_url ??
-      null,
+    avatar_url: avatarUrl,
     role: row?.role ?? null,
     job_title: row?.job_title ?? null,
     organization_id: row?.tenant_id ?? null,
@@ -139,7 +141,13 @@ export async function fetchAccountData(supabase: SupabaseClient): Promise<Accoun
 
   if (profileError) throw profileError;
 
-  const profile = mapProfileRow(userRow, user);
+  const storedPhoto =
+    userRow?.profile_photo ??
+    (user.user_metadata as { avatar_url?: string } | undefined)?.avatar_url ??
+    null;
+  const resolvedAvatarUrl = await resolveStaffProfilePhotoUrl(supabase, storedPhoto);
+
+  const profile = mapProfileRow(userRow, user, resolvedAvatarUrl);
 
   let organization: AccountOrganization | null = null;
   if (profile?.organization_id) {
