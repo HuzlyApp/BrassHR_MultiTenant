@@ -1,4 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import {
+  normalizeApplicantEmail,
+  pickDeliverableEmailFromRecord,
+  pickDeliverableEmailFromSources,
+  resolveEmailFromResumeRow,
+} from "@/lib/onboarding/resolve-applicant-signing-email";
 import { isDeliverableApplicantEmail } from "@/lib/onboardingStep1Validation";
 
 export type ApplicantSigningProfile = {
@@ -7,9 +13,27 @@ export type ApplicantSigningProfile = {
   email: string;
 };
 
+async function loadResumeEmail(
+  supabase: SupabaseClient,
+  workerId: string
+): Promise<string | null> {
+  const { data, error } = await supabase
+    .from("worker_resumes")
+    .select("parsed_data, extracted_text")
+    .eq("worker_id", workerId)
+    .order("uploaded_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) throw error;
+  return resolveEmailFromResumeRow(
+    data as { parsed_data?: Record<string, unknown> | null; extracted_text?: string | null } | null
+  );
+}
+
 /**
  * Resolves a deliverable email for Firma signing from the tenant worker row,
- * falling back to Supabase Auth when the worker profile has not been synced yet.
+ * resume parse data, and Supabase Auth when the worker profile has not been synced yet.
  */
 export async function resolveApplicantSigningProfile(
   supabase: SupabaseClient,
@@ -30,18 +54,26 @@ export async function resolveApplicantSigningProfile(
     email?: string | null;
   } | null;
 
-  let email = row?.email?.trim() || "";
+  let email =
+    pickDeliverableEmailFromRecord(row as Record<string, unknown> | null) ??
+    pickDeliverableEmailFromSources(row?.email) ??
+    "";
+
+  if (!isDeliverableApplicantEmail(email)) {
+    const resumeEmail = await loadResumeEmail(supabase, workerId);
+    if (resumeEmail) email = resumeEmail;
+  }
 
   if (!isDeliverableApplicantEmail(email)) {
     const { data: authData, error: authErr } = await supabase.auth.admin.getUserById(applicantUserId);
     if (!authErr) {
-      const authEmail = authData?.user?.email?.trim() || "";
+      const authEmail = normalizeApplicantEmail(authData?.user?.email);
       if (isDeliverableApplicantEmail(authEmail)) {
         email = authEmail;
-        if (row && !row.email?.trim()) {
+        if (row && !pickDeliverableEmailFromSources(row.email)) {
           await supabase
             .from("worker")
-            .update({ email: authEmail.toLowerCase(), updated_at: new Date().toISOString() })
+            .update({ email: authEmail, updated_at: new Date().toISOString() })
             .eq("id", workerId);
         }
       }
@@ -53,6 +85,6 @@ export async function resolveApplicantSigningProfile(
   return {
     firstName: row?.first_name?.trim() || "Applicant",
     lastName: row?.last_name?.trim() || null,
-    email: email.toLowerCase(),
+    email: normalizeApplicantEmail(email),
   };
 }

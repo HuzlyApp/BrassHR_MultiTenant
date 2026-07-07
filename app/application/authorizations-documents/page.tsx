@@ -25,8 +25,8 @@ import {
   stepRequiresIdentityDocuments,
 } from "@/lib/onboarding/authorizations-documents-step"
 import { skipOnboardingStep } from "@/lib/onboarding/skip-onboarding-step"
-import { getWorkerSessionContext } from "@/lib/onboarding-worker-pk"
-import { isDeliverableApplicantEmail } from "@/lib/onboardingStep1Validation"
+import { useApplicantSigningEmail } from "@/lib/onboarding/use-applicant-signing-email"
+import { getScopedApplicantId } from "@/lib/tenant/scoped-storage"
 import { isPdfFile, resolveStoragePublicUrl } from "@/lib/document-upload-helpers"
 
 type IdentityPaths = {
@@ -86,6 +86,11 @@ export default function DocumentsPage() {
   const requiresFirmaSigning = shouldShowFirmaAgreementPanel(activeStep)
   const requiresAgreement = stepRequiresApplicantAgreement(activeStep)
   const requiresIdentityDocs = stepRequiresIdentityDocuments(activeStep)
+
+  const signingEmail = useApplicantSigningEmail({
+    applicantId,
+    tenantSlug: nav.slug,
+  })
 
   useMarkStepInProgressIfPending({
     step: activeStep,
@@ -160,7 +165,7 @@ export default function DocumentsPage() {
   })
 
   useEffect(() => {
-    const id = localStorage.getItem("applicantId")
+    const id = getScopedApplicantId()
     if (id) {
       setApplicantId(id)
     } else {
@@ -169,44 +174,13 @@ export default function DocumentsPage() {
   }, [router])
 
   useEffect(() => {
-    const saved = localStorage.getItem("parsedResume")
-    if (!saved) return
-    try {
-      const p = JSON.parse(saved) as Record<string, string>
-      const em = (p.email || "").trim()
-      const fn = (p.firstName || p.first_name || "").trim()
-      const ln = (p.lastName || p.last_name || "").trim()
-      if (em) setSignerEmail(em.toLowerCase())
-      if (fn || ln) setSignerName(`${fn} ${ln}`.trim())
-    } catch {
-      /* ignore */
+    if (!signingEmail.resolved) return
+    if (signingEmail.email) {
+      setSignerEmail(signingEmail.email)
     }
-  }, [])
-
-  useEffect(() => {
-    if (!applicantId) return
-
-    void (async () => {
-      const { data: authData } = await supabase.auth.getUser()
-      const authEmail = authData?.user?.email?.trim() || ""
-      if (isDeliverableApplicantEmail(authEmail)) {
-        setSignerEmail((prev) => (prev.trim() ? prev : authEmail.toLowerCase()))
-      }
-
-      const ctx = await getWorkerSessionContext(supabase)
-      const workerQuery = ctx
-        ? supabase.from("worker").select("email, first_name, last_name").eq("id", ctx.id)
-        : supabase.from("worker").select("email, first_name, last_name").eq("user_id", applicantId)
-
-      const { data } = await workerQuery.maybeSingle()
-      if (data?.email?.trim() && isDeliverableApplicantEmail(data.email)) {
-        setSignerEmail(data.email.trim().toLowerCase())
-      }
-      const fn = (data?.first_name || "").trim()
-      const ln = (data?.last_name || "").trim()
-      if (fn || ln) setSignerName(`${fn} ${ln}`.trim())
-    })()
-  }, [applicantId])
+    const name = `${signingEmail.firstName} ${signingEmail.lastName}`.trim()
+    if (name) setSignerName(name)
+  }, [signingEmail])
 
   const refreshIdentityDocsStatus = useCallback(async () => {
     if (!applicantId) return
@@ -441,6 +415,7 @@ export default function DocumentsPage() {
             step={requiresFirmaSigning ? activeStep : null}
             tenantSlug={nav.slug}
             signerEmail={signerEmail}
+            signerEmailLoading={signingEmail.loading}
             agreed={agreed}
             configLoading={nav.configLoading && requiresFirmaSigning}
             onSignedChange={setAgreementSigned}

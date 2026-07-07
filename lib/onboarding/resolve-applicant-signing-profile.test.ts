@@ -46,6 +46,19 @@ describe("resolveApplicantSigningProfile", () => {
     const updateEq = vi.fn(async () => ({ error: null }));
     const supabase = {
       from: vi.fn((table: string) => {
+        if (table === "worker_resumes") {
+          return {
+            select: () => ({
+              eq: () => ({
+                order: () => ({
+                  limit: () => ({
+                    maybeSingle: async () => ({ data: null, error: null }),
+                  }),
+                }),
+              }),
+            }),
+          };
+        }
         if (table !== "worker") throw new Error(`unexpected table ${table}`);
         return {
           select: () => ({
@@ -82,16 +95,31 @@ describe("resolveApplicantSigningProfile", () => {
 
   it("rejects placeholder auth emails", async () => {
     const supabase = {
-      from: vi.fn(() => ({
-        select: () => ({
-          eq: () => ({
-            maybeSingle: async () => ({
-              data: { first_name: "Jane", last_name: "Doe", email: null },
-              error: null,
+      from: vi.fn((table: string) => {
+        if (table === "worker_resumes") {
+          return {
+            select: () => ({
+              eq: () => ({
+                order: () => ({
+                  limit: () => ({
+                    maybeSingle: async () => ({ data: null, error: null }),
+                  }),
+                }),
+              }),
+            }),
+          };
+        }
+        return {
+          select: () => ({
+            eq: () => ({
+              maybeSingle: async () => ({
+                data: { first_name: "Jane", last_name: "Doe", email: null },
+                error: null,
+              }),
             }),
           }),
-        }),
-      })),
+        };
+      }),
       auth: {
         admin: {
           getUserById: vi.fn(async () => ({
@@ -109,5 +137,55 @@ describe("resolveApplicantSigningProfile", () => {
     );
 
     expect(profile).toBeNull();
+  });
+
+  it("falls back to resume parsed email when worker email is missing", async () => {
+    const supabase = {
+      from: vi.fn((table: string) => {
+        if (table === "worker_resumes") {
+          return {
+            select: () => ({
+              eq: () => ({
+                order: () => ({
+                  limit: () => ({
+                    maybeSingle: async () => ({
+                      data: {
+                        parsed_data: { email: "resume@example.com" },
+                        extracted_text: null,
+                      },
+                      error: null,
+                    }),
+                  }),
+                }),
+              }),
+            }),
+          };
+        }
+        return {
+          select: () => ({
+            eq: () => ({
+              maybeSingle: async () => ({
+                data: { first_name: "Jane", last_name: "Doe", email: null },
+                error: null,
+              }),
+            }),
+          }),
+          update: vi.fn(() => ({ eq: vi.fn(async () => ({ error: null })) })),
+        };
+      }),
+      auth: {
+        admin: {
+          getUserById: vi.fn(),
+        },
+      },
+    };
+
+    const profile = await resolveApplicantSigningProfile(
+      supabase as never,
+      "worker-1",
+      "auth-user-1"
+    );
+
+    expect(profile?.email).toBe("resume@example.com");
   });
 });

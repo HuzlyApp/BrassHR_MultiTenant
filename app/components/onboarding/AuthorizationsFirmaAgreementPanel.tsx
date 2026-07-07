@@ -26,6 +26,7 @@ type Props = {
   step: TenantOnboardingStep | null;
   tenantSlug?: string | null;
   signerEmail: string;
+  signerEmailLoading?: boolean;
   agreed: boolean;
   configLoading?: boolean;
   onSignedChange?: (signed: boolean) => void;
@@ -56,6 +57,7 @@ export function AuthorizationsFirmaAgreementPanel({
   step,
   tenantSlug,
   signerEmail,
+  signerEmailLoading = false,
   agreed,
   configLoading = false,
   onSignedChange,
@@ -71,6 +73,8 @@ export function AuthorizationsFirmaAgreementPanel({
   const stepId = step?.id ?? "";
   const hasFirmaTemplate = step ? stepUsesFirmaSigning(step) : false;
   const emailValid = isDeliverableApplicantEmail(signerEmail);
+  const emailCheckReady = !signerEmailLoading;
+  const showMissingEmailMessage = emailCheckReady && !emailValid;
   const signed = isFirmaSigningComplete(firmaStatus);
 
   useEffect(() => {
@@ -161,8 +165,13 @@ export function AuthorizationsFirmaAgreementPanel({
       setError("Please agree to the authorization first.");
       return;
     }
+    if (!emailCheckReady) {
+      return;
+    }
     if (!emailValid) {
-      setError("A valid applicant email is required. Complete the first onboarding step with your email address.");
+      setError(
+        "A valid applicant email is required. Return to the first onboarding step and enter your email address."
+      );
       return;
     }
     if (!applicantId || !stepKey) {
@@ -218,6 +227,7 @@ export function AuthorizationsFirmaAgreementPanel({
   }, [
     agreed,
     applicantId,
+    emailCheckReady,
     emailValid,
     hasFirmaTemplate,
     stepId,
@@ -263,14 +273,14 @@ export function AuthorizationsFirmaAgreementPanel({
           <button
             type="button"
             onClick={() => void startFirmaSigning()}
-            disabled={loading || !agreed || !emailValid}
+            disabled={loading || !agreed || signerEmailLoading || !emailValid}
             className={`rounded-xl px-5 py-2 text-[12px] font-semibold text-white transition ${
-              loading || !agreed || !emailValid
+              loading || !agreed || signerEmailLoading || !emailValid
                 ? "bg-gray-400 cursor-not-allowed"
                 : "bg-[color:var(--brand-primary)] hover:brightness-90"
             }`}
           >
-            {loading ? "Preparing..." : "Click and Sign"}
+            {loading ? "Preparing..." : signerEmailLoading ? "Checking email…" : "Click and Sign"}
           </button>
         )}
 
@@ -289,7 +299,7 @@ export function AuthorizationsFirmaAgreementPanel({
         Status: <span className="font-semibold">{mapFirmaStatusLabel(firmaStatus)}</span>
       </p>
 
-      {!emailValid ? (
+      {showMissingEmailMessage ? (
         <p className="mt-2 text-sm text-rose-600">
           Enter a valid email on the first onboarding step before signing the agreement.
         </p>
