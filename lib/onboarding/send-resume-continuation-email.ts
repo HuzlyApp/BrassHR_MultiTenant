@@ -7,13 +7,14 @@ import {
 import { SendEmailError } from "@/lib/email/errors";
 import { sendTemplatedEmail } from "@/lib/email/send-templated-email";
 import { EMAIL_TEMPLATE_TYPE } from "@/lib/email-templates/template-keys";
+import { extractEmailFromResumeText } from "@/lib/onboarding/extract-email-from-resume-text";
 import {
   isDeliverableApplicantEmail,
   isValidStep1Email,
 } from "@/lib/onboardingStep1Validation";
 import { normalizeParsedResume } from "@/lib/resumeParseQuality";
 
-const EMAIL_FROM_TEXT_RE = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/;
+export { extractEmailFromResumeText } from "@/lib/onboarding/extract-email-from-resume-text";
 
 export type ResumeContinuationEmailTrigger =
   | "resume_upload"
@@ -38,15 +39,6 @@ export type SendResumeContinuationEmailParams = {
   recipientEmailOverride?: string | null;
   request?: Request;
 };
-
-export function extractEmailFromResumeText(text: string | null | undefined): string | null {
-  const raw = text?.trim();
-  if (!raw) return null;
-  const match = raw.match(EMAIL_FROM_TEXT_RE);
-  if (!match?.[0]) return null;
-  const candidate = match[0].trim().toLowerCase();
-  return isValidStep1Email(candidate) ? candidate : null;
-}
 
 export function resolveResumeContinuationRecipientEmail(params: {
   workerEmail?: string | null;

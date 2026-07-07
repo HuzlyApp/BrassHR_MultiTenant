@@ -1,4 +1,4 @@
-import { extractEmailFromResumeText } from "@/lib/onboarding/send-resume-continuation-email";
+import { extractEmailFromResumeText } from "@/lib/onboarding/extract-email-from-resume-text";
 import { isDeliverableApplicantEmail } from "@/lib/onboardingStep1Validation";
 import { normalizeParsedResume } from "@/lib/resumeParseQuality";
 
