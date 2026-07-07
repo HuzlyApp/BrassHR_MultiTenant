@@ -10,6 +10,7 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEven
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import type { SignupStateOption } from "@/lib/signup/owner-signup";
 import { zipCodeValidationMessage } from "@/lib/tenant/business-info-validation";
+import { getStateCodeFromName } from "@/lib/us-state-names";
 import {
   brandingAuthButtonStyle,
   brandingToCssVars,
@@ -390,10 +391,10 @@ export default function SignupPage() {
     };
   }, []);
 
-  const selectedStateCode = useMemo(
-    () => stateRows.find((row) => row.name === form.state)?.code ?? "",
-    [form.state, stateRows]
-  );
+  const selectedStateCode = useMemo(() => {
+    const fromRows = stateRows.find((row) => row.name === form.state)?.code;
+    return fromRows ?? getStateCodeFromName(form.state) ?? "";
+  }, [form.state, stateRows]);
 
   useEffect(() => {
     if (!selectedStateCode || selectedStateCode.length !== 2) {

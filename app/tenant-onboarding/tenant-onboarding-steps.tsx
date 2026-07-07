@@ -6,6 +6,7 @@ import { Check, ChevronDown, ChevronRight, Link2, Plus, Trash2 } from "lucide-re
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ComponentProps, type CSSProperties, type DragEvent } from "react";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import type { SignupStateOption } from "@/lib/signup/owner-signup";
+import { getStateCodeFromName } from "@/lib/us-state-names";
 import OnboardingStepsBuilder from "@/app/components/onboarding/OnboardingStepsBuilder";
 import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
 import { PasswordVisibilityToggle } from "@/app/components/PasswordVisibilityToggle";
@@ -507,10 +508,10 @@ export function BusinessStep({
     };
   }, []);
 
-  const selectedStateCode = useMemo(
-    () => stateRows.find((row) => row.name === businessInfo.state)?.code ?? "",
-    [businessInfo.state, stateRows]
-  );
+  const selectedStateCode = useMemo(() => {
+    const fromRows = stateRows.find((row) => row.name === businessInfo.state)?.code;
+    return fromRows ?? getStateCodeFromName(businessInfo.state) ?? "";
+  }, [businessInfo.state, stateRows]);
 
   useEffect(() => {
     if (!selectedStateCode || selectedStateCode.length !== 2) {

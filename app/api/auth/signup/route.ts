@@ -12,6 +12,7 @@ import {
   findPlatformOwnerEmailConflict,
   normalizeTenantEmail,
 } from "@/lib/tenant/tenant-email-uniqueness";
+import { getStateCodeFromName } from "@/lib/us-state-names";
 
 /**
  * Creates the Braas HR owner account (auth + public.users) after the signup UI.
@@ -53,13 +54,16 @@ export async function POST(req: Request) {
   if (stateErr) {
     return NextResponse.json({ error: stateErr.message }, { status: 500 });
   }
-  if (!stateRow?.code) {
+  const stateCode = stateRow?.code
+    ? String(stateRow.code)
+    : getStateCodeFromName(payload.state);
+  if (!stateCode) {
     return NextResponse.json({ error: "Please select a valid state." }, { status: 400 });
   }
 
   const zipError = validateOwnerSignupZipForState(
     payload.zipCode,
-    String(stateRow.code),
+    stateCode,
     payload.state
   );
   if (zipError) {
