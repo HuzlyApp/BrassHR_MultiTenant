@@ -7,9 +7,10 @@ import { PasswordVisibilityToggle } from "@/app/components/PasswordVisibilityTog
 import SignupStepper from "@/app/components/SignupStepper";
 import { Check, ChevronDown, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent } from "react";
-import { supabaseBrowser } from "@/lib/supabase-browser";
+import { getSupabaseBrowserRuntime, supabaseBrowser } from "@/lib/supabase-browser";
 import type { SignupStateOption } from "@/lib/signup/owner-signup";
 import { zipCodeValidationMessage } from "@/lib/tenant/business-info-validation";
+import { getStateCodeFromName } from "@/lib/us-state-names";
 import {
   brandingAuthButtonStyle,
   brandingToCssVars,
@@ -390,10 +391,11 @@ export default function SignupPage() {
     };
   }, []);
 
-  const selectedStateCode = useMemo(
-    () => stateRows.find((row) => row.name === form.state)?.code ?? "",
-    [form.state, stateRows]
-  );
+  const selectedStateCode = useMemo(() => {
+    const fromDb = stateRows.find((row) => row.name === form.state)?.code;
+    if (fromDb) return fromDb;
+    return getStateCodeFromName(form.state) ?? "";
+  }, [form.state, stateRows]);
 
   useEffect(() => {
     if (!selectedStateCode || selectedStateCode.length !== 2) {
@@ -565,7 +567,8 @@ export default function SignupPage() {
         }
 
         const email = form.workEmail.trim().toLowerCase();
-        const { error: signInError } = await supabaseBrowser.auth.signInWithPassword({
+        const supabase = await getSupabaseBrowserRuntime();
+        const { error: signInError } = await supabase.auth.signInWithPassword({
           email,
           password,
         });
@@ -580,7 +583,7 @@ export default function SignupPage() {
 
         const {
           data: { session },
-        } = await supabaseBrowser.auth.getSession();
+        } = await supabase.auth.getSession();
         if (!session) {
           setSubmitError("Account created, but your session could not be started. Try Sign In.");
           setSubmitting(false);

@@ -47,7 +47,7 @@ import {
   usesBraasFigmaLoginUi,
   type TenantBranding,
 } from "@/lib/tenant/tenant-branding";
-import { supabaseBrowser } from "@/lib/supabase-browser";
+import { getSupabaseBrowserRuntime, supabaseBrowser } from "@/lib/supabase-browser";
 
 const checkboxActiveClass = "border-[#012352] bg-[#012352]";
 
@@ -424,7 +424,8 @@ function LoginPageContent() {
       setPendingLogin(login);
 
       if (gate.godAdmin) {
-        const { error: signInError } = await supabaseBrowser.auth.signInWithPassword({
+        const supabase = await getSupabaseBrowserRuntime();
+        const { error: signInError } = await supabase.auth.signInWithPassword({
           email: login.email,
           password: login.password,
         });
@@ -509,7 +510,8 @@ function LoginPageContent() {
       if (sessionUser && (sessionIsAnonymous || sessionEmail !== login.email)) {
         await supabaseBrowser.auth.signOut();
       }
-      const { error: signInError } = await supabaseBrowser.auth.signInWithPassword({
+      const supabase = await getSupabaseBrowserRuntime();
+      const { error: signInError } = await supabase.auth.signInWithPassword({
         email: login.email,
         password: login.password,
       });

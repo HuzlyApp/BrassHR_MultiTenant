@@ -1,4 +1,5 @@
 import { zipCodeValidationMessage } from "@/lib/tenant/business-info-validation";
+import { getStateCodeFromName } from "@/lib/us-state-names";
 
 export type OwnerSignupPayload = {
   firstName: string;
@@ -54,6 +55,17 @@ export function validateOwnerSignupDetails(
   if (!payload.state) return "State is required.";
   if (!payload.zipCode || payload.zipCode.length < 5) return "Enter a valid 5-digit ZIP code.";
   return null;
+}
+
+/** Resolves a two-letter state code from DB row or canonical US state name map. */
+export function resolveOwnerSignupStateCode(
+  stateName: string,
+  dbStateCode?: string | null
+): string | null {
+  const fromDb = dbStateCode?.trim();
+  if (fromDb) return fromDb.toUpperCase();
+  const fromName = getStateCodeFromName(stateName);
+  return fromName ?? null;
 }
 
 /** Validates ZIP format and that the prefix matches the selected US state. */

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { createServiceRoleClient } from "@/lib/supabase/service-role";
+import { createServiceRoleClientResolved } from "@/lib/supabase/service-role";
 import { sendOwnerOnboardingContinuationEmail } from "@/lib/onboarding/send-owner-onboarding-continuation-email";
 import { resolvePlatformAppOrigin } from "@/lib/resolve-app-origin";
 import { fetchOwnerOnboardingStatus } from "@/lib/auth/owner-onboarding-status";
@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const svc = createServiceRoleClient();
+  const svc = await createServiceRoleClientResolved();
   if (!svc) {
     return NextResponse.json({ error: "Server not configured" }, { status: 503 });
   }

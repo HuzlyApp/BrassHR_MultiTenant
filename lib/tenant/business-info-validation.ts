@@ -2,6 +2,7 @@ import {
   COMPANY_SIZE_OPTIONS,
   INDUSTRY_OPTIONS,
 } from "@/app/tenant-onboarding/constants";
+import { getStateCodeFromName } from "@/lib/us-state-names";
 import { zipPrefixBelongsToState } from "@/lib/us-zip-by-state";
 
 export type BusinessInfoInput = {
@@ -254,14 +255,18 @@ export function zipCodeValidationMessage(
   const required = context?.requireAllFields !== false;
   if (!digits) return required ? "ZIP code is required." : null;
   if (digits.length < 5) return "Enter a valid 5-digit ZIP code.";
-  if (!context?.stateCode) {
-    if (fieldProvided(inputState ?? "") || required) {
+  const stateCode =
+    context?.stateCode?.trim() ||
+    getStateCodeFromName(context?.stateName ?? "") ||
+    getStateCodeFromName(inputState ?? "");
+  if (!stateCode) {
+    if (fieldProvided(inputState ?? context?.stateName ?? "") || required) {
       return "Select a state before entering a ZIP code.";
     }
     return null;
   }
-  if (!zipPrefixBelongsToState(digits, context.stateCode)) {
-    const stateLabel = context.stateName?.trim() || "the selected state";
+  if (!zipPrefixBelongsToState(digits, stateCode)) {
+    const stateLabel = context?.stateName?.trim() || inputState?.trim() || "the selected state";
     return `This ZIP code does not match ${stateLabel}.`;
   }
   return null;

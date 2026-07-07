@@ -32,6 +32,7 @@ CREATE TABLE IF NOT EXISTS public.onboarding_flows (
   builder_draft jsonb NOT NULL DEFAULT '{"nodes":[],"edges":[]}'::jsonb,
   created_by uuid REFERENCES auth.users (id) ON DELETE SET NULL,
   updated_by uuid REFERENCES auth.users (id) ON DELETE SET NULL,
+  sort_order integer NOT NULL DEFAULT 0,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT onboarding_flows_name_not_empty CHECK (char_length(trim(name)) > 0),
@@ -103,6 +104,9 @@ CREATE POLICY onboarding_flows_staff
   WITH CHECK (public.user_is_tenant_staff(tenant_id));
 
 -- Seed default libraries and sample flows for each tenant (idempotent)
+ALTER TABLE public.onboarding_flows
+  ADD COLUMN IF NOT EXISTS sort_order integer NOT NULL DEFAULT 0;
+
 CREATE OR REPLACE FUNCTION public.seed_tenant_onboarding_libraries(p_tenant_id uuid)
 RETURNS void
 LANGUAGE plpgsql

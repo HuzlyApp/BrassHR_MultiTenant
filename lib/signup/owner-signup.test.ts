@@ -1,9 +1,25 @@
 import { describe, expect, it } from "vitest";
 import {
   normalizeOwnerSignupBody,
+  resolveOwnerSignupStateCode,
   validateOwnerSignupDetails,
   validateOwnerSignupZipForState,
 } from "@/lib/signup/owner-signup";
+
+describe("resolveOwnerSignupStateCode", () => {
+  it("prefers the database state code when present", () => {
+    expect(resolveOwnerSignupStateCode("California", "CA")).toBe("CA");
+  });
+
+  it("falls back to the canonical state name map when DB lookup is empty", () => {
+    expect(resolveOwnerSignupStateCode("Texas", null)).toBe("TX");
+    expect(resolveOwnerSignupStateCode("Texas", undefined)).toBe("TX");
+  });
+
+  it("returns null for unknown state names", () => {
+    expect(resolveOwnerSignupStateCode("Not A State", null)).toBeNull();
+  });
+});
 
 describe("validateOwnerSignupZipForState", () => {
   it("accepts a California ZIP when state is CA", () => {
@@ -16,7 +32,11 @@ describe("validateOwnerSignupZipForState", () => {
   });
 
   it("requires a state before validating ZIP", () => {
-    expect(validateOwnerSignupZipForState("90012", "", "California")).toMatch(/state/i);
+    expect(validateOwnerSignupZipForState("90012", "", "")).toMatch(/state/i);
+  });
+
+  it("resolves state code from state name when code is missing", () => {
+    expect(validateOwnerSignupZipForState("90012", "", "California")).toBeNull();
   });
 });
 

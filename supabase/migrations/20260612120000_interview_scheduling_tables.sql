@@ -2,8 +2,19 @@
 -- Extends existing public.applicants (multi-tenant) and adds interview_schedules + interview_slots.
 
 -- ---------------------------------------------------------------------------
--- applicants (extend existing table)
+-- applicants (create if missing, then extend)
 -- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.applicants (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id uuid NOT NULL REFERENCES public.tenants (id) ON DELETE CASCADE,
+  worker_id uuid REFERENCES public.worker (id) ON DELETE SET NULL,
+  full_name text,
+  email text,
+  status text NOT NULL DEFAULT 'pending',
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
 ALTER TABLE public.applicants
   ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'pending',
   ADD COLUMN IF NOT EXISTS worker_id uuid REFERENCES public.worker (id) ON DELETE SET NULL;

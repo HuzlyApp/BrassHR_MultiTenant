@@ -50,6 +50,14 @@ describe("validateBusinessInfoForm", () => {
     expect(errors.zipCode).toMatch(/California/i);
   });
 
+  it("validates ZIP from state name when state code is not loaded yet", () => {
+    const errors = validateBusinessInfoForm(
+      { ...validInput, state: "Texas", city: "Rusk", zipCode: "75785" },
+      { stateName: "Texas", allowedCityNames: ["Rusk"] }
+    );
+    expect(errors.zipCode).toBeUndefined();
+  });
+
   it("rejects cities outside the allowed list", () => {
     const errors = validateBusinessInfoForm(validInput, {
       stateCode: "CA",

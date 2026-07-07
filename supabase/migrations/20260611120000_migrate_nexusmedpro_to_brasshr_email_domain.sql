@@ -82,15 +82,27 @@ UPDATE auth.users
 SET email_change = public._migrate_email_domain_nexus_to_brass(email_change)
 WHERE lower(coalesce(email_change, '')) LIKE '%@nexusmedpro.com';
 
--- auth.identities
+-- auth.identities (email may be GENERATED on newer Supabase — only update when writable)
 INSERT INTO public.email_domain_migration_backup (table_schema, table_name, column_name, row_id, old_value, new_value)
 SELECT 'auth', 'identities', 'email', id::text, email, public._migrate_email_domain_nexus_to_brass(email)
 FROM auth.identities
 WHERE lower(coalesce(email, '')) LIKE '%@nexusmedpro.com';
 
-UPDATE auth.identities
-SET email = public._migrate_email_domain_nexus_to_brass(email)
-WHERE lower(coalesce(email, '')) LIKE '%@nexusmedpro.com';
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'auth'
+      AND table_name = 'identities'
+      AND column_name = 'email'
+      AND is_generated = 'NEVER'
+  ) THEN
+    UPDATE auth.identities
+    SET email = public._migrate_email_domain_nexus_to_brass(email)
+    WHERE lower(coalesce(email, '')) LIKE '%@nexusmedpro.com';
+  END IF;
+END $$;
 
 INSERT INTO public.email_domain_migration_backup (table_schema, table_name, column_name, row_id, old_value, new_value)
 SELECT 'auth', 'identities', 'identity_data.email', id::text,
@@ -127,15 +139,20 @@ UPDATE public.worker
 SET email = public._migrate_email_domain_nexus_to_brass(email)
 WHERE lower(coalesce(email, '')) LIKE '%@nexusmedpro.com';
 
--- public.applicants
-INSERT INTO public.email_domain_migration_backup (table_schema, table_name, column_name, row_id, old_value, new_value)
-SELECT 'public', 'applicants', 'email', id::text, email, public._migrate_email_domain_nexus_to_brass(email)
-FROM public.applicants
-WHERE lower(coalesce(email, '')) LIKE '%@nexusmedpro.com';
+-- public.applicants (legacy table — skip when not deployed)
+DO $$
+BEGIN
+  IF to_regclass('public.applicants') IS NOT NULL THEN
+    INSERT INTO public.email_domain_migration_backup (table_schema, table_name, column_name, row_id, old_value, new_value)
+    SELECT 'public', 'applicants', 'email', id::text, email, public._migrate_email_domain_nexus_to_brass(email)
+    FROM public.applicants
+    WHERE lower(coalesce(email, '')) LIKE '%@nexusmedpro.com';
 
-UPDATE public.applicants
-SET email = public._migrate_email_domain_nexus_to_brass(email)
-WHERE lower(coalesce(email, '')) LIKE '%@nexusmedpro.com';
+    UPDATE public.applicants
+    SET email = public._migrate_email_domain_nexus_to_brass(email)
+    WHERE lower(coalesce(email, '')) LIKE '%@nexusmedpro.com';
+  END IF;
+END $$;
 
 -- public.tenants (contact email + vanity hostname)
 INSERT INTO public.email_domain_migration_backup (table_schema, table_name, column_name, row_id, old_value, new_value)
@@ -177,16 +194,21 @@ UPDATE public.zoho_sign_requests
 SET email = public._migrate_email_domain_nexus_to_brass(email)
 WHERE lower(email) LIKE '%@nexusmedpro.com';
 
--- public.documents
-INSERT INTO public.email_domain_migration_backup (table_schema, table_name, column_name, row_id, old_value, new_value)
-SELECT 'public', 'documents', 'signer_email', id::text, signer_email,
-  public._migrate_email_domain_nexus_to_brass(signer_email)
-FROM public.documents
-WHERE lower(coalesce(signer_email, '')) LIKE '%@nexusmedpro.com';
+-- public.documents (legacy table — skip when not deployed)
+DO $$
+BEGIN
+  IF to_regclass('public.documents') IS NOT NULL THEN
+    INSERT INTO public.email_domain_migration_backup (table_schema, table_name, column_name, row_id, old_value, new_value)
+    SELECT 'public', 'documents', 'signer_email', id::text, signer_email,
+      public._migrate_email_domain_nexus_to_brass(signer_email)
+    FROM public.documents
+    WHERE lower(coalesce(signer_email, '')) LIKE '%@nexusmedpro.com';
 
-UPDATE public.documents
-SET signer_email = public._migrate_email_domain_nexus_to_brass(signer_email)
-WHERE lower(coalesce(signer_email, '')) LIKE '%@nexusmedpro.com';
+    UPDATE public.documents
+    SET signer_email = public._migrate_email_domain_nexus_to_brass(signer_email)
+    WHERE lower(coalesce(signer_email, '')) LIKE '%@nexusmedpro.com';
+  END IF;
+END $$;
 
 -- public.candidate_communications (email channel only; SMS recipients unchanged)
 INSERT INTO public.email_domain_migration_backup (table_schema, table_name, column_name, row_id, old_value, new_value)

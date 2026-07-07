@@ -16,6 +16,16 @@ ON CONFLICT (id) DO UPDATE SET
   slug = EXCLUDED.slug,
   created_at = EXCLUDED.created_at;
 
+-- Replace placeholder rows from early dedupe migration before canonical seed IDs land.
+DELETE FROM public.skill_questions sq
+WHERE sq.category_id = '089c06cc-7ce2-446b-9f56-1c7a9cb068fd'::uuid
+  AND sq.quiz_number IN (8, 9, 10)
+  AND sq.id NOT IN (
+    'f7cba8ea-50b1-4be5-acb5-0f1d6284a055'::uuid,
+    '3cdf13ab-94a0-4db9-8120-3418d680f689'::uuid,
+    '9f553cd0-00be-497f-bfe0-21317db11039'::uuid
+  );
+
 INSERT INTO public.skill_questions (id, category_id, question, quiz_number, created_at)
 VALUES
   ('016647a9-6519-4b38-9458-33d2c86eb934', 'a86761a6-2751-42ab-9f75-6fc80117977e', 'Observe safety procedures and precautions', 5, '2026-03-14 16:03:26.540251'),

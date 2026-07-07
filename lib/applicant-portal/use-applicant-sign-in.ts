@@ -2,7 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
-import { supabaseBrowser } from "@/lib/supabase-browser";
+import { getSupabaseBrowserRuntime } from "@/lib/supabase-browser";
 import { applicationPath } from "@/lib/tenant/with-tenant";
 
 type LookupResponse = {
@@ -92,7 +92,8 @@ export function useApplicantSignIn(tenantSlug: string | null) {
       return;
     }
 
-    const { error: signInError } = await supabaseBrowser.auth.signInWithPassword({
+    const supabase = await getSupabaseBrowserRuntime();
+    const { error: signInError } = await supabase.auth.signInWithPassword({
       email: email.trim().toLowerCase(),
       password,
     });
@@ -117,7 +118,8 @@ export function useApplicantSignIn(tenantSlug: string | null) {
     setError(null);
     setLoading(true);
 
-    const { error: signInError } = await supabaseBrowser.auth.signInWithPassword({
+    const supabase = await getSupabaseBrowserRuntime();
+    const { error: signInError } = await supabase.auth.signInWithPassword({
       email: email.trim().toLowerCase(),
       password,
     });
@@ -128,7 +130,7 @@ export function useApplicantSignIn(tenantSlug: string | null) {
       return;
     }
 
-    const { data } = await supabaseBrowser.auth.getSession();
+    const { data } = await supabase.auth.getSession();
     const token = data.session?.access_token;
     const res = await fetch("/api/applicant-portal/session", {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -138,7 +140,7 @@ export function useApplicantSignIn(tenantSlug: string | null) {
     setLoading(false);
 
     if (!res.ok) {
-      await supabaseBrowser.auth.signOut();
+      await supabase.auth.signOut();
       setError(payload.error || unapprovedMessage);
       return;
     }

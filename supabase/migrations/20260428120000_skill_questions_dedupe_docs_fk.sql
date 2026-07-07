@@ -1,3 +1,10 @@
+-- Fresh databases may not have seeded categories yet (full seed runs in 20260507200000).
+INSERT INTO public.skill_categories (id, title, description, order_number, slug, created_at)
+VALUES
+  ('880c1f95-f033-4ab7-9b5f-1721564901b0', 'Basic Patient Care & Hygiene', null, 1, 'basic-care', now()),
+  ('089c06cc-7ce2-446b-9f56-1c7a9cb068fd', 'Professional Practices & Documentation', null, 5, 'documentation', now())
+ON CONFLICT (id) DO NOTHING;
+
 -- 1) Point any normalized answer rows at the canonical (min id) question per (category_id, quiz_number)
 update public.applicant_skill_assessment_answers a
 set skill_id = k.keeper
@@ -28,21 +35,7 @@ where sq.category_id = '880c1f95-f033-4ab7-9b5f-1721564901b0'::uuid
       and sq2.id < sq.id
   );
 
--- 3) Documentation: ensure quiz_number 8–10 exist (matches app catalog)
-insert into public.skill_questions (id, category_id, question, quiz_number)
-select gen_random_uuid(), '089c06cc-7ce2-446b-9f56-1c7a9cb068fd'::uuid, v.question, v.quiz_number
-from (
-  values
-    (8, 'Urine test for glucose/ acetone'),
-    (9, 'Transfer/ transport patients: gurney'),
-    (10, 'Traction')
-) as v(quiz_number, question)
-where not exists (
-  select 1
-  from public.skill_questions sq
-  where sq.category_id = '089c06cc-7ce2-446b-9f56-1c7a9cb068fd'::uuid
-    and sq.quiz_number = v.quiz_number
-);
+-- 3) Documentation quiz 8–10 are seeded in 20260507200000 (avoid duplicate category+quiz_number on fresh DBs).
 
 -- 4) Prevent future duplicate rows per category + quiz_number
 create unique index if not exists skill_questions_category_id_quiz_number_uidx

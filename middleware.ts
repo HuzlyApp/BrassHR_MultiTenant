@@ -1,7 +1,9 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import type { User } from "@supabase/supabase-js";
-import { getSupabaseAnonKey, getSupabaseUrl } from "@/lib/supabase-env";
+import { ensureSupabaseBackendResolved, getSupabaseAnonKey, getSupabaseUrl } from "@/lib/supabase-env";
+import { pinSupabaseBackendForRequest } from "@/lib/supabase/backend-selection";
+import { SUPABASE_BACKEND_COOKIE } from "@/lib/supabase/request-backend";
 import { isGodAdminUser } from "@/lib/auth/god-admin";
 import { resolveAuthenticatedRecruiterRedirectUrl } from "@/lib/auth/recruiter-dashboard-redirect";
 import {
@@ -93,9 +95,21 @@ function isPublicApiPath(pathname: string): boolean {
  * Refreshes Supabase Auth cookies; enforces login + `app_metadata.platform === nexus` for protected UI/APIs.
  */
 export async function middleware(request: NextRequest) {
+  const activeBackend = await ensureSupabaseBackendResolved();
+  if (activeBackend) {
+    pinSupabaseBackendForRequest(activeBackend);
+  }
+
   const url = getSupabaseUrl();
   const anon = getSupabaseAnonKey();
   const response = NextResponse.next({ request });
+  if (activeBackend) {
+    response.cookies.set(SUPABASE_BACKEND_COOKIE, activeBackend, {
+      path: "/",
+      sameSite: "lax",
+      maxAge: 60 * 60,
+    });
+  }
   const pathname = request.nextUrl.pathname;
 
   if (!url || !anon) {

@@ -1,5 +1,7 @@
 -- Email/SMS conversation threading for Communication History.
 
+CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA extensions;
+
 ALTER TABLE public.candidate_communications
   ADD COLUMN IF NOT EXISTS conversation_id uuid,
   ADD COLUMN IF NOT EXISTS contact_email text,
@@ -66,7 +68,7 @@ FROM (
   SELECT
     id,
     encode(
-      digest('brasshr:conversation:' || worker_id::text || ':' || channel, 'sha256'),
+      extensions.digest('brasshr:conversation:' || worker_id::text || ':' || channel, 'sha256'),
       'hex'
     ) AS h
   FROM public.candidate_communications

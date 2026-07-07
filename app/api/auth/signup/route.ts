@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
-import { createServiceRoleClient } from "@/lib/supabase/service-role";
+import { createServiceRoleClientResolved } from "@/lib/supabase/service-role";
+import { getResolvedBackendConfig } from "@/lib/supabase/backend-selection";
 import {
   buildUsersSignupRow,
   normalizeOwnerSignupBody,
+  resolveOwnerSignupStateCode,
   validateOwnerSignupDetails,
   validateOwnerSignupPassword,
   validateOwnerSignupZipForState,
@@ -17,10 +19,11 @@ import {
  * Creates the Braas HR owner account (auth + public.users) after the signup UI.
  */
 export async function POST(req: Request) {
-  const svc = createServiceRoleClient();
+  const svc = await createServiceRoleClientResolved();
   if (!svc) {
     return NextResponse.json({ error: "Server not configured" }, { status: 503 });
   }
+  const activeBackend = getResolvedBackendConfig()?.id ?? "primary";
 
   let body: Record<string, unknown> = {};
   try {
@@ -53,13 +56,15 @@ export async function POST(req: Request) {
   if (stateErr) {
     return NextResponse.json({ error: stateErr.message }, { status: 500 });
   }
-  if (!stateRow?.code) {
+
+  const stateCode = resolveOwnerSignupStateCode(payload.state, stateRow?.code);
+  if (!stateCode) {
     return NextResponse.json({ error: "Please select a valid state." }, { status: 400 });
   }
 
   const zipError = validateOwnerSignupZipForState(
     payload.zipCode,
-    String(stateRow.code),
+    stateCode,
     payload.state
   );
   if (zipError) {
@@ -120,7 +125,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: uErr.message }, { status: 500 });
     }
 
-    return NextResponse.json({ ok: true, email: payload.workEmail });
+    return NextResponse.json({ ok: true, email: payload.workEmail, backend: activeBackend });
   }
 
   const { data: created, error: cuErr } = await svc.auth.admin.createUser({
@@ -162,5 +167,5 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: uErr.message }, { status: 500 });
   }
 
-  return NextResponse.json({ ok: true, email: payload.workEmail });
+  return NextResponse.json({ ok: true, email: payload.workEmail, backend: activeBackend });
 }

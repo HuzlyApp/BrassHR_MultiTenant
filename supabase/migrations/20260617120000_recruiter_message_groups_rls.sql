@@ -1,5 +1,9 @@
 -- Recruiter group chat: indexes, sender_role, RLS, realtime
 
+-- Baseline used uuid for sender_id; app stores auth uid / worker id as text.
+ALTER TABLE public.group_messages
+  ALTER COLUMN sender_id TYPE text USING sender_id::text;
+
 CREATE UNIQUE INDEX IF NOT EXISTS group_members_group_user_uq
   ON public.group_members (group_id, user_id);
 
