@@ -3,8 +3,13 @@
 import Image from "next/image";
 import AccountReadyModal from "@/app/components/AccountReadyModal";
 import SignupStepper from "@/app/components/SignupStepper";
-import { Fragment, Suspense, useEffect, useState } from "react";
+import { Fragment, Suspense, useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import {
+  buildYourTrialPath,
+  markAccountReadyModalSeen,
+  readAccountReadyModalSeen,
+} from "@/lib/auth/account-ready-modal";
 
 const interStyle = { fontFamily: "Inter, Arial, sans-serif" };
 
@@ -115,12 +120,27 @@ function YourTrialContent() {
   const [prepareError, setPrepareError] = useState<string | null>(null);
   const [resending, setResending] = useState(false);
 
+  const cleanAccountReadyUrl = useCallback(() => {
+    if (searchParams.get("account-ready") !== "true") return;
+    router.replace(buildYourTrialPath(searchParams.toString()), { scroll: false });
+  }, [router, searchParams]);
+
+  const openAccountReadyModalOnce = useCallback(() => {
+    if (typeof window === "undefined") return false;
+    if (readAccountReadyModalSeen(sessionStorage)) return false;
+    markAccountReadyModalSeen(sessionStorage);
+    setShowAccountReadyModal(true);
+    return true;
+  }, []);
+
   useEffect(() => {
     if (!isAccountReadyFromUrl) return;
-    setShowAccountReadyModal(true);
+
     setTrialPrepared(true);
     setCompletedThrough(2);
-  }, [isAccountReadyFromUrl]);
+    openAccountReadyModalOnce();
+    cleanAccountReadyUrl();
+  }, [isAccountReadyFromUrl, cleanAccountReadyUrl, openAccountReadyModalOnce]);
 
   useEffect(() => {
     try {
@@ -184,8 +204,7 @@ function YourTrialContent() {
       if (emailDelivered) {
         setTrialPrepared(true);
         setCompletedThrough(2);
-        setShowAccountReadyModal(true);
-        router.replace("/your-trial?account-ready=true");
+        openAccountReadyModalOnce();
       }
     }
 
@@ -193,13 +212,14 @@ function YourTrialContent() {
     return () => {
       cancelled = true;
     };
-  }, [trialPrepared, isAccountReadyFromUrl, router]);
+  }, [trialPrepared, isAccountReadyFromUrl, openAccountReadyModalOnce]);
 
   const handleExit = () => {
     setShowAccountReadyModal(false);
-    if (isAccountReadyFromUrl) {
-      router.replace("/your-trial", { scroll: false });
+    if (typeof window !== "undefined") {
+      markAccountReadyModalSeen(sessionStorage);
     }
+    cleanAccountReadyUrl();
   };
 
   const handleResendSetupLink = async () => {
@@ -222,8 +242,7 @@ function YourTrialContent() {
       if (json.sent || (json.skipped && json.reason === "ALREADY_SENT")) {
         setTrialPrepared(true);
         setCompletedThrough(2);
-        setShowAccountReadyModal(true);
-        router.replace("/your-trial?account-ready=true");
+        setPrepareError(null);
         return;
       }
 
