@@ -27,7 +27,7 @@ export async function validateWorkerOnboardingComplete(
     const prog = progressByStep.get(step.id);
     const status = prog?.status ?? "pending";
 
-    if (status === "skipped" && step.metadata.allow_skip === true) continue;
+    if (status === "skipped") continue;
     if (status !== "completed") {
       missing.push({ stepKey: step.step_key, reason: `Step not completed (${status})` });
       continue;

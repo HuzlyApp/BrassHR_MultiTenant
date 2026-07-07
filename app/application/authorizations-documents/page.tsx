@@ -18,7 +18,13 @@ import { useMarkStepInProgressIfPending } from "@/lib/onboarding/use-mark-step-i
 import AutosaveStatus from "@/app/components/AutosaveStatus"
 import DocumentFileThumbnail from "@/app/components/DocumentFileThumbnail"
 import { AuthorizationsFirmaAgreementPanel } from "@/app/components/onboarding/AuthorizationsFirmaAgreementPanel"
-import { stepUsesFirmaSigning } from "@/lib/onboarding/firma-step-settings"
+import {
+  isAuthorizationsSaveBlocked,
+  shouldShowFirmaAgreementPanel,
+  stepRequiresApplicantAgreement,
+  stepRequiresIdentityDocuments,
+} from "@/lib/onboarding/authorizations-documents-step"
+import { skipOnboardingStep } from "@/lib/onboarding/skip-onboarding-step"
 import { getWorkerSessionContext } from "@/lib/onboarding-worker-pk"
 import { isDeliverableApplicantEmail } from "@/lib/onboardingStep1Validation"
 import { isPdfFile, resolveStoragePublicUrl } from "@/lib/document-upload-helpers"
@@ -61,14 +67,11 @@ export default function DocumentsPage() {
   const [signerEmail, setSignerEmail] = useState("")
   const [signerName, setSignerName] = useState("")
   const [docAutosave, setDocAutosave] = useState<"idle" | "saving" | "saved">("idle")
+  const completingRef = useRef(false)
 
   const activeStep = useMemo(() => {
     if (nav.currentStep) return nav.currentStep
     const enabled = nav.enabledSteps ?? []
-    const firmaAuth = enabled.find(
-      (s) => s.step_type === "authorizations" && stepUsesFirmaSigning(s)
-    )
-    if (firmaAuth) return firmaAuth
     return (
       enabled.find(
         (s) =>
@@ -80,7 +83,9 @@ export default function DocumentsPage() {
     )
   }, [nav.currentStep, nav.enabledSteps])
 
-  const requiresFirmaSigning = activeStep ? stepUsesFirmaSigning(activeStep) : false
+  const requiresFirmaSigning = shouldShowFirmaAgreementPanel(activeStep)
+  const requiresAgreement = stepRequiresApplicantAgreement(activeStep)
+  const requiresIdentityDocs = stepRequiresIdentityDocuments(activeStep)
 
   useMarkStepInProgressIfPending({
     step: activeStep,
@@ -146,6 +151,13 @@ export default function DocumentsPage() {
     const { ssnFront, dlFront } = identityPaths
     return Boolean(ssnFront && dlFront)
   }, [identityPaths])
+
+  const saveBlocked = isAuthorizationsSaveBlocked({
+    step: activeStep,
+    agreed,
+    agreementSigned,
+    identityDocsComplete,
+  })
 
   useEffect(() => {
     const id = localStorage.getItem("applicantId")
@@ -244,18 +256,23 @@ export default function DocumentsPage() {
   }, [])
 
   const handleSaveAndContinue = async () => {
-    if (!agreed) {
-      setError("You must agree to the authorization.")
-      return
-    }
+    if (saveBlocked) {
+      if (requiresAgreement && !agreed) {
+        setError("You must agree to the authorization.")
+        return
+      }
 
-    if (requiresFirmaSigning && !agreementSigned) {
-      setError("Please sign the authorization document in Firma before continuing.")
-      return
-    }
+      if (requiresFirmaSigning && !agreementSigned) {
+        setError("Please sign the authorization document in Firma before continuing.")
+        return
+      }
 
-    if (!identityDocsComplete) {
-      setError("Upload SSN and driver’s license (front) on the identity step.")
+      if (requiresIdentityDocs && !identityDocsComplete) {
+        setError("Upload SSN and driver’s license (front) on the identity step.")
+        return
+      }
+
+      setError("Complete the required items before continuing.")
       return
     }
 
@@ -303,13 +320,17 @@ export default function DocumentsPage() {
     }
   }
 
-  const handleSkipForNow = async () => {
+  const handleSkipForNow = () => {
     localStorage.setItem("step4Skipped", "1")
-    const stepKey = activeStep?.step_key
-    if (stepKey) {
-      await onboarding?.updateStepStatus?.(stepKey, "skipped")
-    }
-    if (nav.nextRoute) router.push(nav.nextRoute)
+    const nextRoute = nav.nextRoute
+    void skipOnboardingStep({
+      step: activeStep,
+      updateStepStatus: onboarding?.updateStepStatus,
+      completingRef,
+      onNavigate: () => {
+        if (nextRoute) router.push(nextRoute)
+      },
+    })
   }
 
   function IdentityFileCard({
@@ -421,7 +442,7 @@ export default function DocumentsPage() {
             tenantSlug={nav.slug}
             signerEmail={signerEmail}
             agreed={agreed}
-            configLoading={nav.configLoading}
+            configLoading={nav.configLoading && requiresFirmaSigning}
             onSignedChange={setAgreementSigned}
           />
 
@@ -472,9 +493,9 @@ export default function DocumentsPage() {
             <button
               type="button"
               onClick={() => void handleSaveAndContinue()}
-              disabled={saving || !agreed || !agreementSigned || !identityDocsComplete}
+              disabled={saving || saveBlocked}
               className={`rounded-lg px-6 py-2 text-[12px] font-medium text-white transition ${
-                saving || !agreed || !agreementSigned || !identityDocsComplete
+                saving || saveBlocked
                   ? "bg-gray-400 cursor-not-allowed"
                   : "bg-[color:var(--brand-primary)] hover:brightness-90"
               }`}

@@ -177,7 +177,11 @@ export function computeMaxAllowedStepIndex(
     }
     if (localStorage.getItem("step4Skipped") === "1") {
       const authIdx = steps.findIndex(
-        (s) => s.step_type === "authorizations" || s.step_key === "authorizations"
+        (s) =>
+          s.step_type === "authorizations" ||
+          s.step_key === "authorizations" ||
+          s.step_key === "authorization_background_check" ||
+          s.step_key === "agreement_signature"
       );
       if (authIdx >= 0) max = Math.max(max, authIdx + 2);
     }

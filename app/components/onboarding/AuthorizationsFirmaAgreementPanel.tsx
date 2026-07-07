@@ -225,6 +225,10 @@ export function AuthorizationsFirmaAgreementPanel({
     tenantSlug,
   ]);
 
+  if (!step) {
+    return null;
+  }
+
   if (configLoading) {
     return (
       <div className="mb-8 rounded-3xl border border-slate-200 bg-slate-50 p-6 text-sm text-slate-500">

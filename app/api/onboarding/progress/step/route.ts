@@ -11,6 +11,7 @@ import { dispatchWorkflowIntegrationPartner } from "@/lib/onboarding/integration
 import { notifyHrOnOnboardingStepFailure } from "@/lib/onboarding/notify-hr-on-step-failure";
 import { shouldPauseFlowOnStepFailure } from "@/lib/onboarding/workflow-settings";
 import { isUploadResumeStep } from "@/lib/onboarding/enforce-upload-resume-first";
+import { isOnboardingStepSkippable } from "@/lib/onboarding/is-step-skippable";
 import { isValidStep1Email } from "@/lib/onboardingStep1Validation";
 import { getEnabledTenantSteps } from "@/lib/onboarding/tenant-step-navigation";
 import { persistFarthestReachedStepIndex } from "@/lib/onboarding/persist-farthest-reached-step";
@@ -89,12 +90,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Upload Resume cannot be skipped." }, { status: 400 });
     }
 
-    if (
-      status === "skipped" &&
-      stepRow &&
-      stepRow.is_required !== false &&
-      stepRow.metadata.allow_skip !== true
-    ) {
+    if (status === "skipped" && stepRow && !isOnboardingStepSkippable(stepRow)) {
       return NextResponse.json(
         { error: "This required step cannot be skipped." },
         { status: 400 }
