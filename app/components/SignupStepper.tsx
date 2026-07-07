@@ -23,7 +23,7 @@ type SignupStepperProps = {
   className?: string;
 };
 
-function getStepperConfig(phase: SignupStepperPhase) {
+export function getStepperConfig(phase: SignupStepperPhase) {
   switch (phase) {
     case "details":
       return {
@@ -32,6 +32,11 @@ function getStepperConfig(phase: SignupStepperPhase) {
         connectorProgress: [0.45, 0] as const,
       };
     case "password":
+      return {
+        completedStepIndex: -1,
+        activeStepIndex: 0,
+        connectorProgress: [0.65, 0] as const,
+      };
     case "preparing":
       return {
         completedStepIndex: 0,
@@ -47,20 +52,43 @@ function getStepperConfig(phase: SignupStepperPhase) {
   }
 }
 
+/** Map signup UI state to the public stepper phase (password stays on Sign Up). */
+export function resolveSignupStepperPhase(input: {
+  formStep: "details" | "password";
+  redirecting: boolean;
+}): SignupStepperPhase {
+  if (input.redirecting) return "preparing";
+  return input.formStep === "password" ? "password" : "details";
+}
+
 /** Gold fill as % of the full track (between first and last icon centers). */
 function getGoldFillPercent(connectorProgress: readonly [number, number]) {
   const [first, second] = connectorProgress;
   return (first * 0.5 + second * 0.5) * 100;
 }
 
+export type SignupStepIconVariant = "completed" | "active" | "pending";
+
+/** Visual state for a single signup stepper node (pure, testable). */
+export function getSignupStepIconVariant(
+  index: number,
+  completedStepIndex: number,
+  activeStepIndex: number
+): SignupStepIconVariant {
+  if (index === activeStepIndex) return "active";
+  if (index <= completedStepIndex) return "completed";
+  return "pending";
+}
+
 type StepIconProps = {
-  isCompleted: boolean;
-  isActive: boolean;
-  isPending: boolean;
-  phase: SignupStepperPhase;
+  variant: SignupStepIconVariant;
 };
 
-function StepIcon({ isCompleted, isActive, isPending, phase }: StepIconProps) {
+function StepIcon({ variant }: StepIconProps) {
+  const isCompleted = variant === "completed";
+  const isActive = variant === "active";
+  const isPending = variant === "pending";
+
   return (
     <span
       className="relative z-10 flex items-center justify-center rounded-full border bg-white"
@@ -72,9 +100,8 @@ function StepIcon({ isCompleted, isActive, isPending, phase }: StepIconProps) {
         color: "#ffffff",
       }}
     >
-      {isCompleted && !isActive ? <Check className="h-[10px] w-[10px]" strokeWidth={2.5} /> : null}
-      {isActive && phase === "details" ? <Check className="h-[10px] w-[10px]" strokeWidth={2.5} /> : null}
-      {isActive && phase !== "details" ? <span className="h-[6px] w-[6px] rounded-full bg-white" /> : null}
+      {isCompleted ? <Check className="h-[10px] w-[10px]" strokeWidth={2.5} /> : null}
+      {isActive ? <span className="h-[6px] w-[6px] rounded-full bg-white" /> : null}
       {isPending ? <span className="h-[5px] w-[5px] rounded-full" style={{ backgroundColor: TRACK_LINE }} /> : null}
     </span>
   );
@@ -114,9 +141,8 @@ export default function SignupStepper({ phase, className = "" }: SignupStepperPr
 
         <div className="relative flex w-full items-start justify-between">
           {SIGNUP_STEPPER_ITEMS.map((item, index) => {
-            const isCompleted = index <= completedStepIndex;
-            const isActive = index === activeStepIndex;
-            const isPending = index > activeStepIndex;
+            const variant = getSignupStepIconVariant(index, completedStepIndex, activeStepIndex);
+            const isPending = variant === "pending";
 
             return (
               <div
@@ -124,12 +150,7 @@ export default function SignupStepper({ phase, className = "" }: SignupStepperPr
                 className="relative z-10 flex flex-col items-center"
                 style={{ width: STEP_WIDTH }}
               >
-                <StepIcon
-                  isCompleted={isCompleted}
-                  isActive={isActive}
-                  isPending={isPending}
-                  phase={phase}
-                />
+                <StepIcon variant={variant} />
                 <span
                   className="mt-[12px] w-full text-center text-[12px] font-normal leading-[16px] tracking-normal"
                   style={{ ...interStyle, color: isPending ? PENDING_TEXT : ACTIVE_TEXT }}

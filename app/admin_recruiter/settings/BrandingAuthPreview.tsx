@@ -1,7 +1,6 @@
 "use client";
 
 import type { CSSProperties } from "react";
-import { Check } from "lucide-react";
 import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
 import {
   brandingAuthButtonStyle,
@@ -91,7 +90,9 @@ function PreviewSignupStepper({ primaryHex }: { primaryHex: string }) {
                     color: "#ffffff",
                   }}
                 >
-                  {isActive ? <Check className="h-2.5 w-2.5" strokeWidth={2.5} /> : null}
+                  {isActive ? (
+                    <span className="h-1 w-1 rounded-full bg-white" />
+                  ) : null}
                   {isPending ? <span className="h-1 w-1 rounded-full bg-[#e8edf4]" /> : null}
                 </span>
                 <span

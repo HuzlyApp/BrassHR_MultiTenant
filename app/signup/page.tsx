@@ -4,7 +4,8 @@ import Image from "next/image";
 import Link from "next/link";
 import RedirectionProgressModal from "@/app/components/RedirectionProgressModal";
 import { PasswordVisibilityToggle } from "@/app/components/PasswordVisibilityToggle";
-import SignupStepper from "@/app/components/SignupStepper";
+import SignupStepper, { resolveSignupStepperPhase } from "@/app/components/SignupStepper";
+import SearchableSelectField from "@/app/tenant-onboarding/SearchableSelectField";
 import { Check, ChevronDown, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent } from "react";
 import { supabaseBrowser } from "@/lib/supabase-browser";
@@ -743,7 +744,9 @@ export default function SignupPage() {
               className="h-[80px] w-[160px] object-contain"
             />
 
-            <SignupStepper phase={step === "password" ? "password" : "details"} />
+            <SignupStepper
+              phase={resolveSignupStepperPhase({ formStep: step, redirecting })}
+            />
 
             {submitError ? (
               <p className="mt-[24px] rounded-[8px] border border-[#fecdd3] bg-[#fff1f2] px-[14px] py-[12px] text-[14px] leading-[20px] text-[#be123c]" style={interStyle}>
@@ -823,10 +826,11 @@ export default function SignupPage() {
                   placeholder="Enter your city"
                 />
               ) : (
-                <SelectField
+                <SearchableSelectField
                   label="City"
                   required
-                  disabled={!form.state || citiesLoading}
+                  disabled={!form.state}
+                  loading={citiesLoading}
                   value={form.city}
                   onChange={(value) => update("city", value)}
                   placeholder={
@@ -834,11 +838,11 @@ export default function SignupPage() {
                       ? "Select state first"
                       : citiesLoading
                         ? "Loading…"
-                        : cityOptions.length > 0
-                          ? "Select"
-                          : "No cities listed"
+                        : "Search city"
                   }
+                  searchPlaceholder="Type to search cities"
                   options={cityOptions}
+                  emptyMessage="No cities found. Try another search."
                 />
               )}
               <div onBlur={() => setTouchedZip(true)}>
