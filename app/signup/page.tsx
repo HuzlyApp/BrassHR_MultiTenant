@@ -598,6 +598,8 @@ export default function SignupPage() {
           /* ignore storage errors */
         }
 
+        await fetch("/api/auth/signup/begin-trial-session", { method: "POST" }).catch(() => null);
+
         setRedirecting(true);
         window.setTimeout(() => {
           window.location.assign("/your-trial");

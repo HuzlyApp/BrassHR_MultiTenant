@@ -8,7 +8,7 @@ export type OwnerOnboardingStatus = {
   godAdmin: boolean;
 };
 
-type UsersOnboardingRow = {
+export type UsersOnboardingRow = {
   signup_completed_at: string | null;
   tenant_onboarding_completed_at: string | null;
   onboarding_completed?: boolean | null;

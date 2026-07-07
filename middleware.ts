@@ -12,6 +12,7 @@ import {
 } from "@/lib/auth/platform-shared";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { ONBOARDING_TENANT_SLUG_COOKIE, OWNER_ONBOARDING_CONTINUATION_SESSION_COOKIE } from "@/lib/tenant/constants";
+import { hasOwnerTrialPreparationCookie } from "@/lib/auth/owner-trial-preparation-middleware";
 import { lookupTenantSlugBySubdomain } from "@/lib/tenant/lookup-tenant-subdomain";
 import {
   extractTenantSubdomainLabel,
@@ -75,6 +76,15 @@ function isAnonymousAuthUser(user: { is_anonymous?: boolean } | null | undefined
   return user?.is_anonymous === true;
 }
 
+/** Public APIs used by marketing / applicant landing pages (no session required). */
+function isOwnerTrialPreparationApi(pathname: string): boolean {
+  return (
+    pathname === "/api/auth/signup/prepare-trial" ||
+    pathname === "/api/auth/signup/resend-onboarding-link" ||
+    pathname === "/api/auth/signup/trial-status" ||
+    pathname === "/api/auth/signup/begin-trial-session"
+  );
+}
 /** Public APIs used by marketing / applicant landing pages (no session required). */
 function isPublicApiPath(pathname: string): boolean {
   if (pathname === "/api/tenant-branding") return true;
@@ -194,6 +204,10 @@ export async function middleware(request: NextRequest) {
 
   if (isApi && gateApiInMiddleware && !isPublicApiPath(pathname)) {
     if (!user) {
+      const trialPrepUserId = hasOwnerTrialPreparationCookie(request);
+      if (isOwnerTrialPreparationApi(pathname) && trialPrepUserId) {
+        return response;
+      }
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     if (platformOn && !isNexusPlatformUser(user) && !isGodAdminUser(user)) {
@@ -292,6 +306,15 @@ export async function middleware(request: NextRequest) {
     !isTenantOnboardingLinkErrorPath;
 
   if (isYourTrialPath && (!user || isAnonymousUser)) {
+    const trialPrepUserId = hasOwnerTrialPreparationCookie(request);
+    if (trialPrepUserId) {
+      console.info("[middleware] your-trial:allow-trial-prep-cookie");
+      return response;
+    }
+    console.info("[middleware] your-trial:redirect-no-session", {
+      pathname,
+      hasTrialPrepCookie: false,
+    });
     return NextResponse.redirect(new URL("/signup", request.url));
   }
 

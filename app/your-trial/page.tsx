@@ -3,7 +3,7 @@
 import Image from "next/image";
 import AccountReadyModal from "@/app/components/AccountReadyModal";
 import SignupStepper from "@/app/components/SignupStepper";
-import { Fragment, Suspense, useCallback, useEffect, useState } from "react";
+import { Fragment, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   buildYourTrialPath,
@@ -24,6 +24,13 @@ const STATUS_ITEMS = [
 const STATUS_ICON_BOX_SIZE = 64;
 const STATUS_CONNECTOR_HEIGHT = 50;
 const STEP_DELAY_MS = 1400;
+const PREP_SLOW_MESSAGE_MS = 5 * 60 * 1000;
+
+type TrialStatusPayload = {
+  phase?: "preparing" | "email_sent" | "onboarding_complete";
+  emailSent?: boolean;
+  error?: string;
+};
 
 function delay(ms: number) {
   return new Promise<void>((resolve) => {
@@ -118,7 +125,9 @@ function YourTrialContent() {
   const [verificationEmail, setVerificationEmail] = useState("");
   const [completedThrough, setCompletedThrough] = useState(0);
   const [prepareError, setPrepareError] = useState<string | null>(null);
+  const [slowMessage, setSlowMessage] = useState<string | null>(null);
   const [resending, setResending] = useState(false);
+  const preparationStartedRef = useRef(false);
 
   const cleanAccountReadyUrl = useCallback(() => {
     if (searchParams.get("account-ready") !== "true") return;
@@ -131,6 +140,24 @@ function YourTrialContent() {
     markAccountReadyModalSeen(sessionStorage);
     setShowAccountReadyModal(true);
     return true;
+  }, []);
+
+  const markTrialReady = useCallback(() => {
+    setTrialPrepared(true);
+    setCompletedThrough(2);
+    setSlowMessage(null);
+    openAccountReadyModalOnce();
+  }, [openAccountReadyModalOnce]);
+
+  const fetchTrialStatus = useCallback(async (): Promise<TrialStatusPayload | null> => {
+    try {
+      const res = await fetch("/api/auth/signup/trial-status", { cache: "no-store" });
+      const json = (await res.json().catch(() => ({}))) as TrialStatusPayload;
+      if (!res.ok) return { error: json.error || "Unauthorized" };
+      return json;
+    } catch {
+      return { error: "Network error while checking trial status." };
+    }
   }, []);
 
   useEffect(() => {
@@ -157,10 +184,33 @@ function YourTrialContent() {
 
   useEffect(() => {
     if (trialPrepared || isAccountReadyFromUrl) return;
+    if (preparationStartedRef.current) return;
+    preparationStartedRef.current = true;
 
     let cancelled = false;
+    const slowTimer = window.setTimeout(() => {
+      if (!cancelled) {
+        setSlowMessage(
+          "This is taking longer than expected. We'll email your setup link shortly. You can stay on this page or use Resend setup link below."
+        );
+      }
+    }, PREP_SLOW_MESSAGE_MS);
 
     async function runPreparation() {
+      const beginRes = await fetch("/api/auth/signup/begin-trial-session", { method: "POST" });
+      if (!beginRes.ok && beginRes.status !== 401) {
+        const json = (await beginRes.json().catch(() => ({}))) as { error?: string };
+        setPrepareError(json.error || "Could not start trial preparation.");
+        return;
+      }
+
+      const existingStatus = await fetchTrialStatus();
+      if (cancelled) return;
+      if (existingStatus?.phase === "email_sent" || existingStatus?.phase === "onboarding_complete") {
+        markTrialReady();
+        return;
+      }
+
       setCompletedThrough(0);
       await delay(STEP_DELAY_MS);
       if (cancelled) return;
@@ -178,7 +228,18 @@ function YourTrialContent() {
         };
 
         if (!res.ok) {
-          setPrepareError(json.error || "Could not finish preparing your trial.");
+          if (res.status === 401) {
+            const statusAfterAuthLoss = await fetchTrialStatus();
+            if (statusAfterAuthLoss?.phase === "email_sent") {
+              emailDelivered = true;
+            } else {
+              setPrepareError(
+                "Your sign-in session expired, but trial preparation can continue. Use Resend setup link below if needed."
+              );
+            }
+          } else {
+            setPrepareError(json.error || "Could not finish preparing your trial.");
+          }
         } else if (json.sent || (json.skipped && json.reason === "ALREADY_SENT")) {
           emailDelivered = true;
         } else if (json.failed || json.skipped) {
@@ -202,17 +263,22 @@ function YourTrialContent() {
       if (cancelled) return;
 
       if (emailDelivered) {
-        setTrialPrepared(true);
-        setCompletedThrough(2);
-        openAccountReadyModalOnce();
+        markTrialReady();
+        return;
+      }
+
+      const polled = await fetchTrialStatus();
+      if (polled?.phase === "email_sent" || polled?.phase === "onboarding_complete") {
+        markTrialReady();
       }
     }
 
     void runPreparation();
     return () => {
       cancelled = true;
+      window.clearTimeout(slowTimer);
     };
-  }, [trialPrepared, isAccountReadyFromUrl, openAccountReadyModalOnce]);
+  }, [trialPrepared, isAccountReadyFromUrl, fetchTrialStatus, markTrialReady]);
 
   const handleExit = () => {
     setShowAccountReadyModal(false);
@@ -240,9 +306,8 @@ function YourTrialContent() {
       }
 
       if (json.sent || (json.skipped && json.reason === "ALREADY_SENT")) {
-        setTrialPrepared(true);
-        setCompletedThrough(2);
         setPrepareError(null);
+        setSlowMessage(null);
         return;
       }
 
@@ -365,6 +430,9 @@ function YourTrialContent() {
                 >
                   This only takes a few minutes. Please hang on a bit...
                 </p>
+                {slowMessage ? (
+                  <p className="mt-3 text-sm text-[#475569]">{slowMessage}</p>
+                ) : null}
                 {prepareError ? (
                   <div className="mt-3 space-y-3">
                     <p className="text-sm text-red-700">{prepareError}</p>
