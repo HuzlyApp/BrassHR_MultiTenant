@@ -62,7 +62,8 @@ export default function DocumentsPage() {
   const [signerName, setSignerName] = useState("")
   const [docAutosave, setDocAutosave] = useState<"idle" | "saving" | "saved">("idle")
 
-  const authStep = useMemo(() => {
+  const activeStep = useMemo(() => {
+    if (nav.currentStep) return nav.currentStep
     const enabled = nav.enabledSteps ?? []
     const firmaAuth = enabled.find(
       (s) => s.step_type === "authorizations" && stepUsesFirmaSigning(s)
@@ -70,15 +71,19 @@ export default function DocumentsPage() {
     if (firmaAuth) return firmaAuth
     return (
       enabled.find(
-        (s) => s.step_type === "authorizations" || s.step_key === "authorizations"
-      ) ??
-      nav.currentStep ??
-      null
+        (s) =>
+          s.step_type === "authorizations" ||
+          s.step_key === "authorizations" ||
+          s.step_key === "authorization_background_check" ||
+          s.step_key === "agreement_signature"
+      ) ?? null
     )
-  }, [nav.enabledSteps, nav.currentStep])
+  }, [nav.currentStep, nav.enabledSteps])
+
+  const requiresFirmaSigning = activeStep ? stepUsesFirmaSigning(activeStep) : false
 
   useMarkStepInProgressIfPending({
-    step: authStep,
+    step: activeStep,
     disabled: !mounted,
     updateStepStatus: onboarding?.updateStepStatus,
   })
@@ -244,7 +249,7 @@ export default function DocumentsPage() {
       return
     }
 
-    if (!agreementSigned) {
+    if (requiresFirmaSigning && !agreementSigned) {
       setError("Please sign the authorization document in Firma before continuing.")
       return
     }
@@ -285,7 +290,7 @@ export default function DocumentsPage() {
         throw new Error(docJson.error || "Could not save worker documents")
       }
 
-      const stepKey = authStep?.step_key
+      const stepKey = activeStep?.step_key
       if (stepKey) {
         await onboarding?.updateStepStatus?.(stepKey, "completed")
       }
@@ -300,7 +305,7 @@ export default function DocumentsPage() {
 
   const handleSkipForNow = async () => {
     localStorage.setItem("step4Skipped", "1")
-    const stepKey = authStep?.step_key
+    const stepKey = activeStep?.step_key
     if (stepKey) {
       await onboarding?.updateStepStatus?.(stepKey, "skipped")
     }
@@ -412,7 +417,7 @@ export default function DocumentsPage() {
 
           <AuthorizationsFirmaAgreementPanel
             applicantId={applicantId}
-            step={authStep}
+            step={requiresFirmaSigning ? activeStep : null}
             tenantSlug={nav.slug}
             signerEmail={signerEmail}
             agreed={agreed}

@@ -17,8 +17,8 @@ import {
   getWorkflowSettings,
   integrationProviderLabel,
   isIntegrationPartnerStep,
-  workflowSettingsAdminHints,
 } from "@/lib/onboarding/workflow-settings";
+import { dedicatedRouteForWorkflowStep } from "@/lib/onboarding/resolve-applicant-step-route";
 import { APPLICATION_ROUTES } from "@/lib/onboarding/application-routes";
 
 export default function CustomOnboardingStepPage() {
@@ -39,7 +39,6 @@ export default function CustomOnboardingStepPage() {
   }, [nav.enabledSteps, nav.currentStep, stepKey]);
 
   const settings = step ? getWorkflowSettings(step) : null;
-  const adminHints = step ? workflowSettingsAdminHints(step) : [];
   const partnerLabel = step ? integrationProviderLabel(step) : null;
   const usesPartner = step ? isIntegrationPartnerStep(step) : false;
 
@@ -49,6 +48,14 @@ export default function CustomOnboardingStepPage() {
     (typeof step.metadata?.workflow_step_id !== "string" ||
       step.metadata.workflow_step_id === "custom-step" ||
       step.metadata.workflow_step_id === "custom-form");
+
+  const shouldRedirectToDedicatedScreen = useMemo(() => {
+    if (!step || showCustomForm) return false;
+    if (step.step_type !== "custom_question") return true;
+    const dedicated = dedicatedRouteForWorkflowStep(step);
+    const customPath = APPLICATION_ROUTES.customStep(step.step_key).split("?")[0];
+    return Boolean(dedicated && dedicated !== customPath);
+  }, [step, showCustomForm]);
 
   useMarkStepInProgressIfPending({
     step,
@@ -97,7 +104,7 @@ export default function CustomOnboardingStepPage() {
     );
   }
 
-  if (step && !showCustomForm && step.step_type !== "custom_question") {
+  if (step && shouldRedirectToDedicatedScreen) {
     return (
       <ApplicantWorkflowStepRedirect
         step={step}
@@ -110,30 +117,23 @@ export default function CustomOnboardingStepPage() {
     <OnboardingLayout>
       <OnboardingStepper title={step?.title ?? "Onboarding step"} />
       <div className="mx-auto max-w-2xl px-4 py-8" style={contentStyle}>
-        <h1 className="text-xl font-semibold text-slate-900">{step?.title ?? "Onboarding step"}</h1>
         {step?.description ? (
-          <p className="mt-2 text-sm text-slate-600">{step.description}</p>
+          <p className="text-sm text-slate-600">{step.description}</p>
         ) : null}
 
-        {settings ? (
-          <p className="mt-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
-            <span className="font-semibold">Instructions: </span>
-            {usesPartner && partnerLabel
-              ? `This step is completed via ${partnerLabel}.`
-              : settings.clientPerforms
-                ? "Complete this step in the application."
-                : "Your recruiter or HR team will complete this step on your behalf."}
+        {settings && usesPartner && partnerLabel ? (
+          <p className="mt-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+            Your background screening is handled by {partnerLabel}.
+            {settings.timeline ? ` Typical turnaround: ${settings.timeline}.` : ""}
+          </p>
+        ) : settings && !usesPartner ? (
+          <p className="mt-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+            {settings.clientPerforms
+              ? "Complete this step in the application."
+              : "Your recruiter or HR team will complete this step on your behalf."}
             {settings.timeline ? ` Expected timeline: ${settings.timeline}.` : ""}
             {!settings.required ? " This step is optional." : null}
           </p>
-        ) : null}
-
-        {adminHints.length ? (
-          <ul className="mt-3 list-disc space-y-1 pl-5 text-xs text-slate-500">
-            {adminHints.map((hint) => (
-              <li key={hint}>{hint}</li>
-            ))}
-          </ul>
         ) : null}
 
         {isGenericCustom || showCustomForm ? (

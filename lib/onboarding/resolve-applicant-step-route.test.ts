@@ -17,6 +17,21 @@ function step(partial: Partial<TenantOnboardingStep> & Pick<TenantOnboardingStep
 }
 
 describe("resolve-applicant-step-route", () => {
+  it("maps background check to authorizations documents", () => {
+    expect(WORKFLOW_STEP_APPLICANT_ROUTE["background-check"]).toBe(
+      "/application/authorizations-documents"
+    );
+    const route = routeForApplicantStep(
+      step({
+        step_key: "authorization_background_check",
+        step_type: "custom_question",
+        metadata: { workflow_step_id: "background-check" },
+      })
+    );
+    expect(route).toContain("/application/authorizations-documents");
+    expect(route).toContain("stepKey=authorization_background_check");
+  });
+
   it("maps builder library steps to dedicated applicant routes", () => {
     expect(WORKFLOW_STEP_APPLICANT_ROUTE["welcome-packet-esign"]).toBe(
       "/application/authorizations-documents"

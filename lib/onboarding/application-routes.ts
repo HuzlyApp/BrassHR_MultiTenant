@@ -71,6 +71,13 @@ export const APPLICATION_ROUTE_STEP_MARKERS: {
     ],
   },
   {
+    stepKey: "authorization_background_check",
+    pathIncludes: [
+      APPLICATION_ROUTES.authorizationsDocuments,
+      "/application/custom-step/authorization_background_check",
+    ],
+  },
+  {
     stepType: "authorizations",
     pathIncludes: [APPLICATION_ROUTES.firmaSign],
   },
