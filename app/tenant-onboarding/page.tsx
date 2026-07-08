@@ -88,6 +88,7 @@ export default function TenantOnboardingPage() {
     workspaceId?: string | null;
     error?: string | null;
   } | null>(null);
+  const [preparingDashboard, setPreparingDashboard] = useState(false);
 
   const publicRootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN?.trim() ?? "";
 
@@ -220,6 +221,56 @@ export default function TenantOnboardingPage() {
     if (next) setStep(next);
   };
 
+  // A freshly created tenant subdomain (e.g. grow.brasshr.com) is not always
+  // reachable the instant it is created — DNS/TLS/routing can take a few
+  // seconds to warm up. Navigating too early shows the browser's
+  // "This site can't be reached" (ERR_CONNECTION_CLOSED) page until a manual
+  // reload. To avoid that, we keep a friendly "setting up" screen on-screen and
+  // quietly probe the destination until it responds, then navigate.
+  const waitUntilReachableThenGo = async (url: string) => {
+    setPreparingDashboard(true);
+
+    // Same-origin / relative URLs are already reachable — go immediately.
+    if (url.startsWith("/")) {
+      window.location.assign(url);
+      return;
+    }
+
+    const probe = async (): Promise<boolean> => {
+      try {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 4000);
+        // `no-cors` resolves (opaque) when the server responds at all, and
+        // rejects on a real network failure (connection closed / DNS fail),
+        // which is exactly the readiness signal we need.
+        await fetch(url, {
+          method: "GET",
+          mode: "no-cors",
+          cache: "no-store",
+          redirect: "follow",
+          signal: controller.signal,
+        });
+        clearTimeout(timer);
+        return true;
+      } catch {
+        return false;
+      }
+    };
+
+    const maxAttempts = 24;
+    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+      if (await probe()) {
+        window.location.assign(url);
+        return;
+      }
+      const backoff = Math.min(2000, 400 + attempt * 150);
+      await new Promise((resolve) => setTimeout(resolve, backoff));
+    }
+
+    // Fallback: after the wait budget, navigate anyway so the user is never stuck.
+    window.location.assign(url);
+  };
+
   const finalize = async (options?: { redirectToDashboard?: boolean }) => {
     setSubmitting(true);
     setError(null);
@@ -316,7 +367,7 @@ export default function TenantOnboardingPage() {
           .replace(/\/+$/, "");
         const protocol = window.location.protocol || "https:";
         const adminUrl = cleanedDomain ? `${protocol}//${cleanedDomain}/admin` : "/admin";
-        window.location.assign(adminUrl);
+        await waitUntilReachableThenGo(adminUrl);
         return;
       }
 
@@ -336,6 +387,21 @@ export default function TenantOnboardingPage() {
 
   if (!brandLoaded) {
     return <div className="min-h-screen bg-white" />;
+  }
+
+  if (preparingDashboard) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center gap-6 bg-white px-6 text-center">
+        <div
+          className="h-16 w-16 animate-spin rounded-full border-4 border-[#e5e7eb]"
+          style={{ borderTopColor: preview.primaryHex }}
+        />
+        <div className="space-y-2">
+          <p className="text-[26px] font-bold text-[#0f172a]">Setting up your account</p>
+          <p className="text-[17px] text-[#475569]">Please wait a moment.</p>
+        </div>
+      </div>
+    );
   }
 
   return (
