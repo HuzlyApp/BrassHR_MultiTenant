@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { ChevronDown, Search } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import SidebarNavIcon from "@/app/admin_recruiter/components/SidebarNavIcon";
 import { HeaderIconCountBadge } from "@/app/components/HeaderIconCountBadge";
 import { supabaseBrowser } from "@/lib/supabase-browser";
@@ -12,8 +12,14 @@ import { WorkerPortalUserAvatar } from "./WorkerPortalUserAvatar";
 
 const SIDEBAR_TOGGLE_ICON = "/icons/sidebar-on-off-icon.svg";
 
-/** Static count for notification badge UI — replace with live data later. */
-const STATIC_NOTIFICATION_COUNT = 1;
+type WorkerNotification = {
+  id: string;
+  title: string | null;
+  body: string | null;
+  type: string | null;
+  is_read: boolean | null;
+  sent_at: string | null;
+};
 
 type Props = {
   applicantName: string;
@@ -33,24 +39,74 @@ export function ApplicantPortalHeader({
   onOpenMessages,
 }: Props) {
   const router = useRouter();
-  const { profilePhotoUrl } = useApplicantPortal();
+  const { profilePhotoUrl, authHeaders } = useApplicantPortal();
   const [profileOpen, setProfileOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [notifications, setNotifications] = useState<WorkerNotification[]>([]);
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [loggingOut, setLoggingOut] = useState(false);
   const profileAreaRef = useRef<HTMLDivElement>(null);
+  const actionsAreaRef = useRef<HTMLDivElement>(null);
   const firstName = applicantName.split(" ")[0] || "Worker";
 
+  const loadNotifications = useCallback(async () => {
+    const headers = await authHeaders();
+    if (!headers) return;
+
+    const res = await fetch("/api/applicant-portal/notifications", {
+      headers,
+      cache: "no-store",
+    });
+    const payload = (await res.json().catch(() => ({}))) as {
+      notifications?: WorkerNotification[];
+      unreadNotifications?: number;
+    };
+    if (!res.ok) return;
+
+    setNotifications(payload.notifications ?? []);
+    setUnreadNotifications(payload.unreadNotifications ?? 0);
+  }, [authHeaders]);
+
+  const markNotificationsRead = useCallback(async () => {
+    const headers = await authHeaders();
+    if (!headers) return;
+
+    const res = await fetch("/api/applicant-portal/notifications", {
+      method: "PATCH",
+      headers: { ...headers, "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "mark_notifications_read" }),
+    });
+    if (!res.ok) return;
+
+    setUnreadNotifications(0);
+    setNotifications((current) => current.map((item) => ({ ...item, is_read: true })));
+  }, [authHeaders]);
+
   useEffect(() => {
-    if (!profileOpen) return;
+    void loadNotifications();
+  }, [loadNotifications]);
+
+  useEffect(() => {
+    if (!notificationsOpen) return;
+    void markNotificationsRead();
+  }, [notificationsOpen, markNotificationsRead]);
+
+  useEffect(() => {
+    if (!profileOpen && !notificationsOpen) return;
 
     const handleClickOutside = (event: MouseEvent) => {
-      if (profileAreaRef.current && !profileAreaRef.current.contains(event.target as Node)) {
+      const target = event.target as Node;
+      if (profileAreaRef.current && !profileAreaRef.current.contains(target)) {
         setProfileOpen(false);
+      }
+      if (actionsAreaRef.current && !actionsAreaRef.current.contains(target)) {
+        setNotificationsOpen(false);
       }
     };
 
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [profileOpen]);
+  }, [profileOpen, notificationsOpen]);
 
   async function handleLogout() {
     if (loggingOut) return;
@@ -119,10 +175,13 @@ export function ApplicantPortalHeader({
         </div>
 
         <div className="ml-auto flex items-center gap-2 sm:gap-3">
-          <div className="flex items-center gap-0">
+          <div ref={actionsAreaRef} className="relative flex items-center gap-0">
             <button
               type="button"
-              onClick={onOpenMessages}
+              onClick={() => {
+                setNotificationsOpen(false);
+                onOpenMessages?.();
+              }}
               className="inline-flex h-8 w-8 items-center justify-center rounded-md transition hover:bg-[#F8FAFC]"
               aria-label="Open messages"
             >
@@ -130,18 +189,53 @@ export function ApplicantPortalHeader({
             </button>
             <button
               type="button"
+              onClick={() => {
+                setProfileOpen(false);
+                setNotificationsOpen((prev) => !prev);
+              }}
               className="relative inline-flex h-8 w-8 items-center justify-center rounded-md transition hover:bg-[#F8FAFC]"
-              aria-label={`Notifications, ${STATIC_NOTIFICATION_COUNT} unread`}
+              aria-label={`Open notifications${unreadNotifications > 0 ? `, ${unreadNotifications} unread` : ""}`}
+              aria-expanded={notificationsOpen}
             >
               <SidebarNavIcon iconType="Notifications" active={false} />
-              <HeaderIconCountBadge count={STATIC_NOTIFICATION_COUNT} />
+              <HeaderIconCountBadge count={unreadNotifications} />
             </button>
+
+            {notificationsOpen ? (
+              <div className="absolute right-0 top-10 z-50 w-[320px] overflow-hidden rounded-lg border border-[#d7e4e1] bg-white shadow-xl">
+                <div className="border-b border-[#E2E8F0] px-4 py-3">
+                  <p className="text-sm font-semibold text-[#0F172A]">Notifications</p>
+                </div>
+                <div className="max-h-[320px] overflow-y-auto">
+                  {notifications.length === 0 ? (
+                    <p className="px-4 py-4 text-sm text-[#64748B]">No notifications yet.</p>
+                  ) : (
+                    notifications.map((notification) => (
+                      <div
+                        key={notification.id}
+                        className={`border-b border-[#F1F5F9] px-4 py-3 ${notification.is_read ? "opacity-70" : "bg-[#F8FAFC]"}`}
+                      >
+                        <p className="text-sm font-semibold text-[#0F172A]">
+                          {notification.title?.trim() || "Notification"}
+                        </p>
+                        {notification.body ? (
+                          <p className="mt-1 text-sm text-[#64748B]">{notification.body}</p>
+                        ) : null}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            ) : null}
           </div>
 
           <div ref={profileAreaRef} className="relative">
             <button
               type="button"
-              onClick={() => setProfileOpen((prev) => !prev)}
+              onClick={() => {
+                setNotificationsOpen(false);
+                setProfileOpen((prev) => !prev);
+              }}
               className="flex items-center gap-2 rounded-xl border border-[#E5E7EB] px-2.5 py-1.5"
             >
               <WorkerPortalUserAvatar name={applicantName} photoUrl={profilePhotoUrl} size={30} />
