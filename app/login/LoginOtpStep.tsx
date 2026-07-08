@@ -128,7 +128,7 @@ export default function LoginOtpStep({
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-[40px] pt-[30px]">
       <div>
-        <h1 className="text-[30px] font-semibold leading-[36px] tracking-normal text-[#1f2937]" style={interStyle}>
+        <h1 className="text-[24px] font-semibold leading-[30px] tracking-normal text-[#1f2937] sm:text-[30px] sm:leading-[36px]" style={interStyle}>
           Enter Code
         </h1>
         <div className="mt-[12px] space-y-[12px]">
@@ -203,7 +203,7 @@ export default function LoginOtpStep({
           Enter 6 digit OTP
         </p>
 
-        <div className="flex gap-[30px] py-[24px]">
+        <div className="flex justify-between gap-[8px] py-[24px] sm:justify-start sm:gap-[24px]">
           {digits.map((digit, index) => (
             <input
               key={index}
@@ -221,7 +221,7 @@ export default function LoginOtpStep({
               disabled={submitting || verified}
               aria-label={`Digit ${index + 1}`}
               aria-invalid={otpHasError}
-              className={`h-[56px] w-[56px] rounded-[8px] border border-[#94a3b8] bg-white text-center text-[20px] font-semibold leading-[24px] text-[#0f172a] outline-none transition ${inputFocusClass} ${otpHasError ? loginInputErrorClass : ""}`}
+              className={`h-[45px] w-[45px] rounded-[8px] border border-[#94a3b8] bg-white text-center text-[18px] font-semibold leading-[22px] text-[#0f172a] outline-none transition sm:h-[53px] sm:w-[53px] sm:text-[20px] sm:leading-[24px] ${inputFocusClass} ${otpHasError ? loginInputErrorClass : ""}`}
               style={interStyle}
             />
           ))}

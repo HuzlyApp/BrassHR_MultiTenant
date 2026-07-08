@@ -21,7 +21,7 @@ export default function AccountReadyModal({
 }: AccountReadyModalProps) {
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 py-8 backdrop-blur-[2px]"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 py-6 backdrop-blur-[2px] sm:py-8"
       role="presentation"
       onClick={onExit}
     >
@@ -29,29 +29,29 @@ export default function AccountReadyModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="account-ready-title"
-        className="flex h-[500px] w-[600px] max-w-full items-center justify-center rounded-3xl bg-white shadow-xl"
+        className="flex w-full max-w-[600px] items-center justify-center rounded-2xl bg-white px-5 py-8 shadow-xl sm:h-[500px] sm:rounded-3xl sm:px-6 sm:py-0"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="flex w-[486px] max-w-full flex-col items-center gap-[40px]">
+        <div className="flex w-full max-w-[486px] flex-col items-center gap-6 sm:gap-[40px]">
           <Image
             src={ACCOUNT_READY_ICON}
             alt=""
             width={100}
             height={100}
             priority
-            className="h-[100px] w-[100px] shrink-0 object-contain"
+            className="h-[72px] w-[72px] shrink-0 object-contain sm:h-[100px] sm:w-[100px]"
           />
 
           <h2
             id="account-ready-title"
-            className="w-full text-center text-[30px] font-semibold leading-[36px] tracking-normal text-[#0b0f19]"
+            className="w-full text-center text-[22px] font-semibold leading-[28px] tracking-normal text-[#0b0f19] sm:text-[30px] sm:leading-[36px]"
             style={interStyle}
           >
             Your account is ready
           </h2>
 
           <p
-            className="w-full text-center text-[18px] font-normal leading-[28px] tracking-normal text-[#475569]"
+            className="w-full text-center text-[15px] font-normal leading-[23px] tracking-normal text-[#475569] sm:text-[18px] sm:leading-[28px]"
             style={interStyle}
           >
             We&apos;ve sent a verification/status link to{" "}
@@ -62,7 +62,7 @@ export default function AccountReadyModal({
           <button
             type="button"
             onClick={onExit}
-            className="flex h-[52px] w-full items-center justify-center rounded-[8px] text-[16px] font-semibold leading-[22px] tracking-normal text-white transition hover:brightness-95"
+            className="flex h-[48px] w-full items-center justify-center rounded-[8px] text-[15px] font-semibold leading-[20px] tracking-normal text-white transition hover:brightness-95 sm:h-[52px] sm:text-[16px] sm:leading-[22px]"
             style={{
               backgroundImage: BRAAS_BUTTON_GRADIENT,
               fontFamily: "var(--font-geist-sans), Inter, Arial, sans-serif",
@@ -76,7 +76,7 @@ export default function AccountReadyModal({
               type="button"
               onClick={() => void onResend()}
               disabled={resending}
-              className="text-sm font-semibold text-[#BC8B41] transition hover:underline disabled:opacity-60"
+              className="text-center text-[13px] font-semibold text-[#BC8B41] transition hover:underline disabled:opacity-60 sm:text-sm"
             >
               {resending ? "Sending…" : "Didn't receive it? Resend setup link"}
             </button>

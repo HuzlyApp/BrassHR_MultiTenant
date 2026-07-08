@@ -23,6 +23,7 @@ const STATUS_ITEMS = [
 
 const STEP_DELAY_MS = 1400;
 const PREP_SLOW_MESSAGE_MS = 5 * 60 * 1000;
+const SESSION_EXPIRY_REDIRECT_MS = 2 * 60 * 1000;
 
 type TrialStatusPayload = {
   phase?: "preparing" | "email_sent" | "onboarding_complete";
@@ -275,6 +276,21 @@ function YourTrialContent() {
       window.clearTimeout(slowTimer);
     };
   }, [trialPrepared, isAccountReadyFromUrl, fetchTrialStatus, markTrialReady]);
+
+  useEffect(() => {
+    // Once the trial is ready the modal takes over, so no redirect is needed.
+    if (trialPrepared || isAccountReadyFromUrl) return;
+
+    const redirectTimer = window.setTimeout(() => {
+      // Session expired while still preparing → back to the default landing
+      // page ("/" = brasshr.com in production, localhost:3000 locally).
+      window.location.href = "/";
+    }, SESSION_EXPIRY_REDIRECT_MS);
+
+    return () => {
+      window.clearTimeout(redirectTimer);
+    };
+  }, [trialPrepared, isAccountReadyFromUrl]);
 
   const handleExit = () => {
     setShowAccountReadyModal(false);

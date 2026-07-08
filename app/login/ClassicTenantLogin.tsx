@@ -63,7 +63,8 @@ export default function ClassicTenantLogin({
 
   return (
     <OnboardingLayout
-      cardClassName="md:w-[950px] md:min-w-[950px] md:max-w-[950px] md:min-h-[622px] md:grid-cols-[560px_390px]"
+      cardClassName="h-auto w-full max-w-[560px] md:block md:h-auto md:min-h-0 md:min-w-0 md:max-w-[560px] lg:grid lg:h-full lg:w-[950px] lg:min-w-[950px] lg:max-w-[950px] lg:min-h-[622px] lg:grid-cols-[560px_390px]"
+      rightPanelClassName="md:hidden lg:block"
       rightPanelImageSrc={brand.loginBackgroundSrc}
       rightPanelImageAlt=""
       rightPanelImageClassName="object-cover opacity-60 grayscale"
@@ -71,7 +72,7 @@ export default function ClassicTenantLogin({
       rightPanelContentClassName="p-6"
       taglineClassName="text-[15px] leading-6 text-slate-700"
     >
-      <div className="flex min-h-full flex-col overflow-y-auto p-6 pb-8 md:p-10 md:pb-10 lg:p-12 lg:pb-12">
+      <div className="flex flex-col overflow-y-auto p-6 pb-8 md:p-10 md:pb-10 lg:min-h-full lg:p-12 lg:pb-12">
         {otpStep && otpEmail && onOtpVerify && onOtpSendAgain ? (
           <LoginOtpStep
             email={otpEmail}
@@ -84,17 +85,17 @@ export default function ClassicTenantLogin({
           />
         ) : (
           <>
-        <div className="mb-10">
+        <div className="mb-8 md:mb-10">
           <div className="mb-4 h-1 w-12 rounded-full" style={{ backgroundColor: "var(--brand-primary)" }} />
           <h1
-            className="text-3xl font-bold md:text-4xl"
+            className="text-[22px] font-bold leading-[27px] sm:text-3xl sm:leading-[38px] md:text-4xl md:leading-[44px]"
             style={{ color: "var(--brand-heading)", fontFamily: "var(--brand-font-heading)" }}
           >
             {brand.headline}
           </h1>
         </div>
 
-        <form onSubmit={onSubmit} className="space-y-6">
+        <form onSubmit={onSubmit} className="space-y-5 md:space-y-6">
           <div>
             <label htmlFor="classic-email" className="mb-1.5 block text-sm font-medium text-gray-700">
               Email
@@ -178,7 +179,7 @@ export default function ClassicTenantLogin({
             </OnboardingCheckbox>
           </div>
 
-          <div className="mt-2 flex flex-col gap-4 pt-4 sm:flex-row">
+          <div className="mt-2 flex flex-row gap-3 pt-4 sm:gap-4">
             <button
               type="button"
               onClick={() => router.back()}
