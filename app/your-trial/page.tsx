@@ -139,12 +139,20 @@ function YourTrialContent() {
     return true;
   }, []);
 
-  const markTrialReady = useCallback(() => {
-    setTrialPrepared(true);
-    setCompletedThrough(2);
-    setSlowMessage(null);
-    openAccountReadyModalOnce();
-  }, [openAccountReadyModalOnce]);
+  const markTrialReady = useCallback(
+    (options?: { showModal?: boolean }) => {
+      setTrialPrepared(true);
+      setCompletedThrough(2);
+      setSlowMessage(null);
+      // Only pop the modal when the trial *transitions* to ready during this
+      // page session. When the page loads and the trial is already ready
+      // (e.g. on refresh), we skip the modal so it doesn't re-appear.
+      if (options?.showModal !== false) {
+        openAccountReadyModalOnce();
+      }
+    },
+    [openAccountReadyModalOnce]
+  );
 
   const fetchTrialStatus = useCallback(async (): Promise<TrialStatusPayload | null> => {
     try {
@@ -204,7 +212,9 @@ function YourTrialContent() {
       const existingStatus = await fetchTrialStatus();
       if (cancelled) return;
       if (existingStatus?.phase === "email_sent" || existingStatus?.phase === "onboarding_complete") {
-        markTrialReady();
+        // Trial was already ready when this page loaded (e.g. a refresh) —
+        // show the ready state but do NOT re-open the "account ready" modal.
+        markTrialReady({ showModal: false });
         return;
       }
 
@@ -278,19 +288,19 @@ function YourTrialContent() {
   }, [trialPrepared, isAccountReadyFromUrl, fetchTrialStatus, markTrialReady]);
 
   useEffect(() => {
-    // Once the trial is ready the modal takes over, so no redirect is needed.
-    if (trialPrepared || isAccountReadyFromUrl) return;
-
+    // The short-lived signup session expires a couple of minutes after landing
+    // here. When it does, send the user back to the default landing page
+    // ("/" = brasshr.com in production, localhost:3000 locally).
+    // This fires unconditionally from mount so it works whether the trial is
+    // still preparing OR the "account ready" modal is showing.
     const redirectTimer = window.setTimeout(() => {
-      // Session expired while still preparing → back to the default landing
-      // page ("/" = brasshr.com in production, localhost:3000 locally).
       window.location.href = "/";
     }, SESSION_EXPIRY_REDIRECT_MS);
 
     return () => {
       window.clearTimeout(redirectTimer);
     };
-  }, [trialPrepared, isAccountReadyFromUrl]);
+  }, []);
 
   const handleExit = () => {
     setShowAccountReadyModal(false);
