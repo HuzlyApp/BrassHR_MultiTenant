@@ -11,6 +11,7 @@ type AddCallLogModalProps = {
   workerId: string;
   onClose: () => void;
   onAdded?: () => void | Promise<void>;
+  attemptNumber?: number | null;
 };
 
 export default function AddCallLogModal({
@@ -18,6 +19,7 @@ export default function AddCallLogModal({
   workerId,
   onClose,
   onAdded,
+  attemptNumber = null,
 }: AddCallLogModalProps) {
   const [outcome, setOutcome] = useState<CallLogOutcome | "">("");
   const [durationMinutes, setDurationMinutes] = useState("");
@@ -50,6 +52,7 @@ export default function AddCallLogModal({
           outcome,
           durationMinutes: durationMinutes.trim() || null,
           notes: notes.trim() || null,
+          attemptNumber: attemptNumber && attemptNumber > 0 ? attemptNumber : null,
         }),
       });
       const json = (await res.json().catch(() => ({}))) as { error?: string };

@@ -32,7 +32,7 @@ const DEFAULT_STEPS: CandidatePipelineStep[] = [
   },
 ];
 
-function StepIcon({ completed }: { completed: boolean }) {
+function StepIcon({ completed, withinFill }: { completed: boolean; withinFill: boolean }) {
   if (completed) {
     return (
       <span
@@ -40,6 +40,17 @@ function StepIcon({ completed }: { completed: boolean }) {
         aria-hidden
       >
         <Check className="h-2.5 w-2.5 text-white" strokeWidth={3} />
+      </span>
+    );
+  }
+
+  if (withinFill) {
+    return (
+      <span
+        className="relative z-10 inline-flex h-[15px] w-[15px] shrink-0 items-center justify-center rounded-full border border-[color:var(--brand-primary)] bg-white"
+        aria-hidden
+      >
+        <span className="inline-flex h-[7px] w-[7px] rounded-full bg-[color:var(--brand-primary)]" />
       </span>
     );
   }
@@ -91,6 +102,10 @@ export default function CandidatePipelineStepper({
   const visibleSteps = steps.length > 0 ? steps : DEFAULT_STEPS;
   const fillPercent = pipelineConnectorFillPercent(visibleSteps);
   const firstIncomplete = visibleSteps.findIndex((item) => !item.completed);
+  let lastCompletedIndex = -1;
+  visibleSteps.forEach((item, index) => {
+    if (item.completed) lastCompletedIndex = index;
+  });
   const stepsCount = Math.max(visibleSteps.length, 1);
   const trackInsetPercent = 100 / (stepsCount * 2);
   const trackWidthPercent = 100 - trackInsetPercent * 2;
@@ -128,6 +143,7 @@ export default function CandidatePipelineStepper({
               firstIncomplete === -1
                 ? index === visibleSteps.length - 1
                 : index === firstIncomplete;
+            const withinFill = !step.completed && index < lastCompletedIndex;
             const canNavigate = step.clickable && step.href;
 
             return (
@@ -138,7 +154,7 @@ export default function CandidatePipelineStepper({
                     className="flex min-w-0 flex-col items-center text-center hover:opacity-90"
                     aria-current={isCurrent ? "step" : undefined}
                   >
-                    <StepIcon completed={step.completed} />
+                    <StepIcon completed={step.completed} withinFill={withinFill} />
                     <StepLabel step={step} isCurrent={isCurrent} />
                   </Link>
                 ) : (
@@ -146,7 +162,7 @@ export default function CandidatePipelineStepper({
                     className="flex min-w-0 flex-col items-center text-center"
                     aria-current={isCurrent ? "step" : undefined}
                   >
-                    <StepIcon completed={step.completed} />
+                    <StepIcon completed={step.completed} withinFill={withinFill} />
                     <StepLabel step={step} isCurrent={isCurrent} />
                   </div>
                 )}

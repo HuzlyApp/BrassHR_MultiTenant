@@ -160,6 +160,7 @@ export async function createWorkerCallLog(
     durationSeconds?: number | null
     notes?: string | null
     callAt?: string | null
+    attemptNumber?: number | null
   }
 ): Promise<WorkerCallLog> {
   const { count, error: countError } = await supabase
@@ -168,7 +169,10 @@ export async function createWorkerCallLog(
     .eq("worker_id", input.workerId)
 
   if (countError) throw countError
-  const attemptNumber = (count ?? 0) + 1
+  const attemptNumber =
+    input.attemptNumber && input.attemptNumber > 0
+      ? Math.floor(input.attemptNumber)
+      : (count ?? 0) + 1
 
   const notes = input.notes?.trim() ? input.notes.trim().slice(0, 2000) : null
   const callAt = input.callAt?.trim() || new Date().toISOString()

@@ -23,6 +23,7 @@ import {
   pipelineSectionComplete,
   type PipelineChecklistItemKey,
 } from "@/lib/worker-pipeline-checklist"
+import { loadWorkerCallLogs, type CallLogOutcome } from "@/lib/admin/worker-call-logs"
 
 export const runtime = "nodejs"
 
@@ -39,6 +40,7 @@ type ChecklistRow = {
   badge?: string
   callLogCompleted?: boolean
   checkboxLabel?: string
+  callOutcome?: "answered" | "no_answer" | null
 }
 
 export type ChecklistSection = {
@@ -296,10 +298,69 @@ export async function GET(req: NextRequest) {
 
     const pipelineRowsByKey = await loadWorkerPipelineChecklistItems(supabase, workerId)
 
+    const callLogs = await loadWorkerCallLogs(supabase, workerId).catch(() => [])
+    const callLogOutcomeById = new Map<string, CallLogOutcome>(
+      callLogs.map((log) => [log.id, log.outcome])
+    )
+
+    function callRowOutcome(itemKey: "call_1" | "call_2"): CallLogOutcome | null {
+      const ref = pipelineRowsByKey.get(itemKey)?.call_log_ref?.trim() || null
+      if (ref && callLogOutcomeById.has(ref)) return callLogOutcomeById.get(ref) ?? null
+      return null
+    }
+
     function buildPipelineChecklistRow(itemKey: PipelineChecklistItemKey): ChecklistRow {
       const def = getPipelineItemDef(itemKey)
       const row = pipelineRowsByKey.get(itemKey)
       const isComplete = pipelineItemIsComplete(row)
+
+      if (itemKey === "call_1" || itemKey === "call_2") {
+        const outcome = callRowOutcome(itemKey)
+        if (outcome === "no_answer") {
+          return {
+            id: itemKey,
+            title: def.title,
+            subtitle: def.subtitle,
+            optional: def.optional,
+            state: "not_reachable",
+            checked: false,
+            badge: "No answer",
+            detailLine: "No answer — call again",
+            callLogCompleted: false,
+            checkboxLabel: pipelineCheckboxLabel(itemKey),
+            callOutcome: "no_answer",
+          }
+        }
+        if (outcome === "answered" || isComplete) {
+          return {
+            id: itemKey,
+            title: def.title,
+            subtitle: def.subtitle,
+            optional: def.optional,
+            state: "answered",
+            checked: true,
+            badge: "Answered",
+            detailLine: buildPipelineDetailLine(itemKey, row, true),
+            callLogCompleted: row?.call_log_completed === true,
+            checkboxLabel: pipelineCheckboxLabel(itemKey),
+            callOutcome: "answered",
+          }
+        }
+        return {
+          id: itemKey,
+          title: def.title,
+          subtitle: def.subtitle,
+          optional: def.optional,
+          state: "pending",
+          checked: false,
+          badge: "Pending",
+          detailLine: "No call logs synced yet",
+          callLogCompleted: false,
+          checkboxLabel: pipelineCheckboxLabel(itemKey),
+          callOutcome: null,
+        }
+      }
+
       const state: ItemState = isComplete
         ? "complete"
         : def.optional

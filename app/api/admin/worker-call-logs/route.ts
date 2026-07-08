@@ -86,6 +86,7 @@ export async function POST(req: NextRequest) {
       durationMinutes?: number | string | null
       notes?: string | null
       callAt?: string | null
+      attemptNumber?: number | null
     }
 
     const workerIdRaw = body.workerId?.trim() || ""
@@ -102,6 +103,10 @@ export async function POST(req: NextRequest) {
     if ("error" in resolved && resolved.error) return resolved.error
 
     const durationSeconds = parseDurationMinutes(body.durationMinutes)
+    const attemptNumber =
+      typeof body.attemptNumber === "number" && body.attemptNumber > 0
+        ? Math.floor(body.attemptNumber)
+        : null
 
     const callLog = await createWorkerCallLog(resolved.supabase, {
       workerId: resolved.workerId,
@@ -111,6 +116,7 @@ export async function POST(req: NextRequest) {
       durationSeconds,
       notes: body.notes ?? null,
       callAt: body.callAt ?? null,
+      attemptNumber,
     })
 
     void writeActivityLog({

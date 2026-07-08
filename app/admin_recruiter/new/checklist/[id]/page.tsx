@@ -8,6 +8,7 @@ import DetailedTabs from "../../../components/DetailedTabs";
 import CandidateDetailLoader from "../../../components/CandidateDetailLoader";
 import CandidateAvatarIcon from "../../../components/CandidateAvatarIcon";
 import BrandedHistoryIcon from "../../../components/BrandedHistoryIcon";
+import AddCallLogModal from "../../../components/AddCallLogModal";
 import { checklistSectionDetailHref } from "@/lib/admin/checklist-section-navigation";
 import { dispatchCandidatePipelineRefresh } from "@/lib/admin/candidate-pipeline-events";
 import { Check, CheckCircle2, MoreVertical } from "lucide-react";
@@ -26,6 +27,7 @@ type ChecklistRow = {
   manualCompletionEnabled?: boolean;
   callLogCompleted?: boolean;
   checkboxLabel?: string;
+  callOutcome?: "answered" | "no_answer" | null;
 };
 
 type ChecklistSection = {
@@ -234,6 +236,8 @@ export default function NewApplicantChecklistPage() {
   const [data, setData] = useState<ChecklistPayload | null>(null);
   const [pipelineSaveError, setPipelineSaveError] = useState<string | null>(null);
   const [savingPipelineItemId, setSavingPipelineItemId] = useState<string | null>(null);
+  const [callLogModalOpen, setCallLogModalOpen] = useState(false);
+  const [callLogAttempt, setCallLogAttempt] = useState<number | null>(null);
 
   const canManualCompletePipeline =
     data?.permissions?.canManualCompletePipeline !== false &&
@@ -333,25 +337,31 @@ export default function NewApplicantChecklistPage() {
     }
   }
 
-  useEffect(() => {
-    async function run() {
-      if (!applicantId) return;
-      setLoading(true);
-      setError(null);
-      try {
-        const res = await fetch(`/api/admin/worker-checklist?workerId=${encodeURIComponent(applicantId)}`);
-        const json = (await res.json()) as ChecklistPayload & { error?: string };
-        if (!res.ok) throw new Error(json.error || "Failed to load checklist");
-        setData(json);
-      } catch (e) {
-        console.error(e);
+  async function loadChecklist(options?: { silent?: boolean }) {
+    if (!applicantId) return;
+    if (!options?.silent) setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/admin/worker-checklist?workerId=${encodeURIComponent(applicantId)}`, {
+        cache: "no-store",
+      });
+      const json = (await res.json()) as ChecklistPayload & { error?: string };
+      if (!res.ok) throw new Error(json.error || "Failed to load checklist");
+      setData(json);
+    } catch (e) {
+      console.error(e);
+      if (!options?.silent) {
         setError(e instanceof Error ? e.message : "Failed to load");
         setData(null);
-      } finally {
-        setLoading(false);
       }
+    } finally {
+      if (!options?.silent) setLoading(false);
     }
-    run();
+  }
+
+  useEffect(() => {
+    void loadChecklist();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [applicantId]);
 
   const candidateName = useMemo(() => {
@@ -570,7 +580,12 @@ export default function NewApplicantChecklistPage() {
                                 {section.rows.map((row, rowIndex) => {
                                   const isChecked = rowIsComplete(row);
                                   const isSaving = savingPipelineItemId === row.id;
-                                  const checkboxDisabled = !canManualCompletePipeline || isSaving;
+                                  const isCallRow = row.id === "call_1" || row.id === "call_2";
+                                  const attemptForRow = row.id === "call_1" ? 1 : row.id === "call_2" ? 2 : null;
+                                  const isNoAnswer = row.callOutcome === "no_answer";
+                                  const checkboxDisabled = isCallRow
+                                    ? !canManualCompletePipeline
+                                    : !canManualCompletePipeline || isSaving;
                                   const cleanTitle = row.title.replace(/^\d+\.\s*/, "");
                                   const subtitleIsMeta = (row.subtitle ?? "").startsWith("(");
                                   const checkboxText = pipelineCheckboxText(row);
@@ -591,12 +606,27 @@ export default function NewApplicantChecklistPage() {
                                       <div className="mt-3 flex items-center gap-3 text-sm text-[#374151]">
                                         <button
                                           type="button"
-                                          aria-label={`Mark ${row.title} ${isChecked ? "incomplete" : "complete"}`}
+                                          aria-label={
+                                            isCallRow
+                                              ? `Add call log for ${row.title}`
+                                              : `Mark ${row.title} ${isChecked ? "incomplete" : "complete"}`
+                                          }
                                           aria-pressed={isChecked}
                                           disabled={checkboxDisabled}
-                                          onClick={() => void togglePipelineItem(row, section.id)}
+                                          onClick={() => {
+                                            if (isCallRow && attemptForRow) {
+                                              setCallLogAttempt(attemptForRow);
+                                              setCallLogModalOpen(true);
+                                              return;
+                                            }
+                                            void togglePipelineItem(row, section.id);
+                                          }}
                                           className={`h-4 w-4 rounded-[4px] border flex items-center justify-center transition-opacity ${
-                                            isChecked ? "border-teal-600 bg-teal-600" : "border-zinc-300 bg-white"
+                                            isChecked
+                                              ? "border-teal-600 bg-teal-600"
+                                              : isNoAnswer
+                                                ? "border-[#FB7185] bg-white"
+                                                : "border-zinc-300 bg-white"
                                           } ${checkboxDisabled ? "cursor-not-allowed opacity-60" : "cursor-pointer hover:border-teal-500"}`}
                                         >
                                           {isSaving ? (
@@ -701,6 +731,22 @@ export default function NewApplicantChecklistPage() {
               </>
             )}
       </div>
+
+      {applicantId ? (
+        <AddCallLogModal
+          open={callLogModalOpen}
+          workerId={applicantId}
+          attemptNumber={callLogAttempt}
+          onClose={() => {
+            setCallLogModalOpen(false);
+            setCallLogAttempt(null);
+          }}
+          onAdded={async () => {
+            await loadChecklist({ silent: true });
+            dispatchCandidatePipelineRefresh(applicantId);
+          }}
+        />
+      ) : null}
     </div>
   );
 }
