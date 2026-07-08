@@ -14,11 +14,12 @@ import { zipCodeValidationMessage } from "@/lib/tenant/business-info-validation"
 import {
   signupAddress1ValidationMessage,
   signupAddress2ValidationMessage,
+  signupAddressVerificationMessage,
 } from "@/lib/signup/owner-signup";
 import { getStateCodeFromName, getStateNameFromCode } from "@/lib/us-state-names";
-import { useAddressValidation } from "@/lib/mapbox/use-address-validation";
-import { getAddressFieldStatus, type AddressFieldStatusTone } from "@/lib/mapbox/address-field-status";
+import AddressAutocompleteField from "@/app/components/signup/AddressAutocompleteField";
 import type { AddressSuggestion } from "@/lib/mapbox/address-validation-types";
+import { useAddressAutocomplete } from "@/lib/mapbox/use-address-autocomplete";
 import {
   brandingAuthButtonStyle,
   brandingToCssVars,
@@ -233,93 +234,6 @@ function PasswordField({
   );
 }
 
-function AddressField({
-  label,
-  value,
-  onChange,
-  disabled,
-  required,
-  error,
-  onBlur,
-  statusMessage,
-  statusTone = "neutral",
-  suggestions = [],
-  onSelectSuggestion,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  disabled?: boolean;
-  required?: boolean;
-  error?: string | null;
-  onBlur?: () => void;
-  statusMessage?: string | null;
-  statusTone?: AddressFieldStatusTone;
-  suggestions?: AddressSuggestion[];
-  onSelectSuggestion?: (suggestion: AddressSuggestion) => void;
-}) {
-  const showStatus = !error && Boolean(statusMessage);
-  const borderClass = error
-    ? "border-[#ff5c7a] text-[#f01846] focus:border-[#ff5c7a] focus:ring-[#ff5c7a]/20"
-    : statusTone === "success"
-      ? "border-[#3fb27f] text-[#0f172a] focus:border-[#3fb27f] focus:ring-[#3fb27f]/20"
-      : statusTone === "error"
-        ? "border-[#ff5c7a] text-[#0f172a] focus:border-[#ff5c7a] focus:ring-[#ff5c7a]/20"
-        : "border-[#d7e0ea] text-[#0f172a] focus:border-[#d89b35] focus:ring-[#d89b35]/20";
-  return (
-    <div>
-      <div className="mb-[10px] flex items-center justify-between gap-3">
-        <FieldLabel required={required}>{label}</FieldLabel>
-        <span className="text-[9px] font-normal leading-none text-[#8a98aa]">Start typing to search</span>
-      </div>
-      <input
-        value={value}
-        disabled={disabled}
-        onChange={(event) => onChange(event.target.value)}
-        onBlur={onBlur}
-        placeholder="Start typing your address"
-        autoComplete="off"
-        style={signupInputTypographyStyle}
-        className={`${signupInputClass} outline-none transition placeholder:text-[#b5c0cf] focus:ring-2 disabled:bg-[#f7f8fa] disabled:text-[#94a3b8] ${borderClass}`}
-      />
-      {suggestions.length > 0 ? (
-        <ul className="mt-[8px] overflow-hidden rounded-[8px] border border-[#d7e0ea] bg-white shadow-sm">
-          {suggestions.map((suggestion) => (
-            <li key={suggestion.id}>
-              <button
-                type="button"
-                onClick={() => onSelectSuggestion?.(suggestion)}
-                className="w-full px-[12px] py-[10px] text-left text-[13px] leading-[18px] text-[#334155] transition hover:bg-[#f5efe6] focus:bg-[#f5efe6] focus:outline-none"
-              >
-                {suggestion.placeName}
-              </button>
-            </li>
-          ))}
-        </ul>
-      ) : null}
-      {error ? (
-        <p className="mt-[8px] text-[14px] font-normal leading-[20px] text-[#f01846]" style={interStyle}>
-          {error}
-        </p>
-      ) : null}
-      {showStatus ? (
-        <p
-          className={`mt-[8px] text-[13px] font-normal leading-[18px] ${
-            statusTone === "success"
-              ? "text-[#0f8a5f]"
-              : statusTone === "error"
-                ? "text-[#f01846]"
-                : "text-[#64748b]"
-          }`}
-          style={interStyle}
-        >
-          {statusMessage}
-        </p>
-      ) : null}
-    </div>
-  );
-}
-
 function SocialButton({ children, label }: { children: React.ReactNode; label: string }) {
   return (
     <button
@@ -352,7 +266,6 @@ export default function SignupPage() {
   const [citiesLoading, setCitiesLoading] = useState(false);
   const [emailCheckStatus, setEmailCheckStatus] = useState<"idle" | "checking" | "taken" | "available">("idle");
   const emailCheckRequestId = useRef(0);
-  const lastMapboxCityRef = useRef<string>("");
   const [brand, setBrand] = useState<TenantBranding>(() => defaultTenantBranding());
   const [redirecting, setRedirecting] = useState(false);
 
@@ -445,12 +358,7 @@ export default function SignupPage() {
         const names = (data ?? []).map((row) => String(row.city_name));
         setCityOptions(names);
         setForm((prev) => {
-          if (
-            prev.city &&
-            names.length > 0 &&
-            !names.includes(prev.city) &&
-            prev.city !== lastMapboxCityRef.current
-          ) {
+          if (prev.city && names.length > 0 && !names.includes(prev.city)) {
             return { ...prev, city: "" };
           }
           return prev;
@@ -518,10 +426,36 @@ export default function SignupPage() {
     [form.zipCode, zipValidationContext]
   );
 
+  const effectiveCityOptions = useMemo(() => {
+    const city = form.city.trim();
+    if (!city || cityOptions.includes(city)) {
+      return cityOptions;
+    }
+    return [...cityOptions, city].sort((a, b) => a.localeCompare(b));
+  }, [cityOptions, form.city]);
+
+  const addressAutocomplete = useAddressAutocomplete(form.address1, {
+    city: form.city,
+    state: form.state,
+    zipCode: form.zipCode,
+  });
+
   const address1Error = useMemo(() => {
     if (!detailsSubmitAttempted && !touchedAddress1) return null;
-    return signupAddress1ValidationMessage(form.address1);
-  }, [detailsSubmitAttempted, touchedAddress1, form.address1]);
+    return (
+      signupAddress1ValidationMessage(form.address1) ??
+      signupAddressVerificationMessage({
+        address1: form.address1,
+        isAddressVerified: addressAutocomplete.isAddressVerified,
+        showError: true,
+      })
+    );
+  }, [
+    detailsSubmitAttempted,
+    touchedAddress1,
+    form.address1,
+    addressAutocomplete.isAddressVerified,
+  ]);
 
   const address2Error = useMemo(() => {
     if (!detailsSubmitAttempted && !touchedAddress2) return null;
@@ -538,29 +472,11 @@ export default function SignupPage() {
     [form.address2, form.sameAsAddress1]
   );
 
-  const addressParts = useMemo(
-    () => ({
-      address1: form.address1,
-      city: form.city,
-      state: form.state,
-      zipCode: form.zipCode,
-    }),
-    [form.address1, form.city, form.state, form.zipCode]
-  );
-
-  const addressValidation = useAddressValidation(addressParts, {
-    debounceMs: 450,
-    validateOnMount: false,
-  });
-
-  const addressStatus = getAddressFieldStatus(addressValidation);
-
   const handleSelectAddressSuggestion = (suggestion: AddressSuggestion) => {
-    const { components } = addressValidation.confirmSuggestion(suggestion);
+    const components = addressAutocomplete.selectSuggestion(suggestion);
     const stateName = components.state
       ? getStateNameFromCode(components.state) ?? components.state
       : "";
-    if (components.city) lastMapboxCityRef.current = components.city;
     setForm((prev) => ({
       ...prev,
       address1: components.address1 || prev.address1,
@@ -583,9 +499,10 @@ export default function SignupPage() {
       form.state.trim().length > 0 &&
       zipIsValid &&
       address1IsValid &&
+      addressAutocomplete.isAddressVerified &&
       address2IsValid
     );
-  }, [address1IsValid, address2IsValid, emailTaken, form, zipIsValid]);
+  }, [address1IsValid, address2IsValid, addressAutocomplete.isAddressVerified, emailTaken, form, zipIsValid]);
 
   const passwordRules = useMemo(() => getPasswordRules(password), [password]);
   const passwordScore = passwordRules.filter((rule) => rule.passed).length;
@@ -1022,7 +939,7 @@ export default function SignupPage() {
                           : "Search city"
                     }
                     searchPlaceholder="Type to search cities"
-                    options={cityOptions}
+                    options={effectiveCityOptions}
                     emptyMessage="No cities found. Try another search."
                   />
                 )}
@@ -1040,22 +957,30 @@ export default function SignupPage() {
             </div>
 
             <div className="mt-[24px] space-y-[22px] min-[1440px]:mt-[30px] min-[1440px]:space-y-[26px]">
-              <div onBlur={() => setTouchedAddress1(true)}>
-                <AddressField
-                  label="Address 1"
-                  required
-                  value={form.address1}
-                  onChange={(value) => {
-                    addressValidation.resetUserConfirmation();
-                    update("address1", value);
-                  }}
-                  error={address1Error}
-                  statusMessage={addressStatus.statusMessage}
-                  statusTone={addressStatus.statusTone}
-                  suggestions={addressStatus.suggestions}
-                  onSelectSuggestion={handleSelectAddressSuggestion}
-                />
-              </div>
+              <AddressAutocompleteField
+                label="Address 1"
+                required
+                value={form.address1}
+                onChange={(value) => {
+                  addressAutocomplete.resetVerification();
+                  update("address1", value);
+                }}
+                onBlur={() => setTouchedAddress1(true)}
+                onFocus={addressAutocomplete.openSuggestions}
+                onCloseSuggestions={addressAutocomplete.closeSuggestions}
+                error={address1Error}
+                searchError={
+                  touchedAddress1 || detailsSubmitAttempted
+                    ? addressAutocomplete.searchError
+                    : null
+                }
+                suggestions={addressAutocomplete.suggestions}
+                isLoading={addressAutocomplete.isLoading}
+                isOpen={addressAutocomplete.isOpen}
+                isVerified={addressAutocomplete.isAddressVerified}
+                onSelectSuggestion={handleSelectAddressSuggestion}
+                variant="signup"
+              />
 
               <div>
                 <div className="mb-[10px] flex items-center justify-between gap-3">

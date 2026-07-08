@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { zipPrefixBelongsToState } from "@/lib/us-zip-by-state";
 import {
+  addressVerificationMessage,
   isBusinessInfoValid,
   normalizeBusinessInfoBody,
   resolveTenantDisplayName,
@@ -142,5 +143,25 @@ describe("normalizeBusinessInfoBody", () => {
     expect(normalized.companySize).toBe("1-10");
     expect(normalized.zipCode).toBe("90210");
     expect(normalized.email).toBe("hello@acme.com");
+  });
+});
+
+describe("addressVerificationMessage", () => {
+  it("requires a selected Mapbox address when format validation passes", () => {
+    expect(
+      addressVerificationMessage("100 Main Street", {
+        isAddressVerified: false,
+        showError: true,
+      })
+    ).toMatch(/select a street address/i);
+  });
+
+  it("returns null when address is verified", () => {
+    expect(
+      addressVerificationMessage("100 Main Street", {
+        isAddressVerified: true,
+        showError: true,
+      })
+    ).toBeNull();
   });
 });

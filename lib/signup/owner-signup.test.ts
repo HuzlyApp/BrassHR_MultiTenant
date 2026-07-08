@@ -3,6 +3,7 @@ import {
   normalizeOwnerSignupBody,
   signupAddress1ValidationMessage,
   signupAddress2ValidationMessage,
+  signupAddressVerificationMessage,
   validateOwnerSignupDetails,
   validateOwnerSignupZipForState,
 } from "@/lib/signup/owner-signup";
@@ -59,6 +60,28 @@ describe("validateOwnerSignupDetails", () => {
 describe("signupAddress1ValidationMessage", () => {
   it("rejects text without a street number", () => {
     expect(signupAddress1ValidationMessage("uyrtert")).toMatch(/street number/i);
+  });
+});
+
+describe("signupAddressVerificationMessage", () => {
+  it("requires a selected Mapbox address after format validation passes", () => {
+    expect(
+      signupAddressVerificationMessage({
+        address1: "100 Main Street",
+        isAddressVerified: false,
+        showError: true,
+      })
+    ).toMatch(/select a street address/i);
+  });
+
+  it("returns null when address is verified", () => {
+    expect(
+      signupAddressVerificationMessage({
+        address1: "100 Main Street",
+        isAddressVerified: true,
+        showError: true,
+      })
+    ).toBeNull();
   });
 });
 

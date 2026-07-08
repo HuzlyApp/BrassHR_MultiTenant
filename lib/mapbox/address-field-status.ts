@@ -31,11 +31,8 @@ export function getAddressFieldStatus(
     if (validation.isValidating) {
       statusMessage = "Verifying address…"
       statusTone = "neutral"
-    } else if (
-      validation.validationResult?.isValid &&
-      validation.validationResult.normalizedAddress
-    ) {
-      statusMessage = validation.validationResult.normalizedAddress
+    } else if (validation.validationResult?.isValid) {
+      statusMessage = "Address verified."
       statusTone = "success"
     } else if (validation.validationResult?.status === "ambiguous") {
       statusMessage = ADDRESS_AMBIGUOUS_MESSAGE

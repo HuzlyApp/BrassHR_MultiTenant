@@ -186,6 +186,19 @@ export function cityValidationMessage(
   return null;
 }
 
+export function addressVerificationMessage(
+  address: string,
+  options: { isAddressVerified: boolean; showError: boolean }
+): string | null {
+  if (!options.showError) return null
+  const formatError = addressValidationMessage(address)
+  if (formatError) return null
+  if (!options.isAddressVerified) {
+    return "Select a street address from the suggestions to continue."
+  }
+  return null
+}
+
 export function addressValidationMessage(
   address: string,
   options?: { required?: boolean }

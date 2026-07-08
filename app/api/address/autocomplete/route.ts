@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server"
 import {
-  ADDRESS_QUERY_MIN_LENGTH,
-  buildAddressQuery,
-  evaluateMapboxGeocodeResponse,
-} from "@/lib/mapbox/address-validation"
+  ADDRESS_AUTOCOMPLETE_MIN_LENGTH,
+  buildAutocompleteSearchQuery,
+  parseAutocompleteFeatures,
+} from "@/lib/mapbox/address-autocomplete"
 import type { AddressQueryParts } from "@/lib/mapbox/address-validation-types"
 import type { MapboxGeocodeFeature } from "@/lib/mapbox/parse-mapbox-feature"
 import { enforceRateLimit, getClientIp } from "@/lib/security/rate-limit"
@@ -22,7 +22,6 @@ function getMapboxToken(): string | null {
 function parseQueryParts(body: Record<string, unknown>): AddressQueryParts {
   return {
     address1: typeof body.address1 === "string" ? body.address1 : undefined,
-    address2: typeof body.address2 === "string" ? body.address2 : undefined,
     city: typeof body.city === "string" ? body.city : undefined,
     state: typeof body.state === "string" ? body.state : undefined,
     zipCode:
@@ -37,7 +36,7 @@ function parseQueryParts(body: Record<string, unknown>): AddressQueryParts {
 export async function POST(req: Request) {
   try {
     const limited = await enforceRateLimit(req, {
-      namespace: "address-validate",
+      namespace: "address-autocomplete",
       key: getClientIp(req),
       limit: Number(process.env.RATE_LIMIT_PUBLIC_API_PER_MINUTE ?? 60),
       windowMs: 60 * 1000,
@@ -46,12 +45,10 @@ export async function POST(req: Request) {
     if (limited) return limited
 
     const body = (await req.json()) as Record<string, unknown>
-    const queryFromBody =
-      typeof body.query === "string" ? body.query.trim() : ""
     const parts = parseQueryParts(body)
-    const query = queryFromBody || buildAddressQuery(parts)
+    const query = buildAutocompleteSearchQuery(parts)
 
-    if (query.length < ADDRESS_QUERY_MIN_LENGTH) {
+    if (query.length < ADDRESS_AUTOCOMPLETE_MIN_LENGTH) {
       return NextResponse.json(
         {
           error: "Address query is too short",
@@ -77,28 +74,29 @@ export async function POST(req: Request) {
     )
     url.searchParams.set("access_token", token)
     url.searchParams.set("limit", "5")
-    url.searchParams.set("autocomplete", "false")
+    url.searchParams.set("autocomplete", "true")
     url.searchParams.set("country", "US")
+    url.searchParams.set("types", "address")
 
     const mapboxRes = await fetch(url.toString(), { cache: "no-store" })
     if (!mapboxRes.ok) {
       const text = await mapboxRes.text().catch(() => "")
-      console.error("[address/validate] mapbox", mapboxRes.status, text.slice(0, 200))
+      console.error("[address/autocomplete] mapbox", mapboxRes.status, text.slice(0, 200))
       return NextResponse.json(
-        { error: "Address verification failed", code: "MAPBOX_ERROR" },
+        { error: "Address search failed", code: "MAPBOX_ERROR" },
         { status: 502 }
       )
     }
 
     const data = (await mapboxRes.json()) as { features?: MapboxGeocodeFeature[] }
     const features = Array.isArray(data.features) ? data.features : []
-    const result = evaluateMapboxGeocodeResponse(query, features)
+    const suggestions = parseAutocompleteFeatures(features)
 
-    return NextResponse.json(result)
+    return NextResponse.json({ suggestions })
   } catch (err) {
-    console.error("[address/validate]", err)
+    console.error("[address/autocomplete]", err)
     return NextResponse.json(
-      { error: "Address verification failed", code: "INTERNAL_ERROR" },
+      { error: "Address search failed", code: "INTERNAL_ERROR" },
       { status: 500 }
     )
   }

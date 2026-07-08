@@ -15,6 +15,23 @@ export function signupAddress1ValidationMessage(address1: string): string | null
   return null;
 }
 
+/** Mapbox street-address selection required before continuing signup. */
+export function signupAddressVerificationMessage(
+  options: {
+    address1: string
+    isAddressVerified: boolean
+    showError: boolean
+  }
+): string | null {
+  if (!options.showError) return null
+  const formatError = signupAddress1ValidationMessage(options.address1)
+  if (formatError) return null
+  if (!options.isAddressVerified) {
+    return "Select a street address from the suggestions to continue.";
+  }
+  return null;
+}
+
 /** Optional address line 2 (apartment, suite, floor). */
 export function signupAddress2ValidationMessage(
   address2: string,

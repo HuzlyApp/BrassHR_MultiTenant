@@ -52,7 +52,7 @@ export default function ValidatedAddressField({
       statusMessage = "Verifying address…"
       statusTone = "neutral"
     } else if (validationResult?.isValid && validationResult.normalizedAddress) {
-      statusMessage = validationResult.normalizedAddress
+      statusMessage = "Address verified."
       statusTone = "success"
     } else if (validationResult?.status === "ambiguous") {
       statusMessage = ADDRESS_AMBIGUOUS_MESSAGE

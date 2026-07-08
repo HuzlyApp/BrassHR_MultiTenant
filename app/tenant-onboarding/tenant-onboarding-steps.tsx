@@ -7,9 +7,9 @@ import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ComponentP
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import type { SignupStateOption } from "@/lib/signup/owner-signup";
 import { getStateCodeFromName, getStateNameFromCode } from "@/lib/us-state-names";
-import { useAddressValidation } from "@/lib/mapbox/use-address-validation";
-import { getAddressFieldStatus, type AddressFieldStatusTone } from "@/lib/mapbox/address-field-status";
+import AddressAutocompleteField from "@/app/components/signup/AddressAutocompleteField";
 import type { AddressSuggestion } from "@/lib/mapbox/address-validation-types";
+import { useAddressAutocomplete } from "@/lib/mapbox/use-address-autocomplete";
 import OnboardingStepsBuilder from "@/app/components/onboarding/OnboardingStepsBuilder";
 import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
 import { PasswordVisibilityToggle } from "@/app/components/PasswordVisibilityToggle";
@@ -26,6 +26,7 @@ import {
   type TenantGoalId,
 } from "@/app/tenant-onboarding/constants";
 import {
+  addressVerificationMessage,
   normalizeBusinessZipInput,
   normalizeEinInput,
   validateBusinessInfoForm,
@@ -334,99 +335,6 @@ function SelectField({
   );
 }
 
-function AddressField({
-  label,
-  value,
-  onChange,
-  placeholder,
-  required = true,
-  helperText = "Start typing to search",
-  error,
-  onBlur,
-  statusMessage,
-  statusTone = "neutral",
-  suggestions = [],
-  onSelectSuggestion,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  placeholder?: string;
-  required?: boolean;
-  helperText?: string;
-  error?: string | null;
-  onBlur?: () => void;
-  statusMessage?: string | null;
-  statusTone?: AddressFieldStatusTone;
-  suggestions?: AddressSuggestion[];
-  onSelectSuggestion?: (suggestion: AddressSuggestion) => void;
-}) {
-  const showStatus = !error && Boolean(statusMessage);
-  const borderClass = error
-    ? inputErrorClass
-    : statusTone === "success"
-      ? `border-[#3fb27f] text-[#0f172a] ${inputFocusClass}`
-      : statusTone === "error"
-        ? `border-[#ff5c7a] text-[#0f172a] ${inputFocusClass}`
-        : `border-[#cbd5e1] text-[#0f172a] ${inputFocusClass}`;
-  return (
-    <div>
-      <div className="mb-[8px] flex items-center justify-between gap-2">
-        <FieldLabel required={required}>{label}</FieldLabel>
-        {helperText ? (
-          <span
-            className="shrink-0 text-[12px] font-normal leading-[16px] text-[#94a3b8]"
-            style={interStyle}
-          >
-            {helperText}
-          </span>
-        ) : null}
-      </div>
-      <input
-        type="text"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        onBlur={onBlur}
-        placeholder={placeholder}
-        autoComplete="off"
-        style={inputTypographyStyle}
-        className={`h-[56px] w-full rounded-[8px] border bg-white px-[14px] ${inputTextClass} outline-none transition placeholder:text-[#94a3b8] ${borderClass}`}
-      />
-      {suggestions.length > 0 ? (
-        <ul className="mt-[8px] overflow-hidden rounded-[8px] border border-[#cbd5e1] bg-white shadow-sm">
-          {suggestions.map((suggestion) => (
-            <li key={suggestion.id}>
-              <button
-                type="button"
-                onClick={() => onSelectSuggestion?.(suggestion)}
-                className="w-full px-[14px] py-[10px] text-left text-[14px] leading-[20px] text-[#334155] transition hover:bg-[#f5efe6] focus:bg-[#f5efe6] focus:outline-none"
-                style={interStyle}
-              >
-                {suggestion.placeName}
-              </button>
-            </li>
-          ))}
-        </ul>
-      ) : null}
-      {showStatus ? (
-        <p
-          className={`mt-[8px] text-[13px] font-normal leading-[18px] ${
-            statusTone === "success"
-              ? "text-[#0f8a5f]"
-              : statusTone === "error"
-                ? "text-[#DC2626]"
-                : "text-[#64748b]"
-          }`}
-          style={interStyle}
-        >
-          {statusMessage}
-        </p>
-      ) : null}
-      <FieldError message={error} />
-    </div>
-  );
-}
-
 function StepHeading({ title, subtitle }: { title: string; subtitle: string }) {
   return (
     <div className="text-left">
@@ -609,15 +517,23 @@ export function BusinessStep({
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
+  const effectiveCityOptions = useMemo(() => {
+    const city = businessInfo.city.trim();
+    if (!city || cityOptions.includes(city)) {
+      return cityOptions;
+    }
+    return [...cityOptions, city].sort((a, b) => a.localeCompare(b));
+  }, [businessInfo.city, cityOptions]);
+
   const validationContext = useMemo(
     () => ({
       stateCode: selectedStateCode || undefined,
       stateName: businessInfo.state || undefined,
       allowedStateNames: stateOptions,
-      allowedCityNames: cityOptions.length > 0 ? cityOptions : undefined,
+      allowedCityNames: effectiveCityOptions.length > 0 ? effectiveCityOptions : undefined,
       requireEin: true,
     }),
-    [businessInfo.state, cityOptions, selectedStateCode, stateOptions]
+    [businessInfo.state, effectiveCityOptions, selectedStateCode, stateOptions]
   );
 
   const formInput = useMemo(
@@ -636,22 +552,11 @@ export function BusinessStep({
     [businessInfo, orgName]
   );
 
-  const businessAddressParts = useMemo(
-    () => ({
-      address1: businessInfo.address,
-      city: businessInfo.city,
-      state: businessInfo.state,
-      zipCode: businessInfo.zipCode,
-    }),
-    [businessInfo.address, businessInfo.city, businessInfo.state, businessInfo.zipCode]
-  );
-
-  const businessAddressValidation = useAddressValidation(businessAddressParts, {
-    debounceMs: 450,
-    validateOnMount: false,
+  const businessAddressAutocomplete = useAddressAutocomplete(businessInfo.address, {
+    city: businessInfo.city,
+    state: businessInfo.state,
+    zipCode: businessInfo.zipCode,
   });
-
-  const businessAddressStatus = getAddressFieldStatus(businessAddressValidation);
 
   const revalidateField = (field: BusinessInfoFieldKey, nextInput = formInput) => {
     const nextErrors = validateBusinessInfoForm(nextInput, validationContext);
@@ -662,7 +567,7 @@ export function BusinessStep({
   };
 
   const handleSelectBusinessAddressSuggestion = (suggestion: AddressSuggestion) => {
-    const { components } = businessAddressValidation.confirmSuggestion(suggestion);
+    const components = businessAddressAutocomplete.selectSuggestion(suggestion);
     const stateName = components.state
       ? getStateNameFromCode(components.state) ?? components.state
       : "";
@@ -674,8 +579,19 @@ export function BusinessStep({
     handleBusinessFieldChange(patch);
   };
 
-  const showFieldError = (field: BusinessInfoFieldKey) =>
-    submitAttempted ? fieldErrors[field] ?? null : null;
+  const showFieldError = (field: BusinessInfoFieldKey) => {
+    if (!submitAttempted) return null;
+    if (field === "address") {
+      return (
+        fieldErrors.address ??
+        addressVerificationMessage(businessInfo.address, {
+          isAddressVerified: businessAddressAutocomplete.isAddressVerified,
+          showError: true,
+        })
+      );
+    }
+    return fieldErrors[field] ?? null;
+  };
 
   const handleFieldBlur = (field: BusinessInfoFieldKey) => {
     if (!submitAttempted) return;
@@ -714,6 +630,13 @@ export function BusinessStep({
     setSubmitError(null);
 
     const errors = validateBusinessInfoForm(formInput, validationContext);
+    const addressVerifyError = addressVerificationMessage(businessInfo.address, {
+      isAddressVerified: businessAddressAutocomplete.isAddressVerified,
+      showError: true,
+    });
+    if (addressVerifyError) {
+      errors.address = addressVerifyError;
+    }
     setFieldErrors(errors);
     if (Object.keys(errors).length > 0) {
       return;
@@ -838,28 +761,33 @@ export function BusinessStep({
                     : "Search city"
               }
               searchPlaceholder="Type to search cities"
-              options={cityOptions}
+              options={effectiveCityOptions}
               error={showFieldError("city")}
               emptyMessage="No cities found. Try another search."
             />
           )}
         </div>
 
-        <AddressField
+        <AddressAutocompleteField
           label="Business Address"
           required
           value={businessInfo.address}
           onChange={(value) => {
-            businessAddressValidation.resetUserConfirmation();
+            businessAddressAutocomplete.resetVerification();
             handleBusinessFieldChange({ address: value });
           }}
           onBlur={() => handleFieldBlur("address")}
-          placeholder="123 Maple Street, Springfield, IL 62704, USA"
+          onFocus={businessAddressAutocomplete.openSuggestions}
+          onCloseSuggestions={businessAddressAutocomplete.closeSuggestions}
+          placeholder="Start typing your street address"
           error={showFieldError("address")}
-          statusMessage={businessAddressStatus.statusMessage}
-          statusTone={businessAddressStatus.statusTone}
-          suggestions={businessAddressStatus.suggestions}
+          searchError={submitAttempted ? businessAddressAutocomplete.searchError : null}
+          suggestions={businessAddressAutocomplete.suggestions}
+          isLoading={businessAddressAutocomplete.isLoading}
+          isOpen={businessAddressAutocomplete.isOpen}
+          isVerified={businessAddressAutocomplete.isAddressVerified}
           onSelectSuggestion={handleSelectBusinessAddressSuggestion}
+          variant="onboarding"
         />
 
         <div className="grid grid-cols-1 gap-[14px] min-[400px]:grid-cols-2 sm:gap-[24px]">
