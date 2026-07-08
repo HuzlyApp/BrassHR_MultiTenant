@@ -3,11 +3,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabase-browser";
-
-function buildSignInUrl(pathname: string, search: string): string {
-  const next = encodeURIComponent(`${pathname}${search}`);
-  return `/signin?role=admin_recruiter&next=${next}`;
-}
+import { recruiterLogoutLoginHref } from "@/lib/auth/recruiter-sign-in";
 
 /**
  * Blocks anonymous / missing sessions on recruiter admin routes.
@@ -32,7 +28,7 @@ export function AdminStaffAuthGuard({ children }: { children: ReactNode }) {
           await supabaseBrowser.auth.signOut();
         }
         if (!cancelled) {
-          router.replace(buildSignInUrl(pathname || "/admin_recruiter", window.location.search));
+          router.replace(recruiterLogoutLoginHref());
         }
         return;
       }

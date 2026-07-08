@@ -6,7 +6,10 @@ import { Check, ChevronDown, ChevronRight, Link2, Plus, Trash2 } from "lucide-re
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ComponentProps, type CSSProperties, type DragEvent } from "react";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import type { SignupStateOption } from "@/lib/signup/owner-signup";
-import { getStateCodeFromName } from "@/lib/us-state-names";
+import { getStateCodeFromName, getStateNameFromCode } from "@/lib/us-state-names";
+import { useAddressValidation } from "@/lib/mapbox/use-address-validation";
+import { getAddressFieldStatus, type AddressFieldStatusTone } from "@/lib/mapbox/address-field-status";
+import type { AddressSuggestion } from "@/lib/mapbox/address-validation-types";
 import OnboardingStepsBuilder from "@/app/components/onboarding/OnboardingStepsBuilder";
 import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
 import { PasswordVisibilityToggle } from "@/app/components/PasswordVisibilityToggle";
@@ -337,9 +340,13 @@ function AddressField({
   onChange,
   placeholder,
   required = true,
-  helperText = "Building, Floor, etc.",
+  helperText = "Start typing to search",
   error,
   onBlur,
+  statusMessage,
+  statusTone = "neutral",
+  suggestions = [],
+  onSelectSuggestion,
 }: {
   label: string;
   value: string;
@@ -349,7 +356,19 @@ function AddressField({
   helperText?: string;
   error?: string | null;
   onBlur?: () => void;
+  statusMessage?: string | null;
+  statusTone?: AddressFieldStatusTone;
+  suggestions?: AddressSuggestion[];
+  onSelectSuggestion?: (suggestion: AddressSuggestion) => void;
 }) {
+  const showStatus = !error && Boolean(statusMessage);
+  const borderClass = error
+    ? inputErrorClass
+    : statusTone === "success"
+      ? `border-[#3fb27f] text-[#0f172a] ${inputFocusClass}`
+      : statusTone === "error"
+        ? `border-[#ff5c7a] text-[#0f172a] ${inputFocusClass}`
+        : `border-[#cbd5e1] text-[#0f172a] ${inputFocusClass}`;
   return (
     <div>
       <div className="mb-[8px] flex items-center justify-between gap-2">
@@ -369,12 +388,40 @@ function AddressField({
         onChange={(e) => onChange(e.target.value)}
         onBlur={onBlur}
         placeholder={placeholder}
-        autoComplete="street-address"
+        autoComplete="off"
         style={inputTypographyStyle}
-        className={`h-[56px] w-full rounded-[8px] border bg-white px-[14px] ${inputTextClass} outline-none transition placeholder:text-[#94a3b8] ${
-          error ? inputErrorClass : `border-[#cbd5e1] text-[#0f172a] ${inputFocusClass}`
-        }`}
+        className={`h-[56px] w-full rounded-[8px] border bg-white px-[14px] ${inputTextClass} outline-none transition placeholder:text-[#94a3b8] ${borderClass}`}
       />
+      {suggestions.length > 0 ? (
+        <ul className="mt-[8px] overflow-hidden rounded-[8px] border border-[#cbd5e1] bg-white shadow-sm">
+          {suggestions.map((suggestion) => (
+            <li key={suggestion.id}>
+              <button
+                type="button"
+                onClick={() => onSelectSuggestion?.(suggestion)}
+                className="w-full px-[14px] py-[10px] text-left text-[14px] leading-[20px] text-[#334155] transition hover:bg-[#f5efe6] focus:bg-[#f5efe6] focus:outline-none"
+                style={interStyle}
+              >
+                {suggestion.placeName}
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {showStatus ? (
+        <p
+          className={`mt-[8px] text-[13px] font-normal leading-[18px] ${
+            statusTone === "success"
+              ? "text-[#0f8a5f]"
+              : statusTone === "error"
+                ? "text-[#DC2626]"
+                : "text-[#64748b]"
+          }`}
+          style={interStyle}
+        >
+          {statusMessage}
+        </p>
+      ) : null}
       <FieldError message={error} />
     </div>
   );
@@ -589,12 +636,42 @@ export function BusinessStep({
     [businessInfo, orgName]
   );
 
+  const businessAddressParts = useMemo(
+    () => ({
+      address1: businessInfo.address,
+      city: businessInfo.city,
+      state: businessInfo.state,
+      zipCode: businessInfo.zipCode,
+    }),
+    [businessInfo.address, businessInfo.city, businessInfo.state, businessInfo.zipCode]
+  );
+
+  const businessAddressValidation = useAddressValidation(businessAddressParts, {
+    debounceMs: 450,
+    validateOnMount: false,
+  });
+
+  const businessAddressStatus = getAddressFieldStatus(businessAddressValidation);
+
   const revalidateField = (field: BusinessInfoFieldKey, nextInput = formInput) => {
     const nextErrors = validateBusinessInfoForm(nextInput, validationContext);
     setFieldErrors((prev) => ({
       ...prev,
       [field]: nextErrors[field] ?? undefined,
     }));
+  };
+
+  const handleSelectBusinessAddressSuggestion = (suggestion: AddressSuggestion) => {
+    const { components } = businessAddressValidation.confirmSuggestion(suggestion);
+    const stateName = components.state
+      ? getStateNameFromCode(components.state) ?? components.state
+      : "";
+    const patch: Partial<BusinessInfoForm> = {};
+    if (components.address1) patch.address = components.address1;
+    if (components.city) patch.city = components.city;
+    if (stateName) patch.state = stateName;
+    if (components.zipCode) patch.zipCode = components.zipCode;
+    handleBusinessFieldChange(patch);
   };
 
   const showFieldError = (field: BusinessInfoFieldKey) =>
@@ -772,10 +849,17 @@ export function BusinessStep({
           label="Business Address"
           required
           value={businessInfo.address}
-          onChange={(value) => handleBusinessFieldChange({ address: value })}
+          onChange={(value) => {
+            businessAddressValidation.resetUserConfirmation();
+            handleBusinessFieldChange({ address: value });
+          }}
           onBlur={() => handleFieldBlur("address")}
           placeholder="123 Maple Street, Springfield, IL 62704, USA"
           error={showFieldError("address")}
+          statusMessage={businessAddressStatus.statusMessage}
+          statusTone={businessAddressStatus.statusTone}
+          suggestions={businessAddressStatus.suggestions}
+          onSelectSuggestion={handleSelectBusinessAddressSuggestion}
         />
 
         <div className="grid grid-cols-1 gap-[14px] min-[400px]:grid-cols-2 sm:gap-[24px]">

@@ -58,3 +58,14 @@ export function getStateCodeFromName(stateName: string): string | undefined {
   if (!trimmed) return undefined;
   return US_STATE_NAME_TO_CODE[trimmed];
 }
+
+/** Two-letter code → display name (reverse of US_STATE_NAME_TO_CODE). */
+export const US_STATE_CODE_TO_NAME: Record<string, string> = Object.fromEntries(
+  Object.entries(US_STATE_NAME_TO_CODE).map(([name, code]) => [code, name])
+);
+
+export function getStateNameFromCode(stateCode: string): string | undefined {
+  const trimmed = stateCode.trim().toUpperCase();
+  if (!trimmed) return undefined;
+  return US_STATE_CODE_TO_NAME[trimmed];
+}

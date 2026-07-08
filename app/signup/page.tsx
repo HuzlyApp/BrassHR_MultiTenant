@@ -15,7 +15,10 @@ import {
   signupAddress1ValidationMessage,
   signupAddress2ValidationMessage,
 } from "@/lib/signup/owner-signup";
-import { getStateCodeFromName } from "@/lib/us-state-names";
+import { getStateCodeFromName, getStateNameFromCode } from "@/lib/us-state-names";
+import { useAddressValidation } from "@/lib/mapbox/use-address-validation";
+import { getAddressFieldStatus, type AddressFieldStatusTone } from "@/lib/mapbox/address-field-status";
+import type { AddressSuggestion } from "@/lib/mapbox/address-validation-types";
 import {
   brandingAuthButtonStyle,
   brandingToCssVars,
@@ -238,6 +241,10 @@ function AddressField({
   required,
   error,
   onBlur,
+  statusMessage,
+  statusTone = "neutral",
+  suggestions = [],
+  onSelectSuggestion,
 }: {
   label: string;
   value: string;
@@ -246,29 +253,67 @@ function AddressField({
   required?: boolean;
   error?: string | null;
   onBlur?: () => void;
+  statusMessage?: string | null;
+  statusTone?: AddressFieldStatusTone;
+  suggestions?: AddressSuggestion[];
+  onSelectSuggestion?: (suggestion: AddressSuggestion) => void;
 }) {
+  const showStatus = !error && Boolean(statusMessage);
+  const borderClass = error
+    ? "border-[#ff5c7a] text-[#f01846] focus:border-[#ff5c7a] focus:ring-[#ff5c7a]/20"
+    : statusTone === "success"
+      ? "border-[#3fb27f] text-[#0f172a] focus:border-[#3fb27f] focus:ring-[#3fb27f]/20"
+      : statusTone === "error"
+        ? "border-[#ff5c7a] text-[#0f172a] focus:border-[#ff5c7a] focus:ring-[#ff5c7a]/20"
+        : "border-[#d7e0ea] text-[#0f172a] focus:border-[#d89b35] focus:ring-[#d89b35]/20";
   return (
     <div>
       <div className="mb-[10px] flex items-center justify-between gap-3">
         <FieldLabel required={required}>{label}</FieldLabel>
-        <span className="text-[9px] font-normal leading-none text-[#8a98aa]">Building, Floor, etc...</span>
+        <span className="text-[9px] font-normal leading-none text-[#8a98aa]">Start typing to search</span>
       </div>
       <input
         value={value}
         disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
         onBlur={onBlur}
-        placeholder="Address"
+        placeholder="Start typing your address"
+        autoComplete="off"
         style={signupInputTypographyStyle}
-        className={`${signupInputClass} outline-none transition placeholder:text-[#b5c0cf] focus:ring-2 disabled:bg-[#f7f8fa] disabled:text-[#94a3b8] ${
-          error
-            ? "border-[#ff5c7a] text-[#f01846] focus:border-[#ff5c7a] focus:ring-[#ff5c7a]/20"
-            : "border-[#d7e0ea] text-[#0f172a] focus:border-[#d89b35] focus:ring-[#d89b35]/20"
-        }`}
+        className={`${signupInputClass} outline-none transition placeholder:text-[#b5c0cf] focus:ring-2 disabled:bg-[#f7f8fa] disabled:text-[#94a3b8] ${borderClass}`}
       />
+      {suggestions.length > 0 ? (
+        <ul className="mt-[8px] overflow-hidden rounded-[8px] border border-[#d7e0ea] bg-white shadow-sm">
+          {suggestions.map((suggestion) => (
+            <li key={suggestion.id}>
+              <button
+                type="button"
+                onClick={() => onSelectSuggestion?.(suggestion)}
+                className="w-full px-[12px] py-[10px] text-left text-[13px] leading-[18px] text-[#334155] transition hover:bg-[#f5efe6] focus:bg-[#f5efe6] focus:outline-none"
+              >
+                {suggestion.placeName}
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
       {error ? (
         <p className="mt-[8px] text-[14px] font-normal leading-[20px] text-[#f01846]" style={interStyle}>
           {error}
+        </p>
+      ) : null}
+      {showStatus ? (
+        <p
+          className={`mt-[8px] text-[13px] font-normal leading-[18px] ${
+            statusTone === "success"
+              ? "text-[#0f8a5f]"
+              : statusTone === "error"
+                ? "text-[#f01846]"
+                : "text-[#64748b]"
+          }`}
+          style={interStyle}
+        >
+          {statusMessage}
         </p>
       ) : null}
     </div>
@@ -307,6 +352,7 @@ export default function SignupPage() {
   const [citiesLoading, setCitiesLoading] = useState(false);
   const [emailCheckStatus, setEmailCheckStatus] = useState<"idle" | "checking" | "taken" | "available">("idle");
   const emailCheckRequestId = useRef(0);
+  const lastMapboxCityRef = useRef<string>("");
   const [brand, setBrand] = useState<TenantBranding>(() => defaultTenantBranding());
   const [redirecting, setRedirecting] = useState(false);
 
@@ -399,7 +445,12 @@ export default function SignupPage() {
         const names = (data ?? []).map((row) => String(row.city_name));
         setCityOptions(names);
         setForm((prev) => {
-          if (prev.city && names.length > 0 && !names.includes(prev.city)) {
+          if (
+            prev.city &&
+            names.length > 0 &&
+            !names.includes(prev.city) &&
+            prev.city !== lastMapboxCityRef.current
+          ) {
             return { ...prev, city: "" };
           }
           return prev;
@@ -486,6 +537,40 @@ export default function SignupPage() {
     () => !signupAddress2ValidationMessage(form.address2, { sameAsAddress1: form.sameAsAddress1 }),
     [form.address2, form.sameAsAddress1]
   );
+
+  const addressParts = useMemo(
+    () => ({
+      address1: form.address1,
+      city: form.city,
+      state: form.state,
+      zipCode: form.zipCode,
+    }),
+    [form.address1, form.city, form.state, form.zipCode]
+  );
+
+  const addressValidation = useAddressValidation(addressParts, {
+    debounceMs: 450,
+    validateOnMount: false,
+  });
+
+  const addressStatus = getAddressFieldStatus(addressValidation);
+
+  const handleSelectAddressSuggestion = (suggestion: AddressSuggestion) => {
+    const { components } = addressValidation.confirmSuggestion(suggestion);
+    const stateName = components.state
+      ? getStateNameFromCode(components.state) ?? components.state
+      : "";
+    if (components.city) lastMapboxCityRef.current = components.city;
+    setForm((prev) => ({
+      ...prev,
+      address1: components.address1 || prev.address1,
+      city: components.city || prev.city,
+      state: stateName || prev.state,
+      zipCode: components.zipCode || prev.zipCode,
+    }));
+    setTouchedAddress1(true);
+    setTouchedZip(true);
+  };
 
   const canContinue = useMemo(() => {
     return (
@@ -960,8 +1045,15 @@ export default function SignupPage() {
                   label="Address 1"
                   required
                   value={form.address1}
-                  onChange={(value) => update("address1", value)}
+                  onChange={(value) => {
+                    addressValidation.resetUserConfirmation();
+                    update("address1", value);
+                  }}
                   error={address1Error}
+                  statusMessage={addressStatus.statusMessage}
+                  statusTone={addressStatus.statusTone}
+                  suggestions={addressStatus.suggestions}
+                  onSelectSuggestion={handleSelectAddressSuggestion}
                 />
               </div>
 
