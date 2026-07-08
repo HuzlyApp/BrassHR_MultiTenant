@@ -15,4 +15,8 @@ describe("candidate conversion filter", () => {
     expect(shouldExcludeFromApprovedCandidates("converted", false)).toBe(true);
     expect(shouldExcludeFromApprovedCandidates("approved", true)).toBe(true);
   });
+
+  it("does not treat for_approval as approved-pending-conversion", () => {
+    expect(isApprovedPendingConversion("for_approval", false)).toBe(false);
+  });
 });

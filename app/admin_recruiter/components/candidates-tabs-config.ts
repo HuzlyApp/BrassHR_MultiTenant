@@ -2,8 +2,8 @@ export type CandidateTabId =
   | "all"
   | "new"
   | "pending"
+  | "for_approval"
   | "approved"
-  | "approved_pending_conversion"
   | "disapproved";
 
 export type CandidateTab = {
@@ -16,12 +16,8 @@ export const CANDIDATES_TABS: CandidateTab[] = [
   { id: "all", label: "All", href: "/admin_recruiter/candidates" },
   { id: "new", label: "New", href: "/admin_recruiter/new" },
   { id: "pending", label: "Pending Review", href: "/admin_recruiter/pending" },
+  { id: "for_approval", label: "Pre Approval", href: "/admin_recruiter/pre-approval" },
   { id: "approved", label: "Approved", href: "/admin_recruiter/approved" },
-  {
-    id: "approved_pending_conversion",
-    label: "Pending Conversion",
-    href: "/admin_recruiter/approved-pending-conversion",
-  },
   { id: "disapproved", label: "Rejected", href: "/admin_recruiter/disapproved" },
 ];
 
@@ -29,8 +25,8 @@ export const CANDIDATE_ROUTE_PREFIXES = [
   "/admin_recruiter/candidates",
   "/admin_recruiter/new",
   "/admin_recruiter/pending",
+  "/admin_recruiter/pre-approval",
   "/admin_recruiter/approved",
-  "/admin_recruiter/approved-pending-conversion",
   "/admin_recruiter/disapproved",
 ];
 

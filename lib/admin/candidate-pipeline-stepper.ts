@@ -134,6 +134,17 @@ export function isFinalApprovalDecisionMade(status: string | null | undefined): 
   return statusNorm === "approved" || statusNorm === "converted" || statusNorm === "disapproved";
 }
 
+/** Final Approval stage reached (ready for recruiter decision or already decided). */
+export function isFinalApprovalStageReached(status: string | null | undefined): boolean {
+  const statusNorm = (status ?? "").trim().toLowerCase();
+  return (
+    statusNorm === "for_approval" ||
+    statusNorm === "approved" ||
+    statusNorm === "converted" ||
+    statusNorm === "disapproved"
+  );
+}
+
 export function isApplicantReadyForFinalApproval(
   profile: CandidatePipelineProfilePayload,
   checklist: CandidatePipelineChecklistPayload
@@ -189,7 +200,7 @@ export function buildCandidatePipelineSteps(
   const interviewDone = rowIsPassed(findChecklistRow(sections, "call_2"));
   const referenceDone = referencesCount > 0;
 
-  const finalApprovalCompleted = isFinalApprovalDecisionMade(statusNorm);
+  const finalApprovalCompleted = isFinalApprovalStageReached(statusNorm);
   const applicantReady = isApplicantReadyForFinalApproval(profile, checklist);
   const showOnboardedStep =
     statusNorm === "approved" || statusNorm === "converted";
@@ -227,7 +238,10 @@ export function buildCandidatePipelineSteps(
     label: "Final Approval",
     subtitle: finalApprovalCompleted ? "Completed" : undefined,
     completed: finalApprovalCompleted,
-    clickable: Boolean(finalApprovalHref) && applicantReady && !finalApprovalCompleted,
+    clickable:
+      Boolean(finalApprovalHref) &&
+      (applicantReady || statusNorm === "for_approval") &&
+      !isFinalApprovalDecisionMade(statusNorm),
     href: finalApprovalHref,
   });
 

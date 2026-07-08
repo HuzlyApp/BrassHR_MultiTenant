@@ -34,6 +34,12 @@ import {
   findWorkerTenantEmailConflict,
   TENANT_EMAIL_TAKEN_MESSAGE,
 } from "@/lib/tenant/tenant-email-uniqueness"
+import { formatPipelineStatusLabel } from "@/lib/workers/candidate-status-label"
+import {
+  areFinalApprovalPrerequisitesMet,
+  shouldPromoteToForApproval,
+} from "@/lib/admin/promote-for-approval"
+import { isEligibleForFinalApprovalView } from "@/lib/admin/final-approval"
 
 export const runtime = "nodejs"
 
@@ -47,13 +53,6 @@ function urlOrNull(v: unknown): string | null {
   if (typeof v !== "string") return null
   const s = v.trim()
   return s.length > 0 ? s : null
-}
-
-function titleCaseStatus(s: string | null | undefined): string {
-  const v = (s || "").trim().toLowerCase()
-  if (!v) return "New Applicant"
-  if (v === "new") return "New Applicant"
-  return v.charAt(0).toUpperCase() + v.slice(1)
 }
 
 type FirmaSigningRow = {
@@ -655,8 +654,67 @@ export async function GET(req: NextRequest) {
     const createdAt = w.created_at != null ? String(w.created_at) : null
     const updatedAt = w.updated_at != null ? String(w.updated_at) : createdAt
 
-    const statusRaw = (w.status ?? w.worker_status) as string | undefined
-    const statusLabel = titleCaseStatus(statusRaw)
+    let statusNorm = String(w.status ?? w.worker_status ?? "new").trim().toLowerCase() || "new"
+
+    try {
+      const { loadWorkerPipelineChecklistItems, pipelineItemIsComplete } = await import(
+        "@/lib/worker-pipeline-checklist"
+      )
+      const pipelineRows = await loadWorkerPipelineChecklistItems(supabase, workerId)
+      const sections = [
+        {
+          id: "screening",
+          rows: [
+            {
+              id: "call_1",
+              checked: pipelineItemIsComplete(pipelineRows.get("call_1")),
+              callLogCompleted: pipelineRows.get("call_1")?.call_log_completed === true,
+              state: pipelineItemIsComplete(pipelineRows.get("call_1")) ? "complete" : "pending",
+            },
+            {
+              id: "call_2",
+              checked: pipelineItemIsComplete(pipelineRows.get("call_2")),
+              callLogCompleted: pipelineRows.get("call_2")?.call_log_completed === true,
+              state: pipelineItemIsComplete(pipelineRows.get("call_2")) ? "complete" : "pending",
+            },
+          ],
+        },
+      ]
+      const prerequisitesComplete = areFinalApprovalPrerequisitesMet({
+        hasWorker: true,
+        sections,
+        skillAssessments: { completed: saCompleted, total: saTotal },
+        referencesCount: references.length,
+      })
+      const finalApprovalReady = isEligibleForFinalApprovalView({
+        workerStatus: statusNorm,
+        checklistProgressPercent: onboardingCompletion.percent,
+        onboardingCompletionPercent: onboardingCompletion.percent,
+        trackerDoneCount: prerequisitesComplete ? 4 : 0,
+      })
+      if (
+        shouldPromoteToForApproval({
+          workerId,
+          currentStatus: statusNorm,
+          prerequisitesComplete,
+          finalApprovalReady,
+        })
+      ) {
+        const now = new Date().toISOString()
+        const { error: promoteErr } = await supabase
+          .from("worker")
+          .update({ status: "for_approval", updated_at: now })
+          .eq("id", workerId)
+        if (!promoteErr) {
+          statusNorm = "for_approval"
+          w.status = "for_approval"
+        }
+      }
+    } catch (promoteErr) {
+      console.warn("[admin/worker-profile] for_approval promotion", promoteErr)
+    }
+
+    const statusLabel = formatPipelineStatusLabel(statusNorm)
 
     const resolvedDocumentUrl = await resolveDocUrl(docs?.document_url, storageAuthUrlFromFiles)
     const storageAuthUrl = resolvedDocumentUrl ?? firmaSigning?.iframe_url ?? null
@@ -763,7 +821,7 @@ export async function GET(req: NextRequest) {
         job_role: w.job_role != null ? String(w.job_role) : null,
         created_at: createdAt,
         updated_at: updatedAt,
-        status: statusRaw ?? "new",
+        status: statusNorm,
         status_label: statusLabel,
         date_of_birth: w.date_of_birth != null ? String(w.date_of_birth) : null,
         years_experience:

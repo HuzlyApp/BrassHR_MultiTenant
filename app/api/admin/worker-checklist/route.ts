@@ -24,6 +24,12 @@ import {
   type PipelineChecklistItemKey,
 } from "@/lib/worker-pipeline-checklist"
 import { loadWorkerCallLogs, type CallLogOutcome } from "@/lib/admin/worker-call-logs"
+import {
+  areFinalApprovalPrerequisitesMet,
+  shouldPromoteToForApproval,
+} from "@/lib/admin/promote-for-approval"
+import { isEligibleForFinalApprovalView } from "@/lib/admin/final-approval"
+import { formatPipelineStatusLabel } from "@/lib/workers/candidate-status-label"
 
 export const runtime = "nodejs"
 
@@ -137,7 +143,7 @@ export async function GET(req: NextRequest) {
     })
 
     const statusRaw = worker.status as string | null | undefined
-    const statusNorm = typeof statusRaw === "string" ? statusRaw.trim().toLowerCase() : "new"
+    let statusNorm = typeof statusRaw === "string" ? statusRaw.trim().toLowerCase() : "new"
 
     const { data: docRow } = await supabase
       .from("worker_documents")
@@ -503,6 +509,42 @@ export async function GET(req: NextRequest) {
       created_at: asTrimmedString(row.created_at) || null,
     }))
 
+    const { count: referencesCount } = await supabase
+      .from("worker_references")
+      .select("id", { count: "exact", head: true })
+      .eq("worker_id", workerId)
+
+    const prerequisitesComplete = areFinalApprovalPrerequisitesMet({
+      hasWorker: true,
+      sections,
+      skillAssessments: { completed: completedAssessments, total: totalAssessments },
+      referencesCount: referencesCount ?? 0,
+    })
+    const finalApprovalReady = isEligibleForFinalApprovalView({
+      workerStatus: statusNorm,
+      checklistProgressPercent: progressPercent,
+      onboardingCompletionPercent: progressPercent,
+      trackerDoneCount: trackDone.filter(Boolean).length,
+    })
+
+    if (
+      shouldPromoteToForApproval({
+        workerId,
+        currentStatus: statusNorm,
+        prerequisitesComplete,
+        finalApprovalReady,
+      })
+    ) {
+      const now = new Date().toISOString()
+      const { error: promoteErr } = await supabase
+        .from("worker")
+        .update({ status: "for_approval", updated_at: now })
+        .eq("id", workerId)
+      if (!promoteErr) {
+        statusNorm = "for_approval"
+      }
+    }
+
     return NextResponse.json({
       worker: {
         id: String(worker.id),
@@ -515,10 +557,7 @@ export async function GET(req: NextRequest) {
         created_at: worker.created_at,
         updated_at: worker.updated_at ?? worker.created_at,
         status: statusNorm,
-        status_label:
-          statusNorm === "new"
-            ? "New Applicant"
-            : statusNorm.charAt(0).toUpperCase() + statusNorm.slice(1),
+        status_label: formatPipelineStatusLabel(statusNorm),
         profile_photo_url: await resolveWorkerProfilePhotoUrl(
           supabase,
           (worker as { profile_photo?: unknown }).profile_photo

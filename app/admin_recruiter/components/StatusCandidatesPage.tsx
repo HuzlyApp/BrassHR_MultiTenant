@@ -18,6 +18,7 @@ import {
 import { renderListCell } from "../candidates/render-list-cell";
 import { CandidateGridCard } from "../candidates/CandidateGridCard";
 import type { CandidateRow } from "../candidates/types";
+import { formatCandidateStatusLabel } from "../candidates/candidate-status-badge";
 
 type WorkerProfile = {
   id: string;
@@ -47,13 +48,6 @@ type StatusCandidatesPageProps = {
   statusLabel: string;
   emptyMessage: string;
 };
-
-function titleCaseStatus(s: string | null | undefined) {
-  const v = (s || "").trim();
-  if (!v) return "New";
-  const low = v.toLowerCase();
-  return low.slice(0, 1).toUpperCase() + low.slice(1);
-}
 
 function formatDateTime(iso: string | null) {
   if (!iso) return "—";
@@ -202,7 +196,7 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
         zip: item.zip ?? "",
         address1: item.address1 ?? "",
         address2: item.address2 ?? "",
-        status: titleCaseStatus(item.status ?? statusLabel),
+        status: formatCandidateStatusLabel(item.status ?? statusLabel),
         createdAt: item.created_at,
         reference: item.id.slice(0, 7).toUpperCase(),
         dateOfBirth: null,

@@ -18,6 +18,12 @@ describe("workers-status-filter", () => {
     );
   });
 
+  it("builds in filter for for_approval", () => {
+    expect(statusOrFilter("status", "for_approval")).toBe(
+      "status.in.(for_approval,For_approval,FOR_APPROVAL)"
+    );
+  });
+
   it("defaults limit to 50 and caps at 500", () => {
     expect(parseWorkersListParams(new URLSearchParams()).limit).toBe(50);
     expect(parseWorkersListParams(new URLSearchParams("limit=9999")).limit).toBe(500);

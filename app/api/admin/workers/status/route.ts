@@ -10,13 +10,14 @@ import { parseRequiredUuid } from "@/lib/validation/uuid";
 
 export const runtime = "nodejs";
 
-type PipelineStatus = "new" | "pending" | "approved" | "disapproved";
+type PipelineStatus = "new" | "pending" | "for_approval" | "approved" | "disapproved";
 
 function parsePipelineStatus(value: unknown): PipelineStatus | null {
   const status = typeof value === "string" ? value.trim().toLowerCase() : "";
   if (
     status === "new" ||
     status === "pending" ||
+    status === "for_approval" ||
     status === "approved" ||
     status === "disapproved"
   ) {

@@ -40,7 +40,7 @@ export type FinalApprovalViewModel = {
   jobId: string;
   source: string;
   currentStatus: string;
-  currentStatusTone: "final" | "approved" | "pending" | "new" | "disapproved";
+  currentStatusTone: "final" | "approved" | "pending" | "for_approval" | "new" | "disapproved";
   aiConfidenceScore: number;
   matchLabel: string;
   recommendationSummary: string;
@@ -202,6 +202,7 @@ export function isEligibleForFinalApprovalView(params: {
     status === "new" ||
     status === "pending" ||
     status === "under_review" ||
+    status === "for_approval" ||
     status === "approved"
   );
 }
@@ -228,7 +229,10 @@ export function buildFinalApprovalViewModel(
     trackerDoneCount,
   });
 
-  const showActions = statusNorm !== "approved" && statusNorm !== "disapproved";
+  const showActions =
+    statusNorm !== "approved" &&
+    statusNorm !== "disapproved" &&
+    statusNorm !== "converted";
 
   const skillRows = profile.skillAssessments?.rows ?? [];
   const avgSkillScore = averageSkillScore(skillRows);
@@ -382,6 +386,7 @@ export function buildFinalApprovalViewModel(
 
   let currentStatusTone: FinalApprovalViewModel["currentStatusTone"] = "new";
   if (statusNorm === "approved") currentStatusTone = "approved";
+  else if (statusNorm === "for_approval") currentStatusTone = "for_approval";
   else if (statusNorm === "pending" || statusNorm === "under_review") {
     currentStatusTone = "pending";
   }
@@ -391,9 +396,11 @@ export function buildFinalApprovalViewModel(
   const currentStatus =
     statusNorm === "approved"
       ? "Approved"
-      : eligible
-        ? "Final Approval"
-        : worker.status_label?.trim() || "New Applicant";
+      : statusNorm === "for_approval"
+        ? "For Approval"
+        : eligible
+          ? "Final Approval"
+          : worker.status_label?.trim() || "New Applicant";
 
   return {
     eligible,

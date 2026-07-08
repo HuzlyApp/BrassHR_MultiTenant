@@ -17,6 +17,9 @@ export function statusFilterValues(
   if (s === "pending") {
     return Array.from(new Set([...statusVariants("pending"), ...statusVariants("under_review")]));
   }
+  if (s === "for_approval") {
+    return statusVariants("for_approval");
+  }
   return statusVariants(s);
 }
 

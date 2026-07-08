@@ -127,7 +127,23 @@ describe("isFinalApprovalDecisionMade", () => {
     expect(isFinalApprovalDecisionMade("approved")).toBe(true);
     expect(isFinalApprovalDecisionMade("converted")).toBe(true);
     expect(isFinalApprovalDecisionMade("disapproved")).toBe(true);
+    expect(isFinalApprovalDecisionMade("for_approval")).toBe(false);
     expect(isFinalApprovalDecisionMade("new")).toBe(false);
+  });
+});
+
+describe("for_approval pipeline stage", () => {
+  it("marks final approval completed for for_approval without showing onboarded", () => {
+    const steps = buildCandidatePipelineSteps(
+      { worker: { id: "w1", status: "for_approval" } },
+      {},
+      "w1"
+    );
+    const finalApproval = steps.find((step) => step.id === "final_approval");
+    expect(finalApproval?.completed).toBe(true);
+    expect(finalApproval?.subtitle).toBe("Completed");
+    expect(finalApproval?.clickable).toBe(true);
+    expect(steps.some((step) => step.id === "onboarded")).toBe(false);
   });
 });
 

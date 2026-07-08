@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   buildEmploymentWorkerRow,
   isCandidateAlreadyConverted,
+  normalizeCandidateStatus,
   parseConvertWorkerType,
   type CandidateConversionSnapshot,
   type ConvertWorkerType,
@@ -74,6 +75,15 @@ export async function convertCandidateToWorker(
       ok: false,
       error: "This candidate has already been converted.",
       status: 409,
+    };
+  }
+
+  const candidateStatus = normalizeCandidateStatus(candidate.status);
+  if (candidateStatus !== "approved") {
+    return {
+      ok: false,
+      error: "Only approved candidates can be converted to workers.",
+      status: 400,
     };
   }
 

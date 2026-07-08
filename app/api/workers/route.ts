@@ -8,7 +8,9 @@ import { applyWorkerTenantEq } from "@/lib/workers/tenant-query";
 import {
   isApprovedPendingConversion,
   shouldExcludeFromApprovedCandidates,
+  shouldExcludeFromCandidateLists,
 } from "@/lib/workers/candidate-conversion-filter";
+import { ACTIVE_CANDIDATE_PIPELINE_STATUSES } from "@/lib/workers/candidate-status-label";
 import type { WorkerStatus } from "@/lib/workers/workers-status-types";
 import { parseWorkersListParams, statusOrFilter } from "@/lib/workers/workers-status-filter";
 
@@ -25,6 +27,7 @@ function parseStatus(v: string | null): WorkerStatus | null {
   if (
     s === "new" ||
     s === "pending" ||
+    s === "for_approval" ||
     s === "approved" ||
     s === "disapproved" ||
     s === "active" ||
@@ -40,6 +43,7 @@ function parseStatus(v: string | null): WorkerStatus | null {
 const PIPELINE_STATUSES = new Set<WorkerStatus>([
   "new",
   "pending",
+  "for_approval",
   "approved",
   "disapproved",
 ]);
@@ -47,6 +51,7 @@ const PIPELINE_STATUSES = new Set<WorkerStatus>([
 /** Recruiter pipeline stages stored only in text `status` — not the legacy enum. */
 const PIPELINE_TEXT_ONLY = new Set<WorkerStatus>([
   "pending",
+  "for_approval",
   "approved",
   "disapproved",
 ]);
@@ -122,6 +127,7 @@ export async function GET(req: Request) {
     const { limit, offset } = parseWorkersListParams(urlObj.searchParams);
     const needsConversionFilter =
       conversionFilter === "pending" ||
+      status == null ||
       (status === "approved" && conversionFilter !== "all");
     const queryLimit = needsConversionFilter && !headOnly ? 500 : limit;
     const queryOffset = needsConversionFilter && !headOnly ? 0 : offset;
@@ -181,6 +187,7 @@ export async function GET(req: Request) {
       const pipelineStatus =
         status === "new" ||
         status === "pending" ||
+        status === "for_approval" ||
         status === "approved" ||
         status === "disapproved";
       const pipelineSelectExtra = "status, worker_status";
@@ -198,6 +205,10 @@ export async function GET(req: Request) {
           q = applyWorkerTenantEq(q, tenantScope) as typeof q;
           if (status) {
             q = q.or(statusOrFilter(a.col, status)) as typeof q;
+          } else if (a.col === "status") {
+            // All candidates tab: active pipeline only (exclude converted workers).
+            const active = ACTIVE_CANDIDATE_PIPELINE_STATUSES.join(",");
+            q = q.or(`status.in.(${active}),status.is.null`) as typeof q;
           }
           q = q.order("created_at", { ascending: false }) as typeof q;
           if (!headOnly) {
@@ -254,6 +265,9 @@ export async function GET(req: Request) {
               const hasEmployment = convertedIds.has(rowId);
               if (conversionFilter === "pending") {
                 return isApprovedPendingConversion(rowStatus, hasEmployment);
+              }
+              if (status == null) {
+                return !shouldExcludeFromCandidateLists(rowStatus, hasEmployment);
               }
               return !shouldExcludeFromApprovedCandidates(rowStatus, hasEmployment);
             });

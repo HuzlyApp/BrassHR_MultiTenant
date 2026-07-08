@@ -85,6 +85,8 @@ function statusBadgeClass(tone: FinalApprovalViewModel["currentStatusTone"]): st
       return "bg-emerald-100 text-emerald-800";
     case "pending":
       return "bg-amber-100 text-amber-800";
+    case "for_approval":
+      return "bg-orange-100 text-orange-800";
     case "disapproved":
       return "bg-red-100 text-red-800";
     default:

@@ -36,6 +36,7 @@ export default function RecruiterPipelineDashboard() {
   const [counts, setCounts] = useState({
     new: 0,
     pending: 0,
+    for_approval: 0,
     approved: 0,
     disapproved: 0,
   });
@@ -44,10 +45,11 @@ export default function RecruiterPipelineDashboard() {
     async function run() {
       setLoading(true);
       try {
-        const [allRes, cNew, cPending, cApproved, cDisapproved] = await Promise.all([
+        const [allRes, cNew, cPending, cForApproval, cApproved, cDisapproved] = await Promise.all([
           fetch("/api/workers"),
           fetch("/api/workers?status=new&head=1"),
           fetch("/api/workers?status=pending&head=1"),
+          fetch("/api/workers?status=for_approval&head=1"),
           fetch("/api/workers?status=approved&head=1"),
           fetch("/api/workers?status=disapproved&head=1"),
         ]);
@@ -60,7 +62,7 @@ export default function RecruiterPipelineDashboard() {
           String(allJson?.detail ?? "").toLowerCase().includes("staff role required");
         if (authError) {
           setWorkers([]);
-          setCounts({ new: 0, pending: 0, approved: 0, disapproved: 0 });
+          setCounts({ new: 0, pending: 0, for_approval: 0, approved: 0, disapproved: 0 });
           return;
         }
         if (!allRes.ok) throw new Error(allJson?.error || "Failed to load workers");
@@ -75,17 +77,18 @@ export default function RecruiterPipelineDashboard() {
           const j = await r.json().catch(() => ({}));
           return typeof j?.total === "number" ? j.total : 0;
         };
-        const [n, p, a, d] = await Promise.all([
+        const [n, p, f, a, d] = await Promise.all([
           parseTotal(cNew),
           parseTotal(cPending),
+          parseTotal(cForApproval),
           parseTotal(cApproved),
           parseTotal(cDisapproved),
         ]);
-        setCounts({ new: n, pending: p, approved: a, disapproved: d });
+        setCounts({ new: n, pending: p, for_approval: f, approved: a, disapproved: d });
       } catch (e) {
         console.error("Failed to load dashboard workers:", e);
         setWorkers([]);
-        setCounts({ new: 0, pending: 0, approved: 0, disapproved: 0 });
+        setCounts({ new: 0, pending: 0, for_approval: 0, approved: 0, disapproved: 0 });
       } finally {
         setLoading(false);
       }
@@ -134,7 +137,7 @@ export default function RecruiterPipelineDashboard() {
           </Link>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-6">
           <Link
             href="/admin_recruiter/workers"
             className="min-h-[132px] rounded-2xl border border-[#E5E7EB] bg-white p-4 transition hover:shadow-sm"
@@ -153,6 +156,7 @@ export default function RecruiterPipelineDashboard() {
           {[
             { key: "new" as const, label: "New applicants", href: "/admin_recruiter/new", chip: "New", chipClass: "border border-[#CBD5E1] bg-[#F8FAFC] text-[#475569]" },
             { key: "pending" as const, label: "Pending applicants", href: "/admin_recruiter/pending", chip: "Pending", chipClass: "border border-[color:var(--brand-primary)] bg-[color:var(--brand-primary)] text-white" },
+            { key: "for_approval" as const, label: "Pre approval", href: "/admin_recruiter/pre-approval", chip: "For Approval", chipClass: "border border-[#F97316] bg-[#F97316] text-white" },
             { key: "approved" as const, label: "Approved applicants", href: "/admin_recruiter/approved", chip: "Approved", chipClass: "border border-[#22C55E] bg-[#22C55E] text-white" },
             { key: "disapproved" as const, label: "Disapproved applicants", href: "/admin_recruiter/disapproved", chip: "Disapproved", chipClass: "border border-[#FB7185] bg-[#FB7185] text-white" },
           ].map((c) => (
