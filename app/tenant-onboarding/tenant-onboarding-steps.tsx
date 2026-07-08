@@ -183,19 +183,23 @@ function InviteStepActions({
   sending?: boolean;
 }) {
   return (
-    <div className="mt-[32px] flex flex-col gap-3 sm:flex-row sm:items-stretch">
-      <BackButton onClick={onBack} className="sm:flex-1" disabled={skipping || sending} />
+    <div className="mt-[32px] flex flex-row items-stretch gap-2 sm:gap-3">
+      <BackButton
+        onClick={onBack}
+        className="flex-1 px-2 text-[14px] sm:px-4 sm:text-[16px]"
+        disabled={skipping || sending}
+      />
       <button
         type="button"
         onClick={onSkip}
         disabled={skipping || sending}
-        className="flex h-[54px] w-full items-center justify-center rounded-[12px] border border-[#104b83] bg-white text-[16px] font-semibold leading-[22px] text-[#104b83] transition hover:bg-[#f0f7ff] disabled:cursor-not-allowed disabled:opacity-60 sm:flex-1"
+        className="flex h-[54px] flex-1 items-center justify-center rounded-[12px] border border-[#104b83] bg-white px-2 text-[14px] font-semibold leading-[20px] text-[#104b83] transition hover:bg-[#f0f7ff] disabled:cursor-not-allowed disabled:opacity-60 sm:px-4 sm:text-[16px] sm:leading-[22px]"
         style={interStyle}
       >
         {skipping ? "Finishing..." : "Skip for now"}
       </button>
       <ContinueButton
-        className="sm:flex-1"
+        className="flex-1 px-2 text-[14px] sm:px-4 sm:text-[16px]"
         label={sending ? "Sending..." : "Send Invites"}
         disabled={skipping || sending}
         onClick={onSendInvites}
@@ -218,10 +222,10 @@ function StepActions({
   className?: string;
 }) {
   return (
-    <div className={`mt-[32px] flex flex-col-reverse gap-3 sm:flex-row sm:items-stretch ${className}`.trim()}>
-      <BackButton onClick={onBack} className="sm:flex-1" />
+    <div className={`mt-[32px] flex flex-row items-stretch gap-3 ${className}`.trim()}>
+      <BackButton onClick={onBack} className="flex-1" />
       <ContinueButton
-        className="sm:flex-1"
+        className="flex-1"
         label={continueLabel}
         disabled={continueDisabled}
         onClick={onContinue}
@@ -377,10 +381,10 @@ function AddressField({
 function StepHeading({ title, subtitle }: { title: string; subtitle: string }) {
   return (
     <div className="text-left">
-      <h2 className="text-[28px] font-semibold leading-[36px] tracking-normal text-[#0f172a] sm:text-[30px]" style={interStyle}>
+      <h2 className="text-[24px] font-semibold leading-[30px] tracking-normal text-[#0f172a] sm:text-[30px] sm:leading-[36px]" style={interStyle}>
         {title}
       </h2>
-      <p className="mt-[8px] text-[16px] font-normal leading-[24px] text-[#64748b]" style={interStyle}>
+      <p className="mt-[8px] text-[14px] font-normal leading-[20px] text-[#64748b] sm:text-[16px] sm:leading-[24px]" style={interStyle}>
         {subtitle}
       </p>
     </div>
@@ -400,20 +404,20 @@ function GoalCard({ id, label, icon, selected, onToggle }: GoalCardProps) {
     <button
       type="button"
       onClick={() => onToggle(id)}
-      className={`flex w-full items-center gap-[14px] rounded-[12px] border px-[16px] py-[18px] text-left transition ${
+      className={`flex w-full items-center gap-[10px] rounded-[12px] border px-[12px] py-[14px] text-left transition sm:gap-[14px] sm:px-[16px] sm:py-[18px] ${
         selected
           ? "border-[color:var(--brand-primary)] bg-[color:color-mix(in_srgb,var(--brand-primary)_6%,white)]"
           : "border-[#e2e8f0] bg-white hover:border-[#cbd5e1]"
       }`}
     >
-      <span className="flex h-[44px] w-[44px] shrink-0 items-center justify-center rounded-[10px] bg-[#f5efe6]">
-        <Image src={icon} alt="" width={26} height={26} className="h-[26px] w-[26px]" />
+      <span className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-[10px] bg-[#f5efe6] sm:h-[44px] sm:w-[44px]">
+        <Image src={icon} alt="" width={26} height={26} className="h-[22px] w-[22px] sm:h-[26px] sm:w-[26px]" />
       </span>
-      <span className="flex-1 text-[15px] font-medium leading-[22px] text-[#104b83]" style={interStyle}>
+      <span className="flex-1 text-[13px] font-medium leading-[18px] text-[#104b83] sm:text-[15px] sm:leading-[22px]" style={interStyle}>
         {label}
       </span>
       <span
-        className={`flex h-[24px] w-[24px] shrink-0 items-center justify-center rounded-[8px] border ${
+        className={`flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-[8px] border sm:h-[24px] sm:w-[24px] ${
           selected ? "border-[color:var(--brand-primary)] bg-[color:var(--brand-primary)]" : "border-[#cbd5e1] bg-white"
         }`}
       >
@@ -440,7 +444,7 @@ export function GoalsStep({
         title="What brings you to brassHR"
         subtitle="Choose what matters most to you, and we'll make sure to help you hit your goals."
       />
-      <div className="mt-[28px] grid gap-[16px] sm:grid-cols-2">
+      <div className="mt-[28px] grid grid-cols-2 gap-[12px] sm:gap-[16px]">
         {TENANT_GOAL_OPTIONS.map((goal) => (
           <GoalCard
             key={goal.id}
@@ -685,7 +689,7 @@ export function BusinessStep({
 
       {submitError ? <ErrorBanner message={submitError} /> : null}
 
-      <div className="mt-[28px] space-y-[24px]">
+      <div className="mt-[28px] space-y-[18px] sm:space-y-[24px]">
         <TextField
           label="Company Name"
           required
@@ -696,7 +700,7 @@ export function BusinessStep({
           error={showFieldError("companyName")}
         />
 
-        <div className="grid gap-[24px] sm:grid-cols-2">
+        <div className="grid grid-cols-2 gap-[14px] sm:gap-[24px]">
           <SelectField
             label="Industry"
             required
@@ -717,7 +721,7 @@ export function BusinessStep({
           />
         </div>
 
-        <div className="grid gap-[24px] sm:grid-cols-2">
+        <div className="grid grid-cols-2 gap-[14px] sm:gap-[24px]">
           <SelectField
             label="State"
             required
@@ -772,7 +776,7 @@ export function BusinessStep({
           error={showFieldError("address")}
         />
 
-        <div className="grid gap-[24px] sm:grid-cols-2">
+        <div className="grid grid-cols-2 gap-[14px] sm:gap-[24px]">
           <TextField
             label="Business Phone"
             required
@@ -799,7 +803,7 @@ export function BusinessStep({
           />
         </div>
 
-        <div className="grid gap-[24px] sm:grid-cols-2">
+        <div className="grid grid-cols-2 gap-[14px] sm:gap-[24px]">
           <TextField
             label="Zip Code"
             required
@@ -956,7 +960,7 @@ export function CompanyLogoStep({
     <div>
       <StepHeading title="Company Logo" subtitle="Customize your company logo" />
 
-      <div className="mt-[28px] space-y-[24px]">
+      <div className="mt-[28px] space-y-[18px] sm:space-y-[24px]">
         <TextField
           label="Logo Name"
           required
@@ -1054,18 +1058,18 @@ export function CompanyLogoStep({
               }}
               onDragOver={(e) => e.preventDefault()}
               onDrop={onDrop}
-              className="mt-[16px] flex cursor-pointer flex-col items-center justify-center rounded-[10px] border-2 border-dashed border-[#94a3b8] bg-white px-6 py-[28px] transition hover:border-[#64748b] hover:bg-[#fafafa]"
+              className="mt-[16px] flex cursor-pointer flex-col items-center justify-center rounded-[10px] border-2 border-dashed border-[#94a3b8] bg-white px-4 py-[24px] transition hover:border-[#64748b] hover:bg-[#fafafa] sm:px-6 sm:py-[28px]"
             >
               <Image
                 src="/icons/braas-HR/tenant-onboarding/upload.svg"
                 alt=""
                 width={36}
                 height={36}
-                className="h-[36px] w-[36px]"
+                className="h-[30px] w-[30px] sm:h-[36px] sm:w-[36px]"
               />
 
               <p
-                className="mt-[16px] text-[16px] font-medium leading-[24px] text-[#104b83]"
+                className="mt-[12px] text-center text-[14px] font-medium leading-[20px] text-[#104b83] sm:mt-[16px] sm:text-[16px] sm:leading-[24px]"
                 style={interStyle}
               >
                 Drag your file(s) to start uploading
