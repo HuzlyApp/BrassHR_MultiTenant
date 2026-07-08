@@ -198,7 +198,12 @@ export function isEligibleForFinalApprovalView(params: {
     params.trackerDoneCount >= 4;
 
   if (!atFinalStage) return false;
-  return status === "new" || status === "pending" || status === "approved";
+  return (
+    status === "new" ||
+    status === "pending" ||
+    status === "under_review" ||
+    status === "approved"
+  );
 }
 
 export function buildFinalApprovalViewModel(
@@ -377,7 +382,9 @@ export function buildFinalApprovalViewModel(
 
   let currentStatusTone: FinalApprovalViewModel["currentStatusTone"] = "new";
   if (statusNorm === "approved") currentStatusTone = "approved";
-  else if (statusNorm === "pending") currentStatusTone = "pending";
+  else if (statusNorm === "pending" || statusNorm === "under_review") {
+    currentStatusTone = "pending";
+  }
   else if (statusNorm === "disapproved") currentStatusTone = "disapproved";
   else if (eligible) currentStatusTone = "final";
 

@@ -1,6 +1,6 @@
 import type { WorkerStatus } from "@/lib/workers/workers-status-types";
 
-export function statusVariants(s: WorkerStatus): string[] {
+export function statusVariants(s: string): string[] {
   const title = s.slice(0, 1).toUpperCase() + s.slice(1);
   const upper = s.toUpperCase();
   return Array.from(new Set([s, title, upper]));
@@ -12,6 +12,10 @@ export function statusFilterValues(
 ): string[] {
   if (col === "worker_status") {
     return [s];
+  }
+  // Submitted applications are stored as `under_review`; treat them as pending review.
+  if (s === "pending") {
+    return Array.from(new Set([...statusVariants("pending"), ...statusVariants("under_review")]));
   }
   return statusVariants(s);
 }

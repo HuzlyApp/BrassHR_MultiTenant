@@ -12,6 +12,12 @@ describe("workers-status-filter", () => {
     expect(statusOrFilter("status", "approved")).toBe("status.in.(approved,Approved,APPROVED)");
   });
 
+  it("includes under_review variants when filtering pending", () => {
+    expect(statusOrFilter("status", "pending")).toBe(
+      "status.in.(pending,Pending,PENDING,under_review,Under_review,UNDER_REVIEW)"
+    );
+  });
+
   it("defaults limit to 50 and caps at 500", () => {
     expect(parseWorkersListParams(new URLSearchParams()).limit).toBe(50);
     expect(parseWorkersListParams(new URLSearchParams("limit=9999")).limit).toBe(500);
