@@ -7,9 +7,21 @@ import type { ApplicantSession } from "@/app/application/components/applicant-po
 
 export function useApplicantPortalAuthHeaders() {
   return useCallback(async () => {
-    const { data } = await supabaseBrowser.auth.getSession();
-    const token = data.session?.access_token;
-    return token ? { Authorization: `Bearer ${token}` } : null;
+    try {
+      const { data: sessionData } = await supabaseBrowser.auth.getSession();
+      let token = sessionData.session?.access_token ?? null;
+      const expiresAtMs = (sessionData.session?.expires_at ?? 0) * 1000;
+
+      // Refresh near-expiry sessions before issuing API calls that require bearer auth.
+      if (!token || (expiresAtMs > 0 && expiresAtMs - Date.now() < 60_000)) {
+        const { data: refreshedData } = await supabaseBrowser.auth.refreshSession();
+        token = refreshedData.session?.access_token ?? token;
+      }
+
+      return token ? { Authorization: `Bearer ${token}` } : null;
+    } catch {
+      return null;
+    }
   }, []);
 }
 

@@ -4,7 +4,7 @@ import { requireStaffApiSession } from "@/lib/auth/api-session";
 import { resolveStaffTenantScope } from "@/lib/auth/staff-tenant-scope";
 import { canAccessWorkerRecord } from "@/lib/auth/worker-record-access";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
-import { findApplicantByUserId, normalizeApplicantStatus } from "@/lib/applicant-portal";
+import { findApplicantByUserId } from "@/lib/applicant-portal";
 import { APPLICANT_CHAT_BUCKET } from "@/lib/supabase-storage-buckets";
 import { parseRequiredUuid } from "@/lib/validation/uuid";
 
@@ -69,7 +69,7 @@ async function resolveApplicantRequest(req: NextRequest) {
   if (error || !data.user?.id) return null;
 
   const applicant = await findApplicantByUserId(supabase, data.user.id);
-  if (!applicant?.id || normalizeApplicantStatus(applicant.status) !== "approved") return null;
+  if (!applicant?.id) return null;
 
   return { supabase, workerId: applicant.id, tenantId: applicant.tenant_id, userId: data.user.id };
 }

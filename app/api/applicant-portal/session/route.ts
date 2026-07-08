@@ -5,7 +5,6 @@ import {
   applicantStatusLabel,
   findApplicantByUserId,
   normalizeApplicantStatus,
-  UNAPPROVED_APPLICANT_MESSAGE,
 } from "@/lib/applicant-portal";
 
 export const runtime = "nodejs";
@@ -36,16 +35,6 @@ export async function GET(req: NextRequest) {
     if (!applicant?.id) return NextResponse.json({ error: "Applicant not found" }, { status: 404 });
 
     const status = normalizeApplicantStatus(applicant.status);
-    if (status !== "approved") {
-      return NextResponse.json(
-        {
-          error: UNAPPROVED_APPLICANT_MESSAGE,
-          applicationStatus: status,
-          statusLabel: applicantStatusLabel(applicant.status),
-        },
-        { status: 403 }
-      );
-    }
 
     return NextResponse.json({
       ok: true,
@@ -57,7 +46,7 @@ export async function GET(req: NextRequest) {
       },
       applicationStatus: status,
       statusLabel: applicantStatusLabel(applicant.status),
-      message: "Your application has been approved.",
+      message: "Your applicant portal session is ready.",
     });
   } catch (err) {
     console.error("[applicant-portal/session]", err);

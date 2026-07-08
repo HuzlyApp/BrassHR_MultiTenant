@@ -1,15 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { User } from "@supabase/supabase-js";
 import {
-  applicantStatusLabel,
   findApplicantByUserId,
-  normalizeApplicantStatus,
-  UNAPPROVED_APPLICANT_MESSAGE,
   type ApplicantWorkerRow,
 } from "@/lib/applicant-portal";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 
-export type ApprovedApplicantContext = {
+export type ApplicantPortalContext = {
   supabase: NonNullable<ReturnType<typeof createServiceRoleClient>>;
   user: User;
   applicant: ApplicantWorkerRow;
@@ -24,7 +21,7 @@ export function bearerToken(req: NextRequest): string | null {
 
 export async function requireApprovedApplicant(
   req: NextRequest
-): Promise<ApprovedApplicantContext | NextResponse> {
+): Promise<ApplicantPortalContext | NextResponse> {
   const token = bearerToken(req);
   if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -41,18 +38,6 @@ export async function requireApprovedApplicant(
   const applicant = await findApplicantByUserId(supabase, data.user.id);
   if (!applicant?.id) {
     return NextResponse.json({ error: "Applicant not found" }, { status: 404 });
-  }
-
-  const status = normalizeApplicantStatus(applicant.status);
-  if (status !== "approved") {
-    return NextResponse.json(
-      {
-        error: UNAPPROVED_APPLICANT_MESSAGE,
-        applicationStatus: status,
-        statusLabel: applicantStatusLabel(applicant.status),
-      },
-      { status: 403 }
-    );
   }
 
   return { supabase, user: data.user, applicant };

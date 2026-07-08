@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireStaffApiSession } from "@/lib/auth/api-session";
 import { canAccessWorkerRecord } from "@/lib/auth/worker-record-access";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
-import { findApplicantByUserId, normalizeApplicantStatus } from "@/lib/applicant-portal";
+import { findApplicantByUserId } from "@/lib/applicant-portal";
 
 export const runtime = "nodejs";
 
@@ -72,11 +72,7 @@ export async function GET(req: NextRequest) {
       const applicantUserId = await resolveApplicantUserId(req);
       if (applicantUserId) {
         const applicant = await findApplicantByUserId(supabase, applicantUserId);
-        if (
-          applicant?.id &&
-          normalizeApplicantStatus(applicant.status) === "approved" &&
-          applicant.id === row.worker_id
-        ) {
+        if (applicant?.id && applicant.id === row.worker_id) {
           allowed = true;
         }
       }

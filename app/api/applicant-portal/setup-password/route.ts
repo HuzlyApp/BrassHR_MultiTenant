@@ -3,9 +3,7 @@ import type { User } from "@supabase/supabase-js";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import {
   findApplicantByEmail,
-  normalizeApplicantStatus,
   resolveTenantIdForApplicantPortal,
-  UNAPPROVED_APPLICANT_MESSAGE,
 } from "@/lib/applicant-portal";
 
 export const runtime = "nodejs";
@@ -55,9 +53,6 @@ export async function POST(req: NextRequest) {
     const applicant = await findApplicantByEmail(supabase, email, tenantId);
     if (!applicant?.id) {
       return NextResponse.json({ error: "No application was found for that email address." }, { status: 404 });
-    }
-    if (normalizeApplicantStatus(applicant.status) !== "approved") {
-      return NextResponse.json({ error: UNAPPROVED_APPLICANT_MESSAGE }, { status: 403 });
     }
 
     const appMetadata = {

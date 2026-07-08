@@ -5,7 +5,6 @@ import {
   findApplicantByEmail,
   normalizeApplicantStatus,
   resolveTenantIdForApplicantPortal,
-  UNAPPROVED_APPLICANT_MESSAGE,
 } from "@/lib/applicant-portal";
 
 export const runtime = "nodejs";
@@ -34,22 +33,12 @@ export async function POST(req: NextRequest) {
 
     const status = normalizeApplicantStatus(applicant.status);
     const statusLabel = applicantStatusLabel(applicant.status);
-    if (status !== "approved") {
-      return NextResponse.json(
-        {
-          error: UNAPPROVED_APPLICANT_MESSAGE,
-          applicationStatus: status,
-          statusLabel,
-        },
-        { status: 403 }
-      );
-    }
 
     return NextResponse.json({
       ok: true,
       applicationStatus: status,
       statusLabel,
-      message: "Your application has been approved.",
+      message: "Applicant profile found.",
       requiresPasswordSetup: !applicant.applicant_password_set_at,
     });
   } catch (err) {

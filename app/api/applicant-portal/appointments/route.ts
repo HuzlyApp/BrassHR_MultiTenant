@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
-import { findApplicantByUserId, normalizeApplicantStatus } from "@/lib/applicant-portal";
+import { findApplicantByUserId } from "@/lib/applicant-portal";
 import { parseRequiredUuid } from "@/lib/validation/uuid";
 
 export const runtime = "nodejs";
@@ -39,7 +39,7 @@ function bearerToken(req: NextRequest): string | null {
   return token.length > 0 ? token : null;
 }
 
-async function resolveApprovedApplicant(req: NextRequest) {
+async function resolveApplicant(req: NextRequest) {
   const token = bearerToken(req);
   if (!token) return null;
 
@@ -50,7 +50,7 @@ async function resolveApprovedApplicant(req: NextRequest) {
   if (error || !data.user?.id) return null;
 
   const applicant = await findApplicantByUserId(supabase, data.user.id);
-  if (!applicant?.id || normalizeApplicantStatus(applicant.status) !== "approved") return null;
+  if (!applicant?.id) return null;
 
   return { supabase, workerId: applicant.id, tenantId: applicant.tenant_id };
 }
@@ -106,7 +106,7 @@ async function getAppointmentPayload(
 
 export async function GET(req: NextRequest) {
   try {
-    const resolved = await resolveApprovedApplicant(req);
+    const resolved = await resolveApplicant(req);
     if (!resolved) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const payload = await getAppointmentPayload(
@@ -124,7 +124,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const resolved = await resolveApprovedApplicant(req);
+    const resolved = await resolveApplicant(req);
     if (!resolved) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const body = (await req.json().catch(() => ({}))) as { slotId?: string };
@@ -179,7 +179,7 @@ export async function POST(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
   try {
-    const resolved = await resolveApprovedApplicant(req);
+    const resolved = await resolveApplicant(req);
     if (!resolved) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const body = (await req.json().catch(() => ({}))) as {
