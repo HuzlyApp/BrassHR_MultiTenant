@@ -704,6 +704,7 @@ function Step1ReviewContent() {
         phone: form.phone.trim(),
         email: form.email.trim(),
         job_role: form.jobRole.trim(),
+        status: "new",
         ...(verified?.coordinates
           ? { lat: verified.coordinates.lat, lng: verified.coordinates.lng }
           : {}),

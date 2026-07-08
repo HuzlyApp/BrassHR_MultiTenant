@@ -39,6 +39,24 @@ export type PersistWorkerRowResult =
   | { ok: true; workerId: string }
   | { ok: false; error: string; code?: string; status?: number }
 
+function normalizePipelineStatus(value: string | undefined): string | null {
+  const raw = String(value ?? "").trim()
+  if (!raw) return null
+  const lower = raw.toLowerCase()
+  if (lower === "active") return "new"
+  if (
+    lower === "new" ||
+    lower === "pending" ||
+    lower === "under_review" ||
+    lower === "for_approval" ||
+    lower === "approved" ||
+    lower === "disapproved"
+  ) {
+    return lower
+  }
+  return lower
+}
+
 /** Insert or update `worker` by `user_id` (service-role onboarding APIs). */
 export async function persistWorkerRow(
   supabase: SupabaseClient,
@@ -86,10 +104,9 @@ export async function persistWorkerRow(
     }
   }
 
-  const rawStatus = String(input.status ?? "").trim()
+  const pipelineStatus = normalizePipelineStatus(input.status) ?? "new"
   const rowAttempts: Record<string, unknown>[] = [
-    rawStatus ? { ...baseRow, status: rawStatus } : { ...baseRow },
-    rawStatus ? { ...baseRow, worker_status: rawStatus } : { ...baseRow },
+    { ...baseRow, status: pipelineStatus },
     { ...baseRow },
   ]
 
