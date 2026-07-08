@@ -28,7 +28,7 @@ import BrandingAuthPreview from "@/app/admin_recruiter/settings/BrandingAuthPrev
 import { supabaseBrowser } from "@/lib/supabase-browser";
 
 type PreviewMode = "login" | "signup";
-type LogoField = "logo" | "login" | "signup";
+type LogoField = "logo" | "login" | "signup" | "favicon";
 
 function normalizePresetHex(hex: string): string {
   return hex.trim().toLowerCase();

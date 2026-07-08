@@ -201,7 +201,7 @@ function InviteStepActions({
         </button>
       </div>
       <ContinueButton
-        className="flex-1 px-2 text-[14px] sm:px-4 sm:text-[16px]"
+        className="px-2 text-[14px] sm:flex-1 sm:px-4 sm:text-[16px]"
         label={sending ? "Sending..." : "Send Invites"}
         disabled={skipping || sending}
         onClick={onSendInvites}
