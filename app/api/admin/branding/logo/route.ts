@@ -11,12 +11,13 @@ export const runtime = "nodejs";
 const MAX_BYTES = 2 * 1024 * 1024;
 const ALLOWED = new Set(["image/png", "image/jpeg", "image/webp", "image/svg+xml"]);
 
-type LogoField = "logo" | "login" | "signup";
+type LogoField = "logo" | "login" | "signup" | "favicon";
 
-const LOGO_COLUMN: Record<LogoField, "logo_url" | "login_logo_url" | "signup_logo_url"> = {
+const LOGO_COLUMN: Record<LogoField, "logo_url" | "login_logo_url" | "signup_logo_url" | "favicon_url"> = {
   logo: "logo_url",
   login: "login_logo_url",
   signup: "signup_logo_url",
+  favicon: "favicon_url",
 };
 
 function extForMime(mime: string): string {
@@ -36,7 +37,7 @@ function extForMime(mime: string): string {
 
 function parseLogoField(value: FormDataEntryValue | null): LogoField {
   const raw = typeof value === "string" ? value.trim().toLowerCase() : "";
-  if (raw === "login" || raw === "signup") return raw;
+  if (raw === "login" || raw === "signup" || raw === "favicon") return raw;
   return "logo";
 }
 

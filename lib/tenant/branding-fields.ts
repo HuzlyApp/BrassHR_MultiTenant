@@ -3,7 +3,7 @@ import { normalizeBrandingFontId } from "@/lib/tenant/tenant-branding";
 import { isValidBrandingHex } from "@/lib/tenant/branding-validation";
 
 export const TENANT_BRANDING_SELECT =
-  "id, name, slug, logo_url, login_logo_url, signup_logo_url, primary_color, secondary_color, accent_color, checkbox_color, welcome_headline, welcome_subtitle, signup_headline, signup_subheadline, auth_background_image_url, primary_font, heading_font, body_font, font_color, heading_color, muted_text_color, button_text, button_color";
+  "id, name, slug, logo_url, login_logo_url, signup_logo_url, favicon_url, primary_color, secondary_color, accent_color, checkbox_color, welcome_headline, welcome_subtitle, signup_headline, signup_subheadline, auth_background_image_url, primary_font, heading_font, body_font, font_color, heading_color, muted_text_color, button_text, button_color";
 
 export type TenantBrandingUpdateInput = {
   primaryColor?: string | null;
@@ -17,6 +17,7 @@ export type TenantBrandingUpdateInput = {
   logoUrl?: string | null;
   loginLogoUrl?: string | null;
   signupLogoUrl?: string | null;
+  faviconUrl?: string | null;
   primaryFont?: string | null;
   headingFont?: string | null;
   bodyFont?: string | null;
@@ -52,6 +53,7 @@ type BrandingPatch = Partial<
     | "logo_url"
     | "login_logo_url"
     | "signup_logo_url"
+    | "favicon_url"
     | "primary_color"
     | "secondary_color"
     | "accent_color"
@@ -124,6 +126,7 @@ export function buildTenantBrandingUpdate(body: TenantBrandingUpdateInput): Bran
     ["logoUrl", "logo_url"],
     ["loginLogoUrl", "login_logo_url"],
     ["signupLogoUrl", "signup_logo_url"],
+    ["faviconUrl", "favicon_url"],
   ] as const) {
     if (inputKey in body) {
       const value = body[inputKey]?.trim();

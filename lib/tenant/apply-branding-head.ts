@@ -63,7 +63,9 @@ export function resolveFaviconHref(branding: TenantBranding): string {
       path.startsWith("/signin/");
     if (isRecruiterAuthEntry) {
       const fallback = brandingFallbackForSlug(branding.slug).logoUrl || DEFAULT_FAVICON;
-      return normalizeBrandingImageSrc(branding.logoUrl, fallback, { allowBlob: true });
+      return normalizeBrandingImageSrc(branding.faviconUrl || branding.logoUrl, fallback, {
+        allowBlob: true,
+      });
     }
   }
 
@@ -76,7 +78,9 @@ export function resolveFaviconHref(branding: TenantBranding): string {
   }
 
   const fallback = brandingFallbackForSlug(branding.slug).logoUrl || DEFAULT_FAVICON;
-  return normalizeBrandingImageSrc(branding.logoUrl, fallback, { allowBlob: true });
+  return normalizeBrandingImageSrc(branding.faviconUrl || branding.logoUrl, fallback, {
+    allowBlob: true,
+  });
 }
 
 export function applyBrandingHead(branding: TenantBranding) {

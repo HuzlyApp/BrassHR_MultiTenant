@@ -19,7 +19,7 @@ async function loadTenant(id: string): Promise<TenantBrandingRow | null> {
       const { data } = await sb
         .from("tenants")
         .select(
-          "id, name, slug, logo_url, primary_color, secondary_color, accent_color, welcome_headline, welcome_subtitle, auth_background_image_url"
+          "id, name, slug, logo_url, favicon_url, primary_color, secondary_color, accent_color, welcome_headline, welcome_subtitle, auth_background_image_url"
         )
         .eq("id", id)
         .maybeSingle<TenantBrandingRow>();

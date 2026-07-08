@@ -267,6 +267,7 @@ export default function BrandingSettingsPanel() {
   const [logoUrl, setLogoUrl] = useState(currentBranding.logoUrl);
   const [loginLogoUrl, setLoginLogoUrl] = useState(currentBranding.loginLogoUrl);
   const [signupLogoUrl, setSignupLogoUrl] = useState(currentBranding.signupLogoUrl);
+  const [faviconUrl, setFaviconUrl] = useState(currentBranding.faviconUrl);
   const [primaryFontId, setPrimaryFontId] = useState(currentBranding.primaryFontId);
   const [headingFontId, setHeadingFontId] = useState(currentBranding.headingFontId);
   const [bodyFontId, setBodyFontId] = useState(currentBranding.bodyFontId);
@@ -277,11 +278,13 @@ export default function BrandingSettingsPanel() {
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [loginLogoFile, setLoginLogoFile] = useState<File | null>(null);
   const [signupLogoFile, setSignupLogoFile] = useState<File | null>(null);
+  const [faviconFile, setFaviconFile] = useState<File | null>(null);
   const [backgroundFile, setBackgroundFile] = useState<File | null>(null);
 
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [loginLogoPreview, setLoginLogoPreview] = useState<string | null>(null);
   const [signupLogoPreview, setSignupLogoPreview] = useState<string | null>(null);
+  const [faviconPreview, setFaviconPreview] = useState<string | null>(null);
   const [backgroundPreview, setBackgroundPreview] = useState<string | null>(null);
 
   const applyBranding = useCallback((branding: TenantBranding) => {
@@ -298,6 +301,7 @@ export default function BrandingSettingsPanel() {
     setLogoUrl(branding.logoUrl);
     setLoginLogoUrl(branding.loginLogoUrl);
     setSignupLogoUrl(branding.signupLogoUrl);
+    setFaviconUrl(branding.faviconUrl);
     setPrimaryFontId(branding.primaryFontId);
     setHeadingFontId(branding.headingFontId);
     setBodyFontId(branding.bodyFontId);
@@ -366,6 +370,16 @@ export default function BrandingSettingsPanel() {
   }, [signupLogoFile]);
 
   useEffect(() => {
+    if (!faviconFile) {
+      setFaviconPreview(null);
+      return;
+    }
+    const objectUrl = URL.createObjectURL(faviconFile);
+    setFaviconPreview(objectUrl);
+    return () => URL.revokeObjectURL(objectUrl);
+  }, [faviconFile]);
+
+  useEffect(() => {
     if (!backgroundFile) {
       setBackgroundPreview(null);
       return;
@@ -389,6 +403,7 @@ export default function BrandingSettingsPanel() {
       logoUrl: logoPreview || logoUrl,
       loginLogoUrl: loginLogoPreview || loginLogoUrl || logoPreview || logoUrl,
       signupLogoUrl: signupLogoPreview || signupLogoUrl || logoPreview || logoUrl,
+      faviconUrl: faviconPreview || faviconUrl || logoPreview || logoUrl,
       primaryFontId,
       headingFontId,
       bodyFontId,
@@ -405,6 +420,8 @@ export default function BrandingSettingsPanel() {
       buttonColor,
       buttonText,
       currentBranding,
+      faviconPreview,
+      faviconUrl,
       fontColor,
       headingColor,
       headingFontId,
@@ -441,6 +458,7 @@ export default function BrandingSettingsPanel() {
       let nextLogoUrl = logoUrl;
       let nextLoginLogoUrl = loginLogoUrl;
       let nextSignupLogoUrl = signupLogoUrl;
+      let nextFaviconUrl = faviconUrl;
       let nextBackgroundUrl = loginBackgroundSrc;
 
       if (logoFile) {
@@ -457,6 +475,11 @@ export default function BrandingSettingsPanel() {
         nextSignupLogoUrl = await uploadLogo("signup", signupLogoFile);
         setSignupLogoUrl(nextSignupLogoUrl);
         setSignupLogoFile(null);
+      }
+      if (faviconFile) {
+        nextFaviconUrl = await uploadLogo("favicon", faviconFile);
+        setFaviconUrl(nextFaviconUrl);
+        setFaviconFile(null);
       }
 
       if (backgroundFile) {
@@ -494,6 +517,7 @@ export default function BrandingSettingsPanel() {
           logoUrl: nextLogoUrl,
           loginLogoUrl: nextLoginLogoUrl,
           signupLogoUrl: nextSignupLogoUrl,
+          faviconUrl: nextFaviconUrl,
           primaryFont: primaryFontId,
           headingFont: headingFontId,
           bodyFont: bodyFontId,
@@ -651,6 +675,12 @@ export default function BrandingSettingsPanel() {
                 hint="Shown on tenant signup. Falls back to company logo."
                 previewSrc={signupLogoPreview || signupLogoUrl || logoPreview || logoUrl}
                 onFileChange={setSignupLogoFile}
+              />
+              <LogoUploadBlock
+                label="Favicon"
+                hint="Small icon shown in the browser tab, sidebar, header, and applicant portal. Square image works best. Falls back to company logo."
+                previewSrc={faviconPreview || faviconUrl || logoPreview || logoUrl}
+                onFileChange={setFaviconFile}
               />
             </div>
           </SectionCard>

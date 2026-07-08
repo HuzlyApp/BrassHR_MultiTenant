@@ -90,7 +90,9 @@ export function ApplicantPortalSidebar({
   const tenantQuery = searchParams?.get("tenant");
   const scheduleViewParam = searchParams?.get("view");
   const [logoSrc, setLogoSrc] = useState(
-    normalizeBrandingImageSrc(branding.logoUrl, DEFAULT_LOGO, { allowBlob: true })
+    normalizeBrandingImageSrc(branding.faviconUrl || branding.logoUrl, DEFAULT_LOGO, {
+      allowBlob: true,
+    })
   );
   const [openSectionLabels, setOpenSectionLabels] = useState<string[]>([]);
   const [sidebarHovered, setSidebarHovered] = useState(false);
@@ -100,8 +102,12 @@ export function ApplicantPortalSidebar({
   const logoUseNativeImg = isRemoteOrBlobImageSrc(logoSrc);
 
   useEffect(() => {
-    setLogoSrc(normalizeBrandingImageSrc(branding.logoUrl, DEFAULT_LOGO, { allowBlob: true }));
-  }, [branding.logoUrl]);
+    setLogoSrc(
+      normalizeBrandingImageSrc(branding.faviconUrl || branding.logoUrl, DEFAULT_LOGO, {
+        allowBlob: true,
+      })
+    );
+  }, [branding.faviconUrl, branding.logoUrl]);
 
   const handleNavClick = () => {
     onMobileClose?.();

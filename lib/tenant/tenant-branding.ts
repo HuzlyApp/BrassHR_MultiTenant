@@ -6,6 +6,7 @@ export type TenantBrandingRow = {
   logo_url: string | null;
   login_logo_url?: string | null;
   signup_logo_url?: string | null;
+  favicon_url?: string | null;
   primary_color: string | null;
   secondary_color: string | null;
   accent_color: string | null;
@@ -35,6 +36,7 @@ export type TenantBranding = {
   logoUrl: string;
   loginLogoUrl: string;
   signupLogoUrl: string;
+  faviconUrl: string;
   headline: string;
   subtitle: string;
   signupHeadline: string;
@@ -232,6 +234,7 @@ export function brandingFallbackForSlug(
           logoUrl: "/images/new-logo-nexus.svg",
           loginLogoUrl: "/images/new-logo-nexus.svg",
           signupLogoUrl: "/images/new-logo-nexus.svg",
+          faviconUrl: "/images/new-logo-nexus.svg",
           headline: `Welcome to ${name}`,
           subtitle: "Quick pay, flexible shifts, support team",
           signupHeadline: `Join ${name}`,
@@ -251,6 +254,7 @@ export function brandingFallbackForSlug(
           logoUrl: "/icons/braas-HR/BrassHR-logo.svg",
           loginLogoUrl: "/icons/braas-HR/BrassHR-logo.svg",
           signupLogoUrl: "/icons/braas-HR/BrassHR-logo.svg",
+          faviconUrl: "/icons/braas-HR/BrassHR-logo.svg",
           headline: `Welcome to ${name}`,
           subtitle: "HR Simplified for growing teams",
           signupHeadline: `Welcome to ${name}`,
@@ -284,6 +288,7 @@ export function brandingFromTenantRow(
     logoUrl,
     loginLogoUrl: normalizeBrandingImageSrc(row.login_logo_url, logoUrl, { allowBlob: true }),
     signupLogoUrl: normalizeBrandingImageSrc(row.signup_logo_url, logoUrl, { allowBlob: true }),
+    faviconUrl: normalizeBrandingImageSrc(row.favicon_url, logoUrl, { allowBlob: true }),
     headline: row.welcome_headline?.trim() || `Welcome to ${company}`,
     subtitle: row.welcome_subtitle?.trim() || fb.subtitle,
     signupHeadline: row.signup_headline?.trim() || row.welcome_headline?.trim() || `Welcome to ${company}`,

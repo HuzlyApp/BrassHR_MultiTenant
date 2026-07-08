@@ -65,7 +65,7 @@ export function AdminRecruiterSidebar({
 }: AdminRecruiterSidebarProps) {
   const branding = useTenantBranding();
   const { user, profile, organization } = useAccountData();
-  const [logoSrc, setLogoSrc] = useState(branding.logoUrl || DEFAULT_TENANT_LOGO);
+  const [logoSrc, setLogoSrc] = useState(branding.faviconUrl || branding.logoUrl || DEFAULT_TENANT_LOGO);
   const pathname = usePathname() ?? "";
   const router = useRouter();
   const [openSectionLabels, setOpenSectionLabels] = useState<string[]>([]);
@@ -81,8 +81,8 @@ export function AdminRecruiterSidebar({
   };
 
   useEffect(() => {
-    setLogoSrc(branding.logoUrl?.trim() || DEFAULT_TENANT_LOGO);
-  }, [branding.logoUrl]);
+    setLogoSrc(branding.faviconUrl?.trim() || branding.logoUrl?.trim() || DEFAULT_TENANT_LOGO);
+  }, [branding.faviconUrl, branding.logoUrl]);
 
   const handleLogout = async () => {
     const { error } = await supabaseBrowser.auth.signOut();

@@ -74,7 +74,9 @@ export function AdminRecruiterHeader({
   const [showNotifications, setShowNotifications] = useState(false);
   const [showMessages, setShowMessages] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
-  const [tenantLogoSrc, setTenantLogoSrc] = useState(branding.logoUrl || DEFAULT_TENANT_LOGO);
+  const [tenantLogoSrc, setTenantLogoSrc] = useState(
+    branding.faviconUrl || branding.logoUrl || DEFAULT_TENANT_LOGO
+  );
   const messagesAreaRef = useRef<HTMLDivElement>(null);
   const profileAreaRef = useRef<HTMLDivElement>(null);
 
@@ -128,8 +130,8 @@ export function AdminRecruiterHeader({
   );
 
   useEffect(() => {
-    setTenantLogoSrc(branding.logoUrl?.trim() || DEFAULT_TENANT_LOGO);
-  }, [branding.logoUrl]);
+    setTenantLogoSrc(branding.faviconUrl?.trim() || branding.logoUrl?.trim() || DEFAULT_TENANT_LOGO);
+  }, [branding.faviconUrl, branding.logoUrl]);
 
   const displayName = getAccountDisplayName(profile, user);
   const displayRole = formatRoleLabel(profile?.role);
