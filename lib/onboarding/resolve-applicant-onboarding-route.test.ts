@@ -251,6 +251,38 @@ describe("resolveApplicantOnboardingRoute", () => {
     expect(prev).toContain("tenant=zipstaff");
   });
 
+  it("allows identity verification while authorization background check is in progress", () => {
+    const config = legacyZipstaffConfig();
+    const enabled = resolveApplicantOnboardingSteps(config);
+    const resumeStep = enabled[0]!;
+    const licenseStep = enabled[1]!;
+    const skillStep = enabled[2]!;
+    const backgroundStep = enabled.find((s) => s.step_key === "authorization_background_check")!;
+
+    const decision = resolveApplicantOnboardingRoute({
+      isLoadingSession: false,
+      isLoadingTenant: false,
+      isLoadingConfig: false,
+      isLoadingProgress: false,
+      tenantSlug: "zipstaff",
+      config,
+      progress: {
+        progressId: "p1",
+        status: "in_progress",
+        steps: [
+          { onboarding_step_id: resumeStep.id, status: "completed", completed_at: "2026-01-01", data: {} },
+          { onboarding_step_id: licenseStep.id, status: "completed", completed_at: "2026-01-01", data: {} },
+          { onboarding_step_id: skillStep.id, status: "completed", completed_at: "2026-01-01", data: {} },
+          { onboarding_step_id: backgroundStep.id, status: "in_progress", completed_at: null, data: {} },
+        ],
+      },
+      pathname: APPLICATION_ROUTES.identityVerification,
+      search: "?stepKey=authorization_background_check&tenant=zipstaff",
+    });
+
+    expect(decision).toEqual({ status: "allow" });
+  });
+
   it("allows authorizations when that step is in_progress even if skill assessment was skipped in UI", () => {
     const config = legacyZipstaffConfig();
     const enabled = resolveApplicantOnboardingSteps(config);

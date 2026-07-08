@@ -1,6 +1,6 @@
 "use client"
 
-import { APPLICATION_ROUTES } from "@/lib/onboarding/application-routes"
+import { APPLICATION_ROUTES, identityVerificationPath } from "@/lib/onboarding/application-routes"
 import { applicationPath } from "@/lib/tenant/with-tenant"
 import { useEffect, useState, useCallback, useMemo, useRef } from "react"
 import { useRouter } from "next/navigation"
@@ -86,6 +86,11 @@ export default function DocumentsPage() {
   const requiresFirmaSigning = shouldShowFirmaAgreementPanel(activeStep)
   const requiresAgreement = stepRequiresApplicantAgreement(activeStep)
   const requiresIdentityDocs = stepRequiresIdentityDocuments(activeStep)
+
+  const identityUploadHref = useMemo(
+    () => identityVerificationPath(nav.slug, activeStep?.step_key),
+    [nav.slug, activeStep?.step_key]
+  )
 
   const signingEmail = useApplicantSigningEmail({
     applicantId,
@@ -345,7 +350,7 @@ export default function DocumentsPage() {
         </div>
         <button
           type="button"
-          onClick={() => router.push(applicationPath(APPLICATION_ROUTES.identityVerification))}
+          onClick={() => router.push(identityUploadHref)}
           className="p-2 text-gray-400 hover:text-red-600 rounded-lg"
           aria-label="Replace file"
         >
@@ -426,7 +431,7 @@ export default function DocumentsPage() {
               <p className="text-[15px] font-semibold text-slate-900">Add Documents</p>
               <button
                 type="button"
-                onClick={() => router.push(applicationPath(APPLICATION_ROUTES.identityVerification))}
+                onClick={() => router.push(identityUploadHref)}
                 className="text-[12px] font-medium text-[color:var(--brand-primary)]"
               >
                 Edit uploads

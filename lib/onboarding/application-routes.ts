@@ -23,6 +23,20 @@ export const APPLICATION_ROUTES = {
   customStep: (stepKey: string) => `/application/custom-step/${encodeURIComponent(stepKey)}`,
 } as const;
 
+/** Identity document upload screen — keep stepKey so route guard stays on authorizations step. */
+export function identityVerificationPath(
+  tenantSlug?: string | null,
+  stepKey?: string | null
+): string {
+  const params = new URLSearchParams();
+  if (tenantSlug?.trim()) params.set("tenant", tenantSlug.trim().toLowerCase());
+  if (stepKey?.trim()) params.set("stepKey", stepKey.trim());
+  const qs = params.toString();
+  return qs
+    ? `${APPLICATION_ROUTES.identityVerification}?${qs}`
+    : APPLICATION_ROUTES.identityVerification;
+}
+
 /** Pathname fragments used to resolve which configured step index the user is on. */
 export const APPLICATION_ROUTE_STEP_MARKERS: {
   stepKey?: string;
@@ -74,6 +88,7 @@ export const APPLICATION_ROUTE_STEP_MARKERS: {
     stepKey: "authorization_background_check",
     pathIncludes: [
       APPLICATION_ROUTES.authorizationsDocuments,
+      APPLICATION_ROUTES.identityVerification,
       "/application/custom-step/authorization_background_check",
     ],
   },

@@ -1,9 +1,9 @@
 "use client"
 
-import { APPLICATION_ROUTES } from "@/lib/onboarding/application-routes"
+import { APPLICATION_ROUTES, identityVerificationPath } from "@/lib/onboarding/application-routes"
 import { applicationPath } from "@/lib/tenant/with-tenant"
 import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { ChevronRight } from "lucide-react"
 import { supabaseBrowser as supabase } from "@/lib/supabase-browser"
 import { isPdfFile } from "@/lib/document-upload-helpers"
@@ -22,6 +22,15 @@ export default function Step4Identity() {
   const branding = useTenantBranding()
   const { slug: tenantSlug } = useOnboardingTenant()
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const stepKey = searchParams.get("stepKey")?.trim() || null
+
+  const authorizationsHref = applicationPath(
+    stepKey
+      ? `${APPLICATION_ROUTES.authorizationsDocuments}?stepKey=${encodeURIComponent(stepKey)}`
+      : APPLICATION_ROUTES.authorizationsDocuments,
+    tenantSlug
+  )
 
   const [ssnFile, setSsnFile] = useState<UploadSlot>({ file: null })
   const [licenseFile, setLicenseFile] = useState<UploadSlot>({ file: null })
@@ -83,7 +92,7 @@ export default function Step4Identity() {
     const hasExistingDocs = Boolean(ssnFile.url && licenseFile.url)
     if (!ssnFile.file || !licenseFile.file) {
       if (hasExistingDocs) {
-        router.push(applicationPath(APPLICATION_ROUTES.authorizationsDocuments))
+        router.push(authorizationsHref)
         return
       }
       setError("Please upload both SSN Card and Driver's License")
@@ -129,7 +138,7 @@ export default function Step4Identity() {
       )
       setSsnFile({ file: null })
       setLicenseFile({ file: null })
-      router.push(applicationPath(APPLICATION_ROUTES.authorizationsDocuments))
+      router.push(authorizationsHref)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Something went wrong")
     } finally {
@@ -138,7 +147,7 @@ export default function Step4Identity() {
   }
 
   const handleSkip = () => {
-    router.push(applicationPath(APPLICATION_ROUTES.authorizationsDocuments))
+    router.push(authorizationsHref)
   }
 
   const UploadBox = ({

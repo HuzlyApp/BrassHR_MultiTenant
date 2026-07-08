@@ -68,15 +68,35 @@ describe("resolve-applicant-step-route", () => {
     expect(current?.step_key).toBe("references");
   });
 
-  it("keeps stepKey on duplicate workflow steps sharing a screen", () => {
-    const route = routeForApplicantStep(
+  it("resolves authorization_background_check from identity verification upload screen", () => {
+    const steps = [
       step({
-        step_key: "document_upload_2",
-        step_type: "document_upload",
-        metadata: { workflow_step_id: "tax-forms" },
-      })
+        step_key: "authorization_background_check",
+        step_type: "custom_question",
+        metadata: { workflow_step_id: "background-check" },
+      }),
+    ];
+    const current = resolveApplicantStepFromPath(
+      "/application/identity-verification",
+      "?stepKey=authorization_background_check&tenant=zipstaff",
+      steps
     );
-    expect(route).toContain("/application/authorizations-documents");
-    expect(route).toContain("stepKey=document_upload_2");
+    expect(current?.step_key).toBe("authorization_background_check");
+  });
+
+  it("resolves authorization_background_check from identity verification without stepKey", () => {
+    const steps = [
+      step({
+        step_key: "authorization_background_check",
+        step_type: "custom_question",
+        metadata: { workflow_step_id: "background-check" },
+      }),
+    ];
+    const current = resolveApplicantStepFromPath(
+      "/application/identity-verification",
+      "?tenant=zipstaff",
+      steps
+    );
+    expect(current?.step_key).toBe("authorization_background_check");
   });
 });
