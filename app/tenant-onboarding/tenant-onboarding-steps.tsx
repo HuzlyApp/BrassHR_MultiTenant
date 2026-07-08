@@ -183,21 +183,23 @@ function InviteStepActions({
   sending?: boolean;
 }) {
   return (
-    <div className="mt-[32px] flex flex-row items-stretch gap-2 sm:gap-3">
-      <BackButton
-        onClick={onBack}
-        className="flex-1 px-2 text-[14px] sm:px-4 sm:text-[16px]"
-        disabled={skipping || sending}
-      />
-      <button
-        type="button"
-        onClick={onSkip}
-        disabled={skipping || sending}
-        className="flex h-[54px] flex-1 items-center justify-center rounded-[12px] border border-[#104b83] bg-white px-2 text-[14px] font-semibold leading-[20px] text-[#104b83] transition hover:bg-[#f0f7ff] disabled:cursor-not-allowed disabled:opacity-60 sm:px-4 sm:text-[16px] sm:leading-[22px]"
-        style={interStyle}
-      >
-        {skipping ? "Finishing..." : "Skip for now"}
-      </button>
+    <div className="mt-[32px] flex flex-col gap-3 sm:flex-row sm:items-stretch">
+      <div className="flex flex-row gap-2 sm:contents">
+        <BackButton
+          onClick={onBack}
+          className="flex-1 px-2 text-[14px] sm:px-4 sm:text-[16px]"
+          disabled={skipping || sending}
+        />
+        <button
+          type="button"
+          onClick={onSkip}
+          disabled={skipping || sending}
+          className="flex h-[54px] flex-1 items-center justify-center rounded-[12px] border border-[#104b83] bg-white px-2 text-[14px] font-semibold leading-[20px] text-[#104b83] transition hover:bg-[#f0f7ff] disabled:cursor-not-allowed disabled:opacity-60 sm:px-4 sm:text-[16px] sm:leading-[22px]"
+          style={interStyle}
+        >
+          {skipping ? "Finishing..." : "Skip for now"}
+        </button>
+      </div>
       <ContinueButton
         className="flex-1 px-2 text-[14px] sm:px-4 sm:text-[16px]"
         label={sending ? "Sending..." : "Send Invites"}
@@ -444,7 +446,7 @@ export function GoalsStep({
         title="What brings you to brassHR"
         subtitle="Choose what matters most to you, and we'll make sure to help you hit your goals."
       />
-      <div className="mt-[28px] grid grid-cols-2 gap-[12px] sm:gap-[16px]">
+      <div className="mt-[28px] grid grid-cols-1 gap-[12px] min-[400px]:grid-cols-2 sm:gap-[16px]">
         {TENANT_GOAL_OPTIONS.map((goal) => (
           <GoalCard
             key={goal.id}
@@ -700,7 +702,7 @@ export function BusinessStep({
           error={showFieldError("companyName")}
         />
 
-        <div className="grid grid-cols-2 gap-[14px] sm:gap-[24px]">
+        <div className="grid grid-cols-1 gap-[14px] min-[400px]:grid-cols-2 sm:gap-[24px]">
           <SelectField
             label="Industry"
             required
@@ -721,7 +723,7 @@ export function BusinessStep({
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-[14px] sm:gap-[24px]">
+        <div className="grid grid-cols-1 gap-[14px] min-[400px]:grid-cols-2 sm:gap-[24px]">
           <SelectField
             label="State"
             required
@@ -776,7 +778,7 @@ export function BusinessStep({
           error={showFieldError("address")}
         />
 
-        <div className="grid grid-cols-2 gap-[14px] sm:gap-[24px]">
+        <div className="grid grid-cols-1 gap-[14px] min-[400px]:grid-cols-2 sm:gap-[24px]">
           <TextField
             label="Business Phone"
             required
@@ -803,7 +805,7 @@ export function BusinessStep({
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-[14px] sm:gap-[24px]">
+        <div className="grid grid-cols-1 gap-[14px] min-[400px]:grid-cols-2 sm:gap-[24px]">
           <TextField
             label="Zip Code"
             required
@@ -1418,9 +1420,9 @@ export function DomainStep({
 
       <div className="mt-[28px] space-y-[24px]">
         <div className="rounded-[12px] border border-[#b6c8de] bg-[#f8fbff] p-[18px]">
-          <div className="flex flex-wrap items-center gap-4 rounded-[12px] border border-[#d4dbe6] bg-white p-[10px]">
-            <div className="flex h-[40px] w-[40px] items-center justify-center rounded-[8px] bg-[#f8fbff] text-[#104b83]">
-              <Link2 className="h-[18px] w-[18px]" />
+          <div className="flex flex-nowrap items-center gap-2 rounded-[12px] border border-[#d4dbe6] bg-white p-[10px] sm:gap-4">
+            <div className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-[8px] bg-[#f8fbff] text-[#104b83] sm:h-[40px] sm:w-[40px]">
+              <Link2 className="h-[16px] w-[16px] sm:h-[18px] sm:w-[18px]" />
             </div>
             <input
               value={subdomain}
@@ -1430,9 +1432,9 @@ export function DomainStep({
               autoCorrect="off"
               spellCheck={false}
               style={inputTypographyStyle}
-              className={`min-w-[180px] flex-1 border-0 bg-transparent py-[10px] ${inputTextClass} text-[#0f172a] outline-none`}
+              className={`min-w-0 flex-1 border-0 bg-transparent py-[10px] ${inputTextClass} text-[#0f172a] outline-none`}
             />
-            <span className="whitespace-nowrap text-[20px] font-semibold leading-none text-[#0b3a70]" style={interStyle}>
+            <span className="whitespace-nowrap text-[15px] font-semibold leading-none text-[#0b3a70] sm:text-[20px]" style={interStyle}>
               .{publicRootDomain || "brasshr.com"}
             </span>
           </div>
