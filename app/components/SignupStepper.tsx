@@ -114,8 +114,7 @@ export default function SignupStepper({ phase, className = "" }: SignupStepperPr
 
   return (
     <div
-      className={`mt-[24px] max-w-full ${className}`.trim()}
-      style={{ width: STEPPER_WIDTH }}
+      className={`mt-[24px] w-full max-w-[670px] ${className}`.trim()}
     >
       <div className="relative h-[66px] w-full">
         <div
@@ -152,7 +151,7 @@ export default function SignupStepper({ phase, className = "" }: SignupStepperPr
               >
                 <StepIcon variant={variant} />
                 <span
-                  className="mt-[12px] w-full text-center text-[12px] font-normal leading-[16px] tracking-normal"
+                  className="mt-[12px] w-full text-center text-[10px] font-normal leading-[14px] tracking-normal sm:text-[11px] sm:leading-[15px] min-[1440px]:text-[12px] min-[1440px]:leading-[16px]"
                   style={{ ...interStyle, color: isPending ? PENDING_TEXT : ACTIVE_TEXT }}
                 >
                   {item}

@@ -21,8 +21,6 @@ const STATUS_ITEMS = [
   { label: "Adding the final touches", icon: "/icons/braas-HR/final-touch-icon.svg" },
 ] as const;
 
-const STATUS_ICON_BOX_SIZE = 64;
-const STATUS_CONNECTOR_HEIGHT = 50;
 const STEP_DELAY_MS = 1400;
 const PREP_SLOW_MESSAGE_MS = 5 * 60 * 1000;
 
@@ -40,38 +38,36 @@ function delay(ms: number) {
 
 function StatusList({ completedThrough }: { completedThrough: number }) {
   return (
-    <div className="mt-[48px]">
+    <div className="mt-[32px] sm:mt-[40px] min-[1440px]:mt-[48px]">
       {STATUS_ITEMS.map((item, index) => {
         const isComplete = index <= completedThrough;
-        const innerIconSize = isComplete ? 42 : 36;
 
         return (
           <Fragment key={item.label}>
             {index > 0 ? (
               <div
-                className="flex items-center justify-center"
-                style={{ height: STATUS_CONNECTOR_HEIGHT, width: STATUS_ICON_BOX_SIZE }}
+                className="flex h-8 w-12 items-center justify-center sm:h-10 sm:w-14 min-[1440px]:h-[50px] min-[1440px]:w-16"
                 aria-hidden
               >
-                <span className="w-px bg-[#e8edf4]" style={{ height: STATUS_CONNECTOR_HEIGHT }} />
+                <span className="h-full w-px bg-[#e8edf4]" />
               </div>
             ) : null}
-            <div className="flex items-center gap-[16px]">
-              <span
-                className="flex shrink-0 items-center justify-center rounded-[12px] bg-[#F3F4F6]"
-                style={{ width: STATUS_ICON_BOX_SIZE, height: STATUS_ICON_BOX_SIZE }}
-              >
+            <div className="flex items-center gap-3 sm:gap-4 min-[1440px]:gap-[16px]">
+              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[10px] bg-[#F3F4F6] sm:h-14 sm:w-14 min-[1440px]:h-16 min-[1440px]:w-16 min-[1440px]:rounded-[12px]">
                 <Image
                   src={isComplete ? RIGHT_CHECK_ICON : item.icon}
                   alt=""
-                  width={innerIconSize}
-                  height={innerIconSize}
-                  className="object-contain"
-                  style={{ width: innerIconSize, height: innerIconSize }}
+                  width={42}
+                  height={42}
+                  className={`object-contain ${
+                    isComplete
+                      ? "h-8 w-8 sm:h-9 sm:w-9 min-[1440px]:h-[42px] min-[1440px]:w-[42px]"
+                      : "h-7 w-7 sm:h-8 sm:w-8 min-[1440px]:h-9 min-[1440px]:w-9"
+                  }`}
                 />
               </span>
               <span
-                className="text-[16px] font-normal leading-[24px] tracking-normal text-[#0f172a]"
+                className="text-[14px] font-normal leading-[20px] tracking-normal text-[#0f172a] sm:text-[15px] sm:leading-[22px] min-[1440px]:text-[16px] min-[1440px]:leading-[24px]"
                 style={interStyle}
               >
                 {item.label}
@@ -86,27 +82,27 @@ function StatusList({ completedThrough }: { completedThrough: number }) {
 
 function TrialArtPanel() {
   return (
-    <aside className="trial-art relative flex w-full flex-col items-center justify-center gap-[40px] self-stretch overflow-hidden rounded-[24px] bg-[#111827] p-[30px]">
+    <aside className="trial-art relative flex w-full flex-col items-center justify-center gap-6 self-stretch overflow-hidden rounded-[24px] bg-[#111827] p-6 sm:gap-8 sm:p-8 min-[1440px]:gap-[40px] min-[1440px]:p-[30px]">
       <Image
         src="/images/singup-bg-image.jpg"
         alt="Brass HR"
         fill
-        sizes="510px"
+        sizes="(max-width: 1100px) 100vw, 510px"
         priority
         className="object-cover"
       />
       <div className="absolute inset-0 bg-black/45" />
-      <div className="relative z-10 flex flex-col items-center justify-center gap-[40px] text-center">
+      <div className="relative z-10 flex flex-col items-center justify-center gap-6 text-center sm:gap-8 min-[1440px]:gap-[40px]">
         <Image
           src="/icons/braas-HR/white-BrassHR-logo.svg"
           alt="Brass HR"
           width={160}
           height={80}
           priority
-          className="h-[80px] w-[160px] object-contain"
+          className="h-[56px] w-[112px] object-contain sm:h-[64px] sm:w-[128px] min-[1440px]:h-[80px] min-[1440px]:w-[160px]"
         />
         <p
-          className="max-w-[300px] text-center text-[24px] font-bold leading-[30px] tracking-[0.03em] text-white"
+          className="max-w-[260px] text-center text-[20px] font-bold leading-[26px] tracking-[0.03em] text-white sm:max-w-[280px] sm:text-[22px] sm:leading-[28px] min-[1440px]:max-w-[300px] min-[1440px]:text-[24px] min-[1440px]:leading-[30px]"
           style={{ fontFamily: "var(--font-geist-mono)" }}
         >
           HR Simplified for growing teams
@@ -377,6 +373,86 @@ function YourTrialContent() {
           min-height: 800px;
         }
 
+        @media (max-width: 1100px) {
+          .trial-frame {
+            padding: 28px 24px;
+          }
+
+          .trial-layout {
+            grid-template-columns: 1fr;
+            gap: 32px;
+            width: 100%;
+            max-width: 770px;
+            margin-left: auto;
+            margin-right: auto;
+          }
+
+          .trial-content {
+            min-height: 0;
+            height: auto;
+            max-width: 100%;
+            padding: 0;
+          }
+
+          .trial-art {
+            width: 100%;
+            max-width: 100%;
+            height: auto;
+            min-height: min(420px, 52vh);
+            max-height: 480px;
+          }
+        }
+
+        @media (max-width: 767px) {
+          .trial-frame {
+            padding: 24px 20px;
+          }
+
+          .trial-art {
+            min-height: min(320px, 45vh);
+            max-height: 400px;
+          }
+        }
+
+        @media (max-width: 639px) {
+          .trial-frame {
+            padding: 16px 20px;
+          }
+
+          .trial-layout {
+            gap: 24px;
+          }
+
+          .trial-art {
+            min-height: 240px;
+            max-height: 320px;
+            border-radius: 16px;
+          }
+        }
+
+        @media (min-width: 1101px) and (max-width: 1439px) {
+          .trial-frame {
+            padding: 36px 40px;
+          }
+
+          .trial-layout {
+            grid-template-columns: minmax(0, 1fr) minmax(0, 0.72fr);
+            gap: clamp(24px, 4vw, 48px);
+          }
+
+          .trial-content {
+            min-height: 0;
+            height: auto;
+            padding: 12px clamp(24px, 4vw, 48px) 12px 12px;
+          }
+
+          .trial-art {
+            height: auto;
+            min-height: clamp(520px, calc(100vh - 120px), 800px);
+            max-width: 100%;
+          }
+        }
+
         @media (min-width: 1440px) {
           .trial-frame {
             width: 1440px;
@@ -394,11 +470,13 @@ function YourTrialContent() {
           .trial-content {
             width: 770px;
             height: 800px;
+            padding: 20px 80px 20px 20px;
           }
 
           .trial-art {
             width: 510px;
             height: 800px;
+            min-height: 800px;
           }
         }
       `}</style>
@@ -412,20 +490,20 @@ function YourTrialContent() {
                 width={160}
                 height={80}
                 priority
-                className="h-[80px] w-[160px] object-contain"
+                className="h-[56px] w-[112px] object-contain sm:h-[68px] sm:w-[136px] min-[1440px]:h-[80px] min-[1440px]:w-[160px]"
               />
 
               <SignupStepper phase={trialPrepared ? "ready" : "preparing"} />
 
-              <div className="mt-[58px]">
+              <div className="mt-[32px] sm:mt-[44px] min-[1440px]:mt-[58px]">
                 <h1
-                  className="text-[30px] font-semibold leading-[36px] tracking-normal text-[#0b0f19]"
+                  className="text-[24px] font-semibold leading-[30px] tracking-normal text-[#0b0f19] sm:text-[26px] sm:leading-[32px] lg:text-[28px] lg:leading-[34px] min-[1440px]:text-[30px] min-[1440px]:leading-[36px]"
                   style={interStyle}
                 >
                   We&apos;re preparing your trial
                 </h1>
                 <p
-                  className="mt-[10px] text-[16px] font-normal leading-[24px] tracking-normal text-[#475569]"
+                  className="mt-[8px] text-[14px] font-normal leading-[20px] tracking-normal text-[#475569] sm:mt-[10px] sm:text-[15px] sm:leading-[22px] min-[1440px]:text-[16px] min-[1440px]:leading-[24px]"
                   style={interStyle}
                 >
                   This only takes a few minutes. Please hang on a bit...
@@ -450,10 +528,10 @@ function YourTrialContent() {
 
               <StatusList completedThrough={completedThrough} />
 
-              <div className="min-h-[140px] flex-1" aria-hidden />
+              <div className="min-h-[80px] flex-1 sm:min-h-[100px] min-[1440px]:min-h-[140px]" aria-hidden />
 
               <p
-                className="text-[12px] font-normal leading-[16px] tracking-normal text-[#94a3b8]"
+                className="text-[11px] font-normal leading-[15px] tracking-normal text-[#94a3b8] sm:text-[12px] sm:leading-[16px]"
                 style={interStyle}
               >
                 Join 20,000+ companies in 190+ countries using Brass - HRsimplified

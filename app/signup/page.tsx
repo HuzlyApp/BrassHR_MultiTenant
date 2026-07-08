@@ -30,15 +30,13 @@ const BRAAS_BLUE = "#104b83";
 /** Figma Deep Navy — signup checkboxes (first screen). */
 const SIGNUP_CHECKBOX_ACTIVE_CLASS = "border-[#012352] bg-[#012352]";
 const interStyle = { fontFamily: "Inter, Arial, sans-serif" };
-const inputTypographyStyle = {
+const signupInputTypographyStyle = {
   fontFamily: "Inter, Arial, sans-serif",
-  fontSize: "16px",
-  lineHeight: "24px",
   fontWeight: 400,
   letterSpacing: "0",
 } as const;
-const inputTextClass =
-  "text-[16px] font-normal leading-[24px] tracking-normal placeholder:text-[16px] placeholder:leading-[24px] placeholder:font-normal";
+const signupInputClass =
+  `h-[48px] w-full rounded-[6px] border bg-white px-[12px] text-[14px] font-normal leading-[22px] tracking-normal placeholder:text-[14px] placeholder:leading-[22px] min-[1440px]:h-[56px] min-[1440px]:px-[14px] min-[1440px]:text-[16px] min-[1440px]:leading-[24px] min-[1440px]:placeholder:text-[16px] min-[1440px]:placeholder:leading-[24px]`;
 const FALLBACK_STATE_OPTIONS = [
   "California",
   "Arizona",
@@ -106,7 +104,7 @@ function getPasswordStrength(score: number) {
 
 function FieldLabel({ children, required = false }: { children: string; required?: boolean }) {
   return (
-    <label className="mb-[10px] block text-[14px] font-normal leading-[20px] tracking-normal text-[#0f172a]" style={interStyle}>
+    <label className="mb-[8px] block text-[13px] font-normal leading-[18px] tracking-normal text-[#0f172a] min-[1440px]:mb-[10px] min-[1440px]:text-[14px] min-[1440px]:leading-[20px]" style={interStyle}>
       {children}
       {required ? <span className="ml-1 text-[#ef4565]">*</span> : null}
     </label>
@@ -184,8 +182,8 @@ function TextField({
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
-        style={inputTypographyStyle}
-        className={`h-[56px] w-full rounded-[6px] border bg-white px-[14px] ${inputTextClass} outline-none transition placeholder:text-[#b5c0cf] ${
+        style={signupInputTypographyStyle}
+        className={`${signupInputClass} outline-none transition placeholder:text-[#b5c0cf] ${
           error
             ? "border-[#ff5c7a] text-[#f01846] focus:border-[#ff5c7a] focus:ring-2 focus:ring-[#ff5c7a]/20"
             : "border-[#d7e0ea] text-[#0f172a] focus:border-[#d89b35] focus:ring-2 focus:ring-[#d89b35]/20"
@@ -219,8 +217,8 @@ function PasswordField({
           type={visible ? "text" : "password"}
           value={value}
           onChange={(event) => onChange(event.target.value)}
-          style={inputTypographyStyle}
-          className={`h-[56px] w-full rounded-[6px] border border-[#d7e0ea] bg-white px-[14px] pr-12 ${inputTextClass} text-[#0f172a] outline-none transition placeholder:text-[#b5c0cf] focus:border-[#d89b35] focus:ring-2 focus:ring-[#d89b35]/20`}
+          style={signupInputTypographyStyle}
+          className={`${signupInputClass} border border-[#d7e0ea] pr-12 text-[#0f172a] outline-none transition placeholder:text-[#b5c0cf] focus:border-[#d89b35] focus:ring-2 focus:ring-[#d89b35]/20`}
         />
         <PasswordVisibilityToggle
           visible={visible}
@@ -261,8 +259,8 @@ function AddressField({
         onChange={(event) => onChange(event.target.value)}
         onBlur={onBlur}
         placeholder="Address"
-        style={inputTypographyStyle}
-        className={`h-[56px] w-full rounded-[6px] border bg-white px-[14px] ${inputTextClass} outline-none transition placeholder:text-[#b5c0cf] focus:ring-2 disabled:bg-[#f7f8fa] disabled:text-[#94a3b8] ${
+        style={signupInputTypographyStyle}
+        className={`${signupInputClass} outline-none transition placeholder:text-[#b5c0cf] focus:ring-2 disabled:bg-[#f7f8fa] disabled:text-[#94a3b8] ${
           error
             ? "border-[#ff5c7a] text-[#f01846] focus:border-[#ff5c7a] focus:ring-[#ff5c7a]/20"
             : "border-[#d7e0ea] text-[#0f172a] focus:border-[#d89b35] focus:ring-[#d89b35]/20"
@@ -685,29 +683,107 @@ export default function SignupPage() {
           }
         }
 
-        @media (max-width: 1050px) {
+        @media (max-width: 1100px) {
+          .signup-frame {
+            padding: 28px 24px;
+          }
+
+          .signup-layout {
+            grid-template-columns: 1fr;
+            gap: 32px;
+            width: 100%;
+            max-width: 590px;
+            margin-left: auto;
+            margin-right: auto;
+          }
+
+          .signup-form {
+            max-width: 100%;
+            width: 100%;
+          }
+
+          .signup-frame--password {
+            height: auto;
+          }
+
+          .signup-art,
+          .signup-art.signup-art--password {
+            width: 100%;
+            min-height: min(420px, 52vh);
+            max-height: 480px;
+            height: auto;
+          }
+
+          .signup-layout--password {
+            height: auto;
+            min-height: 0;
+          }
+        }
+
+        @media (max-width: 767px) {
+          .signup-frame {
+            padding: 24px 20px;
+          }
+
+          .signup-art,
+          .signup-art.signup-art--password {
+            min-height: min(320px, 45vh);
+            max-height: 400px;
+            padding: 24px;
+          }
+        }
+
+        @media (max-width: 639px) {
+          .signup-frame {
+            padding: 16px 20px;
+          }
+
+          .signup-layout {
+            gap: 24px;
+          }
+
+          .signup-art,
+          .signup-art.signup-art--password {
+            min-height: 240px;
+            max-height: 320px;
+            border-radius: 16px;
+          }
+
+          .signup-form {
+            padding-bottom: 32px;
+            width: 100%;
+          }
+
+          .signup-field-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            column-gap: 14px;
+            row-gap: 18px;
+          }
+
+          .signup-field-grid--location .signup-location-zip {
+            grid-column: 1 / -1;
+          }
+
+          .signup-field-grid label {
+            font-size: 13px;
+            line-height: 18px;
+            margin-bottom: 6px;
+          }
+        }
+
+        @media (min-width: 1101px) and (max-width: 1439px) {
           .signup-frame {
             padding: 36px 40px;
           }
 
           .signup-layout {
-            grid-template-columns: minmax(460px, 520px) minmax(300px, 360px);
-            gap: 36px;
+            grid-template-columns: minmax(0, 590px) minmax(0, min(38vw, 510px));
+            gap: clamp(32px, 5vw, 80px);
           }
 
           .signup-art {
-            min-height: 760px;
-          }
-        }
-
-        @media (max-width: 900px) {
-          .signup-frame {
-            padding: 30px 28px;
-          }
-
-          .signup-layout {
-            grid-template-columns: minmax(430px, 500px) minmax(280px, 320px);
-            gap: 28px;
+            min-height: clamp(620px, calc(100vh - 96px), 900px);
           }
         }
 
@@ -715,12 +791,14 @@ export default function SignupPage() {
           align-items: stretch;
         }
 
-        .signup-art.signup-art--password {
-          height: 100%;
-          min-height: 100%;
-          max-height: none;
-          aspect-ratio: unset;
-          align-self: stretch;
+        @media (min-width: 1101px) {
+          .signup-art.signup-art--password {
+            height: 100%;
+            min-height: 100%;
+            max-height: none;
+            aspect-ratio: unset;
+            align-self: stretch;
+          }
         }
 
       `}</style>
@@ -736,7 +814,7 @@ export default function SignupPage() {
         >
           <form
             onSubmit={onSubmit}
-            className="signup-form relative z-10 flex w-full max-w-[590px] flex-col pb-[48px]"
+            className="signup-form relative z-10 flex w-full max-w-[590px] flex-col pb-[48px] max-[1100px]:max-w-full"
           >
             <Image
               src={brand.signupLogoUrl}
@@ -744,7 +822,7 @@ export default function SignupPage() {
               width={160}
               height={80}
               priority
-              className="h-[80px] w-[160px] object-contain"
+              className="h-[56px] w-[112px] object-contain sm:h-[68px] sm:w-[136px] min-[1440px]:h-[80px] min-[1440px]:w-[160px]"
             />
 
             <SignupStepper
@@ -759,100 +837,112 @@ export default function SignupPage() {
 
             {step === "details" ? (
               <>
-            <div className="mt-[58px]">
+            <div className="mt-[32px] sm:mt-[44px] min-[1440px]:mt-[58px]">
               <h1
-                className="text-[30px] font-semibold leading-[36px] tracking-normal"
+                className="text-[24px] font-semibold leading-[30px] tracking-normal sm:text-[26px] sm:leading-[32px] lg:text-[28px] lg:leading-[34px] min-[1440px]:text-[30px] min-[1440px]:leading-[36px]"
                 style={{ color: "var(--brand-heading)", fontFamily: "var(--brand-font-heading)" }}
               >
                 {brand.signupHeadline}
               </h1>
               <p
-                className="mt-[10px] text-[16px] font-normal leading-[24px] tracking-normal"
+                className="mt-[8px] text-[14px] font-normal leading-[20px] tracking-normal sm:mt-[10px] sm:text-[15px] sm:leading-[22px] min-[1440px]:text-[16px] min-[1440px]:leading-[24px]"
                 style={{ color: "var(--brand-muted)", fontFamily: "var(--brand-font-body)" }}
               >
                 {brand.signupSubheadline}
               </p>
             </div>
 
-            <div className="mt-[38px] grid grid-cols-2 gap-x-[26px] gap-y-[30px]">
-              <TextField
-                label="First Name"
-                required
-                value={form.firstName}
-                onChange={(value) => update("firstName", value)}
-                placeholder="First Name"
-              />
-              <TextField
-                label="Last Name"
-                required
-                value={form.lastName}
-                onChange={(value) => update("lastName", value)}
-                placeholder="Last Name"
-              />
-              <div onBlur={() => setTouchedEmail(true)}>
+            <div className="signup-field-grid mt-[24px] grid grid-cols-2 gap-x-[14px] gap-y-[18px] sm:mt-[30px] sm:gap-x-[20px] sm:gap-y-[24px] min-[1440px]:mt-[38px] min-[1440px]:gap-x-[26px] min-[1440px]:gap-y-[30px]">
+              <div className="min-w-0">
+                <TextField
+                  label="First Name"
+                  required
+                  value={form.firstName}
+                  onChange={(value) => update("firstName", value)}
+                  placeholder="First Name"
+                />
+              </div>
+              <div className="min-w-0">
+                <TextField
+                  label="Last Name"
+                  required
+                  value={form.lastName}
+                  onChange={(value) => update("lastName", value)}
+                  placeholder="Last Name"
+                />
+              </div>
+              <div className="min-w-0" onBlur={() => setTouchedEmail(true)}>
                 <TextField
                   label="Work Email"
                   required
                   type="email"
                   value={form.workEmail}
                   onChange={(value) => update("workEmail", value)}
-                  placeholder="Yourcompany@email.com"
+                  placeholder="Email"
                   error={emailError}
                 />
               </div>
-              <TextField
-                label="Job Title"
-                required
-                value={form.jobTitle}
-                onChange={(value) => update("jobTitle", value)}
-                placeholder="Job title"
-              />
+              <div className="min-w-0">
+                <TextField
+                  label="Job Title"
+                  required
+                  value={form.jobTitle}
+                  onChange={(value) => update("jobTitle", value)}
+                  placeholder="Job title"
+                />
+              </div>
             </div>
 
-            <div className="mt-[30px] grid grid-cols-3 gap-x-[26px]">
-              <SearchableSelectField
-                label="State"
-                required
-                loading={locationLoading}
-                disabled={locationLoading}
-                value={form.state}
-                onChange={(value) => {
-                  setForm((prev) => ({ ...prev, state: value, city: "" }));
-                }}
-                placeholder={locationLoading ? "Loading…" : "Search state"}
-                searchPlaceholder="Type to search states"
-                options={stateOptions}
-                emptyMessage="No states found. Try another search."
-              />
-              {form.state && cityOptions.length === 0 && !citiesLoading ? (
-                <TextField
-                  label="City"
-                  required
-                  value={form.city}
-                  onChange={(value) => update("city", value)}
-                  placeholder="Enter your city"
-                />
-              ) : (
+            <div className="signup-field-grid signup-field-grid--location mt-[18px] grid grid-cols-2 gap-x-[14px] gap-y-[18px] sm:mt-[26px] sm:gap-x-[20px] sm:gap-y-[24px] lg:grid-cols-3 min-[1440px]:mt-[30px] min-[1440px]:gap-x-[26px]">
+              <div className="min-w-0">
                 <SearchableSelectField
-                  label="City"
+                  label="State"
                   required
-                  disabled={!form.state}
-                  loading={citiesLoading}
-                  value={form.city}
-                  onChange={(value) => update("city", value)}
-                  placeholder={
-                    !form.state
-                      ? "Select state first"
-                      : citiesLoading
-                        ? "Loading…"
-                        : "Search city"
-                  }
-                  searchPlaceholder="Type to search cities"
-                  options={cityOptions}
-                  emptyMessage="No cities found. Try another search."
+                  compact
+                  loading={locationLoading}
+                  disabled={locationLoading}
+                  value={form.state}
+                  onChange={(value) => {
+                    setForm((prev) => ({ ...prev, state: value, city: "" }));
+                  }}
+                  placeholder={locationLoading ? "Loading…" : "Search state"}
+                  searchPlaceholder="Type to search states"
+                  options={stateOptions}
+                  emptyMessage="No states found. Try another search."
                 />
-              )}
-              <div onBlur={() => setTouchedZip(true)}>
+              </div>
+              <div className="min-w-0">
+                {form.state && cityOptions.length === 0 && !citiesLoading ? (
+                  <TextField
+                    label="City"
+                    required
+                    value={form.city}
+                    onChange={(value) => update("city", value)}
+                    placeholder="Enter your city"
+                  />
+                ) : (
+                  <SearchableSelectField
+                    label="City"
+                    required
+                    compact
+                    disabled={!form.state}
+                    loading={citiesLoading}
+                    value={form.city}
+                    onChange={(value) => update("city", value)}
+                    placeholder={
+                      !form.state
+                        ? "Select state first"
+                        : citiesLoading
+                          ? "Loading…"
+                          : "Search city"
+                    }
+                    searchPlaceholder="Type to search cities"
+                    options={cityOptions}
+                    emptyMessage="No cities found. Try another search."
+                  />
+                )}
+              </div>
+              <div className="signup-location-zip min-w-0 col-span-2 lg:col-span-1" onBlur={() => setTouchedZip(true)}>
                 <TextField
                   label="Zip Code"
                   required
@@ -864,7 +954,7 @@ export default function SignupPage() {
               </div>
             </div>
 
-            <div className="mt-[30px] space-y-[26px]">
+            <div className="mt-[24px] space-y-[22px] min-[1440px]:mt-[30px] min-[1440px]:space-y-[26px]">
               <div onBlur={() => setTouchedAddress1(true)}>
                 <AddressField
                   label="Address 1"
@@ -907,8 +997,8 @@ export default function SignupPage() {
                   onChange={(event) => update("address2", event.target.value)}
                   onBlur={() => setTouchedAddress2(true)}
                   placeholder="Address"
-                  style={inputTypographyStyle}
-                  className={`h-[56px] w-full rounded-[6px] border bg-white px-[14px] ${inputTextClass} outline-none transition placeholder:text-[#b5c0cf] focus:ring-2 disabled:bg-[#f7f8fa] disabled:text-[#94a3b8] ${
+                  style={signupInputTypographyStyle}
+                  className={`${signupInputClass} outline-none transition placeholder:text-[#b5c0cf] focus:ring-2 disabled:bg-[#f7f8fa] disabled:text-[#94a3b8] ${
                     address2Error
                       ? "border-[#ff5c7a] text-[#f01846] focus:border-[#ff5c7a] focus:ring-[#ff5c7a]/20"
                       : "border-[#d7e0ea] text-[#0f172a] focus:border-[#d89b35] focus:ring-[#d89b35]/20"
@@ -925,7 +1015,7 @@ export default function SignupPage() {
             <button
               type="submit"
               disabled={!canContinue}
-              className="relative z-20 mt-[38px] flex h-[52px] w-full shrink-0 items-center justify-center rounded-[8px] text-[16px] font-semibold leading-[22px] tracking-normal transition disabled:cursor-not-allowed disabled:bg-[#dddddd] disabled:text-[#c5c5c5] enabled:text-white enabled:hover:brightness-95"
+              className="relative z-20 mt-[28px] flex h-[48px] w-full shrink-0 items-center justify-center rounded-[8px] text-[15px] font-semibold leading-[20px] tracking-normal transition disabled:cursor-not-allowed disabled:bg-[#dddddd] disabled:text-[#c5c5c5] enabled:text-white enabled:hover:brightness-95 sm:mt-[32px] sm:h-[50px] sm:text-[15px] min-[1440px]:mt-[38px] min-[1440px]:h-[52px] min-[1440px]:text-[16px] min-[1440px]:leading-[22px]"
               style={canContinue ? signupButtonStyle : undefined}
             >
               Next
@@ -958,15 +1048,15 @@ export default function SignupPage() {
               </>
             ) : (
               <>
-                <div className="mt-[58px]">
+                <div className="mt-[32px] sm:mt-[44px] min-[1440px]:mt-[58px]">
                   <h1
-                    className="text-[30px] font-semibold leading-[36px] tracking-normal"
+                    className="text-[24px] font-semibold leading-[30px] tracking-normal sm:text-[26px] sm:leading-[32px] lg:text-[28px] lg:leading-[34px] min-[1440px]:text-[30px] min-[1440px]:leading-[36px]"
                     style={{ color: "var(--brand-heading)", fontFamily: "var(--brand-font-heading)" }}
                   >
                     {brand.signupHeadline}
                   </h1>
                   <p
-                    className="mt-[10px] text-[16px] font-normal leading-[24px] tracking-normal"
+                    className="mt-[8px] text-[14px] font-normal leading-[20px] tracking-normal sm:mt-[10px] sm:text-[15px] sm:leading-[22px] min-[1440px]:text-[16px] min-[1440px]:leading-[24px]"
                     style={{ color: "var(--brand-muted)", fontFamily: "var(--brand-font-body)" }}
                   >
                     Create a unique new password.
@@ -975,7 +1065,7 @@ export default function SignupPage() {
 
                 <PasswordRuleList rules={passwordRules} />
 
-                <div className="mt-[24px] space-y-[30px]">
+                <div className="mt-[24px] space-y-[24px] min-[1440px]:space-y-[30px]">
                   <div>
                     <PasswordField label="Password" value={password} onChange={setPassword} />
                     <PasswordStrengthMeter score={passwordScore} />
@@ -983,7 +1073,7 @@ export default function SignupPage() {
                   <PasswordField label="Verify Password" value={verifyPassword} onChange={setVerifyPassword} />
                 </div>
 
-                <label className="mt-[30px] flex cursor-pointer items-start gap-[8px] text-[14px] font-normal leading-[20px] tracking-normal text-[#64748b]" style={interStyle}>
+                <label className="mt-[24px] flex cursor-pointer items-start gap-[8px] text-[13px] font-normal leading-[19px] tracking-normal text-[#64748b] sm:mt-[26px] sm:text-[14px] sm:leading-[20px] min-[1440px]:mt-[30px]" style={interStyle}>
                   <span
                     className={`relative mt-px flex h-[20px] w-[20px] shrink-0 items-center justify-center rounded-[6px] border ${
                       termsAccepted ? "border-[#BC8B41] bg-[#BC8B41]" : "border-[#d7e0ea] bg-white"
@@ -998,13 +1088,13 @@ export default function SignupPage() {
                     />
                     {termsAccepted ? <Check className="h-[14px] w-[14px] text-white" strokeWidth={3} /> : null}
                   </span>
-                  <span className="whitespace-nowrap">
+                  <span className="min-w-0 flex-1">
                     I hereby confirm that I have read and agree with the{" "}
-                    <a href="#" className="text-[14px] font-semibold leading-[20px] tracking-normal text-[#0f172a]">
+                    <a href="#" className="font-semibold text-[#0f172a]">
                       Terms &amp; Conditions
                     </a>{" "}
-                    <span className="text-[14px] font-normal leading-[20px] tracking-normal text-[#64748b]">and</span>{" "}
-                    <a href="#" className="text-[14px] font-semibold leading-[20px] tracking-normal text-[#0f172a]">
+                    <span className="text-[#64748b]">and</span>{" "}
+                    <a href="#" className="font-semibold text-[#0f172a]">
                       Privacy Policy
                     </a>
                   </span>
@@ -1013,7 +1103,7 @@ export default function SignupPage() {
                 <button
                   type="submit"
                   disabled={!canCreateAccount || submitting}
-                  className="mt-[38px] flex h-[52px] w-full items-center justify-center rounded-[8px] align-middle text-[16px] font-semibold leading-[22px] tracking-normal transition disabled:cursor-not-allowed disabled:bg-[#dddddd] disabled:text-[#c5c5c5] enabled:text-white enabled:hover:brightness-95"
+                  className="mt-[28px] flex h-[48px] w-full items-center justify-center rounded-[8px] align-middle text-[15px] font-semibold leading-[20px] tracking-normal transition disabled:cursor-not-allowed disabled:bg-[#dddddd] disabled:text-[#c5c5c5] enabled:text-white enabled:hover:brightness-95 sm:mt-[32px] sm:h-[50px] min-[1440px]:mt-[38px] min-[1440px]:h-[52px] min-[1440px]:text-[16px] min-[1440px]:leading-[22px]"
                   style={canCreateAccount && !submitting ? signupButtonStyle : undefined}
                 >
                   {submitting ? "Creating account…" : "Create an account"}
@@ -1068,10 +1158,10 @@ export default function SignupPage() {
                 width={160}
                 height={80}
                 priority
-                className="h-[80px] w-[160px] object-contain"
+                className="h-[56px] w-[112px] object-contain sm:h-[64px] sm:w-[128px] min-[1440px]:h-[80px] min-[1440px]:w-[160px]"
               />
               <p
-                className="max-w-[300px] text-center text-[24px] font-bold leading-[30px] tracking-[0.03em] text-white"
+                className="max-w-[260px] text-center text-[20px] font-bold leading-[26px] tracking-[0.03em] text-white sm:max-w-[280px] sm:text-[22px] sm:leading-[28px] min-[1440px]:max-w-[300px] min-[1440px]:text-[24px] min-[1440px]:leading-[30px]"
                 style={{ fontFamily: "var(--font-geist-mono)" }}
               >
                 HR Simplified for growing teams

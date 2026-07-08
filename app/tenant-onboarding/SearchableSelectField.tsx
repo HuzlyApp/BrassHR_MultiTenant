@@ -36,6 +36,8 @@ type SearchableSelectFieldProps = {
   loading?: boolean
   error?: string | null
   emptyMessage?: string
+  /** Tighter field sizing for signup mobile layout */
+  compact?: boolean
 }
 
 export default function SearchableSelectField({
@@ -51,6 +53,7 @@ export default function SearchableSelectField({
   loading = false,
   error,
   emptyMessage = "No cities found",
+  compact = false,
 }: SearchableSelectFieldProps) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState("")
@@ -80,10 +83,16 @@ export default function SearchableSelectField({
 
   const displayPlaceholder = loading ? "Loading…" : placeholder
   const isDisabled = disabled || loading
+  const labelClass = compact
+    ? "mb-[6px] block text-[13px] font-medium leading-[18px] text-[#0f172a] min-[1440px]:mb-[8px] min-[1440px]:text-[14px] min-[1440px]:leading-[20px]"
+    : "mb-[8px] block text-[14px] font-medium leading-[20px] text-[#0f172a]"
+  const triggerClass = compact
+    ? "flex h-[48px] w-full items-center justify-between rounded-[6px] border bg-white px-[12px] pr-10 text-left text-[14px] leading-[22px] outline-none transition min-[1440px]:h-[56px] min-[1440px]:rounded-[8px] min-[1440px]:px-[14px] min-[1440px]:text-[16px] min-[1440px]:leading-[24px]"
+    : "flex h-[56px] w-full items-center justify-between rounded-[8px] border bg-white px-[14px] pr-10 text-left outline-none transition"
 
   return (
     <div ref={wrapperRef}>
-      <label className="mb-[8px] block text-[14px] font-medium leading-[20px] text-[#0f172a]">
+      <label className={labelClass}>
         {label}
         {required ? <span className="ml-1 text-[#DC2626]">*</span> : null}
       </label>
@@ -98,14 +107,14 @@ export default function SearchableSelectField({
           onBlur={() => {
             if (!open) onBlur?.()
           }}
-          style={inputTypographyStyle}
-          className={`flex h-[56px] w-full items-center justify-between rounded-[8px] border bg-white px-[14px] pr-10 text-left outline-none transition disabled:cursor-not-allowed disabled:bg-[#f7f8fa] disabled:text-[#94a3b8] ${
+          style={compact ? { fontFamily: inputTypographyStyle.fontFamily, fontWeight: inputTypographyStyle.fontWeight, letterSpacing: inputTypographyStyle.letterSpacing } : inputTypographyStyle}
+          className={`${triggerClass} disabled:cursor-not-allowed disabled:bg-[#f7f8fa] disabled:text-[#94a3b8] ${
             error
               ? inputErrorClass
               : open
                 ? `${activeBorderClass} ${value ? "text-[#0f172a]" : "text-[#94a3b8]"}`
                 : `border-[#cbd5e1] ${inputFocusClass} ${value ? "text-[#0f172a]" : "text-[#94a3b8]"}`
-          } ${inputTextClass}`}
+          } ${compact ? "" : inputTextClass}`}
         >
           <span className="truncate">{value || displayPlaceholder}</span>
           <ChevronDown
