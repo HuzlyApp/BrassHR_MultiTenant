@@ -553,39 +553,38 @@ export default function NewApplicantSkillAssessmentsPage() {
 
               <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
                 {assessments.map((assessment) => (
-                  <div
-                    key={assessment.id}
-                    className="flex h-[84px] w-full items-center justify-between gap-5 rounded-[8px] border border-[color:color-mix(in_srgb,var(--brand-primary)_30%,white)] bg-[color:color-mix(in_srgb,var(--brand-primary)_8%,white)] px-4 py-5"
-                  >
-                    <div className="flex min-w-0 items-center gap-4">
-                      <BrandedStepperCompleteIcon className="h-8 w-8 shrink-0" />
-                      <div className="min-w-0">
-                        <div className="truncate text-[16px] font-semibold leading-6 text-[#1F2937]">
-                          {assessment.title || "Untitled Assessment"}
-                        </div>
-                        <div className="mt-1 text-[14px] leading-5 text-[#475467]">
-                          Score: {assessment.total_score ?? 0} | Answered: {assessment.answered_count ?? 0} |{" "}
-                          {assessment.result_status}
+                  <div key={assessment.id} className="@container/skillcard">
+                    <div className="flex min-h-[84px] w-full flex-col items-start justify-between gap-4 rounded-[8px] border border-[color:color-mix(in_srgb,var(--brand-primary)_30%,white)] bg-[color:color-mix(in_srgb,var(--brand-primary)_8%,white)] px-4 py-5 @min-[480px]:h-[84px] @min-[480px]:flex-row @min-[480px]:items-center @min-[480px]:gap-5">
+                      <div className="flex w-full min-w-0 items-center gap-4 @min-[480px]:w-auto">
+                        <BrandedStepperCompleteIcon className="h-8 w-8 shrink-0" />
+                        <div className="min-w-0">
+                          <div className="truncate text-[16px] font-semibold leading-6 text-[#1F2937]">
+                            {assessment.title || "Untitled Assessment"}
+                          </div>
+                          <div className="mt-1 text-[14px] leading-5 text-[#475467]">
+                            Score: {assessment.total_score ?? 0} | Answered: {assessment.answered_count ?? 0} |{" "}
+                            {assessment.result_status}
+                          </div>
                         </div>
                       </div>
-                    </div>
 
-                    <div className="flex items-center gap-3 shrink-0">
-                      <button
-                        onClick={() => handleSeeResults(assessment.id)}
-                        disabled={busyAssessmentId === assessment.id}
-                        className="inline-flex h-10 items-center justify-center rounded-lg border border-[color:var(--brand-primary)] px-6 text-sm font-semibold text-[color:var(--brand-primary)] disabled:opacity-50"
-                      >
-                        See Results
-                      </button>
-                      <button
-                        onClick={() => handleDownload(assessment.id)}
-                        disabled={busyAssessmentId === assessment.id}
-                        className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-[color:var(--brand-primary)] px-4 text-sm font-semibold text-[color:var(--brand-primary)] disabled:opacity-50"
-                      >
-                        <BrandedFileTypeIcon type="pdf" className="h-5 w-5" />
-                        Download
-                      </button>
+                      <div className="flex w-full shrink-0 items-center gap-2.5 @min-[480px]:w-auto @min-[480px]:gap-3">
+                        <button
+                          onClick={() => handleSeeResults(assessment.id)}
+                          disabled={busyAssessmentId === assessment.id}
+                          className="inline-flex h-10 flex-1 items-center justify-center whitespace-nowrap rounded-lg border border-[color:var(--brand-primary)] px-3 text-[12.6px] font-semibold text-[color:var(--brand-primary)] disabled:opacity-50 @min-[480px]:flex-none @min-[480px]:px-6 @min-[480px]:text-sm"
+                        >
+                          See Results
+                        </button>
+                        <button
+                          onClick={() => handleDownload(assessment.id)}
+                          disabled={busyAssessmentId === assessment.id}
+                          className="inline-flex h-10 flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-[color:var(--brand-primary)] px-3 text-[12.6px] font-semibold text-[color:var(--brand-primary)] disabled:opacity-50 @min-[480px]:flex-none @min-[480px]:gap-2 @min-[480px]:px-4 @min-[480px]:text-sm"
+                        >
+                          <BrandedFileTypeIcon type="pdf" className="h-5 w-5 shrink-0" />
+                          Download
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -602,7 +601,7 @@ export default function NewApplicantSkillAssessmentsPage() {
                   type="button"
                   onClick={() => void handleDownloadAll()}
                   disabled={busyAllDownload || assessments.length === 0}
-                  className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-[color:var(--brand-primary)] px-6 text-sm font-semibold text-[color:var(--brand-primary)] disabled:opacity-50"
+                  className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-[color:var(--brand-primary)] px-6 py-2 text-center text-sm font-semibold text-[color:var(--brand-primary)] disabled:opacity-50 max-md:w-full md:h-10 md:py-0"
                 >
                   <BrandedFileTypeIcon type="pdf" className="h-4 w-4" />
                   {busyAllDownload

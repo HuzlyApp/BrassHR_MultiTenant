@@ -123,11 +123,11 @@ function FacilityActionButtons({
   onAssign: () => void;
   layout?: "row" | "centered";
 }) {
-  const widthClass = layout === "centered" ? "w-[237px]" : "";
+  const widthClass = layout === "centered" ? "w-full max-w-[237px]" : "max-md:flex-1";
   const containerClass =
     layout === "centered"
       ? "mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row"
-      : "flex shrink-0 flex-wrap items-center gap-3 pb-1";
+      : "flex shrink-0 flex-wrap items-center gap-3 pb-1 max-md:w-full";
 
   return (
     <div className={containerClass}>
@@ -504,14 +504,14 @@ export default function NewApplicantFacilityAssignmentsPage() {
                       <div className="hidden xl:block" />
                     )}
                     <div className="order-2 xl:order-1 hidden xl:block" />
-                    <div className="order-3 xl:order-2">
+                    <div className="order-3 max-md:-mx-4 max-md:overflow-x-auto max-md:px-4 xl:order-2">
                       <UnderlineTabBar
                         tabs={FACILITY_TABS}
                         activeTab={activeFacilityTab}
                         onTabChange={setActiveFacilityTab}
                         ariaLabel="Facility sections"
                         align="center"
-                        className="border-b-0"
+                        className="border-b-0 max-md:mx-0 max-md:w-max"
                       />
                     </div>
                   </div>

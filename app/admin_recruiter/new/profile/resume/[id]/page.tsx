@@ -343,7 +343,7 @@ export default function NewApplicantProfileResumePage() {
               ) : null}
 
               {!loading && resumeUrl ? (
-                <div className="h-[852px] w-full bg-[#2A2A2A] rounded-lg overflow-hidden border border-black/10">
+                <div className="h-[520px] md:h-[852px] w-full bg-[#2A2A2A] rounded-lg overflow-hidden border border-black/10">
                   <div className="h-11 flex items-center px-4 text-white/85 bg-black/15 text-xs justify-between">
                     <span className="truncate">{fileLabel(resumePath)}</span>
                     <a
@@ -359,7 +359,7 @@ export default function NewApplicantProfileResumePage() {
                     <iframe
                       title="Resume PDF"
                       src={resumeUrl}
-                      className="h-[calc(852px-44px)] w-full bg-zinc-100"
+                      className="h-[calc(520px-44px)] md:h-[calc(852px-44px)] w-full bg-zinc-100"
                     />
                   ) : (
                     <div className="p-8 text-center text-white/90 text-sm">

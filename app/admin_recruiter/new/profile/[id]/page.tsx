@@ -1138,10 +1138,10 @@ export default function NewApplicantProfilePage() {
                             key={row.tag}
                             className={`grid grid-cols-[55px_minmax(0,1fr)] ${rowIdx > 0 ? "border-t border-[#E5E7EB]" : ""}`}
                           >
-                            <div className="flex h-[134px] items-center justify-center border-r border-[#E5E7EB] px-5 text-[12px] font-normal leading-4 text-[#6B7280]">
+                            <div className="flex min-h-[134px] md:h-[134px] items-center justify-center border-r border-[#E5E7EB] px-5 text-[12px] font-normal leading-4 text-[#6B7280]">
                               {row.tag}
                             </div>
-                            <div className="h-[134px]">
+                            <div className="min-h-[134px] md:h-[134px]">
                               {(
                                 [
                                   ["State Nursing License Registration #", row.registration],
@@ -1153,10 +1153,10 @@ export default function NewApplicantProfilePage() {
                                   key={`${row.tag}-${label}`}
                                   className={`grid grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] ${idx > 0 ? "border-t border-[#E5E7EB]" : ""}`}
                                 >
-                                  <div className="h-11 border-r border-[#E5E7EB] px-3 py-3 text-[14px] font-normal leading-5 text-[#374151]">
+                                  <div className="min-h-11 md:h-11 border-r border-[#E5E7EB] px-3 py-3 text-[14px] font-normal leading-5 text-[#374151]">
                                     {label}
                                   </div>
-                                  <div className="h-11 px-3 py-3 text-[14px] font-normal leading-5 text-[#111827]">
+                                  <div className="min-h-11 md:h-11 px-3 py-3 text-[14px] font-normal leading-5 text-[#111827]">
                                     {label === "State Nursing License" && value !== "—" ? (
                                       <span className="text-[#111827]">
                                         <span className="mr-1 text-[#0D9488]">⌄</span>

@@ -111,7 +111,7 @@ function AgreementFileCard({
 }) {
   if (!section.hasFile) {
     return (
-      <div className="flex h-[50px] w-[306px] min-w-[306px] max-w-[520px] items-center justify-between gap-2 rounded-[8px] border border-dashed border-[color:color-mix(in_srgb,var(--brand-primary)_30%,white)] bg-[#F8FAFC] px-3 py-2">
+      <div className="flex h-[50px] w-full min-w-0 max-w-[520px] md:w-[306px] md:min-w-[306px] items-center justify-between gap-2 rounded-[8px] border border-dashed border-[color:color-mix(in_srgb,var(--brand-primary)_30%,white)] bg-[#F8FAFC] px-3 py-2">
         <span className="text-xs text-[#6B7280]">No Document</span>
         <div className="flex shrink-0 items-center gap-2">
           {section.statusBadge && section.statusBadgeTone ? (
@@ -146,7 +146,7 @@ function AgreementFileCard({
   }
 
   return (
-    <div className="flex h-[50px] w-[306px] min-w-[306px] max-w-[520px] items-center gap-2 rounded-[8px] border border-[color:color-mix(in_srgb,var(--brand-primary)_30%,white)] bg-[#F8FAFC] px-3 py-2">
+    <div className="flex h-[50px] w-full min-w-0 max-w-[520px] md:w-[306px] md:min-w-[306px] items-center gap-2 rounded-[8px] border border-[color:color-mix(in_srgb,var(--brand-primary)_30%,white)] bg-[#F8FAFC] px-3 py-2">
       <BrandedFileTypeIcon type="pdf" className="h-6 w-6 shrink-0" />
       <div className="min-w-0">
         <div className="truncate text-xs font-semibold leading-4 tracking-[0.01em] text-[color:var(--brand-primary)]">
@@ -357,7 +357,7 @@ export default function NewApplicantAgreementPage() {
           </div>
         ) : null}
 
-        <div className="flex items-center justify-between gap-4 px-5 py-3">
+        <div className="flex flex-col items-stretch gap-3 px-5 py-3 md:flex-row md:items-center md:justify-between md:gap-4">
           <AgreementFileCard
             section={section}
             uploading={false}
@@ -368,7 +368,7 @@ export default function NewApplicantAgreementPage() {
             }
           />
 
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <button
               type="button"
               disabled={!canPreview}

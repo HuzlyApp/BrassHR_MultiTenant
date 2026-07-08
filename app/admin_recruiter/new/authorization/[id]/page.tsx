@@ -587,9 +587,9 @@ export default function NewApplicantAuthorizationFilledPage() {
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between gap-4 px-5 py-3">
+                  <div className="flex flex-col items-stretch gap-3 px-5 py-3 md:flex-row md:items-center md:justify-between md:gap-4">
                     {authHasPacket ? (
-                      <div className="flex h-[50px] w-[306px] min-w-[306px] max-w-[520px] items-center gap-2 rounded-[8px] border border-[#99D8D3] bg-[#F8FAFC] px-3 py-2">
+                      <div className="flex h-[50px] w-full min-w-0 max-w-[520px] items-center gap-2 rounded-[8px] border border-[#99D8D3] bg-[#F8FAFC] px-3 py-2 md:w-[306px] md:min-w-[306px]">
                         <BrandedFileTypeIcon type="pdf" className="h-6 w-6 shrink-0" />
                         <div className="min-w-0">
                           <div className="truncate text-xs font-semibold leading-4 tracking-[0.01em] text-[#0D9488]">
@@ -606,7 +606,7 @@ export default function NewApplicantAuthorizationFilledPage() {
                         ) : null}
                       </div>
                     ) : (
-                      <div className="flex h-[50px] w-[306px] items-center justify-between rounded-[8px] border border-dashed border-[#99D8D3] bg-[#F8FAFC] px-3 py-2">
+                      <div className="flex h-[50px] w-full max-w-[520px] items-center justify-between rounded-[8px] border border-dashed border-[#99D8D3] bg-[#F8FAFC] px-3 py-2 md:w-[306px]">
                         <span className="text-xs text-[#6B7280]">No Document</span>
                         <button
                           type="button"
@@ -625,7 +625,7 @@ export default function NewApplicantAuthorizationFilledPage() {
                       </div>
                     )}
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <button
                         type="button"
                         onClick={() => openFirmaSigningUrl("preview")}
@@ -690,7 +690,7 @@ export default function NewApplicantAuthorizationFilledPage() {
 
                 <div className="space-y-4">
                   {documentSections.map((d, idx) => (
-                    <div key={d.id} className="h-[130px] w-full rounded-md border border-[#D1D5DB]">
+                    <div key={d.id} className="w-full rounded-md border border-[#D1D5DB] md:h-[130px]">
                       <div className="flex items-center justify-between border-b border-[#E5E7EB] px-5 py-3">
                         <div className="text-[16px] font-semibold leading-6 text-[#111827]">
                           {idx + 2}. {d.title}
@@ -698,10 +698,10 @@ export default function NewApplicantAuthorizationFilledPage() {
                         <FileActions url={d.slots[0]?.url || d.slots[1]?.url || null} />
                       </div>
 
-                      <div className="flex items-center justify-between gap-4 px-5 py-3">
-                        <div className="flex gap-3">
+                      <div className="flex flex-col items-stretch gap-3 px-5 py-3 md:flex-row md:items-center md:justify-between md:gap-4">
+                        <div className="flex flex-col gap-3 md:flex-row">
                           {d.id === "employment" && !authSigned ? (
-                            <div className="flex h-[50px] w-[306px] min-w-[306px] items-center justify-between rounded-[8px] border border-dashed border-[#99D8D3] bg-[#F8FAFC] px-3 py-2">
+                            <div className="flex h-[50px] w-full min-w-0 max-w-[520px] md:w-[306px] md:min-w-[306px] items-center justify-between rounded-[8px] border border-dashed border-[#99D8D3] bg-[#F8FAFC] px-3 py-2">
                               <span className="text-xs text-[#6B7280]">No Document</span>
                               <button
                                 type="button"
@@ -724,7 +724,7 @@ export default function NewApplicantAuthorizationFilledPage() {
                               slot.url ? (
                                 <div
                                   key={`${d.id}-${slot.label}`}
-                                  className="flex h-[50px] w-[306px] min-w-[306px] items-center gap-2 rounded-[8px] border border-[#99D8D3] bg-[#F8FAFC] px-3 py-2"
+                                  className="flex h-[50px] w-full min-w-0 max-w-[520px] md:w-[306px] md:min-w-[306px] items-center gap-2 rounded-[8px] border border-[#99D8D3] bg-[#F8FAFC] px-3 py-2"
                                 >
                                   <BrandedFileTypeIcon
                                     type={isPdfFile(null, fileLabelFromUrl(slot.url ?? ""), slot.url) ? "pdf" : "jpeg"}
@@ -747,7 +747,7 @@ export default function NewApplicantAuthorizationFilledPage() {
                               ) : (
                                 <div
                                   key={`${d.id}-${slot.label}`}
-                                  className="flex h-[50px] w-[306px] min-w-[306px] items-center justify-between rounded-[8px] border border-dashed border-[#99D8D3] bg-[#F8FAFC] px-3 py-2"
+                                  className="flex h-[50px] w-full min-w-0 max-w-[520px] md:w-[306px] md:min-w-[306px] items-center justify-between rounded-[8px] border border-dashed border-[#99D8D3] bg-[#F8FAFC] px-3 py-2"
                                 >
                                   <span className="text-xs text-[#6B7280]">
                                     {slot.label === "Front" ? "Upload card front" : "Upload card back"}

@@ -429,8 +429,8 @@ export default function NewApplicantActivitiesPage() {
                     </div>
                   </aside>
 
-                  <main className="col-span-12 md:col-span-9">
-                    <div className="flex items-center justify-end gap-2 border-b border-[#E5E7EB] px-5 py-3">
+                  <main className="col-span-12 min-w-0 md:col-span-9">
+                    <div className="flex flex-wrap items-center justify-end gap-2 border-b border-[#E5E7EB] px-4 py-3 md:px-5">
                       <button
                         type="button"
                         onClick={() => setShowAddCallLogModal(true)}
@@ -448,7 +448,7 @@ export default function NewApplicantActivitiesPage() {
                       </button>
                     </div>
 
-                    <div className="px-5 py-4">
+                    <div className="px-4 py-4 md:px-5">
                       <div className="mb-4 flex items-center justify-between gap-3">
                         <div className="inline-flex items-center gap-2 text-[20px] font-semibold leading-7 text-[#1F2937]">
                           <BrandedPhoneIcon className="h-5 w-5" />
@@ -545,17 +545,17 @@ export default function NewApplicantActivitiesPage() {
                                   </div>
                                 </div>
 
-                                <div className="col-span-4 text-[11px] text-[#6B7280] lg:col-span-2">
+                                <div className="col-span-6 text-[11px] text-[#6B7280] md:col-span-4 lg:col-span-2">
                                   Duration: {formatCallDuration(row.duration_seconds)}
                                 </div>
 
-                                <div className="col-span-4 lg:col-span-2">
+                                <div className="col-span-6 md:col-span-4 lg:col-span-2">
                                   <span className={`rounded-full px-3 py-1 text-[11px] font-medium ${badge}`}>
                                     {outcome}
                                   </span>
                                 </div>
 
-                                <div className="col-span-4 text-right text-[11px] text-[#6B7280] lg:col-span-3">
+                                <div className="col-span-12 text-right text-[11px] text-[#6B7280] md:col-span-4 lg:col-span-3">
                                   {ordinalCallAttempt(attemptNumber)}
                                 </div>
                               </div>

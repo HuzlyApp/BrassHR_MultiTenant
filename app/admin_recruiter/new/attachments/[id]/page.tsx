@@ -503,8 +503,8 @@ export default function NewApplicantAttachmentsFilledPage() {
                           key={r.key}
                           className="w-full rounded-md border border-[#D1D5DB]"
                         >
-                          <div className="flex h-[44px] items-center justify-between px-5 pt-3 pb-2">
-                            <div className="text-[16px] font-semibold leading-6 text-[#111827]">
+                          <div className="flex min-h-[44px] items-center justify-between gap-3 px-5 pt-3 pb-2 md:h-[44px]">
+                            <div className="min-w-0 text-[16px] font-semibold leading-6 text-[#111827]">
                               {idx + 1}. {r.title}
                             </div>
                             <div className="flex items-center gap-3">
@@ -532,9 +532,9 @@ export default function NewApplicantAttachmentsFilledPage() {
                             </div>
                           </div>
 
-                          <div className="flex items-center justify-between gap-4 px-5 py-3">
+                          <div className="flex flex-col items-stretch gap-3 px-5 py-3 md:flex-row md:items-center md:justify-between md:gap-4">
                             {r.url ? (
-                              <div className="flex h-[50px] w-[306px] min-w-[306px] max-w-[520px] items-center gap-2 rounded-[8px] border border-[color:color-mix(in_srgb,var(--brand-primary)_30%,white)] bg-[#F8FAFC] px-3 py-2">
+                              <div className="flex h-[50px] w-full min-w-0 max-w-[520px] md:w-[306px] md:min-w-[306px] items-center gap-2 rounded-[8px] border border-[color:color-mix(in_srgb,var(--brand-primary)_30%,white)] bg-[#F8FAFC] px-3 py-2">
                                 <BrandedFileTypeIcon type={isPdf ? "pdf" : "jpeg"} className="h-6 w-6 shrink-0" />
                                 <div className="min-w-0">
                                   <div className="truncate text-xs font-semibold leading-4 tracking-[0.01em] text-[color:var(--brand-primary)]">
@@ -546,7 +546,7 @@ export default function NewApplicantAttachmentsFilledPage() {
                                 </div>
                               </div>
                             ) : (
-                              <div className="flex h-[50px] w-[306px] min-w-[306px] max-w-[520px] items-center justify-between rounded-[8px] border border-dashed border-[color:color-mix(in_srgb,var(--brand-primary)_30%,white)] bg-[#F8FAFC] px-3 py-2">
+                              <div className="flex h-[50px] w-full min-w-0 max-w-[520px] md:w-[306px] md:min-w-[306px] items-center justify-between rounded-[8px] border border-dashed border-[color:color-mix(in_srgb,var(--brand-primary)_30%,white)] bg-[#F8FAFC] px-3 py-2">
                                 <span className="text-xs text-[#6B7280]">No Document</span>
                                 <button
                                   type="button"

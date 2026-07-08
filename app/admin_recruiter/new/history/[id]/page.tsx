@@ -241,13 +241,13 @@ export default function NewApplicantHistoryPage() {
                   {historyItems.map((item) => (
                     <div
                       key={item.id}
-                      className="flex items-center justify-between border-b border-[#E5E7EB] py-4 last:border-b-0"
+                      className="flex flex-col gap-1 border-b border-[#E5E7EB] py-4 last:border-b-0 sm:flex-row sm:items-center sm:justify-between sm:gap-3"
                     >
                       <div className="flex min-w-0 items-center gap-3">
                         <BrandedHistoryIcon className="h-[30px] w-[30px] shrink-0" />
-                        <div className="truncate text-sm text-[#4B5563]">{item.action}</div>
+                        <div className="min-w-0 break-words text-sm text-[#4B5563] sm:truncate">{item.action}</div>
                       </div>
-                      <div className="shrink-0 text-xs text-[#6B7280]">
+                      <div className="shrink-0 pl-[42px] text-xs text-[#6B7280] sm:pl-0">
                         {item.ago} <span>•</span> {item.date} <span>•</span> {item.time}
                       </div>
                     </div>

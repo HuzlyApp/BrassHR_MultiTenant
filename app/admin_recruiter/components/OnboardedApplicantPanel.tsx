@@ -507,7 +507,7 @@ export default function OnboardedApplicantPanel({ workerId, data, onConversionCo
               }
             />
             <div className="space-y-4 px-5 py-4">
-              <div className="flex w-full flex-row items-stretch gap-3">
+              <div className="grid w-full grid-cols-2 gap-3 md:flex md:flex-row md:items-stretch">
                 {data.progressMetrics.map((metric) => (
                   <ProgressMetricCard key={metric.id} metric={metric} />
                 ))}
