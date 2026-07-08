@@ -31,8 +31,6 @@ import { FaXTwitter } from "react-icons/fa6";
 import { FcGoogle } from "react-icons/fc";
 
 const BRAAS_BLUE = "#104b83";
-/** Figma Deep Navy — signup checkboxes (first screen). */
-const SIGNUP_CHECKBOX_ACTIVE_CLASS = "border-[#012352] bg-[#012352]";
 const interStyle = { fontFamily: "Inter, Arial, sans-serif" };
 const signupInputTypographyStyle = {
   fontFamily: "Inter, Arial, sans-serif",
@@ -59,7 +57,6 @@ type SignupForm = {
   state: string;
   zipCode: string;
   address1: string;
-  sameAsAddress1: boolean;
   address2: string;
 };
 
@@ -79,7 +76,6 @@ const initialForm: SignupForm = {
   state: "",
   zipCode: "",
   address1: "",
-  sameAsAddress1: false,
   address2: "",
 };
 
@@ -459,8 +455,8 @@ export default function SignupPage() {
 
   const address2Error = useMemo(() => {
     if (!detailsSubmitAttempted && !touchedAddress2) return null;
-    return signupAddress2ValidationMessage(form.address2, { sameAsAddress1: form.sameAsAddress1 });
-  }, [detailsSubmitAttempted, touchedAddress2, form.address2, form.sameAsAddress1]);
+    return signupAddress2ValidationMessage(form.address2, { sameAsAddress1: false });
+  }, [detailsSubmitAttempted, touchedAddress2, form.address2]);
 
   const address1IsValid = useMemo(
     () => !signupAddress1ValidationMessage(form.address1),
@@ -468,8 +464,8 @@ export default function SignupPage() {
   );
 
   const address2IsValid = useMemo(
-    () => !signupAddress2ValidationMessage(form.address2, { sameAsAddress1: form.sameAsAddress1 }),
-    [form.address2, form.sameAsAddress1]
+    () => !signupAddress2ValidationMessage(form.address2, { sameAsAddress1: false }),
+    [form.address2]
   );
 
   const handleSelectAddressSuggestion = (suggestion: AddressSuggestion) => {
@@ -510,16 +506,7 @@ export default function SignupPage() {
   const canCreateAccount = passwordIsStrongEnough && password === verifyPassword && termsAccepted;
 
   const update = <K extends keyof SignupForm>(key: K, value: SignupForm[K]) => {
-    setForm((prev) => {
-      const next = { ...prev, [key]: value };
-      if (key === "address1" && prev.sameAsAddress1) {
-        next.address2 = String(value);
-      }
-      if (key === "sameAsAddress1") {
-        next.address2 = value ? next.address1 : "";
-      }
-      return next;
-    });
+    setForm((prev) => ({ ...prev, [key]: value }));
   };
 
   const onSubmit = (event: FormEvent<HTMLFormElement>) => {
@@ -553,7 +540,7 @@ export default function SignupPage() {
             state: form.state,
             zipCode: form.zipCode,
             address1: form.address1,
-            address2: form.sameAsAddress1 ? form.address1 : form.address2,
+            address2: form.address2,
             password,
           }),
         });
@@ -982,50 +969,14 @@ export default function SignupPage() {
                 variant="signup"
               />
 
-              <div>
-                <div className="mb-[10px] flex items-center justify-between gap-3">
-                  <FieldLabel>Address 2</FieldLabel>
-                  <label
-                    className="flex shrink-0 cursor-pointer items-center gap-[8px] text-[14px] font-normal leading-[20px] tracking-normal text-[#334155]"
-                    style={interStyle}
-                  >
-                    <span
-                      className={`relative flex h-[20px] w-[20px] shrink-0 items-center justify-center rounded-[6px] border ${
-                        form.sameAsAddress1 ? SIGNUP_CHECKBOX_ACTIVE_CLASS : "border-[#d7e0ea] bg-white"
-                      }`}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={form.sameAsAddress1}
-                        onChange={(event) => update("sameAsAddress1", event.target.checked)}
-                        className="absolute inset-0 z-10 m-0 cursor-pointer opacity-0"
-                        aria-label="Same as address 1"
-                      />
-                      {form.sameAsAddress1 ? (
-                        <Check className="h-[14px] w-[14px] text-white" strokeWidth={3} />
-                      ) : null}
-                    </span>
-                    Same as address 1
-                  </label>
-                </div>
-                <input
+              <div onBlur={() => setTouchedAddress2(true)}>
+                <TextField
+                  label="Address 2"
                   value={form.address2}
-                  disabled={form.sameAsAddress1}
-                  onChange={(event) => update("address2", event.target.value)}
-                  onBlur={() => setTouchedAddress2(true)}
-                  placeholder="Address"
-                  style={signupInputTypographyStyle}
-                  className={`${signupInputClass} outline-none transition placeholder:text-[#b5c0cf] focus:ring-2 disabled:bg-[#f7f8fa] disabled:text-[#94a3b8] ${
-                    address2Error
-                      ? "border-[#ff5c7a] text-[#f01846] focus:border-[#ff5c7a] focus:ring-[#ff5c7a]/20"
-                      : "border-[#d7e0ea] text-[#0f172a] focus:border-[#d89b35] focus:ring-[#d89b35]/20"
-                  }`}
+                  onChange={(value) => update("address2", value)}
+                  placeholder="Apt, Suite, Unit, etc."
+                  error={address2Error}
                 />
-                {address2Error ? (
-                  <p className="mt-[8px] text-[14px] font-normal leading-[20px] text-[#f01846]" style={interStyle}>
-                    {address2Error}
-                  </p>
-                ) : null}
               </div>
             </div>
 
