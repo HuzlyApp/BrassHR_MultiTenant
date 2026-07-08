@@ -307,7 +307,16 @@ export default function TenantOnboardingPage() {
       }
 
       if (options?.redirectToDashboard && typeof window !== "undefined") {
-        window.location.assign("/admin_recruiter/home");
+        // Go straight to the recruiter login ("/admin") instead of the
+        // protected "/admin_recruiter/home", which the middleware would
+        // otherwise bounce to "/admin?next=..." (causing a brief error flash).
+        const cleanedDomain = (payload.domain ?? "")
+          .trim()
+          .replace(/^https?:\/\//i, "")
+          .replace(/\/+$/, "");
+        const protocol = window.location.protocol || "https:";
+        const adminUrl = cleanedDomain ? `${protocol}//${cleanedDomain}/admin` : "/admin";
+        window.location.assign(adminUrl);
         return;
       }
 

@@ -1704,6 +1704,19 @@ export function DoneStep({
 
   const firmaTone = firmaProvisioning?.status === "failed" ? "warning" : "success";
 
+  // Send recruiters to the clean "/admin" login (no protected "/admin_recruiter"
+  // hop that the middleware bounces to "/admin?next=...", which flashes an error).
+  const cleanedDashboardDomain = createdDomain
+    ? createdDomain.replace(/^https?:\/\//i, "").replace(/\/+$/, "")
+    : "";
+  const dashboardProtocol =
+    typeof window !== "undefined" && window.location.protocol
+      ? window.location.protocol
+      : "https:";
+  const dashboardHref = cleanedDashboardDomain
+    ? `${dashboardProtocol}//${cleanedDashboardDomain}/admin`
+    : "/admin";
+
   return (
     <div className="text-center">
       <div className="mx-auto flex h-[72px] w-[72px] items-center justify-center rounded-full bg-[color:color-mix(in_srgb,var(--brand-primary)_15%,white)]">
@@ -1740,7 +1753,7 @@ export function DoneStep({
       ) : null}
       <div className="mt-[32px] flex flex-wrap justify-center gap-3">
         <Link
-          href="/admin_recruiter/home"
+          href={dashboardHref}
           className="inline-flex h-[52px] min-w-[200px] items-center justify-center rounded-[12px] px-8 text-[15px] font-semibold text-white"
           style={primaryButtonStyle(true)}
         >

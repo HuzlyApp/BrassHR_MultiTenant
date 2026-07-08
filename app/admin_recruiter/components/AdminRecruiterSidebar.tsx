@@ -245,10 +245,9 @@ export function AdminRecruiterSidebar({
             }`}
           >
             <div
-              className={`admin-recruiter-sidebar-logo-frame flex shrink-0 items-center justify-center overflow-hidden rounded-xl border bg-white ${
+              className={`admin-recruiter-sidebar-logo-frame flex shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white ${
                 isMobileRail ? "h-9 w-9" : "h-10 w-10"
               }`}
-              style={{ borderColor: "color-mix(in srgb, var(--brand-primary) 55%, #CBD5E1)" }}
             >
               <img
                 src={logoSrc}
