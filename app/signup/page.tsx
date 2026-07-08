@@ -6,11 +6,15 @@ import RedirectionProgressModal from "@/app/components/RedirectionProgressModal"
 import { PasswordVisibilityToggle } from "@/app/components/PasswordVisibilityToggle";
 import SignupStepper, { resolveSignupStepperPhase } from "@/app/components/SignupStepper";
 import SearchableSelectField from "@/app/tenant-onboarding/SearchableSelectField";
-import { Check, ChevronDown, X } from "lucide-react";
+import { Check, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent } from "react";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import type { SignupStateOption } from "@/lib/signup/owner-signup";
 import { zipCodeValidationMessage } from "@/lib/tenant/business-info-validation";
+import {
+  signupAddress1ValidationMessage,
+  signupAddress2ValidationMessage,
+} from "@/lib/signup/owner-signup";
 import { getStateCodeFromName } from "@/lib/us-state-names";
 import {
   brandingAuthButtonStyle,
@@ -228,76 +232,47 @@ function PasswordField({
   );
 }
 
-function SelectField({
-  label,
-  value,
-  onChange,
-  placeholder,
-  options,
-  required,
-  disabled = false,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  placeholder: string;
-  options: string[];
-  required?: boolean;
-  disabled?: boolean;
-}) {
-  return (
-    <div>
-      <FieldLabel required={required}>{label}</FieldLabel>
-      <div className="relative">
-        <select
-          value={value}
-          disabled={disabled}
-          onChange={(event) => onChange(event.target.value)}
-          style={inputTypographyStyle}
-          className={`h-[56px] w-full appearance-none rounded-[6px] border border-[#d7e0ea] bg-white px-[14px] pr-9 ${inputTextClass} outline-none transition focus:border-[#d89b35] focus:ring-2 focus:ring-[#d89b35]/20 disabled:cursor-not-allowed disabled:bg-[#f7f8fa] disabled:text-[#94a3b8] ${
-            value ? "text-[#0f172a]" : "text-[#64748b]"
-          }`}
-        >
-          <option value="" style={inputTypographyStyle}>
-            {placeholder}
-          </option>
-          {options.map((option) => (
-            <option key={option} value={option} style={inputTypographyStyle}>
-              {option}
-            </option>
-          ))}
-        </select>
-        <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#9aa8bb]" />
-      </div>
-    </div>
-  );
-}
-
 function AddressField({
   label,
   value,
   onChange,
   disabled,
+  required,
+  error,
+  onBlur,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   disabled?: boolean;
+  required?: boolean;
+  error?: string | null;
+  onBlur?: () => void;
 }) {
   return (
     <div>
       <div className="mb-[10px] flex items-center justify-between gap-3">
-        <FieldLabel>{label}</FieldLabel>
+        <FieldLabel required={required}>{label}</FieldLabel>
         <span className="text-[9px] font-normal leading-none text-[#8a98aa]">Building, Floor, etc...</span>
       </div>
       <input
         value={value}
         disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
+        onBlur={onBlur}
         placeholder="Address"
         style={inputTypographyStyle}
-        className={`h-[56px] w-full rounded-[6px] border border-[#d7e0ea] bg-white px-[14px] ${inputTextClass} text-[#0f172a] outline-none transition placeholder:text-[#b5c0cf] focus:border-[#d89b35] focus:ring-2 focus:ring-[#d89b35]/20 disabled:bg-[#f7f8fa] disabled:text-[#94a3b8]`}
+        className={`h-[56px] w-full rounded-[6px] border bg-white px-[14px] ${inputTextClass} outline-none transition placeholder:text-[#b5c0cf] focus:ring-2 disabled:bg-[#f7f8fa] disabled:text-[#94a3b8] ${
+          error
+            ? "border-[#ff5c7a] text-[#f01846] focus:border-[#ff5c7a] focus:ring-[#ff5c7a]/20"
+            : "border-[#d7e0ea] text-[#0f172a] focus:border-[#d89b35] focus:ring-[#d89b35]/20"
+        }`}
       />
+      {error ? (
+        <p className="mt-[8px] text-[14px] font-normal leading-[20px] text-[#f01846]" style={interStyle}>
+          {error}
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -322,6 +297,8 @@ export default function SignupPage() {
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [touchedEmail, setTouchedEmail] = useState(false);
   const [touchedZip, setTouchedZip] = useState(false);
+  const [touchedAddress1, setTouchedAddress1] = useState(false);
+  const [touchedAddress2, setTouchedAddress2] = useState(false);
   const [detailsSubmitAttempted, setDetailsSubmitAttempted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -492,6 +469,26 @@ export default function SignupPage() {
     [form.zipCode, zipValidationContext]
   );
 
+  const address1Error = useMemo(() => {
+    if (!detailsSubmitAttempted && !touchedAddress1) return null;
+    return signupAddress1ValidationMessage(form.address1);
+  }, [detailsSubmitAttempted, touchedAddress1, form.address1]);
+
+  const address2Error = useMemo(() => {
+    if (!detailsSubmitAttempted && !touchedAddress2) return null;
+    return signupAddress2ValidationMessage(form.address2, { sameAsAddress1: form.sameAsAddress1 });
+  }, [detailsSubmitAttempted, touchedAddress2, form.address2, form.sameAsAddress1]);
+
+  const address1IsValid = useMemo(
+    () => !signupAddress1ValidationMessage(form.address1),
+    [form.address1]
+  );
+
+  const address2IsValid = useMemo(
+    () => !signupAddress2ValidationMessage(form.address2, { sameAsAddress1: form.sameAsAddress1 }),
+    [form.address2, form.sameAsAddress1]
+  );
+
   const canContinue = useMemo(() => {
     return (
       form.firstName.trim().length > 0 &&
@@ -501,9 +498,11 @@ export default function SignupPage() {
       form.jobTitle.trim().length > 0 &&
       form.city.trim().length > 0 &&
       form.state.trim().length > 0 &&
-      zipIsValid
+      zipIsValid &&
+      address1IsValid &&
+      address2IsValid
     );
-  }, [emailTaken, form, zipIsValid]);
+  }, [address1IsValid, address2IsValid, emailTaken, form, zipIsValid]);
 
   const passwordRules = useMemo(() => getPasswordRules(password), [password]);
   const passwordScore = passwordRules.filter((rule) => rule.passed).length;
@@ -528,6 +527,8 @@ export default function SignupPage() {
     if (step === "details") {
       setTouchedEmail(true);
       setTouchedZip(true);
+      setTouchedAddress1(true);
+      setTouchedAddress2(true);
       setDetailsSubmitAttempted(true);
       if (!canContinue) return;
       setStep("password");
@@ -809,15 +810,19 @@ export default function SignupPage() {
             </div>
 
             <div className="mt-[30px] grid grid-cols-3 gap-x-[26px]">
-              <SelectField
+              <SearchableSelectField
                 label="State"
                 required
+                loading={locationLoading}
+                disabled={locationLoading}
                 value={form.state}
                 onChange={(value) => {
                   setForm((prev) => ({ ...prev, state: value, city: "" }));
                 }}
-                placeholder={locationLoading ? "Loading…" : "Select"}
+                placeholder={locationLoading ? "Loading…" : "Search state"}
+                searchPlaceholder="Type to search states"
                 options={stateOptions}
+                emptyMessage="No states found. Try another search."
               />
               {form.state && cityOptions.length === 0 && !citiesLoading ? (
                 <TextField
@@ -860,7 +865,15 @@ export default function SignupPage() {
             </div>
 
             <div className="mt-[30px] space-y-[26px]">
-              <AddressField label="Address 1" value={form.address1} onChange={(value) => update("address1", value)} />
+              <div onBlur={() => setTouchedAddress1(true)}>
+                <AddressField
+                  label="Address 1"
+                  required
+                  value={form.address1}
+                  onChange={(value) => update("address1", value)}
+                  error={address1Error}
+                />
+              </div>
 
               <div>
                 <div className="mb-[10px] flex items-center justify-between gap-3">
@@ -892,10 +905,20 @@ export default function SignupPage() {
                   value={form.address2}
                   disabled={form.sameAsAddress1}
                   onChange={(event) => update("address2", event.target.value)}
+                  onBlur={() => setTouchedAddress2(true)}
                   placeholder="Address"
                   style={inputTypographyStyle}
-                  className={`h-[56px] w-full rounded-[6px] border border-[#d7e0ea] bg-white px-[14px] ${inputTextClass} text-[#0f172a] outline-none transition placeholder:text-[#b5c0cf] focus:border-[#d89b35] focus:ring-2 focus:ring-[#d89b35]/20 disabled:bg-[#f7f8fa] disabled:text-[#94a3b8]`}
+                  className={`h-[56px] w-full rounded-[6px] border bg-white px-[14px] ${inputTextClass} outline-none transition placeholder:text-[#b5c0cf] focus:ring-2 disabled:bg-[#f7f8fa] disabled:text-[#94a3b8] ${
+                    address2Error
+                      ? "border-[#ff5c7a] text-[#f01846] focus:border-[#ff5c7a] focus:ring-[#ff5c7a]/20"
+                      : "border-[#d7e0ea] text-[#0f172a] focus:border-[#d89b35] focus:ring-[#d89b35]/20"
+                  }`}
                 />
+                {address2Error ? (
+                  <p className="mt-[8px] text-[14px] font-normal leading-[20px] text-[#f01846]" style={interStyle}>
+                    {address2Error}
+                  </p>
+                ) : null}
               </div>
             </div>
 

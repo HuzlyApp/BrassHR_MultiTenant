@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   normalizeOwnerSignupBody,
+  signupAddress1ValidationMessage,
+  signupAddress2ValidationMessage,
   validateOwnerSignupDetails,
   validateOwnerSignupZipForState,
 } from "@/lib/signup/owner-signup";
@@ -21,17 +23,48 @@ describe("validateOwnerSignupZipForState", () => {
 });
 
 describe("validateOwnerSignupDetails", () => {
+  const validBase = {
+    firstName: "Jane",
+    lastName: "Doe",
+    workEmail: "jane@acme.com",
+    jobTitle: "HR",
+    city: "Los Angeles",
+    state: "California",
+    zipCode: "90012",
+    address1: "123 Main Street",
+    address2: "",
+  };
+
   it("requires a 5-digit ZIP code", () => {
     const error = validateOwnerSignupDetails({
-      firstName: "Jane",
-      lastName: "Doe",
-      workEmail: "jane@acme.com",
-      jobTitle: "HR",
-      city: "Los Angeles",
-      state: "California",
+      ...validBase,
       zipCode: "900",
     });
     expect(error).toMatch(/5-digit/i);
+  });
+
+  it("requires a street number in address 1", () => {
+    const error = validateOwnerSignupDetails({
+      ...validBase,
+      address1: "uyrtert",
+    });
+    expect(error).toMatch(/street number/i);
+  });
+
+  it("accepts valid address details", () => {
+    expect(validateOwnerSignupDetails(validBase)).toBeNull();
+  });
+});
+
+describe("signupAddress1ValidationMessage", () => {
+  it("rejects text without a street number", () => {
+    expect(signupAddress1ValidationMessage("uyrtert")).toMatch(/street number/i);
+  });
+});
+
+describe("signupAddress2ValidationMessage", () => {
+  it("skips validation when same as address 1", () => {
+    expect(signupAddress2ValidationMessage("", { sameAsAddress1: true })).toBeNull();
   });
 });
 

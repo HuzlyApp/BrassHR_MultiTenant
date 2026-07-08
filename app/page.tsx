@@ -156,7 +156,7 @@ export default function Home() {
         <section className="grid w-full max-w-[1060px] grid-cols-1 overflow-hidden rounded-2xl bg-white shadow-[0_24px_70px_rgba(0,0,0,0.18)] min-[640px]:grid-cols-[58%_42%] min-[900px]:grid-cols-[620px_440px]">
           <div className="flex flex-col items-center justify-center gap-5 px-6 py-7 text-center sm:px-8 sm:py-8 min-[900px]:min-h-[720px] min-[900px]:px-10 min-[900px]:py-10">
             <div className="space-y-3">
-              <h1 className="whitespace-nowrap text-[22px] font-semibold leading-[30px] tracking-normal text-slate-800 sm:text-[34px] sm:leading-[44px] min-[900px]:text-[48px] min-[900px]:leading-[60px]">
+              <h1 className="whitespace-nowrap text-[22px] font-semibold leading-[30px] tracking-normal text-slate-800 min-[640px]:max-[899px]:text-[27px] min-[640px]:max-[899px]:leading-[35px] min-[900px]:text-[48px] min-[900px]:leading-[60px]">
                 {brand.headline}
               </h1>
               <p className="text-[14px] font-normal leading-5 tracking-normal text-slate-500 sm:text-[16px] sm:leading-6">{brand.subtitle}</p>
@@ -198,7 +198,7 @@ export default function Home() {
                 router.push("/signup");
               }}
               style={{ backgroundColor: "var(--brand-primary)", boxShadow: "0 10px 20px color-mix(in srgb, var(--brand-primary) 22%, transparent)" }}
-              className="inline-flex min-h-12 min-w-[170px] cursor-pointer items-center justify-center rounded-xl px-6 py-3 text-[20px] font-semibold leading-[22px] text-white transition hover:brightness-105 focus:outline-none disabled:cursor-wait disabled:opacity-80 sm:min-h-14 sm:min-w-[210px] sm:px-8 sm:py-4 sm:text-[22px]"
+              className="inline-flex min-h-12 min-w-[170px] cursor-pointer items-center justify-center rounded-xl px-6 py-3 text-[20px] font-semibold leading-[22px] text-white transition hover:brightness-105 focus:outline-none disabled:cursor-wait disabled:opacity-80 min-[640px]:max-[899px]:min-h-[45px] min-[640px]:max-[899px]:min-w-[168px] min-[640px]:max-[899px]:px-[26px] min-[640px]:max-[899px]:py-[13px] min-[640px]:max-[899px]:text-[18px] min-[900px]:min-h-14 min-[900px]:min-w-[210px] min-[900px]:px-8 min-[900px]:py-4 min-[900px]:text-[22px]"
             >
               {startingApplication ? "Starting…" : primaryCtaLabel}
             </button>
