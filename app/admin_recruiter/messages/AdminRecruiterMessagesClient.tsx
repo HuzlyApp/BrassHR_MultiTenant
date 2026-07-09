@@ -280,7 +280,7 @@ export default function AdminRecruiterMessagesClient({
       <div className="grid grid-cols-1 gap-6 lg:h-[calc(100vh-190px)] lg:grid-cols-[280px_minmax(0,1fr)] lg:gap-3 lg:items-stretch xl:grid-cols-[minmax(220px,280px)_minmax(0,1fr)_minmax(220px,280px)] 2xl:grid-cols-[306px_minmax(0,1fr)_306px] 2xl:gap-6">
         <aside className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-[#E2E8F0] bg-white shadow-sm xl:h-full">
           <div className="border-b border-[#E8EDF2] p-4">
-            <div className="relative mx-auto w-full max-w-[266px]">
+            <div className="relative w-full max-w-none sm:mx-auto sm:max-w-[266px]">
               <Search className="pointer-events-none absolute left-[10px] top-1/2 h-4 w-4 -translate-y-1/2 text-[#94A3B8]" />
               <input
                 type="search"
@@ -290,7 +290,7 @@ export default function AdminRecruiterMessagesClient({
                 className="h-8 w-full rounded-[8px] border border-[#D8E0EA] bg-[#F8FAFC] py-2 pl-9 pr-[10px] text-sm text-[#0F172A] outline-none transition placeholder:text-[#94A3B8] focus:border-(--brand-primary)"
               />
             </div>
-            <div className="mt-4 flex items-center gap-6 px-1">
+            <div className="mt-4 grid w-full grid-cols-3 items-center gap-2 px-0 sm:flex sm:w-auto sm:gap-6 sm:px-1 [&>button]:justify-center">
               <ChatTabButton
                 label="Worker"
                 active={activeTab === "worker"}

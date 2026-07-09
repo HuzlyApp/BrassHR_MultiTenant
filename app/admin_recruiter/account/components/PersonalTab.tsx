@@ -202,8 +202,8 @@ export default function PersonalTab() {
       {saveSuccess ? <AccountSuccessBanner message={saveSuccess} /> : null}
       {emailChangeNotice ? <AccountSuccessBanner message={emailChangeNotice} /> : null}
 
-      <div className="mb-6 flex items-center justify-between gap-4 rounded-lg border border-[#E5E7EB] bg-white px-4 py-4 sm:px-5 sm:py-5">
-        <div className="flex min-w-0 items-center gap-4">
+      <div className="mb-6 flex flex-col items-center gap-3 rounded-lg border border-[#E5E7EB] bg-white px-4 py-4 text-center min-[500px]:flex-row min-[500px]:items-center min-[500px]:justify-between min-[500px]:text-left sm:px-5 sm:py-5">
+        <div className="flex min-w-0 w-full flex-col items-center gap-2 min-[500px]:w-auto min-[500px]:flex-row min-[500px]:items-center min-[500px]:gap-4">
           <StaffProfilePhotoUpload
             displayName={displayName}
             photoUrl={photoUrl}
@@ -211,7 +211,7 @@ export default function PersonalTab() {
             variant="card"
           />
           <div className="min-w-0">
-            <p className="truncate text-xl font-semibold text-[#012352]">{displayName}</p>
+            <p className="truncate text-lg font-semibold text-[#012352] min-[500px]:text-xl">{displayName}</p>
             <p className="mt-0.5 text-sm text-[#64748B]">{roleLabel}</p>
           </div>
         </div>

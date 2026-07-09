@@ -2,7 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { ImageIcon, Palette, RefreshCw, Type } from "lucide-react";
+import { ChevronDownIcon, ImageIcon, Palette, RefreshCw, Type } from "lucide-react";
 import {
   AccountErrorBanner,
   AccountLoadingSkeleton,
@@ -49,7 +49,7 @@ function isPresetActive(
 
 function actionButtonClass(variant: "primary" | "secondary", disabled?: boolean): string {
   const base =
-    "inline-flex h-10 cursor-pointer items-center justify-center gap-2 px-5 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-60";
+    "inline-flex h-10 w-full cursor-pointer items-center justify-center gap-2 px-5 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-60 min-[500px]:w-auto";
   if (variant === "primary") {
     return `${base} rounded-lg text-white hover:brightness-95`;
   }
@@ -165,20 +165,35 @@ function FontSelect({
   value: TenantBrandingFontId;
   onChange: (id: TenantBrandingFontId) => void;
 }) {
+  const [isOpen, setIsOpen] = useState(false);
+
   return (
     <FieldBlock label={label}>
-      <select
-        value={value}
-        onChange={(event) => onChange(event.target.value as TenantBrandingFontId)}
-        className="h-11 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm text-[#0F172A] outline-none focus:border-[color:var(--brand-primary)]"
-        style={{ fontFamily: brandingFontFamily(value) }}
-      >
-        {TENANT_BRANDING_FONT_OPTIONS.map((option) => (
-          <option key={option.id} value={option.id} style={{ fontFamily: option.fontFamily }}>
-            {option.label}
-          </option>
-        ))}
-      </select>
+      <div className="relative">
+        <select
+          value={value}
+          onMouseDown={() => setIsOpen(true)}
+          onFocus={() => setIsOpen(true)}
+          onBlur={() => setIsOpen(false)}
+          onChange={(event) => {
+            onChange(event.target.value as TenantBrandingFontId);
+            setIsOpen(false);
+          }}
+          className="h-11 w-full cursor-pointer appearance-none rounded-lg border border-[#CBD5E1] bg-white px-3 pr-11 text-sm text-[#0F172A] outline-none focus:border-[color:var(--brand-primary)]"
+          style={{ fontFamily: brandingFontFamily(value) }}
+        >
+          {TENANT_BRANDING_FONT_OPTIONS.map((option) => (
+            <option key={option.id} value={option.id} style={{ fontFamily: option.fontFamily }}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+        <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2" aria-hidden>
+          <ChevronDownIcon
+            className={`size-4 text-[#64748B] transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
+          />
+        </span>
+      </div>
     </FieldBlock>
   );
 }
@@ -787,7 +802,7 @@ export default function BrandingSettingsPanel() {
                   key={mode}
                   type="button"
                   onClick={() => setPreviewMode(mode)}
-                  className={`flex-1 rounded-md px-3 py-2 text-sm font-medium transition ${
+                  className={`flex-1 cursor-pointer rounded-md px-3 py-2 text-sm font-medium transition ${
                     previewMode === mode
                       ? "bg-white text-[#012352] shadow-sm"
                       : "text-[#64748B] hover:text-[#012352]"
@@ -803,7 +818,7 @@ export default function BrandingSettingsPanel() {
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center justify-center gap-3 border-t border-[#E5E7EB] pt-6">
+      <div className="grid w-full grid-cols-2 items-center gap-3 border-t border-[#E5E7EB] pt-6 min-[500px]:flex min-[500px]:justify-center">
         <button
           type="submit"
           disabled={saving}

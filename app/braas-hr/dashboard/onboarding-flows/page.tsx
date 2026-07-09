@@ -842,10 +842,10 @@ function OnboardingFlowsPageContent({
           </div>
         ) : null}
 
-        <header className="mb-8 flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
+        <header className="mb-8 flex flex-col gap-4 min-[500px]:gap-6 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <h1
-              className="text-[30px] font-semibold leading-[36px] tracking-normal text-[#000000]"
+              className="text-[27px] font-semibold leading-[33px] tracking-normal text-[#000000] min-[500px]:text-[30px] min-[500px]:leading-[36px]"
             >
               {libraryLabel}
             </h1>
@@ -858,7 +858,7 @@ function OnboardingFlowsPageContent({
           <button
             type="button"
             onClick={() => setCreateModalOpen(true)}
-            className="inline-flex h-10 shrink-0 items-center gap-2 self-start rounded-lg px-4 text-sm font-semibold text-white transition hover:brightness-[0.97]"
+            className="inline-flex h-10 w-full items-center justify-center gap-2 self-start rounded-lg px-4 text-sm font-semibold text-white transition hover:brightness-[0.97] min-[500px]:w-auto"
             style={{ backgroundColor: "#012352" }}
           >
             <CreateFlowPlusIcon />
@@ -867,7 +867,7 @@ function OnboardingFlowsPageContent({
         </header>
 
         <div
-          className="mb-8 inline-flex gap-1"
+          className="mb-8 flex w-full gap-1 min-[500px]:inline-flex min-[500px]:w-auto"
           role="tablist"
           aria-label="Flow status"
         >
@@ -876,7 +876,7 @@ function OnboardingFlowsPageContent({
             role="tab"
             aria-selected={activeTab === "published"}
             onClick={() => setActiveTab("published")}
-            className="rounded-full px-5 py-2 text-sm font-semibold leading-5 transition"
+            className="flex-1 rounded-full px-5 py-2 text-sm font-semibold leading-5 transition min-[500px]:flex-none"
             style={{
               background: activeTab === "published" ? GOLD_GRADIENT : "transparent",
               color: activeTab === "published" ? "#ffffff" : TEXT_SECONDARY,
@@ -889,7 +889,7 @@ function OnboardingFlowsPageContent({
             role="tab"
             aria-selected={activeTab === "unpublished"}
             onClick={() => setActiveTab("unpublished")}
-            className="rounded-full px-5 py-2 text-sm font-semibold leading-5 transition"
+            className="flex-1 rounded-full px-5 py-2 text-sm font-semibold leading-5 transition min-[500px]:flex-none"
             style={{
               background: activeTab === "unpublished" ? GOLD_GRADIENT : "transparent",
               color: activeTab === "unpublished" ? "#ffffff" : TEXT_SECONDARY,

@@ -10,7 +10,7 @@ type AccountTabNavProps = {
 export default function AccountTabNav({ activeTab }: AccountTabNavProps) {
   return (
     <nav
-      className="mb-4 flex flex-wrap items-end gap-x-8 gap-y-2 border-b border-[#E5E7EB]"
+      className="mb-4 flex flex-nowrap items-end gap-6 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
       aria-label="Account sections"
     >
       {ACCOUNT_TABS.map((tab) => {

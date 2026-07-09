@@ -45,7 +45,7 @@ export function AccountSaveButton({
     <button
       type="submit"
       disabled={saving || disabled}
-      className="inline-flex h-10 items-center justify-center rounded-full px-6 text-sm font-medium text-white transition disabled:opacity-60"
+      className="inline-flex h-10 w-full items-center justify-center rounded-full px-6 text-sm font-medium text-white transition disabled:opacity-60 min-[500px]:w-auto"
       style={{ backgroundColor: "var(--brand-primary)" }}
     >
       {saving ? "Saving…" : label}
