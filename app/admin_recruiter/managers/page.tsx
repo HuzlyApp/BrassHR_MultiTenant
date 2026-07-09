@@ -123,7 +123,7 @@ export default function ManagersPage() {
 
   return (
     <div className="px-5 pb-8 pt-5 lg:px-8">
-      <div className="mb-4 flex items-center gap-6 border-b border-[#E5E7EB]">
+      <div className="mb-4 flex items-center gap-6 overflow-x-auto border-b border-[#E5E7EB] pb-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
         {MANAGER_TABS.map((tab) => (
           <button
             key={tab.id}

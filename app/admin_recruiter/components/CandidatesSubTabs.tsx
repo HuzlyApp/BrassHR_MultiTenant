@@ -10,7 +10,7 @@ export function CandidatesSubTabs() {
 
   return (
     <nav className="mb-4 w-full min-w-0" aria-label="Candidates navigation">
-      <div className="candidate-detail-tabs-scroll flex w-full min-w-0 flex-nowrap items-start gap-1 overflow-x-auto pb-1">
+      <div className="candidate-detail-tabs-scroll flex w-full min-w-0 flex-nowrap items-start gap-1 overflow-x-auto pb-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
         {CANDIDATES_TABS.map((tab) => {
           const isActive = activeTab === tab.id;
           return (

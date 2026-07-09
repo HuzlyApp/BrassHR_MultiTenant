@@ -13,6 +13,7 @@ import { AdvancedSearchButton } from "@/app/admin_recruiter/components/Candidate
 import { ColumnsEditorModal } from "@/app/admin_recruiter/components/ColumnsEditorModal";
 import AdvancedSearchModal from "@/app/admin_recruiter/components/AdvancedSearchModal";
 import { ListExportDropdown } from "@/app/admin_recruiter/components/ListExportDropdown";
+import { useCandidatesFilterRowsDefault } from "@/app/admin_recruiter/hooks/useCandidatesFilterRowsDefault";
 import {
   employmentWorkerTabLabel,
   type EmploymentWorkerTab,
@@ -22,6 +23,7 @@ import {
   Search,
   RefreshCw,
   Filter,
+  List,
 } from "lucide-react";
 import {
   DEFAULT_WORKER_COLUMNS,
@@ -149,6 +151,40 @@ function formatDateShort(iso: string | null) {
   });
 }
 
+function CompactFilterField({
+  label,
+  children,
+  className = "",
+}: {
+  label: string;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <label className={`flex min-w-0 flex-col gap-1 ${className}`}>
+      <span className="text-xs font-medium leading-4 text-[#475569]">{label}</span>
+      {children}
+    </label>
+  );
+}
+
+function InlineFilterField({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <label className="flex w-full min-w-0 shrink-0 flex-col gap-1 lg:w-auto lg:flex-row lg:items-center lg:gap-2">
+      <span className={CANDIDATES_FILTER_LABEL_CLASS} style={CANDIDATES_PAGE_SUBTITLE_STYLE}>
+        {label}
+      </span>
+      {children}
+    </label>
+  );
+}
+
 export default function WorkersPage() {
   const router = useRouter();
   const [workers, setWorkers] = useState<WorkerListRow[]>([]);
@@ -157,7 +193,7 @@ export default function WorkersPage() {
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
   const [workerTab, setWorkerTab] = useState<EmploymentWorkerTab>("all");
-  const [showFilterRows, setShowFilterRows] = useState(true);
+  const [showFilterRows, setShowFilterRows] = useCandidatesFilterRowsDefault();
   const [jobRoleFilter, setJobRoleFilter] = useState("");
   const [locationFilter, setLocationFilter] = useState("");
   const [dateFilter, setDateFilter] = useState("");
@@ -343,7 +379,7 @@ export default function WorkersPage() {
 
   return (
     <div className="px-5 pb-8 pt-5 lg:px-8">
-      <div className="mb-4 flex items-center gap-6 border-b border-[#E5E7EB]">
+      <div className="mb-4 flex items-center gap-6 overflow-x-auto pb-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
         {WORKER_TABS.map((tab) => (
           <button
             key={tab.id}
@@ -360,12 +396,87 @@ export default function WorkersPage() {
       <div className="w-full overflow-hidden rounded-[12px] border border-[#E5E7EB] bg-white">
         <CandidatesPageHeader title="Workers" subtitle="Manage workers in one place" />
 
-        <div
-          className={`flex w-full flex-col gap-0 overflow-visible rounded-t-[8px] border-y border-[#E5E7EB] bg-white ${
-            showFilterRows ? "min-h-[104px]" : "min-h-[52px]"
-          }`}
-        >
-          <div className="flex h-[52px] w-full shrink-0 items-center gap-3 border-b border-[#E5E7EB] px-[14px]">
+        <div className="flex w-full flex-col gap-0 overflow-visible rounded-t-[8px] border-y border-[#E5E7EB] bg-white">
+          <div className="flex flex-col gap-2 border-b border-[#E5E7EB] px-3 py-2.5 xl:hidden">
+            <div className="flex w-full items-center gap-2">
+              <div className="flex h-10 min-w-0 flex-1 items-center rounded-md border border-[#dce6e3] bg-white px-3 md:h-8">
+                <Search className="mr-2 h-4 w-4 shrink-0 text-[#94A3B8]" />
+                <input
+                  type="search"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Search workers"
+                  className="min-w-0 flex-1 bg-transparent text-base font-normal leading-6 text-[#334155] outline-none placeholder:text-[#94A3B8] sm:text-sm"
+                  style={CANDIDATES_PAGE_SUBTITLE_STYLE}
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowFilterRows((v) => !v)}
+                className={`inline-flex h-10 w-auto shrink-0 items-center gap-1 rounded-md border px-2.5 text-xs font-medium whitespace-nowrap transition sm:h-8 sm:px-3 sm:text-sm ${
+                  showFilterRows || Boolean(jobRoleFilter || locationFilter || dateFilter)
+                    ? "border-[color:var(--brand-primary)] bg-[color:color-mix(in_srgb,var(--brand-primary)_10%,white)] text-[color:var(--brand-primary)]"
+                    : "border-[#dce6e3] bg-white text-[#334155] hover:bg-zinc-50"
+                }`}
+              >
+                <Filter className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                <span className="hidden min-[480px]:inline">Filters</span>
+              </button>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-1.5 md:gap-2">
+              <div className="flex items-center gap-1.5 md:gap-2">
+                <button
+                  type="button"
+                  onClick={() => setEditColumnsOpen(true)}
+                  className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-[#dce6e3] bg-white text-[#334155] transition hover:bg-zinc-50"
+                  aria-label="Columns"
+                  title="Columns"
+                >
+                  <Columns2 className="h-4 w-4" />
+                </button>
+                <ListExportDropdown
+                  variant="icon"
+                  onExportCsv={() => exportWorkersCsv(filtered)}
+                  onExportXls={() => exportWorkersXls(filtered)}
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (advancedSearchContext.active) {
+                      applyAdvancedSearchParams(null);
+                      void loadWorkers(null);
+                      return;
+                    }
+                    void loadWorkers();
+                  }}
+                  className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-[#dce6e3] bg-white text-[#334155] transition hover:bg-zinc-50"
+                  aria-label={advancedSearchContext.active ? "Reset Search" : "Refresh"}
+                  title={advancedSearchContext.active ? "Reset Search" : "Refresh"}
+                >
+                  <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+                </button>
+                <button
+                  type="button"
+                  className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-[color:var(--brand-primary)] bg-[color:color-mix(in_srgb,var(--brand-primary)_10%,white)] text-[color:var(--brand-primary)]"
+                  aria-label="List view"
+                  title="List view"
+                >
+                  <List className="h-4 w-4" />
+                </button>
+              </div>
+
+              <div className="flex-1 min-[600px]:ml-auto min-[600px]:flex-none">
+                <AdvancedSearchButton
+                  onClick={() => setAdvancedSearchOpen(true)}
+                  size="sm"
+                  className="w-full justify-center min-[600px]:w-auto"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="hidden h-[52px] w-full shrink-0 items-center gap-3 border-b border-[#E5E7EB] px-[14px] xl:flex">
             <div className="flex h-8 w-full min-w-0 max-w-[360px] items-center rounded-md border border-[#dce6e3] bg-white px-3">
               <Search className="mr-2 h-4 w-4 shrink-0 text-[#94A3B8]" />
               <input
@@ -416,27 +527,20 @@ export default function WorkersPage() {
                 <RefreshCw className={`h-4 w-4 shrink-0 ${loading ? "animate-spin" : ""}`} />
                 {advancedSearchContext.active ? "Reset Search" : "Refresh"}
               </button>
-              <AdvancedSearchButton onClick={() => setAdvancedSearchOpen(true)} size="sm" />
+              {!showFilterRows ? (
+                <AdvancedSearchButton onClick={() => setAdvancedSearchOpen(true)} size="sm" />
+              ) : null}
             </div>
           </div>
 
           {showFilterRows ? (
-            <div className="flex min-h-[52px] w-full shrink-0 items-center gap-3 px-[14px] py-2">
-              <div className="flex min-w-0 items-center gap-4 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-                <BrandedSvgIcon
-                  src="/icons/admin-recruiter/candidates/filtered.svg.svg"
-                  className="h-4 w-4 shrink-0"
-                  color="var(--brand-primary)"
-                />
-                <label className="flex items-center gap-2">
-                  <span className={CANDIDATES_FILTER_LABEL_CLASS} style={CANDIDATES_PAGE_SUBTITLE_STYLE}>
-                    Job Role
-                  </span>
+            <>
+              <div className="grid grid-cols-1 gap-2 rounded-lg border border-[#E8EEEC] bg-[#F8FAFC] p-2.5 mx-3 my-2.5 min-[600px]:grid-cols-2 md:grid-cols-3 xl:hidden">
+                <CompactFilterField label="Job Role">
                   <select
                     value={jobRoleFilter}
                     onChange={(e) => setJobRoleFilter(e.target.value)}
-                    className={`${CANDIDATES_FILTER_CONTROL_CLASS} relative z-10`}
-                    style={CANDIDATES_PAGE_SUBTITLE_STYLE}
+                    className="h-10 w-full min-w-0 rounded-md border border-[#dce6e3] bg-white px-2 text-sm text-[#334155] sm:h-9 appearance-auto cursor-pointer relative z-10"
                   >
                     <option value="">All</option>
                     {jobRoleOptions.map((role) => (
@@ -445,16 +549,12 @@ export default function WorkersPage() {
                       </option>
                     ))}
                   </select>
-                </label>
-                <label className="flex items-center gap-2">
-                  <span className={CANDIDATES_FILTER_LABEL_CLASS} style={CANDIDATES_PAGE_SUBTITLE_STYLE}>
-                    Location
-                  </span>
+                </CompactFilterField>
+                <CompactFilterField label="Location">
                   <select
                     value={locationFilter}
                     onChange={(e) => setLocationFilter(e.target.value)}
-                    className={`${CANDIDATES_FILTER_CONTROL_CLASS} relative z-10`}
-                    style={CANDIDATES_PAGE_SUBTITLE_STYLE}
+                    className="h-10 w-full min-w-0 rounded-md border border-[#dce6e3] bg-white px-2 text-sm text-[#334155] sm:h-9 appearance-auto cursor-pointer relative z-10"
                   >
                     <option value="">All</option>
                     {locationOptions.map((loc) => (
@@ -463,21 +563,69 @@ export default function WorkersPage() {
                       </option>
                     ))}
                   </select>
-                </label>
-                <label className="flex items-center gap-2">
-                  <span className={CANDIDATES_FILTER_LABEL_CLASS} style={CANDIDATES_PAGE_SUBTITLE_STYLE}>
-                    Date Applied
-                  </span>
+                </CompactFilterField>
+                <CompactFilterField label="Date Applied" className="min-[600px]:col-span-2 md:col-span-1">
                   <input
                     type="date"
                     value={dateFilter}
                     onChange={(e) => setDateFilter(e.target.value)}
-                    className={`${CANDIDATES_FILTER_CONTROL_CLASS} relative z-10 min-w-[132px] scheme-light`}
-                    style={CANDIDATES_PAGE_SUBTITLE_STYLE}
+                    className="h-10 w-full min-w-0 rounded-md border border-[#dce6e3] bg-white px-2 text-sm text-[#334155] scheme-light sm:h-9"
                   />
-                </label>
+                </CompactFilterField>
               </div>
-            </div>
+
+              <div className="hidden items-center gap-4 border-b border-[#E5E7EB] px-[14px] py-2.5 xl:flex">
+                <div className="flex min-w-0 flex-1 items-center gap-4 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+                  <BrandedSvgIcon
+                    src="/icons/admin-recruiter/candidates/filtered.svg.svg"
+                    className="h-4 w-4 shrink-0"
+                    color="var(--brand-primary)"
+                  />
+                  <InlineFilterField label="Job Role">
+                    <select
+                      value={jobRoleFilter}
+                      onChange={(e) => setJobRoleFilter(e.target.value)}
+                      className={`${CANDIDATES_FILTER_CONTROL_CLASS} relative z-10`}
+                      style={CANDIDATES_PAGE_SUBTITLE_STYLE}
+                    >
+                      <option value="">All</option>
+                      {jobRoleOptions.map((role) => (
+                        <option key={role} value={role}>
+                          {role}
+                        </option>
+                      ))}
+                    </select>
+                  </InlineFilterField>
+                  <InlineFilterField label="Location">
+                    <select
+                      value={locationFilter}
+                      onChange={(e) => setLocationFilter(e.target.value)}
+                      className={`${CANDIDATES_FILTER_CONTROL_CLASS} relative z-10`}
+                      style={CANDIDATES_PAGE_SUBTITLE_STYLE}
+                    >
+                      <option value="">All</option>
+                      {locationOptions.map((loc) => (
+                        <option key={loc} value={loc}>
+                          {loc}
+                        </option>
+                      ))}
+                    </select>
+                  </InlineFilterField>
+                  <InlineFilterField label="Date Applied">
+                    <input
+                      type="date"
+                      value={dateFilter}
+                      onChange={(e) => setDateFilter(e.target.value)}
+                      className={`${CANDIDATES_FILTER_CONTROL_CLASS} relative z-10 scheme-light`}
+                      style={CANDIDATES_PAGE_SUBTITLE_STYLE}
+                    />
+                  </InlineFilterField>
+                </div>
+                <div className="ml-auto flex shrink-0 items-center gap-2">
+                  <AdvancedSearchButton onClick={() => setAdvancedSearchOpen(true)} size="sm" />
+                </div>
+              </div>
+            </>
           ) : null}
         </div>
 

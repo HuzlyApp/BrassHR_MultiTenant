@@ -192,24 +192,15 @@
   border-radius: 999px;
 }
 
-/* Candidate detail tabs — single row with horizontal scroll on mobile */
+/* Candidate detail tabs — keep horizontal swipe, hide default scrollbar */
 .candidate-detail-tabs-scroll {
-  scrollbar-width: thin;
-  scrollbar-color: #cbd5e1 transparent;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
   -webkit-overflow-scrolling: touch;
 }
 
 .candidate-detail-tabs-scroll::-webkit-scrollbar {
-  height: 4px;
-}
-
-.candidate-detail-tabs-scroll::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.candidate-detail-tabs-scroll::-webkit-scrollbar-thumb {
-  background-color: #cbd5e1;
-  border-radius: 999px;
+  display: none;
 }
 
 /* Active rail — flush to nav edge, beside scrollbar gutter. */
