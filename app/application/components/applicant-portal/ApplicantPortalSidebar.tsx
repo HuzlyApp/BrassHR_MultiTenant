@@ -454,7 +454,6 @@ export function ApplicantPortalSidebar({
     width: sidebarWidth,
     maxWidth: sidebarWidth,
     minWidth: WORKER_SIDEBAR_COLLAPSED_WIDTH,
-    boxShadow: "inset 3px 0 0 var(--brand-primary)",
   };
 
   return (
@@ -492,7 +491,6 @@ export function ApplicantPortalSidebar({
           style={{
             width: WORKER_SIDEBAR_EXPANDED_WIDTH,
             maxWidth: "min(90vw, 272px)",
-            boxShadow: "inset 3px 0 0 var(--brand-primary)",
           }}
           onClick={(event) => event.stopPropagation()}
           {...sidebarHoverProps}

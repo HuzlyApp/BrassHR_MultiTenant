@@ -75,7 +75,6 @@
   width: var(--worker-sidebar-collapsed-width, 80px);
   max-width: var(--worker-sidebar-collapsed-width, 80px);
   min-width: var(--worker-sidebar-collapsed-width, 80px);
-  box-shadow: inset 3px 0 0 var(--brand-primary);
 }
 
 /* Worker sidebar scrollbar — thumb hidden until sidebar hover (Figma) */
