@@ -46,22 +46,23 @@ export default function ProfileSubTabs({ applicantId, activeTab }: ProfileSubTab
   const id = applicantId ?? "";
 
   return (
-    <nav
-      className="mb-4 flex w-full min-w-0 items-end justify-center gap-x-8 border-b border-[#E5E7EB]"
-      aria-label="Profile sections"
-    >
-      {SUB_TABS.map((tab) => {
-        const isActive = tab === activeTab;
-        return (
-          <Link
-            key={tab}
-            href={subTabHref(tab, id, isWorkerRoute)}
-            className={tabLinkClass(isActive)}
-          >
-            {tab}
-          </Link>
-        );
-      })}
+    <nav className="mb-4 w-full min-w-0 border-b border-[#E5E7EB]" aria-label="Profile sections">
+      <div className="candidate-detail-tabs-scroll overflow-x-auto">
+        <div className="mx-auto flex w-max min-w-full items-end justify-center gap-x-6 px-1">
+          {SUB_TABS.map((tab) => {
+            const isActive = tab === activeTab;
+            return (
+              <Link
+                key={tab}
+                href={subTabHref(tab, id, isWorkerRoute)}
+                className={tabLinkClass(isActive)}
+              >
+                {tab}
+              </Link>
+            );
+          })}
+        </div>
+      </div>
     </nav>
   );
 }

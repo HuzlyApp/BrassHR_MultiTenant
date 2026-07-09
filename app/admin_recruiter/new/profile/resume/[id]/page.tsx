@@ -63,6 +63,7 @@ export default function NewApplicantProfileResumePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [profile, setProfile] = useState<WorkerProfilePayload | null>(null);
+  const [resumePreviewError, setResumePreviewError] = useState<string | null>(null);
 
   useEffect(() => {
     async function run() {
@@ -106,41 +107,13 @@ export default function NewApplicantProfileResumePage() {
   const isPdf =
     resumePath?.toLowerCase().endsWith(".pdf") ||
     resumeUrl?.toLowerCase().includes(".pdf");
+  const previewUrl = applicantId
+    ? `/api/admin/worker-resume-preview?workerId=${encodeURIComponent(applicantId)}`
+    : null;
 
-  const tabLink = (label: string, href: string, active?: boolean) => (
-    <Link
-      href={href}
-      className={`text-xs px-3 py-1.5 rounded-xl border transition ${
-        active
-          ? "border-[#7AA6FF] bg-white text-gray-600"
-          : "border-zinc-200 bg-white/60 text-gray-600 hover:bg-white"
-      }`}
-    >
-      {label}
-    </Link>
-  );
-
-  const subTabLink = (label: string, href: string, active?: boolean) => (
-    <Link
-      href={href}
-      className={`text-xs px-4 py-2 rounded-2xl transition ${
-        active ? "bg-teal-700 text-white" : "text-gray-600 hover:bg-white/60"
-      }`}
-    >
-      {label}
-    </Link>
-  );
-
-  const basePrefix = isWorkerRoute ? `/admin_recruiter/workers/${applicantId}` : `/admin_recruiter/new`;
-  const detailsHref = isWorkerRoute
-    ? `/admin_recruiter/workers/${applicantId}/profile`
-    : `/admin_recruiter/new/profile/${applicantId}`;
-  const resumeHref = isWorkerRoute
-    ? `/admin_recruiter/workers/${applicantId}/profile/resume`
-    : `/admin_recruiter/new/profile/resume/${applicantId}`;
-  const notesHref = isWorkerRoute
-    ? `/admin_recruiter/workers/${applicantId}/profile/notes`
-    : `/admin_recruiter/new/profile/notes/${applicantId}`;
+  useEffect(() => {
+    setResumePreviewError(null);
+  }, [resumeUrl, applicantId]);
 
   const sidebarItems = useMemo(
     () => [
@@ -288,44 +261,6 @@ export default function NewApplicantProfileResumePage() {
               </button>
             </div>
 
-            <div className="hidden px-6 py-4 border-b border-[#9CC3FF]/20 bg-white/30">
-              <div className="flex flex-wrap gap-2">
-                {tabLink("Checklist", `${basePrefix}/checklist`, false)}
-                {tabLink("Profile", detailsHref, true)}
-                {tabLink("Attachments", `${basePrefix}/attachments`, false)}
-                {tabLink("Skill Assessments", `${basePrefix}/skill-assessments`, false)}
-                {tabLink("Authorization", `${basePrefix}/authorization`, false)}
-                {tabLink("Activities", `${basePrefix}/activities`, false)}
-                {tabLink("Facility Assignments", `${basePrefix}/facility-assignments`, false)}
-                {tabLink("History", `${basePrefix}/history`, false)}
-              </div>
-            </div>
-
-            <div className="hidden py-4 justify-center">
-              <div className="h-9 w-[327px] rounded-xl bg-[#F8FAFC] p-1">
-                <div className="grid h-full grid-cols-3 gap-1">
-                  <Link
-                    href={detailsHref}
-                    className="inline-flex items-center justify-center rounded-lg text-sm font-medium leading-5 text-[#374151] hover:bg-white"
-                  >
-                    Details
-                  </Link>
-                  <Link
-                    href={resumeHref}
-                    className="inline-flex items-center justify-center rounded-lg bg-[#0D9488] text-sm font-medium leading-5 text-white"
-                  >
-                    Resume
-                  </Link>
-                  <Link
-                    href={notesHref}
-                    className="inline-flex items-center justify-center rounded-lg text-sm font-medium leading-5 text-[#374151] hover:bg-white"
-                  >
-                    Notes
-                  </Link>
-                </div>
-              </div>
-            </div>
-
               {!loading && !error && !resumePath ? (
                 <div className="rounded-2xl border border-zinc-200 bg-white/80 px-5 py-8 text-center text-sm text-gray-600">
                   No resume found in{" "}
@@ -343,7 +278,7 @@ export default function NewApplicantProfileResumePage() {
               ) : null}
 
               {!loading && resumeUrl ? (
-                <div className="h-[520px] md:h-[852px] w-full bg-[#2A2A2A] rounded-lg overflow-hidden border border-black/10">
+                <div className="w-full overflow-hidden rounded-lg border border-black/10 bg-[#2A2A2A]">
                   <div className="h-11 flex items-center px-4 text-white/85 bg-black/15 text-xs justify-between">
                     <span className="truncate">{fileLabel(resumePath)}</span>
                     <a
@@ -356,11 +291,23 @@ export default function NewApplicantProfileResumePage() {
                     </a>
                   </div>
                   {isPdf ? (
-                    <iframe
-                      title="Resume PDF"
-                      src={resumeUrl}
-                      className="h-[calc(520px-44px)] md:h-[calc(852px-44px)] w-full bg-zinc-100"
-                    />
+                    <div className="bg-zinc-100">
+                      <iframe
+                        title="Resume PDF"
+                        src={previewUrl ?? resumeUrl}
+                        className="h-[calc(100dvh-320px)] min-h-[380px] md:h-[calc(100dvh-260px)] md:min-h-[700px] w-full"
+                        onError={() =>
+                          setResumePreviewError(
+                            "Preview is blocked on this device. Use 'Open in new tab' to view the resume."
+                          )
+                        }
+                      />
+                      {resumePreviewError ? (
+                        <div className="border-t border-zinc-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                          {resumePreviewError}
+                        </div>
+                      ) : null}
+                    </div>
                   ) : (
                     <div className="p-8 text-center text-white/90 text-sm">
                       <p className="mb-4">Preview is available for PDF files. This file is not a PDF.</p>

@@ -324,23 +324,25 @@ export default function NewApplicantActivitiesPage() {
             />
 
             <nav
-              className="mb-3 flex w-full items-center justify-center gap-x-5"
+              className="mb-3 w-full overflow-x-auto border-b border-[#E5E7EB]"
               aria-label="Activity sections"
             >
-              {(["Calls", "Inbox", "Interview"] as const).map((t) => {
-                const isActive = active === t;
-                return (
-                  <button
-                    key={t}
-                    type="button"
-                    onClick={() => setActive(t)}
-                    className={activityTabClass(isActive)}
-                    aria-current={isActive ? "page" : undefined}
-                  >
-                    {t}
-                  </button>
-                );
-              })}
+              <div className="mx-auto flex w-max min-w-full items-center justify-center gap-x-5 px-2">
+                {(["Calls", "Inbox", "Interview"] as const).map((t) => {
+                  const isActive = active === t;
+                  return (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => setActive(t)}
+                      className={activityTabClass(isActive)}
+                      aria-current={isActive ? "page" : undefined}
+                    >
+                      {t}
+                    </button>
+                  );
+                })}
+              </div>
             </nav>
 
             {active === "Inbox" ? (
@@ -390,7 +392,7 @@ export default function NewApplicantActivitiesPage() {
                 />
               ) : (
                 <div className="grid grid-cols-12">
-                  <aside className="col-span-12 border-b border-[#E5E7EB] bg-[#FAFBFC] md:col-span-3 md:border-b-0 md:border-r">
+                  <aside className="hidden border-b border-[#E5E7EB] bg-[#FAFBFC] md:col-span-3 md:block md:border-b-0 md:border-r">
                     <div className="space-y-2 p-4">
                       <button
                         type="button"
@@ -430,6 +432,44 @@ export default function NewApplicantActivitiesPage() {
                   </aside>
 
                   <main className="col-span-12 min-w-0 md:col-span-9">
+                    <div className="border-b border-[#E5E7EB] bg-[#FAFBFC] p-3 md:hidden">
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setLeftNav("Recent Logs")}
+                          className={`flex min-h-11 items-center justify-between rounded-lg border px-3 py-2 text-left text-xs transition ${
+                            leftNav === "Recent Logs"
+                              ? "border-(--brand-primary) bg-[color-mix(in_srgb,var(--brand-primary)_8%,white)] text-(--brand-primary)"
+                              : "border-[#E5E7EB] bg-white text-[#374151]"
+                          }`}
+                        >
+                          <span className="inline-flex items-center gap-2 font-medium">
+                            <BrandedPhoneIcon className="h-3.5 w-3.5" />
+                            Recent
+                          </span>
+                          <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-semibold text-[#6B7280] ring-1 ring-[#E5E7EB]">
+                            {sortedCallLogs.length}
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setLeftNav("History")}
+                          className={`flex min-h-11 items-center justify-between rounded-lg border px-3 py-2 text-left text-xs transition ${
+                            leftNav === "History"
+                              ? "border-(--brand-primary) bg-[color-mix(in_srgb,var(--brand-primary)_8%,white)] text-(--brand-primary)"
+                              : "border-[#E5E7EB] bg-white text-[#374151]"
+                          }`}
+                        >
+                          <span className="inline-flex items-center gap-2 font-medium">
+                            <BrandedHistoryIcon className="h-3.5 w-3.5" />
+                            History
+                          </span>
+                          <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-semibold text-[#6B7280] ring-1 ring-[#E5E7EB]">
+                            {historyCount}
+                          </span>
+                        </button>
+                      </div>
+                    </div>
                     <div className="flex flex-wrap items-center justify-end gap-2 border-b border-[#E5E7EB] px-4 py-3 md:px-5">
                       <button
                         type="button"

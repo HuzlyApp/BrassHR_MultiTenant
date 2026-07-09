@@ -116,7 +116,8 @@ export default function CandidatePipelineStepper({
       role="list"
       aria-label="Recruitment progress"
     >
-      <div className="relative mx-auto w-full max-w-[980px] px-2">
+      <div className="candidate-detail-tabs-scroll overflow-x-auto">
+      <div className="relative mx-auto w-full min-w-[640px] max-w-[980px] px-2 sm:min-w-0">
         <div
           className="pointer-events-none absolute top-[7px] h-0.5 bg-[#E8EDF4]"
           style={{
@@ -170,6 +171,7 @@ export default function CandidatePipelineStepper({
             );
           })}
         </div>
+      </div>
       </div>
     </div>
   );

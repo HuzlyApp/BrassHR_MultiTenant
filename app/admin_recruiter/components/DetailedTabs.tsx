@@ -207,15 +207,15 @@ export default function DetailedTabs({
       />
 
       <nav className="w-full min-w-0" aria-label="Applicant sections">
-        <div className="candidate-detail-tabs-scroll overflow-x-auto pb-1">
-            <div className="mx-auto flex w-max min-w-full justify-center gap-1">
+        <div className="candidate-detail-tabs-scroll overflow-x-auto pb-1 md:overflow-x-auto">
+            <div className="mx-auto flex w-max min-w-full flex-nowrap justify-start gap-1 md:justify-center">
               {tabs.map((tab) => {
                 const isActive = activeTab != null && tab === activeTab;
                 return (
                   <Link
                     key={tab}
                     href={tabHref(tab, applicantId)}
-                    className={`inline-flex shrink-0 flex-col items-center rounded px-2.5 py-0.5 text-sm font-medium leading-none whitespace-nowrap transition-colors ${
+                    className={`inline-flex min-h-9 shrink-0 flex-col items-center justify-center rounded px-2.5 py-0.5 text-sm font-medium leading-none whitespace-nowrap transition-colors ${
                       isActive
                         ? "text-[color:var(--brand-primary)]"
                         : "text-[#2B3D51] hover:text-[color:var(--brand-primary)]"
