@@ -4,7 +4,6 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type CSSProperties } from "react";
-import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
 import { TenantBrandingProvider } from "@/app/components/tenant/TenantBrandingContext";
 import {
   applicantLandingCtaLabel,
@@ -24,6 +23,7 @@ import {
   clearOnboardingTenantSlugCookie,
   resolveTenantSlugForClient,
 } from "@/lib/tenant/resolve-tenant-context";
+import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
 
 export default function Home() {
   const router = useRouter();
@@ -132,7 +132,7 @@ export default function Home() {
 
   const shell: CSSProperties = {
     ...brandingToCssVars(brand),
-    background: `linear-gradient(135deg, var(--brand-gradient-from), var(--brand-gradient-to))`,
+    background: "var(--brand-primary)",
   };
 
   const resolvedPortalSlug =
@@ -152,14 +152,56 @@ export default function Home() {
 
   return (
     <TenantBrandingProvider branding={brand}>
-      <main style={shell} className="flex min-h-screen items-center justify-center p-4 sm:p-6 lg:p-8">
-        <section className="grid w-full max-w-[1060px] grid-cols-1 overflow-hidden rounded-2xl bg-white shadow-[0_24px_70px_rgba(0,0,0,0.18)] min-[640px]:grid-cols-[58%_42%] min-[900px]:grid-cols-[620px_440px]">
-          <div className="flex flex-col items-center justify-center gap-5 px-6 py-7 text-center sm:px-8 sm:py-8 min-[900px]:min-h-[720px] min-[900px]:px-10 min-[900px]:py-10">
+      <main
+        style={shell}
+        className="relative flex h-[100dvh] w-full items-center justify-center overflow-hidden p-3 sm:p-4 lg:p-6"
+      >
+        <div className="absolute inset-0 min-[1024px]:hidden" aria-hidden>
+          <Image
+            src={brand.loginBackgroundSrc}
+            alt=""
+            fill
+            sizes="(max-width: 1023px) 100vw, 0px"
+            className="object-cover"
+            priority
+          />
+          <div
+            className="absolute inset-0"
+            style={{
+              background:
+                "linear-gradient(165deg, color-mix(in srgb, var(--brand-primary) 74%, white), color-mix(in srgb, var(--brand-primary) 88%, black 12%))",
+            }}
+          />
+        </div>
+
+        <section className="relative z-10 flex h-full w-full items-center justify-center min-[1024px]:hidden">
+          <div className="relative z-10 w-[92vw] max-w-[516px] min-h-[420px] rounded-[22px] bg-white/88 px-7 py-10 text-center shadow-[0_20px_46px_rgba(0,0,0,0.22)] backdrop-blur-[1px] sm:px-8 sm:py-10">
+            <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-[22px]" aria-hidden>
+              <div className="absolute inset-0 bg-white/32" />
+              <Image
+                src={brand.loginBackgroundSrc}
+                alt=""
+                fill
+                sizes="(max-width: 1023px) 90vw, 0px"
+                className="object-cover object-right opacity-28 grayscale"
+                priority
+              />
+              <div className="absolute inset-0 bg-gradient-to-r from-white/72 via-white/58 to-black/10" />
+            </div>
+            <div className="relative z-10 flex w-full flex-col items-center justify-start gap-5 pt-6">
+            <Image
+              src={brand.loginLogoUrl || brand.logoUrl}
+              alt={`${brand.companyName} logo`}
+              width={204}
+              height={60}
+              className="h-12 w-auto object-contain"
+              priority
+            />
             <div className="space-y-3">
-              <h1 className="whitespace-nowrap text-[22px] font-semibold leading-[30px] tracking-normal text-slate-800 min-[640px]:max-[899px]:text-[27px] min-[640px]:max-[899px]:leading-[35px] min-[900px]:text-[48px] min-[900px]:leading-[60px]">
+              <h1 className="text-[38px] font-semibold leading-[44px] tracking-normal text-slate-800 max-[500px]:text-[34px] max-[500px]:leading-[40px] max-[450px]:text-[32px] max-[450px]:leading-[37px] sm:text-[48px] sm:leading-[56px]">
                 {brand.headline}
               </h1>
-              <p className="text-[14px] font-normal leading-5 tracking-normal text-slate-500 sm:text-[16px] sm:leading-6">{brand.subtitle}</p>
+              <p className="text-[16px] font-normal leading-6 tracking-normal text-slate-500">{brand.subtitle}</p>
             </div>
 
             <button
@@ -198,7 +240,74 @@ export default function Home() {
                 router.push("/signup");
               }}
               style={{ backgroundColor: "var(--brand-primary)", boxShadow: "0 10px 20px color-mix(in srgb, var(--brand-primary) 22%, transparent)" }}
-              className="inline-flex min-h-12 min-w-[170px] cursor-pointer items-center justify-center rounded-xl px-6 py-3 text-[20px] font-semibold leading-[22px] text-white transition hover:brightness-105 focus:outline-none disabled:cursor-wait disabled:opacity-80 min-[640px]:max-[899px]:min-h-[45px] min-[640px]:max-[899px]:min-w-[168px] min-[640px]:max-[899px]:px-[26px] min-[640px]:max-[899px]:py-[13px] min-[640px]:max-[899px]:text-[18px] min-[900px]:min-h-14 min-[900px]:min-w-[210px] min-[900px]:px-8 min-[900px]:py-4 min-[900px]:text-[22px]"
+              className="inline-flex min-h-14 w-full max-w-[280px] cursor-pointer items-center justify-center rounded-xl px-8 py-4 text-[22px] font-semibold leading-[22px] text-white transition hover:brightness-105 focus:outline-none disabled:cursor-wait disabled:opacity-80"
+            >
+              {startingApplication ? "Starting…" : primaryCtaLabel}
+            </button>
+
+            {resolvedPortalSlug ? (
+              <p className="text-center text-[15px] font-normal leading-6 tracking-normal text-slate-500">
+                Already approved?{" "}
+                <Link
+                  href={workerSignInUrl}
+                  style={{ color: "var(--brand-primary)" }}
+                  className="text-[15px] font-semibold leading-6 underline-offset-4 hover:underline"
+                >
+                  Worker sign in
+                </Link>
+              </p>
+            ) : null}
+            </div>
+          </div>
+        </section>
+
+        {/* Desktop/tablet split layout */}
+        <section className="relative z-10 hidden h-[calc(100dvh-3rem)] max-h-[760px] w-full max-w-[1160px] grid-cols-1 overflow-hidden rounded-2xl bg-white shadow-[0_24px_70px_rgba(0,0,0,0.18)] min-[1024px]:grid min-[1024px]:grid-cols-[680px_480px]">
+          <div className="flex flex-col items-center justify-center gap-5 px-10 py-10 text-center">
+            <div className="space-y-3">
+              <h1 className="text-[48px] font-semibold leading-[60px] tracking-normal text-slate-800">
+                {brand.headline}
+              </h1>
+              <p className="text-[16px] font-normal leading-6 tracking-normal text-slate-500">{brand.subtitle}</p>
+            </div>
+
+            <button
+              type="button"
+              disabled={startingApplication}
+              onClick={() => {
+                if (resolvedPortalSlug) {
+                  persistOnboardingSlugCookie(resolvedPortalSlug);
+                  void (async () => {
+                    if (applicationEntryUrl) {
+                      router.push(applicationEntryUrl);
+                      return;
+                    }
+                    setStartingApplication(true);
+                    try {
+                      const res = await fetch(
+                        `/api/worker-onboarding/entry?tenant=${encodeURIComponent(resolvedPortalSlug)}`,
+                        { cache: "no-store" }
+                      );
+                      const payload = (await res.json().catch(() => ({}))) as { url?: string };
+                      if (res.ok && payload.url) {
+                        router.push(payload.url);
+                        return;
+                      }
+                    } catch {
+                      /* fall through */
+                    } finally {
+                      setStartingApplication(false);
+                    }
+                    router.push(
+                      `/worker-onboarding?tenant=${encodeURIComponent(resolvedPortalSlug)}`
+                    );
+                  })();
+                  return;
+                }
+                router.push("/signup");
+              }}
+              style={{ backgroundColor: "var(--brand-primary)", boxShadow: "0 10px 20px color-mix(in srgb, var(--brand-primary) 22%, transparent)" }}
+              className="inline-flex min-h-14 min-w-[210px] cursor-pointer items-center justify-center rounded-xl px-8 py-4 text-[22px] font-semibold leading-[22px] text-white transition hover:brightness-105 focus:outline-none disabled:cursor-wait disabled:opacity-80"
             >
               {startingApplication ? "Starting…" : primaryCtaLabel}
             </button>
@@ -228,39 +337,40 @@ export default function Home() {
               </Link>
             </p>
             */}
-
           </div>
 
-          <div className="relative flex min-h-[260px] items-center justify-center overflow-hidden border-t border-slate-200 min-[640px]:min-h-[620px] min-[640px]:border-l min-[640px]:border-t-0 min-[900px]:min-h-[720px] min-[900px]:w-[440px]">
+          <div className="relative flex w-[480px] items-center justify-center overflow-hidden border-l border-slate-200">
             <Image
               src={brand.loginBackgroundSrc}
               alt=""
               fill
-              sizes="(max-width: 639px) 100vw, (max-width: 899px) 42vw, 440px"
-              className="object-cover grayscale"
+              sizes="480px"
+              className="object-cover object-center grayscale"
               priority
             />
-            <div className="absolute inset-0 bg-white/75" />
-
-            <div className="relative z-10 flex w-full flex-col items-center justify-center gap-4 px-5 text-center sm:gap-5 sm:px-8 min-[900px]:px-12">
-              <div className="relative flex h-[48px] w-[150px] items-center justify-center sm:h-[64px] sm:w-[220px] min-[900px]:h-[80px] min-[900px]:w-[270px]">
-                <img src={brand.logoUrl} alt="" className="max-h-[48px] max-w-[150px] object-contain sm:max-h-[64px] sm:max-w-[220px] min-[900px]:max-h-[80px] min-[900px]:max-w-[270px]" />
-              </div>
-
-              <div className="flex w-full max-w-[340px] items-center justify-center gap-4">
-                <div className="h-px flex-1 bg-slate-400/40" />
-                <div className="flex h-7 w-7 items-center justify-center">
+            <div className="absolute inset-0 bg-white/45" />
+            <div className="relative z-10 flex w-full max-w-[340px] flex-col items-center justify-center px-6 text-center">
+              <Image
+                src={brand.loginLogoUrl || brand.logoUrl}
+                alt={`${brand.companyName} logo`}
+                width={270}
+                height={80}
+                className="h-16 w-auto object-contain"
+                priority
+              />
+              <div className="mt-4 flex w-full items-center justify-center gap-3">
+                <span className="h-px flex-1 bg-slate-400/40" />
+                <span className="inline-flex h-7 w-7 items-center justify-center">
                   <BrandedSvgIcon
                     src="/icons/circle-star-icon.svg"
                     className="h-5 w-5 flex-none"
                     color={brand.primaryHex}
                   />
-                </div>
-                <div className="h-px flex-1 bg-slate-400/40" />
+                </span>
+                <span className="h-px flex-1 bg-slate-400/40" />
               </div>
-
-              <p className="max-w-[260px] text-center text-[13px] font-normal leading-5 tracking-normal text-black sm:max-w-[300px] sm:text-[15px] sm:leading-6">
-                {brand.tagline}
+              <p className="mt-4 text-[16px] font-normal leading-6 tracking-normal text-slate-700">
+                {brand.subtitle}
               </p>
             </div>
           </div>
