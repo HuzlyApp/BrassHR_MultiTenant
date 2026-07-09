@@ -94,7 +94,7 @@ function WorkerSignInPageContent() {
   }
 
   return (
-    <LoginPageShell brand={brand}>
+    <LoginPageShell brand={brand} hideArtOnMobile>
       <LoginBrandHeader brand={brand} />
       <WorkerSignInForm tenantSlug={tenantSlug} brand={brand} />
     </LoginPageShell>

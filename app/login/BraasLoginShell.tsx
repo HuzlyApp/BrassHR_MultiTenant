@@ -23,11 +23,19 @@ export const loginPrimaryButtonClass =
 export const loginFieldLabelClass =
   "mb-1.5 block text-[13px] font-normal leading-[18px] tracking-normal text-[#374151] sm:mb-[8px] sm:text-[14px] sm:leading-[20px]";
 
-export function LoginArtPanel({ brand }: { brand: TenantBranding }) {
+export function LoginArtPanel({
+  brand,
+  className,
+}: {
+  brand: TenantBranding;
+  className?: string;
+}) {
   const logoSrc = braasLoginShellLogoUrl(brand);
 
   return (
-    <aside className="login-art relative flex w-full flex-col items-center justify-center gap-[24px] self-stretch overflow-hidden rounded-[16px] bg-[#111827] p-[14px] sm:gap-[40px] sm:rounded-[24px] sm:p-[30px]">
+    <aside
+      className={`login-art relative flex w-full flex-col items-center justify-center gap-[24px] self-stretch overflow-hidden rounded-[16px] bg-[#111827] p-[14px] sm:gap-[40px] sm:rounded-[24px] sm:p-[30px] ${className ?? ""}`}
+    >
       <Image src={brand.loginBackgroundSrc} alt="" fill sizes="510px" priority className="object-cover" />
       <div className="absolute inset-0 bg-black/50" />
       <div className="relative z-10 flex flex-col items-center justify-center gap-[20px] text-center sm:gap-[40px]">
@@ -82,7 +90,15 @@ export function LoginBrandHeader({ brand }: { brand: TenantBranding }) {
   );
 }
 
-export function LoginPageShell({ brand, children }: { brand: TenantBranding; children: ReactNode }) {
+export function LoginPageShell({
+  brand,
+  children,
+  hideArtOnMobile = false,
+}: {
+  brand: TenantBranding;
+  children: ReactNode;
+  hideArtOnMobile?: boolean;
+}) {
   const shellStyle = brandingToCssVars(brand) as CSSProperties;
 
   return (
@@ -183,6 +199,10 @@ export function LoginPageShell({ brand, children }: { brand: TenantBranding; chi
               border-radius: 14px;
               padding: 10px;
             }
+
+            .login-art.login-art--hidden-mobile {
+              display: none;
+            }
           }
 
           @media (min-width: 1440px) {
@@ -214,7 +234,10 @@ export function LoginPageShell({ brand, children }: { brand: TenantBranding; chi
         <section className="login-frame mx-auto w-full rounded-[30px] bg-white">
           <div className="login-layout w-full rounded-[12px] bg-white">
             <div className="login-content flex flex-col">{children}</div>
-            <LoginArtPanel brand={brand} />
+            <LoginArtPanel
+              brand={brand}
+              className={hideArtOnMobile ? "login-art--hidden-mobile" : undefined}
+            />
           </div>
         </section>
       </main>
