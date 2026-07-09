@@ -428,8 +428,8 @@ export default function FacilitiesPage() {
         </button>
       </div>
 
-      <div className="mb-4 flex items-center gap-2 sm:mb-5 sm:justify-between sm:gap-3">
-        <div className="relative min-w-0 flex-1 sm:max-w-md">
+      <div className="mb-4 flex flex-col gap-2 min-[500px]:flex-row min-[500px]:items-center sm:mb-5 sm:justify-between sm:gap-3">
+        <div className="relative min-w-0 w-full min-[500px]:flex-1 sm:max-w-md">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94A3B8]" />
           <input
             type="search"
@@ -442,11 +442,11 @@ export default function FacilitiesPage() {
         <button
           type="button"
           onClick={() => setShowCreateModal(true)}
-          className="inline-flex h-11 shrink-0 items-center justify-center gap-1.5 rounded-lg bg-(--brand-primary) px-3 text-sm font-semibold text-white transition hover:opacity-90 sm:hidden"
+          className="inline-flex h-11 w-full shrink-0 items-center justify-center gap-1.5 rounded-lg bg-(--brand-primary) px-3 text-sm font-semibold text-white transition hover:opacity-90 min-[500px]:w-auto min-[500px]:px-4 sm:hidden"
           aria-label="Create Facility"
         >
           <Plus className="h-4 w-4 shrink-0" />
-          <span className="hidden min-[400px]:inline">Create Facility</span>
+          <span>Create Facility</span>
         </button>
         <div className="hidden text-sm text-[#64748B] sm:block sm:shrink-0">
           {loadingFacilities ? "Loading..." : `${filteredFacilities.length} facilities`}
