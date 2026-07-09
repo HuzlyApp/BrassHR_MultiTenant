@@ -401,7 +401,7 @@ export function GoalsStep({
         title="What brings you to brassHR"
         subtitle="Choose what matters most to you, and we'll make sure to help you hit your goals."
       />
-      <div className="mt-[28px] grid grid-cols-1 gap-[12px] min-[400px]:grid-cols-2 sm:gap-[16px]">
+      <div className="mt-[28px] grid grid-cols-1 gap-[12px] min-[600px]:grid-cols-2 sm:gap-[16px]">
         {TENANT_GOAL_OPTIONS.map((goal) => (
           <GoalCard
             key={goal.id}
@@ -702,7 +702,7 @@ export function BusinessStep({
           error={showFieldError("companyName")}
         />
 
-        <div className="grid grid-cols-1 gap-[14px] min-[400px]:grid-cols-2 sm:gap-[24px]">
+        <div className="grid grid-cols-1 gap-[14px] min-[600px]:grid-cols-2 sm:gap-[24px]">
           <SelectField
             label="Industry"
             required
@@ -723,7 +723,7 @@ export function BusinessStep({
           />
         </div>
 
-        <div className="grid grid-cols-1 gap-[14px] min-[400px]:grid-cols-2 sm:gap-[24px]">
+        <div className="grid grid-cols-1 gap-[14px] min-[600px]:grid-cols-2 sm:gap-[24px]">
           <SelectField
             label="State"
             required
@@ -790,7 +790,7 @@ export function BusinessStep({
           variant="onboarding"
         />
 
-        <div className="grid grid-cols-1 gap-[14px] min-[400px]:grid-cols-2 sm:gap-[24px]">
+        <div className="grid grid-cols-1 gap-[14px] min-[600px]:grid-cols-2 sm:gap-[24px]">
           <TextField
             label="Business Phone"
             required
@@ -817,7 +817,7 @@ export function BusinessStep({
           />
         </div>
 
-        <div className="grid grid-cols-1 gap-[14px] min-[400px]:grid-cols-2 sm:gap-[24px]">
+        <div className="grid grid-cols-1 gap-[14px] min-[600px]:grid-cols-2 sm:gap-[24px]">
           <TextField
             label="Zip Code"
             required

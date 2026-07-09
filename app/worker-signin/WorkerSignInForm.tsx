@@ -4,7 +4,7 @@ import RedirectionProgressModal from "@/app/components/RedirectionProgressModal"
 import { PasswordVisibilityToggle } from "@/app/components/PasswordVisibilityToggle";
 import Link from "next/link";
 import LoginFormError, { loginInputErrorClass } from "@/app/login/LoginFormError";
-import { interStyle, loginFieldLabelClass, loginInputClass, loginPasswordInputClass, loginPrimaryButtonClass } from "@/app/login/BraasLoginShell";
+import { interStyle, loginInputClass, loginPasswordInputClass, loginPrimaryButtonClass } from "@/app/login/BraasLoginShell";
 import { useApplicantSignIn } from "@/lib/applicant-portal/use-applicant-sign-in";
 import { recruiterSignInHref } from "@/lib/auth/recruiter-sign-in";
 import type { TenantBranding } from "@/lib/tenant/tenant-branding";
@@ -17,6 +17,11 @@ import { FaXTwitter } from "react-icons/fa6";
 import { FcGoogle } from "react-icons/fc";
 
 const checkboxActiveClass = "border-[#012352] bg-[#012352]";
+const workerPageStackClass = "flex flex-col gap-5 pt-3 sm:gap-[40px] sm:pt-[30px]";
+const workerFormStackClass = "flex flex-col gap-6 sm:gap-[20px]";
+const workerEmailFormStackClass = "flex flex-col gap-5 sm:gap-[30px]";
+const workerFieldLabelClass =
+  "mb-2 block text-[13px] font-normal leading-[18px] tracking-normal text-[#374151] sm:mb-[8px] sm:text-[14px] sm:leading-[20px]";
 
 function primaryButtonStyle(enabled: boolean): CSSProperties | undefined {
   return brandingAuthButtonStyle(enabled);
@@ -24,7 +29,7 @@ function primaryButtonStyle(enabled: boolean): CSSProperties | undefined {
 
 function FieldLabel({ children }: { children: string }) {
   return (
-    <label className={loginFieldLabelClass} style={interStyle}>
+    <label className={workerFieldLabelClass} style={interStyle}>
       {children}
       <span className="ml-1 text-[#e11d48]">*</span>
     </label>
@@ -45,7 +50,7 @@ function SocialButton({ children, label }: { children: ReactNode; label: string 
 
 function SocialLoginSection() {
   return (
-    <>
+    <div className="flex flex-col gap-4 pt-2 sm:gap-[14px] sm:pt-0">
       <div className="flex items-center gap-[14px]">
         <div className="h-px flex-1 bg-[#e7edf4]" />
         <span className="text-[12px] font-normal leading-[16px] text-[#6b7280]" style={interStyle}>
@@ -65,7 +70,7 @@ function SocialLoginSection() {
           <FaXTwitter className="h-[15px] w-[15px]" />
         </SocialButton>
       </div>
-    </>
+    </div>
   );
 }
 
@@ -78,8 +83,8 @@ type LoginFormOptionsProps = {
 
 function LoginFormOptions({ rememberMe, setRememberMe, agree, setAgree }: LoginFormOptionsProps) {
   return (
-    <>
-      <div className="flex items-center justify-between">
+    <div className="flex flex-col gap-4 sm:gap-5">
+      <div className="flex items-center justify-between gap-3">
         <label
           className="flex cursor-pointer items-center gap-2 text-[13px] font-normal leading-[18px] text-[#374151] sm:gap-[8px] sm:text-[14px] sm:leading-[20px]"
           style={interStyle}
@@ -138,7 +143,7 @@ function LoginFormOptions({ rememberMe, setRememberMe, agree, setAgree }: LoginF
           </a>
         </span>
       </label>
-    </>
+    </div>
   );
 }
 
@@ -209,7 +214,7 @@ export default function WorkerSignInForm({ tenantSlug, brand }: Props) {
     <>
       {redirecting ? <RedirectionProgressModal /> : null}
 
-      <div className="flex flex-col gap-4 pt-3 sm:gap-[40px] sm:pt-[30px]">
+      <div className={workerPageStackClass}>
       <div>
         <h1 className="text-[22px] font-semibold leading-[30px] tracking-normal text-black sm:text-[30px] sm:leading-[36px]" style={interStyle}>
           Login
@@ -230,7 +235,7 @@ export default function WorkerSignInForm({ tenantSlug, brand }: Props) {
       ) : null}
 
       {mode === "email" ? (
-        <form onSubmit={handleLookup} className="flex flex-col gap-4 sm:gap-[30px]">
+        <form onSubmit={handleLookup} className={workerEmailFormStackClass}>
           <div>
             <FieldLabel>Email</FieldLabel>
             <input
@@ -267,7 +272,7 @@ export default function WorkerSignInForm({ tenantSlug, brand }: Props) {
       ) : null}
 
       {mode === "setup" ? (
-        <form onSubmit={handleSetup} className="flex flex-col gap-3 sm:gap-[20px]">
+        <form onSubmit={handleSetup} className={workerFormStackClass}>
           <div>
             <FieldLabel>Email</FieldLabel>
             <input
@@ -362,7 +367,7 @@ export default function WorkerSignInForm({ tenantSlug, brand }: Props) {
       ) : null}
 
       {mode === "password" ? (
-        <form onSubmit={handlePasswordLogin} className="flex flex-col gap-3 sm:gap-[20px]">
+        <form onSubmit={handlePasswordLogin} className={workerFormStackClass}>
           <div>
             <FieldLabel>Email</FieldLabel>
             <input
@@ -431,7 +436,7 @@ export default function WorkerSignInForm({ tenantSlug, brand }: Props) {
         </form>
       ) : null}
 
-      <p className="text-center text-[14px] font-normal leading-[20px] text-[#374151]" style={interStyle}>
+      <p className="mt-2 text-center text-[14px] font-normal leading-[20px] text-[#374151] sm:mt-0" style={interStyle}>
         Need to sign in as a recruiter?{" "}
         <Link
           href={recruiterSignInHref({ tenant: tenantSlug })}

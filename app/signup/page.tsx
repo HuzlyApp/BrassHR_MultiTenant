@@ -726,17 +726,6 @@ export default function SignupPage() {
             width: 100%;
           }
 
-          .signup-field-grid {
-            display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-            column-gap: 14px;
-            row-gap: 18px;
-          }
-
-          .signup-field-grid--location .signup-location-zip {
-            grid-column: 1 / -1;
-          }
-
           .signup-field-grid label {
             font-size: 13px;
             line-height: 18px;
@@ -824,7 +813,7 @@ export default function SignupPage() {
               </p>
             </div>
 
-            <div className="signup-field-grid mt-[24px] grid grid-cols-2 gap-x-[14px] gap-y-[18px] sm:mt-[30px] sm:gap-x-[20px] sm:gap-y-[24px] min-[1440px]:mt-[38px] min-[1440px]:gap-x-[26px] min-[1440px]:gap-y-[30px]">
+            <div className="signup-field-grid mt-[24px] grid grid-cols-1 gap-y-[18px] min-[600px]:grid-cols-2 min-[600px]:gap-x-[14px] sm:mt-[30px] sm:gap-x-[20px] sm:gap-y-[24px] min-[1440px]:mt-[38px] min-[1440px]:gap-x-[26px] min-[1440px]:gap-y-[30px]">
               <div className="min-w-0">
                 <TextField
                   label="First Name"
@@ -865,7 +854,7 @@ export default function SignupPage() {
               </div>
             </div>
 
-            <div className="signup-field-grid signup-field-grid--location mt-[18px] grid grid-cols-2 gap-x-[14px] gap-y-[18px] sm:mt-[26px] sm:gap-x-[20px] sm:gap-y-[24px] lg:grid-cols-3 min-[1440px]:mt-[30px] min-[1440px]:gap-x-[26px]">
+            <div className="signup-field-grid signup-field-grid--location mt-[18px] grid grid-cols-1 gap-y-[18px] min-[600px]:grid-cols-2 min-[600px]:gap-x-[14px] sm:mt-[26px] sm:gap-x-[20px] sm:gap-y-[24px] lg:grid-cols-3 min-[1440px]:mt-[30px] min-[1440px]:gap-x-[26px]">
               <div className="min-w-0">
                 <SearchableSelectField
                   label="State"
@@ -914,7 +903,7 @@ export default function SignupPage() {
                   />
                 )}
               </div>
-              <div className="signup-location-zip min-w-0 col-span-2 lg:col-span-1" onBlur={() => setTouchedZip(true)}>
+              <div className="signup-location-zip min-w-0 min-[600px]:col-span-2 lg:col-span-1" onBlur={() => setTouchedZip(true)}>
                 <TextField
                   label="Zip Code"
                   required
