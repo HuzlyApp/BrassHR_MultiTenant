@@ -24,9 +24,6 @@ export function AdminStaffAuthGuard({ children }: { children: ReactNode }) {
       const user = session?.user;
 
       if (!user?.id || user.is_anonymous === true) {
-        if (user?.is_anonymous === true) {
-          await supabaseBrowser.auth.signOut();
-        }
         if (!cancelled) {
           router.replace(recruiterLogoutLoginHref());
         }

@@ -139,7 +139,6 @@ export function useApplicantSignIn(tenantSlug: string | null) {
     setLoading(false);
 
     if (!res.ok) {
-      await supabaseBrowser.auth.signOut();
       setError(payload.error || unapprovedMessage);
       return;
     }

@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import type { User } from "@supabase/supabase-js";
 import { getSupabaseAnonKey, getSupabaseUrl } from "@/lib/supabase-env";
 import { isGodAdminUser } from "@/lib/auth/god-admin";
+import { isStaffRole, parseAppRole } from "@/lib/auth/app-role";
 import { resolveAuthenticatedRecruiterRedirectUrl } from "@/lib/auth/recruiter-dashboard-redirect";
 import {
   getUserPlatform,
@@ -190,6 +191,27 @@ export async function middleware(request: NextRequest) {
   if (pathname === "/") {
     response.headers.set("Cache-Control", "private, no-store");
     response.headers.set("Vary", "Host");
+    if (user && !isAnonymousUser) {
+      const role = parseAppRole((user.app_metadata as { role?: unknown } | undefined)?.role);
+      if (isGodAdminUser(user) || (role && isStaffRole(role))) {
+        const onboardingStatus = await fetchOwnerOnboardingStatus(supabase, user);
+        const destination = resolvePostAuthRedirect(
+          onboardingStatus,
+          request.nextUrl.searchParams.get("next")
+        );
+        return redirectAuthenticatedUser(request, user, destination);
+      }
+
+      const tenant =
+        request.nextUrl.searchParams.get("tenant")?.trim().toLowerCase() ||
+        request.cookies.get(ONBOARDING_TENANT_SLUG_COOKIE)?.value?.trim().toLowerCase() ||
+        tenantLabel;
+      const applicationUrl = new URL("/application/home", request.url);
+      if (tenant && tenant.length >= 2) {
+        applicationUrl.searchParams.set("tenant", tenant);
+      }
+      return NextResponse.redirect(applicationUrl);
+    }
   }
 
   const platformOn = isPlatformEnforcementEnabled();
@@ -211,7 +233,6 @@ export async function middleware(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     if (platformOn && !isNexusPlatformUser(user) && !isGodAdminUser(user)) {
-      await supabase.auth.signOut();
       logAuthDebug("middleware:api:block-platform", {
         userId: user.id,
         platform: getUserPlatform(user),
@@ -382,7 +403,6 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(login);
     }
     if (platformOn && !isNexusPlatformUser(user) && !isGodAdminUser(user)) {
-      await supabase.auth.signOut();
       const login = new URL("/admin", request.url);
       login.searchParams.set("next", `${request.nextUrl.pathname}${request.nextUrl.search}`);
       login.searchParams.set("error", "platform");
