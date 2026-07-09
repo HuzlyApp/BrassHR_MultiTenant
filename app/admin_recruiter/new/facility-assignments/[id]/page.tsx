@@ -504,14 +504,14 @@ export default function NewApplicantFacilityAssignmentsPage() {
                       <div className="hidden xl:block" />
                     )}
                     <div className="order-2 xl:order-1 hidden xl:block" />
-                    <div className="order-3 max-md:-mx-4 max-md:overflow-x-auto max-md:px-4 xl:order-2">
+                    <div className="candidate-detail-tabs-scroll order-3 max-md:-mx-4 max-md:overflow-x-auto max-md:px-4 xl:order-2">
                       <UnderlineTabBar
                         tabs={FACILITY_TABS}
                         activeTab={activeFacilityTab}
                         onTabChange={setActiveFacilityTab}
                         ariaLabel="Facility sections"
                         align="center"
-                        className="border-b-0 max-md:mx-0 max-md:w-max"
+                        className="border-b-0 max-md:mx-auto max-md:w-max"
                       />
                     </div>
                   </div>

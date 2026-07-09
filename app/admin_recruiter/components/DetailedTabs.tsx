@@ -208,7 +208,7 @@ export default function DetailedTabs({
 
       <nav className="w-full min-w-0" aria-label="Applicant sections">
         <div className="candidate-detail-tabs-scroll overflow-x-auto pb-1 md:overflow-x-auto">
-            <div className="mx-auto flex w-max min-w-full flex-nowrap justify-start gap-1 md:justify-center">
+            <div className="mx-auto flex w-max min-w-full flex-nowrap justify-center gap-1">
               {tabs.map((tab) => {
                 const isActive = activeTab != null && tab === activeTab;
                 return (
