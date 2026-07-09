@@ -697,10 +697,7 @@ export default function SignupPage() {
 
           .signup-art,
           .signup-art.signup-art--password {
-            width: 100%;
-            min-height: min(420px, 52vh);
-            max-height: 480px;
-            height: auto;
+            display: none;
           }
 
           .signup-layout--password {
@@ -713,13 +710,6 @@ export default function SignupPage() {
           .signup-frame {
             padding: 24px 20px;
           }
-
-          .signup-art,
-          .signup-art.signup-art--password {
-            min-height: min(320px, 45vh);
-            max-height: 400px;
-            padding: 24px;
-          }
         }
 
         @media (max-width: 639px) {
@@ -729,13 +719,6 @@ export default function SignupPage() {
 
           .signup-layout {
             gap: 24px;
-          }
-
-          .signup-art,
-          .signup-art.signup-art--password {
-            min-height: 240px;
-            max-height: 320px;
-            border-radius: 16px;
           }
 
           .signup-form {
@@ -811,7 +794,7 @@ export default function SignupPage() {
               width={160}
               height={80}
               priority
-              className="h-[56px] w-[112px] object-contain sm:h-[68px] sm:w-[136px] min-[1440px]:h-[80px] min-[1440px]:w-[160px]"
+              className="h-[56px] w-[112px] object-contain sm:h-[68px] sm:w-[136px] min-[1440px]:h-[80px] min-[1440px]:w-[160px] max-[1100px]:mx-auto max-[1100px]:block"
             />
 
             <SignupStepper

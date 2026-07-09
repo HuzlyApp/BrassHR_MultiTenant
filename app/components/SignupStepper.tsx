@@ -1,6 +1,6 @@
 "use client";
 
-import { Check } from "lucide-react";
+import Image from "next/image";
 
 const interStyle = { fontFamily: "Inter, Arial, sans-serif" };
 
@@ -85,25 +85,22 @@ type StepIconProps = {
 };
 
 function StepIcon({ variant }: StepIconProps) {
-  const isCompleted = variant === "completed";
-  const isActive = variant === "active";
-  const isPending = variant === "pending";
+  const src =
+    variant === "completed"
+      ? "/Indicator.svg"
+      : variant === "active"
+        ? "/gold-active-indecator.svg"
+        : "/gray-non-complete-indecator.svg";
 
   return (
-    <span
-      className="relative z-10 flex items-center justify-center rounded-full border bg-white"
-      style={{
-        width: ICON_SIZE,
-        height: ICON_SIZE,
-        borderColor: isPending ? TRACK_LINE : GOLD,
-        backgroundColor: isPending ? "#ffffff" : GOLD,
-        color: "#ffffff",
-      }}
-    >
-      {isCompleted ? <Check className="h-[10px] w-[10px]" strokeWidth={2.5} /> : null}
-      {isActive ? <span className="h-[6px] w-[6px] rounded-full bg-white" /> : null}
-      {isPending ? <span className="h-[5px] w-[5px] rounded-full" style={{ backgroundColor: TRACK_LINE }} /> : null}
-    </span>
+    <Image
+      src={src}
+      alt=""
+      width={ICON_SIZE}
+      height={ICON_SIZE}
+      className="relative z-10 shrink-0"
+      aria-hidden
+    />
   );
 }
 

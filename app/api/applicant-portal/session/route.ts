@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
+import { formatApiError } from "@/lib/api/format-api-error";
 import {
   applicantDisplayName,
   applicantStatusLabel,
   findApplicantByUserId,
   normalizeApplicantStatus,
 } from "@/lib/applicant-portal";
+import { resolveApplicantPortalTenantId } from "@/lib/applicant-portal/request";
 
 export const runtime = "nodejs";
 
@@ -31,7 +33,8 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const applicant = await findApplicantByUserId(supabase, data.user.id);
+    const tenantId = await resolveApplicantPortalTenantId(supabase, req);
+    const applicant = await findApplicantByUserId(supabase, data.user.id, tenantId);
     if (!applicant?.id) return NextResponse.json({ error: "Applicant not found" }, { status: 404 });
 
     const status = normalizeApplicantStatus(applicant.status);
@@ -50,7 +53,6 @@ export async function GET(req: NextRequest) {
     });
   } catch (err) {
     console.error("[applicant-portal/session]", err);
-    const message = err instanceof Error ? err.message : "Unexpected error";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: formatApiError(err) }, { status: 500 });
   }
 }

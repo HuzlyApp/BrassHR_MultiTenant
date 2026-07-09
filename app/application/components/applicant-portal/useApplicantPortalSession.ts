@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { applicantPortalApiPath } from "@/lib/applicant-portal/client-tenant";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import type { ApplicantSession } from "@/app/application/components/applicant-portal/types";
 
@@ -41,7 +42,10 @@ export function useApplicantPortalSession() {
           router.replace("/");
           return;
         }
-        const res = await fetch("/api/applicant-portal/session", { headers, cache: "no-store" });
+        const res = await fetch(applicantPortalApiPath("/api/applicant-portal/session"), {
+          headers,
+          cache: "no-store",
+        });
         const payload = (await res.json().catch(() => ({}))) as ApplicantSession & { error?: string };
         if (!res.ok) throw new Error(payload.error || "Could not load session.");
         if (!alive) return;

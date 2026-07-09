@@ -2,9 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import type { User } from "@supabase/supabase-js";
 import {
   findApplicantByUserId,
+  resolveTenantIdForApplicantPortal,
   type ApplicantWorkerRow,
 } from "@/lib/applicant-portal";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
+import { onboardingSlugFromRequestCookies } from "@/lib/tenant/onboarding-slug-from-cookie";
+import { resolveRequestTenantHost } from "@/lib/tenant/resolve-tenant-context";
 
 export type ApplicantPortalContext = {
   supabase: NonNullable<ReturnType<typeof createServiceRoleClient>>;
@@ -17,6 +20,36 @@ export function bearerToken(req: NextRequest): string | null {
   if (!header.toLowerCase().startsWith("bearer ")) return null;
   const token = header.slice(7).trim();
   return token.length > 0 ? token : null;
+}
+
+/** Tenant slug from query, cookie, or request host subdomain (e.g. jobs.brasshr.com → jobs). */
+export function readApplicantPortalTenantSlugFromRequest(req: NextRequest): string | null {
+  const fromQuery =
+    req.nextUrl.searchParams.get("tenantSlug") ??
+    req.nextUrl.searchParams.get("tenant") ??
+    req.nextUrl.searchParams.get("slug");
+  if (fromQuery && fromQuery.trim().length >= 2) {
+    return fromQuery.trim().toLowerCase();
+  }
+
+  const fromCookie = onboardingSlugFromRequestCookies(req);
+  if (fromCookie) return fromCookie;
+
+  const { subdomainLabel } = resolveRequestTenantHost(req.headers);
+  if (subdomainLabel && subdomainLabel.trim().length >= 2) {
+    return subdomainLabel.trim().toLowerCase();
+  }
+
+  return null;
+}
+
+export async function resolveApplicantPortalTenantId(
+  supabase: NonNullable<ReturnType<typeof createServiceRoleClient>>,
+  req: NextRequest
+): Promise<string | null> {
+  const tenantSlug = readApplicantPortalTenantSlugFromRequest(req);
+  if (!tenantSlug) return null;
+  return resolveTenantIdForApplicantPortal(supabase, tenantSlug);
 }
 
 export async function requireApprovedApplicant(
@@ -35,7 +68,8 @@ export async function requireApprovedApplicant(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const applicant = await findApplicantByUserId(supabase, data.user.id);
+  const tenantId = await resolveApplicantPortalTenantId(supabase, req);
+  const applicant = await findApplicantByUserId(supabase, data.user.id, tenantId);
   if (!applicant?.id) {
     return NextResponse.json({ error: "Applicant not found" }, { status: 404 });
   }

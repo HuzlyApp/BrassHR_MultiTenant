@@ -1,5 +1,6 @@
 "use client";
 
+import { applicantPortalApiPath } from "@/lib/applicant-portal/client-tenant";
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { Users } from "lucide-react";
@@ -273,7 +274,10 @@ export function ApplicantGroupChatTab() {
       try {
         const headers = await authHeaders();
         if (!headers) return;
-        const sessionRes = await fetch("/api/applicant-portal/session", { headers, cache: "no-store" });
+        const sessionRes = await fetch(applicantPortalApiPath("/api/applicant-portal/session"), {
+          headers,
+          cache: "no-store",
+        });
         const sessionPayload = (await sessionRes.json().catch(() => ({}))) as {
           applicant?: { id: string; name?: string };
         };

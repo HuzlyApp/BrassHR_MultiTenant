@@ -2,6 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
+import { applicantPortalApiPath } from "@/lib/applicant-portal/client-tenant";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import { applicationPath } from "@/lib/tenant/with-tenant";
 
@@ -130,7 +131,7 @@ export function useApplicantSignIn(tenantSlug: string | null) {
 
     const { data } = await supabaseBrowser.auth.getSession();
     const token = data.session?.access_token;
-    const res = await fetch("/api/applicant-portal/session", {
+    const res = await fetch(applicantPortalApiPath("/api/applicant-portal/session", tenantSlug), {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
       cache: "no-store",
     });

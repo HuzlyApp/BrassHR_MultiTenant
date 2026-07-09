@@ -73,14 +73,19 @@ export async function findApplicantByEmail(
 
 export async function findApplicantByUserId(
   supabase: SupabaseClient,
-  userId: string
+  userId: string,
+  tenantId?: string | null
 ): Promise<ApplicantWorkerRow | null> {
-  const { data, error } = await supabase
+  let query = supabase
     .from("worker")
     .select("id, user_id, tenant_id, email, first_name, last_name, status, applicant_password_set_at")
     .eq("user_id", userId)
-    .maybeSingle();
+    .order("updated_at", { ascending: false })
+    .limit(1);
 
+  if (tenantId) query = query.eq("tenant_id", tenantId);
+
+  const { data, error } = await query.maybeSingle();
   if (error) throw error;
   return (data as ApplicantWorkerRow | null) ?? null;
 }
