@@ -24,7 +24,11 @@ import {
 } from "@/app/tenant-onboarding/tenant-onboarding-steps";
 import type { OnboardingStepDraft } from "@/lib/onboarding/default-onboarding-steps";
 import { ONBOARDING_TENANT_SLUG_COOKIE } from "@/lib/tenant/constants";
-import { subdomainErrorMessage, validateTenantSubdomainInput } from "@/lib/tenant/subdomain-validation";
+import {
+  isSubdomainOnboardingApiError,
+  subdomainErrorMessage,
+  validateTenantSubdomainInput,
+} from "@/lib/tenant/subdomain-validation";
 import {
   defaultTenantBranding,
   PLATFORM_DEFAULT_TENANT_SLUG,
@@ -58,6 +62,7 @@ export default function TenantOnboardingPage() {
   const [businessInfo, setBusinessInfo] = useState(initialBusinessInfoForm);
   const [orgName, setOrgName] = useState("");
   const [subdomain, setSubdomain] = useState("");
+  const [domainError, setDomainError] = useState<string | null>(null);
   const [logoUrl, setLogoUrl] = useState("");
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoDisplayName, setLogoDisplayName] = useState("");
@@ -278,7 +283,8 @@ export default function TenantOnboardingPage() {
     try {
       const validated = validateTenantSubdomainInput(subdomain);
       if ("failure" in validated) {
-        setError(subdomainErrorMessage(validated.failure));
+        setDomainError(subdomainErrorMessage(validated.failure));
+        setStep("domain");
         setSubmitting(false);
         return;
       }
@@ -325,7 +331,13 @@ export default function TenantOnboardingPage() {
       };
 
       if (!res.ok) {
-        setError(payload.error ?? "Something went wrong");
+        if (isSubdomainOnboardingApiError(payload)) {
+          setDomainError(payload.error ?? "This domain is not available. Please choose another.");
+          setStep("domain");
+          setError(null);
+        } else {
+          setError(payload.error ?? "Something went wrong");
+        }
         setSubmitting(false);
         return;
       }
@@ -406,7 +418,7 @@ export default function TenantOnboardingPage() {
 
   return (
     <TenantOnboardingShell brand={preview} step={step} hideStepper={step === "done"} stepperStates={stepperStates}>
-      {error ? <ErrorBanner message={error} /> : null}
+      {error && step !== "domain" ? <ErrorBanner message={error} /> : null}
 
       {step === "goals" ? (
         <GoalsStep
@@ -492,8 +504,15 @@ export default function TenantOnboardingPage() {
         <DomainStep
           subdomain={subdomain}
           publicRootDomain={publicRootDomain}
-          onSubdomainChange={setSubdomain}
-          onContinue={() => setStep("preview")}
+          serverError={domainError}
+          onSubdomainChange={(value) => {
+            setSubdomain(value);
+            setDomainError(null);
+          }}
+          onContinue={() => {
+            setDomainError(null);
+            setStep("preview");
+          }}
           onBack={() => setStep("branding")}
         />
       ) : null}

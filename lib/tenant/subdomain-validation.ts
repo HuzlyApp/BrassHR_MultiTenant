@@ -21,11 +21,35 @@ export type SubdomainValidationFailure =
 export function subdomainErrorMessage(kind: SubdomainValidationFailure): string {
   switch (kind) {
     case "reserved_subdomain":
-      return "Reserved subdomain";
+      return "This domain name is reserved. Please choose another.";
     case "invalid_subdomain":
     default:
-      return "Invalid subdomain";
+      return "Domain must be 3–63 letters or numbers (hyphens allowed, not at the ends).";
   }
+}
+
+/** Client field error for the domain onboarding input (empty + format). */
+export function subdomainFieldErrorMessage(raw: string): string | null {
+  const trimmed = raw.trim();
+  if (!trimmed) {
+    return "Please enter a domain name.";
+  }
+  const parsed = validateTenantSubdomainInput(trimmed);
+  if ("failure" in parsed) {
+    return subdomainErrorMessage(parsed.failure);
+  }
+  return null;
+}
+
+export function isSubdomainOnboardingApiError(payload: {
+  error?: string;
+  code?: string;
+}): boolean {
+  if (payload.code === "invalid_subdomain" || payload.code === "reserved_subdomain") {
+    return true;
+  }
+  const message = String(payload.error ?? "").toLowerCase();
+  return message.includes("subdomain") || message.includes("domain");
 }
 
 const LABEL_RE = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/;

@@ -36,7 +36,7 @@ import {
 import { APPLICATION_ROUTES } from "@/lib/onboarding/application-routes";
 import { formatPhoneNumber } from "@/lib/phone";
 import type { OnboardingStepDraft } from "@/lib/onboarding/default-onboarding-steps";
-import { subdomainErrorMessage, validateTenantSubdomainInput } from "@/lib/tenant/subdomain-validation";
+import { subdomainFieldErrorMessage } from "@/lib/tenant/subdomain-validation";
 import type { TenantBranding } from "@/lib/tenant/tenant-branding";
 import {
   APPLICANT_PORTAL_CTA_START_APPLICATION,
@@ -1415,16 +1415,56 @@ export function DomainStep({
   onSubdomainChange,
   onContinue,
   onBack,
+  serverError = null,
 }: {
   subdomain: string;
   publicRootDomain: string;
   onSubdomainChange: (value: string) => void;
   onContinue: () => void;
   onBack: () => void;
+  serverError?: string | null;
 }) {
-  const validation = validateTenantSubdomainInput(subdomain);
-  const canContinue = !("failure" in validation);
+  const [submitAttempted, setSubmitAttempted] = useState(false);
+  const [checking, setChecking] = useState(false);
+  const [fieldError, setFieldError] = useState<string | null>(null);
   const hostPreview = publicRootDomain ? `${subdomain || "your-org"}.${publicRootDomain}` : null;
+
+  const localError = submitAttempted ? subdomainFieldErrorMessage(subdomain) : null;
+  const displayError = fieldError ?? localError ?? serverError;
+
+  const handleSubdomainChange = (value: string) => {
+    onSubdomainChange(value);
+    setFieldError(null);
+  };
+
+  const handleContinue = async () => {
+    setSubmitAttempted(true);
+    setFieldError(null);
+
+    const formatError = subdomainFieldErrorMessage(subdomain);
+    if (formatError) {
+      return;
+    }
+
+    setChecking(true);
+    try {
+      const res = await fetch("/api/tenant-onboarding/check-subdomain", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ subdomain }),
+      });
+      const payload = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        setFieldError(payload.error ?? "This domain is not available. Please choose another.");
+        return;
+      }
+      onContinue();
+    } catch {
+      setFieldError("Could not verify domain. Please try again.");
+    } finally {
+      setChecking(false);
+    }
+  };
 
   return (
     <div>
@@ -1432,17 +1472,22 @@ export function DomainStep({
 
       <div className="mt-[28px] space-y-[24px]">
         <div className="rounded-[12px] border border-[#b6c8de] bg-[#f8fbff] p-[18px]">
-          <div className="flex flex-nowrap items-center gap-2 rounded-[12px] border border-[#d4dbe6] bg-white p-[10px] sm:gap-4">
+          <div
+            className={`flex flex-nowrap items-center gap-2 rounded-[12px] border bg-white p-[10px] sm:gap-4 ${
+              displayError ? "border-[#DC2626] ring-2 ring-[#DC2626]/20" : "border-[#d4dbe6]"
+            }`}
+          >
             <div className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-[8px] bg-[#f8fbff] text-[#104b83] sm:h-[40px] sm:w-[40px]">
               <Link2 className="h-[16px] w-[16px] sm:h-[18px] sm:w-[18px]" />
             </div>
             <input
               value={subdomain}
-              onChange={(e) => onSubdomainChange(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))}
+              onChange={(e) => handleSubdomainChange(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))}
               placeholder="companydomain"
               autoCapitalize="off"
               autoCorrect="off"
               spellCheck={false}
+              aria-invalid={displayError ? true : undefined}
               style={inputTypographyStyle}
               className={`min-w-0 flex-1 border-0 bg-transparent py-[10px] ${inputTextClass} text-[#0f172a] outline-none`}
             />
@@ -1454,19 +1499,15 @@ export function DomainStep({
             Domain preview:&nbsp;
             <span className="font-semibold">{hostPreview ?? "abcccompany.brasshr.com"}</span>
           </div>
-          {"failure" in validation && subdomain.length > 0 ? (
-            <p className="mt-2 text-[13px] font-medium" style={{ color: VALIDATION_ERROR_RED }}>
-              {subdomainErrorMessage(validation.failure)}
-            </p>
-          ) : null}
+          <FieldError message={displayError} />
         </div>
       </div>
 
       <StepActions
         onBack={onBack}
-        onContinue={onContinue}
-        continueLabel="Save and Continue"
-        continueDisabled={!canContinue}
+        onContinue={() => void handleContinue()}
+        continueLabel={checking ? "Checking..." : "Save and Continue"}
+        continueDisabled={checking}
       />
     </div>
   );
