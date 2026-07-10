@@ -275,7 +275,6 @@ function Step1ReviewContent() {
     allowBlob: true,
   })
   const panelUseNativeImg = isRemoteOrBlobImageSrc(panelSrc)
-  const logoUseNativeImg = isRemoteOrBlobImageSrc(logoSrc)
   const focusBorderClass =
     "focus:outline-none focus:border-[color:var(--brand-primary)] focus:ring-2 focus:ring-[color:var(--brand-primary)]/20"
   const router = useRouter()
@@ -936,11 +935,7 @@ function Step1ReviewContent() {
         {/* LEFT - Form */}
         <div className="w-full md:w-[65%] p-4 sm:p-6 md:p-10 flex flex-col justify-between min-w-0">
           <div className="min-w-0">
-            <div className="overflow-x-auto -mx-1 px-1 pb-1">
-              <div className="min-w-[520px] sm:min-w-0">
-                <OnboardingStepper />
-              </div>
-            </div>
+            <OnboardingStepper />
 
             <div className="mt-4 sm:mt-6 mb-4 sm:mb-8 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <h2 className="text-xl sm:text-[22px] font-bold text-[#1e293b]">Review resume details</h2>
@@ -1249,34 +1244,12 @@ function Step1ReviewContent() {
             </div>
           </div>
 
-          <div className="mt-8 border-t border-slate-100 pt-6 md:hidden">
-            <div className="flex flex-col items-center gap-3 text-center">
-              {logoUseNativeImg ? (
-                <img
-                  src={logoSrc}
-                  alt={branding.companyName}
-                  className="h-10 w-auto max-w-[160px] object-contain"
-                />
-              ) : (
-                <Image
-                  src={logoSrc}
-                  alt={branding.companyName}
-                  width={160}
-                  height={48}
-                  className="h-10 w-auto"
-                  priority
-                />
-              )}
-              <p className="max-w-xs text-sm leading-snug text-slate-600">{branding.tagline}</p>
-            </div>
-          </div>
-
           {/* Buttons */}
-          <div className="mt-8 flex flex-col-reverse gap-3 sm:mt-10 sm:flex-row sm:justify-end">
+          <div className="mt-8 grid grid-cols-2 gap-3 sm:mt-10 sm:flex sm:justify-end sm:gap-3">
             <button
               type="button"
               onClick={() => router.back()}
-              className="cursor-pointer w-full rounded-lg border px-6 py-2.5 text-sm font-medium transition hover:opacity-90 sm:w-auto"
+              className="cursor-pointer w-full rounded-lg border px-3 py-2.5 text-sm font-medium transition hover:opacity-90 sm:w-auto sm:px-6"
               style={{ borderColor: branding.primaryHex, color: branding.primaryHex }}
             >
               Back
@@ -1285,7 +1258,7 @@ function Step1ReviewContent() {
               type="button"
               onClick={handleSaveAndContinue}
               disabled={loading}
-              className="cursor-pointer w-full rounded-lg px-6 py-2.5 text-sm font-medium text-white transition hover:brightness-90 disabled:cursor-not-allowed disabled:bg-gray-400 sm:w-auto"
+              className="cursor-pointer w-full rounded-lg px-3 py-2.5 text-sm font-medium text-white transition hover:brightness-90 disabled:cursor-not-allowed disabled:bg-gray-400 sm:w-auto sm:px-6"
               style={{ backgroundColor: branding.primaryHex }}
             >
               {loading ? "Saving..." : "Save & continue"}

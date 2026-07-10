@@ -594,10 +594,10 @@ export default function Step1Upload() {
             </p>
           ) : null}
 
-          <div className="flex justify-end gap-4 mt-10">
+          <div className="mt-8 grid grid-cols-2 gap-3 sm:mt-10 sm:flex sm:justify-end sm:gap-4">
             <button
               onClick={() => router.back()}
-              className="cursor-pointer rounded-lg border px-6 py-2 text-sm hover:bg-gray-50"
+              className="w-full cursor-pointer rounded-lg border px-4 py-2.5 text-sm hover:bg-gray-50 sm:w-auto sm:px-6 sm:py-2"
               style={{ ...brandBorderStyle, ...brandTextStyle }}
             >
               Cancel
@@ -606,7 +606,7 @@ export default function Step1Upload() {
             <button
               onClick={next}
               disabled={uploading}
-              className={`cursor-pointer rounded-lg px-8 py-2 text-sm text-white transition hover:brightness-90 ${uploading ? "cursor-not-allowed opacity-70" : ""}`}
+              className={`w-full cursor-pointer rounded-lg px-4 py-2.5 text-sm text-white transition hover:brightness-90 sm:w-auto sm:px-8 sm:py-2 ${uploading ? "cursor-not-allowed opacity-70" : ""}`}
               style={primaryBtnStyle}
             >
               {uploading ? "Uploading..." : "Next"}

@@ -140,6 +140,19 @@ a[href] {
   animation: fadeIn 0.3s ease-in-out;
 }
 
+/* Scrollable area without visible scrollbar (stepper, tabs, etc.) */
+.scrollbar-hide {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
 /* React Flow canvas controls (zoom in/out, fit view) */
 .react-flow__controls {
   box-shadow: 0 2px 8px rgba(16, 24, 40, 0.12) !important;

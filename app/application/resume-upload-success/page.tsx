@@ -325,11 +325,11 @@ export default function Step1Success() {
             </div>
           ) : null}
 
-          <div className="mt-auto flex justify-end gap-4 pt-10">
+          <div className="mt-auto grid grid-cols-2 gap-3 pt-8 sm:flex sm:justify-end sm:gap-4 sm:pt-10">
             <button
               type="button"
               onClick={() => router.back()}
-              className="cursor-pointer inline-flex h-11 items-center justify-center rounded-lg border border-slate-300 px-8 text-[16px] font-medium text-slate-700 transition hover:bg-slate-50"
+              className="cursor-pointer inline-flex h-11 w-full items-center justify-center rounded-lg border border-slate-300 px-4 text-[16px] font-medium text-slate-700 transition hover:bg-slate-50 sm:w-auto sm:px-8"
             >
               Cancel
             </button>
@@ -338,7 +338,7 @@ export default function Step1Success() {
               type="button"
               onClick={handleContinue}
               disabled={!agree || continuing}
-              className="cursor-pointer inline-flex h-11 items-center justify-center rounded-lg px-10 text-[16px] font-semibold text-white transition hover:brightness-90 disabled:cursor-not-allowed disabled:opacity-50"
+              className="cursor-pointer inline-flex h-11 w-full items-center justify-center rounded-lg px-4 text-[16px] font-semibold text-white transition hover:brightness-90 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto sm:px-10"
               style={primaryBtnStyle}
             >
               {continuing ? "Saving…" : "Continue"}

@@ -295,12 +295,12 @@ export default function Step4Identity() {
           </div>
 
           {/* Buttons */}
-          <div className="mt-auto flex items-center justify-end gap-3 pt-8">
+          <div className="mt-auto grid grid-cols-2 gap-3 pt-8 sm:flex sm:items-center sm:justify-end">
             <button
               type="button"
               onClick={() => router.back()}
               disabled={loading}
-              className="cursor-pointer rounded-md border border-[color:var(--brand-primary)] bg-white px-5 py-2 text-[12px] font-medium leading-5 text-[color:var(--brand-primary)] transition hover:bg-[color:var(--brand-primary)]/5 disabled:opacity-50"
+              className="w-full cursor-pointer rounded-md border border-[color:var(--brand-primary)] bg-white px-4 py-2.5 text-[12px] font-medium leading-5 text-[color:var(--brand-primary)] transition hover:bg-[color:var(--brand-primary)]/5 disabled:opacity-50 sm:w-auto sm:px-5 sm:py-2"
             >
               Back
             </button>
@@ -308,7 +308,7 @@ export default function Step4Identity() {
               type="button"
               onClick={handleNext}
               disabled={loading}
-              className={`group inline-flex cursor-pointer items-center gap-2 rounded-md px-6 py-2 text-[12px] font-medium leading-5 text-white transition ${
+              className={`group inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-md px-4 py-2.5 text-[12px] font-medium leading-5 text-white transition sm:w-auto sm:px-6 sm:py-2 ${
                 loading ? "bg-gray-400 cursor-not-allowed" : "bg-[color:var(--brand-primary)] hover:brightness-90"
               }`}
             >

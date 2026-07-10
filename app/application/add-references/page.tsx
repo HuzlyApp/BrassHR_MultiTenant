@@ -340,11 +340,11 @@ export default function ReferencesPage() {
           {error && <p className="mt-4 text-[12px] text-red-500">{error}</p>}
 
           {/* Buttons */}
-          <div className="mt-auto flex items-center justify-end gap-3 pt-8">
+          <div className="mt-auto grid grid-cols-2 gap-3 pt-8 sm:flex sm:items-center sm:justify-end">
             <button
               type="button"
               onClick={() => (nav.prevRoute ? nav.goPrev() : router.back())}
-              className="cursor-pointer rounded-md border border-[color:var(--brand-primary)] bg-white px-5 py-2 text-[12px] font-medium leading-5 text-[color:var(--brand-primary)] transition hover:bg-[color:var(--brand-primary)]/5"
+              className="w-full cursor-pointer rounded-md border border-[color:var(--brand-primary)] bg-white px-4 py-2.5 text-[12px] font-medium leading-5 text-[color:var(--brand-primary)] transition hover:bg-[color:var(--brand-primary)]/5 sm:w-auto sm:px-5 sm:py-2"
             >
               Back
             </button>
@@ -352,7 +352,7 @@ export default function ReferencesPage() {
               type="button"
               onClick={saveReferences}
               disabled={saving}
-              className="cursor-pointer rounded-md bg-[color:var(--brand-primary)] px-6 py-2 text-[12px] font-medium leading-5 text-white transition hover:brightness-90 disabled:cursor-not-allowed disabled:opacity-70"
+              className="w-full cursor-pointer rounded-md bg-[color:var(--brand-primary)] px-4 py-2.5 text-[12px] font-medium leading-5 text-white transition hover:brightness-90 disabled:cursor-not-allowed disabled:opacity-70 sm:w-auto sm:px-6 sm:py-2"
             >
               Save &amp; continue
             </button>

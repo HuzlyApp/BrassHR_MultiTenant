@@ -260,17 +260,17 @@ function UploadFormContent() {
             </>
           )}
 
-          <div className="mt-auto flex items-center justify-end gap-4 pt-10">
+          <div className="mt-auto grid grid-cols-2 gap-3 pt-8 sm:flex sm:items-center sm:justify-end sm:gap-4 sm:pt-10">
             <Link
               href={applicationPath("/application/employee-agreement")}
-              className="inline-flex h-10 cursor-pointer items-center justify-center rounded-xl border border-[color:var(--brand-primary)] bg-white px-6 text-[16px] font-semibold leading-6 text-[color:var(--brand-primary)] transition hover:bg-[color:var(--brand-primary)]/5"
+              className="inline-flex h-10 w-full cursor-pointer items-center justify-center rounded-xl border border-[color:var(--brand-primary)] bg-white px-4 text-[16px] font-semibold leading-6 text-[color:var(--brand-primary)] transition hover:bg-[color:var(--brand-primary)]/5 sm:w-auto sm:px-6"
             >
               Back
             </Link>
             <button
               type="button"
               onClick={handleSave}
-              className="inline-flex h-10 cursor-pointer items-center justify-center rounded-xl px-6 text-[16px] font-semibold leading-6 text-white transition hover:brightness-90"
+              className="inline-flex h-10 w-full cursor-pointer items-center justify-center rounded-xl px-4 text-[16px] font-semibold leading-6 text-white transition hover:brightness-90 sm:w-auto sm:px-6"
               style={primaryBtnStyle}
             >
               {hasUploadedFile ? "Submit" : "Save"}

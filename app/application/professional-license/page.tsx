@@ -620,11 +620,11 @@ export default function Step2License() {
             Only support png, jpg or pdf files
           </p>
 
-          <div className="mt-auto flex items-center justify-end gap-3 pt-8">
+          <div className="mt-auto grid grid-cols-2 gap-3 pt-8 sm:flex sm:items-center sm:justify-end">
             <button
               type="button"
               onClick={() => stepNav.goPrev()}
-              className="cursor-pointer rounded-md border border-[color:var(--brand-primary)] px-5 py-2 text-[12px] font-medium leading-5 text-[color:var(--brand-primary)] transition hover:bg-[color:var(--brand-primary)]/10"
+              className="w-full cursor-pointer rounded-md border border-[color:var(--brand-primary)] px-4 py-2.5 text-[12px] font-medium leading-5 text-[color:var(--brand-primary)] transition hover:bg-[color:var(--brand-primary)]/10 sm:w-auto sm:px-5 sm:py-2"
             >
               Back
             </button>
@@ -634,7 +634,7 @@ export default function Step2License() {
               disabled={
                 !(useTenantRequirements ? requiredUploadsMet : hasAnyUpload) || anyUploading || saving
               }
-              className="group inline-flex cursor-pointer items-center gap-2 rounded-md bg-[color:var(--brand-primary)] px-6 py-2 text-[12px] font-medium leading-5 text-white transition hover:brightness-90 disabled:cursor-not-allowed disabled:opacity-50"
+              className="group inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-md bg-[color:var(--brand-primary)] px-4 py-2.5 text-[12px] font-medium leading-5 text-white transition hover:brightness-90 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto sm:px-6 sm:py-2"
             >
               {saving ? "Saving…" : "Save & Continue"}
               <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />

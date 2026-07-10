@@ -25,6 +25,12 @@ import { getSkillAssessmentWorkerKey } from "@/lib/onboarding-worker-pk"
 import { fetchApplicantSkillAnswers, persistSkillAssessment } from "@/lib/skill-assessment-answer-rows"
 import { useQuizAutosave } from "@/lib/useQuizAutosave"
 import AutosaveStatus from "@/app/components/AutosaveStatus"
+import {
+  QUIZ_ROW_GRID,
+  RATING_TRACK_GRID,
+  SKILL_QUIZ_CONTENT_CLASS,
+  SKILL_QUIZ_SHELL_CLASS,
+} from "@/app/application/skill-quiz/skill-quiz-responsive"
 
 const CATEGORY_SLUG = "basic-care"
 const PAGE_SIZE = 5
@@ -367,7 +373,7 @@ export default function BasicCareQuiz() {
         rightPanelImageClassName="opacity-60 object-top"
         rightPanelOverlayClassName="bg-white/65"
       >
-        <div className="flex h-full flex-col px-10 pb-10 pt-8" style={brandingToCssVars(branding)}>
+        <div className={SKILL_QUIZ_SHELL_CLASS} style={brandingToCssVars(branding)}>
           <OnboardingStepper />
         </div>
       </OnboardingLayout>
@@ -419,26 +425,26 @@ export default function BasicCareQuiz() {
       rightPanelImageClassName="opacity-60 object-top"
       rightPanelOverlayClassName="bg-white/65"
     >
-      <div className="flex h-full flex-col px-10 pb-10 pt-8" style={brandingToCssVars(branding)}>
+      <div className={SKILL_QUIZ_SHELL_CLASS} style={brandingToCssVars(branding)}>
         <OnboardingStepper />
 
-        <div className="flex flex-1 flex-col pt-8">
-          <div className="flex items-start justify-between mb-1">
-            <div>
-              <h2 className="text-[24px] font-semibold leading-8 text-slate-800">
+        <div className={SKILL_QUIZ_CONTENT_CLASS}>
+          <div className="mb-1 flex items-start justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <h2 className="text-lg font-semibold leading-7 text-slate-800 sm:text-[24px] sm:leading-8">
                 {category.title}
               </h2>
               {category.description ? (
-                <p className="text-[13px] text-slate-500 mt-2">
+                <p className="mt-1 text-xs text-slate-500 sm:mt-2 sm:text-[13px]">
                   {category.description}
                 </p>
               ) : (
-                <p className="text-[13px] text-slate-500 mt-2">
+                <p className="mt-1 text-xs text-slate-500 sm:mt-2 sm:text-[13px]">
                   Compassionate daily support and safe personal care practices.
                 </p>
               )}
             </div>
-            <div className="mt-1 flex flex-col items-end gap-1 sm:flex-row sm:items-center sm:gap-3">
+            <div className="flex shrink-0 flex-col items-end gap-1">
               <AutosaveStatus state={saveState} />
               <button
                 type="button"
@@ -450,35 +456,40 @@ export default function BasicCareQuiz() {
             </div>
           </div>
 
-          <div className="mt-4 flex items-center justify-between border-b border-slate-200 pb-2 mb-1">
-            <p className="text-[13px] font-bold text-slate-800 w-full">Skills</p>
-            <div className="flex gap-6 shrink-0 pr-1">
+          <div className={`mb-1 mt-4 border-b border-slate-200 pb-2 ${QUIZ_ROW_GRID}`}>
+            <p className="min-w-0 text-[12px] font-bold text-slate-800 sm:text-[13px]">Skills</p>
+            <div className={RATING_TRACK_GRID}>
               {[1, 2, 3, 4].map((n) => (
-                <span key={n} className="w-5 text-center text-[13px] font-semibold text-slate-600">
+                <span key={n} className="w-5 text-center text-[12px] font-semibold text-slate-600 sm:text-[13px]">
                   {n}
                 </span>
               ))}
             </div>
           </div>
 
-          <div className="divide-y divide-slate-100">
+          <div>
             {pageQuestions.map((q, i) => {
               const index = start + i
               const display = splitQuestionDetail(q.question, q.description)
               return (
-                <div key={q.id} className="flex items-center justify-between py-4">
-                  <div className="flex items-start gap-3 flex-1 min-w-0 pr-6">
-                    <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-[color:var(--brand-primary)] text-[11px] font-semibold text-[color:var(--brand-primary)] mt-0.5">
+                <div
+                  key={q.id}
+                  className={`border-b border-slate-100 py-3 sm:py-4 ${QUIZ_ROW_GRID}`}
+                >
+                  <div className="flex min-w-0 items-start gap-2 sm:gap-3">
+                    <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-[color:var(--brand-primary)] text-[11px] font-semibold text-[color:var(--brand-primary)]">
                       {index + 1}
                     </div>
-                    <div>
-                      <p className="text-[13px] font-medium text-slate-800">{display.title}</p>
+                    <div className="min-w-0 break-words">
+                      <p className="text-[12px] font-medium leading-5 text-slate-800 sm:text-[13px]">
+                        {display.title}
+                      </p>
                       {display.detail ? (
-                        <p className="text-[11px] text-slate-400">{display.detail}</p>
+                        <p className="text-[11px] leading-4 text-slate-400">{display.detail}</p>
                       ) : null}
                     </div>
                   </div>
-                  <div className="flex gap-6 shrink-0 pr-1">
+                  <div className={RATING_TRACK_GRID}>
                     {[1, 2, 3, 4].map((n) => (
                       <button
                         key={n}
@@ -489,6 +500,7 @@ export default function BasicCareQuiz() {
                             ? "border-[color:var(--brand-primary)] bg-[color:var(--brand-primary)]"
                             : "border-slate-300 bg-white hover:border-[color:var(--brand-primary)]"
                         }`}
+                        aria-label={`Rate ${display.title} as ${n}`}
                       >
                         {answers[q.id] === n && (
                           <span className="h-2 w-2 rounded-[2px] bg-white" />
@@ -501,15 +513,15 @@ export default function BasicCareQuiz() {
             })}
           </div>
 
-          <div className="mt-auto flex items-center justify-between pt-6">
-            <span className="text-[13px] font-medium text-slate-600">
+          <div className="mt-auto flex flex-col gap-3 pt-6 sm:flex-row sm:items-center sm:justify-between">
+            <span className="text-[12px] font-medium text-slate-600 sm:text-[13px]">
               {page} of {totalPages}
             </span>
-            <div className="flex items-center gap-3">
+            <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center sm:gap-3">
               <button
                 type="button"
                 onClick={back}
-                className="cursor-pointer rounded-md border border-[color:var(--brand-primary)] bg-white px-5 py-2 text-[12px] font-medium leading-5 text-[color:var(--brand-primary)] transition hover:bg-[color:var(--brand-primary)]/5"
+                className="w-full cursor-pointer rounded-md border border-[color:var(--brand-primary)] bg-white px-3 py-2.5 text-[11px] font-medium leading-5 text-[color:var(--brand-primary)] transition hover:bg-[color:var(--brand-primary)]/5 max-[399px]:px-3 sm:w-auto sm:px-5 sm:py-2 sm:text-[12px]"
               >
                 Back
               </button>
@@ -517,7 +529,7 @@ export default function BasicCareQuiz() {
                 type="button"
                 onClick={() => void next()}
                 disabled={saving}
-                className="group inline-flex cursor-pointer items-center gap-2 rounded-md bg-[color:var(--brand-primary)] px-6 py-2 text-[12px] font-medium leading-5 text-white transition hover:brightness-90 disabled:opacity-50"
+                className="group inline-flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-md bg-[color:var(--brand-primary)] px-3 py-2.5 text-[11px] font-medium leading-5 text-white transition hover:brightness-90 disabled:opacity-50 max-[399px]:px-3 sm:w-auto sm:gap-2 sm:px-6 sm:py-2 sm:text-[12px]"
               >
                 {saving ? "Saving..." : page >= totalPages ? "Submit" : "Save & Next"}
                 {!saving && <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />}

@@ -207,7 +207,7 @@ export default function AssessmentPage() {
         rightPanelImageClassName="opacity-60 object-top"
         rightPanelOverlayClassName="bg-white/65"
       >
-        <div className="flex h-full flex-col px-10 pb-10 pt-8" style={brandingToCssVars(branding)}>
+        <div className="flex h-full flex-col px-4 pb-8 pt-6 sm:px-10 sm:pb-10 sm:pt-8" style={brandingToCssVars(branding)}>
           <OnboardingStepper />
         </div>
       </OnboardingLayout>
@@ -220,24 +220,24 @@ export default function AssessmentPage() {
       rightPanelImageClassName="opacity-60 object-top"
       rightPanelOverlayClassName="bg-white/65"
     >
-      <div className="flex h-full flex-col px-10 pb-10 pt-8" style={brandingToCssVars(branding)}>
+      <div className="flex h-full flex-col px-4 pb-8 pt-6 sm:px-10 sm:pb-10 sm:pt-8" style={brandingToCssVars(branding)}>
         <OnboardingStepper />
 
-        <div className="flex flex-1 flex-col pt-8">
+        <div className="flex flex-1 flex-col pt-6 sm:pt-8">
           {/* Header */}
-          <div className="flex items-start justify-between mb-1">
-            <h2 className="text-[24px] font-semibold leading-8 text-slate-800">
+          <div className="mb-1 flex items-center justify-between gap-3">
+            <h2 className="min-w-0 text-lg font-semibold leading-7 text-slate-800 sm:text-[24px] sm:leading-8">
               Skill Assessment Quiz
             </h2>
             <button
               type="button"
               onClick={() => void skipSkillAssessment()}
-              className="mt-1 cursor-pointer text-[12px] font-medium leading-5 text-[color:var(--brand-primary)]"
+              className="shrink-0 cursor-pointer text-[12px] font-medium leading-5 text-[color:var(--brand-primary)]"
             >
               Skip for Now →
             </button>
           </div>
-          <p className="text-[13px] text-slate-500 mb-6">Identify Strengths. Verify Readiness.</p>
+          <p className="mb-5 text-xs text-slate-500 sm:mb-6 sm:text-[13px]">Identify Strengths. Verify Readiness.</p>
 
           {loadError ? (
             <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[13px] text-amber-900">
@@ -254,7 +254,7 @@ export default function AssessmentPage() {
           ) : null}
 
           {/* Category list */}
-          <div className="space-y-3">
+          <div className="space-y-2 sm:space-y-3">
             {categories.map((cat, index) => {
               const slug = categoryQuizSlug(cat)
               const isCompleted = Boolean(slug && completedSlugs.has(slug))
@@ -262,15 +262,15 @@ export default function AssessmentPage() {
                 <div
                   key={cat.id}
                   onClick={() => goToCategory(cat)}
-                  className={`flex cursor-pointer items-center justify-between rounded-xl border border-[color:var(--brand-primary)] px-4 py-4 transition ${
+                  className={`flex cursor-pointer items-center justify-between gap-2 rounded-xl border border-[color:var(--brand-primary)] px-3 py-3 transition max-[399px]:gap-2 max-[399px]:px-3 max-[399px]:py-3 sm:gap-3 sm:px-4 sm:py-4 ${
                     isCompleted
                       ? "bg-[color:var(--brand-primary)]/10"
                       : "bg-white hover:bg-[color:var(--brand-primary)]/5"
                   }`}
                 >
-                  <div className="flex items-center gap-4">
+                  <div className="flex min-w-0 items-center gap-3 sm:gap-4">
                     <div
-                      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[color:var(--brand-primary)] text-[13px] font-semibold ${
+                      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[color:var(--brand-primary)] text-[13px] font-semibold max-[399px]:h-7 max-[399px]:w-7 max-[399px]:text-[12px] ${
                         isCompleted
                           ? "bg-[color:var(--brand-primary)] text-white"
                           : "text-[color:var(--brand-primary)]"
@@ -278,9 +278,9 @@ export default function AssessmentPage() {
                     >
                       {isCompleted ? <Check className="h-4 w-4" /> : index + 1}
                     </div>
-                    <div>
-                      <p className="text-[14px] font-semibold text-slate-800">{cat.title}</p>
-                      <p className="text-[12px] text-slate-500">{cat.description}</p>
+                    <div className="min-w-0">
+                      <p className="text-[14px] font-semibold text-slate-800 max-[399px]:text-[13px]">{cat.title}</p>
+                      <p className="text-[12px] text-slate-500 max-[399px]:text-[11px]">{cat.description}</p>
                     </div>
                   </div>
                   <ChevronRight className="h-4 w-4 shrink-0 text-[color:var(--brand-primary)]" />
@@ -290,18 +290,18 @@ export default function AssessmentPage() {
           </div>
 
           {/* Buttons */}
-          <div className="mt-auto flex items-center justify-end gap-3 pt-8">
+          <div className="mt-auto grid grid-cols-2 gap-2 pt-6 max-[399px]:gap-2 sm:flex sm:items-center sm:justify-end sm:gap-3 sm:pt-8">
             <button
               type="button"
               onClick={() => router.back()}
-              className="cursor-pointer rounded-md border border-[color:var(--brand-primary)] bg-white px-5 py-2 text-[12px] font-medium leading-5 text-[color:var(--brand-primary)] transition hover:bg-[color:var(--brand-primary)]/5"
+              className="w-full cursor-pointer rounded-md border border-[color:var(--brand-primary)] bg-white px-3 py-2.5 text-[11px] font-medium leading-5 text-[color:var(--brand-primary)] transition hover:bg-[color:var(--brand-primary)]/5 max-[399px]:px-3 max-[399px]:text-[11px] sm:w-auto sm:px-5 sm:py-2 sm:text-[12px]"
             >
               Back
             </button>
             <button
               type="button"
               onClick={() => void continueSkillAssessment()}
-              className="cursor-pointer rounded-md bg-[color:var(--brand-primary)] px-6 py-2 text-[12px] font-medium leading-5 text-white transition hover:brightness-90"
+              className="w-full cursor-pointer rounded-md bg-[color:var(--brand-primary)] px-3 py-2.5 text-[11px] font-medium leading-5 text-white transition hover:brightness-90 max-[399px]:px-3 max-[399px]:text-[11px] sm:w-auto sm:px-6 sm:py-2 sm:text-[12px]"
             >
               Save &amp; continue
             </button>

@@ -233,11 +233,11 @@ export default function ReferenceReviewPage() {
             </p>
           ) : null}
 
-          <div className="mt-auto flex flex-wrap items-center justify-end gap-3 pt-8">
+          <div className="mt-auto grid grid-cols-2 gap-3 pt-8 sm:flex sm:flex-wrap sm:items-center sm:justify-end">
             <button
               type="button"
               onClick={() => (nav.prevRoute ? nav.goPrev() : router.back())}
-              className="rounded-xl border border-[color:var(--brand-primary)] bg-white px-6 py-2 text-[12px] font-medium text-[color:var(--brand-primary)] transition hover:bg-[color:var(--brand-primary)]/5"
+              className="w-full rounded-xl border border-[color:var(--brand-primary)] bg-white px-4 py-2.5 text-[12px] font-medium text-[color:var(--brand-primary)] transition hover:bg-[color:var(--brand-primary)]/5 sm:w-auto sm:px-6 sm:py-2"
             >
               Back
             </button>
@@ -245,7 +245,7 @@ export default function ReferenceReviewPage() {
               type="button"
               onClick={handleContinue}
               disabled={!hasMinimumReferences}
-              className="rounded-xl bg-[color:var(--brand-primary)] px-6 py-2 text-[12px] font-medium text-white transition hover:brightness-90 disabled:cursor-not-allowed disabled:opacity-50"
+              className="w-full rounded-xl bg-[color:var(--brand-primary)] px-4 py-2.5 text-[12px] font-medium text-white transition hover:brightness-90 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto sm:px-6 sm:py-2"
             >
               Continue
             </button>

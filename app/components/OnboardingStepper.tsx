@@ -165,12 +165,13 @@ export default function OnboardingStepper({
 
   return (
     <>
-      <div className="w-full border-b border-slate-200 pb-6" style={brandingToCssVars(branding)}>
-        <div className="relative mx-auto mt-2 w-full max-w-3xl px-2">
-          <div
-            className="grid w-full"
-            style={{ gridTemplateColumns: `repeat(${stepLabels.length}, minmax(0, 1fr))` }}
-          >
+      <div className="w-full border-b border-slate-200 pb-4 sm:pb-6" style={brandingToCssVars(branding)}>
+        <div className="relative mx-auto mt-2 w-full max-w-3xl px-1 sm:px-2">
+          <div className="scrollbar-hide -mx-1 overflow-x-auto px-1 pb-1 sm:mx-0 sm:px-2">
+            <div
+              className="grid w-full min-w-[680px] max-[399px]:min-w-[520px] sm:min-w-0"
+              style={{ gridTemplateColumns: `repeat(${stepLabels.length}, minmax(0, 1fr))` }}
+            >
             {stepLabels.map((step, index) => {
               const stepNumber = index + 1
               const configStep = enabledSteps[index]!
@@ -191,7 +192,7 @@ export default function OnboardingStepper({
                       push(stepRoutes[index])
                     }}
                     disabled={!isClickable}
-                    className={`group relative z-10 flex w-full max-w-24 flex-col items-center rounded-lg px-1.5 py-1 text-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)]/40 ${
+                    className={`group relative z-10 flex w-full max-w-[84px] flex-col items-center rounded-lg px-1 py-1 text-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)]/40 max-[399px]:max-w-[68px] max-[399px]:px-0.5 sm:max-w-24 sm:px-1.5 ${
                       isClickable ? "cursor-pointer" : "cursor-not-allowed"
                     }`}
                     aria-label={`${isClickable ? "Go to" : "Locked"} ${step.replace("\n", " ")}${
@@ -204,7 +205,7 @@ export default function OnboardingStepper({
                     </div>
 
                     <span
-                      className={`mt-3 whitespace-pre-line text-[12px] leading-tight ${stepLabelClass(state)} ${
+                      className={`mt-2.5 whitespace-pre-line text-[11px] leading-tight max-[399px]:mt-2 max-[399px]:text-[10px] sm:mt-3 sm:text-[12px] ${stepLabelClass(state)} ${
                         isClickable ? "group-hover:text-[color:var(--brand-primary)] group-hover:underline" : ""
                       }`}
                     >
@@ -214,6 +215,7 @@ export default function OnboardingStepper({
                 </div>
               )
             })}
+            </div>
           </div>
         </div>
       </div>
