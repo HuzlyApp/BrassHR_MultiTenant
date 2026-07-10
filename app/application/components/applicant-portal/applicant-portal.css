@@ -30,39 +30,19 @@
   flex-direction: column;
 }
 
-.applicant-portal-main {
-  transition: margin-left 200ms ease-in-out;
+.applicant-portal-main-wrap {
+  transition: margin-left 200ms ease-in-out, width 200ms ease-in-out;
   margin-left: 0;
+  width: 100%;
+  min-width: 0;
+  min-height: 100dvh;
+  box-sizing: border-box;
 }
 
-/* Below 1000px: fixed collapsed icon rail (full menu opens via hamburger overlay) */
-@media (max-width: 999px) {
-  .applicant-portal-main {
-    margin-left: var(--worker-sidebar-collapsed-width, 80px);
-  }
-
-  .applicant-portal-main[data-mobile-nav-open="true"] {
-    margin-left: 0;
-  }
-}
-
-/* Below 500px: narrower mobile mini rail only (20% less width) */
-@media (max-width: 499px) {
-  .applicant-portal-sidebar-mobile-rail {
-    width: var(--worker-sidebar-collapsed-width-narrow, 64px);
-    max-width: var(--worker-sidebar-collapsed-width-narrow, 64px);
-    min-width: var(--worker-sidebar-collapsed-width-narrow, 64px);
-  }
-
-  .applicant-portal-main:not([data-mobile-nav-open="true"]) {
-    margin-left: var(--worker-sidebar-collapsed-width-narrow, 64px);
-  }
-}
-
-/* 1000px and up: full desktop sidebar width */
 @media (min-width: 1000px) {
-  .applicant-portal-main {
+  .applicant-portal-main-wrap {
     margin-left: var(--worker-sidebar-width);
+    width: calc(100% - var(--worker-sidebar-width));
   }
 }
 
@@ -70,11 +50,111 @@
   transition: width 200ms ease-in-out;
 }
 
-/* Mobile mini collapsed rail — width via CSS only (no inline overrides) */
+/* Mobile collapsed rail — default 80px (500px–999px) */
 .applicant-portal-sidebar-mobile-rail {
   width: var(--worker-sidebar-collapsed-width, 80px);
   max-width: var(--worker-sidebar-collapsed-width, 80px);
   min-width: var(--worker-sidebar-collapsed-width, 80px);
+  box-shadow: inset 3px 0 0 var(--brand-primary);
+}
+
+/* Below 1000px: fixed collapsed icon rail (full menu opens via hamburger overlay) */
+@media (max-width: 999px) {
+  .applicant-portal-sidebar-mobile-rail {
+    z-index: 50;
+  }
+
+  .applicant-portal-main-wrap:not([data-mobile-nav-open="true"]) {
+    margin-left: var(--worker-sidebar-collapsed-width, 80px);
+    width: calc(100% - var(--worker-sidebar-collapsed-width, 80px));
+  }
+
+  .applicant-portal-main-wrap[data-mobile-nav-open="true"] {
+    margin-left: 0;
+    width: 100%;
+  }
+}
+
+/* Below 500px: narrower mobile mini rail */
+@media (max-width: 499px) {
+  .applicant-portal-sidebar-mobile-rail {
+    width: var(--worker-sidebar-collapsed-width-narrow, 64px);
+    max-width: var(--worker-sidebar-collapsed-width-narrow, 64px);
+    min-width: var(--worker-sidebar-collapsed-width-narrow, 64px);
+  }
+
+  .applicant-portal-main-wrap:not([data-mobile-nav-open="true"]) {
+    margin-left: var(--worker-sidebar-collapsed-width-narrow, 64px);
+    width: calc(100% - var(--worker-sidebar-collapsed-width-narrow, 64px));
+  }
+}
+
+/* Below 430px: slimmer icon rail */
+@media (max-width: 429px) {
+  .applicant-portal-sidebar-mobile-rail {
+    width: var(--worker-sidebar-collapsed-width-mobile, 48px);
+    max-width: var(--worker-sidebar-collapsed-width-mobile, 48px);
+    min-width: var(--worker-sidebar-collapsed-width-mobile, 48px);
+  }
+
+  .applicant-portal-main-wrap:not([data-mobile-nav-open="true"]) {
+    margin-left: var(--worker-sidebar-collapsed-width-mobile, 48px);
+    width: calc(100% - var(--worker-sidebar-collapsed-width-mobile, 48px));
+  }
+
+  .applicant-portal-sidebar-mobile-rail .worker-portal-sidebar-logo-frame {
+    height: 2rem;
+    width: 2rem;
+  }
+
+  .applicant-portal-sidebar-mobile-rail .worker-portal-sidebar-logo-frame img {
+    max-height: 1.75rem;
+    max-width: 1.75rem;
+  }
+}
+
+/* Mobile collapsed rail — center icons in the sidebar */
+.applicant-portal-sidebar-mobile-rail .worker-sidebar-nav,
+.applicant-portal-sidebar[data-collapsed="true"] .worker-sidebar-nav {
+  scrollbar-gutter: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.applicant-portal-sidebar-mobile-rail .worker-sidebar-nav::-webkit-scrollbar,
+.applicant-portal-sidebar[data-collapsed="true"] .worker-sidebar-nav::-webkit-scrollbar {
+  display: none;
+}
+
+.applicant-portal-sidebar-mobile-rail .worker-sidebar-active-indicator,
+.applicant-portal-sidebar[data-collapsed="true"] .worker-sidebar-active-indicator {
+  right: 2px;
+}
+
+.worker-sidebar-collapsed-row {
+  justify-content: center;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.applicant-portal-sidebar-mobile-rail .worker-sidebar-nav > .mb-1,
+.applicant-portal-sidebar[data-collapsed="true"] .worker-sidebar-nav > .mb-1 {
+  display: flex;
+  width: 100%;
+  justify-content: center;
+}
+
+.applicant-portal-sidebar-mobile-rail .worker-portal-sidebar-brand,
+.applicant-portal-sidebar[data-collapsed="true"] .worker-portal-sidebar-brand {
+  justify-content: center;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.applicant-portal-sidebar-mobile-rail .border-t,
+.applicant-portal-sidebar[data-collapsed="true"] .border-t {
+  display: flex;
+  justify-content: center;
 }
 
 /* Worker sidebar scrollbar — thumb hidden until sidebar hover (Figma) */

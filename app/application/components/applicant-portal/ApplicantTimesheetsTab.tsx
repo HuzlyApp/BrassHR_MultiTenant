@@ -8,6 +8,7 @@ import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext
 import { dayLabel, formatDurationCompact, formatTimeParts } from "./format";
 import type { AttendanceLog } from "./types";
 import {
+  WORKER_PORTAL_PAGE_PAD_CLASS,
   WORKER_SCHEDULE_CARD_CLASS,
   WORKER_SCHEDULE_SUBTITLE_CLASS,
   WORKER_SCHEDULE_SUBTITLE_STYLE,
@@ -89,7 +90,7 @@ export function ApplicantTimesheetsTab({ todayAttendance, recentAttendance }: Pr
   }, [logs]);
 
   return (
-    <div className="px-8 pb-8 pt-5">
+    <div className={`${WORKER_PORTAL_PAGE_PAD_CLASS} pb-8`}>
       <div className={`${WORKER_SCHEDULE_CARD_CLASS} p-5`}>
         <div className="mb-5 flex flex-wrap items-start justify-between gap-4">
           <div>

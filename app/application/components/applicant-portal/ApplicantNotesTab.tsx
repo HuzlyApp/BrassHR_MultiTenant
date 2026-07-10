@@ -1,6 +1,7 @@
 "use client";
 
 import type { ApplicantNote } from "./types";
+import { WORKER_PORTAL_PAGE_PAD_CLASS } from "./worker-schedule-typography";
 
 type Props = {
   notes: ApplicantNote[];
@@ -26,7 +27,7 @@ export function ApplicantNotesTab({ notes, loading }: Props) {
 
   if (notes.length === 0) {
     return (
-      <div className="mx-8 mt-6 rounded-2xl border border-[#E2E8F0] bg-white px-6 py-12 text-center">
+      <div className={`mx-3 mt-6 rounded-2xl border border-[#E2E8F0] bg-white px-4 py-12 text-center sm:mx-4 min-[1000px]:mx-8`}>
         <h2 className="text-[18px] font-semibold text-[#012352]">No notes yet</h2>
         <p className="mx-auto mt-2 max-w-md text-[14px] leading-6 text-[#64748B]">
           Your recruiter has not added any notes for you.
@@ -36,7 +37,7 @@ export function ApplicantNotesTab({ notes, loading }: Props) {
   }
 
   return (
-    <div className="space-y-4 px-8 py-6">
+    <div className={`${WORKER_PORTAL_PAGE_PAD_CLASS} space-y-4`}>
       {notes.map((note) => (
         <article
           key={note.id}

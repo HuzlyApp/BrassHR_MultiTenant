@@ -202,7 +202,7 @@ export function ApplicantPortalHeader({
             </button>
 
             {notificationsOpen ? (
-              <div className="absolute right-0 top-10 z-[120] w-[320px] overflow-hidden rounded-lg border border-[#d7e4e1] bg-white shadow-xl max-[499px]:fixed max-[499px]:left-[calc(50%+28px)] max-[499px]:right-auto max-[499px]:top-[68px] max-[499px]:w-[calc(100vw-88px)] max-[499px]:max-w-[360px] max-[499px]:-translate-x-1/2">
+              <div className="absolute right-0 top-10 z-[120] w-[320px] overflow-hidden rounded-lg border border-[#d7e4e1] bg-white shadow-xl max-[499px]:fixed max-[499px]:left-[calc(50%+28px)] max-[499px]:right-auto max-[499px]:top-[68px] max-[499px]:w-[calc(100vw-88px)] max-[499px]:max-w-[360px] max-[499px]:-translate-x-1/2 max-[429px]:left-[calc(50%+24px)] max-[429px]:w-[calc(100vw-64px)]">
                 <div className="border-b border-[#E2E8F0] px-4 py-3">
                   <p className="text-sm font-semibold text-[#0F172A]">Notifications</p>
                 </div>

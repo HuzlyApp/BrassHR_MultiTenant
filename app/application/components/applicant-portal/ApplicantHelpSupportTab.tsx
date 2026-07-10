@@ -13,6 +13,7 @@ import { useApplicantPortalAuthHeaders } from "./useApplicantPortalSession";
 import { useApplicantPortalUi } from "./ApplicantPortalUiContext";
 import { CreateSupportTicketModal } from "./CreateSupportTicketModal";
 import {
+  WORKER_PORTAL_PAGE_PAD_CLASS,
   WORKER_SCHEDULE_CARD_CLASS,
   WORKER_SECTION_TITLE_CLASS,
   WORKER_SECTION_TITLE_STYLE,
@@ -208,7 +209,7 @@ export function ApplicantHelpSupportTab() {
   }
 
   return (
-    <div className="px-8 py-6">
+    <div className={WORKER_PORTAL_PAGE_PAD_CLASS}>
       <div className={`${WORKER_SCHEDULE_CARD_CLASS} flex min-h-[560px] flex-col overflow-hidden`}>
         <div className="border-b border-[#E5E7EB] px-5 py-4">
           <h1 className={WORKER_SECTION_TITLE_CLASS} style={WORKER_SECTION_TITLE_STYLE}>

@@ -17,6 +17,7 @@ import {
 } from "./format";
 import type { Appointment, AppointmentSlot, AttendanceLog } from "./types";
 import {
+  WORKER_PORTAL_PAGE_PAD_CLASS,
   WORKER_SCHEDULE_CARD_CLASS,
   WORKER_SCHEDULE_SUBTITLE_CLASS,
   WORKER_SCHEDULE_SUBTITLE_STYLE,
@@ -164,7 +165,7 @@ export function ApplicantScheduleTab({
   }, [isCalendarView]);
 
   return (
-    <div className="px-8 pb-8 pt-5">
+    <div className={`${WORKER_PORTAL_PAGE_PAD_CLASS} pb-8`}>
       <div className={`${WORKER_SCHEDULE_CARD_CLASS} p-5`}>
         <div>
           <h1 className={WORKER_SCHEDULE_TITLE_CLASS} style={WORKER_SCHEDULE_TITLE_STYLE}>

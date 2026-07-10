@@ -9,6 +9,7 @@ import { relativeChatMinutes, type GroupMessageRow } from "@/lib/messaging/group
 import { useGroupMessagesRealtime } from "@/lib/messaging/useGroupMessagesRealtime";
 import { useApplicantPortal } from "./ApplicantPortalProvider";
 import {
+  WORKER_PORTAL_PAGE_PAD_CLASS,
   WORKER_SCHEDULE_CARD_CLASS,
   WORKER_SECTION_TITLE_CLASS,
   WORKER_SECTION_TITLE_STYLE,
@@ -346,7 +347,7 @@ export function ApplicantGroupChatTab() {
 
   if (error) {
     return (
-      <div className="px-8 py-6">
+      <div className={WORKER_PORTAL_PAGE_PAD_CLASS}>
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
       </div>
     );
@@ -354,7 +355,7 @@ export function ApplicantGroupChatTab() {
 
   if (groups.length === 0) {
     return (
-      <div className="flex min-h-[360px] flex-col items-center justify-center px-8 py-12 text-center">
+      <div className={`flex min-h-[360px] flex-col items-center justify-center ${WORKER_PORTAL_PAGE_PAD_CLASS} text-center`}>
         <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-[#F1F5F9] text-[#64748B]">
           <Users className="h-6 w-6" />
         </div>
@@ -369,7 +370,7 @@ export function ApplicantGroupChatTab() {
   const selectedGroup = groups.find((group) => group.id === selectedGroupId) ?? groups[0];
 
   return (
-    <div className="px-8 py-6">
+    <div className={WORKER_PORTAL_PAGE_PAD_CLASS}>
       <div className={`${WORKER_SCHEDULE_CARD_CLASS} flex min-h-[560px] overflow-hidden`}>
         {groups.length > 1 ? (
           <aside className="w-[240px] shrink-0 border-r border-[#E5E7EB] bg-[#FAFBFC]">

@@ -12,6 +12,7 @@ import {
   WORKER_BTN_PRIMARY_SM,
 } from "./worker-portal-buttons";
 import {
+  WORKER_PORTAL_PAGE_PAD_CLASS,
   WORKER_SCHEDULE_CARD_CLASS,
   WORKER_SECTION_TITLE_CLASS,
   WORKER_SECTION_TITLE_STYLE,
@@ -392,7 +393,7 @@ export function ApplicantDocumentsTab({ embedded = false }: { embedded?: boolean
     .sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime());
 
   return (
-    <div className={embedded ? "space-y-6" : "space-y-6 px-8 py-6"}>
+    <div className={embedded ? "space-y-6" : `${WORKER_PORTAL_PAGE_PAD_CLASS} space-y-6`}>
       {pageError ? (
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{pageError}</div>
       ) : null}

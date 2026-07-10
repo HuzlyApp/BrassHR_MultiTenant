@@ -23,6 +23,7 @@ import {
   getWeekShiftStats,
   mapNotesToAnnouncements,
 } from "./worker-dashboard-utils";
+import { WORKER_PORTAL_PAGE_PAD_CLASS } from "./worker-schedule-typography";
 
 const SCHEDULE_HREF = "/application/applicant-dashboard/schedule";
 const NOTES_HREF = "/application/applicant-dashboard/schedule?tab=notes";
@@ -221,7 +222,7 @@ export function WorkerDashboardOverview({
   const weekRange = getWeekRangeLabel();
 
   return (
-    <div className="w-full min-w-0 space-y-[14px] py-5 max-[479px]:pl-6 max-[479px]:pr-3 min-[480px]:px-4 min-[1000px]:px-8">
+    <div className={`${WORKER_PORTAL_PAGE_PAD_CLASS} space-y-[14px]`}>
       <header className="space-y-1">
         <h1 className="font-[Inter,sans-serif] text-[30px] font-semibold leading-9 text-[#012352]">
           {getGreeting()}, {getFirstName(userName)}!

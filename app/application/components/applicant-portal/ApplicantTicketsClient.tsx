@@ -9,6 +9,7 @@ import { useApplicantPortalAuthHeaders } from "@/app/application/components/appl
 import { formatChatTime } from "@/app/admin_recruiter/messages/chat-ui";
 import { safeFetchJson } from "@/lib/api/safe-fetch-json";
 import type { SupportTicketConversationItem, SupportTicketStatus } from "@/lib/support-tickets/types";
+import { WORKER_PORTAL_PAGE_PAD_CLASS } from "@/app/application/components/applicant-portal/worker-schedule-typography";
 
 const STATUS_COLORS: Record<SupportTicketStatus, string> = {
   Open: "bg-[#DBEAFE] text-[#1D4ED8]",
@@ -91,7 +92,7 @@ function ApplicantTicketsClientContent() {
   const selectedTicket = tickets.find((ticket) => ticket.id === selectedTicketId) ?? null;
 
   return (
-    <div className="px-4 py-6 min-[1000px]:px-8">
+    <div className={WORKER_PORTAL_PAGE_PAD_CLASS}>
       <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold text-[#0F172A]">Support Tickets</h1>

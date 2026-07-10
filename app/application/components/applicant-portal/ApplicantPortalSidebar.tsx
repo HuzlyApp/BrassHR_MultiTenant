@@ -9,6 +9,7 @@ import { SidebarSubmenuToggleIcon } from "@/app/components/sidebar/SidebarSubmen
 import SidebarNavIcon from "@/app/admin_recruiter/components/SidebarNavIcon";
 import {
   WORKER_SIDEBAR_COLLAPSED_WIDTH,
+  WORKER_SIDEBAR_COLLAPSED_WIDTH_MOBILE,
   WORKER_SIDEBAR_COLLAPSED_WIDTH_NARROW,
   WORKER_SIDEBAR_EXPANDED_WIDTH,
   WORKER_SIDEBAR_ICON_TYPES,
@@ -32,11 +33,48 @@ import {
 
 const DEFAULT_LOGO = "/images/new-logo-nexus.svg";
 
+/** First enabled child link for collapsed-rail navigation. */
+function getFirstNavigableChildHref(children: WorkerSidebarLink[]): string | null {
+  for (const child of children) {
+    if (child.disabled) continue;
+    const href = child.href?.trim();
+    if (href && href !== "#") return href;
+  }
+  return null;
+}
+
 function parentWithSubmenuRowClass(active: boolean, disabled = false): string {
   const base =
     "group relative flex min-h-[36px] w-full cursor-pointer items-center gap-2 overflow-hidden rounded-md border-0 bg-transparent pl-2 pr-0 py-1 text-left";
   const color = sidebarNavTextClass(active);
   return disabled ? `${base} ${color} opacity-60` : `${base} ${color} transition hover:bg-white`;
+}
+
+function collapsedRowClass(isCollapsed: boolean, isMobileRail: boolean): string {
+  return isCollapsed
+    ? isMobileRail
+      ? "w-full justify-center px-0 py-1.5"
+      : "w-full justify-center px-0 py-2"
+    : "gap-3 pl-2 pr-0 py-1";
+}
+
+function collapsedNavRowBase(active: boolean, disabled = false): string {
+  const color = disabled ? SIDEBAR_NAV_INACTIVE_TEXT_CLASS : sidebarNavTextClass(active);
+  return `group relative flex min-h-[36px] items-center overflow-hidden rounded-md ${
+    disabled ? `${color} opacity-60` : `${color} transition hover:bg-white`
+  }`;
+}
+
+function topLevelRowClass(
+  active: boolean,
+  isCollapsed: boolean,
+  isMobileRail: boolean,
+  disabled = false
+): string {
+  const railCollapsed = isCollapsed || isMobileRail;
+  return `${collapsedNavRowBase(active, disabled)} ${collapsedRowClass(railCollapsed, isMobileRail)} ${
+    railCollapsed ? "worker-sidebar-collapsed-row w-full" : "w-full"
+  }`;
 }
 
 function submenuTextClass(active: boolean, disabled = false): string {
@@ -51,20 +89,6 @@ function topLevelLabelClass(active: boolean, disabled = false): string {
   return active
     ? `${base} ${SIDEBAR_NAV_ACTIVE_TEXT_CLASS}`
     : `${base} ${SIDEBAR_NAV_INACTIVE_TEXT_CLASS} group-hover:text-[color:var(--brand-primary)]`;
-}
-
-function topLevelLinkClass(active: boolean, isCollapsed: boolean, isMobileRail: boolean, disabled = false): string {
-  const layout = isCollapsed
-    ? isMobileRail
-      ? "justify-center pl-1 pr-0 py-1.5"
-      : "justify-center pl-2 pr-0 py-2"
-    : "gap-3 pl-2 pr-0 py-1";
-
-  if (disabled) {
-    return `group relative flex min-h-[36px] items-center overflow-hidden rounded-md opacity-60 ${layout} ${SIDEBAR_NAV_INACTIVE_TEXT_CLASS}`;
-  }
-
-  return `group relative flex min-h-[36px] items-center overflow-hidden rounded-md transition hover:bg-white ${layout} ${sidebarNavTextClass(active)}`;
 }
 
 type Props = {
@@ -220,11 +244,9 @@ export function ApplicantPortalSidebar({
     <div className="flex h-full flex-col overflow-hidden bg-white">
       <div
         className={`worker-portal-sidebar-brand shrink-0 ${
-          isMobileRail
-            ? "justify-center px-1"
-            : isCollapsed
-              ? "px-2"
-              : "px-4"
+          isMobileRail || isCollapsed
+            ? "flex items-center justify-center px-0"
+            : "px-4"
         }`}
       >
         <div
@@ -241,7 +263,7 @@ export function ApplicantPortalSidebar({
               className="rounded-xl"
             >
               <div
-                className={`flex shrink-0 items-center justify-center overflow-hidden rounded-xl border bg-white ${
+                className={`worker-portal-sidebar-logo-frame flex shrink-0 items-center justify-center overflow-hidden rounded-xl border bg-white ${
                   isMobileRail ? "h-9 w-9" : "h-10 w-10"
                 }`}
                 style={{ borderColor: "color-mix(in srgb, var(--brand-primary) 55%, #CBD5E1)" }}
@@ -292,51 +314,111 @@ export function ApplicantPortalSidebar({
       <nav
         ref={navRef}
         className={`worker-sidebar-nav flex-1 overflow-y-auto overflow-x-hidden ${
-          isMobileRail ? "py-2 pl-1 pr-0" : isCollapsed ? "py-3 pl-2 pr-0" : "py-3 pl-3 pr-0"
+          isMobileRail || isCollapsed
+            ? "flex flex-col items-center py-2 px-0"
+            : "py-3 pl-3 pr-0"
         }`}
       >
-        {renderedSections.map((section) => (
-          <div key={section.label} className="mb-1">
-            {section.children?.length && !isCollapsed ? (
-              <button
-                type="button"
-                title={section.disabled ? `${section.label} (Coming soon)` : section.label}
-                onClick={() => toggleSectionOpen(section.label)}
-                onMouseDown={(event) => event.preventDefault()}
-                className={parentWithSubmenuRowClass(section.childActive, Boolean(section.disabled))}
-                aria-expanded={isSectionOpen(section)}
-                aria-label={`${isSectionOpen(section) ? "Collapse" : "Expand"} ${section.label}`}
-              >
-                <div className="flex min-w-0 flex-1 items-center gap-3">
-                  <SidebarNavIcon iconType={section.iconType} active={section.childActive} />
-                  <span className="truncate font-normal text-[14px] leading-5 tracking-normal">
-                    {section.label}
-                  </span>
-                </div>
-                <span
-                  className={`ml-auto flex h-6 w-6 shrink-0 items-center justify-center rounded-md ${
-                    section.childActive ? SIDEBAR_NAV_ACTIVE_TEXT_CLASS : SIDEBAR_NAV_INACTIVE_TEXT_CLASS
-                  }`}
-                  aria-hidden
+        {renderedSections.map((section) => {
+          const collapsedNavHref =
+            (isCollapsed || isMobileRail) && section.children?.length
+              ? getFirstNavigableChildHref(section.children)
+              : null;
+
+          return (
+          <div key={section.label} className={`mb-1 ${isMobileRail || isCollapsed ? "w-full" : ""}`}>
+            {section.children?.length ? (
+              collapsedNavHref ? (
+                <Link
+                  href={collapsedNavHref}
+                  onClick={handleNavClick}
+                  title={section.label}
+                  className={topLevelRowClass(section.childActive, isCollapsed, isMobileRail, false)}
                 >
-                  <SidebarSubmenuToggleIcon open={isSectionOpen(section)} />
-                </span>
-                {section.showIndicator ? (
-                  <span aria-hidden className="worker-sidebar-active-indicator" />
+                  <SidebarNavIcon iconType={section.iconType} active={section.childActive} />
+                  {!isCollapsed && !isMobileRail ? (
+                    <span className={topLevelLabelClass(section.childActive, false)}>{section.label}</span>
+                  ) : null}
+                  {section.childActive ? (
+                    <span aria-hidden className="worker-sidebar-active-indicator" />
+                  ) : null}
+                </Link>
+              ) : (
+              <>
+                <button
+                  type="button"
+                  title={section.disabled ? `${section.label} (Coming soon)` : section.label}
+                  onClick={() => {
+                    if (isCollapsed || isMobileRail) return;
+                    toggleSectionOpen(section.label);
+                  }}
+                  onMouseDown={(event) => event.preventDefault()}
+                  disabled={isCollapsed || isMobileRail || Boolean(section.disabled)}
+                  className={
+                    isCollapsed || isMobileRail
+                      ? `${topLevelRowClass(section.childActive, isCollapsed, isMobileRail, Boolean(section.disabled))} cursor-not-allowed border-0 bg-transparent`
+                      : parentWithSubmenuRowClass(section.childActive, Boolean(section.disabled))
+                  }
+                  aria-expanded={isSectionOpen(section)}
+                  aria-label={`${isSectionOpen(section) ? "Collapse" : "Expand"} ${section.label}`}
+                >
+                  {isCollapsed || isMobileRail ? (
+                    <SidebarNavIcon iconType={section.iconType} active={section.childActive} />
+                  ) : (
+                  <div className="flex min-w-0 flex-1 items-center gap-3">
+                    <SidebarNavIcon iconType={section.iconType} active={section.childActive} />
+                    <span className="truncate font-normal text-[14px] leading-5 tracking-normal">
+                      {section.label}
+                    </span>
+                  </div>
+                  )}
+                  {!isCollapsed && !isMobileRail ? (
+                    <span
+                      className={`ml-auto flex h-6 w-6 shrink-0 items-center justify-center rounded-md ${
+                        section.childActive ? SIDEBAR_NAV_ACTIVE_TEXT_CLASS : SIDEBAR_NAV_INACTIVE_TEXT_CLASS
+                      }`}
+                      aria-hidden
+                    >
+                      <SidebarSubmenuToggleIcon open={isSectionOpen(section)} />
+                    </span>
+                  ) : null}
+                  {section.showIndicator ? (
+                    <span aria-hidden className="worker-sidebar-active-indicator" />
+                  ) : null}
+                </button>
+
+                {!isCollapsed && !isMobileRail && isSectionOpen(section) ? (
+                  <div className="worker-sidebar-submenu space-y-0.5">
+                    {section.children.map((child) =>
+                      child.disabled || !child.href || child.href === "#" ? (
+                        <div
+                          key={`${section.label}-${child.label}`}
+                          className={`worker-sidebar-submenu-item group relative block overflow-hidden rounded-md font-normal text-[14px] leading-5 tracking-normal ${SIDEBAR_NAV_INACTIVE_TEXT_CLASS} opacity-60`}
+                          aria-disabled={child.disabled}
+                        >
+                          <span>{child.label}</span>
+                        </div>
+                      ) : (
+                        <Link
+                          key={`${section.label}-${child.label}`}
+                          href={child.href}
+                          onClick={handleNavClick}
+                          className={`worker-sidebar-submenu-item group relative block overflow-hidden rounded-md transition hover:bg-white ${submenuTextClass(
+                            child.active,
+                            false
+                          )}`}
+                        >
+                          <span>{child.label}</span>
+                          {child.active ? (
+                            <span aria-hidden className="worker-sidebar-active-indicator" />
+                          ) : null}
+                        </Link>
+                      )
+                    )}
+                  </div>
                 ) : null}
-              </button>
-            ) : section.children?.length && isCollapsed ? (
-              <div
-                title={section.label}
-                className={`group relative flex min-h-[36px] w-full items-center justify-center overflow-hidden rounded-md py-2 pl-2 pr-0 ${
-                  section.childActive ? SIDEBAR_NAV_ACTIVE_TEXT_CLASS : SIDEBAR_NAV_INACTIVE_TEXT_CLASS
-                }`}
-              >
-                <SidebarNavIcon iconType={section.iconType} active={section.childActive} />
-                {section.childActive ? (
-                  <span aria-hidden className="worker-sidebar-active-indicator" />
-                ) : null}
-              </div>
+              </>
+              )
             ) : section.action === "messages" ? (
               <button
                 type="button"
@@ -344,10 +426,10 @@ export function ApplicantPortalSidebar({
                   onOpenMessages?.();
                   handleNavClick();
                 }}
-                className={topLevelLinkClass(section.active, isCollapsed, isMobileRail, false)}
+                className={topLevelRowClass(section.active, isCollapsed, isMobileRail, false)}
               >
                 <SidebarNavIcon iconType={section.iconType} active={section.active && !section.disabled} />
-                {!isCollapsed ? (
+                {!isCollapsed && !isMobileRail ? (
                   <span className={topLevelLabelClass(section.active, Boolean(section.disabled))}>
                     {section.label}
                   </span>
@@ -356,11 +438,11 @@ export function ApplicantPortalSidebar({
             ) : section.disabled ? (
               <div
                 title={`${section.label} (Coming soon)`}
-                className={topLevelLinkClass(false, isCollapsed, isMobileRail, true)}
+                className={topLevelRowClass(false, isCollapsed, isMobileRail, true)}
                 aria-disabled
               >
                 <SidebarNavIcon iconType={section.iconType} active={false} />
-                {!isCollapsed ? (
+                {!isCollapsed && !isMobileRail ? (
                   <span className={topLevelLabelClass(false, true)}>{section.label}</span>
                 ) : null}
               </div>
@@ -368,65 +450,44 @@ export function ApplicantPortalSidebar({
               <Link
                 href={section.href}
                 onClick={handleNavClick}
-                title={isCollapsed ? section.label : undefined}
-                className={topLevelLinkClass(section.active, isCollapsed, isMobileRail, false)}
+                title={isCollapsed || isMobileRail ? section.label : undefined}
+                className={topLevelRowClass(section.active, isCollapsed, isMobileRail, false)}
               >
                 <SidebarNavIcon iconType={section.iconType} active={section.active && !section.disabled} />
-                {!isCollapsed ? (
+                {!isCollapsed && !isMobileRail ? (
                   <span className={topLevelLabelClass(section.active, false)}>{section.label}</span>
                 ) : null}
-                {section.showIndicator || (isCollapsed && section.active) ? (
+                {section.showIndicator || ((isCollapsed || isMobileRail) && section.active) ? (
                   <span aria-hidden className="worker-sidebar-active-indicator" />
                 ) : null}
               </Link>
             )}
 
-            {!isCollapsed && section.children?.length && isSectionOpen(section) ? (
-              <div className="worker-sidebar-submenu space-y-0.5">
-                {section.children.map((child) =>
-                  child.disabled || !child.href || child.href === "#" ? (
-                    <div
-                      key={`${section.label}-${child.label}`}
-                      className={`worker-sidebar-submenu-item group relative block overflow-hidden rounded-md font-normal text-[14px] leading-5 tracking-normal ${SIDEBAR_NAV_INACTIVE_TEXT_CLASS} opacity-60`}
-                      aria-disabled={child.disabled}
-                    >
-                      <span>{child.label}</span>
-                    </div>
-                  ) : (
-                    <Link
-                      key={`${section.label}-${child.label}`}
-                      href={child.href}
-                      onClick={handleNavClick}
-                      className={`worker-sidebar-submenu-item group relative block overflow-hidden rounded-md transition hover:bg-white ${submenuTextClass(
-                        child.active,
-                        false
-                      )}`}
-                    >
-                      <span>{child.label}</span>
-                      {child.active ? (
-                        <span aria-hidden className="worker-sidebar-active-indicator" />
-                      ) : null}
-                    </Link>
-                  )
-                )}
-              </div>
-            ) : null}
           </div>
-        ))}
+          );
+        })}
       </nav>
 
       <div
         className={`border-t border-[#E2E8F0] ${
-          isMobileRail ? "px-1 py-2" : isCollapsed ? "px-2 py-3" : "px-4 py-3"
+          isMobileRail || isCollapsed ? "flex justify-center px-0 py-2" : "px-4 py-3"
         }`}
       >
-        <div className={`flex items-center ${isCollapsed ? "flex-col gap-2" : "gap-2.5"}`}>
-          <WorkerPortalUserAvatar
-            name={applicantName}
-            photoUrl={profilePhotoUrl}
-            size={30}
-            className={isCollapsed ? "" : ""}
-          />
+        <div
+          className={`flex items-center ${
+            isCollapsed || isMobileRail
+              ? "flex-col items-center justify-center gap-2"
+              : "gap-2.5"
+          }`}
+        >
+          {!isCollapsed || isMobileRail ? (
+            <WorkerPortalUserAvatar
+              name={applicantName}
+              photoUrl={profilePhotoUrl}
+              size={30}
+              className={isCollapsed ? "" : ""}
+            />
+          ) : null}
           {!isCollapsed ? (
             <div className="min-w-0 flex-1">
               <p className="truncate text-[14px] leading-5 font-semibold text-[color:var(--brand-secondary)]">{applicantName}</p>
@@ -441,7 +502,7 @@ export function ApplicantPortalSidebar({
               router.replace(loginHref);
             }}
             title="Sign out"
-            className={`rounded-md p-1 hover:bg-white/80 ${isCollapsed ? "" : "ml-auto"}`}
+            className={`rounded-md p-1 hover:bg-white/80 ${isCollapsed || isMobileRail ? "" : "ml-auto"}`}
           >
             <SidebarNavIcon iconType={WORKER_SIDEBAR_ICON_TYPES.logout} active={false} />
           </button>
@@ -504,6 +565,7 @@ export function ApplicantPortalSidebar({
 
 export {
   WORKER_SIDEBAR_COLLAPSED_WIDTH,
+  WORKER_SIDEBAR_COLLAPSED_WIDTH_MOBILE,
   WORKER_SIDEBAR_COLLAPSED_WIDTH_NARROW,
   WORKER_SIDEBAR_EXPANDED_WIDTH,
 };

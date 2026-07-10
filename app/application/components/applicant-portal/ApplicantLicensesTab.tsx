@@ -7,6 +7,7 @@ import { useApplicantPortal } from "./ApplicantPortalProvider";
 import { WorkerFilePicker } from "./WorkerFilePicker";
 import { WORKER_BTN_OUTLINE, WORKER_BTN_PRIMARY } from "./worker-portal-buttons";
 import {
+  WORKER_PORTAL_PAGE_PAD_CLASS,
   WORKER_SCHEDULE_CARD_CLASS,
   WORKER_SECTION_TITLE_CLASS,
   WORKER_SECTION_TITLE_STYLE,
@@ -145,7 +146,7 @@ export function ApplicantLicensesTab({ embedded = false }: { embedded?: boolean 
   }
 
   return (
-    <div className={embedded ? "space-y-6" : "space-y-6 px-8 py-6"}>
+    <div className={embedded ? "space-y-6" : `${WORKER_PORTAL_PAGE_PAD_CLASS} space-y-6`}>
       {summary && (summary.expiredCount > 0 || summary.expiringSoonCount > 0) ? (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
           <div className="flex items-start gap-2">

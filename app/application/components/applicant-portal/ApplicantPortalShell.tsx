@@ -2,16 +2,19 @@
 
 import type { CSSProperties } from "react";
 import { useCallback, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
 import { ApplicantPortalHeader } from "./ApplicantPortalHeader";
 import {
   ApplicantPortalSidebar,
   WORKER_SIDEBAR_COLLAPSED_WIDTH,
+  WORKER_SIDEBAR_COLLAPSED_WIDTH_MOBILE,
   WORKER_SIDEBAR_COLLAPSED_WIDTH_NARROW,
   WORKER_SIDEBAR_EXPANDED_WIDTH,
 } from "./ApplicantPortalSidebar";
+
+const WORKER_SIDEBAR_COLLAPSED_STORAGE_KEY = "workerPortalSidebarCollapsed";
 import { ApplicantPortalUiProvider } from "./ApplicantPortalUiContext";
 import type { ApplicantSession } from "./types";
 import "./applicant-portal.css";
@@ -26,9 +29,24 @@ type Props = {
 export function ApplicantPortalShell({ session, children }: Props) {
   const branding = useTenantBranding();
   const router = useRouter();
+  const pathname = usePathname();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
   const shellStyle: CSSProperties = brandingToCssVars(branding);
+
+  useEffect(() => {
+    setMobileNavOpen(false);
+  }, [pathname]);
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(WORKER_SIDEBAR_COLLAPSED_STORAGE_KEY);
+      if (stored === "true") setSidebarCollapsed(true);
+      else if (stored === "false") setSidebarCollapsed(false);
+    } catch {
+      /* ignore */
+    }
+  }, []);
 
   useEffect(() => {
     if (!mobileNavOpen) return;
@@ -48,7 +66,15 @@ export function ApplicantPortalShell({ session, children }: Props) {
   const openMobileNav = useCallback(() => setMobileNavOpen(true), []);
 
   const toggleSidebarCollapsed = () => {
-    setSidebarCollapsed((prev) => !prev);
+    setSidebarCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem(WORKER_SIDEBAR_COLLAPSED_STORAGE_KEY, String(next));
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
   };
 
   const openMessages = useCallback(() => {
@@ -62,6 +88,7 @@ export function ApplicantPortalShell({ session, children }: Props) {
     "--worker-sidebar-width": `${sidebarWidth}px`,
     "--worker-sidebar-collapsed-width": `${WORKER_SIDEBAR_COLLAPSED_WIDTH}px`,
     "--worker-sidebar-collapsed-width-narrow": `${WORKER_SIDEBAR_COLLAPSED_WIDTH_NARROW}px`,
+    "--worker-sidebar-collapsed-width-mobile": `${WORKER_SIDEBAR_COLLAPSED_WIDTH_MOBILE}px`,
   } as CSSProperties;
 
   return (
@@ -79,7 +106,7 @@ export function ApplicantPortalShell({ session, children }: Props) {
         />
 
         <div
-          className="applicant-portal-main flex min-h-screen flex-col bg-[#F4F4F4]"
+          className="applicant-portal-main applicant-portal-main-wrap flex min-h-screen flex-col bg-[#F4F4F4]"
           data-sidebar-collapsed={sidebarCollapsed ? "true" : "false"}
           data-mobile-nav-open={mobileNavOpen ? "true" : "false"}
         >

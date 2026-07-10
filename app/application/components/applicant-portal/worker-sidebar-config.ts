@@ -222,3 +222,5 @@ export const WORKER_SIDEBAR_EXPANDED_WIDTH = 272;
 export const WORKER_SIDEBAR_COLLAPSED_WIDTH = 80;
 /** Mobile mini rail below 500px — 20% narrower than {@link WORKER_SIDEBAR_COLLAPSED_WIDTH}. */
 export const WORKER_SIDEBAR_COLLAPSED_WIDTH_NARROW = Math.round(WORKER_SIDEBAR_COLLAPSED_WIDTH * 0.8);
+/** Extra-narrow mobile rail below 430px — 25% slimmer than narrow rail. */
+export const WORKER_SIDEBAR_COLLAPSED_WIDTH_MOBILE = Math.round(WORKER_SIDEBAR_COLLAPSED_WIDTH_NARROW * 0.75);

@@ -13,6 +13,7 @@ import {
   ApplicantGroupConversation,
 } from "@/app/application/components/applicant-portal/ApplicantGroupChatTab";
 import { ApplicantRecruiterChatConversation } from "@/app/application/components/applicant-portal/ApplicantRecruiterChatConversation";
+import { WORKER_PORTAL_PAGE_PAD_CLASS } from "@/app/application/components/applicant-portal/worker-schedule-typography";
 
 type ChatTab = "recruiter" | "group";
 
@@ -177,7 +178,7 @@ function ApplicantChatClientContent() {
       : "Chat with your recruiter";
 
   return (
-    <div className="px-4 py-6 min-[1000px]:px-8">
+    <div className={WORKER_PORTAL_PAGE_PAD_CLASS}>
       <div className="mb-5">
         <h1 className="text-xl font-semibold text-[#0F172A]">Messages</h1>
         <p className="mt-1 text-sm text-[#64748B]">
