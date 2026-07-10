@@ -169,14 +169,7 @@ export function AddressField({
   );
 }
 
-export const INDUSTRY_OPTIONS = [
-  "Staffing",
-  "Healthcare",
-  "Home Care",
-  "Allied Health",
-  "Technology",
-  "Other",
-] as const;
+export { INDUSTRY_OPTIONS } from "@/app/tenant-onboarding/constants";
 
 export const EMPLOYEE_COUNT_OPTIONS = [
   "1-10",

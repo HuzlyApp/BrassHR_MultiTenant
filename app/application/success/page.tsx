@@ -55,23 +55,23 @@ export default function SuccessPage() {
   return (
     <div
       style={shellStyle}
-      className="flex min-h-screen items-center justify-center p-6 md:p-12"
+      className="flex min-h-screen items-center justify-center p-4 sm:p-6 md:p-12"
     >
-      <div className="h-[500px] min-h-[500px] w-full max-w-[840px] overflow-hidden rounded-2xl bg-white shadow-[0_30px_80px_rgba(0,0,0,0.18)]">
-        <div className="flex h-full">
-          <div className="flex w-full flex-col items-center justify-center px-10 pb-10 pt-[56px] text-center md:w-[510px]">
+      <div className="w-full max-w-[840px] overflow-hidden rounded-2xl bg-white shadow-[0_30px_80px_rgba(0,0,0,0.18)] sm:h-[500px] sm:min-h-[500px]">
+        <div className="flex h-full min-h-0 flex-col sm:flex-row">
+          <div className="flex w-full flex-col items-center justify-center px-4 pb-8 pt-10 text-center sm:px-10 sm:pb-10 sm:pt-[56px] md:w-[510px]">
             <div
-              className="mb-6 flex h-[72px] w-[72px] flex-none items-center justify-center rounded-full text-white shadow-sm"
+              className="mb-5 flex h-14 w-14 flex-none items-center justify-center rounded-full text-white shadow-sm sm:mb-6 sm:h-[72px] sm:w-[72px]"
               style={checkCircleStyle}
             >
-              <Check className="h-8 w-8" strokeWidth={2.5} />
+              <Check className="h-7 w-7 sm:h-8 sm:w-8" strokeWidth={2.5} />
             </div>
-            <div className="mx-auto max-w-[420px] space-y-6">
+            <div className="mx-auto w-full max-w-[420px] space-y-4 sm:space-y-6">
               <div>
-                <h1 className="text-[32px] font-semibold tracking-[-0.03em] text-slate-900">
+                <h1 className="text-2xl font-semibold tracking-[-0.03em] text-slate-900 sm:text-[32px]">
                   Application Received
                 </h1>
-                <p className="mt-4 text-[15px] leading-7 text-slate-600">
+                <p className="mt-3 text-sm leading-6 text-slate-600 sm:mt-4 sm:text-[15px] sm:leading-7">
                   We&apos;ll contact you within 1–3 business days.
                   <br />
                   Please check your email for the latest update.
@@ -81,7 +81,7 @@ export default function SuccessPage() {
 
             <Link
               href={applicationPath("/application/application-status")}
-              className="mt-10 inline-flex items-center justify-center rounded-xl px-8 py-3 text-[14px] font-semibold text-white transition hover:brightness-90"
+              className="mt-8 inline-flex w-full max-w-[320px] items-center justify-center rounded-xl px-6 py-3 text-sm font-semibold text-white transition hover:brightness-90 sm:mt-10 sm:w-auto sm:px-8 sm:text-[14px]"
               style={primaryBtnStyle}
             >
               Check Status

@@ -76,16 +76,16 @@ export default function TermsAndConditionsPage() {
 
   return (
     <div
-      className="flex min-h-screen items-center justify-center p-4 md:p-8"
+      className="flex min-h-screen items-center justify-center p-4 sm:p-6 md:p-8"
       style={shellStyle}
     >
-      <div className="w-full max-w-4xl rounded-xl bg-white p-6 shadow-2xl md:p-8">
-        <h1 className="text-3xl font-semibold text-slate-900">Terms & Conditions</h1>
+      <div className="w-full max-w-4xl rounded-xl bg-white p-4 shadow-2xl sm:p-6 md:p-8">
+        <h1 className="text-xl font-semibold text-slate-900 sm:text-2xl md:text-3xl">Terms & Conditions</h1>
 
         <div
           ref={scrollRef}
           onScroll={handleScroll}
-          className="mt-5 h-[420px] overflow-y-auto rounded-lg border border-slate-200 p-4 md:p-6"
+          className="mt-4 h-[min(420px,58vh)] overflow-y-auto rounded-lg border border-slate-200 p-3 sm:mt-5 sm:h-[420px] sm:p-4 md:p-6"
         >
           <div className="space-y-5">
             {content.map((section) => (
@@ -110,12 +110,12 @@ export default function TermsAndConditionsPage() {
               <span>I accept the above terms and conditions.</span>
             </OnboardingCheckbox>
 
-            <div className="mt-4 flex justify-end">
+            <div className="mt-4 flex justify-stretch sm:justify-end">
               <button
                 type="button"
                 onClick={handleAccept}
                 disabled={!agreed}
-                className="rounded-md px-6 py-2.5 text-sm font-semibold text-white transition hover:brightness-90 disabled:cursor-not-allowed disabled:opacity-50"
+                className="w-full rounded-md px-6 py-3 text-sm font-semibold text-white transition hover:brightness-90 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto sm:py-2.5"
                 style={primaryBtnStyle}
               >
                 Accept and Continue

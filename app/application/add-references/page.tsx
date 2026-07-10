@@ -21,6 +21,8 @@ import { resolveClientOnboardingTenantSlug } from "@/lib/tenant/client-onboardin
 import { formatPhoneNumber, normalizePhoneInput } from "@/lib/phone"
 import {
   APPLICANT_ACTION_ROW,
+  APPLICANT_BTN_BACK,
+  APPLICANT_BTN_PRIMARY,
   APPLICANT_CONTENT_CLASS,
   APPLICANT_FORM_GRID,
   APPLICANT_HEADER_ROW,
@@ -258,7 +260,7 @@ export default function ReferencesPage() {
         <div className={APPLICANT_CONTENT_CLASS}>
           <div className={APPLICANT_HEADER_ROW}>
             <h2 className={APPLICANT_TITLE_CLASS}>Add References</h2>
-            <div className={APPLICANT_SKIP_COLUMN}>
+            <div className={`${APPLICANT_SKIP_COLUMN} max-[399px]:flex-row max-[399px]:items-center max-[399px]:justify-end max-[399px]:gap-2`}>
               <AutosaveStatus
                 state={
                   autosaveState === "saving" ? "saving" : autosaveState === "saved" ? "saved" : "idle"
@@ -352,7 +354,7 @@ export default function ReferencesPage() {
             <button
               type="button"
               onClick={() => (nav.prevRoute ? nav.goPrev() : router.back())}
-              className="w-full cursor-pointer rounded-md border border-[color:var(--brand-primary)] bg-white px-4 py-2.5 text-[12px] font-medium leading-5 text-[color:var(--brand-primary)] transition hover:bg-[color:var(--brand-primary)]/5 sm:w-auto sm:px-5 sm:py-2"
+              className={APPLICANT_BTN_BACK}
             >
               Back
             </button>
@@ -360,7 +362,7 @@ export default function ReferencesPage() {
               type="button"
               onClick={saveReferences}
               disabled={saving}
-              className="w-full cursor-pointer rounded-md bg-[color:var(--brand-primary)] px-4 py-2.5 text-[12px] font-medium leading-5 text-white transition hover:brightness-90 disabled:cursor-not-allowed disabled:opacity-70 sm:w-auto sm:px-6 sm:py-2"
+              className={`${APPLICANT_BTN_PRIMARY} disabled:cursor-not-allowed disabled:opacity-70`}
             >
               Save &amp; continue
             </button>

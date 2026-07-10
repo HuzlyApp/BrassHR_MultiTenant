@@ -7,6 +7,8 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import {
   APPLICANT_ACTION_ROW,
+  APPLICANT_BTN_BACK,
+  APPLICANT_BTN_PRIMARY,
   APPLICANT_SHELL_TALL_CLASS,
   APPLICANT_TITLE_CLASS,
 } from "@/app/application/applicant-onboarding-responsive"
@@ -182,17 +184,17 @@ export default function Upload19FormPage() {
               </p>
 
               <div
-                className="flex h-[66px] w-full max-w-[580px] items-center justify-between gap-2 rounded-lg border p-4"
+                className="flex min-h-[56px] w-full max-w-[580px] items-center justify-between gap-2 rounded-lg border p-3 sm:h-[66px] sm:p-4"
                 style={completedSurfaceStyle}
               >
-                <div className="flex min-w-0 items-center gap-3">
+                <div className="flex min-w-0 items-center gap-2 sm:gap-3">
                   <BrandedSvgIcon
                     src="/icons/pdf-icon.svg"
-                    className="h-6 w-6 flex-none"
+                    className="h-6 w-6 shrink-0"
                     color={branding.primaryHex}
                   />
                   <div className="min-w-0">
-                    <p className="truncate text-[14px] font-semibold leading-5 text-[color:var(--brand-primary)]">
+                    <p className="truncate text-[13px] font-semibold leading-5 text-[color:var(--brand-primary)] sm:text-[14px]">
                       {uploadedFile?.name}
                     </p>
                     <p className="text-[14px] font-normal leading-5 text-slate-500">
@@ -219,7 +221,7 @@ export default function Upload19FormPage() {
           ) : (
             <>
               <div
-                className={`w-full max-w-[580px] rounded-2xl border border-dashed px-4 py-6 transition sm:px-8 sm:py-10 ${
+                className={`w-full max-w-[580px] rounded-2xl border border-dashed px-3 py-5 transition max-[399px]:py-4 sm:px-8 sm:py-10 ${
                   isDragging ? "" : "border-[color:var(--brand-primary)] bg-white"
                 }`}
                 style={isDragging ? dragActiveStyle : undefined}
@@ -284,7 +286,7 @@ export default function Upload19FormPage() {
           <div className={APPLICANT_ACTION_ROW}>
             <Link
               href={applicationPath("/application/employee-agreement")}
-              className="inline-flex h-10 w-full cursor-pointer items-center justify-center rounded-xl border border-[color:var(--brand-primary)] bg-white px-4 text-[16px] font-semibold leading-6 text-[color:var(--brand-primary)] transition hover:bg-[color:var(--brand-primary)]/5 sm:w-auto sm:px-6"
+              className={APPLICANT_BTN_BACK}
             >
               Back
             </Link>
@@ -292,7 +294,7 @@ export default function Upload19FormPage() {
               type="button"
               onClick={() => void handleSave()}
               disabled={saving}
-              className="inline-flex h-10 w-full cursor-pointer items-center justify-center rounded-xl px-4 text-[16px] font-semibold leading-6 text-white transition hover:brightness-90 disabled:opacity-50 sm:w-auto sm:px-6"
+              className={`${APPLICANT_BTN_PRIMARY} disabled:opacity-50`}
               style={primaryBtnStyle}
             >
               {saving ? "Uploading..." : hasUploadedFile ? "Submit" : "Save"}

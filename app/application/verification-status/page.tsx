@@ -8,6 +8,8 @@ import Link from "next/link"
 import { ChevronRight } from "lucide-react"
 import { useSearchParams } from "next/navigation"
 import {
+  APPLICANT_ACTION_ROW,
+  APPLICANT_BTN_PRIMARY,
   APPLICANT_SHELL_TALL_CLASS,
   APPLICANT_TITLE_CLASS,
 } from "@/app/application/applicant-onboarding-responsive"
@@ -121,18 +123,18 @@ function VerificationStatusContent() {
             ) : null}
           </section>
 
-          <div className="mt-auto flex justify-end pt-3">
+          <div className={APPLICANT_ACTION_ROW}>
             {isRejected ? (
               <Link
                 href="/"
-                className="inline-flex h-11 min-w-[100px] items-center justify-center rounded-lg border border-[color:var(--brand-primary)] bg-white px-7 text-[16px] font-semibold leading-8 text-[color:var(--brand-primary)] transition hover:bg-[color:var(--brand-primary)]/5"
+                className={`${APPLICANT_BTN_PRIMARY} col-span-2 border border-[color:var(--brand-primary)] bg-white text-[color:var(--brand-primary)] hover:bg-[color:var(--brand-primary)]/5 sm:col-span-1 sm:col-start-2`}
               >
                 Exit
               </Link>
             ) : (
               <Link
                 href={applicationPath("/application/upload-form?type=files")}
-                className="inline-flex h-11 min-w-[273px] items-center justify-center gap-2 rounded-lg px-6 text-[16px] font-semibold leading-6 text-white transition hover:brightness-90"
+                className={`${APPLICANT_BTN_PRIMARY} col-span-2 inline-flex items-center justify-center gap-2 sm:col-span-1 sm:col-start-2`}
                 style={primaryBtnStyle}
               >
                 Upload Requirements

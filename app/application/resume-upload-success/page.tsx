@@ -5,6 +5,12 @@ import { applicationPath } from "@/lib/tenant/with-tenant"
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
+import {
+  APPLICANT_ACTION_ROW,
+  APPLICANT_BTN_BACK,
+  APPLICANT_BTN_PRIMARY,
+  APPLICANT_SHELL_CLASS,
+} from "@/app/application/applicant-onboarding-responsive"
 import BrandedSvgIcon from "@/app/components/BrandedSvgIcon"
 import OnboardingLayout from "@/app/components/OnboardingLayout"
 import OnboardingStepper from "@/app/components/OnboardingStepper"
@@ -171,7 +177,7 @@ export default function Step1Success() {
   return (
     <OnboardingLayout>
       <div className="flex h-full flex-col">
-        <div className="px-6 pt-6 sm:px-8 sm:pt-8 md:px-10 md:pt-8">
+        <div className={`${APPLICANT_SHELL_CLASS} pb-0 pt-6 sm:pt-8`}>
           <OnboardingStepper
             title="Resume Uploaded"
             // titleIconSrc="/icons/yes-sign-icon.svg"
@@ -179,7 +185,7 @@ export default function Step1Success() {
           />
         </div>
 
-        <div className="flex flex-1 flex-col px-6 pb-8 pt-2 sm:px-8 md:px-10">
+        <div className={`${APPLICANT_SHELL_CLASS} flex flex-1 flex-col pt-2`}>
           {isParsing ? (
             <div className="mt-6 flex items-start gap-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-4 text-slate-800">
               <div className="mt-0.5 flex h-6 w-6 flex-none items-center justify-center rounded-full">
@@ -235,21 +241,21 @@ export default function Step1Success() {
             </div>
           )}
 
-          <div className="mt-6 flex items-center justify-between rounded-lg border px-5 py-4" style={fileCardStyle}>
-            <div className="flex items-center gap-4">
+          <div className="mt-6 flex items-center justify-between gap-2 rounded-lg border px-3 py-3 sm:px-5 sm:py-4" style={fileCardStyle}>
+            <div className="flex min-w-0 items-center gap-3 sm:gap-4">
               <div
-                className="flex h-12 w-12 items-center justify-center rounded-md"
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md sm:h-12 sm:w-12"
                 style={fileIconBgStyle}
               >
                 <BrandedSvgIcon
                   src="/icons/pdf-icon.svg"
-                  className="h-6 w-6"
+                  className="h-5 w-5 sm:h-6 sm:w-6"
                   color={branding.primaryHex}
                 />
               </div>
 
-              <div>
-                <p className="text-[14px] font-semibold" style={{ color: branding.secondaryHex }}>
+              <div className="min-w-0">
+                <p className="truncate text-[13px] font-semibold sm:text-[14px]" style={{ color: branding.secondaryHex }}>
                   {fileName}
                 </p>
                 <p className="text-xs text-gray-400">{formatBytes(fileSizeBytes)}</p>
@@ -259,7 +265,7 @@ export default function Step1Success() {
             <button
               type="button"
               onClick={removeFile}
-              className="cursor-pointer inline-flex h-10 w-10 items-center justify-center rounded-md transition hover:opacity-80"
+              className="inline-flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-md transition hover:opacity-80 sm:h-10 sm:w-10"
               style={{ color: branding.secondaryHex }}
               aria-label="Remove file"
             >
@@ -325,11 +331,11 @@ export default function Step1Success() {
             </div>
           ) : null}
 
-          <div className="mt-auto grid grid-cols-2 gap-3 pt-8 sm:flex sm:justify-end sm:gap-4 sm:pt-10">
+          <div className={APPLICANT_ACTION_ROW}>
             <button
               type="button"
               onClick={() => router.back()}
-              className="cursor-pointer inline-flex h-11 w-full items-center justify-center rounded-lg border border-slate-300 px-4 text-[16px] font-medium text-slate-700 transition hover:bg-slate-50 sm:w-auto sm:px-8"
+              className={`${APPLICANT_BTN_BACK} border-slate-300 text-slate-700 hover:bg-slate-50`}
             >
               Cancel
             </button>
@@ -338,7 +344,7 @@ export default function Step1Success() {
               type="button"
               onClick={handleContinue}
               disabled={!agree || continuing}
-              className="cursor-pointer inline-flex h-11 w-full items-center justify-center rounded-lg px-4 text-[16px] font-semibold text-white transition hover:brightness-90 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto sm:px-10"
+              className={`${APPLICANT_BTN_PRIMARY} disabled:cursor-not-allowed disabled:opacity-50`}
               style={primaryBtnStyle}
             >
               {continuing ? "Saving…" : "Continue"}

@@ -10,7 +10,7 @@ import {
 
 const validInput = {
   companyName: "ABC Staffing Co",
-  industry: "Staffing",
+  industry: "Staffing & Recruiting",
   companySize: "10-30",
   state: "California",
   city: "Los Angeles",

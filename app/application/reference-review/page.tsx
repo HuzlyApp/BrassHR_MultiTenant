@@ -9,6 +9,8 @@ import Image from "next/image"
 import { Pencil, ChevronRight } from "lucide-react"
 import {
   APPLICANT_ACTION_ROW,
+  APPLICANT_BTN_BACK,
+  APPLICANT_BTN_PRIMARY,
   APPLICANT_CONTENT_CLASS,
   APPLICANT_HEADER_ROW,
   APPLICANT_SHELL_CLASS,
@@ -135,9 +137,9 @@ export default function ReferenceReviewPage() {
         <OnboardingStepper />
 
         <div className={APPLICANT_CONTENT_CLASS}>
-          <div className={`${APPLICANT_HEADER_ROW} mb-4`}>
+          <div className={`${APPLICANT_HEADER_ROW} mb-4 max-[399px]:flex-col max-[399px]:items-stretch`}>
             <div className="min-w-0 flex-1">
-              <h2 className={`${APPLICANT_TITLE_CLASS} sm:text-[26px] sm:leading-9`}>References</h2>
+              <h2 className={APPLICANT_TITLE_CLASS}>References</h2>
               <p className="mt-2 max-w-2xl text-xs leading-5 text-slate-500 sm:text-[13px]">
                 Review the references you added. You need at least {MIN_COMPLETE_REFERENCES} complete references before
                 the summary. Use the edit button to update any contact details.
@@ -146,14 +148,14 @@ export default function ReferenceReviewPage() {
             <button
               type="button"
               onClick={handleSkip}
-              className="shrink-0 cursor-pointer text-[12px] font-medium leading-5 text-[color:var(--brand-primary)]"
+              className="shrink-0 cursor-pointer self-end text-[12px] font-medium leading-5 text-[color:var(--brand-primary)] max-[399px]:mt-1"
             >
               Skip for Now →
             </button>
           </div>
 
           {!hasAnyReference ? (
-            <div className="flex flex-1 flex-col items-center justify-center rounded-3xl border border-dashed border-slate-200 bg-slate-50 p-10 text-center">
+            <div className="flex flex-1 flex-col items-center justify-center rounded-3xl border border-dashed border-slate-200 bg-slate-50 p-6 text-center sm:p-10">
               <p className="text-[15px] font-semibold text-slate-800 mb-2">No references added yet</p>
               <p className="text-sm text-slate-500 mb-6">
                 Add at least {MIN_COMPLETE_REFERENCES} references with full contact details so we can verify your
@@ -173,8 +175,8 @@ export default function ReferenceReviewPage() {
               {slots.map((reference, index) => {
                 const isFilled = Boolean(reference.first || reference.last || reference.phone || reference.email)
                 return (
-                  <div key={index} className="rounded-2xl border border-[color:var(--brand-primary)] bg-white p-4 shadow-sm sm:p-6">
-                    <div className="flex items-start justify-between gap-4">
+                  <div key={index} className="rounded-2xl border border-[color:var(--brand-primary)] bg-white p-4 shadow-sm max-[399px]:p-3 sm:p-6">
+                    <div className="flex items-start justify-between gap-3 sm:gap-4">
                       <div>
                         <div className="flex items-center gap-2">
                           <p className="text-[15px] font-semibold text-slate-900">Reference {index + 1}</p>
@@ -195,9 +197,9 @@ export default function ReferenceReviewPage() {
                       <button
                         type="button"
                         onClick={handleEdit}
-                        className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[12px] font-medium text-slate-600 hover:border-slate-300 hover:bg-slate-100"
+                        className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-[11px] font-medium text-slate-600 hover:border-slate-300 hover:bg-slate-100 sm:gap-2 sm:px-3 sm:py-2 sm:text-[12px]"
                       >
-                        <Pencil className="h-4 w-4" />
+                        <Pencil className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                         Edit
                       </button>
                     </div>
@@ -242,7 +244,7 @@ export default function ReferenceReviewPage() {
             <button
               type="button"
               onClick={() => (nav.prevRoute ? nav.goPrev() : router.back())}
-              className="w-full rounded-xl border border-[color:var(--brand-primary)] bg-white px-4 py-2.5 text-[12px] font-medium text-[color:var(--brand-primary)] transition hover:bg-[color:var(--brand-primary)]/5 sm:w-auto sm:px-6 sm:py-2"
+              className={APPLICANT_BTN_BACK}
             >
               Back
             </button>
@@ -250,7 +252,7 @@ export default function ReferenceReviewPage() {
               type="button"
               onClick={handleContinue}
               disabled={!hasMinimumReferences}
-              className="w-full rounded-xl bg-[color:var(--brand-primary)] px-4 py-2.5 text-[12px] font-medium text-white transition hover:brightness-90 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto sm:px-6 sm:py-2"
+              className={`${APPLICANT_BTN_PRIMARY} disabled:cursor-not-allowed disabled:opacity-50`}
             >
               Continue
             </button>
