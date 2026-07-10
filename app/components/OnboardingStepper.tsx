@@ -49,7 +49,7 @@ function StepIcon({ state }: { state: StepIndicatorState }) {
 
 function stepCircleClass(state: StepIndicatorState): string {
   const base =
-    "z-10 flex h-[26px] w-[26px] items-center justify-center rounded-full text-sm font-semibold transition-colors outline outline-[4px] outline-white"
+    "relative z-10 flex h-[26px] w-[26px] items-center justify-center rounded-full text-sm font-semibold transition-colors"
 
   switch (state) {
     case "completed":
@@ -70,8 +70,8 @@ function stepCircleClass(state: StepIndicatorState): string {
 function ConnectorSegment({ filled }: { filled: boolean }) {
   return (
     <div
-      className="pointer-events-none absolute top-3 z-0 h-[2px] w-full"
-      style={{ left: "50%" }}
+      className="pointer-events-none absolute top-[calc(0.25rem+12px)] z-0 h-[2px] w-[calc(100%+26px)]"
+      style={{ left: "calc(50% - 13px)" }}
       aria-hidden
     >
       <div className="absolute inset-0 bg-[#f1f5f9]" />
