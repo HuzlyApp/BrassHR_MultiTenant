@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useState, type FormEvent } from "react";
+import { Suspense, useState, type FormEvent } from "react";
 import { interStyle } from "@/app/login/BraasLoginShell";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 
@@ -26,7 +26,7 @@ function safeReturnPath(value: string | null): string {
   return value;
 }
 
-export default function ForgotPasswordPage() {
+function ForgotPasswordContent() {
   const searchParams = useSearchParams();
   const signInHref = safeReturnPath(searchParams.get("return"));
   const [email, setEmail] = useState("");
@@ -149,5 +149,13 @@ export default function ForgotPasswordPage() {
         )}
       </div>
     </main>
+  );
+}
+
+export default function ForgotPasswordPage() {
+  return (
+    <Suspense fallback={<main className="min-h-screen bg-[#f3f4f6]" aria-hidden="true" />}>
+      <ForgotPasswordContent />
+    </Suspense>
   );
 }

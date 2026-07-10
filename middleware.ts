@@ -174,9 +174,15 @@ export async function middleware(request: NextRequest) {
     clearTenantSlugCookieOnRootHost(request, response);
   }
 
-  /** `/admin?tenant=…` → login page (URL stays `/admin`, adds recruiter role). */
-  if (pathname === "/admin" || pathname === "/admin/") {
+  /** `/admin` → login page (URL stays `/admin`, adds recruiter role). */
+  if (pathname === "/admin" || pathname === "/admin/" || pathname.startsWith("/admin/")) {
     const rewriteUrl = request.nextUrl.clone();
+    if (pathname !== "/admin" && pathname !== "/admin/") {
+      const nextPath = `${pathname}${request.nextUrl.search}`;
+      if (!rewriteUrl.searchParams.get("next")) {
+        rewriteUrl.searchParams.set("next", nextPath);
+      }
+    }
     rewriteUrl.pathname = "/login";
     if (!rewriteUrl.searchParams.get("role")) {
       rewriteUrl.searchParams.set("role", "admin_recruiter");

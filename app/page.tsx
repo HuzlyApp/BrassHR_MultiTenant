@@ -9,7 +9,9 @@ import {
   applicantLandingCtaLabel,
   brandingToCssVars,
   brandingFallbackForSlug,
+  isRemoteOrBlobImageSrc,
   isTenantApplicantPortalSlug,
+  normalizeBrandingImageSrc,
   PLATFORM_DEFAULT_TENANT_SLUG,
   type TenantBranding,
 } from "@/lib/tenant/tenant-branding";
@@ -24,6 +26,72 @@ import {
   resolveTenantSlugForClient,
 } from "@/lib/tenant/resolve-tenant-context";
 import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
+
+function BrandingFillImage({
+  src,
+  alt = "",
+  className,
+  sizes,
+  priority = false,
+}: {
+  src: string;
+  alt?: string;
+  className?: string;
+  sizes?: string;
+  priority?: boolean;
+}) {
+  if (isRemoteOrBlobImageSrc(src)) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img src={src} alt={alt} className={`absolute inset-0 h-full w-full ${className ?? ""}`.trim()} />
+    );
+  }
+
+  return (
+    <Image
+      src={src}
+      alt={alt}
+      fill
+      sizes={sizes}
+      className={className}
+      priority={priority}
+    />
+  );
+}
+
+function BrandingLogoImage({
+  src,
+  alt,
+  width,
+  height,
+  className,
+  priority = false,
+}: {
+  src: string;
+  alt: string;
+  width: number;
+  height: number;
+  className?: string;
+  priority?: boolean;
+}) {
+  if (isRemoteOrBlobImageSrc(src)) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img src={src} alt={alt} width={width} height={height} className={className} />
+    );
+  }
+
+  return (
+    <Image
+      src={src}
+      alt={alt}
+      width={width}
+      height={height}
+      className={className}
+      priority={priority}
+    />
+  );
+}
 
 export default function Home() {
   const router = useRouter();
@@ -149,6 +217,12 @@ export default function Home() {
   });
 
   const primaryCtaLabel = applicantLandingCtaLabel(resolvedPortalSlug);
+  const backgroundSrc = normalizeBrandingImageSrc(brand.loginBackgroundSrc, "/images/handshake.jpg");
+  const logoSrc = normalizeBrandingImageSrc(
+    brand.loginLogoUrl || brand.logoUrl,
+    "/images/new-logo-nexus.svg",
+    { allowBlob: true }
+  );
 
   return (
     <TenantBrandingProvider branding={brand}>
@@ -157,10 +231,8 @@ export default function Home() {
         className="relative flex h-[100dvh] w-full items-center justify-center overflow-hidden p-3 sm:p-4 lg:p-6"
       >
         <div className="absolute inset-0 min-[1024px]:hidden" aria-hidden>
-          <Image
-            src={brand.loginBackgroundSrc}
-            alt=""
-            fill
+          <BrandingFillImage
+            src={backgroundSrc}
             sizes="(max-width: 1023px) 100vw, 0px"
             className="object-cover"
             priority
@@ -178,10 +250,8 @@ export default function Home() {
           <div className="relative z-10 w-[92vw] max-w-[516px] min-h-[420px] rounded-[22px] bg-white/88 px-7 py-10 text-center shadow-[0_20px_46px_rgba(0,0,0,0.22)] backdrop-blur-[1px] sm:px-8 sm:py-10">
             <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-[22px]" aria-hidden>
               <div className="absolute inset-0 bg-white/32" />
-              <Image
-                src={brand.loginBackgroundSrc}
-                alt=""
-                fill
+              <BrandingFillImage
+                src={backgroundSrc}
                 sizes="(max-width: 1023px) 90vw, 0px"
                 className="object-cover object-right opacity-28 grayscale"
                 priority
@@ -189,8 +259,8 @@ export default function Home() {
               <div className="absolute inset-0 bg-gradient-to-r from-white/72 via-white/58 to-black/10" />
             </div>
             <div className="relative z-10 flex w-full flex-col items-center justify-start gap-5 pt-6">
-            <Image
-              src={brand.loginLogoUrl || brand.logoUrl}
+            <BrandingLogoImage
+              src={logoSrc}
               alt={`${brand.companyName} logo`}
               width={204}
               height={60}
@@ -340,18 +410,16 @@ export default function Home() {
           </div>
 
           <div className="relative flex w-[480px] items-center justify-center overflow-hidden border-l border-slate-200">
-            <Image
-              src={brand.loginBackgroundSrc}
-              alt=""
-              fill
+            <BrandingFillImage
+              src={backgroundSrc}
               sizes="480px"
               className="object-cover object-center grayscale"
               priority
             />
             <div className="absolute inset-0 bg-white/45" />
             <div className="relative z-10 flex w-full max-w-[340px] flex-col items-center justify-center px-6 text-center">
-              <Image
-                src={brand.loginLogoUrl || brand.logoUrl}
+              <BrandingLogoImage
+                src={logoSrc}
                 alt={`${brand.companyName} logo`}
                 width={270}
                 height={80}
