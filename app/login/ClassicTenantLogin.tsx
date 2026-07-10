@@ -63,13 +63,15 @@ export default function ClassicTenantLogin({
 
   return (
     <OnboardingLayout
-      cardClassName="h-auto w-full max-w-[560px] md:block md:h-auto md:min-h-0 md:min-w-0 md:max-w-[560px] lg:grid lg:h-full lg:w-[950px] lg:min-w-[950px] lg:max-w-[950px] lg:min-h-[622px] lg:grid-cols-[560px_390px]"
-      rightPanelClassName="md:hidden lg:block"
+      cardClassName="overflow-visible h-auto w-full max-w-[560px] md:block md:h-auto md:min-h-0 md:min-w-0 md:max-w-[560px] lg:grid lg:h-full lg:w-[950px] lg:min-w-[950px] lg:max-w-[950px] lg:min-h-[622px] lg:grid-cols-[560px_390px]"
+      rightPanelClassName="md:hidden lg:block overflow-visible"
       rightPanelImageSrc={brand.loginBackgroundSrc}
       rightPanelImageAlt=""
       rightPanelImageClassName="object-cover opacity-60 grayscale"
       rightPanelOverlayClassName="bg-white/65"
-      rightPanelContentClassName="p-6"
+      rightPanelContentClassName="overflow-visible p-6"
+      rightPanelInnerClassName="max-w-[340px]"
+      logoClassName="origin-center scale-[1.35]"
       taglineClassName="text-[15px] leading-6 text-slate-700"
     >
       <div className="flex flex-col overflow-y-auto p-6 pb-8 md:p-10 md:pb-10 lg:min-h-full lg:p-12 lg:pb-12">

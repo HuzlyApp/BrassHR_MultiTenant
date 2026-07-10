@@ -26,6 +26,7 @@ import {
   resolveTenantSlugForClient,
 } from "@/lib/tenant/resolve-tenant-context";
 import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
+import BrandingRightPanelLogo from "@/app/components/BrandingRightPanelLogo";
 
 function BrandingFillImage({
   src,
@@ -53,40 +54,6 @@ function BrandingFillImage({
       alt={alt}
       fill
       sizes={sizes}
-      className={className}
-      priority={priority}
-    />
-  );
-}
-
-function BrandingLogoImage({
-  src,
-  alt,
-  width,
-  height,
-  className,
-  priority = false,
-}: {
-  src: string;
-  alt: string;
-  width: number;
-  height: number;
-  className?: string;
-  priority?: boolean;
-}) {
-  if (isRemoteOrBlobImageSrc(src)) {
-    return (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img src={src} alt={alt} width={width} height={height} className={className} />
-    );
-  }
-
-  return (
-    <Image
-      src={src}
-      alt={alt}
-      width={width}
-      height={height}
       className={className}
       priority={priority}
     />
@@ -259,13 +226,12 @@ export default function Home() {
               <div className="absolute inset-0 bg-gradient-to-r from-white/72 via-white/58 to-black/10" />
             </div>
             <div className="relative z-10 flex w-full flex-col items-center justify-start gap-5 pt-6">
-            <BrandingLogoImage
+            <BrandingRightPanelLogo
               src={logoSrc}
               alt={`${brand.companyName} logo`}
-              width={204}
-              height={60}
-              className="h-12 w-auto object-contain"
-              priority
+              size="mobile"
+              widthClassName="w-full max-w-[220px]"
+              className="origin-center scale-[1.15]"
             />
             <div className="space-y-3">
               <h1 className="text-[38px] font-semibold leading-[44px] tracking-normal text-slate-800 max-[500px]:text-[34px] max-[500px]:leading-[40px] max-[450px]:text-[32px] max-[450px]:leading-[37px] sm:text-[48px] sm:leading-[56px]">
@@ -417,16 +383,9 @@ export default function Home() {
               priority
             />
             <div className="absolute inset-0 bg-white/45" />
-            <div className="relative z-10 flex w-full max-w-[340px] flex-col items-center justify-center px-6 text-center">
-              <BrandingLogoImage
-                src={logoSrc}
-                alt={`${brand.companyName} logo`}
-                width={270}
-                height={80}
-                className="h-16 w-auto object-contain"
-                priority
-              />
-              <div className="mt-4 flex w-full items-center justify-center gap-3">
+            <div className="relative z-10 flex w-full max-w-[340px] flex-col items-center justify-center gap-6 px-6 text-center">
+              <BrandingRightPanelLogo src={logoSrc} alt={`${brand.companyName} logo`} />
+              <div className="flex w-full items-center justify-center gap-3">
                 <span className="h-px flex-1 bg-slate-400/40" />
                 <span className="inline-flex h-7 w-7 items-center justify-center">
                   <BrandedSvgIcon
@@ -437,7 +396,7 @@ export default function Home() {
                 </span>
                 <span className="h-px flex-1 bg-slate-400/40" />
               </div>
-              <p className="mt-4 text-[16px] font-normal leading-6 tracking-normal text-slate-700">
+              <p className="text-[16px] font-normal leading-6 tracking-normal text-slate-700">
                 {brand.subtitle}
               </p>
             </div>

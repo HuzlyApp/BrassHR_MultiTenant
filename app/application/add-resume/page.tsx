@@ -22,6 +22,7 @@ import {
   RESUME_PARSE_FAILED_USER_MESSAGE,
 } from "@/lib/resumeParseQuality"
 import BrandedSvgIcon from "@/app/components/BrandedSvgIcon"
+import BrandingRightPanelLogo from "@/app/components/BrandingRightPanelLogo"
 import BrandedUploadIcon from "@/app/components/BrandedUploadIcon"
 import { setScopedApplicantId } from "@/lib/tenant/scoped-storage"
 import { useOnboardingConfigOptional } from "@/app/components/onboarding/OnboardingConfigProvider"
@@ -87,7 +88,6 @@ export default function Step1Upload() {
     allowBlob: true,
   })
   const panelUseNativeImg = isRemoteOrBlobImageSrc(panelSrc)
-  const logoUseNativeImg = isRemoteOrBlobImageSrc(logoSrc)
   const brandBorderStyle = { borderColor: branding.primaryHex } as CSSProperties
   const brandMutedBgStyle = { backgroundColor: hexToRgba(branding.primaryHex, 0.08) } as CSSProperties
   const brandSoftBgStyle = { backgroundColor: hexToRgba(branding.primaryHex, 0.14) } as CSSProperties
@@ -634,24 +634,11 @@ export default function Step1Upload() {
           <div className="absolute inset-0 bg-white/65" />
           <div className="absolute inset-0 flex items-center justify-center p-8 text-center">
             <div className="flex w-full max-w-[270px] flex-col items-center gap-6">
-              <div className="relative flex h-[60px] min-h-[60px] w-[204px] max-w-full items-center justify-center">
-                {logoUseNativeImg ? (
-                  <img
-                    src={logoSrc}
-                    alt={branding.companyName}
-                    className="max-h-[60px] max-w-full object-contain"
-                  />
-                ) : (
-                  <Image
-                    src={logoSrc}
-                    alt={branding.companyName}
-                    width={204}
-                    height={60}
-                    className="max-h-[60px] max-w-full object-contain"
-                    priority
-                  />
-                )}
-              </div>
+              <BrandingRightPanelLogo
+                src={logoSrc}
+                alt={branding.companyName}
+                widthClassName="w-full max-w-full"
+              />
               <div className="flex w-full items-center justify-center gap-4">
                 <div className="h-px flex-1 bg-slate-400/55" />
                 <BrandedSvgIcon

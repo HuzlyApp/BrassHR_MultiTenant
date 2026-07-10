@@ -9,6 +9,7 @@ import { supabaseBrowser as supabase } from "@/lib/supabase-browser"
 import Image from "next/image"
 import { AlertTriangle, ChevronDown, Pencil, Search, X, XCircle } from "lucide-react"
 import BrandedSvgIcon from "@/app/components/BrandedSvgIcon"
+import BrandingRightPanelLogo from "@/app/components/BrandingRightPanelLogo"
 import OnboardingStepper from "@/app/components/OnboardingStepper"
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext"
 import {
@@ -1314,28 +1315,15 @@ function Step1ReviewContent() {
             <div className="absolute inset-0 bg-white/65" />
           </div>
 
-          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center px-10">
-            <div className="mb-6">
-              {logoUseNativeImg ? (
-                <img
-                  src={logoSrc}
-                  alt={branding.companyName}
-                  className="h-auto max-h-[60px] w-auto max-w-[204px] object-contain"
-                />
-              ) : (
-                <Image
-                  src={logoSrc}
-                  alt={branding.companyName}
-                  width={204}
-                  height={60}
-                  className="h-auto w-auto"
-                  priority
-                />
-              )}
-            </div>
+          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-6 px-10">
+            <BrandingRightPanelLogo
+              src={logoSrc}
+              alt={branding.companyName}
+              widthClassName="w-full max-w-[204px]"
+            />
 
             <div className="w-full max-w-[280px]">
-              <div className="mb-6 flex w-full items-center justify-center gap-4">
+              <div className="flex w-full items-center justify-center gap-4">
                 <div className="h-px flex-1 bg-slate-300/80" />
                 <BrandedSvgIcon
                   src="/icons/circle-star-icon.svg"

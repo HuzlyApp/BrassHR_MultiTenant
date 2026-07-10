@@ -3,6 +3,9 @@
 import type { CSSProperties } from "react"
 import Image from "next/image"
 import BrandedSvgIcon from "@/app/components/BrandedSvgIcon"
+import BrandingRightPanelLogo, {
+  BRANDING_PANEL_LOGO_WIDTH_CLASS,
+} from "@/app/components/BrandingRightPanelLogo"
 import { cn } from "@/lib/cn"
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext"
 import {
@@ -69,7 +72,7 @@ export default function OnboardingLayout({
           {children}
         </div>
 
-        <div className={cn("relative hidden md:block", rightPanelClassName)}>
+        <div className={cn("relative hidden overflow-visible md:block", rightPanelClassName)}>
           {panelUseNativeImg ? (
             <img
               src={panelSrc}
@@ -98,7 +101,7 @@ export default function OnboardingLayout({
 
           <div
             className={cn(
-              "absolute inset-0 flex items-center justify-center p-8",
+              "absolute inset-0 flex items-center justify-center overflow-visible p-8",
               rightPanelContentClassName
             )}
           >
@@ -108,20 +111,12 @@ export default function OnboardingLayout({
                 rightPanelInnerClassName
               )}
             >
-              <div
-                className={cn(
-                  "relative flex h-[60px] min-h-[60px] w-[204px] max-w-full items-center justify-center ",
-                  logoClassName
-                )}
-              >
-                <img
-                  src={logoSrc}
-                  alt=""
-                  width={204}
-                  height={60}
-                  className="max-h-[60px] max-w-full object-contain"
-                />
-              </div>
+              <BrandingRightPanelLogo
+                src={logoSrc}
+                alt=""
+                widthClassName={BRANDING_PANEL_LOGO_WIDTH_CLASS}
+                className={logoClassName}
+              />
 
               <div className="flex w-full items-center justify-center gap-4">
                 <div className="h-px flex-1 bg-slate-400/55" />

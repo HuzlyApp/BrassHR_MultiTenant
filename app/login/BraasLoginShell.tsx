@@ -2,8 +2,15 @@
 
 import Image from "next/image";
 import type { CSSProperties, ReactNode } from "react";
+import BrandingRightPanelLogo, { BrandingHeaderLogo } from "@/app/components/BrandingRightPanelLogo";
 import { TenantBrandingProvider } from "@/app/components/tenant/TenantBrandingContext";
-import { braasLoginShellLogoUrl, brandingToCssVars, type TenantBranding } from "@/lib/tenant/tenant-branding";
+import {
+  braasLoginShellLogoUrl,
+  brandingToCssVars,
+  isRemoteOrBlobImageSrc,
+  normalizeBrandingImageSrc,
+  type TenantBranding,
+} from "@/lib/tenant/tenant-branding";
 
 export const interStyle = { fontFamily: "Inter, Arial, sans-serif" };
 
@@ -30,23 +37,33 @@ export function LoginArtPanel({
   brand: TenantBranding;
   className?: string;
 }) {
-  const logoSrc = braasLoginShellLogoUrl(brand);
+  const logoSrc = normalizeBrandingImageSrc(
+    braasLoginShellLogoUrl(brand),
+    "/images/new-logo-nexus.svg",
+    { allowBlob: true }
+  );
+  const panelSrc = normalizeBrandingImageSrc(brand.loginBackgroundSrc, "/images/handshake.jpg");
+  const panelUseNativeImg = isRemoteOrBlobImageSrc(panelSrc);
 
   return (
     <aside
-      className={`login-art relative flex w-full flex-col items-center justify-center gap-[24px] self-stretch overflow-hidden rounded-[16px] bg-[#111827] p-[14px] sm:gap-[40px] sm:rounded-[24px] sm:p-[30px] ${className ?? ""}`}
+      className={`login-art relative flex w-full flex-col items-center justify-center self-stretch overflow-visible rounded-[16px] bg-[#111827] p-[14px] sm:rounded-[24px] sm:p-[30px] ${className ?? ""}`}
     >
-      <Image src={brand.loginBackgroundSrc} alt="" fill sizes="510px" priority className="object-cover" />
-      <div className="absolute inset-0 bg-black/50" />
-      <div className="relative z-10 flex flex-col items-center justify-center gap-[20px] text-center sm:gap-[40px]">
-        <div className="relative flex h-[56px] w-[136px] items-center justify-center sm:h-[80px] sm:w-[200px]">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={logoSrc}
-            alt={brand.companyName}
-            className="max-h-[56px] max-w-[136px] object-contain sm:max-h-[80px] sm:max-w-[200px]"
-          />
-        </div>
+      <div className="absolute inset-0 overflow-hidden rounded-[16px] sm:rounded-[24px]">
+        {panelUseNativeImg ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={panelSrc} alt="" className="absolute inset-0 h-full w-full object-cover" />
+        ) : (
+          <Image src={panelSrc} alt="" fill sizes="510px" priority className="object-cover" />
+        )}
+        <div className="absolute inset-0 bg-black/50" />
+      </div>
+      <div className="relative z-10 flex flex-col items-center justify-center gap-6 text-center sm:gap-10">
+        <BrandingRightPanelLogo
+          src={logoSrc}
+          alt={brand.companyName}
+          widthClassName="w-full max-w-[280px] sm:max-w-[340px]"
+        />
         <p
           className="max-w-[260px] text-center text-[16px] font-normal leading-[1.35] text-white sm:max-w-[352px] sm:text-[24px] sm:leading-[1.2]"
           style={{ fontFamily: "var(--font-geist-mono)" }}
@@ -65,13 +82,8 @@ export function LoginBrandHeader({ brand }: { brand: TenantBranding }) {
     <>
       <div className="flex items-start pb-2 pt-1 sm:pb-0 sm:pt-0">
         <div className="flex items-center gap-3 sm:gap-[14px]">
-          <div className="flex h-[44px] w-[44px] shrink-0 items-center justify-center overflow-hidden rounded-[10px] border border-[#e5e7eb] bg-white p-[6px] sm:h-[64px] sm:w-[64px] sm:rounded-[12px] sm:p-[8px]">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={logoSrc}
-              alt={brand.companyName}
-              className="max-h-[32px] max-w-[32px] object-contain sm:max-h-[48px] sm:max-w-[48px]"
-            />
+          <div className="flex h-[51px] w-[51px] shrink-0 items-center justify-center overflow-visible rounded-[10px] border border-[#e5e7eb] bg-white p-[6px] sm:h-[74px] sm:w-[74px] sm:rounded-[12px] sm:p-[8px]">
+            <BrandingHeaderLogo src={logoSrc} alt={brand.companyName} />
           </div>
           <div>
             <p className="text-[15px] font-semibold uppercase leading-[20px] text-black sm:text-[18px] sm:leading-[28px]" style={interStyle}>
