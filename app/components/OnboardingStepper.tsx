@@ -19,6 +19,7 @@ import {
 import { useOnboardingTenant } from "@/lib/tenant/use-onboarding-tenant"
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext"
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding"
+import { formatApplicantStepperLabel } from "@/lib/onboarding/format-applicant-stepper-label"
 import type { OnboardingStepStatus } from "@/lib/onboarding/types"
 
 interface Props {
@@ -114,7 +115,7 @@ export default function OnboardingStepper({
   )
 
   const stepLabels = useMemo(
-    () => (enabledSteps ?? []).map((s) => s.title.replace(/ /g, "\n")),
+    () => (enabledSteps ?? []).map((s) => formatApplicantStepperLabel(s.title)),
     [enabledSteps]
   )
 
@@ -192,13 +193,13 @@ export default function OnboardingStepper({
                       push(stepRoutes[index])
                     }}
                     disabled={!isClickable}
-                    className={`group relative z-10 flex w-full max-w-[84px] flex-col items-center rounded-lg px-1 py-1 text-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)]/40 max-[399px]:max-w-[68px] max-[399px]:px-0.5 sm:max-w-24 sm:px-1.5 ${
+                    className={`group relative z-10 flex w-full max-w-[5.75rem] flex-col items-center rounded-lg px-1 py-1 text-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)]/40 max-[399px]:max-w-[4.5rem] max-[399px]:px-0.5 sm:max-w-28 sm:px-1.5 ${
                       isClickable ? "cursor-pointer" : "cursor-not-allowed"
                     }`}
-                    aria-label={`${isClickable ? "Go to" : "Locked"} ${step.replace("\n", " ")}${
+                    aria-label={`${isClickable ? "Go to" : "Locked"} ${configStep.title}${
                       state === "skipped" ? " (skipped)" : state === "required_missing" ? " (required)" : ""
                     }`}
-                    title={`${isClickable ? "Go to" : "Locked"} ${step.replace("\n", " ")}`}
+                    title={`${isClickable ? "Go to" : "Locked"} ${configStep.title}`}
                   >
                     <div className={stepCircleClass(state)}>
                       <StepIcon state={state} />
