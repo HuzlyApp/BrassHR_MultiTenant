@@ -257,68 +257,75 @@ export function AuthorizationsFirmaAgreementPanel({
   }
 
   return (
-    <div className="mb-8 rounded-3xl border border-[color:var(--brand-primary)] bg-[color:var(--brand-primary)]/5 p-6 shadow-sm">
-      <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-4 min-w-0">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[color:var(--brand-primary)]/15 text-[color:var(--brand-primary)]">
-            <FileText className="h-6 w-6" />
+    <div className="mb-6 rounded-2xl border border-[color:var(--brand-primary)] bg-[color:var(--brand-primary)]/5 p-4 shadow-sm sm:mb-8 sm:rounded-3xl sm:p-6">
+      <div className="flex items-center justify-between gap-2 sm:gap-3">
+        <div className="flex min-w-0 flex-1 items-center gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[color:var(--brand-primary)]/15 text-[color:var(--brand-primary)] sm:h-12 sm:w-12 sm:rounded-2xl">
+            <FileText className="h-5 w-5 sm:h-6 sm:w-6" />
           </div>
           <div className="min-w-0">
-            <p className="text-sm font-semibold text-slate-900 truncate">Onboarding Agreement</p>
-            <p className="text-xs text-slate-500">Mandatory · Firma e-sign</p>
+            <p className="truncate text-[13px] font-semibold text-slate-900 sm:text-sm">
+              Onboarding Agreement
+            </p>
+            <p className="text-[11px] text-slate-500 sm:text-xs">Mandatory · Firma e-sign</p>
           </div>
         </div>
 
-        {!signed && (
-          <button
-            type="button"
-            onClick={() => void startFirmaSigning()}
-            disabled={loading || !agreed || signerEmailLoading || !emailValid}
-            className={`rounded-xl px-5 py-2 text-[12px] font-semibold text-white transition ${
-              loading || !agreed || signerEmailLoading || !emailValid
-                ? "bg-gray-400 cursor-not-allowed"
-                : "bg-[color:var(--brand-primary)] hover:brightness-90"
-            }`}
-          >
-            {loading ? "Preparing..." : signerEmailLoading ? "Checking email…" : "Click and Sign"}
-          </button>
-        )}
-
-        {signed ? (
-          <span className="rounded-xl bg-[color:var(--brand-primary)] px-5 py-2 text-[12px] font-semibold text-white">
-            Signed
-          </span>
-        ) : null}
+        <div className="shrink-0">
+          {signed ? (
+            <span className="inline-flex items-center whitespace-nowrap rounded-lg bg-[color:var(--brand-primary)] px-3 py-1.5 text-[11px] font-semibold text-white sm:rounded-xl sm:px-5 sm:py-2 sm:text-[12px]">
+              Signed
+            </span>
+          ) : (
+            <button
+              type="button"
+              onClick={() => void startFirmaSigning()}
+              disabled={loading || !agreed || signerEmailLoading || !emailValid}
+              className={`whitespace-nowrap rounded-lg px-3 py-1.5 text-[11px] font-semibold text-white transition sm:rounded-xl sm:px-5 sm:py-2 sm:text-[12px] ${
+                loading || !agreed || signerEmailLoading || !emailValid
+                  ? "cursor-not-allowed bg-gray-400"
+                  : "bg-[color:var(--brand-primary)] hover:brightness-90"
+              }`}
+            >
+              {loading ? "Preparing..." : signerEmailLoading ? "Checking email…" : "Click and Sign"}
+            </button>
+          )}
+        </div>
       </div>
 
-      {signingRequestId ? (
-        <p className="mt-4 text-xs text-slate-500 truncate">Signing request: {signingRequestId}</p>
-      ) : null}
-
-      <p className="mt-2 text-sm text-slate-700">
-        Status: <span className="font-semibold">{mapFirmaStatusLabel(firmaStatus)}</span>
-      </p>
+      <div className="mt-3 flex items-center justify-between gap-2">
+        {signingRequestId ? (
+          <p className="min-w-0 flex-1 truncate text-[10px] text-slate-500 sm:text-xs">
+            Signing request: {signingRequestId}
+          </p>
+        ) : (
+          <span className="min-w-0 flex-1" aria-hidden="true" />
+        )}
+        <p className="shrink-0 whitespace-nowrap text-[11px] text-slate-700 sm:text-sm">
+          Status: <span className="font-semibold">{mapFirmaStatusLabel(firmaStatus)}</span>
+        </p>
+      </div>
 
       {showMissingEmailMessage ? (
-        <p className="mt-2 text-sm text-rose-600">
+        <p className="mt-2 text-xs leading-5 text-rose-600 sm:text-sm">
           Enter a valid email on the first onboarding step before signing the agreement.
         </p>
       ) : null}
 
-      {error ? <p className="mt-3 text-sm text-rose-600">{error}</p> : null}
+      {error ? <p className="mt-3 text-xs leading-5 text-rose-600 sm:text-sm">{error}</p> : null}
 
       {showSigningModal && iframeUrl ? (
-        <div className="fixed inset-0 z-50 flex bg-black/50 p-0">
-          <div className="relative flex h-[100dvh] w-full max-w-none flex-col overflow-hidden bg-slate-50 shadow-2xl sm:mx-auto sm:max-w-6xl sm:rounded-xl">
+        <div className="fixed inset-0 z-[100] flex bg-black/70 p-0 max-[639px]:bg-black">
+          <div className="relative flex h-[100dvh] max-h-[100dvh] w-full max-w-none flex-col overflow-hidden bg-white shadow-2xl max-[639px]:rounded-none sm:mx-auto sm:max-w-6xl sm:rounded-xl">
             <button
               type="button"
               onClick={() => setShowSigningModal(false)}
-              className="absolute right-3 top-3 z-10 inline-flex h-10 w-10 items-center justify-center rounded-full bg-black text-white shadow-md transition hover:opacity-90"
-              aria-label="Close signing modal"
+              className="absolute right-3 top-3 z-20 inline-flex h-11 w-11 items-center justify-center rounded-full bg-black text-white shadow-md transition hover:opacity-90 max-[639px]:right-4 max-[639px]:top-[max(0.75rem,env(safe-area-inset-top))] sm:h-10 sm:w-10"
+              aria-label="Close signing"
             >
               <X className="h-5 w-5" strokeWidth={2.5} aria-hidden />
             </button>
-            <div className="min-h-0 flex-1 overflow-hidden">
+            <div className="min-h-0 flex-1 overflow-hidden pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)]">
               <FirmaSigningIframe iframeUrl={iframeUrl} title="Sign Agreement" variant="modal" />
             </div>
           </div>

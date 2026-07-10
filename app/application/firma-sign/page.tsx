@@ -342,14 +342,16 @@ export default function FirmaSignPage() {
   return (
     <OnboardingLayout>
       <OnboardingStepper />
-      <div className="mx-auto w-full max-w-5xl px-4 py-8">
-        <div className="mb-6">
-          <h1 className="text-2xl font-semibold text-[#101828]">{stepTitle}</h1>
-          <p className="mt-2 text-sm text-[#667085]">
+      <div className="mx-auto w-full max-w-5xl px-4 py-6 sm:py-8">
+        <div className="mb-4 sm:mb-6">
+          <h1 className="text-lg font-semibold text-[#101828] sm:text-2xl">{stepTitle}</h1>
+          <p className="mt-2 text-xs leading-5 text-[#667085] sm:text-sm">
             Review and sign your document below. You can complete signing without leaving onboarding.
           </p>
           {signingRequestId ? (
-            <p className="mt-1 text-xs text-[#98a2b3]">Signing request: {signingRequestId}</p>
+            <p className="mt-1 hidden truncate text-xs text-[#98a2b3] sm:block">
+              Signing request: {signingRequestId}
+            </p>
           ) : null}
           {!loading ? (
             <p className="mt-1 text-xs font-medium text-[#475467]">Status: {firmaStatus}</p>
@@ -370,14 +372,22 @@ export default function FirmaSignPage() {
           </div>
         ) : null}
 
-        <FirmaSigningIframe iframeUrl={iframeUrl} title={stepTitle} />
+        <div className="h-[min(720px,calc(100dvh-12rem))] min-h-[360px] overflow-hidden rounded-lg border border-[#e4e7ec] bg-white max-[639px]:h-[calc(100dvh-11rem)] max-[639px]:min-h-[320px] max-[639px]:rounded-none max-[639px]:border-x-0">
+          <FirmaSigningIframe iframeUrl={iframeUrl} title={stepTitle} variant="modal" />
+        </div>
 
-        <div className="mt-6 flex items-center justify-end gap-3">
+        <div
+          className={`mt-4 sm:mt-6 ${
+            nav.prevRoute
+              ? "grid grid-cols-2 gap-2 sm:flex sm:items-center sm:justify-end sm:gap-3"
+              : "flex justify-stretch sm:justify-end"
+          }`}
+        >
           {nav.prevRoute ? (
             <button
               type="button"
               onClick={() => nav.push(nav.prevRoute!)}
-              className="rounded-lg border border-[#d0d5dd] bg-white px-4 py-2.5 text-sm font-semibold text-[#344054]"
+              className="w-full rounded-lg border border-[#d0d5dd] bg-white px-4 py-2.5 text-[11px] font-semibold text-[#344054] sm:w-auto sm:text-sm"
             >
               Back
             </button>
@@ -387,7 +397,7 @@ export default function FirmaSignPage() {
             data-testid="firma-signing-continue"
             onClick={() => void handleContinue()}
             disabled={continuing || !iframeUrl}
-            className="rounded-lg bg-[color:var(--brand-primary)] px-4 py-2.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+            className="w-full rounded-lg bg-[color:var(--brand-primary)] px-4 py-2.5 text-[11px] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto sm:text-sm"
           >
             {continuing ? "Checking signature..." : "Continue"}
           </button>

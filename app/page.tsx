@@ -234,7 +234,7 @@ export default function Home() {
               className="origin-center scale-[1.15]"
             />
             <div className="space-y-3">
-              <h1 className="text-[38px] font-semibold leading-[44px] tracking-normal text-slate-800 max-[500px]:text-[34px] max-[500px]:leading-[40px] max-[450px]:text-[32px] max-[450px]:leading-[37px] sm:text-[48px] sm:leading-[56px]">
+              <h1 className="text-[38px] font-semibold leading-[44px] tracking-normal text-slate-800 max-[500px]:text-[34px] max-[500px]:leading-[40px] max-[450px]:text-[32px] max-[450px]:leading-[37px] min-[600px]:max-[1023px]:text-[42px] min-[600px]:max-[1023px]:leading-[48px]">
                 {brand.headline}
               </h1>
               <p className="text-[16px] font-normal leading-6 tracking-normal text-slate-500">{brand.subtitle}</p>
@@ -301,7 +301,7 @@ export default function Home() {
         <section className="relative z-10 hidden h-[calc(100dvh-3rem)] max-h-[760px] w-full max-w-[1160px] grid-cols-1 overflow-hidden rounded-2xl bg-white shadow-[0_24px_70px_rgba(0,0,0,0.18)] min-[1024px]:grid min-[1024px]:grid-cols-[680px_480px]">
           <div className="flex flex-col items-center justify-center gap-5 px-10 py-10 text-center">
             <div className="space-y-3">
-              <h1 className="text-[48px] font-semibold leading-[60px] tracking-normal text-slate-800">
+              <h1 className="text-[42px] font-semibold leading-[50px] tracking-normal text-slate-800 min-[1200px]:text-[48px] min-[1200px]:leading-[60px]">
                 {brand.headline}
               </h1>
               <p className="text-[16px] font-normal leading-6 tracking-normal text-slate-500">{brand.subtitle}</p>

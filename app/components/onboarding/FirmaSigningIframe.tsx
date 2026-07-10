@@ -1,27 +1,28 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-
-/**
- * Firma signing UI at 1:1 needs ~1080px. Modal uses a shorter embed height so the
- * same viewport scales the UI up — header + footer chrome appear ~30% larger.
- */
-const MODAL_UI_SIZE_BOOST = 1.3;
-const FIRMA_NATURAL_HEIGHT = 1080;
-const FIRMA_EMBED_HEIGHT = Math.round(FIRMA_NATURAL_HEIGHT / MODAL_UI_SIZE_BOOST);
-
-/** Allow full 1:1 scale when the modal has enough height. */
-const MODAL_MAX_SCALE = 1;
+import {
+  computeFirmaEmbedScale,
+  resolveFirmaEmbedDimensions,
+} from "@/lib/firma/firma-signing-embed-scale";
 
 type FirmaSigningIframeProps = {
   iframeUrl: string | null;
   title?: string;
   testId?: string;
-  /** Modal embed scales down so Decline / Finish controls stay visible. */
+  /** Modal embed scales to fit phone/tablet viewports while keeping Firma controls visible. */
   variant?: "default" | "modal";
 };
 
-/** Height of the embed container that is actually visible (handles browser zoom). */
+type FirmaEmbedLayout = {
+  scale: number;
+  embedWidth: number;
+  embedHeight: number;
+  scaledWidth: number;
+  scaledHeight: number;
+};
+
+/** Height of the embed container that is actually visible (handles browser zoom + mobile browser chrome). */
 function visibleContainerHeight(container: HTMLElement): number {
   const rect = container.getBoundingClientRect();
   const viewport = window.visualViewport;
@@ -38,14 +39,20 @@ function visibleContainerHeight(container: HTMLElement): number {
   return Math.max(0, Math.min(rect.height, visibleBottom - visibleTop));
 }
 
-function computeModalScale(availableHeight: number): number {
-  if (availableHeight <= 0) return MODAL_MAX_SCALE;
+function resolveFirmaEmbedLayout(container: HTMLElement): FirmaEmbedLayout {
+  const availableWidth = container.clientWidth;
+  const availableHeight = visibleContainerHeight(container);
+  const viewportWidth = window.innerWidth;
+  const { width: embedWidth, height: embedHeight } = resolveFirmaEmbedDimensions(viewportWidth);
+  const scale = computeFirmaEmbedScale(availableWidth, availableHeight, embedWidth, embedHeight);
 
-  const paddedHeight = availableHeight - 12;
-  const fitScale = paddedHeight / FIRMA_EMBED_HEIGHT;
-  const nextScale = Math.min(MODAL_MAX_SCALE, fitScale);
-
-  return Math.max(0.55, nextScale);
+  return {
+    scale,
+    embedWidth,
+    embedHeight,
+    scaledWidth: Math.ceil(embedWidth * scale),
+    scaledHeight: Math.ceil(embedHeight * scale),
+  };
 }
 
 export function FirmaSigningIframe({
@@ -55,29 +62,29 @@ export function FirmaSigningIframe({
   variant = "default",
 }: FirmaSigningIframeProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [scale, setScale] = useState(() => (variant === "modal" ? MODAL_MAX_SCALE : 1));
+  const [layout, setLayout] = useState<FirmaEmbedLayout | null>(null);
 
   useEffect(() => {
     if (variant !== "modal" || !containerRef.current) return;
 
-    const updateScale = () => {
+    const updateLayout = () => {
       const container = containerRef.current;
       if (!container) return;
-      setScale(computeModalScale(visibleContainerHeight(container)));
+      setLayout(resolveFirmaEmbedLayout(container));
     };
 
-    updateScale();
-    const observer = new ResizeObserver(updateScale);
+    updateLayout();
+    const observer = new ResizeObserver(updateLayout);
     observer.observe(containerRef.current);
-    window.addEventListener("resize", updateScale);
-    window.visualViewport?.addEventListener("resize", updateScale);
-    window.visualViewport?.addEventListener("scroll", updateScale);
+    window.addEventListener("resize", updateLayout);
+    window.visualViewport?.addEventListener("resize", updateLayout);
+    window.visualViewport?.addEventListener("scroll", updateLayout);
 
     return () => {
       observer.disconnect();
-      window.removeEventListener("resize", updateScale);
-      window.visualViewport?.removeEventListener("resize", updateScale);
-      window.visualViewport?.removeEventListener("scroll", updateScale);
+      window.removeEventListener("resize", updateLayout);
+      window.visualViewport?.removeEventListener("resize", updateLayout);
+      window.visualViewport?.removeEventListener("scroll", updateLayout);
     };
   }, [variant, iframeUrl]);
 
@@ -99,29 +106,48 @@ export function FirmaSigningIframe({
       title={title}
       className={
         variant === "modal"
-          ? `block w-full rounded-lg border border-[#e4e7ec] bg-white`
+          ? "block border-0 bg-white max-[639px]:rounded-none sm:rounded-lg sm:border sm:border-[#e4e7ec]"
           : "min-h-[720px] w-full rounded-lg border border-[#e4e7ec] bg-white"
       }
-      style={variant === "modal" ? { height: `${FIRMA_EMBED_HEIGHT}px` } : undefined}
+      style={
+        variant === "modal" && layout
+          ? { width: `${layout.embedWidth}px`, height: `${layout.embedHeight}px` }
+          : variant === "modal"
+            ? { width: "1080px", height: "1080px" }
+            : undefined
+      }
       allow="camera; microphone; clipboard-write"
     />
   );
 
   if (variant === "modal") {
-    const scaledHeight = Math.ceil(FIRMA_EMBED_HEIGHT * scale);
+    if (!layout) {
+      return <div ref={containerRef} className="h-full min-h-0 w-full bg-white" aria-hidden />;
+    }
 
     return (
-      <div ref={containerRef} className="h-full min-h-0 w-full overflow-hidden">
-        <div className="w-full overflow-hidden" style={{ height: `${scaledHeight}px` }}>
+      <div ref={containerRef} className="h-full min-h-0 w-full overflow-auto overscroll-contain bg-white">
+        <div
+          className="mx-auto flex w-full justify-center"
+          style={{ minHeight: `${layout.scaledHeight}px` }}
+        >
           <div
-            className="origin-top-left"
+            className="relative shrink-0 overflow-hidden"
             style={{
-              transform: `scale(${scale})`,
-              width: `${100 / scale}%`,
-              height: `${FIRMA_EMBED_HEIGHT}px`,
+              width: `${layout.scaledWidth}px`,
+              height: `${layout.scaledHeight}px`,
             }}
           >
-            {iframe}
+            <div
+              className="origin-top-left"
+              style={{
+                transform: `scale(${layout.scale})`,
+                width: `${layout.embedWidth}px`,
+                height: `${layout.embedHeight}px`,
+              }}
+            >
+              {iframe}
+            </div>
           </div>
         </div>
       </div>
