@@ -5,6 +5,13 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { CheckCircle2, Circle, CircleAlert, Pencil } from "lucide-react"
+import {
+  APPLICANT_ACTION_ROW,
+  APPLICANT_CONTENT_CLASS,
+  APPLICANT_HEADER_ROW,
+  APPLICANT_SHELL_CLASS,
+  APPLICANT_TITLE_CLASS,
+} from "@/app/application/applicant-onboarding-responsive"
 import OnboardingLayout from "@/app/components/OnboardingLayout"
 import OnboardingStepper from "@/app/components/OnboardingStepper"
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext"
@@ -355,13 +362,13 @@ export default function SummaryPage() {
       rightPanelImageClassName="opacity-60 object-top"
       rightPanelOverlayClassName="bg-white/65"
     >
-      <div className="flex h-full flex-col px-10 pb-10 pt-8" style={brandingToCssVars(branding)}>
+      <div className={APPLICANT_SHELL_CLASS} style={brandingToCssVars(branding)}>
         <OnboardingStepper />
 
-        <div className="flex flex-1 flex-col pt-8">
-          <div className="mb-6 flex items-center justify-between">
-            <h2 className="text-[24px] font-semibold leading-8 text-slate-800">Summary</h2>
-            <span className="text-[12px] font-medium text-slate-500">
+        <div className={APPLICANT_CONTENT_CLASS}>
+          <div className={`${APPLICANT_HEADER_ROW} mb-4 sm:mb-6`}>
+            <h2 className={APPLICANT_TITLE_CLASS}>Summary</h2>
+            <span className="shrink-0 text-[11px] font-medium text-slate-500 sm:text-[12px]">
               {completedSections} of {totalSections} sections complete
             </span>
           </div>
@@ -410,7 +417,7 @@ export default function SummaryPage() {
             </div>
           ) : null}
 
-          <div className="mt-auto grid grid-cols-2 gap-3 pt-8 sm:flex sm:items-center sm:justify-end">
+          <div className={APPLICANT_ACTION_ROW}>
             <button
               type="button"
               onClick={() => (nav.prevRoute ? router.push(nav.prevRoute) : router.back())}

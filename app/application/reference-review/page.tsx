@@ -7,6 +7,13 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
 import { Pencil, ChevronRight } from "lucide-react"
+import {
+  APPLICANT_ACTION_ROW,
+  APPLICANT_CONTENT_CLASS,
+  APPLICANT_HEADER_ROW,
+  APPLICANT_SHELL_CLASS,
+  APPLICANT_TITLE_CLASS,
+} from "@/app/application/applicant-onboarding-responsive"
 import OnboardingLayout from "@/app/components/OnboardingLayout"
 import OnboardingStepper from "@/app/components/OnboardingStepper"
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext"
@@ -124,16 +131,14 @@ export default function ReferenceReviewPage() {
       rightPanelImageClassName="opacity-60 object-top"
       rightPanelOverlayClassName="bg-white/65"
     >
-      <div className="flex h-full flex-col px-10 pb-10 pt-8" style={brandingToCssVars(branding)}>
+      <div className={APPLICANT_SHELL_CLASS} style={brandingToCssVars(branding)}>
         <OnboardingStepper />
 
-        <div className="flex flex-1 flex-col pt-8">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <div className="flex items-start justify-between mb-1">
-                <h2 className="text-[26px] font-semibold leading-9 text-slate-800">References</h2>
-              </div>
-              <p className="mt-2 max-w-2xl text-[13px] text-slate-500">
+        <div className={APPLICANT_CONTENT_CLASS}>
+          <div className={`${APPLICANT_HEADER_ROW} mb-4`}>
+            <div className="min-w-0 flex-1">
+              <h2 className={`${APPLICANT_TITLE_CLASS} sm:text-[26px] sm:leading-9`}>References</h2>
+              <p className="mt-2 max-w-2xl text-xs leading-5 text-slate-500 sm:text-[13px]">
                 Review the references you added. You need at least {MIN_COMPLETE_REFERENCES} complete references before
                 the summary. Use the edit button to update any contact details.
               </p>
@@ -141,7 +146,7 @@ export default function ReferenceReviewPage() {
             <button
               type="button"
               onClick={handleSkip}
-              className="shrink-0 text-[12px] font-medium leading-5 text-[color:var(--brand-primary)]"
+              className="shrink-0 cursor-pointer text-[12px] font-medium leading-5 text-[color:var(--brand-primary)]"
             >
               Skip for Now →
             </button>
@@ -168,7 +173,7 @@ export default function ReferenceReviewPage() {
               {slots.map((reference, index) => {
                 const isFilled = Boolean(reference.first || reference.last || reference.phone || reference.email)
                 return (
-                  <div key={index} className="rounded-2xl border border-[color:var(--brand-primary)] bg-white p-6 shadow-sm">
+                  <div key={index} className="rounded-2xl border border-[color:var(--brand-primary)] bg-white p-4 shadow-sm sm:p-6">
                     <div className="flex items-start justify-between gap-4">
                       <div>
                         <div className="flex items-center gap-2">
@@ -233,7 +238,7 @@ export default function ReferenceReviewPage() {
             </p>
           ) : null}
 
-          <div className="mt-auto grid grid-cols-2 gap-3 pt-8 sm:flex sm:flex-wrap sm:items-center sm:justify-end">
+          <div className={APPLICANT_ACTION_ROW}>
             <button
               type="button"
               onClick={() => (nav.prevRoute ? nav.goPrev() : router.back())}

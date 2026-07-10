@@ -4,6 +4,11 @@ import type { CSSProperties } from "react"
 import { applicationPath } from "@/lib/tenant/with-tenant"
 import { useEffect, useState } from "react"
 import Link from "next/link"
+import {
+  APPLICANT_ACTION_ROW,
+  APPLICANT_SHELL_TALL_CLASS,
+  APPLICANT_TITLE_CLASS,
+} from "@/app/application/applicant-onboarding-responsive"
 import BrandedSvgIcon from "@/app/components/BrandedSvgIcon"
 import OnboardingLayout from "@/app/components/OnboardingLayout"
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext"
@@ -149,13 +154,13 @@ export default function EmployeeAgreementPage() {
       logoClassName="h-[72px] w-[240px]"
       taglineClassName="max-w-[310px] text-[15px] leading-8 text-slate-900"
     >
-      <div className="flex h-full flex-col px-10 pb-10 pt-14" style={contentStyle}>
+      <div className={APPLICANT_SHELL_TALL_CLASS} style={contentStyle}>
         <div className="flex flex-1 flex-col">
           <div className="max-w-[650px]">
-            <h1 className="text-[24px] font-semibold leading-8 text-slate-900">
+            <h1 className={`${APPLICANT_TITLE_CLASS} text-slate-900`}>
               Employee Agreement W2 &amp; I9
             </h1>
-            <p className="mt-5 text-[14px] font-normal leading-5 text-slate-700">
+            <p className="mt-3 text-xs font-normal leading-5 text-slate-700 sm:mt-5 sm:text-[14px]">
               Confirms that the employee has reviewed and signed the employment agreement and
               completed the Form I-9, verifying identity and work authorization requirements as part
               of the onboarding process.
@@ -230,7 +235,7 @@ export default function EmployeeAgreementPage() {
             </div>
           </div>
 
-          <div className="mt-auto grid grid-cols-2 gap-3 pt-8 sm:flex sm:items-center sm:justify-end sm:gap-4 sm:pt-10">
+          <div className={APPLICANT_ACTION_ROW}>
             <Link
               href={applicationPath("/application/application-status")}
               className="inline-flex h-12 w-full cursor-pointer items-center justify-center rounded-xl border border-[color:var(--brand-primary)] bg-white px-4 text-[16px] font-semibold leading-6 text-[color:var(--brand-primary)] transition hover:bg-[color:var(--brand-primary)]/5 sm:w-auto sm:px-6"

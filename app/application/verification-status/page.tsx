@@ -7,6 +7,10 @@ import Image from "next/image"
 import Link from "next/link"
 import { ChevronRight } from "lucide-react"
 import { useSearchParams } from "next/navigation"
+import {
+  APPLICANT_SHELL_TALL_CLASS,
+  APPLICANT_TITLE_CLASS,
+} from "@/app/application/applicant-onboarding-responsive"
 import OnboardingLayout from "@/app/components/OnboardingLayout"
 import ApplicantRecruiterNotes from "@/app/application/components/ApplicantRecruiterNotes"
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext"
@@ -30,15 +34,13 @@ function VerificationStatusContent() {
       logoClassName="h-[72px] w-[240px]"
       taglineClassName="max-w-[300px] text-[15px] leading-8 text-slate-900"
     >
-      <div className="flex h-full flex-col px-10 pb-10 pt-14" style={contentStyle}>
-        <div className="flex flex-1 flex-col gap-9">
-          <h1 className="text-[24px] font-semibold leading-8 text-slate-800">
-            Verification Status
-          </h1>
+      <div className={APPLICANT_SHELL_TALL_CLASS} style={contentStyle}>
+        <div className="flex flex-1 flex-col gap-6 sm:gap-9">
+          <h1 className={APPLICANT_TITLE_CLASS}>Verification Status</h1>
 
           <section className="overflow-hidden rounded-xl border border-slate-200 bg-white">
-            <div className="flex items-center justify-between border-b border-slate-200 px-4 py-2.5">
-              <div className="flex items-center gap-2.5">
+            <div className="flex flex-col gap-2 border-b border-slate-200 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between sm:px-4">
+              <div className="flex min-w-0 items-center gap-2.5">
                 <Image
                   src={isRejected ? "/icons/denied.svg" : "/icons/pending-verification.svg"}
                   alt={isRejected ? "Application denied" : "Pending verification"}
@@ -46,7 +48,7 @@ function VerificationStatusContent() {
                   height={24}
                   className="h-6 w-6"
                 />
-                <span className="text-xl font-semibold leading-10 text-black">
+                <span className="text-base font-semibold leading-7 text-black sm:text-xl sm:leading-10">
                   {isRejected ? "Application Denied" : "Pending Verification"}
                 </span>
               </div>
@@ -58,7 +60,7 @@ function VerificationStatusContent() {
               </span>
             </div>
 
-            <div className="space-y-6 p-5 text-[16px] font-normal leading-8 text-slate-700">
+            <div className="space-y-4 p-4 text-sm font-normal leading-6 text-slate-700 sm:space-y-6 sm:p-5 sm:text-[16px] sm:leading-8">
               <ApplicantRecruiterNotes
                 title={isRejected ? "Message from recruiter" : "What you need to do"}
                 emptyMessage={
@@ -75,7 +77,7 @@ function VerificationStatusContent() {
                   Please contact support for assistance.
                 </p>
 
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                   <div className="flex items-center gap-2">
                     <Image
                       src="/icons/phone.svg"

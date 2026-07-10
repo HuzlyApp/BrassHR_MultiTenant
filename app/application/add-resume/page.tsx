@@ -90,7 +90,6 @@ export default function Step1Upload() {
   const panelUseNativeImg = isRemoteOrBlobImageSrc(panelSrc)
   const brandBorderStyle = { borderColor: branding.primaryHex } as CSSProperties
   const brandMutedBgStyle = { backgroundColor: hexToRgba(branding.primaryHex, 0.08) } as CSSProperties
-  const brandSoftBgStyle = { backgroundColor: hexToRgba(branding.primaryHex, 0.14) } as CSSProperties
   const primaryBtnStyle = { backgroundColor: branding.primaryHex } as CSSProperties
   const brandTextStyle = { color: branding.primaryHex } as CSSProperties
   const secondaryTextStyle = { color: branding.secondaryHex } as CSSProperties
@@ -455,19 +454,19 @@ export default function Step1Upload() {
 
   return (
     <div
-      className="relative flex min-h-screen items-center justify-center p-4 md:p-8"
+      className="relative flex min-h-screen items-center justify-center p-3 sm:p-4 md:p-8"
       style={shellStyle}
     >
 
       <div
-        className={`bg-white w-full max-w-5xl rounded-2xl shadow-2xl flex overflow-hidden min-h-[540px] transition-opacity ${uploading ? "opacity-50" : "opacity-100"}`}
+        className={`flex min-h-0 w-full max-w-5xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl transition-opacity md:min-h-[540px] md:flex-row ${uploading ? "opacity-50" : "opacity-100"}`}
       >
 
-        <div className="w-full md:w-2/3 p-8 md:p-10">
+        <div className="w-full px-4 pb-6 pt-6 sm:px-6 sm:pb-8 sm:pt-8 md:w-2/3 md:p-10">
 
           <OnboardingStepper />
 
-          <h2 className="text-2xl font-semibold text-gray-800 mt-6 mb-6">
+          <h2 className="mb-4 mt-4 text-lg font-semibold text-gray-800 sm:mb-6 sm:mt-6 sm:text-2xl">
             Upload your resume
           </h2>
 
@@ -478,7 +477,9 @@ export default function Step1Upload() {
             role="button"
             tabIndex={0}
             onClick={browse}
-            className="cursor-pointer rounded-xl border-2 border-dashed p-10 text-center transition"
+            className={`cursor-pointer rounded-xl border-2 border-dashed text-center transition ${
+              file || savedResumeName ? "p-3 sm:p-4" : "p-4 sm:p-6 md:p-10"
+            }`}
             style={
               dragActive
                 ? { ...brandBorderStyle, ...brandMutedBgStyle }
@@ -488,28 +489,33 @@ export default function Step1Upload() {
 
             {file || savedResumeName ? (
               <div
-                className="mx-auto flex max-w-[540px] items-center justify-between gap-3 rounded-lg border px-4 py-3"
+                className="flex w-full items-center justify-between gap-2 rounded-lg border px-3 py-2.5 sm:gap-3 sm:px-4 sm:py-3"
                 style={{
                   borderColor: hexToRgba(branding.primaryHex, 0.35),
                   backgroundColor: hexToRgba(branding.primaryHex, 0.1),
                 }}
+                onClick={(e) => e.stopPropagation()}
+                onKeyDown={(e) => e.stopPropagation()}
               >
-                <div className="flex min-w-0 items-center gap-3">
+                <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
                   <div
-                    className="flex h-12 w-12 items-center justify-center rounded-md"
-                    style={brandSoftBgStyle}
+                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border sm:h-12 sm:w-12"
+                    style={{
+                      backgroundColor: hexToRgba(branding.primaryHex, 0.18),
+                      borderColor: hexToRgba(branding.primaryHex, 0.28),
+                    }}
                   >
                     <BrandedSvgIcon
                       src="/icons/pdf-icon.svg"
-                      className="h-6 w-6"
+                      className="h-5 w-5 shrink-0 sm:h-6 sm:w-6"
                       color={branding.primaryHex}
                     />
                   </div>
                   <div className="min-w-0 text-left">
-                    <div className="truncate font-semibold" style={secondaryTextStyle}>
+                    <div className="truncate text-sm font-semibold sm:text-base" style={secondaryTextStyle}>
                       {file?.name || savedResumeName}
                     </div>
-                    <div className="text-xs text-slate-500">
+                    <div className="text-[11px] text-slate-500 sm:text-xs">
                       {formatBytes(file ? file.size : savedResumeSizeBytes)}
                     </div>
                   </div>
@@ -520,7 +526,7 @@ export default function Step1Upload() {
                     e.stopPropagation()
                     clearSelectedResume()
                   }}
-                  className="cursor-pointer rounded-md p-1 transition hover:bg-[color:var(--brand-primary)]/10"
+                  className="shrink-0 cursor-pointer rounded-md p-1 transition hover:bg-[color:var(--brand-primary)]/10"
                   aria-label="Remove uploaded resume"
                 >
                   <BrandedSvgIcon
@@ -594,10 +600,10 @@ export default function Step1Upload() {
             </p>
           ) : null}
 
-          <div className="mt-8 grid grid-cols-2 gap-3 sm:mt-10 sm:flex sm:justify-end sm:gap-4">
+          <div className="mt-6 grid grid-cols-2 gap-2 sm:mt-8 sm:gap-3 md:mt-10 md:flex md:justify-end md:gap-4">
             <button
               onClick={() => router.back()}
-              className="w-full cursor-pointer rounded-lg border px-4 py-2.5 text-sm hover:bg-gray-50 sm:w-auto sm:px-6 sm:py-2"
+              className="w-full cursor-pointer rounded-lg border px-3 py-2.5 text-[11px] hover:bg-gray-50 sm:px-4 sm:py-2.5 sm:text-sm md:w-auto md:px-6 md:py-2"
               style={{ ...brandBorderStyle, ...brandTextStyle }}
             >
               Cancel
@@ -606,7 +612,7 @@ export default function Step1Upload() {
             <button
               onClick={next}
               disabled={uploading}
-              className={`w-full cursor-pointer rounded-lg px-4 py-2.5 text-sm text-white transition hover:brightness-90 sm:w-auto sm:px-8 sm:py-2 ${uploading ? "cursor-not-allowed opacity-70" : ""}`}
+              className={`w-full cursor-pointer rounded-lg px-3 py-2.5 text-[11px] text-white transition hover:brightness-90 sm:px-4 sm:py-2.5 sm:text-sm md:w-auto md:px-8 md:py-2 ${uploading ? "cursor-not-allowed opacity-70" : ""}`}
               style={primaryBtnStyle}
             >
               {uploading ? "Uploading..." : "Next"}

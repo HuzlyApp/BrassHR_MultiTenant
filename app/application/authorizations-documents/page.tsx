@@ -15,6 +15,14 @@ import { brandingToCssVars } from "@/lib/tenant/tenant-branding"
 import { useOnboardingConfigOptional } from "@/app/components/onboarding/OnboardingConfigProvider"
 import { useOnboardingStepNav } from "@/lib/onboarding/use-onboarding-step-nav"
 import { useMarkStepInProgressIfPending } from "@/lib/onboarding/use-mark-step-in-progress-if-pending"
+import {
+  APPLICANT_ACTION_ROW,
+  APPLICANT_CONTENT_CLASS,
+  APPLICANT_HEADER_ROW,
+  APPLICANT_SHELL_CLASS,
+  APPLICANT_SKIP_COLUMN,
+  APPLICANT_TITLE_LARGE_CLASS,
+} from "@/app/application/applicant-onboarding-responsive"
 import AutosaveStatus from "@/app/components/AutosaveStatus"
 import DocumentFileThumbnail from "@/app/components/DocumentFileThumbnail"
 import { AuthorizationsFirmaAgreementPanel } from "@/app/components/onboarding/AuthorizationsFirmaAgreementPanel"
@@ -368,15 +376,13 @@ export default function DocumentsPage() {
       rightPanelImageClassName="opacity-60 object-top"
       rightPanelOverlayClassName="bg-white/65"
     >
-      <div className="flex h-full flex-col px-10 pb-10 pt-8" style={brandingToCssVars(branding)}>
+      <div className={APPLICANT_SHELL_CLASS} style={brandingToCssVars(branding)}>
         <OnboardingStepper />
 
-        <div className="flex flex-1 flex-col pt-8">
-          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <h1 className="text-3xl font-semibold text-slate-900 leading-[1.1]">
-              Authorizations &amp; Documents
-            </h1>
-            <div className="flex flex-col items-end gap-1 sm:flex-row sm:items-center sm:gap-3">
+        <div className={APPLICANT_CONTENT_CLASS}>
+          <div className={APPLICANT_HEADER_ROW}>
+            <h1 className={APPLICANT_TITLE_LARGE_CLASS}>Authorizations &amp; Documents</h1>
+            <div className={APPLICANT_SKIP_COLUMN}>
               <AutosaveStatus
                 state={
                   docAutosave === "saving" ? "saving" : docAutosave === "saved" ? "saved" : "idle"
@@ -385,14 +391,14 @@ export default function DocumentsPage() {
               <button
                 type="button"
                 onClick={handleSkipForNow}
-                className="text-[12px] font-medium leading-5 text-[color:var(--brand-primary)]"
+                className="cursor-pointer text-[12px] font-medium leading-5 text-[color:var(--brand-primary)]"
               >
                 Skip for Now →
               </button>
             </div>
           </div>
 
-          <div className="text-[13px] leading-6 text-slate-600 space-y-3 mb-8">
+          <div className="mb-6 space-y-3 text-xs leading-5 text-slate-600 sm:mb-8 sm:text-[13px] sm:leading-6">
             <p>
               By selecting <span className="font-semibold text-slate-900">“I Agree,”</span> I authorize the Company to conduct a background check and, if required, a drug screening as part of my application or continued engagement.
             </p>
@@ -426,13 +432,13 @@ export default function DocumentsPage() {
             onSignedChange={setAgreementSigned}
           />
 
-          <div className="mb-8">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
-              <p className="text-[15px] font-semibold text-slate-900">Add Documents</p>
+          <div className="mb-6 sm:mb-8">
+            <div className="mb-3 flex items-center justify-between gap-3 sm:mb-4">
+              <p className="min-w-0 text-[14px] font-semibold text-slate-900 sm:text-[15px]">Add Documents</p>
               <button
                 type="button"
                 onClick={() => router.push(identityUploadHref)}
-                className="text-[12px] font-medium text-[color:var(--brand-primary)]"
+                className="shrink-0 cursor-pointer text-[12px] font-medium text-[color:var(--brand-primary)]"
               >
                 Edit uploads
               </button>
@@ -462,11 +468,11 @@ export default function DocumentsPage() {
 
           {error && <p className="mb-4 text-red-600 text-sm">{error}</p>}
 
-          <div className="mt-auto grid grid-cols-2 gap-3 pt-2 sm:flex sm:flex-wrap sm:items-center sm:justify-end">
+          <div className={APPLICANT_ACTION_ROW}>
             <button
               type="button"
               onClick={() => router.back()}
-              className="w-full rounded-lg border border-[color:var(--brand-primary)] bg-white px-4 py-2.5 text-[12px] font-medium text-[color:var(--brand-primary)] transition hover:bg-[color:var(--brand-primary)]/5 sm:w-auto sm:px-6 sm:py-2"
+              className="w-full rounded-lg border border-[color:var(--brand-primary)] bg-white px-3 py-2.5 text-[11px] font-medium text-[color:var(--brand-primary)] transition hover:bg-[color:var(--brand-primary)]/5 max-[399px]:px-3 sm:w-auto sm:px-6 sm:py-2 sm:text-[12px]"
             >
               Back
             </button>
@@ -474,7 +480,7 @@ export default function DocumentsPage() {
               type="button"
               onClick={() => void handleSaveAndContinue()}
               disabled={saving || saveBlocked}
-              className={`w-full rounded-lg px-4 py-2.5 text-[12px] font-medium text-white transition sm:w-auto sm:px-6 sm:py-2 ${
+              className={`w-full rounded-lg px-3 py-2.5 text-[11px] font-medium text-white transition max-[399px]:px-3 sm:w-auto sm:px-6 sm:py-2 sm:text-[12px] ${
                 saving || saveBlocked
                   ? "bg-gray-400 cursor-not-allowed"
                   : "bg-[color:var(--brand-primary)] hover:brightness-90"

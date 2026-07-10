@@ -7,6 +7,13 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { ChevronRight } from "lucide-react"
 import { supabaseBrowser as supabase } from "@/lib/supabase-browser"
 import { isPdfFile } from "@/lib/document-upload-helpers"
+import {
+  APPLICANT_ACTION_ROW,
+  APPLICANT_CONTENT_CLASS,
+  APPLICANT_HEADER_ROW,
+  APPLICANT_SHELL_CLASS,
+  APPLICANT_TITLE_CLASS,
+} from "@/app/application/applicant-onboarding-responsive"
 import BrandedSvgIcon from "@/app/components/BrandedSvgIcon"
 import BrandedUploadIcon from "@/app/components/BrandedUploadIcon"
 import OnboardingLayout from "@/app/components/OnboardingLayout"
@@ -163,7 +170,7 @@ export default function Step4Identity() {
   }) => (
     <label
       htmlFor={id}
-      className="block cursor-pointer rounded-xl border border-dashed border-[color:var(--brand-primary)] bg-white px-6 py-8 text-center transition hover:bg-[color:var(--brand-primary)]/5"
+      className="block cursor-pointer rounded-xl border border-dashed border-[color:var(--brand-primary)] bg-white px-4 py-5 text-center transition hover:bg-[color:var(--brand-primary)]/5 sm:px-6 sm:py-8"
     >
       <input
         id={id}
@@ -231,7 +238,7 @@ export default function Step4Identity() {
           <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[color:var(--brand-primary)]/10">
             <BrandedUploadIcon className="h-[22px] w-[22px]" primaryHex={branding.primaryHex} />
           </div>
-          <p className="text-[13px] text-slate-600">Drag your file(s) to start uploading</p>
+          <p className="text-[12px] text-slate-600 sm:text-[13px]">Drag your file(s) to start uploading</p>
           <p className="text-[11px] text-slate-400">OR</p>
           <span className="rounded-md border border-[color:var(--brand-primary)] px-4 py-1 text-[12px] font-medium text-[color:var(--brand-primary)] hover:bg-[color:var(--brand-primary)]/5">
             Browse files
@@ -248,19 +255,16 @@ export default function Step4Identity() {
       rightPanelImageClassName="opacity-60 object-top"
       rightPanelOverlayClassName="bg-white/65"
     >
-      <div className="flex h-full flex-col px-10 pb-10 pt-8" style={brandingToCssVars(branding)}>
+      <div className={APPLICANT_SHELL_CLASS} style={brandingToCssVars(branding)}>
         <OnboardingStepper />
 
-        <div className="flex flex-1 flex-col pt-8">
-          {/* Header */}
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-[24px] font-semibold leading-8 text-slate-800">
-              SSN &amp; Driver&apos;s License
-            </h2>
+        <div className={APPLICANT_CONTENT_CLASS}>
+          <div className={`${APPLICANT_HEADER_ROW} mb-4 sm:mb-6`}>
+            <h2 className={APPLICANT_TITLE_CLASS}>SSN &amp; Driver&apos;s License</h2>
             <button
               type="button"
               onClick={handleSkip}
-              className="cursor-pointer text-[12px] font-medium leading-5 text-[color:var(--brand-primary)]"
+              className="shrink-0 cursor-pointer text-[12px] font-medium leading-5 text-[color:var(--brand-primary)]"
             >
               Skip for Now →
             </button>
@@ -272,21 +276,21 @@ export default function Step4Identity() {
             </p>
           )}
 
-          <div className="space-y-6">
+          <div className="space-y-5 sm:space-y-6">
             {/* SSN Card */}
             <div>
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-[14px] font-semibold text-slate-800">SSN Card</p>
-                <p className="text-[11px] text-slate-400">front/back</p>
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <p className="text-[13px] font-semibold text-slate-800 sm:text-[14px]">SSN Card</p>
+                <p className="shrink-0 text-[11px] text-slate-400">front/back</p>
               </div>
               <UploadBox id="ssn-upload" storageKey="ssn" slot={ssnFile} setSlot={setSsnFile} />
             </div>
 
             {/* Driver's License */}
             <div>
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-[14px] font-semibold text-slate-800">Driver&apos;s License</p>
-                <p className="text-[11px] text-slate-400">front/back</p>
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <p className="text-[13px] font-semibold text-slate-800 sm:text-[14px]">Driver&apos;s License</p>
+                <p className="shrink-0 text-[11px] text-slate-400">front/back</p>
               </div>
               <UploadBox id="license-upload" storageKey="license" slot={licenseFile} setSlot={setLicenseFile} />
             </div>
@@ -294,13 +298,12 @@ export default function Step4Identity() {
             <p className="text-[11px] text-slate-400">Only support png, jpg or pdf files</p>
           </div>
 
-          {/* Buttons */}
-          <div className="mt-auto grid grid-cols-2 gap-3 pt-8 sm:flex sm:items-center sm:justify-end">
+          <div className={APPLICANT_ACTION_ROW}>
             <button
               type="button"
               onClick={() => router.back()}
               disabled={loading}
-              className="w-full cursor-pointer rounded-md border border-[color:var(--brand-primary)] bg-white px-4 py-2.5 text-[12px] font-medium leading-5 text-[color:var(--brand-primary)] transition hover:bg-[color:var(--brand-primary)]/5 disabled:opacity-50 sm:w-auto sm:px-5 sm:py-2"
+              className="w-full cursor-pointer rounded-md border border-[color:var(--brand-primary)] bg-white px-3 py-2.5 text-[11px] font-medium leading-5 text-[color:var(--brand-primary)] transition hover:bg-[color:var(--brand-primary)]/5 disabled:opacity-50 max-[399px]:px-3 sm:w-auto sm:px-5 sm:py-2 sm:text-[12px]"
             >
               Back
             </button>
@@ -308,7 +311,7 @@ export default function Step4Identity() {
               type="button"
               onClick={handleNext}
               disabled={loading}
-              className={`group inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-md px-4 py-2.5 text-[12px] font-medium leading-5 text-white transition sm:w-auto sm:px-6 sm:py-2 ${
+              className={`group inline-flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-md px-3 py-2.5 text-[11px] font-medium leading-5 text-white transition max-[399px]:px-3 sm:w-auto sm:gap-2 sm:px-6 sm:py-2 sm:text-[12px] ${
                 loading ? "bg-gray-400 cursor-not-allowed" : "bg-[color:var(--brand-primary)] hover:brightness-90"
               }`}
             >

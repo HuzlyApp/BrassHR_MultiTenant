@@ -5,6 +5,11 @@ import { applicationPath } from "@/lib/tenant/with-tenant"
 import { Suspense, useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { useSearchParams, useRouter } from "next/navigation"
+import {
+  APPLICANT_ACTION_ROW,
+  APPLICANT_SHELL_TALL_CLASS,
+  APPLICANT_TITLE_CLASS,
+} from "@/app/application/applicant-onboarding-responsive"
 import BrandedSvgIcon from "@/app/components/BrandedSvgIcon"
 import BrandedUploadIcon from "@/app/components/BrandedUploadIcon"
 import OnboardingLayout from "@/app/components/OnboardingLayout"
@@ -148,9 +153,9 @@ function UploadFormContent() {
       logoClassName="h-[72px] w-[240px]"
       taglineClassName="max-w-[300px] text-[15px] leading-8 text-slate-900"
     >
-      <div className="flex h-full flex-col px-10 pb-10 pt-14" style={contentStyle}>
-        <div className="flex flex-1 flex-col gap-9">
-          <h1 className="text-[24px] font-semibold leading-8 text-slate-900">
+      <div className={APPLICANT_SHELL_TALL_CLASS} style={contentStyle}>
+        <div className="flex flex-1 flex-col gap-6 sm:gap-9">
+          <h1 className={`${APPLICANT_TITLE_CLASS} text-slate-900`}>
             {isGeneralUpload ? "Upload your files" : "Upload your I9 form"}
           </h1>
 
@@ -198,7 +203,7 @@ function UploadFormContent() {
           ) : (
             <>
               <div
-                className={`w-full max-w-[580px] rounded-2xl border border-dashed px-8 py-10 transition ${
+                className={`w-full max-w-[580px] rounded-2xl border border-dashed px-4 py-6 transition sm:px-8 sm:py-10 ${
                   isDragging ? "" : "border-[color:var(--brand-primary)] bg-white"
                 }`}
                 style={isDragging ? dragActiveStyle : undefined}
@@ -260,7 +265,7 @@ function UploadFormContent() {
             </>
           )}
 
-          <div className="mt-auto grid grid-cols-2 gap-3 pt-8 sm:flex sm:items-center sm:justify-end sm:gap-4 sm:pt-10">
+          <div className={APPLICANT_ACTION_ROW}>
             <Link
               href={applicationPath("/application/employee-agreement")}
               className="inline-flex h-10 w-full cursor-pointer items-center justify-center rounded-xl border border-[color:var(--brand-primary)] bg-white px-4 text-[16px] font-semibold leading-6 text-[color:var(--brand-primary)] transition hover:bg-[color:var(--brand-primary)]/5 sm:w-auto sm:px-6"

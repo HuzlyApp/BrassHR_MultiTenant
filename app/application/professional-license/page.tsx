@@ -6,6 +6,14 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import type { TenantRequiredDocument } from "@/lib/onboarding/types";
 import AutosaveStatus from "@/app/components/AutosaveStatus";
+import {
+  APPLICANT_ACTION_ROW,
+  APPLICANT_CONTENT_CLASS,
+  APPLICANT_HEADER_ROW,
+  APPLICANT_SHELL_CLASS,
+  APPLICANT_SKIP_COLUMN,
+  APPLICANT_TITLE_CLASS,
+} from "@/app/application/applicant-onboarding-responsive";
 import { ChevronRight } from "lucide-react";
 import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
 import BrandedUploadIcon from "@/app/components/BrandedUploadIcon";
@@ -562,13 +570,13 @@ export default function Step2License() {
       rightPanelImageClassName="opacity-90 object-top"
       rightPanelOverlayClassName="bg-white/70"
     >
-      <div className="flex h-full flex-col px-10 pb-10 pt-8" style={brandingToCssVars(branding)}>
+      <div className={APPLICANT_SHELL_CLASS} style={brandingToCssVars(branding)}>
         <OnboardingStepper />
 
-        <div className="flex flex-1 flex-col pt-8">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <h2 className="text-[24px] font-semibold leading-8 text-slate-800">{pageTitle}</h2>
-            <div className="flex flex-col items-end gap-1 sm:flex-row sm:items-center sm:gap-3">
+        <div className={APPLICANT_CONTENT_CLASS}>
+          <div className={APPLICANT_HEADER_ROW}>
+            <h2 className={APPLICANT_TITLE_CLASS}>{pageTitle}</h2>
+            <div className={APPLICANT_SKIP_COLUMN}>
               <AutosaveStatus state={fileAutosave === "saved" ? "saved" : "idle"} />
               <button
                 type="button"
@@ -580,7 +588,7 @@ export default function Step2License() {
             </div>
           </div>
 
-          <div className="mt-6 flex flex-col gap-6">
+          <div className="mt-4 flex flex-col gap-5 sm:mt-6 sm:gap-6">
             {useTenantRequirements ? (
               configuredDocs.length > 0 ? (
                 configuredDocs.map((doc) => (
@@ -620,11 +628,11 @@ export default function Step2License() {
             Only support png, jpg or pdf files
           </p>
 
-          <div className="mt-auto grid grid-cols-2 gap-3 pt-8 sm:flex sm:items-center sm:justify-end">
+          <div className={APPLICANT_ACTION_ROW}>
             <button
               type="button"
               onClick={() => stepNav.goPrev()}
-              className="w-full cursor-pointer rounded-md border border-[color:var(--brand-primary)] px-4 py-2.5 text-[12px] font-medium leading-5 text-[color:var(--brand-primary)] transition hover:bg-[color:var(--brand-primary)]/10 sm:w-auto sm:px-5 sm:py-2"
+              className="w-full cursor-pointer rounded-md border border-[color:var(--brand-primary)] px-3 py-2.5 text-[11px] font-medium leading-5 text-[color:var(--brand-primary)] transition hover:bg-[color:var(--brand-primary)]/10 max-[399px]:px-3 sm:w-auto sm:px-5 sm:py-2 sm:text-[12px]"
             >
               Back
             </button>
@@ -634,7 +642,7 @@ export default function Step2License() {
               disabled={
                 !(useTenantRequirements ? requiredUploadsMet : hasAnyUpload) || anyUploading || saving
               }
-              className="group inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-md bg-[color:var(--brand-primary)] px-4 py-2.5 text-[12px] font-medium leading-5 text-white transition hover:brightness-90 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto sm:px-6 sm:py-2"
+              className="group inline-flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-md bg-[color:var(--brand-primary)] px-3 py-2.5 text-[11px] font-medium leading-5 text-white transition hover:brightness-90 disabled:cursor-not-allowed disabled:opacity-50 max-[399px]:px-3 sm:w-auto sm:gap-2 sm:px-6 sm:py-2 sm:text-[12px]"
             >
               {saving ? "Saving…" : "Save & Continue"}
               <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />

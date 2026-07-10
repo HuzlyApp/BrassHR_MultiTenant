@@ -4,6 +4,10 @@ import { applicationPath } from "@/lib/tenant/with-tenant";
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import {
+  APPLICANT_SHELL_TALL_CLASS,
+  APPLICANT_TITLE_CLASS,
+} from "@/app/application/applicant-onboarding-responsive";
 import OnboardingLayout from "@/app/components/OnboardingLayout";
 import ApplicantRecruiterNotes from "@/app/application/components/ApplicantRecruiterNotes";
 import type { ApplicationStatusKey } from "@/lib/applicant-portal";
@@ -141,15 +145,15 @@ export default function ApplicationStatusPage() {
       logoClassName="h-[72px] w-[240px]"
       taglineClassName="max-w-[300px] text-[15px] leading-8 text-slate-900"
     >
-      <div className="flex h-full flex-col px-10 pb-10 pt-14">
-        <div className="flex flex-1 flex-col gap-9">
-          <h1 className="text-[24px] font-semibold leading-8 text-slate-900">
+      <div className={APPLICANT_SHELL_TALL_CLASS}>
+        <div className="flex flex-1 flex-col gap-6 sm:gap-9">
+          <h1 className={`${APPLICANT_TITLE_CLASS} text-slate-900`}>
             {isApproved ? "Application Submitted" : "Verification Status"}
           </h1>
 
-          <div className="flex h-[486px] w-full flex-col gap-5">
+          <div className="flex w-full flex-col gap-5 sm:h-[486px]">
             <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_2px_8px_rgba(15,23,42,0.04)]">
-              <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-2.5">
+              <div className="flex flex-col gap-2 border-b border-slate-200 bg-slate-50 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between sm:px-4">
                 <div className="flex items-center gap-2.5">
                   <Image
                     src={statusIconSrc(applicationStatus)}
@@ -158,7 +162,7 @@ export default function ApplicationStatusPage() {
                     height={30}
                     className="h-[30px] w-[30px]"
                   />
-                  <span className="text-[18px] font-semibold leading-7 text-slate-900">
+                  <span className="text-base font-semibold leading-6 text-slate-900 sm:text-[18px] sm:leading-7">
                     {loading ? "Loading..." : statusLabel}
                   </span>
                 </div>
@@ -170,9 +174,9 @@ export default function ApplicationStatusPage() {
                 </span>
               </div>
 
-              <div className="flex flex-1 flex-col px-4 pb-6 pt-5">
-                <div className="flex items-start justify-between gap-4">
-                  <h2 className="text-[20px] font-semibold leading-7 text-slate-900">
+              <div className="flex flex-1 flex-col px-3 pb-5 pt-4 sm:px-4 sm:pb-6 sm:pt-5">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+                  <h2 className="text-base font-semibold leading-6 text-slate-900 sm:text-[20px] sm:leading-7">
                     {statusHeading(applicationStatus)}
                   </h2>
                   <time

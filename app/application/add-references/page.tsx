@@ -19,6 +19,15 @@ import { ensureApplicantWorker } from "@/lib/onboarding/ensure-applicant-worker"
 import { isDraftPreviewApplicantId, isOnboardingDraftPreview } from "@/lib/onboarding/is-draft-preview"
 import { resolveClientOnboardingTenantSlug } from "@/lib/tenant/client-onboarding-slug"
 import { formatPhoneNumber, normalizePhoneInput } from "@/lib/phone"
+import {
+  APPLICANT_ACTION_ROW,
+  APPLICANT_CONTENT_CLASS,
+  APPLICANT_FORM_GRID,
+  APPLICANT_HEADER_ROW,
+  APPLICANT_SHELL_CLASS,
+  APPLICANT_SKIP_COLUMN,
+  APPLICANT_TITLE_CLASS,
+} from "@/app/application/applicant-onboarding-responsive"
 import AutosaveStatus from "@/app/components/AutosaveStatus"
 import {
   getReferencesSaveError,
@@ -243,14 +252,13 @@ export default function ReferencesPage() {
       rightPanelImageClassName="opacity-60 object-top"
       rightPanelOverlayClassName="bg-white/65"
     >
-      <div className="flex h-full flex-col px-10 pb-10 pt-8" style={brandingToCssVars(branding)}>
+      <div className={APPLICANT_SHELL_CLASS} style={brandingToCssVars(branding)}>
         <OnboardingStepper />
 
-        <div className="flex flex-1 flex-col pt-8">
-          {/* Header */}
-          <div className="mb-1 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-            <h2 className="text-[24px] font-semibold leading-8 text-slate-800">Add References</h2>
-            <div className="flex flex-col items-end gap-1 sm:flex-row sm:items-center sm:gap-3">
+        <div className={APPLICANT_CONTENT_CLASS}>
+          <div className={APPLICANT_HEADER_ROW}>
+            <h2 className={APPLICANT_TITLE_CLASS}>Add References</h2>
+            <div className={APPLICANT_SKIP_COLUMN}>
               <AutosaveStatus
                 state={
                   autosaveState === "saving" ? "saving" : autosaveState === "saved" ? "saved" : "idle"
@@ -265,8 +273,8 @@ export default function ReferencesPage() {
               </button>
             </div>
           </div>
-          <p className="text-[13px] text-slate-500 mb-1">Trusted feedback, verified integrity.</p>
-          <p className="text-[12px] text-slate-400 mb-6">
+          <p className="mb-1 text-xs text-slate-500 sm:text-[13px]">Trusted feedback, verified integrity.</p>
+          <p className="mb-5 text-[11px] text-slate-400 sm:mb-6 sm:text-[12px]">
             Add at least {MIN_COMPLETE_REFERENCES} complete references (up to 3). Use + Add Reference for a third optional contact.
           </p>
 
@@ -283,7 +291,7 @@ export default function ReferencesPage() {
                   )}
                 </div>
 
-                <div className="grid grid-cols-2 gap-4 mb-3">
+                <div className={`${APPLICANT_FORM_GRID} mb-3`}>
                   <div>
                     <label className="block text-[11px] text-slate-500 mb-1">First Name</label>
                     <input
@@ -302,7 +310,7 @@ export default function ReferencesPage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className={APPLICANT_FORM_GRID}>
                   <div>
                     <label className="block text-[11px] text-slate-500 mb-1">Phone</label>
                     <input
@@ -340,7 +348,7 @@ export default function ReferencesPage() {
           {error && <p className="mt-4 text-[12px] text-red-500">{error}</p>}
 
           {/* Buttons */}
-          <div className="mt-auto grid grid-cols-2 gap-3 pt-8 sm:flex sm:items-center sm:justify-end">
+          <div className={APPLICANT_ACTION_ROW}>
             <button
               type="button"
               onClick={() => (nav.prevRoute ? nav.goPrev() : router.back())}
