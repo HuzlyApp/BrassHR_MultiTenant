@@ -115,6 +115,18 @@ export default function NewApplicantProfileResumePage() {
     setResumePreviewError(null);
   }, [resumeUrl, applicantId]);
 
+  // Mobile: embedded PDF layout is unreliable — open resume in a new tab instead.
+  useEffect(() => {
+    if (loading || error || !resumeUrl || !applicantId) return;
+    if (typeof window === "undefined") return;
+    if (!window.matchMedia("(max-width: 767px)").matches) return;
+
+    const key = `resume-mobile-open:${applicantId}`;
+    if (sessionStorage.getItem(key) === "1") return;
+    sessionStorage.setItem(key, "1");
+    window.open(resumeUrl, "_blank", "noopener,noreferrer");
+  }, [applicantId, error, loading, resumeUrl]);
+
   const sidebarItems = useMemo(
     () => [
       { label: "Candidates", href: "/admin_recruiter/candidates", icon: Users },
@@ -279,8 +291,8 @@ export default function NewApplicantProfileResumePage() {
 
               {!loading && resumeUrl ? (
                 <div className="w-full overflow-hidden rounded-lg border border-black/10 bg-[#2A2A2A]">
-                  <div className="h-11 flex items-center px-4 text-white/85 bg-black/15 text-xs justify-between">
-                    <span className="truncate">{fileLabel(resumePath)}</span>
+                  <div className="h-11 flex items-center px-4 text-white/85 bg-black/15 text-xs justify-between gap-3">
+                    <span className="min-w-0 truncate">{fileLabel(resumePath)}</span>
                     <a
                       href={resumeUrl}
                       target="_blank"
@@ -291,23 +303,39 @@ export default function NewApplicantProfileResumePage() {
                     </a>
                   </div>
                   {isPdf ? (
-                    <div className="bg-zinc-100">
-                      <iframe
-                        title="Resume PDF"
-                        src={previewUrl ?? resumeUrl}
-                        className="h-[calc(100dvh-320px)] min-h-[380px] md:h-[calc(100dvh-260px)] md:min-h-[700px] w-full"
-                        onError={() =>
-                          setResumePreviewError(
-                            "Preview is blocked on this device. Use 'Open in new tab' to view the resume."
-                          )
-                        }
-                      />
-                      {resumePreviewError ? (
-                        <div className="border-t border-zinc-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-                          {resumePreviewError}
-                        </div>
-                      ) : null}
-                    </div>
+                    <>
+                      {/* Mobile: prefer native/new-tab PDF viewer — iframe preview clips badly */}
+                      <div className="block space-y-4 bg-white px-5 py-8 text-center md:hidden">
+                        <p className="text-sm text-[#374151]">
+                          On mobile, the resume opens in a new tab for a clearer view.
+                        </p>
+                        <a
+                          href={resumeUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center justify-center rounded-lg bg-[color:var(--brand-primary)] px-5 py-2.5 text-sm font-semibold text-white"
+                        >
+                          Open resume
+                        </a>
+                      </div>
+                      <div className="hidden bg-zinc-100 md:block">
+                        <iframe
+                          title="Resume PDF"
+                          src={previewUrl ?? resumeUrl}
+                          className="h-[calc(100dvh-260px)] min-h-[700px] w-full"
+                          onError={() =>
+                            setResumePreviewError(
+                              "Preview is blocked on this device. Use 'Open in new tab' to view the resume."
+                            )
+                          }
+                        />
+                        {resumePreviewError ? (
+                          <div className="border-t border-zinc-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                            {resumePreviewError}
+                          </div>
+                        ) : null}
+                      </div>
+                    </>
                   ) : (
                     <div className="p-8 text-center text-white/90 text-sm">
                       <p className="mb-4">Preview is available for PDF files. This file is not a PDF.</p>
