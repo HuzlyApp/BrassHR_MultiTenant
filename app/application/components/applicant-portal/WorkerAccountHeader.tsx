@@ -2,19 +2,13 @@
 
 import Link from "next/link";
 import { Mail, MapPin, Phone } from "lucide-react";
+import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import { WorkerProfilePhotoUpload } from "./WorkerProfilePhotoUpload";
 import type { WorkerAccountProfile, WorkerAccountTab } from "./worker-account-types";
 import { workerAccountTabHref } from "./worker-account-types";
 import { WORKER_BTN_LINK } from "./worker-portal-buttons";
 import { WORKER_SCHEDULE_CARD_CLASS } from "./worker-schedule-typography";
-
-function profileInitials(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return "NA";
-  const first = parts[0]?.[0] ?? "";
-  const last = parts[parts.length - 1]?.[0] ?? "";
-  return (first + last).toUpperCase();
-}
+import { workerAvatarInitial, workerBrandedAvatarStyle } from "./WorkerPortalUserAvatar";
 
 function WorkerProfileAvatar({
   displayName,
@@ -23,13 +17,18 @@ function WorkerProfileAvatar({
   displayName: string;
   photoUrl: string | null;
 }) {
+  const branding = useTenantBranding();
+
   return (
     <div className="flex w-[96px] shrink-0 flex-col items-center">
-      <div className="flex h-[96px] w-[96px] items-center justify-center overflow-hidden rounded-full bg-[#E5E7EB] text-[28px] font-semibold text-[#4B5563]">
+      <div
+        className="flex h-[96px] w-[96px] items-center justify-center overflow-hidden rounded-full text-[28px] font-semibold text-white"
+        style={!photoUrl ? workerBrandedAvatarStyle(branding.primaryHex, branding.accentHex) : undefined}
+      >
         {photoUrl ? (
           <img src={photoUrl} alt="" className="h-full w-full object-cover" />
         ) : (
-          profileInitials(displayName)
+          workerAvatarInitial(displayName)
         )}
       </div>
     </div>
@@ -98,20 +97,20 @@ export function WorkerAccountHeader({
             >
               {statusLabel(profile.statusLabel)}
             </span>
-            <ul className="mt-5 space-y-3">
-              <li className="flex items-center justify-center gap-3 text-sm leading-5 text-[#374151] sm:justify-start">
+            <ul className="mt-5 w-full space-y-3 text-left">
+              <li className="flex w-full items-center justify-start gap-3 text-sm leading-5 text-[#374151]">
                 <span className="flex h-5 w-5 shrink-0 items-center justify-center">
                   <Mail className="h-4 w-4 text-[#9CA3AF]" aria-hidden />
                 </span>
                 <span className="min-w-0 break-all sm:truncate">{profile.email || "—"}</span>
               </li>
-              <li className="flex items-center justify-center gap-3 text-sm leading-5 text-[#374151] sm:justify-start">
+              <li className="flex w-full items-center justify-start gap-3 text-sm leading-5 text-[#374151]">
                 <span className="flex h-5 w-5 shrink-0 items-center justify-center">
                   <Phone className="h-4 w-4 text-[#9CA3AF]" aria-hidden />
                 </span>
                 <span className="min-w-0">{profile.phone || "—"}</span>
               </li>
-              <li className="flex items-start justify-center gap-3 text-sm leading-5 text-[#374151] sm:justify-start">
+              <li className="flex w-full items-start justify-start gap-3 text-sm leading-5 text-[#374151]">
                 <span className="flex h-5 w-5 shrink-0 items-center justify-center pt-0.5">
                   <MapPin className="h-4 w-4 text-[#9CA3AF]" aria-hidden />
                 </span>

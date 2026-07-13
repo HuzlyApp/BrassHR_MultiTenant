@@ -3,9 +3,16 @@
 import type { CSSProperties } from "react";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 
-function workerInitial(name: string): string {
-  const first = name.trim().split(/\s+/)[0] || "A";
-  return first.charAt(0).toUpperCase();
+export function workerBrandedAvatarStyle(primaryHex: string, accentHex: string): CSSProperties {
+  return {
+    background: `linear-gradient(135deg, ${primaryHex} 0%, ${accentHex} 100%)`,
+  };
+}
+
+export function workerAvatarInitial(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "?";
+  return (parts[0]?.[0] ?? "?").toUpperCase();
 }
 
 type WorkerPortalUserAvatarProps = {
@@ -29,7 +36,7 @@ export function WorkerPortalUserAvatar({
 }: WorkerPortalUserAvatarProps) {
   const branding = useTenantBranding();
   const sizeClass = SIZE_CLASS[size];
-  const avatarStyle = { backgroundColor: branding.primaryHex } as CSSProperties;
+  const avatarStyle = workerBrandedAvatarStyle(branding.primaryHex, branding.accentHex);
 
   if (photoUrl) {
     return (
@@ -49,7 +56,7 @@ export function WorkerPortalUserAvatar({
       style={avatarStyle}
       aria-hidden
     >
-      {workerInitial(name)}
+      {workerAvatarInitial(name)}
     </span>
   );
 }

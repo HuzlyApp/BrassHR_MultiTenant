@@ -215,22 +215,15 @@
   padding: 0.375rem 0 0.375rem 0;
 }
 
-/* Worker account tabs — single row with horizontal scroll on mobile */
+/* Worker account tabs — single row with horizontal scroll on mobile (scrollbar hidden) */
 .worker-account-tabs-scroll {
-  scrollbar-width: thin;
-  scrollbar-color: #cbd5e1 transparent;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
   -webkit-overflow-scrolling: touch;
 }
 
 .worker-account-tabs-scroll::-webkit-scrollbar {
-  height: 4px;
-}
-
-.worker-account-tabs-scroll::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.worker-account-tabs-scroll::-webkit-scrollbar-thumb {
-  background-color: #cbd5e1;
-  border-radius: 999px;
+  display: none;
+  width: 0;
+  height: 0;
 }

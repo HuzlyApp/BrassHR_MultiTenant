@@ -2,16 +2,10 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
+import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import { useApplicantPortal } from "./ApplicantPortalProvider";
+import { workerAvatarInitial, workerBrandedAvatarStyle } from "./WorkerPortalUserAvatar";
 import { WORKER_BTN_FILE_CHOOSE } from "./worker-portal-buttons";
-
-function initials(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return "NA";
-  const first = parts[0]?.[0] ?? "";
-  const last = parts[parts.length - 1]?.[0] ?? "";
-  return (first + last).toUpperCase();
-}
 
 type WorkerProfilePhotoUploadProps = {
   displayName: string;
@@ -26,6 +20,7 @@ export function WorkerProfilePhotoUpload({
   onPhotoUpdated,
   variant = "form",
 }: WorkerProfilePhotoUploadProps) {
+  const branding = useTenantBranding();
   const { authHeaders, setProfilePhotoUrl } = useApplicantPortal();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(photoUrl);
@@ -84,19 +79,24 @@ export function WorkerProfilePhotoUpload({
   }
 
   if (variant === "avatar") {
+    const placeholderStyle = !previewUrl
+      ? workerBrandedAvatarStyle(branding.primaryHex, branding.accentHex)
+      : undefined;
+
     return (
       <div className="flex w-[96px] shrink-0 flex-col items-center">
         <button
           type="button"
           onClick={() => fileInputRef.current?.click()}
           disabled={uploading}
-          className="group relative flex h-[96px] w-[96px] items-center justify-center overflow-hidden rounded-full bg-[#E5E7EB] text-[28px] font-semibold text-[#4B5563] ring-0 transition hover:ring-2 hover:ring-[color:var(--brand-primary)] disabled:cursor-not-allowed disabled:opacity-70"
+          className="group relative flex h-[96px] w-[96px] items-center justify-center overflow-hidden rounded-full text-[28px] font-semibold text-white ring-0 transition hover:ring-2 hover:ring-[color:var(--brand-primary)] disabled:cursor-not-allowed disabled:opacity-70"
+          style={placeholderStyle}
           aria-label={previewUrl ? "Change photo" : "Add photo"}
         >
           {previewUrl ? (
             <img src={previewUrl} alt="" className="h-full w-full object-cover" />
           ) : (
-            initials(displayName)
+            workerAvatarInitial(displayName)
           )}
           <span className="absolute inset-0 flex items-center justify-center bg-black/45 opacity-0 transition group-hover:opacity-100 group-focus-visible:opacity-100">
             {uploading ? (
@@ -125,13 +125,14 @@ export function WorkerProfilePhotoUpload({
     <div className="min-w-0">
       <label className="mb-1.5 block text-[13px] font-medium text-[#374151]">Profile photo</label>
       <div className="flex items-center gap-3">
-        <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-md border border-[#E5E7EB] bg-[#F3F4F6]">
+        <div
+          className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full text-[11px] font-semibold leading-none text-white"
+          style={!previewUrl ? workerBrandedAvatarStyle(branding.primaryHex, branding.accentHex) : undefined}
+        >
           {previewUrl ? (
             <img src={previewUrl} alt="" width={48} height={48} className="h-12 w-12 object-cover" />
           ) : (
-            <span className="text-[11px] font-semibold leading-none text-[#9CA3AF]">
-              {initials(displayName).slice(0, 2)}
-            </span>
+            <span>{workerAvatarInitial(displayName)}</span>
           )}
         </div>
         <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-2">

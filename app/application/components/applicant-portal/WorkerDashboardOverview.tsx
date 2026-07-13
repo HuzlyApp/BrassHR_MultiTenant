@@ -67,9 +67,9 @@ function WorkerCardShell({
         centerBody ? "flex h-full flex-col" : ""
       }`}
     >
-      <div className="flex items-center justify-between border-b border-[#E5E7EB] px-[14px] py-[14px]">
+      <div className="flex min-w-0 items-center justify-between gap-3 border-b border-[#E5E7EB] px-[14px] py-[14px]">
         <h2
-          className="font-[Inter,sans-serif] text-[16px] font-semibold leading-[24px]"
+          className="min-w-0 truncate font-[Inter,sans-serif] text-[16px] font-semibold leading-[24px]"
           style={{ color: titleColor ?? "#111827" }}
         >
           {title}
@@ -116,19 +116,23 @@ function SummaryMetricCard({
   action?: ReactNode;
 }) {
   return (
-    <div className="flex min-h-[188px] w-full min-w-0 gap-3 rounded-md border border-[#E5E7EB] bg-white p-[14px] shadow-sm">
-      <div className="flex min-w-0 flex-1 flex-col pt-4">
-        <p className={WORKER_CARD_LABEL_CLASS}>{label}</p>
-        <div className="mt-3 flex flex-1 flex-col justify-start gap-1">{children}</div>
-        {action ? <div className="mt-4">{action}</div> : null}
-      </div>
-      <div className="flex shrink-0 items-start self-start">
-        <div
-          className="flex h-[50px] w-[50px] shrink-0 items-center justify-center rounded-md p-1"
-          style={{ backgroundColor: iconBg }}
-        >
-          {icon}
+    <div className="flex min-h-[188px] w-full min-w-0 flex-col rounded-md border border-[#E5E7EB] bg-white p-[14px] shadow-sm">
+      <div className="flex min-w-0 flex-1 gap-3">
+        <div className="flex min-w-0 flex-1 flex-col pt-4">
+          <p className={WORKER_CARD_LABEL_CLASS}>{label}</p>
+          <div className="mt-3 flex flex-1 flex-col justify-start gap-1">{children}</div>
         </div>
+        <div className="flex shrink-0 items-start self-start">
+          <div
+            className="flex h-[50px] w-[50px] shrink-0 items-center justify-center rounded-md p-1"
+            style={{ backgroundColor: iconBg }}
+          >
+            {icon}
+          </div>
+        </div>
+      </div>
+      <div className="w-full min-w-0">
+        {action ? <div className="mt-4">{action}</div> : null}
       </div>
     </div>
   );
@@ -160,9 +164,9 @@ function AttendanceDonut({ pct }: { pct: number }) {
   ];
 
   return (
-    <div className="relative flex h-[150px] w-full min-w-[140px] items-center justify-center">
+    <div className="pointer-events-none relative flex h-[96px] w-full min-w-0 select-none items-center justify-center outline-none min-[600px]:h-[120px] sm:h-[140px] xl:h-[150px] [&_.recharts-responsive-container]:outline-none [&_.recharts-wrapper]:outline-none [&_.recharts-surface]:outline-none [&_*:focus]:outline-none">
       <ResponsiveContainer width="100%" height="100%">
-        <PieChart margin={{ top: 8, right: 8, bottom: 8, left: 8 }}>
+        <PieChart margin={{ top: 4, right: 4, bottom: 4, left: 4 }}>
           <Pie
             data={data}
             dataKey="value"
@@ -181,10 +185,12 @@ function AttendanceDonut({ pct }: { pct: number }) {
         </PieChart>
       </ResponsiveContainer>
       <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
-        <span className="font-[Inter,sans-serif] text-[24px] font-semibold leading-7 text-[#111827]">
+        <span className="font-[Inter,sans-serif] text-[18px] font-semibold leading-6 text-[#111827] min-[600px]:text-[24px] min-[600px]:leading-7">
           {pct}%
         </span>
-        <span className="font-[Inter,sans-serif] text-[12px] leading-4 text-[#6B7280]">of 40hrs</span>
+        <span className="font-[Inter,sans-serif] text-[10px] leading-3 text-[#6B7280] min-[600px]:text-[12px] min-[600px]:leading-4">
+          of 40hrs
+        </span>
       </div>
     </div>
   );
@@ -224,7 +230,7 @@ export function WorkerDashboardOverview({
   return (
     <div className={`${WORKER_PORTAL_PAGE_PAD_CLASS} space-y-[14px]`}>
       <header className="space-y-1">
-        <h1 className="font-[Inter,sans-serif] text-[30px] font-semibold leading-9 text-[#012352]">
+        <h1 className="font-[Inter,sans-serif] text-[24px] font-semibold leading-8 text-[#012352] sm:text-[30px] sm:leading-9">
           {getGreeting()}, {getFirstName(userName)}!
           <img
             src="/icons/clapping-hands.svg"
@@ -390,28 +396,36 @@ export function WorkerDashboardOverview({
             </Link>
           }
         >
-          <div className="grid w-full grid-cols-1 gap-[14px] lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(130px,160px)] lg:items-center">
-            <div className="space-y-1 border-[#E5E7EB] lg:border-r lg:pr-[14px]">
-              <p className="font-[Inter,sans-serif] text-[12px] font-semibold leading-4 text-[#6B7280]">
+          <div className="grid w-full grid-cols-3 items-stretch gap-0">
+            <div className="flex min-h-[112px] min-w-0 flex-col justify-center border-r border-[#E5E7EB] px-2 py-3 min-[600px]:min-h-[150px] min-[600px]:px-3 min-[600px]:py-4 xl:min-h-[175px] xl:px-5">
+              <p className="font-[Inter,sans-serif] text-[12px] font-semibold leading-4 text-[#111827] min-[600px]:text-[14px] min-[600px]:leading-5 xl:text-[16px] xl:leading-6">
                 This Week
               </p>
-              <p className="font-[Inter,sans-serif] text-[12px] leading-4 text-[#9CA3AF]">{weekRange}</p>
-              <p className="font-[Inter,sans-serif] text-[28px] font-semibold leading-8 text-[#111827]">
+              <p className="mt-1 font-[Inter,sans-serif] text-[10px] leading-3 text-[#6B7280] min-[600px]:text-[12px] min-[600px]:leading-4 xl:text-[14px] xl:leading-5">
+                {weekRange}
+              </p>
+              <p className="mt-2 font-[Inter,sans-serif] text-[20px] font-semibold leading-7 text-[#111827] min-[600px]:mt-4 min-[600px]:text-[26px] min-[600px]:leading-8 xl:mt-5 xl:text-[30px] xl:leading-9">
                 {formatDecimalHours(attendanceProgress.weekHours)}
               </p>
-              <p className="font-[Inter,sans-serif] text-[12px] leading-4 text-[#6B7280]">Hours Worked</p>
+              <p className="mt-1 font-[Inter,sans-serif] text-[10px] leading-3 text-[#6B7280] min-[600px]:text-[12px] min-[600px]:leading-4 xl:text-[14px] xl:leading-5">
+                Hours Worked
+              </p>
             </div>
-            <div className="space-y-1 border-[#E5E7EB] lg:border-r lg:pr-[14px]">
-              <p className="font-[Inter,sans-serif] text-[12px] font-semibold leading-4 text-[#6B7280]">
+            <div className="flex min-h-[112px] min-w-0 flex-col justify-center border-r border-[#E5E7EB] px-2 py-3 min-[600px]:min-h-[150px] min-[600px]:px-3 min-[600px]:py-4 xl:min-h-[175px] xl:px-5">
+              <p className="font-[Inter,sans-serif] text-[12px] font-semibold leading-4 text-[#111827] min-[600px]:text-[14px] min-[600px]:leading-5 xl:text-[16px] xl:leading-6">
                 Pay Period
               </p>
-              <p className="font-[Inter,sans-serif] text-[12px] leading-4 text-[#9CA3AF]">{weekRange}</p>
-              <p className="font-[Inter,sans-serif] text-[28px] font-semibold leading-8 text-[#111827]">
+              <p className="mt-1 font-[Inter,sans-serif] text-[10px] leading-3 text-[#6B7280] min-[600px]:text-[12px] min-[600px]:leading-4 xl:text-[14px] xl:leading-5">
+                {weekRange}
+              </p>
+              <p className="mt-2 font-[Inter,sans-serif] text-[20px] font-semibold leading-7 text-[#111827] min-[600px]:mt-4 min-[600px]:text-[26px] min-[600px]:leading-8 xl:mt-5 xl:text-[30px] xl:leading-9">
                 {formatDecimalHours(payPeriodHours)}
               </p>
-              <p className="font-[Inter,sans-serif] text-[12px] leading-4 text-[#6B7280]">Hours Worked</p>
+              <p className="mt-1 font-[Inter,sans-serif] text-[10px] leading-3 text-[#6B7280] min-[600px]:text-[12px] min-[600px]:leading-4 xl:text-[14px] xl:leading-5">
+                Hours Worked
+              </p>
             </div>
-            <div className="relative flex items-center justify-center">
+            <div className="relative flex min-h-[112px] min-w-0 items-center justify-center px-1 py-2 min-[600px]:min-h-[150px] min-[600px]:px-3 min-[600px]:py-4 xl:min-h-[175px] xl:px-5">
               <AttendanceDonut pct={attendanceProgress.pct} />
             </div>
           </div>
@@ -421,28 +435,37 @@ export function WorkerDashboardOverview({
           title="Pay Summary"
           centerBody
           action={
-            <span className="font-[Inter,sans-serif] text-[14px] font-medium leading-5 text-[#9CA3AF]">
+            <span className="shrink-0 font-[Inter,sans-serif] text-[12px] font-medium leading-4 text-[#9CA3AF] min-[600px]:text-[14px] min-[600px]:leading-5">
               View Payslips
             </span>
           }
         >
-          <div className="flex w-full flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="min-w-0 flex-1 space-y-1">
-              <p className="font-[Inter,sans-serif] text-[12px] font-semibold leading-4 text-[#6B7280]">
+          <div className="flex w-full min-w-0 flex-row items-center justify-between gap-3 min-[600px]:gap-5">
+            <div className="min-w-0 flex-1">
+              <p className="font-[Inter,sans-serif] text-[12px] font-semibold leading-4 text-[#111827] min-[600px]:text-[14px] min-[600px]:leading-5">
                 Recent Pay
               </p>
-              <p className="font-[Inter,sans-serif] text-[12px] leading-4 text-[#9CA3AF]">Coming soon</p>
-              <p className="font-[Inter,sans-serif] text-[28px] font-semibold leading-8 text-[#111827]">
+              <p className="mt-1 font-[Inter,sans-serif] text-[10px] leading-3 text-[#6B7280] min-[600px]:text-[12px] min-[600px]:leading-4">
+                Coming soon
+              </p>
+              <p className="mt-2 font-[Inter,sans-serif] text-[20px] font-semibold leading-7 text-[#111827] min-[600px]:mt-3 min-[600px]:text-[26px] min-[600px]:leading-8 xl:text-[28px] xl:leading-8">
                 —
               </p>
-              <p className="font-[Inter,sans-serif] text-[12px] leading-4 text-[#6B7280]">Net Pay</p>
-              <p className="pt-2 font-[Inter,sans-serif] text-[12px] leading-4 text-[#6B7280]">
+              <p className="mt-1 font-[Inter,sans-serif] text-[10px] leading-3 text-[#6B7280] min-[600px]:text-[12px] min-[600px]:leading-4">
+                Net Pay
+              </p>
+              <p className="mt-2 font-[Inter,sans-serif] text-[10px] leading-3 text-[#6B7280] min-[600px]:mt-3 min-[600px]:text-[12px] min-[600px]:leading-4 xl:text-[14px] xl:leading-5">
                 Next pay day: Coming soon
               </p>
             </div>
-            <div className="flex shrink-0 items-center justify-center self-center sm:self-auto">
-              <WorkerDashboardIcon src={WORKER_DASHBOARD_ICONS.paySummary} size={64} />
-            </div>
+            <img
+              src={WORKER_DASHBOARD_ICONS.paySummary}
+              alt=""
+              width={64}
+              height={64}
+              className="h-12 w-12 shrink-0 min-[600px]:h-16 min-[600px]:w-16"
+              aria-hidden
+            />
           </div>
         </WorkerCardShell>
       </div>
