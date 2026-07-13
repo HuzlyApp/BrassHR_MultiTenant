@@ -72,7 +72,12 @@ export default function OnboardingLayout({
           {children}
         </div>
 
-        <div className={cn("relative hidden overflow-visible md:block", rightPanelClassName)}>
+        <div
+          className={cn(
+            "relative hidden min-h-0 overflow-hidden rounded-b-2xl md:block md:rounded-b-none md:rounded-r-2xl",
+            rightPanelClassName
+          )}
+        >
           {panelUseNativeImg ? (
             <img
               src={panelSrc}
@@ -101,7 +106,7 @@ export default function OnboardingLayout({
 
           <div
             className={cn(
-              "absolute inset-0 flex items-center justify-center overflow-visible p-8",
+              "absolute inset-0 flex items-center justify-center overflow-hidden p-8",
               rightPanelContentClassName
             )}
           >
