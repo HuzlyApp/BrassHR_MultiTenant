@@ -57,6 +57,8 @@ export function WorkerAccountShell({ activeTab, children }: WorkerAccountShellPr
 
   useEffect(() => {
     if (!sessionReady) return;
+    // Keep existing overview visible across tab navigations; only fetch once when empty.
+    if (overview) return;
 
     let alive = true;
     setError(null);
@@ -72,7 +74,7 @@ export function WorkerAccountShell({ activeTab, children }: WorkerAccountShellPr
     return () => {
       alive = false;
     };
-  }, [loadOverview, sessionReady]);
+  }, [loadOverview, overview, sessionReady]);
 
   return (
     <WorkerAccountShellLayout

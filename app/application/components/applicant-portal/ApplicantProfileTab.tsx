@@ -7,10 +7,9 @@ import { WorkerAccountEmploymentTab } from "./WorkerAccountEmploymentTab";
 import { WorkerAccountOverview } from "./WorkerAccountOverview";
 import { WorkerAccountPersonalForm } from "./WorkerAccountPersonalForm";
 import { WorkerAccountPlaceholderTab } from "./WorkerAccountPlaceholderTab";
-import { WorkerAccountShell } from "./WorkerAccountShell";
 import { parseWorkerAccountTab } from "./worker-account-types";
 
-function ApplicantProfileTabBody() {
+export function ApplicantProfileTab() {
   const searchParams = useSearchParams();
   const activeTab = parseWorkerAccountTab(searchParams.get("tab"));
   const overview = useWorkerAccountOverview();
@@ -28,7 +27,8 @@ function ApplicantProfileTabBody() {
     window.open(payload.url, "_blank", "noopener,noreferrer");
   }
 
-  if (activeTab === "overview" && overview) {
+  if (activeTab === "overview") {
+    if (!overview) return null;
     return <WorkerAccountOverview data={overview} onDownloadDocument={handleDownloadDocument} />;
   }
 
@@ -36,7 +36,8 @@ function ApplicantProfileTabBody() {
     return <WorkerAccountPersonalForm />;
   }
 
-  if (activeTab === "employment" && overview) {
+  if (activeTab === "employment") {
+    if (!overview) return null;
     return <WorkerAccountEmploymentTab profile={overview.profile} />;
   }
 
@@ -58,20 +59,6 @@ function ApplicantProfileTabBody() {
     );
   }
 
+  // documents / skills are separate routes under the shared worker-account layout
   return null;
-}
-
-function ApplicantProfileTabFrame() {
-  const searchParams = useSearchParams();
-  const activeTab = parseWorkerAccountTab(searchParams.get("tab"));
-
-  return (
-    <WorkerAccountShell activeTab={activeTab}>
-      <ApplicantProfileTabBody />
-    </WorkerAccountShell>
-  );
-}
-
-export function ApplicantProfileTab() {
-  return <ApplicantProfileTabFrame />;
 }
