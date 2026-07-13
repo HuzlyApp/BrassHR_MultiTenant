@@ -234,7 +234,7 @@ export default function Home() {
               className="origin-center scale-[1.15]"
             />
             <div className="space-y-3">
-              <h1 className="text-[38px] font-semibold leading-[44px] tracking-normal text-slate-800 max-[500px]:text-[34px] max-[500px]:leading-[40px] max-[450px]:text-[32px] max-[450px]:leading-[37px] min-[600px]:max-[1023px]:text-[42px] min-[600px]:max-[1023px]:leading-[48px]">
+              <h1 className="text-[38px] font-semibold leading-[44px] tracking-normal text-slate-800 max-[500px]:text-[34px] max-[500px]:leading-[40px] max-[450px]:text-[32px] max-[450px]:leading-[37px] max-[399px]:whitespace-nowrap max-[399px]:text-[22px] max-[399px]:leading-[28px] min-[600px]:max-[1023px]:text-[42px] min-[600px]:max-[1023px]:leading-[48px]">
                 {brand.headline}
               </h1>
               <p className="text-[16px] font-normal leading-6 tracking-normal text-slate-500">{brand.subtitle}</p>
