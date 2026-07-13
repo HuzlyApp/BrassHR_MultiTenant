@@ -98,6 +98,24 @@ export default function ApplicationOnboardingBootstrap({ children }: { children:
           setError(authResult.error);
         } else {
           setSessionReady(true);
+
+          const params = new URLSearchParams(window.location.search);
+          const jobId = params.get("job_id");
+          const jobToken = params.get("job_token");
+          const slug = resolveBootstrapSlug();
+          const applicantId = getScopedApplicantId();
+          if (slug && applicantId && (jobId || jobToken)) {
+            await fetch("/api/onboarding/bind-job", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                applicantId,
+                tenantSlug: slug,
+                jobId,
+                jobToken,
+              }),
+            }).catch(() => null);
+          }
         }
       } catch (e) {
         if (alive)

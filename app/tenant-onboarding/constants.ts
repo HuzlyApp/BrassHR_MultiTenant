@@ -1,3 +1,4 @@
+/** Stored tenant industry values (dropdown order). Staffing & Recruiting is the primary target. */
 export const INDUSTRY_OPTIONS = [
   "Staffing & Recruiting",
   "Healthcare",
@@ -18,6 +19,38 @@ export const INDUSTRY_OPTIONS = [
   "Fitness / Wellness / Gyms",
   "Other",
 ] as const;
+
+/** Previous industry labels still accepted for validation and normalized on display. */
+export const LEGACY_INDUSTRY_ALIASES: Record<string, (typeof INDUSTRY_OPTIONS)[number]> = {
+  Staffing: "Staffing & Recruiting",
+  "Home Care": "Home Care / Home Health",
+  Technology: "Technology / IT Services",
+  "Hospitality / Food Service (Restaurants, Cafes, Hotels)": "Hospitality / Food Service",
+  "Professional Services (Accounting, Legal, Consulting, Admin)": "Professional Services",
+};
+
+export function normalizeIndustryValue(
+  industry: string | null | undefined
+): string {
+  const value = (industry ?? "").trim();
+  if (!value) return "";
+  if ((INDUSTRY_OPTIONS as readonly string[]).includes(value)) return value;
+  return LEGACY_INDUSTRY_ALIASES[value] ?? value;
+}
+
+export function isAllowedIndustryValue(industry: string): boolean {
+  const value = industry.trim();
+  if (!value) return false;
+  if ((INDUSTRY_OPTIONS as readonly string[]).includes(value)) return true;
+  return Object.prototype.hasOwnProperty.call(LEGACY_INDUSTRY_ALIASES, value);
+}
+
+export function industryOptionLabel(value: (typeof INDUSTRY_OPTIONS)[number]): string {
+  if (value === "Staffing & Recruiting") {
+    return "Staffing & Recruiting (Primary target)";
+  }
+  return value;
+}
 
 export const COMPANY_SIZE_OPTIONS = [
   "1-10",

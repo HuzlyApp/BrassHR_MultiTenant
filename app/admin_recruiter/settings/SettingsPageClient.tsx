@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import BrandingSettingsPanel from "@/app/admin_recruiter/settings/BrandingSettingsPanel";
@@ -26,6 +27,17 @@ function SettingsContent() {
           Set up onboarding and your company look. Branding updates apply for your whole organization,
           including worker sign-in.
         </p>
+        <nav className="mt-4 flex flex-wrap gap-3 text-sm">
+          <span className="rounded-md bg-[#E8F5F4] px-3 py-1.5 font-medium text-[#0f514e]">
+            Branding
+          </span>
+          <Link
+            href="/admin_recruiter/settings/workflow-configuration"
+            className="rounded-md border border-[#E2E8F0] px-3 py-1.5 text-[#334155] hover:bg-[#F8FAFC]"
+          >
+            Workflow Configuration
+          </Link>
+        </nav>
       </div>
 
       <section aria-labelledby="branding-heading">

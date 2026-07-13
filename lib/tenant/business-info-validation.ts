@@ -1,6 +1,6 @@
 import {
   COMPANY_SIZE_OPTIONS,
-  INDUSTRY_OPTIONS,
+  isAllowedIndustryValue,
 } from "@/app/tenant-onboarding/constants";
 import { zipPrefixBelongsToState } from "@/lib/us-zip-by-state";
 
@@ -138,7 +138,7 @@ export function industryValidationMessage(
   const value = industry.trim();
   const required = options?.required !== false;
   if (!value) return required ? "Industry is required." : null;
-  if (!(INDUSTRY_OPTIONS as readonly string[]).includes(value)) {
+  if (!isAllowedIndustryValue(value)) {
     return "Select a valid industry.";
   }
   return null;

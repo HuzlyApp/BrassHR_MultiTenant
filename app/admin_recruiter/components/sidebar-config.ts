@@ -164,11 +164,33 @@ const TEMPLATES_CHILDREN: SidebarLink[] = [
 
 const TEMPLATES_ACTIVE_PREFIXES = [EMAIL_TEMPLATES_ROUTE, TEMPLATE_BUILDER_ROUTE];
 
+const JOBS_ROUTE = "/admin_recruiter/jobs";
+const WORKFLOW_CONFIGURATION_ROUTE = "/admin_recruiter/settings/workflow-configuration";
+
 const RECRUITMENT_CHILDREN: SidebarLink[] = [
   {
     label: "Candidates",
     href: "/admin_recruiter/candidates",
     matchPrefixes: CANDIDATE_ROUTE_PREFIXES,
+  },
+  {
+    label: "Job Requisitions",
+    href: JOBS_ROUTE,
+    matchPrefixes: [JOBS_ROUTE],
+  },
+];
+
+const SETTINGS_CHILDREN: SidebarLink[] = [
+  {
+    label: "Branding",
+    href: "/admin_recruiter/settings",
+    matchPrefixes: ["/admin_recruiter/settings"],
+    matchExact: true,
+  },
+  {
+    label: "Workflow Configuration",
+    href: WORKFLOW_CONFIGURATION_ROUTE,
+    matchPrefixes: [WORKFLOW_CONFIGURATION_ROUTE],
   },
 ];
 
@@ -305,9 +327,10 @@ const SHARED_FOOTER_SECTIONS: SidebarSection[] = [
   },
   {
     label: "Settings",
-    href: "/admin_recruiter/settings",
+    href: "#",
     iconType: ICON.settings,
     matchPrefixes: ["/admin_recruiter/settings"],
+    children: SETTINGS_CHILDREN,
   },
 ];
 
@@ -324,7 +347,7 @@ export const CLIENT_SIDEBAR_SECTIONS: SidebarSection[] = [
     label: "Recruitment",
     href: "#",
     iconType: ICON.candidates,
-    matchPrefixes: CANDIDATE_ROUTE_PREFIXES,
+    matchPrefixes: [...CANDIDATE_ROUTE_PREFIXES, JOBS_ROUTE],
     children: RECRUITMENT_CHILDREN,
   },
   {
@@ -410,7 +433,7 @@ export const GOD_ADMIN_SIDEBAR_SECTIONS: SidebarSection[] = [
     label: "Recruitment",
     href: "#",
     iconType: ICON.candidates,
-    matchPrefixes: CANDIDATE_ROUTE_PREFIXES,
+    matchPrefixes: [...CANDIDATE_ROUTE_PREFIXES, JOBS_ROUTE],
     children: RECRUITMENT_CHILDREN,
   },
   {

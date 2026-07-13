@@ -11,6 +11,9 @@
     },
     "firma-docs": {
       "url": "https://docs.firma.dev/mcp"
+    },
+    "resend": {
+      "url": "https://mcp.resend.com/mcp"
     }
   }
 }

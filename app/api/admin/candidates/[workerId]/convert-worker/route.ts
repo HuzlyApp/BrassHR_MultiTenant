@@ -11,6 +11,7 @@ import {
 import { writeActivityLog } from "@/lib/audit/activity-log";
 import { requireStaffApiSession } from "@/lib/auth/api-session";
 import { canAccessWorkerRecord } from "@/lib/auth/worker-record-access";
+import { evaluateConversionReadiness } from "@/lib/job-requisitions/evaluate-conversion-readiness";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { parseRequiredUuid } from "@/lib/validation/uuid";
 
@@ -63,7 +64,8 @@ async function loadCandidate(
 export async function convertCandidateToWorker(
   supabase: SupabaseClient,
   candidateId: string,
-  workerType: ConvertWorkerType
+  workerType: ConvertWorkerType,
+  actorUserId?: string | null
 ): Promise<ConvertResult> {
   const candidate = await loadCandidate(supabase, candidateId);
   if (!candidate) {
@@ -75,6 +77,15 @@ export async function convertCandidateToWorker(
       ok: false,
       error: "This candidate has already been converted.",
       status: 409,
+    };
+  }
+
+  const readiness = await evaluateConversionReadiness(supabase, candidateId);
+  if (!readiness.ready) {
+    return {
+      ok: false,
+      error: readiness.reason ?? "Candidate is not ready for conversion.",
+      status: 400,
     };
   }
 
@@ -124,11 +135,34 @@ export async function convertCandidateToWorker(
       status: "converted",
       converted_worker_type: workerType,
       converted_at: convertedAt,
+      converted_worker_id: workerRecordId,
+      converted_by: actorUserId ?? null,
+      conversion_status: "completed",
       updated_at: convertedAt,
     })
     .eq("id", candidateId);
 
   if (candidateUpdateErr) throw candidateUpdateErr;
+
+  const { data: workerRow } = await supabase
+    .from("worker")
+    .select("applicant_workflow_instance_id")
+    .eq("id", candidateId)
+    .maybeSingle();
+
+  if (workerRow?.applicant_workflow_instance_id) {
+    await supabase
+      .from("applicant_workflow_instances")
+      .update({
+        conversion_status: "completed",
+        converted_worker_id: workerRecordId,
+        converted_at: convertedAt,
+        converted_by: actorUserId ?? null,
+        worker_type: workerType,
+        updated_at: convertedAt,
+      })
+      .eq("id", workerRow.applicant_workflow_instance_id);
+  }
 
   return {
     ok: true,
@@ -185,7 +219,7 @@ export async function POST(req: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const result = await convertCandidateToWorker(supabase, idCheck.value, workerType);
+    const result = await convertCandidateToWorker(supabase, idCheck.value, workerType, auth.userId);
     if (!result.ok) {
       return NextResponse.json({ error: result.error }, { status: result.status });
     }

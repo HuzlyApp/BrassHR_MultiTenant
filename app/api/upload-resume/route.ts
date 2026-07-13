@@ -8,6 +8,7 @@ import { persistWorkerResumePath } from "@/lib/onboarding/persist-worker-resume-
 import { persistWorkerResumeRecord } from "@/lib/onboarding/persist-worker-resume-record"
 import { resolveOrEnsureWorkerForApplicant, resolveWorkerByApplicantId, type WorkerContext } from "@/lib/onboarding/resolve-worker-context"
 import { runResumeParseJob } from "@/lib/resume/run-resume-parse-job"
+import { hashResumeFile } from "@/lib/resume/resume-parsing-persistence"
 import { createTimer, logResumeTiming } from "@/lib/resume/timing"
 import { sendResumeContinuationEmail } from "@/lib/onboarding/send-resume-continuation-email"
 import { resolveAppOrigin } from "@/lib/resolve-app-origin"
@@ -148,6 +149,7 @@ export async function POST(req: Request) {
   }
 
   const buffer = Buffer.from(await file.arrayBuffer())
+  const fileHash = hashResumeFile(buffer)
 
   const url = getSupabaseUrl()
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -285,6 +287,7 @@ export async function POST(req: Request) {
         fileType,
         fileSizeBytes,
         extractedText: text,
+        fileHash,
       }),
       RESUME_DB_TIMEOUT_MS,
       "Resume record persistence",
@@ -352,6 +355,10 @@ export async function POST(req: Request) {
         supabase,
         resumeId: capturedResumeId,
         text: capturedText,
+        tenantId: capturedTenantId,
+        workerId: capturedWorkerId,
+        applicantId,
+        fileHash,
         continuationEmail:
           origin && capturedWorkerId && capturedTenantId
             ? {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -291,12 +291,49 @@ export default function OnboardedApplicantPanel({ workerId, data, onConversionCo
   const [hoveredWorkerType, setHoveredWorkerType] = useState<WorkerType | null>(null);
   const [convertingType, setConvertingType] = useState<WorkerType | null>(null);
   const [conversionSuccess, setConversionSuccess] = useState<ConvertWorkerSuccessData | null>(null);
+  const [conversionBlockedReason, setConversionBlockedReason] = useState<string | null>(null);
+  const [conversionReady, setConversionReady] = useState(!data.isConverted);
   const activeWorkerType: WorkerType = hoveredWorkerType ?? data.convertedWorkerType ?? "w2";
 
   const firstName = data.candidateName.split(/\s+/)[0] || data.candidateName;
 
+  useEffect(() => {
+    if (data.isConverted) {
+      setConversionReady(false);
+      setConversionBlockedReason(null);
+      return;
+    }
+    let alive = true;
+    void (async () => {
+      try {
+        const res = await fetch(
+          `/api/admin/candidates/${encodeURIComponent(workerId)}/conversion-readiness`,
+          { cache: "no-store" }
+        );
+        const json = await res.json();
+        if (!alive) return;
+        if (!res.ok) {
+          setConversionReady(false);
+          setConversionBlockedReason(json.error ?? "Unable to verify conversion readiness.");
+          return;
+        }
+        const ready = Boolean(json.readiness?.ready);
+        setConversionReady(ready);
+        setConversionBlockedReason(ready ? null : json.readiness?.reason ?? "Conversion is not available.");
+      } catch {
+        if (alive) {
+          setConversionReady(false);
+          setConversionBlockedReason("Unable to verify conversion readiness.");
+        }
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [data.isConverted, workerId]);
+
   async function handleConvert(type: WorkerType) {
-    if (data.isConverted || convertingType) return;
+    if (data.isConverted || convertingType || !conversionReady) return;
 
     setConvertingType(type);
     try {
@@ -684,6 +721,11 @@ export default function OnboardedApplicantPanel({ workerId, data, onConversionCo
             <p className="mt-1 text-sm text-[#6B7280]">
               Choose the worker type and complete the conversion process.
             </p>
+            {conversionBlockedReason ? (
+              <p className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                Conversion unavailable: {conversionBlockedReason}
+              </p>
+            ) : null}
             <div className="mt-5 flex w-full flex-col gap-4 sm:flex-row">
               <ConvertWorkerCard
                 type="w2"
@@ -700,7 +742,7 @@ export default function OnboardedApplicantPanel({ workerId, data, onConversionCo
                 onMouseLeave={() => setHoveredWorkerType(null)}
                 onConvert={handleConvert}
                 converting={convertingType === "w2"}
-                disabled={convertingType != null}
+                disabled={convertingType != null || !conversionReady}
               />
               <ConvertWorkerCard
                 type="1099"
@@ -717,7 +759,7 @@ export default function OnboardedApplicantPanel({ workerId, data, onConversionCo
                 onMouseLeave={() => setHoveredWorkerType(null)}
                 onConvert={handleConvert}
                 converting={convertingType === "1099"}
-                disabled={convertingType != null}
+                disabled={convertingType != null || !conversionReady}
               />
             </div>
           </>

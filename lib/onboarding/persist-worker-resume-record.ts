@@ -13,6 +13,7 @@ export type PersistWorkerResumeRecordOpts = {
   fileType?: string | null;
   fileSizeBytes?: number | null;
   extractedText?: string | null;
+  fileHash?: string | null;
 };
 
 export async function persistWorkerResumeRecord(
@@ -56,6 +57,7 @@ export async function persistWorkerResumeRecord(
     parse_error: null,
     parsed_json: null,
     ai_parse_ms: null,
+    file_hash: opts.fileHash ?? null,
   };
 
   const { data: existing } = await supabase

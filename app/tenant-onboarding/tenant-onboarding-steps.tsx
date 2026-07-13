@@ -17,6 +17,7 @@ import { interStyle, primaryButtonStyle } from "@/app/tenant-onboarding/TenantOn
 import {
   COMPANY_SIZE_OPTIONS,
   INDUSTRY_OPTIONS,
+  industryOptionLabel,
   TENANT_GOAL_OPTIONS,
   brandingFontStack,
   TENANT_BRANDING_FONT_OPTIONS,
@@ -296,6 +297,7 @@ function SelectField({
   required = false,
   disabled = false,
   error,
+  formatOptionLabel,
 }: {
   label: string;
   value: string;
@@ -305,6 +307,7 @@ function SelectField({
   required?: boolean;
   disabled?: boolean;
   error?: string | null;
+  formatOptionLabel?: (option: string) => string;
 }) {
   return (
     <div>
@@ -324,7 +327,7 @@ function SelectField({
           <option value="">{placeholder ?? "Select"}</option>
           {options.map((opt) => (
             <option key={opt} value={opt}>
-              {opt}
+              {formatOptionLabel ? formatOptionLabel(opt) : opt}
             </option>
           ))}
         </select>
@@ -710,6 +713,9 @@ export function BusinessStep({
             onChange={(value) => handleBusinessFieldChange({ industry: value })}
             placeholder="Select industry"
             options={INDUSTRY_OPTIONS}
+            formatOptionLabel={(option) =>
+              industryOptionLabel(option as (typeof INDUSTRY_OPTIONS)[number])
+            }
             error={showFieldError("industry")}
           />
           <SelectField

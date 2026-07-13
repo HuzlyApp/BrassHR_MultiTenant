@@ -23,6 +23,7 @@ import {
   TextField,
   US_STATES,
 } from "./account-form-fields";
+import { industryOptionLabel, normalizeIndustryValue } from "@/app/tenant-onboarding/constants";
 import {
   AccountErrorBanner,
   AccountLoadingSkeleton,
@@ -60,7 +61,7 @@ export default function BusinessInfoTab() {
     setLegalName(organization.legal_name ?? "");
     setSubdomain(organization.subdomain ?? "");
     setWebsite(organization.website ?? "");
-    setIndustry(organization.industry ?? "");
+    setIndustry(normalizeIndustryValue(organization.industry));
     setCompanySize(organization.company_size ?? "");
     setCity(organization.city ?? "");
     setState(organization.state ?? "");
@@ -251,7 +252,7 @@ export default function BusinessInfoTab() {
                 <option value="">Select industry</option>
                 {INDUSTRY_OPTIONS.map((item) => (
                   <option key={item} value={item}>
-                    {item}
+                    {industryOptionLabel(item)}
                   </option>
                 ))}
               </SelectField>

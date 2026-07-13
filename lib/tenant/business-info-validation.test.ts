@@ -110,6 +110,15 @@ describe("validateBusinessInfoForm", () => {
     );
     expect(errors.companyName).toBeTruthy();
   });
+
+  it("accepts legacy industry labels", () => {
+    expect(
+      isBusinessInfoValid(
+        { ...validInput, industry: "Staffing" },
+        { stateCode: "CA", allowedCityNames: ["Los Angeles"] }
+      )
+    ).toBe(true);
+  });
 });
 
 describe("zipPrefixBelongsToState", () => {

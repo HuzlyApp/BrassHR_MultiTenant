@@ -2,6 +2,7 @@ import type { StepSettings } from "@/app/components/workflow-builder/types";
 import { evaluateConditionalLogic } from "@/lib/onboarding/evaluate-conditional-logic";
 import { normalizeWorkflowNodeSettings } from "@/lib/onboarding/normalize-workflow-settings";
 import type { TenantOnboardingStep } from "@/lib/onboarding/types";
+import { CONVERT_TO_WORKER_STEP_ID } from "@/lib/job-requisitions/types";
 
 export type ParsedWorkflowSettings = StepSettings & {
   /** Admin-only settings are not applied on the worker path. */
@@ -51,6 +52,17 @@ export function isWorkerPerformableStep(step: TenantOnboardingStep): boolean {
  * Full expression evaluation is not supported yet.
  */
 export function isWorkerVisibleStep(step: TenantOnboardingStep): boolean {
+  const workflowStepId =
+    typeof step.metadata?.workflow_step_id === "string"
+      ? step.metadata.workflow_step_id
+      : step.step_key;
+  if (
+    workflowStepId === CONVERT_TO_WORKER_STEP_ID ||
+    step.step_key === "convert_to_worker" ||
+    step.step_key === "convert-to-worker"
+  ) {
+    return false;
+  }
   const settings = getWorkflowSettings(step);
   if (settings.adminOnly) return false;
   return isWorkerPerformableStep(step);

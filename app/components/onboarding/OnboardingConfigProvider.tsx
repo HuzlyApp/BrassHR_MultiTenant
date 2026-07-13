@@ -23,7 +23,12 @@ import { computeMaxAllowedStepIndex } from "@/lib/onboarding/tenant-step-navigat
 import { safeFetchJson } from "@/lib/api/safe-fetch-json";
 import { useApplicantSession } from "@/lib/onboarding/applicant-session-context";
 
-export type OnboardingConfigSource = "published" | "draft-preview" | "draft-api" | null;
+export type OnboardingConfigSource =
+  | "published"
+  | "job-workflow"
+  | "draft-preview"
+  | "draft-api"
+  | null;
 
 type Ctx = {
   config: TenantOnboardingConfig | null;
@@ -198,10 +203,11 @@ export default function OnboardingConfigProvider({ children }: { children: React
         return;
       }
 
-      const configRes = await safeFetchJson<ConfigPayload>(
-        `/api/onboarding/config?slug=${encodeURIComponent(slug)}`,
-        { cache: "no-store" }
-      );
+      const aid = readApplicantId();
+      const configUrl = aid
+        ? `/api/onboarding/config?slug=${encodeURIComponent(slug)}&applicantId=${encodeURIComponent(aid)}`
+        : `/api/onboarding/config?slug=${encodeURIComponent(slug)}`;
+      const configRes = await safeFetchJson<ConfigPayload>(configUrl, { cache: "no-store" });
 
       if (requestId !== configFetchSeq.current) return;
 
@@ -219,7 +225,9 @@ export default function OnboardingConfigProvider({ children }: { children: React
 
       if (configRes.data.config) {
         setConfig(applyApplicantConfigFilters(configRes.data.config));
-        setSource("published");
+        setSource(
+          configRes.data.source === "job-workflow" ? "job-workflow" : "published"
+        );
       } else {
         setConfig(null);
         setSource(null);

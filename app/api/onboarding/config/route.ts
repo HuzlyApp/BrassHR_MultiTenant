@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { getSupabaseUrl } from "@/lib/supabase-env";
+import { loadApplicantWorkflowConfig } from "@/lib/job-requisitions/applicant-workflow-instance";
 import { loadTenantOnboardingConfig } from "@/lib/onboarding/load-tenant-config";
 import { loadOnboardingBuilderMeta } from "@/lib/onboarding/load-onboarding-builder-meta";
+import { resolveOnboardingWorker, readOnboardingTenantSlugFromRequest } from "@/lib/onboarding/resolve-onboarding-worker";
 import { resolveTenantIdBySlug } from "@/lib/onboarding/resolve-worker-context";
 import { getEnabledTenantSteps } from "@/lib/onboarding/tenant-step-navigation";
 
@@ -13,6 +15,9 @@ export async function GET(req: NextRequest) {
   try {
     const slug = req.nextUrl.searchParams.get("slug")?.trim() || "";
     const tenantIdParam = req.nextUrl.searchParams.get("tenantId")?.trim() || "";
+    const applicantId = req.nextUrl.searchParams.get("applicantId")?.trim() || "";
+    const tenantSlug =
+      slug || req.nextUrl.searchParams.get("tenant")?.trim().toLowerCase() || readOnboardingTenantSlugFromRequest(req);
 
     const url = getSupabaseUrl();
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -49,7 +54,24 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    const config = await loadTenantOnboardingConfig(supabase, tenantId, { workerFacing: true });
+    let config = await loadTenantOnboardingConfig(supabase, tenantId, { workerFacing: true });
+    let source: "published" | "job-workflow" = "published";
+
+    if (applicantId) {
+      const ctx = await resolveOnboardingWorker(supabase, applicantId, tenantSlug);
+      if (ctx) {
+        const applicantConfig = await loadApplicantWorkflowConfig(
+          supabase,
+          ctx.workerId,
+          ctx.tenantId
+        );
+        if (applicantConfig) {
+          config = applicantConfig;
+          source = "job-workflow";
+        }
+      }
+    }
+
     if (!config) {
       return NextResponse.json({ error: "Configuration not found" }, { status: 404 });
     }
@@ -72,6 +94,7 @@ export async function GET(req: NextRequest) {
         tenantId,
         tenantSlug: tenantRow.slug ?? slug,
         enabledSteps: getEnabledTenantSteps(config).length,
+        source,
       });
     }
 
@@ -79,7 +102,7 @@ export async function GET(req: NextRequest) {
       config,
       tenantSlug: tenantRow.slug ?? slug,
       publishStatus,
-      source: "published",
+      source,
     });
   } catch (err: unknown) {
     console.error("[onboarding/config]", err);

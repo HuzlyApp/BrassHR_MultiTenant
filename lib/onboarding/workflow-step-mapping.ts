@@ -26,6 +26,7 @@ export const WORKFLOW_STEP_TO_ONBOARDING_TYPE: Record<string, OnboardingStepType
   "401k-enrollment": "profile_information",
   "pay-rate-hire-date": "profile_information",
   "payroll-profile-creation": "profile_information",
+  "convert-to-worker": "custom_question",
   "safety-training": "custom_question",
   "training-modules-quiz": "skill_assessment",
   "orientation-video": "custom_question",
