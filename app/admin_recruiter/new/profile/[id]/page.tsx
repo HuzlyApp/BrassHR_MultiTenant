@@ -1327,13 +1327,18 @@ export default function NewApplicantProfilePage() {
                         {data?.skills?.positions?.length ? data.skills.positions.join(", ") : "N/A"}
                       </div>
                       <div className="mt-3 text-xs text-gray-600">Skills</div>
-                      <div className="mt-2 space-y-1">
+                      <div className="mt-2">
                         {profileSkills.length > 0 ? (
-                          profileSkills.map((skill) => (
-                            <div key={skill.id} className="text-sm text-[#111827]">
-                              {skill.skill_name}
-                            </div>
-                          ))
+                          <div className="flex flex-wrap gap-2">
+                            {profileSkills.map((skill) => (
+                              <span
+                                key={skill.id}
+                                className="inline-flex rounded-full bg-[#DBEAFE] px-3 py-1 text-xs font-medium text-[#1D4ED8]"
+                              >
+                                {skill.skill_name}
+                              </span>
+                            ))}
+                          </div>
                         ) : (
                           <div className="text-sm text-[#6B7280]">No skills added yet.</div>
                         )}

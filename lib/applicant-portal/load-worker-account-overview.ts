@@ -3,6 +3,7 @@ import { applicantDisplayName } from "@/lib/applicant-portal";
 import { documentStatusLabel } from "@/lib/applicant-portal/documents";
 import { createSignedPortalFileUrl } from "@/lib/applicant-portal/upload";
 import { computeWorkerProfileCompletionPercent } from "@/lib/applicant-portal/worker-profile-completion";
+import { loadWorkerProfileSkills } from "@/lib/worker-profile-skills";
 import type { WorkerAccountOverviewPayload } from "@/app/application/components/applicant-portal/worker-account-types";
 
 type WorkerRow = {
@@ -31,6 +32,7 @@ type WorkerRow = {
   converted_worker_type: string | null;
   reports_to: string | null;
   manager_name: string | null;
+  about_me: string | null;
 };
 
 type EmploymentWorkerRow = {
@@ -118,14 +120,6 @@ function sumAttendanceHours(logs: AttendanceRow[]): number {
     }
     return total;
   }, 0);
-}
-
-function formatCategoryLabel(slug: string): string {
-  return slug
-    .split(/[-_]/)
-    .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
 }
 
 function serializeProfile(
@@ -216,6 +210,7 @@ function normalizeWorkerRow(data: Record<string, unknown>): WorkerRow {
       typeof data.converted_worker_type === "string" ? data.converted_worker_type : null,
     reports_to: typeof data.reports_to === "string" ? data.reports_to : null,
     manager_name: typeof data.manager_name === "string" ? data.manager_name : null,
+    about_me: typeof data.about_me === "string" ? data.about_me : null,
   };
 }
 
@@ -248,6 +243,7 @@ export async function loadWorkerAccountOverview(
     licensesCountRes,
     attendanceRes,
     assessmentsRes,
+    profileSkills,
   ] = await Promise.all([
     supabase.from("worker").select("*").eq("id", workerId).maybeSingle(),
     supabase
@@ -289,6 +285,7 @@ export async function loadWorkerAccountOverview(
       .order("attendance_date", { ascending: false })
       .limit(200),
     supabase.from("skill_assessments").select("category, completed, answers").eq("worker_id", workerId),
+    loadWorkerProfileSkills(supabase, workerId),
   ]);
 
   if (workerRes.error) throw workerRes.error;
@@ -328,6 +325,7 @@ export async function loadWorkerAccountOverview(
     portalDocumentCount: portalDocsCountRes.count ?? 0,
     licenseCount: licensesCountRes.count ?? 0,
     completedAssessmentCount,
+    profileSkillCount: profileSkills.length,
   });
 
   const profile = serializeProfile(worker, employmentWorker, profilePhotoUrl, profileCompletionPercent);
@@ -389,18 +387,15 @@ export async function loadWorkerAccountOverview(
   const earnings =
     Number.isFinite(hourlyRate) && hourlyRate > 0 ? totalHours * hourlyRate : null;
 
-  const assessedSkills = (assessmentsRes.data ?? [])
-    .filter((row) => row.completed)
-    .map((row) => formatCategoryLabel(String(row.category ?? "")))
-    .filter(Boolean);
-
-  const skills = Array.from(new Set([...profile.positions, ...assessedSkills])).slice(0, 8);
+  const skills = profileSkills.map((skill) => skill.skill_name).filter(Boolean);
 
   const roleLabel = profile.jobRole.trim() || "team member";
+  const storedAboutMe = worker.about_me?.trim() ?? "";
   const aboutMe =
-    profile.yearsExperience != null
+    storedAboutMe ||
+    (profile.yearsExperience != null
       ? `Experienced ${roleLabel} with ${profile.yearsExperience} years in the field. Committed to safe, reliable work and strong team support.`
-      : `Dedicated ${roleLabel} focused on quality work, clear communication, and dependable attendance.`;
+      : `Dedicated ${roleLabel} focused on quality work, clear communication, and dependable attendance.`);
 
   return {
     profile,

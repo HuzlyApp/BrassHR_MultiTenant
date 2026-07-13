@@ -211,7 +211,7 @@ export function ApplicantLicensesTab({ embedded = false }: { embedded?: boolean 
                 className="h-10 w-full rounded-lg border border-[#D1D5DB] px-3 text-sm outline-none focus:border-[color:var(--brand-primary)]"
               />
             </div>
-            <div className="md:col-span-2">
+            <div>
               <label className="mb-1.5 block text-[13px] font-medium text-[#374151]">
                 License file <span className="text-red-500">*</span>
               </label>
@@ -241,24 +241,31 @@ export function ApplicantLicensesTab({ embedded = false }: { embedded?: boolean 
             <p className="px-4 py-6 text-sm text-[#64748B]">No license records yet.</p>
           ) : (
             licenses.map((license) => (
-              <div key={license.id} className="flex flex-wrap items-start justify-between gap-3 px-4 py-4">
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold text-[#0F172A]">{license.licenseTypeLabel}</p>
-                  <p className="mt-1 text-xs text-[#64748B]">
+              <div
+                key={license.id}
+                className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-start sm:justify-between sm:gap-4"
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-semibold text-[#0F172A]">
+                    {license.licenseTypeLabel}
+                  </p>
+                  <p className="mt-1 break-all text-xs leading-5 text-[#64748B] sm:break-words">
                     Expires: {license.expiresAtLabel ?? "Not set"}
                     {license.licenseNumber ? ` · #${license.licenseNumber}` : ""}
                   </p>
                   {license.reviewNotes ? (
-                    <p className="mt-2 text-xs text-[#B45309]">Reviewer note: {license.reviewNotes}</p>
+                    <p className="mt-2 break-words text-xs text-[#B45309]">
+                      Reviewer note: {license.reviewNotes}
+                    </p>
                   ) : null}
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2 sm:shrink-0 sm:justify-end">
                   <StatusBadge label={license.statusLabel} tone={statusTone(license.status, license.urgency)} />
                   {license.hasFile ? (
                     <button
                       type="button"
                       onClick={() => void openFile(license.id)}
-                      className={WORKER_BTN_OUTLINE}
+                      className={`${WORKER_BTN_OUTLINE} w-auto`}
                     >
                       View file
                     </button>

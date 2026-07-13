@@ -445,7 +445,7 @@ export function ApplicantDocumentsTab({ embedded = false }: { embedded?: boolean
           <p className="mt-1 text-sm text-[#64748B]">Optional documents for your recruiter.</p>
         </div>
         <form onSubmit={handleUpload} className="space-y-4 p-4">
-          {missingRequired.length > 0 ? (
+          <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <label className="mb-1.5 block text-[13px] font-medium text-[#374151]">Document type</label>
               <select
@@ -461,53 +461,59 @@ export function ApplicantDocumentsTab({ embedded = false }: { embedded?: boolean
                 ))}
               </select>
             </div>
-          ) : null}
-          {!requiredDocumentId ? (
-            <div className="grid gap-4 md:grid-cols-2">
-              <div>
-                <label className="mb-1.5 block text-[13px] font-medium text-[#374151]">Name</label>
-                <input
-                  value={title}
-                  onChange={(event) => {
-                    setTitle(event.target.value);
-                    if (uploadFieldErrors.title) {
-                      setUploadFieldErrors((current) => ({ ...current, title: undefined }));
-                    }
-                  }}
-                  className={`h-10 w-full rounded-lg border px-3 text-sm outline-none focus:border-[color:var(--brand-primary)] ${
-                    uploadFieldErrors.title ? "border-red-300" : "border-[#D1D5DB]"
-                  }`}
-                  placeholder="e.g. Immunization record"
-                />
-                {uploadFieldErrors.title ? (
-                  <p className="mt-1 text-xs text-red-600">{uploadFieldErrors.title}</p>
-                ) : null}
-              </div>
-              <div>
-                <label className="mb-1.5 block text-[13px] font-medium text-[#374151]">Type</label>
-                <input
-                  value={documentType}
-                  onChange={(event) => setDocumentType(event.target.value)}
-                  className="h-10 w-full rounded-lg border border-[#D1D5DB] px-3 text-sm outline-none focus:border-[color:var(--brand-primary)]"
-                />
-              </div>
-            </div>
-          ) : null}
-          <div>
-            <label className="mb-1.5 block text-[13px] font-medium text-[#374151]">File</label>
-            <WorkerFilePicker
-              inputRef={fileInputRef}
-              file={selectedFile}
-              onChange={(file) => {
-                setSelectedFile(file);
-                if (uploadFieldErrors.file) {
-                  setUploadFieldErrors((current) => ({ ...current, file: undefined }));
+
+            <div>
+              <label className="mb-1.5 block text-[13px] font-medium text-[#374151]">Document name</label>
+              <input
+                value={
+                  requiredDocumentId
+                    ? missingRequired.find((item) => item.id === requiredDocumentId)?.title ?? title
+                    : title
                 }
-              }}
-              disabled={uploading}
-              error={uploadFieldErrors.file}
-            />
+                onChange={(event) => {
+                  setTitle(event.target.value);
+                  if (uploadFieldErrors.title) {
+                    setUploadFieldErrors((current) => ({ ...current, title: undefined }));
+                  }
+                }}
+                disabled={Boolean(requiredDocumentId)}
+                className={`h-10 w-full rounded-lg border px-3 text-sm outline-none focus:border-[color:var(--brand-primary)] disabled:bg-[#F9FAFB] disabled:text-[#6B7280] ${
+                  uploadFieldErrors.title ? "border-red-300" : "border-[#D1D5DB]"
+                }`}
+                placeholder="e.g. Immunization record"
+              />
+              {uploadFieldErrors.title ? (
+                <p className="mt-1 text-xs text-red-600">{uploadFieldErrors.title}</p>
+              ) : null}
+            </div>
+
+            <div>
+              <label className="mb-1.5 block text-[13px] font-medium text-[#374151]">Type</label>
+              <input
+                value={documentType}
+                onChange={(event) => setDocumentType(event.target.value)}
+                disabled={Boolean(requiredDocumentId)}
+                className="h-10 w-full rounded-lg border border-[#D1D5DB] px-3 text-sm outline-none focus:border-[color:var(--brand-primary)] disabled:bg-[#F9FAFB] disabled:text-[#6B7280]"
+              />
+            </div>
+
+            <div>
+              <label className="mb-1.5 block text-[13px] font-medium text-[#374151]">File</label>
+              <WorkerFilePicker
+                inputRef={fileInputRef}
+                file={selectedFile}
+                onChange={(file) => {
+                  setSelectedFile(file);
+                  if (uploadFieldErrors.file) {
+                    setUploadFieldErrors((current) => ({ ...current, file: undefined }));
+                  }
+                }}
+                disabled={uploading}
+                error={uploadFieldErrors.file}
+              />
+            </div>
           </div>
+
           {uploadFormError ? (
             <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
               {uploadFormError}

@@ -18,6 +18,7 @@ export type WorkerProfileCompletionInput = {
   portalDocumentCount: number;
   licenseCount: number;
   completedAssessmentCount: number;
+  profileSkillCount?: number;
 };
 
 function hasText(value: string | null | undefined): boolean {
@@ -56,10 +57,13 @@ function documentsCompletionRatio(
 function skillsCompletionRatio(
   worker: WorkerProfileCompletionWorker,
   licenseCount: number,
-  completedAssessmentCount: number
+  completedAssessmentCount: number,
+  profileSkillCount: number
 ): number {
   const hasPositions = (worker.positions ?? []).some((item) => item.trim().length > 0);
-  return licenseCount > 0 || completedAssessmentCount > 0 || hasPositions ? 1 : 0;
+  return licenseCount > 0 || completedAssessmentCount > 0 || hasPositions || profileSkillCount > 0
+    ? 1
+    : 0;
 }
 
 /** Worker portal profile completion — personal info, documents, and skills. */
@@ -73,7 +77,8 @@ export function computeWorkerProfileCompletionPercent(input: WorkerProfileComple
   const skills = skillsCompletionRatio(
     input.worker,
     input.licenseCount,
-    input.completedAssessmentCount
+    input.completedAssessmentCount,
+    input.profileSkillCount ?? 0
   );
 
   const weighted = personal * 0.5 + documents * 0.3 + skills * 0.2;

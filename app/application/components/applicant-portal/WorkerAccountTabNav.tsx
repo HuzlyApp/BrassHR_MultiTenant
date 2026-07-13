@@ -6,7 +6,7 @@ import {
   WORKER_ACCOUNT_TABS,
   type WorkerAccountTab,
 } from "./worker-account-types";
-import { useWorkerAccountReadOnly, useWorkerAccountTabHref } from "./WorkerAccountContext";
+import { useWorkerAccountTabHref } from "./WorkerAccountContext";
 import { WORKER_SCHEDULE_SUBTITLE_STYLE } from "./worker-schedule-typography";
 
 type WorkerAccountTabNavProps = {
@@ -16,7 +16,6 @@ type WorkerAccountTabNavProps = {
 export function WorkerAccountTabNav({ activeTab }: WorkerAccountTabNavProps) {
   const pathname = usePathname();
   const tabHref = useWorkerAccountTabHref();
-  const readOnly = useWorkerAccountReadOnly();
   const onAdminWorkerProfile =
     pathname?.includes("/admin_recruiter/workers/") && pathname?.includes("/profile");
   const onDocumentsRoute =
@@ -35,13 +34,7 @@ export function WorkerAccountTabNav({ activeTab }: WorkerAccountTabNavProps) {
         <div className="mx-auto flex w-max min-w-full flex-nowrap items-end justify-start gap-4 px-4 sm:justify-center sm:gap-5 min-[1000px]:px-8">
           {WORKER_ACCOUNT_TABS.map((tab) => {
             const active = resolvedTab === tab.id;
-            const href = readOnly
-              ? tabHref(tab.id)
-              : tab.id === "documents"
-                ? "/application/applicant-dashboard/documents"
-                : tab.id === "skills"
-                  ? "/application/applicant-dashboard/licenses"
-                  : tabHref(tab.id);
+            const href = tabHref(tab.id);
 
             return (
               <Link

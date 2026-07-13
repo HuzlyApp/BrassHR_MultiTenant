@@ -2,7 +2,7 @@ import type { CSSProperties } from "react";
 
 /** Figma: worker schedule page title — "Schedules" */
 export const WORKER_SCHEDULE_TITLE_CLASS =
-  "text-[30px] font-semibold leading-9 tracking-normal text-black align-middle";
+  "text-[24px] font-semibold leading-8 tracking-normal text-black align-middle sm:text-[30px] sm:leading-9";
 
 export const WORKER_SCHEDULE_TITLE_STYLE: CSSProperties = {
   fontFamily: "Inter, Arial, sans-serif",

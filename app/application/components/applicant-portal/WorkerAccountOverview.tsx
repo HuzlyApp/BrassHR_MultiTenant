@@ -1,11 +1,18 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { CalendarDays, Clock, Download, Pencil, Plus, Star, Wallet } from "lucide-react";
 import BrandedFileTypeIcon from "@/app/admin_recruiter/components/BrandedFileTypeIcon";
 import { formatDecimalHours } from "./worker-dashboard-utils";
 import type { WorkerAccountOverviewPayload } from "./worker-account-types";
-import { useWorkerAccountReadOnly, useWorkerAccountTabHref } from "./WorkerAccountContext";
+import {
+  useWorkerAccountActions,
+  useWorkerAccountReadOnly,
+  useWorkerAccountTabHref,
+} from "./WorkerAccountContext";
+import { EditAboutMeModal } from "./EditAboutMeModal";
+import { EditWorkerSkillsModal } from "./EditWorkerSkillsModal";
 import { WORKER_BTN_GHOST_ICON, WORKER_BTN_OUTLINE } from "./worker-portal-buttons";
 import {
   WORKER_SCHEDULE_CARD_CLASS,
@@ -55,6 +62,27 @@ function CardActionLink({
   );
 }
 
+function CardActionButton({
+  label,
+  icon,
+  onClick,
+}: {
+  label: string;
+  icon?: React.ReactNode;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="inline-flex items-center gap-1 text-sm font-medium text-[#3B82F6] hover:underline"
+    >
+      {icon}
+      {label}
+    </button>
+  );
+}
+
 function WorkSummaryStat({
   label,
   value,
@@ -97,19 +125,24 @@ type WorkerAccountOverviewProps = {
 export function WorkerAccountOverview({ data, onDownloadDocument }: WorkerAccountOverviewProps) {
   const readOnly = useWorkerAccountReadOnly();
   const tabHref = useWorkerAccountTabHref();
+  const { refreshOverview } = useWorkerAccountActions();
+  const [editSkillsOpen, setEditSkillsOpen] = useState(false);
+  const [editAboutMeOpen, setEditAboutMeOpen] = useState(false);
   const { aboutMe, skills, certifications, recentDocuments, workSummary } = data;
 
   return (
+    <>
     <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
       <div className="space-y-4">
         <AccountCard
           title="About Me"
           action={
             readOnly ? undefined : (
-              <span className="inline-flex items-center gap-1 text-sm text-[#9CA3AF]">
-                <Pencil className="h-4 w-4" aria-hidden />
-                Edit About Me
-              </span>
+              <CardActionButton
+                label="Edit About Me"
+                icon={<Pencil className="h-4 w-4" aria-hidden />}
+                onClick={() => setEditAboutMeOpen(true)}
+              />
             )
           }
         >
@@ -120,10 +153,10 @@ export function WorkerAccountOverview({ data, onDownloadDocument }: WorkerAccoun
           title="Skills"
           action={
             readOnly ? undefined : (
-              <CardActionLink
-                href={tabHref("skills")}
+              <CardActionButton
                 label="Edit Skills"
                 icon={<Pencil className="h-4 w-4" aria-hidden />}
+                onClick={() => setEditSkillsOpen(true)}
               />
             )
           }
@@ -264,5 +297,22 @@ export function WorkerAccountOverview({ data, onDownloadDocument }: WorkerAccoun
         </AccountCard>
       </div>
     </div>
+
+    {!readOnly ? (
+      <>
+        <EditAboutMeModal
+          open={editAboutMeOpen}
+          initialAboutMe={aboutMe}
+          onClose={() => setEditAboutMeOpen(false)}
+          onSaved={refreshOverview}
+        />
+        <EditWorkerSkillsModal
+          open={editSkillsOpen}
+          onClose={() => setEditSkillsOpen(false)}
+          onChanged={refreshOverview}
+        />
+      </>
+    ) : null}
+    </>
   );
 }
