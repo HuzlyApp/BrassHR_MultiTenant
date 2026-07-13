@@ -106,7 +106,7 @@ export function ApplicantPortalShell({ session, children }: Props) {
         />
 
         <div
-          className="applicant-portal-main applicant-portal-main-wrap flex min-h-screen flex-col bg-[#F4F4F4]"
+          className="applicant-portal-main applicant-portal-main-wrap flex min-h-screen min-w-0 flex-col bg-[#F4F4F4]"
           data-sidebar-collapsed={sidebarCollapsed ? "true" : "false"}
           data-mobile-nav-open={mobileNavOpen ? "true" : "false"}
         >
@@ -118,7 +118,9 @@ export function ApplicantPortalShell({ session, children }: Props) {
             onSidebarToggle={toggleSidebarCollapsed}
             onOpenMessages={openMessages}
           />
-          <main className="flex flex-1 flex-col bg-[#F4F4F4]">{children}</main>
+          <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden bg-[#F4F4F4]">
+            {children}
+          </main>
         </div>
       </div>
     </ApplicantPortalUiProvider>

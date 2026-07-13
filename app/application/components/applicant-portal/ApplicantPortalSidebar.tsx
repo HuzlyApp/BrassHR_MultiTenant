@@ -241,7 +241,7 @@ export function ApplicantPortalSidebar({
     isMobileRail?: boolean;
     showMobileClose?: boolean;
   }) => (
-    <div className="flex h-full flex-col overflow-hidden bg-white">
+      <div className="flex h-full min-h-0 flex-col overflow-hidden bg-white">
       <div
         className={`worker-portal-sidebar-brand shrink-0 ${
           isMobileRail || isCollapsed
@@ -312,7 +312,7 @@ export function ApplicantPortalSidebar({
 
       <nav
         ref={navRef}
-        className={`worker-sidebar-nav flex-1 overflow-y-auto overflow-x-hidden ${
+        className={`worker-sidebar-nav min-h-0 flex-1 overflow-y-auto overflow-x-hidden ${
           isMobileRail || isCollapsed
             ? "flex flex-col items-center py-2 px-0"
             : "py-3 pl-3 pr-0"
@@ -445,6 +445,20 @@ export function ApplicantPortalSidebar({
                   <span className={topLevelLabelClass(false, true)}>{section.label}</span>
                 ) : null}
               </div>
+            ) : section.preventNavigation ? (
+              <div
+                title={isCollapsed || isMobileRail ? section.label : undefined}
+                className={topLevelRowClass(section.active, isCollapsed, isMobileRail, false)}
+                aria-current={section.active ? "page" : undefined}
+              >
+                <SidebarNavIcon iconType={section.iconType} active={section.active} />
+                {!isCollapsed && !isMobileRail ? (
+                  <span className={topLevelLabelClass(section.active, false)}>{section.label}</span>
+                ) : null}
+                {section.showIndicator || ((isCollapsed || isMobileRail) && section.active) ? (
+                  <span aria-hidden className="worker-sidebar-active-indicator" />
+                ) : null}
+              </div>
             ) : (
               <Link
                 href={section.href}
@@ -468,8 +482,10 @@ export function ApplicantPortalSidebar({
       </nav>
 
       <div
-        className={`border-t border-[#E2E8F0] ${
-          isMobileRail || isCollapsed ? "flex justify-center px-0 py-2" : "px-4 py-3"
+        className={`shrink-0 border-t border-[#E2E8F0] ${
+          isMobileRail || isCollapsed
+            ? "flex justify-center px-0 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom,0px))]"
+            : "px-4 py-3"
         }`}
       >
         <div
@@ -519,7 +535,7 @@ export function ApplicantPortalSidebar({
   return (
     <>
       <aside
-        className={`applicant-portal-sidebar fixed inset-y-0 left-0 z-40 hidden h-screen overflow-hidden border-r border-[#E2E8F0] worker-portal-chrome-border-r bg-white min-[1000px]:block ${sidebarHoverClass}`}
+        className={`applicant-portal-sidebar fixed inset-y-0 left-0 z-40 hidden h-dvh max-h-dvh overflow-hidden border-r border-[#E2E8F0] worker-portal-chrome-border-r bg-white min-[1000px]:block ${sidebarHoverClass}`}
         style={asideStyle}
         data-collapsed={collapsed ? "true" : "false"}
         {...sidebarHoverProps}
@@ -528,7 +544,7 @@ export function ApplicantPortalSidebar({
       </aside>
 
       <aside
-        className={`applicant-portal-sidebar applicant-portal-sidebar-mobile-rail fixed inset-y-0 left-0 z-40 h-screen overflow-hidden border-r border-[#E2E8F0] worker-portal-chrome-border-r bg-white min-[1000px]:hidden ${sidebarHoverClass} ${
+        className={`applicant-portal-sidebar applicant-portal-sidebar-mobile-rail fixed inset-y-0 left-0 z-40 h-dvh max-h-dvh overflow-hidden border-r border-[#E2E8F0] worker-portal-chrome-border-r bg-white min-[1000px]:hidden ${sidebarHoverClass} ${
           mobileOpen ? "hidden" : "block"
         }`}
         data-collapsed="true"

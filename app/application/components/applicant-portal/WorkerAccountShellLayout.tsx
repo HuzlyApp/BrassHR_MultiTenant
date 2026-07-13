@@ -80,7 +80,7 @@ export function WorkerAccountShellLayout({
       </div>
 
       {hideTabs ? null : (
-        <div className="sticky top-16 z-20 border-b border-[#E5E7EB]">
+        <div className="sticky top-[var(--worker-portal-header-height,64px)] z-20 border-b border-[#E5E7EB] bg-[#F4F4F4]">
           <WorkerAccountTabNav activeTab={activeTab} />
         </div>
       )}

@@ -29,7 +29,7 @@ export const WORKER_SCHEDULE_CARD_CLASS =
 
 /** Shared horizontal padding for worker portal pages (matches dashboard). */
 export const WORKER_PORTAL_PAGE_PAD_CLASS =
-  "w-full min-w-0 py-5 px-3 sm:px-4 min-[1000px]:px-8";
+  "w-full min-w-0 py-5 px-2 max-[319px]:px-1.5 sm:px-4 min-[1000px]:px-8";
 
 /** Figma: request schedule row — dropdown + button share width (+15% for label fit) */
 export const WORKER_SCHEDULE_ACTION_CONTROL_CLASS =

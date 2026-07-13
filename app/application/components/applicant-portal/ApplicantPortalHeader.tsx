@@ -121,8 +121,8 @@ export function ApplicantPortalHeader({
   }
 
   return (
-    <header className="worker-portal-topbar sticky top-0 z-30 bg-white">
-      <div className="flex h-full items-center gap-2 px-4 min-[1000px]:gap-3 min-[1000px]:px-8 max-[999px]:px-3 max-[499px]:pl-4 max-[499px]:pr-2">
+    <header className="worker-portal-topbar sticky top-0 z-40 shrink-0 bg-white shadow-[0_1px_0_rgba(15,23,42,0.06)]">
+      <div className="flex h-full items-center gap-1.5 px-2 min-[1000px]:gap-3 min-[1000px]:px-8 max-[999px]:px-2 max-[499px]:pl-2 max-[499px]:pr-1.5 max-[319px]:gap-1 max-[319px]:px-1.5">
         <div className="flex shrink-0 items-center gap-2">
           {onMenuClick ? (
             <button
@@ -174,7 +174,7 @@ export function ApplicantPortalHeader({
           </label>
         </div>
 
-        <div className="ml-auto flex items-center gap-2 sm:gap-3">
+        <div className="ml-auto flex min-w-0 items-center gap-1 sm:gap-3">
           <div ref={actionsAreaRef} className="relative flex items-center gap-0">
             <button
               type="button"
@@ -202,7 +202,7 @@ export function ApplicantPortalHeader({
             </button>
 
             {notificationsOpen ? (
-              <div className="absolute right-0 top-10 z-[120] w-[320px] overflow-hidden rounded-lg border border-[#d7e4e1] bg-white shadow-xl max-[499px]:fixed max-[499px]:left-[calc(50%+28px)] max-[499px]:right-auto max-[499px]:top-[68px] max-[499px]:w-[calc(100vw-88px)] max-[499px]:max-w-[360px] max-[499px]:-translate-x-1/2 max-[429px]:left-[calc(50%+24px)] max-[429px]:w-[calc(100vw-64px)]">
+              <div className="absolute right-0 top-10 z-[120] w-[320px] overflow-hidden rounded-lg border border-[#d7e4e1] bg-white shadow-xl max-[499px]:fixed max-[499px]:left-[calc(50%+28px)] max-[499px]:right-auto max-[499px]:top-[68px] max-[499px]:w-[calc(100vw-88px)] max-[499px]:max-w-[360px] max-[499px]:-translate-x-1/2 max-[429px]:left-[calc(50%+24px)] max-[429px]:w-[calc(100vw-64px)] max-[319px]:left-[calc(50%+20px)] max-[319px]:w-[calc(100vw-48px)]">
                 <div className="border-b border-[#E2E8F0] px-4 py-3">
                   <p className="text-sm font-semibold text-[#0F172A]">Notifications</p>
                 </div>
@@ -236,7 +236,7 @@ export function ApplicantPortalHeader({
                 setNotificationsOpen(false);
                 setProfileOpen((prev) => !prev);
               }}
-              className="flex items-center gap-2 rounded-xl border border-[#E5E7EB] px-2.5 py-1.5"
+              className="flex max-w-full items-center gap-1 rounded-xl border border-[#E5E7EB] px-1.5 py-1 max-[319px]:gap-0.5 max-[319px]:px-1 sm:gap-2 sm:px-2.5 sm:py-1.5"
             >
               <WorkerPortalUserAvatar name={applicantName} photoUrl={profilePhotoUrl} size={30} />
               <span className="hidden text-[14px] font-semibold text-black sm:inline">{firstName}.</span>

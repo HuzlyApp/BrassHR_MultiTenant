@@ -17,6 +17,8 @@ export type WorkerSidebarSection = {
   matchPrefixes: string[];
   matchExact?: boolean;
   disabled?: boolean;
+  /** Keep menu visible but do not navigate (e.g. Dashboard — home only via logo / login). */
+  preventNavigation?: boolean;
   action?: "messages";
   children?: WorkerSidebarLink[];
 };
@@ -39,6 +41,7 @@ const ICON = {
 } as const satisfies Record<string, SidebarIconType>;
 
 const PORTAL_HOME = "/application/applicant-dashboard";
+const WORKER_HOME = "/application/home";
 const SCHEDULE_HOME = `${PORTAL_HOME}/schedule`;
 const TIMESHEETS_HOME = `${SCHEDULE_HOME}/timesheets`;
 const SCHEDULE_ACTIVE_PREFIXES = [SCHEDULE_HOME, TIMESHEETS_HOME];
@@ -118,10 +121,12 @@ const PROFILE_CHILDREN: WorkerSidebarLink[] = [
 export const WORKER_SIDEBAR_SECTIONS: WorkerSidebarSection[] = [
   {
     label: "Dashboard",
-    href: PORTAL_HOME,
+    // Home content is only via company logo / login (`/application/home`).
+    // Do not mark active on home — this item is display-only (no navigation).
+    href: WORKER_HOME,
     iconType: ICON.dashboard,
-    matchPrefixes: [PORTAL_HOME],
-    matchExact: true,
+    matchPrefixes: [],
+    preventNavigation: true,
   },
   {
     label: "My Shifts",

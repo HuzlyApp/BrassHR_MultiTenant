@@ -116,15 +116,15 @@ function SummaryMetricCard({
   action?: ReactNode;
 }) {
   return (
-    <div className="flex min-h-[188px] w-full min-w-0 flex-col rounded-md border border-[#E5E7EB] bg-white p-[14px] shadow-sm">
-      <div className="flex min-w-0 flex-1 gap-3">
-        <div className="flex min-w-0 flex-1 flex-col pt-4">
+    <div className="flex min-h-[160px] w-full min-w-0 flex-col rounded-md border border-[#E5E7EB] bg-white p-3 shadow-sm max-[319px]:min-h-0 max-[319px]:p-2.5 sm:min-h-[188px] sm:p-[14px]">
+      <div className="flex min-w-0 flex-1 gap-2 max-[319px]:gap-2 sm:gap-3">
+        <div className="flex min-w-0 flex-1 flex-col pt-2 sm:pt-4">
           <p className={WORKER_CARD_LABEL_CLASS}>{label}</p>
-          <div className="mt-3 flex flex-1 flex-col justify-start gap-1">{children}</div>
+          <div className="mt-2 flex flex-1 flex-col justify-start gap-1 sm:mt-3">{children}</div>
         </div>
         <div className="flex shrink-0 items-start self-start">
           <div
-            className="flex h-[50px] w-[50px] shrink-0 items-center justify-center rounded-md p-1"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md p-1 sm:h-[50px] sm:w-[50px]"
             style={{ backgroundColor: iconBg }}
           >
             {icon}
@@ -132,7 +132,7 @@ function SummaryMetricCard({
         </div>
       </div>
       <div className="w-full min-w-0">
-        {action ? <div className="mt-4">{action}</div> : null}
+        {action ? <div className="mt-3 sm:mt-4">{action}</div> : null}
       </div>
     </div>
   );
@@ -164,7 +164,7 @@ function AttendanceDonut({ pct }: { pct: number }) {
   ];
 
   return (
-    <div className="pointer-events-none relative flex h-[96px] w-full min-w-0 select-none items-center justify-center outline-none min-[600px]:h-[120px] sm:h-[140px] xl:h-[150px] [&_.recharts-responsive-container]:outline-none [&_.recharts-wrapper]:outline-none [&_.recharts-surface]:outline-none [&_*:focus]:outline-none">
+    <div className="pointer-events-none relative flex h-[106px] w-full min-w-0 select-none items-center justify-center outline-none min-[600px]:h-[132px] sm:h-[154px] xl:h-[165px] [&_.recharts-responsive-container]:outline-none [&_.recharts-wrapper]:outline-none [&_.recharts-surface]:outline-none [&_*:focus]:outline-none">
       <ResponsiveContainer width="100%" height="100%">
         <PieChart margin={{ top: 4, right: 4, bottom: 4, left: 4 }}>
           <Pie
@@ -185,7 +185,7 @@ function AttendanceDonut({ pct }: { pct: number }) {
         </PieChart>
       </ResponsiveContainer>
       <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
-        <span className="font-[Inter,sans-serif] text-[18px] font-semibold leading-6 text-[#111827] min-[600px]:text-[24px] min-[600px]:leading-7">
+        <span className="font-[Inter,sans-serif] text-[20px] font-semibold leading-6 text-[#111827] min-[600px]:text-[26px] min-[600px]:leading-8">
           {pct}%
         </span>
         <span className="font-[Inter,sans-serif] text-[10px] leading-3 text-[#6B7280] min-[600px]:text-[12px] min-[600px]:leading-4">
@@ -230,7 +230,7 @@ export function WorkerDashboardOverview({
   return (
     <div className={`${WORKER_PORTAL_PAGE_PAD_CLASS} space-y-[14px]`}>
       <header className="space-y-1">
-        <h1 className="font-[Inter,sans-serif] text-[24px] font-semibold leading-8 text-[#012352] sm:text-[30px] sm:leading-9">
+        <h1 className="font-[Inter,sans-serif] text-[20px] font-semibold leading-7 text-[#012352] max-[319px]:text-[18px] max-[319px]:leading-6 sm:text-[30px] sm:leading-9">
           {getGreeting()}, {getFirstName(userName)}!
           <img
             src="/icons/clapping-hands.svg"
@@ -241,12 +241,12 @@ export function WorkerDashboardOverview({
             aria-hidden
           />
         </h1>
-        <p className="mt-1 font-[Inter,sans-serif] text-[16px] font-normal leading-6 text-[#6B7280]">
+        <p className="mt-1 font-[Inter,sans-serif] text-[14px] font-normal leading-5 text-[#6B7280] max-[319px]:text-[13px] sm:text-[16px] sm:leading-6">
           Here&apos;s what happening with you schedule and work!
         </p>
       </header>
 
-      <div className="grid w-full min-w-0 gap-[14px] [grid-template-columns:repeat(auto-fit,minmax(250px,1fr))]">
+      <div className="grid w-full min-w-0 gap-[14px] [grid-template-columns:repeat(auto-fit,minmax(min(100%,250px),1fr))]">
         <SummaryMetricCard
           label="Upcoming Shift"
           iconBg="#FFECD6"
@@ -396,7 +396,7 @@ export function WorkerDashboardOverview({
             </Link>
           }
         >
-          <div className="grid w-full grid-cols-3 items-stretch gap-0">
+          <div className="grid w-full grid-cols-2 items-stretch gap-0 min-[350px]:grid-cols-3">
             <div className="flex min-h-[112px] min-w-0 flex-col justify-center border-r border-[#E5E7EB] px-2 py-3 min-[600px]:min-h-[150px] min-[600px]:px-3 min-[600px]:py-4 xl:min-h-[175px] xl:px-5">
               <p className="font-[Inter,sans-serif] text-[12px] font-semibold leading-4 text-[#111827] min-[600px]:text-[14px] min-[600px]:leading-5 xl:text-[16px] xl:leading-6">
                 This Week
@@ -411,7 +411,7 @@ export function WorkerDashboardOverview({
                 Hours Worked
               </p>
             </div>
-            <div className="flex min-h-[112px] min-w-0 flex-col justify-center border-r border-[#E5E7EB] px-2 py-3 min-[600px]:min-h-[150px] min-[600px]:px-3 min-[600px]:py-4 xl:min-h-[175px] xl:px-5">
+            <div className="flex min-h-[112px] min-w-0 flex-col justify-center border-[#E5E7EB] px-2 py-3 min-[350px]:border-r min-[600px]:min-h-[150px] min-[600px]:px-3 min-[600px]:py-4 xl:min-h-[175px] xl:px-5">
               <p className="font-[Inter,sans-serif] text-[12px] font-semibold leading-4 text-[#111827] min-[600px]:text-[14px] min-[600px]:leading-5 xl:text-[16px] xl:leading-6">
                 Pay Period
               </p>
@@ -425,7 +425,7 @@ export function WorkerDashboardOverview({
                 Hours Worked
               </p>
             </div>
-            <div className="relative flex min-h-[112px] min-w-0 items-center justify-center px-1 py-2 min-[600px]:min-h-[150px] min-[600px]:px-3 min-[600px]:py-4 xl:min-h-[175px] xl:px-5">
+            <div className="relative col-span-2 flex min-h-[120px] min-w-0 items-center justify-center border-t border-[#E5E7EB] px-2 py-3 min-[350px]:col-span-1 min-[350px]:min-h-[112px] min-[350px]:border-t-0 min-[600px]:min-h-[150px] min-[600px]:px-3 min-[600px]:py-4 xl:min-h-[175px] xl:px-5">
               <AttendanceDonut pct={attendanceProgress.pct} />
             </div>
           </div>

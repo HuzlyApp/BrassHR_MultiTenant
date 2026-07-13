@@ -4,10 +4,14 @@
 }
 
 .worker-portal-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 40;
   height: var(--worker-portal-header-height);
   min-height: var(--worker-portal-header-height);
   box-sizing: border-box;
   border-bottom: 1px solid var(--worker-portal-chrome-border);
+  background-color: #ffffff;
 }
 
 .worker-portal-sidebar-brand {
@@ -28,12 +32,15 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
+  /* Keep overflow on content only — not on parents of the sticky header */
+  overflow-x: hidden;
 }
 
 .applicant-portal-main-wrap {
   transition: margin-left 200ms ease-in-out, width 200ms ease-in-out;
   margin-left: 0;
   width: 100%;
+  max-width: 100%;
   min-width: 0;
   min-height: 100dvh;
   box-sizing: border-box;
@@ -110,6 +117,34 @@
   .applicant-portal-sidebar-mobile-rail .worker-portal-sidebar-logo-frame img {
     max-height: 1.75rem;
     max-width: 1.75rem;
+  }
+}
+
+/* Below 320px: ultra-narrow phones — slim rail + prevent horizontal clip */
+@media (max-width: 319px) {
+  .applicant-portal-sidebar-mobile-rail {
+    width: 40px;
+    max-width: 40px;
+    min-width: 40px;
+  }
+
+  .applicant-portal-main-wrap:not([data-mobile-nav-open="true"]) {
+    margin-left: 40px;
+    width: calc(100% - 40px);
+  }
+
+  .applicant-portal-sidebar-mobile-rail .worker-portal-sidebar-logo-frame {
+    height: 1.75rem;
+    width: 1.75rem;
+  }
+
+  .applicant-portal-sidebar-mobile-rail .worker-portal-sidebar-logo-frame img {
+    max-height: 1.5rem;
+    max-width: 1.5rem;
+  }
+
+  .applicant-portal-sidebar-mobile-rail .border-t {
+    padding-bottom: max(0.5rem, env(safe-area-inset-bottom, 0px));
   }
 }
 
