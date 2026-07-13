@@ -52,7 +52,7 @@ export function WorkerAccountShellLayout({
       fullAddress: "—",
       employeeId: "—",
       hireDateLabel: "—",
-      employmentType: "Part Time",
+      employmentType: "—",
       department: "—",
       supervisorName: null,
       hourlyRate: null,

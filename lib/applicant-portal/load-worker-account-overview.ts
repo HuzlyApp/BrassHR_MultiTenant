@@ -27,6 +27,15 @@ type WorkerRow = {
   profile_photo: string | null;
   employee_id: string | null;
   employee_number: string | null;
+  employment_type: string | null;
+  converted_worker_type: string | null;
+  reports_to: string | null;
+  manager_name: string | null;
+};
+
+type EmploymentWorkerRow = {
+  worker_type: string | null;
+  employment_classification: string | null;
 };
 
 type AttendanceRow = {
@@ -50,6 +59,35 @@ function formatAddress(worker: WorkerRow): string {
     .map((part) => (part ?? "").trim())
     .filter(Boolean);
   return parts.join(" ") || "—";
+}
+
+function formatEmploymentTypeLabel(value: string | null | undefined): string {
+  const normalized = value?.trim().toLowerCase() ?? "";
+  if (!normalized) return "—";
+  if (normalized === "w2" || normalized === "w-2") return "W-2";
+  if (normalized === "1099") return "1099";
+  if (normalized === "contractor") return "Contractor";
+  if (normalized === "employee") return "Employee";
+  return value!.trim();
+}
+
+function resolveEmploymentType(
+  worker: WorkerRow,
+  employmentWorker: EmploymentWorkerRow | null
+): string {
+  const candidates = [
+    worker.employment_type,
+    worker.converted_worker_type,
+    employmentWorker?.worker_type,
+    employmentWorker?.employment_classification,
+  ];
+
+  for (const candidate of candidates) {
+    const label = formatEmploymentTypeLabel(candidate);
+    if (label !== "—") return label;
+  }
+
+  return "—";
 }
 
 function displayOrDash(value: string | null | undefined): string {
@@ -92,6 +130,7 @@ function formatCategoryLabel(slug: string): string {
 
 function serializeProfile(
   worker: WorkerRow,
+  employmentWorker: EmploymentWorkerRow | null,
   profilePhotoUrl: string | null,
   profileCompletionPercent: number
 ): WorkerAccountOverviewPayload["profile"] {
@@ -125,9 +164,9 @@ function serializeProfile(
     fullAddress: formatAddress(worker),
     employeeId: displayOrDash(worker.employee_id ?? worker.employee_number),
     hireDateLabel: formatHireDate(worker.created_at),
-    employmentType: "Part Time",
+    employmentType: resolveEmploymentType(worker, employmentWorker),
     department: worker.job_role?.trim() || "—",
-    supervisorName: null,
+    supervisorName: worker.reports_to?.trim() || worker.manager_name?.trim() || null,
     hourlyRate: worker.hourly_rate != null ? String(worker.hourly_rate) : null,
     positions,
     yearsExperience,
@@ -172,6 +211,24 @@ function normalizeWorkerRow(data: Record<string, unknown>): WorkerRow {
     profile_photo: typeof data.profile_photo === "string" ? data.profile_photo : null,
     employee_id: typeof data.employee_id === "string" ? data.employee_id : null,
     employee_number: typeof data.employee_number === "string" ? data.employee_number : null,
+    employment_type: typeof data.employment_type === "string" ? data.employment_type : null,
+    converted_worker_type:
+      typeof data.converted_worker_type === "string" ? data.converted_worker_type : null,
+    reports_to: typeof data.reports_to === "string" ? data.reports_to : null,
+    manager_name: typeof data.manager_name === "string" ? data.manager_name : null,
+  };
+}
+
+function normalizeEmploymentWorkerRow(
+  data: Record<string, unknown> | null
+): EmploymentWorkerRow | null {
+  if (!data) return null;
+  return {
+    worker_type: typeof data.worker_type === "string" ? data.worker_type : null,
+    employment_classification:
+      typeof data.employment_classification === "string"
+        ? data.employment_classification
+        : null,
   };
 }
 
@@ -182,6 +239,7 @@ export async function loadWorkerAccountOverview(
 ): Promise<WorkerAccountOverviewPayload | null> {
   const [
     workerRes,
+    employmentWorkerRes,
     portalDocsRes,
     submittedDocsRes,
     allSubmittedDocsRes,
@@ -192,6 +250,11 @@ export async function loadWorkerAccountOverview(
     assessmentsRes,
   ] = await Promise.all([
     supabase.from("worker").select("*").eq("id", workerId).maybeSingle(),
+    supabase
+      .from("workers")
+      .select("worker_type, employment_classification")
+      .eq("candidate_id", workerId)
+      .maybeSingle(),
     supabase
       .from("worker_portal_documents")
       .select("id, title, original_file_name, uploaded_at, status")
@@ -229,9 +292,13 @@ export async function loadWorkerAccountOverview(
   ]);
 
   if (workerRes.error) throw workerRes.error;
+  if (employmentWorkerRes.error) throw employmentWorkerRes.error;
   if (!workerRes.data) return null;
 
   const worker = normalizeWorkerRow(workerRes.data as Record<string, unknown>);
+  const employmentWorker = normalizeEmploymentWorkerRow(
+    (employmentWorkerRes.data as Record<string, unknown> | null) ?? null
+  );
   const profilePhotoUrl = await resolveProfilePhotoUrl(supabase, worker.profile_photo);
 
   const requiredRes = await supabase
@@ -263,7 +330,7 @@ export async function loadWorkerAccountOverview(
     completedAssessmentCount,
   });
 
-  const profile = serializeProfile(worker, profilePhotoUrl, profileCompletionPercent);
+  const profile = serializeProfile(worker, employmentWorker, profilePhotoUrl, profileCompletionPercent);
 
   const requiredMap = new Map(
     (requiredRes.data ?? []).map((row) => [String(row.id), String(row.title ?? "Document")])

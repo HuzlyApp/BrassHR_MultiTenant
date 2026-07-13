@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
+import toast from "react-hot-toast";
 import { useApplicantPortal } from "./ApplicantPortalProvider";
 import { useWorkerAccountActions, useWorkerAccountOverview } from "./WorkerAccountContext";
 import { WorkerProfilePhotoUpload } from "./WorkerProfilePhotoUpload";
@@ -81,7 +82,6 @@ export function WorkerAccountPersonalForm() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [saved, setSaved] = useState(false);
 
   useEffect(() => {
     if (!sessionReady) return;
@@ -113,7 +113,6 @@ export function WorkerAccountPersonalForm() {
     event.preventDefault();
     setSaving(true);
     setError(null);
-    setSaved(false);
     setFieldErrors({});
     try {
       const headers = await authHeaders();
@@ -133,7 +132,7 @@ export function WorkerAccountPersonalForm() {
         throw new Error(payload.error || "Could not save profile.");
       }
       setProfile(payload.profile ?? profile);
-      setSaved(true);
+      toast.success("Profile saved successfully.");
       await refreshOverview();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save profile.");
@@ -153,11 +152,6 @@ export function WorkerAccountPersonalForm() {
       <form onSubmit={handleSubmit} className="space-y-4 p-4">
         {error ? (
           <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
-        ) : null}
-        {saved ? (
-          <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-            Profile saved successfully.
-          </div>
         ) : null}
         <div className="grid gap-4 md:grid-cols-2">
           <Field
