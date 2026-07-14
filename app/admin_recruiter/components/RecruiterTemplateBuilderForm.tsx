@@ -124,7 +124,11 @@ export default function RecruiterTemplateBuilderForm({
     if (templateId) void loadTemplate();
   }, [loadTemplate, templateId]);
 
-  const saveDraft = async (): Promise<RecruiterTemplateDetail | null> => {
+  const TEMPLATE_LIST_PATH = "/admin_recruiter/template-builder";
+
+  const saveDraft = async (options?: {
+    redirectToListing?: boolean;
+  }): Promise<RecruiterTemplateDetail | null> => {
     setSaving(true);
     try {
       const payload = buildPayload(
@@ -155,7 +159,9 @@ export default function RecruiterTemplateBuilderForm({
       applyTemplate(body.template);
       setCurrentTemplateId(body.template.id);
       toast.success("Template saved");
-      if (isNew) {
+      if (options?.redirectToListing) {
+        router.push(TEMPLATE_LIST_PATH);
+      } else if (isNew) {
         router.replace(`/admin_recruiter/template-builder/${body.template.id}`);
       }
       return body.template;
@@ -189,7 +195,9 @@ export default function RecruiterTemplateBuilderForm({
 
     setPublishing(true);
     try {
-      await saveDraft();
+      const saved = await saveDraft();
+      if (!saved) return;
+
       const res = await recruiterTemplateFetch(`/api/admin/recruiter-templates/${id}/publish`, {
         method: "POST",
       });
@@ -200,6 +208,7 @@ export default function RecruiterTemplateBuilderForm({
       }
       applyTemplate(body.template);
       toast.success("Template marked active");
+      router.push(TEMPLATE_LIST_PATH);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Publish failed");
     } finally {
@@ -268,7 +277,7 @@ export default function RecruiterTemplateBuilderForm({
           <button
             type="button"
             disabled={saving}
-            onClick={() => void saveDraft()}
+            onClick={() => void saveDraft({ redirectToListing: true })}
             className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-lg border border-[#D0D5DD] px-4 text-sm font-medium text-[#344054] disabled:opacity-50 min-[480px]:flex-none"
           >
             <Save className="h-4 w-4" />
