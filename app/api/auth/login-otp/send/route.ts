@@ -1,24 +1,40 @@
-import { NextRequest, NextResponse } from "next/server";
+﻿import { NextRequest, NextResponse } from "next/server";
+import { isStaffRole } from "@/lib/auth/app-role";
 import {
   classifyAuthMessage,
   loginAuthErrorResponse,
 } from "@/lib/auth/login-api-errors";
 import { resolveGodAdminServer } from "@/lib/auth/resolve-god-admin-server";
+import { resolveAppRoleForUser } from "@/lib/auth/resolve-role";
+import { resolveRecruiterOnboardingStatus } from "@/lib/auth/recruiter-onboarding-status.server";
 import { sendSupabaseLoginOtp } from "@/lib/auth/send-login-otp-email";
 import { createEphemeralAuthClient } from "@/lib/supabase/ephemeral-auth-client";
 import { enforceRateLimit, getClientIp } from "@/lib/security/rate-limit";
 
 export const runtime = "nodejs";
 
+const STAFF_ACCESS_DENIED_MESSAGE =
+  "This account does not have admin access. Use a recruiter or admin account.";
+
 /**
  * Step 1 of recruiter login: validate email/password, then email app-managed OTP via Resend.
  * God admin skips OTP; all other accounts must verify a code.
+ * Staff role (and optional tenant access) are checked before OTP is sent.
  */
 export async function POST(req: NextRequest) {
   try {
-    const body = (await req.json()) as { email?: string; password?: string };
+    const body = (await req.json()) as {
+      email?: string;
+      password?: string;
+      tenant?: string;
+      purpose?: string;
+    };
     const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
     const password = typeof body.password === "string" ? body.password : "";
+    const tenantSlug =
+      typeof body.tenant === "string" ? body.tenant.trim().toLowerCase() : "";
+    // Admin/recruiter OTP send requires staff. Client should pass purpose: "staff".
+    const forStaffLogin = body.purpose !== "worker";
     const limited = await enforceRateLimit(req, {
       namespace: "auth-login-otp",
       key: `${getClientIp(req)}:${email || "missing"}`,
@@ -58,6 +74,48 @@ export async function POST(req: NextRequest) {
     }
 
     const godAdmin = await resolveGodAdminServer(signInData.user);
+
+    if (forStaffLogin && !godAdmin) {
+      try {
+        const role = await resolveAppRoleForUser(signInData.user);
+        if (!isStaffRole(role)) {
+          await auth.auth.signOut();
+          return loginAuthErrorResponse(STAFF_ACCESS_DENIED_MESSAGE, "STAFF_ROLE_REQUIRED", 403);
+        }
+      } catch (roleErr) {
+        console.error("[auth/login-otp/send] staff role check", roleErr);
+        await auth.auth.signOut();
+        return loginAuthErrorResponse(
+          "Could not verify account access. Try again.",
+          "UNKNOWN",
+          500
+        );
+      }
+    }
+
+    if (tenantSlug.length >= 2) {
+      try {
+        const status = await resolveRecruiterOnboardingStatus(signInData.user, {
+          tenantSlug,
+        });
+        if (!status.validTenantAccess) {
+          await auth.auth.signOut();
+          return loginAuthErrorResponse(
+            "This account does not have access to the selected tenant.",
+            "TENANT_ACCESS_DENIED",
+            403
+          );
+        }
+      } catch (tenantErr) {
+        console.error("[auth/login-otp/send] tenant access check", tenantErr);
+        await auth.auth.signOut();
+        return loginAuthErrorResponse(
+          "Could not verify tenant access. Try again.",
+          "UNKNOWN",
+          500
+        );
+      }
+    }
 
     if (godAdmin) {
       await auth.auth.signOut();

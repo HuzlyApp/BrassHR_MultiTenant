@@ -9,6 +9,8 @@ export type LoginAuthErrorCode =
   | "OTP_INVALID"
   | "OTP_EXPIRED"
   | "AUTH_NOT_CONFIGURED"
+  | "TENANT_ACCESS_DENIED"
+  | "STAFF_ROLE_REQUIRED"
   | "UNKNOWN";
 
 export const LOGIN_OTP_INVALID_MESSAGE = "Check the code and try again.";
@@ -103,6 +105,13 @@ export async function parseLoginApiError(res: Response): Promise<LoginAuthErrorP
   if (res.status === 401) {
     return { error: "Wrong email or password.", code: "INVALID_CREDENTIALS", field: null };
   }
+  if (res.status === 403) {
+    return {
+      error: "This account does not have admin access. Use a recruiter or admin account.",
+      code: "STAFF_ROLE_REQUIRED",
+      field: null,
+    };
+  }
   if (res.status === 429) {
     return { error: "Too many tries. Wait 1 minute, then try again.", code: "RATE_LIMIT", field: null };
   }
@@ -123,6 +132,8 @@ function isLoginAuthErrorCode(value: string): value is LoginAuthErrorCode {
     "OTP_INVALID",
     "OTP_EXPIRED",
     "AUTH_NOT_CONFIGURED",
+    "TENANT_ACCESS_DENIED",
+    "STAFF_ROLE_REQUIRED",
     "UNKNOWN",
   ].includes(value);
 }
@@ -137,6 +148,9 @@ export function titleForLoginError(code: LoginAuthErrorCode): string | null {
       return "Email not verified";
     case "VALIDATION_ERROR":
       return "Check your details";
+    case "TENANT_ACCESS_DENIED":
+    case "STAFF_ROLE_REQUIRED":
+      return "No access";
     case "OTP_SEND_FAILED":
     case "OTP_INVALID":
       return "Code problem";

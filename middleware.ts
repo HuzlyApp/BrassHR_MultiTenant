@@ -97,6 +97,8 @@ function isPublicApiPath(pathname: string): boolean {
   if (pathname === "/api/auth/signup") return true;
   if (pathname === "/api/auth/signup/check-email") return true;
   if (pathname === "/api/auth/signup/options") return true;
+  if (pathname === "/api/auth/forgot-password/check-email") return true;
+  if (pathname === "/api/auth/forgot-password/send") return true;
   return false;
 }
 

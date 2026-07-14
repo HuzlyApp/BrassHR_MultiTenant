@@ -2,8 +2,9 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useId, useMemo, useState, type FormEvent } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useId, useMemo, useState, type FormEvent } from "react";
+import RedirectionProgressModal from "@/app/components/RedirectionProgressModal";
 import { PasswordVisibilityToggle } from "@/app/components/PasswordVisibilityToggle";
 import { loginInputErrorClass } from "@/app/login/LoginFormError";
 import {
@@ -24,6 +25,7 @@ import { supabaseBrowser } from "@/lib/supabase-browser";
 
 const BRAAS_BUTTON_GRADIENT = "linear-gradient(90deg, #BC8B41 0%, #E9B771 100%)";
 const KEY_ICON = "/icons/braas-HR/key.svg";
+const RESET_SUCCESS_REDIRECT_MESSAGE = `${PASSWORD_UPDATE_SUCCESS_MESSAGE} Redirecting to sign in…`;
 
 const titleClassName =
   "whitespace-nowrap text-left text-[30px] font-semibold leading-[36px] tracking-normal text-[#0b0f19] max-[399px]:whitespace-normal max-[399px]:text-[22px] max-[399px]:leading-[28px] min-[400px]:max-[549px]:text-[26px] min-[400px]:max-[549px]:leading-[31px] min-[550px]:max-[1079px]:text-[27px] min-[550px]:max-[1079px]:leading-[32px]";
@@ -42,14 +44,12 @@ function PasswordInput({
   value,
   onChange,
   error,
-  autoComplete = "new-password",
 }: {
   id: string;
   label: string;
   value: string;
   onChange: (value: string) => void;
   error?: string | null;
-  autoComplete?: string;
 }) {
   const [visible, setVisible] = useState(false);
   const hasError = Boolean(error);
@@ -66,14 +66,17 @@ function PasswordInput({
         </span>
         <input
           id={id}
+          name={id}
           type={visible ? "text" : "password"}
           value={value}
           onChange={(event) => onChange(event.target.value)}
           placeholder={label}
-          autoComplete={autoComplete}
+          autoComplete="new-password"
           required
           aria-invalid={hasError}
           aria-describedby={hasError ? `${id}-error` : undefined}
+          // Password managers inject attributes (e.g. aria-autocomplete) before hydrate.
+          suppressHydrationWarning
           className={`${passwordInputBaseClassName} ${hasError ? loginInputErrorClass : ""}`}
         />
         <PasswordVisibilityToggle
@@ -121,7 +124,26 @@ function fieldErrors(newPassword: string, confirmPassword: string): {
 }
 
 export default function ResetPasswordPage() {
+  return (
+    <Suspense fallback={<main className="min-h-[100dvh] bg-[#f3f4f6]" aria-hidden="true" />}>
+      <ResetPasswordContent />
+    </Suspense>
+  );
+}
+
+function ResetPasswordContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const returnTo = (() => {
+    const value = searchParams.get("return")?.trim() || "/admin";
+    if (!value.startsWith("/") || value.startsWith("//")) return "/admin";
+    if (value === "/login" || value.startsWith("/login?")) return "/admin";
+    return value;
+  })();
+  const forgotHref =
+    returnTo && returnTo !== "/admin"
+      ? `/forgot?return=${encodeURIComponent(returnTo)}`
+      : "/forgot?return=%2Fadmin";
   const newPasswordId = useId();
   const confirmPasswordId = useId();
   const [newPassword, setNewPassword] = useState("");
@@ -130,6 +152,92 @@ export default function ResetPasswordPage() {
   const [attempted, setAttempted] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [sessionReady, setSessionReady] = useState(false);
+  const [recoveryReady, setRecoveryReady] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    void (async () => {
+      try {
+        // Supabase may bounce failed verify here with hash errors (old action_link flow).
+        if (typeof window !== "undefined" && window.location.hash.includes("error=")) {
+          if (alive) {
+            setFormError(
+              "This reset link is invalid or has expired. Request a new one from the sign-in page."
+            );
+          }
+          window.history.replaceState(null, "", window.location.pathname + window.location.search);
+          return;
+        }
+
+        const {
+          data: { session: existing },
+        } = await supabaseBrowser.auth.getSession();
+        if (existing) {
+          if (alive) setRecoveryReady(true);
+          return;
+        }
+
+        const tokenHash = searchParams.get("token_hash")?.trim();
+        const type = searchParams.get("type")?.trim() || "recovery";
+        const code = searchParams.get("code")?.trim();
+
+        if (tokenHash && type === "recovery") {
+          const { error } = await supabaseBrowser.auth.verifyOtp({
+            type: "recovery",
+            token_hash: tokenHash,
+          });
+          if (error) {
+            if (alive) {
+              setFormError(
+                "This reset link is invalid or has expired. Request a new one from the sign-in page."
+              );
+            }
+            return;
+          }
+          if (alive) {
+            setRecoveryReady(true);
+            const next = new URL(window.location.href);
+            next.searchParams.delete("token_hash");
+            next.searchParams.delete("type");
+            window.history.replaceState(null, "", next.pathname + next.search);
+          }
+          return;
+        }
+
+        if (code) {
+          const { error } = await supabaseBrowser.auth.exchangeCodeForSession(code);
+          if (error) {
+            if (alive) {
+              setFormError(
+                "This reset link is invalid or has expired. Request a new one from the sign-in page."
+              );
+            }
+            return;
+          }
+          if (alive) setRecoveryReady(true);
+          return;
+        }
+
+        if (alive) {
+          setFormError(
+            "This reset link is invalid or has expired. Request a new one from the sign-in page."
+          );
+        }
+      } catch {
+        if (alive) {
+          setFormError(
+            "This reset link is invalid or has expired. Request a new one from the sign-in page."
+          );
+        }
+      } finally {
+        if (alive) setSessionReady(true);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [searchParams]);
 
   const errors = useMemo(
     () => (attempted ? fieldErrors(newPassword, confirmPassword) : { newPassword: null, confirmPassword: null }),
@@ -161,7 +269,7 @@ export default function ResetPasswordPage() {
       await supabaseBrowser.auth.signOut();
       setSuccess(true);
       setTimeout(() => {
-        router.push("/admin");
+        router.push(returnTo);
       }, 2000);
     } catch (err) {
       setFormError(err instanceof Error ? err.message : "Failed to update password.");
@@ -170,7 +278,9 @@ export default function ResetPasswordPage() {
     }
   }
 
-  return (
+  return success ? (
+    <RedirectionProgressModal message={RESET_SUCCESS_REDIRECT_MESSAGE} />
+  ) : (
     <main className="flex min-h-[100dvh] items-center justify-center bg-[#f3f4f6] px-4 py-8 sm:px-5 sm:py-10">
       <div className={authCardClassName} style={interStyle}>
         <h1 className={titleClassName}>Set a new password</h1>
@@ -178,61 +288,52 @@ export default function ResetPasswordPage() {
           Choose a strong password for your account.
         </p>
 
-        {success ? (
-          <p
-            className="mt-5 break-words rounded-lg border border-green-200 bg-green-50 px-3 py-2.5 text-[13px] leading-5 text-green-800 sm:mt-6 sm:px-4 sm:py-3 sm:text-sm sm:leading-6"
-            role="status"
-          >
-            {PASSWORD_UPDATE_SUCCESS_MESSAGE} Redirecting to sign in…
-          </p>
-        ) : (
-          <form onSubmit={handleSubmit} className="mt-6 space-y-5 sm:mt-8 sm:space-y-6" noValidate>
-            <PasswordInput
-              id={newPasswordId}
-              label="New password"
-              value={newPassword}
-              error={errors.newPassword}
-              onChange={(value) => {
-                setNewPassword(value);
-                setFormError(null);
-              }}
-            />
-            <PasswordInput
-              id={confirmPasswordId}
-              label="Confirm password"
-              value={confirmPassword}
-              error={errors.confirmPassword}
-              onChange={(value) => {
-                setConfirmPassword(value);
-                setFormError(null);
-              }}
-            />
+        <form onSubmit={handleSubmit} className="mt-6 space-y-5 sm:mt-8 sm:space-y-6" noValidate>
+          <PasswordInput
+            id={newPasswordId}
+            label="New password"
+            value={newPassword}
+            error={errors.newPassword}
+            onChange={(value) => {
+              setNewPassword(value);
+              setFormError(null);
+            }}
+          />
+          <PasswordInput
+            id={confirmPasswordId}
+            label="Confirm password"
+            value={confirmPassword}
+            error={errors.confirmPassword}
+            onChange={(value) => {
+              setConfirmPassword(value);
+              setFormError(null);
+            }}
+          />
 
-            {formError ? (
-              <p className={fieldErrorClassName} role="alert">
-                {formError}
-              </p>
-            ) : null}
-
-            <button
-              type="submit"
-              disabled={submitting}
-              className={loginPrimaryButtonClass}
-              style={{
-                backgroundImage: !submitting ? BRAAS_BUTTON_GRADIENT : undefined,
-                fontFamily: "var(--font-geist-sans), Inter, Arial, sans-serif",
-              }}
-            >
-              {submitting ? "Updating…" : "Update password"}
-            </button>
-
-            <p className="text-center text-[13px] text-[#64748b] sm:text-[14px]">
-              <Link href="/forgot" className="font-medium text-[#104b83] hover:underline">
-                Request a new reset link
-              </Link>
+          {formError ? (
+            <p className={fieldErrorClassName} role="alert">
+              {formError}
             </p>
-          </form>
-        )}
+          ) : null}
+
+          <button
+            type="submit"
+            disabled={submitting || !sessionReady || !recoveryReady}
+            className={loginPrimaryButtonClass}
+            style={{
+              backgroundImage: !submitting && sessionReady && recoveryReady ? BRAAS_BUTTON_GRADIENT : undefined,
+              fontFamily: "var(--font-geist-sans), Inter, Arial, sans-serif",
+            }}
+          >
+            {submitting ? "Updating…" : !sessionReady ? "Preparing…" : "Update password"}
+          </button>
+
+          <p className="text-center text-[13px] text-[#64748b] sm:text-[14px]">
+            <Link href={forgotHref} className="font-medium text-[#104b83] hover:underline">
+              Request a new reset link
+            </Link>
+          </p>
+        </form>
       </div>
     </main>
   );

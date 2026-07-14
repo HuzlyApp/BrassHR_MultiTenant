@@ -7,17 +7,37 @@ import { Suspense, useState, type FormEvent } from "react";
 import {
   interStyle,
   loginFieldLabelClass,
-  loginInputClass,
+  loginInputTextClass,
   loginPrimaryButtonClass,
 } from "@/app/login/BraasLoginShell";
-import { supabaseBrowser } from "@/lib/supabase-browser";
 
 const BRAAS_BUTTON_GRADIENT = "linear-gradient(90deg, #BC8B41 0%, #E9B771 100%)";
 const LOCK_ICON = "/icons/braas-HR/lock.svg";
 
+/** Brass HR gold focus — do not use loginInputClass (brand CSS vars). */
+const forgotEmailInputClass = [
+  "h-[44px] w-full rounded-[8px] border border-[#cbd5e1] bg-white px-3",
+  "outline-none transition placeholder:text-[#94a3b8]",
+  "focus:border-[#BC8B41] focus:ring-2 focus:ring-[#BC8B4120]",
+  "sm:h-[56px] sm:px-[14px]",
+  loginInputTextClass,
+  "text-[#0f172a]",
+].join(" ");
+
 function safeReturnPath(value: string | null): string {
-  if (!value || !value.startsWith("/") || value.startsWith("//")) return "/login";
+  if (!value || !value.startsWith("/") || value.startsWith("//")) return "/admin";
+  if (value === "/login" || value.startsWith("/login?")) return "/admin";
   return value;
+}
+
+function withTenantQuery(href: string, tenant: string | null): string {
+  const slug = tenant?.trim().toLowerCase();
+  if (!slug || slug.length < 2) return href;
+  const [path, existingQs = ""] = href.split("?");
+  const params = new URLSearchParams(existingQs);
+  if (!params.has("tenant")) params.set("tenant", slug);
+  const qs = params.toString();
+  return qs ? `${path}?${qs}` : path;
 }
 
 const titleClassName =
@@ -25,11 +45,14 @@ const titleClassName =
 
 function ForgotPasswordContent() {
   const searchParams = useSearchParams();
-  const signInHref = safeReturnPath(searchParams.get("return"));
+  const tenantSlug = searchParams.get("tenant")?.trim().toLowerCase() || null;
+  const signInHref = withTenantQuery(safeReturnPath(searchParams.get("return")), tenantSlug);
   const [email, setEmail] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
+
+  const canSubmit = Boolean(email.trim());
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -40,14 +63,31 @@ function ForgotPasswordContent() {
     setError(null);
 
     try {
-      const redirectTo = `${window.location.origin}/reset-password`;
-      const { error: resetError } = await supabaseBrowser.auth.resetPasswordForEmail(trimmed, {
-        redirectTo,
+      const sendRes = await fetch("/api/auth/forgot-password/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: trimmed,
+          origin: window.location.origin,
+          returnTo: safeReturnPath(searchParams.get("return")),
+        }),
       });
-      if (resetError) {
-        setError(resetError.message);
+      const sendPayload = (await sendRes.json().catch(() => ({}))) as {
+        ok?: boolean;
+        error?: string;
+        reason?: string;
+      };
+
+      if (!sendRes.ok) {
+        setError(
+          sendPayload.error ||
+            (sendPayload.reason === "not_found"
+              ? "No account found with this email. Check the address and try again."
+              : "Something went wrong. Try again.")
+        );
         return;
       }
+
       setSent(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong. Try again.");
@@ -81,8 +121,7 @@ function ForgotPasswordContent() {
           <div className="pt-1 sm:pt-0.5">
             <h1 className={titleClassName}>Check your email</h1>
             <p className="mt-2 break-words text-[14px] font-normal leading-5 text-[#64748b] sm:mt-2.5 sm:text-[16px] sm:leading-6">
-              If an account exists for <span className="font-medium text-[#0f172a]">{email.trim()}</span>, we sent a
-              link to reset your password.
+              We sent a reset link to <span className="font-medium text-[#0f172a]">{email.trim()}</span>.
             </p>
             <Link
               href={signInHref}
@@ -113,11 +152,14 @@ function ForgotPasswordContent() {
                 name="email"
                 type="email"
                 value={email}
-                onChange={(event) => setEmail(event.target.value)}
+                onChange={(event) => {
+                  setEmail(event.target.value);
+                  setError(null);
+                }}
                 placeholder="Email"
                 autoComplete="email"
                 required
-                className={`${loginInputClass} bg-white`}
+                className={forgotEmailInputClass}
               />
 
               {error ? (
@@ -131,10 +173,10 @@ function ForgotPasswordContent() {
 
               <button
                 type="submit"
-                disabled={!email.trim() || submitting}
+                disabled={!canSubmit || submitting}
                 className={`mt-6 sm:mt-7 ${loginPrimaryButtonClass}`}
                 style={{
-                  backgroundImage: email.trim() ? BRAAS_BUTTON_GRADIENT : undefined,
+                  backgroundImage: canSubmit && !submitting ? BRAAS_BUTTON_GRADIENT : undefined,
                   fontFamily: "var(--font-geist-sans), Inter, Arial, sans-serif",
                 }}
               >
@@ -142,7 +184,7 @@ function ForgotPasswordContent() {
               </button>
 
               <p className="mt-5 text-center text-[13px] text-[#64748b] sm:mt-6 sm:text-[14px]">
-                <Link href={signInHref} className="font-medium text-[#104b83] hover:underline">
+                <Link href={signInHref} className="font-medium text-[#012352] hover:underline">
                   Back to sign in
                 </Link>
               </p>

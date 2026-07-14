@@ -371,14 +371,36 @@ function LoginPageContent() {
     );
 
     if (!statusRes.ok) {
-      const message =
-        statusRes.status === 403
-          ? "This account does not have access to the selected tenant."
-          : "Could not verify onboarding status. Try again.";
+      let message = "Could not verify onboarding status. Try again.";
+      let code: LoginAuthErrorPayload["code"] = "UNKNOWN";
+      if (statusRes.status === 403) {
+        try {
+          const body = (await statusRes.clone().json()) as { detail?: string; error?: string };
+          const detail = (body.detail || body.error || "").toLowerCase();
+          if (detail.includes("staff role")) {
+            message =
+              "This account does not have admin access. Use a recruiter or admin account.";
+            code = "STAFF_ROLE_REQUIRED";
+          } else {
+            message = "This account does not have access to the selected tenant.";
+            code = "TENANT_ACCESS_DENIED";
+          }
+        } catch {
+          message =
+            "This account does not have admin access. Use a recruiter or admin account.";
+          code = "STAFF_ROLE_REQUIRED";
+        }
+      }
       setShowRedirecting(false);
       setOtpVerified(false);
-      setStep(step === "otp" ? "otp" : "credentials");
-      setAuthError({ error: message, code: "UNKNOWN", field: null });
+      // Access denial belongs on the credentials screen — not after OTP.
+      setStep("credentials");
+      setPendingLogin(null);
+      setAuthError({
+        error: message,
+        code,
+        field: null,
+      });
       return false;
     }
 
@@ -405,10 +427,16 @@ function LoginPageContent() {
   };
 
   const sendLoginOtp = async (login: PendingLogin) => {
+    const tenantSlug = searchParams.get("tenant")?.trim().toLowerCase() || "";
     const res = await fetch("/api/auth/login-otp/send", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: login.email, password: login.password }),
+      body: JSON.stringify({
+        email: login.email,
+        password: login.password,
+        purpose: recruiterSignIn ? "staff" : "worker",
+        ...(tenantSlug.length >= 2 ? { tenant: tenantSlug } : {}),
+      }),
     });
     if (!res.ok) {
       throw await parseLoginApiError(res);
