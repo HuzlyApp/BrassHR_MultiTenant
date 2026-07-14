@@ -41,22 +41,22 @@ function VerificationStatusContent() {
           <h1 className={APPLICANT_TITLE_CLASS}>Verification Status</h1>
 
           <section className="overflow-hidden rounded-xl border border-slate-200 bg-white">
-            <div className="flex flex-col gap-2 border-b border-slate-200 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between sm:px-4">
+            <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-3 py-2.5 sm:px-4">
               <div className="flex min-w-0 items-center gap-2.5">
                 <Image
                   src={isRejected ? "/icons/denied.svg" : "/icons/pending-verification.svg"}
                   alt={isRejected ? "Application denied" : "Pending verification"}
                   width={24}
                   height={24}
-                  className="h-6 w-6"
+                  className="h-6 w-6 shrink-0"
                 />
-                <span className="text-base font-semibold leading-7 text-black sm:text-xl sm:leading-10">
+                <span className="truncate text-base font-semibold leading-7 text-black sm:text-xl sm:leading-10">
                   {isRejected ? "Application Denied" : "Pending Verification"}
                 </span>
               </div>
 
               <span
-                className={`inline-flex items-center rounded-full px-3 py-1 text-[14px] font-medium leading-5 text-white ${isRejected ? "bg-[#fb7185]" : "bg-[#f59e0b]"}`}
+                className={`inline-flex shrink-0 items-center rounded-full px-3 py-1 text-[13px] font-medium leading-5 text-white sm:px-3 sm:text-[14px] ${isRejected ? "bg-[#fb7185]" : "bg-[#f59e0b]"}`}
               >
                 {isRejected ? "Denied" : "Pending"}
               </span>

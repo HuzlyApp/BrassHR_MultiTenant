@@ -1,7 +1,6 @@
 "use client"
 
 import type { CSSProperties, ReactNode } from "react"
-import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext"
 
 const box =
   "flex h-5 w-5 shrink-0 items-center justify-center rounded-[5px] border-2 transition-colors"
@@ -26,12 +25,11 @@ export default function OnboardingCheckbox({
   className,
   disabled,
 }: Props) {
-  const branding = useTenantBranding()
-  const checkboxColor = branding.checkboxHex || branding.primaryHex
-  const checkboxStyle = { accentColor: checkboxColor } as CSSProperties
+  const checkboxColor = "var(--brand-secondary)";
+  const checkboxStyle = { accentColor: checkboxColor } as CSSProperties;
   const checkedStyle = checked
     ? ({ borderColor: checkboxColor, backgroundColor: checkboxColor } as CSSProperties)
-    : undefined
+    : undefined;
 
   if (native && id) {
     return (
@@ -43,7 +41,7 @@ export default function OnboardingCheckbox({
           disabled={disabled}
           onChange={(e) => onChange(e.target.checked)}
           style={checkboxStyle}
-          className="mt-0.5 h-5 w-5 shrink-0 cursor-pointer rounded-[5px] border-2 border-slate-300 focus:ring-2 focus:ring-[color:var(--brand-checkbox)]/30 disabled:cursor-not-allowed disabled:opacity-50"
+          className="mt-0.5 h-5 w-5 shrink-0 cursor-pointer rounded-[5px] border-2 border-slate-300 focus:ring-2 focus:ring-[color:var(--brand-secondary)]/30 disabled:cursor-not-allowed disabled:opacity-50"
         />
         {children}
       </div>

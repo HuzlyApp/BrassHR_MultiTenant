@@ -153,22 +153,22 @@ export default function ApplicationStatusPage() {
 
           <div className="flex w-full flex-col gap-5 sm:h-[486px]">
             <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_2px_8px_rgba(15,23,42,0.04)]">
-              <div className="flex flex-col gap-2 border-b border-slate-200 bg-slate-50 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between sm:px-4">
-                <div className="flex items-center gap-2.5">
+              <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-3 py-2.5 sm:px-4">
+                <div className="flex min-w-0 items-center gap-2.5">
                   <Image
                     src={statusIconSrc(applicationStatus)}
                     alt={`${statusLabel} status`}
                     width={30}
                     height={30}
-                    className="h-[30px] w-[30px]"
+                    className="h-[30px] w-[30px] shrink-0"
                   />
-                  <span className="text-base font-semibold leading-6 text-slate-900 sm:text-[18px] sm:leading-7">
+                  <span className="truncate text-base font-semibold leading-6 text-slate-900 sm:text-[18px] sm:leading-7">
                     {loading ? "Loading..." : statusLabel}
                   </span>
                 </div>
 
                 <span
-                  className={`inline-flex min-h-9 items-center rounded-full px-4 text-[14px] font-medium leading-5 text-white ${statusBadgeClass(applicationStatus)}`}
+                  className={`inline-flex shrink-0 items-center rounded-full px-3 py-1.5 text-[13px] font-medium leading-5 text-white sm:min-h-9 sm:px-4 sm:text-[14px] ${statusBadgeClass(applicationStatus)}`}
                 >
                   {loading ? "..." : statusLabel}
                 </span>

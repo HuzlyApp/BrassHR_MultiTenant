@@ -924,6 +924,38 @@ function Step1ReviewContent() {
         ? "Phone was already used. Click to login using phone"
         : ""
 
+  const renderConflictBanner = (extraClassName = "") =>
+    fieldConflict?.bannerVisible ? (
+      <div
+        role="alert"
+        className={`flex flex-col gap-3 rounded-lg border border-red-200 bg-red-50 px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-4 ${extraClassName}`}
+      >
+        <div className="flex min-w-0 flex-1 items-start gap-2">
+          <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-red-600" aria-hidden />
+          <p className="text-sm font-medium leading-snug text-red-800">{conflictBannerText}</p>
+        </div>
+        <div className="flex shrink-0 items-center justify-end gap-2 sm:justify-start">
+          <button
+            type="button"
+            onClick={() => router.push("/login")}
+            className="rounded-md border border-red-600 bg-white px-4 py-1.5 text-sm font-semibold text-red-600 hover:bg-red-50"
+          >
+            Login
+          </button>
+          <button
+            type="button"
+            aria-label="Dismiss"
+            onClick={() =>
+              setFieldConflict((prev) => (prev ? { ...prev, bannerVisible: false } : null))
+            }
+            className="rounded p-1.5 text-red-500 hover:bg-red-100"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+      </div>
+    ) : null
+
   return (
     <div
       className="relative flex min-h-screen items-stretch justify-center p-3 py-6 sm:items-center sm:p-4 sm:py-8"
@@ -1056,38 +1088,7 @@ function Step1ReviewContent() {
                 />
               </div>
 
-              {fieldConflict?.bannerVisible ? (
-                <div
-                  role="alert"
-                  className="flex flex-col gap-3 rounded-lg border border-red-200 bg-red-50 px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-4"
-                >
-                  <div className="flex min-w-0 flex-1 items-start gap-2">
-                    <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-red-600" aria-hidden />
-                    <p className="text-sm font-medium leading-snug text-red-800">{conflictBannerText}</p>
-                  </div>
-                  <div className="flex shrink-0 items-center justify-end gap-2 sm:justify-start">
-                    <button
-                      type="button"
-                      onClick={() => router.push("/login")}
-                      className="rounded-md border border-red-600 bg-white px-4 py-1.5 text-sm font-semibold text-red-600 hover:bg-red-50"
-                    >
-                      Login
-                    </button>
-                    <button
-                      type="button"
-                      aria-label="Dismiss"
-                      onClick={() =>
-                        setFieldConflict((prev) =>
-                          prev ? { ...prev, bannerVisible: false } : null,
-                        )
-                      }
-                      className="rounded p-1.5 text-red-500 hover:bg-red-100"
-                    >
-                      <X className="h-5 w-5" />
-                    </button>
-                  </div>
-                </div>
-              ) : null}
+              {renderConflictBanner(emailConflict ? "hidden sm:flex" : "")}
 
               {/* Phone & Email */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
@@ -1141,6 +1142,7 @@ function Step1ReviewContent() {
                       {phoneFieldError}
                     </p>
                   ) : null}
+                  {emailConflict ? renderConflictBanner("mt-3 sm:hidden") : null}
                 </div>
                 <div className="relative">
                   <div className="mb-1.5 flex items-start justify-between gap-2">
@@ -1148,7 +1150,7 @@ function Step1ReviewContent() {
                       Email<span className="text-red-500 ml-0.5">*</span>
                     </label>
                     {emailConflict ? (
-                      <span className="text-[11px] font-medium text-red-600">
+                      <span className="hidden text-[11px] font-medium text-red-600 sm:inline">
                         This email is already used in this organization.
                       </span>
                     ) : null}
