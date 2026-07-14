@@ -225,7 +225,7 @@ export default function Home() {
               />
               <div className="absolute inset-0 bg-gradient-to-r from-white/72 via-white/58 to-black/10" />
             </div>
-            <div className="relative z-10 flex w-full flex-col items-center justify-start gap-5 pt-6">
+            <div className="relative z-10 flex w-full flex-col items-center pt-6">
             <BrandingRightPanelLogo
               src={logoSrc}
               alt={`${brand.companyName} logo`}
@@ -233,8 +233,9 @@ export default function Home() {
               widthClassName="w-full max-w-[220px]"
               className="origin-center scale-[1.15]"
             />
+            <div className="mt-6 flex w-full flex-col items-center gap-5">
             <div className="space-y-3">
-              <h1 className="text-[38px] font-semibold leading-[44px] tracking-normal text-slate-800 max-[500px]:text-[34px] max-[500px]:leading-[40px] max-[450px]:text-[32px] max-[450px]:leading-[37px] max-[399px]:whitespace-nowrap max-[399px]:text-[22px] max-[399px]:leading-[28px] min-[600px]:max-[1023px]:text-[42px] min-[600px]:max-[1023px]:leading-[48px]">
+              <h1 className="whitespace-nowrap text-[38px] font-semibold leading-[44px] tracking-normal text-slate-800 max-[399px]:text-[22px] max-[399px]:leading-[28px] min-[400px]:max-[549px]:text-[32px] min-[400px]:max-[549px]:leading-[37px] min-[550px]:max-[1023px]:text-[34px] min-[550px]:max-[1023px]:leading-[40px]">
                 {brand.headline}
               </h1>
               <p className="text-[16px] font-normal leading-6 tracking-normal text-slate-500">{brand.subtitle}</p>
@@ -294,6 +295,7 @@ export default function Home() {
               </p>
             ) : null}
             </div>
+            </div>
           </div>
         </section>
 
@@ -301,7 +303,7 @@ export default function Home() {
         <section className="relative z-10 hidden h-[calc(100dvh-3rem)] max-h-[760px] w-full max-w-[1160px] grid-cols-1 overflow-hidden rounded-2xl bg-white shadow-[0_24px_70px_rgba(0,0,0,0.18)] min-[1024px]:grid min-[1024px]:grid-cols-[680px_480px]">
           <div className="flex flex-col items-center justify-center gap-5 px-10 py-10 text-center">
             <div className="space-y-3">
-              <h1 className="text-[42px] font-semibold leading-[50px] tracking-normal text-slate-800 min-[1200px]:text-[48px] min-[1200px]:leading-[60px]">
+              <h1 className="whitespace-nowrap text-[42px] font-semibold leading-[50px] tracking-normal text-slate-800 max-[1079px]:text-[38px] max-[1079px]:leading-[45px] min-[1200px]:text-[48px] min-[1200px]:leading-[60px]">
                 {brand.headline}
               </h1>
               <p className="text-[16px] font-normal leading-6 tracking-normal text-slate-500">{brand.subtitle}</p>
