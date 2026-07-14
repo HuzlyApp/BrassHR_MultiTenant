@@ -5,6 +5,10 @@ import {
   contextToTemplateVariables,
   type SendOnboardingEmailParams,
 } from "@/lib/email/applicant-email-context";
+import {
+  restoreDynamicUrlPlaceholders,
+  rewriteEmbeddedAppUrls,
+} from "@/lib/email/dynamic-template-urls";
 import { SendEmailError } from "@/lib/email/errors";
 import { EmailTemplateError } from "@/lib/email-templates/errors";
 import {
@@ -79,12 +83,34 @@ export async function sendTemplatedEmail(
     body_text: tpl.body_text,
   });
 
-  const subject = interpolateTemplate(tpl.subject, options.variables, { escapeForHtml: false });
+  const urlVars = {
+    applicantPortalUrl: options.variables.applicantPortalUrl,
+    applicationStatusUrl: options.variables.applicationStatusUrl,
+    applicantContinuationLink:
+      options.variables.applicantContinuationLink ?? options.variables.statusLink,
+  };
+
+  const subject = rewriteEmbeddedAppUrls(
+    interpolateTemplate(restoreDynamicUrlPlaceholders(tpl.subject), options.variables, {
+      escapeForHtml: false,
+    }),
+    urlVars
+  );
   const html = sanitizeEmailHtml(
-    interpolateTemplate(tpl.body_html, options.variables, { escapeForHtml: true })
+    rewriteEmbeddedAppUrls(
+      interpolateTemplate(restoreDynamicUrlPlaceholders(tpl.body_html), options.variables, {
+        escapeForHtml: true,
+      }),
+      urlVars
+    )
   );
   const textBody = tpl.body_text
-    ? interpolateTemplate(tpl.body_text, options.variables, { escapeForHtml: false })
+    ? rewriteEmbeddedAppUrls(
+        interpolateTemplate(restoreDynamicUrlPlaceholders(tpl.body_text), options.variables, {
+          escapeForHtml: false,
+        }),
+        urlVars
+      )
     : undefined;
 
   assertNonEmptyEmailContent(subject, html);

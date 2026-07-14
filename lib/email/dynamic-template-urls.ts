@@ -1,4 +1,5 @@
 import { resolveApplicantEmailOrigin } from "@/lib/email/applicant-public-origin";
+import { workerSignInHref } from "@/lib/auth/worker-sign-in";
 
 export type ApplicantTemplateUrlVariables = {
   applicantPortalUrl?: string;
@@ -6,11 +7,14 @@ export type ApplicantTemplateUrlVariables = {
   applicantContinuationLink?: string;
 };
 
-/** Applicant sign-in link for a tenant on the vanity host (or localhost in dev). */
+/**
+ * Applicant / worker sign-in link for email templates.
+ * Example: https://jobs.brasshr.com/worker-signin?tenant=jobs
+ */
 export function buildApplicantPortalUrl(origin: string, tenantSlug: string): string {
   const slug = tenantSlug.trim().toLowerCase();
   const base = resolveApplicantEmailOrigin(origin, slug);
-  return `${base}/?tenant=${encodeURIComponent(slug)}`;
+  return `${base}${workerSignInHref({ tenant: slug })}`;
 }
 
 /**
@@ -27,6 +31,11 @@ export function restoreDynamicUrlPlaceholders(content: string): string {
     /https?:\/\/[^\s"'<>]+\/application\/application-status\?tenant=[^"'<>\s&]+/gi,
     "{{applicationStatusUrl}}"
   );
+  out = out.replace(
+    /https?:\/\/[^\s"'<>]+\/worker-signin\?tenant=[^"'<>\s&]+/gi,
+    "{{applicantPortalUrl}}"
+  );
+  // Legacy home-page applicant portal links from older templates.
   out = out.replace(/https?:\/\/[^\s"'<>]+\/\?tenant=[^"'<>\s&]+/gi, "{{applicantPortalUrl}}");
   return out;
 }
@@ -56,6 +65,11 @@ export function rewriteEmbeddedAppUrls(
   }
 
   if (variables.applicantPortalUrl) {
+    out = out.replace(
+      /https?:\/\/[^\s"'<>]+\/worker-signin\?tenant=[^"'<>\s&]+/gi,
+      variables.applicantPortalUrl
+    );
+    // Rewrite legacy home links baked into older approved templates.
     out = out.replace(
       /https?:\/\/[^\s"'<>]+\/\?tenant=[^"'<>\s&]+/gi,
       variables.applicantPortalUrl
