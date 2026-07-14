@@ -203,7 +203,7 @@ export default function LoginOtpStep({
           Enter 6 digit OTP
         </p>
 
-        <div className="flex justify-between gap-[8px] py-[24px] sm:justify-start sm:gap-[24px]">
+        <div className="flex justify-center gap-1.5 py-[24px] max-[369px]:gap-1 min-[450px]:max-[649px]:gap-2.5 sm:justify-start sm:gap-3 md:gap-[24px]">
           {digits.map((digit, index) => (
             <input
               key={index}
@@ -221,7 +221,7 @@ export default function LoginOtpStep({
               disabled={submitting || verified}
               aria-label={`Digit ${index + 1}`}
               aria-invalid={otpHasError}
-              className={`h-[45px] w-[45px] rounded-[8px] border border-[#94a3b8] bg-white text-center text-[18px] font-semibold leading-[22px] text-[#0f172a] outline-none transition sm:h-[53px] sm:w-[53px] sm:text-[20px] sm:leading-[24px] ${inputFocusClass} ${otpHasError ? loginInputErrorClass : ""}`}
+              className={`h-[45px] w-[45px] shrink-0 rounded-[8px] border border-[#94a3b8] bg-white text-center text-[18px] font-semibold leading-[22px] text-[#0f172a] outline-none transition max-[369px]:h-[36px] max-[369px]:w-[36px] max-[369px]:rounded-[6px] max-[369px]:text-[15px] max-[369px]:leading-[18px] min-[450px]:max-[649px]:h-[48px] min-[450px]:max-[649px]:w-[48px] sm:h-[53px] sm:w-[53px] sm:text-[20px] sm:leading-[24px] ${inputFocusClass} ${otpHasError ? loginInputErrorClass : ""}`}
               style={interStyle}
             />
           ))}

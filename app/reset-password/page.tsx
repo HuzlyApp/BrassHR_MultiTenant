@@ -3,52 +3,66 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useId, useState, type FormEvent } from "react";
+import { useId, useMemo, useState, type FormEvent } from "react";
 import { PasswordVisibilityToggle } from "@/app/components/PasswordVisibilityToggle";
-import { interStyle } from "@/app/login/BraasLoginShell";
+import { loginInputErrorClass } from "@/app/login/LoginFormError";
+import {
+  interStyle,
+  loginFieldLabelClass,
+  loginInputTextClass,
+  loginPrimaryButtonClass,
+} from "@/app/login/BraasLoginShell";
 import {
   PASSWORD_UPDATE_SUCCESS_MESSAGE,
   updateAuthUserPassword,
-  validatePasswordUpdate,
 } from "@/lib/account/password-update";
+import {
+  passwordPolicyValidationError,
+  passwordStrengthValidationError,
+} from "@/lib/auth/password-policy";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 
 const BRAAS_BUTTON_GRADIENT = "linear-gradient(90deg, #BC8B41 0%, #E9B771 100%)";
 const KEY_ICON = "/icons/braas-HR/key.svg";
 
-const inputTypographyStyle = {
-  fontFamily: "Inter, Arial, sans-serif",
-  fontSize: "16px",
-  lineHeight: "24px",
-  fontWeight: 400,
-  letterSpacing: "0",
-} as const;
+const titleClassName =
+  "whitespace-nowrap text-left text-[30px] font-semibold leading-[36px] tracking-normal text-[#0b0f19] max-[399px]:whitespace-normal max-[399px]:text-[22px] max-[399px]:leading-[28px] min-[400px]:max-[549px]:text-[26px] min-[400px]:max-[549px]:leading-[31px] min-[550px]:max-[1079px]:text-[27px] min-[550px]:max-[1079px]:leading-[32px]";
 
-const inputTextClass =
-  "text-[16px] font-normal leading-[24px] tracking-normal placeholder:text-[16px] placeholder:leading-[24px] placeholder:font-normal";
+const authCardClassName =
+  "w-full max-w-[620px] rounded-[14px] border border-[#e5e7eb] bg-white px-5 py-6 shadow-[0_8px_30px_rgba(15,23,42,0.08)] sm:rounded-[16px] sm:px-8 sm:py-9";
+
+const fieldErrorClassName =
+  "mt-1.5 text-[12px] font-medium leading-4 text-[#dc2626] sm:mt-2 sm:text-[13px] sm:leading-5";
+
+const passwordInputBaseClassName = `h-[44px] w-full rounded-[8px] border border-[#cbd5e1] bg-white pl-10 pr-11 outline-none transition placeholder:text-[#94a3b8] focus:border-[#BC8B41] focus:ring-2 focus:ring-[#BC8B4120] sm:h-[56px] sm:pl-[44px] sm:pr-12 ${loginInputTextClass} text-[#0f172a]`;
 
 function PasswordInput({
   id,
   label,
   value,
   onChange,
+  error,
+  autoComplete = "new-password",
 }: {
   id: string;
   label: string;
   value: string;
   onChange: (value: string) => void;
+  error?: string | null;
+  autoComplete?: string;
 }) {
   const [visible, setVisible] = useState(false);
+  const hasError = Boolean(error);
 
   return (
     <div>
-      <label htmlFor={id} className="mb-[10px] block text-[14px] font-normal leading-[20px] text-[#0f172a]">
+      <label htmlFor={id} className={loginFieldLabelClass}>
         {label}
         <span className="ml-1 text-[#ef4565]">*</span>
       </label>
       <div className="relative">
-        <span className="pointer-events-none absolute left-[14px] top-1/2 flex h-[17px] w-[17px] -translate-y-1/2 items-center justify-center">
-          <Image src={KEY_ICON} alt="" width={17} height={17} className="h-[17px] w-[17px]" />
+        <span className="pointer-events-none absolute left-3 top-1/2 flex h-4 w-4 -translate-y-1/2 items-center justify-center sm:left-[14px] sm:h-[17px] sm:w-[17px]">
+          <Image src={KEY_ICON} alt="" width={17} height={17} className="h-4 w-4 sm:h-[17px] sm:w-[17px]" />
         </span>
         <input
           id={id}
@@ -56,10 +70,11 @@ function PasswordInput({
           value={value}
           onChange={(event) => onChange(event.target.value)}
           placeholder={label}
-          autoComplete="new-password"
+          autoComplete={autoComplete}
           required
-          style={inputTypographyStyle}
-          className={`h-[56px] w-full rounded-[8px] border border-[#cbd5e1] bg-white pl-[44px] pr-12 ${inputTextClass} text-[#0f172a] outline-none transition placeholder:text-[#94a3b8] focus:border-[#BC8B41] focus:ring-2 focus:ring-[#BC8B4120]`}
+          aria-invalid={hasError}
+          aria-describedby={hasError ? `${id}-error` : undefined}
+          className={`${passwordInputBaseClassName} ${hasError ? loginInputErrorClass : ""}`}
         />
         <PasswordVisibilityToggle
           visible={visible}
@@ -67,8 +82,42 @@ function PasswordInput({
           label={label}
         />
       </div>
+      {hasError ? (
+        <p id={`${id}-error`} className={fieldErrorClassName} role="alert">
+          {error}
+        </p>
+      ) : null}
     </div>
   );
+}
+
+function fieldErrors(newPassword: string, confirmPassword: string): {
+  newPassword: string | null;
+  confirmPassword: string | null;
+} {
+  const strengthError = passwordStrengthValidationError(newPassword);
+  if (strengthError) {
+    return {
+      newPassword: strengthError,
+      confirmPassword: null,
+    };
+  }
+
+  if (!confirmPassword.trim()) {
+    return {
+      newPassword: null,
+      confirmPassword: "Confirm password is required.",
+    };
+  }
+
+  if (newPassword !== confirmPassword) {
+    return {
+      newPassword: null,
+      confirmPassword: "Passwords do not match.",
+    };
+  }
+
+  return { newPassword: null, confirmPassword: null };
 }
 
 export default function ResetPasswordPage() {
@@ -78,88 +127,106 @@ export default function ResetPasswordPage() {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [attempted, setAttempted] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+
+  const errors = useMemo(
+    () => (attempted ? fieldErrors(newPassword, confirmPassword) : { newPassword: null, confirmPassword: null }),
+    [attempted, newPassword, confirmPassword]
+  );
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    setAttempted(true);
+    setFormError(null);
 
-    const validationError = validatePasswordUpdate(newPassword, confirmPassword);
+    const validationError = passwordPolicyValidationError(newPassword, confirmPassword);
     if (validationError) {
-      setError(validationError);
       return;
     }
 
     setSubmitting(true);
-    setError(null);
 
     try {
       const {
         data: { session },
       } = await supabaseBrowser.auth.getSession();
       if (!session) {
-        setError("This reset link is invalid or has expired. Request a new one from the sign-in page.");
+        setFormError("This reset link is invalid or has expired. Request a new one from the sign-in page.");
         return;
       }
 
       await updateAuthUserPassword(supabaseBrowser, newPassword);
+      await supabaseBrowser.auth.signOut();
       setSuccess(true);
       setTimeout(() => {
-        router.push("/login");
+        router.push("/admin");
       }, 2000);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to update password.");
+      setFormError(err instanceof Error ? err.message : "Failed to update password.");
     } finally {
       setSubmitting(false);
     }
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-[#f3f4f6] px-[20px] py-[40px]">
-      <div
-        className="w-full max-w-[620px] rounded-[16px] border border-[#e5e7eb] bg-white px-[32px] py-[36px] shadow-[0_8px_30px_rgba(15,23,42,0.08)]"
-        style={interStyle}
-      >
-        <h1 className="text-left text-[30px] font-semibold leading-[36px] tracking-normal text-[#0b0f19]">
-          Set a new password
-        </h1>
-        <p className="mt-[10px] text-[16px] font-normal leading-[24px] text-[#64748b]">
+    <main className="flex min-h-[100dvh] items-center justify-center bg-[#f3f4f6] px-4 py-8 sm:px-5 sm:py-10">
+      <div className={authCardClassName} style={interStyle}>
+        <h1 className={titleClassName}>Set a new password</h1>
+        <p className="mt-2 text-[14px] font-normal leading-5 text-[#64748b] sm:mt-2.5 sm:text-[16px] sm:leading-6">
           Choose a strong password for your account.
         </p>
 
         {success ? (
-          <p className="mt-6 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800" role="status">
+          <p
+            className="mt-5 break-words rounded-lg border border-green-200 bg-green-50 px-3 py-2.5 text-[13px] leading-5 text-green-800 sm:mt-6 sm:px-4 sm:py-3 sm:text-sm sm:leading-6"
+            role="status"
+          >
             {PASSWORD_UPDATE_SUCCESS_MESSAGE} Redirecting to sign in…
           </p>
         ) : (
-          <form onSubmit={handleSubmit} className="mt-[32px] space-y-6">
-            <PasswordInput id={newPasswordId} label="New password" value={newPassword} onChange={setNewPassword} />
+          <form onSubmit={handleSubmit} className="mt-6 space-y-5 sm:mt-8 sm:space-y-6" noValidate>
+            <PasswordInput
+              id={newPasswordId}
+              label="New password"
+              value={newPassword}
+              error={errors.newPassword}
+              onChange={(value) => {
+                setNewPassword(value);
+                setFormError(null);
+              }}
+            />
             <PasswordInput
               id={confirmPasswordId}
               label="Confirm password"
               value={confirmPassword}
-              onChange={setConfirmPassword}
+              error={errors.confirmPassword}
+              onChange={(value) => {
+                setConfirmPassword(value);
+                setFormError(null);
+              }}
             />
 
-            {error ? (
-              <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">
-                {error}
+            {formError ? (
+              <p className={fieldErrorClassName} role="alert">
+                {formError}
               </p>
             ) : null}
 
             <button
               type="submit"
-              disabled={!newPassword || !confirmPassword || submitting}
-              className="flex h-[52px] w-full items-center justify-center rounded-[8px] text-[16px] font-semibold leading-[22px] text-white transition enabled:hover:brightness-95 disabled:cursor-not-allowed disabled:bg-[#dddddd] disabled:text-[#c5c5c5]"
+              disabled={submitting}
+              className={loginPrimaryButtonClass}
               style={{
-                backgroundImage: newPassword && confirmPassword ? BRAAS_BUTTON_GRADIENT : undefined,
+                backgroundImage: !submitting ? BRAAS_BUTTON_GRADIENT : undefined,
                 fontFamily: "var(--font-geist-sans), Inter, Arial, sans-serif",
               }}
             >
               {submitting ? "Updating…" : "Update password"}
             </button>
 
-            <p className="text-center text-[14px] text-[#64748b]">
+            <p className="text-center text-[13px] text-[#64748b] sm:text-[14px]">
               <Link href="/forgot" className="font-medium text-[#104b83] hover:underline">
                 Request a new reset link
               </Link>
