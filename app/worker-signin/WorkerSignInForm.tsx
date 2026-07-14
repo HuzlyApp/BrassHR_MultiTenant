@@ -6,6 +6,7 @@ import Link from "next/link";
 import LoginFormError, { loginInputErrorClass } from "@/app/login/LoginFormError";
 import { interStyle, loginInputClass, loginPasswordInputClass, loginPrimaryButtonClass } from "@/app/login/BraasLoginShell";
 import { useApplicantSignIn } from "@/lib/applicant-portal/use-applicant-sign-in";
+import { buildForgotPasswordHref } from "@/lib/auth/password-reset-return";
 import { recruiterSignInHref } from "@/lib/auth/recruiter-sign-in";
 import type { TenantBranding } from "@/lib/tenant/tenant-branding";
 import { brandingAuthButtonStyle } from "@/lib/tenant/tenant-branding";
@@ -16,7 +17,8 @@ import { FaApple } from "react-icons/fa";
 import { FaXTwitter } from "react-icons/fa6";
 import { FcGoogle } from "react-icons/fc";
 
-const checkboxActiveClass = "border-[#012352] bg-[#012352]";
+const checkboxActiveClass =
+  "border-[color:var(--brand-secondary)] bg-[color:var(--brand-secondary)]";
 const workerPageStackClass = "flex flex-col gap-5 pt-3 sm:gap-[40px] sm:pt-[30px]";
 const workerFormStackClass = "flex flex-col gap-6 sm:gap-[20px]";
 const workerEmailFormStackClass = "flex flex-col gap-5 sm:gap-[30px]";
@@ -79,9 +81,16 @@ type LoginFormOptionsProps = {
   setRememberMe: (value: boolean) => void;
   agree: boolean;
   setAgree: (value: boolean) => void;
+  tenantSlug: string | null;
 };
 
-function LoginFormOptions({ rememberMe, setRememberMe, agree, setAgree }: LoginFormOptionsProps) {
+function LoginFormOptions({
+  rememberMe,
+  setRememberMe,
+  agree,
+  setAgree,
+  tenantSlug,
+}: LoginFormOptionsProps) {
   return (
     <div className="flex flex-col gap-4 sm:gap-5">
       <div className="flex items-center justify-between gap-3">
@@ -106,7 +115,10 @@ function LoginFormOptions({ rememberMe, setRememberMe, agree, setAgree }: LoginF
           Remember Me
         </label>
         <Link
-          href="/forgot"
+          href={buildForgotPasswordHref({
+            returnTo: "/worker-signin",
+            tenant: tenantSlug,
+          })}
           className="text-[14px] font-normal leading-[20px] hover:underline"
           style={{ ...interStyle, color: "var(--brand-secondary)" }}
         >
@@ -342,6 +354,7 @@ export default function WorkerSignInForm({ tenantSlug, brand }: Props) {
             setRememberMe={setRememberMe}
             agree={agree}
             setAgree={setAgree}
+            tenantSlug={tenantSlug}
           />
 
           <button
@@ -412,6 +425,7 @@ export default function WorkerSignInForm({ tenantSlug, brand }: Props) {
             setRememberMe={setRememberMe}
             agree={agree}
             setAgree={setAgree}
+            tenantSlug={tenantSlug}
           />
 
           <button

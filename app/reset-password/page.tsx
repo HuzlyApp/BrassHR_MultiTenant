@@ -21,6 +21,10 @@ import {
   passwordPolicyValidationError,
   passwordStrengthValidationError,
 } from "@/lib/auth/password-policy";
+import {
+  buildForgotPasswordHref,
+  buildPostResetSignInHref,
+} from "@/lib/auth/password-reset-return";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 
 const BRAAS_BUTTON_GRADIENT = "linear-gradient(90deg, #BC8B41 0%, #E9B771 100%)";
@@ -134,16 +138,12 @@ export default function ResetPasswordPage() {
 function ResetPasswordContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const returnTo = (() => {
-    const value = searchParams.get("return")?.trim() || "/admin";
-    if (!value.startsWith("/") || value.startsWith("//")) return "/admin";
-    if (value === "/login" || value.startsWith("/login?")) return "/admin";
-    return value;
-  })();
-  const forgotHref =
-    returnTo && returnTo !== "/admin"
-      ? `/forgot?return=${encodeURIComponent(returnTo)}`
-      : "/forgot?return=%2Fadmin";
+  const tenantSlug = searchParams.get("tenant")?.trim().toLowerCase() || null;
+  const signInHref = buildPostResetSignInHref(searchParams.get("return"), tenantSlug);
+  const forgotHref = buildForgotPasswordHref({
+    returnTo: searchParams.get("return"),
+    tenant: tenantSlug,
+  });
   const newPasswordId = useId();
   const confirmPasswordId = useId();
   const [newPassword, setNewPassword] = useState("");
@@ -269,7 +269,7 @@ function ResetPasswordContent() {
       await supabaseBrowser.auth.signOut();
       setSuccess(true);
       setTimeout(() => {
-        router.push(returnTo);
+        router.push(signInHref);
       }, 2000);
     } catch (err) {
       setFormError(err instanceof Error ? err.message : "Failed to update password.");

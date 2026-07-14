@@ -7,6 +7,7 @@ import OnboardingCheckbox from "@/app/components/OnboardingCheckbox";
 import OnboardingLayout from "@/app/components/OnboardingLayout";
 import { PasswordVisibilityToggle } from "@/app/components/PasswordVisibilityToggle";
 import LoginOtpStep from "@/app/login/LoginOtpStep";
+import { buildForgotPasswordHref } from "@/lib/auth/password-reset-return";
 import { cn } from "@/lib/cn";
 import type { LoginAuthErrorPayload } from "@/lib/auth/login-api-errors";
 import type { TenantBranding } from "@/lib/tenant/tenant-branding";
@@ -57,9 +58,10 @@ export default function ClassicTenantLogin({
 }: ClassicTenantLoginProps) {
   const router = useRouter();
   const canSubmit = form.email.trim().length > 0 && form.password.length > 0 && form.agree;
-  const forgotHref = forgotReturnTo
-    ? `/forgot?return=${encodeURIComponent(forgotReturnTo)}`
-    : "/forgot";
+  const forgotHref = buildForgotPasswordHref({
+    returnTo: forgotReturnTo ?? "/admin",
+    tenant: brand.slug,
+  });
 
   return (
     <OnboardingLayout

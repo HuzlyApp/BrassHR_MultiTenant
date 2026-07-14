@@ -18,6 +18,7 @@ import { LoginBrandHeader, LoginPageShell, interStyle, loginFieldLabelClass, log
 import LoginFormError, { loginInputErrorClass } from "@/app/login/LoginFormError";
 import LoginOtpStep from "@/app/login/LoginOtpStep";
 import { isGodAdminUser } from "@/lib/auth/god-admin";
+import { buildForgotPasswordHref } from "@/lib/auth/password-reset-return";
 import {
   classifyAuthMessage,
   parseLoginApiError,
@@ -649,7 +650,7 @@ function LoginPageContent() {
           }}
           onTogglePassword={() => setShowPassword((current) => !current)}
           onSubmit={handleClassicSubmit}
-          forgotReturnTo={isAdminRoute ? "/admin" : undefined}
+          forgotReturnTo="/admin"
         />
       </TenantBrandingProvider>
     );
@@ -758,7 +759,10 @@ function LoginPageContent() {
                 Remember Me
               </label>
               <Link
-                href="/forgot"
+                href={buildForgotPasswordHref({
+                  returnTo: "/admin",
+                  tenant: tenantQuery?.trim().toLowerCase() || brand.slug,
+                })}
                 className="text-[14px] font-normal leading-[20px] hover:underline"
                 style={{ ...interStyle, color: "var(--brand-secondary)" }}
               >

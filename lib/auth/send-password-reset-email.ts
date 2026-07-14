@@ -29,10 +29,12 @@ function buildPasswordResetEmailHtml(resetUrl: string): string {
  */
 export async function sendPasswordResetEmail(params: {
   email: string;
-  /** App origin, e.g. http://localhost:3000 or https://www.brasshr.com */
+  /** App origin, e.g. http://localhost:3000 or https://jobs.brasshr.com */
   appOrigin: string;
   /** Optional return path after successful reset (must start with /). */
   returnTo?: string | null;
+  /** Optional tenant slug for post-reset sign-in. */
+  tenant?: string | null;
 }): Promise<SendPasswordResetResult> {
   const email = normalizeTenantEmail(params.email);
   if (!email.includes("@")) {
@@ -105,6 +107,10 @@ export async function sendPasswordResetEmail(params: {
   const returnTo = params.returnTo?.trim();
   if (returnTo && returnTo.startsWith("/") && !returnTo.startsWith("//")) {
     resetUrl.searchParams.set("return", returnTo);
+  }
+  const tenant = params.tenant?.trim().toLowerCase();
+  if (tenant && tenant.length >= 2) {
+    resetUrl.searchParams.set("tenant", tenant);
   }
 
   const href = resetUrl.toString();

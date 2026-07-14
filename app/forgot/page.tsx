@@ -10,6 +10,10 @@ import {
   loginInputTextClass,
   loginPrimaryButtonClass,
 } from "@/app/login/BraasLoginShell";
+import {
+  buildPostResetSignInHref,
+  safePasswordResetReturnPath,
+} from "@/lib/auth/password-reset-return";
 
 const BRAAS_BUTTON_GRADIENT = "linear-gradient(90deg, #BC8B41 0%, #E9B771 100%)";
 const LOCK_ICON = "/icons/braas-HR/lock.svg";
@@ -24,29 +28,14 @@ const forgotEmailInputClass = [
   "text-[#0f172a]",
 ].join(" ");
 
-function safeReturnPath(value: string | null): string {
-  if (!value || !value.startsWith("/") || value.startsWith("//")) return "/admin";
-  if (value === "/login" || value.startsWith("/login?")) return "/admin";
-  return value;
-}
-
-function withTenantQuery(href: string, tenant: string | null): string {
-  const slug = tenant?.trim().toLowerCase();
-  if (!slug || slug.length < 2) return href;
-  const [path, existingQs = ""] = href.split("?");
-  const params = new URLSearchParams(existingQs);
-  if (!params.has("tenant")) params.set("tenant", slug);
-  const qs = params.toString();
-  return qs ? `${path}?${qs}` : path;
-}
-
 const titleClassName =
   "whitespace-nowrap text-left text-[30px] font-semibold leading-[36px] tracking-normal text-[#0b0f19] max-[399px]:whitespace-normal max-[399px]:text-[22px] max-[399px]:leading-[28px] min-[400px]:max-[549px]:text-[26px] min-[400px]:max-[549px]:leading-[31px] min-[550px]:max-[1079px]:text-[27px] min-[550px]:max-[1079px]:leading-[32px]";
 
 function ForgotPasswordContent() {
   const searchParams = useSearchParams();
   const tenantSlug = searchParams.get("tenant")?.trim().toLowerCase() || null;
-  const signInHref = withTenantQuery(safeReturnPath(searchParams.get("return")), tenantSlug);
+  const returnTo = safePasswordResetReturnPath(searchParams.get("return"));
+  const signInHref = buildPostResetSignInHref(returnTo, tenantSlug);
   const [email, setEmail] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -69,7 +58,8 @@ function ForgotPasswordContent() {
         body: JSON.stringify({
           email: trimmed,
           origin: window.location.origin,
-          returnTo: safeReturnPath(searchParams.get("return")),
+          returnTo,
+          tenant: tenantSlug,
         }),
       });
       const sendPayload = (await sendRes.json().catch(() => ({}))) as {

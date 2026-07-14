@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sendPasswordResetEmail } from "@/lib/auth/send-password-reset-email";
+import { safePasswordResetReturnPath } from "@/lib/auth/password-reset-return";
 import { resolveAppOrigin } from "@/lib/resolve-app-origin";
 import { enforceRateLimit, getClientIp } from "@/lib/security/rate-limit";
 import { normalizeTenantEmail } from "@/lib/tenant/tenant-email-uniqueness";
@@ -24,9 +25,14 @@ function isAllowedPasswordResetOrigin(origin: string): boolean {
  * (login OTP delivery path — avoids broken Supabase Auth SMTP for recovery).
  */
 export async function POST(req: NextRequest) {
-  let body: { email?: unknown; origin?: unknown; returnTo?: unknown } = {};
+  let body: { email?: unknown; origin?: unknown; returnTo?: unknown; tenant?: unknown } = {};
   try {
-    body = (await req.json()) as { email?: unknown; origin?: unknown; returnTo?: unknown };
+    body = (await req.json()) as {
+      email?: unknown;
+      origin?: unknown;
+      returnTo?: unknown;
+      tenant?: unknown;
+    };
   } catch {
     return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
   }
@@ -58,15 +64,17 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const returnTo =
-    typeof body.returnTo === "string" && body.returnTo.startsWith("/") && !body.returnTo.startsWith("//")
-      ? body.returnTo
-      : null;
+  const returnTo = safePasswordResetReturnPath(
+    typeof body.returnTo === "string" ? body.returnTo : null
+  );
+  const tenant =
+    typeof body.tenant === "string" ? body.tenant.trim().toLowerCase() : null;
 
   const result = await sendPasswordResetEmail({
     email,
     appOrigin: resolvedOrigin,
     returnTo,
+    tenant: tenant && tenant.length >= 2 ? tenant : null,
   });
 
   if (!result.ok) {
