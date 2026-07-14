@@ -7,7 +7,9 @@ import { loadTenantOnboardingConfig } from "@/lib/onboarding/load-tenant-config"
 import { routeForOnboardingStep } from "@/lib/onboarding/step-routes";
 import { getEnabledTenantSteps } from "@/lib/onboarding/tenant-step-navigation";
 import type { OnboardingStepType } from "@/lib/onboarding/types";
+import { resolveApplicantEmailOrigin } from "@/lib/email/applicant-public-origin";
 import { withTenant } from "@/lib/tenant/with-tenant";
+import { pickTenantVanityLabel } from "@/lib/tenant/tenant-vanity-url";
 
 const DEFAULT_EXPIRY_HOURS = 72;
 const TOKEN_BYTES = 32;
@@ -47,22 +49,16 @@ export function hashContinuationToken(token: string): string {
   return createHash("sha256").update(token, "utf8").digest("hex");
 }
 
-function normalizeOrigin(origin: string): string {
-  return origin.trim().replace(/\/+$/, "");
-}
-
 function expiryHours(): number {
   const raw = Number(process.env.APPLICANT_CONTINUATION_LINK_TTL_HOURS);
   return Number.isFinite(raw) && raw > 0 ? Math.min(raw, 24 * 14) : DEFAULT_EXPIRY_HOURS;
 }
 
 function pickTenantSlug(row: TenantSlugRow | null, fallback?: string | null): string | null {
-  const slug = row?.slug?.trim().toLowerCase();
-  if (slug && slug.length >= 2) return slug;
-  const subdomain = row?.subdomain?.trim().toLowerCase();
-  if (subdomain && subdomain.length >= 2) return subdomain;
-  const fb = fallback?.trim().toLowerCase();
-  return fb && fb.length >= 2 ? fb : null;
+  return pickTenantVanityLabel({
+    subdomain: row?.subdomain,
+    slug: row?.slug ?? fallback,
+  });
 }
 
 export async function resolveApplicantContinuationTarget(
@@ -173,7 +169,11 @@ export async function createApplicantContinuationLink(
   if (insertError) throw insertError;
   const insertedRow = inserted as { id: string };
 
-  const url = new URL("/application/continue", normalizeOrigin(params.origin));
+  const publicOrigin = resolveApplicantEmailOrigin(
+    params.origin,
+    tenantSlug ?? params.tenantSlug ?? ""
+  );
+  const url = new URL("/application/continue", publicOrigin);
   url.searchParams.set("token", token);
 
   return {

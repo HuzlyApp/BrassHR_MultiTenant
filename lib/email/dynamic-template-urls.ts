@@ -1,4 +1,4 @@
-import { normalizePublicOrigin } from "@/lib/resolve-app-origin";
+import { resolveApplicantEmailOrigin } from "@/lib/email/applicant-public-origin";
 
 export type ApplicantTemplateUrlVariables = {
   applicantPortalUrl?: string;
@@ -6,10 +6,10 @@ export type ApplicantTemplateUrlVariables = {
   applicantContinuationLink?: string;
 };
 
-/** Applicant sign-in link for a tenant on the current app host. */
+/** Applicant sign-in link for a tenant on the vanity host (or localhost in dev). */
 export function buildApplicantPortalUrl(origin: string, tenantSlug: string): string {
-  const base = normalizePublicOrigin(origin);
-  const slug = tenantSlug.trim();
+  const slug = tenantSlug.trim().toLowerCase();
+  const base = resolveApplicantEmailOrigin(origin, slug);
   return `${base}/?tenant=${encodeURIComponent(slug)}`;
 }
 

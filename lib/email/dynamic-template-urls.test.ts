@@ -6,12 +6,18 @@ import {
 } from "@/lib/email/dynamic-template-urls";
 
 describe("buildApplicantPortalUrl", () => {
-  it("uses the provided origin and tenant slug", () => {
+  it("uses localhost origin in local development", () => {
     expect(buildApplicantPortalUrl("http://localhost:3000", "remotecompany")).toBe(
       "http://localhost:3000/?tenant=remotecompany"
     );
+  });
+
+  it("rewrites production hosts to the tenant vanity domain", () => {
+    expect(buildApplicantPortalUrl("https://brasshr.com", "jobs")).toBe(
+      "https://jobs.brasshr.com/?tenant=jobs"
+    );
     expect(buildApplicantPortalUrl("https://test.brasshr.com", "remotecompany")).toBe(
-      "https://test.brasshr.com/?tenant=remotecompany"
+      "https://remotecompany.brasshr.com/?tenant=remotecompany"
     );
   });
 });

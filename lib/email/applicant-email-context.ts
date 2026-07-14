@@ -7,6 +7,7 @@ import {
   type ContinuationReason,
 } from "@/lib/onboarding/applicant-continuation-link";
 import { isValidStep1Email } from "@/lib/onboardingStep1Validation";
+import { pickTenantVanityLabel } from "@/lib/tenant/tenant-vanity-url";
 
 export type ApplicantEmailContext = {
   tenantId: string;
@@ -75,14 +76,24 @@ export async function buildApplicantEmailContext(
   const tenantId = String(worker.tenant_id ?? params.tenantId);
   const { data: tenant, error: tErr } = await supabase
     .from("tenants")
-    .select("id, name, slug")
+    .select("id, name, slug, subdomain")
     .eq("id", tenantId)
     .maybeSingle();
 
   if (tErr) throw tErr;
-  if (!tenant?.slug) return null;
 
-  const slug = String(tenant.slug);
+  const tenantRow = tenant as {
+    id: string;
+    name: string | null;
+    slug: string | null;
+    subdomain?: string | null;
+  } | null;
+
+  const slug = pickTenantVanityLabel({
+    subdomain: tenantRow?.subdomain,
+    slug: tenantRow?.slug,
+  });
+  if (!slug) return null;
   const applicationStatusUrl = buildApplicationStatusUrl({
     origin: params.origin,
     tenantSlug: slug,
@@ -100,7 +111,7 @@ export async function buildApplicantEmailContext(
 
   return {
     tenantId,
-    tenantName: String(tenant.name ?? slug),
+    tenantName: String(tenantRow?.name ?? slug),
     tenantSlug: slug,
     applicantName: formatApplicantName(
       worker.first_name as string | null,

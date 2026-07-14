@@ -19,6 +19,7 @@ import {
 import { htmlToPlainText } from "@/lib/communication/html-to-plain-text";
 import { resolveWorkerContact } from "@/lib/communication/resolve-worker";
 import { createApplicantContinuationLink } from "@/lib/onboarding/applicant-continuation-link";
+import { pickTenantVanityLabel } from "@/lib/tenant/tenant-vanity-url";
 
 export type CandidateEmailTemplatePreview = {
   template_key: OnboardingEmailTemplateKey;
@@ -66,13 +67,23 @@ async function buildTemplateVariables(
 
   const { data: tenant, error } = await supabase
     .from("tenants")
-    .select("id, name, slug")
+    .select("id, name, slug, subdomain")
     .eq("id", tenantId)
     .maybeSingle();
   if (error) throw error;
-  if (!tenant?.slug) throw new Error("Tenant not found");
 
-  const slug = String(tenant.slug);
+  const tenantRow = tenant as {
+    name: string | null;
+    slug: string | null;
+    subdomain?: string | null;
+  } | null;
+
+  const slug = pickTenantVanityLabel({
+    subdomain: tenantRow?.subdomain,
+    slug: tenantRow?.slug,
+  });
+  if (!slug) throw new Error("Tenant not found");
+
   const normalizedOrigin = origin.trim().replace(/\/+$/, "");
   const applicationStatusUrl = buildApplicationStatusUrl({
     origin: normalizedOrigin,
@@ -97,7 +108,7 @@ async function buildTemplateVariables(
 
   return {
     applicantName: applicantNameFromContact(contact),
-    tenantName: String(tenant.name ?? slug),
+    tenantName: String(tenantRow?.name ?? slug),
     applicationStatusUrl,
     applicantPortalUrl,
     applicantContinuationLink,
