@@ -133,7 +133,7 @@ function TemplateCard({
         </h3>
       </Link>
 
-      <div className="absolute right-4 top-1/2 flex -translate-y-1/2 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+      <div className="absolute right-3 top-1/2 flex -translate-y-1/2 items-center gap-1 opacity-100 transition-opacity sm:right-4 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100">
         <TemplateActionButton
           label="Copy to workflow"
           iconSrc="/icons/template-icons/codicon_notebook-template.svg"
@@ -326,17 +326,22 @@ export default function AdminRecruiterTemplatesPage() {
   ];
 
   return (
-    <div className="min-h-screen" style={{ backgroundColor: PAGE_BG }}>
-      <div className="w-full px-5 py-6 lg:px-8">
-        <header className="mb-8">
-          <h1 className="text-[30px] font-semibold leading-[36px] text-[#000000]">My Templates</h1>
-          <p className="mt-3 text-[16px] font-normal leading-6 text-[#374151]">
+    <div className="min-h-screen overflow-x-hidden" style={{ backgroundColor: PAGE_BG }}>
+      <div className="w-full min-w-0 px-3 py-4 max-[369px]:px-2.5 sm:px-5 sm:py-6 lg:px-8">
+        <header className="mb-6 sm:mb-8">
+          <h1 className="text-[24px] font-semibold leading-[30px] text-[#000000] max-[369px]:text-[22px] max-[369px]:leading-[28px] min-[500px]:text-[30px] min-[500px]:leading-[36px]">
+            My Templates
+          </h1>
+          <p className="mt-2 text-[14px] font-normal leading-5 text-[#374151] sm:mt-3 sm:text-[16px] sm:leading-6">
             Manage Workflow Templates
           </p>
         </header>
 
         <section className="rounded-xl border bg-white" style={{ borderColor: CARD_BORDER }}>
-          <div className="flex items-center justify-end border-b px-4 py-3" style={{ borderColor: CARD_BORDER }}>
+          <div
+            className="flex items-center justify-end border-b px-3 py-3 max-[369px]:px-2.5 sm:px-4"
+            style={{ borderColor: CARD_BORDER }}
+          >
             <button
               type="button"
               onClick={() => {
@@ -344,7 +349,7 @@ export default function AdminRecruiterTemplatesPage() {
                 setCreateModalOpen(true);
               }}
               disabled={creating}
-              className="inline-flex h-10 items-center gap-2 rounded-lg px-4 text-sm font-semibold text-white transition hover:brightness-[0.97] disabled:opacity-60"
+              className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg px-4 text-sm font-semibold text-white transition hover:brightness-[0.97] disabled:opacity-60 min-[480px]:w-auto"
               style={{
                 background:
                   "linear-gradient(90deg, var(--brand-primary) 0%, color-mix(in srgb, var(--brand-primary) 70%, white) 100%)",
@@ -355,7 +360,7 @@ export default function AdminRecruiterTemplatesPage() {
             </button>
           </div>
 
-          <div className="space-y-8 p-4 sm:p-5">
+          <div className="space-y-6 p-3 max-[369px]:p-2.5 sm:space-y-8 sm:p-5">
             {error ? (
               <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                 {error}

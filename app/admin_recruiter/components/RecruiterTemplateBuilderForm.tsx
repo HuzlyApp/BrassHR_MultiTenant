@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
-import { ArrowLeft, ExternalLink, Save, Send, Upload } from "lucide-react";
+import { ArrowLeft, ChevronDown, ExternalLink, Save, Send, Upload } from "lucide-react";
 import FirmaTemplateBuilderFrame from "@/app/admin_recruiter/components/FirmaTemplateBuilderFrame";
 import { recruiterTemplateFetch } from "@/app/admin_recruiter/components/recruiter-template-auth";
 import { prepareFirmaPdfWorker } from "@/lib/firma/pdf-worker-patch";
@@ -35,6 +35,13 @@ const DEFAULT_ROLES: RecruiterTemplateRoleInput[] = [
   { role_key: "hiring_manager", label: "Hiring Manager", designation: "Signer", signing_order: 3 },
   { role_key: "hr_admin", label: "HR / Admin", designation: "Signer", signing_order: 4 },
 ];
+
+const inputClassName =
+  "w-full min-w-0 rounded-lg border border-[#D0D5DD] bg-white px-3 py-2 text-sm text-[#101828] outline-none transition-colors focus:border-[color:var(--brand-primary)] focus:ring-1 focus:ring-[color:var(--brand-primary)]";
+
+const fieldClassName = `mt-1 ${inputClassName}`;
+
+const selectClassName = `${inputClassName} cursor-pointer appearance-none pr-10`;
 
 function buildPayload(
   name: string,
@@ -238,31 +245,31 @@ export default function RecruiterTemplateBuilderForm({
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex items-start gap-3">
+    <div className="space-y-4 sm:space-y-6">
+      <div className="flex flex-col gap-4 min-[480px]:flex-row min-[480px]:items-start min-[480px]:justify-between lg:items-center">
+        <div className="flex min-w-0 items-start gap-3">
           <Link
             href="/admin_recruiter/template-builder"
-            className="mt-1 inline-flex h-9 w-9 items-center justify-center rounded-lg border border-[#D0D5DD] text-[#667085] hover:bg-[#F9FAFB]"
+            className="mt-1 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[#D0D5DD] text-[#667085] hover:bg-[#F9FAFB]"
             aria-label="Back to templates"
           >
             <ArrowLeft className="h-4 w-4" />
           </Link>
-          <div>
-            <h1 className="text-xl font-semibold text-[#101828]">
+          <div className="min-w-0">
+            <h1 className="text-lg font-semibold leading-7 text-[#101828] min-[700px]:text-xl">
               {isNew && !currentTemplateId ? "New recruiting template" : name || "Template builder"}
             </h1>
-            <p className="mt-1 text-sm text-[#667085]">
+            <p className="mt-1 text-[13px] leading-5 text-[#667085] min-[700px]:text-sm">
               Firma.dev powers document field placement and role assignment.
             </p>
           </div>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex w-full shrink-0 flex-wrap gap-2 min-[480px]:w-auto min-[480px]:justify-end">
           <button
             type="button"
             disabled={saving}
             onClick={() => void saveDraft()}
-            className="inline-flex items-center gap-2 rounded-lg border border-[#D0D5DD] px-4 py-2 text-sm font-medium text-[#344054] disabled:opacity-50"
+            className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-lg border border-[#D0D5DD] px-4 text-sm font-medium text-[#344054] disabled:opacity-50 min-[480px]:flex-none"
           >
             <Save className="h-4 w-4" />
             Save draft
@@ -271,7 +278,7 @@ export default function RecruiterTemplateBuilderForm({
             type="button"
             disabled={publishing || status === "archived"}
             onClick={() => void publishTemplate()}
-            className="inline-flex items-center gap-2 rounded-lg bg-[color:var(--brand-primary)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+            className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-lg bg-[color:var(--brand-primary)] px-4 text-sm font-semibold text-white disabled:opacity-50 min-[480px]:flex-none"
           >
             <Send className="h-4 w-4" />
             Publish
@@ -279,50 +286,58 @@ export default function RecruiterTemplateBuilderForm({
         </div>
       </div>
 
-      <section className="border border-[#EAECF0] bg-white p-5">
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_260px]">
-          <div className="grid gap-4 md:grid-cols-2">
-            <label className="block md:col-span-2">
-              <span className="text-sm font-medium text-[#344054]">Template name</span>
-              <input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-[#D0D5DD] px-3 py-2 text-sm"
-                placeholder="Offer letter - full time"
-              />
-            </label>
-            <label className="block md:col-span-2">
+      <section className="border border-[#EAECF0] bg-white p-4 sm:p-5">
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(220px,260px)] lg:items-start">
+          <div className="grid gap-4">
+            <div className="grid gap-4 md:grid-cols-3">
+              <label className="block min-w-0">
+                <span className="text-sm font-medium text-[#344054]">Template name</span>
+                <input
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className={fieldClassName}
+                  placeholder="Offer letter - full time"
+                />
+              </label>
+              <label className="block min-w-0">
+                <span className="text-sm font-medium text-[#344054]">Workflow type</span>
+                <div className="relative mt-1">
+                  <select
+                    value={category}
+                    onChange={(e) => setCategory(e.target.value)}
+                    className={selectClassName}
+                  >
+                    {RECRUITER_TEMPLATE_CATEGORIES.map((item) => (
+                      <option key={item} value={item}>
+                        {RECRUITER_TEMPLATE_CATEGORY_LABELS[item]}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown
+                    className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#667085]"
+                    aria-hidden
+                  />
+                </div>
+              </label>
+              <label className="block min-w-0">
+                <span className="text-sm font-medium text-[#344054]">Expiration hours</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={8760}
+                  value={expirationHours}
+                  onChange={(e) => setExpirationHours(Number(e.target.value))}
+                  className={fieldClassName}
+                />
+              </label>
+            </div>
+            <label className="block min-w-0">
               <span className="text-sm font-medium text-[#344054]">Description</span>
               <textarea
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 rows={3}
-                className="mt-1 w-full rounded-lg border border-[#D0D5DD] px-3 py-2 text-sm"
-              />
-            </label>
-            <label className="block">
-              <span className="text-sm font-medium text-[#344054]">Workflow type</span>
-              <select
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-[#D0D5DD] px-3 py-2 text-sm"
-              >
-                {RECRUITER_TEMPLATE_CATEGORIES.map((item) => (
-                  <option key={item} value={item}>
-                    {RECRUITER_TEMPLATE_CATEGORY_LABELS[item]}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="block">
-              <span className="text-sm font-medium text-[#344054]">Expiration hours</span>
-              <input
-                type="number"
-                min={1}
-                max={8760}
-                value={expirationHours}
-                onChange={(e) => setExpirationHours(Number(e.target.value))}
-                className="mt-1 w-full rounded-lg border border-[#D0D5DD] px-3 py-2 text-sm"
+                className={fieldClassName}
               />
             </label>
           </div>
@@ -335,11 +350,11 @@ export default function RecruiterTemplateBuilderForm({
                 <dd className="font-medium capitalize text-[#101828]">{status}</dd>
               </div>
               <div className="flex justify-between gap-3">
-                <dt className="text-[#667085]">Firma</dt>
+                <dt className="shrink-0 text-[#667085]">Firma</dt>
                 <dd className="truncate font-medium text-[#101828]">{firmaTemplateId ?? "-"}</dd>
               </div>
               <div className="flex justify-between gap-3">
-                <dt className="text-[#667085]">Document</dt>
+                <dt className="shrink-0 text-[#667085]">Document</dt>
                 <dd className="truncate font-medium text-[#101828]">{documentFileName ?? "-"}</dd>
               </div>
             </dl>
@@ -357,8 +372,8 @@ export default function RecruiterTemplateBuilderForm({
           </aside>
         </div>
 
-        <div className="mt-5 flex flex-wrap items-center gap-3 border-t border-[#EAECF0] pt-5">
-          <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-[#D0D5DD] px-3 py-2 text-sm font-medium text-[#344054] hover:bg-[#F9FAFB]">
+        <div className="mt-5 flex flex-col gap-3 border-t border-[#EAECF0] pt-5 min-[480px]:flex-row min-[480px]:flex-wrap min-[480px]:items-center">
+          <label className="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-[#D0D5DD] px-3 py-2 text-sm font-medium text-[#344054] hover:bg-[#F9FAFB] min-[480px]:w-auto min-[480px]:justify-start">
             <Upload className="h-4 w-4" />
             {uploading ? "Uploading..." : documentFileName ? "Replace document" : "Upload PDF or DOCX"}
             <input
@@ -376,7 +391,7 @@ export default function RecruiterTemplateBuilderForm({
             type="button"
             onClick={() => void openBuilder()}
             disabled={saving || uploading}
-            className="inline-flex items-center gap-2 rounded-lg bg-[#101828] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+            className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[color:var(--brand-secondary)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50 min-[480px]:w-auto"
           >
             <ExternalLink className="h-4 w-4" />
             Open Firma builder

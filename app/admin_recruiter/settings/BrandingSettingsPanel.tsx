@@ -6,7 +6,6 @@ import { ChevronDownIcon, ImageIcon, Palette, RefreshCw, Type } from "lucide-rea
 import {
   AccountErrorBanner,
   AccountLoadingSkeleton,
-  AccountSuccessBanner,
 } from "@/app/admin_recruiter/account/components/AccountFormStatus";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import {
@@ -26,6 +25,7 @@ import {
 } from "@/lib/tenant/tenant-branding";
 import BrandingAuthPreview from "@/app/admin_recruiter/settings/BrandingAuthPreview";
 import { supabaseBrowser } from "@/lib/supabase-browser";
+import toast from "react-hot-toast";
 
 type PreviewMode = "login" | "signup";
 type LogoField = "logo" | "login" | "signup" | "favicon";
@@ -265,7 +265,6 @@ export default function BrandingSettingsPanel() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
   const [tenantId, setTenantId] = useState<string | null>(null);
   const [previewMode, setPreviewMode] = useState<PreviewMode>("login");
 
@@ -462,7 +461,6 @@ export default function BrandingSettingsPanel() {
     event.preventDefault();
     setSaving(true);
     setError(null);
-    setSuccess(null);
 
     try {
       const headers = {
@@ -555,7 +553,7 @@ export default function BrandingSettingsPanel() {
 
       void queryClient.invalidateQueries({ queryKey: EFFECTIVE_BRANDING_QUERY_KEY });
       notifyBrandingUpdated();
-      setSuccess("Saved! Your team and workers will see the new look.");
+      toast.success("Saved! Your team and workers will see the new look.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save branding.");
     } finally {
@@ -598,7 +596,6 @@ export default function BrandingSettingsPanel() {
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       {error ? <AccountErrorBanner message={error} /> : null}
-      {success ? <AccountSuccessBanner message={success} /> : null}
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(320px,400px)] xl:items-start">
         <div className="space-y-6">

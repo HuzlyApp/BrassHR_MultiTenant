@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
-import { FileSignature, Plus, Search } from "lucide-react";
+import { ChevronDown, FileSignature, Plus, Search } from "lucide-react";
 import { recruiterTemplateFetch } from "@/app/admin_recruiter/components/recruiter-template-auth";
 import {
   RECRUITER_TEMPLATE_CATEGORIES,
@@ -39,6 +39,11 @@ function formatDate(value: string | null | undefined): string {
     day: "numeric",
   });
 }
+
+const fieldClassName =
+  "w-full min-w-0 rounded-lg border border-[#D0D5DD] bg-white px-3 py-2 text-sm text-[#101828] outline-none transition-colors focus:border-[color:var(--brand-primary)] focus:ring-1 focus:ring-[color:var(--brand-primary)]";
+
+const selectClassName = `${fieldClassName} cursor-pointer appearance-none pr-10`;
 
 export default function RecruiterTemplatesList() {
   const router = useRouter();
@@ -144,17 +149,19 @@ export default function RecruiterTemplatesList() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-xl font-semibold text-[#101828]">Template Builder</h1>
-          <p className="mt-1 text-sm text-[#667085]">
+    <div className="space-y-4 sm:space-y-6">
+      <div className="flex flex-col gap-4 min-[480px]:flex-row min-[480px]:items-start min-[480px]:justify-between lg:items-center">
+        <div className="min-w-0">
+          <h1 className="text-lg font-semibold leading-7 text-[#101828] min-[700px]:text-xl">
+            Template Builder
+          </h1>
+          <p className="mt-1 text-[13px] leading-5 text-[#667085] min-[700px]:text-sm">
             Create and manage Firma.dev e-signature templates for recruiting workflows.
           </p>
         </div>
         <Link
           href="/admin_recruiter/template-builder/new"
-          className="inline-flex items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-accent)] px-4 py-2.5 text-sm font-semibold text-white shadow-sm"
+          className="inline-flex h-10 w-full shrink-0 items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-accent)] px-4 text-sm font-semibold text-white shadow-sm min-[480px]:w-auto"
         >
           <Plus className="h-4 w-4" />
           New template
@@ -170,41 +177,53 @@ export default function RecruiterTemplatesList() {
         </div>
       ) : null}
 
-      <div className="flex flex-col gap-3 rounded-xl border border-[#EAECF0] bg-white p-4 lg:flex-row lg:items-center">
-        <div className="relative flex-1">
+      <div className="flex flex-col gap-3 rounded-xl border border-[#EAECF0] bg-white p-4 min-[640px]:flex-row min-[640px]:flex-wrap min-[640px]:items-center lg:flex-nowrap">
+        <div className="relative min-w-0 flex-1 min-[640px]:min-w-[200px]">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#98A2B3]" />
           <input
             type="search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search templates..."
-            className="w-full rounded-lg border border-[#D0D5DD] py-2 pl-9 pr-3 text-sm text-[#101828] outline-none focus:border-[color:var(--brand-primary)]"
+            className={`${fieldClassName} py-2 pl-9 pr-3`}
           />
         </div>
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          className="rounded-lg border border-[#D0D5DD] px-3 py-2 text-sm text-[#344054]"
-        >
-          <option value="">All statuses</option>
-          {RECRUITER_TEMPLATE_STATUSES.map((status) => (
-            <option key={status} value={status}>
-              {status.charAt(0).toUpperCase() + status.slice(1)}
-            </option>
-          ))}
-        </select>
-        <select
-          value={categoryFilter}
-          onChange={(e) => setCategoryFilter(e.target.value)}
-          className="rounded-lg border border-[#D0D5DD] px-3 py-2 text-sm text-[#344054]"
-        >
-          <option value="">All types</option>
-          {RECRUITER_TEMPLATE_CATEGORIES.map((category) => (
-            <option key={category} value={category}>
-              {RECRUITER_TEMPLATE_CATEGORY_LABELS[category]}
-            </option>
-          ))}
-        </select>
+        <div className="relative w-full min-[640px]:w-auto min-[640px]:min-w-[140px]">
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className={selectClassName}
+          >
+            <option value="">All statuses</option>
+            {RECRUITER_TEMPLATE_STATUSES.map((status) => (
+              <option key={status} value={status}>
+                {status.charAt(0).toUpperCase() + status.slice(1)}
+              </option>
+            ))}
+          </select>
+          <ChevronDown
+            className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#667085]"
+            aria-hidden
+          />
+        </div>
+        <div className="relative w-full min-[640px]:w-auto min-[640px]:min-w-[160px]">
+          <select
+            value={categoryFilter}
+            onChange={(e) => setCategoryFilter(e.target.value)}
+            className={selectClassName}
+          >
+            <option value="">All types</option>
+            {RECRUITER_TEMPLATE_CATEGORIES.map((category) => (
+              <option key={category} value={category}>
+                {RECRUITER_TEMPLATE_CATEGORY_LABELS[category]}
+              </option>
+            ))}
+          </select>
+          <ChevronDown
+            className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#667085]"
+            aria-hidden
+          />
+        </div>
       </div>
 
       {loading ? null : templates.length === 0 ? (
@@ -223,8 +242,8 @@ export default function RecruiterTemplatesList() {
           </Link>
         </div>
       ) : (
-        <div className="overflow-hidden rounded-xl border border-[#EAECF0] bg-white">
-          <table className="min-w-full divide-y divide-[#EAECF0] text-sm">
+        <div className="overflow-x-auto rounded-xl border border-[#EAECF0] bg-white">
+          <table className="min-w-[720px] w-full divide-y divide-[#EAECF0] text-sm">
             <thead className="bg-[#F9FAFB]">
               <tr>
                 <th className="px-4 py-3 text-left font-medium text-[#667085]">Name</th>

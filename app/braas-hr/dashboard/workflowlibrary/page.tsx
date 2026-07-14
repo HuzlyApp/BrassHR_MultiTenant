@@ -7,7 +7,7 @@ import toast from "react-hot-toast";
 import CandidateDetailLoader from "@/app/admin_recruiter/components/CandidateDetailLoader";
 import { useOnboardingLibraries } from "@/lib/onboarding/hooks/use-onboarding-libraries";
 import { useOnboardingFlows } from "@/lib/onboarding/hooks/use-onboarding-flows";
-import { GOLD_GRADIENT } from "../constants";
+import { BRAND_SECONDARY_BG, GOLD_GRADIENT, NAVY_GRADIENT } from "../constants";
 
 const BRAND_PRIMARY = "var(--brand-primary)";
 const PAGE_BG = "#f8f8f8";
@@ -84,13 +84,16 @@ function ChevronRightIcon() {
 
 function CloseIcon() {
   return (
-    <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden>
-      <path
-        d="M2.5 2.5L7.5 7.5M7.5 2.5L2.5 7.5"
-        stroke="white"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-      />
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 14 14"
+      fill="none"
+      aria-hidden
+      className="block shrink-0"
+    >
+      <path d="M3.5 3.5L10.5 10.5" stroke="white" strokeWidth="2" strokeLinecap="round" />
+      <path d="M10.5 3.5L3.5 10.5" stroke="white" strokeWidth="2" strokeLinecap="round" />
     </svg>
   );
 }
@@ -290,8 +293,16 @@ function FlowMultiSelect({ id, selectedIds, onChange, options }: FlowMultiSelect
                         <span className="min-w-0 flex-1 truncate">{flow.label}</span>
                         <span
                           className={`flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-[4px] border transition ${
-                            checked ? "border-[#012352] bg-[#012352]" : "border-[#d0d5dd] bg-white"
+                            checked ? "" : "border-[#d0d5dd] bg-white"
                           }`}
+                          style={
+                            checked
+                              ? {
+                                  borderColor: BRAND_SECONDARY_BG,
+                                  backgroundColor: BRAND_SECONDARY_BG,
+                                }
+                              : undefined
+                          }
                           aria-hidden
                         >
                           {checked ? <CheckIcon /> : null}
@@ -365,20 +376,20 @@ function FolderCreatedSuccessModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 py-8"
+      className="fixed inset-0 z-50 flex items-end justify-center overflow-y-auto bg-black/40 px-3 py-4 sm:items-center sm:px-4 sm:py-8"
       role="dialog"
       aria-modal="true"
       aria-labelledby="folder-success-title"
       onClick={onClose}
     >
       <div
-        className="relative w-full max-w-[400px] rounded-2xl bg-white px-8 pb-8 pt-10 shadow-xl sm:px-10"
+        className="relative my-auto w-full max-w-[400px] max-h-[min(92dvh,720px)] overflow-y-auto rounded-2xl bg-white px-5 pb-6 pt-8 shadow-xl max-[369px]:px-4 sm:px-10 sm:pb-8 sm:pt-10"
         onClick={(e) => e.stopPropagation()}
       >
         <button
           type="button"
           onClick={onClose}
-          className="absolute right-5 top-5 flex h-7 w-7 items-center justify-center rounded-full bg-[#101828] transition hover:brightness-110"
+          className="absolute right-3 top-3 flex h-7 w-7 items-center justify-center rounded-full bg-[#101828] transition hover:brightness-110 sm:right-5 sm:top-5"
           aria-label="Close"
         >
           <CloseIcon />
@@ -473,35 +484,36 @@ function CreateFolderModal({ open, onClose, onCreated, flowOptions, saving = fal
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 py-8"
+      className="fixed inset-0 z-50 flex items-end justify-center overflow-y-auto bg-black/40 px-3 py-4 sm:items-center sm:px-4 sm:py-8"
       role="dialog"
       aria-modal="true"
       aria-labelledby="create-folder-title"
       onClick={onClose}
     >
       <div
-        className="relative w-full max-w-[480px] rounded-2xl bg-white p-8 shadow-xl"
+        className="relative my-auto w-full max-w-[480px] overflow-hidden rounded-2xl bg-white shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
         <button
           type="button"
           onClick={onClose}
-          className="absolute right-5 top-5 flex h-7 w-7 items-center justify-center rounded-full bg-[#101828] transition hover:brightness-110"
+          className="absolute right-3 top-3 z-20 flex h-7 w-7 items-center justify-center rounded-full bg-[#101828] transition hover:brightness-110 sm:right-5 sm:top-5"
           aria-label="Close"
         >
           <CloseIcon />
         </button>
 
-        <div className="mb-8 flex items-center gap-3">
+        <div className="max-h-[min(92dvh,760px)] overflow-y-auto p-5 max-[369px]:p-4 sm:p-8">
+        <div className="mb-5 flex items-center gap-2.5 pr-9 sm:mb-8 sm:gap-3">
           <div
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg sm:h-11 sm:w-11"
             style={{ backgroundColor: ICON_BOX_BG }}
           >
             <FolderIcon className="h-6 w-6" />
           </div>
           <h2
             id="create-folder-title"
-            className="text-xl font-semibold leading-7"
+            className="min-w-0 text-base font-semibold leading-6 sm:text-xl sm:leading-7"
             style={{ color: TEXT_PRIMARY }}
           >
             Create folder
@@ -509,13 +521,13 @@ function CreateFolderModal({ open, onClose, onCreated, flowOptions, saving = fal
         </div>
 
         <form
-          className="flex flex-col gap-5"
+          className="flex flex-col gap-4 sm:gap-5"
           onSubmit={(e) => {
             e.preventDefault();
             handleCreate();
           }}
         >
-          <div>
+          <div className="min-w-0">
             <label
               htmlFor="folder-name"
               className="mb-1.5 block text-sm font-medium leading-5"
@@ -530,7 +542,7 @@ function CreateFolderModal({ open, onClose, onCreated, flowOptions, saving = fal
               onChange={(e) => setFolderName(e.target.value)}
               placeholder="Enter folder name"
               required
-              className="h-11 w-full rounded-lg border px-3.5 text-sm outline-none transition focus:border-[color:var(--brand-primary)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--brand-primary)_25%,transparent)]"
+              className="h-10 w-full min-w-0 rounded-lg border px-3 text-sm outline-none transition max-[369px]:h-9 max-[369px]:px-2.5 max-[369px]:text-[13px] focus:border-[color:var(--brand-primary)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--brand-primary)_25%,transparent)] sm:h-11 sm:px-3.5"
               style={{
                 borderColor: CARD_BORDER,
                 color: TEXT_PRIMARY,
@@ -538,7 +550,7 @@ function CreateFolderModal({ open, onClose, onCreated, flowOptions, saving = fal
             />
           </div>
 
-          <div>
+          <div className="min-w-0">
             <label
               htmlFor="add-flows"
               className="mb-1.5 block text-sm font-medium leading-5"
@@ -562,7 +574,7 @@ function CreateFolderModal({ open, onClose, onCreated, flowOptions, saving = fal
               aria-label="Set as private"
               onClick={() => setIsPrivate((v) => !v)}
               className="relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors"
-              style={{ backgroundColor: isPrivate ? "#012352" : "#d0d5dd" }}
+              style={{ backgroundColor: isPrivate ? BRAND_SECONDARY_BG : "#d0d5dd" }}
             >
               <span
                 className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow-sm transition-transform ${
@@ -570,7 +582,7 @@ function CreateFolderModal({ open, onClose, onCreated, flowOptions, saving = fal
                 }`}
               />
             </button>
-            <span className="text-sm font-medium leading-5" style={{ color: "#012352" }}>
+            <span className="text-sm font-medium leading-5" style={{ color: BRAND_SECONDARY_BG }}>
               Set as private
             </span>
           </div>
@@ -578,12 +590,13 @@ function CreateFolderModal({ open, onClose, onCreated, flowOptions, saving = fal
           <button
             type="submit"
             disabled={saving || !folderName.trim()}
-            className="mt-2 h-11 w-full rounded-lg text-sm font-semibold text-white transition hover:brightness-[0.97] disabled:opacity-60"
+            className="mt-2 h-10 w-full rounded-lg text-sm font-semibold text-white transition hover:brightness-[0.97] disabled:opacity-60 max-[369px]:h-9 sm:h-11"
             style={{ background: GOLD_GRADIENT }}
           >
             {saving ? "Creating…" : "Create"}
           </button>
         </form>
+        </div>
       </div>
     </div>
   );
@@ -597,7 +610,7 @@ function FlowLibraryCard({ library, dashboardBasePath }: { library: FlowLibrary;
   const href = libraryHref(library, dashboardBasePath);
 
   const cardClassName =
-    "flex min-h-[100px] items-center gap-5 rounded-xl border bg-white px-6 py-5 transition";
+    "flex min-h-[88px] items-center gap-3 rounded-xl border bg-white px-3 py-4 transition max-[369px]:gap-2.5 max-[369px]:px-2.5 sm:min-h-[100px] sm:gap-5 sm:px-6 sm:py-5";
   const cardStyle = {
     borderColor: library.slug === "onboarding" ? BRAND_PRIMARY : CARD_BORDER,
     boxShadow: "0 1px 2px rgba(16, 24, 40, 0.05)",
@@ -606,7 +619,7 @@ function FlowLibraryCard({ library, dashboardBasePath }: { library: FlowLibrary;
   const inner = (
     <>
       <div
-        className="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-lg"
+        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg max-[369px]:h-9 max-[369px]:w-9 sm:h-[52px] sm:w-[52px]"
         style={{ backgroundColor: ICON_BOX_BG }}
       >
         <FolderIcon />
@@ -614,20 +627,20 @@ function FlowLibraryCard({ library, dashboardBasePath }: { library: FlowLibrary;
 
       <div className="min-w-0 flex-1">
         <h2
-          className="text-[15px] font-semibold leading-6"
+          className="truncate text-[14px] font-semibold leading-5 sm:text-[15px] sm:leading-6"
           style={{ color: TEXT_PRIMARY }}
         >
           {library.title}
         </h2>
-        <p className="mt-0.5 text-sm leading-5" style={{ color: TEXT_SECONDARY }}>
+        <p className="mt-0.5 text-[12px] leading-4 sm:text-sm sm:leading-5" style={{ color: TEXT_SECONDARY }}>
           {library.published} Published <span className="text-[#d0d5dd]">•</span>{" "}
           {library.unpublished} Unpublished
         </p>
       </div>
 
       <span
-        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full"
-        style={{ background: "linear-gradient(180deg, #012352 0%, #000C1D 100%)" }}
+        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full sm:h-9 sm:w-9"
+        style={{ background: NAVY_GRADIENT }}
         aria-hidden
       >
         <ChevronRightIcon />
@@ -703,10 +716,12 @@ export function WorkflowLibraryPage({
   }
 
   return (
-    <div className="min-h-screen" style={{ backgroundColor: PAGE_BG }}>
+    <div className="min-h-screen overflow-x-hidden" style={{ backgroundColor: PAGE_BG }}>
       <div
-        className={`w-full ${
-          embeddedInAdminShell ? "px-5 py-6 lg:px-8" : "mx-auto max-w-[1280px] px-6 py-8 sm:px-10 sm:py-10"
+        className={`w-full min-w-0 ${
+          embeddedInAdminShell
+            ? "px-3 py-4 max-[369px]:px-2.5 sm:px-5 sm:py-6 lg:px-8"
+            : "mx-auto max-w-[1280px] px-6 py-8 sm:px-10 sm:py-10"
         }`}
       >
         {/* Breadcrumb + top tabs */}
@@ -752,23 +767,21 @@ export function WorkflowLibraryPage({
         ) : null}
 
         {/* Title row + actions */}
-        <header className="mb-10 flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <h1
-              className="text-[30px] font-semibold leading-[36px] tracking-normal text-[#000000]"
-            >
+        <header className="mb-6 flex flex-col gap-4 min-[480px]:mb-10 min-[480px]:flex-row min-[480px]:items-start min-[480px]:justify-between min-[480px]:gap-4 sm:items-center sm:gap-6">
+          <div className="min-w-0 flex-1 overflow-hidden">
+            <h1 className="text-[22px] font-semibold leading-[28px] tracking-normal text-[#000000] max-[369px]:text-[20px] max-[369px]:leading-[26px] min-[480px]:text-[20px] min-[480px]:leading-[26px] min-[700px]:text-[24px] min-[700px]:leading-[30px] min-[900px]:text-[30px] min-[900px]:leading-[36px]">
               Workflow Library
             </h1>
-            <p className="mt-3 text-[16px] font-normal leading-6 text-[#374151]">
+            <p className="mt-2 text-[13px] font-normal leading-5 text-[#374151] min-[700px]:text-[14px] min-[900px]:mt-3 min-[900px]:text-[16px] min-[900px]:leading-6">
               Manage workflows library
             </p>
           </div>
 
-          <div className="flex shrink-0 flex-wrap items-center gap-3">
+          <div className="flex w-full shrink-0 flex-col gap-2.5 max-[479px]:w-full min-[480px]:w-auto min-[480px]:flex-row min-[480px]:items-center min-[480px]:justify-end min-[480px]:gap-3">
             <button
               type="button"
               onClick={() => setCreateFolderModalOpen(true)}
-              className="inline-flex h-10 items-center gap-2 rounded-lg border bg-white px-4 text-sm font-semibold transition hover:bg-[#fafafa]"
+              className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border bg-white px-4 text-sm font-semibold transition hover:bg-[#fafafa] min-[480px]:w-auto"
               style={{ borderColor: "#344054", color: TEXT_PRIMARY }}
             >
               <AddLibraryIcon />
@@ -776,8 +789,8 @@ export function WorkflowLibraryPage({
             </button>
             <Link
               href={`${dashboardBasePath}/onboarding-flows`}
-              className="inline-flex h-10 items-center gap-2 rounded-lg px-4 text-sm font-semibold text-white transition hover:brightness-[0.97]"
-              style={{ background: "linear-gradient(180deg, #012352 0%, #000C1D 100%)" }}
+              className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg px-4 text-sm font-semibold text-white transition hover:brightness-[0.97] min-[480px]:w-auto"
+              style={{ background: NAVY_GRADIENT }}
             >
               <CreateFlowIcon />
               Create new flow

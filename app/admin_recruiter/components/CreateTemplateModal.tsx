@@ -33,8 +33,16 @@ const TEXT_MUTED = "#98A2B3";
 
 function CloseIcon() {
   return (
-    <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden>
-      <path d="M2.5 2.5L7.5 7.5M7.5 2.5L2.5 7.5" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 14 14"
+      fill="none"
+      aria-hidden
+      className="block shrink-0"
+    >
+      <path d="M3.5 3.5L10.5 10.5" stroke="white" strokeWidth="2" strokeLinecap="round" />
+      <path d="M10.5 3.5L3.5 10.5" stroke="white" strokeWidth="2" strokeLinecap="round" />
     </svg>
   );
 }
@@ -150,7 +158,7 @@ export default function CreateTemplateModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 py-8"
+      className="fixed inset-0 z-50 flex items-end justify-center overflow-y-auto bg-black/40 px-3 py-4 sm:items-center sm:px-4 sm:py-8"
       role="dialog"
       aria-modal="true"
       aria-labelledby="create-template-title"
@@ -160,29 +168,33 @@ export default function CreateTemplateModal({
         ref={containerRef}
         onSubmit={handleCreate}
         onClick={(e) => e.stopPropagation()}
-        className="relative w-full max-w-[600px] rounded-[20px] border bg-white p-6 shadow-xl"
-        style={{ borderColor: CARD_BORDER, minHeight: 589 }}
+        className="relative my-auto w-full max-w-[600px] max-h-[min(92dvh,760px)] overflow-y-auto rounded-[20px] border bg-white p-4 shadow-xl max-[369px]:p-3.5 sm:p-6"
+        style={{ borderColor: CARD_BORDER }}
       >
         <button
           type="button"
           onClick={onClose}
-          className="absolute right-4 top-4 flex h-7 w-7 items-center justify-center rounded-full bg-black transition hover:brightness-110"
+          className="absolute right-3 top-3 z-10 flex h-7 w-7 items-center justify-center rounded-full bg-black transition hover:brightness-110 sm:right-4 sm:top-4"
           aria-label="Close"
         >
           <CloseIcon />
         </button>
 
-        <div className="mb-8 flex items-center gap-3 border-b pb-6" style={{ borderColor: "#E4E7EC" }}>
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#F2F4F7]">
+        <div className="mb-5 flex items-center gap-2.5 border-b pb-4 pr-9 sm:mb-8 sm:gap-3 sm:pb-6" style={{ borderColor: "#E4E7EC" }}>
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#F2F4F7] sm:h-10 sm:w-10">
             <FolderIcon color={branding.primaryHex} />
           </div>
-          <h2 id="create-template-title" className="text-[24px] font-semibold leading-[32px]" style={{ color: TEXT_PRIMARY }}>
+          <h2
+            id="create-template-title"
+            className="min-w-0 text-lg font-semibold leading-7 max-[369px]:text-base sm:text-[24px] sm:leading-[32px]"
+            style={{ color: TEXT_PRIMARY }}
+          >
             Create New Flow Template
           </h2>
         </div>
 
-        <div className="space-y-6">
-          <div>
+        <div className="space-y-5 sm:space-y-6">
+          <div className="min-w-0">
             <label htmlFor="template-name" className="mb-2 block text-sm font-medium" style={{ color: TEXT_SECONDARY }}>
               Template Name
             </label>
@@ -191,25 +203,25 @@ export default function CreateTemplateModal({
               type="text"
               value={templateName}
               onChange={(e) => setTemplateName(e.target.value)}
-              className="h-11 w-full rounded-lg border px-3.5 text-sm outline-none focus:ring-2 focus:ring-[color-mix(in_srgb,var(--brand-primary)_25%,transparent)]"
+              className="h-10 w-full min-w-0 rounded-lg border px-3 text-sm outline-none max-[369px]:h-9 max-[369px]:px-2.5 max-[369px]:text-[13px] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--brand-primary)_25%,transparent)] sm:h-11 sm:px-3.5"
               style={{ borderColor: CARD_BORDER, color: TEXT_PRIMARY }}
             />
           </div>
 
-          <div>
+          <div className="min-w-0">
             <label className="mb-2 block text-sm font-medium" style={{ color: TEXT_SECONDARY }}>
               Save template to
             </label>
             <button
               type="button"
-              className="flex h-11 w-full items-center justify-between rounded-lg border px-3.5 text-sm"
+              className="flex h-10 w-full min-w-0 items-center justify-between rounded-lg border px-3 text-sm max-[369px]:h-9 max-[369px]:px-2.5 max-[369px]:text-[13px] sm:h-11 sm:px-3.5"
               style={{ borderColor: CARD_BORDER, color: selectedLabel ? TEXT_SECONDARY : TEXT_MUTED }}
               onClick={() => setShowFolders((prev) => !prev)}
               aria-haspopup="listbox"
               aria-expanded={showFolders}
               aria-controls={listboxId}
             >
-              <span>{selectedLabel || "Select"}</span>
+              <span className="min-w-0 truncate">{selectedLabel || "Select"}</span>
               <ChevronDownIcon />
             </button>
 
@@ -221,7 +233,7 @@ export default function CreateTemplateModal({
                       value={search}
                       onChange={(e) => setSearch(e.target.value)}
                       placeholder="Search folder"
-                      className="h-9 w-full bg-transparent pr-8 text-sm outline-none"
+                      className="h-9 w-full min-w-0 bg-transparent pr-8 text-sm outline-none"
                       style={{ color: TEXT_PRIMARY }}
                     />
                     <span className="pointer-events-none absolute right-0 top-1/2 -translate-y-1/2">
@@ -276,7 +288,7 @@ export default function CreateTemplateModal({
         <button
           type="submit"
           disabled={!canSubmit}
-          className="mt-8 flex h-11 w-full items-center justify-center gap-2 rounded-lg text-sm font-semibold text-white transition hover:brightness-[0.97] disabled:cursor-not-allowed disabled:opacity-60"
+          className="mt-6 flex h-10 w-full items-center justify-center gap-2 rounded-lg text-sm font-semibold text-white transition hover:brightness-[0.97] disabled:cursor-not-allowed disabled:opacity-60 max-[369px]:h-9 sm:mt-8 sm:h-11"
           style={{
             background:
               "linear-gradient(90deg, var(--brand-primary) 0%, color-mix(in srgb, var(--brand-primary) 70%, white) 100%)",

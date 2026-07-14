@@ -18,6 +18,7 @@ import { useOnboardingFlows, type OnboardingFlowListItem } from "@/lib/onboardin
 import { useOnboardingLibraries } from "@/lib/onboarding/hooks/use-onboarding-libraries";
 import { useOnboardingTemplates } from "@/lib/onboarding/hooks/use-onboarding-templates";
 import {
+  BRAND_SECONDARY_BG,
   CARD_BORDER,
   GOLD_GRADIENT,
   ICON_BOX_BG,
@@ -36,13 +37,16 @@ type SelectOption = { id: string; label: string };
 
 function CloseIcon() {
   return (
-    <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden>
-      <path
-        d="M2.5 2.5L7.5 7.5M7.5 2.5L2.5 7.5"
-        stroke="white"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-      />
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 14 14"
+      fill="none"
+      aria-hidden
+      className="block shrink-0"
+    >
+      <path d="M3.5 3.5L10.5 10.5" stroke="white" strokeWidth="2" strokeLinecap="round" />
+      <path d="M10.5 3.5L3.5 10.5" stroke="white" strokeWidth="2" strokeLinecap="round" />
     </svg>
   );
 }
@@ -169,7 +173,7 @@ function SearchCheckboxSelect({
   const ItemIcon = iconType === "folder" ? FolderOutlineIcon : TemplateOutlineIcon;
 
   return (
-    <div ref={containerRef}>
+    <div ref={containerRef} className="min-w-0">
       <div className="relative">
         <button
           type="button"
@@ -179,7 +183,7 @@ function SearchCheckboxSelect({
           aria-expanded={open}
           aria-controls={listboxId}
           onClick={() => !disabled && setOpen((v) => !v)}
-          className={`flex h-11 w-full items-center justify-between rounded-lg border bg-white px-3.5 text-left text-sm outline-none transition focus:border-[color:var(--brand-primary)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--brand-primary)_25%,transparent)] disabled:cursor-not-allowed disabled:opacity-60 ${
+          className={`flex h-10 w-full min-w-0 items-center justify-between rounded-lg border bg-white px-3 text-left text-sm outline-none transition max-[369px]:h-9 max-[369px]:px-2.5 max-[369px]:text-[13px] focus:border-[color:var(--brand-primary)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--brand-primary)_25%,transparent)] disabled:cursor-not-allowed disabled:opacity-60 sm:h-11 sm:px-3.5 ${
             open ? "rounded-b-none border-b-0" : ""
           }`}
           style={{
@@ -187,7 +191,7 @@ function SearchCheckboxSelect({
             color: selectedLabel ? TEXT_PRIMARY : TEXT_MUTED,
           }}
         >
-          <span className="truncate">{selectedLabel ?? triggerPlaceholder}</span>
+          <span className="min-w-0 truncate">{selectedLabel ?? triggerPlaceholder}</span>
           <span className="shrink-0">{open ? <ChevronUpIcon /> : <ChevronDownIcon />}</span>
         </button>
 
@@ -241,8 +245,16 @@ function SearchCheckboxSelect({
                         <span className="min-w-0 flex-1 truncate">{opt.label}</span>
                         <span
                           className={`flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-[4px] border transition ${
-                            checked ? "border-[#012352] bg-[#012352]" : "border-[#d0d5dd] bg-white"
+                            checked ? "" : "border-[#d0d5dd] bg-white"
                           }`}
+                          style={
+                            checked
+                              ? {
+                                  borderColor: BRAND_SECONDARY_BG,
+                                  backgroundColor: BRAND_SECONDARY_BG,
+                                }
+                              : undefined
+                          }
                           aria-hidden
                         >
                           {checked ? <CheckIcon /> : null}
@@ -338,8 +350,8 @@ function PublishedBadge() {
     <span
       className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium leading-[18px]"
       style={{
-        color: "#012352",
-        border: "1px solid #012352",
+        color: BRAND_SECONDARY_BG,
+        border: `1px solid ${BRAND_SECONDARY_BG}`,
         backgroundColor: "#ffffff",
       }}
     >
@@ -437,48 +449,49 @@ function CreateNewFlowModal({
   if (!open) return null;
 
   const fieldClassName =
-    "h-11 w-full appearance-none rounded-lg border bg-white px-3.5 text-sm outline-none transition focus:border-[color:var(--brand-primary)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--brand-primary)_25%,transparent)]";
+    "h-10 w-full min-w-0 appearance-none rounded-lg border bg-white px-3 text-sm outline-none transition max-[369px]:h-9 max-[369px]:px-2.5 max-[369px]:text-[13px] focus:border-[color:var(--brand-primary)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--brand-primary)_25%,transparent)] sm:h-11 sm:px-3.5";
   const fieldStyle = { borderColor: CARD_BORDER, color: TEXT_PRIMARY };
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 py-8"
+      className="fixed inset-0 z-50 flex items-end justify-center overflow-y-auto bg-black/40 px-3 py-4 sm:items-center sm:px-4 sm:py-8"
       role="dialog"
       aria-modal="true"
       aria-labelledby="create-flow-title"
       onClick={onClose}
     >
       <div
-        className="relative w-full max-w-[480px] rounded-2xl bg-white p-8 shadow-xl"
+        className="relative my-auto w-full max-w-[480px] overflow-hidden rounded-2xl bg-white shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
         <button
           type="button"
           onClick={onClose}
-          className="absolute right-5 top-5 flex h-7 w-7 items-center justify-center rounded-full bg-[#101828] transition hover:brightness-110"
+          className="absolute right-3 top-3 z-20 flex h-7 w-7 items-center justify-center rounded-full bg-[#101828] transition hover:brightness-110 sm:right-5 sm:top-5"
           aria-label="Close"
         >
           <CloseIcon />
         </button>
 
-        <div className="mb-8 flex items-center gap-3">
+        <div className="max-h-[min(92dvh,760px)] overflow-y-auto p-5 max-[369px]:p-4 sm:p-8">
+        <div className="mb-5 flex items-center gap-2.5 pr-9 sm:mb-8 sm:gap-3">
           <div
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg sm:h-11 sm:w-11"
             style={{ backgroundColor: "#faf6ef" }}
           >
             <FlowChartHeaderIcon />
           </div>
           <h2
             id="create-flow-title"
-            className="text-xl font-semibold leading-7"
+            className="min-w-0 text-base font-semibold leading-6 max-[369px]:text-[15px] sm:text-xl sm:leading-7"
             style={{ color: TEXT_PRIMARY }}
           >
             Create a new flow
           </h2>
         </div>
 
-        <form className="flex flex-col gap-5" onSubmit={handleCreate}>
-          <div>
+        <form className="flex flex-col gap-4 sm:gap-5" onSubmit={handleCreate}>
+          <div className="min-w-0">
             <label
               htmlFor="flow-name"
               className="mb-1.5 block text-sm font-medium leading-5"
@@ -498,7 +511,7 @@ function CreateNewFlowModal({
             />
           </div>
 
-          <div>
+          <div className="min-w-0">
             <label
               htmlFor="flow-template"
               className="mb-1.5 block text-sm font-medium leading-5"
@@ -530,7 +543,7 @@ function CreateNewFlowModal({
           </div>
 
           <label
-            className="flex h-12 w-full cursor-pointer items-center justify-center gap-2.5 rounded-lg border transition"
+            className="flex h-11 w-full min-w-0 cursor-pointer items-center justify-center gap-2.5 rounded-lg border transition max-[369px]:h-10 sm:h-12"
             style={{
               borderColor: createAsBlank ? "var(--brand-primary)" : CARD_BORDER,
               backgroundColor: createAsBlank ? "#faf6ef" : undefined,
@@ -550,8 +563,16 @@ function CreateNewFlowModal({
             />
             <span
               className={`flex h-[18px] w-[18px] items-center justify-center rounded-[4px] border ${
-                createAsBlank ? "border-[#012352] bg-[#012352]" : "border-[#D0D5DD] bg-white"
+                createAsBlank ? "" : "border-[#D0D5DD] bg-white"
               }`}
+              style={
+                createAsBlank
+                  ? {
+                      borderColor: BRAND_SECONDARY_BG,
+                      backgroundColor: BRAND_SECONDARY_BG,
+                    }
+                  : undefined
+              }
               aria-hidden
             >
               {createAsBlank ? <CheckIcon /> : null}
@@ -562,7 +583,7 @@ function CreateNewFlowModal({
           </label>
 
           {createAsBlank ? (
-            <div>
+            <div className="min-w-0">
               <label
                 htmlFor="template-name"
                 className="mb-1.5 block text-sm font-medium leading-5"
@@ -581,7 +602,7 @@ function CreateNewFlowModal({
             </div>
           ) : null}
 
-          <div>
+          <div className="min-w-0">
             <label
               htmlFor="flow-folder"
               className="mb-1.5 block text-sm font-medium leading-5"
@@ -600,7 +621,7 @@ function CreateNewFlowModal({
             />
           </div>
 
-          <fieldset className="flex flex-wrap items-center gap-6">
+          <fieldset className="flex flex-wrap items-center gap-4 sm:gap-6">
             <legend className="sr-only">Flow status</legend>
             <label className="flex cursor-pointer items-center gap-2.5">
               <input
@@ -609,7 +630,8 @@ function CreateNewFlowModal({
                 value="published"
                 checked={saveStatus === "published"}
                 onChange={() => setSaveStatus("published")}
-                className="h-[18px] w-[18px] border-[#d0d5dd] accent-[#012352]"
+                className="h-[18px] w-[18px] border-[#d0d5dd]"
+                style={{ accentColor: BRAND_SECONDARY_BG }}
               />
               <span className="text-sm font-medium leading-5" style={{ color: TEXT_SECONDARY }}>
                 Published
@@ -622,7 +644,8 @@ function CreateNewFlowModal({
                 value="draft"
                 checked={saveStatus === "draft"}
                 onChange={() => setSaveStatus("draft")}
-                className="h-[18px] w-[18px] border-[#d0d5dd] accent-[#012352]"
+                className="h-[18px] w-[18px] border-[#d0d5dd]"
+                style={{ accentColor: BRAND_SECONDARY_BG }}
               />
               <span className="text-sm font-medium leading-5" style={{ color: TEXT_SECONDARY }}>
                 Save as draft
@@ -639,12 +662,13 @@ function CreateNewFlowModal({
           <button
             type="submit"
             disabled={saving || !flowName.trim()}
-            className="mt-1 h-11 w-full rounded-lg text-sm font-semibold text-white transition hover:brightness-[0.97] disabled:opacity-60"
+            className="mt-1 h-10 w-full rounded-lg text-sm font-semibold text-white transition hover:brightness-[0.97] disabled:opacity-60 max-[369px]:h-9 sm:h-11"
             style={{ background: GOLD_GRADIENT }}
           >
             {saving ? "Creating…" : "Create"}
           </button>
         </form>
+        </div>
       </div>
     </div>
   );
@@ -661,7 +685,7 @@ function FlowCard({ flow, builderHref }: FlowCardProps) {
   return (
     <Link
       href={builderHref}
-      className="group relative flex items-center gap-4 rounded-xl border bg-white px-4 py-4 transition hover:border-[color:var(--brand-primary)]"
+      className="group relative flex min-w-0 items-center gap-3 rounded-xl border bg-white px-3 py-3.5 transition hover:border-[color:var(--brand-primary)] sm:gap-4 sm:px-4 sm:py-4"
       style={{
         borderColor: CARD_BORDER,
         boxShadow: "0 1px 2px rgba(16, 24, 40, 0.05)",
@@ -669,15 +693,15 @@ function FlowCard({ flow, builderHref }: FlowCardProps) {
       aria-label={`Open ${flow.name} in builder`}
     >
       <div
-        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg"
+        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg sm:h-11 sm:w-11"
         style={{ backgroundColor: ICON_BOX_BG }}
       >
         <FlowListIcon />
       </div>
 
-      <div className="min-w-0 flex-1 pr-16">
+      <div className="min-w-0 flex-1 pr-12 sm:pr-16">
         <h3
-          className="truncate text-[15px] font-semibold leading-6"
+          className="truncate text-[14px] font-semibold leading-5 sm:text-[15px] sm:leading-6"
           style={{ color: TEXT_PRIMARY }}
         >
           {flow.name}
@@ -688,7 +712,7 @@ function FlowCard({ flow, builderHref }: FlowCardProps) {
       </div>
 
       <div
-        className="absolute right-4 top-1/2 flex h-[14px] w-[36px] -translate-y-1/2 items-center gap-2 opacity-0 transition-opacity group-hover:opacity-100"
+        className="absolute right-3 top-1/2 flex h-[14px] w-[36px] -translate-y-1/2 items-center gap-2 opacity-100 transition-opacity sm:right-4 md:opacity-0 md:group-hover:opacity-100"
         aria-hidden
       >
         <EyeIcon />
@@ -812,8 +836,10 @@ function OnboardingFlowsPageContent({
   return (
     <div className="min-h-screen" style={{ backgroundColor: PAGE_BG }}>
       <div
-        className={`w-full ${
-          embeddedInAdminShell ? "px-5 py-6 lg:px-8" : "mx-auto max-w-[1280px] px-6 py-8 sm:px-10 sm:py-10"
+        className={`w-full min-w-0 overflow-x-hidden ${
+          embeddedInAdminShell
+            ? "px-3 py-4 max-[369px]:px-2.5 sm:px-5 sm:py-6 lg:px-8"
+            : "mx-auto max-w-[1280px] px-6 py-8 sm:px-10 sm:py-10"
         }`}
       >
         {!embeddedInAdminShell && showTopTabs ? (
@@ -859,7 +885,7 @@ function OnboardingFlowsPageContent({
             type="button"
             onClick={() => setCreateModalOpen(true)}
             className="inline-flex h-10 w-full items-center justify-center gap-2 self-start rounded-lg px-4 text-sm font-semibold text-white transition hover:brightness-[0.97] min-[500px]:w-auto"
-            style={{ backgroundColor: "#012352" }}
+            style={{ backgroundColor: BRAND_SECONDARY_BG }}
           >
             <CreateFlowPlusIcon />
             Create a new flow
