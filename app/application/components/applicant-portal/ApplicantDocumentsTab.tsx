@@ -62,17 +62,21 @@ function ReviewStatusBadge({
   label: string;
   status: string | null;
 }) {
-  const tone =
-    status === "approved"
-      ? "border-transparent bg-[color:var(--brand-secondary)] text-white"
-      : status === "rejected"
-        ? "border-red-200 bg-red-50 text-red-700"
-        : status === "needs_revision"
-          ? "border-[color:var(--brand-primary)] bg-white text-[color:var(--brand-primary)]"
-          : "border-[#E5E7EB] bg-[#F8FAFC] text-[#64748B]";
+  const isSigned =
+    status === "signed" ||
+    status === "approved" ||
+    label.trim().toLowerCase() === "signed";
+
+  const tone = isSigned
+    ? "border-transparent bg-[color:var(--brand-primary)] text-white"
+    : status === "rejected"
+      ? "border-red-200 bg-red-50 text-red-700"
+      : status === "needs_revision"
+        ? "border-[color:var(--brand-primary)] bg-white text-[color:var(--brand-primary)]"
+        : "border-[#E5E7EB] bg-[#F8FAFC] text-[#64748B]";
 
   return (
-    <span className={`inline-flex rounded-md px-2 py-1 text-[10px] font-semibold ${tone}`}>
+    <span className={`inline-flex shrink-0 rounded-md px-2 py-1 text-[10px] font-semibold ${tone}`}>
       {label}
     </span>
   );
@@ -85,7 +89,7 @@ function AgreementDocumentFileCard({
 }) {
   if (!section.hasFile) {
     return (
-      <div className="flex min-h-[50px] w-full max-w-[520px] items-center justify-between gap-3 rounded-[8px] border border-dashed border-[color:color-mix(in_srgb,var(--brand-primary)_30%,white)] bg-[#F8FAFC] px-3 py-2">
+      <div className="flex min-h-[50px] min-w-0 flex-1 items-center justify-between gap-3 rounded-[8px] border border-dashed border-[color:color-mix(in_srgb,var(--brand-primary)_30%,white)] bg-[#F8FAFC] px-3 py-2 max-w-[520px]">
         <span className="text-xs text-[#6B7280]">No Document</span>
         {section.uploadRequested ? (
           <ReviewStatusBadge label="Upload needed" status="needs_revision" />
@@ -95,20 +99,25 @@ function AgreementDocumentFileCard({
   }
 
   return (
-    <div className="flex min-h-[50px] w-full max-w-[520px] items-center gap-2 rounded-[8px] border border-[color:color-mix(in_srgb,var(--brand-primary)_30%,white)] bg-[#F8FAFC] px-3 py-2">
+    <div className="flex min-h-[50px] min-w-0 flex-1 items-center gap-2 rounded-[8px] border border-[color:color-mix(in_srgb,var(--brand-primary)_30%,white)] bg-[#F8FAFC] px-3 py-2 max-w-[520px]">
       <BrandedFileTypeIcon type="pdf" className="h-6 w-6 shrink-0" />
       <div className="min-w-0 flex-1">
         <div className="truncate text-xs font-semibold leading-4 text-[color:var(--brand-primary)]">
           {section.fileName}
         </div>
         {section.statusLabel ? (
-          <div className="text-xs text-[#6B7280]">{section.statusLabel}</div>
+          <div className="truncate text-xs text-[#6B7280]">{section.statusLabel}</div>
         ) : null}
       </div>
       {section.statusBadge ? (
         <ReviewStatusBadge
           label={section.statusBadge}
-          status={section.reviewStatus === "approved" ? "approved" : null}
+          status={
+            section.statusBadge.trim().toLowerCase() === "signed" ||
+            section.reviewStatus === "approved"
+              ? "signed"
+              : section.reviewStatus
+          }
         />
       ) : section.statusLabel ? (
         <ReviewStatusBadge label={section.statusLabel} status={section.reviewStatus} />
@@ -149,15 +158,15 @@ function AgreementDocumentSection({
         </div>
       ) : null}
 
-      <div className="flex flex-wrap items-center justify-between gap-4 px-4 py-3">
+      <div className="flex items-center gap-2 px-3 py-3 min-[480px]:gap-3 min-[480px]:px-4">
         <AgreementDocumentFileCard section={section} />
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2">
           <button
             type="button"
             disabled={!canView}
             onClick={onView}
-            className={WORKER_BTN_GHOST_ICON}
+            className={`${WORKER_BTN_GHOST_ICON} shrink-0`}
             aria-label={`View ${section.title}`}
           >
             <Eye className="h-5 w-5" />
@@ -296,11 +305,14 @@ export function ApplicantDocumentsTab({ embedded = false }: { embedded?: boolean
       { headers, cache: "no-store" }
     );
     const payload = (await res.json().catch(() => ({}))) as { url?: string; error?: string };
-    if (!res.ok || !payload.url) {
+    const url = payload.url?.trim() ?? "";
+    const isSafeUrl =
+      /^https?:\/\//i.test(url) || url.startsWith("/api/");
+    if (!res.ok || !isSafeUrl) {
       setDocumentsError(payload.error || "Could not open file.");
       return;
     }
-    window.open(payload.url, "_blank", "noopener,noreferrer");
+    window.open(url, "_blank", "noopener,noreferrer");
   }
 
   async function handleAgreementUpload(section: AgreementSection, file: File) {
@@ -537,7 +549,7 @@ export function ApplicantDocumentsTab({ embedded = false }: { embedded?: boolean
             {otherDocuments.map((doc) => (
               <div
                 key={`${doc.source}-${doc.id}`}
-                className="flex flex-wrap items-center justify-between gap-3 px-4 py-4"
+                className="flex items-center justify-between gap-2 px-3 py-4 min-[480px]:gap-3 min-[480px]:px-4"
               >
                 <div className="flex min-w-0 flex-1 items-center gap-3">
                   <BrandedFileTypeIcon type="pdf" className="h-6 w-6 shrink-0" />
@@ -553,7 +565,7 @@ export function ApplicantDocumentsTab({ embedded = false }: { embedded?: boolean
                     ) : null}
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex shrink-0 items-center gap-2">
                   <OtherDocumentStatusBadge
                     label={doc.statusLabel || documentStatusLabel(doc.status)}
                     status={doc.status}
@@ -561,7 +573,7 @@ export function ApplicantDocumentsTab({ embedded = false }: { embedded?: boolean
                   <button
                     type="button"
                     onClick={() => void openFile(doc)}
-                    className={WORKER_BTN_GHOST_ICON}
+                    className={`${WORKER_BTN_GHOST_ICON} shrink-0`}
                     aria-label="View file"
                   >
                     <Eye className="h-5 w-5" />
