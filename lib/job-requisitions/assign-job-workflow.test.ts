@@ -8,7 +8,7 @@ describe("buildJobWorkflowPatch", () => {
         ok: false,
         error: "missing mapping",
         configPath: "/admin",
-        match: { workflowTemplateId: "", mappingId: null, matchLevel: "none", priority: -1 },
+        match: { workflowTemplateId: "", mappingId: null, matchLevel: "none", priority: -1, specificity: -1 },
       },
       null,
       "Open"
@@ -29,6 +29,7 @@ describe("buildJobWorkflowPatch", () => {
           mappingId: "map-1",
           matchLevel: "exact",
           priority: 100,
+          specificity: 22,
         },
       },
       null,

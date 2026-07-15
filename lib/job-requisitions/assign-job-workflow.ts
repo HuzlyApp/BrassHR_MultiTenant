@@ -16,9 +16,12 @@ import {
 export type JobWorkflowAssignmentInput = {
   tenantId: string;
   jobRole: string | null;
+  profession?: string | null;
+  specialty?: string | null;
   employmentType: EmploymentType;
   placementType: PlacementType;
-  status: JobRequisitionStatus;
+  sourceType?: "Internal" | "MSP" | null;
+  status: JobRequisitionStatus | "Open";
   actorUserId?: string | null;
   request?: Request;
 };
@@ -37,21 +40,29 @@ export type JobWorkflowAssignmentResult =
       match: WorkflowMappingMatch;
     };
 
-const PUBLISHABLE_STATUSES = new Set<JobRequisitionStatus>(["Open"]);
+const PUBLISHABLE_STATUSES = new Set<string>(["Published", "Open"]);
 
 function generatePublicJobToken(): string {
   return randomBytes(24).toString("base64url");
+}
+
+function isPublishStatus(status: string): boolean {
+  return PUBLISHABLE_STATUSES.has(status);
 }
 
 export async function assignWorkflowToJobRequisition(
   supabase: SupabaseClient,
   input: JobWorkflowAssignmentInput
 ): Promise<JobWorkflowAssignmentResult> {
+  const profession = input.profession ?? input.jobRole;
   const match = await resolveWorkflowMapping(supabase, {
     tenantId: input.tenantId,
-    jobRole: input.jobRole,
+    jobRole: input.jobRole ?? profession,
+    profession,
+    specialty: input.specialty ?? null,
     employmentType: input.employmentType,
     placementType: input.placementType,
+    sourceType: input.sourceType ?? (input.placementType === "Internal" ? "Internal" : "MSP"),
   });
 
   if (!match.workflowTemplateId) {
@@ -94,7 +105,7 @@ export async function assignWorkflowToJobRequisition(
     };
   }
 
-  if (PUBLISHABLE_STATUSES.has(input.status) && flow.status !== "published") {
+  if (isPublishStatus(input.status) && flow.status !== "published") {
     return {
       ok: false,
       error:
@@ -114,6 +125,8 @@ export async function assignWorkflowToJobRequisition(
       mapping_id: match.mappingId,
       match_level: match.matchLevel,
       priority: match.priority,
+      profession,
+      specialty: input.specialty ?? null,
     },
     request: input.request,
   });
@@ -122,9 +135,7 @@ export async function assignWorkflowToJobRequisition(
     ok: true,
     workflowTemplateId: match.workflowTemplateId,
     match,
-    publicJobToken: PUBLISHABLE_STATUSES.has(input.status)
-      ? generatePublicJobToken()
-      : null,
+    publicJobToken: isPublishStatus(input.status) ? generatePublicJobToken() : null,
   };
 }
 
@@ -138,14 +149,14 @@ export type PersistJobWorkflowPatch = {
 export function buildJobWorkflowPatch(
   result: JobWorkflowAssignmentResult,
   existingToken: string | null,
-  status: JobRequisitionStatus
+  status: JobRequisitionStatus | "Open"
 ): PersistJobWorkflowPatch {
   if (!result.ok) {
     return {
       workflow_template_id: null,
       workflow_assignment_error: result.error,
       onboarding_workflow_id: null,
-      public_job_token: PUBLISHABLE_STATUSES.has(status) ? null : existingToken,
+      public_job_token: isPublishStatus(status) ? null : existingToken,
     };
   }
 
@@ -153,7 +164,7 @@ export function buildJobWorkflowPatch(
     workflow_template_id: result.workflowTemplateId,
     workflow_assignment_error: null,
     onboarding_workflow_id: result.workflowTemplateId,
-    public_job_token: PUBLISHABLE_STATUSES.has(status)
+    public_job_token: isPublishStatus(status)
       ? result.publicJobToken ?? existingToken ?? generatePublicJobToken()
       : existingToken,
   };

@@ -15,7 +15,11 @@ export function shouldExcludeFromApprovedCandidates(
   hasEmploymentRecord: boolean
 ): boolean {
   const normalized = normalizeCandidateStatus(status);
-  return normalized === "converted" || hasEmploymentRecord;
+  return (
+    normalized === "converted" ||
+    normalized === "hired_by_client" ||
+    hasEmploymentRecord
+  );
 }
 
 /** Exclude converted workers from the Candidates module (All + status tabs). */

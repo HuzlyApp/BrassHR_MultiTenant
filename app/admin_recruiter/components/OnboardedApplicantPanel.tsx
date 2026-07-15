@@ -348,10 +348,18 @@ export default function OnboardedApplicantPanel({ workerId, data, onConversionCo
         profilePath?: string;
         workerRecordId?: string;
         workerType?: ConvertWorkerType;
+        outcome?: string;
       };
 
       if (!res.ok || !payload.ok) {
         throw new Error(payload.error || `Conversion failed (${res.status})`);
+      }
+
+      if (payload.outcome === "hired_by_client") {
+        toast.success("Recorded as hired by client. No internal payroll worker was created.");
+        await onConversionComplete?.();
+        router.refresh();
+        return;
       }
 
       setConversionSuccess({
@@ -365,6 +373,33 @@ export default function OnboardedApplicantPanel({ workerId, data, onConversionCo
       router.refresh();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to convert candidate.");
+    } finally {
+      setConvertingType(null);
+    }
+  }
+
+  async function handleHiredByClient() {
+    if (data.isConverted || convertingType || !conversionReady) return;
+    setConvertingType("w2");
+    try {
+      const res = await fetch(`/api/admin/candidates/${encodeURIComponent(workerId)}/convert-worker`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ disposition: "hired_by_client" }),
+      });
+      const payload = (await res.json().catch(() => ({}))) as {
+        ok?: boolean;
+        error?: string;
+        outcome?: string;
+      };
+      if (!res.ok || !payload.ok) {
+        throw new Error(payload.error || `Disposition failed (${res.status})`);
+      }
+      toast.success("Candidate marked Hired by Client. Placement recorded.");
+      await onConversionComplete?.();
+      router.refresh();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to record client hire.");
     } finally {
       setConvertingType(null);
     }
@@ -761,6 +796,20 @@ export default function OnboardedApplicantPanel({ workerId, data, onConversionCo
                 converting={convertingType === "1099"}
                 disabled={convertingType != null || !conversionReady}
               />
+            </div>
+            <div className="mt-4 rounded border border-[#E5E7EB] bg-white p-4">
+              <p className="text-sm font-semibold text-[#012352]">Hired by client (Recruit & Release)</p>
+              <p className="mt-1 text-xs text-[#64748B]">
+                Records a client hire placement without creating an internal payroll worker.
+              </p>
+              <button
+                type="button"
+                className="mt-3 rounded border border-[#0c918a] px-3 py-2 text-sm text-[#0f514e] disabled:opacity-50"
+                disabled={convertingType != null || !conversionReady}
+                onClick={() => void handleHiredByClient()}
+              >
+                {convertingType ? "Processing…" : "Mark Hired by Client"}
+              </button>
             </div>
           </>
         )}

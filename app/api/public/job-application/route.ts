@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { getSupabaseUrl } from "@/lib/supabase-env";
 import { stripUntrustedWorkflowParams } from "@/lib/job-requisitions/resolve-job-application-entry";
+import { toPublicJobPayload } from "@/lib/job-requisitions/public-job";
+import { jobAcceptsApplications } from "@/lib/job-requisitions/status-transitions";
 
 export const runtime = "nodejs";
 
@@ -56,7 +58,7 @@ export async function GET(req: NextRequest) {
   let jobQuery = supabase
     .from("job_requisitions")
     .select(
-      "id, title, description, job_role, location, department, employment_type, placement_type, status, workflow_template_id, public_job_token, workflow_assignment_error"
+      "id, job_number, title, description, job_role, profession, specialty, location, location_type, city, state_province, department, employment_type, placement_type, status, workflow_template_id, public_job_token, workflow_assignment_error, benefits_summary, job_duration, target_start_date, required_credentials, qualifications, special_requirements, pay_rate, pay_rate_public, rate_unit, currency"
     )
     .eq("tenant_id", tenantRow.id);
 
@@ -71,16 +73,17 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  if (job.status !== "Open") {
+  if (!jobAcceptsApplications(job.status)) {
     return NextResponse.json(
       {
         code: "JOB_INACTIVE",
         message:
-          job.status === "Draft"
+          job.status === "Draft" || job.status === "Pending_Approval" || job.status === "Approved"
             ? "This job is not published yet."
             : "This job is not currently accepting applications.",
         job: {
           title: job.title,
+          jobNumber: job.job_number ?? null,
           status: job.status,
         },
       },
@@ -117,21 +120,13 @@ export async function GET(req: NextRequest) {
     );
   }
 
+  const publicJob = toPublicJobPayload(job as Record<string, unknown>);
+
   return NextResponse.json({
     mode: "job",
     tenantSlug: String(tenantRow.slug ?? tenant).toLowerCase(),
     tenantName: tenantRow.name ?? null,
-    job: {
-      id: job.id,
-      title: job.title,
-      description: job.description,
-      jobRole: job.job_role,
-      location: job.location,
-      department: job.department,
-      employmentType: job.employment_type,
-      placementType: job.placement_type,
-      publicJobToken: job.public_job_token,
-    },
+    job: publicJob,
     workflowName: flow.name,
   });
 }

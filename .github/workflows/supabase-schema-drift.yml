@@ -1,0 +1,78 @@
+name: Supabase schema drift (legacy alias)
+
+# Prefer supabase-prod-to-staging-sync.yml (daily + post-merge).
+# Kept for manual weekly-style runs and optional staging catch-up.
+
+on:
+  workflow_dispatch:
+    inputs:
+      apply_migrations_to_dev:
+        description: "If true, push repo migrations to staging (South) after the drift check"
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: supabase-schema-drift
+  cancel-in-progress: false
+
+jobs:
+  drift-check:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      PRODUCTION_PROJECT_ID: ${{ secrets.PRODUCTION_PROJECT_ID }}
+      PRODUCTION_DB_PASSWORD: ${{ secrets.PRODUCTION_DB_PASSWORD }}
+      DEVELOPMENT_PROJECT_ID: ${{ secrets.DEVELOPMENT_PROJECT_ID }}
+      DEVELOPMENT_DB_PASSWORD: ${{ secrets.DEVELOPMENT_DB_PASSWORD }}
+      STAGING_DB_PASSWORD: ${{ secrets.STAGING_DB_PASSWORD || secrets.DEVELOPMENT_DB_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Guard refs
+        run: |
+          test "$PRODUCTION_PROJECT_ID" = "avhdoifnsnoeavqxnwwm"
+          test "$DEVELOPMENT_PROJECT_ID" = "mgucromvpnxntwyssltd"
+
+      - name: Compare public schemas (prod vs staging)
+        id: drift
+        continue-on-error: true
+        run: npm run supabase:check-drift
+
+      - name: Upload schema dumps
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: schema-dumps-prod-vs-staging
+          path: |
+            schema-prod-public.sql
+            schema-staging-public.sql
+            reports/
+          if-no-files-found: ignore
+
+      - name: Push repo migrations to staging (optional catch-up)
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.apply_migrations_to_dev == true }}
+        env:
+          SUPABASE_DB_PASSWORD: ${{ env.STAGING_DB_PASSWORD || env.DEVELOPMENT_DB_PASSWORD }}
+          SUPABASE_PROJECT_ID: ${{ secrets.DEVELOPMENT_PROJECT_ID }}
+        run: |
+          supabase link --project-ref "$SUPABASE_PROJECT_ID" --password "$SUPABASE_DB_PASSWORD"
+          supabase migration list
+          supabase db push --include-all --yes
+          supabase migration list
+
+      - name: Fail job when drift exists
+        if: steps.drift.outcome != 'success'
+        run: exit 1

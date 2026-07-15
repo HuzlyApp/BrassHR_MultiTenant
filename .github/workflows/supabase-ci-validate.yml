@@ -1,0 +1,42 @@
+name: Supabase CI (migration sanity)
+
+# Lightweight checks on PRs that touch migrations.
+# Does not push to remote. Local full `db reset` is optional/heavy for this repo.
+
+on:
+  pull_request:
+    paths:
+      - "supabase/migrations/**"
+      - "supabase/config.toml"
+      - ".github/workflows/supabase-*.yml"
+  workflow_dispatch:
+
+jobs:
+  sanity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Config present
+        run: test -f supabase/config.toml
+
+      - name: Migration filenames unique
+        run: |
+          dups=$(ls -1 supabase/migrations/*.sql | xargs -n1 basename | sort | uniq -d)
+          if [ -n "$dups" ]; then
+            echo "Duplicate migration basenames:"
+            echo "$dups"
+            exit 1
+          fi
+          echo "OK: no duplicate migration filenames"
+
+      - name: Reject secrets in migration SQL
+        run: |
+          if grep -RInE "(service_role|eyJhbGciOi|postgres://.*:.*@|SUPABASE_SERVICE_ROLE)" supabase/migrations; then
+            echo "Possible secret material found in migrations"
+            exit 1
+          fi
+          echo "OK: no obvious secrets in migrations"
+
+      - name: Count migrations
+        run: ls supabase/migrations/*.sql | wc -l

@@ -1,0 +1,93 @@
+name: Supabase reference-data sync (prod → staging)
+
+# Allowlisted Category-2 tables only. Manual by default; optional weekly schedule.
+# Never syncs Auth users, Storage objects, or Category-1 PII tables.
+
+on:
+  schedule:
+    # Sundays 04:00 UTC — dry-run unless APPLY_REFERENCE_DATA_SYNC=true
+    - cron: "0 4 * * 0"
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: "Apply upserts to staging (false = dry-run)"
+        required: false
+        default: false
+        type: boolean
+      tables:
+        description: "Comma-separated allowlist subset (empty = full allowlist)"
+        required: false
+        default: ""
+        type: string
+
+concurrency:
+  group: supabase-reference-data-sync
+  cancel-in-progress: false
+
+jobs:
+  reference-data:
+    runs-on: ubuntu-latest
+    env:
+      PRODUCTION_PROJECT_ID: ${{ secrets.PRODUCTION_PROJECT_ID }}
+      DEVELOPMENT_PROJECT_ID: ${{ secrets.DEVELOPMENT_PROJECT_ID }}
+      STAGING_PROJECT_ID: ${{ secrets.STAGING_PROJECT_ID }}
+      PRODUCTION_SERVICE_ROLE_KEY: ${{ secrets.PRODUCTION_SERVICE_ROLE_KEY }}
+      STAGING_SERVICE_ROLE_KEY: ${{ secrets.STAGING_SERVICE_ROLE_KEY }}
+      DEVELOPMENT_SERVICE_ROLE_KEY: ${{ secrets.DEVELOPMENT_SERVICE_ROLE_KEY }}
+      APPLY_REFERENCE_DATA_SYNC: ${{ secrets.APPLY_REFERENCE_DATA_SYNC }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Guard direction
+        run: |
+          PROD="${PRODUCTION_PROJECT_ID:-avhdoifnsnoeavqxnwwm}"
+          STAGING="${STAGING_PROJECT_ID:-${DEVELOPMENT_PROJECT_ID:-mgucromvpnxntwyssltd}}"
+          test "$PROD" = "avhdoifnsnoeavqxnwwm"
+          test "$STAGING" = "mgucromvpnxntwyssltd"
+
+      - name: Require service role keys
+        run: |
+          STAGING_KEY="${STAGING_SERVICE_ROLE_KEY:-$DEVELOPMENT_SERVICE_ROLE_KEY}"
+          if [ -z "$PRODUCTION_SERVICE_ROLE_KEY" ] || [ -z "$STAGING_KEY" ]; then
+            echo "Need PRODUCTION_SERVICE_ROLE_KEY and STAGING_SERVICE_ROLE_KEY (or DEVELOPMENT_SERVICE_ROLE_KEY)"
+            exit 1
+          fi
+          echo "STAGING_SERVICE_ROLE_KEY=${STAGING_KEY}" >> "$GITHUB_ENV"
+
+      - name: Sync reference data
+        env:
+          SYNC_SOURCE_REF: avhdoifnsnoeavqxnwwm
+          SYNC_DEST_REF: mgucromvpnxntwyssltd
+        run: |
+          ARGS=()
+          APPLY=false
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.apply }}" = "true" ]; then
+            APPLY=true
+          fi
+          if [ "${{ github.event_name }}" = "schedule" ] && [ "$APPLY_REFERENCE_DATA_SYNC" = "true" ]; then
+            APPLY=true
+          fi
+          if [ "$APPLY" = "true" ]; then
+            ARGS+=(--apply)
+          fi
+          TABLES='${{ inputs.tables }}'
+          if [ -n "$TABLES" ]; then
+            ARGS+=(--tables="$TABLES")
+          fi
+          node scripts/supabase-sync-reference-data.mjs "${ARGS[@]}"
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sync-reference-data-report
+          path: reports/
+          if-no-files-found: ignore

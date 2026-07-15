@@ -1,17 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
-  buildEmploymentWorkerRow,
   isCandidateAlreadyConverted,
   normalizeCandidateStatus,
   parseConvertWorkerType,
-  type CandidateConversionSnapshot,
   type ConvertWorkerType,
 } from "@/lib/admin/convert-candidate-to-worker";
 import { writeActivityLog } from "@/lib/audit/activity-log";
 import { requireStaffApiSession } from "@/lib/auth/api-session";
 import { canAccessWorkerRecord } from "@/lib/auth/worker-record-access";
-import { evaluateConversionReadiness } from "@/lib/job-requisitions/evaluate-conversion-readiness";
+import {
+  convertCandidateByDisposition,
+  resolveConversionOutcome,
+} from "@/lib/job-requisitions/convert-disposition";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { parseRequiredUuid } from "@/lib/validation/uuid";
 
@@ -19,158 +20,46 @@ export const runtime = "nodejs";
 
 type RouteContext = { params: Promise<{ workerId: string }> };
 
-type ConvertResult =
-  | {
-      ok: true;
-      workerRecordId: string;
-      candidateId: string;
-      workerType: ConvertWorkerType;
-      created: boolean;
-      profilePath: string;
-    }
-  | { ok: false; error: string; status: number };
-
-async function loadCandidate(
-  supabase: SupabaseClient,
-  candidateId: string
-): Promise<CandidateConversionSnapshot | null> {
-  const { data, error } = await supabase
-    .from("worker")
-    .select(
-      "id, tenant_id, first_name, last_name, email, phone, job_role, city, state, status, converted_worker_type, converted_at"
-    )
-    .eq("id", candidateId)
-    .maybeSingle();
-
-  if (error) throw error;
-  if (!data?.id || !data.tenant_id) return null;
-
-  return {
-    id: String(data.id),
-    tenant_id: String(data.tenant_id),
-    first_name: data.first_name ?? null,
-    last_name: data.last_name ?? null,
-    email: data.email ?? null,
-    phone: data.phone ?? null,
-    job_role: data.job_role ?? null,
-    city: data.city ?? null,
-    state: data.state ?? null,
-    status: data.status ?? null,
-    converted_worker_type: data.converted_worker_type ?? null,
-    converted_at: data.converted_at ?? null,
-  };
-}
-
+/** @deprecated Prefer convertCandidateByDisposition — kept for internal W2/1099 callers. */
 export async function convertCandidateToWorker(
   supabase: SupabaseClient,
   candidateId: string,
   workerType: ConvertWorkerType,
   actorUserId?: string | null
-): Promise<ConvertResult> {
-  const candidate = await loadCandidate(supabase, candidateId);
-  if (!candidate) {
-    return { ok: false, error: "Candidate not found", status: 404 };
+) {
+  const result = await convertCandidateByDisposition(supabase, candidateId, {
+    workerType,
+    actorUserId,
+  });
+
+  if (!result.ok) {
+    return { ok: false as const, error: result.error, status: result.status };
   }
 
-  if (isCandidateAlreadyConverted(candidate)) {
+  if (!result.workerRecordId && result.outcome === "hired_by_client") {
     return {
-      ok: false,
-      error: "This candidate has already been converted.",
-      status: 409,
-    };
-  }
-
-  const readiness = await evaluateConversionReadiness(supabase, candidateId);
-  if (!readiness.ready) {
-    return {
-      ok: false,
-      error: readiness.reason ?? "Candidate is not ready for conversion.",
+      ok: false as const,
+      error:
+        "This candidate's job is Recruit and Release. Use hired-by-client disposition instead of payroll worker conversion.",
       status: 400,
     };
   }
 
-  const candidateStatus = normalizeCandidateStatus(candidate.status);
-  if (candidateStatus !== "approved") {
-    return {
-      ok: false,
-      error: "Only approved candidates can be converted to workers.",
-      status: 400,
-    };
-  }
-
-  const { data: existing, error: existingErr } = await supabase
-    .from("workers")
-    .select("id")
-    .eq("candidate_id", candidateId)
-    .maybeSingle();
-
-  if (existingErr) throw existingErr;
-  if (existing?.id) {
-    return {
-      ok: false,
-      error: "This candidate has already been converted.",
-      status: 409,
-    };
-  }
-
-  const convertedAt = new Date().toISOString();
-  const employmentRow = buildEmploymentWorkerRow(candidate, workerType, convertedAt);
-
-  const { data: inserted, error: insertErr } = await supabase
-    .from("workers")
-    .insert(employmentRow)
-    .select("id")
-    .maybeSingle();
-
-  if (insertErr) throw insertErr;
-  if (!inserted?.id) {
-    return { ok: false, error: "Failed to create worker record", status: 500 };
-  }
-
-  const workerRecordId = String(inserted.id);
-
-  const { error: candidateUpdateErr } = await supabase
-    .from("worker")
-    .update({
-      status: "converted",
-      converted_worker_type: workerType,
-      converted_at: convertedAt,
-      converted_worker_id: workerRecordId,
-      converted_by: actorUserId ?? null,
-      conversion_status: "completed",
-      updated_at: convertedAt,
-    })
-    .eq("id", candidateId);
-
-  if (candidateUpdateErr) throw candidateUpdateErr;
-
-  const { data: workerRow } = await supabase
-    .from("worker")
-    .select("applicant_workflow_instance_id")
-    .eq("id", candidateId)
-    .maybeSingle();
-
-  if (workerRow?.applicant_workflow_instance_id) {
-    await supabase
-      .from("applicant_workflow_instances")
-      .update({
-        conversion_status: "completed",
-        converted_worker_id: workerRecordId,
-        converted_at: convertedAt,
-        converted_by: actorUserId ?? null,
-        worker_type: workerType,
-        updated_at: convertedAt,
-      })
-      .eq("id", workerRow.applicant_workflow_instance_id);
+  if (!result.workerRecordId) {
+    return { ok: false as const, error: "Failed to create worker record", status: 500 };
   }
 
   return {
-    ok: true,
-    workerRecordId,
-    candidateId,
+    ok: true as const,
+    workerRecordId: result.workerRecordId,
+    candidateId: result.candidateId,
     workerType,
-    created: true,
-    profilePath: `/admin_recruiter/workers/${candidateId}/profile`,
+    created: result.created,
+    profilePath: result.profilePath ?? `/admin_recruiter/workers/${candidateId}/profile`,
+    outcome: result.outcome,
+    placementId: result.placementId,
+    filledPositions: result.filledPositions,
+    remainingPositions: result.remainingPositions,
   };
 }
 
@@ -185,14 +74,13 @@ export async function POST(req: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: idCheck.error }, { status: 400 });
     }
 
-    const body = (await req.json().catch(() => ({}))) as { workerType?: string };
-    const workerType = parseConvertWorkerType(body.workerType);
-    if (!workerType) {
-      return NextResponse.json(
-        { error: "Invalid workerType. Expected w2 or 1099." },
-        { status: 400 }
-      );
-    }
+    const body = (await req.json().catch(() => ({}))) as {
+      workerType?: string;
+      disposition?: string;
+      clientName?: string;
+      notes?: string;
+      hireDate?: string;
+    };
 
     const supabase = createServiceRoleClient();
     if (!supabase) {
@@ -201,7 +89,9 @@ export async function POST(req: NextRequest, context: RouteContext) {
 
     const { data: candidateAccess, error: accessErr } = await supabase
       .from("worker")
-      .select("id, user_id, tenant_id, status, converted_worker_type")
+      .select(
+        "id, user_id, tenant_id, status, converted_worker_type, job_requisition_id, final_disposition"
+      )
       .eq("id", idCheck.value)
       .maybeSingle();
 
@@ -209,42 +99,113 @@ export async function POST(req: NextRequest, context: RouteContext) {
     if (!candidateAccess?.id) {
       return NextResponse.json({ error: "Candidate not found" }, { status: 404 });
     }
-    if (isCandidateAlreadyConverted(candidateAccess)) {
+    if (
+      isCandidateAlreadyConverted(candidateAccess) ||
+      normalizeCandidateStatus(candidateAccess.status) === "hired_by_client"
+    ) {
+      // Idempotent re-read
+      const existing = await convertCandidateByDisposition(supabase, idCheck.value, {
+        actorUserId: auth.userId,
+      });
+      if (existing.ok && !existing.created) {
+        return NextResponse.json({
+          ok: true,
+          ...existing,
+          deduplicated: true,
+        });
+      }
       return NextResponse.json(
-        { error: "This candidate has already been converted." },
+        { error: "This candidate has already been converted or hired by client." },
         { status: 409 }
       );
     }
-    if (!canAccessWorkerRecord(auth, { id: String(candidateAccess.id), user_id: candidateAccess.user_id })) {
+    if (
+      !canAccessWorkerRecord(auth, {
+        id: String(candidateAccess.id),
+        user_id: candidateAccess.user_id,
+      })
+    ) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const result = await convertCandidateToWorker(supabase, idCheck.value, workerType, auth.userId);
+    // Resolve job placement to decide outcome when disposition not explicit
+    let placementType: string | null = null;
+    if (candidateAccess.job_requisition_id) {
+      const { data: job } = await supabase
+        .from("job_requisitions")
+        .select("placement_type, employment_type")
+        .eq("id", candidateAccess.job_requisition_id)
+        .maybeSingle();
+      placementType = job?.placement_type ?? null;
+    }
+
+    const outcomeHint =
+      body.disposition === "hired_by_client"
+        ? "hired_by_client"
+        : resolveConversionOutcome(placementType);
+
+    let workerType = parseConvertWorkerType(body.workerType);
+    if (!workerType && outcomeHint !== "hired_by_client") {
+      // Infer from job employment type when possible
+      if (candidateAccess.job_requisition_id) {
+        const { data: job } = await supabase
+          .from("job_requisitions")
+          .select("employment_type")
+          .eq("id", candidateAccess.job_requisition_id)
+          .maybeSingle();
+        if (job?.employment_type === "1099") workerType = "1099";
+        else workerType = "w2";
+      } else {
+        return NextResponse.json(
+          { error: "Invalid workerType. Expected w2 or 1099." },
+          { status: 400 }
+        );
+      }
+    }
+
+    const result = await convertCandidateByDisposition(supabase, idCheck.value, {
+      workerType,
+      actorUserId: auth.userId,
+      clientName: body.clientName,
+      notes: body.notes,
+      hireDate: body.hireDate,
+    });
+
     if (!result.ok) {
       return NextResponse.json({ error: result.error }, { status: result.status });
     }
 
     void writeActivityLog({
       actorUserId: auth.userId,
-      action: "candidate_converted_to_worker",
-      entityType: "workers",
-      entityId: result.workerRecordId,
-      tenantId: candidateAccess.tenant_id != null ? String(candidateAccess.tenant_id) : null,
+      action:
+        result.outcome === "hired_by_client"
+          ? "candidate_hired_by_client"
+          : "candidate_converted_to_worker",
+      entityType: result.outcome === "hired_by_client" ? "client_hire_placements" : "workers",
+      entityId: result.placementId ?? result.workerRecordId,
+      tenantId:
+        candidateAccess.tenant_id != null ? String(candidateAccess.tenant_id) : null,
       metadata: {
         candidate_id: result.candidateId,
-        worker_type: result.workerType,
+        outcome: result.outcome,
+        worker_type: workerType,
         created: result.created,
+        filled_positions: result.filledPositions,
       },
       request: req,
     });
 
     return NextResponse.json({
       ok: true,
+      outcome: result.outcome,
       workerRecordId: result.workerRecordId,
+      placementId: result.placementId,
       candidateId: result.candidateId,
-      workerType: result.workerType,
+      workerType: workerType,
       created: result.created,
       profilePath: result.profilePath,
+      filledPositions: result.filledPositions,
+      remainingPositions: result.remainingPositions,
     });
   } catch (err: unknown) {
     console.error("[admin/candidates/convert-worker]", err);
