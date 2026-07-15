@@ -157,6 +157,43 @@ export default function Step4Identity() {
     router.push(authorizationsHref)
   }
 
+  const clearSavedIdentityDoc = async (storageKey: "ssn" | "license") => {
+    if (typeof window === "undefined") return
+    try {
+      const storedIdentity = localStorage.getItem("identityDocuments")
+      if (storedIdentity) {
+        const parsed = JSON.parse(storedIdentity) as Record<string, unknown>
+        delete parsed[storageKey]
+        localStorage.setItem("identityDocuments", JSON.stringify(parsed))
+      }
+    } catch {
+      // ignore invalid cache
+    }
+
+    let applicantId = localStorage.getItem("applicantId")?.trim() || ""
+    if (!applicantId) {
+      const { data: userData } = await supabase.auth.getUser()
+      applicantId = userData?.user?.id?.trim() || ""
+    }
+    if (!applicantId) return
+
+    try {
+      await fetch("/api/onboarding/worker-documents", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          applicantId,
+          ...(tenantSlug ? { tenant: tenantSlug } : {}),
+          ...(storageKey === "ssn"
+            ? { ssn_url: null, ssn_back_url: null }
+            : { drivers_license_url: null, drivers_license_back_url: null }),
+        }),
+      })
+    } catch {
+      // best-effort; UI already cleared
+    }
+  }
+
   const UploadBox = ({
     id,
     storageKey,
@@ -209,19 +246,9 @@ export default function Step4Identity() {
               e.preventDefault()
               e.stopPropagation()
               setSlot({ file: null, name: undefined, url: undefined })
-              if (typeof window !== "undefined") {
-                const el = document.getElementById(id) as HTMLInputElement | null
-                if (el) el.value = ""
-                const storedIdentity = localStorage.getItem("identityDocuments")
-                if (!storedIdentity) return
-                try {
-                  const parsed = JSON.parse(storedIdentity) as Record<string, unknown>
-                  delete parsed[storageKey]
-                  localStorage.setItem("identityDocuments", JSON.stringify(parsed))
-                } catch {
-                  // ignore invalid cache
-                }
-              }
+              const el = document.getElementById(id) as HTMLInputElement | null
+              if (el) el.value = ""
+              void clearSavedIdentityDoc(storageKey)
             }}
             className="cursor-pointer p-1"
             aria-label={`Remove ${storageKey} file`}

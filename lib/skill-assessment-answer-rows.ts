@@ -20,6 +20,7 @@ async function saveSkillAnswerRow(
   supabase: SupabaseClient,
   row: {
     applicant_id: string
+    tenant_id: string
     category_id: string
     skill_id: string
     answer_value: number
@@ -40,6 +41,7 @@ async function saveSkillAnswerRow(
       .from("applicant_skill_assessment_answers")
       .update({
         answer_value: row.answer_value,
+        tenant_id: row.tenant_id,
         updated_at: new Date().toISOString(),
       })
       .eq("id", existing.id)
@@ -49,6 +51,7 @@ async function saveSkillAnswerRow(
 
   const { error: insErr } = await supabase.from("applicant_skill_assessment_answers").insert({
     applicant_id: row.applicant_id,
+    tenant_id: row.tenant_id,
     category_id: row.category_id,
     skill_id: row.skill_id,
     answer_value: row.answer_value,
@@ -101,8 +104,13 @@ export async function upsertSkillAnswerRow(
     return { ok: false, error: "invalid_answer" }
   }
 
+  if (!ctx.tenantId) {
+    return { ok: false, error: "no_tenant_id" }
+  }
+
   const row = {
     applicant_id: ctx.id,
+    tenant_id: ctx.tenantId,
     category_id: params.categoryId,
     skill_id: params.skillId,
     answer_value: params.answerValue,

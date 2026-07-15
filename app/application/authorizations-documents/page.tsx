@@ -242,6 +242,62 @@ export default function DocumentsPage() {
     return supabase.storage.from(WORKER_REQUIRED_FILES_BUCKET).getPublicUrl(path).data.publicUrl
   }, [])
 
+  const [deletingKind, setDeletingKind] = useState<"ssn" | "license" | null>(null)
+
+  const clearIdentityLocalCache = useCallback((kind: "ssn" | "license") => {
+    if (typeof window === "undefined") return
+    try {
+      const storedIdentity = localStorage.getItem("identityDocuments")
+      if (!storedIdentity) return
+      const parsed = JSON.parse(storedIdentity) as Record<string, unknown>
+      delete parsed[kind]
+      localStorage.setItem("identityDocuments", JSON.stringify(parsed))
+    } catch {
+      /* ignore invalid cache */
+    }
+  }, [])
+
+  const handleDeleteIdentityFile = useCallback(
+    async (kind: "ssn" | "license") => {
+      if (!applicantId || deletingKind) return
+
+      setError(null)
+      setDeletingKind(kind)
+
+      setIdentityPaths((prev) =>
+        kind === "ssn"
+          ? { ...prev, ssnFront: null, ssnBack: null }
+          : { ...prev, dlFront: null, dlBack: null }
+      )
+      clearIdentityLocalCache(kind)
+
+      try {
+        const res = await fetch("/api/onboarding/worker-documents", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            applicantId,
+            ...(nav.slug ? { tenant: nav.slug } : {}),
+            ...(kind === "ssn"
+              ? { ssn_url: null, ssn_back_url: null }
+              : { drivers_license_url: null, drivers_license_back_url: null }),
+          }),
+        })
+        const json = (await res.json().catch(() => ({}))) as { error?: string }
+        if (!res.ok) {
+          throw new Error(json.error || "Could not delete document")
+        }
+      } catch (e: unknown) {
+        const message = e instanceof Error ? e.message : "Could not delete document"
+        setError(message)
+        await refreshIdentityDocsStatus()
+      } finally {
+        setDeletingKind(null)
+      }
+    },
+    [applicantId, clearIdentityLocalCache, deletingKind, nav.slug, refreshIdentityDocsStatus]
+  )
+
   const handleSaveAndContinue = async () => {
     if (saveBlocked) {
       if (requiresAgreement && !agreed) {
@@ -323,9 +379,11 @@ export default function DocumentsPage() {
   function IdentityFileCard({
     path,
     subtitle,
+    kind,
   }: {
     path: string | null
     subtitle: string
+    kind: "ssn" | "license"
   }) {
     if (!path) {
       return (
@@ -343,6 +401,7 @@ export default function DocumentsPage() {
       )
     }
     const pdf = isPdfFile(null, path, url)
+    const deleting = deletingKind === kind
 
     return (
       <div className="flex items-center gap-3 rounded-xl border border-[color:var(--brand-primary)]/30 bg-white p-3 shadow-sm">
@@ -358,9 +417,10 @@ export default function DocumentsPage() {
         </div>
         <button
           type="button"
-          onClick={() => router.push(identityUploadHref)}
-          className="p-2 text-gray-400 hover:text-red-600 rounded-lg"
-          aria-label="Replace file"
+          onClick={() => void handleDeleteIdentityFile(kind)}
+          disabled={deleting}
+          className="p-2 text-gray-400 hover:text-red-600 rounded-lg disabled:cursor-not-allowed disabled:opacity-50"
+          aria-label={`Delete ${kind === "ssn" ? "SSN Card" : "Driver's License"}`}
         >
           <Trash2 className="w-5 h-5" />
         </button>
@@ -448,7 +508,7 @@ export default function DocumentsPage() {
               <div>
                 <p className="text-[13px] font-semibold text-slate-900 mb-3">SSN Card</p>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <IdentityFileCard path={identityPaths.ssnFront} subtitle="Front" />
+                  <IdentityFileCard path={identityPaths.ssnFront} subtitle="Front" kind="ssn" />
                 </div>
               </div>
 
@@ -458,7 +518,7 @@ export default function DocumentsPage() {
                   <p className="text-[11px] text-slate-500">front only</p>
                 </div>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <IdentityFileCard path={identityPaths.dlFront} subtitle="Front" />
+                  <IdentityFileCard path={identityPaths.dlFront} subtitle="Front" kind="license" />
                 </div>
               </div>
             </div>
