@@ -859,6 +859,7 @@ export function BusinessStep({
 }
 
 const LOGO_ACCEPT = "image/png,image/jpeg,image/jpg,.png,.jpg,.jpeg";
+const FAVICON_ACCEPT = "image/png,image/jpeg,image/jpg,image/webp,image/svg+xml,image/x-icon,.png,.jpg,.jpeg,.webp,.svg,.ico";
 
 function isAllowedLogoFile(file: File): boolean {
   const allowed = new Set([
@@ -872,14 +873,39 @@ function isAllowedLogoFile(file: File): boolean {
   return ext === "png" || ext === "jpg" || ext === "jpeg";
 }
 
+function isAllowedFaviconFile(file: File): boolean {
+  const allowed = new Set([
+    "image/png",
+    "image/jpeg",
+    "image/jpg",
+    "image/pjpeg",
+    "image/webp",
+    "image/svg+xml",
+    "image/x-icon",
+    "image/vnd.microsoft.icon",
+  ]);
+  if (file.type && allowed.has(file.type)) return true;
+  const ext = file.name.split(".").pop()?.toLowerCase();
+  return (
+    ext === "png" ||
+    ext === "jpg" ||
+    ext === "jpeg" ||
+    ext === "webp" ||
+    ext === "svg" ||
+    ext === "ico"
+  );
+}
+
 export function CompanyLogoStep({
   logoUrl,
   logoFile,
+  faviconFile,
   orgName,
   logoDisplayName,
   logoTagline,
   onLogoFileChange,
   onLogoUrlChange,
+  onFaviconFileChange,
   onLogoDisplayNameChange,
   onLogoTaglineChange,
   onContinue,
@@ -888,11 +914,13 @@ export function CompanyLogoStep({
 }: {
   logoUrl: string;
   logoFile: File | null;
+  faviconFile: File | null;
   orgName: string;
   logoDisplayName: string;
   logoTagline: string;
   onLogoFileChange: (file: File | null, previewUrl: string) => void;
   onLogoUrlChange: (value: string) => void;
+  onFaviconFileChange: (file: File | null) => void;
   onLogoDisplayNameChange: (value: string) => void;
   onLogoTaglineChange: (value: string) => void;
   onContinue: () => void;
@@ -900,9 +928,12 @@ export function CompanyLogoStep({
   onSkip: () => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const faviconInputRef = useRef<HTMLInputElement>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [faviconError, setFaviconError] = useState<string | null>(null);
   const [transparentBackground, setTransparentBackground] = useState(false);
   const [previewSrc, setPreviewSrc] = useState("");
+  const [faviconPreviewSrc, setFaviconPreviewSrc] = useState("");
 
   useEffect(() => {
     if (logoFile) {
@@ -919,6 +950,16 @@ export function CompanyLogoStep({
 
     setPreviewSrc("");
   }, [logoFile, logoUrl]);
+
+  useEffect(() => {
+    if (!faviconFile) {
+      setFaviconPreviewSrc("");
+      return;
+    }
+    const objectUrl = URL.createObjectURL(faviconFile);
+    setFaviconPreviewSrc(objectUrl);
+    return () => URL.revokeObjectURL(objectUrl);
+  }, [faviconFile]);
 
   const hasUserLogo = Boolean(logoFile) || previewSrc.length > 0;
 
@@ -948,6 +989,25 @@ export function CompanyLogoStep({
     onLogoUrlChange(objectUrl);
   };
 
+  const handleFaviconFile = (file: File | null) => {
+    setFaviconError(null);
+    if (!file) {
+      onFaviconFileChange(null);
+      return;
+    }
+    if (!isAllowedFaviconFile(file)) {
+      setFaviconError("Use PNG, JPG, WEBP, SVG, or ICO.");
+      onFaviconFileChange(null);
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      setFaviconError("Favicon must be 2 MB or smaller.");
+      onFaviconFileChange(null);
+      return;
+    }
+    onFaviconFileChange(file);
+  };
+
   const onDrop = (event: DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     handleFile(event.dataTransfer.files?.[0] ?? null);
@@ -968,6 +1028,12 @@ export function CompanyLogoStep({
     onLogoFileChange(null, "");
     onLogoUrlChange("");
     if (inputRef.current) inputRef.current.value = "";
+  };
+
+  const handleRemoveFavicon = () => {
+    setFaviconError(null);
+    onFaviconFileChange(null);
+    if (faviconInputRef.current) faviconInputRef.current.value = "";
   };
 
   return (
@@ -1149,6 +1215,61 @@ export function CompanyLogoStep({
           className="hidden"
           onChange={onFileInput}
         />
+
+        <section className="rounded-[14px] border border-[#e8edf4] bg-[#fafafa] px-[16px] py-[18px]">
+          <FieldLabel required={false}>Favicon</FieldLabel>
+          <p className="mb-3 text-[12px] leading-[18px] text-[#64748b]" style={interStyle}>
+            Small icon for the browser tab, sidebar, and header. Square image works best. Falls back
+            to company logo if skipped. PNG, JPG, WEBP, SVG, or ICO. Max 2 MB.
+          </p>
+          <div className="flex flex-wrap items-center gap-4">
+            <div className="flex h-[48px] w-[48px] shrink-0 items-center justify-center overflow-hidden rounded-[10px] border border-[#e2e8f0] bg-white p-1">
+              {faviconPreviewSrc ? (
+                /* eslint-disable-next-line @next/next/no-img-element */
+                <img src={faviconPreviewSrc} alt="" className="h-full w-full object-contain" />
+              ) : previewSrc ? (
+                /* eslint-disable-next-line @next/next/no-img-element */
+                <img src={previewSrc} alt="" className="h-full w-full object-contain opacity-50" />
+              ) : (
+                <span className="text-[10px] text-[#94a3b8]" style={interStyle}>
+                  Icon
+                </span>
+              )}
+            </div>
+            <div className="min-w-0 flex-1">
+              <input
+                ref={faviconInputRef}
+                type="file"
+                accept={FAVICON_ACCEPT}
+                onChange={(event) => handleFaviconFile(event.target.files?.[0] ?? null)}
+                className="block w-full cursor-pointer text-sm text-[#475569] file:mr-4 file:cursor-pointer file:rounded-lg file:border-0 file:bg-[#012352] file:px-4 file:py-2 file:text-sm file:font-medium file:text-white"
+              />
+              {faviconFile ? (
+                <div className="mt-2 flex flex-wrap items-center gap-3">
+                  <p className="text-[12px] text-[#0f172a]" style={interStyle}>
+                    Selected: {faviconFile.name}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleRemoveFavicon}
+                    className="text-[12px] font-medium text-[#e11d48] underline-offset-2 hover:underline"
+                    style={interStyle}
+                  >
+                    Remove
+                  </button>
+                </div>
+              ) : null}
+              {faviconError ? (
+                <p
+                  className="mt-2 text-[12px] font-medium"
+                  style={{ ...interStyle, color: VALIDATION_ERROR_RED }}
+                >
+                  {faviconError}
+                </p>
+              ) : null}
+            </div>
+          </div>
+        </section>
       </div>
 
       <StepActions
@@ -1186,6 +1307,7 @@ export function BrandingStep({
   headline,
   subtitle,
   backgroundUrl,
+  backgroundFile,
   orgName,
   preview,
   onPrimaryChange,
@@ -1194,6 +1316,7 @@ export function BrandingStep({
   onHeadlineChange,
   onSubtitleChange,
   onBackgroundChange,
+  onBackgroundFileChange,
   onContinue,
   onBack,
   onSkip,
@@ -1209,6 +1332,7 @@ export function BrandingStep({
   headline: string;
   subtitle: string;
   backgroundUrl: string;
+  backgroundFile: File | null;
   orgName: string;
   preview: TenantBranding;
   onPrimaryChange: (value: string) => void;
@@ -1217,6 +1341,7 @@ export function BrandingStep({
   onHeadlineChange: (value: string) => void;
   onSubtitleChange: (value: string) => void;
   onBackgroundChange: (value: string) => void;
+  onBackgroundFileChange: (file: File | null) => void;
   onContinue: () => void;
   onBack: () => void;
   onSkip: () => void;
@@ -1224,6 +1349,27 @@ export function BrandingStep({
   const previewFont = brandingFontStack(fontId);
   const customSwatchLeft = "#94a3b8";
   const customSwatchRight = "#e2e8f0";
+  const [backgroundUploadError, setBackgroundUploadError] = useState<string | null>(null);
+
+  const handleBackgroundFile = (file: File | null) => {
+    setBackgroundUploadError(null);
+    if (!file) {
+      onBackgroundFileChange(null);
+      return;
+    }
+    const mime = (file.type || "").toLowerCase();
+    if (!["image/png", "image/jpeg", "image/webp"].includes(mime)) {
+      setBackgroundUploadError("Use PNG, JPG, or WEBP.");
+      onBackgroundFileChange(null);
+      return;
+    }
+    if (file.size > 3 * 1024 * 1024) {
+      setBackgroundUploadError("Background image must be 3 MB or smaller.");
+      onBackgroundFileChange(null);
+      return;
+    }
+    onBackgroundFileChange(file);
+  };
 
   return (
     <div>
@@ -1362,12 +1508,37 @@ export function BrandingStep({
               placeholder="HR Simplified for growing teams"
             />
             <TextField
-              label="Background image URL"
+              label="Background image"
               required={false}
               value={backgroundUrl}
               onChange={onBackgroundChange}
               placeholder="/images/singup-bg-image.jpg"
             />
+            <p className="-mt-[8px] text-[12px] leading-[18px] text-[#64748b]" style={interStyle}>
+              Hero image on login/signup. Paste a web link or path, or upload a file below.
+            </p>
+            <div>
+              <FieldLabel required={false}>Or upload background</FieldLabel>
+              <p className="mb-2 text-[12px] leading-[18px] text-[#64748b]" style={interStyle}>
+                PNG, JPG, or WEBP. Max 3 MB.
+              </p>
+              <input
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                onChange={(event) => handleBackgroundFile(event.target.files?.[0] ?? null)}
+                className="block w-full cursor-pointer text-sm text-[#475569] file:mr-4 file:cursor-pointer file:rounded-lg file:border-0 file:bg-[#012352] file:px-4 file:py-2 file:text-sm file:font-medium file:text-white"
+              />
+              {backgroundFile ? (
+                <p className="mt-2 text-[12px] text-[#0f172a]" style={interStyle}>
+                  Selected: {backgroundFile.name}
+                </p>
+              ) : null}
+              {backgroundUploadError ? (
+                <p className="mt-2 text-[12px] text-[#e11d48]" style={interStyle}>
+                  {backgroundUploadError}
+                </p>
+              ) : null}
+            </div>
           </div>
         </section>
 

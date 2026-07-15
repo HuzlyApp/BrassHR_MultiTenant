@@ -65,6 +65,7 @@ export default function TenantOnboardingPage() {
   const [domainError, setDomainError] = useState<string | null>(null);
   const [logoUrl, setLogoUrl] = useState("");
   const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [faviconFile, setFaviconFile] = useState<File | null>(null);
   const [logoDisplayName, setLogoDisplayName] = useState("");
   const [logoTagline, setLogoTagline] = useState("");
   const [onboardingSteps, setOnboardingSteps] = useState<OnboardingStepDraft[]>(() =>
@@ -83,6 +84,8 @@ export default function TenantOnboardingPage() {
   const [headline, setHeadline] = useState("");
   const [subtitle, setSubtitle] = useState("");
   const [backgroundUrl, setBackgroundUrl] = useState("");
+  const [backgroundFile, setBackgroundFile] = useState<File | null>(null);
+  const [backgroundPreview, setBackgroundPreview] = useState<string | null>(null);
   const [adminEmail, setAdminEmail] = useState("");
   const [inviteEmails, setInviteEmails] = useState<string[]>([""]);
   const [inviteNotice, setInviteNotice] = useState<string | null>(null);
@@ -175,6 +178,24 @@ export default function TenantOnboardingPage() {
         : `Applicants can onboard with branding unique to ${orgName.trim() || brand.companyName}.`,
     };
   }, [accentHex, backgroundUrl, brand, headline, logoUrl, orgName, primaryHex, secondaryHex, subtitle]);
+
+  useEffect(() => {
+    if (!backgroundFile) {
+      setBackgroundPreview(null);
+      return;
+    }
+    const objectUrl = URL.createObjectURL(backgroundFile);
+    setBackgroundPreview(objectUrl);
+    return () => URL.revokeObjectURL(objectUrl);
+  }, [backgroundFile]);
+
+  const brandingPreview = useMemo(
+    (): TenantBranding => ({
+      ...preview,
+      loginBackgroundSrc: backgroundPreview || preview.loginBackgroundSrc,
+    }),
+    [backgroundPreview, preview]
+  );
 
   const stepperStates = useMemo(
     () =>
@@ -301,7 +322,7 @@ export default function TenantOnboardingPage() {
           accentColor: accentHex,
           welcomeHeadline: headline.trim() || null,
           welcomeSubtitle: subtitle.trim() || null,
-          authBackgroundImageUrl: backgroundUrl.trim() || null,
+          authBackgroundImageUrl: backgroundFile ? null : backgroundUrl.trim() || null,
           adminEmail: adminEmail.trim().toLowerCase(),
           adminPassword: "",
           industry: businessInfo.industry,
@@ -353,6 +374,20 @@ export default function TenantOnboardingPage() {
         fd.set("tenantId", tenantId);
         fd.set("file", logoFile);
         await fetch("/api/tenants/logo", { method: "POST", body: fd });
+      }
+
+      if (tenantId && faviconFile) {
+        const favFd = new FormData();
+        favFd.set("tenantId", tenantId);
+        favFd.set("file", faviconFile);
+        await fetch("/api/tenants/favicon", { method: "POST", body: favFd });
+      }
+
+      if (tenantId && backgroundFile) {
+        const bgFd = new FormData();
+        bgFd.set("tenantId", tenantId);
+        bgFd.set("file", backgroundFile);
+        await fetch("/api/tenants/background", { method: "POST", body: bgFd });
       }
 
       if (tenantId && onboardingSteps.length) {
@@ -451,6 +486,7 @@ export default function TenantOnboardingPage() {
         <CompanyLogoStep
           logoUrl={logoUrl}
           logoFile={logoFile}
+          faviconFile={faviconFile}
           orgName={orgName}
           logoDisplayName={logoDisplayName}
           logoTagline={logoTagline}
@@ -459,6 +495,7 @@ export default function TenantOnboardingPage() {
             setLogoUrl(previewUrl);
           }}
           onLogoUrlChange={setLogoUrl}
+          onFaviconFileChange={setFaviconFile}
           onLogoDisplayNameChange={setLogoDisplayName}
           onLogoTaglineChange={setLogoTagline}
           onContinue={() => {
@@ -483,14 +520,19 @@ export default function TenantOnboardingPage() {
           headline={headline}
           subtitle={subtitle}
           backgroundUrl={backgroundUrl}
+          backgroundFile={backgroundFile}
           orgName={orgName}
-          preview={preview}
+          preview={brandingPreview}
           onPrimaryChange={setPrimaryHex}
           onSecondaryChange={setSecondaryHex}
           onAccentChange={setAccentHex}
           onHeadlineChange={setHeadline}
           onSubtitleChange={setSubtitle}
-          onBackgroundChange={setBackgroundUrl}
+          onBackgroundChange={(value) => {
+            setBackgroundFile(null);
+            setBackgroundUrl(value);
+          }}
+          onBackgroundFileChange={setBackgroundFile}
           onContinue={() => {
             setBrandingSkipped(false);
             setStep("domain");
@@ -529,7 +571,7 @@ export default function TenantOnboardingPage() {
 
       {step === "preview" ? (
         <PreviewStep
-          preview={preview}
+          preview={brandingPreview}
           onContinue={() => setStep("admin")}
           onBack={() => setStep("domain")}
         />
@@ -561,7 +603,7 @@ export default function TenantOnboardingPage() {
 
       {step === "done" ? (
         <DoneStep
-          preview={preview}
+          preview={brandingPreview}
           createdSlug={createdSlug}
           createdDomain={createdDomain}
           firmaProvisioning={firmaProvisioning}
