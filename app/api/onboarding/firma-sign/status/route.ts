@@ -116,25 +116,62 @@ export async function GET(req: NextRequest) {
       workerId,
       resolved.tenantId
     );
-    const progressStatus = completed ? "completed" : onboardingStatus === "in_progress" ? "in_progress" : "pending";
+    const progressStatus = completed
+      ? "completed"
+      : onboardingStatus === "in_progress"
+        ? "in_progress"
+        : onboardingStatus === "failed"
+          ? "failed"
+          : "pending";
 
-    if (progressStatus !== "pending") {
+    const existingRow = progressPayload.steps.find(
+      (row) => String(row.onboarding_step_id) === String(resolved.step.id)
+    );
+    const previousData =
+      existingRow?.data && typeof existingRow.data === "object" && !Array.isArray(existingRow.data)
+        ? (existingRow.data as Record<string, unknown>)
+        : {};
+
+    const nextData = {
+      ...previousData,
+      signing_provider: "firma",
+      signing_request_id: session.signing_request_id,
+      firma_status: session.firma_status,
+    };
+
+    const nextStatus =
+      progressStatus === "completed" || progressStatus === "failed" || progressStatus === "in_progress"
+        ? progressStatus
+        : existingRow?.status === "in_progress" || existingRow?.status === "completed"
+          ? existingRow.status
+          : "in_progress";
+
+    if (existingRow) {
       const { error: upErr } = await supabase
         .from("worker_onboarding_step_progress")
         .update({
-          status: progressStatus,
-          completed_at: completed ? new Date().toISOString() : null,
-          data: {
-            signing_provider: "firma",
-            signing_request_id: session.signing_request_id,
-            firma_status: session.firma_status,
-          },
+          status: nextStatus,
+          completed_at: completed
+            ? new Date().toISOString()
+            : existingRow.completed_at ?? null,
+          data: nextData,
           updated_at: new Date().toISOString(),
         })
         .eq("worker_onboarding_progress_id", progressPayload.progressId)
         .eq("onboarding_step_id", resolved.step.id);
 
       if (upErr) throw upErr;
+    } else {
+      const { error: insErr } = await supabase.from("worker_onboarding_step_progress").insert({
+        worker_onboarding_progress_id: progressPayload.progressId,
+        worker_id: workerId,
+        tenant_id: resolved.tenantId,
+        onboarding_step_id: resolved.step.id,
+        status: nextStatus,
+        completed_at: completed ? new Date().toISOString() : null,
+        data: nextData,
+      });
+      if (insErr) throw insErr;
     }
 
     return NextResponse.json({

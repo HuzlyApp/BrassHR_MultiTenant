@@ -370,7 +370,11 @@ export default function DocumentsPage() {
 
       const stepKey = activeStep?.step_key
       if (stepKey) {
-        await onboarding?.updateStepStatus?.(stepKey, "completed")
+        await onboarding?.updateStepStatus?.(stepKey, "completed", {
+          signing_provider: requiresFirmaSigning ? "firma" : undefined,
+          authorization_agreed: agreed,
+          firma_signed: requiresFirmaSigning ? agreementSigned : undefined,
+        })
       }
       if (nav.nextRoute) router.push(nav.nextRoute)
     } catch (e: unknown) {

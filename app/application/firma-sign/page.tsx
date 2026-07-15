@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import OnboardingLayout from "@/app/components/OnboardingLayout";
 import OnboardingStepper from "@/app/components/OnboardingStepper";
 import { FirmaSigningIframe } from "@/app/components/onboarding/FirmaSigningIframe";
@@ -18,6 +18,8 @@ import {
 import { stepUsesFirmaSigning } from "@/lib/onboarding/firma-step-settings";
 import type { TenantOnboardingStep } from "@/lib/onboarding/types";
 import { resolveClientOnboardingTenantSlug } from "@/lib/tenant/client-onboarding-slug";
+import { APPLICATION_ROUTES } from "@/lib/onboarding/application-routes";
+import { routeForApplicantStep } from "@/lib/onboarding/resolve-applicant-step-route";
 
 type FirmaSessionResponse = {
   session?: {
@@ -123,6 +125,7 @@ async function persistFirmaStepCompletion(
 }
 
 export default function FirmaSignPage() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const search = searchParams.toString() ? `?${searchParams.toString()}` : "";
   const nav = useOnboardingStepNav();
@@ -139,6 +142,17 @@ export default function FirmaSignPage() {
 
   const { stepKey, stepId } = resolveFirmaStepContext(searchParams, nav);
   const matchedStep = resolveMatchedStep(nav, stepKey, stepId);
+
+  // Authorization / Background Check (and other library e-sign steps) use Authorizations &
+  // Documents with Click and Sign — don't keep applicants on this standalone embed page.
+  useEffect(() => {
+    if (nav.configLoading || !matchedStep) return;
+    const target = routeForApplicantStep(matchedStep, nav.slug);
+    const targetPath = target.split("?")[0];
+    if (targetPath.includes(APPLICATION_ROUTES.authorizationsDocuments)) {
+      router.replace(target);
+    }
+  }, [matchedStep, nav.configLoading, nav.slug, router]);
 
   useMarkStepInProgressIfPending({
     step: matchedStep,
