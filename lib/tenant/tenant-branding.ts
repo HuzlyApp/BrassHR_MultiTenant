@@ -82,13 +82,17 @@ export function brandingAuthButtonStyle(enabled: boolean): Record<string, string
   if (!enabled) {
     return {
       backgroundColor: "#dddddd",
+      backgroundImage: "none",
       color: "#94a3b8",
+      WebkitTextFillColor: "#94a3b8",
       fontFamily: "var(--brand-font-body)",
     };
   }
   return {
     backgroundImage: "linear-gradient(90deg, var(--brand-button) 0%, var(--brand-accent) 100%)",
+    backgroundColor: "transparent",
     color: "#ffffff",
+    WebkitTextFillColor: "#ffffff",
     fontFamily: "var(--brand-font-body)",
   };
 }

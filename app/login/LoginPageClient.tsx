@@ -55,7 +55,8 @@ import {
 } from "@/lib/tenant/tenant-branding";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 
-const checkboxActiveClass = "border-[#012352] bg-[#012352]";
+const checkboxActiveClass =
+  "border-[color:var(--brand-secondary)] bg-[color:var(--brand-secondary)]";
 
 function primaryButtonStyle(enabled: boolean): React.CSSProperties | undefined {
   return brandingAuthButtonStyle(enabled);
@@ -658,7 +659,7 @@ function LoginPageContent() {
 
   return (
     <>
-      <LoginPageShell brand={brand}>
+      <LoginPageShell brand={brand} hideArtOnMobile>
         {showRedirecting ? <RedirectionProgressModal /> : null}
         <LoginBrandHeader brand={brand} />
 

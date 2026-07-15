@@ -25,7 +25,7 @@ export const loginInputClass = `h-[44px] w-full rounded-[8px] border border-[#cb
 export const loginPasswordInputClass = `${loginInputClass} pr-11 sm:pr-12`;
 
 export const loginPrimaryButtonClass =
-  "flex h-[46px] w-full items-center justify-center rounded-[10px] text-[15px] font-semibold leading-[20px] tracking-normal transition disabled:cursor-not-allowed disabled:bg-[#dddddd] disabled:text-[#c5c5c5] enabled:text-white enabled:hover:brightness-95 sm:h-[54px] sm:rounded-[12px] sm:text-[16px] sm:leading-[22px]";
+  "flex h-[46px] w-full items-center justify-center rounded-[10px] text-[15px] font-semibold leading-[20px] tracking-normal text-white transition-[filter] disabled:cursor-not-allowed disabled:bg-[#dddddd] disabled:text-[#c5c5c5] enabled:hover:brightness-95 sm:h-[54px] sm:rounded-[12px] sm:text-[16px] sm:leading-[22px]";
 
 export const loginFieldLabelClass =
   "mb-1.5 block text-[13px] font-normal leading-[18px] tracking-normal text-[#374151] sm:mb-[8px] sm:text-[14px] sm:leading-[20px]";

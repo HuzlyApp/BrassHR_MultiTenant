@@ -247,7 +247,7 @@ export default function LoginOtpStep({
       <button
         type="submit"
         disabled={!isComplete || submitting || verified}
-        className="flex h-[54px] w-full items-center justify-center rounded-[12px] text-[16px] font-semibold leading-[22px] tracking-normal transition disabled:cursor-not-allowed disabled:bg-[#dddddd] disabled:text-[#94a3b8] enabled:text-white enabled:hover:brightness-95"
+        className="flex h-[54px] w-full items-center justify-center rounded-[12px] text-[16px] font-semibold leading-[22px] tracking-normal text-white transition-[filter] disabled:cursor-not-allowed disabled:bg-[#dddddd] disabled:text-[#94a3b8] enabled:hover:brightness-95"
         style={verifyButtonStyle(isComplete && !submitting && !verified)}
       >
         {submitting ? "Verifying..." : verified ? "Verified" : "Verify Code"}

@@ -1,6 +1,7 @@
 "use client"
 
 import { APPLICATION_ROUTES } from "@/lib/onboarding/application-routes"
+import { workerSignInHref } from "@/lib/auth/worker-sign-in"
 import { applicationPath } from "@/lib/tenant/with-tenant"
 import type { HTMLAttributes, ReactNode } from "react"
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react"
@@ -937,7 +938,11 @@ function Step1ReviewContent() {
         <div className="flex shrink-0 items-center justify-end gap-2 sm:justify-start">
           <button
             type="button"
-            onClick={() => router.push("/login")}
+            onClick={() =>
+              router.push(
+                workerSignInHref({ tenant: nav.slug || branding.slug }),
+              )
+            }
             className="rounded-md border border-red-600 bg-white px-4 py-1.5 text-sm font-semibold text-red-600 hover:bg-red-50"
           >
             Login
