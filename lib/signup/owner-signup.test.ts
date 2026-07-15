@@ -5,8 +5,22 @@ import {
   signupAddress2ValidationMessage,
   signupAddressVerificationMessage,
   validateOwnerSignupDetails,
+  validateOwnerSignupPassword,
   validateOwnerSignupZipForState,
 } from "@/lib/signup/owner-signup";
+
+describe("validateOwnerSignupPassword", () => {
+  it("requires at least one number", () => {
+    expect(validateOwnerSignupPassword("Password!")).toMatch(/number/i);
+    expect(validateOwnerSignupPassword("Password1")).toBeNull();
+  });
+
+  it("still requires length and letter casing", () => {
+    expect(validateOwnerSignupPassword("Pass1")).toMatch(/8 characters/i);
+    expect(validateOwnerSignupPassword("password1")).toMatch(/uppercase/i);
+    expect(validateOwnerSignupPassword("PASSWORD1")).toMatch(/lowercase/i);
+  });
+});
 
 describe("validateOwnerSignupZipForState", () => {
   it("accepts a California ZIP when state is CA", () => {

@@ -88,7 +88,7 @@ function getPasswordRules(password: string): PasswordRule[] {
     { label: "Password must be at least 8 characters long.", passed: password.length >= 8 },
     { label: "Password must contain at least one upper case.", passed: /[A-Z]/.test(password) },
     { label: "One lower case letter.", passed: /[a-z]/.test(password) },
-    { label: "Password must contain at least one number or special character.", passed: /[\d\W_]/.test(password) },
+    { label: "Password must contain at least one number.", passed: /\d/.test(password) },
   ];
 }
 

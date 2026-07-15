@@ -435,15 +435,15 @@ export function AdminRecruiterSidebar({
 
       <div
         className={`border-t border-[#E2E8F0] ${
-          isMobileRail ? "px-0 py-2" : isCollapsed ? "px-2 py-3" : "px-4 py-3"
+          isMobileRail ? "px-0 py-2" : isCollapsed ? "px-0 py-3" : "px-4 py-3"
         }`}
       >
         <div
           className={`flex items-center ${
             isCollapsed
               ? isMobileRail
-                ? "flex-col items-center justify-center gap-2"
-                : "flex-col items-center gap-2"
+                ? "w-full flex-col items-stretch justify-center gap-1"
+                : "w-full flex-col items-stretch gap-1"
               : "gap-2.5"
           }`}
         >
@@ -452,13 +452,17 @@ export function AdminRecruiterSidebar({
               <img
                 src={profilePhoto}
                 alt={profileName}
-                className="h-[30px] w-[30px] shrink-0 rounded-full object-cover"
+                className={`h-[30px] w-[30px] shrink-0 rounded-full object-cover ${
+                  isMobileRail ? "mx-auto" : ""
+                }`}
                 width={30}
                 height={30}
               />
             ) : (
               <span
-                className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-full bg-[#E2E8F0] text-[11px] font-semibold text-[#64748B]"
+                className={`flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-full bg-[#E2E8F0] text-[11px] font-semibold text-[#64748B] ${
+                  isMobileRail ? "mx-auto" : ""
+                }`}
                 aria-hidden
               >
                 {profileName.charAt(0).toUpperCase()}
@@ -475,7 +479,14 @@ export function AdminRecruiterSidebar({
             type="button"
             onClick={handleLogout}
             title="Logout"
-            className={`rounded-md p-1 hover:bg-white/80 ${isCollapsed ? "" : "ml-auto"}`}
+            className={
+              isCollapsed
+                ? `group relative flex min-h-[36px] w-full items-center overflow-hidden rounded-md transition hover:bg-white ${collapsedRowClass(
+                    isCollapsed,
+                    isMobileRail
+                  )}`
+                : "ml-auto rounded-md p-1 hover:bg-white/80"
+            }
           >
             <SidebarNavIcon iconType={SIDEBAR_ICON_TYPES.logout} active={false} />
           </button>
