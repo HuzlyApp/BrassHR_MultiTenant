@@ -10,13 +10,37 @@ export function resolveFirmaEmbedUiBoost(viewportWidth: number): number {
   return 1.3;
 }
 
-export function resolveFirmaEmbedDimensions(viewportWidth: number): {
+/**
+ * Virtual iframe canvas size.
+ * When container size is known, match its aspect ratio so the scaled UI fills
+ * the signing modal instead of leaving large empty bands (especially on mobile).
+ */
+export function resolveFirmaEmbedDimensions(
+  viewportWidth: number,
+  availableWidth?: number,
+  availableHeight?: number
+): {
   width: number;
   height: number;
 } {
   const boost = resolveFirmaEmbedUiBoost(viewportWidth);
+  const width = Math.round(FIRMA_SIGNING_DESKTOP_WIDTH / boost);
+
+  if (
+    typeof availableWidth === "number" &&
+    typeof availableHeight === "number" &&
+    availableWidth > 0 &&
+    availableHeight > 0
+  ) {
+    const aspect = availableWidth / availableHeight;
+    return {
+      width,
+      height: Math.max(Math.round(width / aspect), Math.round(width * 0.75)),
+    };
+  }
+
   return {
-    width: Math.round(FIRMA_SIGNING_DESKTOP_WIDTH / boost),
+    width,
     height: Math.round(FIRMA_SIGNING_DESKTOP_HEIGHT / boost),
   };
 }
@@ -34,8 +58,8 @@ export function computeFirmaEmbedScale(
     return FIRMA_EMBED_MAX_SCALE;
   }
 
-  const widthScale = (availableWidth - 6) / embedWidth;
-  const heightScale = (availableHeight - 10) / embedHeight;
+  const widthScale = availableWidth / embedWidth;
+  const heightScale = availableHeight / embedHeight;
   const fitScale = Math.min(widthScale, heightScale, FIRMA_EMBED_MAX_SCALE);
 
   return Math.max(FIRMA_EMBED_MIN_SCALE, fitScale);

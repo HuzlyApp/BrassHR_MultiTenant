@@ -372,7 +372,7 @@ export default function FirmaSignPage() {
           </div>
         ) : null}
 
-        <div className="h-[min(720px,calc(100dvh-12rem))] min-h-[360px] overflow-hidden rounded-lg border border-[#e4e7ec] bg-white max-[639px]:h-[calc(100dvh-11rem)] max-[639px]:min-h-[320px] max-[639px]:rounded-none max-[639px]:border-x-0">
+        <div className="h-[min(720px,calc(100dvh-12rem))] min-h-[360px] overflow-hidden rounded-lg border border-[color:var(--brand-primary)]/20 bg-[linear-gradient(135deg,var(--brand-gradient-from)_0%,var(--brand-gradient-to)_100%)] max-[639px]:h-[calc(100dvh-11rem)] max-[639px]:min-h-[320px] max-[639px]:rounded-none max-[639px]:border-x-0">
           <FirmaSigningIframe iframeUrl={iframeUrl} title={stepTitle} variant="modal" />
         </div>
 

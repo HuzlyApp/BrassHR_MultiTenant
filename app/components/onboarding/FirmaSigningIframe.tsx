@@ -22,6 +22,9 @@ type FirmaEmbedLayout = {
   scaledHeight: number;
 };
 
+const brandingShellBgClass =
+  "bg-[linear-gradient(135deg,var(--brand-gradient-from)_0%,var(--brand-gradient-to)_100%)]";
+
 /** Height of the embed container that is actually visible (handles browser zoom + mobile browser chrome). */
 function visibleContainerHeight(container: HTMLElement): number {
   const rect = container.getBoundingClientRect();
@@ -43,7 +46,11 @@ function resolveFirmaEmbedLayout(container: HTMLElement): FirmaEmbedLayout {
   const availableWidth = container.clientWidth;
   const availableHeight = visibleContainerHeight(container);
   const viewportWidth = window.innerWidth;
-  const { width: embedWidth, height: embedHeight } = resolveFirmaEmbedDimensions(viewportWidth);
+  const { width: embedWidth, height: embedHeight } = resolveFirmaEmbedDimensions(
+    viewportWidth,
+    availableWidth,
+    availableHeight
+  );
   const scale = computeFirmaEmbedScale(availableWidth, availableHeight, embedWidth, embedHeight);
 
   return {
@@ -106,7 +113,7 @@ export function FirmaSigningIframe({
       title={title}
       className={
         variant === "modal"
-          ? "block border-0 bg-white max-[639px]:rounded-none sm:rounded-lg sm:border sm:border-[#e4e7ec]"
+          ? "block border-0 bg-transparent max-[639px]:rounded-none"
           : "min-h-[720px] w-full rounded-lg border border-[#e4e7ec] bg-white"
       }
       style={
@@ -122,32 +129,36 @@ export function FirmaSigningIframe({
 
   if (variant === "modal") {
     if (!layout) {
-      return <div ref={containerRef} className="h-full min-h-0 w-full bg-white" aria-hidden />;
+      return (
+        <div
+          ref={containerRef}
+          className={`h-full min-h-0 w-full ${brandingShellBgClass}`}
+          aria-hidden
+        />
+      );
     }
 
     return (
-      <div ref={containerRef} className="h-full min-h-0 w-full overflow-auto overscroll-contain bg-white">
+      <div
+        ref={containerRef}
+        className={`flex h-full min-h-0 w-full items-center justify-center overflow-hidden overscroll-none ${brandingShellBgClass}`}
+      >
         <div
-          className="mx-auto flex w-full justify-center"
-          style={{ minHeight: `${layout.scaledHeight}px` }}
+          className="relative shrink-0 overflow-hidden"
+          style={{
+            width: `${layout.scaledWidth}px`,
+            height: `${layout.scaledHeight}px`,
+          }}
         >
           <div
-            className="relative shrink-0 overflow-hidden"
+            className="origin-top-left"
             style={{
-              width: `${layout.scaledWidth}px`,
-              height: `${layout.scaledHeight}px`,
+              transform: `scale(${layout.scale})`,
+              width: `${layout.embedWidth}px`,
+              height: `${layout.embedHeight}px`,
             }}
           >
-            <div
-              className="origin-top-left"
-              style={{
-                transform: `scale(${layout.scale})`,
-                width: `${layout.embedWidth}px`,
-                height: `${layout.embedHeight}px`,
-              }}
-            >
-              {iframe}
-            </div>
+            {iframe}
           </div>
         </div>
       </div>

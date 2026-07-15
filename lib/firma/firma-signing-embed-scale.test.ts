@@ -14,14 +14,30 @@ describe("resolveFirmaEmbedUiBoost", () => {
   });
 });
 
-describe("computeFirmaEmbedScale", () => {
-  it("limits scale by width on narrow viewports", () => {
-    const { width, height } = resolveFirmaEmbedDimensions(512);
-    const scale = computeFirmaEmbedScale(512, 820, width, height);
+describe("resolveFirmaEmbedDimensions", () => {
+  it("matches container aspect ratio so the embed can fill tall phone screens", () => {
+    const { width, height } = resolveFirmaEmbedDimensions(483, 483, 857);
+    expect(width).toBeGreaterThan(0);
+    expect(height / width).toBeCloseTo(857 / 483, 1);
+  });
 
-    expect(scale).toBeLessThan(1);
-    expect(Math.round(width * scale)).toBeLessThanOrEqual(512);
-    expect(Math.round(height * scale)).toBeLessThanOrEqual(820);
+  it("falls back to a square canvas when container size is unknown", () => {
+    const { width, height } = resolveFirmaEmbedDimensions(1280);
+    expect(width).toBe(height);
+  });
+});
+
+describe("computeFirmaEmbedScale", () => {
+  it("fills both width and height when embed aspect matches the container", () => {
+    const availableWidth = 512;
+    const availableHeight = 820;
+    const { width, height } = resolveFirmaEmbedDimensions(512, availableWidth, availableHeight);
+    const scale = computeFirmaEmbedScale(availableWidth, availableHeight, width, height);
+
+    expect(Math.round(width * scale)).toBeLessThanOrEqual(availableWidth);
+    expect(Math.round(height * scale)).toBeLessThanOrEqual(availableHeight);
+    expect(Math.round(width * scale)).toBeGreaterThanOrEqual(availableWidth - 2);
+    expect(Math.round(height * scale)).toBeGreaterThanOrEqual(availableHeight - 2);
   });
 
   it("never drops below the minimum scale floor", () => {

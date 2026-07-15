@@ -82,6 +82,15 @@ export function AuthorizationsFirmaAgreementPanel({
   }, [signed, onSignedChange]);
 
   useEffect(() => {
+    if (!showSigningModal) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [showSigningModal]);
+
+  useEffect(() => {
     if (!applicantId || !stepKey || !hasFirmaTemplate || !emailValid) return;
 
     const activeApplicantId = applicantId;
@@ -315,19 +324,26 @@ export function AuthorizationsFirmaAgreementPanel({
       {error ? <p className="mt-3 text-xs leading-5 text-rose-600 sm:text-sm">{error}</p> : null}
 
       {showSigningModal && iframeUrl ? (
-        <div className="fixed inset-0 z-[100] flex bg-black/70 p-0 max-[639px]:bg-black">
-          <div className="relative flex h-[100dvh] max-h-[100dvh] w-full max-w-none flex-col overflow-hidden bg-white shadow-2xl max-[639px]:rounded-none sm:mx-auto sm:max-w-6xl sm:rounded-xl">
-            <button
-              type="button"
-              onClick={() => setShowSigningModal(false)}
-              className="absolute right-3 top-3 z-20 inline-flex h-11 w-11 items-center justify-center rounded-full bg-black text-white shadow-md transition hover:opacity-90 max-[639px]:right-4 max-[639px]:top-[max(0.75rem,env(safe-area-inset-top))] sm:h-10 sm:w-10"
-              aria-label="Close signing"
-            >
-              <X className="h-5 w-5" strokeWidth={2.5} aria-hidden />
-            </button>
-            <div className="min-h-0 flex-1 overflow-hidden pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)]">
-              <FirmaSigningIframe iframeUrl={iframeUrl} title="Sign Agreement" variant="modal" />
-            </div>
+        <div
+          className="fixed inset-0 z-[100] flex h-[100dvh] max-h-[100dvh] w-screen max-w-[100vw] flex-col overflow-hidden"
+          style={{
+            background:
+              "linear-gradient(135deg, var(--brand-gradient-from) 0%, var(--brand-gradient-to) 100%)",
+          }}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Sign agreement"
+        >
+          <button
+            type="button"
+            onClick={() => setShowSigningModal(false)}
+            className="absolute right-3 top-3 z-20 inline-flex h-11 w-11 items-center justify-center rounded-full bg-black/85 text-white shadow-md transition hover:bg-black max-[639px]:right-4 max-[639px]:top-[max(0.75rem,env(safe-area-inset-top))] sm:right-4 sm:top-4 sm:h-10 sm:w-10"
+            aria-label="Close signing"
+          >
+            <X className="h-5 w-5" strokeWidth={2.5} aria-hidden />
+          </button>
+          <div className="min-h-0 flex-1 overflow-hidden pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)]">
+            <FirmaSigningIframe iframeUrl={iframeUrl} title="Sign Agreement" variant="modal" />
           </div>
         </div>
       ) : null}
