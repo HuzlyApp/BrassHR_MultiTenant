@@ -105,7 +105,7 @@ function SummaryRow({
         <Link
           href={editHref}
           aria-label={`Edit ${title}`}
-          className="shrink-0 rounded p-1 text-slate-400 opacity-0 transition group-hover:opacity-100 hover:text-slate-600"
+          className="shrink-0 rounded p-1 text-slate-400 opacity-100 transition hover:text-slate-600 sm:opacity-0 sm:group-hover:opacity-100"
         >
           <Pencil className="h-4 w-4" />
         </Link>

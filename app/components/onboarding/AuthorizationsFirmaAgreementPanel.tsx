@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { FileText, X } from "lucide-react";
+import { FileText } from "lucide-react";
 import { FirmaSigningIframe } from "@/app/components/onboarding/FirmaSigningIframe";
 import {
   isFirmaSigningComplete,
@@ -334,16 +334,13 @@ export function AuthorizationsFirmaAgreementPanel({
           aria-modal="true"
           aria-label="Sign agreement"
         >
-          <button
-            type="button"
-            onClick={() => setShowSigningModal(false)}
-            className="absolute right-3 top-3 z-20 inline-flex h-11 w-11 items-center justify-center rounded-full bg-black/85 text-white shadow-md transition hover:bg-black max-[639px]:right-4 max-[639px]:top-[max(0.75rem,env(safe-area-inset-top))] sm:right-4 sm:top-4 sm:h-10 sm:w-10"
-            aria-label="Close signing"
-          >
-            <X className="h-5 w-5" strokeWidth={2.5} aria-hidden />
-          </button>
           <div className="min-h-0 flex-1 overflow-hidden pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)]">
-            <FirmaSigningIframe iframeUrl={iframeUrl} title="Sign Agreement" variant="modal" />
+            <FirmaSigningIframe
+              iframeUrl={iframeUrl}
+              title="Sign Agreement"
+              variant="modal"
+              onClose={() => setShowSigningModal(false)}
+            />
           </div>
         </div>
       ) : null}
