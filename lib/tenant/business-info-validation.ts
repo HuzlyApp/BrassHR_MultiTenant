@@ -266,12 +266,13 @@ export function zipCodeValidationMessage(
   const digits = normalizeBusinessZipInput(zipCode);
   const required = context?.requireAllFields !== false;
   if (!digits) return required ? "ZIP code is required." : null;
+  // Optional / skipped business step: ignore incomplete ZIP leftovers.
+  if (!required && digits.length < 5) return null;
   if (digits.length < 5) return "Enter a valid 5-digit ZIP code.";
   if (!context?.stateCode) {
-    if (fieldProvided(inputState ?? "") || required) {
-      return "Select a state before entering a ZIP code.";
-    }
-    return null;
+    // Optional: orphan ZIP without a resolvable state should not block signup.
+    if (!required) return null;
+    return "Select a state before entering a ZIP code.";
   }
   if (!zipPrefixBelongsToState(digits, context.stateCode)) {
     const stateLabel = context.stateName?.trim() || "the selected state";

@@ -230,7 +230,10 @@ export default function TenantOnboardingPage() {
       setGoalsSkipped(true);
     }
     if (step === "business") {
+      // Drop partial entries so leftover junk (e.g. fake phone) is not
+      // sent/validated on finalize when the step was skipped.
       setBusinessInfoSkipped(true);
+      setBusinessInfo(initialBusinessInfoForm());
     }
     if (step === "company_logo" || step === "branding") {
       setBrandingSkipped(true);

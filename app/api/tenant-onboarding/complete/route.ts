@@ -117,9 +117,22 @@ export async function POST(req: Request) {
     subdomain: subdomainFinal,
     adminEmail: effectiveAdminEmail,
   });
-  const businessInputForValidation = businessInfoSkipped
-    ? { ...businessInput, companyName: businessInput.companyName || resolvedCompanyName }
+  // Skip means ignore business fields entirely (partial ZIP/phone leftovers must not block).
+  let businessInputForValidation = businessInfoSkipped
+    ? {
+        companyName: resolvedCompanyName,
+        industry: "",
+        companySize: "",
+        state: "",
+        city: "",
+        address: "",
+        phone: "",
+        email: "",
+        zipCode: "",
+        ein: "",
+      }
     : businessInput;
+
   const businessErrors = validateBusinessInfoForm(businessInputForValidation, businessContext);
   if (!isBusinessInfoValid(businessInputForValidation, businessContext)) {
     return NextResponse.json(
@@ -170,7 +183,7 @@ export async function POST(req: Request) {
   }
 
   const tenantDisplayName =
-    businessInput.companyName.trim() || resolvedCompanyName;
+    businessInputForValidation.companyName.trim() || resolvedCompanyName;
 
   const brandingRow = {
     name: tenantDisplayName,
@@ -184,15 +197,15 @@ export async function POST(req: Request) {
     welcome_headline: body.welcomeHeadline?.trim() || `Welcome to ${tenantDisplayName}`,
     welcome_subtitle: body.welcomeSubtitle?.trim() || "Your applicant experience starts here.",
     auth_background_image_url: body.authBackgroundImageUrl?.trim() || null,
-    industry: businessInput.industry,
-    company_size: businessInput.companySize,
-    city: businessInput.city,
-    state: businessInput.state,
-    address_line_1: businessInput.address,
-    phone: businessInput.phone,
-    email: businessInput.email,
-    postal_code: businessInput.zipCode,
-    ein: businessInput.ein || null,
+    industry: businessInputForValidation.industry,
+    company_size: businessInputForValidation.companySize,
+    city: businessInputForValidation.city,
+    state: businessInputForValidation.state,
+    address_line_1: businessInputForValidation.address,
+    phone: businessInputForValidation.phone,
+    email: businessInputForValidation.email,
+    postal_code: businessInputForValidation.zipCode,
+    ein: businessInputForValidation.ein || null,
     is_active: true,
   };
 
@@ -327,11 +340,11 @@ export async function POST(req: Request) {
       email_verified: true,
       signup_completed_at: completedAt,
       tenant_onboarding_completed_at: completedAt,
-      phone: businessInput.phone?.trim() || null,
-      address_line1: businessInput.address?.trim() || null,
-      city: businessInput.city?.trim() || null,
-      state: businessInput.state?.trim() || null,
-      zip_code: businessInput.zipCode?.trim() || null,
+      phone: businessInputForValidation.phone?.trim() || null,
+      address_line1: businessInputForValidation.address?.trim() || null,
+      city: businessInputForValidation.city?.trim() || null,
+      state: businessInputForValidation.state?.trim() || null,
+      zip_code: businessInputForValidation.zipCode?.trim() || null,
     },
     { onConflict: "id" }
   );
