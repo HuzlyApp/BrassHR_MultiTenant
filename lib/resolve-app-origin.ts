@@ -113,8 +113,24 @@ function finalizeResolvedOrigin(origin: string): string {
 }
 
 /**
+ * True for `{tenant}.{ROOT_DOMAIN}` (one label), e.g. jobs.brasshr.com.
+ * False for apex, www, nested hosts, and non-root hosts (vercel.app, localhost).
+ */
+export function isTenantVanityHost(hostname: string, rootDomain?: string): boolean {
+  const host = hostname.trim().toLowerCase();
+  const root = (rootDomain || currentRootDomain()).trim().toLowerCase();
+  if (!host || !root) return false;
+  if (host === root || host === `www.${root}`) return false;
+  const suffix = `.${root}`;
+  if (!host.endsWith(suffix)) return false;
+  const label = host.slice(0, -suffix.length);
+  return Boolean(label) && !label.includes(".");
+}
+
+/**
  * Origin for platform-level flows (owner signup, tenant-onboarding).
- * Uses the marketing apex (`brasshr.com`), not legacy `hr.*` or tenant vanity hosts.
+ * Keeps localhost / Vercel preview / dedicated app hosts.
+ * Collapses tenant vanity hosts (`jobs.brasshr.com`) to the marketing apex.
  */
 export function resolvePlatformAppOrigin(req: OriginRequest): string | null {
   const resolved = resolveAppOrigin(req);
@@ -128,7 +144,13 @@ export function resolvePlatformAppOrigin(req: OriginRequest): string | null {
     const host = url.hostname.toLowerCase();
     if (host === root || host === `www.${root}`) return url.origin;
 
-    return `https://${root}`;
+    // Owner setup emails must not open on a tenant vanity host.
+    if (isTenantVanityHost(host, root)) {
+      return `https://${root}`;
+    }
+
+    // Preview / staging app hosts (e.g. brasshr-devmode.vercel.app) stay as-is.
+    return url.origin;
   } catch {
     return resolved;
   }
