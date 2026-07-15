@@ -27,6 +27,7 @@ import {
 } from "@/lib/onboarding/applicant-summary-sections"
 import { readAuthorizationSigningState, mergeAuthorizationSigningState, signingStateFromFirmaStatus } from "@/lib/onboardingSummaryData"
 import { stepUsesFirmaSigning } from "@/lib/onboarding/firma-step-settings"
+import { isBackgroundCheckAuthorizationStep } from "@/lib/onboarding/authorizations-documents-step"
 import { getEnabledTenantSteps } from "@/lib/onboarding/tenant-step-navigation"
 import { useOnboardingConfigOptional } from "@/app/components/onboarding/OnboardingConfigProvider"
 import { useOnboardingStepNav } from "@/lib/onboarding/use-onboarding-step-nav"
@@ -200,6 +201,9 @@ export default function SummaryPage() {
       let serverAuthState = null
       const enabledSteps = getEnabledTenantSteps(nav.config)
       const authStep =
+        enabledSteps.find((s) => isBackgroundCheckAuthorizationStep(s) && stepUsesFirmaSigning(s)) ??
+        enabledSteps.find((s) => stepUsesFirmaSigning(s)) ??
+        enabledSteps.find((s) => isBackgroundCheckAuthorizationStep(s)) ??
         enabledSteps.find((s) => s.step_type === "authorizations" && stepUsesFirmaSigning(s)) ??
         enabledSteps.find((s) => s.step_type === "authorizations")
       if (authStep) {
@@ -225,6 +229,14 @@ export default function SummaryPage() {
               serverAuthState = json.completed
                 ? signingStateFromFirmaStatus(firmaStatus ?? "signed")
                 : signingStateFromFirmaStatus(firmaStatus)
+            }
+            if (json.completed || serverAuthState?.display === "signed") {
+              localStorage.setItem(
+                "signingStatus",
+                typeof firmaStatus === "string" && firmaStatus.trim()
+                  ? firmaStatus.trim().toLowerCase()
+                  : "completed"
+              )
             }
           }
         } catch {

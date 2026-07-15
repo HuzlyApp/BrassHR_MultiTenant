@@ -1,6 +1,7 @@
 import {
   isBackgroundCheckAuthorizationStep,
 } from "@/lib/onboarding/authorizations-documents-step";
+import { isFirmaSigningComplete } from "@/lib/onboarding/firma-step-settings";
 import { APPLICATION_ROUTES } from "@/lib/onboarding/application-routes";
 import { routeForApplicantStep } from "@/lib/onboarding/resolve-applicant-step-route";
 import {
@@ -157,24 +158,36 @@ function sectionForStep(
 
   if (isAuthorizationSummaryStep(step)) {
     const authState = snapshot.authState;
-    const authSigned = authState.display === "signed";
+    const progressRow = progress?.steps.find((r) => r.onboarding_step_id === step.id);
+    const progressFirmaStatus =
+      typeof progressRow?.data?.firma_status === "string"
+        ? progressRow.data.firma_status
+        : null;
+    const progressFirmaSigned =
+      progressRow?.data?.firma_signed === true ||
+      isFirmaSigningComplete(progressFirmaStatus) ||
+      (progressStatus === "completed" && progressRow?.data?.signing_provider === "firma");
+    const authSigned = authState.display === "signed" || progressFirmaSigned;
     const hasSsn = Boolean(snapshot.workerDocs?.ssn_url?.trim() || snapshot.identityLs?.ssn?.name);
     const hasDl = Boolean(
       snapshot.workerDocs?.drivers_license_url?.trim() || snapshot.identityLs?.license?.name
     );
     const locallyComplete = authSigned && hasSsn && hasDl;
     const stepStatus = summaryStepStatus(progressStatus, locallyComplete, isRequired);
+    const agreementStatusLabel = authSigned
+      ? progressFirmaStatus || authState.statusRaw || "completed"
+      : authState.statusRaw || progressFirmaStatus || null;
     const rows: SummaryRowModel[] = [];
-    if (progressComplete || authState.hasActivity) {
+    if (progressComplete || authState.hasActivity || progressFirmaSigned) {
       rows.push({
         key: "auth",
         title: "Authorization agreement",
         subtitle: authSigned
-          ? authState.statusRaw
-            ? `Signed (${authState.statusRaw})`
+          ? agreementStatusLabel
+            ? `Signed (${agreementStatusLabel})`
             : "Signed"
-          : authState.statusRaw
-            ? `Status: ${authState.statusRaw}`
+          : agreementStatusLabel
+            ? `Status: ${agreementStatusLabel}`
             : "Pending signature",
         complete: authSigned,
         stepStatus: authSigned ? "completed" : "incomplete",

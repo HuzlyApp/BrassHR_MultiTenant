@@ -150,11 +150,17 @@ export function AuthorizationsFirmaAgreementPanel({
       if (!res.ok) return;
       const status = data.session?.firma_status ?? firmaStatus;
       setFirmaStatus(status);
+      if (typeof window !== "undefined") {
+        localStorage.setItem("signingStatus", normalizeFirmaSigningStatus(status));
+      }
       if (data.session?.signing_request_id) {
         setSigningRequestId(data.session.signing_request_id);
       }
       if (data.completed) {
         setShowSigningModal(false);
+        if (typeof window !== "undefined") {
+          localStorage.setItem("signingStatus", "completed");
+        }
       }
     } catch {
       /* ignore polling errors */
