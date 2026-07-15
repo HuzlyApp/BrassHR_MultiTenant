@@ -146,6 +146,11 @@ type FirmaRequestOptions = {
   retries?: number;
   /** When false, omit workspace_id query param (company/account-level endpoints such as POST /workspaces). */
   includeWorkspaceScope?: boolean;
+  /**
+   * Override Authorization for workspace-scoped endpoints (e.g. appearance settings).
+   * Firma rejects company/other-workspace keys with 403 "Cannot access resources in other workspaces".
+   */
+  apiKey?: string;
 };
 
 async function firmaRequest<T>(path: string, options: FirmaRequestOptions = {}): Promise<T> {
@@ -155,8 +160,9 @@ async function firmaRequest<T>(path: string, options: FirmaRequestOptions = {}):
     workspaceId,
     retries = 1,
     includeWorkspaceScope = true,
+    apiKey: apiKeyOverride,
   } = options;
-  const apiKey = getFirmaApiKey();
+  const apiKey = apiKeyOverride?.trim() || getFirmaApiKey();
   const url = buildUrl(path, workspaceId, includeWorkspaceScope);
 
   let lastError: unknown;
@@ -416,6 +422,65 @@ export type FirmaWorkspace = {
   name?: string;
 };
 
+/** Workspace detail including scoped keys — never persist api_key / test_api_key. */
+export type FirmaWorkspaceDetail = FirmaWorkspace & {
+  api_key?: string | null;
+  test_api_key?: string | null;
+  protected?: boolean | null;
+};
+
+type FirmaWorkspaceListResponse = {
+  results?: FirmaWorkspaceDetail[];
+  pagination?: {
+    current_page?: number;
+    page_size?: number;
+    total_count?: number;
+    total_pages?: number;
+  };
+};
+
+/**
+ * Resolve the live api_key for a workspace.
+ * Firma returns scoped keys on GET /workspaces (list). GET /workspaces/{id} often
+ * returns 403 for non-own keys, so branding sync must use the list endpoint.
+ */
+export async function resolveFirmaWorkspaceApiKey(workspaceId: string): Promise<string> {
+  const target = workspaceId.trim();
+  if (!target) {
+    throw new FirmaError("VALIDATION_ERROR", "Firma workspace id is required", 400);
+  }
+
+  let page = 1;
+  let totalPages = 1;
+
+  while (page <= totalPages) {
+    const path =
+      page === 1 ? "/workspaces" : `/workspaces?page=${page}`;
+    const result = await firmaRequest<FirmaWorkspaceListResponse | FirmaWorkspaceDetail[]>(path, {
+      includeWorkspaceScope: false,
+      retries: 1,
+    });
+
+    const rows = Array.isArray(result) ? result : result.results ?? [];
+    const match = rows.find((row) => row.id?.trim() === target);
+    const apiKey = match?.api_key?.trim();
+    if (apiKey) return apiKey;
+
+    if (!Array.isArray(result) && result.pagination) {
+      totalPages = Math.max(1, Number(result.pagination.total_pages) || 1);
+    } else {
+      break;
+    }
+    page += 1;
+  }
+
+  throw new FirmaError(
+    "AUTH_ERROR",
+    `Firma workspace api_key was not found for workspace ${target}; cannot update appearance settings`,
+    403
+  );
+}
+
 /** Official endpoint: POST /workspaces (docs.firma.dev/guides/creating-workspaces) */
 export async function createFirmaWorkspace(input: {
   name: string;
@@ -441,7 +506,11 @@ export async function createFirmaWorkspace(input: {
   return { id, name: result.name ?? name };
 }
 
-/** Sync workspace appearance (embedded editor + signing chrome). */
+/**
+ * Sync workspace appearance (embedded editor + signing chrome).
+ * Must authenticate with the target workspace's own api_key — company/other-workspace
+ * keys return 403 for appearance settings even when template/signing ops work via workspace_id.
+ */
 export async function updateFirmaWorkspaceSettings(
   workspaceId: string,
   settings: FirmaWorkspaceAppearanceSettings
@@ -451,10 +520,13 @@ export async function updateFirmaWorkspaceSettings(
     throw new FirmaError("VALIDATION_ERROR", "Firma workspace id is required", 400);
   }
 
+  const workspaceApiKey = await resolveFirmaWorkspaceApiKey(id);
+
   return firmaRequest<FirmaWorkspaceAppearanceSettings>(`/workspace/${id}/settings`, {
     method: "PUT",
     body: settings,
     includeWorkspaceScope: false,
+    apiKey: workspaceApiKey,
     retries: 1,
   });
 }

@@ -66,6 +66,13 @@ export async function syncTenantBrandingToFirmaWorkspace(
 
   await updateFirmaWorkspaceSettings(workspaceId, colors);
 
+  console.info("[firma-branding] workspace appearance synced", {
+    tenantId,
+    workspaceId,
+    color_primary: colors.color_primary,
+    color_accent: colors.color_accent,
+  });
+
   return {
     synced: true,
     workspaceId,

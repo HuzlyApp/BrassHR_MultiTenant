@@ -35,22 +35,22 @@ export function contrastForegroundOnHex(hex: string): string {
 
 /**
  * Maps BrassHR tenant branding to Firma workspace editor/signing colors.
- * Uses a dark editor shell (matches Firma template builder) with tenant accent colors.
+ * Prefer primary/secondary (same as the host shell gradient) over buttonColor.
+ * Firma uses both color_primary and color_accent for signing CTAs/zoom chrome —
+ * keep them aligned so the embed matches the outer brand shell.
  */
 export function tenantBrandingToFirmaWorkspaceSettings(
   branding: TenantBranding
 ): FirmaWorkspaceAppearanceSettings {
-  const primary = normalizeHex(branding.buttonColor || branding.primaryHex, "#bc8b41");
-  const secondary = normalizeHex(branding.secondaryHex, "#104b83");
-  const accent = normalizeHex(branding.primaryHex, primary);
+  const primary = normalizeHex(branding.primaryHex || branding.buttonColor, "#bc8b41");
+  const secondary = normalizeHex(branding.secondaryHex || branding.buttonColor, primary);
   const primaryFg = contrastForegroundOnHex(primary);
-  const accentFg = contrastForegroundOnHex(accent);
 
   return {
     color_primary: primary,
     color_primary_fg: primaryFg,
-    color_accent: accent,
-    color_accent_fg: accentFg,
+    color_accent: primary,
+    color_accent_fg: primaryFg,
     color_background: "#1c1c21",
     color_foreground: "#f8fafc",
     color_card: "#22222a",
