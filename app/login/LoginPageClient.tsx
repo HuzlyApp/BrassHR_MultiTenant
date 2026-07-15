@@ -5,16 +5,16 @@ import Link from "next/link";
 import { Check } from "lucide-react";
 import { Suspense, useEffect, useMemo, useState, type FormEvent } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
-import { FaApple } from "react-icons/fa";
-import { FaXTwitter } from "react-icons/fa6";
-import { FcGoogle } from "react-icons/fc";
+// import { FaApple } from "react-icons/fa";
+// import { FaXTwitter } from "react-icons/fa6";
+// import { FcGoogle } from "react-icons/fc";
 import { PasswordVisibilityToggle } from "@/app/components/PasswordVisibilityToggle";
 import { ADMIN_RECRUITER_HOME_ROUTE } from "@/app/admin_recruiter/components/sidebar-config";
 import RedirectionProgressModal from "@/app/components/RedirectionProgressModal";
 import { TenantBrandingProvider } from "@/app/components/tenant/TenantBrandingContext";
 import ClassicTenantLogin from "@/app/login/ClassicTenantLogin";
 import { useLoginInitialBranding } from "@/app/login/LoginBrandingBootstrap";
-import { LoginBrandHeader, LoginPageShell, interStyle, loginFieldLabelClass, loginInputClass, loginPasswordInputClass, loginPrimaryButtonClass } from "@/app/login/BraasLoginShell";
+import { LoginBrandHeader, LoginPageShell, interStyle, loginFieldLabelClass, loginFormOptionsStackClass, loginFormStackClass, loginInputClass, loginPageStackClass, loginPasswordInputClass, loginPrimaryButtonClass } from "@/app/login/BraasLoginShell";
 import LoginFormError, { loginInputErrorClass } from "@/app/login/LoginFormError";
 import LoginOtpStep from "@/app/login/LoginOtpStep";
 import { isGodAdminUser } from "@/lib/auth/god-admin";
@@ -106,6 +106,7 @@ function LoginLoadingShell({ brand }: { brand?: TenantBranding | null }) {
   return <div className="min-h-screen bg-white" aria-hidden="true" />;
 }
 
+/*
 function SocialButton({ children, label }: { children: React.ReactNode; label: string }) {
   return (
     <button
@@ -117,6 +118,7 @@ function SocialButton({ children, label }: { children: React.ReactNode; label: s
     </button>
   );
 }
+*/
 
 function LoginPageContent() {
   const router = useRouter();
@@ -674,25 +676,23 @@ function LoginPageContent() {
             onSendAgain={handleOtpSendAgain}
           />
         ) : (
-          <form onSubmit={handleCredentialsSubmit} className="flex flex-col gap-4 pt-3 sm:gap-[40px] sm:pt-[30px]">
+          <form onSubmit={handleCredentialsSubmit} className={loginPageStackClass}>
             <div>
-          <h1
-            className="text-[22px] font-semibold leading-[30px] tracking-normal sm:text-[30px] sm:leading-[36px]"
-            style={{ color: "var(--brand-heading)", fontFamily: "var(--brand-font-heading)" }}
-          >
-            {brand.headline}
-          </h1>
-          <p
-            className="mt-1 text-[14px] font-normal leading-[20px] sm:mt-[8px] sm:text-[16px] sm:leading-[24px]"
-            style={{ color: "var(--brand-muted)", fontFamily: "var(--brand-font-body)" }}
-          >
-            {brand.subtitle}
-          </p>
-        </div>
+              <h1
+                className="text-[22px] font-semibold leading-[30px] tracking-normal sm:text-[30px] sm:leading-[36px]"
+                style={{ color: "var(--brand-heading)", fontFamily: "var(--brand-font-heading)" }}
+              >
+                {brand.headline}
+              </h1>
+              <p
+                className="mt-1 text-[14px] font-normal leading-[20px] sm:mt-[8px] sm:text-[16px] sm:leading-[24px]"
+                style={{ color: "var(--brand-muted)", fontFamily: "var(--brand-font-body)" }}
+              >
+                {brand.subtitle}
+              </p>
+            </div>
 
-        <div className="flex flex-col gap-4 sm:gap-[30px]">
-          <div className="flex flex-col gap-3 sm:gap-[20px]">
-            <div className="flex flex-col gap-3 sm:gap-[40px]">
+            <div className={loginFormStackClass}>
               <div>
                 <FieldLabel>Email</FieldLabel>
                 <input
@@ -736,112 +736,114 @@ function LoginPageContent() {
                   />
                 </div>
               </div>
-            </div>
 
-            <div className="flex items-center justify-between">
-              <label
-                className="flex cursor-pointer items-center gap-2 text-[13px] font-normal leading-[18px] text-[#374151] sm:gap-[8px] sm:text-[14px] sm:leading-[20px]"
-                style={interStyle}
-              >
-                <span
-                  className={`relative flex h-[20px] w-[20px] shrink-0 items-center justify-center rounded-[6px] border ${
-                    form.rememberMe ? checkboxActiveClass : "border-[#e2e8f0] bg-white"
-                  }`}
+              <div className={loginFormOptionsStackClass}>
+                <div className="flex items-center justify-between gap-3">
+                  <label
+                    className="flex cursor-pointer items-center gap-2 text-[13px] font-normal leading-[18px] text-[#374151] sm:gap-[8px] sm:text-[14px] sm:leading-[20px]"
+                    style={interStyle}
+                  >
+                    <span
+                      className={`relative flex h-[20px] w-[20px] shrink-0 items-center justify-center rounded-[6px] border ${
+                        form.rememberMe ? checkboxActiveClass : "border-[#e2e8f0] bg-white"
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={form.rememberMe}
+                        onChange={(event) => setForm((prev) => ({ ...prev, rememberMe: event.target.checked }))}
+                        className="absolute inset-0 z-10 m-0 cursor-pointer opacity-0"
+                        aria-label="Remember me"
+                      />
+                      {form.rememberMe ? <Check className="h-[14px] w-[14px] text-white" strokeWidth={3} /> : null}
+                    </span>
+                    Remember Me
+                  </label>
+                  <Link
+                    href={buildForgotPasswordHref({
+                      returnTo: "/admin",
+                      tenant: tenantQuery?.trim().toLowerCase() || brand.slug,
+                    })}
+                    className="text-[14px] font-normal leading-[20px] hover:underline"
+                    style={{ ...interStyle, color: "var(--brand-secondary)" }}
+                  >
+                    Forgot Password?
+                  </Link>
+                </div>
+
+                <label
+                  className="flex cursor-pointer items-start gap-2 text-[13px] font-normal leading-[18px] text-[#4b5563] sm:gap-[8px] sm:text-[14px] sm:leading-[20px]"
+                  style={interStyle}
                 >
-                  <input
-                    type="checkbox"
-                    checked={form.rememberMe}
-                    onChange={(event) => setForm((prev) => ({ ...prev, rememberMe: event.target.checked }))}
-                    className="absolute inset-0 z-10 m-0 cursor-pointer opacity-0"
-                    aria-label="Remember me"
-                  />
-                  {form.rememberMe ? <Check className="h-[14px] w-[14px] text-white" strokeWidth={3} /> : null}
-                </span>
-                Remember Me
-              </label>
-              <Link
-                href={buildForgotPasswordHref({
-                  returnTo: "/admin",
-                  tenant: tenantQuery?.trim().toLowerCase() || brand.slug,
-                })}
-                className="text-[14px] font-normal leading-[20px] hover:underline"
-                style={{ ...interStyle, color: "var(--brand-secondary)" }}
+                  <span
+                    className={`relative mt-px flex h-[20px] w-[20px] shrink-0 items-center justify-center rounded-[6px] border ${
+                      form.agree ? checkboxActiveClass : "border-[#e2e8f0] bg-white"
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={form.agree}
+                      onChange={(event) => setForm((prev) => ({ ...prev, agree: event.target.checked }))}
+                      className="absolute inset-0 z-10 m-0 cursor-pointer opacity-0"
+                      aria-label="Accept terms and conditions"
+                    />
+                    {form.agree ? <Check className="h-[14px] w-[14px] text-white" strokeWidth={3} /> : null}
+                  </span>
+                  <span>
+                    I hereby confirm that I have read and agree with the{" "}
+                    <a href="#" className="font-semibold text-black">
+                      Terms &amp; Conditions
+                    </a>{" "}
+                    and{" "}
+                    <a href="#" className="font-semibold text-black">
+                      Privacy Policy
+                    </a>
+                  </span>
+                </label>
+              </div>
+
+              {authError ? <LoginFormError message={authError.error} code={authError.code} /> : null}
+
+              <button
+                type="submit"
+                disabled={!canSubmit || submitting}
+                className={loginPrimaryButtonClass}
+                style={primaryButtonStyle(canSubmit && !submitting)}
               >
-                Forgot Password?
-              </Link>
+                {submitting ? "Logging in..." : brand.buttonText}
+              </button>
+
+              {!recruiterSignIn && !tenantQuery ? (
+                <p className="text-center text-[14px] font-normal leading-[20px] text-[#374151]" style={interStyle}>
+                  Don&apos;t have an Account?{" "}
+                  <Link href="/signup" className="font-semibold text-black underline">
+                    Sign Up
+                  </Link>
+                </p>
+              ) : null}
             </div>
-          </div>
 
-          <label
-            className="flex cursor-pointer items-start gap-2 text-[13px] font-normal leading-[18px] text-[#4b5563] sm:gap-[8px] sm:text-[14px] sm:leading-[20px]"
-            style={interStyle}
-          >
-            <span
-              className={`relative mt-px flex h-[20px] w-[20px] shrink-0 items-center justify-center rounded-[6px] border ${
-                form.agree ? checkboxActiveClass : "border-[#e2e8f0] bg-white"
-              }`}
-            >
-              <input
-                type="checkbox"
-                checked={form.agree}
-                onChange={(event) => setForm((prev) => ({ ...prev, agree: event.target.checked }))}
-                className="absolute inset-0 z-10 m-0 cursor-pointer opacity-0"
-                aria-label="Accept terms and conditions"
-              />
-              {form.agree ? <Check className="h-[14px] w-[14px] text-white" strokeWidth={3} /> : null}
-            </span>
-            <span>
-              I hereby confirm that I have read and agree with the{" "}
-              <a href="#" className="font-semibold text-black">
-                Terms &amp; Conditions
-              </a>{" "}
-              and{" "}
-              <a href="#" className="font-semibold text-black">
-                Privacy Policy
-              </a>
-            </span>
-          </label>
-        </div>
+            {/* Social login — hidden until provider integration is ready
+            <div className="flex items-center gap-[14px]">
+              <div className="h-px flex-1 bg-[#e7edf4]" />
+              <span className="text-[12px] font-normal leading-[16px] text-[#6b7280]" style={interStyle}>
+                OR
+              </span>
+              <div className="h-px flex-1 bg-[#e7edf4]" />
+            </div>
 
-        {authError ? <LoginFormError message={authError.error} code={authError.code} /> : null}
-
-        <button
-          type="submit"
-          disabled={!canSubmit || submitting}
-          className={loginPrimaryButtonClass}
-          style={primaryButtonStyle(canSubmit && !submitting)}
-        >
-          {submitting ? "Logging in..." : brand.buttonText}
-        </button>
-
-        <div className="flex items-center gap-[14px]">
-          <div className="h-px flex-1 bg-[#e7edf4]" />
-          <span className="text-[12px] font-normal leading-[16px] text-[#6b7280]" style={interStyle}>
-            OR
-          </span>
-          <div className="h-px flex-1 bg-[#e7edf4]" />
-        </div>
-
-        <div className="flex justify-center gap-[15px]">
-          <SocialButton label="Continue with Google">
-            <FcGoogle />
-          </SocialButton>
-          <SocialButton label="Continue with Apple">
-            <FaApple />
-          </SocialButton>
-          <SocialButton label="Continue with X">
-            <FaXTwitter className="h-[15px] w-[15px]" />
-          </SocialButton>
-        </div>
-
-        {!recruiterSignIn && !tenantQuery ? (
-          <p className="text-center text-[14px] font-normal leading-[20px] text-[#374151]" style={interStyle}>
-            Don&apos;t have an Account?{" "}
-            <Link href="/signup" className="font-semibold text-black underline">
-              Sign Up
-            </Link>
-          </p>
-        ) : null}
+            <div className="flex justify-center gap-[15px]">
+              <SocialButton label="Continue with Google">
+                <FcGoogle />
+              </SocialButton>
+              <SocialButton label="Continue with Apple">
+                <FaApple />
+              </SocialButton>
+              <SocialButton label="Continue with X">
+                <FaXTwitter className="h-[15px] w-[15px]" />
+              </SocialButton>
+            </div>
+            */}
           </form>
         )}
       </LoginPageShell>

@@ -4,7 +4,7 @@ import RedirectionProgressModal from "@/app/components/RedirectionProgressModal"
 import { PasswordVisibilityToggle } from "@/app/components/PasswordVisibilityToggle";
 import Link from "next/link";
 import LoginFormError, { loginInputErrorClass } from "@/app/login/LoginFormError";
-import { interStyle, loginInputClass, loginPasswordInputClass, loginPrimaryButtonClass } from "@/app/login/BraasLoginShell";
+import { interStyle, loginFormOptionsStackClass, loginFormStackClass, loginInputClass, loginPageStackClass, loginPasswordInputClass, loginPrimaryButtonClass } from "@/app/login/BraasLoginShell";
 import { useApplicantSignIn } from "@/lib/applicant-portal/use-applicant-sign-in";
 import { buildForgotPasswordHref } from "@/lib/auth/password-reset-return";
 import { recruiterSignInHref } from "@/lib/auth/recruiter-sign-in";
@@ -13,15 +13,12 @@ import { brandingAuthButtonStyle } from "@/lib/tenant/tenant-branding";
 import type { CSSProperties, ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { Check } from "lucide-react";
-import { FaApple } from "react-icons/fa";
-import { FaXTwitter } from "react-icons/fa6";
-import { FcGoogle } from "react-icons/fc";
+// import { FaApple } from "react-icons/fa";
+// import { FaXTwitter } from "react-icons/fa6";
+// import { FcGoogle } from "react-icons/fc";
 
 const checkboxActiveClass =
   "border-[color:var(--brand-secondary)] bg-[color:var(--brand-secondary)]";
-const workerPageStackClass = "flex flex-col gap-5 pt-3 sm:gap-[40px] sm:pt-[30px]";
-const workerFormStackClass = "flex flex-col gap-6 sm:gap-[20px]";
-const workerEmailFormStackClass = "flex flex-col gap-5 sm:gap-[30px]";
 const workerFieldLabelClass =
   "mb-2 block text-[13px] font-normal leading-[18px] tracking-normal text-[#374151] sm:mb-[8px] sm:text-[14px] sm:leading-[20px]";
 
@@ -38,6 +35,7 @@ function FieldLabel({ children }: { children: string }) {
   );
 }
 
+/*
 function SocialButton({ children, label }: { children: ReactNode; label: string }) {
   return (
     <button
@@ -75,6 +73,7 @@ function SocialLoginSection() {
     </div>
   );
 }
+*/
 
 type LoginFormOptionsProps = {
   rememberMe: boolean;
@@ -92,7 +91,7 @@ function LoginFormOptions({
   tenantSlug,
 }: LoginFormOptionsProps) {
   return (
-    <div className="flex flex-col gap-4 sm:gap-5">
+    <div className={loginFormOptionsStackClass}>
       <div className="flex items-center justify-between gap-3">
         <label
           className="flex cursor-pointer items-center gap-2 text-[13px] font-normal leading-[18px] text-[#374151] sm:gap-[8px] sm:text-[14px] sm:leading-[20px]"
@@ -226,7 +225,7 @@ export default function WorkerSignInForm({ tenantSlug, brand }: Props) {
     <>
       {redirecting ? <RedirectionProgressModal /> : null}
 
-      <div className={workerPageStackClass}>
+      <div className={loginPageStackClass}>
       <div>
         <h1 className="text-[22px] font-semibold leading-[30px] tracking-normal text-black sm:text-[30px] sm:leading-[36px]" style={interStyle}>
           Login
@@ -247,7 +246,7 @@ export default function WorkerSignInForm({ tenantSlug, brand }: Props) {
       ) : null}
 
       {mode === "email" ? (
-        <form onSubmit={handleLookup} className={workerEmailFormStackClass}>
+        <form onSubmit={handleLookup} className={loginFormStackClass}>
           <div>
             <FieldLabel>Email</FieldLabel>
             <input
@@ -279,12 +278,12 @@ export default function WorkerSignInForm({ tenantSlug, brand }: Props) {
             {loading ? "Checking..." : "Continue"}
           </button>
 
-          <SocialLoginSection />
+          {/* <SocialLoginSection /> */}
         </form>
       ) : null}
 
       {mode === "setup" ? (
-        <form onSubmit={handleSetup} className={workerFormStackClass}>
+        <form onSubmit={handleSetup} className={loginFormStackClass}>
           <div>
             <FieldLabel>Email</FieldLabel>
             <input
@@ -375,12 +374,12 @@ export default function WorkerSignInForm({ tenantSlug, brand }: Props) {
             Use a different email
           </button>
 
-          <SocialLoginSection />
+          {/* <SocialLoginSection /> */}
         </form>
       ) : null}
 
       {mode === "password" ? (
-        <form onSubmit={handlePasswordLogin} className={workerFormStackClass}>
+        <form onSubmit={handlePasswordLogin} className={loginFormStackClass}>
           <div>
             <FieldLabel>Email</FieldLabel>
             <input
@@ -446,7 +445,7 @@ export default function WorkerSignInForm({ tenantSlug, brand }: Props) {
             Use a different email
           </button>
 
-          <SocialLoginSection />
+          {/* <SocialLoginSection /> */}
         </form>
       ) : null}
 

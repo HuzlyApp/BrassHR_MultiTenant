@@ -30,6 +30,10 @@ export const loginPrimaryButtonClass =
 export const loginFieldLabelClass =
   "mb-1.5 block text-[13px] font-normal leading-[18px] tracking-normal text-[#374151] sm:mb-[8px] sm:text-[14px] sm:leading-[20px]";
 
+export const loginPageStackClass = "flex flex-col gap-5 pt-3 sm:gap-[40px] sm:pt-[30px]";
+export const loginFormStackClass = "flex flex-col gap-6 sm:gap-[20px]";
+export const loginFormOptionsStackClass = "flex flex-col gap-4 sm:gap-5";
+
 export function LoginArtPanel({
   brand,
   className,
@@ -116,7 +120,7 @@ export function LoginPageShell({
   return (
     <TenantBrandingProvider branding={brand}>
       <main
-        className="min-h-screen w-full overflow-x-hidden bg-white"
+        className="min-h-screen w-full min-w-0 overflow-x-hidden bg-white max-[640px]:min-h-dvh"
         style={{ ...shellStyle, backgroundColor: "#ffffff" }}
       >
         <style>{`
@@ -169,7 +173,10 @@ export function LoginPageShell({
 
           @media (max-width: 768px) {
             .login-frame {
-              padding: 16px;
+              width: 100%;
+              max-width: 100%;
+              padding: 12px;
+              border-radius: 0;
             }
 
             .login-layout {
@@ -177,7 +184,15 @@ export function LoginPageShell({
               gap: 10px;
             }
 
+            .login-layout.login-layout--single-column {
+              grid-template-columns: minmax(0, 1fr);
+              gap: 0;
+            }
+
             .login-content {
+              width: 100%;
+              max-width: 100%;
+              min-width: 0;
               padding: 16px 20px;
             }
 
@@ -185,23 +200,38 @@ export function LoginPageShell({
               min-height: 620px;
               border-radius: 14px;
             }
+
+            .login-art.login-art--hidden-mobile {
+              display: none;
+            }
           }
 
-          @media (max-width: 600px) {
+          @media (max-width: 640px) {
             .login-frame {
-              padding: 16px;
+              width: 100%;
+              max-width: 100%;
+              min-height: 100dvh;
+              padding: 12px 16px 24px;
+              border-radius: 0;
             }
 
-            .login-layout {
-              grid-template-columns: 1fr;
-              gap: 12px;
+            .login-layout,
+            .login-layout.login-layout--single-column {
+              grid-template-columns: minmax(0, 1fr);
+              gap: 0;
+              width: 100%;
             }
 
             .login-content {
+              display: flex;
+              flex-direction: column;
+              justify-content: center;
               width: 100%;
               max-width: 100%;
+              min-width: 70%;
+              min-height: calc(100dvh - 48px);
               margin: 0 auto;
-              padding: 20px 20px 16px;
+              padding: 20px 16px 24px;
             }
 
             .login-art {
@@ -243,8 +273,10 @@ export function LoginPageShell({
           }
         `}</style>
 
-        <section className="login-frame mx-auto w-full rounded-[30px] bg-white">
-          <div className="login-layout w-full rounded-[12px] bg-white">
+        <section className="login-frame mx-auto w-full max-w-full rounded-[30px] bg-white max-[640px]:rounded-none">
+          <div
+            className={`login-layout w-full max-w-full rounded-[12px] bg-white${hideArtOnMobile ? " login-layout--single-column" : ""}`}
+          >
             <div className="login-content flex flex-col">{children}</div>
             <LoginArtPanel
               brand={brand}
