@@ -532,7 +532,10 @@ export default function TenantOnboardingPage() {
             setBackgroundFile(null);
             setBackgroundUrl(value);
           }}
-          onBackgroundFileChange={setBackgroundFile}
+          onBackgroundFileChange={(file) => {
+            setBackgroundFile(file);
+            if (file) setBackgroundUrl("");
+          }}
           onContinue={() => {
             setBrandingSkipped(false);
             setStep("domain");

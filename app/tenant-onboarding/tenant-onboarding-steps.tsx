@@ -252,6 +252,7 @@ function TextField({
   inputMode,
   maxLength,
   autoComplete,
+  disabled = false,
 }: {
   label: string;
   value: string;
@@ -264,6 +265,7 @@ function TextField({
   inputMode?: ComponentProps<"input">["inputMode"];
   maxLength?: number;
   autoComplete?: string;
+  disabled?: boolean;
 }) {
   return (
     <div>
@@ -277,9 +279,13 @@ function TextField({
         inputMode={inputMode}
         maxLength={maxLength}
         autoComplete={autoComplete}
+        disabled={disabled}
+        readOnly={disabled}
         style={inputTypographyStyle}
-        className={`h-[56px] w-full rounded-[8px] border bg-white px-[14px] ${inputTextClass} outline-none transition placeholder:text-[#94a3b8] ${
-          error ? inputErrorClass : `border-[#cbd5e1] text-[#0f172a] ${inputFocusClass}`
+        className={`h-[56px] w-full rounded-[8px] border px-[14px] ${inputTextClass} outline-none transition placeholder:text-[#94a3b8] ${
+          disabled ? "cursor-not-allowed border-[#e2e8f0] bg-[#f8fafc] text-[#94a3b8]" : "bg-white"
+        } ${
+          error ? inputErrorClass : disabled ? "" : `border-[#cbd5e1] text-[#0f172a] ${inputFocusClass}`
         }`}
       />
       <FieldError message={error} />
@@ -1222,53 +1228,64 @@ export function CompanyLogoStep({
             Small icon for the browser tab, sidebar, and header. Square image works best. Falls back
             to company logo if skipped. PNG, JPG, WEBP, SVG, or ICO. Max 2 MB.
           </p>
-          <div className="flex flex-wrap items-center gap-4">
-            <div className="flex h-[48px] w-[48px] shrink-0 items-center justify-center overflow-hidden rounded-[10px] border border-[#e2e8f0] bg-white p-1">
-              {faviconPreviewSrc ? (
-                /* eslint-disable-next-line @next/next/no-img-element */
-                <img src={faviconPreviewSrc} alt="" className="h-full w-full object-contain" />
-              ) : previewSrc ? (
-                /* eslint-disable-next-line @next/next/no-img-element */
-                <img src={previewSrc} alt="" className="h-full w-full object-contain opacity-50" />
-              ) : (
-                <span className="text-[10px] text-[#94a3b8]" style={interStyle}>
-                  Icon
-                </span>
-              )}
+          {faviconFile && faviconPreviewSrc ? (
+            <div className="flex items-center gap-[14px] rounded-[12px] border border-[color:var(--brand-primary)] bg-white px-[14px] py-[12px]">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={faviconPreviewSrc}
+                alt=""
+                className="h-[48px] w-[48px] shrink-0 rounded-[10px] border border-[#e2e8f0] bg-white object-contain p-1"
+              />
+              <div className="min-w-0 flex-1">
+                <p
+                  className="truncate text-[14px] font-semibold leading-[20px] text-[#0f172a]"
+                  style={interStyle}
+                >
+                  {faviconFile.name}
+                </p>
+                <p className="text-[12px] text-[#64748b]" style={interStyle}>
+                  Uploaded favicon
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleRemoveFavicon}
+                className="flex h-[40px] w-[40px] shrink-0 items-center justify-center rounded-[8px] text-[color:var(--brand-primary)] transition hover:bg-[#f1f5f9]"
+                aria-label="Remove favicon"
+              >
+                <Trash2 className="h-[20px] w-[20px]" strokeWidth={2} />
+              </button>
             </div>
-            <div className="min-w-0 flex-1">
+          ) : (
+            <div className="flex flex-wrap items-center gap-3">
               <input
                 ref={faviconInputRef}
                 type="file"
                 accept={FAVICON_ACCEPT}
+                className="hidden"
                 onChange={(event) => handleFaviconFile(event.target.files?.[0] ?? null)}
-                className="block w-full cursor-pointer text-sm text-[#475569] file:mr-4 file:cursor-pointer file:rounded-lg file:border-0 file:bg-[#012352] file:px-4 file:py-2 file:text-sm file:font-medium file:text-white"
               />
-              {faviconFile ? (
-                <div className="mt-2 flex flex-wrap items-center gap-3">
-                  <p className="text-[12px] text-[#0f172a]" style={interStyle}>
-                    Selected: {faviconFile.name}
-                  </p>
-                  <button
-                    type="button"
-                    onClick={handleRemoveFavicon}
-                    className="text-[12px] font-medium text-[#e11d48] underline-offset-2 hover:underline"
-                    style={interStyle}
-                  >
-                    Remove
-                  </button>
-                </div>
-              ) : null}
-              {faviconError ? (
-                <p
-                  className="mt-2 text-[12px] font-medium"
-                  style={{ ...interStyle, color: VALIDATION_ERROR_RED }}
-                >
-                  {faviconError}
-                </p>
-              ) : null}
+              <button
+                type="button"
+                onClick={() => faviconInputRef.current?.click()}
+                className="inline-flex h-[40px] items-center justify-center rounded-lg bg-[#012352] px-4 text-[14px] font-medium text-white transition hover:brightness-110"
+                style={{ ...interStyle, color: "#ffffff" }}
+              >
+                Choose file
+              </button>
+              <span className="text-[13px] text-[#64748b]" style={interStyle}>
+                No file chosen
+              </span>
             </div>
-          </div>
+          )}
+          {faviconError ? (
+            <p
+              className="mt-2 text-[12px] font-medium"
+              style={{ ...interStyle, color: VALIDATION_ERROR_RED }}
+            >
+              {faviconError}
+            </p>
+          ) : null}
         </section>
       </div>
 
@@ -1369,6 +1386,25 @@ export function BrandingStep({
       return;
     }
     onBackgroundFileChange(file);
+  };
+
+  const backgroundInputRef = useRef<HTMLInputElement>(null);
+  const [backgroundPreviewSrc, setBackgroundPreviewSrc] = useState("");
+
+  useEffect(() => {
+    if (!backgroundFile) {
+      setBackgroundPreviewSrc("");
+      return;
+    }
+    const objectUrl = URL.createObjectURL(backgroundFile);
+    setBackgroundPreviewSrc(objectUrl);
+    return () => URL.revokeObjectURL(objectUrl);
+  }, [backgroundFile]);
+
+  const clearBackgroundUpload = () => {
+    setBackgroundUploadError(null);
+    onBackgroundFileChange(null);
+    if (backgroundInputRef.current) backgroundInputRef.current.value = "";
   };
 
   return (
@@ -1510,9 +1546,10 @@ export function BrandingStep({
             <TextField
               label="Background image"
               required={false}
-              value={backgroundUrl}
+              value={backgroundFile ? "" : backgroundUrl}
               onChange={onBackgroundChange}
-              placeholder="/images/singup-bg-image.jpg"
+              placeholder={backgroundFile ? "Using uploaded image" : "/images/singup-bg-image.jpg"}
+              disabled={Boolean(backgroundFile)}
             />
             <p className="-mt-[8px] text-[12px] leading-[18px] text-[#64748b]" style={interStyle}>
               Hero image on login/signup. Paste a web link or path, or upload a file below.
@@ -1522,17 +1559,56 @@ export function BrandingStep({
               <p className="mb-2 text-[12px] leading-[18px] text-[#64748b]" style={interStyle}>
                 PNG, JPG, or WEBP. Max 3 MB.
               </p>
-              <input
-                type="file"
-                accept="image/png,image/jpeg,image/webp"
-                onChange={(event) => handleBackgroundFile(event.target.files?.[0] ?? null)}
-                className="block w-full cursor-pointer text-sm text-[#475569] file:mr-4 file:cursor-pointer file:rounded-lg file:border-0 file:bg-[#012352] file:px-4 file:py-2 file:text-sm file:font-medium file:text-white"
-              />
-              {backgroundFile ? (
-                <p className="mt-2 text-[12px] text-[#0f172a]" style={interStyle}>
-                  Selected: {backgroundFile.name}
-                </p>
-              ) : null}
+              {backgroundFile && backgroundPreviewSrc ? (
+                <div className="flex items-center gap-[14px] rounded-[12px] border border-[color:var(--brand-primary)] bg-white px-[14px] py-[12px]">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={backgroundPreviewSrc}
+                    alt=""
+                    className="h-[56px] w-[72px] shrink-0 rounded-[8px] border border-[#e2e8f0] object-cover"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p
+                      className="truncate text-[14px] font-semibold leading-[20px] text-[#0f172a]"
+                      style={interStyle}
+                    >
+                      {backgroundFile.name}
+                    </p>
+                    <p className="text-[12px] text-[#64748b]" style={interStyle}>
+                      Uploaded background
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={clearBackgroundUpload}
+                    className="flex h-[40px] w-[40px] shrink-0 items-center justify-center rounded-[8px] text-[color:var(--brand-primary)] transition hover:bg-[#f1f5f9]"
+                    aria-label="Remove background image"
+                  >
+                    <Trash2 className="h-[20px] w-[20px]" strokeWidth={2} />
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <input
+                    ref={backgroundInputRef}
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    className="hidden"
+                    onChange={(event) => handleBackgroundFile(event.target.files?.[0] ?? null)}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => backgroundInputRef.current?.click()}
+                    className="inline-flex h-[40px] items-center justify-center rounded-lg bg-[#012352] px-4 text-[14px] font-medium text-white transition hover:brightness-110"
+                    style={{ ...interStyle, color: "#ffffff" }}
+                  >
+                    Choose file
+                  </button>
+                  <span className="ml-3 text-[13px] text-[#64748b]" style={interStyle}>
+                    No file chosen
+                  </span>
+                </>
+              )}
               {backgroundUploadError ? (
                 <p className="mt-2 text-[12px] text-[#e11d48]" style={interStyle}>
                   {backgroundUploadError}
