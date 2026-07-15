@@ -1054,6 +1054,7 @@ export default function SignupPage() {
                   {submitting ? "Creating account…" : "Create an account"}
                 </button>
 
+                {/* Social auth (Google / Apple / X) — hidden for now
                 <div className="mt-[46px] flex items-center gap-[14px]">
                   <div className="h-px flex-1 bg-[#e7edf4]" />
                   <span className="text-[10px] font-medium uppercase text-[#334155]">OR</span>
@@ -1071,6 +1072,7 @@ export default function SignupPage() {
                     <FaXTwitter className="h-[15px] w-[15px]" />
                   </SocialButton>
                 </div>
+                */}
 
                 <p className="mt-[34px] text-center text-[11px] font-normal leading-none text-[#64748b]">
                   Already have an account?{" "}
