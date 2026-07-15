@@ -43,7 +43,12 @@ async function api(path, opts = {}) {
 
 const project = await api(`/v9/projects/${projectId}`);
 const link = project.link || {};
-const ref = link.productionBranch || "main";
+// Prefer CLI override, then env, then staging for this QA project (not productionBranch=main).
+const refArg = process.argv.find((a) => a.startsWith("--ref="));
+const ref =
+  (refArg && refArg.slice("--ref=".length).trim()) ||
+  process.env.BRASSHR_DEVMODE_GIT_REF?.trim() ||
+  "staging";
 const repoId = link.repoId;
 const gitSource = repoId
   ? { type: "github", repoId, ref }
