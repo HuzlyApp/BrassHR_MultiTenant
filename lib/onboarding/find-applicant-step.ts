@@ -1,6 +1,21 @@
 import type { TenantOnboardingStep } from "@/lib/onboarding/types";
-import { APPLICATION_ROUTE_STEP_MARKERS } from "@/lib/onboarding/application-routes";
+import { APPLICATION_ROUTE_STEP_MARKERS, APPLICATION_ROUTES } from "@/lib/onboarding/application-routes";
 import { routeForApplicantStep } from "@/lib/onboarding/resolve-applicant-step-route";
+
+const AUTHORIZATIONS_SATELLITE_PATHS = [
+  APPLICATION_ROUTES.authorizationsDocuments,
+  APPLICATION_ROUTES.identityVerification,
+  "/application/employee-agreement",
+  "/application/upload-form",
+];
+
+function isAuthorizationsDocumentsRoute(routePath: string): boolean {
+  return routePath.includes(APPLICATION_ROUTES.authorizationsDocuments);
+}
+
+function pathnameIsAuthorizationsFamily(pathname: string): boolean {
+  return AUTHORIZATIONS_SATELLITE_PATHS.some((fragment) => pathname.includes(fragment));
+}
 
 export function readStepKeyFromSearch(search: string): string | null {
   const key = new URLSearchParams(search).get("stepKey")?.trim();
@@ -57,6 +72,12 @@ export function resolveApplicantStepFromPath(
     const route = routeForApplicantStep(step);
     const routePath = route.split("?")[0];
     if (p.startsWith(routePath) || p.includes(routePath)) return step;
+
+    // Published background-check steps often use step_key "custom_question" but still
+    // route to Authorizations & Documents (+ identity uploads).
+    if (isAuthorizationsDocumentsRoute(routePath) && pathnameIsAuthorizationsFamily(p)) {
+      return step;
+    }
 
     for (const marker of APPLICATION_ROUTE_STEP_MARKERS) {
       if (pathnameMatchesStepGroup(p, step, marker)) return step;

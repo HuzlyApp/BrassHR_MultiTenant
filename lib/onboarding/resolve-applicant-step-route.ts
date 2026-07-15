@@ -58,21 +58,24 @@ function isDuplicateStepKey(stepKey: string, stepType: OnboardingStepType): bool
 }
 
 function baseRouteForStep(step: TenantOnboardingStep): string {
-  if (stepUsesFirmaSigning(step) && step.step_type !== "authorizations") {
-    return APPLICATION_ROUTES.firmaSign;
-  }
-
   if (step.step_type === "review_submit" || step.step_key === "review_submit") {
     return APPLICATION_ROUTES.applicationSummary;
   }
 
   const libraryId = workflowStepId(step);
+  // Prefer dedicated library routes (e.g. background-check → Authorizations & Documents)
+  // even when a Firma template is attached — Click and Sign lives on that screen.
   if (libraryId && WORKFLOW_STEP_APPLICANT_ROUTE[libraryId]) {
     return WORKFLOW_STEP_APPLICANT_ROUTE[libraryId];
   }
 
   if (CANONICAL_STEP_KEY_ROUTES[step.step_key]) {
     return CANONICAL_STEP_KEY_ROUTES[step.step_key];
+  }
+
+  // Standalone Firma page only when the step has no library/canonical applicant route.
+  if (stepUsesFirmaSigning(step) && step.step_type !== "authorizations") {
+    return APPLICATION_ROUTES.firmaSign;
   }
 
   if (!isDuplicateStepKey(step.step_key, step.step_type) && STEP_TYPE_ROUTES[step.step_type]) {
@@ -84,13 +87,12 @@ function baseRouteForStep(step: TenantOnboardingStep): string {
 }
 
 export function dedicatedRouteForWorkflowStep(step: TenantOnboardingStep): string | null {
-  if (stepUsesFirmaSigning(step) && step.step_type !== "authorizations") {
-    return APPLICATION_ROUTES.firmaSign;
-  }
-
   const libraryId = workflowStepId(step);
   if (libraryId && WORKFLOW_STEP_APPLICANT_ROUTE[libraryId]) {
     return WORKFLOW_STEP_APPLICANT_ROUTE[libraryId];
+  }
+  if (stepUsesFirmaSigning(step) && step.step_type !== "authorizations") {
+    return APPLICATION_ROUTES.firmaSign;
   }
   const base = baseRouteForStep(step);
   if (base.includes("/application/custom-step/")) return null;

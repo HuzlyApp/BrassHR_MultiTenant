@@ -88,7 +88,9 @@ export default function DocumentsPage() {
           s.step_type === "authorizations" ||
           s.step_key === "authorizations" ||
           s.step_key === "authorization_background_check" ||
-          s.step_key === "agreement_signature"
+          s.step_key === "agreement_signature" ||
+          isBackgroundCheckAuthorizationStep(s) ||
+          shouldShowFirmaAgreementPanel(s)
       ) ?? null
     )
   }, [nav.currentStep, nav.enabledSteps])

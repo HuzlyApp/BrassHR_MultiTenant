@@ -97,12 +97,29 @@ describe("firma step settings", () => {
     expect(route).not.toContain(APPLICATION_ROUTES.firmaSign);
   });
 
-  it("routes non-authorizations Firma steps to the in-app signing page", () => {
+  it("routes Firma-enabled library e-sign steps to authorizations-documents", () => {
     const route = routeForApplicantStep({
       step_key: "policy_acknowledgment",
       step_type: "custom_question",
       metadata: {
         workflow_step_id: "policy-acknowledgment",
+        workflow_settings: {
+          ...DEFAULT_STEP_SETTINGS,
+          firmaRecruiterTemplateId: "recruiter-template-1",
+        },
+      },
+    });
+
+    expect(route).toContain(APPLICATION_ROUTES.authorizationsDocuments);
+    expect(route).not.toContain(APPLICATION_ROUTES.firmaSign);
+  });
+
+  it("routes Firma steps without a dedicated library applicant route to firma-sign", () => {
+    const route = routeForApplicantStep({
+      step_key: "safety_training_sign",
+      step_type: "custom_question",
+      metadata: {
+        workflow_step_id: "safety-training",
         workflow_settings: {
           ...DEFAULT_STEP_SETTINGS,
           firmaRecruiterTemplateId: "recruiter-template-1",

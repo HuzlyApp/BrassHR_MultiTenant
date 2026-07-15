@@ -105,8 +105,7 @@ export const APPLICATION_ROUTE_STEP_MARKERS: {
       "/application/upload-form",
       "/application/step-4-",
     ],
-  },
-  {
+  },  {
     stepKey: "authorizations",
     pathIncludes: [
       APPLICATION_ROUTES.authorizationsDocuments,
