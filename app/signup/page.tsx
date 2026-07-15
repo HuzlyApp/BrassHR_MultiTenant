@@ -26,9 +26,10 @@ import {
   defaultTenantBranding,
   type TenantBranding,
 } from "@/lib/tenant/tenant-branding";
-import { FaApple } from "react-icons/fa";
-import { FaXTwitter } from "react-icons/fa6";
-import { FcGoogle } from "react-icons/fc";
+// Social auth icons — unused while social signup is commented out on the form.
+// import { FaApple } from "react-icons/fa";
+// import { FaXTwitter } from "react-icons/fa6";
+// import { FcGoogle } from "react-icons/fc";
 
 const BRAAS_BLUE = "#104b83";
 const interStyle = { fontFamily: "Inter, Arial, sans-serif" };
@@ -230,17 +231,17 @@ function PasswordField({
   );
 }
 
-function SocialButton({ children, label }: { children: React.ReactNode; label: string }) {
-  return (
-    <button
-      type="button"
-      aria-label={label}
-      className="flex h-[34px] w-[34px] items-center justify-center rounded-[6px] border border-[#d7e0ea] bg-white text-[18px] text-black transition hover:bg-[#f8fafc]"
-    >
-      {children}
-    </button>
-  );
-}
+// function SocialButton({ children, label }: { children: React.ReactNode; label: string }) {
+//   return (
+//     <button
+//       type="button"
+//       aria-label={label}
+//       className="flex h-[34px] w-[34px] items-center justify-center rounded-[6px] border border-[#d7e0ea] bg-white text-[18px] text-black transition hover:bg-[#f8fafc]"
+//     >
+//       {children}
+//     </button>
+//   );
+// }
 
 export default function SignupPage() {
   const [form, setForm] = useState<SignupForm>(initialForm);
@@ -961,6 +962,7 @@ export default function SignupPage() {
               Next
             </button>
 
+            {/* Social auth (Google / Apple / X) — hidden for now
             <div className="mt-[46px] flex items-center gap-[14px]">
               <div className="h-px flex-1 bg-[#e7edf4]" />
               <span className="text-[10px] font-medium uppercase text-[#334155]">OR</span>
@@ -978,13 +980,16 @@ export default function SignupPage() {
                 <FaXTwitter className="h-[15px] w-[15px]" />
               </SocialButton>
             </div>
+            */}
 
+            {/*
             <p className="mt-[34px] text-center text-[11px] font-normal leading-none text-[#64748b]">
               Already have an account?{" "}
               <Link href="/signin?next=/tenant-onboarding" className="font-semibold text-[#0b0f19] hover:underline">
                 Sign In
               </Link>
             </p>
+            */}
               </>
             ) : (
               <>
