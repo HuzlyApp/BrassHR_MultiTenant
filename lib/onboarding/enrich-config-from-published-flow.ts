@@ -1,10 +1,13 @@
 import type { OnboardingDbClient } from "@/lib/onboarding/load-tenant-config";
-import { getFirmaRecruiterTemplateId } from "@/lib/onboarding/firma-step-settings";
+import {
+  getFirmaRecruiterTemplateId,
+} from "@/lib/onboarding/firma-step-settings";
 import type { TenantOnboardingConfig, TenantOnboardingStep } from "@/lib/onboarding/types";
 import {
   isSerializableWorkflowState,
   type SerializableWorkflowNode,
 } from "@/lib/onboarding/workflow-builder-serialization";
+import { isBackgroundCheckAuthorizationStep } from "@/lib/onboarding/authorizations-documents-step";
 
 function workflowSettingsRecord(
   metadata: Record<string, unknown> | undefined
@@ -116,7 +119,10 @@ export async function enrichTenantConfigFromPublishedFlow(
       return mergeNodeSettingsOntoStep(step, matchedNode);
     }
 
-    if (step.step_type === "authorizations" && agreementNode) {
+    if (
+      (step.step_type === "authorizations" || isBackgroundCheckAuthorizationStep(step)) &&
+      agreementNode
+    ) {
       changed = true;
       return mergeNodeSettingsOntoStep(step, agreementNode);
     }

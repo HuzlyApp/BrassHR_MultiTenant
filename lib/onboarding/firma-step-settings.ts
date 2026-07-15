@@ -3,6 +3,7 @@ import type { OnboardingStepStatus, TenantOnboardingStep } from "@/lib/onboardin
 
 /** Workflow library steps that can attach a Firma template for embedded signing. */
 export const FIRMA_ATTACHABLE_WORKFLOW_STEP_IDS = [
+  "background-check",
   "welcome-packet-esign",
   "employee-agreement",
   "policy-acknowledgment",

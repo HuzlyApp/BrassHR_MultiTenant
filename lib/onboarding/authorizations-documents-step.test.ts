@@ -71,6 +71,33 @@ describe("authorizations-documents-step", () => {
     expect(shouldShowFirmaAgreementPanel(background)).toBe(false);
   });
 
+  it("inherits Firma template settings from a retired agreement_signature step", async () => {
+    const { resolveAuthorizationStepWithFirma } = await import(
+      "@/lib/onboarding/authorizations-documents-step"
+    );
+    const background = step({
+      step_key: "authorization_background_check",
+      step_type: "custom_question",
+      metadata: { workflow_step_id: "background-check" },
+    });
+    const agreement = step({
+      step_key: "agreement_signature",
+      step_type: "authorizations",
+      is_enabled: false,
+      metadata: {
+        workflow_step_id: "employee-agreement",
+        workflow_settings: {
+          ...DEFAULT_STEP_SETTINGS,
+          firmaRecruiterTemplateId: "tenant-a-template",
+          firmaRecruiterTemplateName: "Employee Agreement",
+        },
+      },
+    });
+    const resolved = resolveAuthorizationStepWithFirma(background, [background, agreement]);
+    expect(shouldShowFirmaAgreementPanel(resolved)).toBe(true);
+    expect(resolved?.metadata?.firma_inherited_from_step_key).toBe("agreement_signature");
+  });
+
   it("only shows Firma UI when the active step has a recruiter template", () => {
     const agreement = zipstaffAuthorizationsConfig().steps.find(
       (s) => s.step_key === "agreement_signature"
