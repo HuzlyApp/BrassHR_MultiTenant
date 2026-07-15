@@ -5,6 +5,7 @@ import Image from "next/image"
 import BrandedSvgIcon from "@/app/components/BrandedSvgIcon"
 import BrandingRightPanelLogo, {
   BRANDING_PANEL_LOGO_WIDTH_CLASS,
+  BRANDING_RIGHT_PANEL_STACK_GAP_CLASS,
 } from "@/app/components/BrandingRightPanelLogo"
 import { cn } from "@/lib/cn"
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext"
@@ -106,13 +107,14 @@ export default function OnboardingLayout({
 
           <div
             className={cn(
-              "absolute inset-0 flex items-center justify-center overflow-hidden p-8",
+              "absolute inset-0 flex items-center justify-center overflow-hidden p-8 pt-[calc(2rem+12%)]",
               rightPanelContentClassName
             )}
           >
             <div
               className={cn(
-                "flex w-full max-w-[270px] flex-col items-center gap-6 text-center",
+                "flex w-full max-w-[270px] flex-col items-center text-center",
+                BRANDING_RIGHT_PANEL_STACK_GAP_CLASS,
                 rightPanelInnerClassName
               )}
             >

@@ -22,7 +22,9 @@ import {
   RESUME_PARSE_FAILED_USER_MESSAGE,
 } from "@/lib/resumeParseQuality"
 import BrandedSvgIcon from "@/app/components/BrandedSvgIcon"
-import BrandingRightPanelLogo from "@/app/components/BrandingRightPanelLogo"
+import BrandingRightPanelLogo, {
+  BRANDING_RIGHT_PANEL_STACK_GAP_CLASS,
+} from "@/app/components/BrandingRightPanelLogo"
 import BrandedUploadIcon from "@/app/components/BrandedUploadIcon"
 import { setScopedApplicantId } from "@/lib/tenant/scoped-storage"
 import { useOnboardingConfigOptional } from "@/app/components/onboarding/OnboardingConfigProvider"
@@ -638,8 +640,8 @@ export default function Step1Upload() {
             />
           )}
           <div className="absolute inset-0 bg-white/65" />
-          <div className="absolute inset-0 flex items-center justify-center p-8 text-center">
-            <div className="flex w-full max-w-[270px] flex-col items-center gap-6">
+          <div className="absolute inset-0 flex items-center justify-center p-8 pt-[calc(2rem+12%)] text-center">
+            <div className={`flex w-full max-w-[270px] flex-col items-center ${BRANDING_RIGHT_PANEL_STACK_GAP_CLASS}`}>
               <BrandingRightPanelLogo
                 src={logoSrc}
                 alt={branding.companyName}

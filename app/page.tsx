@@ -26,7 +26,9 @@ import {
   resolveTenantSlugForClient,
 } from "@/lib/tenant/resolve-tenant-context";
 import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
-import BrandingRightPanelLogo from "@/app/components/BrandingRightPanelLogo";
+import BrandingRightPanelLogo, {
+  BRANDING_RIGHT_PANEL_STACK_GAP_CLASS,
+} from "@/app/components/BrandingRightPanelLogo";
 
 function BrandingFillImage({
   src,
@@ -385,7 +387,9 @@ export default function Home() {
               priority
             />
             <div className="absolute inset-0 bg-white/45" />
-            <div className="relative z-10 flex w-full max-w-[340px] flex-col items-center justify-center gap-6 px-6 text-center">
+            <div
+              className={`relative z-10 flex h-full w-full max-w-[340px] flex-col items-center justify-center ${BRANDING_RIGHT_PANEL_STACK_GAP_CLASS} px-6 pt-[12%] text-center`}
+            >
               <BrandingRightPanelLogo src={logoSrc} alt={`${brand.companyName} logo`} />
               <div className="flex w-full items-center justify-center gap-3">
                 <span className="h-px flex-1 bg-slate-400/40" />

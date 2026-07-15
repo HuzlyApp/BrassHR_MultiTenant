@@ -10,7 +10,9 @@ import { supabaseBrowser as supabase } from "@/lib/supabase-browser"
 import Image from "next/image"
 import { AlertTriangle, ChevronDown, Pencil, Search, X, XCircle } from "lucide-react"
 import BrandedSvgIcon from "@/app/components/BrandedSvgIcon"
-import BrandingRightPanelLogo from "@/app/components/BrandingRightPanelLogo"
+import BrandingRightPanelLogo, {
+  BRANDING_RIGHT_PANEL_STACK_GAP_CLASS,
+} from "@/app/components/BrandingRightPanelLogo"
 import OnboardingStepper from "@/app/components/OnboardingStepper"
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext"
 import {
@@ -1295,7 +1297,9 @@ function Step1ReviewContent() {
             <div className="absolute inset-0 bg-white/65" />
           </div>
 
-          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-6 px-10">
+          <div
+            className={`absolute inset-0 z-10 flex flex-col items-center justify-center ${BRANDING_RIGHT_PANEL_STACK_GAP_CLASS} px-10`}
+          >
             <BrandingRightPanelLogo
               src={logoSrc}
               alt={branding.companyName}

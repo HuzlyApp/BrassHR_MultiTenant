@@ -13,15 +13,25 @@ export const BRANDING_MOBILE_LOGO_HEIGHT_REM = 2.9325;
 export const BRANDING_MOBILE_HEADER_LOGO_PX = 37;
 export const BRANDING_MOBILE_HEADER_LOGO_PX_SM = 55;
 
-/** Space between logo block and divider — matches OnboardingLayout `gap-6`. */
-export const BRANDING_RIGHT_PANEL_LOGO_DIVIDER_GAP_REM = 1.5;
+/**
+ * Gap between logo and star divider.
+ * Half of the previous 3.75rem so the logo sits lower (closer to the star).
+ */
+export const BRANDING_RIGHT_PANEL_STACK_GAP_CLASS = "gap-[1.875rem]";
+
+/** Space between logo block and divider — matches OnboardingLayout stack gap. */
+export const BRANDING_RIGHT_PANEL_LOGO_DIVIDER_GAP_REM = 1.875;
 
 export const BRANDING_PANEL_LOGO_WIDTH_CLASS = "w-[18.7rem] max-w-full";
 
 export type BrandingLogoSize = "panel" | "mobile";
 
-/** Square uploads with large dimensions usually include extra padding around the mark. */
-export function squareLogoDisplayZoom(naturalWidth: number, naturalHeight: number): number {
+/**
+ * Zoom for large near-square uploads that include padding around the mark
+ * (e.g. ZipStaff 1024×1024). Landscape wordmarks stay at 1×.
+ * Scale uses origin bottom so size grows upward and keeps star spacing.
+ */
+export function logoDisplayZoom(naturalWidth: number, naturalHeight: number): number {
   if (!naturalWidth || !naturalHeight) return 1;
   const aspect = naturalWidth / naturalHeight;
   if (aspect < 0.85 || aspect > 1.15) return 1;
@@ -32,12 +42,16 @@ export function squareLogoDisplayZoom(naturalWidth: number, naturalHeight: numbe
   return 1;
 }
 
+/** @deprecated Prefer `logoDisplayZoom`. */
+export function squareLogoDisplayZoom(naturalWidth: number, naturalHeight: number): number {
+  return logoDisplayZoom(naturalWidth, naturalHeight);
+}
+
 function useLogoZoom(src: string) {
   const [zoom, setZoom] = useState(1);
 
   const applyZoom = useCallback((img: HTMLImageElement) => {
-    const nextZoom = squareLogoDisplayZoom(img.naturalWidth, img.naturalHeight);
-    setZoom(nextZoom);
+    setZoom(logoDisplayZoom(img.naturalWidth, img.naturalHeight));
   }, []);
 
   useEffect(() => {
@@ -74,11 +88,10 @@ export default function BrandingRightPanelLogo({
   const { zoom, imgRef, applyZoom } = useLogoZoom(src);
 
   const base = size === "mobile" ? BRANDING_MOBILE_LOGO_HEIGHT_REM : BRANDING_RIGHT_PANEL_LOGO_HEIGHT_REM;
-  // Pull padded square logos up so the gap to the divider matches normal logos (Brass HR).
-  const dividerPullRem =
-    size === "panel" && zoom > 1
-      ? Math.max(0, base * (zoom - 1) * 0.25 - BRANDING_RIGHT_PANEL_LOGO_DIVIDER_GAP_REM * 0.15)
-      : 0;
+
+  // When padded square logos zoom, grow upward only so the star gap stays clear.
+  const scaleBleedRem =
+    size === "panel" && zoom > 1 ? (base * (zoom - 1)) / 2 : 0;
 
   return (
     <div
@@ -90,7 +103,8 @@ export default function BrandingRightPanelLogo({
       style={{
         height: `${base}rem`,
         minHeight: `${base}rem`,
-        marginBottom: dividerPullRem > 0 ? `-${dividerPullRem}rem` : undefined,
+        // Reserve headroom above so upward scale does not clip into the panel.
+        marginTop: scaleBleedRem > 0 ? `${scaleBleedRem}rem` : undefined,
       }}
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -102,7 +116,7 @@ export default function BrandingRightPanelLogo({
         style={{
           height: `${base}rem`,
           transform: zoom > 1 ? `scale(${zoom})` : undefined,
-          transformOrigin: "center center",
+          transformOrigin: "center bottom",
         }}
         onLoad={(event) => {
           applyZoom(event.currentTarget);
