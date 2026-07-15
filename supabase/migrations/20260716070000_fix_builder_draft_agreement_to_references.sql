@@ -163,3 +163,52 @@ BEGIN
     $sql$;
   END IF;
 END $$;
+
+-- API prefers onboarding_flow_steps over builder_draft JSON — keep them aligned.
+UPDATE public.onboarding_flow_steps s
+SET
+  title = 'Add Reference',
+  step_type = 'references-collection',
+  description = 'Add professional references for verification',
+  canvas_node_id = 'step-references',
+  metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object(
+    'library_step_key', 'references-collection',
+    'parent_canvas_node_id',
+      CASE
+        WHEN COALESCE(metadata->>'parent_canvas_node_id', '') IN ('', 'step-agreement_signature')
+          THEN 'step-authorization_background_check'
+        ELSE metadata->>'parent_canvas_node_id'
+      END
+  ),
+  updated_at = now()
+WHERE canvas_node_id = 'step-agreement_signature'
+   OR step_type = 'employee-agreement'
+   OR title = 'Agreement / Signature';
+
+UPDATE public.onboarding_flow_steps s
+SET
+  metadata = jsonb_set(
+    COALESCE(metadata, '{}'::jsonb),
+    '{parent_canvas_node_id}',
+    to_jsonb('step-references'::text)
+  ),
+  updated_at = now()
+WHERE metadata->>'parent_canvas_node_id' = 'step-agreement_signature';
+
+WITH ordered AS (
+  SELECT id, flow_id, position,
+    lag(id) OVER (PARTITION BY flow_id ORDER BY position) AS prev_id
+  FROM public.onboarding_flow_steps
+)
+UPDATE public.onboarding_flow_steps s
+SET parent_step_id = o.prev_id,
+    updated_at = now()
+FROM ordered o
+WHERE s.id = o.id
+  AND s.flow_id IN (
+    SELECT DISTINCT flow_id FROM public.onboarding_flow_steps
+    WHERE canvas_node_id = 'step-references'
+       OR step_type = 'references-collection'
+  )
+  AND COALESCE(s.parent_step_id, '00000000-0000-0000-0000-000000000000'::uuid)
+      IS DISTINCT FROM COALESCE(o.prev_id, '00000000-0000-0000-0000-000000000000'::uuid);

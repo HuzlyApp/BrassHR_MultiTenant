@@ -144,6 +144,32 @@ function SettingsBody({ node, onUpdate, onSaveStep, onCloneWorkflow, readOnly = 
           onChange={(v) => onUpdate(node.id, { description: v }, { skipHistory: true })}
           onCommit={(v) => onUpdate(node.id, { description: v })}
         />
+        {showFirmaTemplatePicker ? (
+          <div
+            className="rounded-xl border p-3"
+            style={{ borderColor: "#BC8B41", backgroundColor: "rgba(188, 139, 65, 0.06)" }}
+            data-testid="firma-esign-settings"
+          >
+            <p className="mb-1 text-xs font-semibold" style={{ color: TEXT_PRIMARY }}>
+              Firma e-sign (Click and Sign)
+            </p>
+            <p className="mb-3 text-[11px] leading-4" style={{ color: TEXT_SECONDARY }}>
+              Attach a published template so applicants see Click and Sign on Authorizations &amp;
+              Documents.
+            </p>
+            <FirmaTemplateSelect
+              value={settings.firmaRecruiterTemplateId ?? ""}
+              templateName={settings.firmaRecruiterTemplateName}
+              disabled={readOnly}
+              onChange={({ id, name }) =>
+                patchSettings({
+                  firmaRecruiterTemplateId: id,
+                  firmaRecruiterTemplateName: name,
+                })
+              }
+            />
+          </div>
+        ) : null}
         <ToggleRow
           label="Required"
           value={node.data.required}
@@ -170,19 +196,6 @@ function SettingsBody({ node, onUpdate, onSaveStep, onCloneWorkflow, readOnly = 
           value={settings.notifyHrOnFail}
           onChange={(v) => patchSettings({ notifyHrOnFail: v })}
         />
-        {showFirmaTemplatePicker ? (
-          <FirmaTemplateSelect
-            value={settings.firmaRecruiterTemplateId ?? ""}
-            templateName={settings.firmaRecruiterTemplateName}
-            disabled={readOnly}
-            onChange={({ id, name }) =>
-              patchSettings({
-                firmaRecruiterTemplateId: id,
-                firmaRecruiterTemplateName: name,
-              })
-            }
-          />
-        ) : null}
       </div>
 
       <div

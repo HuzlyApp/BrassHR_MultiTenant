@@ -258,9 +258,32 @@ export function AuthorizationsFirmaAgreementPanel({
 
   if (!hasFirmaTemplate) {
     return (
-      <div className="mb-8 rounded-3xl border border-amber-200 bg-amber-50 p-6 text-sm text-amber-900">
-        Agreement e-signing is not configured for this onboarding step. Your recruiter must attach a
-        Firma template in the onboarding builder before applicants can sign.
+      <div className="mb-6 rounded-2xl border border-[color:var(--brand-primary)] bg-[color:var(--brand-primary)]/5 p-4 shadow-sm sm:mb-8 sm:rounded-3xl sm:p-6">
+        <div className="flex items-center justify-between gap-2 sm:gap-3">
+          <div className="flex min-w-0 flex-1 items-center gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[color:var(--brand-primary)]/15 text-[color:var(--brand-primary)] sm:h-12 sm:w-12 sm:rounded-2xl">
+              <FileText className="h-5 w-5 sm:h-6 sm:w-6" />
+            </div>
+            <div className="min-w-0">
+              <p className="truncate text-[13px] font-semibold text-slate-900 sm:text-sm">
+                Onboarding Agreement
+              </p>
+              <p className="text-[11px] text-slate-500 sm:text-xs">Mandatory · Firma e-sign</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            disabled
+            className="cursor-not-allowed whitespace-nowrap rounded-lg bg-gray-400 px-3 py-1.5 text-[11px] font-semibold text-white sm:rounded-xl sm:px-5 sm:py-2 sm:text-[12px]"
+          >
+            Click and Sign
+          </button>
+        </div>
+        <p className="mt-3 text-[11px] text-amber-800 sm:text-xs">
+          Signing is not configured yet. Your recruiter must attach a published Firma template to
+          Authorization / Background Check in the onboarding builder.
+        </p>
+        <p className="mt-2 text-[11px] font-medium text-slate-500 sm:text-xs">Status: Pending</p>
       </div>
     );
   }
