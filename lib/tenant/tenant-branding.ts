@@ -340,8 +340,10 @@ export function brandingToCssVars(b: TenantBranding): Record<string, string> {
     "--brand-secondary": b.secondaryHex,
     "--brand-accent": b.accentHex,
     "--brand-checkbox": b.checkboxHex,
+    // Shell uses primary only so applicant + welcome match brand gold (API primary),
+    // not a primary→secondary (navy) split.
     "--brand-gradient-from": lightenForGradient(b.primaryHex),
-    "--brand-gradient-to": b.secondaryHex,
+    "--brand-gradient-to": b.primaryHex,
     "--brand-font-family": brandingFontFamily(b.bodyFontId),
     "--brand-font-heading": brandingFontFamily(b.headingFontId),
     "--brand-font-body": brandingFontFamily(b.bodyFontId),
