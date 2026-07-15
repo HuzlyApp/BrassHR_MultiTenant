@@ -68,7 +68,7 @@ describe("application summary submit readiness", () => {
   it("marks sections complete from server step progress even when localStorage is stale", () => {
     const config = buildConfig();
     const licenseStep = config.steps.find((s) => s.step_type === "professional_license")!;
-    const authStep = config.steps.find((s) => s.step_type === "authorizations")!;
+    const authStep = config.steps.find((s) => s.step_key === "authorization_background_check")!;
     const progress: WorkerOnboardingProgressPayload = {
       progressId: "p1",
       status: "in_progress",
@@ -96,7 +96,7 @@ describe("application summary submit readiness", () => {
 
   it("shows pending authorization on summary when step was skipped without signing", () => {
     const config = buildConfig();
-    const authStep = config.steps.find((s) => s.step_type === "authorizations")!;
+    const authStep = config.steps.find((s) => s.step_key === "authorization_background_check")!;
     const progress: WorkerOnboardingProgressPayload = {
       progressId: "p1",
       status: "in_progress",
@@ -152,18 +152,7 @@ describe("application summary submit readiness", () => {
 
   it("shows required skipped references as required_missing on summary", () => {
     const config = buildConfig();
-    const referencesStep: (typeof config.steps)[number] = {
-      id: "step-references",
-      step_key: "references",
-      title: "References",
-      description: "",
-      step_type: "references",
-      sort_order: 55,
-      is_required: true,
-      is_enabled: true,
-      metadata: {},
-    };
-    config.steps.push(referencesStep);
+    const referencesStep = config.steps.find((s) => s.step_key === "references")!;
     const progress: WorkerOnboardingProgressPayload = {
       progressId: "p1",
       status: "in_progress",
@@ -175,6 +164,8 @@ describe("application summary submit readiness", () => {
     const refs = sections.find((s) => s.id === "references");
     expect(refs?.stepStatus).toBe("required_missing");
     expect(refs?.complete).toBe(false);
-    expect(refs?.rows[0]?.subtitle).toMatch(/Incomplete \/ Required|At least \d+ complete references required/);
+    expect(refs?.rows[0]?.subtitle).toMatch(
+      /Incomplete \/ Required|At least \d+ complete reference/
+    );
   });
 });

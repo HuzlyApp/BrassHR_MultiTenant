@@ -12,22 +12,23 @@ import {
 
 export const runtime = "nodejs"
 
-type ReferenceInput = {
-  first?: string
-  last?: string
-  phone?: string
-  email?: string
-}
+type ReferenceInput = Partial<ReferenceRow>
 
 export async function POST(req: NextRequest) {
   try {
     const body = (await req.json()) as {
       applicantId?: string
       tenantSlug?: string
+      minCount?: number
       references?: ReferenceInput[]
     }
     const applicantId = typeof body.applicantId === "string" ? body.applicantId.trim() : ""
     const references = Array.isArray(body.references) ? body.references : []
+    const minCountRaw = Number(body.minCount)
+    const minCount =
+      Number.isFinite(minCountRaw) && minCountRaw > 0
+        ? Math.floor(minCountRaw)
+        : MIN_COMPLETE_REFERENCES
 
     if (!applicantId) {
       return NextResponse.json({ error: "Missing applicantId" }, { status: 400 })
@@ -37,10 +38,10 @@ export async function POST(req: NextRequest) {
     }
     const rowsInput = references as ReferenceRow[]
     const completeOnly = rowsInput.filter(isReferenceComplete)
-    if (completeOnly.length < MIN_COMPLETE_REFERENCES) {
+    if (completeOnly.length < minCount) {
       return NextResponse.json(
         {
-          error: `At least ${MIN_COMPLETE_REFERENCES} complete references are required (first name, last name, phone, and email for each).`,
+          error: `At least ${minCount} complete reference${minCount === 1 ? " is" : "s are"} required.`,
         },
         { status: 400 },
       )
@@ -89,23 +90,48 @@ export async function POST(req: NextRequest) {
       )
     }
 
+    if (worker.tenantId !== tenantRes.tenantId) {
+      return NextResponse.json({ error: "Tenant mismatch." }, { status: 403 })
+    }
+
     const workerId = worker.workerId
     const tenantId = worker.tenantId
 
-    const { error: delErr } = await supabase.from("worker_references").delete().eq("worker_id", workerId)
+    const { error: delErr } = await supabase
+      .from("worker_references")
+      .delete()
+      .eq("worker_id", workerId)
+      .eq("tenant_id", tenantId)
     if (delErr) {
-      console.error("[onboarding/worker-references] delete existing", delErr)
-      throw delErr
+      // Older schemas may lack tenant_id — fall back to worker-scoped delete.
+      const { error: delFallback } = await supabase
+        .from("worker_references")
+        .delete()
+        .eq("worker_id", workerId)
+      if (delFallback) {
+        console.error("[onboarding/worker-references] delete existing", delErr, delFallback)
+        throw delFallback
+      }
     }
 
-    const rows = completeOnly.map((r) => ({
-      tenant_id: tenantId,
-      worker_id: workerId,
-      reference_first_name: String(r.first ?? "").trim(),
-      reference_last_name: String(r.last ?? "").trim(),
-      reference_phone: String(r.phone ?? "").trim() || null,
-      reference_email: String(r.email ?? "").trim(),
-    }))
+    const rows = completeOnly.map((r) => {
+      const yearsRaw = String(r.yearsKnown ?? "").trim()
+      const yearsKnown = yearsRaw ? Number(yearsRaw) : null
+      return {
+        tenant_id: tenantId,
+        worker_id: workerId,
+        reference_first_name: String(r.first ?? "").trim(),
+        reference_last_name: String(r.last ?? "").trim(),
+        reference_phone: String(r.phone ?? "").trim() || null,
+        reference_email: String(r.email ?? "").trim(),
+        relationship: String(r.relationship ?? "").trim() || null,
+        company: String(r.company ?? "").trim() || null,
+        job_title: String(r.jobTitle ?? "").trim() || null,
+        years_known:
+          yearsKnown != null && Number.isFinite(yearsKnown) ? yearsKnown : null,
+        notes: String(r.notes ?? "").trim() || null,
+      }
+    })
 
     for (const row of rows) {
       if (!row.reference_first_name || !row.reference_last_name || !row.reference_email) {

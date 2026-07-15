@@ -181,7 +181,9 @@ export function computeMaxAllowedStepIndex(
           s.step_type === "authorizations" ||
           s.step_key === "authorizations" ||
           s.step_key === "authorization_background_check" ||
-          s.step_key === "agreement_signature"
+          s.step_key === "agreement_signature" ||
+          s.step_type === "references" ||
+          s.step_key === "references"
       );
       if (authIdx >= 0) max = Math.max(max, authIdx + 2);
     }

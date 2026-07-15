@@ -87,14 +87,17 @@ export function createDefaultOnboardingStepDrafts(): OnboardingStepDraft[] {
       required_documents: [],
     },
     {
-      step_key: "agreement_signature",
-      title: "Agreement / Signature",
-      description: "Review and sign required agreements",
-      step_type: "authorizations",
+      step_key: "references",
+      title: "Add Reference",
+      description: "Add professional references for verification",
+      step_type: "references",
       sort_order: 50,
       is_required: true,
       is_enabled: true,
-      metadata: { workflow_step_id: "employee-agreement" },
+      metadata: {
+        min_count: 1,
+        workflow_step_id: "references-collection",
+      },
       required_documents: [],
     },
     {

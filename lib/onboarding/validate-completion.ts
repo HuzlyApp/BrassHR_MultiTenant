@@ -119,7 +119,7 @@ export async function validateWorkerOnboardingComplete(
 
     if (step.step_type === "references") {
       const minCount =
-        typeof step.metadata.min_count === "number" ? Number(step.metadata.min_count) : 2;
+        typeof step.metadata.min_count === "number" ? Number(step.metadata.min_count) : 1;
       const { count } = await supabase
         .from("worker_references")
         .select("id", { count: "exact", head: true })

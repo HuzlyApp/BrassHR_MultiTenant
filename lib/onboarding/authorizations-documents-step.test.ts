@@ -156,13 +156,44 @@ describe("authorizations-documents-step", () => {
     ).toBe(false);
   });
 
-  it("advances from background check skip to the agreement signature step", () => {
+  it("advances from background check to Add Reference on the default workflow", () => {
+    const config: TenantOnboardingConfig = {
+      id: "cfg-default",
+      tenantId: "tenant-1",
+      steps: [
+        step({ step_key: "resume_upload", step_type: "resume_upload", sort_order: 10 }),
+        step({ step_key: "professional_license", step_type: "professional_license", sort_order: 20 }),
+        step({ step_key: "skill_assessment", step_type: "skill_assessment", sort_order: 30 }),
+        step({
+          step_key: "authorization_background_check",
+          step_type: "custom_question",
+          sort_order: 40,
+          metadata: { workflow_step_id: "background-check" },
+        }),
+        step({
+          step_key: "references",
+          step_type: "references",
+          sort_order: 50,
+          metadata: { min_count: 1, workflow_step_id: "references-collection" },
+        }),
+        step({ step_key: "review_submit", step_type: "review_submit", sort_order: 60 }),
+      ],
+      requiredDocuments: [],
+      skillAssessments: [],
+    };
+    const background = config.steps.find((s) => s.step_key === "authorization_background_check")!;
+    const next = adjacentStepRoute(config, background, 1, "zipstaff");
+    expect(next).toContain("add-references");
+    expect(next).toContain("stepKey=references");
+    expect(next).toContain("tenant=zipstaff");
+  });
+
+  it("still supports custom workflows that keep a standalone agreement signature step", () => {
     const config = zipstaffAuthorizationsConfig();
     const background = config.steps.find((s) => s.step_key === "authorization_background_check")!;
     const next = adjacentStepRoute(config, background, 1, "zipstaff");
     expect(next).toContain("authorizations-documents");
     expect(next).toContain("stepKey=agreement_signature");
-    expect(next).toContain("tenant=zipstaff");
   });
 });
 

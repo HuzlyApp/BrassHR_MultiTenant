@@ -2,7 +2,7 @@
 
 import { APPLICATION_ROUTES } from "@/lib/onboarding/application-routes"
 import { applicationPath } from "@/lib/tenant/with-tenant"
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import OnboardingLayout from "@/app/components/OnboardingLayout"
 import OnboardingStepper from "@/app/components/OnboardingStepper"
@@ -32,21 +32,23 @@ import {
 } from "@/app/application/applicant-onboarding-responsive"
 import AutosaveStatus from "@/app/components/AutosaveStatus"
 import {
+  emptyReferenceRow,
   getReferencesSaveError,
   isReferenceComplete,
-  MIN_COMPLETE_REFERENCES,
   type ReferenceRow,
 } from "@/lib/referencesValidation"
 
 type RefRow = ReferenceRow
 
 function loadRefsFromStorage(): RefRow[] {
-  if (typeof window === "undefined") return [{ first: "", last: "", phone: "", email: "" }]
+  if (typeof window === "undefined") return [emptyReferenceRow()]
   try {
     const draft = localStorage.getItem("referenceDataDraft")
     if (draft) {
       const p = JSON.parse(draft) as RefRow[]
-      if (Array.isArray(p) && p.length) return p
+      if (Array.isArray(p) && p.length) {
+        return p.map((r) => ({ ...emptyReferenceRow(), ...r }))
+      }
     }
   } catch {
     /* ignore */
@@ -55,12 +57,14 @@ function loadRefsFromStorage(): RefRow[] {
     const saved = localStorage.getItem("referenceData")
     if (saved) {
       const p = JSON.parse(saved) as RefRow[]
-      if (Array.isArray(p) && p.length) return p
+      if (Array.isArray(p) && p.length) {
+        return p.map((r) => ({ ...emptyReferenceRow(), ...r }))
+      }
     }
   } catch {
     /* ignore */
   }
-  return [{ first: "", last: "", phone: "", email: "" }]
+  return [emptyReferenceRow()]
 }
 
 export default function ReferencesPage() {
@@ -76,6 +80,14 @@ export default function ReferencesPage() {
     nav.currentStep ??
     nav.enabledSteps?.find((s) => s.step_type === "references" || s.step_key === "references") ??
     null
+
+  const minCount = useMemo(() => {
+    const raw = referencesStep?.metadata?.min_count
+    const n = typeof raw === "number" ? raw : Number(raw)
+    return Number.isFinite(n) && n > 0 ? Math.floor(n) : 1
+  }, [referencesStep?.metadata?.min_count])
+
+  const canSkip = referencesStep?.is_required === false
 
   useMarkStepInProgressIfPending({
     step: referencesStep,
@@ -124,25 +136,34 @@ export default function ReferencesPage() {
     return () => window.clearTimeout(t)
   }, [refs])
 
-  function update(index: number, field: string, value: string) {
+  function update(index: number, field: keyof RefRow, value: string) {
     const updated = [...refs]
     updated[index] = { ...updated[index], [field]: value }
     setRefs(updated)
   }
 
   function addReference() {
-    if (refs.length >= 3) return
-    setRefs([...refs, { first: "", last: "", phone: "", email: "" }])
+    if (refs.length >= 5) return
+    setRefs([...refs, emptyReferenceRow()])
+  }
+
+  function removeReference(index: number) {
+    if (refs.length <= 1) {
+      setRefs([emptyReferenceRow()])
+      return
+    }
+    setRefs(refs.filter((_, i) => i !== index))
   }
 
   async function skipReferences() {
+    if (!canSkip) return
     void skipOnboardingStep({
       step: referencesStep,
       updateStepStatus: nav.updateStepStatus,
       completingRef,
       onNavigate: () => {
         if (nav.nextRoute) nav.push(nav.nextRoute)
-        else router.push(applicationPath(APPLICATION_ROUTES.referenceReview))
+        else router.push(applicationPath(APPLICATION_ROUTES.applicationSummary))
       },
     })
   }
@@ -150,7 +171,7 @@ export default function ReferencesPage() {
   async function saveReferences() {
     setError("")
     setSaving(true)
-    const validationError = getReferencesSaveError(refs)
+    const validationError = getReferencesSaveError(refs, { minCount })
     if (validationError) {
       setError(validationError)
       setSaving(false)
@@ -197,11 +218,17 @@ export default function ReferencesPage() {
           body: JSON.stringify({
             applicantId,
             tenantSlug,
+            minCount,
             references: completeRefs.map((r) => ({
               first: r.first,
               last: r.last,
               phone: r.phone,
               email: r.email,
+              relationship: r.relationship,
+              company: r.company,
+              jobTitle: r.jobTitle,
+              yearsKnown: r.yearsKnown,
+              notes: r.notes,
             })),
           }),
         })
@@ -239,7 +266,7 @@ export default function ReferencesPage() {
     if (nav.nextRoute) {
       nav.push(nav.nextRoute)
     } else {
-      router.push(applicationPath(APPLICATION_ROUTES.referenceReview))
+      router.push(applicationPath(APPLICATION_ROUTES.applicationSummary))
     }
     setSaving(false)
   }
@@ -259,85 +286,148 @@ export default function ReferencesPage() {
 
         <div className={APPLICANT_CONTENT_CLASS}>
           <div className={APPLICANT_HEADER_ROW}>
-            <h2 className={APPLICANT_TITLE_CLASS}>Add References</h2>
+            <h2 className={APPLICANT_TITLE_CLASS}>Add Reference</h2>
             <div className={`${APPLICANT_SKIP_COLUMN} max-[399px]:flex-row max-[399px]:items-center max-[399px]:justify-end max-[399px]:gap-2`}>
               <AutosaveStatus
                 state={
                   autosaveState === "saving" ? "saving" : autosaveState === "saved" ? "saved" : "idle"
                 }
               />
-              <button
-                type="button"
-                onClick={() => void skipReferences()}
-                className="cursor-pointer text-[12px] font-medium leading-5 text-[color:var(--brand-primary)]"
-              >
-                Skip for Now →
-              </button>
+              {canSkip ? (
+                <button
+                  type="button"
+                  onClick={() => void skipReferences()}
+                  className="cursor-pointer text-[12px] font-medium leading-5 text-[color:var(--brand-primary)]"
+                >
+                  Skip for Now →
+                </button>
+              ) : null}
             </div>
           </div>
           <p className="mb-1 text-xs text-slate-500 sm:text-[13px]">Trusted feedback, verified integrity.</p>
           <p className="mb-5 text-[11px] text-slate-400 sm:mb-6 sm:text-[12px]">
-            Add at least {MIN_COMPLETE_REFERENCES} complete references (up to 3). Use + Add Reference for a third optional contact.
+            Add at least {minCount} complete professional reference{minCount === 1 ? "" : "s"} (up to 5).
           </p>
 
-          {/* References */}
           <div className="space-y-8">
             {refs.map((r, index) => (
               <div key={index}>
-                <div className="flex items-center justify-between mb-3">
+                <div className="mb-3 flex items-center justify-between">
                   <p className="text-[15px] font-bold text-slate-800">Reference {index + 1}</p>
-                  {index < MIN_COMPLETE_REFERENCES ? (
-                    <p className="text-[11px] font-medium text-rose-600">Required</p>
-                  ) : (
-                    <p className="text-[11px] text-slate-400">Optional</p>
-                  )}
+                  <div className="flex items-center gap-3">
+                    {index < minCount ? (
+                      <p className="text-[11px] font-medium text-rose-600">Required</p>
+                    ) : (
+                      <p className="text-[11px] text-slate-400">Optional</p>
+                    )}
+                    {refs.length > 1 ? (
+                      <button
+                        type="button"
+                        onClick={() => removeReference(index)}
+                        className="text-[11px] font-medium text-slate-500 underline-offset-2 hover:underline"
+                      >
+                        Remove
+                      </button>
+                    ) : null}
+                  </div>
                 </div>
 
                 <div className={`${APPLICANT_FORM_GRID} mb-3`}>
                   <div>
-                    <label className="block text-[11px] text-slate-500 mb-1">First Name</label>
+                    <label className="mb-1 block text-[11px] text-slate-500">First Name</label>
                     <input
                       value={r.first}
                       onChange={(e) => update(index, "first", e.target.value)}
-                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-[13px] text-slate-800 outline-none focus:border-[color:var(--brand-primary)] transition"
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-[13px] text-slate-800 outline-none transition focus:border-[color:var(--brand-primary)]"
                     />
                   </div>
                   <div>
-                    <label className="block text-[11px] text-slate-500 mb-1">Last Name</label>
+                    <label className="mb-1 block text-[11px] text-slate-500">Last Name</label>
                     <input
                       value={r.last}
                       onChange={(e) => update(index, "last", e.target.value)}
-                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-[13px] text-slate-800 outline-none focus:border-[color:var(--brand-primary)] transition"
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-[13px] text-slate-800 outline-none transition focus:border-[color:var(--brand-primary)]"
                     />
                   </div>
                 </div>
 
-                <div className={APPLICANT_FORM_GRID}>
+                <div className={`${APPLICANT_FORM_GRID} mb-3`}>
                   <div>
-                    <label className="block text-[11px] text-slate-500 mb-1">Phone</label>
+                    <label className="mb-1 block text-[11px] text-slate-500">Relationship</label>
+                    <input
+                      value={r.relationship ?? ""}
+                      onChange={(e) => update(index, "relationship", e.target.value)}
+                      placeholder="Former supervisor"
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-[13px] text-slate-800 outline-none transition focus:border-[color:var(--brand-primary)]"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-[11px] text-slate-500">Company</label>
+                    <input
+                      value={r.company ?? ""}
+                      onChange={(e) => update(index, "company", e.target.value)}
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-[13px] text-slate-800 outline-none transition focus:border-[color:var(--brand-primary)]"
+                    />
+                  </div>
+                </div>
+
+                <div className={`${APPLICANT_FORM_GRID} mb-3`}>
+                  <div>
+                    <label className="mb-1 block text-[11px] text-slate-500">Job Title</label>
+                    <input
+                      value={r.jobTitle ?? ""}
+                      onChange={(e) => update(index, "jobTitle", e.target.value)}
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-[13px] text-slate-800 outline-none transition focus:border-[color:var(--brand-primary)]"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-[11px] text-slate-500">Years Known</label>
+                    <input
+                      value={r.yearsKnown ?? ""}
+                      onChange={(e) => update(index, "yearsKnown", e.target.value.replace(/[^\d.]/g, "").slice(0, 5))}
+                      inputMode="decimal"
+                      placeholder="Optional"
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-[13px] text-slate-800 outline-none transition focus:border-[color:var(--brand-primary)]"
+                    />
+                  </div>
+                </div>
+
+                <div className={`${APPLICANT_FORM_GRID} mb-3`}>
+                  <div>
+                    <label className="mb-1 block text-[11px] text-slate-500">Phone</label>
                     <input
                       value={formatPhoneNumber(r.phone)}
                       onChange={(e) => update(index, "phone", normalizePhoneInput(e.target.value))}
-                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-[13px] text-slate-800 outline-none focus:border-[color:var(--brand-primary)] transition"
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-[13px] text-slate-800 outline-none transition focus:border-[color:var(--brand-primary)]"
                       placeholder="(201) 555-5555"
                       inputMode="numeric"
                     />
                   </div>
                   <div>
-                    <label className="block text-[11px] text-slate-500 mb-1">Email</label>
+                    <label className="mb-1 block text-[11px] text-slate-500">Email</label>
                     <input
                       value={r.email}
                       onChange={(e) => update(index, "email", e.target.value)}
-                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-[13px] text-slate-800 outline-none focus:border-[color:var(--brand-primary)] transition"
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-[13px] text-slate-800 outline-none transition focus:border-[color:var(--brand-primary)]"
                     />
                   </div>
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-[11px] text-slate-500">Notes</label>
+                  <textarea
+                    value={r.notes ?? ""}
+                    onChange={(e) => update(index, "notes", e.target.value)}
+                    rows={2}
+                    placeholder="Optional"
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-[13px] text-slate-800 outline-none transition focus:border-[color:var(--brand-primary)]"
+                  />
                 </div>
               </div>
             ))}
           </div>
 
-          {/* Add Reference button */}
-          {refs.length < 3 && (
+          {refs.length < 5 && (
             <button
               type="button"
               onClick={addReference}
@@ -349,7 +439,6 @@ export default function ReferencesPage() {
 
           {error && <p className="mt-4 text-[12px] text-red-500">{error}</p>}
 
-          {/* Buttons */}
           <div className={APPLICANT_ACTION_ROW}>
             <button
               type="button"
@@ -360,7 +449,7 @@ export default function ReferencesPage() {
             </button>
             <button
               type="button"
-              onClick={saveReferences}
+              onClick={() => void saveReferences()}
               disabled={saving}
               className={`${APPLICANT_BTN_PRIMARY} disabled:cursor-not-allowed disabled:opacity-70`}
             >

@@ -20,7 +20,7 @@ export const DEFAULT_WORKFLOW_STEP_LABELS = [
   "Professional License",
   "Skill Assessment",
   "Authorization / Background Check",
-  "Agreement / Signature",
+  "Add Reference",
   "Final Review / Completion",
 ] as const;
 
