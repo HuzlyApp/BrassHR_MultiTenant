@@ -176,6 +176,7 @@ export default function Home() {
     activeTenantSlug && isTenantApplicantPortalSlug(activeTenantSlug)
       ? activeTenantSlug
       : null;
+  const isPlatformWelcome = !resolvedPortalSlug;
 
   // const recruiterSignInUrl = recruiterSignInHref({
   //   tenant: resolvedPortalSlug,
@@ -227,7 +228,11 @@ export default function Home() {
               />
               <div className="absolute inset-0 bg-gradient-to-r from-white/72 via-white/58 to-black/10" />
             </div>
-            <div className="relative z-10 flex w-full flex-col items-center pt-6">
+            <div
+              className={`relative z-10 flex w-full flex-col items-center pt-6${
+                isPlatformWelcome ? " h-full justify-center pt-0" : ""
+              }`}
+            >
             <BrandingRightPanelLogo
               src={logoSrc}
               alt={`${brand.companyName} logo`}
@@ -279,7 +284,7 @@ export default function Home() {
                 router.push("/signup");
               }}
               style={{ backgroundColor: "var(--brand-primary)", boxShadow: "0 10px 20px color-mix(in srgb, var(--brand-primary) 22%, transparent)" }}
-              className="inline-flex min-h-14 w-full max-w-[280px] cursor-pointer items-center justify-center rounded-xl px-8 py-4 text-[22px] font-semibold leading-[22px] text-white transition hover:brightness-105 focus:outline-none disabled:cursor-wait disabled:opacity-80"
+              className="inline-flex min-h-14 w-full max-w-[280px] cursor-pointer items-center justify-center rounded-xl px-8 py-4 text-[22px] font-semibold leading-[22px] text-white transition hover:brightness-105 focus:outline-none disabled:cursor-wait disabled:opacity-80 max-[499px]:min-h-12 max-[499px]:py-3"
             >
               {startingApplication ? "Starting…" : primaryCtaLabel}
             </button>
@@ -302,7 +307,7 @@ export default function Home() {
         </section>
 
         {/* Desktop/tablet split layout */}
-        <section className="relative z-10 hidden h-[calc(100dvh-3rem)] max-h-[760px] w-full max-w-[1160px] grid-cols-1 overflow-hidden rounded-2xl bg-white shadow-[0_24px_70px_rgba(0,0,0,0.18)] min-[1024px]:grid min-[1024px]:grid-cols-[680px_480px]">
+        <section className="relative z-10 hidden h-[calc(100dvh-3rem)] max-h-[760px] w-full max-w-[1160px] grid-cols-1 overflow-hidden rounded-2xl bg-white shadow-[0_24px_70px_rgba(0,0,0,0.18)] min-[1024px]:grid min-[1024px]:grid-cols-[minmax(0,17fr)_minmax(300px,12fr)]">
           <div className="flex flex-col items-center justify-center gap-5 px-10 py-10 text-center">
             <div className="space-y-3">
               <h1 className="whitespace-nowrap text-[42px] font-semibold leading-[50px] tracking-normal text-slate-800 max-[1079px]:text-[38px] max-[1079px]:leading-[45px] min-[1200px]:text-[48px] min-[1200px]:leading-[60px]">

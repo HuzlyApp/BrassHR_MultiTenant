@@ -103,17 +103,24 @@ export default function TenantOnboardingPage() {
   const buildAdminRecruiterLoginUrl = (slug: string | null, domain: string | null): string | null => {
     const cleanedSlug = slug?.trim() ?? "";
     const cleanedDomain = domain?.trim() ?? "";
-    if (!cleanedSlug || !cleanedDomain) return null;
+    if (!cleanedSlug) return null;
+
+    const hostname = typeof window !== "undefined" ? window.location.hostname.toLowerCase() : "";
+    const useQueryTenantDashboard =
+      hostname === "localhost" ||
+      hostname === "127.0.0.1" ||
+      hostname === "::1" ||
+      hostname.endsWith(".vercel.app");
+
+    if (useQueryTenantDashboard) {
+      return `/admin?tenant=${encodeURIComponent(cleanedSlug)}`;
+    }
 
     const normalizedDomain = cleanedDomain.replace(/^https?:\/\//i, "").replace(/\/+$/, "");
-    if (!normalizedDomain) return null;
+    if (!normalizedDomain) return `/admin?tenant=${encodeURIComponent(cleanedSlug)}`;
 
-    const protocol =
-      typeof window !== "undefined" && window.location.protocol
-        ? window.location.protocol
-        : "https:";
-
-    return `${protocol}//${normalizedDomain}/login?tenant=${encodeURIComponent(cleanedSlug)}&role=admin_recruiter`;
+    const protocol = typeof window !== "undefined" && window.location.protocol ? window.location.protocol : "https:";
+    return `${protocol}//${normalizedDomain}/admin`;
   };
 
   useEffect(() => {
@@ -408,17 +415,11 @@ export default function TenantOnboardingPage() {
       }
 
       if (options?.redirectToDashboard && typeof window !== "undefined") {
-        // Go straight to the recruiter login ("/admin") instead of the
-        // protected "/admin_recruiter/home", which the middleware would
-        // otherwise bounce to "/admin?next=..." (causing a brief error flash).
-        const cleanedDomain = (payload.domain ?? "")
-          .trim()
-          .replace(/^https?:\/\//i, "")
-          .replace(/\/+$/, "");
-        const protocol = window.location.protocol || "https:";
-        const adminUrl = cleanedDomain ? `${protocol}//${cleanedDomain}/admin` : "/admin";
-        await waitUntilReachableThenGo(adminUrl);
-        return;
+        const adminUrl = buildAdminRecruiterLoginUrl(payload.slug ?? null, payload.domain ?? null);
+        if (adminUrl) {
+          await waitUntilReachableThenGo(adminUrl);
+          return;
+        }
       }
 
       const adminLoginUrl = buildAdminRecruiterLoginUrl(payload.slug ?? null, payload.domain ?? null);
