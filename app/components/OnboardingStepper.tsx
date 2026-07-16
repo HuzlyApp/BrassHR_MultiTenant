@@ -166,9 +166,9 @@ export default function OnboardingStepper({
 
   return (
     <>
-      <div className="w-full border-b border-slate-200 pb-4 sm:pb-6" style={brandingToCssVars(branding)}>
-        <div className="relative mx-auto mt-2 w-full max-w-3xl px-1 sm:px-2">
-          <div className="scrollbar-hide -mx-1 overflow-x-auto px-1 pb-1 sm:mx-0 sm:px-2">
+      <div className="min-w-0 w-full border-b border-slate-200 pb-4 sm:pb-6" style={brandingToCssVars(branding)}>
+        <div className="relative mx-auto mt-2 min-w-0 w-full max-w-3xl px-1 sm:px-2">
+          <div className="scrollbar-hide -mx-1 min-w-0 overflow-x-auto px-1 pb-1 sm:mx-0 sm:px-2">
             <div
               className="grid w-full min-w-[680px] max-[399px]:min-w-[520px] sm:min-w-0"
               style={{ gridTemplateColumns: `repeat(${stepLabels.length}, minmax(0, 1fr))` }}
@@ -193,7 +193,7 @@ export default function OnboardingStepper({
                       push(stepRoutes[index])
                     }}
                     disabled={!isClickable}
-                    className={`group relative z-10 flex w-full max-w-[5.75rem] flex-col items-center rounded-lg px-1 py-1 text-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)]/40 max-[399px]:max-w-[4.5rem] max-[399px]:px-0.5 sm:max-w-28 sm:px-1.5 ${
+                    className={`group relative z-10 flex w-full max-w-[5.75rem] flex-col items-center rounded-lg px-1 py-1 text-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)]/40 max-[399px]:max-w-[4.5rem] max-[399px]:px-0.5 min-[750px]:max-w-[4.5rem] min-[1200px]:max-w-28 sm:px-1.5 ${
                       isClickable ? "cursor-pointer" : "cursor-not-allowed"
                     }`}
                     aria-label={`${isClickable ? "Go to" : "Locked"} ${configStep.title}${

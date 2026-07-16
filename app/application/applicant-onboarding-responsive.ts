@@ -1,9 +1,9 @@
 /** Shared mobile layout classes for applicant onboarding steps. */
 export const APPLICANT_SHELL_CLASS =
-  "flex h-full flex-col px-4 pb-8 pt-6 sm:px-10 sm:pb-10 sm:pt-8"
+  "flex h-full min-w-0 flex-col px-4 pb-8 pt-6 sm:px-6 sm:pb-10 sm:pt-8 min-[1200px]:px-10"
 
 export const APPLICANT_SHELL_TALL_CLASS =
-  "flex h-full flex-col px-4 pb-8 pt-8 sm:px-10 sm:pb-10 sm:pt-14"
+  "flex h-full min-w-0 flex-col px-4 pb-8 pt-8 sm:px-6 sm:pb-10 sm:pt-14 min-[1200px]:px-10"
 
 export const APPLICANT_CONTENT_CLASS = "flex flex-1 flex-col pt-6 sm:pt-8"
 
