@@ -8,6 +8,7 @@ import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { X } from "lucide-react";
 import { SidebarSubmenuToggleIcon } from "@/app/components/sidebar/SidebarSubmenuToggleIcon";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
+import { BRAAS_PLATFORM_FAVICON } from "@/lib/tenant/tenant-branding";
 import { useAccountData } from "@/app/admin_recruiter/hooks/useAccountData";
 import {
   ADMIN_RECRUITER_HOME_ROUTE,
@@ -55,7 +56,7 @@ function getFirstNavigableChildHref(children: SidebarLink[]): string | null {
   return null;
 }
 
-const DEFAULT_TENANT_LOGO = "/images/new-logo-nexus.svg";
+const DEFAULT_TENANT_LOGO = BRAAS_PLATFORM_FAVICON;
 const DASHBOARD_HOME_HREF = ADMIN_RECRUITER_HOME_ROUTE;
 
 export function AdminRecruiterSidebar({

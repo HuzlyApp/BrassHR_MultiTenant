@@ -256,7 +256,7 @@ export default function Home() {
         </div>
 
         <section className="relative z-10 flex h-full w-full items-center justify-center min-[1024px]:hidden">
-          <div className="relative z-10 w-[92vw] max-w-[516px] min-h-[420px] rounded-[22px] bg-white/88 px-7 py-10 text-center shadow-[0_20px_46px_rgba(0,0,0,0.22)] backdrop-blur-[1px] sm:px-8 sm:py-10">
+          <div className="relative z-10 w-[92vw] max-w-[516px] min-h-[420px] rounded-[22px] bg-white/88 px-7 py-10 text-center shadow-[0_20px_46px_rgba(0,0,0,0.22)] backdrop-blur-[1px] max-[649px]:min-h-[357px] sm:px-8 sm:py-10">
             <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-[22px]" aria-hidden>
               <div className="absolute inset-0 bg-white/32" />
               <BrandingFillImage
@@ -269,7 +269,7 @@ export default function Home() {
             </div>
             <div
               className={`relative z-10 flex w-full flex-col items-center pt-6${
-                isPlatformWelcome ? " h-full justify-center pt-0" : ""
+                isPlatformWelcome ? " h-full translate-y-3 justify-center pt-0" : ""
               }`}
             >
             <BrandingRightPanelLogo

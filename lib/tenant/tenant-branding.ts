@@ -59,8 +59,8 @@ export type TenantBranding = {
 
 export const PLATFORM_DEFAULT_TENANT_SLUG = "braas-hr";
 
-/** Brass HR platform icon used on login / worker-signin shells. */
-export const BRAAS_PLATFORM_FAVICON = "/icons/braas-HR/brassHR favicon 2.svg";
+/** Brass HR platform favicon and default tenant icon. */
+export const BRAAS_PLATFORM_FAVICON = "/brassHR favicon 2.svg";
 
 export function isBraasPlatformBranding(brand: Pick<TenantBranding, "slug" | "companyName">): boolean {
   const slug = brand.slug?.trim().toLowerCase();
@@ -258,7 +258,7 @@ export function brandingFallbackForSlug(
           logoUrl: "/icons/braas-HR/BrassHR-logo.svg",
           loginLogoUrl: "/icons/braas-HR/BrassHR-logo.svg",
           signupLogoUrl: "/icons/braas-HR/BrassHR-logo.svg",
-          faviconUrl: "/icons/braas-HR/BrassHR-logo.svg",
+          faviconUrl: BRAAS_PLATFORM_FAVICON,
           headline: `Welcome to ${name}`,
           subtitle: "HR Simplified for growing teams",
           signupHeadline: `Welcome to ${name}`,
@@ -284,6 +284,10 @@ export function brandingFromTenantRow(
   const company = row.name?.trim() || fb.companyName;
   const primaryHex = row.primary_color?.trim() || fb.primaryHex;
   const logoUrl = normalizeBrandingImageSrc(row.logo_url, fb.logoUrl, { allowBlob: true });
+  const hasCustomLogo = Boolean(row.logo_url?.trim());
+  const isPlatformBranding = row.slug?.trim().toLowerCase() === PLATFORM_DEFAULT_TENANT_SLUG;
+  const faviconFallback =
+    isPlatformBranding || !hasCustomLogo ? BRAAS_PLATFORM_FAVICON : logoUrl;
   const typography = brandingTypographyDefaults(primaryHex);
   return {
     id: row.id,
@@ -292,7 +296,9 @@ export function brandingFromTenantRow(
     logoUrl,
     loginLogoUrl: normalizeBrandingImageSrc(row.login_logo_url, logoUrl, { allowBlob: true }),
     signupLogoUrl: normalizeBrandingImageSrc(row.signup_logo_url, logoUrl, { allowBlob: true }),
-    faviconUrl: normalizeBrandingImageSrc(row.favicon_url, logoUrl, { allowBlob: true }),
+    faviconUrl: isPlatformBranding
+      ? BRAAS_PLATFORM_FAVICON
+      : normalizeBrandingImageSrc(row.favicon_url, faviconFallback, { allowBlob: true }),
     headline: row.welcome_headline?.trim() || `Welcome to ${company}`,
     subtitle: row.welcome_subtitle?.trim() || fb.subtitle,
     signupHeadline: row.signup_headline?.trim() || row.welcome_headline?.trim() || `Welcome to ${company}`,

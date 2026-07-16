@@ -4,6 +4,7 @@ import { createClient as createSb } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import type { TenantBrandingRow } from "@/lib/tenant/tenant-branding";
 import {
+  BRAAS_PLATFORM_FAVICON,
   brandingFallbackForSlug,
   brandingFromTenantRow,
   normalizeBrandingImageSrc,
@@ -16,7 +17,7 @@ export const runtime = "nodejs";
 const TENANT_BRANDING_SELECT =
   "id, name, slug, logo_url, favicon_url, primary_color, secondary_color, accent_color, welcome_headline, welcome_subtitle, auth_background_image_url";
 
-const DEFAULT_FAVICON = "/icons/braas-HR/BrassHR-logo.svg";
+const DEFAULT_FAVICON = BRAAS_PLATFORM_FAVICON;
 
 const CACHE_CONTROL = "public, max-age=86400, stale-while-revalidate=604800";
 
