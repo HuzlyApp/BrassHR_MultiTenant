@@ -87,8 +87,6 @@ export default function ReferencesPage() {
     return Number.isFinite(n) && n > 0 ? Math.floor(n) : 1
   }, [referencesStep?.metadata?.min_count])
 
-  const canSkip = referencesStep?.is_required === false
-
   useMarkStepInProgressIfPending({
     step: referencesStep,
     disabled: nav.configLoading || isOnboardingDraftPreview(search) || redirecting,
@@ -156,7 +154,6 @@ export default function ReferencesPage() {
   }
 
   async function skipReferences() {
-    if (!canSkip) return
     void skipOnboardingStep({
       step: referencesStep,
       updateStepStatus: nav.updateStepStatus,
@@ -293,15 +290,13 @@ export default function ReferencesPage() {
                   autosaveState === "saving" ? "saving" : autosaveState === "saved" ? "saved" : "idle"
                 }
               />
-              {canSkip ? (
-                <button
-                  type="button"
-                  onClick={() => void skipReferences()}
-                  className="cursor-pointer text-[12px] font-medium leading-5 text-[color:var(--brand-primary)]"
-                >
-                  Skip for Now →
-                </button>
-              ) : null}
+              <button
+                type="button"
+                onClick={() => void skipReferences()}
+                className="cursor-pointer text-[12px] font-medium leading-5 text-[color:var(--brand-primary)]"
+              >
+                Skip for Now →
+              </button>
             </div>
           </div>
           <p className="mb-1 text-xs text-slate-500 sm:text-[13px]">Trusted feedback, verified integrity.</p>
