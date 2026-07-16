@@ -33,12 +33,18 @@ export async function GET(req: Request) {
 
   try {
     const branding = await loadPublicTenantBranding(lookup);
+    const tenantWasRequested = Boolean(
+      lookup.hostSubdomain || lookup.slug || lookup.tenantId || lookup.subdomain
+    );
     logPerf("GET /api/tenant-branding", {
       totalMs: routeTimer.elapsedMs(),
       lookup: hostSubdomain || lookup.subdomain || lookup.slug || lookup.tenantId || "default",
       host: hostNorm,
     });
-    return Response.json({ branding }, { headers: tenantResponseHeaders });
+    return Response.json(
+      { branding, tenantFound: !tenantWasRequested || Boolean(branding.id) },
+      { headers: tenantResponseHeaders }
+    );
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Tenant branding lookup failed";
     console.error("[tenant-branding]", msg);

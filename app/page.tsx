@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState, type CSSProperties } from "react";
 import { TenantBrandingProvider } from "@/app/components/tenant/TenantBrandingContext";
 import {
@@ -64,11 +64,14 @@ function BrandingFillImage({
 
 export default function Home() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const search = searchParams.toString();
   const [brand, setBrand] = useState<TenantBranding>(() =>
     brandingFallbackForSlug(PLATFORM_DEFAULT_TENANT_SLUG)
   );
   const [brandLoaded, setBrandLoaded] = useState(false);
   const [activeTenantSlug, setActiveTenantSlug] = useState<string | null>(null);
+  const [tenantNotFound, setTenantNotFound] = useState(false);
   const [applicationEntryUrl, setApplicationEntryUrl] = useState<string | null>(null);
   const [startingApplication, setStartingApplication] = useState(false);
 
@@ -82,6 +85,7 @@ export default function Home() {
 
   useEffect(() => {
     let alive = true;
+    setTenantNotFound(false);
     void (async () => {
       const resolved = resolveTenantSlugForClient(window.location.search, {
         path: window.location.pathname,
@@ -111,8 +115,15 @@ export default function Home() {
           cache: "no-store",
           signal: AbortSignal.timeout(12_000),
         });
-        const payload = (await res.json()) as { branding?: TenantBranding };
-        if (alive && payload.branding) setBrand(payload.branding);
+        const payload = (await res.json()) as { branding?: TenantBranding; tenantFound?: boolean };
+        if (alive && payload.tenantFound === false) {
+          setActiveTenantSlug(null);
+          setBrand(brandingFallbackForSlug(PLATFORM_DEFAULT_TENANT_SLUG));
+          setTenantNotFound(true);
+        } else if (alive && payload.branding) {
+          setBrand(payload.branding);
+          setTenantNotFound(false);
+        }
       } catch {
         if (alive) setBrand(brandingFallbackForSlug(brandingSlug));
       } finally {
@@ -126,7 +137,7 @@ export default function Home() {
       alive = false;
       window.clearTimeout(safetyTimer);
     };
-  }, []);
+  }, [search]);
 
   useEffect(() => {
     if (!activeTenantSlug || !isTenantApplicantPortalSlug(activeTenantSlug)) {
@@ -193,6 +204,33 @@ export default function Home() {
     "/images/new-logo-nexus.svg",
     { allowBlob: true }
   );
+
+  if (tenantNotFound) {
+    return (
+      <TenantBrandingProvider branding={brand}>
+        <main
+          style={shell}
+          className="flex min-h-screen items-center justify-center px-4 py-8 sm:px-6"
+        >
+          <section className="w-full max-w-[520px] rounded-2xl bg-white px-6 py-10 text-center shadow-[0_24px_70px_rgba(0,0,0,0.18)] sm:px-10 sm:py-12">
+            <h1 className="text-[28px] font-semibold leading-9 text-slate-900 sm:text-[34px] sm:leading-10">
+              Tenant not found
+            </h1>
+            <p className="mx-auto mt-3 max-w-[360px] text-[15px] leading-6 text-slate-500 sm:text-[16px]">
+              This tenant link is invalid or the tenant is no longer available.
+            </p>
+            <Link
+              href="/"
+              className="mt-8 inline-flex min-h-12 items-center justify-center rounded-xl px-6 text-[16px] font-semibold text-white transition hover:brightness-105"
+              style={{ backgroundColor: "var(--brand-primary)" }}
+            >
+              Go to Brass HR
+            </Link>
+          </section>
+        </main>
+      </TenantBrandingProvider>
+    );
+  }
 
   return (
     <TenantBrandingProvider branding={brand}>
