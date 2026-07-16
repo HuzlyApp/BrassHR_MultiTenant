@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useEffect, useState, type CSSProperties } from "react";
 import { TenantBrandingProvider } from "@/app/components/tenant/TenantBrandingContext";
 import {
@@ -64,8 +64,6 @@ function BrandingFillImage({
 
 export default function Home() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const search = searchParams.toString();
   const [brand, setBrand] = useState<TenantBranding>(() =>
     brandingFallbackForSlug(PLATFORM_DEFAULT_TENANT_SLUG)
   );
@@ -85,7 +83,6 @@ export default function Home() {
 
   useEffect(() => {
     let alive = true;
-    setTenantNotFound(false);
     void (async () => {
       const resolved = resolveTenantSlugForClient(window.location.search, {
         path: window.location.pathname,
@@ -137,7 +134,7 @@ export default function Home() {
       alive = false;
       window.clearTimeout(safetyTimer);
     };
-  }, [search]);
+  }, []);
 
   useEffect(() => {
     if (!activeTenantSlug || !isTenantApplicantPortalSlug(activeTenantSlug)) {
@@ -221,6 +218,10 @@ export default function Home() {
             </p>
             <Link
               href="/"
+              onClick={(event) => {
+                event.preventDefault();
+                window.location.assign("/");
+              }}
               className="mt-8 inline-flex min-h-12 items-center justify-center rounded-xl px-6 text-[16px] font-semibold text-white transition hover:brightness-105"
               style={{ backgroundColor: "var(--brand-primary)" }}
             >
