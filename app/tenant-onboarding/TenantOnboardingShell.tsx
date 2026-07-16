@@ -79,6 +79,7 @@ export function primaryButtonStyle(enabled: boolean): React.CSSProperties | unde
   return {
     backgroundImage: "linear-gradient(90deg, var(--brand-primary) 0%, var(--brand-accent) 100%)",
     fontFamily: "var(--font-geist-sans), Inter, Arial, sans-serif",
+    color: "#ffffff",
   };
 }
 

@@ -455,7 +455,12 @@ export default function TenantOnboardingPage() {
   }
 
   return (
-    <TenantOnboardingShell brand={preview} step={step} hideStepper={step === "done"} stepperStates={stepperStates}>
+    <TenantOnboardingShell
+      brand={step === "done" ? brandingPreview : brand}
+      step={step}
+      hideStepper={step === "done"}
+      stepperStates={stepperStates}
+    >
       {error && step !== "domain" ? <ErrorBanner message={error} /> : null}
 
       {step === "goals" ? (

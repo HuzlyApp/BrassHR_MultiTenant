@@ -1074,12 +1074,14 @@ export default function SignupPage() {
                 </div>
                 */}
 
+                {/* Keep the sign-in link disabled until the tenant signup flow supports returning users.
                 <p className="mt-[34px] text-center text-[11px] font-normal leading-none text-[#64748b]">
                   Already have an account?{" "}
                   <Link href="/signin?next=/tenant-onboarding" className="font-semibold text-[#0b0f19] hover:underline">
                     Sign In
                   </Link>
                 </p>
+                */}
               </>
             )}
           </form>
