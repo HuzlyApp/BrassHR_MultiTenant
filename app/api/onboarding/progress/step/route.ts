@@ -15,6 +15,7 @@ import { isOnboardingStepSkippable } from "@/lib/onboarding/is-step-skippable";
 import { isValidStep1Email } from "@/lib/onboardingStep1Validation";
 import { getEnabledTenantSteps } from "@/lib/onboarding/tenant-step-navigation";
 import { persistFarthestReachedStepIndex } from "@/lib/onboarding/persist-farthest-reached-step";
+import { resolveOnboardingProgressStep } from "@/lib/onboarding/resolve-onboarding-progress-step";
 import type { OnboardingStepStatus } from "@/lib/onboarding/types";
 
 export const runtime = "nodejs";
@@ -62,29 +63,42 @@ export async function POST(req: NextRequest) {
 
     const payload = await ensureWorkerOnboardingProgress(supabase, ctx.workerId, ctx.tenantId);
 
-    const config = await loadTenantOnboardingConfig(supabase, ctx.tenantId, {
+    let config = await loadTenantOnboardingConfig(supabase, ctx.tenantId, {
       workerFacing: true,
     });
 
-    let stepId = body.stepId?.trim() || "";
-    if (!stepId && body.stepKey && config) {
-      const stepKey = body.stepKey.trim();
-      const stepRow =
-        config.steps.find((s) => s.step_key === stepKey && s.is_enabled) ??
-        config.steps.find((s) => s.step_key === stepKey) ??
-        (stepKey === "resume_upload"
-          ? config.steps.find((s) => s.step_type === "resume_upload" && s.is_enabled)
-          : null);
-      stepId = stepRow?.id ? String(stepRow.id) : "";
+    let stepRow = resolveOnboardingProgressStep(config, {
+      stepId: body.stepId,
+      stepKey: body.stepKey,
+    });
+
+    let progressPayload = payload;
+
+    // Stale tenant config cache can omit a just-published step key (e.g. custom_question).
+    if (!stepRow && (body.stepId?.trim() || body.stepKey?.trim())) {
+      config = await loadTenantOnboardingConfig(supabase, ctx.tenantId, {
+        workerFacing: true,
+        bypassCache: true,
+      });
+      stepRow = resolveOnboardingProgressStep(config, {
+        stepId: body.stepId,
+        stepKey: body.stepKey,
+      });
+      if (stepRow) {
+        progressPayload = await ensureWorkerOnboardingProgress(
+          supabase,
+          ctx.workerId,
+          ctx.tenantId
+        );
+      }
     }
 
+    const stepId = stepRow?.id ? String(stepRow.id) : "";
     if (!stepId) {
       return NextResponse.json({ error: "Step not found" }, { status: 400 });
     }
 
     const completed_at = status === "completed" ? new Date().toISOString() : null;
-
-    const stepRow = config?.steps.find((s) => s.id === stepId) ?? null;
 
     if (status === "skipped" && stepRow && isUploadResumeStep(stepRow)) {
       return NextResponse.json({ error: "Upload Resume cannot be skipped." }, { status: 400 });
@@ -134,7 +148,7 @@ export async function POST(req: NextRequest) {
     const { data: existingRow } = await supabase
       .from("worker_onboarding_step_progress")
       .select("status")
-      .eq("worker_onboarding_progress_id", payload.progressId)
+      .eq("worker_onboarding_progress_id", progressPayload.progressId)
       .eq("onboarding_step_id", stepId)
       .maybeSingle();
 
@@ -195,6 +209,26 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    const { data: existingProgressRow } = await supabase
+      .from("worker_onboarding_step_progress")
+      .select("onboarding_step_id")
+      .eq("worker_onboarding_progress_id", progressPayload.progressId)
+      .eq("onboarding_step_id", stepId)
+      .maybeSingle();
+
+    if (!existingProgressRow) {
+      const { error: insertMissingErr } = await supabase
+        .from("worker_onboarding_step_progress")
+        .insert({
+          worker_onboarding_progress_id: progressPayload.progressId,
+          worker_id: ctx.workerId,
+          tenant_id: ctx.tenantId,
+          onboarding_step_id: stepId,
+          status: "pending",
+        });
+      if (insertMissingErr && insertMissingErr.code !== "23505") throw insertMissingErr;
+    }
+
     const { error: upErr } = await supabase
       .from("worker_onboarding_step_progress")
       .update({
@@ -203,7 +237,7 @@ export async function POST(req: NextRequest) {
         data: stepData,
         updated_at: new Date().toISOString(),
       })
-      .eq("worker_onboarding_progress_id", payload.progressId)
+      .eq("worker_onboarding_progress_id", progressPayload.progressId)
       .eq("onboarding_step_id", stepId);
 
     if (upErr) throw upErr;
@@ -212,11 +246,11 @@ export async function POST(req: NextRequest) {
       const enabledSteps = getEnabledTenantSteps(config);
       await persistFarthestReachedStepIndex(
         supabase,
-        payload.progressId,
+        progressPayload.progressId,
         enabledSteps,
         stepId,
         status,
-        payload.farthestReachedStepIndex ?? 1
+        progressPayload.farthestReachedStepIndex ?? 1
       );
     }
 

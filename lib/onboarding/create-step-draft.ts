@@ -34,9 +34,9 @@ const TYPE_DEFAULTS: Record<
     ],
   },
   references: {
-    title: "Add References",
+    title: "Add Reference",
     description: "Provide professional references",
-    metadata: { min_count: 2 },
+    metadata: { min_count: 1 },
     required_documents: [],
   },
   review_submit: {

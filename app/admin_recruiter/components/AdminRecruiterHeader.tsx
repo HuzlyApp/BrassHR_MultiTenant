@@ -19,6 +19,7 @@ import { formatRoleLabel, getAccountDisplayName } from "@/lib/account/display-na
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import { recruiterLogoutLoginHref } from "@/lib/auth/recruiter-sign-in";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
+import { BRAAS_PLATFORM_FAVICON } from "@/lib/tenant/tenant-branding";
 import {
   formatMessageTime,
   type ApplicantMessageListRow,
@@ -40,7 +41,7 @@ type AdminRecruiterHeaderProps = {
   onSidebarToggle?: () => void;
 };
 
-const DEFAULT_TENANT_LOGO = "/images/new-logo-nexus.svg";
+const DEFAULT_TENANT_LOGO = BRAAS_PLATFORM_FAVICON;
 
 /** Static count removed — use live unreadNotifications from header data API. */
 

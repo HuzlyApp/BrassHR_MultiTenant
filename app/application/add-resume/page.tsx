@@ -15,6 +15,7 @@ import {
   hexToRgba,
   isRemoteOrBlobImageSrc,
   normalizeBrandingImageSrc,
+  tenantApplicantPanelLogoUrl,
 } from "@/lib/tenant/tenant-branding"
 import {
   evaluateResumeParseQuality,
@@ -86,7 +87,7 @@ export default function Step1Upload() {
     background: brandingShellGradient(branding),
   }
   const panelSrc = normalizeBrandingImageSrc(branding.loginBackgroundSrc, "/images/handshake.jpg")
-  const logoSrc = normalizeBrandingImageSrc(branding.logoUrl, "/images/new-logo-nexus.svg", {
+  const logoSrc = normalizeBrandingImageSrc(tenantApplicantPanelLogoUrl(branding), "/images/new-logo-nexus.svg", {
     allowBlob: true,
   })
   const panelUseNativeImg = isRemoteOrBlobImageSrc(panelSrc)
@@ -456,15 +457,15 @@ export default function Step1Upload() {
 
   return (
     <div
-      className="relative flex min-h-screen items-center justify-center p-3 sm:p-4 md:p-8"
+      className="relative flex min-h-screen items-center justify-center p-3 sm:p-4 min-[1200px]:p-8"
       style={shellStyle}
     >
 
       <div
-        className={`flex min-h-0 w-full max-w-5xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl transition-opacity md:min-h-[540px] md:flex-row ${uploading ? "opacity-50" : "opacity-100"}`}
+        className={`flex min-h-0 w-full max-w-5xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl transition-opacity min-[1200px]:min-h-[540px] min-[1200px]:flex-row ${uploading ? "opacity-50" : "opacity-100"}`}
       >
 
-        <div className="w-full px-4 pb-6 pt-6 sm:px-6 sm:pb-8 sm:pt-8 md:w-2/3 md:p-10">
+        <div className="w-full min-w-0 px-4 pb-6 pt-6 sm:px-6 sm:pb-8 sm:pt-8 min-[1200px]:w-2/3 min-[1200px]:p-10">
 
           <OnboardingStepper />
 
@@ -480,7 +481,7 @@ export default function Step1Upload() {
             tabIndex={0}
             onClick={browse}
             className={`cursor-pointer rounded-xl border-2 border-dashed text-center transition ${
-              file || savedResumeName ? "p-3 sm:p-4" : "p-4 sm:p-6 md:p-10"
+              file || savedResumeName ? "p-3 sm:p-4" : "p-4 sm:p-6 min-[1200px]:p-10"
             }`}
             style={
               dragActive
@@ -602,10 +603,10 @@ export default function Step1Upload() {
             </p>
           ) : null}
 
-          <div className="mt-6 grid grid-cols-2 gap-2 sm:mt-8 sm:gap-3 md:mt-10 md:flex md:justify-end md:gap-4">
+          <div className="mt-6 grid grid-cols-2 gap-2 sm:mt-8 sm:gap-3 min-[1200px]:mt-10 min-[1200px]:flex min-[1200px]:justify-end min-[1200px]:gap-4">
             <button
               onClick={() => router.back()}
-              className="w-full cursor-pointer rounded-lg border px-3 py-2.5 text-[11px] hover:bg-gray-50 sm:px-4 sm:py-2.5 sm:text-sm md:w-auto md:px-6 md:py-2"
+              className="w-full cursor-pointer rounded-lg border px-3 py-2.5 text-[11px] hover:bg-gray-50 sm:px-4 sm:py-2.5 sm:text-sm min-[1200px]:w-auto min-[1200px]:px-6 min-[1200px]:py-2"
               style={{ ...brandBorderStyle, ...brandTextStyle }}
             >
               Cancel
@@ -614,7 +615,7 @@ export default function Step1Upload() {
             <button
               onClick={next}
               disabled={uploading}
-              className={`w-full cursor-pointer rounded-lg px-3 py-2.5 text-[11px] text-white transition hover:brightness-90 sm:px-4 sm:py-2.5 sm:text-sm md:w-auto md:px-8 md:py-2 ${uploading ? "cursor-not-allowed opacity-70" : ""}`}
+              className={`w-full cursor-pointer rounded-lg px-3 py-2.5 text-[11px] text-white transition hover:brightness-90 sm:px-4 sm:py-2.5 sm:text-sm min-[1200px]:w-auto min-[1200px]:px-8 min-[1200px]:py-2 ${uploading ? "cursor-not-allowed opacity-70" : ""}`}
               style={primaryBtnStyle}
             >
               {uploading ? "Uploading..." : "Next"}
@@ -623,7 +624,7 @@ export default function Step1Upload() {
 
         </div>
 
-        <div className="relative hidden w-1/3 md:block">
+        <div className="relative hidden w-1/3 min-[1200px]:block">
           {panelUseNativeImg ? (
             <img
               src={panelSrc}
@@ -635,7 +636,7 @@ export default function Step1Upload() {
               src={panelSrc}
               alt=""
               fill
-              sizes="(max-width: 767px) 0px, 33vw"
+              sizes="(max-width: 1199px) 0px, 33vw"
               className="object-cover grayscale opacity-60"
             />
           )}

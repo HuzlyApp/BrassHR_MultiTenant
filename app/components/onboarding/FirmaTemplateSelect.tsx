@@ -89,6 +89,18 @@ export function FirmaTemplateSelect({
         <p className="mt-1.5 text-[11px] leading-4 text-red-600" data-testid="firma-template-select-error">
           {error}
         </p>
+      ) : !loading && options.length === 0 ? (
+        <p className="mt-1.5 text-[11px] leading-4" style={{ color: TEXT_SECONDARY }}>
+          No published Firma templates yet.{" "}
+          <a
+            href="/admin_recruiter/template-builder/new"
+            className="font-medium underline underline-offset-2"
+            style={{ color: "#BC8B41" }}
+          >
+            Create one in Template Builder
+          </a>
+          , publish it, then select it here.
+        </p>
       ) : (
         <p className="mt-1.5 text-[11px] leading-4" style={{ color: TEXT_SECONDARY }}>
           Applicants will sign this template inside onboarding using Firma embedded signing.

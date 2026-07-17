@@ -1,0 +1,25 @@
+{
+  "appliedAt": "2026-07-15T21:01:21.295Z",
+  "results": [
+    {
+      "key": "NEXT_PUBLIC_SUPABASE_URL",
+      "step": "patch",
+      "id": "Tu2HxL0BNUeGL9Xg"
+    },
+    {
+      "key": "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+      "step": "patch",
+      "id": "Lx4174n5QTTASejI"
+    },
+    {
+      "key": "SUPABASE_SERVICE_ROLE_KEY",
+      "step": "patch",
+      "id": "ImxvHe4C5x7Jvnoz"
+    },
+    {
+      "key": "NEXT_PUBLIC_APP_URL",
+      "step": "patch",
+      "id": "IbGTKInXwbgyLFqJ"
+    }
+  ]
+}

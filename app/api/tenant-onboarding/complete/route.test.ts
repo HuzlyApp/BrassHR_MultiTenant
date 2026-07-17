@@ -216,4 +216,26 @@ describe("tenant-onboarding complete route", () => {
     expect(body.ok).toBe(true);
     expect(insertPayload.current?.name).toBe("Workspacetesty");
   });
+
+  it("creates tenant when business step was skipped with leftover invalid phone", async () => {
+    const response = await completeTenant({
+      organizationName: "",
+      businessInfoSkipped: true,
+      industry: "",
+      companySize: "",
+      state: "",
+      city: "",
+      address: "",
+      phone: "1111111111",
+      email: "",
+      zipCode: "90210",
+      ein: "",
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.ok).toBe(true);
+    expect(insertPayload.current?.phone).toBe("");
+    expect(insertPayload.current?.postal_code).toBe("");
+  });
 });

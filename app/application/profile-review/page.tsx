@@ -20,6 +20,7 @@ import {
   brandingToCssVars,
   isRemoteOrBlobImageSrc,
   normalizeBrandingImageSrc,
+  tenantApplicantPanelLogoUrl,
 } from "@/lib/tenant/tenant-branding"
 import { formatPhoneNumber, normalizePhoneInput } from "@/lib/phone"
 import {
@@ -274,7 +275,7 @@ function Step1ReviewContent() {
     background: brandingShellGradient(branding),
   }
   const panelSrc = normalizeBrandingImageSrc(branding.loginBackgroundSrc, "/images/handshake.jpg")
-  const logoSrc = normalizeBrandingImageSrc(branding.logoUrl, "/images/new-logo-nexus.svg", {
+  const logoSrc = normalizeBrandingImageSrc(tenantApplicantPanelLogoUrl(branding), "/images/new-logo-nexus.svg", {
     allowBlob: true,
   })
   const panelUseNativeImg = isRemoteOrBlobImageSrc(panelSrc)
@@ -969,10 +970,10 @@ function Step1ReviewContent() {
       style={shellStyle}
     >
       <div
-        className="bg-white rounded-xl sm:rounded-2xl shadow-2xl overflow-hidden flex flex-col md:flex-row relative mx-auto w-full max-w-[1060px] md:min-h-[640px] min-h-0"
+        className="bg-white rounded-xl sm:rounded-2xl shadow-2xl overflow-hidden flex flex-col min-[1200px]:flex-row relative mx-auto w-full max-w-[1060px] min-[1200px]:min-h-[640px] min-h-0"
       >
         {/* LEFT - Form */}
-        <div className="w-full md:w-[65%] p-4 sm:p-6 md:p-10 flex flex-col justify-between min-w-0">
+        <div className="w-full min-[1200px]:w-[65%] p-4 sm:p-6 min-[1200px]:p-10 flex flex-col justify-between min-w-0">
           <div className="min-w-0">
             <OnboardingStepper />
 
@@ -1276,7 +1277,7 @@ function Step1ReviewContent() {
         </div>
 
         {/* RIGHT - Branding and Image */}
-        <div className="relative hidden min-h-[320px] shrink-0 bg-gray-50 md:block md:min-h-0 md:w-[35%]">
+        <div className="relative hidden min-h-[320px] shrink-0 bg-gray-50 min-[1200px]:block min-[1200px]:min-h-0 min-[1200px]:w-[35%]">
           <div className="absolute inset-0 z-0">
             {panelUseNativeImg ? (
               <img
@@ -1289,7 +1290,7 @@ function Step1ReviewContent() {
                 src={panelSrc}
                 alt=""
                 fill
-                sizes="(max-width: 767px) 0px, 35vw"
+                sizes="(max-width: 1199px) 0px, 35vw"
                 className="object-cover object-top opacity-60 grayscale"
                 priority
               />
@@ -1306,20 +1307,18 @@ function Step1ReviewContent() {
               widthClassName="w-full max-w-[204px]"
             />
 
-            <div className="w-full max-w-[280px]">
-              <div className="flex w-full items-center justify-center gap-4">
-                <div className="h-px flex-1 bg-slate-300/80" />
-                <BrandedSvgIcon
-                  src="/icons/circle-star-icon.svg"
-                  className="h-6 w-6 flex-none"
-                  color={branding.primaryHex}
-                />
-                <div className="h-px flex-1 bg-slate-300/80" />
-              </div>
-              <p className="text-center text-[16px] font-normal leading-6 text-[#1e293b]">
-                {branding.tagline}
-              </p>
+            <div className="flex w-full max-w-[280px] items-center justify-center gap-4">
+              <div className="h-px flex-1 bg-slate-300/80" />
+              <BrandedSvgIcon
+                src="/icons/circle-star-icon.svg"
+                className="h-6 w-6 flex-none"
+                color={branding.primaryHex}
+              />
+              <div className="h-px flex-1 bg-slate-300/80" />
             </div>
+            <p className="max-w-[280px] text-center text-[16px] font-normal leading-6 text-[#1e293b]">
+              {branding.tagline}
+            </p>
           </div>
         </div>
       </div>

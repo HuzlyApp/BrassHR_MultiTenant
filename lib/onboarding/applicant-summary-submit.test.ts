@@ -68,7 +68,7 @@ describe("application summary submit readiness", () => {
   it("marks sections complete from server step progress even when localStorage is stale", () => {
     const config = buildConfig();
     const licenseStep = config.steps.find((s) => s.step_type === "professional_license")!;
-    const authStep = config.steps.find((s) => s.step_type === "authorizations")!;
+    const authStep = config.steps.find((s) => s.step_key === "authorization_background_check")!;
     const progress: WorkerOnboardingProgressPayload = {
       progressId: "p1",
       status: "in_progress",
@@ -94,9 +94,68 @@ describe("application summary submit readiness", () => {
     expect(auth?.rows[0]?.complete).toBe(true);
   });
 
+  it("marks Firma authorization signed on summary when progress has firma_signed even if localStorage is still sent", () => {
+    const config = buildConfig();
+    const authStep = {
+      id: "step-auth-cq",
+      step_key: "custom_question",
+      title: "Authorization / Background Check",
+      description: null,
+      step_type: "custom_question" as const,
+      sort_order: 4,
+      is_required: true,
+      is_enabled: true,
+      metadata: {
+        workflow_step_id: "background-check",
+        workflow_settings: {
+          firmaRecruiterTemplateId: "tmpl-1",
+          firmaRecruiterTemplateName: "example",
+        },
+      },
+    };
+    config.steps = config.steps
+      .filter((s) => s.step_key !== "authorization_background_check")
+      .concat(authStep);
+    const progress: WorkerOnboardingProgressPayload = {
+      progressId: "p1",
+      status: "in_progress",
+      steps: [
+        {
+          onboarding_step_id: authStep.id,
+          status: "completed",
+          completed_at: "2026-01-01",
+          data: {
+            firma_signed: true,
+            firma_status: "completed",
+            signing_provider: "firma",
+            authorization_agreed: true,
+          },
+        },
+      ],
+    };
+    const sections = buildApplicantSummarySections(
+      config,
+      "nicee",
+      snapshot({
+        authState: { statusRaw: "sent", display: "pending", hasActivity: true },
+        workerDocs: {
+          ssn_url: "tenant/worker/ssn.pdf",
+          drivers_license_url: "tenant/worker/dl.pdf",
+        },
+      }),
+      progress
+    );
+    const auth = sections.find((s) => s.id === authStep.step_key);
+    const authRow = auth?.rows.find((r) => r.key === "auth");
+    expect(auth?.complete).toBe(true);
+    expect(authRow?.complete).toBe(true);
+    expect(authRow?.stepStatus).toBe("completed");
+    expect(authRow?.subtitle).toMatch(/Signed/i);
+  });
+
   it("shows pending authorization on summary when step was skipped without signing", () => {
     const config = buildConfig();
-    const authStep = config.steps.find((s) => s.step_type === "authorizations")!;
+    const authStep = config.steps.find((s) => s.step_key === "authorization_background_check")!;
     const progress: WorkerOnboardingProgressPayload = {
       progressId: "p1",
       status: "in_progress",
@@ -152,18 +211,7 @@ describe("application summary submit readiness", () => {
 
   it("shows required skipped references as required_missing on summary", () => {
     const config = buildConfig();
-    const referencesStep: (typeof config.steps)[number] = {
-      id: "step-references",
-      step_key: "references",
-      title: "References",
-      description: "",
-      step_type: "references",
-      sort_order: 55,
-      is_required: true,
-      is_enabled: true,
-      metadata: {},
-    };
-    config.steps.push(referencesStep);
+    const referencesStep = config.steps.find((s) => s.step_key === "references")!;
     const progress: WorkerOnboardingProgressPayload = {
       progressId: "p1",
       status: "in_progress",
@@ -175,6 +223,8 @@ describe("application summary submit readiness", () => {
     const refs = sections.find((s) => s.id === "references");
     expect(refs?.stepStatus).toBe("required_missing");
     expect(refs?.complete).toBe(false);
-    expect(refs?.rows[0]?.subtitle).toMatch(/Incomplete \/ Required|At least \d+ complete references required/);
+    expect(refs?.rows[0]?.subtitle).toMatch(
+      /Incomplete \/ Required|At least \d+ complete reference/
+    );
   });
 });

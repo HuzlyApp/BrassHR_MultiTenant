@@ -28,6 +28,8 @@ import DocumentFileThumbnail from "@/app/components/DocumentFileThumbnail"
 import { AuthorizationsFirmaAgreementPanel } from "@/app/components/onboarding/AuthorizationsFirmaAgreementPanel"
 import {
   isAuthorizationsSaveBlocked,
+  isBackgroundCheckAuthorizationStep,
+  resolveAuthorizationStepWithFirma,
   shouldShowFirmaAgreementPanel,
   stepRequiresApplicantAgreement,
   stepRequiresIdentityDocuments,
@@ -86,15 +88,31 @@ export default function DocumentsPage() {
           s.step_type === "authorizations" ||
           s.step_key === "authorizations" ||
           s.step_key === "authorization_background_check" ||
-          s.step_key === "agreement_signature"
+          s.step_key === "agreement_signature" ||
+          isBackgroundCheckAuthorizationStep(s) ||
+          shouldShowFirmaAgreementPanel(s)
       ) ?? null
     )
   }, [nav.currentStep, nav.enabledSteps])
 
-  const requiresFirmaSigning = shouldShowFirmaAgreementPanel(activeStep)
+  const firmaStep = useMemo(
+    () =>
+      resolveAuthorizationStepWithFirma(
+        activeStep,
+        onboarding?.config?.steps ?? nav.enabledSteps ?? []
+      ),
+    [activeStep, onboarding?.config?.steps, nav.enabledSteps]
+  )
+
+  const showFirmaPanel =
+    Boolean(firmaStep) &&
+    (isBackgroundCheckAuthorizationStep(firmaStep) ||
+      shouldShowFirmaAgreementPanel(firmaStep) ||
+      firmaStep?.step_key === "agreement_signature")
+
+  const requiresFirmaSigning = shouldShowFirmaAgreementPanel(firmaStep)
   const requiresAgreement = stepRequiresApplicantAgreement(activeStep)
   const requiresIdentityDocs = stepRequiresIdentityDocuments(activeStep)
-
   const identityUploadHref = useMemo(
     () => identityVerificationPath(nav.slug, activeStep?.step_key),
     [nav.slug, activeStep?.step_key]
@@ -171,7 +189,7 @@ export default function DocumentsPage() {
   }, [identityPaths])
 
   const saveBlocked = isAuthorizationsSaveBlocked({
-    step: activeStep,
+    step: firmaStep ?? activeStep,
     agreed,
     agreementSigned,
     identityDocsComplete,
@@ -352,7 +370,11 @@ export default function DocumentsPage() {
 
       const stepKey = activeStep?.step_key
       if (stepKey) {
-        await onboarding?.updateStepStatus?.(stepKey, "completed")
+        await onboarding?.updateStepStatus?.(stepKey, "completed", {
+          signing_provider: requiresFirmaSigning ? "firma" : undefined,
+          authorization_agreed: agreed,
+          firma_signed: requiresFirmaSigning ? agreementSigned : undefined,
+        })
       }
       if (nav.nextRoute) router.push(nav.nextRoute)
     } catch (e: unknown) {
@@ -483,12 +505,12 @@ export default function DocumentsPage() {
 
           <AuthorizationsFirmaAgreementPanel
             applicantId={applicantId}
-            step={requiresFirmaSigning ? activeStep : null}
+            step={showFirmaPanel ? firmaStep : null}
             tenantSlug={nav.slug}
             signerEmail={signerEmail}
             signerEmailLoading={signingEmail.loading}
             agreed={agreed}
-            configLoading={nav.configLoading && requiresFirmaSigning}
+            configLoading={nav.configLoading && showFirmaPanel}
             onSignedChange={setAgreementSigned}
           />
 

@@ -32,6 +32,27 @@ describe("resolve-applicant-step-route", () => {
     expect(route).toContain("stepKey=authorization_background_check");
   });
 
+  it("keeps Firma-enabled background check on Authorizations & Documents (Click and Sign)", () => {
+    const route = routeForApplicantStep(
+      step({
+        step_key: "custom_question",
+        step_type: "custom_question",
+        metadata: {
+          workflow_step_id: "background-check",
+          workflow_settings: {
+            firmaRecruiterTemplateId: "tmpl-1",
+            firmaRecruiterTemplateName: "example",
+          },
+        },
+      }),
+      "nicee"
+    );
+    expect(route).toContain("/application/authorizations-documents");
+    expect(route).toContain("stepKey=custom_question");
+    expect(route).not.toContain("/application/firma-sign");
+    expect(route).toContain("tenant=nicee");
+  });
+
   it("maps builder library steps to dedicated applicant routes", () => {
     expect(WORKFLOW_STEP_APPLICANT_ROUTE["welcome-packet-esign"]).toBe(
       "/application/authorizations-documents"

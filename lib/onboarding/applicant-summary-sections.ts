@@ -1,3 +1,7 @@
+import {
+  isBackgroundCheckAuthorizationStep,
+} from "@/lib/onboarding/authorizations-documents-step";
+import { isFirmaSigningComplete } from "@/lib/onboarding/firma-step-settings";
 import { APPLICATION_ROUTES } from "@/lib/onboarding/application-routes";
 import { routeForApplicantStep } from "@/lib/onboarding/resolve-applicant-step-route";
 import {
@@ -28,6 +32,14 @@ import {
   type Step2FileType,
   type Step2UploadedFile,
 } from "@/lib/onboardingSummaryData";
+
+function isAuthorizationSummaryStep(step: TenantOnboardingStep): boolean {
+  if (step.step_type === "authorizations") return true;
+  if (step.step_key === "authorization_background_check" || step.step_key === "agreement_signature") {
+    return true;
+  }
+  return isBackgroundCheckAuthorizationStep(step);
+}
 
 export type SummaryDisplayStatus =
   | "completed"
@@ -143,6 +155,85 @@ function sectionForStep(
   const progressStatus = progressStatusForStep(config, progress, step);
   const progressComplete = isProgressStepComplete(progressStatus);
   const isRequired = step.is_required !== false;
+
+  if (isAuthorizationSummaryStep(step)) {
+    const authState = snapshot.authState;
+    const progressRow = progress?.steps.find((r) => r.onboarding_step_id === step.id);
+    const progressFirmaStatus =
+      typeof progressRow?.data?.firma_status === "string"
+        ? progressRow.data.firma_status
+        : null;
+    const progressFirmaSigned =
+      progressRow?.data?.firma_signed === true ||
+      isFirmaSigningComplete(progressFirmaStatus) ||
+      (progressStatus === "completed" && progressRow?.data?.signing_provider === "firma");
+    const authSigned = authState.display === "signed" || progressFirmaSigned;
+    const hasSsn = Boolean(snapshot.workerDocs?.ssn_url?.trim() || snapshot.identityLs?.ssn?.name);
+    const hasDl = Boolean(
+      snapshot.workerDocs?.drivers_license_url?.trim() || snapshot.identityLs?.license?.name
+    );
+    const locallyComplete = authSigned && hasSsn && hasDl;
+    const stepStatus = summaryStepStatus(progressStatus, locallyComplete, isRequired);
+    const agreementStatusLabel = authSigned
+      ? progressFirmaStatus || authState.statusRaw || "completed"
+      : authState.statusRaw || progressFirmaStatus || null;
+    const rows: SummaryRowModel[] = [];
+    if (progressComplete || authState.hasActivity || progressFirmaSigned) {
+      rows.push({
+        key: "auth",
+        title: "Authorization agreement",
+        subtitle: authSigned
+          ? agreementStatusLabel
+            ? `Signed (${agreementStatusLabel})`
+            : "Signed"
+          : agreementStatusLabel
+            ? `Status: ${agreementStatusLabel}`
+            : "Pending signature",
+        complete: authSigned,
+        stepStatus: authSigned ? "completed" : "incomplete",
+      });
+    }
+    if (hasSsn) {
+      rows.push({
+        key: "ssn",
+        title: "SSN card",
+        subtitle: "Uploaded",
+        complete: true,
+        stepStatus: "completed",
+      });
+    }
+    if (hasDl) {
+      rows.push({
+        key: "dl",
+        title: "Driver's license",
+        subtitle: "Uploaded",
+        complete: true,
+        stepStatus: "completed",
+      });
+    }
+    if (rows.length === 0) {
+      rows.push({
+        key: "auth-empty",
+        title: step.title,
+        subtitle: statusSubtitle(
+          stepStatus,
+          "No signed authorization or identity documents recorded yet",
+          isRequired
+        ),
+        complete: stepStatus === "completed",
+        stepStatus,
+      });
+    }
+    return {
+      id: step.step_key,
+      heading: step.title,
+      complete: stepStatus === "completed",
+      stepStatus,
+      isRequired,
+      editHref,
+      rows,
+    };
+  }
 
   switch (step.step_type) {
     case "resume_upload":
@@ -266,72 +357,6 @@ function sectionForStep(
             stepStatus,
           },
         ],
-      };
-    }
-    case "authorizations": {
-      const authState = snapshot.authState;
-      const authSigned = authState.display === "signed";
-      const hasSsn = Boolean(snapshot.workerDocs?.ssn_url?.trim() || snapshot.identityLs?.ssn?.name);
-      const hasDl = Boolean(
-        snapshot.workerDocs?.drivers_license_url?.trim() || snapshot.identityLs?.license?.name
-      );
-      const locallyComplete = authSigned && hasSsn && hasDl;
-      const stepStatus = summaryStepStatus(progressStatus, locallyComplete, isRequired);
-      const rows: SummaryRowModel[] = [];
-      if (progressComplete || authState.hasActivity) {
-        rows.push({
-          key: "auth",
-          title: "Authorization agreement",
-          subtitle: authSigned
-            ? authState.statusRaw
-              ? `Signed (${authState.statusRaw})`
-              : "Signed"
-            : authState.statusRaw
-              ? `Status: ${authState.statusRaw}`
-              : "Pending signature",
-          complete: authSigned,
-          stepStatus: authSigned ? "completed" : "incomplete",
-        });
-      }
-      if (hasSsn) {
-        rows.push({
-          key: "ssn",
-          title: "SSN card",
-          subtitle: "Uploaded",
-          complete: true,
-          stepStatus: "completed",
-        });
-      }
-      if (hasDl) {
-        rows.push({
-          key: "dl",
-          title: "Driver's license",
-          subtitle: "Uploaded",
-          complete: true,
-          stepStatus: "completed",
-        });
-      }
-      if (rows.length === 0) {
-        rows.push({
-          key: "auth-empty",
-          title: step.title,
-          subtitle: statusSubtitle(
-            stepStatus,
-            "No signed authorization or identity documents recorded yet",
-            isRequired
-          ),
-          complete: stepStatus === "completed",
-          stepStatus,
-        });
-      }
-      return {
-        id: step.step_key,
-        heading: step.title,
-        complete: stepStatus === "completed",
-        stepStatus,
-        isRequired,
-        editHref,
-        rows,
       };
     }
     case "references": {

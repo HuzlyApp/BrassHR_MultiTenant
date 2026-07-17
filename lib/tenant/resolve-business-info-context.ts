@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { BusinessInfoValidationContext } from "@/lib/tenant/business-info-validation";
+import { getStateCodeFromName } from "@/lib/us-state-names";
 
 export async function resolveBusinessInfoValidationContext(
   supabase: SupabaseClient,
@@ -11,7 +12,11 @@ export async function resolveBusinessInfoValidationContext(
     .eq("name", stateName)
     .maybeSingle();
 
-  const stateCode = stateRow?.code ? String(stateRow.code) : undefined;
+  // Fall back to the static name→code map when signup_us_states is empty/out of date
+  // (otherwise ZIP validation falsely asks to "Select a state" after a state was chosen).
+  const stateCode =
+    (stateRow?.code ? String(stateRow.code) : undefined) ||
+    getStateCodeFromName(stateName);
   let allowedCityNames: string[] | undefined;
 
   if (stateCode) {

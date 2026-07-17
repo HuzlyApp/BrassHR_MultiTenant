@@ -94,4 +94,35 @@ describe("resolvePlatformAppOrigin", () => {
     });
     expect(origin).toBe("http://localhost:3000");
   });
+
+  it("keeps Vercel preview / devmode app hosts", () => {
+    process.env.NEXT_PUBLIC_APP_URL = "https://brasshr-devmode.vercel.app";
+    process.env.ROOT_DOMAIN = "brasshr.com";
+
+    const origin = resolvePlatformAppOrigin({ headers: new Headers() });
+    expect(origin).toBe("https://brasshr-devmode.vercel.app");
+  });
+
+  it("prefers vercel request host over production NEXT_PUBLIC_APP_URL", () => {
+    process.env.NEXT_PUBLIC_APP_URL = "https://brasshr.com";
+    process.env.ROOT_DOMAIN = "brasshr.com";
+
+    const origin = resolvePlatformAppOrigin({
+      headers: new Headers({
+        host: "brasshr-devmode.vercel.app",
+        "x-forwarded-proto": "https",
+      }),
+    });
+    expect(origin).toBe("https://brasshr-devmode.vercel.app");
+  });
+
+  it("collapses tenant vanity hosts to marketing apex", () => {
+    delete process.env.NEXT_PUBLIC_APP_URL;
+    process.env.ROOT_DOMAIN = "brasshr.com";
+
+    const origin = resolvePlatformAppOrigin({
+      headers: new Headers({ host: "jobs.brasshr.com", "x-forwarded-proto": "https" }),
+    });
+    expect(origin).toBe("https://brasshr.com");
+  });
 });

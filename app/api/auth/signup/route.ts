@@ -9,8 +9,10 @@ import {
   type OwnerSignupPayload,
 } from "@/lib/signup/owner-signup";
 import {
-  findPlatformOwnerEmailConflict,
+  OWNER_SIGNUP_EMAIL_TAKEN_CODE,
+  OWNER_SIGNUP_EMAIL_TAKEN_MESSAGE,
   normalizeTenantEmail,
+  resolveOwnerSignupEmailAvailability,
 } from "@/lib/tenant/tenant-email-uniqueness";
 import { getStateCodeFromName } from "@/lib/us-state-names";
 
@@ -79,14 +81,17 @@ export async function POST(req: Request) {
     (u) => normalizeTenantEmail(u.email || "") === payload.workEmail
   );
 
-  const platformConflict = await findPlatformOwnerEmailConflict(
+  const emailAvailability = await resolveOwnerSignupEmailAvailability(
     svc,
     payload.workEmail,
-    existingAuth?.id
+    { authUserIdHint: existingAuth?.id }
   );
-  if (platformConflict) {
+  if (!emailAvailability.available) {
     return NextResponse.json(
-      { error: "An account with this email already exists. Sign in instead.", code: "EMAIL_TAKEN" },
+      {
+        error: OWNER_SIGNUP_EMAIL_TAKEN_MESSAGE,
+        code: OWNER_SIGNUP_EMAIL_TAKEN_CODE,
+      },
       { status: 409 }
     );
   }

@@ -113,10 +113,64 @@ function finalizeResolvedOrigin(origin: string): string {
 }
 
 /**
+ * True for `{tenant}.{ROOT_DOMAIN}` (one label), e.g. jobs.brasshr.com.
+ * False for apex, www, nested hosts, and non-root hosts (vercel.app, localhost).
+ */
+export function isTenantVanityHost(hostname: string, rootDomain?: string): boolean {
+  const host = hostname.trim().toLowerCase();
+  const root = (rootDomain || currentRootDomain()).trim().toLowerCase();
+  if (!host || !root) return false;
+  if (host === root || host === `www.${root}`) return false;
+  const suffix = `.${root}`;
+  if (!host.endsWith(suffix)) return false;
+  const label = host.slice(0, -suffix.length);
+  return Boolean(label) && !label.includes(".");
+}
+
+/**
  * Origin for platform-level flows (owner signup, tenant-onboarding).
- * Uses the marketing apex (`brasshr.com`), not legacy `hr.*` or tenant vanity hosts.
+ * Prefers the current request host (so Vercel/devmode stays on that host)
+ * over NEXT_PUBLIC_APP_URL, then falls back to resolveAppOrigin.
+ * Collapses tenant vanity hosts (`jobs.brasshr.com`) to the marketing apex.
  */
 export function resolvePlatformAppOrigin(req: OriginRequest): string | null {
+  const root = currentRootDomain();
+
+  const forwardedProto = req.headers.get("x-forwarded-proto")?.split(",")[0]?.trim();
+  const forwardedHost = req.headers.get("x-forwarded-host")?.split(",")[0]?.trim();
+  const rawHost = forwardedHost || req.headers.get("host")?.trim() || "";
+  const hostOnly = rawHost.split(":")[0]?.toLowerCase() || "";
+
+  if (hostOnly) {
+    if (isLocalDevHost(hostOnly)) {
+      const proto =
+        forwardedProto && /^https?$/i.test(forwardedProto)
+          ? forwardedProto.toLowerCase()
+          : "http";
+      return `${proto}://${rawHost}`;
+    }
+
+    // Keep dedicated app hosts (vercel.app / staging domain). Do not let
+    // NEXT_PUBLIC_APP_URL=https://brasshr.com rewrite them for email links.
+    if (
+      hostOnly.endsWith(".vercel.app") ||
+      hostOnly.endsWith(".vercel.sh") ||
+      (hostOnly !== root &&
+        hostOnly !== `www.${root}` &&
+        !isTenantVanityHost(hostOnly, root))
+    ) {
+      const proto =
+        forwardedProto && /^https?$/i.test(forwardedProto)
+          ? forwardedProto.toLowerCase()
+          : "https";
+      try {
+        return new URL(`${proto}://${hostOnly}`).origin;
+      } catch {
+        /* fall through */
+      }
+    }
+  }
+
   const resolved = resolveAppOrigin(req);
   if (!resolved) return null;
 
@@ -124,11 +178,16 @@ export function resolvePlatformAppOrigin(req: OriginRequest): string | null {
     const url = new URL(resolved);
     if (isLocalDevHost(url.hostname)) return resolved;
 
-    const root = currentRootDomain();
     const host = url.hostname.toLowerCase();
     if (host === root || host === `www.${root}`) return url.origin;
 
-    return `https://${root}`;
+    // Owner setup emails must not open on a tenant vanity host.
+    if (isTenantVanityHost(host, root)) {
+      return `https://${root}`;
+    }
+
+    // Preview / staging app hosts stay as-is.
+    return url.origin;
   } catch {
     return resolved;
   }

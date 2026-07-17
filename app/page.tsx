@@ -12,6 +12,7 @@ import {
   isRemoteOrBlobImageSrc,
   isTenantApplicantPortalSlug,
   normalizeBrandingImageSrc,
+  tenantApplicantPanelLogoUrl,
   PLATFORM_DEFAULT_TENANT_SLUG,
   type TenantBranding,
 } from "@/lib/tenant/tenant-branding";
@@ -69,6 +70,7 @@ export default function Home() {
   );
   const [brandLoaded, setBrandLoaded] = useState(false);
   const [activeTenantSlug, setActiveTenantSlug] = useState<string | null>(null);
+  const [tenantNotFound, setTenantNotFound] = useState(false);
   const [applicationEntryUrl, setApplicationEntryUrl] = useState<string | null>(null);
   const [startingApplication, setStartingApplication] = useState(false);
 
@@ -111,8 +113,15 @@ export default function Home() {
           cache: "no-store",
           signal: AbortSignal.timeout(12_000),
         });
-        const payload = (await res.json()) as { branding?: TenantBranding };
-        if (alive && payload.branding) setBrand(payload.branding);
+        const payload = (await res.json()) as { branding?: TenantBranding; tenantFound?: boolean };
+        if (alive && payload.tenantFound === false) {
+          setActiveTenantSlug(null);
+          setBrand(brandingFallbackForSlug(PLATFORM_DEFAULT_TENANT_SLUG));
+          setTenantNotFound(true);
+        } else if (alive && payload.branding) {
+          setBrand(payload.branding);
+          setTenantNotFound(false);
+        }
       } catch {
         if (alive) setBrand(brandingFallbackForSlug(brandingSlug));
       } finally {
@@ -176,6 +185,7 @@ export default function Home() {
     activeTenantSlug && isTenantApplicantPortalSlug(activeTenantSlug)
       ? activeTenantSlug
       : null;
+  const isPlatformWelcome = !resolvedPortalSlug;
 
   // const recruiterSignInUrl = recruiterSignInHref({
   //   tenant: resolvedPortalSlug,
@@ -188,10 +198,41 @@ export default function Home() {
   const primaryCtaLabel = applicantLandingCtaLabel(resolvedPortalSlug);
   const backgroundSrc = normalizeBrandingImageSrc(brand.loginBackgroundSrc, "/images/handshake.jpg");
   const logoSrc = normalizeBrandingImageSrc(
-    brand.loginLogoUrl || brand.logoUrl,
+    tenantApplicantPanelLogoUrl(brand),
     "/images/new-logo-nexus.svg",
     { allowBlob: true }
   );
+
+  if (tenantNotFound) {
+    return (
+      <TenantBrandingProvider branding={brand}>
+        <main
+          style={shell}
+          className="flex min-h-screen items-center justify-center px-4 py-8 sm:px-6"
+        >
+          <section className="w-full max-w-[520px] rounded-2xl bg-white px-6 py-10 text-center shadow-[0_24px_70px_rgba(0,0,0,0.18)] sm:px-10 sm:py-12">
+            <h1 className="text-[28px] font-semibold leading-9 text-slate-900 sm:text-[34px] sm:leading-10">
+              Tenant not found
+            </h1>
+            <p className="mx-auto mt-3 max-w-[360px] text-[15px] leading-6 text-slate-500 sm:text-[16px]">
+              This tenant link is invalid or the tenant is no longer available.
+            </p>
+            <Link
+              href="/"
+              onClick={(event) => {
+                event.preventDefault();
+                window.location.assign("/");
+              }}
+              className="mt-8 inline-flex min-h-12 items-center justify-center rounded-xl px-6 text-[16px] font-semibold text-white transition hover:brightness-105"
+              style={{ backgroundColor: "var(--brand-primary)" }}
+            >
+              Go to Brass HR
+            </Link>
+          </section>
+        </main>
+      </TenantBrandingProvider>
+    );
+  }
 
   return (
     <TenantBrandingProvider branding={brand}>
@@ -216,7 +257,7 @@ export default function Home() {
         </div>
 
         <section className="relative z-10 flex h-full w-full items-center justify-center min-[1024px]:hidden">
-          <div className="relative z-10 w-[92vw] max-w-[516px] min-h-[420px] rounded-[22px] bg-white/88 px-7 py-10 text-center shadow-[0_20px_46px_rgba(0,0,0,0.22)] backdrop-blur-[1px] sm:px-8 sm:py-10">
+          <div className="relative z-10 w-[92vw] max-w-[516px] min-h-[420px] rounded-[22px] bg-white/88 px-7 py-10 text-center shadow-[0_20px_46px_rgba(0,0,0,0.22)] backdrop-blur-[1px] max-[649px]:min-h-[357px] sm:px-8 sm:py-10">
             <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-[22px]" aria-hidden>
               <div className="absolute inset-0 bg-white/32" />
               <BrandingFillImage
@@ -227,7 +268,11 @@ export default function Home() {
               />
               <div className="absolute inset-0 bg-gradient-to-r from-white/72 via-white/58 to-black/10" />
             </div>
-            <div className="relative z-10 flex w-full flex-col items-center pt-6">
+            <div
+              className={`relative z-10 flex w-full flex-col items-center pt-6${
+                isPlatformWelcome ? " h-full translate-y-3 justify-center pt-0" : ""
+              }`}
+            >
             <BrandingRightPanelLogo
               src={logoSrc}
               alt={`${brand.companyName} logo`}
@@ -279,7 +324,7 @@ export default function Home() {
                 router.push("/signup");
               }}
               style={{ backgroundColor: "var(--brand-primary)", boxShadow: "0 10px 20px color-mix(in srgb, var(--brand-primary) 22%, transparent)" }}
-              className="inline-flex min-h-14 w-full max-w-[280px] cursor-pointer items-center justify-center rounded-xl px-8 py-4 text-[22px] font-semibold leading-[22px] text-white transition hover:brightness-105 focus:outline-none disabled:cursor-wait disabled:opacity-80"
+              className="inline-flex min-h-14 w-full max-w-[280px] cursor-pointer items-center justify-center rounded-xl px-8 py-4 text-[22px] font-semibold leading-[22px] text-white transition hover:brightness-105 focus:outline-none disabled:cursor-wait disabled:opacity-80 max-[499px]:min-h-12 max-[499px]:py-3"
             >
               {startingApplication ? "Starting…" : primaryCtaLabel}
             </button>
@@ -302,7 +347,7 @@ export default function Home() {
         </section>
 
         {/* Desktop/tablet split layout */}
-        <section className="relative z-10 hidden h-[calc(100dvh-3rem)] max-h-[760px] w-full max-w-[1160px] grid-cols-1 overflow-hidden rounded-2xl bg-white shadow-[0_24px_70px_rgba(0,0,0,0.18)] min-[1024px]:grid min-[1024px]:grid-cols-[680px_480px]">
+        <section className="relative z-10 hidden h-[calc(100dvh-3rem)] max-h-[760px] w-full max-w-[1160px] grid-cols-1 overflow-hidden rounded-2xl bg-white shadow-[0_24px_70px_rgba(0,0,0,0.18)] min-[1024px]:grid min-[1024px]:grid-cols-[minmax(0,17fr)_minmax(300px,12fr)]">
           <div className="flex flex-col items-center justify-center gap-5 px-10 py-10 text-center">
             <div className="space-y-3">
               <h1 className="whitespace-nowrap text-[42px] font-semibold leading-[50px] tracking-normal text-slate-800 max-[1079px]:text-[38px] max-[1079px]:leading-[45px] min-[1200px]:text-[48px] min-[1200px]:leading-[60px]">

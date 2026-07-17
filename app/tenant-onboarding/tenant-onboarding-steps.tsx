@@ -302,6 +302,7 @@ function SelectField({
   required = false,
   disabled = false,
   error,
+  emptyMessage,
 }: {
   label: string;
   value: string;
@@ -311,6 +312,7 @@ function SelectField({
   required?: boolean;
   disabled?: boolean;
   error?: string | null;
+  emptyMessage?: string;
 }) {
   return (
     <div>
@@ -327,7 +329,9 @@ function SelectField({
               : `border-[#cbd5e1] ${inputFocusClass} ${value ? "text-[#0f172a]" : "text-[#94a3b8]"}`
           }`}
         >
-          <option value="">{placeholder ?? "Select"}</option>
+          <option value="" disabled={options.length === 0 && Boolean(emptyMessage)}>
+            {options.length === 0 && emptyMessage ? emptyMessage : placeholder ?? "Select"}
+          </option>
           {options.map((opt) => (
             <option key={opt} value={opt}>
               {opt}
@@ -530,6 +534,8 @@ export function BusinessStep({
     }
     return [...cityOptions, city].sort((a, b) => a.localeCompare(b));
   }, [businessInfo.city, cityOptions]);
+  const stateOptionsUnavailable = !locationLoading && stateOptions.length === 0;
+  const cityOptionsUnavailable = Boolean(businessInfo.state) && !citiesLoading && effectiveCityOptions.length === 0;
 
   const validationContext = useMemo(
     () => ({
@@ -735,43 +741,34 @@ export function BusinessStep({
             required
             value={businessInfo.state}
             onChange={(value) => handleBusinessFieldChange({ state: value, city: "" })}
-            placeholder={locationLoading ? "Loading…" : "Select state"}
+            placeholder={locationLoading ? "Loading…" : stateOptionsUnavailable ? "No states found" : "Select state"}
             options={stateOptions}
-            disabled={locationLoading}
+            disabled={locationLoading || stateOptionsUnavailable}
             error={showFieldError("state")}
+            emptyMessage="No states found"
           />
-          {businessInfo.state && cityOptions.length === 0 && !citiesLoading ? (
-            <TextField
-              label="City"
-              required
-              value={businessInfo.city}
-              onChange={(value) => handleBusinessFieldChange({ city: value })}
-              onBlur={() => handleFieldBlur("city")}
-              placeholder="Enter your city"
-              error={showFieldError("city")}
-            />
-          ) : (
-            <SearchableSelectField
-              label="City"
-              required
-              disabled={!businessInfo.state}
-              loading={citiesLoading}
-              value={businessInfo.city}
-              onChange={(value) => handleBusinessFieldChange({ city: value })}
-              onBlur={() => handleFieldBlur("city")}
-              placeholder={
-                !businessInfo.state
+          <SearchableSelectField
+            label="City"
+            required
+            disabled={!businessInfo.state || stateOptionsUnavailable || cityOptionsUnavailable}
+            loading={citiesLoading}
+            value={businessInfo.city}
+            onChange={(value) => handleBusinessFieldChange({ city: value })}
+            onBlur={() => handleFieldBlur("city")}
+            placeholder={
+              stateOptionsUnavailable || cityOptionsUnavailable
+                ? "No cities found"
+                : !businessInfo.state
                   ? "Select state first"
                   : citiesLoading
                     ? "Loading…"
                     : "Search city"
-              }
-              searchPlaceholder="Type to search cities"
-              options={effectiveCityOptions}
-              error={showFieldError("city")}
-              emptyMessage="No cities found. Try another search."
-            />
-          )}
+            }
+            searchPlaceholder="Type to search cities"
+            options={effectiveCityOptions}
+            error={showFieldError("city")}
+            emptyMessage="No cities found"
+          />
         </div>
 
         <AddressAutocompleteField
@@ -1363,7 +1360,6 @@ export function BrandingStep({
   onBack: () => void;
   onSkip: () => void;
 }) {
-  const previewFont = brandingFontStack(fontId);
   const customSwatchLeft = "#94a3b8";
   const customSwatchRight = "#e2e8f0";
   const [backgroundUploadError, setBackgroundUploadError] = useState<string | null>(null);
@@ -1622,26 +1618,7 @@ export function BrandingStep({
           <p className="mb-[12px] text-[13px] font-semibold uppercase tracking-wide text-[#64748b]" style={interStyle}>
             Live preview
           </p>
-          <div
-            className="overflow-hidden rounded-[12px] border border-[#e2e8f0] bg-white"
-            style={{
-              background: `linear-gradient(135deg, ${preview.primaryHex}22 0%, ${preview.secondaryHex}33 100%)`,
-            }}
-          >
-            <div className="space-y-3 p-4" style={{ fontFamily: previewFont }}>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={preview.logoUrl} alt="" className="mx-auto h-10 max-w-[140px] object-contain" />
-              <p className="text-center text-[14px] font-semibold text-[#0f172a]">{preview.headline}</p>
-              <p className="text-center text-[12px] text-[#64748b]">{preview.subtitle}</p>
-              <button
-                type="button"
-                className="w-full rounded-[8px] py-2.5 text-[13px] font-semibold text-white"
-                style={{ backgroundColor: preview.primaryHex }}
-              >
-                Start application
-              </button>
-            </div>
-          </div>
+          <PreviewCard b={preview} />
         </div>
       </div>
 
@@ -1785,7 +1762,7 @@ export function WorkerOnboardingStep({
   );
 }
 
-function PreviewCard({ b }: { b: TenantBranding }) {
+export function PreviewCard({ b }: { b: TenantBranding }) {
   const shellStyle = brandingToCssVars(b) as CSSProperties;
   const logoSrc = normalizeBrandingImageSrc(b.logoUrl, "/images/new-logo-nexus.svg", { allowBlob: true });
   const panelSrc = normalizeBrandingImageSrc(b.loginBackgroundSrc, "/images/handshake.jpg", { allowBlob: true });
@@ -1795,7 +1772,47 @@ function PreviewCard({ b }: { b: TenantBranding }) {
       className="overflow-hidden rounded-[16px] border border-[#e2e8f0] bg-white shadow-sm"
       style={shellStyle}
     >
-      <div className="grid grid-cols-1 min-[520px]:grid-cols-[58%_42%]">
+      <div className="relative bg-[color:var(--brand-primary)] p-4 min-[520px]:hidden">
+        <div className="relative overflow-hidden rounded-[20px] bg-white/88 px-5 py-8 text-center shadow-[0_12px_28px_rgba(0,0,0,0.18)]">
+          <div className="pointer-events-none absolute inset-0" aria-hidden>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={panelSrc} alt="" className="h-full w-full object-cover object-right opacity-25 grayscale" />
+            <div className="absolute inset-0 bg-gradient-to-r from-white/75 via-white/60 to-black/10" />
+          </div>
+
+          <div className="relative z-10 flex flex-col items-center">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={logoSrc} alt="" className="h-11 max-w-[150px] object-contain" />
+            <h3
+              className="mt-5 text-[24px] font-semibold leading-[30px]"
+              style={{ fontFamily: "var(--brand-font-heading)", color: "var(--brand-heading)" }}
+            >
+              {b.headline}
+            </h3>
+            <p
+              className="mt-2 text-[14px] leading-5"
+              style={{ fontFamily: "var(--brand-font-body)", color: "var(--brand-muted)" }}
+            >
+              {b.subtitle}
+            </p>
+            <button
+              type="button"
+              className="mt-6 w-full max-w-[196px] rounded-xl px-5 py-2.5 text-[18px] font-semibold leading-[22px] text-white"
+              style={{ backgroundColor: "var(--brand-primary)", color: "#ffffff" }}
+            >
+              {APPLICANT_PORTAL_CTA_START_APPLICATION}
+            </button>
+            <p className="mt-5 text-center text-[13px] leading-5 text-slate-500">
+              Already approved?{" "}
+              <span className="font-semibold" style={{ color: "var(--brand-primary)" }}>
+                Worker sign in
+              </span>
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div className="hidden grid-cols-[58%_42%] min-[520px]:grid">
         <div className="flex flex-col items-center justify-center gap-4 px-5 py-7 text-center min-[520px]:px-6 min-[520px]:py-8">
           <div className="space-y-2">
             <h3

@@ -62,16 +62,15 @@ const MY_SCHEDULE_CHILDREN: WorkerSidebarLink[] = [
   },
   {
     label: "Attendance",
-    href: SCHEDULE_HOME,
-    matchPrefixes: [SCHEDULE_HOME],
-    matchExact: true,
-    scheduleView: "attendance",
+    href: "#",
+    matchPrefixes: [],
+    disabled: true,
   },
   {
     label: "Time Tracking",
-    href: TIMESHEETS_HOME,
-    matchPrefixes: [TIMESHEETS_HOME],
-    matchExact: true,
+    href: "#",
+    matchPrefixes: [],
+    disabled: true,
   },
 ];
 

@@ -47,6 +47,51 @@ type Step =
   | "admin"
   | "done";
 
+function isPersistableBrandingUrl(value: string): boolean {
+  const trimmed = value.trim();
+  if (!trimmed || trimmed.startsWith("blob:") || trimmed.startsWith("data:")) return false;
+  return true;
+}
+
+type TenantBrandingUploadKind = "logo" | "favicon" | "background";
+
+async function uploadTenantBrandingFile(
+  kind: TenantBrandingUploadKind,
+  tenantId: string,
+  file: File
+): Promise<string> {
+  const pathByKind = {
+    logo: "/api/tenants/logo",
+    favicon: "/api/tenants/favicon",
+    background: "/api/tenants/background",
+  } as const;
+  const labelByKind = {
+    logo: "company logo",
+    favicon: "favicon",
+    background: "background image",
+  } as const;
+
+  const fd = new FormData();
+  fd.set("tenantId", tenantId);
+  fd.set("file", file);
+  const res = await fetch(pathByKind[kind], { method: "POST", body: fd });
+  const payload = (await res.json().catch(() => ({}))) as {
+    error?: string;
+    logoUrl?: string;
+    faviconUrl?: string;
+    backgroundImageUrl?: string;
+  };
+  if (!res.ok) {
+    throw new Error(payload.error ?? `Could not upload ${labelByKind[kind]}.`);
+  }
+  const uploaded =
+    payload.logoUrl ?? payload.faviconUrl ?? payload.backgroundImageUrl ?? "";
+  if (!uploaded) {
+    throw new Error(`Could not upload ${labelByKind[kind]}.`);
+  }
+  return uploaded;
+}
+
 export default function TenantOnboardingPage() {
   const [brand, setBrand] = useState<TenantBranding>(() => defaultTenantBranding());
   const [brandLoaded, setBrandLoaded] = useState(false);
@@ -86,6 +131,7 @@ export default function TenantOnboardingPage() {
   const [backgroundUrl, setBackgroundUrl] = useState("");
   const [backgroundFile, setBackgroundFile] = useState<File | null>(null);
   const [backgroundPreview, setBackgroundPreview] = useState<string | null>(null);
+  const [faviconPreview, setFaviconPreview] = useState<string | null>(null);
   const [adminEmail, setAdminEmail] = useState("");
   const [inviteEmails, setInviteEmails] = useState<string[]>([""]);
   const [inviteNotice, setInviteNotice] = useState<string | null>(null);
@@ -103,17 +149,24 @@ export default function TenantOnboardingPage() {
   const buildAdminRecruiterLoginUrl = (slug: string | null, domain: string | null): string | null => {
     const cleanedSlug = slug?.trim() ?? "";
     const cleanedDomain = domain?.trim() ?? "";
-    if (!cleanedSlug || !cleanedDomain) return null;
+    if (!cleanedSlug) return null;
+
+    const hostname = typeof window !== "undefined" ? window.location.hostname.toLowerCase() : "";
+    const useQueryTenantDashboard =
+      hostname === "localhost" ||
+      hostname === "127.0.0.1" ||
+      hostname === "::1" ||
+      hostname.endsWith(".vercel.app");
+
+    if (useQueryTenantDashboard) {
+      return `/admin?tenant=${encodeURIComponent(cleanedSlug)}`;
+    }
 
     const normalizedDomain = cleanedDomain.replace(/^https?:\/\//i, "").replace(/\/+$/, "");
-    if (!normalizedDomain) return null;
+    if (!normalizedDomain) return `/admin?tenant=${encodeURIComponent(cleanedSlug)}`;
 
-    const protocol =
-      typeof window !== "undefined" && window.location.protocol
-        ? window.location.protocol
-        : "https:";
-
-    return `${protocol}//${normalizedDomain}/login?tenant=${encodeURIComponent(cleanedSlug)}&role=admin_recruiter`;
+    const protocol = typeof window !== "undefined" && window.location.protocol ? window.location.protocol : "https:";
+    return `${protocol}//${normalizedDomain}/admin`;
   };
 
   useEffect(() => {
@@ -189,12 +242,23 @@ export default function TenantOnboardingPage() {
     return () => URL.revokeObjectURL(objectUrl);
   }, [backgroundFile]);
 
+  useEffect(() => {
+    if (!faviconFile) {
+      setFaviconPreview(null);
+      return;
+    }
+    const objectUrl = URL.createObjectURL(faviconFile);
+    setFaviconPreview(objectUrl);
+    return () => URL.revokeObjectURL(objectUrl);
+  }, [faviconFile]);
+
   const brandingPreview = useMemo(
     (): TenantBranding => ({
       ...preview,
       loginBackgroundSrc: backgroundPreview || preview.loginBackgroundSrc,
+      faviconUrl: faviconPreview || preview.faviconUrl,
     }),
-    [backgroundPreview, preview]
+    [backgroundPreview, faviconPreview, preview]
   );
 
   const stepperStates = useMemo(
@@ -230,7 +294,10 @@ export default function TenantOnboardingPage() {
       setGoalsSkipped(true);
     }
     if (step === "business") {
+      // Drop partial entries so leftover junk (e.g. fake phone) is not
+      // sent/validated on finalize when the step was skipped.
       setBusinessInfoSkipped(true);
+      setBusinessInfo(initialBusinessInfoForm());
     }
     if (step === "company_logo" || step === "branding") {
       setBrandingSkipped(true);
@@ -316,13 +383,16 @@ export default function TenantOnboardingPage() {
         body: JSON.stringify({
           organizationName: orgName.trim(),
           subdomain: validated.subdomain,
-          logoUrl: logoUrl.trim() || null,
+          logoUrl: logoFile || !isPersistableBrandingUrl(logoUrl) ? null : logoUrl.trim(),
           primaryColor: primaryHex,
           secondaryColor: secondaryHex,
           accentColor: accentHex,
           welcomeHeadline: headline.trim() || null,
           welcomeSubtitle: subtitle.trim() || null,
-          authBackgroundImageUrl: backgroundFile ? null : backgroundUrl.trim() || null,
+          authBackgroundImageUrl:
+            backgroundFile || !isPersistableBrandingUrl(backgroundUrl)
+              ? null
+              : backgroundUrl.trim() || null,
           adminEmail: adminEmail.trim().toLowerCase(),
           adminPassword: "",
           industry: businessInfo.industry,
@@ -369,25 +439,17 @@ export default function TenantOnboardingPage() {
       document.cookie = `${ONBOARDING_TENANT_SLUG_COOKIE}=${encodeURIComponent(payload.slug ?? "")}; path=/; max-age=${60 * 60 * 24 * 365}; SameSite=Lax`;
 
       const tenantId = String(payload.tenantId ?? "").trim();
-      if (tenantId && logoFile) {
-        const fd = new FormData();
-        fd.set("tenantId", tenantId);
-        fd.set("file", logoFile);
-        await fetch("/api/tenants/logo", { method: "POST", body: fd });
-      }
-
-      if (tenantId && faviconFile) {
-        const favFd = new FormData();
-        favFd.set("tenantId", tenantId);
-        favFd.set("file", faviconFile);
-        await fetch("/api/tenants/favicon", { method: "POST", body: favFd });
-      }
-
-      if (tenantId && backgroundFile) {
-        const bgFd = new FormData();
-        bgFd.set("tenantId", tenantId);
-        bgFd.set("file", backgroundFile);
-        await fetch("/api/tenants/background", { method: "POST", body: bgFd });
+      if (tenantId) {
+        if (logoFile) {
+          const uploadedLogoUrl = await uploadTenantBrandingFile("logo", tenantId, logoFile);
+          setLogoUrl(uploadedLogoUrl);
+        }
+        if (faviconFile) {
+          await uploadTenantBrandingFile("favicon", tenantId, faviconFile);
+        }
+        if (backgroundFile) {
+          await uploadTenantBrandingFile("background", tenantId, backgroundFile);
+        }
       }
 
       if (tenantId && onboardingSteps.length) {
@@ -405,17 +467,11 @@ export default function TenantOnboardingPage() {
       }
 
       if (options?.redirectToDashboard && typeof window !== "undefined") {
-        // Go straight to the recruiter login ("/admin") instead of the
-        // protected "/admin_recruiter/home", which the middleware would
-        // otherwise bounce to "/admin?next=..." (causing a brief error flash).
-        const cleanedDomain = (payload.domain ?? "")
-          .trim()
-          .replace(/^https?:\/\//i, "")
-          .replace(/\/+$/, "");
-        const protocol = window.location.protocol || "https:";
-        const adminUrl = cleanedDomain ? `${protocol}//${cleanedDomain}/admin` : "/admin";
-        await waitUntilReachableThenGo(adminUrl);
-        return;
+        const adminUrl = buildAdminRecruiterLoginUrl(payload.slug ?? null, payload.domain ?? null);
+        if (adminUrl) {
+          await waitUntilReachableThenGo(adminUrl);
+          return;
+        }
       }
 
       const adminLoginUrl = buildAdminRecruiterLoginUrl(payload.slug ?? null, payload.domain ?? null);
@@ -452,7 +508,12 @@ export default function TenantOnboardingPage() {
   }
 
   return (
-    <TenantOnboardingShell brand={preview} step={step} hideStepper={step === "done"} stepperStates={stepperStates}>
+    <TenantOnboardingShell
+      brand={step === "done" ? brandingPreview : brand}
+      step={step}
+      hideStepper={step === "done"}
+      stepperStates={stepperStates}
+    >
       {error && step !== "domain" ? <ErrorBanner message={error} /> : null}
 
       {step === "goals" ? (

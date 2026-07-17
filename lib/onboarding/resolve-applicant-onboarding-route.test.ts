@@ -37,26 +37,8 @@ function legacyZipstaffConfig(): TenantOnboardingConfig {
 }
 
 function zipstaffConfigWithReferences(): TenantOnboardingConfig {
-  const base = legacyZipstaffConfig();
-  const steps = base.steps.slice();
-  const reviewIdx = steps.findIndex((s) => s.step_key === "review_submit");
-  const referencesStep: TenantOnboardingStep = {
-    id: "step-references",
-    step_key: "references",
-    title: "References",
-    description: "Add professional references",
-    step_type: "references",
-    sort_order: 55,
-    is_required: true,
-    is_enabled: true,
-    metadata: { workflow_step_id: "references-collection" },
-  };
-  if (reviewIdx >= 0) {
-    steps.splice(reviewIdx, 0, referencesStep);
-  } else {
-    steps.push(referencesStep);
-  }
-  return { ...base, steps };
+  // Defaults already include the Add Reference step; keep helper for test readability.
+  return legacyZipstaffConfig();
 }
 
 function progressWithCompletedThrough(
@@ -289,7 +271,7 @@ describe("resolveApplicantOnboardingRoute", () => {
     const resumeStep = enabled[0]!;
     const licenseStep = enabled[1]!;
     const skillStep = enabled[2]!;
-    const authStep = enabled[4]!;
+    const authStep = enabled.find((s) => s.step_key === "authorization_background_check")!;
 
     const decision = resolveApplicantOnboardingRoute({
       isLoadingSession: false,
@@ -309,7 +291,7 @@ describe("resolveApplicantOnboardingRoute", () => {
         ],
       },
       pathname: APPLICATION_ROUTES.authorizationsDocuments,
-      search: "?stepKey=agreement_signature&tenant=zipstaff",
+      search: "?stepKey=authorization_background_check&tenant=zipstaff",
     });
 
     expect(decision).toEqual({ status: "allow" });
@@ -322,7 +304,6 @@ describe("resolveApplicantOnboardingRoute", () => {
     const licenseStep = enabled.find((s) => s.step_key === "professional_license")!;
     const skillStep = enabled.find((s) => s.step_key === "skill_assessment")!;
     const backgroundStep = enabled.find((s) => s.step_key === "authorization_background_check")!;
-    const authStep = enabled.find((s) => s.step_key === "agreement_signature")!;
     const referencesStep = enabled.find((s) => s.step_key === "references")!;
     const summaryStep = enabled.find((s) => s.step_key === "review_submit")!;
     const summaryIndex = enabled.findIndex((s) => s.id === summaryStep.id) + 1;
@@ -343,7 +324,6 @@ describe("resolveApplicantOnboardingRoute", () => {
           { onboarding_step_id: licenseStep.id, status: "completed", completed_at: "2026-01-01", data: {} },
           { onboarding_step_id: skillStep.id, status: "skipped", completed_at: "2026-01-01", data: {} },
           { onboarding_step_id: backgroundStep.id, status: "completed", completed_at: "2026-01-01", data: {} },
-          { onboarding_step_id: authStep.id, status: "completed", completed_at: "2026-01-01", data: {} },
           { onboarding_step_id: referencesStep.id, status: "completed", completed_at: "2026-01-01", data: {} },
           { onboarding_step_id: summaryStep.id, status: "in_progress", completed_at: null, data: {} },
         ],
@@ -362,7 +342,6 @@ describe("resolveApplicantOnboardingRoute", () => {
     const licenseStep = enabled.find((s) => s.step_key === "professional_license")!;
     const skillStep = enabled.find((s) => s.step_key === "skill_assessment")!;
     const backgroundStep = enabled.find((s) => s.step_key === "authorization_background_check")!;
-    const authStep = enabled.find((s) => s.step_key === "agreement_signature")!;
     const referencesStep = enabled.find((s) => s.step_key === "references")!;
     const summaryStep = enabled.find((s) => s.step_key === "review_submit")!;
     const summaryIndex = enabled.findIndex((s) => s.id === summaryStep.id) + 1;
@@ -383,7 +362,6 @@ describe("resolveApplicantOnboardingRoute", () => {
           { onboarding_step_id: licenseStep.id, status: "completed", completed_at: "2026-01-01", data: {} },
           { onboarding_step_id: skillStep.id, status: "skipped", completed_at: "2026-01-01", data: {} },
           { onboarding_step_id: backgroundStep.id, status: "completed", completed_at: "2026-01-01", data: {} },
-          { onboarding_step_id: authStep.id, status: "completed", completed_at: "2026-01-01", data: {} },
           { onboarding_step_id: summaryStep.id, status: "in_progress", completed_at: null, data: {} },
         ],
       },
@@ -402,7 +380,6 @@ describe("resolveApplicantOnboardingRoute", () => {
     const licenseStep = enabled.find((s) => s.step_key === "professional_license")!;
     const skillStep = enabled.find((s) => s.step_key === "skill_assessment")!;
     const backgroundStep = enabled.find((s) => s.step_key === "authorization_background_check")!;
-    const authStep = enabled.find((s) => s.step_key === "agreement_signature")!;
     const summaryStep = enabled.find((s) => s.step_key === "review_submit")!;
 
     const decision = resolveApplicantOnboardingRoute({
@@ -420,8 +397,7 @@ describe("resolveApplicantOnboardingRoute", () => {
           { onboarding_step_id: resumeStep.id, status: "completed", completed_at: "2026-01-01", data: {} },
           { onboarding_step_id: licenseStep.id, status: "completed", completed_at: "2026-01-01", data: {} },
           { onboarding_step_id: skillStep.id, status: "skipped", completed_at: "2026-01-01", data: {} },
-          { onboarding_step_id: backgroundStep.id, status: "completed", completed_at: "2026-01-01", data: {} },
-          { onboarding_step_id: authStep.id, status: "completed", completed_at: "2026-01-01", data: {} },
+          { onboarding_step_id: backgroundStep.id, status: "pending", completed_at: null, data: {} },
         ],
       },
       pathname: APPLICATION_ROUTES.applicationSummary,
@@ -477,7 +453,6 @@ describe("resolveApplicantOnboardingRoute", () => {
     const licenseStep = enabled.find((s) => s.step_key === "professional_license")!;
     const skillStep = enabled.find((s) => s.step_key === "skill_assessment")!;
     const backgroundStep = enabled.find((s) => s.step_key === "authorization_background_check")!;
-    const authStep = enabled.find((s) => s.step_key === "agreement_signature")!;
     const referencesStep = enabled.find((s) => s.step_key === "references")!;
     const summaryStep = enabled.find((s) => s.step_key === "review_submit")!;
     const summaryIndex = enabled.findIndex((s) => s.id === summaryStep.id) + 1;
@@ -498,7 +473,6 @@ describe("resolveApplicantOnboardingRoute", () => {
           { onboarding_step_id: licenseStep.id, status: "completed", completed_at: "2026-01-01", data: {} },
           { onboarding_step_id: skillStep.id, status: "skipped", completed_at: "2026-01-01", data: {} },
           { onboarding_step_id: backgroundStep.id, status: "completed", completed_at: "2026-01-01", data: {} },
-          { onboarding_step_id: authStep.id, status: "completed", completed_at: "2026-01-01", data: {} },
           { onboarding_step_id: referencesStep.id, status: "skipped", completed_at: "2026-01-01", data: {} },
         ],
       },

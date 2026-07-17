@@ -1,6 +1,7 @@
 import {
   stepUsesFirmaSigning,
   workflowStepIdFromMetadata,
+  getFirmaRecruiterTemplateId,
 } from "@/lib/onboarding/firma-step-settings";
 import type { TenantOnboardingStep } from "@/lib/onboarding/types";
 
@@ -32,6 +33,63 @@ export function shouldShowFirmaAgreementPanel(
   step: Pick<TenantOnboardingStep, "metadata"> | null | undefined
 ): boolean {
   return Boolean(step && stepUsesFirmaSigning(step));
+}
+
+/**
+ * Authorization / Background Check should host Firma signing. If this step has no
+ * template attached yet, inherit settings from a sibling Agreement Signature step
+ * (including soft-disabled retired defaults).
+ */
+export function resolveAuthorizationStepWithFirma(
+  activeStep: TenantOnboardingStep | null | undefined,
+  allSteps: TenantOnboardingStep[] | null | undefined
+): TenantOnboardingStep | null {
+  if (!activeStep) return null;
+
+  if (getFirmaRecruiterTemplateId(activeStep)) return activeStep;
+  if (!isBackgroundCheckAuthorizationStep(activeStep)) return activeStep;
+
+  const donor =
+    (allSteps ?? []).find(
+      (step) =>
+        step.step_key === "agreement_signature" && Boolean(getFirmaRecruiterTemplateId(step))
+    ) ??
+    (allSteps ?? []).find(
+      (step) =>
+        workflowStepIdFromMetadata(step.metadata) === "employee-agreement" &&
+        Boolean(getFirmaRecruiterTemplateId(step))
+    ) ??
+    (allSteps ?? []).find(
+      (step) =>
+        step.id !== activeStep.id &&
+        Boolean(getFirmaRecruiterTemplateId(step)) &&
+        (step.step_type === "authorizations" ||
+          workflowStepIdFromMetadata(step.metadata) === "welcome-packet-esign")
+    );
+
+  if (!donor) return activeStep;
+
+  const donorSettings = donor.metadata?.workflow_settings;
+  const settings =
+    donorSettings && typeof donorSettings === "object" && !Array.isArray(donorSettings)
+      ? { ...(donorSettings as Record<string, unknown>) }
+      : {};
+
+  return {
+    ...activeStep,
+    metadata: {
+      ...activeStep.metadata,
+      workflow_settings: {
+        ...((activeStep.metadata?.workflow_settings &&
+        typeof activeStep.metadata.workflow_settings === "object" &&
+        !Array.isArray(activeStep.metadata.workflow_settings)
+          ? activeStep.metadata.workflow_settings
+          : {}) as Record<string, unknown>),
+        ...settings,
+      },
+      firma_inherited_from_step_key: donor.step_key,
+    },
+  };
 }
 
 export type AuthorizationsSaveState = {

@@ -101,10 +101,10 @@ export function ApplicantTimesheetsTab({ todayAttendance, recentAttendance }: Pr
               Manage Attendance &amp; Timesheets
             </p>
           </div>
-          <div className="flex items-center">
+          <div className="flex w-full items-center sm:w-auto">
             <button
               type="button"
-              className={`${WORKER_TIMESHEET_RANGE_CONTROL_CLASS} rounded-l-lg`}
+              className={`${WORKER_TIMESHEET_RANGE_CONTROL_CLASS} flex-1 justify-between rounded-l-lg sm:flex-none sm:justify-start`}
               style={WORKER_TIMESHEET_FONT_STYLE}
             >
               {rangeLabel}
@@ -112,7 +112,7 @@ export function ApplicantTimesheetsTab({ todayAttendance, recentAttendance }: Pr
             </button>
             <button
               type="button"
-              className={`${WORKER_TIMESHEET_RANGE_CONTROL_CLASS} rounded-r-lg border-l-0`}
+              className={`${WORKER_TIMESHEET_RANGE_CONTROL_CLASS} flex-1 justify-between rounded-r-lg border-l-0 sm:flex-none sm:justify-start`}
               style={WORKER_TIMESHEET_FONT_STYLE}
             >
               <Calendar className="h-4 w-4 shrink-0 text-[#64748B]" aria-hidden />

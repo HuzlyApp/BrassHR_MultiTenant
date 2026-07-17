@@ -49,6 +49,20 @@ export async function loadReferenceUsTimezones(
   return ((data ?? []) as ReferenceUsTimezoneRow[]).map(mapReferenceTimezoneRow)
 }
 
+const PREFERRED_DEFAULT_TIMEZONE = "America/New_York"
+
+/** First active timezone from reference catalog, preferring Eastern default. */
+export async function resolveDefaultAccountTimezone(
+  supabase: SupabaseClient
+): Promise<string | null> {
+  if (await isActiveReferenceTimezone(supabase, PREFERRED_DEFAULT_TIMEZONE)) {
+    return PREFERRED_DEFAULT_TIMEZONE
+  }
+
+  const options = await loadReferenceUsTimezones(supabase)
+  return options[0]?.value ?? null
+}
+
 export async function isActiveReferenceTimezone(
   supabase: SupabaseClient,
   value: string

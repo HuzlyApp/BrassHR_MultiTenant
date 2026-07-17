@@ -45,7 +45,7 @@ describe("resolveApplicantEnabledSteps", () => {
       "Professional License",
       "Skill Assessment",
       "Authorization / Background Check",
-      "Agreement / Signature",
+      "Add Reference",
       "Final Review / Completion",
     ]);
   });

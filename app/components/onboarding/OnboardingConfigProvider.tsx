@@ -279,6 +279,9 @@ export default function OnboardingConfigProvider({ children }: { children: React
       if (!aid) return;
       const search = typeof window !== "undefined" ? window.location.search : "";
       const slug = resolveClientOnboardingTenantSlug(search);
+      const matchedStep =
+        config?.steps.find((s) => s.step_key === stepKey) ??
+        config?.steps.find((s) => s.step_key.replace(/_\d+$/, "") === stepKey.replace(/_\d+$/, ""));
       const res = await fetch("/api/onboarding/progress/step", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -286,6 +289,7 @@ export default function OnboardingConfigProvider({ children }: { children: React
           applicantId: aid,
           tenantSlug: slug,
           stepKey,
+          stepId: matchedStep?.id,
           status,
           data,
         }),

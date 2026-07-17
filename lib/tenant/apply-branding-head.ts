@@ -1,4 +1,5 @@
 import {
+  BRAAS_PLATFORM_FAVICON,
   brandingFallbackForSlug,
   isTenantApplicantPortalSlug,
   normalizeBrandingImageSrc,
@@ -6,7 +7,7 @@ import {
   type TenantBranding,
 } from "@/lib/tenant/tenant-branding";
 
-const DEFAULT_FAVICON = "/icons/braas-HR/BrassHR-logo.svg";
+const DEFAULT_FAVICON = BRAAS_PLATFORM_FAVICON;
 
 const FAVICON_REL_VALUES = ["icon", "shortcut icon", "apple-touch-icon"] as const;
 

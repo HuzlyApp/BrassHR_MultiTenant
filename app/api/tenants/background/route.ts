@@ -43,11 +43,21 @@ export async function POST(req: NextRequest) {
     }
 
     const mime = (file.type || "").toLowerCase();
-    if (!ALLOWED.has(mime)) {
+    const extFromName = file.name.split(".").pop()?.toLowerCase();
+    const allowedByExt =
+      extFromName === "png" ||
+      extFromName === "jpg" ||
+      extFromName === "jpeg" ||
+      extFromName === "webp";
+    if (!ALLOWED.has(mime) && !allowedByExt) {
       return NextResponse.json({ error: "Use PNG, JPG, or WEBP." }, { status: 400 });
     }
 
-    const ext = extForMime(mime);
+    const ext = ALLOWED.has(mime)
+      ? extForMime(mime)
+      : extFromName === "jpeg"
+        ? "jpg"
+        : extFromName || "jpg";
     const objectPath = `${tenantId}/auth-bg.${ext}`;
     const buffer = Buffer.from(await file.arrayBuffer());
 
@@ -61,8 +71,9 @@ export async function POST(req: NextRequest) {
     }
 
     const url = getSupabaseUrl();
+    // Version param busts browser/CDN caches since the object path is fixed per tenant.
     const publicUrl = url
-      ? `${url}/storage/v1/object/public/${ORGANIZATION_LOGOS_BUCKET}/${objectPath}`
+      ? `${url}/storage/v1/object/public/${ORGANIZATION_LOGOS_BUCKET}/${objectPath}?v=${Date.now()}`
       : objectPath;
 
     const { error: upErr } = await svc

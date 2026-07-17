@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import ReactQueryProvider from "@/app/components/ReactQueryProvider";
 import TenantBrandingRoot from "@/app/components/tenant/TenantBrandingRoot";
 import TenantBrandingHead from "@/app/components/tenant/TenantBrandingHead";
+import { BRAAS_PLATFORM_FAVICON } from "@/lib/tenant/tenant-branding";
 import { Toaster } from "react-hot-toast";
 import "./globals.css";
 
@@ -23,9 +24,9 @@ export const metadata: Metadata = {
   },
   description: "Configurable applicant and recruiter onboarding for healthcare staffing teams.",
   icons: {
-    icon: "/icons/braas-HR/BrassHR-logo.svg",
-    shortcut: "/icons/braas-HR/BrassHR-logo.svg",
-    apple: "/icons/braas-HR/BrassHR-logo.svg",
+    icon: BRAAS_PLATFORM_FAVICON,
+    shortcut: BRAAS_PLATFORM_FAVICON,
+    apple: BRAAS_PLATFORM_FAVICON,
   },
 };
 

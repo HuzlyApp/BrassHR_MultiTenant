@@ -13,6 +13,7 @@ import {
   brandingToCssVars,
   isRemoteOrBlobImageSrc,
   normalizeBrandingImageSrc,
+  tenantApplicantPanelLogoUrl,
 } from "@/lib/tenant/tenant-branding"
 
 type Props = {
@@ -49,7 +50,7 @@ export default function OnboardingLayout({
   )
   const panelUseNativeImg = isRemoteOrBlobImageSrc(panelSrc)
   const logoSrc = normalizeBrandingImageSrc(
-    branding.loginLogoUrl || branding.logoUrl,
+    tenantApplicantPanelLogoUrl(branding),
     "/images/new-logo-nexus.svg",
     { allowBlob: true }
   )
@@ -65,17 +66,17 @@ export default function OnboardingLayout({
     >
       <div
         className={cn(
-          "w-full overflow-hidden rounded-2xl bg-white shadow-[0_24px_70px_rgba(0,0,0,0.18)] md:grid md:min-h-[650px] md:min-w-[1060px] md:max-w-[1060px] md:grid-cols-[730px_330px] h-full",
+          "h-full w-full overflow-hidden rounded-2xl bg-white shadow-[0_24px_70px_rgba(0,0,0,0.18)] min-[1200px]:grid min-[1200px]:min-h-[650px] min-[1200px]:min-w-[1060px] min-[1200px]:max-w-[1060px] min-[1200px]:grid-cols-[730px_330px]",
           cardClassName
         )}
       >
-        <div className="flex min-h-0 min-w-0 flex-col overflow-y-auto border-b border-slate-200 md:border-b-0 md:border-r md:border-slate-200">
+        <div className="flex min-h-0 min-w-0 flex-col overflow-y-auto border-b border-slate-200 min-[1200px]:border-b-0 min-[1200px]:border-r min-[1200px]:border-slate-200">
           {children}
         </div>
 
         <div
           className={cn(
-            "relative hidden min-h-0 overflow-hidden rounded-b-2xl md:block md:rounded-b-none md:rounded-r-2xl",
+            "relative hidden min-h-0 overflow-hidden rounded-b-2xl min-[1200px]:block min-[1200px]:rounded-b-none min-[1200px]:rounded-r-2xl",
             rightPanelClassName
           )}
         >
@@ -93,7 +94,7 @@ export default function OnboardingLayout({
               src={panelSrc}
               alt={rightPanelImageAlt ?? "Applicant onboarding"}
               fill
-              sizes="(max-width: 767px) 0px, 330px"
+              sizes="(max-width: 1199px) 0px, 330px"
               className={cn("object-cover grayscale opacity-60", rightPanelImageClassName)}
               priority
             />

@@ -71,6 +71,33 @@ describe("authorizations-documents-step", () => {
     expect(shouldShowFirmaAgreementPanel(background)).toBe(false);
   });
 
+  it("inherits Firma template settings from a retired agreement_signature step", async () => {
+    const { resolveAuthorizationStepWithFirma } = await import(
+      "@/lib/onboarding/authorizations-documents-step"
+    );
+    const background = step({
+      step_key: "authorization_background_check",
+      step_type: "custom_question",
+      metadata: { workflow_step_id: "background-check" },
+    });
+    const agreement = step({
+      step_key: "agreement_signature",
+      step_type: "authorizations",
+      is_enabled: false,
+      metadata: {
+        workflow_step_id: "employee-agreement",
+        workflow_settings: {
+          ...DEFAULT_STEP_SETTINGS,
+          firmaRecruiterTemplateId: "tenant-a-template",
+          firmaRecruiterTemplateName: "Employee Agreement",
+        },
+      },
+    });
+    const resolved = resolveAuthorizationStepWithFirma(background, [background, agreement]);
+    expect(shouldShowFirmaAgreementPanel(resolved)).toBe(true);
+    expect(resolved?.metadata?.firma_inherited_from_step_key).toBe("agreement_signature");
+  });
+
   it("only shows Firma UI when the active step has a recruiter template", () => {
     const agreement = zipstaffAuthorizationsConfig().steps.find(
       (s) => s.step_key === "agreement_signature"
@@ -156,13 +183,44 @@ describe("authorizations-documents-step", () => {
     ).toBe(false);
   });
 
-  it("advances from background check skip to the agreement signature step", () => {
+  it("advances from background check to Add Reference on the default workflow", () => {
+    const config: TenantOnboardingConfig = {
+      id: "cfg-default",
+      tenantId: "tenant-1",
+      steps: [
+        step({ step_key: "resume_upload", step_type: "resume_upload", sort_order: 10 }),
+        step({ step_key: "professional_license", step_type: "professional_license", sort_order: 20 }),
+        step({ step_key: "skill_assessment", step_type: "skill_assessment", sort_order: 30 }),
+        step({
+          step_key: "authorization_background_check",
+          step_type: "custom_question",
+          sort_order: 40,
+          metadata: { workflow_step_id: "background-check" },
+        }),
+        step({
+          step_key: "references",
+          step_type: "references",
+          sort_order: 50,
+          metadata: { min_count: 1, workflow_step_id: "references-collection" },
+        }),
+        step({ step_key: "review_submit", step_type: "review_submit", sort_order: 60 }),
+      ],
+      requiredDocuments: [],
+      skillAssessments: [],
+    };
+    const background = config.steps.find((s) => s.step_key === "authorization_background_check")!;
+    const next = adjacentStepRoute(config, background, 1, "zipstaff");
+    expect(next).toContain("add-references");
+    expect(next).toContain("stepKey=references");
+    expect(next).toContain("tenant=zipstaff");
+  });
+
+  it("still supports custom workflows that keep a standalone agreement signature step", () => {
     const config = zipstaffAuthorizationsConfig();
     const background = config.steps.find((s) => s.step_key === "authorization_background_check")!;
     const next = adjacentStepRoute(config, background, 1, "zipstaff");
     expect(next).toContain("authorizations-documents");
     expect(next).toContain("stepKey=agreement_signature");
-    expect(next).toContain("tenant=zipstaff");
   });
 });
 

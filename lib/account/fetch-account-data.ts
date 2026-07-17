@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { User } from "@supabase/supabase-js";
 import { computeChecklistState } from "./completion";
 import { buildFullName } from "./display-name";
+import { resolveDefaultAccountTimezone } from "./reference-timezones";
 import { resolveStaffProfilePhotoUrl } from "./staff-profile-photo";
 import type {
   AccountChecklist,
@@ -75,10 +76,23 @@ export async function ensureAccountSettings(
   if (readError) throw readError;
   if (existing) return existing;
 
+  const timezone = await resolveDefaultAccountTimezone(supabase);
+  const now = new Date().toISOString();
+
+  if (!timezone) {
+    return {
+      user_id: userId,
+      ...DEFAULTS,
+      created_at: null,
+      updated_at: now,
+    };
+  }
+
   const row = {
     user_id: userId,
     ...DEFAULTS,
-    updated_at: new Date().toISOString(),
+    timezone,
+    updated_at: now,
   };
 
   const { data: inserted, error: insertError } = await supabase
@@ -87,7 +101,18 @@ export async function ensureAccountSettings(
     .select("*")
     .single<AccountSettings>();
 
-  if (insertError) throw insertError;
+  if (insertError) {
+    if (insertError.code === "23503") {
+      return {
+        user_id: userId,
+        ...DEFAULTS,
+        timezone,
+        created_at: null,
+        updated_at: now,
+      };
+    }
+    throw insertError;
+  }
   return inserted;
 }
 

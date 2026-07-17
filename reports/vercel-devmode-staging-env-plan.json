@@ -1,0 +1,70 @@
+{
+  "dryRun": false,
+  "apply": true,
+  "projectId": "prj_qUEWmWGKw3f5HdncL3Z5sxUWkTsP",
+  "projectName": "brasshr_development",
+  "domain": "https://brasshr-devmode.vercel.app",
+  "stagingRef": "qowirmiicsrglehiaoil",
+  "plan": [
+    {
+      "key": "NEXT_PUBLIC_SUPABASE_URL",
+      "action": "patch-all-matching",
+      "existingIds": [
+        "Tu2HxL0BNUeGL9Xg"
+      ],
+      "existingTargets": [
+        [
+          "production",
+          "preview"
+        ]
+      ],
+      "valueRef": "qowirmiicsrglehiaoil",
+      "valueRole": null
+    },
+    {
+      "key": "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+      "action": "patch-all-matching",
+      "existingIds": [
+        "Lx4174n5QTTASejI"
+      ],
+      "existingTargets": [
+        [
+          "production",
+          "preview"
+        ]
+      ],
+      "valueRef": "qowirmiicsrglehiaoil",
+      "valueRole": "anon"
+    },
+    {
+      "key": "SUPABASE_SERVICE_ROLE_KEY",
+      "action": "patch-all-matching",
+      "existingIds": [
+        "ImxvHe4C5x7Jvnoz"
+      ],
+      "existingTargets": [
+        [
+          "production",
+          "preview"
+        ]
+      ],
+      "valueRef": "qowirmiicsrglehiaoil",
+      "valueRole": "service_role"
+    },
+    {
+      "key": "NEXT_PUBLIC_APP_URL",
+      "action": "patch-all-matching",
+      "existingIds": [
+        "IbGTKInXwbgyLFqJ"
+      ],
+      "existingTargets": [
+        [
+          "production",
+          "preview"
+        ]
+      ],
+      "valueRef": null,
+      "valueRole": null
+    }
+  ]
+}

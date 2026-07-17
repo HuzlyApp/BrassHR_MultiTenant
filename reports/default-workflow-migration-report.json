@@ -1,0 +1,20 @@
+{
+  "project": "qowirmiicsrglehiaoil",
+  "migration": "20260716060000_default_workflow_add_reference.sql",
+  "applied_at": "2026-07-15T21:50:00Z",
+  "workflows_inspected": 1,
+  "workflows_updated": 1,
+  "customized_workflows_skipped": 0,
+  "applicants_remapped": 0,
+  "records_preserved": 1,
+  "records_requiring_manual_review": 0,
+  "note": "Replaced platform-default agreement_signature with references; Firma/signature rows untouched; agreement_signature soft-disabled (is_enabled=false, sort_order=999).",
+  "nicee_enabled_steps_after": [
+    "resume_upload",
+    "professional_license",
+    "skill_assessment",
+    "authorization_background_check",
+    "references",
+    "review_submit"
+  ]
+}

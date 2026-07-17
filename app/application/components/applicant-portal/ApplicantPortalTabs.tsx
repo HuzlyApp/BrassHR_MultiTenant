@@ -11,6 +11,7 @@ type Props = {
 export function ApplicantPortalTabs({ activeTab, onChange }: Props) {
   const tabs: { id: ApplicantPortalTab; label: string }[] = [
     { id: "schedule", label: "Schedule" },
+    { id: "timesheets", label: "Timesheets" },
     { id: "notes", label: "Notes" },
   ];
 

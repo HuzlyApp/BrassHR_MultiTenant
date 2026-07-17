@@ -12,6 +12,10 @@ describe("formatApplicantStepperLabel", () => {
     )
   })
 
+  it("splits Add Reference into two lines", () => {
+    expect(formatApplicantStepperLabel("Add Reference")).toBe("Add\nReference")
+  })
+
   it("splits two-word titles across two lines", () => {
     expect(formatApplicantStepperLabel("Upload Resume")).toBe("Upload\nResume")
     expect(formatApplicantStepperLabel("Skill Assessment")).toBe("Skill\nAssessment")
