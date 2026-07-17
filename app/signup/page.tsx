@@ -26,6 +26,7 @@ import {
   defaultTenantBranding,
   type TenantBranding,
 } from "@/lib/tenant/tenant-branding";
+import { OWNER_SIGNUP_EMAIL_TAKEN_MESSAGE } from "@/lib/tenant/tenant-email-uniqueness";
 // Social auth icons — unused while social signup is commented out on the form.
 // import { FaApple } from "react-icons/fa";
 // import { FaXTwitter } from "react-icons/fa6";
@@ -82,6 +83,14 @@ const initialForm: SignupForm = {
 
 function isValidEmail(email: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+}
+
+async function checkOwnerSignupEmailAvailable(email: string): Promise<boolean> {
+  const res = await fetch(`/api/auth/signup/check-email?email=${encodeURIComponent(email)}`, {
+    cache: "no-store",
+  });
+  const payload = (await res.json()) as { available?: boolean };
+  return payload.available !== false;
 }
 
 function getPasswordRules(password: string): PasswordRule[] {
@@ -400,7 +409,7 @@ export default function SignupPage() {
   const workEmailNormalized = form.workEmail.trim().toLowerCase();
   const emailTaken = emailCheckStatus === "taken";
   const emailError = emailTaken
-    ? "Email has been taken. Try another"
+    ? OWNER_SIGNUP_EMAIL_TAKEN_MESSAGE
     : touchedEmail && form.workEmail.trim() && !isValidEmail(form.workEmail)
       ? "Enter valid email"
       : null;
@@ -518,8 +527,35 @@ export default function SignupPage() {
       setTouchedAddress1(true);
       setTouchedAddress2(true);
       setDetailsSubmitAttempted(true);
-      if (!canContinue) return;
-      setStep("password");
+
+      void (async () => {
+        const email = form.workEmail.trim().toLowerCase();
+        if (!isValidEmail(email)) return;
+
+        setEmailCheckStatus("checking");
+        let emailAvailable = false;
+        try {
+          emailAvailable = await checkOwnerSignupEmailAvailable(email);
+        } catch {
+          emailAvailable = false;
+        }
+        setEmailCheckStatus(emailAvailable ? "available" : "taken");
+        if (!emailAvailable) return;
+
+        const detailsReady =
+          form.firstName.trim().length > 0 &&
+          form.lastName.trim().length > 0 &&
+          form.jobTitle.trim().length > 0 &&
+          form.city.trim().length > 0 &&
+          form.state.trim().length > 0 &&
+          zipIsValid &&
+          address1IsValid &&
+          addressAutocomplete.isAddressVerified &&
+          address2IsValid;
+
+        if (!detailsReady) return;
+        setStep("password");
+      })();
       return;
     }
 

@@ -2,8 +2,8 @@ import { NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { enforceRateLimit, getClientIp } from "@/lib/security/rate-limit";
 import {
-  findPlatformOwnerEmailConflict,
   normalizeTenantEmail,
+  resolveOwnerSignupEmailAvailability,
 } from "@/lib/tenant/tenant-email-uniqueness";
 
 /**
@@ -25,24 +25,21 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Server not configured" }, { status: 503 });
   }
 
-  if (!email.includes("@")) {
-    return NextResponse.json({ available: false, reason: "invalid" as const });
-  }
+  try {
+    const availability = await resolveOwnerSignupEmailAvailability(svc, email);
+    if (!availability.available) {
+      return NextResponse.json({
+        available: false,
+        reason: availability.reason === "invalid" ? ("invalid" as const) : ("taken" as const),
+      });
+    }
 
-  const platformConflict = await findPlatformOwnerEmailConflict(svc, email);
-  if (platformConflict) {
-    return NextResponse.json({ available: false, reason: "taken" as const });
+    return NextResponse.json({
+      available: true,
+      reason: availability.reason === "resume" ? ("resume" as const) : ("new" as const),
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Could not validate email";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
-
-  const { data: list, error: listErr } = await svc.auth.admin.listUsers({ page: 1, perPage: 200 });
-  if (listErr) {
-    return NextResponse.json({ error: listErr.message }, { status: 500 });
-  }
-
-  const authUser = list?.users?.find((u) => (u.email || "").toLowerCase() === email);
-  if (!authUser) {
-    return NextResponse.json({ available: true, reason: "new" as const });
-  }
-
-  return NextResponse.json({ available: true, reason: "resume" as const });
 }
