@@ -7,7 +7,7 @@ import { PasswordVisibilityToggle } from "@/app/components/PasswordVisibilityTog
 import SignupStepper, { resolveSignupStepperPhase } from "@/app/components/SignupStepper";
 import SearchableSelectField from "@/app/tenant-onboarding/SearchableSelectField";
 import { Check, X } from "lucide-react";
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent } from "react";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import type { SignupStateOption } from "@/lib/signup/owner-signup";
 import { zipCodeValidationMessage } from "@/lib/tenant/business-info-validation";
@@ -212,10 +212,14 @@ function PasswordField({
   label,
   value,
   onChange,
+  error,
+  onBlur,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
+  error?: string | null;
+  onBlur?: () => void;
 }) {
   const [visible, setVisible] = useState(false);
 
@@ -227,8 +231,13 @@ function PasswordField({
           type={visible ? "text" : "password"}
           value={value}
           onChange={(event) => onChange(event.target.value)}
+          onBlur={onBlur}
           style={signupInputTypographyStyle}
-          className={`${signupInputClass} border border-[#d7e0ea] pr-12 text-[#0f172a] outline-none transition placeholder:text-[#b5c0cf] focus:border-[#d89b35] focus:ring-2 focus:ring-[#d89b35]/20`}
+          className={`${signupInputClass} pr-12 outline-none transition placeholder:text-[#b5c0cf] ${
+            error
+              ? "border-[#ff5c7a] text-[#f01846] focus:border-[#ff5c7a] focus:ring-2 focus:ring-[#ff5c7a]/20"
+              : "border-[#d7e0ea] text-[#0f172a] focus:border-[#d89b35] focus:ring-2 focus:ring-[#d89b35]/20"
+          }`}
         />
         <PasswordVisibilityToggle
           visible={visible}
@@ -236,6 +245,11 @@ function PasswordField({
           label={label}
         />
       </div>
+      {error ? (
+        <p className="mt-[8px] text-[14px] font-normal leading-[20px] text-[#f01846]" style={interStyle}>
+          {error}
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -274,6 +288,12 @@ export default function SignupPage() {
   const emailCheckRequestId = useRef(0);
   const [brand, setBrand] = useState<TenantBranding>(() => defaultTenantBranding());
   const [redirecting, setRedirecting] = useState(false);
+
+  useLayoutEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+  }, [step]);
 
   useEffect(() => {
     let alive = true;
@@ -513,7 +533,12 @@ export default function SignupPage() {
   const passwordRules = useMemo(() => getPasswordRules(password), [password]);
   const passwordScore = passwordRules.filter((rule) => rule.passed).length;
   const passwordIsStrongEnough = passwordScore === passwordRules.length;
-  const canCreateAccount = passwordIsStrongEnough && password === verifyPassword && termsAccepted;
+  const passwordsMatch = password.length > 0 && password === verifyPassword;
+  const verifyPasswordError =
+    verifyPassword.trim() && password !== verifyPassword
+      ? "Passwords do not match."
+      : null;
+  const canCreateAccount = passwordIsStrongEnough && passwordsMatch && termsAccepted;
 
   const update = <K extends keyof SignupForm>(key: K, value: SignupForm[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -1051,7 +1076,12 @@ export default function SignupPage() {
                     <PasswordField label="Password" value={password} onChange={setPassword} />
                     <PasswordStrengthMeter score={passwordScore} />
                   </div>
-                  <PasswordField label="Verify Password" value={verifyPassword} onChange={setVerifyPassword} />
+                  <PasswordField
+                    label="Verify Password"
+                    value={verifyPassword}
+                    onChange={setVerifyPassword}
+                    error={verifyPasswordError}
+                  />
                 </div>
 
                 <label className="mt-[24px] flex cursor-pointer items-start gap-[8px] text-[13px] font-normal leading-[19px] tracking-normal text-[#64748b] sm:mt-[26px] sm:text-[14px] sm:leading-[20px] min-[1440px]:mt-[30px]" style={interStyle}>
