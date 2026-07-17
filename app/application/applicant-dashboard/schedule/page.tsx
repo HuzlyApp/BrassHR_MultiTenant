@@ -6,6 +6,7 @@ import { useApplicantPortal } from "@/app/application/components/applicant-porta
 import { ApplicantPortalTabs } from "@/app/application/components/applicant-portal/ApplicantPortalTabs";
 import { ApplicantScheduleTab } from "@/app/application/components/applicant-portal/ApplicantScheduleTab";
 import { ApplicantNotesTab } from "@/app/application/components/applicant-portal/ApplicantNotesTab";
+import { ApplicantTimesheetsTab } from "@/app/application/components/applicant-portal/ApplicantTimesheetsTab";
 import type {
   ApplicantNote,
   ApplicantPortalTab,
@@ -40,7 +41,7 @@ function parseScheduleView(value: string | null): "calendar" | "attendance" {
 }
 
 function parseTab(value: string | null): ApplicantPortalTab {
-  if (value === "notes") return value;
+  if (value === "notes" || value === "timesheets") return value;
   return "schedule";
 }
 
@@ -78,14 +79,20 @@ function ApplicantSchedulePageContent() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (searchParams.get("tab") === "timesheets") {
-      router.replace("/application/applicant-dashboard/schedule/timesheets");
-    }
-  }, [router, searchParams]);
-
-  useEffect(() => {
     setActiveTab(parseTab(searchParams.get("tab")));
   }, [searchParams]);
+
+  function handleTabChange(tab: ApplicantPortalTab) {
+    setActiveTab(tab);
+    const params = new URLSearchParams(searchParams.toString());
+    if (tab === "schedule") {
+      params.delete("tab");
+    } else {
+      params.set("tab", tab);
+    }
+    const qs = params.toString();
+    router.replace(qs ? `?${qs}` : "?", { scroll: false });
+  }
 
   async function loadAppointments(headers: { Authorization: string }) {
     const res = await fetch("/api/applicant-portal/appointments", {
@@ -296,7 +303,7 @@ function ApplicantSchedulePageContent() {
         </div>
       ) : null}
 
-      <ApplicantPortalTabs activeTab={activeTab} onChange={setActiveTab} />
+      <ApplicantPortalTabs activeTab={activeTab} onChange={handleTabChange} />
       {activeTab === "schedule" ? (
         <ApplicantScheduleTab
           todayAttendance={todayAttendance}
@@ -318,6 +325,11 @@ function ApplicantSchedulePageContent() {
           onRequestReschedule={handleRequestReschedule}
           onAttendanceAction={handleAttendanceAction}
           scheduleView={scheduleView}
+        />
+      ) : activeTab === "timesheets" ? (
+        <ApplicantTimesheetsTab
+          todayAttendance={todayAttendance}
+          recentAttendance={recentAttendance}
         />
       ) : (
         <ApplicantNotesTab notes={notes} loading={notesLoading} />

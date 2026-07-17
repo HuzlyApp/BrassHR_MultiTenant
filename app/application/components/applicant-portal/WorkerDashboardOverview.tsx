@@ -27,7 +27,7 @@ import { WORKER_PORTAL_PAGE_PAD_CLASS } from "./worker-schedule-typography";
 
 const SCHEDULE_HREF = "/application/applicant-dashboard/schedule";
 const NOTES_HREF = "/application/applicant-dashboard/schedule?tab=notes";
-const TIMESHEETS_HREF = "/application/applicant-dashboard/schedule/timesheets";
+const TIMESHEETS_HREF = "/application/applicant-dashboard/schedule?view=calendar&tab=timesheets";
 const HELP_HREF = "/application/applicant-dashboard/help";
 
 const WORKER_CARD_LABEL_CLASS =
