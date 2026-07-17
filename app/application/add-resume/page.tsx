@@ -15,6 +15,7 @@ import {
   hexToRgba,
   isRemoteOrBlobImageSrc,
   normalizeBrandingImageSrc,
+  tenantApplicantPanelLogoUrl,
 } from "@/lib/tenant/tenant-branding"
 import {
   evaluateResumeParseQuality,
@@ -86,7 +87,7 @@ export default function Step1Upload() {
     background: brandingShellGradient(branding),
   }
   const panelSrc = normalizeBrandingImageSrc(branding.loginBackgroundSrc, "/images/handshake.jpg")
-  const logoSrc = normalizeBrandingImageSrc(branding.logoUrl, "/images/new-logo-nexus.svg", {
+  const logoSrc = normalizeBrandingImageSrc(tenantApplicantPanelLogoUrl(branding), "/images/new-logo-nexus.svg", {
     allowBlob: true,
   })
   const panelUseNativeImg = isRemoteOrBlobImageSrc(panelSrc)

@@ -12,6 +12,7 @@ import {
   isRemoteOrBlobImageSrc,
   isTenantApplicantPortalSlug,
   normalizeBrandingImageSrc,
+  tenantApplicantPanelLogoUrl,
   PLATFORM_DEFAULT_TENANT_SLUG,
   type TenantBranding,
 } from "@/lib/tenant/tenant-branding";
@@ -197,7 +198,7 @@ export default function Home() {
   const primaryCtaLabel = applicantLandingCtaLabel(resolvedPortalSlug);
   const backgroundSrc = normalizeBrandingImageSrc(brand.loginBackgroundSrc, "/images/handshake.jpg");
   const logoSrc = normalizeBrandingImageSrc(
-    brand.loginLogoUrl || brand.logoUrl,
+    tenantApplicantPanelLogoUrl(brand),
     "/images/new-logo-nexus.svg",
     { allowBlob: true }
   );

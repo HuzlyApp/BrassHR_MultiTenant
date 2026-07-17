@@ -14,6 +14,7 @@ import {
   brandingToCssVars,
   isRemoteOrBlobImageSrc,
   normalizeBrandingImageSrc,
+  tenantApplicantPanelLogoUrl,
 } from "@/lib/tenant/tenant-branding"
 
 export default function SuccessPage() {
@@ -25,7 +26,7 @@ export default function SuccessPage() {
     background: brandingShellGradient(branding),
   }
   const panelSrc = normalizeBrandingImageSrc(branding.loginBackgroundSrc, "/images/handshake.jpg")
-  const logoSrc = normalizeBrandingImageSrc(branding.logoUrl, "/images/new-logo-nexus.svg", {
+  const logoSrc = normalizeBrandingImageSrc(tenantApplicantPanelLogoUrl(branding), "/images/new-logo-nexus.svg", {
     allowBlob: true,
   })
   const panelUseNativeImg = isRemoteOrBlobImageSrc(panelSrc)

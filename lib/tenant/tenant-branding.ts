@@ -77,6 +77,11 @@ export function braasLoginShellLogoUrl(brand: TenantBranding): string {
   return brand.loginLogoUrl || brand.logoUrl;
 }
 
+/** Logo shown on applicant welcome + onboarding right panels. */
+export function tenantApplicantPanelLogoUrl(brand: TenantBranding): string {
+  return brand.loginLogoUrl || brand.logoUrl;
+}
+
 /** Primary auth CTA style — gradient when enabled, visible gray when disabled. */
 export function brandingAuthButtonStyle(enabled: boolean): Record<string, string> {
   if (!enabled) {

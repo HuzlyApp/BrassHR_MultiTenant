@@ -13,6 +13,7 @@ import {
   brandingToCssVars,
   isRemoteOrBlobImageSrc,
   normalizeBrandingImageSrc,
+  tenantApplicantPanelLogoUrl,
 } from "@/lib/tenant/tenant-branding"
 
 type Props = {
@@ -49,7 +50,7 @@ export default function OnboardingLayout({
   )
   const panelUseNativeImg = isRemoteOrBlobImageSrc(panelSrc)
   const logoSrc = normalizeBrandingImageSrc(
-    branding.loginLogoUrl || branding.logoUrl,
+    tenantApplicantPanelLogoUrl(branding),
     "/images/new-logo-nexus.svg",
     { allowBlob: true }
   )

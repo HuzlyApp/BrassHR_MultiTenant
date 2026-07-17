@@ -72,8 +72,6 @@ export default function ClassicTenantLogin({
       rightPanelImageClassName="object-cover opacity-60 grayscale"
       rightPanelOverlayClassName="bg-white/65"
       rightPanelContentClassName="overflow-hidden p-6"
-      rightPanelInnerClassName="max-w-[340px]"
-      logoClassName="origin-center scale-[1.35]"
       taglineClassName="text-[15px] leading-6 text-slate-700"
     >
       <div className="flex flex-col overflow-y-auto p-6 pb-8 md:p-10 md:pb-10 lg:min-h-full lg:p-12 lg:pb-12">

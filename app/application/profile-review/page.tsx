@@ -20,6 +20,7 @@ import {
   brandingToCssVars,
   isRemoteOrBlobImageSrc,
   normalizeBrandingImageSrc,
+  tenantApplicantPanelLogoUrl,
 } from "@/lib/tenant/tenant-branding"
 import { formatPhoneNumber, normalizePhoneInput } from "@/lib/phone"
 import {
@@ -274,7 +275,7 @@ function Step1ReviewContent() {
     background: brandingShellGradient(branding),
   }
   const panelSrc = normalizeBrandingImageSrc(branding.loginBackgroundSrc, "/images/handshake.jpg")
-  const logoSrc = normalizeBrandingImageSrc(branding.logoUrl, "/images/new-logo-nexus.svg", {
+  const logoSrc = normalizeBrandingImageSrc(tenantApplicantPanelLogoUrl(branding), "/images/new-logo-nexus.svg", {
     allowBlob: true,
   })
   const panelUseNativeImg = isRemoteOrBlobImageSrc(panelSrc)
@@ -1306,20 +1307,18 @@ function Step1ReviewContent() {
               widthClassName="w-full max-w-[204px]"
             />
 
-            <div className="w-full max-w-[280px]">
-              <div className="flex w-full items-center justify-center gap-4">
-                <div className="h-px flex-1 bg-slate-300/80" />
-                <BrandedSvgIcon
-                  src="/icons/circle-star-icon.svg"
-                  className="h-6 w-6 flex-none"
-                  color={branding.primaryHex}
-                />
-                <div className="h-px flex-1 bg-slate-300/80" />
-              </div>
-              <p className="text-center text-[16px] font-normal leading-6 text-[#1e293b]">
-                {branding.tagline}
-              </p>
+            <div className="flex w-full max-w-[280px] items-center justify-center gap-4">
+              <div className="h-px flex-1 bg-slate-300/80" />
+              <BrandedSvgIcon
+                src="/icons/circle-star-icon.svg"
+                className="h-6 w-6 flex-none"
+                color={branding.primaryHex}
+              />
+              <div className="h-px flex-1 bg-slate-300/80" />
             </div>
+            <p className="max-w-[280px] text-center text-[16px] font-normal leading-6 text-[#1e293b]">
+              {branding.tagline}
+            </p>
           </div>
         </div>
       </div>
