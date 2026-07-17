@@ -8,6 +8,7 @@ import {
   getWorkflowTemplateById,
   workflowTemplateDraft,
 } from "@/lib/onboarding/workflow-templates";
+import { requireWorkflowAdmin } from "@/lib/auth/workflow-admin";
 
 export const runtime = "nodejs";
 
@@ -16,6 +17,8 @@ type RouteContext = { params: Promise<{ id: string }> };
 export async function POST(_req: NextRequest, context: RouteContext) {
   const auth = await requireStaffApiSession();
   if (auth instanceof NextResponse) return auth;
+  const forbidden = requireWorkflowAdmin(auth);
+  if (forbidden) return forbidden;
 
   const supabase = createServiceRoleClient();
   if (!supabase) {

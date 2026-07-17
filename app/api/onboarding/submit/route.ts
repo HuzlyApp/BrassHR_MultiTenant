@@ -11,6 +11,7 @@ export const runtime = "nodejs";
 type Body = {
   applicantId?: string;
   tenantSlug?: string;
+  jobApplicationId?: string;
 };
 
 export async function POST(req: NextRequest) {
@@ -33,6 +34,30 @@ export async function POST(req: NextRequest) {
 
     if (!result.ok) {
       return NextResponse.json({ error: result.error }, { status: result.status });
+    }
+
+    const jobApplicationId =
+      typeof body.jobApplicationId === "string" ? body.jobApplicationId.trim() : "";
+    if (jobApplicationId) {
+      const submittedAt = result.submittedAt ?? new Date().toISOString();
+      const { data: application, error: applicationError } = await supabase
+        .from("job_applications")
+        .update({ status: "submitted", submitted_at: submittedAt })
+        .eq("id", jobApplicationId)
+        .eq("applicant_auth_user_id", applicantId)
+        .select("id, applicant_workflow_instance_id, tenant_id")
+        .single();
+      if (applicationError) {
+        return NextResponse.json({ error: "Could not submit the selected job application." }, { status: 409 });
+      }
+      if (application.applicant_workflow_instance_id) {
+        const { error: workflowError } = await supabase
+          .from("applicant_workflow_instances")
+          .update({ status: "completed", completed_at: submittedAt })
+          .eq("id", application.applicant_workflow_instance_id)
+          .eq("tenant_id", application.tenant_id);
+        if (workflowError) throw workflowError;
+      }
     }
 
     return NextResponse.json({

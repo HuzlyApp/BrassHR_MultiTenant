@@ -14,6 +14,7 @@ import {
   isSerializableWorkflowState,
   type SerializableWorkflowState,
 } from "@/lib/onboarding/workflow-builder-serialization";
+import { requireWorkflowAdmin } from "@/lib/auth/workflow-admin";
 
 export const runtime = "nodejs";
 
@@ -22,6 +23,8 @@ type RouteContext = { params: Promise<{ id: string }> };
 export async function GET(_req: NextRequest, context: RouteContext) {
   const auth = await requireStaffApiSession();
   if (auth instanceof NextResponse) return auth;
+  const forbidden = requireWorkflowAdmin(auth);
+  if (forbidden) return forbidden;
 
   const supabase = createServiceRoleClient();
   if (!supabase) {
@@ -80,6 +83,8 @@ type PatchBody = {
 export async function PATCH(req: NextRequest, context: RouteContext) {
   const auth = await requireStaffApiSession();
   if (auth instanceof NextResponse) return auth;
+  const forbidden = requireWorkflowAdmin(auth);
+  if (forbidden) return forbidden;
 
   const supabase = createServiceRoleClient();
   if (!supabase) {
@@ -134,6 +139,8 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
 export async function DELETE(_req: NextRequest, context: RouteContext) {
   const auth = await requireStaffApiSession();
   if (auth instanceof NextResponse) return auth;
+  const forbidden = requireWorkflowAdmin(auth);
+  if (forbidden) return forbidden;
 
   const supabase = createServiceRoleClient();
   if (!supabase) {

@@ -13,6 +13,8 @@ import { sendResumeContinuationEmail } from "@/lib/onboarding/send-resume-contin
 import { resolveAppOrigin } from "@/lib/resolve-app-origin"
 import { WORKER_RESUMES_BUCKET } from "@/lib/supabase-storage-buckets"
 import { enforceRateLimit, getClientIp } from "@/lib/security/rate-limit"
+import { JobValidationError } from "@/lib/jobs/types"
+import { startOrResumeJobApplication } from "@/lib/jobs/service"
 
 export const runtime = "nodejs"
 const MAX_RESUME_BYTES = Number(process.env.MAX_RESUME_UPLOAD_BYTES ?? 10 * 1024 * 1024)
@@ -123,6 +125,8 @@ export async function POST(req: Request) {
     typeof formData.get("workerId") === "string" ? String(formData.get("workerId")).trim() : ""
   const tenantIdHint =
     typeof formData.get("tenantId") === "string" ? String(formData.get("tenantId")).trim() : ""
+  const jobToken =
+    typeof formData.get("jobToken") === "string" ? String(formData.get("jobToken")).trim() : ""
 
   if (!file) {
     return NextResponse.json({ error: "No file uploaded" }, { status: 400 })
@@ -191,6 +195,34 @@ export async function POST(req: Request) {
       { error: "Could not create applicant profile for resume upload. Check the tenant link and try again." },
       { status: 400 },
     )
+  }
+
+  let jobApplication:
+    | {
+        application: {
+          id: string
+          applicant_workflow_instance_id?: string | null
+          status: string
+        }
+        resumed: boolean
+      }
+    | null = null
+  if (jobToken) {
+    try {
+      jobApplication = await startOrResumeJobApplication(supabase, {
+        tenantId: workerCtx.tenantId,
+        jobToken,
+        applicantAuthUserId: applicantId,
+        workerId: workerCtx.workerId,
+      })
+    } catch (error) {
+      const status = error instanceof JobValidationError ? 409 : 500
+      const message =
+        error instanceof Error
+          ? error.message
+          : "This job is unavailable or no longer accepting applications."
+      return NextResponse.json({ error: message }, { status })
+    }
   }
 
   const folder = applicantId
@@ -407,5 +439,9 @@ export async function POST(req: Request) {
     bucket: WORKER_RESUMES_BUCKET,
     textLength,
     extractionMs,
+    applicationId: jobApplication?.application.id ?? null,
+    workflowInstanceId:
+      jobApplication?.application.applicant_workflow_instance_id ?? null,
+    resumedApplication: jobApplication?.resumed ?? false,
   })
 }
