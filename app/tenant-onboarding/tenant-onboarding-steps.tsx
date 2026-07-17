@@ -1360,7 +1360,6 @@ export function BrandingStep({
   onBack: () => void;
   onSkip: () => void;
 }) {
-  const previewFont = brandingFontStack(fontId);
   const customSwatchLeft = "#94a3b8";
   const customSwatchRight = "#e2e8f0";
   const [backgroundUploadError, setBackgroundUploadError] = useState<string | null>(null);
@@ -1619,26 +1618,7 @@ export function BrandingStep({
           <p className="mb-[12px] text-[13px] font-semibold uppercase tracking-wide text-[#64748b]" style={interStyle}>
             Live preview
           </p>
-          <div
-            className="overflow-hidden rounded-[12px] border border-[#e2e8f0] bg-white"
-            style={{
-              background: `linear-gradient(135deg, ${preview.primaryHex}22 0%, ${preview.secondaryHex}33 100%)`,
-            }}
-          >
-            <div className="space-y-3 p-4" style={{ fontFamily: previewFont }}>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={preview.logoUrl} alt="" className="mx-auto h-10 max-w-[140px] object-contain" />
-              <p className="text-center text-[14px] font-semibold text-[#0f172a]">{preview.headline}</p>
-              <p className="text-center text-[12px] text-[#64748b]">{preview.subtitle}</p>
-              <button
-                type="button"
-                className="w-full rounded-[8px] py-2.5 text-[13px] font-semibold text-white"
-                style={{ backgroundColor: preview.primaryHex, color: "#ffffff" }}
-              >
-                Start application
-              </button>
-            </div>
-          </div>
+          <PreviewCard b={preview} />
         </div>
       </div>
 
@@ -1782,7 +1762,7 @@ export function WorkerOnboardingStep({
   );
 }
 
-function PreviewCard({ b }: { b: TenantBranding }) {
+export function PreviewCard({ b }: { b: TenantBranding }) {
   const shellStyle = brandingToCssVars(b) as CSSProperties;
   const logoSrc = normalizeBrandingImageSrc(b.logoUrl, "/images/new-logo-nexus.svg", { allowBlob: true });
   const panelSrc = normalizeBrandingImageSrc(b.loginBackgroundSrc, "/images/handshake.jpg", { allowBlob: true });

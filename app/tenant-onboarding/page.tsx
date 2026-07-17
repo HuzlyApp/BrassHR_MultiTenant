@@ -47,6 +47,51 @@ type Step =
   | "admin"
   | "done";
 
+function isPersistableBrandingUrl(value: string): boolean {
+  const trimmed = value.trim();
+  if (!trimmed || trimmed.startsWith("blob:") || trimmed.startsWith("data:")) return false;
+  return true;
+}
+
+type TenantBrandingUploadKind = "logo" | "favicon" | "background";
+
+async function uploadTenantBrandingFile(
+  kind: TenantBrandingUploadKind,
+  tenantId: string,
+  file: File
+): Promise<string> {
+  const pathByKind = {
+    logo: "/api/tenants/logo",
+    favicon: "/api/tenants/favicon",
+    background: "/api/tenants/background",
+  } as const;
+  const labelByKind = {
+    logo: "company logo",
+    favicon: "favicon",
+    background: "background image",
+  } as const;
+
+  const fd = new FormData();
+  fd.set("tenantId", tenantId);
+  fd.set("file", file);
+  const res = await fetch(pathByKind[kind], { method: "POST", body: fd });
+  const payload = (await res.json().catch(() => ({}))) as {
+    error?: string;
+    logoUrl?: string;
+    faviconUrl?: string;
+    backgroundImageUrl?: string;
+  };
+  if (!res.ok) {
+    throw new Error(payload.error ?? `Could not upload ${labelByKind[kind]}.`);
+  }
+  const uploaded =
+    payload.logoUrl ?? payload.faviconUrl ?? payload.backgroundImageUrl ?? "";
+  if (!uploaded) {
+    throw new Error(`Could not upload ${labelByKind[kind]}.`);
+  }
+  return uploaded;
+}
+
 export default function TenantOnboardingPage() {
   const [brand, setBrand] = useState<TenantBranding>(() => defaultTenantBranding());
   const [brandLoaded, setBrandLoaded] = useState(false);
@@ -86,6 +131,7 @@ export default function TenantOnboardingPage() {
   const [backgroundUrl, setBackgroundUrl] = useState("");
   const [backgroundFile, setBackgroundFile] = useState<File | null>(null);
   const [backgroundPreview, setBackgroundPreview] = useState<string | null>(null);
+  const [faviconPreview, setFaviconPreview] = useState<string | null>(null);
   const [adminEmail, setAdminEmail] = useState("");
   const [inviteEmails, setInviteEmails] = useState<string[]>([""]);
   const [inviteNotice, setInviteNotice] = useState<string | null>(null);
@@ -196,12 +242,23 @@ export default function TenantOnboardingPage() {
     return () => URL.revokeObjectURL(objectUrl);
   }, [backgroundFile]);
 
+  useEffect(() => {
+    if (!faviconFile) {
+      setFaviconPreview(null);
+      return;
+    }
+    const objectUrl = URL.createObjectURL(faviconFile);
+    setFaviconPreview(objectUrl);
+    return () => URL.revokeObjectURL(objectUrl);
+  }, [faviconFile]);
+
   const brandingPreview = useMemo(
     (): TenantBranding => ({
       ...preview,
       loginBackgroundSrc: backgroundPreview || preview.loginBackgroundSrc,
+      faviconUrl: faviconPreview || preview.faviconUrl,
     }),
-    [backgroundPreview, preview]
+    [backgroundPreview, faviconPreview, preview]
   );
 
   const stepperStates = useMemo(
@@ -326,13 +383,16 @@ export default function TenantOnboardingPage() {
         body: JSON.stringify({
           organizationName: orgName.trim(),
           subdomain: validated.subdomain,
-          logoUrl: logoUrl.trim() || null,
+          logoUrl: logoFile || !isPersistableBrandingUrl(logoUrl) ? null : logoUrl.trim(),
           primaryColor: primaryHex,
           secondaryColor: secondaryHex,
           accentColor: accentHex,
           welcomeHeadline: headline.trim() || null,
           welcomeSubtitle: subtitle.trim() || null,
-          authBackgroundImageUrl: backgroundFile ? null : backgroundUrl.trim() || null,
+          authBackgroundImageUrl:
+            backgroundFile || !isPersistableBrandingUrl(backgroundUrl)
+              ? null
+              : backgroundUrl.trim() || null,
           adminEmail: adminEmail.trim().toLowerCase(),
           adminPassword: "",
           industry: businessInfo.industry,
@@ -379,25 +439,17 @@ export default function TenantOnboardingPage() {
       document.cookie = `${ONBOARDING_TENANT_SLUG_COOKIE}=${encodeURIComponent(payload.slug ?? "")}; path=/; max-age=${60 * 60 * 24 * 365}; SameSite=Lax`;
 
       const tenantId = String(payload.tenantId ?? "").trim();
-      if (tenantId && logoFile) {
-        const fd = new FormData();
-        fd.set("tenantId", tenantId);
-        fd.set("file", logoFile);
-        await fetch("/api/tenants/logo", { method: "POST", body: fd });
-      }
-
-      if (tenantId && faviconFile) {
-        const favFd = new FormData();
-        favFd.set("tenantId", tenantId);
-        favFd.set("file", faviconFile);
-        await fetch("/api/tenants/favicon", { method: "POST", body: favFd });
-      }
-
-      if (tenantId && backgroundFile) {
-        const bgFd = new FormData();
-        bgFd.set("tenantId", tenantId);
-        bgFd.set("file", backgroundFile);
-        await fetch("/api/tenants/background", { method: "POST", body: bgFd });
+      if (tenantId) {
+        if (logoFile) {
+          const uploadedLogoUrl = await uploadTenantBrandingFile("logo", tenantId, logoFile);
+          setLogoUrl(uploadedLogoUrl);
+        }
+        if (faviconFile) {
+          await uploadTenantBrandingFile("favicon", tenantId, faviconFile);
+        }
+        if (backgroundFile) {
+          await uploadTenantBrandingFile("background", tenantId, backgroundFile);
+        }
       }
 
       if (tenantId && onboardingSteps.length) {

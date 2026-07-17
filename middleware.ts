@@ -99,6 +99,10 @@ function isPublicApiPath(pathname: string): boolean {
   if (pathname === "/api/auth/signup/options") return true;
   if (pathname === "/api/auth/forgot-password/check-email") return true;
   if (pathname === "/api/auth/forgot-password/send") return true;
+  if (pathname === "/api/tenants/logo") return true;
+  if (pathname === "/api/tenants/favicon") return true;
+  if (pathname === "/api/tenants/background") return true;
+  if (pathname.startsWith("/api/tenant-onboarding/")) return true;
   return false;
 }
 
