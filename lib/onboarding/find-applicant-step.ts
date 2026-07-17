@@ -27,7 +27,31 @@ export function findApplicantStepByKey(
   stepKey: string | null | undefined
 ): TenantOnboardingStep | null {
   if (!stepKey?.trim()) return null;
-  return steps.find((s) => s.step_key === stepKey) ?? null;
+  const exact = steps.find((s) => s.step_key === stepKey);
+  if (exact) return exact;
+
+  // Authorization / Background Check may be published as custom_question or
+  // authorization_background_check depending on when the flow was synced.
+  const aliases = new Set([
+    "custom_question",
+    "authorization_background_check",
+    "authorizations",
+    "agreement_signature",
+    "background_check",
+  ]);
+  const key = stepKey.trim();
+  const base = key.replace(/_\d+$/, "");
+  if (!aliases.has(key) && !aliases.has(base)) return null;
+
+  return (
+    steps.find(
+      (s) =>
+        aliases.has(s.step_key) ||
+        aliases.has(s.step_key.replace(/_\d+$/, "")) ||
+        (typeof s.metadata?.workflow_step_id === "string" &&
+          s.metadata.workflow_step_id === "background-check")
+    ) ?? null
+  );
 }
 
 function pathnameMatchesStepGroup(

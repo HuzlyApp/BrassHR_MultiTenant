@@ -93,8 +93,9 @@ export async function POST(req: NextRequest) {
     }
 
     const url = getSupabaseUrl();
+    // Version param busts browser/CDN caches since the object path is fixed per tenant.
     const publicUrl = url
-      ? `${url}/storage/v1/object/public/${ORGANIZATION_LOGOS_BUCKET}/${objectPath}`
+      ? `${url}/storage/v1/object/public/${ORGANIZATION_LOGOS_BUCKET}/${objectPath}?v=${Date.now()}`
       : objectPath;
 
     const { error: upErr } = await svc.from("tenants").update({ [column]: publicUrl }).eq("id", tenantId);

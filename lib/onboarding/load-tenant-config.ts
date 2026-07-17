@@ -29,9 +29,22 @@ export async function seedDefaultTenantOnboarding(
 export async function loadTenantOnboardingConfig(
   supabase: OnboardingDbClient,
   tenantId: string,
-  options?: { workerFacing?: boolean }
+  options?: { workerFacing?: boolean; bypassCache?: boolean }
 ): Promise<TenantOnboardingConfig | null> {
   const workerFacing = options?.workerFacing ?? false;
+  const bypassCache = options?.bypassCache ?? false;
+
+  const loadFresh = async (): Promise<TenantOnboardingConfig | null> => {
+    const fresh = await loadTenantOnboardingConfigUncached(supabase, tenantId, { workerFacing });
+    if (!fresh || !workerFacing) return fresh;
+    return enrichTenantConfigFromPublishedFlow(supabase, tenantId, fresh);
+  };
+
+  if (bypassCache) {
+    await invalidateTenantCache("tenant_onboarding_configs", tenantId);
+    return loadFresh();
+  }
+
   const config = await getOrSetCache(
     buildCacheKey("tenant_onboarding_configs", ["tenant", tenantId], { workerFacing }),
     () => loadTenantOnboardingConfigUncached(supabase, tenantId, { workerFacing }),
