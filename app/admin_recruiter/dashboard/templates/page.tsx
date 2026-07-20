@@ -23,7 +23,14 @@ const BUILDER_QUERY_KEY = ["onboarding-builder", "effective-tenant"] as const;
 type TemplateItem = {
   id: string;
   name: string;
+  description?: string | null;
   isPreset?: boolean;
+  isEditable?: boolean;
+  employmentType?: "W2" | "1099" | null;
+  preHireStepCount?: number;
+  postHireStepCount?: number;
+  transitionStepCount?: number;
+  totalStepCount?: number;
 };
 
 function CreateTemplateIcon() {
@@ -131,6 +138,21 @@ function TemplateCard({
         <h3 className="truncate pr-28 text-[15px] font-semibold leading-6" style={{ color: TEXT_PRIMARY }}>
           {displayName}
         </h3>
+        <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-[#667085]">
+          {item.employmentType ? <span>Employment Type: {item.employmentType}</span> : null}
+          {typeof item.preHireStepCount === "number" ? (
+            <span>Pre-Hire: {item.preHireStepCount}</span>
+          ) : null}
+          {typeof item.postHireStepCount === "number" ? (
+            <span>Post-Hire: {item.postHireStepCount}</span>
+          ) : null}
+          {typeof item.totalStepCount === "number" ? (
+            <span>Total: {item.totalStepCount}</span>
+          ) : null}
+        </div>
+        {item.description ? (
+          <p className="mt-1 line-clamp-2 text-[12px] leading-4 text-[#667085]">{item.description}</p>
+        ) : null}
       </Link>
 
       <div className="absolute right-3 top-1/2 flex -translate-y-1/2 items-center gap-1 opacity-100 transition-opacity sm:right-4 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100">
@@ -241,20 +263,26 @@ export default function AdminRecruiterTemplatesPage() {
           method: "POST",
           headers: await staffAuthHeaders(),
         });
-        const data = (await res.json()) as { error?: string; templateName?: string };
+        const data = (await res.json()) as {
+          error?: string;
+          templateName?: string;
+          copiedTemplateId?: string | null;
+          redirectTo?: string;
+        };
         if (!res.ok) throw new Error(data.error || "Failed to copy template");
 
         const name = data.templateName?.replace(/\.tpl$/i, "") ?? "Template";
         markPendingWorkflowPaste(templateId);
         void queryClient.invalidateQueries({ queryKey: BUILDER_QUERY_KEY });
-        toast.success(`"${name}" copied. Open Builder and click Paste workflow.`);
+        toast.success(`"${name}" copied to a draft workflow.`);
+        router.push(`${data.redirectTo ?? BUILDER_BASE}${data.copiedTemplateId ? `?template=${encodeURIComponent(data.copiedTemplateId)}` : ""}`);
       } catch (e) {
         toast.error(e instanceof Error ? e.message : "Failed to copy template");
       } finally {
         setCopyingId(null);
       }
     },
-    [copyingId, queryClient]
+    [copyingId, queryClient, router]
   );
 
   const handleViewTemplate = useCallback(

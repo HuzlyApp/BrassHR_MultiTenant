@@ -175,6 +175,34 @@ function SettingsBody({ node, onUpdate, onSaveStep, onCloneWorkflow, readOnly = 
           value={node.data.required}
           onChange={(v) => onUpdate(node.id, { required: v })}
         />
+        <SelectField
+          label="Phase"
+          value={settings.phase}
+          options={["pre_hire", "transition", "post_hire"]}
+          onChange={(v) =>
+            patchSettings({
+              phase: (v as StepSettings["phase"]) ?? "pre_hire",
+              phaseOrder: v === "transition" ? 2 : v === "post_hire" ? 3 : 1,
+            })
+          }
+        />
+        <TextField
+          label="Completion owner"
+          value={settings.completionOwner ?? ""}
+          onChange={(v) => patchSettings({ completionOwner: v }, { skipHistory: true })}
+          onCommit={(v) => patchSettings({ completionOwner: v })}
+        />
+        <ToggleRow
+          label="Conditional step"
+          value={settings.isConditional === true}
+          onChange={(v) => patchSettings({ isConditional: v })}
+        />
+        <TextField
+          label="Unlock condition"
+          value={settings.unlockCondition ?? ""}
+          onChange={(v) => patchSettings({ unlockCondition: v }, { skipHistory: true })}
+          onCommit={(v) => patchSettings({ unlockCondition: v })}
+        />
         <ToggleRow
           label="Client performs"
           value={settings.clientPerforms}

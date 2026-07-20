@@ -5,6 +5,7 @@ import { resolveEffectiveAdminTenantId } from "@/lib/email-templates/resolve-eff
 import type { OnboardingDbClient } from "@/lib/onboarding/load-tenant-config";
 import { saveOnboardingBuilderDraft } from "@/lib/onboarding/load-onboarding-builder-meta";
 import {
+  duplicatePresetToTenantDraft,
   getWorkflowTemplateById,
   workflowTemplateDraft,
 } from "@/lib/onboarding/workflow-templates";
@@ -46,7 +47,25 @@ export async function POST(_req: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: "Template not found" }, { status: 404 });
     }
 
-    const builderDraft = await workflowTemplateDraft(supabase as OnboardingDbClient, row);
+    let templateName = row.name;
+    let copiedTemplateId: string | null = null;
+    const builderDraft =
+      row.type === "preset"
+        ? await (async () => {
+            const duplicated = await duplicatePresetToTenantDraft(
+              supabase as OnboardingDbClient,
+              tenantId,
+              id,
+              auth.userId
+            );
+            templateName = duplicated.tenantTemplate.name;
+            copiedTemplateId = duplicated.tenantTemplate.id;
+            return workflowTemplateDraft(
+              supabase as OnboardingDbClient,
+              duplicated.sourceTemplate
+            );
+          })()
+        : await workflowTemplateDraft(supabase as OnboardingDbClient, row);
     await saveOnboardingBuilderDraft(supabase as OnboardingDbClient, tenantId, {
       builderDraft,
       updatedBy: auth.userId,
@@ -55,7 +74,9 @@ export async function POST(_req: NextRequest, context: RouteContext) {
 
     return NextResponse.json({
       ok: true,
-      templateName: row.name,
+      templateName,
+      copiedTemplateId,
+      redirectTo: "/admin_recruiter/dashboard/onboarding-builder",
     });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : "Failed to copy template to workflow";

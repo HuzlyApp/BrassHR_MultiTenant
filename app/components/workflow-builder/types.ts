@@ -37,7 +37,13 @@ export type StepCategory = {
 };
 
 export type StepSettings = {
+  phase: "pre_hire" | "transition" | "post_hire";
+  phaseOrder: number;
+  stepOrder: number;
   required: boolean;
+  isConditional: boolean;
+  unlockCondition: string;
+  completionOwner: string;
   clientPerforms: boolean;
   useBraasPartner: boolean;
   notifyHrOnFail: boolean;
@@ -89,7 +95,13 @@ export type WorkflowState = {
 };
 
 export const DEFAULT_STEP_SETTINGS: StepSettings = {
+  phase: "pre_hire",
+  phaseOrder: 1,
+  stepOrder: 1,
   required: true,
+  isConditional: false,
+  unlockCondition: "",
+  completionOwner: "applicant",
   clientPerforms: true,
   useBraasPartner: true,
   notifyHrOnFail: true,
