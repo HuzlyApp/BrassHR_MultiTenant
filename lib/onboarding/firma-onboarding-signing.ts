@@ -754,6 +754,7 @@ export async function syncFirmaSigningSessionStatus(
 ): Promise<FirmaSigningSessionPayload> {
   assertValidApplicantEmailForSigning(input.applicantEmail);
   const workspaceId = await resolveWorkspaceForSigning(input.supabase, input.tenantId);
+  await syncSigningWorkspaceBranding(input.supabase, input.tenantId, workspaceId);
   const existing = await loadExistingSession(input.supabase, input.workerId, input.step.id);
   if (!existing?.signing_request_id) {
     throw new FirmaOnboardingSigningError("Signing session not found", "INVALID_SESSION", 404);
