@@ -9,7 +9,7 @@ import {
   EMAIL_TEMPLATE_TYPE,
   isOnboardingEmailTemplateKey,
 } from "@/lib/email-templates/template-keys";
-import { resolveAppOrigin } from "@/lib/resolve-app-origin";
+import { resolveApplicantEmailAppOrigin } from "@/lib/resolve-app-origin";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { parseRequiredUuid } from "@/lib/validation/uuid";
 
@@ -82,7 +82,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const origin = resolveAppOrigin(req, body.clientOrigin);
+    const origin = resolveApplicantEmailAppOrigin(req, body.clientOrigin);
     if (!origin) {
       return NextResponse.json({ error: "Could not resolve app origin" }, { status: 400 });
     }

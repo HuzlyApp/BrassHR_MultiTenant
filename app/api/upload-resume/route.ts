@@ -10,7 +10,7 @@ import { resolveOrEnsureWorkerForApplicant, resolveWorkerByApplicantId, type Wor
 import { runResumeParseJob } from "@/lib/resume/run-resume-parse-job"
 import { createTimer, logResumeTiming } from "@/lib/resume/timing"
 import { sendResumeContinuationEmail } from "@/lib/onboarding/send-resume-continuation-email"
-import { resolveAppOrigin } from "@/lib/resolve-app-origin"
+import { resolveApplicantEmailAppOrigin } from "@/lib/resolve-app-origin"
 import { WORKER_RESUMES_BUCKET } from "@/lib/supabase-storage-buckets"
 import { enforceRateLimit, getClientIp } from "@/lib/security/rate-limit"
 import { JobValidationError } from "@/lib/jobs/types"
@@ -345,10 +345,7 @@ export async function POST(req: Request) {
   const capturedTenantSlug = tenantSlug
   if (text.trim()) {
     after(async () => {
-      const origin =
-        resolveAppOrigin(req) ??
-        process.env.NEXT_PUBLIC_APP_URL?.trim().replace(/\/+$/, "") ??
-        null
+      const origin = resolveApplicantEmailAppOrigin(req)
 
       console.info("[upload-resume] resume upload success", {
         workerId: capturedWorkerId,
@@ -399,10 +396,7 @@ export async function POST(req: Request) {
     })
   } else if (capturedResumeId) {
     after(async () => {
-      const origin =
-        resolveAppOrigin(req) ??
-        process.env.NEXT_PUBLIC_APP_URL?.trim().replace(/\/+$/, "") ??
-        null
+      const origin = resolveApplicantEmailAppOrigin(req)
       if (!origin) return
 
       await sendResumeContinuationEmail(supabase, {

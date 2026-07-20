@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { sendProfileSaveStatusLinkEmail } from "@/lib/onboarding/send-profile-save-status-link-email";
 import { resolveOnboardingTenantId } from "@/lib/tenant/resolve-onboarding-tenant-id";
-import { resolveAppOrigin } from "@/lib/resolve-app-origin";
+import { resolveApplicantEmailAppOrigin } from "@/lib/resolve-app-origin";
 import { getSupabaseUrl } from "@/lib/supabase-env";
 
 export const runtime = "nodejs";
@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Supabase not configured" }, { status: 503 });
     }
 
-    const origin = resolveAppOrigin(req);
+    const origin = resolveApplicantEmailAppOrigin(req);
     if (!origin) {
       return NextResponse.json({ error: "Could not resolve app origin" }, { status: 400 });
     }

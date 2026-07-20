@@ -250,3 +250,58 @@ export function resolveAppOrigin(req: OriginRequest, clientOrigin?: string | nul
 
   return null
 }
+
+/**
+ * Origin for applicant-facing email links.
+ * Prefers browser/client origin, then localhost and preview deployment hosts,
+ * before NEXT_PUBLIC_APP_URL (so local/dev emails do not always use production).
+ */
+export function resolveApplicantEmailAppOrigin(
+  req: OriginRequest,
+  clientOrigin?: string | null
+): string | null {
+  const fromClient = clientOrigin?.trim().replace(/\/$/, "");
+  if (fromClient) {
+    try {
+      return finalizeResolvedOrigin(fromClient);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  const root = currentRootDomain();
+  const forwardedProto = req.headers.get("x-forwarded-proto")?.split(",")[0]?.trim();
+  const forwardedHost = req.headers.get("x-forwarded-host")?.split(",")[0]?.trim();
+  const rawHost = forwardedHost || req.headers.get("host")?.trim() || "";
+  const hostOnly = rawHost.split(":")[0]?.toLowerCase() || "";
+
+  if (hostOnly) {
+    if (isLocalDevHost(hostOnly)) {
+      const proto =
+        forwardedProto && /^https?$/i.test(forwardedProto)
+          ? forwardedProto.toLowerCase()
+          : "http";
+      return `${proto}://${rawHost}`;
+    }
+
+    if (
+      hostOnly.endsWith(".vercel.app") ||
+      hostOnly.endsWith(".vercel.sh") ||
+      (hostOnly !== root &&
+        hostOnly !== `www.${root}` &&
+        !isTenantVanityHost(hostOnly, root))
+    ) {
+      const proto =
+        forwardedProto && /^https?$/i.test(forwardedProto)
+          ? forwardedProto.toLowerCase()
+          : "https";
+      try {
+        return finalizeResolvedOrigin(`${proto}://${hostOnly}`);
+      } catch {
+        /* fall through */
+      }
+    }
+  }
+
+  return resolveAppOrigin(req, clientOrigin);
+}
