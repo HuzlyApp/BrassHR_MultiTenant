@@ -7,6 +7,7 @@ import {
   FIRMA_NATIVE_EMBED_MAX_WIDTH,
   resolveFirmaEmbedDimensions,
 } from "@/lib/firma/firma-signing-embed-scale";
+import { resolveFirmaSigningEmbedUrl } from "@/lib/firma/signing-branding-proxy";
 
 type FirmaSigningIframeProps = {
   iframeUrl: string | null;
@@ -131,7 +132,9 @@ export function FirmaSigningIframe({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [variant, onClose]);
 
-  if (!iframeUrl) {
+  const embedUrl = resolveFirmaSigningEmbedUrl(iframeUrl);
+
+  if (!embedUrl) {
     return (
       <div
         data-testid="firma-signing-iframe-missing"
@@ -147,7 +150,7 @@ export function FirmaSigningIframe({
       <iframe
         ref={iframeRef}
         data-testid={testId}
-        src={iframeUrl}
+        src={embedUrl}
         title={title}
         className="min-h-[720px] w-full rounded-lg border border-[#e4e7ec] bg-white"
         allow="camera; microphone; clipboard-write"
@@ -175,7 +178,7 @@ export function FirmaSigningIframe({
         <iframe
           ref={iframeRef}
           data-testid={testId}
-          src={iframeUrl}
+          src={embedUrl}
           title={title}
           className="block h-full w-full border-0 bg-transparent"
           style={{ width: "100%", height: "100%", transform: "none" }}
@@ -209,7 +212,7 @@ export function FirmaSigningIframe({
           <iframe
             ref={iframeRef}
             data-testid={testId}
-            src={iframeUrl}
+            src={embedUrl}
             title={title}
             className="block border-0 bg-transparent"
             style={{
