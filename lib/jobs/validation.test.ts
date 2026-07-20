@@ -11,7 +11,6 @@ const validJob: JobRequisitionInput = {
   sourceType: "Internal",
   professionId: "11111111-1111-4111-8111-111111111111",
   employmentType: "W2",
-  placementType: "Internal",
   publicTitle: "Registered Nurse",
   publicDescription: "Provide excellent patient care.",
   location: "Austin, TX",
@@ -25,7 +24,6 @@ describe("job requisition validation", () => {
         sourceType: "Internal",
         professionId: validJob.professionId,
         employmentType: "W2",
-        placementType: "Internal",
       },
     });
     expect(result.success).toBe(true);
@@ -53,14 +51,6 @@ describe("job requisition validation", () => {
     expect(errors.externalRequisitionId).toBeTruthy();
   });
 
-  it("requires an employer of record for Recruit_and_EOR", () => {
-    const errors = validatePublishableJob(
-      { ...validJob, placementType: "Recruit_and_EOR", employerOfRecord: "" },
-      "22222222-2222-4222-8222-222222222222"
-    );
-    expect(errors.employerOfRecord).toBeTruthy();
-  });
-
   it("rejects uncontrolled enum variations", () => {
     const result = jobMutationSchema.safeParse({
       action: "publish",
@@ -73,14 +63,12 @@ describe("job requisition validation", () => {
     expect(normalizeApplicantEmail("  Applicant@Example.COM ")).toBe("applicant@example.com");
   });
 
-  it("documents the exact three-field matching key in no-match errors", () => {
+  it("documents the matching key in no-match errors", () => {
     const message = workflowNoMatchMessage("Registered Nurse", {
       employmentType: "W2",
-      placementType: "Internal",
     });
     expect(message).toContain("Profession: Registered Nurse");
     expect(message).toContain("Employment Type: W2");
-    expect(message).toContain("Placement Type: Internal");
     expect(message).toContain("Ask an administrator to create a workflow mapping");
   });
 });

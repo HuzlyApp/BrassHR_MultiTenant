@@ -4,14 +4,13 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import toast from "react-hot-toast";
-import type { EmploymentType, PlacementType } from "@/lib/jobs/types";
+import type { EmploymentType } from "@/lib/jobs/types";
 
 type MappingItem = {
   id: string;
   professionId: string;
   professionName: string;
   employmentType: EmploymentType;
-  placementType: PlacementType;
   workflowId: string;
   workflowName: string;
   workflowEmploymentType: string | null;
@@ -22,7 +21,6 @@ type MappingItem = {
 type OptionsPayload = {
   professions: Array<{ id: string; name: string }>;
   employmentTypes: EmploymentType[];
-  placementTypes: PlacementType[];
   workflows: Array<{ id: string; name: string; employment_type?: string | null }>;
 };
 
@@ -30,7 +28,6 @@ type FormState = {
   id?: string;
   professionId: string;
   employmentType: EmploymentType;
-  placementType: PlacementType;
   workflowId: string;
   priority: number;
   isActive: boolean;
@@ -39,7 +36,6 @@ type FormState = {
 const emptyForm = (): FormState => ({
   professionId: "",
   employmentType: "W2",
-  placementType: "Internal",
   workflowId: "",
   priority: 100,
   isActive: true,
@@ -58,18 +54,16 @@ export default function WorkflowMappingsClient() {
   const [form, setForm] = useState<FormState>(emptyForm);
   const [filterProfession, setFilterProfession] = useState("");
   const [filterEmployment, setFilterEmployment] = useState("");
-  const [filterPlacement, setFilterPlacement] = useState("");
 
   const loadMappings = useCallback(async () => {
     const params = new URLSearchParams();
     if (filterProfession) params.set("professionId", filterProfession);
     if (filterEmployment) params.set("employmentType", filterEmployment);
-    if (filterPlacement) params.set("placementType", filterPlacement);
     const response = await fetch(`/api/admin/workflow-mappings?${params}`, { cache: "no-store" });
     const payload = await response.json();
     if (!response.ok) throw new Error(payload.error || "Failed to load mappings");
     setMappings(payload.mappings ?? []);
-  }, [filterProfession, filterEmployment, filterPlacement]);
+  }, [filterProfession, filterEmployment]);
 
   const loadOptions = useCallback(async (employmentType?: string) => {
     const params = employmentType ? `?employmentType=${encodeURIComponent(employmentType)}` : "";
@@ -92,7 +86,7 @@ export default function WorkflowMappingsClient() {
     const duplicateIds = new Set<string>();
     for (const mapping of mappings) {
       if (!mapping.isActive) continue;
-      const key = `${mapping.professionId}:${mapping.employmentType}:${mapping.placementType}`;
+      const key = `${mapping.professionId}:${mapping.employmentType}`;
       if (activeKeys.has(key)) duplicateIds.add(mapping.id);
       else activeKeys.set(key, mapping.id);
     }
@@ -107,16 +101,13 @@ export default function WorkflowMappingsClient() {
   useEffect(() => {
     const professionId = searchParams.get("professionId");
     const employmentType = searchParams.get("employmentType") as EmploymentType | null;
-    const placementType = searchParams.get("placementType") as PlacementType | null;
     const workflowId = searchParams.get("workflowId");
-    if (professionId || employmentType || placementType || workflowId) {
+    if (professionId || employmentType || workflowId) {
       setFilterProfession(professionId ?? "");
       setFilterEmployment(employmentType ?? "");
-      setFilterPlacement(placementType ?? "");
       openCreate({
         professionId: professionId ?? "",
         employmentType: employmentType ?? "W2",
-        placementType: placementType ?? "Internal",
         workflowId: workflowId ?? "",
       });
     }
@@ -133,7 +124,6 @@ export default function WorkflowMappingsClient() {
       id: mapping.id,
       professionId: mapping.professionId,
       employmentType: mapping.employmentType,
-      placementType: mapping.placementType,
       workflowId: mapping.workflowId,
       priority: mapping.priority,
       isActive: mapping.isActive,
@@ -192,8 +182,8 @@ export default function WorkflowMappingsClient() {
           <p className="text-sm font-medium text-teal-700">Automation</p>
           <h1 className="text-2xl font-semibold text-slate-900">Workflow Mappings</h1>
           <p className="mt-1 max-w-3xl text-sm text-slate-500">
-            Connect profession, employment type, and placement type to a published tenant workflow.
-            Jobs and applicants resolve workflows from these mappings automatically.
+            Connect profession and employment type to a published tenant workflow. Jobs and applicants
+            resolve workflows from these mappings automatically.
           </p>
         </div>
         <button
@@ -206,7 +196,7 @@ export default function WorkflowMappingsClient() {
       </div>
 
       <section className="mb-6 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="grid gap-3 md:grid-cols-3">
+        <div className="grid gap-3 md:grid-cols-2">
           <label className="block text-sm">
             <span className="mb-1 block font-medium text-slate-700">Filter profession</span>
             <select
@@ -231,19 +221,6 @@ export default function WorkflowMappingsClient() {
             >
               <option value="">All employment types</option>
               {options?.employmentTypes.map((value) => (
-                <option key={value}>{value}</option>
-              ))}
-            </select>
-          </label>
-          <label className="block text-sm">
-            <span className="mb-1 block font-medium text-slate-700">Filter placement type</span>
-            <select
-              className={inputClass}
-              value={filterPlacement}
-              onChange={(e) => setFilterPlacement(e.target.value)}
-            >
-              <option value="">All placement types</option>
-              {options?.placementTypes.map((value) => (
                 <option key={value}>{value}</option>
               ))}
             </select>
@@ -275,7 +252,6 @@ export default function WorkflowMappingsClient() {
                 <tr>
                   <th className="px-4 py-3">Profession</th>
                   <th className="px-4 py-3">Employment</th>
-                  <th className="px-4 py-3">Placement</th>
                   <th className="px-4 py-3">Workflow</th>
                   <th className="px-4 py-3">Priority</th>
                   <th className="px-4 py-3">Status</th>
@@ -287,7 +263,6 @@ export default function WorkflowMappingsClient() {
                   <tr key={mapping.id} className="border-t border-slate-100">
                     <td className="px-4 py-3 font-medium text-slate-900">{mapping.professionName}</td>
                     <td className="px-4 py-3">{mapping.employmentType}</td>
-                    <td className="px-4 py-3">{mapping.placementType}</td>
                     <td className="px-4 py-3">
                       <span className="font-medium text-slate-800">{mapping.workflowName}</span>
                       {mapping.workflowEmploymentType ? (
@@ -374,20 +349,6 @@ export default function WorkflowMappingsClient() {
                   }
                 >
                   {options?.employmentTypes.map((value) => (
-                    <option key={value}>{value}</option>
-                  ))}
-                </select>
-              </label>
-              <label className="block text-sm">
-                <span className="mb-1 block font-medium text-slate-700">Placement type</span>
-                <select
-                  className={inputClass}
-                  value={form.placementType}
-                  onChange={(e) =>
-                    setForm((c) => ({ ...c, placementType: e.target.value as PlacementType }))
-                  }
-                >
-                  {options?.placementTypes.map((value) => (
                     <option key={value}>{value}</option>
                   ))}
                 </select>

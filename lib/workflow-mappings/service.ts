@@ -14,7 +14,7 @@ import { validateWorkflowCompatibility } from "@/lib/workflow-mappings/validatio
 type DbClient = SupabaseClient;
 
 const MAPPING_SELECT =
-  "id, tenant_id, profession_id, employment_type, placement_type, workflow_id, is_active, priority, created_at, updated_at, professions(name), onboarding_flows(id, name, status, tenant_id, employment_type)";
+  "id, tenant_id, profession_id, employment_type, workflow_id, is_active, priority, created_at, updated_at, professions(name), onboarding_flows(id, name, status, tenant_id)";
 
 export async function resolveWorkflowMatch(
   supabase: DbClient,
@@ -27,7 +27,6 @@ export async function resolveWorkflowMatch(
     .eq("tenant_id", tenantId)
     .eq("profession_id", key.professionId)
     .eq("employment_type", key.employmentType)
-    .eq("placement_type", key.placementType)
     .eq("is_active", true)
     .eq("onboarding_flows.status", "published")
     .eq("onboarding_flows.tenant_id", tenantId)
@@ -87,7 +86,6 @@ function toListItem(row: Record<string, unknown>): WorkflowMappingListItem {
     professionId: String(row.profession_id),
     professionName: String((profession as { name?: string } | null)?.name ?? row.profession_id),
     employmentType: row.employment_type as WorkflowMappingListItem["employmentType"],
-    placementType: row.placement_type as WorkflowMappingListItem["placementType"],
     workflowId: String(row.workflow_id),
     workflowName: String((flow as { name?: string } | null)?.name ?? row.workflow_id),
     workflowEmploymentType:
@@ -105,7 +103,6 @@ export async function listWorkflowMappings(
   filters?: {
     professionId?: string;
     employmentType?: string;
-    placementType?: string;
     activeOnly?: boolean;
   }
 ): Promise<WorkflowMappingListItem[]> {
@@ -118,7 +115,6 @@ export async function listWorkflowMappings(
 
   if (filters?.professionId) query = query.eq("profession_id", filters.professionId);
   if (filters?.employmentType) query = query.eq("employment_type", filters.employmentType);
-  if (filters?.placementType) query = query.eq("placement_type", filters.placementType);
   if (filters?.activeOnly) query = query.eq("is_active", true);
 
   const { data, error } = await query;
@@ -148,11 +144,10 @@ export async function saveWorkflowMapping(
   actorUserId: string,
   input: WorkflowMappingInput
 ): Promise<WorkflowMappingListItem> {
-  if (!input.professionId || !input.employmentType || !input.placementType || !input.workflowId) {
+  if (!input.professionId || !input.employmentType || !input.workflowId) {
     throw new WorkflowMappingError("All mapping criteria and a workflow are required.", "INVALID_INPUT", {
       professionId: "Profession is required.",
       employmentType: "Employment type is required.",
-      placementType: "Placement type is required.",
       workflowId: "Published workflow is required.",
     });
   }
@@ -164,12 +159,14 @@ export async function saveWorkflowMapping(
     });
   }
 
+  const workflowEmploymentType =
+    (workflow as { employment_type?: string | null }).employment_type ?? null;
   const compatibilityError = validateWorkflowCompatibility(input, {
     id: String(workflow.id),
     tenantId: String(workflow.tenant_id),
     name: String(workflow.name),
     status: String(workflow.status),
-    employmentType: workflow.employment_type as string | null,
+    employmentType: workflowEmploymentType,
   });
   if (compatibilityError) {
     throw new WorkflowMappingError(compatibilityError, "INCOMPATIBLE_WORKFLOW", {
@@ -181,7 +178,6 @@ export async function saveWorkflowMapping(
     tenant_id: tenantId,
     profession_id: input.professionId,
     employment_type: input.employmentType,
-    placement_type: input.placementType,
     workflow_id: input.workflowId,
     is_active: input.isActive ?? true,
     priority: input.priority ?? 100,
@@ -200,7 +196,7 @@ export async function saveWorkflowMapping(
   if (error) {
     if (error.code === "23505") {
       throw new WorkflowMappingError(
-        "An active mapping already exists for this profession, employment type, and placement type.",
+        "An active mapping already exists for this profession and employment type.",
         "DUPLICATE_MAPPING"
       );
     }
@@ -224,15 +220,24 @@ export async function deleteWorkflowMapping(
   if (loadError) throw loadError;
   if (!mapping) throw new WorkflowMappingError("Mapping not found.", "NOT_FOUND");
 
+  let referencedJobCount = 0;
   const { count, error: countError } = await supabase
     .from("job_requisitions")
     .select("id", { count: "exact", head: true })
     .eq("tenant_id", tenantId)
     .eq("workflow_id", mapping.workflow_id)
     .neq("status", "archived");
-  if (countError) throw countError;
 
-  if ((count ?? 0) > 0) {
+  if (countError) {
+    const message = countError.message.toLowerCase();
+    if (!message.includes("workflow_id") && !message.includes("does not exist")) {
+      throw countError;
+    }
+  } else {
+    referencedJobCount = count ?? 0;
+  }
+
+  if (referencedJobCount > 0) {
     const { error: deactivateError } = await supabase
       .from("workflow_mappings")
       .update({ is_active: false })
@@ -258,7 +263,7 @@ export async function listPublishedWorkflowOptions(
 ) {
   let query = supabase
     .from("onboarding_flows")
-    .select("id, name, employment_type, profession_id, placement_type, status")
+    .select("id, name, status")
     .eq("tenant_id", tenantId)
     .eq("status", "published")
     .order("name", { ascending: true });
@@ -268,7 +273,7 @@ export async function listPublishedWorkflowOptions(
 
   return (data ?? []).filter((row) => {
     if (!filters?.employmentType) return true;
-    const workflowEmployment = row.employment_type as string | null;
+    const workflowEmployment = (row as { employment_type?: string | null }).employment_type ?? null;
     if (!workflowEmployment) return true;
     if (filters.employmentType === "W2") return workflowEmployment !== "1099";
     if (filters.employmentType === "1099") return workflowEmployment !== "W2";

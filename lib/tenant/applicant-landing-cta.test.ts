@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   APPLICANT_PORTAL_CTA_START_APPLICATION,
+  APPLICANT_PORTAL_CTA_VIEW_OPEN_POSITIONS,
   applicantLandingCtaLabel,
   isTenantApplicantPortalSlug,
   PLATFORM_DEFAULT_TENANT_SLUG,
@@ -21,13 +22,14 @@ describe("applicant landing CTA", () => {
     expect(isTenantApplicantPortalSlug("nexus")).toBe(true);
   });
 
-  it("uses Get Started for platform and Start application for tenants", () => {
+  it("uses Get Started for platform and View open positions for tenants", () => {
     expect(applicantLandingCtaLabel(null)).toBe(PLATFORM_ONBOARDING_CTA_GET_STARTED);
     expect(applicantLandingCtaLabel(PLATFORM_DEFAULT_TENANT_SLUG)).toBe(
       PLATFORM_ONBOARDING_CTA_GET_STARTED
     );
     expect(applicantLandingCtaLabel("acme-staffing")).toBe(
-      APPLICANT_PORTAL_CTA_START_APPLICATION
+      APPLICANT_PORTAL_CTA_VIEW_OPEN_POSITIONS
     );
+    expect(APPLICANT_PORTAL_CTA_START_APPLICATION).toBe(APPLICANT_PORTAL_CTA_VIEW_OPEN_POSITIONS);
   });
 });

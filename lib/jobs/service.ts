@@ -12,6 +12,9 @@ import {
   validatePublishableJob,
   workflowNoMatchMessage,
 } from "@/lib/jobs/validation";
+import {
+  isJobRequisitionOpen,
+} from "@/lib/jobs/public-application-routing";
 import { resolveWorkflowMatch } from "@/lib/workflow-mappings/service";
 
 type DbClient = SupabaseClient;
@@ -31,7 +34,6 @@ function toJobRow(input: JobRequisitionInput) {
     profession_id: input.professionId,
     specialty_id: clean(input.specialtyId),
     employment_type: input.employmentType,
-    placement_type: input.placementType,
     employer_of_record: clean(input.employerOfRecord),
     department: clean(input.department),
     facility: clean(input.facility),
@@ -63,7 +65,7 @@ async function routingKeyChanged(
 ): Promise<boolean> {
   const { data, error } = await supabase
     .from("job_requisitions")
-    .select("profession_id, employment_type, placement_type")
+    .select("profession_id, employment_type")
     .eq("id", jobId)
     .eq("tenant_id", tenantId)
     .maybeSingle();
@@ -71,8 +73,7 @@ async function routingKeyChanged(
   if (!data) return false;
   return (
     String(data.profession_id) !== input.professionId ||
-    String(data.employment_type) !== input.employmentType ||
-    String(data.placement_type) !== input.placementType
+    String(data.employment_type) !== input.employmentType
   );
 }
 
@@ -118,7 +119,6 @@ async function requirePublishable(
   if (!match) {
     message = workflowNoMatchMessage(await professionName(supabase, tenantId, input.professionId), {
       employmentType: input.employmentType,
-      placementType: input.placementType,
     });
   }
   throw new JobValidationError(message, fieldErrors);
@@ -150,7 +150,7 @@ export async function saveJobRequisition(
         );
         if (applicantCount > 0 && !options.confirmRoutingChange) {
           throw new JobValidationError(
-            "Changing profession, employment type, or placement type will assign a different workflow for new applicants. Existing applicants remain on their original workflow. Confirm to continue.",
+            "Changing profession or employment type will assign a different workflow for new applicants. Existing applicants remain on their original workflow. Confirm to continue.",
             { professionId: "Confirm routing change to update workflow assignment." },
             "ROUTING_CHANGE_CONFIRMATION_REQUIRED"
           );
@@ -238,7 +238,7 @@ export async function listInternalJobs(
   let query = supabase
     .from("job_requisitions")
     .select(
-      "id, internal_requisition_number, public_title, profession_id, specialty_id, employment_type, placement_type, status, workflow_id, created_by, created_at, published_at, professions(name), specialties(name), onboarding_flows(name), job_applications(count)"
+      "id, internal_requisition_number, public_title, profession_id, specialty_id, employment_type, status, workflow_id, created_by, created_at, published_at, professions(name), specialties(name), onboarding_flows(name), job_applications(count)"
     )
     .eq("tenant_id", tenantId)
     .order("created_at", { ascending: false });
@@ -270,6 +270,7 @@ export async function listPublicJobs(
   const pageSize = Math.min(50, Math.max(1, filters.pageSize ?? 12));
   const from = (page - 1) * pageSize;
   const to = from + pageSize - 1;
+  const today = new Date().toISOString().slice(0, 10);
 
   let query = supabase
     .from("job_requisitions")
@@ -279,6 +280,8 @@ export async function listPublicJobs(
     )
     .eq("tenant_id", tenantId)
     .eq("status", "published")
+    .not("workflow_id", "is", null)
+    .or(`application_deadline.is.null,application_deadline.gte.${today}`)
     .order("published_at", { ascending: false })
     .range(from, to);
 
@@ -306,13 +309,15 @@ export async function getPublishedJobByToken(
   const { data, error } = await supabase
     .from("job_requisitions")
     .select(
-      "id, tenant_id, public_job_token, public_title, public_description, location, schedule, employment_type, pay_rate_min, pay_rate_max, qualifications, responsibilities, benefits, application_deadline, published_at, profession_id, specialty_id, professions(name), specialties(name)"
+      "id, tenant_id, public_job_token, public_title, public_description, location, schedule, employment_type, pay_rate_min, pay_rate_max, qualifications, responsibilities, benefits, application_deadline, published_at, profession_id, specialty_id, workflow_id, professions(name), specialties(name)"
     )
     .eq("tenant_id", tenantId)
     .eq("public_job_token", token)
     .eq("status", "published")
+    .not("workflow_id", "is", null)
     .maybeSingle();
   if (error) throw error;
+  if (!data || !isJobRequisitionOpen(data)) return null;
   return data;
 }
 

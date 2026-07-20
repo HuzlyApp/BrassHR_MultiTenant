@@ -71,8 +71,31 @@ export default function Home() {
   const [brandLoaded, setBrandLoaded] = useState(false);
   const [activeTenantSlug, setActiveTenantSlug] = useState<string | null>(null);
   const [tenantNotFound, setTenantNotFound] = useState(false);
-  const [applicationEntryUrl, setApplicationEntryUrl] = useState<string | null>(null);
   const [startingApplication, setStartingApplication] = useState(false);
+
+  async function startTenantApplication(slug: string) {
+    persistOnboardingSlugCookie(slug);
+    setStartingApplication(true);
+    try {
+      const res = await fetch(`/api/public/application-entry?tenant=${encodeURIComponent(slug)}`, {
+        cache: "no-store",
+      });
+      const payload = (await res.json().catch(() => ({}))) as {
+        path?: string;
+        kind?: string;
+        message?: string;
+      };
+      if (res.ok && payload.path) {
+        router.push(payload.path);
+        return;
+      }
+      router.push(`/jobs?tenant=${encodeURIComponent(slug)}`);
+    } catch {
+      router.push(`/jobs?tenant=${encodeURIComponent(slug)}`);
+    } finally {
+      setStartingApplication(false);
+    }
+  }
 
   useEffect(() => {
     if (typeof window !== "undefined" && window.location.hash.includes("error=")) {
@@ -136,35 +159,6 @@ export default function Home() {
       window.clearTimeout(safetyTimer);
     };
   }, []);
-
-  useEffect(() => {
-    if (!activeTenantSlug || !isTenantApplicantPortalSlug(activeTenantSlug)) {
-      setApplicationEntryUrl(null);
-      return;
-    }
-
-    let alive = true;
-    void (async () => {
-      try {
-        const res = await fetch(
-          `/api/worker-onboarding/entry?tenant=${encodeURIComponent(activeTenantSlug)}`,
-          { cache: "no-store" }
-        );
-        const payload = (await res.json().catch(() => ({}))) as { url?: string };
-        if (alive && res.ok && payload.url) {
-          setApplicationEntryUrl(payload.url);
-        } else if (alive) {
-          setApplicationEntryUrl(null);
-        }
-      } catch {
-        if (alive) setApplicationEntryUrl(null);
-      }
-    })();
-
-    return () => {
-      alive = false;
-    };
-  }, [activeTenantSlug]);
 
   if (!brandLoaded) {
     return (
@@ -293,32 +287,7 @@ export default function Home() {
               disabled={startingApplication}
               onClick={() => {
                 if (resolvedPortalSlug) {
-                  persistOnboardingSlugCookie(resolvedPortalSlug);
-                  void (async () => {
-                    if (applicationEntryUrl) {
-                      router.push(applicationEntryUrl);
-                      return;
-                    }
-                    setStartingApplication(true);
-                    try {
-                      const res = await fetch(
-                        `/api/worker-onboarding/entry?tenant=${encodeURIComponent(resolvedPortalSlug)}`,
-                        { cache: "no-store" }
-                      );
-                      const payload = (await res.json().catch(() => ({}))) as { url?: string };
-                      if (res.ok && payload.url) {
-                        router.push(payload.url);
-                        return;
-                      }
-                    } catch {
-                      /* fall through */
-                    } finally {
-                      setStartingApplication(false);
-                    }
-                    router.push(
-                      `/worker-onboarding?tenant=${encodeURIComponent(resolvedPortalSlug)}`
-                    );
-                  })();
+                  void startTenantApplication(resolvedPortalSlug);
                   return;
                 }
                 router.push("/signup");
@@ -361,32 +330,7 @@ export default function Home() {
               disabled={startingApplication}
               onClick={() => {
                 if (resolvedPortalSlug) {
-                  persistOnboardingSlugCookie(resolvedPortalSlug);
-                  void (async () => {
-                    if (applicationEntryUrl) {
-                      router.push(applicationEntryUrl);
-                      return;
-                    }
-                    setStartingApplication(true);
-                    try {
-                      const res = await fetch(
-                        `/api/worker-onboarding/entry?tenant=${encodeURIComponent(resolvedPortalSlug)}`,
-                        { cache: "no-store" }
-                      );
-                      const payload = (await res.json().catch(() => ({}))) as { url?: string };
-                      if (res.ok && payload.url) {
-                        router.push(payload.url);
-                        return;
-                      }
-                    } catch {
-                      /* fall through */
-                    } finally {
-                      setStartingApplication(false);
-                    }
-                    router.push(
-                      `/worker-onboarding?tenant=${encodeURIComponent(resolvedPortalSlug)}`
-                    );
-                  })();
+                  void startTenantApplication(resolvedPortalSlug);
                   return;
                 }
                 router.push("/signup");

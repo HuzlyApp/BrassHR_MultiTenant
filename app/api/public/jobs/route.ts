@@ -6,6 +6,15 @@ import { createServiceRoleClient } from "@/lib/supabase/service-role";
 
 export const runtime = "nodejs";
 
+function apiErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof Error && error.message.trim()) return error.message;
+  if (error && typeof error === "object" && "message" in error) {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === "string" && message.trim()) return message;
+  }
+  return fallback;
+}
+
 export async function GET(req: NextRequest) {
   const supabase = createServiceRoleClient();
   if (!supabase) return NextResponse.json({ error: "Jobs are temporarily unavailable" }, { status: 503 });
@@ -55,7 +64,7 @@ export async function GET(req: NextRequest) {
     });
   } catch (error) {
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to load jobs" },
+      { error: apiErrorMessage(error, "Failed to load jobs") },
       { status: 500 }
     );
   }

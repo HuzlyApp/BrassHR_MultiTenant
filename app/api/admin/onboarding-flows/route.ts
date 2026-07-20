@@ -116,8 +116,14 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ flow });
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : "Failed to create flow";
+    const msg =
+      err instanceof Error
+        ? err.message
+        : typeof err === "object" && err && "message" in err
+          ? String((err as { message: unknown }).message)
+          : "Failed to create flow";
     const status = msg.includes("already exists") ? 409 : 500;
+    console.error("[onboarding-flows POST]", err);
     return NextResponse.json({ error: msg }, { status });
   }
 }

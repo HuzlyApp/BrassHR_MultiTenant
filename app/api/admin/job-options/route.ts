@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireStaffApiSession } from "@/lib/auth/api-session";
-import { EMPLOYMENT_TYPES, PLACEMENT_TYPES, SOURCE_TYPES } from "@/lib/jobs/types";
+import { EMPLOYMENT_TYPES, SOURCE_TYPES } from "@/lib/jobs/types";
 import { resolveStaffTenantId } from "@/lib/jobs/tenant";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 
@@ -42,7 +42,6 @@ export async function GET() {
       specialties: specialties.data ?? [],
       workflows: auth.role === "admin" || auth.godAdmin ? workflows.data ?? [] : [],
       employmentTypes: EMPLOYMENT_TYPES,
-      placementTypes: PLACEMENT_TYPES,
       sourceTypes: SOURCE_TYPES,
       canManageWorkflows: auth.role === "admin" || auth.godAdmin,
     });

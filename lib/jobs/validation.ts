@@ -2,7 +2,6 @@ import { z } from "zod";
 import {
   EMPLOYMENT_TYPES,
   JOB_STATUSES,
-  PLACEMENT_TYPES,
   SOURCE_TYPES,
   type FieldErrors,
   type JobRequisitionInput,
@@ -33,7 +32,6 @@ export const jobRequisitionInputSchema = z.object({
   professionId: z.uuid(),
   specialtyId: optionalText.pipe(z.uuid().nullable()),
   employmentType: z.enum(EMPLOYMENT_TYPES),
-  placementType: z.enum(PLACEMENT_TYPES),
   employerOfRecord: optionalText,
   department: optionalText,
   facility: optionalText,
@@ -74,13 +72,8 @@ export function validatePublishableJob(
   if (!input.location?.trim()) errors.location = "Location is required.";
   if (!input.professionId) errors.professionId = "Profession is required.";
   if (!input.employmentType) errors.employmentType = "Employment type is required.";
-  if (!input.placementType) errors.placementType = "Placement type is required.";
   if (!input.sourceType) errors.sourceType = "Source type is required.";
   if (!workflowId) errors.workflowId = "A matching published workflow is required.";
-
-  if (input.placementType === "Recruit_and_EOR" && !input.employerOfRecord?.trim()) {
-    errors.employerOfRecord = "Employer of Record is required for this placement type.";
-  }
 
   if (input.sourceType === "MSP") {
     if (!input.mspClient?.trim()) errors.mspClient = "MSP client is required.";
@@ -108,14 +101,13 @@ export function normalizeApplicantEmail(email: string): string {
 
 export function workflowNoMatchMessage(
   professionName: string,
-  key: Pick<WorkflowMatchKey, "employmentType" | "placementType">
+  key: Pick<WorkflowMatchKey, "employmentType">
 ): string {
   return [
     "No published workflow is configured for this job.",
     "",
     `Profession: ${professionName}`,
     `Employment Type: ${key.employmentType}`,
-    `Placement Type: ${key.placementType}`,
     "",
     "Ask an administrator to create a workflow mapping before publishing.",
   ].join("\n");

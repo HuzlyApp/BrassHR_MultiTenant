@@ -27,7 +27,6 @@ export async function GET(req: NextRequest) {
     const mappings = await listWorkflowMappings(supabase, tenantId, {
       professionId: req.nextUrl.searchParams.get("professionId") || undefined,
       employmentType: req.nextUrl.searchParams.get("employmentType") || undefined,
-      placementType: req.nextUrl.searchParams.get("placementType") || undefined,
       activeOnly: req.nextUrl.searchParams.get("activeOnly") === "true",
     });
     return NextResponse.json({ mappings });

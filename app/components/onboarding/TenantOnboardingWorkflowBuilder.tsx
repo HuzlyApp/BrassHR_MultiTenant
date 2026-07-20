@@ -28,6 +28,7 @@ import { safeFetchJson } from "@/lib/api/safe-fetch-json";
 import { applyApplicantConfigFilters } from "@/lib/onboarding/filter-applicant-steps";
 import { configFromWorkflowDraft } from "@/lib/onboarding/config-from-builder-draft";
 import { isValidFlowNameInput, normalizeFlowNameKey } from "@/lib/onboarding/validate-flow-name";
+import { FLOWS_QUERY_KEY } from "@/lib/onboarding/hooks/use-onboarding-flows";
 import { isSerializableWorkflowState } from "@/lib/onboarding/workflow-builder-serialization";
 import {
   clearPendingWorkflowPaste,
@@ -609,18 +610,22 @@ export default function TenantOnboardingWorkflowBuilder({
 
         const activeFlowId = flowIdFromUrl;
         if (activeFlowId) {
+          const patchBody: Record<string, unknown> = {
+            name: effectiveFlowName,
+            builderDraft,
+            saveTemplate: options.template === true,
+            templateName: flowTitleRef.current,
+          };
+          if (options.publish === true) {
+            patchBody.publish = true;
+          }
+
           const res = await fetch(`/api/admin/onboarding-flows/${activeFlowId}`, {
             ...(await staffFetchInit({
               "Content-Type": "application/json",
             })),
             method: "PATCH",
-            body: JSON.stringify({
-              name: effectiveFlowName,
-              builderDraft,
-              publish: options.publish === true,
-              saveTemplate: options.template === true,
-              templateName: flowTitleRef.current,
-            }),
+            body: JSON.stringify(patchBody),
           });
           const payload = (await res.json()) as {
             flow?: {
@@ -668,6 +673,7 @@ export default function TenantOnboardingWorkflowBuilder({
                 message: PUBLISH_SUCCESS_MESSAGE,
               });
               void queryClient.invalidateQueries({ queryKey: BUILDER_QUERY_KEY });
+              void queryClient.invalidateQueries({ queryKey: FLOWS_QUERY_KEY });
             } else {
               toast.success("Draft saved");
             }

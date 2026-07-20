@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import type {
   EmploymentType,
   JobRequisitionInput,
-  PlacementType,
   SourceType,
 } from "@/lib/jobs/types";
 
@@ -16,7 +15,6 @@ type OptionsPayload = {
   professions: Option[];
   specialties: SpecialtyOption[];
   employmentTypes: EmploymentType[];
-  placementTypes: PlacementType[];
   sourceTypes: SourceType[];
   canManageWorkflows: boolean;
 };
@@ -26,7 +24,6 @@ const initialJob: JobRequisitionInput = {
   professionId: "",
   specialtyId: null,
   employmentType: "W2",
-  placementType: "Internal",
   publicTitle: "",
   publicDescription: "",
   location: "",
@@ -105,7 +102,6 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
           professionId: String(row.profession_id ?? ""),
           specialtyId: row.specialty_id ? String(row.specialty_id) : null,
           employmentType: row.employment_type as EmploymentType,
-          placementType: row.placement_type as PlacementType,
           employerOfRecord: String(row.employer_of_record ?? ""),
           department: String(row.department ?? ""),
           facility: String(row.facility ?? ""),
@@ -139,12 +135,11 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
     const params = new URLSearchParams();
     if (job.professionId) params.set("professionId", job.professionId);
     if (job.employmentType) params.set("employmentType", job.employmentType);
-    if (job.placementType) params.set("placementType", job.placementType);
     return `/admin_recruiter/dashboard/workflow-mappings?${params}`;
-  }, [job.employmentType, job.placementType, job.professionId]);
+  }, [job.employmentType, job.professionId]);
 
   useEffect(() => {
-    if (!job.professionId || !job.employmentType || !job.placementType) {
+    if (!job.professionId || !job.employmentType) {
       setWorkflow(null);
       setWorkflowWarning("");
       return;
@@ -152,7 +147,6 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
     const params = new URLSearchParams({
       professionId: job.professionId,
       employmentType: job.employmentType,
-      placementType: job.placementType,
     });
     const controller = new AbortController();
     const timer = window.setTimeout(() => {
@@ -164,7 +158,7 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
           const payload = await response.json();
           if (response.ok && payload.match) {
             const criteria = professionLabel
-              ? `${professionLabel} + ${job.employmentType} + ${job.placementType}`
+              ? `${professionLabel} + ${job.employmentType}`
               : undefined;
             setWorkflow({
               workflowName: payload.match.workflowName,
@@ -186,7 +180,7 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
       window.clearTimeout(timer);
       controller.abort();
     };
-  }, [job.professionId, job.employmentType, job.placementType, professionLabel]);
+  }, [job.professionId, job.employmentType, professionLabel]);
 
   const specialties = useMemo(
     () => options?.specialties.filter((item) => item.profession_id === job.professionId) ?? [],
@@ -196,7 +190,7 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
   function update<K extends keyof JobRequisitionInput>(key: K, value: JobRequisitionInput[K]) {
     if (
       originalStatus === "published" &&
-      (key === "professionId" || key === "employmentType" || key === "placementType")
+      (key === "professionId" || key === "employmentType")
     ) {
       setConfirmRoutingChange(false);
     }
@@ -313,11 +307,6 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
             <Field label="Employment type" error={fieldErrors.employmentType}>
               <select className={inputClass} value={job.employmentType} onChange={(e) => update("employmentType", e.target.value as EmploymentType)}>
                 {options?.employmentTypes.map((value) => <option key={value}>{value}</option>)}
-              </select>
-            </Field>
-            <Field label="Placement type" error={fieldErrors.placementType}>
-              <select className={inputClass} value={job.placementType} onChange={(e) => update("placementType", e.target.value as PlacementType)}>
-                {options?.placementTypes.map((value) => <option key={value}>{value}</option>)}
               </select>
             </Field>
             <Field label="Employer of Record" error={fieldErrors.employerOfRecord}>

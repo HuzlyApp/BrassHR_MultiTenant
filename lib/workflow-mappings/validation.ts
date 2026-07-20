@@ -33,7 +33,6 @@ export function validateWorkflowCompatibility(
 export function formatRoutingCriteriaLabel(input: {
   professionName: string;
   employmentType: EmploymentType;
-  placementType: string;
 }): string {
-  return `${input.professionName} + ${input.employmentType} + ${input.placementType}`;
+  return `${input.professionName} + ${input.employmentType}`;
 }

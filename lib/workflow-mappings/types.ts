@@ -1,9 +1,8 @@
-import type { EmploymentType, PlacementType } from "@/lib/jobs/types";
+import type { EmploymentType } from "@/lib/jobs/types";
 
 export type WorkflowMappingKey = {
   professionId: string;
   employmentType: EmploymentType;
-  placementType: PlacementType;
 };
 
 export type WorkflowMappingInput = WorkflowMappingKey & {
@@ -18,7 +17,6 @@ export type WorkflowMappingListItem = {
   professionId: string;
   professionName: string;
   employmentType: EmploymentType;
-  placementType: PlacementType;
   workflowId: string;
   workflowName: string;
   workflowEmploymentType: string | null;

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import toast from "react-hot-toast";
-import type { EmploymentType, PlacementType } from "@/lib/jobs/types";
+import type { EmploymentType } from "@/lib/jobs/types";
 
 type ConfigureMappingModalProps = {
   open: boolean;
@@ -27,7 +27,6 @@ export default function ConfigureMappingModal({
 }: ConfigureMappingModalProps) {
   const [professionId, setProfessionId] = useState("");
   const [employmentType, setEmploymentType] = useState<EmploymentType>(suggestedEmploymentType ?? "W2");
-  const [placementType, setPlacementType] = useState<PlacementType>("Internal");
   const [saving, setSaving] = useState(false);
   const [professions, setProfessions] = useState<Array<{ id: string; name: string }>>([]);
 
@@ -58,7 +57,6 @@ export default function ConfigureMappingModal({
         body: JSON.stringify({
           professionId,
           employmentType,
-          placementType,
           workflowId,
           isActive: true,
           priority: 100,
@@ -108,18 +106,6 @@ export default function ConfigureMappingModal({
               <option>Contract</option>
             </select>
           </label>
-          <label className="block text-sm">
-            <span className="mb-1 block font-medium text-slate-700">Placement type</span>
-            <select
-              className={inputClass}
-              value={placementType}
-              onChange={(e) => setPlacementType(e.target.value as PlacementType)}
-            >
-              <option>Internal</option>
-              <option>Recruit_and_Release</option>
-              <option>Recruit_and_EOR</option>
-            </select>
-          </label>
         </div>
         <div className="mt-6 flex flex-wrap justify-end gap-3">
           <button
@@ -130,7 +116,7 @@ export default function ConfigureMappingModal({
             Skip for now
           </button>
           <Link
-            href={`/admin_recruiter/dashboard/workflow-mappings?workflowId=${workflowId}&professionId=${professionId}&employmentType=${employmentType}&placementType=${placementType}`}
+            href={`/admin_recruiter/dashboard/workflow-mappings?workflowId=${workflowId}&professionId=${professionId}&employmentType=${employmentType}`}
             className="rounded-lg border border-teal-200 px-4 py-2 text-sm font-medium text-teal-700"
           >
             Open mappings

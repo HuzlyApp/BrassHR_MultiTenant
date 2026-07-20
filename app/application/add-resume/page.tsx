@@ -4,7 +4,7 @@ import { APPLICATION_ROUTES } from "@/lib/onboarding/application-routes"
 import { applicationPath } from "@/lib/tenant/with-tenant"
 import { useEffect, useRef, useState } from "react"
 import type { CSSProperties } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import Image from "next/image"
 import OnboardingStepper from "@/app/components/OnboardingStepper"
 import OnboardingLoader from "@/app/components/OnboardingLoader"
@@ -120,6 +120,7 @@ export default function Step1Upload() {
   }
 
   const router = useRouter()
+  const searchParams = useSearchParams()
   const fileInput = useRef<HTMLInputElement>(null)
   const onboarding = useOnboardingConfigOptional()
 
@@ -132,6 +133,42 @@ export default function Step1Upload() {
   const [fileRequiredError, setFileRequiredError] = useState<string | null>(null)
   const [savedResumeName, setSavedResumeName] = useState("")
   const [savedResumeSizeBytes, setSavedResumeSizeBytes] = useState<number | null>(null)
+  const jobToken =
+    searchParams.get("job_token")?.trim() ||
+    (typeof window !== "undefined" ? localStorage.getItem("applicationJobToken")?.trim() : "") ||
+    ""
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    if (jobToken) {
+      localStorage.setItem("applicationJobToken", jobToken)
+    }
+  }, [jobToken])
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    const tenantSlug =
+      searchParams.get("tenant")?.trim().toLowerCase() ||
+      branding.slug?.trim().toLowerCase() ||
+      currentOnboardingTenantSlug() ||
+      ""
+    if (!jobToken && tenantSlug) {
+      void fetch(`/api/public/application-entry?tenant=${encodeURIComponent(tenantSlug)}`, {
+        cache: "no-store",
+      })
+        .then(async (response) => {
+          const payload = (await response.json().catch(() => ({}))) as { path?: string }
+          if (response.ok && payload.path) {
+            router.replace(payload.path)
+          } else {
+            router.replace(`/jobs?tenant=${encodeURIComponent(tenantSlug)}`)
+          }
+        })
+        .catch(() => {
+          router.replace(`/jobs?tenant=${encodeURIComponent(tenantSlug)}`)
+        })
+    }
+  }, [branding.slug, jobToken, router, searchParams])
 
   useEffect(() => {
     if (typeof window === "undefined") return
@@ -354,6 +391,13 @@ export default function Step1Upload() {
         }
         if (workerResult.tenantId) {
           fd.append("tenantId", workerResult.tenantId)
+        }
+        const activeJobToken =
+          jobToken ||
+          (typeof window !== "undefined" ? localStorage.getItem("applicationJobToken")?.trim() : "") ||
+          ""
+        if (activeJobToken) {
+          fd.append("jobToken", activeJobToken)
         }
 
         const uploadRes = await fetchWithTimeout(

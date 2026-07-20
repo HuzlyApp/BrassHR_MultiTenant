@@ -4,13 +4,6 @@ export type JobStatus = (typeof JOB_STATUSES)[number];
 export const EMPLOYMENT_TYPES = ["W2", "1099", "Contract"] as const;
 export type EmploymentType = (typeof EMPLOYMENT_TYPES)[number];
 
-export const PLACEMENT_TYPES = [
-  "Internal",
-  "Recruit_and_Release",
-  "Recruit_and_EOR",
-] as const;
-export type PlacementType = (typeof PLACEMENT_TYPES)[number];
-
 export const SOURCE_TYPES = ["Internal", "MSP"] as const;
 export type SourceType = (typeof SOURCE_TYPES)[number];
 
@@ -22,7 +15,6 @@ export type JobRequisitionInput = {
   professionId: string;
   specialtyId?: string | null;
   employmentType: EmploymentType;
-  placementType: PlacementType;
   employerOfRecord?: string | null;
   department?: string | null;
   facility?: string | null;
@@ -44,10 +36,7 @@ export type JobRequisitionInput = {
   applicationDeadline?: string | null;
 };
 
-export type WorkflowMatchKey = Pick<
-  JobRequisitionInput,
-  "professionId" | "employmentType" | "placementType"
->;
+export type WorkflowMatchKey = Pick<JobRequisitionInput, "professionId" | "employmentType">;
 
 export type WorkflowMatch = {
   mappingId: string;

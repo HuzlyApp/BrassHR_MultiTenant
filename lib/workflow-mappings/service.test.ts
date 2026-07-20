@@ -26,7 +26,6 @@ describe("resolveWorkflowMatch", () => {
     const result = await resolveWorkflowMatch(supabase as never, "tenant-1", {
       professionId: "prof-1",
       employmentType: "W2",
-      placementType: "Internal",
     });
 
     expect(result).toEqual({
@@ -41,7 +40,6 @@ describe("resolveWorkflowMatch", () => {
     const result = await resolveWorkflowMatch(supabase as never, "tenant-1", {
       professionId: "prof-1",
       employmentType: "1099",
-      placementType: "Recruit_and_Release",
     });
     expect(result).toBeNull();
   });

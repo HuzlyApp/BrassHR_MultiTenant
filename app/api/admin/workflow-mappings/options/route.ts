@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireStaffApiSession } from "@/lib/auth/api-session";
-import { EMPLOYMENT_TYPES, PLACEMENT_TYPES } from "@/lib/jobs/types";
+import { EMPLOYMENT_TYPES } from "@/lib/jobs/types";
 import { resolveStaffTenantId } from "@/lib/jobs/tenant";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { listPublishedWorkflowOptions } from "@/lib/workflow-mappings/service";
@@ -38,7 +38,6 @@ export async function GET(req: Request) {
     return NextResponse.json({
       professions: professions.data ?? [],
       employmentTypes: EMPLOYMENT_TYPES,
-      placementTypes: PLACEMENT_TYPES,
       workflows,
     });
   } catch (error) {

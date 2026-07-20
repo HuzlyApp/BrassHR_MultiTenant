@@ -257,17 +257,6 @@ export async function createOnboardingFlow(
     builderDraft = await workflowTemplateDraft(supabase, template);
   }
 
-  const templateEmploymentType =
-    !createAsBlank && templateId
-      ? (
-          await supabase
-            .from("onboarding_templates")
-            .select("employment_type")
-            .eq("id", templateId)
-            .maybeSingle()
-        ).data?.employment_type ?? null
-      : null;
-
   const status: OnboardingFlowStatus = input.status ?? "unpublished";
 
   let sortOrder = 0;
@@ -294,7 +283,6 @@ export async function createOnboardingFlow(
       created_as_blank: createAsBlank,
       builder_draft: builderDraft,
       sort_order: sortOrder,
-      employment_type: templateEmploymentType,
       created_by: input.createdBy,
       updated_by: input.createdBy,
     })
@@ -303,7 +291,10 @@ export async function createOnboardingFlow(
     )
     .single();
 
-  if (error) throw error;
+  if (error) {
+    const message = [error.message, error.details, error.hint].filter(Boolean).join(" — ");
+    throw new Error(message || "Failed to create onboarding flow");
+  }
 
   const detail = toDetail(data as OnboardingFlowRow);
   if (builderDraft.nodes.length) {

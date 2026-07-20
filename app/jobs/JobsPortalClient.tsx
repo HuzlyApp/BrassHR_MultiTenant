@@ -4,6 +4,10 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
+import {
+  buildApplyPath,
+  NO_OPEN_POSITIONS_MESSAGE,
+} from "@/lib/jobs/public-application-routing";
 import { resolveTenantSlugForClient } from "@/lib/tenant/resolve-tenant-context";
 
 type Job = {
@@ -41,6 +45,7 @@ export default function JobsPortalClient() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const pageSize = 9;
+  const hasActiveFilters = Boolean(query || professionId || specialtyId || location || employmentType);
 
   useEffect(() => {
     const resolved = resolveTenantSlugForClient(window.location.search, {
@@ -98,8 +103,10 @@ export default function JobsPortalClient() {
       <header className="px-5 py-12 text-white sm:px-8" style={{ backgroundColor: branding.primaryHex }}>
         <div className="mx-auto max-w-6xl">
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-white/75">{branding.companyName}</p>
-          <h1 className="mt-2 text-3xl font-semibold sm:text-4xl">Find your next opportunity</h1>
-          <p className="mt-3 max-w-2xl text-white/80">Explore current openings and apply directly with your resume.</p>
+          <h1 className="mt-2 text-3xl font-semibold sm:text-4xl">Open positions</h1>
+          <p className="mt-3 max-w-2xl text-white/80">
+            Browse published roles and apply to the position that matches your background.
+          </p>
         </div>
       </header>
 
@@ -122,7 +129,7 @@ export default function JobsPortalClient() {
         </section>
 
         <div className="mb-5 mt-8 flex items-center justify-between">
-          <p className="text-sm text-slate-600">{total} published {total === 1 ? "job" : "jobs"}</p>
+          <p className="text-sm text-slate-600">{total} open {total === 1 ? "position" : "positions"}</p>
           <p className="text-sm text-slate-500">Page {page} of {pageCount}</p>
         </div>
 
@@ -130,23 +137,46 @@ export default function JobsPortalClient() {
         {loading ? <div className="py-16 text-center text-sm text-slate-500">Loading opportunities…</div> : null}
         {!loading && !error ? (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {jobs.map((job) => (
-              <article key={job.public_job_token} className="flex flex-col rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
-                <div className="flex items-start justify-between gap-3">
-                  <h2 className="text-lg font-semibold text-slate-900">{job.public_title}</h2>
-                  <span className="rounded-full bg-teal-50 px-2.5 py-1 text-xs font-semibold text-teal-700">{job.employment_type}</span>
-                </div>
-                <p className="mt-2 text-sm font-medium text-slate-600">{job.location}</p>
-                <p className="mt-1 text-xs text-slate-500">{[relationName(job.professions), relationName(job.specialties), job.schedule].filter(Boolean).join(" · ")}</p>
-                <p className="mt-4 line-clamp-3 text-sm leading-6 text-slate-600">{job.public_description}</p>
-                <Link href={`/jobs/${encodeURIComponent(job.public_job_token)}?tenant=${encodeURIComponent(tenant)}`} className="mt-5 inline-flex font-semibold text-teal-700 hover:underline">
-                  View job details
-                </Link>
-              </article>
-            ))}
+            {jobs.map((job) => {
+              const profession = relationName(job.professions);
+              const specialty = relationName(job.specialties);
+              const applyHref = buildApplyPath(tenant, job.public_job_token);
+              return (
+                <article key={job.public_job_token} className="flex flex-col rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+                  <div className="flex items-start justify-between gap-3">
+                    <h2 className="text-lg font-semibold text-slate-900">{job.public_title}</h2>
+                    <span className="rounded-full bg-teal-50 px-2.5 py-1 text-xs font-semibold text-teal-700">{job.employment_type}</span>
+                  </div>
+                  {profession ? <p className="mt-2 text-sm font-medium text-slate-700">{profession}</p> : null}
+                  {specialty ? <p className="mt-1 text-sm text-slate-600">{specialty}</p> : null}
+                  <p className="mt-2 text-sm font-medium text-slate-600">{job.location}</p>
+                  <p className="mt-4 line-clamp-3 flex-1 text-sm leading-6 text-slate-600">{job.public_description}</p>
+                  <div className="mt-5 flex flex-wrap items-center gap-3">
+                    <Link
+                      href={applyHref}
+                      className="inline-flex rounded-lg bg-teal-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-teal-800"
+                    >
+                      Apply
+                    </Link>
+                    <Link
+                      href={`/jobs/${encodeURIComponent(job.public_job_token)}?tenant=${encodeURIComponent(tenant)}`}
+                      className="text-sm font-semibold text-teal-700 hover:underline"
+                    >
+                      View details
+                    </Link>
+                  </div>
+                </article>
+              );
+            })}
           </div>
         ) : null}
-        {!loading && !error && jobs.length === 0 ? <div className="rounded-xl border border-dashed border-slate-300 bg-white py-16 text-center text-slate-500">No published jobs match your filters.</div> : null}
+        {!loading && !error && jobs.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-slate-300 bg-white py-16 text-center text-slate-600">
+            {hasActiveFilters
+              ? "No published jobs match your filters."
+              : NO_OPEN_POSITIONS_MESSAGE}
+          </div>
+        ) : null}
 
         <div className="mt-8 flex justify-center gap-3">
           <button disabled={page <= 1} onClick={() => setPage((value) => Math.max(1, value - 1))} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium disabled:opacity-40">Previous</button>

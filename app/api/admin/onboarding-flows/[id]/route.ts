@@ -114,9 +114,8 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
     let status = body.status;
     if (body.publish === true) {
       status = "published";
-    } else if (body.publish === false && status === undefined) {
-      status = "draft";
     }
+    // Do not demote to draft when the client omits publish or sends publish:false on autosave.
 
     const flow = await updateOnboardingFlow(supabase as OnboardingDbClient, tenantId, id, {
       name: body.name,

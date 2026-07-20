@@ -8,7 +8,6 @@ type JobRow = {
   internal_requisition_number: string | null;
   public_title: string | null;
   employment_type: string;
-  placement_type: string;
   status: "draft" | "published" | "closed" | "archived";
   created_at: string;
   published_at: string | null;
@@ -133,7 +132,7 @@ export default function AdminRecruiterJobsPage() {
                   {relationName(job.professions)}
                   <span className="block text-xs text-slate-500">{relationName(job.specialties)}</span>
                 </td>
-                <td className="px-4 py-4 text-slate-700">{job.employment_type}<span className="block text-xs text-slate-500">{job.placement_type}</span></td>
+                <td className="px-4 py-4 text-slate-700">{job.employment_type}</td>
                 <td className="px-4 py-4"><span className={`rounded-full px-2.5 py-1 text-xs font-semibold capitalize ${statusStyles[job.status]}`}>{job.status}</span></td>
                 <td className="px-4 py-4 text-slate-700">{relationName(job.onboarding_flows)}</td>
                 <td className="px-4 py-4 font-medium text-slate-800">
