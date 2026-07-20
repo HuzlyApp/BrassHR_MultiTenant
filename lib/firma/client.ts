@@ -507,6 +507,22 @@ export async function createFirmaWorkspace(input: {
 }
 
 /**
+ * Sync company-wide appearance defaults (app.firma.dev → Settings → Appearance).
+ * Workspace settings override these per workspace; company primary must be BrassHR gold
+ * so embedded editors inherit gold CTAs when workspace inherits from company.
+ */
+export async function updateFirmaCompanyAppearanceSettings(
+  settings: FirmaWorkspaceAppearanceSettings
+): Promise<FirmaWorkspaceAppearanceSettings> {
+  return firmaRequest<FirmaWorkspaceAppearanceSettings>("/company/settings", {
+    method: "PUT",
+    body: settings,
+    includeWorkspaceScope: false,
+    retries: 1,
+  });
+}
+
+/**
  * Sync workspace appearance (embedded editor + signing chrome).
  * Must authenticate with the target workspace's own api_key — company/other-workspace
  * keys return 403 for appearance settings even when template/signing ops work via workspace_id.

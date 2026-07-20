@@ -1,15 +1,20 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { isFirmaConfigured, updateFirmaWorkspaceSettings } from "@/lib/firma/client";
-import type { FirmaWorkspaceAppearanceSettings } from "@/lib/firma/types";
-import { tenantBrandingToFirmaWorkspaceSettings } from "@/lib/firma/sync-workspace-branding-colors";
-import { TENANT_BRANDING_SELECT } from "@/lib/tenant/branding-fields";
 import {
-  brandingFromTenantRow,
-  type TenantBrandingRow,
-} from "@/lib/tenant/tenant-branding";
+  isFirmaConfigured,
+  updateFirmaCompanyAppearanceSettings,
+  updateFirmaWorkspaceSettings,
+} from "@/lib/firma/client";
+import type { FirmaWorkspaceAppearanceSettings } from "@/lib/firma/types";
+import { buildBrassHrFirmaAppearanceSettings } from "@/lib/firma/sync-workspace-branding-colors";
+import { TENANT_BRANDING_SELECT } from "@/lib/tenant/branding-fields";
+import type { TenantBrandingRow } from "@/lib/tenant/tenant-branding";
 
-export { contrastForegroundOnHex, tenantBrandingToFirmaWorkspaceSettings } from "@/lib/firma/sync-workspace-branding-colors";
+export {
+  buildBrassHrFirmaAppearanceSettings,
+  contrastForegroundOnHex,
+  tenantBrandingToFirmaWorkspaceSettings,
+} from "@/lib/firma/sync-workspace-branding-colors";
 
 export async function loadTenantBrandingRow(
   supabase: SupabaseClient,
@@ -44,8 +49,8 @@ export function logFirmaWorkspaceBrandingSyncFailure(
 }
 
 /**
- * Pushes tenant branding colors to the Firma workspace before opening embedded editors.
- * Firma applies these to template builder + signing UI chrome (not via embed init options).
+ * Pushes BrassHR gold appearance to Firma company + workspace settings before embedded editors open.
+ * Matches app.firma.dev → Settings → Appearance so the template builder inherits gold primary.
  */
 export async function syncTenantBrandingToFirmaWorkspace(
   supabase: SupabaseClient,
@@ -60,17 +65,20 @@ export async function syncTenantBrandingToFirmaWorkspace(
     };
   }
 
-  const row = await loadTenantBrandingRow(supabase, tenantId);
-  const branding = brandingFromTenantRow(row, row?.slug ?? undefined);
-  const colors = tenantBrandingToFirmaWorkspaceSettings(branding);
+  const colors = buildBrassHrFirmaAppearanceSettings();
 
-  await updateFirmaWorkspaceSettings(workspaceId, colors);
+  const [companyApplied, workspaceApplied] = await Promise.all([
+    updateFirmaCompanyAppearanceSettings(colors),
+    updateFirmaWorkspaceSettings(workspaceId, colors),
+  ]);
 
-  console.info("[firma-branding] workspace appearance synced", {
+  console.info("[firma-branding] Firma appearance synced", {
     tenantId,
     workspaceId,
-    color_primary: colors.color_primary,
-    color_accent: colors.color_accent,
+    company_primary: companyApplied.color_primary ?? colors.color_primary,
+    company_accent: companyApplied.color_accent ?? colors.color_accent,
+    workspace_primary: workspaceApplied.color_primary ?? colors.color_primary,
+    workspace_accent: workspaceApplied.color_accent ?? colors.color_accent,
   });
 
   return {

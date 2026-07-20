@@ -1,4 +1,5 @@
 import type { FirmaWorkspaceAppearanceSettings } from "@/lib/firma/types";
+import { BRAAS_PRIMARY, BRAAS_SECONDARY } from "@/lib/tenant/tenant-branding";
 import type { TenantBranding } from "@/lib/tenant/tenant-branding";
 
 const HEX_RE = /^#[0-9A-Fa-f]{6}$/;
@@ -33,30 +34,48 @@ export function contrastForegroundOnHex(hex: string): string {
   return luminance > 0.62 ? "#101828" : "#ffffff";
 }
 
+/** Firma Appearance tab defaults aligned with app.firma.dev/settings?tab=appearance. */
+export const BRAAS_FIRMA_APPEARANCE_DEFAULTS = {
+  background: "#1c1c21",
+  foreground: "#ffffff",
+  card: "#22222a",
+  border: "#3b3b3b",
+  canvas: "#0f1419",
+  muted: "#22222a",
+  mutedFg: "#b8b8b8",
+} as const;
+
 /**
- * Maps BrassHR tenant branding to Firma workspace editor/signing colors.
- * Prefer primary/secondary (same as the host shell gradient) over buttonColor.
- * Firma uses both color_primary and color_accent for signing CTAs/zoom chrome —
- * keep them aligned so the embed matches the outer brand shell.
+ * BrassHR appearance payload for Firma company + workspace settings APIs.
+ * Primary drives buttons, field icons, and zoom controls in the embedded editor.
  */
-export function tenantBrandingToFirmaWorkspaceSettings(
-  branding: TenantBranding
-): FirmaWorkspaceAppearanceSettings {
-  const primary = normalizeHex(branding.primaryHex || branding.buttonColor, "#bc8b41");
-  const secondary = normalizeHex(branding.secondaryHex || branding.buttonColor, primary);
+export function buildBrassHrFirmaAppearanceSettings(): FirmaWorkspaceAppearanceSettings {
+  const primary = normalizeHex(BRAAS_PRIMARY, "#bc8b41");
+  const secondary = normalizeHex(BRAAS_SECONDARY, primary);
   const primaryFg = contrastForegroundOnHex(primary);
+  const accentFg = contrastForegroundOnHex(primary);
 
   return {
     color_primary: primary,
     color_primary_fg: primaryFg,
     color_accent: primary,
-    color_accent_fg: primaryFg,
-    color_background: "#1c1c21",
-    color_foreground: "#f8fafc",
-    color_card: "#22222a",
-    color_border: "#3b3b3b",
-    color_canvas: "#2a2a32",
-    color_muted: "#2e2e36",
+    color_accent_fg: accentFg,
+    color_background: BRAAS_FIRMA_APPEARANCE_DEFAULTS.background,
+    color_foreground: BRAAS_FIRMA_APPEARANCE_DEFAULTS.foreground,
+    color_card: BRAAS_FIRMA_APPEARANCE_DEFAULTS.card,
+    color_border: BRAAS_FIRMA_APPEARANCE_DEFAULTS.border,
+    color_canvas: BRAAS_FIRMA_APPEARANCE_DEFAULTS.canvas,
+    color_muted: BRAAS_FIRMA_APPEARANCE_DEFAULTS.muted,
     color_muted_fg: secondary,
   };
+}
+
+/**
+ * Maps BrassHR appearance for Firma template builder + signing embeds.
+ * Tenant branding is ignored — Firma chrome always uses BrassHR gold (#BC8B41).
+ */
+export function tenantBrandingToFirmaWorkspaceSettings(
+  _branding: TenantBranding
+): FirmaWorkspaceAppearanceSettings {
+  return buildBrassHrFirmaAppearanceSettings();
 }
