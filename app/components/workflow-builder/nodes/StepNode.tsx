@@ -15,6 +15,12 @@ export default function StepNode(props: NodeProps<StepNodeType>) {
 
   const onDelete = data.onDelete;
   const lockedFirstStep = data.lockedFirstStep === true;
+  const phaseLabel =
+    data.settings.phase === "post_hire"
+      ? "Post-Hire"
+      : data.settings.phase === "transition"
+        ? "Approval"
+        : "Pre-Hire";
 
   useEffect(() => {
     const host = iconHostRef.current;
@@ -86,6 +92,12 @@ export default function StepNode(props: NodeProps<StepNodeType>) {
                 <X size={14} strokeWidth={2.5} />
               </button>
             ) : null}
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-slate-700">
+              {phaseLabel}
+            </span>
           </div>
 
           <div
