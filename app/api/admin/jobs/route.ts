@@ -80,6 +80,7 @@ export async function POST(req: NextRequest) {
     const result = await saveJobRequisition(supabase, tenantId, auth.userId, parsed.data.job, {
       jobId: jobId || undefined,
       publish: parsed.data.action === "publish",
+      confirmRoutingChange: rawRecord.confirmRoutingChange === true,
     });
     return NextResponse.json(result, { status: jobId ? 200 : 201 });
   } catch (error) {

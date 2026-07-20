@@ -6,15 +6,17 @@ import {
   type JobRequisitionInput,
   type JobStatus,
   type WorkflowMatch,
-  type WorkflowMatchKey,
 } from "@/lib/jobs/types";
 import {
   normalizeApplicantEmail,
   validatePublishableJob,
   workflowNoMatchMessage,
 } from "@/lib/jobs/validation";
+import { resolveWorkflowMatch } from "@/lib/workflow-mappings/service";
 
 type DbClient = SupabaseClient;
+
+export { resolveWorkflowMatch };
 
 function clean(value: string | null | undefined): string | null {
   return value?.trim() || null;
@@ -52,38 +54,41 @@ function toJobRow(input: JobRequisitionInput) {
   };
 }
 
-export async function resolveWorkflowMatch(
+
+async function routingKeyChanged(
   supabase: DbClient,
   tenantId: string,
-  key: WorkflowMatchKey
-): Promise<WorkflowMatch | null> {
+  jobId: string,
+  input: JobRequisitionInput
+): Promise<boolean> {
   const { data, error } = await supabase
-    .from("workflow_mappings")
-    .select("id, workflow_id, priority, onboarding_flows!inner(id, name, status, tenant_id)")
+    .from("job_requisitions")
+    .select("profession_id, employment_type, placement_type")
+    .eq("id", jobId)
     .eq("tenant_id", tenantId)
-    .eq("profession_id", key.professionId)
-    .eq("employment_type", key.employmentType)
-    .eq("placement_type", key.placementType)
-    .eq("is_active", true)
-    .eq("onboarding_flows.status", "published")
-    .eq("onboarding_flows.tenant_id", tenantId)
-    .order("priority", { ascending: true })
-    .limit(1)
     .maybeSingle();
-
   if (error) throw error;
-  if (!data) return null;
+  if (!data) return false;
+  return (
+    String(data.profession_id) !== input.professionId ||
+    String(data.employment_type) !== input.employmentType ||
+    String(data.placement_type) !== input.placementType
+  );
+}
 
-  const flow = Array.isArray(data.onboarding_flows)
-    ? data.onboarding_flows[0]
-    : data.onboarding_flows;
-  if (!flow?.name) return null;
-
-  return {
-    mappingId: String(data.id),
-    workflowId: String(data.workflow_id),
-    workflowName: String(flow.name),
-  };
+async function countActiveApplicantsForJob(
+  supabase: DbClient,
+  tenantId: string,
+  jobId: string
+): Promise<number> {
+  const { count, error } = await supabase
+    .from("job_applications")
+    .select("id", { count: "exact", head: true })
+    .eq("tenant_id", tenantId)
+    .eq("job_requisition_id", jobId)
+    .neq("status", "withdrawn");
+  if (error) throw error;
+  return count ?? 0;
 }
 
 async function professionName(
@@ -124,8 +129,36 @@ export async function saveJobRequisition(
   tenantId: string,
   actorUserId: string,
   input: JobRequisitionInput,
-  options: { jobId?: string; publish: boolean }
+  options: { jobId?: string; publish: boolean; confirmRoutingChange?: boolean }
 ) {
+  if (options.jobId) {
+    const { data: existingJob, error: existingJobError } = await supabase
+      .from("job_requisitions")
+      .select("status")
+      .eq("id", options.jobId)
+      .eq("tenant_id", tenantId)
+      .maybeSingle();
+    if (existingJobError) throw existingJobError;
+
+    if (existingJob?.status === "published") {
+      const routingChanged = await routingKeyChanged(supabase, tenantId, options.jobId, input);
+      if (routingChanged) {
+        const applicantCount = await countActiveApplicantsForJob(
+          supabase,
+          tenantId,
+          options.jobId
+        );
+        if (applicantCount > 0 && !options.confirmRoutingChange) {
+          throw new JobValidationError(
+            "Changing profession, employment type, or placement type will assign a different workflow for new applicants. Existing applicants remain on their original workflow. Confirm to continue.",
+            { professionId: "Confirm routing change to update workflow assignment." },
+            "ROUTING_CHANGE_CONFIRMATION_REQUIRED"
+          );
+        }
+      }
+    }
+  }
+
   const match = await resolveWorkflowMatch(supabase, tenantId, input);
   if (options.publish) await requirePublishable(supabase, tenantId, input, match);
 
@@ -414,17 +447,28 @@ export async function startOrResumeJobApplication(
     ? ((snapshot as { nodes: Array<Record<string, unknown>> }).nodes ?? [])
     : [];
   if (nodes.length) {
-    const stepRows = nodes.map((node, index) => ({
-      tenant_id: input.tenantId,
-      workflow_instance_id: instance.id,
-      snapshot_step_id: String(node.id ?? `step-${index + 1}`),
-      position: index + 1,
-      title: String(node.label ?? `Step ${index + 1}`),
-      step_type: String(node.stepId ?? "custom"),
-      is_required: node.required === true,
-      settings:
-        node.settings && typeof node.settings === "object" ? node.settings : {},
-    }));
+    const stepRows = nodes.map((node, index) => {
+      const settings =
+        node.settings && typeof node.settings === "object"
+          ? (node.settings as Record<string, unknown>)
+          : {};
+      const phase =
+        typeof settings.phase === "string"
+          ? settings.phase
+          : typeof node.phase === "string"
+            ? node.phase
+            : "pre_hire";
+      return {
+        tenant_id: input.tenantId,
+        workflow_instance_id: instance.id,
+        snapshot_step_id: String(node.id ?? `step-${index + 1}`),
+        position: index + 1,
+        title: String(node.label ?? `Step ${index + 1}`),
+        step_type: String(node.stepId ?? "custom"),
+        is_required: node.required === true,
+        settings: { ...settings, phase },
+      };
+    });
     const { error: stepsError } = await supabase
       .from("applicant_workflow_step_records")
       .insert(stepRows);

@@ -111,11 +111,12 @@ export function workflowNoMatchMessage(
   key: Pick<WorkflowMatchKey, "employmentType" | "placementType">
 ): string {
   return [
-    "No active workflow is configured for:",
+    "No published workflow is configured for this job.",
+    "",
     `Profession: ${professionName}`,
     `Employment Type: ${key.employmentType}`,
     `Placement Type: ${key.placementType}`,
     "",
-    "Contact an administrator or create the required workflow mapping.",
+    "Ask an administrator to create a workflow mapping before publishing.",
   ].join("\n");
 }

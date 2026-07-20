@@ -185,6 +185,8 @@ const WORKFORCE_CHILDREN: SidebarLink[] = [
   },
 ];
 
+const WORKFLOW_MAPPINGS_ROUTE = `${DASHBOARD_BASE}/workflow-mappings`;
+
 const AUTOMATION_CHILDREN: SidebarLink[] = [
   // {
   //   label: "Onboarding",
@@ -202,6 +204,11 @@ const AUTOMATION_CHILDREN: SidebarLink[] = [
     matchPrefixes: [TEMPLATES_ROUTE],
   },
   {
+    label: "Workflow Mappings",
+    href: WORKFLOW_MAPPINGS_ROUTE,
+    matchPrefixes: [WORKFLOW_MAPPINGS_ROUTE],
+  },
+  {
     label: "Library",
     href: `${DASHBOARD_BASE}/workflowlibrary`,
     matchPrefixes: [`${DASHBOARD_BASE}/workflowlibrary`],
@@ -212,6 +219,7 @@ const AUTOMATION_ACTIVE_PREFIXES = [
   ONBOARDING_BUILDER_ROUTE,
   WORKFLOWS_ROUTE,
   TEMPLATES_ROUTE,
+  WORKFLOW_MAPPINGS_ROUTE,
   `${DASHBOARD_BASE}/workflowlibrary`,
 ];
 

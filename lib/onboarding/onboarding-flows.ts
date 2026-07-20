@@ -257,6 +257,17 @@ export async function createOnboardingFlow(
     builderDraft = await workflowTemplateDraft(supabase, template);
   }
 
+  const templateEmploymentType =
+    !createAsBlank && templateId
+      ? (
+          await supabase
+            .from("onboarding_templates")
+            .select("employment_type")
+            .eq("id", templateId)
+            .maybeSingle()
+        ).data?.employment_type ?? null
+      : null;
+
   const status: OnboardingFlowStatus = input.status ?? "unpublished";
 
   let sortOrder = 0;
@@ -283,6 +294,7 @@ export async function createOnboardingFlow(
       created_as_blank: createAsBlank,
       builder_draft: builderDraft,
       sort_order: sortOrder,
+      employment_type: templateEmploymentType,
       created_by: input.createdBy,
       updated_by: input.createdBy,
     })

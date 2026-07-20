@@ -68,12 +68,16 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
   const router = useRouter();
   const [job, setJob] = useState<JobRequisitionInput>(initialJob);
   const [options, setOptions] = useState<OptionsPayload | null>(null);
-  const [workflow, setWorkflow] = useState<{ workflowName: string } | null>(null);
+  const [workflow, setWorkflow] = useState<{
+    workflowName: string;
+    mappingCriteria?: string;
+  } | null>(null);
   const [workflowWarning, setWorkflowWarning] = useState("");
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
   const [originalStatus, setOriginalStatus] = useState<"draft" | "published">("draft");
+  const [confirmRoutingChange, setConfirmRoutingChange] = useState(false);
 
   useEffect(() => {
     void fetch("/api/admin/job-options", { cache: "no-store" })
@@ -126,6 +130,19 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
       .catch((error) => setMessage(error instanceof Error ? error.message : "Failed to load job"));
   }, [jobId]);
 
+  const professionLabel = useMemo(
+    () => options?.professions.find((item) => item.id === job.professionId)?.name ?? "",
+    [job.professionId, options?.professions]
+  );
+
+  const mappingLink = useMemo(() => {
+    const params = new URLSearchParams();
+    if (job.professionId) params.set("professionId", job.professionId);
+    if (job.employmentType) params.set("employmentType", job.employmentType);
+    if (job.placementType) params.set("placementType", job.placementType);
+    return `/admin_recruiter/dashboard/workflow-mappings?${params}`;
+  }, [job.employmentType, job.placementType, job.professionId]);
+
   useEffect(() => {
     if (!job.professionId || !job.employmentType || !job.placementType) {
       setWorkflow(null);
@@ -145,8 +162,14 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
       })
         .then(async (response) => {
           const payload = await response.json();
-          if (response.ok) {
-            setWorkflow(payload.match);
+          if (response.ok && payload.match) {
+            const criteria = professionLabel
+              ? `${professionLabel} + ${job.employmentType} + ${job.placementType}`
+              : undefined;
+            setWorkflow({
+              workflowName: payload.match.workflowName,
+              mappingCriteria: criteria,
+            });
             setWorkflowWarning("");
           } else {
             setWorkflow(null);
@@ -163,7 +186,7 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
       window.clearTimeout(timer);
       controller.abort();
     };
-  }, [job.professionId, job.employmentType, job.placementType]);
+  }, [job.professionId, job.employmentType, job.placementType, professionLabel]);
 
   const specialties = useMemo(
     () => options?.specialties.filter((item) => item.profession_id === job.professionId) ?? [],
@@ -171,6 +194,12 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
   );
 
   function update<K extends keyof JobRequisitionInput>(key: K, value: JobRequisitionInput[K]) {
+    if (
+      originalStatus === "published" &&
+      (key === "professionId" || key === "employmentType" || key === "placementType")
+    ) {
+      setConfirmRoutingChange(false);
+    }
     setJob((current) => ({ ...current, [key]: value }));
     setFieldErrors((current) => {
       const next = { ...current };
@@ -179,7 +208,7 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
     });
   }
 
-  async function save(action: "save_draft" | "publish") {
+  async function save(action: "save_draft" | "publish", forceRoutingChange = false) {
     setSaving(true);
     setMessage("");
     setFieldErrors({});
@@ -187,10 +216,25 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
       const response = await fetch("/api/admin/jobs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action, job, jobId }),
+        body: JSON.stringify({
+          action,
+          job,
+          jobId,
+          confirmRoutingChange: forceRoutingChange || confirmRoutingChange,
+        }),
       });
       const payload = await response.json();
       if (!response.ok) {
+        if (payload.code === "ROUTING_CHANGE_CONFIRMATION_REQUIRED") {
+          const confirmed = window.confirm(
+            `${payload.error}\n\nExisting applicants will keep their current workflow. Continue?`
+          );
+          if (confirmed) {
+            setConfirmRoutingChange(true);
+            await save(action, true);
+            return;
+          }
+        }
         setFieldErrors(payload.fieldErrors ?? {});
         throw new Error(payload.error || "Failed to save job");
       }
@@ -308,7 +352,14 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
           <div className={`mt-5 rounded-lg border p-4 ${workflow ? "border-teal-200 bg-teal-50" : "border-amber-200 bg-amber-50"}`}>
             <p className="text-sm font-semibold text-slate-800">Assigned workflow</p>
             {workflow ? (
-              <p className="mt-1 text-sm text-teal-800">Workflow automatically assigned: {workflow.workflowName}</p>
+              <>
+                <p className="mt-1 text-sm font-medium text-teal-900">{workflow.workflowName}</p>
+                {workflow.mappingCriteria ? (
+                  <p className="mt-1 text-xs text-teal-800">
+                    Automatically selected from: {workflow.mappingCriteria}
+                  </p>
+                ) : null}
+              </>
             ) : (
               <p className="mt-1 whitespace-pre-line text-sm text-amber-800">
                 {workflowWarning || "Select profession, employment type, and placement type to resolve a workflow."}
@@ -316,8 +367,8 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
             )}
             {fieldErrors.workflowId ? <p className="mt-1 text-xs text-rose-600">{fieldErrors.workflowId}</p> : null}
             {options?.canManageWorkflows ? (
-              <Link href="/admin_recruiter/dashboard/workflowlibrary" className="mt-2 inline-block text-sm font-medium text-teal-700 underline-offset-2 hover:underline">
-                Manage workflow configuration
+              <Link href={mappingLink} className="mt-2 inline-block text-sm font-medium text-teal-700 underline-offset-2 hover:underline">
+                {workflow ? "Manage workflow mappings" : "Create workflow mapping"}
               </Link>
             ) : null}
           </div>

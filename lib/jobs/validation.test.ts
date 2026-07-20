@@ -81,5 +81,6 @@ describe("job requisition validation", () => {
     expect(message).toContain("Profession: Registered Nurse");
     expect(message).toContain("Employment Type: W2");
     expect(message).toContain("Placement Type: Internal");
+    expect(message).toContain("Ask an administrator to create a workflow mapping");
   });
 });
