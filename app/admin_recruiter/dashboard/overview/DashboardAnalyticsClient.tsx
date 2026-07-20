@@ -97,6 +97,20 @@ type DashboardAnalyticsData = {
   };
 };
 
+function useCompactCharts() {
+  const [compact, setCompact] = useState(false);
+
+  useEffect(() => {
+    const media = window.matchMedia("(max-width: 639px)");
+    const update = () => setCompact(media.matches);
+    update();
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
+
+  return compact;
+}
+
 function formatNumber(value: number | null | undefined): string {
   if (value === null || value === undefined) return "—";
   return value.toLocaleString();
@@ -140,11 +154,11 @@ function SummaryCard({
 }) {
   return (
     <div
-      className="flex h-[100px] w-full min-w-0 items-center gap-[14px] rounded-md border border-[#E5E7EB] p-[14px]"
+      className="flex min-h-[88px] w-full min-w-0 items-center gap-3 rounded-md border border-[#E5E7EB] p-3 sm:min-h-[100px] sm:gap-[14px] sm:p-[14px]"
       style={{ backgroundColor: cardBg }}
     >
       <div
-        className="flex h-[50px] w-[50px] shrink-0 items-center justify-center rounded-full p-1"
+        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full p-1 sm:h-[50px] sm:w-[50px]"
         style={{ backgroundColor: iconBg }}
       >
         <img
@@ -152,16 +166,16 @@ function SummaryCard({
           alt=""
           width={30}
           height={30}
-          className="h-[30px] w-[30px] shrink-0"
+          className="h-6 w-6 shrink-0 sm:h-[30px] sm:w-[30px]"
           aria-hidden
         />
       </div>
       <div className="flex min-w-0 flex-1 flex-col justify-center gap-0.5">
-        <p className="truncate align-middle font-[Inter,sans-serif] text-[12px] font-semibold leading-[16px] text-[#6B7280]">
+        <p className="truncate align-middle font-[Inter,sans-serif] text-[11px] font-semibold leading-4 text-[#6B7280] sm:text-[12px] sm:leading-[16px]">
           {label}
         </p>
-        <div className="flex items-center gap-2">
-          <p className="text-2xl font-semibold leading-tight text-[#111827]">
+        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+          <p className="text-xl font-semibold leading-tight text-[#111827] sm:text-2xl">
             {pending ? "Soon" : formatNumber(value)}
           </p>
           <TrendBadge changePct={changePct} />
@@ -240,19 +254,22 @@ function SectionCard({
 }) {
   return (
     <section id={id} className="scroll-mt-24 w-full min-w-0 rounded-md border border-[#E5E7EB] bg-white">
-      <div className="flex items-center justify-between border-b border-[#E5E7EB] px-[14px] py-[14px]">
-        <h2 className="font-[Inter,sans-serif] text-[16px] font-semibold leading-[24px]" style={{ color: titleColor }}>
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#E5E7EB] px-3 py-3 sm:gap-3 sm:px-[14px] sm:py-[14px]">
+        <h2
+          className="min-w-0 font-[Inter,sans-serif] text-[15px] font-semibold leading-[22px] sm:text-[16px] sm:leading-[24px]"
+          style={{ color: titleColor }}
+        >
           {title}
         </h2>
         <Link
           href={viewAllHref}
-          className="font-[Inter,sans-serif] text-[14px] font-medium leading-[20px] hover:underline"
+          className="shrink-0 font-[Inter,sans-serif] text-[13px] font-medium leading-5 hover:underline sm:text-[14px] sm:leading-[20px]"
           style={{ color: titleColor }}
         >
           View All
         </Link>
       </div>
-      <div className="p-[14px]">{children}</div>
+      <div className="p-3 sm:p-[14px]">{children}</div>
     </section>
   );
 }
@@ -357,6 +374,7 @@ type DashboardAnalyticsClientProps = {
 };
 
 export default function DashboardAnalyticsClient({ focusSection }: DashboardAnalyticsClientProps) {
+  const compactCharts = useCompactCharts();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<DashboardAnalyticsData | null>(null);
@@ -392,7 +410,7 @@ export default function DashboardAnalyticsClient({ focusSection }: DashboardAnal
 
   if (error && !data) {
     return (
-      <div className="px-4 py-5 min-[1000px]:px-8">
+      <div className="admin-recruiter-page-pad">
         <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</div>
       </div>
     );
@@ -401,19 +419,23 @@ export default function DashboardAnalyticsClient({ focusSection }: DashboardAnal
   if (!data) return null;
 
   const maxPendingBar = Math.max(1, ...data.operational.pendingApprovalsByType.map((b) => b.count));
+  const barAxisWidth = compactCharts ? 72 : 108;
+  const lineChartMargin = compactCharts
+    ? { top: 8, right: 4, left: -20, bottom: 0 }
+    : { top: 8, right: 12, left: -12, bottom: 0 };
 
   return (
-    <div className="relative w-full min-w-0 space-y-[14px] px-4 py-5 min-[1000px]:px-8">
+    <div className="admin-recruiter-page-pad w-full min-w-0 space-y-3 overflow-x-hidden sm:space-y-[14px]">
         <header className="space-y-1">
-          <h1 className="align-middle font-[Inter,sans-serif] text-[30px] font-semibold leading-[36px] text-[#000000]">
+          <h1 className="align-middle font-[Inter,sans-serif] text-[22px] font-semibold leading-7 text-[#000000] sm:text-[26px] sm:leading-8 min-[1000px]:text-[30px] min-[1000px]:leading-[36px]">
             Dashboard Overview
           </h1>
-          <p className="align-middle font-[Inter,sans-serif] text-[16px] font-normal leading-[24px] text-[#6B7280]">
+          <p className="align-middle font-[Inter,sans-serif] text-sm font-normal leading-5 text-[#6B7280] sm:text-[16px] sm:leading-[24px]">
             Summary of key metrics and insights across your organization.
           </p>
         </header>
 
-        <div className="grid w-full grid-cols-1 gap-[14px] sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-[14px] xl:grid-cols-4">
           <SummaryCard
             label="Total Workforce"
             value={data.summary.totalWorkforce.value}
@@ -453,12 +475,12 @@ export default function DashboardAnalyticsClient({ focusSection }: DashboardAnal
           />
         </div>
 
-        <div className="grid w-full grid-cols-1 gap-[14px] xl:grid-cols-2">
+        <div className="grid w-full grid-cols-1 gap-3 sm:gap-[14px] xl:grid-cols-2">
           <SectionCard
             id="recruitment-analytics"
             title="Recruitment Analytics" titleColor="#3B82F6" viewAllHref="/admin_recruiter/candidates">
-            <div className="grid grid-cols-1 gap-[14px] lg:grid-cols-[132px_minmax(0,1fr)] lg:items-center">
-              <div className="space-y-[14px]">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-[14px] lg:grid-cols-[132px_minmax(0,1fr)] lg:items-center">
+              <div className="grid grid-cols-2 gap-3 sm:block sm:space-y-[14px]">
                 <AnalyticsMetric
                   label="Applications"
                   value={data.recruitment.metrics.applications.value}
@@ -480,12 +502,12 @@ export default function DashboardAnalyticsClient({ focusSection }: DashboardAnal
                   changePct={data.recruitment.metrics.hires.changePct}
                 />
               </div>
-              <div className="h-[240px] w-full min-w-0">
+              <div className="h-[200px] w-full min-w-0 sm:h-[240px]">
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={data.recruitment.trend} margin={{ top: 8, right: 12, left: -12, bottom: 0 }}>
+                  <LineChart data={data.recruitment.trend} margin={lineChartMargin}>
                     <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_STROKE} vertical={false} />
                     <XAxis dataKey="label" tick={CHART_AXIS_TICK} interval="preserveStartEnd" />
-                    <YAxis tick={CHART_AXIS_TICK} width={32} tickFormatter={formatYAxisTick} />
+                    <YAxis tick={CHART_AXIS_TICK} width={compactCharts ? 28 : 32} tickFormatter={formatYAxisTick} />
                     <Tooltip />
                     <Line
                       type="monotone"
@@ -504,8 +526,8 @@ export default function DashboardAnalyticsClient({ focusSection }: DashboardAnal
           <SectionCard
             id="workforce-analytics"
             title="Workforce Analytics" titleColor="#F97316" viewAllHref="/admin_recruiter/workers">
-            <div className="grid grid-cols-1 gap-[14px] lg:grid-cols-[minmax(120px,132px)_minmax(140px,1fr)_minmax(130px,148px)] lg:items-center">
-              <div className="space-y-[14px]">
+            <div className="grid grid-cols-1 gap-3 sm:gap-[14px] lg:grid-cols-[minmax(120px,132px)_minmax(140px,1fr)_minmax(130px,148px)] lg:items-center">
+              <div className="grid grid-cols-2 gap-3 sm:block sm:space-y-[14px]">
                 <AnalyticsMetric
                   label="Active Workers"
                   value={data.workforce.metrics.activeWorkers.value}
@@ -527,7 +549,7 @@ export default function DashboardAnalyticsClient({ focusSection }: DashboardAnal
                   changePct={data.workforce.metrics.shiftCoverage.changePct}
                 />
               </div>
-              <div className="flex h-[240px] min-h-[200px] w-full min-w-[140px] items-center justify-center px-1">
+              <div className="flex h-[200px] min-h-[180px] w-full min-w-0 items-center justify-center px-1 sm:h-[240px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart margin={{ top: 8, right: 8, bottom: 8, left: 8 }}>
                     <Pie
@@ -550,7 +572,7 @@ export default function DashboardAnalyticsClient({ focusSection }: DashboardAnal
                   </PieChart>
                 </ResponsiveContainer>
               </div>
-              <div className="space-y-[14px]">
+              <div className="space-y-2 sm:space-y-[14px]">
                 {data.workforce.breakdown.map((slice) => (
                   <BreakdownLegendItem key={slice.key} slice={slice} />
                 ))}
@@ -559,27 +581,27 @@ export default function DashboardAnalyticsClient({ focusSection }: DashboardAnal
           </SectionCard>
         </div>
 
-        <div className="grid w-full grid-cols-1 gap-[14px] xl:grid-cols-2">
+        <div className="grid w-full grid-cols-1 gap-3 sm:gap-[14px] xl:grid-cols-2">
           <SectionCard
             id="financial-analytics"
             title="Financial Insights" titleColor={FINANCIAL_INSIGHTS_COLOR} viewAllHref="#">
             {data.financial.pending ? (
-              <p className="mb-[14px] rounded-md bg-[#F0FDF4] px-3 py-2 text-sm text-[#166534]">
+              <p className="mb-3 rounded-md bg-[#F0FDF4] px-3 py-2 text-sm text-[#166534] sm:mb-[14px]">
                 Revenue tracking is coming soon. Showing hiring activity below.
               </p>
             ) : null}
-            <div className="mb-[14px] grid grid-cols-2 gap-[14px] sm:grid-cols-4">
+            <div className="mb-3 grid grid-cols-1 gap-3 min-[480px]:grid-cols-2 sm:mb-[14px] sm:gap-[14px] lg:grid-cols-4">
               <AnalyticsMetric label="Applications" value={data.financial.metrics.applications.value} changePct={null} />
               <AnalyticsMetric label="Interviews" value={data.financial.metrics.interviews.value} changePct={null} />
               <AnalyticsMetric label="Offer Extended" value={data.financial.metrics.offerExtended.value} changePct={null} />
               <AnalyticsMetric label="Hires" value={data.financial.metrics.hires.value} changePct={null} />
             </div>
-            <p className="mb-[14px] font-[Inter,sans-serif] text-[14px] font-semibold leading-[20px] text-[#111827]">
+            <p className="mb-3 font-[Inter,sans-serif] text-[14px] font-semibold leading-[20px] text-[#111827] sm:mb-[14px]">
               Revenue Trend
             </p>
-            <div className="h-[220px] w-full min-w-0">
+            <div className="h-[180px] w-full min-w-0 sm:h-[220px]">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={data.financial.revenueTrend} margin={{ top: 8, right: 12, left: -12, bottom: 0 }}>
+                <LineChart data={data.financial.revenueTrend} margin={lineChartMargin}>
                   <defs>
                     <linearGradient id="financialRevenueFill" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="0%" stopColor={CHART_GREEN_COLOR} stopOpacity={0.28} />
@@ -588,7 +610,7 @@ export default function DashboardAnalyticsClient({ focusSection }: DashboardAnal
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_STROKE} vertical={false} />
                   <XAxis dataKey="label" tick={CHART_AXIS_TICK} interval="preserveStartEnd" />
-                  <YAxis tick={CHART_AXIS_TICK} width={32} tickFormatter={formatYAxisTick} />
+                  <YAxis tick={CHART_AXIS_TICK} width={compactCharts ? 28 : 32} tickFormatter={formatYAxisTick} />
                   <Tooltip />
                   <Area
                     type="monotone"
@@ -612,7 +634,7 @@ export default function DashboardAnalyticsClient({ focusSection }: DashboardAnal
           <SectionCard
             id="operational-insights"
             title="Operational Insights" titleColor="#3B82F6" viewAllHref="/admin_recruiter/calendar/shifts">
-            <div className="mb-[14px] grid grid-cols-2 gap-[14px] sm:grid-cols-4">
+            <div className="mb-3 grid grid-cols-1 gap-3 min-[480px]:grid-cols-2 sm:mb-[14px] sm:gap-[14px] lg:grid-cols-4">
               <AnalyticsMetric
                 label="Unified Shifts"
                 value={data.operational.metrics.unifiedShifts.value}
@@ -634,23 +656,23 @@ export default function DashboardAnalyticsClient({ focusSection }: DashboardAnal
                 changePct={data.operational.metrics.complianceRate.changePct}
               />
             </div>
-            <p className="mb-[14px] font-[Inter,sans-serif] text-[14px] font-semibold leading-[20px] text-[#111827]">
+            <p className="mb-3 font-[Inter,sans-serif] text-[14px] font-semibold leading-[20px] text-[#111827] sm:mb-[14px]">
               Pending Approvals by type
             </p>
-            <div className="h-[220px] w-full min-w-0">
+            <div className="h-[180px] w-full min-w-0 sm:h-[220px]">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart
                   data={data.operational.pendingApprovalsByType}
                   layout="vertical"
-                  margin={{ top: 4, right: 12, left: 4, bottom: 4 }}
+                  margin={{ top: 4, right: compactCharts ? 4 : 12, left: 0, bottom: 4 }}
                 >
                   <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_STROKE} horizontal={false} />
                   <XAxis type="number" domain={[0, maxPendingBar]} tick={CHART_AXIS_TICK} />
                   <YAxis
                     type="category"
                     dataKey="label"
-                    width={108}
-                    tick={{ fontSize: 11, fill: "#374151" }}
+                    width={barAxisWidth}
+                    tick={{ fontSize: compactCharts ? 10 : 11, fill: "#374151" }}
                   />
                   <Tooltip />
                   <Bar dataKey="count" fill="#3B82F6" radius={[0, 4, 4, 0]} barSize={16} />
@@ -660,9 +682,9 @@ export default function DashboardAnalyticsClient({ focusSection }: DashboardAnal
           </SectionCard>
         </div>
 
-        <section className="w-full min-h-[228px] rounded-md border border-[#E5E7EB] bg-white p-[14px]">
-          <h2 className="font-[Inter,sans-serif] text-[16px] font-semibold leading-[24px] text-[#111827]">Reports</h2>
-          <div className="mt-[14px] grid w-full grid-cols-1 gap-[14px] sm:grid-cols-2 xl:grid-cols-4">
+        <section className="w-full min-w-0 rounded-md border border-[#E5E7EB] bg-white p-3 sm:min-h-[228px] sm:p-[14px]">
+          <h2 className="font-[Inter,sans-serif] text-[15px] font-semibold leading-[22px] text-[#111827] sm:text-[16px] sm:leading-[24px]">Reports</h2>
+          <div className="mt-3 grid w-full grid-cols-1 gap-3 sm:mt-[14px] sm:grid-cols-2 sm:gap-[14px] xl:grid-cols-4">
             {REPORT_CARDS.map((card) => (
               <ReportCard
                 key={card.title}

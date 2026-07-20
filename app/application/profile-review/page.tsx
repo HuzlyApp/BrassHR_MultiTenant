@@ -817,36 +817,6 @@ function Step1ReviewContent() {
         }
       }
 
-      const jobApplicationId =
-        new URLSearchParams(window.location.search).get("applicationId")?.trim() ||
-        localStorage.getItem("jobApplicationId")?.trim() ||
-        ""
-      if (jobApplicationId && tenantSlug) {
-        const profileLink = await fetch("/api/public/applications/link-profile", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            tenant: tenantSlug,
-            applicationId: jobApplicationId,
-            applicantId,
-            email: form.email.trim(),
-            firstName: form.firstName.trim(),
-            lastName: form.lastName.trim(),
-          }),
-        })
-        const profileLinkJson = (await profileLink.json().catch(() => ({}))) as {
-          error?: string
-          code?: string
-        }
-        if (profileLink.status === 409 && profileLinkJson.code === "EXISTING_APPLICANT") {
-          setFieldConflict({ kind: "email", bannerVisible: true })
-          return
-        }
-        if (!profileLink.ok) {
-          throw new Error(profileLinkJson.error || "Failed to link this application to your profile")
-        }
-      }
-
       const resumeStoragePath =
         typeof window !== "undefined"
           ? localStorage.getItem("resumeStoragePath")

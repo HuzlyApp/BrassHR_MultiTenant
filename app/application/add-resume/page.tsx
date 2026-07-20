@@ -33,6 +33,8 @@ import {
   findResumeUploadStep,
   markResumeUploadStepComplete,
 } from "@/lib/onboarding/mark-resume-upload-step-complete"
+import { workerSignInHref } from "@/lib/auth/worker-sign-in"
+import { currentOnboardingTenantSlug } from "@/lib/tenant/with-tenant"
 
 const APPLICANT_SESSION_TIMEOUT_MS = 15_000
 const WORKER_ENSURE_TIMEOUT_MS = 15_000
@@ -42,19 +44,6 @@ const UPLOAD_WATCHDOG_TIMEOUT_MS = 60_000
 
 function timeoutError(message: string) {
   return new Error(message)
-}
-
-function applicationContextPath(path: string, applicationId?: string | null): string {
-  if (typeof window === "undefined") return applicationPath(path)
-  const current = new URLSearchParams(window.location.search)
-  const params = new URLSearchParams()
-  const tenant = current.get("tenant")?.trim()
-  const jobToken = current.get("job_token")?.trim() || localStorage.getItem("jobToken")?.trim()
-  if (tenant) params.set("tenant", tenant)
-  if (jobToken) params.set("job_token", jobToken)
-  if (applicationId) params.set("applicationId", applicationId)
-  const query = params.toString()
-  return query ? `${path}?${query}` : applicationPath(path)
 }
 
 function promiseWithTimeout<T>(
@@ -109,6 +98,9 @@ export default function Step1Upload() {
   const primaryBtnStyle = { backgroundColor: branding.primaryHex } as CSSProperties
   const brandTextStyle = { color: branding.primaryHex } as CSSProperties
   const secondaryTextStyle = { color: branding.secondaryHex } as CSSProperties
+  const workerSignInUrl = workerSignInHref({
+    tenant: branding.slug || currentOnboardingTenantSlug(),
+  })
 
   const ACCEPTED_RESUME_EXTENSIONS = [".pdf", ".doc", ".docx"]
 
@@ -309,7 +301,7 @@ export default function Step1Upload() {
           } catch {
             /* progress sync is best-effort */
           }
-          router.push(applicationContextPath(APPLICATION_ROUTES.profileReview))
+          router.push(applicationPath(APPLICATION_ROUTES.profileReview))
         })()
         return
       }
@@ -354,14 +346,8 @@ export default function Step1Upload() {
         fd.append("applicantId", session.applicantId)
         const tenantSlug =
           new URLSearchParams(window.location.search).get("tenant")?.trim().toLowerCase() || ""
-        const jobToken =
-          new URLSearchParams(window.location.search).get("job_token")?.trim() || ""
         if (tenantSlug) {
           fd.append("tenantSlug", tenantSlug)
-        }
-        if (jobToken) {
-          fd.append("jobToken", jobToken)
-          localStorage.setItem("jobToken", jobToken)
         }
         if (workerResult.workerId) {
           fd.append("workerId", workerResult.workerId)
@@ -389,9 +375,6 @@ export default function Step1Upload() {
           storagePath?: string
           resumeId?: string | null
           parseStatus?: string
-          applicationId?: string | null
-          workflowInstanceId?: string | null
-          resumedApplication?: boolean
         }
 
         if (uploadJson.storagePath) {
@@ -417,12 +400,6 @@ export default function Step1Upload() {
           localStorage.setItem("resumeId", uploadJson.resumeId)
         } else {
           localStorage.removeItem("resumeId")
-        }
-        if (uploadJson.applicationId) {
-          localStorage.setItem("jobApplicationId", uploadJson.applicationId)
-        }
-        if (uploadJson.workflowInstanceId) {
-          localStorage.setItem("applicantWorkflowInstanceId", uploadJson.workflowInstanceId)
         }
 
         localStorage.setItem("resumeName", uploadJson?.fileName || file.name)
@@ -455,12 +432,7 @@ export default function Step1Upload() {
           }),
         )
 
-        router.push(
-          applicationContextPath(
-            APPLICATION_ROUTES.profileReview,
-            uploadJson.applicationId ?? null,
-          ),
-        )
+        router.push(applicationPath(APPLICATION_ROUTES.profileReview))
       } catch (e) {
         const msg = e instanceof Error ? e.message : "Failed to upload resume"
         setParseError(msg)
@@ -639,7 +611,7 @@ export default function Step1Upload() {
           <p className="mt-4 text-sm text-slate-500">
             Already have an account?{" "}
             <a
-              href="/worker-signin"
+              href={workerSignInUrl}
               className="font-semibold underline-offset-4 hover:underline"
               style={brandTextStyle}
             >

@@ -31,6 +31,7 @@ import { useAdminHeaderData, ADMIN_HEADER_DATA_QUERY_KEY } from "@/lib/admin/hoo
 import { useStaffConversations } from "@/lib/messaging/hooks/use-staff-conversations";
 import { useMarkConversationRead } from "@/lib/messaging/hooks/use-mark-conversation-read";
 import { useQueryClient } from "@tanstack/react-query";
+import { StaffProfileAvatar } from "@/app/admin_recruiter/components/StaffProfileAvatar";
 
 type ConversationItem = StaffConversation;
 
@@ -332,22 +333,7 @@ export function AdminRecruiterHeader({
 
             <div ref={profileAreaRef} className="relative">
             <div className="flex items-center gap-1 rounded-lg border border-[#E5E7EB] bg-white px-1.5 py-1 sm:gap-2 sm:rounded-xl sm:px-2.5 sm:py-1.5">
-            {profilePhoto ? (
-              <img
-                src={profilePhoto}
-                alt={displayName}
-                width={30}
-                height={30}
-                className="h-[30px] w-[30px] rounded-full object-cover"
-              />
-            ) : (
-              <span
-                className="flex h-[30px] w-[30px] items-center justify-center rounded-full bg-[#E2E8F0] text-[11px] font-semibold text-[#64748B]"
-                aria-hidden
-              >
-                {displayName.charAt(0).toUpperCase()}
-              </span>
-            )}
+            <StaffProfileAvatar name={displayName} photoUrl={profilePhoto} size="sm" />
             <div className="hidden min-w-0 leading-tight sm:block">
               <p className="max-w-[88px] truncate text-sm font-semibold text-[#0F172A] md:max-w-[140px]">
                 {headerLoading ? "Loading..." : displayName}
