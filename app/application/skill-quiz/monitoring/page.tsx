@@ -2,7 +2,7 @@
 
 import { APPLICATION_ROUTES } from "@/lib/onboarding/application-routes"
 import { applicationPath } from "@/lib/tenant/with-tenant"
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { getApplicantSupabaseClient } from "@/lib/supabase-applicant-browser"
 import { MONITORING_CATEGORY_ID } from "@/lib/monitoring-category"
@@ -23,6 +23,12 @@ import {
   SKILL_QUIZ_CONTENT_CLASS,
   SKILL_QUIZ_SHELL_CLASS,
 } from "@/app/application/skill-quiz/skill-quiz-responsive"
+import { dedupeSkillQuestionsByQuizNumber } from "@/lib/merge-skill-quiz-catalog"
+import {
+  clampSkillQuizPage,
+  getSkillQuizPageQuestions,
+  getSkillQuizTotalPages,
+} from "@/lib/skill-quiz-pagination"
 
 /** `skill_assessments.worker_id` = auth user id; `category` matches `skill_categories.slug` */
 const CATEGORY_SLUG = "monitoring"
@@ -87,23 +93,28 @@ export default function MonitoringQuiz() {
   const [saving, setSaving] = useState(false)
 
   const answersRef = useRef<Record<string, number>>({})
+  const pageRef = useRef(page)
+  const questionsRef = useRef(questions)
   useEffect(() => {
     answersRef.current = answers
   }, [answers])
+  useEffect(() => {
+    pageRef.current = page
+  }, [page])
+  useEffect(() => {
+    questionsRef.current = questions
+  }, [questions])
 
   const { scheduleSave, saveState, flushPending } = useQuizAutosave(supabase, {
     categorySlug: CATEGORY_SLUG,
     answersRef,
   })
 
-  const totalPages = useMemo(
-    () => Math.max(1, Math.ceil(questions.length / PAGE_SIZE) || 1),
-    [questions.length]
+  const { pageQuestions, safePage, totalPages, start } = getSkillQuizPageQuestions(
+    questions,
+    page,
+    PAGE_SIZE
   )
-
-  const start = (page - 1) * PAGE_SIZE
-  const end = Math.min(start + PAGE_SIZE, questions.length)
-  const pageQuestions = questions.slice(start, end)
 
   const loadQuiz = useCallback(async () => {
     setLoadError(null)
@@ -132,7 +143,7 @@ export default function MonitoringQuiz() {
         .order("quiz_number", { ascending: true, nullsFirst: false })
 
       if (qErr) throw qErr
-      const ordered = (qs ?? []) as QuestionRow[]
+      const ordered = dedupeSkillQuestionsByQuizNumber((qs ?? []) as QuestionRow[])
       setQuestions(ordered)
 
       const { data: userData } = await supabase.auth.getUser()
@@ -179,8 +190,8 @@ export default function MonitoringQuiz() {
   }, [loadQuiz])
 
   useEffect(() => {
-    setPage((p) => Math.min(p, totalPages))
-  }, [totalPages])
+    setPage((p) => clampSkillQuizPage(p, questions.length, PAGE_SIZE))
+  }, [questions.length])
 
   const selectAnswer = (questionId: string, value: number) => {
     setAnswers((prev) => {
@@ -258,23 +269,27 @@ export default function MonitoringQuiz() {
   }
 
   async function next() {
-    if (questions.length === 0) {
+    if (questionsRef.current.length === 0) {
       router.push(applicationPath(APPLICATION_ROUTES.skillAssessment))
       return
     }
 
     await flushPending()
 
-    if (page >= totalPages) {
+    const count = questionsRef.current.length
+    const pages = getSkillQuizTotalPages(count, PAGE_SIZE)
+    const current = pageRef.current
+
+    if (current >= pages) {
       await saveAndFinish()
       return
     }
 
-    setPage((p) => p + 1)
+    setPage(current + 1)
   }
 
   function back() {
-    if (page > 1) setPage((p) => p - 1)
+    if (safePage > 1) setPage(safePage - 1)
     else router.back()
   }
 
@@ -422,7 +437,7 @@ export default function MonitoringQuiz() {
 
           <div className="mt-auto flex flex-col gap-3 pt-6 sm:flex-row sm:items-center sm:justify-between">
             <span className="text-[12px] font-medium text-slate-600 sm:text-[13px]">
-              {questions.length === 0 ? "—" : `${page} of ${totalPages}`}
+              {questions.length === 0 ? "—" : `${safePage} of ${totalPages}`}
             </span>
             <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center sm:gap-3">
               <button
@@ -442,7 +457,7 @@ export default function MonitoringQuiz() {
                   ? "Saving..."
                   : questions.length === 0
                     ? "Continue"
-                    : page >= totalPages
+                    : safePage >= totalPages
                       ? "Save & Next"
                       : "Save & Next"}
                 {!saving && (
