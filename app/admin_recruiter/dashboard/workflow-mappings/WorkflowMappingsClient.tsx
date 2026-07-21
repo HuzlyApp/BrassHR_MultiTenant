@@ -176,7 +176,7 @@ export default function WorkflowMappingsClient() {
   }
 
   return (
-    <main className="mx-auto max-w-7xl p-5 sm:p-8">
+    <main className="w-full min-w-0 overflow-x-hidden p-5 sm:p-8">
       <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-sm font-medium text-teal-700">Automation</p>

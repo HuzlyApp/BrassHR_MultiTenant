@@ -26,33 +26,51 @@ function clean(value: string | null | undefined): string | null {
 }
 
 function toJobRow(input: JobRequisitionInput) {
+  const publicTitle = clean(input.publicTitle);
+  const publicDescription = clean(input.publicDescription);
+  const facility = clean(input.facility);
+  const duration = clean(input.duration);
+  const benefits = clean(input.benefits);
+  const mspClient = clean(input.mspClient);
+  const externalRequisitionId = clean(input.externalRequisitionId);
+
   return {
     internal_requisition_number: clean(input.internalRequisitionNumber),
-    external_requisition_id: clean(input.externalRequisitionId),
+    external_requisition_id: externalRequisitionId,
     source_type: input.sourceType,
-    msp_client: clean(input.mspClient),
+    msp_client: mspClient,
     profession_id: input.professionId,
     specialty_id: clean(input.specialtyId),
     employment_type: input.employmentType,
     employer_of_record: clean(input.employerOfRecord),
     department: clean(input.department),
-    facility: clean(input.facility),
+    facility,
     bill_rate: input.billRate ?? null,
     pay_rate_min: input.payRateMin ?? null,
     pay_rate_max: input.payRateMax ?? null,
     target_start_date: clean(input.targetStartDate),
-    duration: clean(input.duration),
+    duration,
     shift_type: clean(input.shiftType),
     shift_details: clean(input.shiftDetails),
     hours_per_week: input.hoursPerWeek ?? null,
-    public_title: clean(input.publicTitle),
-    public_description: clean(input.publicDescription),
+    public_title: publicTitle,
+    public_description: publicDescription,
     location: clean(input.location),
     schedule: clean(input.schedule),
     qualifications: clean(input.qualifications),
     responsibilities: clean(input.responsibilities),
-    benefits: clean(input.benefits),
+    benefits,
     application_deadline: clean(input.applicationDeadline),
+    // Legacy columns still required on upgraded job_requisitions tables.
+    title: publicTitle ?? "Untitled job",
+    description: publicDescription,
+    placement_type: "Internal",
+    external_req_id: externalRequisitionId,
+    msp_client_name: mspClient,
+    facility_name: facility,
+    job_duration: duration,
+    benefits_summary: benefits,
+    pay_rate: input.payRateMin ?? input.payRateMax ?? null,
   };
 }
 
@@ -179,7 +197,9 @@ export async function saveJobRequisition(
       .update(patch)
       .eq("id", options.jobId)
       .eq("tenant_id", tenantId)
-      .select("*, professions(name), specialties(name), onboarding_flows(name)")
+      .select(
+        "*, professions(name), specialties(name), onboarding_flows!workflow_id(name)"
+      )
       .single();
     if (error) throw error;
     return { job: data, workflow: match };
@@ -192,7 +212,9 @@ export async function saveJobRequisition(
       tenant_id: tenantId,
       created_by: actorUserId,
     })
-    .select("*, professions(name), specialties(name), onboarding_flows(name)")
+    .select(
+      "*, professions(name), specialties(name), onboarding_flows!workflow_id(name)"
+    )
     .single();
   if (error) throw error;
   return { job: data, workflow: match };
@@ -238,7 +260,7 @@ export async function listInternalJobs(
   let query = supabase
     .from("job_requisitions")
     .select(
-      "id, internal_requisition_number, public_title, profession_id, specialty_id, employment_type, status, workflow_id, created_by, created_at, published_at, professions(name), specialties(name), onboarding_flows(name), job_applications(count)"
+      "id, internal_requisition_number, public_title, profession_id, specialty_id, employment_type, status, workflow_id, created_by, created_at, published_at, professions(name), specialties(name), onboarding_flows!workflow_id(name), job_applications(count)"
     )
     .eq("tenant_id", tenantId)
     .order("created_at", { ascending: false });
