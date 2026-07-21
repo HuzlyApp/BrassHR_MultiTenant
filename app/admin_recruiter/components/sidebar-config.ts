@@ -38,6 +38,7 @@ const ICON = {
   candidates: "Applicant",
   clients: "Clients",
   organization: "Organization",
+  jobs: "Jobs",
   account: "My Profile",
   notifications: "Notifications",
   help: "Help & Support",
@@ -231,6 +232,8 @@ const ORGANIZATION_CHILDREN: SidebarLink[] = [
   },
 ];
 
+const JOBS_ROUTE = "/admin_recruiter/jobs";
+
 const DASHBOARD_ACTIVE_PREFIXES = [DASHBOARD_OVERVIEW_BASE];
 
 const MAIL_ROUTE = "/admin_recruiter/mail";
@@ -350,6 +353,12 @@ export const CLIENT_SIDEBAR_SECTIONS: SidebarSection[] = [
     children: ORGANIZATION_CHILDREN,
   },
   {
+    label: "Jobs",
+    href: JOBS_ROUTE,
+    iconType: ICON.jobs,
+    matchPrefixes: [JOBS_ROUTE],
+  },
+  {
     label: "Scheduling",
     href: "#",
     iconType: ICON.schedule,
@@ -445,6 +454,12 @@ export const GOD_ADMIN_SIDEBAR_SECTIONS: SidebarSection[] = [
     iconType: ICON.organization,
     matchPrefixes: ["/admin_recruiter/facilities"],
     children: ORGANIZATION_CHILDREN,
+  },
+  {
+    label: "Jobs",
+    href: JOBS_ROUTE,
+    iconType: ICON.jobs,
+    matchPrefixes: [JOBS_ROUTE],
   },
   {
     label: "Automation",

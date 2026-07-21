@@ -167,12 +167,14 @@ export default function OnboardingStepper({
   return (
     <>
       <div className="min-w-0 w-full border-b border-slate-200 pb-4 sm:pb-6" style={brandingToCssVars(branding)}>
-        <div className="relative mx-auto mt-2 min-w-0 w-full max-w-3xl px-1 sm:px-2">
-          <div className="scrollbar-hide -mx-1 min-w-0 overflow-x-auto px-1 pb-1 sm:mx-0 sm:px-2">
-            <div
-              className="grid w-full min-w-[680px] max-[399px]:min-w-[520px] sm:min-w-0"
-              style={{ gridTemplateColumns: `repeat(${stepLabels.length}, minmax(0, 1fr))` }}
-            >
+        <div className="relative mx-auto mt-2 min-w-0 w-full">
+          <div
+            className="min-w-0 overflow-x-auto overscroll-x-contain pb-1 [scrollbar-width:thin] sm:[&::-webkit-scrollbar]:block [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-300 [&::-webkit-scrollbar-track]:bg-transparent max-sm:scrollbar-hide"
+            role="region"
+            aria-label="Onboarding steps"
+            tabIndex={0}
+          >
+            <div className="flex w-max min-w-full">
             {stepLabels.map((step, index) => {
               const stepNumber = index + 1
               const configStep = enabledSteps[index]!
@@ -181,7 +183,7 @@ export default function OnboardingStepper({
               const connectorFilled = furthestStep > index + 1
 
               return (
-                <div key={`${configStep.id}-${step}`} className="relative flex min-w-0 flex-col items-center">
+                <div key={`${configStep.id}-${step}`} className="relative flex flex-[1_0_6.5rem] flex-col items-center max-[399px]:flex-[1_0_5.5rem]">
                   {index < stepLabels.length - 1 ? (
                     <ConnectorSegment filled={connectorFilled} />
                   ) : null}
@@ -193,7 +195,7 @@ export default function OnboardingStepper({
                       push(stepRoutes[index])
                     }}
                     disabled={!isClickable}
-                    className={`group relative z-10 flex w-full max-w-[5.75rem] flex-col items-center rounded-lg px-1 py-1 text-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)]/40 max-[399px]:max-w-[4.5rem] max-[399px]:px-0.5 min-[750px]:max-w-[4.5rem] min-[1200px]:max-w-28 sm:px-1.5 ${
+                    className={`group relative z-10 flex w-full flex-col items-center rounded-lg px-1.5 py-1 text-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)]/40 max-[399px]:px-1 ${
                       isClickable ? "cursor-pointer" : "cursor-not-allowed"
                     }`}
                     aria-label={`${isClickable ? "Go to" : "Locked"} ${configStep.title}${
