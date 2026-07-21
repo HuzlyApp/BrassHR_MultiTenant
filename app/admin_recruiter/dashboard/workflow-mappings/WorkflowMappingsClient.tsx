@@ -41,8 +41,11 @@ const emptyForm = (): FormState => ({
   isActive: true,
 });
 
-const inputClass =
-  "w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100";
+const selectClass =
+  "w-full appearance-none rounded-lg border border-[#D1D5DB] bg-white px-3 py-2.5 text-sm text-[#111827] outline-none transition focus:border-[color:var(--brand-primary)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--brand-primary)_15%,transparent)]";
+
+const modalInputClass =
+  "w-full rounded-lg border border-[color-mix(in_srgb,var(--brand-primary)_40%,#D1D5DB)] bg-white px-3 py-2.5 text-sm text-[#111827] outline-none transition focus:border-[color:var(--brand-primary)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--brand-primary)_15%,transparent)]";
 
 export default function WorkflowMappingsClient() {
   const searchParams = useSearchParams();
@@ -176,12 +179,14 @@ export default function WorkflowMappingsClient() {
   }
 
   return (
-    <main className="w-full min-w-0 overflow-x-hidden p-5 sm:p-8">
-      <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
+    <main className="w-full min-w-0 overflow-x-hidden px-3 py-4 sm:px-5 sm:py-6 lg:px-8">
+      {/* Header */}
+      <div className="mb-5 flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="text-sm font-medium text-teal-700">Automation</p>
-          <h1 className="text-2xl font-semibold text-slate-900">Workflow Mappings</h1>
-          <p className="mt-1 max-w-3xl text-sm text-slate-500">
+          <h1 className="text-[22px] font-semibold leading-7 text-[#111827] sm:text-2xl">
+            Workflow Mappings
+          </h1>
+          <p className="mt-1.5 max-w-2xl text-[13px] leading-5 text-[#6B7280]">
             Connect profession and employment type to a published tenant workflow. Jobs and applicants
             resolve workflows from these mappings automatically.
           </p>
@@ -189,33 +194,36 @@ export default function WorkflowMappingsClient() {
         <button
           type="button"
           onClick={() => openCreate()}
-          className="rounded-lg bg-teal-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-teal-800"
+          className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg px-5 text-sm font-semibold text-white transition hover:brightness-[0.95] sm:w-auto"
+          style={{ backgroundColor: "var(--brand-primary)" }}
         >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
+            <path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+          </svg>
           Create Mapping
         </button>
       </div>
 
-      <section className="mb-6 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="grid gap-3 md:grid-cols-2">
-          <label className="block text-sm">
-            <span className="mb-1 block font-medium text-slate-700">Filter profession</span>
+      {/* Filters */}
+      <section className="mb-5 rounded-xl border border-[#E5E7EB] bg-white p-4 shadow-sm">
+        <div className="flex flex-wrap items-end gap-3">
+          <label className="block w-full text-sm sm:w-[220px]">
+            <span className="mb-1 block text-xs font-medium text-[#374151]">Filter profession</span>
             <select
-              className={inputClass}
+              className={selectClass}
               value={filterProfession}
               onChange={(e) => setFilterProfession(e.target.value)}
             >
               <option value="">All professions</option>
               {options?.professions.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.name}
-                </option>
+                <option key={item.id} value={item.id}>{item.name}</option>
               ))}
             </select>
           </label>
-          <label className="block text-sm">
-            <span className="mb-1 block font-medium text-slate-700">Filter employment type</span>
+          <label className="block w-full text-sm sm:w-[220px]">
+            <span className="mb-1 block text-xs font-medium text-[#374151]">Filter employment type</span>
             <select
-              className={inputClass}
+              className={selectClass}
               value={filterEmployment}
               onChange={(e) => setFilterEmployment(e.target.value)}
             >
@@ -228,19 +236,24 @@ export default function WorkflowMappingsClient() {
         </div>
       </section>
 
-      <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+      {/* Table */}
+      <section className="overflow-hidden rounded-xl border border-[#E5E7EB] bg-white shadow-sm">
         {loading ? (
-          <p className="p-6 text-sm text-slate-500">Loading mappings…</p>
+          <p className="p-6 text-sm text-[#6B7280]">Loading mappings…</p>
         ) : mappings.length === 0 ? (
-          <div className="p-6">
-            <p className="text-sm text-slate-600">No workflow mappings configured yet.</p>
-            <p className="mt-1 text-sm text-slate-500">
+          <div className="p-6 text-center">
+            <p className="text-sm font-medium text-[#374151]">No workflow mappings configured yet.</p>
+            <p className="mt-1 text-sm text-[#6B7280]">
               Publish a tenant workflow, then create a mapping so jobs can assign it automatically.
             </p>
             <button
               type="button"
               onClick={() => openCreate()}
-              className="mt-4 rounded-lg border border-teal-200 px-4 py-2 text-sm font-medium text-teal-700 hover:bg-teal-50"
+              className="mt-4 inline-flex h-9 items-center rounded-lg border px-4 text-sm font-medium transition hover:brightness-[0.95]"
+              style={{
+                borderColor: "color-mix(in srgb, var(--brand-primary) 30%, transparent)",
+                color: "var(--brand-primary)",
+              }}
             >
               Create first mapping
             </button>
@@ -248,58 +261,65 @@ export default function WorkflowMappingsClient() {
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full text-sm">
-              <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
-                <tr>
-                  <th className="px-4 py-3">Profession</th>
-                  <th className="px-4 py-3">Employment</th>
-                  <th className="px-4 py-3">Workflow</th>
-                  <th className="px-4 py-3">Priority</th>
-                  <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3">Actions</th>
+              <thead>
+                <tr className="border-b border-[#E5E7EB] bg-[#F9FAFB]">
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[#6B7280]">Profession</th>
+                  <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-[#6B7280]">Employment</th>
+                  <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-[#6B7280]">Workflow</th>
+                  <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-[#6B7280]">Priority</th>
+                  <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-[#6B7280]">Status</th>
+                  <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-[#6B7280]">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {mappings.map((mapping) => (
-                  <tr key={mapping.id} className="border-t border-slate-100">
-                    <td className="px-4 py-3 font-medium text-slate-900">{mapping.professionName}</td>
-                    <td className="px-4 py-3">{mapping.employmentType}</td>
-                    <td className="px-4 py-3">
-                      <span className="font-medium text-slate-800">{mapping.workflowName}</span>
+                  <tr key={mapping.id} className="border-t border-[#F3F4F6] transition hover:bg-[#F9FAFB]">
+                    <td className="px-4 py-3.5 font-medium text-[#111827]">{mapping.professionName}</td>
+                    <td className="px-4 py-3.5 text-center text-[#374151]">{mapping.employmentType}</td>
+                    <td className="px-4 py-3.5 text-center">
+                      <span className="font-medium text-[#111827]">{mapping.workflowName}</span>
                       {mapping.workflowEmploymentType ? (
-                        <span className="mt-0.5 block text-xs text-slate-500">
-                          Workflow type: {mapping.workflowEmploymentType}
+                        <span className="mt-0.5 block text-xs text-[#9CA3AF]">
+                          Type: {mapping.workflowEmploymentType}
                         </span>
                       ) : null}
                     </td>
-                    <td className="px-4 py-3">{mapping.priority}</td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3.5 text-center text-[#374151]">{mapping.priority}</td>
+                    <td className="px-4 py-3.5 text-center">
                       {conflicts.has(mapping.id) ? (
-                        <span className="rounded-full bg-rose-50 px-2 py-1 text-xs font-semibold text-rose-700">
+                        <span className="inline-flex items-center rounded-full bg-red-50 px-2.5 py-0.5 text-xs font-semibold text-red-700">
                           Conflict
                         </span>
                       ) : mapping.isActive ? (
-                        <span className="rounded-full bg-teal-50 px-2 py-1 text-xs font-semibold text-teal-700">
+                        <span
+                          className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold"
+                          style={{
+                            backgroundColor: "color-mix(in srgb, var(--brand-primary) 10%, white)",
+                            color: "var(--brand-primary)",
+                          }}
+                        >
                           Active
                         </span>
                       ) : (
-                        <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-600">
+                        <span className="inline-flex items-center rounded-full bg-[#F3F4F6] px-2.5 py-0.5 text-xs font-semibold text-[#6B7280]">
                           Inactive
                         </span>
                       )}
                     </td>
-                    <td className="px-4 py-3">
-                      <div className="flex gap-2">
+                    <td className="px-4 py-3.5">
+                      <div className="flex items-center justify-center gap-2">
                         <button
                           type="button"
                           onClick={() => openEdit(mapping)}
-                          className="text-teal-700 hover:underline"
+                          className="inline-flex h-8 items-center rounded-md px-3 text-xs font-semibold text-white transition hover:brightness-[0.9]"
+                          style={{ backgroundColor: "var(--brand-primary)" }}
                         >
                           Edit
                         </button>
                         <button
                           type="button"
                           onClick={() => void removeMapping(mapping)}
-                          className="text-rose-700 hover:underline"
+                          className="inline-flex h-8 items-center rounded-md bg-red-600 px-3 text-xs font-semibold text-white transition hover:bg-red-700"
                         >
                           Delete
                         </button>
@@ -313,32 +333,31 @@ export default function WorkflowMappingsClient() {
         )}
       </section>
 
+      {/* Modal */}
       {formOpen ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-lg rounded-xl bg-white p-5 shadow-xl">
-            <h2 className="text-lg font-semibold text-slate-900">
+          <div className="w-full max-w-lg rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-xl sm:p-6">
+            <h2 className="text-lg font-semibold text-[#111827]">
               {form.id ? "Edit workflow mapping" : "Create workflow mapping"}
             </h2>
-            <div className="mt-4 space-y-4">
+            <div className="mt-5 space-y-4">
               <label className="block text-sm">
-                <span className="mb-1 block font-medium text-slate-700">Profession</span>
+                <span className="mb-1.5 block text-xs font-medium text-[#374151]">Profession</span>
                 <select
-                  className={inputClass}
+                  className={modalInputClass}
                   value={form.professionId}
                   onChange={(e) => setForm((c) => ({ ...c, professionId: e.target.value }))}
                 >
                   <option value="">Select profession</option>
                   {options?.professions.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.name}
-                    </option>
+                    <option key={item.id} value={item.id}>{item.name}</option>
                   ))}
                 </select>
               </label>
               <label className="block text-sm">
-                <span className="mb-1 block font-medium text-slate-700">Employment type</span>
+                <span className="mb-1.5 block text-xs font-medium text-[#374151]">Employment type</span>
                 <select
-                  className={inputClass}
+                  className={modalInputClass}
                   value={form.employmentType}
                   onChange={(e) =>
                     setForm((c) => ({
@@ -354,44 +373,56 @@ export default function WorkflowMappingsClient() {
                 </select>
               </label>
               <label className="block text-sm">
-                <span className="mb-1 block font-medium text-slate-700">Published workflow</span>
+                <span className="mb-1.5 block text-xs font-medium text-[#374151]">Published workflow</span>
                 <select
-                  className={inputClass}
+                  className={modalInputClass}
                   value={form.workflowId}
                   onChange={(e) => setForm((c) => ({ ...c, workflowId: e.target.value }))}
                 >
                   <option value="">Select published workflow</option>
                   {options?.workflows.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.name}
-                    </option>
+                    <option key={item.id} value={item.id}>{item.name}</option>
                   ))}
                 </select>
               </label>
               <label className="block text-sm">
-                <span className="mb-1 block font-medium text-slate-700">Priority</span>
+                <span className="mb-1.5 block text-xs font-medium text-[#374151]">Priority</span>
                 <input
-                  className={inputClass}
+                  className={modalInputClass}
                   type="number"
                   min={0}
                   value={form.priority}
                   onChange={(e) => setForm((c) => ({ ...c, priority: Number(e.target.value) }))}
                 />
               </label>
-              <label className="flex items-center gap-2 text-sm text-slate-700">
-                <input
-                  type="checkbox"
-                  checked={form.isActive}
-                  onChange={(e) => setForm((c) => ({ ...c, isActive: e.target.checked }))}
-                />
-                Active mapping
+              <label className="flex cursor-pointer items-center gap-3 text-sm text-[#374151]">
+                <span
+                  className="relative flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-2 transition"
+                  style={{
+                    borderColor: form.isActive ? "var(--brand-secondary, var(--brand-primary))" : "#D1D5DB",
+                    backgroundColor: form.isActive ? "var(--brand-secondary, var(--brand-primary))" : "transparent",
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={form.isActive}
+                    onChange={(e) => setForm((c) => ({ ...c, isActive: e.target.checked }))}
+                    className="absolute inset-0 cursor-pointer opacity-0"
+                  />
+                  {form.isActive ? (
+                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden>
+                      <path d="M2.5 6L5 8.5L9.5 3.5" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  ) : null}
+                </span>
+                <span className="font-medium">Active mapping</span>
               </label>
             </div>
             <div className="mt-6 flex justify-end gap-3">
               <button
                 type="button"
                 onClick={() => setFormOpen(false)}
-                className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700"
+                className="rounded-lg border border-[#D1D5DB] px-4 py-2.5 text-sm font-medium text-[#374151] transition hover:bg-[#F9FAFB]"
               >
                 Cancel
               </button>
@@ -399,7 +430,8 @@ export default function WorkflowMappingsClient() {
                 type="button"
                 disabled={saving || !form.professionId || !form.workflowId}
                 onClick={() => void saveMapping()}
-                className="rounded-lg bg-teal-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                className="rounded-lg px-4 py-2.5 text-sm font-semibold text-white transition hover:brightness-[0.95] disabled:opacity-50"
+                style={{ backgroundColor: "var(--brand-primary)" }}
               >
                 {saving ? "Saving…" : "Save Mapping"}
               </button>
@@ -408,18 +440,20 @@ export default function WorkflowMappingsClient() {
         </div>
       ) : null}
 
-      <p className="mt-4 text-sm text-slate-500">
+      <p className="mt-4 text-sm text-[#6B7280]">
         Need a workflow first?{" "}
         <Link
           href="/admin_recruiter/dashboard/onboarding-flows"
-          className="font-medium text-teal-700 hover:underline"
+          className="font-medium hover:underline"
+          style={{ color: "var(--brand-primary)" }}
         >
           Publish a workflow
         </Link>{" "}
         or start from{" "}
         <Link
           href="/admin_recruiter/dashboard/templates"
-          className="font-medium text-teal-700 hover:underline"
+          className="font-medium hover:underline"
+          style={{ color: "var(--brand-primary)" }}
         >
           My Templates
         </Link>
