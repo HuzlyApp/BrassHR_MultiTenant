@@ -46,7 +46,7 @@ export const BRAAS_FIRMA_APPEARANCE_DEFAULTS = {
 } as const;
 
 /**
- * BrassHR appearance payload for Firma company + workspace settings APIs.
+ * BrassHR platform appearance payload (company default / fallback tenant).
  * Primary drives buttons, field icons, and zoom controls in the embedded editor.
  */
 export function buildBrassHrFirmaAppearanceSettings(): FirmaWorkspaceAppearanceSettings {
@@ -71,11 +71,32 @@ export function buildBrassHrFirmaAppearanceSettings(): FirmaWorkspaceAppearanceS
 }
 
 /**
- * Maps BrassHR appearance for Firma template builder + signing embeds.
- * Tenant branding is ignored — Firma chrome always uses BrassHR gold (#BC8B41).
+ * Maps tenant Admin Settings branding to Firma workspace appearance (PUT /workspace/{id}/settings).
+ * Each tenant workspace gets its own primary, accent, and shell colors.
  */
 export function tenantBrandingToFirmaWorkspaceSettings(
-  _branding: TenantBranding
+  branding: TenantBranding
 ): FirmaWorkspaceAppearanceSettings {
-  return buildBrassHrFirmaAppearanceSettings();
+  const primary = normalizeHex(
+    branding.buttonColor || branding.primaryHex,
+    BRAAS_PRIMARY
+  );
+  const accent = normalizeHex(branding.accentHex || branding.primaryHex, primary);
+  const secondary = normalizeHex(branding.secondaryHex, accent);
+  const primaryFg = contrastForegroundOnHex(primary);
+  const accentFg = contrastForegroundOnHex(accent);
+
+  return {
+    color_primary: primary,
+    color_primary_fg: primaryFg,
+    color_accent: accent,
+    color_accent_fg: accentFg,
+    color_background: BRAAS_FIRMA_APPEARANCE_DEFAULTS.background,
+    color_foreground: BRAAS_FIRMA_APPEARANCE_DEFAULTS.foreground,
+    color_card: BRAAS_FIRMA_APPEARANCE_DEFAULTS.card,
+    color_border: BRAAS_FIRMA_APPEARANCE_DEFAULTS.border,
+    color_canvas: BRAAS_FIRMA_APPEARANCE_DEFAULTS.canvas,
+    color_muted: BRAAS_FIRMA_APPEARANCE_DEFAULTS.muted,
+    color_muted_fg: secondary,
+  };
 }

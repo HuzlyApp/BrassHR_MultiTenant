@@ -2,13 +2,19 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   isFirmaConfigured,
-  updateFirmaCompanyAppearanceSettings,
   updateFirmaWorkspaceSettings,
+  uploadFirmaWorkspaceLogo,
 } from "@/lib/firma/client";
 import type { FirmaWorkspaceAppearanceSettings } from "@/lib/firma/types";
-import { buildBrassHrFirmaAppearanceSettings } from "@/lib/firma/sync-workspace-branding-colors";
+import {
+  tenantBrandingToFirmaWorkspaceSettings,
+} from "@/lib/firma/sync-workspace-branding-colors";
 import { TENANT_BRANDING_SELECT } from "@/lib/tenant/branding-fields";
-import type { TenantBrandingRow } from "@/lib/tenant/tenant-branding";
+import {
+  brandingFromTenantRow,
+  isRemoteOrBlobImageSrc,
+  type TenantBrandingRow,
+} from "@/lib/tenant/tenant-branding";
 
 export {
   buildBrassHrFirmaAppearanceSettings,
@@ -34,6 +40,7 @@ export type FirmaWorkspaceBrandingSyncResult = {
   synced: boolean;
   workspaceId: string;
   colors: FirmaWorkspaceAppearanceSettings;
+  logoSynced: boolean;
 };
 
 /** Log Firma branding sync issues in all environments (prod failures were previously silent). */
@@ -48,9 +55,70 @@ export function logFirmaWorkspaceBrandingSyncFailure(
   });
 }
 
+const FIRMA_LOGO_MIMES = new Set(["image/png", "image/jpeg", "image/jpg"]);
+
+function logoFilenameFromUrl(url: string, contentType: string): string {
+  const fromPath = url.split("?")[0]?.split("/").pop()?.trim();
+  if (fromPath && /\.(png|jpe?g)$/i.test(fromPath)) return fromPath;
+  const ext = contentType.includes("png") ? "png" : "jpg";
+  return `workspace-logo.${ext}`;
+}
+
 /**
- * Pushes BrassHR gold appearance to Firma company + workspace settings before embedded editors open.
- * Matches app.firma.dev → Settings → Appearance so the template builder inherits gold primary.
+ * Upload tenant company logo to Firma workspace (POST /workspaces/{id}/logo).
+ * Firma accepts PNG/JPEG only — SVG and relative asset paths are skipped.
+ */
+export async function syncTenantLogoToFirmaWorkspace(
+  workspaceId: string,
+  logoUrl: string | null | undefined
+): Promise<boolean> {
+  const url = logoUrl?.trim();
+  if (!url || !isRemoteOrBlobImageSrc(url)) {
+    return false;
+  }
+
+  if (/\.svg(\?|$)/i.test(url)) {
+    console.info("[firma-branding] skipping SVG logo upload (Firma requires PNG/JPEG)", {
+      workspaceId,
+    });
+    return false;
+  }
+
+  const response = await fetch(url, { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error(`Failed to fetch tenant logo (${response.status})`);
+  }
+
+  const contentType = (response.headers.get("content-type") ?? "").split(";")[0]?.trim().toLowerCase();
+  if (!contentType || !FIRMA_LOGO_MIMES.has(contentType)) {
+    console.info("[firma-branding] skipping logo upload — unsupported mime type", {
+      workspaceId,
+      contentType: contentType || "unknown",
+    });
+    return false;
+  }
+
+  const buffer = Buffer.from(await response.arrayBuffer());
+  if (buffer.byteLength > 2 * 1024 * 1024) {
+    console.info("[firma-branding] skipping logo upload — file exceeds 2MB", {
+      workspaceId,
+      bytes: buffer.byteLength,
+    });
+    return false;
+  }
+
+  await uploadFirmaWorkspaceLogo(
+    workspaceId,
+    buffer,
+    logoFilenameFromUrl(url, contentType),
+    contentType
+  );
+  return true;
+}
+
+/**
+ * Pushes tenant Admin Settings branding to the Firma workspace before embedded editors/signing open.
+ * Uses PUT /workspace/{id}/settings per Firma multi-tenant guidance (one workspace per tenant).
  */
 export async function syncTenantBrandingToFirmaWorkspace(
   supabase: SupabaseClient,
@@ -62,28 +130,39 @@ export async function syncTenantBrandingToFirmaWorkspace(
       synced: false,
       workspaceId,
       colors: {},
+      logoSynced: false,
     };
   }
 
-  const colors = buildBrassHrFirmaAppearanceSettings();
+  const row = await loadTenantBrandingRow(supabase, tenantId);
+  const branding = brandingFromTenantRow(row);
+  const colors = tenantBrandingToFirmaWorkspaceSettings(branding);
 
-  const [companyApplied, workspaceApplied] = await Promise.all([
-    updateFirmaCompanyAppearanceSettings(colors),
-    updateFirmaWorkspaceSettings(workspaceId, colors),
-  ]);
+  const workspaceApplied = await updateFirmaWorkspaceSettings(workspaceId, colors);
 
-  console.info("[firma-branding] Firma appearance synced", {
+  let logoSynced = false;
+  try {
+    logoSynced = await syncTenantLogoToFirmaWorkspace(workspaceId, branding.logoUrl);
+  } catch (logoErr) {
+    logFirmaWorkspaceBrandingSyncFailure(
+      "workspace logo sync failed",
+      { tenantId, workspaceId },
+      logoErr
+    );
+  }
+
+  console.info("[firma-branding] Firma workspace appearance synced", {
     tenantId,
     workspaceId,
-    company_primary: companyApplied.color_primary ?? colors.color_primary,
-    company_accent: companyApplied.color_accent ?? colors.color_accent,
     workspace_primary: workspaceApplied.color_primary ?? colors.color_primary,
     workspace_accent: workspaceApplied.color_accent ?? colors.color_accent,
+    logoSynced,
   });
 
   return {
     synced: true,
     workspaceId,
     colors,
+    logoSynced,
   };
 }

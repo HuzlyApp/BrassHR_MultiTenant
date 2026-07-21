@@ -435,7 +435,10 @@ export default function FirmaTemplateBuilderFrame({
             }
           },
           onLoad: () => {
-            patchFirmaTemplateEditorBranding(editorRef.current);
+            patchFirmaTemplateEditorBranding(
+              editorRef.current,
+              activeSession.embed_color_palette
+            );
             setEditorPhase(null);
             clearFirmaEditorTimer(initTimeoutRef);
             logFirmaBuilderPhase("editor-onload", {
@@ -450,7 +453,10 @@ export default function FirmaTemplateBuilderFrame({
         } else if (typeof FirmaTemplateEditor === "function") {
           editorRef.current = new FirmaTemplateEditor(options);
         }
-        patchFirmaTemplateEditorBranding(editorRef.current);
+        patchFirmaTemplateEditorBranding(
+          editorRef.current,
+          activeSession.embed_color_palette
+        );
         logFirmaBuilderPhase("editor-mounted", {
           templateId,
           firmaTemplateId: activeSession.firma_template_id,

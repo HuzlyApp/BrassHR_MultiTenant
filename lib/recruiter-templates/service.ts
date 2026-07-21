@@ -22,6 +22,7 @@ import {
   FirmaWorkspaceConfigError,
 } from "@/lib/firma/resolve-tenant-workspace";
 import { syncTenantBrandingToFirmaWorkspace, logFirmaWorkspaceBrandingSyncFailure } from "@/lib/firma/sync-workspace-branding";
+import { firmaAppearanceSettingsToEmbedPalette } from "@/lib/firma/embed-color-palette";
 import { RECRUITER_TEMPLATE_DOCUMENT_BUCKET } from "@/lib/recruiter-templates/constants";
 import { RecruiterTemplateError } from "@/lib/recruiter-templates/errors";
 import type {
@@ -602,12 +603,14 @@ export async function createRecruiterTemplateBuilderSession(
   ): Promise<RecruiterTemplateBuilderSession> {
     const editorAppUrl = getFirmaEditorAppUrl();
 
+    let embedColorPalette = firmaAppearanceSettingsToEmbedPalette({});
     try {
       const brandingSync = await syncTenantBrandingToFirmaWorkspace(
         supabase,
         tenantId,
         workspaceId
       );
+      embedColorPalette = firmaAppearanceSettingsToEmbedPalette(brandingSync.colors);
       if (brandingSync.synced) {
         console.info("[firma-template-builder] workspace branding synced", {
           tenantId,
@@ -655,6 +658,7 @@ export async function createRecruiterTemplateBuilderSession(
       editor_app_url: editorAppUrl,
       embed_script_url: getFirmaEmbedScriptUrl(),
       expires_at: jwt.expires_at,
+      embed_color_palette: embedColorPalette,
     };
   }
 

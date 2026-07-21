@@ -1,14 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
+  buildBrassHrFirmaEmbedColorPalette,
+} from "@/lib/firma/embed-color-palette";
+import { resolveSigningEmbedPaletteForRecipient } from "@/lib/firma/resolve-signing-embed-palette";
+import {
   getFirmaSigningAppUrl,
   rewriteFirmaSigningProxyHtml,
 } from "@/lib/firma/signing-branding-proxy";
+import { createServiceRoleClient } from "@/lib/supabase/service-role";
 
 export const runtime = "nodejs";
 
 /**
  * Same-origin proxy for Firma recipient signing pages.
- * Injects a fetch patch so get-signing-view-data returns BrassHR gold instead of legacy teal.
+ * Injects a fetch patch so get-signing-view-data uses the tenant workspace palette.
  */
 export async function GET(
   req: NextRequest,
@@ -33,7 +38,16 @@ export async function GET(
 
   if (contentType.includes("text/html")) {
     const html = await upstream.text();
-    const body = rewriteFirmaSigningProxyHtml(html);
+    const recipientId = path[0]?.trim() ?? "";
+    let palette = buildBrassHrFirmaEmbedColorPalette();
+
+    const svc = createServiceRoleClient();
+    if (svc && recipientId) {
+      const tenantPalette = await resolveSigningEmbedPaletteForRecipient(svc, recipientId);
+      if (tenantPalette) palette = tenantPalette;
+    }
+
+    const body = rewriteFirmaSigningProxyHtml(html, palette);
     return new NextResponse(body, {
       status: upstream.status,
       headers: {

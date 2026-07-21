@@ -5,6 +5,11 @@ import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { requireStaffApiSession } from "@/lib/auth/api-session";
 import { resolveEffectiveAdminTenantId } from "@/lib/email-templates/resolve-effective-tenant";
 import { invalidateTenantBrandingCache } from "@/lib/tenant/invalidate-tenant-branding-cache";
+import { FirmaWorkspaceConfigError, resolveTenantFirmaWorkspaceId } from "@/lib/firma/resolve-tenant-workspace";
+import {
+  logFirmaWorkspaceBrandingSyncFailure,
+  syncTenantBrandingToFirmaWorkspace,
+} from "@/lib/firma/sync-workspace-branding";
 
 export const runtime = "nodejs";
 
@@ -104,6 +109,21 @@ export async function POST(req: NextRequest) {
     }
 
     await invalidateTenantBrandingCache(tenantId);
+
+    if (field === "logo") {
+      try {
+        const workspaceId = await resolveTenantFirmaWorkspaceId(svc, tenantId);
+        await syncTenantBrandingToFirmaWorkspace(svc, tenantId, workspaceId);
+      } catch (err) {
+        if (!(err instanceof FirmaWorkspaceConfigError)) {
+          logFirmaWorkspaceBrandingSyncFailure(
+            "admin logo upload Firma sync failed",
+            { tenantId, field },
+            err
+          );
+        }
+      }
+    }
 
     return NextResponse.json({
       ok: true,

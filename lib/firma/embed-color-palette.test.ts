@@ -2,8 +2,10 @@ import { describe, expect, it, vi } from "vitest";
 import {
   buildBrassHrFirmaEmbedColorPalette,
   patchFirmaTemplateEditorBranding,
+  tenantBrandingToFirmaEmbedColorPalette,
   type FirmaEmbedColorPalette,
 } from "@/lib/firma/embed-color-palette";
+import { defaultTenantBranding } from "@/lib/tenant/tenant-branding";
 
 describe("buildBrassHrFirmaEmbedColorPalette", () => {
   it("uses BrassHR gold for primary controls in the embed", () => {
@@ -14,8 +16,24 @@ describe("buildBrassHrFirmaEmbedColorPalette", () => {
   });
 });
 
+describe("tenantBrandingToFirmaEmbedColorPalette", () => {
+  it("uses tenant button and accent colors", () => {
+    const palette = tenantBrandingToFirmaEmbedColorPalette({
+      ...defaultTenantBranding(),
+      primaryHex: "#0d9488",
+      accentHex: "#99f6e4",
+      buttonColor: "#2563eb",
+      secondaryHex: "#0f766e",
+    });
+
+    expect(palette.primary).toBe("#2563eb");
+    expect(palette.accent).toBe("#99f6e4");
+    expect(palette.muted_fg).toBe("#0f766e");
+  });
+});
+
 describe("patchFirmaTemplateEditorBranding", () => {
-  it("wraps applyPalette to always apply BrassHR gold", () => {
+  it("wraps applyPalette to always apply the provided tenant palette", () => {
     const applied: FirmaEmbedColorPalette[] = [];
     const editor = {
       applyPalette(palette: FirmaEmbedColorPalette) {
@@ -23,10 +41,17 @@ describe("patchFirmaTemplateEditorBranding", () => {
       },
     };
 
-    patchFirmaTemplateEditorBranding(editor);
+    const tenantPalette = tenantBrandingToFirmaEmbedColorPalette({
+      ...defaultTenantBranding(),
+      buttonColor: "#2563eb",
+      accentHex: "#93c5fd",
+      secondaryHex: "#1d4ed8",
+    });
+
+    patchFirmaTemplateEditorBranding(editor, tenantPalette);
 
     expect(applied).toHaveLength(1);
-    expect(applied[0]?.primary).toBe("#bc8b41");
+    expect(applied[0]?.primary).toBe("#2563eb");
 
     editor.applyPalette({
       primary: "#0d9488",
@@ -43,8 +68,8 @@ describe("patchFirmaTemplateEditorBranding", () => {
     });
 
     expect(applied).toHaveLength(2);
-    expect(applied[1]?.primary).toBe("#bc8b41");
-    expect(applied[1]?.accent).toBe("#bc8b41");
+    expect(applied[1]?.primary).toBe("#2563eb");
+    expect(applied[1]?.accent).toBe("#93c5fd");
   });
 
   it("ignores editors without applyPalette", () => {

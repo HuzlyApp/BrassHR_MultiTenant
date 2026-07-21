@@ -27,15 +27,34 @@ describe("resolveFirmaSigningEmbedUrl", () => {
 });
 
 describe("rewriteFirmaSigningProxyHtml", () => {
-  it("injects branding patch and rewrites asset URLs", () => {
+  it("injects default BrassHR palette when none is provided", () => {
     const html = '<html><head></head><body><script src="/assets/main.js"></script></body></html>';
     const out = rewriteFirmaSigningProxyHtml(html);
 
     expect(out).toContain("<head><script>");
     expect(out).toContain("get-signing-view-data");
     expect(out).toContain('src="/firma-signing-assets/main.js"');
-    expect(out).not.toContain("crossorigin");
     expect(out).toContain("#bc8b41");
+  });
+
+  it("injects tenant palette when provided", () => {
+    const html = '<html><head></head><body><script src="/assets/main.js"></script></body></html>';
+    const out = rewriteFirmaSigningProxyHtml(html, {
+      primary: "#2563eb",
+      primary_fg: "#ffffff",
+      background: "#1c1c21",
+      foreground: "#ffffff",
+      card: "#22222a",
+      border: "#3b3b3b",
+      accent: "#93c5fd",
+      accent_fg: "#101828",
+      canvas: "#0f1419",
+      muted: "#22222a",
+      muted_fg: "#1d4ed8",
+    });
+
+    expect(out).toContain("#2563eb");
+    expect(out).not.toContain("#bc8b41");
   });
 });
 

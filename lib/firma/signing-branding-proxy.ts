@@ -1,4 +1,7 @@
-import { buildBrassHrFirmaEmbedColorPalette } from "@/lib/firma/embed-color-palette";
+import {
+  buildBrassHrFirmaEmbedColorPalette,
+  type FirmaEmbedColorPalette,
+} from "@/lib/firma/embed-color-palette";
 
 const DEFAULT_FIRMA_APP_URL = "https://app.firma.dev";
 
@@ -51,15 +54,19 @@ export function rewriteFirmaSigningAssetPath(url: string): string {
 }
 
 /** Inline script injected into proxied Firma signing HTML before the SPA bundle runs. */
-export function buildFirmaSigningBrandingInjectScript(): string {
-  const gold = buildBrassHrFirmaEmbedColorPalette();
+export function buildFirmaSigningBrandingInjectScript(
+  palette: FirmaEmbedColorPalette = buildBrassHrFirmaEmbedColorPalette()
+): string {
   const assetPrefix = FIRMA_SIGNING_ASSETS_PATH_PREFIX;
-  return `(function(){var GOLD=${JSON.stringify(gold)};var ASSET_PREFIX=${JSON.stringify(assetPrefix)};function rewriteAssetUrl(u){if(typeof u!=="string")return u;return u.indexOf("/assets/")===0?ASSET_PREFIX+u.slice(7):u;}function patchPalette(body){if(!body||typeof body!=="object")return body;if(body.color_palette)body.color_palette=GOLD;return body;}var OrigWorker=window.Worker;if(OrigWorker){var PatchedWorker=function(u,o){return new OrigWorker(rewriteAssetUrl(String(u)),o);};PatchedWorker.prototype=OrigWorker.prototype;window.Worker=PatchedWorker;}var origFetch=window.fetch;window.fetch=function(input,init){if(typeof input==="string"){input=rewriteAssetUrl(input);}else if(input&&input.url){var ru=rewriteAssetUrl(input.url);if(ru!==input.url)input=new Request(ru,input);}return origFetch.call(this,input,init).then(function(res){try{var url=typeof input==="string"?input:input&&input.url?input.url:String(input);if(!url||url.indexOf("get-signing-view-data")===-1)return res;return res.clone().json().then(function(json){patchPalette(json);var headers=new Headers(res.headers);headers.set("content-type","application/json");return new Response(JSON.stringify(json),{status:res.status,statusText:res.statusText,headers:headers});}).catch(function(){return res;});}catch(e){return res;}});};})();`;
+  return `(function(){var PALETTE=${JSON.stringify(palette)};var ASSET_PREFIX=${JSON.stringify(assetPrefix)};function rewriteAssetUrl(u){if(typeof u!=="string")return u;return u.indexOf("/assets/")===0?ASSET_PREFIX+u.slice(7):u;}function patchPalette(body){if(!body||typeof body!=="object")return body;if(body.color_palette)body.color_palette=PALETTE;return body;}var OrigWorker=window.Worker;if(OrigWorker){var PatchedWorker=function(u,o){return new OrigWorker(rewriteAssetUrl(String(u)),o);};PatchedWorker.prototype=OrigWorker.prototype;window.Worker=PatchedWorker;}var origFetch=window.fetch;window.fetch=function(input,init){if(typeof input==="string"){input=rewriteAssetUrl(input);}else if(input&&input.url){var ru=rewriteAssetUrl(input.url);if(ru!==input.url)input=new Request(ru,input);}return origFetch.call(this,input,init).then(function(res){try{var url=typeof input==="string"?input:input&&input.url?input.url:String(input);if(!url||url.indexOf("get-signing-view-data")===-1)return res;return res.clone().json().then(function(json){patchPalette(json);var headers=new Headers(res.headers);headers.set("content-type","application/json");return new Response(JSON.stringify(json),{status:res.status,statusText:res.statusText,headers:headers});}).catch(function(){return res;});}catch(e){return res;}});};})();`;
 }
 
 /** Rewrite Firma signing HTML so assets load same-origin and branding patch runs first. */
-export function rewriteFirmaSigningProxyHtml(html: string): string {
-  const script = buildFirmaSigningBrandingInjectScript();
+export function rewriteFirmaSigningProxyHtml(
+  html: string,
+  palette?: FirmaEmbedColorPalette
+): string {
+  const script = buildFirmaSigningBrandingInjectScript(palette);
   const assetPrefix = FIRMA_SIGNING_ASSETS_PATH_PREFIX;
 
   let out = html.replace(/\ssrc="\/assets\//g, ` src="${assetPrefix}/`);
