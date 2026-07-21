@@ -3,11 +3,19 @@ import {
   buildApplyPath,
   buildJobsPortalPath,
   isJobRequisitionOpen,
+  normalizeJobToken,
   NO_OPEN_POSITIONS_MESSAGE,
   resolveApplicationEntryRoute,
 } from "@/lib/jobs/public-application-routing";
 
 describe("public application routing", () => {
+  it("normalizes invalid job tokens", () => {
+    expect(normalizeJobToken(" abc ")).toBe("abc");
+    expect(normalizeJobToken("null")).toBeNull();
+    expect(normalizeJobToken("undefined")).toBeNull();
+    expect(normalizeJobToken("")).toBeNull();
+  });
+
   it("treats jobs without deadlines as open", () => {
     expect(isJobRequisitionOpen({ application_deadline: null })).toBe(true);
     expect(isJobRequisitionOpen({ application_deadline: "" })).toBe(true);
@@ -34,13 +42,12 @@ describe("public application routing", () => {
     });
   });
 
-  it("routes a single open job directly to apply with that token", () => {
+  it("routes a single open job to the jobs portal", () => {
     const route = resolveApplicationEntryRoute("acme", [{ publicJobToken: "only-job" }]);
     expect(route).toEqual({
-      kind: "apply",
+      kind: "jobs",
       tenantSlug: "acme",
-      jobToken: "only-job",
-      path: buildApplyPath("acme", "only-job"),
+      path: buildJobsPortalPath("acme"),
     });
   });
 
@@ -56,5 +63,14 @@ describe("public application routing", () => {
 
   it("preserves the selected job token in apply URLs", () => {
     expect(buildApplyPath("acme", "abc-123")).toBe("/apply?tenant=acme&job_token=abc-123");
+  });
+
+  it("ignores invalid job tokens when building apply URLs", () => {
+    expect(buildApplyPath("acme", "null")).toBe("/jobs?tenant=acme");
+  });
+
+  it("treats literal null tokens as missing when resolving entry routes", () => {
+    const route = resolveApplicationEntryRoute("acme", [{ publicJobToken: "null" }]);
+    expect(route.kind).toBe("empty");
   });
 });

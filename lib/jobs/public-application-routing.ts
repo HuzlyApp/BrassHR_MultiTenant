@@ -14,6 +14,14 @@ export function formatDateOnlyUtc(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
 
+export function normalizeJobToken(value: string | null | undefined): string | null {
+  const token = value?.trim();
+  if (!token) return null;
+  const lowered = token.toLowerCase();
+  if (lowered === "null" || lowered === "undefined") return null;
+  return token;
+}
+
 export function isJobRequisitionOpen(
   job: { application_deadline?: string | null },
   now: Date = new Date()
@@ -28,9 +36,13 @@ export function buildJobsPortalPath(tenantSlug: string): string {
 }
 
 export function buildApplyPath(tenantSlug: string, jobToken: string): string {
+  const normalizedToken = normalizeJobToken(jobToken);
+  if (!normalizedToken) {
+    return buildJobsPortalPath(tenantSlug);
+  }
   const params = new URLSearchParams({
     tenant: tenantSlug,
-    job_token: jobToken,
+    job_token: normalizedToken,
   });
   return `/apply?${params}`;
 }
@@ -48,21 +60,13 @@ export function resolveApplicationEntryRoute(
   openJobs: OpenJobSummary[]
 ): ApplicationEntryRoute {
   const slug = tenantSlug.trim().toLowerCase();
-  if (openJobs.length === 0) {
+  const validJobs = openJobs.filter((job) => normalizeJobToken(job.publicJobToken));
+  if (validJobs.length === 0) {
     return {
       kind: "empty",
       tenantSlug: slug,
       path: buildJobsPortalPath(slug),
       message: NO_OPEN_POSITIONS_MESSAGE,
-    };
-  }
-  if (openJobs.length === 1) {
-    const jobToken = openJobs[0]!.publicJobToken;
-    return {
-      kind: "apply",
-      tenantSlug: slug,
-      jobToken,
-      path: buildApplyPath(slug, jobToken),
     };
   }
   return {

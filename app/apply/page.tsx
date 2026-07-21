@@ -5,7 +5,7 @@ import {
   resolveTenantApplicationEntry,
   validatePublishedJobForApplication,
 } from "@/lib/jobs/validate-job-application";
-import { NO_OPEN_POSITIONS_MESSAGE } from "@/lib/jobs/public-application-routing";
+import { NO_OPEN_POSITIONS_MESSAGE, normalizeJobToken } from "@/lib/jobs/public-application-routing";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { resolveRequestTenantHost } from "@/lib/tenant/resolve-tenant-context";
 
@@ -38,7 +38,7 @@ export default async function ApplyPage({
     );
   }
 
-  const token = query.job_token?.trim();
+  const token = normalizeJobToken(query.job_token);
   if (!token) {
     try {
       const route = await resolveTenantApplicationEntry(supabase, tenantSlug);

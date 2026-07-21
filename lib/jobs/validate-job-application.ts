@@ -5,6 +5,7 @@ import {
   buildAddResumePath,
   formatDateOnlyUtc,
   isJobRequisitionOpen,
+  normalizeJobToken,
   type ApplicationEntryRoute,
   type OpenJobSummary,
   resolveApplicationEntryRoute,
@@ -34,7 +35,7 @@ export type ValidatedJobApplicationTarget = {
 };
 
 const JOB_APPLICATION_SELECT =
-  "id, tenant_id, public_job_token, status, workflow_id, application_deadline, onboarding_flows!inner(id, name, status, tenant_id)";
+  "id, tenant_id, public_job_token, status, workflow_id, application_deadline, onboarding_flows!workflow_id!inner(id, name, status, tenant_id)";
 
 export async function listOpenPublishedJobSummaries(
   supabase: DbClient,
@@ -54,7 +55,9 @@ export async function listOpenPublishedJobSummaries(
 
   return (data ?? [])
     .filter((row) => isJobRequisitionOpen(row, now))
-    .map((row) => ({ publicJobToken: String(row.public_job_token) }));
+    .map((row) => normalizeJobToken(String(row.public_job_token ?? "")))
+    .filter((token): token is string => Boolean(token))
+    .map((publicJobToken) => ({ publicJobToken }));
 }
 
 export async function resolveTenantApplicationEntry(
@@ -80,7 +83,7 @@ export async function validatePublishedJobForApplication(
   jobTokenInput: string | null | undefined,
   now: Date = new Date()
 ): Promise<ValidatedJobApplicationTarget> {
-  const jobToken = jobTokenInput?.trim();
+  const jobToken = normalizeJobToken(jobTokenInput);
   if (!jobToken) {
     throw new JobApplicationGateError(
       "A job must be selected before starting an application.",

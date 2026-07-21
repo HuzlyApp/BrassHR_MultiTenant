@@ -1,7 +1,7 @@
 import "server-only";
 
-import type { SupabaseClient } from "@supabase/supabase-js";
-import {
+import { randomUUID } from "crypto";
+import type { SupabaseClient } from "@supabase/supabase-js";import {
   JobValidationError,
   type JobRequisitionInput,
   type JobStatus,
@@ -14,6 +14,7 @@ import {
 } from "@/lib/jobs/validation";
 import {
   isJobRequisitionOpen,
+  normalizeJobToken,
 } from "@/lib/jobs/public-application-routing";
 import { resolveWorkflowMatch } from "@/lib/workflow-mappings/service";
 
@@ -142,6 +143,26 @@ async function requirePublishable(
   throw new JobValidationError(message, fieldErrors);
 }
 
+async function resolvePublicJobTokenForPublish(
+  supabase: DbClient,
+  tenantId: string,
+  jobId?: string
+): Promise<string | undefined> {
+  if (jobId) {
+    const { data, error } = await supabase
+      .from("job_requisitions")
+      .select("public_job_token")
+      .eq("id", jobId)
+      .eq("tenant_id", tenantId)
+      .maybeSingle();
+    if (error) throw error;
+    if (normalizeJobToken(data?.public_job_token ? String(data.public_job_token) : null)) {
+      return undefined;
+    }
+  }
+  return randomUUID();
+}
+
 export async function saveJobRequisition(
   supabase: DbClient,
   tenantId: string,
@@ -181,6 +202,9 @@ export async function saveJobRequisition(
   if (options.publish) await requirePublishable(supabase, tenantId, input, match);
 
   const now = new Date().toISOString();
+  const publicJobToken = options.publish
+    ? await resolvePublicJobTokenForPublish(supabase, tenantId, options.jobId)
+    : undefined;
   const patch = {
     ...toJobRow(input),
     workflow_id: match?.workflowId ?? null,
@@ -189,6 +213,7 @@ export async function saveJobRequisition(
     closed_at: null,
     archived_at: null,
     updated_by: actorUserId,
+    ...(publicJobToken ? { public_job_token: publicJobToken } : {}),
   };
 
   if (options.jobId) {
@@ -320,7 +345,10 @@ export async function listPublicJobs(
 
   const { data, error, count } = await query;
   if (error) throw error;
-  return { jobs: data ?? [], total: count ?? 0, page, pageSize };
+  const jobs = (data ?? []).filter((job) =>
+    Boolean(normalizeJobToken(job.public_job_token ? String(job.public_job_token) : null))
+  );
+  return { jobs, total: count ?? jobs.length, page, pageSize };
 }
 
 export async function getPublishedJobByToken(
@@ -358,7 +386,7 @@ export async function startOrResumeJobApplication(
   const { data: job, error: jobError } = await supabase
     .from("job_requisitions")
     .select(
-      "id, tenant_id, workflow_id, status, onboarding_flows!inner(id, name, status, builder_draft, updated_at)"
+      "id, tenant_id, workflow_id, status, onboarding_flows!workflow_id!inner(id, name, status, builder_draft, updated_at)"
     )
     .eq("tenant_id", input.tenantId)
     .eq("public_job_token", input.jobToken)

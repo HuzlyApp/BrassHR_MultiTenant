@@ -7,6 +7,7 @@ import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext
 import {
   buildApplyPath,
   NO_OPEN_POSITIONS_MESSAGE,
+  normalizeJobToken,
 } from "@/lib/jobs/public-application-routing";
 import { resolveTenantSlugForClient } from "@/lib/tenant/resolve-tenant-context";
 
@@ -140,9 +141,10 @@ export default function JobsPortalClient() {
             {jobs.map((job) => {
               const profession = relationName(job.professions);
               const specialty = relationName(job.specialties);
-              const applyHref = buildApplyPath(tenant, job.public_job_token);
+              const jobToken = normalizeJobToken(job.public_job_token);
+              const applyHref = jobToken ? buildApplyPath(tenant, jobToken) : null;
               return (
-                <article key={job.public_job_token} className="flex flex-col rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+                <article key={job.public_job_token || job.public_title} className="flex flex-col rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
                   <div className="flex items-start justify-between gap-3">
                     <h2 className="text-lg font-semibold text-slate-900">{job.public_title}</h2>
                     <span className="rounded-full bg-teal-50 px-2.5 py-1 text-xs font-semibold text-teal-700">{job.employment_type}</span>
@@ -152,18 +154,22 @@ export default function JobsPortalClient() {
                   <p className="mt-2 text-sm font-medium text-slate-600">{job.location}</p>
                   <p className="mt-4 line-clamp-3 flex-1 text-sm leading-6 text-slate-600">{job.public_description}</p>
                   <div className="mt-5 flex flex-wrap items-center gap-3">
-                    <Link
-                      href={applyHref}
-                      className="inline-flex rounded-lg bg-teal-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-teal-800"
-                    >
-                      Apply
-                    </Link>
-                    <Link
-                      href={`/jobs/${encodeURIComponent(job.public_job_token)}?tenant=${encodeURIComponent(tenant)}`}
-                      className="text-sm font-semibold text-teal-700 hover:underline"
-                    >
-                      View details
-                    </Link>
+                    {applyHref ? (
+                      <Link
+                        href={applyHref}
+                        className="inline-flex rounded-lg bg-teal-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-teal-800"
+                      >
+                        Apply
+                      </Link>
+                    ) : null}
+                    {jobToken ? (
+                      <Link
+                        href={`/jobs/${encodeURIComponent(jobToken)}?tenant=${encodeURIComponent(tenant)}`}
+                        className="text-sm font-semibold text-teal-700 hover:underline"
+                      >
+                        View details
+                      </Link>
+                    ) : null}
                   </div>
                 </article>
               );
