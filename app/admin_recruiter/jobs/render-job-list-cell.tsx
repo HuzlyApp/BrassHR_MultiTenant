@@ -1,6 +1,6 @@
 import type { ReactNode } from "react"
 import Link from "next/link"
-import { ChevronDown, MoreVertical, Star } from "lucide-react"
+import { MoreVertical } from "lucide-react"
 import type { JobColumnId } from "./job-columns"
 
 const JOB_CANDIDATE_COUNTER_CLASS =
@@ -11,6 +11,11 @@ const JOB_CANDIDATE_ICONS = {
   new: "/fluent_person-add-24-regular.svg",
   matches: "/fluent_person-star-24-regular.svg",
 } as const
+
+/** Figma jobs list star — 14×14 */
+const JOB_STAR_ICON_SIZE = 14
+const JOB_STAR_DEFAULT_SRC = "/icons/jobs-icons/Star-default.svg"
+const JOB_STAR_FILLED_SRC = "/icons/jobs-icons/Star-filled.svg"
 
 function JobCandidateMetric({
   iconSrc,
@@ -27,7 +32,15 @@ function JobCandidateMetric({
 
   return (
     <div className="flex items-center gap-1.5">
-      <img src={iconSrc} alt="" width={12} height={12} className="h-3 w-3 shrink-0" aria-hidden />
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={iconSrc}
+        alt=""
+        width={12}
+        height={12}
+        className="h-[12px] w-[12px] shrink-0 object-contain"
+        aria-hidden
+      />
       <span className="text-xs font-normal text-[#475569]">{label}</span>
       {href ? (
         <Link href={href} className="inline-flex transition hover:opacity-80">
@@ -59,7 +72,6 @@ export type JobListRow = {
 }
 
 const JOB_FORM_SURFACE_CLASS = "rounded-lg border border-[#CBD5E1] bg-white"
-const JOB_STAR_ICON_COLOR = "#EAB308"
 
 function relationName(value: JobListRow["professions"]): string {
   const row = Array.isArray(value) ? value[0] : value
@@ -93,7 +105,7 @@ function displayJobStatus(status: JobListRow["status"]): { label: string; dotCla
     case "closed":
       return { label: "Closed", dotClass: "bg-[#EF4444]" }
     case "archived":
-      return { label: "Closed", dotClass: "bg-[#EF4444]" }
+      return { label: "Archived", dotClass: "bg-[#EF4444]" }
     default:
       return { label: status, dotClass: "bg-[#94A3B8]" }
   }
@@ -153,17 +165,22 @@ export function renderJobListCell(
   switch (col) {
     case "jobTitle":
       return (
-        <div className="flex items-start gap-2">
+        <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={() => ctx.onToggleStar(job.id)}
-            className="mt-0.5 shrink-0"
+            className="inline-flex h-[14px] w-[14px] shrink-0 items-center justify-center"
             aria-label={isStarred ? "Unstar job" : "Star job"}
+            aria-pressed={isStarred}
           >
-            <Star
-              className="h-4 w-4"
-              style={{ color: JOB_STAR_ICON_COLOR }}
-              fill={isStarred ? JOB_STAR_ICON_COLOR : "transparent"}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={isStarred ? JOB_STAR_FILLED_SRC : JOB_STAR_DEFAULT_SRC}
+              alt=""
+              width={JOB_STAR_ICON_SIZE}
+              height={JOB_STAR_ICON_SIZE}
+              className="h-[14px] w-[14px]"
+              aria-hidden
             />
           </button>
           <div className="min-w-0">
@@ -215,13 +232,10 @@ export function renderJobListCell(
     case "jobStatus":
       return (
         <div
-          className={`inline-flex h-8 min-w-[112px] items-center justify-between gap-2 px-2.5 text-sm text-[#334155] ${JOB_FORM_SURFACE_CLASS}`}
+          className={`inline-flex h-8 min-w-[112px] items-center gap-2 px-2.5 text-sm text-[#334155] ${JOB_FORM_SURFACE_CLASS}`}
         >
-          <span className="flex items-center gap-2">
-            <span className={`h-2 w-2 rounded-full ${statusDisplay.dotClass}`} />
-            {statusDisplay.label}
-          </span>
-          <ChevronDown className="h-4 w-4 text-[#94A3B8]" />
+          <span className={`h-2 w-2 shrink-0 rounded-full ${statusDisplay.dotClass}`} />
+          {statusDisplay.label}
         </div>
       )
     case "location":

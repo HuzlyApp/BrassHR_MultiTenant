@@ -19,7 +19,7 @@ function BrandedColumnCheckbox({
         type="checkbox"
         checked={checked}
         onChange={onChange}
-        className="peer h-5 w-5 shrink-0 cursor-pointer appearance-none rounded-[5px] border-2 border-slate-300 bg-white transition-colors checked:border-[color:var(--brand-checkbox,var(--brand-primary))] checked:bg-[color:var(--brand-checkbox,var(--brand-primary))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--brand-primary)_30%,transparent)]"
+        className="peer h-5 w-5 shrink-0 cursor-pointer appearance-none rounded-[5px] border-2 border-slate-300 bg-white transition-colors checked:border-[color:var(--brand-secondary)] checked:bg-[color:var(--brand-secondary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--brand-secondary)_30%,transparent)]"
       />
       <Check
         className="pointer-events-none absolute inset-0 m-auto hidden h-3 w-3 text-white peer-checked:block"

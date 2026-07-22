@@ -4,6 +4,7 @@ import { JobValidationError } from "@/lib/jobs/types";
 import { jobMutationSchema } from "@/lib/jobs/validation";
 import {
   listInternalJobs,
+  publishExistingJob,
   saveJobRequisition,
   transitionJobStatus,
 } from "@/lib/jobs/service";
@@ -71,8 +72,16 @@ export async function POST(req: NextRequest) {
     const tenantId = await resolveStaffTenantId(supabase, auth);
     if (!tenantId) return NextResponse.json({ error: "No tenant selected" }, { status: 400 });
 
-    if ((action === "unpublish" || action === "close" || action === "archive") && !jobId) {
+    if (
+      (action === "unpublish" || action === "close" || action === "archive" || action === "publish") &&
+      !jobId
+    ) {
       return NextResponse.json({ error: "Job ID is required" }, { status: 400 });
+    }
+
+    if (action === "publish") {
+      const result = await publishExistingJob(supabase, tenantId, auth.userId, jobId);
+      return NextResponse.json({ job: result });
     }
 
     if (action === "unpublish" || action === "close" || action === "archive") {

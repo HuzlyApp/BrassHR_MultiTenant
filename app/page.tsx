@@ -372,16 +372,16 @@ export default function Home() {
             <BrandingFillImage
               src={backgroundSrc}
               sizes="480px"
-              className="object-cover object-center grayscale"
+              className="object-cover object-center opacity-60 grayscale"
               priority
             />
-            <div className="absolute inset-0 bg-white/45" />
+            <div className="absolute inset-0 bg-white/65" />
             <div
               className={`relative z-10 flex h-full w-full max-w-[340px] flex-col items-center justify-center ${BRANDING_RIGHT_PANEL_STACK_GAP_CLASS} px-6 pt-[12%] text-center`}
             >
               <BrandingRightPanelLogo src={logoSrc} alt={`${brand.companyName} logo`} />
               <div className="flex w-full items-center justify-center gap-3">
-                <span className="h-px flex-1 bg-slate-400/40" />
+                <span className="h-px flex-1 bg-slate-400/55" />
                 <span className="inline-flex h-7 w-7 items-center justify-center">
                   <BrandedSvgIcon
                     src="/icons/circle-star-icon.svg"
@@ -389,10 +389,10 @@ export default function Home() {
                     color={brand.primaryHex}
                   />
                 </span>
-                <span className="h-px flex-1 bg-slate-400/40" />
+                <span className="h-px flex-1 bg-slate-400/55" />
               </div>
-              <p className="text-[16px] font-normal leading-6 tracking-normal text-slate-700">
-                {brand.subtitle}
+              <p className="text-[16px] font-normal leading-6 tracking-normal text-black">
+                {brand.tagline}
               </p>
             </div>
           </div>

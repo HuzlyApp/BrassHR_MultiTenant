@@ -1,10 +1,13 @@
 import "server-only";
 
 import { randomUUID } from "crypto";
-import type { SupabaseClient } from "@supabase/supabase-js";import {
+import type { SupabaseClient } from "@supabase/supabase-js";
+import {
   JobValidationError,
+  type EmploymentType,
   type JobRequisitionInput,
   type JobStatus,
+  type SourceType,
   type WorkflowMatch,
 } from "@/lib/jobs/types";
 import {
@@ -270,6 +273,73 @@ export async function transitionJobStatus(
     .single();
   if (error) throw error;
   return data;
+}
+
+function jobRowToInput(row: Record<string, unknown>): JobRequisitionInput {
+  return {
+    internalRequisitionNumber: row.internal_requisition_number
+      ? String(row.internal_requisition_number)
+      : null,
+    externalRequisitionId: row.external_requisition_id ? String(row.external_requisition_id) : null,
+    sourceType: (row.source_type as SourceType) || "Internal",
+    mspClient: row.msp_client ? String(row.msp_client) : null,
+    professionId: String(row.profession_id ?? ""),
+    specialtyId: row.specialty_id ? String(row.specialty_id) : null,
+    employmentType: (row.employment_type as EmploymentType) || "W2",
+    employerOfRecord: row.employer_of_record ? String(row.employer_of_record) : null,
+    department: row.department ? String(row.department) : null,
+    facility: row.facility ? String(row.facility) : null,
+    billRate: row.bill_rate == null ? null : Number(row.bill_rate),
+    payRateMin: row.pay_rate_min == null ? null : Number(row.pay_rate_min),
+    payRateMax: row.pay_rate_max == null ? null : Number(row.pay_rate_max),
+    targetStartDate: row.target_start_date ? String(row.target_start_date) : null,
+    duration: row.duration ? String(row.duration) : null,
+    shiftType: row.shift_type ? String(row.shift_type) : null,
+    shiftDetails: row.shift_details ? String(row.shift_details) : null,
+    hoursPerWeek: row.hours_per_week == null ? null : Number(row.hours_per_week),
+    publicTitle: row.public_title ? String(row.public_title) : null,
+    publicDescription: row.public_description ? String(row.public_description) : null,
+    location: row.location ? String(row.location) : null,
+    schedule: row.schedule ? String(row.schedule) : null,
+    qualifications: row.qualifications ? String(row.qualifications) : null,
+    responsibilities: row.responsibilities ? String(row.responsibilities) : null,
+    benefits: row.benefits ? String(row.benefits) : null,
+    applicationDeadline: row.application_deadline ? String(row.application_deadline) : null,
+  };
+}
+
+/** Publish an existing draft/closed job from the list actions menu. */
+export async function publishExistingJob(
+  supabase: DbClient,
+  tenantId: string,
+  actorUserId: string,
+  jobId: string
+) {
+  const { data: row, error } = await supabase
+    .from("job_requisitions")
+    .select("*")
+    .eq("id", jobId)
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!row) throw new JobValidationError("Job not found.", {}, "JOB_NOT_FOUND");
+
+  const status = String(row.status ?? "");
+  if (status === "published") {
+    throw new JobValidationError("Job is already published.", {}, "JOB_ALREADY_PUBLISHED");
+  }
+  if (status === "archived") {
+    throw new JobValidationError("Unarchive the job before publishing.", {}, "JOB_ARCHIVED");
+  }
+
+  const result = await saveJobRequisition(
+    supabase,
+    tenantId,
+    actorUserId,
+    jobRowToInput(row as Record<string, unknown>),
+    { jobId, publish: true }
+  );
+  return result.job;
 }
 
 export async function listInternalJobs(

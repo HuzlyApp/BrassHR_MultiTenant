@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
-import { ChevronLeft, ChevronRight, Columns2, Filter, Plus, Star } from "lucide-react";
+import { ChevronLeft, ChevronRight, Columns2, Filter, Plus } from "lucide-react";
 import { ColumnsEditorModal } from "@/app/admin_recruiter/components/ColumnsEditorModal";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import {
@@ -52,8 +52,7 @@ const JOBS_FILTER_CONTROL_CLASS = `${JOBS_FORM_SURFACE_CLASS} h-10 w-full min-w-
 const JOBS_POST_JOB_BUTTON_CLASS =
   "inline-flex h-8 items-center gap-1.5 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm font-normal leading-5 text-[#525252] transition hover:bg-zinc-50";
 
-/** Figma Analytics/icon/Yellow-500 */
-const JOBS_STAR_ICON_COLOR = "#EAB308";
+const JOBS_STAR_FILLED_SRC = "/icons/jobs-icons/Star-filled.svg";
 
 function isExpiringSoon(deadline: string | null): boolean {
   if (!deadline) return false;
@@ -80,6 +79,15 @@ function matchesJobTab(job: JobListRow, tab: JobTab): boolean {
       return true;
   }
 }
+
+const JOBS_FILTER_SELECT_CLASS = `${JOBS_FORM_SURFACE_CLASS} h-10 w-full min-w-0 cursor-pointer appearance-none bg-[length:12px_12px] bg-[right_10px_center] bg-no-repeat px-2.5 pr-8 text-sm font-normal leading-6 text-[#334155] hover:bg-zinc-50 focus:border-[color:var(--brand-primary)] focus:outline-none focus:ring-0 sm:h-8 sm:min-w-[100px] sm:max-w-[160px] sm:w-auto`;
+
+/** Native select chevron — inset from the right edge for even padding. */
+const JOBS_FILTER_SELECT_CHEVRON = {
+  backgroundImage: `url("data:image/svg+xml,${encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M3 4.5L6 7.5L9 4.5" stroke="#94A3B8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+  )}")`,
+} as const;
 
 function JobsFilterSearch({
   label,
@@ -119,8 +127,8 @@ function JobsFilterSelect({
       value={value}
       onChange={(e) => onChange(e.target.value)}
       aria-label={label}
-      className={`${JOBS_FILTER_CONTROL_CLASS} ${value ? "text-[#334155]" : "text-[#94A3B8]"}`}
-      style={CANDIDATES_PAGE_SUBTITLE_STYLE}
+      className={`${JOBS_FILTER_SELECT_CLASS} ${value ? "text-[#334155]" : "text-[#94A3B8]"}`}
+      style={{ ...CANDIDATES_PAGE_SUBTITLE_STYLE, ...JOBS_FILTER_SELECT_CHEVRON }}
     >
       <option value="">{label}</option>
       {children}
@@ -129,7 +137,7 @@ function JobsFilterSelect({
 }
 
 const JOB_ACTIONS_MENU_WIDTH = 140;
-const JOB_ACTIONS_MENU_ESTIMATED_HEIGHT = 168;
+const JOB_ACTIONS_MENU_ESTIMATED_HEIGHT = 200;
 
 function JobActionsMenuPortal({
   job,
@@ -140,7 +148,7 @@ function JobActionsMenuPortal({
   job: JobListRow;
   anchor: HTMLElement;
   onClose: () => void;
-  onTransition: (jobId: string, action: "unpublish" | "close" | "archive") => void;
+  onTransition: (jobId: string, action: "publish" | "unpublish" | "close" | "archive") => void;
 }) {
   const menuRef = useRef<HTMLDivElement>(null);
   const [style, setStyle] = useState<CSSProperties>({ visibility: "hidden" });
@@ -200,15 +208,39 @@ function JobActionsMenuPortal({
       style={style}
       className={`z-[200] min-w-[140px] ${JOBS_FORM_SURFACE_CLASS} py-1 shadow-lg`}
     >
-      {(job.status === "draft" || job.status === "published") ? (
-        <Link
-          href={`/admin_recruiter/jobs/${job.id}/edit`}
-          role="menuitem"
-          className="block px-3 py-2 text-sm text-[#334155] hover:bg-[#F8FAFC]"
-          onClick={onClose}
-        >
-          Edit
-        </Link>
+      <Link
+        href={`/admin_recruiter/jobs/${job.id}/edit`}
+        role="menuitem"
+        className="block px-3 py-2 text-sm text-[#334155] hover:bg-[#F8FAFC]"
+        onClick={onClose}
+      >
+        {job.status === "archived" || job.status === "closed" ? "View" : "Edit"}
+      </Link>
+      {job.status === "draft" ? (
+        <>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              onTransition(job.id, "publish");
+              onClose();
+            }}
+            className="block w-full px-3 py-2 text-left text-sm text-[#334155] hover:bg-[#F8FAFC]"
+          >
+            Publish
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              onTransition(job.id, "close");
+              onClose();
+            }}
+            className="block w-full px-3 py-2 text-left text-sm text-[#334155] hover:bg-[#F8FAFC]"
+          >
+            Close
+          </button>
+        </>
       ) : null}
       {job.status === "published" ? (
         <>
@@ -236,7 +268,19 @@ function JobActionsMenuPortal({
           </button>
         </>
       ) : null}
-      {job.status !== "archived" ? (
+      {job.status === "archived" ? (
+        <button
+          type="button"
+          role="menuitem"
+          onClick={() => {
+            onTransition(job.id, "unpublish");
+            onClose();
+          }}
+          className="block w-full px-3 py-2 text-left text-sm text-[#334155] hover:bg-[#F8FAFC]"
+        >
+          Unarchive
+        </button>
+      ) : (
         <button
           type="button"
           role="menuitem"
@@ -248,7 +292,7 @@ function JobActionsMenuPortal({
         >
           Archive
         </button>
-      ) : null}
+      )}
     </div>,
     document.body
   );
@@ -307,7 +351,7 @@ export default function AdminRecruiterJobsPage() {
     setPage(1);
   }, [jobTab, jobIdFilter, statusFilter, titleFilter, locationFilter, assigneeFilter, postedByFilter, pageSize]);
 
-  async function transition(jobId: string, action: "unpublish" | "close" | "archive") {
+  async function transition(jobId: string, action: "publish" | "unpublish" | "close" | "archive") {
     const response = await fetch("/api/admin/jobs", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -513,10 +557,13 @@ export default function AdminRecruiterJobsPage() {
                 </JobsFilterSelect>
 
                 <div className="flex shrink-0 items-center gap-2">
-                  <Star
-                    className="h-4 w-4 shrink-0"
-                    style={{ color: JOBS_STAR_ICON_COLOR }}
-                    fill={JOBS_STAR_ICON_COLOR}
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={JOBS_STAR_FILLED_SRC}
+                    alt=""
+                    width={14}
+                    height={14}
+                    className="h-[14px] w-[14px] shrink-0"
                     aria-hidden
                   />
                   <span className="whitespace-nowrap text-sm font-medium text-[#334155]">
@@ -567,7 +614,7 @@ export default function AdminRecruiterJobsPage() {
                     {listColumns.map((colId) => (
                       <td
                         key={colId}
-                        className={`border-r border-[#EEF2F7] px-[14px] py-4 align-middle last:border-r-0 ${jobListColumnClassName(colId)}`}
+                        className={`border-r border-[#E5E7EB] px-[14px] py-4 align-middle last:border-r-0 ${jobListColumnClassName(colId)}`}
                       >
                         {renderJobListCell(colId, job, jobListCellContext)}
                       </td>
