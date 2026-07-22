@@ -34,6 +34,26 @@ export type JobRequisitionInput = {
   responsibilities?: string | null;
   benefits?: string | null;
   applicationDeadline?: string | null;
+  /** Figma create-job fields */
+  numberOfPositions?: number | null;
+  yearsOfExperience?: string | null;
+  additionalLocations?: string[] | null;
+  showInMultipleAreas?: boolean | null;
+  jobLocationType?: string | null;
+  isEmployerOnRecord?: boolean | null;
+  compensationType?: string | null;
+  currency?: string | null;
+  showPayBy?: string | null;
+  payRatePeriod?: string | null;
+  /** MSP Job Source Details (shown only when sourceType = MSP) */
+  mspName?: string | null;
+  sourceJobTitle?: string | null;
+  sourceJobUrl?: string | null;
+  sourceJobDetails?: string | null;
+  suggestedPayRate?: number | null;
+  requiredCredentials?: string | null;
+  specialRequirements?: string | null;
+  internalNotes?: string | null;
 };
 
 export type WorkflowMatchKey = Pick<JobRequisitionInput, "professionId" | "employmentType">;

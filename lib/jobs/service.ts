@@ -38,12 +38,26 @@ function toJobRow(input: JobRequisitionInput) {
   const benefits = clean(input.benefits);
   const mspClient = clean(input.mspClient);
   const externalRequisitionId = clean(input.externalRequisitionId);
+  const jobLocationType = clean(input.jobLocationType) ?? clean(input.schedule);
+  const payRatePeriod = clean(input.payRatePeriod);
+  const yearsOfExperience = clean(input.yearsOfExperience);
+  const additionalLocations = Array.isArray(input.additionalLocations)
+    ? input.additionalLocations.map((item) => item.trim()).filter(Boolean)
+    : [];
+  const yearsExperienceRequired = yearsOfExperience
+    ? Number.parseInt(yearsOfExperience.replace(/[^\d]/g, ""), 10)
+    : null;
+  const requiredCredentials = clean(input.requiredCredentials);
+  const suggestedPayRate =
+    input.suggestedPayRate ?? input.payRateMin ?? input.payRateMax ?? null;
 
   return {
     internal_requisition_number: clean(input.internalRequisitionNumber),
     external_requisition_id: externalRequisitionId,
     source_type: input.sourceType,
     msp_client: mspClient,
+    msp_name: clean(input.mspName),
+    msp_client_name: mspClient,
     profession_id: input.professionId,
     specialty_id: clean(input.specialtyId),
     employment_type: input.employmentType,
@@ -61,21 +75,46 @@ function toJobRow(input: JobRequisitionInput) {
     public_title: publicTitle,
     public_description: publicDescription,
     location: clean(input.location),
-    schedule: clean(input.schedule),
+    schedule: jobLocationType,
     qualifications: clean(input.qualifications),
     responsibilities: clean(input.responsibilities),
     benefits,
     application_deadline: clean(input.applicationDeadline),
+    positions_count: Math.max(1, Math.trunc(input.numberOfPositions ?? 1)),
+    years_of_experience: yearsOfExperience,
+    years_experience_required: Number.isFinite(yearsExperienceRequired)
+      ? yearsExperienceRequired
+      : null,
+    additional_locations: additionalLocations,
+    show_in_multiple_areas: Boolean(input.showInMultipleAreas),
+    location_type: jobLocationType,
+    is_employer_on_record:
+      typeof input.isEmployerOnRecord === "boolean" ? input.isEmployerOnRecord : true,
+    compensation_type: clean(input.compensationType),
+    currency: clean(input.currency) ?? "USD",
+    show_pay_by: clean(input.showPayBy),
+    pay_rate_period: payRatePeriod,
+    rate_unit: payRatePeriod,
+    source_job_title: clean(input.sourceJobTitle),
+    source_job_url: clean(input.sourceJobUrl),
+    source_job_details: clean(input.sourceJobDetails),
+    special_requirements: clean(input.specialRequirements),
+    internal_notes: clean(input.internalNotes),
+    required_credentials: requiredCredentials
+      ? requiredCredentials
+          .split(/[\n,]/)
+          .map((item) => item.trim())
+          .filter(Boolean)
+      : [],
     // Legacy columns still required on upgraded job_requisitions tables.
     title: publicTitle ?? "Untitled job",
     description: publicDescription,
     placement_type: "Internal",
     external_req_id: externalRequisitionId,
-    msp_client_name: mspClient,
     facility_name: facility,
     job_duration: duration,
     benefits_summary: benefits,
-    pay_rate: input.payRateMin ?? input.payRateMax ?? null,
+    pay_rate: suggestedPayRate,
   };
 }
 
@@ -299,6 +338,11 @@ export async function closeExpiredPublishedJobs(
 }
 
 function jobRowToInput(row: Record<string, unknown>): JobRequisitionInput {
+  const additionalRaw = row.additional_locations;
+  const additionalLocations = Array.isArray(additionalRaw)
+    ? additionalRaw.map((item) => String(item ?? "").trim()).filter(Boolean)
+    : [];
+
   return {
     internalRequisitionNumber: row.internal_requisition_number
       ? String(row.internal_requisition_number)
@@ -328,6 +372,42 @@ function jobRowToInput(row: Record<string, unknown>): JobRequisitionInput {
     responsibilities: row.responsibilities ? String(row.responsibilities) : null,
     benefits: row.benefits ? String(row.benefits) : null,
     applicationDeadline: row.application_deadline ? String(row.application_deadline) : null,
+    numberOfPositions:
+      row.positions_count == null ? 1 : Math.max(1, Number(row.positions_count) || 1),
+    yearsOfExperience: row.years_of_experience
+      ? String(row.years_of_experience)
+      : row.years_experience_required != null
+        ? `${row.years_experience_required} yrs`
+        : null,
+    additionalLocations,
+    showInMultipleAreas: Boolean(row.show_in_multiple_areas),
+    jobLocationType: row.location_type
+      ? String(row.location_type)
+      : row.schedule
+        ? String(row.schedule)
+        : null,
+    isEmployerOnRecord:
+      typeof row.is_employer_on_record === "boolean" ? row.is_employer_on_record : true,
+    compensationType: row.compensation_type ? String(row.compensation_type) : null,
+    currency: row.currency ? String(row.currency) : null,
+    showPayBy: row.show_pay_by ? String(row.show_pay_by) : null,
+    payRatePeriod: row.pay_rate_period
+      ? String(row.pay_rate_period)
+      : row.rate_unit
+        ? String(row.rate_unit)
+        : null,
+    mspName: row.msp_name ? String(row.msp_name) : null,
+    sourceJobTitle: row.source_job_title ? String(row.source_job_title) : null,
+    sourceJobUrl: row.source_job_url ? String(row.source_job_url) : null,
+    sourceJobDetails: row.source_job_details ? String(row.source_job_details) : null,
+    suggestedPayRate: row.pay_rate == null ? null : Number(row.pay_rate),
+    requiredCredentials: Array.isArray(row.required_credentials)
+      ? row.required_credentials.map((item) => String(item ?? "").trim()).filter(Boolean).join(", ")
+      : row.required_credentials
+        ? String(row.required_credentials)
+        : null,
+    specialRequirements: row.special_requirements ? String(row.special_requirements) : null,
+    internalNotes: row.internal_notes ? String(row.internal_notes) : null,
   };
 }
 

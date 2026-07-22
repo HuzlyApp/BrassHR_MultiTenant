@@ -1,23 +1,37 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
-import type {
-  EmploymentType,
-  JobRequisitionInput,
-  SourceType,
-} from "@/lib/jobs/types";
-
-type Option = { id: string; name: string };
-type SpecialtyOption = Option & { profession_id: string };
-type OptionsPayload = {
-  professions: Option[];
-  specialties: SpecialtyOption[];
-  employmentTypes: EmploymentType[];
-  sourceTypes: SourceType[];
-  canManageWorkflows: boolean;
-};
+import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
+import {
+  CANDIDATES_PAGE_SUBTITLE_CLASS,
+  CANDIDATES_PAGE_SUBTITLE_STYLE,
+  CANDIDATES_PAGE_TITLE_CLASS,
+  CANDIDATES_PAGE_TITLE_STYLE,
+} from "@/app/admin_recruiter/candidates/candidates-typography";
+import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
+import type { JobRequisitionInput } from "@/lib/jobs/types";
+import { JobPostPreviewModal } from "./JobPostPreviewModal";
+import {
+  JobFormFooter,
+  JobFormStepCompensation,
+  JobFormStepMspDetails,
+  JobFormStepRequisition,
+  JobFormStepReview,
+  JobFormWorkflowBanner,
+} from "./JobFormSteps";
+import {
+  applyUiToJob,
+  defaultJobFormUiState,
+  JOB_FORM_CENTER_COLUMN_CLASS,
+  JOB_FORM_PAGE_CARD_CLASS,
+  jobFormUiFromJob,
+  primaryButtonStyle,
+  type JobFormOptionsPayload,
+  type JobFormStep,
+  type JobFormUiState,
+} from "./job-form-shared";
 
 const initialJob: JobRequisitionInput = {
   sourceType: "Internal",
@@ -29,50 +43,23 @@ const initialJob: JobRequisitionInput = {
   location: "",
 };
 
-function Field({
-  label,
-  publicField = false,
-  error,
-  children,
-}: {
-  label: string;
-  publicField?: boolean;
-  error?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <label className="block">
-      <span className="mb-1 flex items-center gap-2 text-sm font-medium text-slate-700">
-        {label}
-        <span
-          className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
-            publicField ? "bg-teal-50 text-teal-700" : "bg-slate-100 text-slate-500"
-          }`}
-        >
-          {publicField ? "Public" : "Internal"}
-        </span>
-      </span>
-      {children}
-      {error ? <span className="mt-1 block text-xs text-rose-600">{error}</span> : null}
-    </label>
-  );
-}
-
-const inputClass =
-  "w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100";
-
 export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
   const router = useRouter();
+  const branding = useTenantBranding();
+  const brandStyle = primaryButtonStyle(brandingToCssVars(branding) as CSSProperties);
+
+  const [step, setStep] = useState<JobFormStep>("requisition");
   const [job, setJob] = useState<JobRequisitionInput>(initialJob);
-  const [options, setOptions] = useState<OptionsPayload | null>(null);
-  const [workflow, setWorkflow] = useState<{
-    workflowName: string;
-    mappingCriteria?: string;
-  } | null>(null);
+  const [ui, setUi] = useState<JobFormUiState>(defaultJobFormUiState);
+  const [options, setOptions] = useState<JobFormOptionsPayload | null>(null);
+  const [workflow, setWorkflow] = useState<{ workflowName: string; mappingCriteria?: string } | null>(
+    null
+  );
   const [workflowWarning, setWorkflowWarning] = useState("");
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
   const [originalStatus, setOriginalStatus] = useState<"draft" | "published">("draft");
   const [confirmRoutingChange, setConfirmRoutingChange] = useState(false);
 
@@ -94,14 +81,18 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
         if (!response.ok) throw new Error(payload.error || "Failed to load job");
         const row = payload.job as Record<string, unknown>;
         setOriginalStatus(row.status === "published" ? "published" : "draft");
-        setJob({
+        const additionalRaw = row.additional_locations;
+        const additionalLocations = Array.isArray(additionalRaw)
+          ? additionalRaw.map((item) => String(item ?? "").trim()).filter(Boolean)
+          : [];
+        const loadedJob: JobRequisitionInput = {
           internalRequisitionNumber: String(row.internal_requisition_number ?? ""),
           externalRequisitionId: String(row.external_requisition_id ?? ""),
-          sourceType: row.source_type as SourceType,
+          sourceType: row.source_type as JobRequisitionInput["sourceType"],
           mspClient: String(row.msp_client ?? ""),
           professionId: String(row.profession_id ?? ""),
           specialtyId: row.specialty_id ? String(row.specialty_id) : null,
-          employmentType: row.employment_type as EmploymentType,
+          employmentType: row.employment_type as JobRequisitionInput["employmentType"],
           employerOfRecord: String(row.employer_of_record ?? ""),
           department: String(row.department ?? ""),
           facility: String(row.facility ?? ""),
@@ -121,7 +112,50 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
           responsibilities: String(row.responsibilities ?? ""),
           benefits: String(row.benefits ?? ""),
           applicationDeadline: row.application_deadline ? String(row.application_deadline) : null,
-        });
+          numberOfPositions:
+            row.positions_count == null ? 1 : Math.max(1, Number(row.positions_count) || 1),
+          yearsOfExperience: row.years_of_experience
+            ? String(row.years_of_experience)
+            : row.years_experience_required != null
+              ? `${row.years_experience_required} yrs`
+              : null,
+          additionalLocations,
+          showInMultipleAreas: Boolean(row.show_in_multiple_areas),
+          jobLocationType: row.location_type
+            ? String(row.location_type)
+            : row.schedule
+              ? String(row.schedule)
+              : null,
+          isEmployerOnRecord:
+            typeof row.is_employer_on_record === "boolean" ? row.is_employer_on_record : true,
+          compensationType: row.compensation_type ? String(row.compensation_type) : null,
+          currency: row.currency ? String(row.currency) : null,
+          showPayBy: row.show_pay_by ? String(row.show_pay_by) : null,
+          payRatePeriod: row.pay_rate_period
+            ? String(row.pay_rate_period)
+            : row.rate_unit
+              ? String(row.rate_unit)
+              : null,
+          mspName: row.msp_name ? String(row.msp_name) : null,
+          sourceJobTitle: row.source_job_title ? String(row.source_job_title) : null,
+          sourceJobUrl: row.source_job_url ? String(row.source_job_url) : null,
+          sourceJobDetails: row.source_job_details ? String(row.source_job_details) : null,
+          suggestedPayRate: row.pay_rate == null ? null : Number(row.pay_rate),
+          requiredCredentials: Array.isArray(row.required_credentials)
+            ? row.required_credentials
+                .map((item) => String(item ?? "").trim())
+                .filter(Boolean)
+                .join(", ")
+            : row.required_credentials
+              ? String(row.required_credentials)
+              : null,
+          specialRequirements: row.special_requirements
+            ? String(row.special_requirements)
+            : null,
+          internalNotes: row.internal_notes ? String(row.internal_notes) : null,
+        };
+        setJob(loadedJob);
+        setUi(jobFormUiFromJob(loadedJob));
       })
       .catch((error) => setMessage(error instanceof Error ? error.message : "Failed to load job"));
   }, [jobId]);
@@ -129,6 +163,11 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
   const professionLabel = useMemo(
     () => options?.professions.find((item) => item.id === job.professionId)?.name ?? "",
     [job.professionId, options?.professions]
+  );
+
+  const specialtyLabel = useMemo(
+    () => options?.specialties.find((item) => item.id === job.specialtyId)?.name ?? "",
+    [job.specialtyId, options?.specialties]
   );
 
   const mappingLink = useMemo(() => {
@@ -187,7 +226,7 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
     [job.professionId, options?.specialties]
   );
 
-  function update<K extends keyof JobRequisitionInput>(key: K, value: JobRequisitionInput[K]) {
+  function updateJob<K extends keyof JobRequisitionInput>(key: K, value: JobRequisitionInput[K]) {
     if (
       originalStatus === "published" &&
       (key === "professionId" || key === "employmentType")
@@ -202,17 +241,26 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
     });
   }
 
+  function updateUi(patch: Partial<JobFormUiState>) {
+    setUi((current) => ({ ...current, ...patch }));
+  }
+
+  function buildPayloadJob(): JobRequisitionInput {
+    return applyUiToJob(job, ui);
+  }
+
   async function save(action: "save_draft" | "publish", forceRoutingChange = false) {
     setSaving(true);
     setMessage("");
     setFieldErrors({});
+    const payloadJob = buildPayloadJob();
     try {
       const response = await fetch("/api/admin/jobs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action,
-          job,
+          job: payloadJob,
           jobId,
           confirmRoutingChange: forceRoutingChange || confirmRoutingChange,
         }),
@@ -241,178 +289,163 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
     }
   }
 
+  function handleBack() {
+    if (step === "msp-details") {
+      setStep("requisition");
+      return;
+    }
+    if (step === "compensation") {
+      setStep(job.sourceType === "MSP" ? "msp-details" : "requisition");
+      return;
+    }
+    if (step === "review") {
+      setStep("compensation");
+      return;
+    }
+    router.push("/admin_recruiter/jobs");
+  }
+
+  function handleNext() {
+    if (step === "requisition") {
+      setStep(job.sourceType === "MSP" ? "msp-details" : "compensation");
+      return;
+    }
+    if (step === "msp-details") {
+      setStep("compensation");
+      return;
+    }
+    if (step === "compensation") setStep("review");
+  }
+
+  const pageTitle = jobId ? "Edit job post" : "Create a job post";
+  const pageSubtitle =
+    step === "review"
+      ? "Review"
+      : step === "compensation"
+        ? "Compensation & Description"
+        : step === "msp-details"
+          ? "Job Source Details"
+          : "Job Requisition";
+  const showPublishActions = step === "compensation" || step === "review";
+
   return (
-    <main className="mx-auto max-w-6xl p-5 sm:p-8">
-      <div className="mb-6 flex items-start justify-between gap-4">
-        <div>
-          <p className="text-sm font-medium text-teal-700">Job requisitions</p>
-          <h1 className="text-2xl font-semibold text-slate-900">{jobId ? "Edit job requisition" : "Create job requisition"}</h1>
-          <p className="mt-1 text-sm text-slate-500">
-            Drafts may be incomplete. Publishing validates public details and workflow assignment.
-          </p>
-        </div>
-        <Link href="/admin_recruiter/jobs" className="text-sm font-medium text-slate-600 hover:text-slate-900">
-          Back to jobs
-        </Link>
-      </div>
-
-      {message ? (
-        <div className="mb-5 whitespace-pre-line rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
-          {message}
-        </div>
-      ) : null}
-
-      <div className="space-y-6">
-        <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="mb-5">
-            <h2 className="font-semibold text-slate-900">Internal job configuration</h2>
-            <p className="text-sm text-slate-500">These fields are never shown on the public job page.</p>
-          </div>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            <Field label="Internal requisition number">
-              <input className={inputClass} value={job.internalRequisitionNumber ?? ""} onChange={(e) => update("internalRequisitionNumber", e.target.value)} />
-            </Field>
-            <Field label="External requisition ID" error={fieldErrors.externalRequisitionId}>
-              <input className={inputClass} value={job.externalRequisitionId ?? ""} onChange={(e) => update("externalRequisitionId", e.target.value)} />
-            </Field>
-            <Field label="Source type" error={fieldErrors.sourceType}>
-              <select className={inputClass} value={job.sourceType} onChange={(e) => update("sourceType", e.target.value as SourceType)}>
-                {options?.sourceTypes.map((value) => <option key={value}>{value}</option>)}
-              </select>
-            </Field>
-            {job.sourceType === "MSP" ? (
-              <Field label="MSP client" error={fieldErrors.mspClient}>
-                <input className={inputClass} value={job.mspClient ?? ""} onChange={(e) => update("mspClient", e.target.value)} />
-              </Field>
-            ) : null}
-            <Field label="Profession" error={fieldErrors.professionId}>
-              <select
-                className={inputClass}
-                value={job.professionId}
-                onChange={(e) => {
-                  update("professionId", e.target.value);
-                  update("specialtyId", null);
-                }}
-              >
-                <option value="">Select profession</option>
-                {options?.professions.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
-              </select>
-            </Field>
-            <Field label="Specialty" error={fieldErrors.specialtyId}>
-              <select className={inputClass} value={job.specialtyId ?? ""} disabled={!job.professionId} onChange={(e) => update("specialtyId", e.target.value || null)}>
-                <option value="">Select specialty</option>
-                {specialties.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
-              </select>
-            </Field>
-            <Field label="Employment type" error={fieldErrors.employmentType}>
-              <select className={inputClass} value={job.employmentType} onChange={(e) => update("employmentType", e.target.value as EmploymentType)}>
-                {options?.employmentTypes.map((value) => <option key={value}>{value}</option>)}
-              </select>
-            </Field>
-            <Field label="Employer of Record" error={fieldErrors.employerOfRecord}>
-              <input className={inputClass} value={job.employerOfRecord ?? ""} onChange={(e) => update("employerOfRecord", e.target.value)} />
-            </Field>
-            <Field label="Department">
-              <input className={inputClass} value={job.department ?? ""} onChange={(e) => update("department", e.target.value)} />
-            </Field>
-            <Field label="Facility">
-              <input className={inputClass} value={job.facility ?? ""} onChange={(e) => update("facility", e.target.value)} />
-            </Field>
-            <Field label="Shift type">
-              <select className={inputClass} value={job.shiftType ?? ""} onChange={(e) => update("shiftType", e.target.value || null)}>
-                <option value="">Select shift</option>
-                <option>Day</option><option>Evening</option><option>Night</option><option>Rotating</option><option>PRN</option>
-              </select>
-            </Field>
-            <Field label="Bill rate">
-              <input className={inputClass} type="number" min="0" step="0.01" value={job.billRate ?? ""} onChange={(e) => update("billRate", e.target.value ? Number(e.target.value) : null)} />
-            </Field>
-            <Field label="Target start date">
-              <input className={inputClass} type="date" value={job.targetStartDate ?? ""} onChange={(e) => update("targetStartDate", e.target.value || null)} />
-            </Field>
-            <Field label="Duration">
-              <input className={inputClass} placeholder="e.g. 13 weeks" value={job.duration ?? ""} onChange={(e) => update("duration", e.target.value)} />
-            </Field>
-            <Field label="Hours per week">
-              <input className={inputClass} type="number" min="0" step="0.5" value={job.hoursPerWeek ?? ""} onChange={(e) => update("hoursPerWeek", e.target.value ? Number(e.target.value) : null)} />
-            </Field>
-          </div>
-
-          <div className={`mt-5 rounded-lg border p-4 ${workflow ? "border-teal-200 bg-teal-50" : "border-amber-200 bg-amber-50"}`}>
-            <p className="text-sm font-semibold text-slate-800">Assigned workflow</p>
-            {workflow ? (
-              <>
-                <p className="mt-1 text-sm font-medium text-teal-900">{workflow.workflowName}</p>
-                {workflow.mappingCriteria ? (
-                  <p className="mt-1 text-xs text-teal-800">
-                    Automatically selected from: {workflow.mappingCriteria}
-                  </p>
-                ) : null}
-              </>
-            ) : (
-              <p className="mt-1 whitespace-pre-line text-sm text-amber-800">
-                {workflowWarning || "Select profession, employment type, and placement type to resolve a workflow."}
+    <main className="w-full px-3 py-4 sm:px-4 lg:px-5">
+      <div className={JOB_FORM_PAGE_CARD_CLASS}>
+        <div className={JOB_FORM_CENTER_COLUMN_CLASS}>
+          <div className="mb-6 flex items-start justify-between gap-4">
+            <div>
+              <h1 className={CANDIDATES_PAGE_TITLE_CLASS} style={CANDIDATES_PAGE_TITLE_STYLE}>
+                {pageTitle}
+              </h1>
+              <p className={CANDIDATES_PAGE_SUBTITLE_CLASS} style={CANDIDATES_PAGE_SUBTITLE_STYLE}>
+                {pageSubtitle}
               </p>
-            )}
-            {fieldErrors.workflowId ? <p className="mt-1 text-xs text-rose-600">{fieldErrors.workflowId}</p> : null}
-            {options?.canManageWorkflows ? (
-              <Link href={mappingLink} className="mt-2 inline-block text-sm font-medium text-teal-700 underline-offset-2 hover:underline">
-                {workflow ? "Manage workflow mappings" : "Create workflow mapping"}
-              </Link>
+            </div>
+            <Link
+              href="/admin_recruiter/jobs"
+              className="shrink-0 text-sm font-medium text-[#64748B] transition hover:text-[#334155]"
+            >
+              Back to jobs
+            </Link>
+          </div>
+
+          {message ? (
+            <div className="mb-5 whitespace-pre-line rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
+              {message}
+            </div>
+          ) : null}
+
+          <div className="flex-1 space-y-5">
+            {step === "requisition" ? (
+              <>
+                <JobFormStepRequisition
+                  job={job}
+                  ui={ui}
+                  fieldErrors={fieldErrors}
+                  professions={options?.professions ?? []}
+                  specialties={specialties}
+                  employmentTypes={options?.employmentTypes ?? ["W2", "1099", "Contract"]}
+                  sourceTypes={options?.sourceTypes ?? ["Internal", "MSP"]}
+                  onJobChange={updateJob}
+                  onUiChange={updateUi}
+                />
+                <JobFormWorkflowBanner
+                  workflowName={workflow?.workflowName}
+                  workflowWarning={workflowWarning}
+                  mappingLink={mappingLink}
+                  canManageWorkflows={Boolean(options?.canManageWorkflows)}
+                  fieldError={fieldErrors.workflowId}
+                />
+              </>
+            ) : null}
+
+            {step === "msp-details" ? (
+              <JobFormStepMspDetails
+                job={job}
+                ui={ui}
+                fieldErrors={fieldErrors}
+                onJobChange={updateJob}
+                onUiChange={updateUi}
+              />
+            ) : null}
+
+            {step === "compensation" ? (
+              <JobFormStepCompensation
+                job={job}
+                ui={ui}
+                fieldErrors={fieldErrors}
+                onJobChange={updateJob}
+                onUiChange={updateUi}
+              />
+            ) : null}
+
+            {step === "review" ? (
+              <JobFormStepReview
+                job={buildPayloadJob()}
+                ui={ui}
+                professionName={professionLabel}
+                specialtyName={specialtyLabel}
+                onGoToStep={setStep}
+              />
             ) : null}
           </div>
-        </section>
 
-        <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="mb-5">
-            <h2 className="font-semibold text-slate-900">Public job information</h2>
-            <p className="text-sm text-slate-500">Only approved public fields appear on the tenant job portal.</p>
-          </div>
-          <div className="grid gap-4 md:grid-cols-2">
-            <Field label="Public job title" publicField error={fieldErrors.publicTitle}>
-              <input className={inputClass} value={job.publicTitle ?? ""} onChange={(e) => update("publicTitle", e.target.value)} />
-            </Field>
-            <Field label="Location" publicField error={fieldErrors.location}>
-              <input className={inputClass} value={job.location ?? ""} onChange={(e) => update("location", e.target.value)} />
-            </Field>
-            <Field label="Schedule" publicField>
-              <input className={inputClass} value={job.schedule ?? ""} onChange={(e) => update("schedule", e.target.value)} />
-            </Field>
-            <Field label="Application deadline" publicField>
-              <input className={inputClass} type="date" value={job.applicationDeadline ?? ""} onChange={(e) => update("applicationDeadline", e.target.value || null)} />
-            </Field>
-            <Field label="Minimum pay rate" publicField>
-              <input className={inputClass} type="number" min="0" step="0.01" value={job.payRateMin ?? ""} onChange={(e) => update("payRateMin", e.target.value ? Number(e.target.value) : null)} />
-            </Field>
-            <Field label="Maximum pay rate" publicField error={fieldErrors.payRateMax}>
-              <input className={inputClass} type="number" min="0" step="0.01" value={job.payRateMax ?? ""} onChange={(e) => update("payRateMax", e.target.value ? Number(e.target.value) : null)} />
-            </Field>
-            <div className="md:col-span-2">
-              <Field label="Public job description" publicField error={fieldErrors.publicDescription}>
-                <textarea className={`${inputClass} min-h-36`} value={job.publicDescription ?? ""} onChange={(e) => update("publicDescription", e.target.value)} />
-              </Field>
+          <JobFormFooter
+            step={step}
+            saving={saving}
+            canPublish={Boolean(workflow)}
+            showPublishActions={showPublishActions && originalStatus !== "published"}
+            brandStyle={brandStyle}
+            onBack={handleBack}
+            onNext={handleNext}
+            onPreview={() => setPreviewOpen(true)}
+            onSaveDraft={() => void save(originalStatus === "published" ? "publish" : "save_draft")}
+            onPublish={() => void save("publish")}
+          />
+
+          {originalStatus === "published" && (step === "compensation" || step === "review") ? (
+            <div className="mt-3 flex justify-end">
+              <button
+                type="button"
+                disabled={saving}
+                onClick={() => void save("publish")}
+                className="cursor-pointer text-sm font-medium text-[color:var(--brand-primary)] hover:underline"
+              >
+                Update published job
+              </button>
             </div>
-            {(["qualifications", "responsibilities", "benefits"] as const).map((key) => (
-              <div key={key} className={key === "benefits" ? "md:col-span-2" : ""}>
-                <Field label={key[0].toUpperCase() + key.slice(1)} publicField>
-                  <textarea className={`${inputClass} min-h-24`} value={job[key] ?? ""} onChange={(e) => update(key, e.target.value)} />
-                </Field>
-              </div>
-            ))}
-          </div>
-        </section>
+          ) : null}
+        </div>
       </div>
 
-      <div className="sticky bottom-0 mt-6 flex flex-wrap justify-end gap-3 border-t border-slate-200 bg-white/95 py-4 backdrop-blur">
-        <button type="button" disabled={saving} onClick={() => void save(originalStatus === "published" ? "publish" : "save_draft")} className="rounded-lg border border-slate-300 px-5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60">
-          {jobId ? "Update" : "Save Draft"}
-        </button>
-        {originalStatus !== "published" ? (
-          <button type="button" disabled={saving || !workflow} onClick={() => void save("publish")} className="rounded-lg bg-teal-700 px-5 py-2.5 text-sm font-semibold text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-50">
-            {jobId ? "Publish" : "Save and Publish"}
-          </button>
-        ) : null}
-      </div>
+      <JobPostPreviewModal
+        open={previewOpen}
+        onOpenChange={setPreviewOpen}
+        job={buildPayloadJob()}
+        ui={ui}
+        companyName={branding.companyName}
+        brandStyle={brandStyle}
+      />
     </main>
   );
 }

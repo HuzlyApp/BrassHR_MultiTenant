@@ -51,6 +51,34 @@ export const jobRequisitionInputSchema = z.object({
   responsibilities: optionalText,
   benefits: optionalText,
   applicationDeadline: optionalText,
+  numberOfPositions: optionalNumber,
+  yearsOfExperience: optionalText,
+  additionalLocations: z
+    .union([z.array(z.string()), z.null(), z.undefined()])
+    .transform((value) =>
+      Array.isArray(value)
+        ? value.map((item) => item.trim()).filter(Boolean)
+        : null
+    ),
+  showInMultipleAreas: z
+    .union([z.boolean(), z.null(), z.undefined()])
+    .transform((value) => (typeof value === "boolean" ? value : null)),
+  jobLocationType: optionalText,
+  isEmployerOnRecord: z
+    .union([z.boolean(), z.null(), z.undefined()])
+    .transform((value) => (typeof value === "boolean" ? value : null)),
+  compensationType: optionalText,
+  currency: optionalText,
+  showPayBy: optionalText,
+  payRatePeriod: optionalText,
+  mspName: optionalText,
+  sourceJobTitle: optionalText,
+  sourceJobUrl: optionalText,
+  sourceJobDetails: optionalText,
+  suggestedPayRate: optionalNumber,
+  requiredCredentials: optionalText,
+  specialRequirements: optionalText,
+  internalNotes: optionalText,
 });
 
 export const jobMutationSchema = z.object({
