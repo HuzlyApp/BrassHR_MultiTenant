@@ -5,6 +5,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import { createPortal } from "react-dom";
 import { ChevronLeft, ChevronRight, Columns2, Filter, Plus } from "lucide-react";
 import { ColumnsEditorModal } from "@/app/admin_recruiter/components/ColumnsEditorModal";
+import { useCandidatesFilterRowsDefault } from "@/app/admin_recruiter/hooks/useCandidatesFilterRowsDefault";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import {
   CANDIDATES_PAGE_SUBTITLE_STYLE,
@@ -18,13 +19,16 @@ import {
   JOB_COLUMN_OPTIONS,
   jobColumnLabel,
   jobListColumnClassName,
+  isSortableJobColumn,
   loadJobColumnOrder,
   saveJobColumnOrder,
   type JobColumnId,
+  type JobSortField,
 } from "./job-columns";
 import {
   jobDisplayId,
   jobLocation,
+  jobStatusSortLabel,
   renderJobListCell,
   type JobListCellContext,
   type JobListRow,
@@ -53,6 +57,39 @@ const JOBS_POST_JOB_BUTTON_CLASS =
   "inline-flex h-8 items-center gap-1.5 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm font-normal leading-5 text-[#525252] transition hover:bg-zinc-50";
 
 const JOBS_STAR_FILLED_SRC = "/icons/jobs-icons/Star-filled.svg";
+const JOB_SORT_ICON_SRC = "/sort-icon.svg";
+
+type SortDirection = "asc" | "desc";
+
+function JobTableSortHeader({
+  colId,
+  sortField,
+  sortDirection,
+  onToggleSort,
+}: {
+  colId: JobSortField;
+  sortField: JobSortField | null;
+  sortDirection: SortDirection;
+  onToggleSort: (field: JobSortField) => void;
+}) {
+  const isActive = sortField === colId;
+
+  return (
+    <button
+      type="button"
+      onClick={() => onToggleSort(colId)}
+      className={`inline-flex items-center gap-1.5 font-medium normal-case tracking-normal text-[#64748B] transition hover:text-[#334155] ${
+        colId === "jobStatus" ? "mx-auto" : ""
+      }`}
+      aria-label={`Sort by ${jobColumnLabel(colId)}${
+        isActive ? `, ${sortDirection === "asc" ? "ascending" : "descending"}` : ""
+      }`}
+    >
+      <span>{jobColumnLabel(colId)}</span>
+      <img src={JOB_SORT_ICON_SRC} width={12} height={12} className="h-3 w-3 shrink-0" alt="" aria-hidden />
+    </button>
+  );
+}
 
 function isExpiringSoon(deadline: string | null): boolean {
   if (!deadline) return false;
@@ -89,25 +126,75 @@ const JOBS_FILTER_SELECT_CHEVRON = {
   )}")`,
 } as const;
 
-function JobsFilterSearch({
+const JOBS_FILTER_GRID_CONTROL_CLASS = `${JOBS_FORM_SURFACE_CLASS} h-10 w-full min-w-0 px-2.5 text-sm font-normal leading-6 text-[#334155] hover:bg-zinc-50 focus:border-[color:var(--brand-primary)] focus:outline-none focus:ring-0 appearance-auto cursor-pointer`;
+
+const JOBS_FILTER_GRID_SELECT_CLASS = `${JOBS_FILTER_GRID_CONTROL_CLASS} appearance-none bg-[length:12px_12px] bg-[right_10px_center] bg-no-repeat pr-8`;
+
+function CompactFilterField({
   label,
-  value,
-  onChange,
+  children,
+  className = "",
 }: {
   label: string;
-  value: string;
-  onChange: (value: string) => void;
+  children: React.ReactNode;
+  className?: string;
 }) {
   return (
-    <input
-      type="search"
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      placeholder={label}
+    <label className={`flex min-w-0 flex-col gap-1 ${className}`}>
+      <span className="text-xs font-medium leading-4 text-[#475569]">{label}</span>
+      {children}
+    </label>
+  );
+}
+
+function MobileIconButton({
+  onClick,
+  label,
+  children,
+}: {
+  onClick: () => void;
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
       aria-label={label}
-      className={JOBS_FILTER_CONTROL_CLASS}
-      style={CANDIDATES_PAGE_SUBTITLE_STYLE}
-    />
+      title={label}
+      className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-[#dce6e3] bg-white text-[#334155] transition hover:bg-zinc-50"
+    >
+      {children}
+    </button>
+  );
+}
+
+function JobsFiltersToggleButton({
+  active,
+  hasActiveFilters,
+  onClick,
+  className = "",
+}: {
+  active: boolean;
+  hasActiveFilters: boolean;
+  onClick: () => void;
+  className?: string;
+}) {
+  const isOn = active || hasActiveFilters;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-expanded={active}
+      className={`inline-flex h-10 w-auto shrink-0 items-center gap-1 rounded-md border px-2.5 text-xs font-medium whitespace-nowrap transition sm:h-8 sm:px-3 sm:text-sm ${
+        isOn
+          ? "border-[color:var(--brand-primary)] bg-[color:color-mix(in_srgb,var(--brand-primary)_10%,white)] text-[color:var(--brand-primary)]"
+          : "border-[#dce6e3] bg-white text-[#334155] hover:bg-zinc-50"
+      } ${className}`}
+    >
+      <Filter className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+      <span className="hidden min-[480px]:inline">Filters</span>
+    </button>
   );
 }
 
@@ -116,23 +203,238 @@ function JobsFilterSelect({
   value,
   onChange,
   children,
+  variant = "inline",
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   children: React.ReactNode;
+  variant?: "inline" | "grid";
 }) {
+  const controlClass =
+    variant === "grid"
+      ? `${JOBS_FILTER_GRID_SELECT_CLASS} ${value ? "text-[#334155]" : "text-[#94A3B8]"}`
+      : `${JOBS_FILTER_SELECT_CLASS} ${value ? "text-[#334155]" : "text-[#94A3B8]"}`;
+
   return (
     <select
       value={value}
       onChange={(e) => onChange(e.target.value)}
       aria-label={label}
-      className={`${JOBS_FILTER_SELECT_CLASS} ${value ? "text-[#334155]" : "text-[#94A3B8]"}`}
+      className={controlClass}
       style={{ ...CANDIDATES_PAGE_SUBTITLE_STYLE, ...JOBS_FILTER_SELECT_CHEVRON }}
     >
       <option value="">{label}</option>
       {children}
     </select>
+  );
+}
+
+type JobsFilterFieldsProps = {
+  variant: "grid" | "inline";
+  jobIdFilter: string;
+  onJobIdFilterChange: (value: string) => void;
+  statusFilter: string;
+  onStatusFilterChange: (value: string) => void;
+  titleFilter: string;
+  onTitleFilterChange: (value: string) => void;
+  locationFilter: string;
+  onLocationFilterChange: (value: string) => void;
+  assigneeFilter: string;
+  onAssigneeFilterChange: (value: string) => void;
+  postedByFilter: string;
+  onPostedByFilterChange: (value: string) => void;
+  locationOptions: string[];
+  resultsCount?: number;
+};
+
+function JobsFilterSearchField({
+  label,
+  value,
+  onChange,
+  variant = "inline",
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  variant?: "inline" | "grid";
+}) {
+  return (
+    <input
+      type="search"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder={label}
+      aria-label={label}
+      className={variant === "grid" ? JOBS_FILTER_GRID_CONTROL_CLASS : JOBS_FILTER_CONTROL_CLASS}
+      style={CANDIDATES_PAGE_SUBTITLE_STYLE}
+    />
+  );
+}
+
+function JobsFilterFields({
+  variant,
+  jobIdFilter,
+  onJobIdFilterChange,
+  statusFilter,
+  onStatusFilterChange,
+  titleFilter,
+  onTitleFilterChange,
+  locationFilter,
+  onLocationFilterChange,
+  assigneeFilter,
+  onAssigneeFilterChange,
+  postedByFilter,
+  onPostedByFilterChange,
+  locationOptions,
+  resultsCount,
+}: JobsFilterFieldsProps) {
+  const fields = (
+    <>
+      <JobsFilterSearchField
+        label="Job Id"
+        value={jobIdFilter}
+        onChange={onJobIdFilterChange}
+        variant={variant}
+      />
+      <JobsFilterSelect
+        label="Status"
+        value={statusFilter}
+        onChange={onStatusFilterChange}
+        variant={variant}
+      >
+        <option value="draft">Draft</option>
+        <option value="published">Published</option>
+        <option value="closed">Closed</option>
+        <option value="archived">Archived</option>
+      </JobsFilterSelect>
+      <JobsFilterSearchField
+        label="Title"
+        value={titleFilter}
+        onChange={onTitleFilterChange}
+        variant={variant}
+      />
+      <JobsFilterSelect
+        label="Location"
+        value={locationFilter}
+        onChange={onLocationFilterChange}
+        variant={variant}
+      >
+        {locationOptions.map((location) => (
+          <option key={location} value={location}>
+            {location}
+          </option>
+        ))}
+      </JobsFilterSelect>
+      <JobsFilterSelect
+        label="Assignee"
+        value={assigneeFilter}
+        onChange={onAssigneeFilterChange}
+        variant={variant}
+      >
+        <option value="HR Manager">HR Manager</option>
+      </JobsFilterSelect>
+      <JobsFilterSelect
+        label="Posted by"
+        value={postedByFilter}
+        onChange={onPostedByFilterChange}
+        variant={variant}
+      >
+        <option value="HR Manager">HR Manager</option>
+      </JobsFilterSelect>
+    </>
+  );
+
+  if (variant === "grid") {
+    return (
+      <div className="grid grid-cols-1 gap-2 rounded-lg border border-[#E8EEEC] bg-[#F8FAFC] p-2.5 min-[600px]:grid-cols-2 lg:grid-cols-3">
+        <CompactFilterField label="Job Id">
+          <JobsFilterSearchField
+            label="Job Id"
+            value={jobIdFilter}
+            onChange={onJobIdFilterChange}
+            variant="grid"
+          />
+        </CompactFilterField>
+        <CompactFilterField label="Status">
+          <JobsFilterSelect
+            label="Status"
+            value={statusFilter}
+            onChange={onStatusFilterChange}
+            variant="grid"
+          >
+            <option value="draft">Draft</option>
+            <option value="published">Published</option>
+            <option value="closed">Closed</option>
+            <option value="archived">Archived</option>
+          </JobsFilterSelect>
+        </CompactFilterField>
+        <CompactFilterField label="Title">
+          <JobsFilterSearchField
+            label="Title"
+            value={titleFilter}
+            onChange={onTitleFilterChange}
+            variant="grid"
+          />
+        </CompactFilterField>
+        <CompactFilterField label="Location">
+          <JobsFilterSelect
+            label="Location"
+            value={locationFilter}
+            onChange={onLocationFilterChange}
+            variant="grid"
+          >
+            {locationOptions.map((location) => (
+              <option key={location} value={location}>
+                {location}
+              </option>
+            ))}
+          </JobsFilterSelect>
+        </CompactFilterField>
+        <CompactFilterField label="Assignee">
+          <JobsFilterSelect
+            label="Assignee"
+            value={assigneeFilter}
+            onChange={onAssigneeFilterChange}
+            variant="grid"
+          >
+            <option value="HR Manager">HR Manager</option>
+          </JobsFilterSelect>
+        </CompactFilterField>
+        <CompactFilterField label="Posted by">
+          <JobsFilterSelect
+            label="Posted by"
+            value={postedByFilter}
+            onChange={onPostedByFilterChange}
+            variant="grid"
+          >
+            <option value="HR Manager">HR Manager</option>
+          </JobsFilterSelect>
+        </CompactFilterField>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex min-w-0 items-center gap-3">
+      {fields}
+      {typeof resultsCount === "number" ? (
+        <div className="flex shrink-0 items-center gap-2">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={JOBS_STAR_FILLED_SRC}
+            alt=""
+            width={14}
+            height={14}
+            className="h-[14px] w-[14px] shrink-0"
+            aria-hidden
+          />
+          <span className="whitespace-nowrap text-sm font-medium text-[#334155]">
+            {resultsCount} results
+          </span>
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -304,7 +606,7 @@ export default function AdminRecruiterJobsPage() {
 
   const [jobs, setJobs] = useState<JobListRow[]>([]);
   const [jobTab, setJobTab] = useState<JobTab>("all");
-  const [showFilterRows, setShowFilterRows] = useState(true);
+  const [showFilterRows, setShowFilterRows] = useCandidatesFilterRowsDefault();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [page, setPage] = useState(1);
@@ -323,6 +625,20 @@ export default function AdminRecruiterJobsPage() {
   const [locationFilter, setLocationFilter] = useState("");
   const [assigneeFilter, setAssigneeFilter] = useState("");
   const [postedByFilter, setPostedByFilter] = useState("");
+  const [sortField, setSortField] = useState<JobSortField | null>(null);
+  const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
+
+  const handleToggleSort = useCallback((field: JobSortField) => {
+    setSortField((current) => {
+      if (current === field) {
+        setSortDirection((direction) => (direction === "asc" ? "desc" : "asc"));
+        return field;
+      }
+      setSortDirection("asc");
+      return field;
+    });
+    setPage(1);
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -405,11 +721,30 @@ export default function AdminRecruiterJobsPage() {
     });
   }, [jobs, jobTab, jobIdFilter, statusFilter, titleFilter, locationFilter, assigneeFilter, postedByFilter]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredJobs.length / pageSize));
+  const sortedJobs = useMemo(() => {
+    if (!sortField) return filteredJobs;
+
+    const next = [...filteredJobs];
+    next.sort((a, b) => {
+      const left =
+        sortField === "jobTitle"
+          ? (a.public_title || "").trim()
+          : jobStatusSortLabel(a.status);
+      const right =
+        sortField === "jobTitle"
+          ? (b.public_title || "").trim()
+          : jobStatusSortLabel(b.status);
+      const cmp = left.localeCompare(right, undefined, { sensitivity: "base", numeric: true });
+      return sortDirection === "asc" ? cmp : -cmp;
+    });
+    return next;
+  }, [filteredJobs, sortField, sortDirection]);
+
+  const totalPages = Math.max(1, Math.ceil(sortedJobs.length / pageSize));
   const currentPage = Math.min(page, totalPages);
-  const pageStart = filteredJobs.length === 0 ? 0 : (currentPage - 1) * pageSize + 1;
-  const pageEnd = Math.min(currentPage * pageSize, filteredJobs.length);
-  const paginatedJobs = filteredJobs.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  const pageStart = sortedJobs.length === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+  const pageEnd = Math.min(currentPage * pageSize, sortedJobs.length);
+  const paginatedJobs = sortedJobs.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   const locationOptions = useMemo(() => {
     const values = new Set<string>();
@@ -421,6 +756,10 @@ export default function AdminRecruiterJobsPage() {
   }, [jobs]);
 
   const listColumns = listColumnOrder.length ? listColumnOrder : DEFAULT_JOB_COLUMNS;
+
+  const hasActiveFilters = Boolean(
+    jobIdFilter || statusFilter || titleFilter || locationFilter || assigneeFilter || postedByFilter
+  );
 
   const jobListCellContext = useMemo((): JobListCellContext => {
     return {
@@ -442,8 +781,7 @@ export default function AdminRecruiterJobsPage() {
   }, [branding.secondaryHex, starredIds, openActionsMenu?.job.id]);
 
   return (
-    <div className="px-5 pb-8 pt-5 lg:px-8" style={brandStyle}>
-      {/* Title + tabs sit outside the white card (Figma) */}
+    <div className="box-border w-full min-w-0 max-w-full px-3 pb-8 pt-4 sm:px-5 sm:pt-5 lg:px-8" style={brandStyle}>
       <div className="mb-4">
         <h1 className={CANDIDATES_PAGE_TITLE_CLASS} style={CANDIDATES_PAGE_TITLE_STYLE}>
           Jobs
@@ -453,8 +791,8 @@ export default function AdminRecruiterJobsPage() {
         </p>
       </div>
 
-      <nav className="mb-4 w-full min-w-0" aria-label="Jobs navigation">
-        <div className="flex w-full min-w-0 flex-nowrap items-start justify-center gap-[20px] overflow-x-auto py-5 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+      <nav className="mb-4 w-full min-w-0 overflow-x-auto py-3 sm:py-5 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden" aria-label="Jobs navigation">
+        <div className="flex w-max flex-nowrap items-start justify-start gap-4 sm:gap-5">
           {JOB_TABS.map((tab) => {
             const active = jobTab === tab.id;
             return (
@@ -471,9 +809,7 @@ export default function AdminRecruiterJobsPage() {
               >
                 <span className="flex items-center gap-2">
                   <span>{tab.label}</span>
-                  <span
-                    className="inline-flex aspect-square h-4 w-4 flex-col items-center justify-center gap-2 rounded-sm bg-[#CFCAC2] p-0.5 text-[10px] font-medium leading-none text-[#2B3D51]"
-                  >
+                  <span className="inline-flex aspect-square h-4 w-4 flex-col items-center justify-center gap-2 rounded-sm bg-[#CFCAC2] p-0.5 text-[10px] font-medium leading-none text-[#2B3D51]">
                     {tabCounts[tab.id]}
                   </span>
                 </span>
@@ -490,23 +826,64 @@ export default function AdminRecruiterJobsPage() {
       </nav>
 
       <div className="w-full overflow-hidden rounded-[12px] border border-[#E5E7EB] bg-white">
-        <div className="flex w-full flex-col gap-0 rounded-t-[12px] bg-white">
+        {/* Mobile / tablet toolbar */}
+        <div className="flex flex-col gap-2 border-b border-[#E5E7EB] px-3 py-2.5 xl:hidden">
+          <div className="flex w-full items-center gap-2">
+            <JobsFiltersToggleButton
+              active={showFilterRows}
+              hasActiveFilters={hasActiveFilters}
+              onClick={() => setShowFilterRows((value) => !value)}
+              className="shrink-0"
+            />
+            <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
+              <MobileIconButton onClick={() => setEditColumnsOpen(true)} label="Columns">
+                <Columns2 className="h-4 w-4" />
+              </MobileIconButton>
+              <Link
+                href="/admin_recruiter/jobs/new"
+                className={`${JOBS_POST_JOB_BUTTON_CLASS} inline-flex h-9 items-center gap-1.5 px-2.5 sm:h-8 sm:px-3`}
+              >
+                <Plus
+                  className="h-4 w-4 shrink-0 sm:h-5 sm:w-5"
+                  style={{ color: branding.secondaryHex }}
+                  strokeWidth={2}
+                  aria-hidden
+                />
+                <span className="hidden min-[480px]:inline">Post a job</span>
+                <span className="min-[480px]:hidden">Post</span>
+              </Link>
+            </div>
+          </div>
+          {showFilterRows ? (
+            <JobsFilterFields
+              variant="grid"
+              jobIdFilter={jobIdFilter}
+              onJobIdFilterChange={setJobIdFilter}
+              statusFilter={statusFilter}
+              onStatusFilterChange={setStatusFilter}
+              titleFilter={titleFilter}
+              onTitleFilterChange={setTitleFilter}
+              locationFilter={locationFilter}
+              onLocationFilterChange={setLocationFilter}
+              assigneeFilter={assigneeFilter}
+              onAssigneeFilterChange={setAssigneeFilter}
+              postedByFilter={postedByFilter}
+              onPostedByFilterChange={setPostedByFilter}
+              locationOptions={locationOptions}
+            />
+          ) : null}
+        </div>
+
+        {/* Desktop toolbar */}
+        <div className="hidden w-full flex-col xl:flex">
           <div className="flex w-full shrink-0 items-center justify-between gap-3 rounded-t-[12px] bg-white px-[14px] py-3">
             <div className="flex shrink-0 items-center gap-2">
-              <button
-                type="button"
+              <JobsFiltersToggleButton
+                active={showFilterRows}
+                hasActiveFilters={hasActiveFilters}
                 onClick={() => setShowFilterRows((value) => !value)}
-                aria-expanded={showFilterRows}
-                className={`${JOBS_TOOLBAR_BUTTON_CLASS} ${
-                  showFilterRows
-                    ? "border-[color:var(--brand-primary)] bg-[color:color-mix(in_srgb,var(--brand-primary)_10%,white)] text-[color:var(--brand-primary)]"
-                    : ""
-                }`}
-                style={CANDIDATES_PAGE_SUBTITLE_STYLE}
-              >
-                <Filter className="h-4 w-4 shrink-0" />
-                Filters
-              </button>
+                className="[&_span]:inline"
+              />
               <button
                 type="button"
                 onClick={() => setEditColumnsOpen(true)}
@@ -532,45 +909,24 @@ export default function AdminRecruiterJobsPage() {
           <div className="border-b border-[#E5E7EB]" aria-hidden />
 
           {showFilterRows ? (
-          <div className="flex w-full shrink-0 items-center gap-3 overflow-x-auto border-b border-[#E5E7EB] px-[14px] py-3 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-              <div className="flex min-w-0 items-center gap-3">
-                <JobsFilterSearch label="Job Id" value={jobIdFilter} onChange={setJobIdFilter} />
-                <JobsFilterSelect label="Status" value={statusFilter} onChange={setStatusFilter}>
-                  <option value="draft">Draft</option>
-                  <option value="published">Published</option>
-                  <option value="closed">Closed</option>
-                  <option value="archived">Archived</option>
-                </JobsFilterSelect>
-                <JobsFilterSearch label="Title" value={titleFilter} onChange={setTitleFilter} />
-                <JobsFilterSelect label="Location" value={locationFilter} onChange={setLocationFilter}>
-                  {locationOptions.map((location) => (
-                    <option key={location} value={location}>
-                      {location}
-                    </option>
-                  ))}
-                </JobsFilterSelect>
-                <JobsFilterSelect label="Assignee" value={assigneeFilter} onChange={setAssigneeFilter}>
-                  <option value="HR Manager">HR Manager</option>
-                </JobsFilterSelect>
-                <JobsFilterSelect label="Posted by" value={postedByFilter} onChange={setPostedByFilter}>
-                  <option value="HR Manager">HR Manager</option>
-                </JobsFilterSelect>
-
-                <div className="flex shrink-0 items-center gap-2">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={JOBS_STAR_FILLED_SRC}
-                    alt=""
-                    width={14}
-                    height={14}
-                    className="h-[14px] w-[14px] shrink-0"
-                    aria-hidden
-                  />
-                  <span className="whitespace-nowrap text-sm font-medium text-[#334155]">
-                    {filteredJobs.length} results
-                  </span>
-                </div>
-              </div>
+            <div className="flex w-full shrink-0 items-center gap-3 overflow-x-auto border-b border-[#E5E7EB] px-[14px] py-3 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+              <JobsFilterFields
+                variant="inline"
+                jobIdFilter={jobIdFilter}
+                onJobIdFilterChange={setJobIdFilter}
+                statusFilter={statusFilter}
+                onStatusFilterChange={setStatusFilter}
+                titleFilter={titleFilter}
+                onTitleFilterChange={setTitleFilter}
+                locationFilter={locationFilter}
+                onLocationFilterChange={setLocationFilter}
+                assigneeFilter={assigneeFilter}
+                onAssigneeFilterChange={setAssigneeFilter}
+                postedByFilter={postedByFilter}
+                onPostedByFilterChange={setPostedByFilter}
+                locationOptions={locationOptions}
+                resultsCount={filteredJobs.length}
+              />
             </div>
           ) : null}
         </div>
@@ -582,15 +938,31 @@ export default function AdminRecruiterJobsPage() {
         ) : null}
 
         <div className="overflow-x-auto">
-          <table className="min-w-full border-collapse text-left text-sm">
+          <table className="min-w-[960px] w-full border-collapse text-left text-sm xl:min-w-full">
             <thead className="border-b border-[#E5E7EB] bg-[#F8FAFC] text-xs font-medium uppercase tracking-wide text-[#64748B]">
               <tr>
                 {listColumns.map((colId) => (
                   <th
                     key={colId}
                     className={`border-r border-[#E5E7EB] px-[14px] py-3 font-medium normal-case tracking-normal last:border-r-0 ${jobListColumnClassName(colId)}`}
+                    aria-sort={
+                      isSortableJobColumn(colId) && sortField === colId
+                        ? sortDirection === "asc"
+                          ? "ascending"
+                          : "descending"
+                        : undefined
+                    }
                   >
-                    {jobColumnLabel(colId)}
+                    {isSortableJobColumn(colId) ? (
+                      <JobTableSortHeader
+                        colId={colId}
+                        sortField={sortField}
+                        sortDirection={sortDirection}
+                        onToggleSort={handleToggleSort}
+                      />
+                    ) : (
+                      jobColumnLabel(colId)
+                    )}
                   </th>
                 ))}
               </tr>
@@ -626,18 +998,18 @@ export default function AdminRecruiterJobsPage() {
           </table>
         </div>
 
-        <div className="flex flex-col gap-3 rounded-b-[12px] border-t border-[#E5E7EB] bg-white px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-3 rounded-b-[12px] border-t border-[#E5E7EB] bg-white px-3 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-4">
           <p className="text-sm text-[#64748B]">
             Showing {pageStart}-{pageEnd} of {filteredJobs.length} results
           </p>
 
-          <div className="flex flex-wrap items-center gap-3">
-            <label className="flex items-center gap-2 text-sm text-[#64748B]">
+          <div className="flex w-full items-center justify-between gap-3 sm:w-auto sm:flex-wrap sm:justify-end">
+            <label className="flex shrink-0 items-center gap-2 text-sm text-[#64748B]">
               Show
               <select
                 value={pageSize}
                 onChange={(e) => setPageSize(Number(e.target.value))}
-                className={`h-8 px-2 text-sm text-[#334155] ${JOBS_FORM_SURFACE_CLASS}`}
+                className={`h-9 px-2 text-sm text-[#334155] xl:h-8 ${JOBS_FORM_SURFACE_CLASS}`}
               >
                 {PAGE_SIZE_OPTIONS.map((size) => (
                   <option key={size} value={size}>
@@ -647,15 +1019,15 @@ export default function AdminRecruiterJobsPage() {
               </select>
             </label>
 
-            <div className="flex items-center gap-1">
+            <div className="flex shrink-0 items-center gap-1">
               <button
                 type="button"
                 onClick={() => setPage((current) => Math.max(1, current - 1))}
                 disabled={currentPage <= 1}
-                className={`inline-flex h-8 items-center gap-1 px-2.5 text-sm text-[#334155] disabled:cursor-not-allowed disabled:opacity-50 ${JOBS_FORM_SURFACE_CLASS}`}
+                className={`inline-flex h-9 items-center gap-1 px-2.5 text-sm text-[#334155] disabled:cursor-not-allowed disabled:opacity-50 xl:h-8 ${JOBS_FORM_SURFACE_CLASS}`}
               >
                 <ChevronLeft className="h-4 w-4" />
-                Previous
+                <span className="hidden min-[480px]:inline">Previous</span>
               </button>
 
               {Array.from({ length: totalPages }, (_, index) => index + 1).slice(0, 5).map((pageNumber) => {
@@ -665,7 +1037,7 @@ export default function AdminRecruiterJobsPage() {
                     key={pageNumber}
                     type="button"
                     onClick={() => setPage(pageNumber)}
-                    className={`inline-flex h-8 min-w-8 items-center justify-center px-2 text-sm ${
+                    className={`inline-flex h-9 min-w-9 items-center justify-center px-2 text-sm xl:h-8 xl:min-w-8 ${
                       active
                         ? "rounded-lg border-transparent text-white"
                         : "text-[#334155] hover:bg-[#F8FAFC]"
@@ -681,9 +1053,9 @@ export default function AdminRecruiterJobsPage() {
                 type="button"
                 onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
                 disabled={currentPage >= totalPages}
-                className={`inline-flex h-8 items-center gap-1 px-2.5 text-sm text-[#334155] disabled:cursor-not-allowed disabled:opacity-50 ${JOBS_FORM_SURFACE_CLASS}`}
+                className={`inline-flex h-9 items-center gap-1 px-2.5 text-sm text-[#334155] disabled:cursor-not-allowed disabled:opacity-50 xl:h-8 ${JOBS_FORM_SURFACE_CLASS}`}
               >
-                Next
+                <span className="hidden min-[480px]:inline">Next</span>
                 <ChevronRight className="h-4 w-4" />
               </button>
             </div>

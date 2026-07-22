@@ -96,18 +96,33 @@ export function jobDisplayId(job: JobListRow): string {
   return job.internal_requisition_number?.trim() || job.id.slice(0, 8).toUpperCase()
 }
 
+export function jobStatusSortLabel(status: JobListRow["status"]): string {
+  switch (status) {
+    case "published":
+      return "Open"
+    case "draft":
+      return "Drafts"
+    case "closed":
+      return "Closed"
+    case "archived":
+      return "Archived"
+    default:
+      return status
+  }
+}
+
 function displayJobStatus(status: JobListRow["status"]): { label: string; dotClass: string } {
   switch (status) {
     case "published":
-      return { label: "Open", dotClass: "bg-[#3B82F6]" }
+      return { label: jobStatusSortLabel(status), dotClass: "bg-[#3B82F6]" }
     case "draft":
-      return { label: "Drafts", dotClass: "bg-[#94A3B8]" }
+      return { label: jobStatusSortLabel(status), dotClass: "bg-[#94A3B8]" }
     case "closed":
-      return { label: "Closed", dotClass: "bg-[#EF4444]" }
+      return { label: jobStatusSortLabel(status), dotClass: "bg-[#EF4444]" }
     case "archived":
-      return { label: "Archived", dotClass: "bg-[#EF4444]" }
+      return { label: jobStatusSortLabel(status), dotClass: "bg-[#EF4444]" }
     default:
-      return { label: status, dotClass: "bg-[#94A3B8]" }
+      return { label: jobStatusSortLabel(status), dotClass: "bg-[#94A3B8]" }
   }
 }
 
@@ -219,7 +234,7 @@ export function renderJobListCell(
       )
     case "assignee":
       return (
-        <div className="flex items-center gap-2">
+        <div className="flex items-center justify-center gap-2">
           <span
             className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold text-white"
             style={{ backgroundColor: ctx.brandingSecondaryHex }}
@@ -231,11 +246,13 @@ export function renderJobListCell(
       )
     case "jobStatus":
       return (
-        <div
-          className={`inline-flex h-8 min-w-[112px] items-center gap-2 px-2.5 text-sm text-[#334155] ${JOB_FORM_SURFACE_CLASS}`}
-        >
-          <span className={`h-2 w-2 shrink-0 rounded-full ${statusDisplay.dotClass}`} />
-          {statusDisplay.label}
+        <div className="flex justify-center">
+          <div
+            className={`inline-flex h-8 w-fit items-center justify-center gap-2 whitespace-nowrap px-2.5 text-sm text-[#334155] ${JOB_FORM_SURFACE_CLASS}`}
+          >
+            <span className={`h-2 w-2 shrink-0 rounded-full ${statusDisplay.dotClass}`} />
+            {statusDisplay.label}
+          </div>
         </div>
       )
     case "location":

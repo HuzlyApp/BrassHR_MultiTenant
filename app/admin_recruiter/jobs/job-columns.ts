@@ -71,9 +71,26 @@ export function jobColumnLabel(id: JobColumnId): string {
   return JOB_COLUMN_OPTIONS.find((c) => c.id === id)?.label ?? id
 }
 
+export type JobSortField = "jobTitle" | "jobStatus"
+
+export const SORTABLE_JOB_COLUMNS = new Set<JobColumnId>(["jobTitle", "jobStatus"])
+
+export function isSortableJobColumn(colId: JobColumnId): colId is JobSortField {
+  return SORTABLE_JOB_COLUMNS.has(colId)
+}
+
+const CENTER_ALIGNED_COLUMNS = new Set<JobColumnId>(["datePosted", "assignee", "jobStatus"])
+
 export function jobListColumnClassName(colId: JobColumnId): string {
+  const center = CENTER_ALIGNED_COLUMNS.has(colId) ? " text-center" : ""
   if (colId === "datePosted" || colId === "createdDate" || colId === "applicationDeadline") {
-    return "min-w-[140px] whitespace-nowrap"
+    return `min-w-[140px] whitespace-nowrap${center}`
+  }
+  if (colId === "assignee") {
+    return `${center.trim()} whitespace-nowrap`.trim()
+  }
+  if (colId === "jobStatus") {
+    return `${center.trim()} w-[1%] whitespace-nowrap`.trim()
   }
   if (colId === "candidates") return "min-w-[280px]"
   if (colId === "actions") return "w-12"
