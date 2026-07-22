@@ -30,6 +30,26 @@ function clean(value: string | null | undefined): string | null {
   return value?.trim() || null;
 }
 
+/** DB check: rate_unit IN ('Hour','Day','Week','Month','Year','Flat') */
+function toLegacyRateUnit(
+  payRatePeriod?: string | null,
+  compensationType?: string | null
+): "Hour" | "Day" | "Week" | "Month" | "Year" | "Flat" | null {
+  const period = (payRatePeriod ?? "").trim().toLowerCase();
+  if (period.includes("hour")) return "Hour";
+  if (period.includes("day")) return "Day";
+  if (period.includes("week")) return "Week";
+  if (period.includes("month")) return "Month";
+  if (period.includes("year") || period.includes("annual")) return "Year";
+  if (period.includes("flat")) return "Flat";
+
+  const compensation = (compensationType ?? "").trim().toLowerCase();
+  if (compensation.includes("hour")) return "Hour";
+  if (compensation.includes("annual") || compensation.includes("year")) return "Year";
+
+  return null;
+}
+
 function toJobRow(input: JobRequisitionInput) {
   const publicTitle = clean(input.publicTitle);
   const publicDescription = clean(input.publicDescription);
@@ -40,6 +60,7 @@ function toJobRow(input: JobRequisitionInput) {
   const externalRequisitionId = clean(input.externalRequisitionId);
   const jobLocationType = clean(input.jobLocationType) ?? clean(input.schedule);
   const payRatePeriod = clean(input.payRatePeriod);
+  const compensationType = clean(input.compensationType);
   const yearsOfExperience = clean(input.yearsOfExperience);
   const additionalLocations = Array.isArray(input.additionalLocations)
     ? input.additionalLocations.map((item) => item.trim()).filter(Boolean)
@@ -90,11 +111,11 @@ function toJobRow(input: JobRequisitionInput) {
     location_type: jobLocationType,
     is_employer_on_record:
       typeof input.isEmployerOnRecord === "boolean" ? input.isEmployerOnRecord : true,
-    compensation_type: clean(input.compensationType),
+    compensation_type: compensationType,
     currency: clean(input.currency) ?? "USD",
     show_pay_by: clean(input.showPayBy),
     pay_rate_period: payRatePeriod,
-    rate_unit: payRatePeriod,
+    rate_unit: toLegacyRateUnit(payRatePeriod, compensationType),
     source_job_title: clean(input.sourceJobTitle),
     source_job_url: clean(input.sourceJobUrl),
     source_job_details: clean(input.sourceJobDetails),
@@ -109,7 +130,7 @@ function toJobRow(input: JobRequisitionInput) {
     // Legacy columns still required on upgraded job_requisitions tables.
     title: publicTitle ?? "Untitled job",
     description: publicDescription,
-    placement_type: "Internal",
+    placement_type: input.sourceType === "MSP" ? "Recruit_and_Release" : "Internal",
     external_req_id: externalRequisitionId,
     facility_name: facility,
     job_duration: duration,

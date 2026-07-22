@@ -38,6 +38,7 @@ const initialJob: JobRequisitionInput = {
   professionId: "",
   specialtyId: null,
   employmentType: "W2",
+  internalRequisitionNumber: "",
   publicTitle: "",
   publicDescription: "",
   location: "",

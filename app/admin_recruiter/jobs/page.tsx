@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
-import { ChevronLeft, ChevronRight, Columns2, Filter, Plus } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { ColumnsEditorModal } from "@/app/admin_recruiter/components/ColumnsEditorModal";
 import { useCandidatesFilterRowsDefault } from "@/app/admin_recruiter/hooks/useCandidatesFilterRowsDefault";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
@@ -59,6 +59,44 @@ const JOBS_POST_JOB_BUTTON_CLASS =
 
 const JOBS_STAR_FILLED_SRC = "/icons/jobs-icons/Star-filled.svg";
 const JOB_SORT_ICON_SRC = "/sort-icon.svg";
+
+function JobsFilterIcon({ className = "h-4 w-4 shrink-0" }: { className?: string }) {
+  return (
+    <svg
+      width={16}
+      height={16}
+      viewBox="0 0 16 16"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className={className}
+      aria-hidden
+    >
+      <path
+        d="M6.66667 12H9.33333V10.6667H6.66667V12ZM2 4V5.33333H14V4H2ZM4 8.66667H12V7.33333H4V8.66667Z"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
+
+function JobsColumnsIcon({ className = "h-4 w-4 shrink-0" }: { className?: string }) {
+  return (
+    <svg
+      width={16}
+      height={16}
+      viewBox="0 0 16 16"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className={className}
+      aria-hidden
+    >
+      <path
+        d="M2.66667 7C2.11334 7 1.66667 7.44667 1.66667 8C1.66667 8.55333 2.11334 9 2.66667 9C3.22 9 3.66667 8.55333 3.66667 8C3.66667 7.44667 3.22 7 2.66667 7ZM2.66667 3C2.11334 3 1.66667 3.44667 1.66667 4C1.66667 4.55333 2.11334 5 2.66667 5C3.22 5 3.66667 4.55333 3.66667 4C3.66667 3.44667 3.22 3 2.66667 3ZM2.66667 11C2.11334 11 1.66667 11.4533 1.66667 12C1.66667 12.5467 2.12001 13 2.66667 13C3.21334 13 3.66667 12.5467 3.66667 12C3.66667 11.4533 3.22 11 2.66667 11ZM4.66667 12.6667H14V11.3333H4.66667V12.6667ZM4.66667 8.66667H14V7.33333H4.66667V8.66667ZM4.66667 3.33333V4.66667H14V3.33333H4.66667Z"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
 
 type SortDirection = "asc" | "desc";
 
@@ -193,7 +231,7 @@ function JobsFiltersToggleButton({
           : "border-[#dce6e3] bg-white text-[#334155] hover:bg-zinc-50"
       } ${className}`}
     >
-      <Filter className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+      <JobsFilterIcon />
       <span className="hidden min-[480px]:inline">Filters</span>
     </button>
   );
@@ -889,7 +927,7 @@ export default function AdminRecruiterJobsPage() {
             />
             <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
               <MobileIconButton onClick={() => setEditColumnsOpen(true)} label="Columns">
-                <Columns2 className="h-4 w-4" />
+                <JobsColumnsIcon />
               </MobileIconButton>
               <Link
                 href="/admin_recruiter/jobs/new"
@@ -942,7 +980,7 @@ export default function AdminRecruiterJobsPage() {
                 className={JOBS_TOOLBAR_BUTTON_CLASS}
                 style={CANDIDATES_PAGE_SUBTITLE_STYLE}
               >
-                <Columns2 className="h-4 w-4 shrink-0" />
+                <JobsColumnsIcon />
                 Columns
               </button>
             </div>

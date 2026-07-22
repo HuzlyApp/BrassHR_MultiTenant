@@ -39,6 +39,7 @@ import {
   JOB_FORM_SELECT_CLASS,
   // JOB_FORM_SHIFT_TYPES, // TODO(future): Internal job configuration
   JOB_FORM_SHOW_PAY_BY,
+  JOB_FORM_SURFACE_CLASS,
   JOB_FORM_TEXTAREA_CLASS,
   JOB_FORM_YEARS_OF_EXPERIENCE,
   employmentTypeFromLabel,
@@ -79,6 +80,21 @@ function BrandedCheckbox({
   );
 }
 
+const JOB_FORM_RADIO_STYLE = `
+  input.job-form-radio {
+    -webkit-appearance: none;
+    appearance: none;
+    print-color-adjust: exact;
+    border-radius: 9999px;
+  }
+  input.job-form-radio:checked {
+    border-color: var(--brand-secondary);
+    background-color: var(--brand-secondary);
+    /* White ring keeps a circular brand center at any browser zoom */
+    box-shadow: inset 0 0 0 3px #fff;
+  }
+`;
+
 function BrandedRadio({
   checked,
   name,
@@ -92,16 +108,13 @@ function BrandedRadio({
 }) {
   return (
     <label className="inline-flex cursor-pointer items-center gap-2 text-sm text-[#334155]">
-      <span className="relative inline-flex h-5 w-5 shrink-0">
-        <input
-          type="radio"
-          name={name}
-          checked={checked}
-          onChange={onChange}
-          className="peer h-5 w-5 shrink-0 cursor-pointer appearance-none rounded-full border-2 border-[#CBD5E1] bg-white transition checked:border-[color:var(--brand-secondary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--brand-secondary)_30%,transparent)]"
-        />
-        <span className="pointer-events-none absolute inset-0 m-auto hidden h-2.5 w-2.5 rounded-full bg-[color:var(--brand-secondary)] peer-checked:block" />
-      </span>
+      <input
+        type="radio"
+        name={name}
+        checked={checked}
+        onChange={onChange}
+        className="job-form-radio h-5 w-5 shrink-0 cursor-pointer appearance-none rounded-full border-2 border-[#CBD5E1] bg-white transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--brand-secondary)_30%,transparent)]"
+      />
       <span>{label}</span>
     </label>
   );
@@ -185,17 +198,33 @@ export function JobFormStepRequisition({
 
   return (
     <div className="space-y-5">
-        <div>
-          <label className={JOB_FORM_LABEL_CLASS} htmlFor="job-title">
-            Job Title
-          </label>
-          <input
-            id="job-title"
-            className={JOB_FORM_INPUT_CLASS}
-            value={job.publicTitle ?? ""}
-            onChange={(event) => onJobChange("publicTitle", event.target.value)}
-          />
-          <FieldError error={fieldErrors.publicTitle} />
+      <style>{JOB_FORM_RADIO_STYLE}</style>
+        <div className="grid gap-4 md:grid-cols-2">
+          <div>
+            <label className={JOB_FORM_LABEL_CLASS} htmlFor="job-id">
+              Job ID
+            </label>
+            <input
+              id="job-id"
+              className={JOB_FORM_INPUT_CLASS}
+              value={job.internalRequisitionNumber ?? ""}
+              onChange={(event) => onJobChange("internalRequisitionNumber", event.target.value)}
+              placeholder="e.g. JR-1024"
+            />
+            <FieldError error={fieldErrors.internalRequisitionNumber} />
+          </div>
+          <div>
+            <label className={JOB_FORM_LABEL_CLASS} htmlFor="job-title">
+              Job Title
+            </label>
+            <input
+              id="job-title"
+              className={JOB_FORM_INPUT_CLASS}
+              value={job.publicTitle ?? ""}
+              onChange={(event) => onJobChange("publicTitle", event.target.value)}
+            />
+            <FieldError error={fieldErrors.publicTitle} />
+          </div>
         </div>
 
         <div className="grid gap-4 md:grid-cols-2">
@@ -346,31 +375,45 @@ export function JobFormStepRequisition({
 
         <div className="grid gap-4 md:grid-cols-2">
           <div>
-            <label className={JOB_FORM_LABEL_CLASS}>Number of Positions</label>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                className={`${JOB_FORM_OUTLINE_BUTTON_CLASS} h-10 w-10 px-0`}
-                onClick={() =>
-                  onUiChange({
-                    numberOfPositions: Math.max(1, ui.numberOfPositions - 1),
-                  })
-                }
-                aria-label="Decrease positions"
-              >
-                <Minus className="h-4 w-4" />
-              </button>
-              <div className={`${JOB_FORM_INPUT_CLASS} flex h-10 items-center justify-center px-0`}>
-                {ui.numberOfPositions}
+            <label className={JOB_FORM_LABEL_CLASS} htmlFor="number-of-positions">
+              Number of Positions
+            </label>
+            <div className={`${JOB_FORM_SURFACE_CLASS} flex h-10 w-full overflow-hidden`}>
+              <input
+                id="number-of-positions"
+                type="number"
+                min={1}
+                inputMode="numeric"
+                className="h-full min-w-0 flex-1 cursor-pointer border-0 bg-transparent px-3 text-sm text-[#334155] outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                value={ui.numberOfPositions}
+                onChange={(event) => {
+                  const next = Math.max(1, Math.trunc(Number(event.target.value) || 1));
+                  onUiChange({ numberOfPositions: next });
+                }}
+                aria-label="Number of Positions"
+              />
+              <div className="flex shrink-0 border-l border-[#CBD5E1]">
+                <button
+                  type="button"
+                  className="inline-flex h-full w-10 cursor-pointer items-center justify-center bg-[#EEF2F6] text-[#64748B] transition hover:bg-[#E2E8F0] hover:text-[#334155]"
+                  onClick={() =>
+                    onUiChange({
+                      numberOfPositions: Math.max(1, ui.numberOfPositions - 1),
+                    })
+                  }
+                  aria-label="Decrease positions"
+                >
+                  <Minus className="h-4 w-4" />
+                </button>
+                <button
+                  type="button"
+                  className="inline-flex h-full w-10 cursor-pointer items-center justify-center border-l border-[#CBD5E1] bg-white text-[#64748B] transition hover:bg-[#F8FAFC] hover:text-[#334155]"
+                  onClick={() => onUiChange({ numberOfPositions: ui.numberOfPositions + 1 })}
+                  aria-label="Increase positions"
+                >
+                  <Plus className="h-4 w-4" />
+                </button>
               </div>
-              <button
-                type="button"
-                className={`${JOB_FORM_OUTLINE_BUTTON_CLASS} h-10 w-10 px-0`}
-                onClick={() => onUiChange({ numberOfPositions: ui.numberOfPositions + 1 })}
-                aria-label="Increase positions"
-              >
-                <Plus className="h-4 w-4" />
-              </button>
             </div>
           </div>
           <div>
@@ -1018,6 +1061,11 @@ export function JobFormStepReview({
         <p className={JOB_FORM_SECTION_SUBTITLE_CLASS}>Job Details</p>
       </div>
 
+      <ReviewRow
+        label="Job ID"
+        value={job.internalRequisitionNumber ?? ""}
+        onEdit={() => onGoToStep("requisition")}
+      />
       <ReviewRow label="Job Title" value={job.publicTitle ?? ""} onEdit={() => onGoToStep("requisition")} />
       <ReviewRow label="Profession" value={professionName} onEdit={() => onGoToStep("requisition")} />
       <ReviewRow label="Specialty" value={specialtyName} onEdit={() => onGoToStep("requisition")} />

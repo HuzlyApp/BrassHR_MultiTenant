@@ -76,13 +76,20 @@ export async function POST(req: NextRequest) {
     if (!tenantId) return NextResponse.json({ error: "No tenant selected" }, { status: 400 });
 
     if (
-      (action === "unpublish" || action === "close" || action === "archive" || action === "publish") &&
+      (action === "unpublish" || action === "close" || action === "archive") &&
       !jobId
     ) {
       return NextResponse.json({ error: "Job ID is required" }, { status: 400 });
     }
 
-    if (action === "publish") {
+    const hasJobPayload = rawRecord.job != null && typeof rawRecord.job === "object";
+
+    // List-page republish: action=publish + jobId, no job body.
+    // Create/edit "Save and Publish": action=publish + job body (+ optional jobId).
+    if (action === "publish" && !hasJobPayload) {
+      if (!jobId) {
+        return NextResponse.json({ error: "Job ID is required" }, { status: 400 });
+      }
       const result = await publishExistingJob(supabase, tenantId, auth.userId, jobId);
       return NextResponse.json({ job: result });
     }
