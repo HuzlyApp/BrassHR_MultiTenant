@@ -14,6 +14,7 @@ import {
   CANDIDATES_PAGE_SUBTITLE_CLASS,
 } from "@/app/admin_recruiter/candidates/candidates-typography";
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
+import { isJobRequisitionOpen } from "@/lib/jobs/public-application-routing";
 import {
   DEFAULT_JOB_COLUMNS,
   JOB_COLUMN_OPTIONS,
@@ -439,7 +440,11 @@ function JobsFilterFields({
 }
 
 const JOB_ACTIONS_MENU_WIDTH = 140;
-const JOB_ACTIONS_MENU_ESTIMATED_HEIGHT = 200;
+const JOB_ACTIONS_MENU_ESTIMATED_HEIGHT = 240;
+
+function canRepublishClosedJob(job: JobListRow): boolean {
+  return isJobRequisitionOpen({ application_deadline: job.application_deadline });
+}
 
 function JobActionsMenuPortal({
   job,
@@ -510,90 +515,137 @@ function JobActionsMenuPortal({
       style={style}
       className={`z-[200] min-w-[140px] ${JOBS_FORM_SURFACE_CLASS} py-1 shadow-lg`}
     >
-      <Link
-        href={`/admin_recruiter/jobs/${job.id}/edit`}
-        role="menuitem"
-        className="block px-3 py-2 text-sm text-[#334155] hover:bg-[#F8FAFC]"
-        onClick={onClose}
-      >
-        {job.status === "archived" || job.status === "closed" ? "View" : "Edit"}
-      </Link>
-      {job.status === "draft" ? (
+      {job.status === "closed" ? (
         <>
+          <Link
+            href={`/admin_recruiter/jobs/${job.id}/edit`}
+            role="menuitem"
+            className="block px-3 py-2 text-sm text-[#334155] hover:bg-[#F8FAFC]"
+            onClick={onClose}
+          >
+            View
+          </Link>
+          <Link
+            href={`/admin_recruiter/jobs/${job.id}/edit`}
+            role="menuitem"
+            className="block px-3 py-2 text-sm text-[#334155] hover:bg-[#F8FAFC]"
+            onClick={onClose}
+          >
+            Edit
+          </Link>
+          {canRepublishClosedJob(job) ? (
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                onTransition(job.id, "publish");
+                onClose();
+              }}
+              className="block w-full px-3 py-2 text-left text-sm text-[#334155] hover:bg-[#F8FAFC]"
+            >
+              Republish
+            </button>
+          ) : null}
           <button
             type="button"
             role="menuitem"
             onClick={() => {
-              onTransition(job.id, "publish");
+              onTransition(job.id, "archive");
               onClose();
             }}
             className="block w-full px-3 py-2 text-left text-sm text-[#334155] hover:bg-[#F8FAFC]"
           >
-            Publish
-          </button>
-          <button
-            type="button"
-            role="menuitem"
-            onClick={() => {
-              onTransition(job.id, "close");
-              onClose();
-            }}
-            className="block w-full px-3 py-2 text-left text-sm text-[#334155] hover:bg-[#F8FAFC]"
-          >
-            Close
+            Archive
           </button>
         </>
-      ) : null}
-      {job.status === "published" ? (
-        <>
-          <button
-            type="button"
-            role="menuitem"
-            onClick={() => {
-              onTransition(job.id, "unpublish");
-              onClose();
-            }}
-            className="block w-full px-3 py-2 text-left text-sm text-[#334155] hover:bg-[#F8FAFC]"
-          >
-            Unpublish
-          </button>
-          <button
-            type="button"
-            role="menuitem"
-            onClick={() => {
-              onTransition(job.id, "close");
-              onClose();
-            }}
-            className="block w-full px-3 py-2 text-left text-sm text-[#334155] hover:bg-[#F8FAFC]"
-          >
-            Close
-          </button>
-        </>
-      ) : null}
-      {job.status === "archived" ? (
-        <button
-          type="button"
-          role="menuitem"
-          onClick={() => {
-            onTransition(job.id, "unpublish");
-            onClose();
-          }}
-          className="block w-full px-3 py-2 text-left text-sm text-[#334155] hover:bg-[#F8FAFC]"
-        >
-          Unarchive
-        </button>
       ) : (
-        <button
-          type="button"
-          role="menuitem"
-          onClick={() => {
-            onTransition(job.id, "archive");
-            onClose();
-          }}
-          className="block w-full px-3 py-2 text-left text-sm text-[#334155] hover:bg-[#F8FAFC]"
-        >
-          Archive
-        </button>
+        <>
+          <Link
+            href={`/admin_recruiter/jobs/${job.id}/edit`}
+            role="menuitem"
+            className="block px-3 py-2 text-sm text-[#334155] hover:bg-[#F8FAFC]"
+            onClick={onClose}
+          >
+            {job.status === "archived" ? "View" : "Edit"}
+          </Link>
+          {job.status === "draft" ? (
+            <>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  onTransition(job.id, "publish");
+                  onClose();
+                }}
+                className="block w-full px-3 py-2 text-left text-sm text-[#334155] hover:bg-[#F8FAFC]"
+              >
+                Publish
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  onTransition(job.id, "close");
+                  onClose();
+                }}
+                className="block w-full px-3 py-2 text-left text-sm text-[#334155] hover:bg-[#F8FAFC]"
+              >
+                Close
+              </button>
+            </>
+          ) : null}
+          {job.status === "published" ? (
+            <>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  onTransition(job.id, "unpublish");
+                  onClose();
+                }}
+                className="block w-full px-3 py-2 text-left text-sm text-[#334155] hover:bg-[#F8FAFC]"
+              >
+                Unpublish
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  onTransition(job.id, "close");
+                  onClose();
+                }}
+                className="block w-full px-3 py-2 text-left text-sm text-[#334155] hover:bg-[#F8FAFC]"
+              >
+                Close
+              </button>
+            </>
+          ) : null}
+          {job.status === "archived" ? (
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                onTransition(job.id, "unpublish");
+                onClose();
+              }}
+              className="block w-full px-3 py-2 text-left text-sm text-[#334155] hover:bg-[#F8FAFC]"
+            >
+              Unarchive
+            </button>
+          ) : job.status === "draft" || job.status === "published" ? (
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                onTransition(job.id, "archive");
+                onClose();
+              }}
+              className="block w-full px-3 py-2 text-left text-sm text-[#334155] hover:bg-[#F8FAFC]"
+            >
+              Archive
+            </button>
+          ) : null}
+        </>
       )}
     </div>,
     document.body
@@ -791,8 +843,8 @@ export default function AdminRecruiterJobsPage() {
         </p>
       </div>
 
-      <nav className="mb-4 w-full min-w-0 overflow-x-auto py-3 sm:py-5 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden" aria-label="Jobs navigation">
-        <div className="flex w-max flex-nowrap items-start justify-start gap-4 sm:gap-5">
+      <nav className="mb-4 w-full min-w-0 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden" aria-label="Jobs navigation">
+        <div className="flex w-max flex-nowrap items-start justify-start">
           {JOB_TABS.map((tab) => {
             const active = jobTab === tab.id;
             return (
@@ -800,7 +852,7 @@ export default function AdminRecruiterJobsPage() {
                 key={tab.id}
                 type="button"
                 onClick={() => setJobTab(tab.id)}
-                className={`inline-flex shrink-0 flex-col items-center px-0 py-0 text-sm font-medium leading-none whitespace-nowrap transition-colors ${
+                className={`relative inline-flex shrink-0 flex-col items-stretch px-2 pt-1 pb-2.5 text-sm font-medium leading-none whitespace-nowrap transition-colors ${
                   active
                     ? "text-[color:var(--brand-primary)]"
                     : "text-[#2B3D51] hover:text-[color:var(--brand-primary)]"
@@ -809,12 +861,12 @@ export default function AdminRecruiterJobsPage() {
               >
                 <span className="flex items-center gap-2">
                   <span>{tab.label}</span>
-                  <span className="inline-flex aspect-square h-4 w-4 flex-col items-center justify-center gap-2 rounded-sm bg-[#CFCAC2] p-0.5 text-[10px] font-medium leading-none text-[#2B3D51]">
+                  <span className="inline-flex aspect-square h-4 w-4 shrink-0 items-center justify-center rounded-sm bg-[#CFCAC2] p-0.5 text-[10px] font-medium leading-none text-[#2B3D51]">
                     {tabCounts[tab.id]}
                   </span>
                 </span>
                 <span
-                  className={`mt-2 block h-0.5 w-full rounded-full ${
+                  className={`absolute inset-x-2 bottom-0 block h-0.5 rounded-full ${
                     active ? "bg-[color:var(--brand-primary)]" : "bg-transparent"
                   }`}
                   aria-hidden

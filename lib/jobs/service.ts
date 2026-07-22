@@ -16,6 +16,7 @@ import {
   workflowNoMatchMessage,
 } from "@/lib/jobs/validation";
 import {
+  formatDateOnlyUtc,
   isJobRequisitionOpen,
   normalizeJobToken,
 } from "@/lib/jobs/public-application-routing";
@@ -275,6 +276,28 @@ export async function transitionJobStatus(
   return data;
 }
 
+/** Close published jobs whose application deadline has passed. */
+export async function closeExpiredPublishedJobs(
+  supabase: DbClient,
+  tenantId: string,
+  actorUserId: string
+): Promise<void> {
+  const today = formatDateOnlyUtc(new Date());
+  const now = new Date().toISOString();
+  const { error } = await supabase
+    .from("job_requisitions")
+    .update({
+      status: "closed",
+      closed_at: now,
+      updated_by: actorUserId,
+    })
+    .eq("tenant_id", tenantId)
+    .eq("status", "published")
+    .not("application_deadline", "is", null)
+    .lt("application_deadline", today);
+  if (error) throw error;
+}
+
 function jobRowToInput(row: Record<string, unknown>): JobRequisitionInput {
   return {
     internalRequisitionNumber: row.internal_requisition_number
@@ -330,6 +353,18 @@ export async function publishExistingJob(
   }
   if (status === "archived") {
     throw new JobValidationError("Unarchive the job before publishing.", {}, "JOB_ARCHIVED");
+  }
+
+  if (
+    !isJobRequisitionOpen({
+      application_deadline: row.application_deadline ? String(row.application_deadline) : null,
+    })
+  ) {
+    throw new JobValidationError(
+      "Update the application deadline before republishing this job.",
+      { applicationDeadline: "Application deadline has passed." },
+      "JOB_DEADLINE_EXPIRED"
+    );
   }
 
   const result = await saveJobRequisition(

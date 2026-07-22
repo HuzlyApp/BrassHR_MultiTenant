@@ -3,6 +3,7 @@ import { requireStaffApiSession } from "@/lib/auth/api-session";
 import { JobValidationError } from "@/lib/jobs/types";
 import { jobMutationSchema } from "@/lib/jobs/validation";
 import {
+  closeExpiredPublishedJobs,
   listInternalJobs,
   publishExistingJob,
   saveJobRequisition,
@@ -34,6 +35,8 @@ export async function GET(req: NextRequest) {
   try {
     const tenantId = await resolveStaffTenantId(supabase, auth);
     if (!tenantId) return NextResponse.json({ error: "No tenant selected" }, { status: 400 });
+
+    await closeExpiredPublishedJobs(supabase, tenantId, auth.userId);
 
     const status = req.nextUrl.searchParams.get("status") || undefined;
     const jobs = await listInternalJobs(supabase, tenantId, {
