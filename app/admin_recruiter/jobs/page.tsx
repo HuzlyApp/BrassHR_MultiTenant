@@ -872,7 +872,7 @@ export default function AdminRecruiterJobsPage() {
 
   return (
     <div className="box-border w-full min-w-0 max-w-full px-3 pb-8 pt-4 sm:px-5 sm:pt-5 lg:px-8" style={brandStyle}>
-      <div className="mb-4">
+      <div className="mb-8">
         <h1 className={CANDIDATES_PAGE_TITLE_CLASS} style={CANDIDATES_PAGE_TITLE_STYLE}>
           Jobs
         </h1>
@@ -882,7 +882,7 @@ export default function AdminRecruiterJobsPage() {
       </div>
 
       <nav className="mb-4 w-full min-w-0 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden" aria-label="Jobs navigation">
-        <div className="flex w-max flex-nowrap items-start justify-start">
+        <div className="flex w-max flex-nowrap items-start justify-start gap-5">
           {JOB_TABS.map((tab) => {
             const active = jobTab === tab.id;
             return (
@@ -890,7 +890,7 @@ export default function AdminRecruiterJobsPage() {
                 key={tab.id}
                 type="button"
                 onClick={() => setJobTab(tab.id)}
-                className={`relative inline-flex shrink-0 flex-col items-stretch px-2 pt-1 pb-2.5 text-sm font-medium leading-none whitespace-nowrap transition-colors ${
+                className={`relative inline-flex shrink-0 flex-col items-stretch px-2 pb-2.5 pt-0 text-sm font-medium leading-none whitespace-nowrap transition-colors ${
                   active
                     ? "text-[color:var(--brand-primary)]"
                     : "text-[#2B3D51] hover:text-[color:var(--brand-primary)]"
@@ -904,7 +904,7 @@ export default function AdminRecruiterJobsPage() {
                   </span>
                 </span>
                 <span
-                  className={`absolute inset-x-2 bottom-0 block h-0.5 rounded-full ${
+                  className={`absolute inset-x-0 bottom-0 block h-0.5 rounded-full ${
                     active ? "bg-[color:var(--brand-primary)]" : "bg-transparent"
                   }`}
                   aria-hidden
