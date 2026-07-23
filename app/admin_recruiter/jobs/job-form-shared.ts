@@ -124,7 +124,7 @@ export function defaultJobFormUiState(): JobFormUiState {
     currency: "",
     showPayBy: "",
     payRatePeriod: "",
-    selectedBenefits: ["Health Insurance", "Life Insurance", "401(k)"],
+    selectedBenefits: [],
     customBenefits: [],
   };
 }

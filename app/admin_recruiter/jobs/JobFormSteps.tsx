@@ -139,6 +139,25 @@ function FieldError({ error }: { error?: string }) {
   return <span className="mt-1 block text-xs text-rose-600">{error}</span>;
 }
 
+function toDateInputValue(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+/** Application deadline picker: today through the next 6 months. */
+function applicationDeadlineBounds() {
+  const minDate = new Date();
+  minDate.setHours(0, 0, 0, 0);
+  const maxDate = new Date(minDate);
+  maxDate.setMonth(maxDate.getMonth() + 6);
+  return {
+    min: toDateInputValue(minDate),
+    max: toDateInputValue(maxDate),
+  };
+}
+
 /* TODO(future): restore with Internal job configuration section
 function InternalField({
   label,
@@ -212,6 +231,7 @@ export function JobFormStepRequisition({
     !employerOfRecordOptions.some((item) => item.name === selectedEor || item.id === selectedEor)
       ? [...employerOfRecordOptions, { id: selectedEor, name: selectedEor }]
       : employerOfRecordOptions;
+  const deadlineBounds = applicationDeadlineBounds();
 
   return (
     <div className="space-y-5">
@@ -529,9 +549,20 @@ export function JobFormStepRequisition({
               <input
                 id="application-deadline"
                 type="date"
+                min={deadlineBounds.min}
+                max={deadlineBounds.max}
                 className={`${JOB_FORM_INPUT_CLASS} pr-10 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-0 [&::-webkit-calendar-picker-indicator]:h-10 [&::-webkit-calendar-picker-indicator]:w-10 [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-0`}
                 value={job.applicationDeadline ?? ""}
-                onChange={(event) => onJobChange("applicationDeadline", event.target.value || null)}
+                onChange={(event) => {
+                  const next = event.target.value || null;
+                  if (
+                    next &&
+                    (next < deadlineBounds.min || next > deadlineBounds.max)
+                  ) {
+                    return;
+                  }
+                  onJobChange("applicationDeadline", next);
+                }}
               />
               <Calendar
                 className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94A3B8]"

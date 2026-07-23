@@ -482,6 +482,7 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
         ui={ui}
         companyName={branding.companyName}
         brandStyle={brandStyle}
+        brandVars={brandVars}
       />
     </main>
   );
