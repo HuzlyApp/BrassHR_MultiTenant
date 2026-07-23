@@ -14,7 +14,7 @@ export async function GET() {
     const tenantId = await resolveStaffTenantId(supabase, auth);
     if (!tenantId) return NextResponse.json({ error: "No tenant selected" }, { status: 400 });
 
-    const [professions, specialties, workflows] = await Promise.all([
+    const [professions, specialties, workflows, tenant] = await Promise.all([
       supabase
         .from("professions")
         .select("id, name, code")
@@ -33,9 +33,15 @@ export async function GET() {
         .eq("tenant_id", tenantId)
         .eq("status", "published")
         .order("name"),
+      supabase.from("tenants").select("id, name").eq("id", tenantId).maybeSingle(),
     ]);
-    const error = professions.error ?? specialties.error ?? workflows.error;
+    const error = professions.error ?? specialties.error ?? workflows.error ?? tenant.error;
     if (error) throw error;
+
+    const tenantName = tenant.data?.name ? String(tenant.data.name).trim() : "";
+    const employerOfRecordOptions = tenantName
+      ? [{ id: String(tenant.data?.id ?? tenantId), name: tenantName }]
+      : [];
 
     return NextResponse.json({
       professions: professions.data ?? [],
@@ -43,6 +49,7 @@ export async function GET() {
       workflows: auth.role === "admin" || auth.godAdmin ? workflows.data ?? [] : [],
       employmentTypes: EMPLOYMENT_TYPES,
       sourceTypes: SOURCE_TYPES,
+      employerOfRecordOptions,
       canManageWorkflows: auth.role === "admin" || auth.godAdmin,
     });
   } catch (error) {

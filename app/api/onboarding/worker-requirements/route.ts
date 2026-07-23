@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { createClient } from "@supabase/supabase-js"
+import { createClient, type SupabaseClient } from "@supabase/supabase-js"
 import { getSupabaseUrl } from "@/lib/supabase-env"
 import {
   buildCacheKey,
@@ -65,7 +65,7 @@ function describeErr(err: unknown, fallback = "Unexpected error"): string {
 }
 
 async function resolveTenantIdForRequest(
-  supabase: ReturnType<typeof createClient>,
+  supabase: SupabaseClient,
   req: NextRequest,
   bodyTenantSlug?: string | null
 ): Promise<string | null> {

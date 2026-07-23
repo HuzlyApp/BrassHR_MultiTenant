@@ -11,7 +11,7 @@ import {
   CANDIDATES_PAGE_TITLE_STYLE,
 } from "@/app/admin_recruiter/candidates/candidates-typography";
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
-import type { JobRequisitionInput } from "@/lib/jobs/types";
+import type { JobRequisitionInput, SourceType } from "@/lib/jobs/types";
 import { JobPostPreviewModal } from "./JobPostPreviewModal";
 import {
   JobFormFooter,
@@ -34,14 +34,15 @@ import {
 } from "./job-form-shared";
 
 const initialJob: JobRequisitionInput = {
-  sourceType: "Internal",
+  sourceType: "" as SourceType,
   professionId: "",
   specialtyId: null,
-  employmentType: "W2",
+  employmentType: "" as JobRequisitionInput["employmentType"],
   internalRequisitionNumber: "",
   publicTitle: "",
   publicDescription: "",
   location: "",
+  employerOfRecord: null,
 };
 
 export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
@@ -63,6 +64,7 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [originalStatus, setOriginalStatus] = useState<"draft" | "published">("draft");
   const [confirmRoutingChange, setConfirmRoutingChange] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
 
   useEffect(() => {
     void fetch("/api/admin/job-options", { cache: "no-store" })
@@ -318,16 +320,19 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
     if (step === "compensation") setStep("review");
   }
 
-  const pageTitle = jobId ? "Edit job post" : "Create a job post";
+  const pageTitle =
+    step === "review" ? "Review" : jobId ? "Edit job post" : "Create a job post";
   const pageSubtitle =
     step === "review"
-      ? "Review"
+      ? ""
       : step === "compensation"
-        ? "Compensation & Description"
+        ? job.sourceType === "MSP"
+          ? "Benefits & Description"
+          : "Compensation & Description"
         : step === "msp-details"
           ? "Job Source Details"
           : "Job Requisition";
-  const showPublishActions = step === "compensation" || step === "review";
+  const showPublishActions = step === "review";
 
   return (
     <main className="w-full px-3 py-4 sm:px-4 lg:px-5">
@@ -338,9 +343,11 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
               <h1 className={CANDIDATES_PAGE_TITLE_CLASS} style={CANDIDATES_PAGE_TITLE_STYLE}>
                 {pageTitle}
               </h1>
-              <p className={CANDIDATES_PAGE_SUBTITLE_CLASS} style={CANDIDATES_PAGE_SUBTITLE_STYLE}>
-                {pageSubtitle}
-              </p>
+              {pageSubtitle ? (
+                <p className={CANDIDATES_PAGE_SUBTITLE_CLASS} style={CANDIDATES_PAGE_SUBTITLE_STYLE}>
+                  {pageSubtitle}
+                </p>
+              ) : null}
             </div>
             <Link
               href="/admin_recruiter/jobs"
@@ -367,12 +374,14 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
                   specialties={specialties}
                   employmentTypes={options?.employmentTypes ?? ["W2", "1099", "Contract"]}
                   sourceTypes={options?.sourceTypes ?? ["Internal", "MSP"]}
+                  employerOfRecordOptions={options?.employerOfRecordOptions ?? []}
                   onJobChange={updateJob}
                   onUiChange={updateUi}
                 />
                 <JobFormWorkflowBanner
                   workflowName={workflow?.workflowName}
                   workflowWarning={workflowWarning}
+                  mappingCriteria={workflow?.mappingCriteria}
                   mappingLink={mappingLink}
                   canManageWorkflows={Boolean(options?.canManageWorkflows)}
                   fieldError={fieldErrors.workflowId}
@@ -416,15 +425,17 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
             saving={saving}
             canPublish={Boolean(workflow)}
             showPublishActions={showPublishActions && originalStatus !== "published"}
+            termsAccepted={termsAccepted}
             brandStyle={brandStyle}
             onBack={handleBack}
             onNext={handleNext}
             onPreview={() => setPreviewOpen(true)}
             onSaveDraft={() => void save(originalStatus === "published" ? "publish" : "save_draft")}
             onPublish={() => void save("publish")}
+            onTermsChange={setTermsAccepted}
           />
 
-          {originalStatus === "published" && (step === "compensation" || step === "review") ? (
+          {originalStatus === "published" && step === "review" ? (
             <div className="mt-3 flex justify-end">
               <button
                 type="button"

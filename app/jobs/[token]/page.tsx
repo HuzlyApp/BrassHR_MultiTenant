@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { headers } from "next/headers";
+import { JobDescriptionHtml } from "@/lib/jobs/job-description-html";
 import { getPublishedJobByToken } from "@/lib/jobs/service";
 import { resolvePublicTenant } from "@/lib/jobs/tenant";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
@@ -53,7 +54,11 @@ export default async function PublicJobDetailPage({
 
           <section className="mt-8">
             <h2 className="text-lg font-semibold text-slate-900">About this role</h2>
-            <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-700">{job.public_description}</p>
+            <JobDescriptionHtml
+              html={String(job.public_description ?? "")}
+              className="mt-3 leading-7"
+              emptyLabel=""
+            />
           </section>
           {job.responsibilities ? <section className="mt-7"><h2 className="text-lg font-semibold text-slate-900">Responsibilities</h2><p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-700">{job.responsibilities}</p></section> : null}
           {job.qualifications ? <section className="mt-7"><h2 className="text-lg font-semibold text-slate-900">Qualifications</h2><p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-700">{job.qualifications}</p></section> : null}

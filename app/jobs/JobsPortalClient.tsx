@@ -9,6 +9,7 @@ import {
   NO_OPEN_POSITIONS_MESSAGE,
   normalizeJobToken,
 } from "@/lib/jobs/public-application-routing";
+import { jobDescriptionPlainText } from "@/lib/jobs/job-description-html";
 import { resolveTenantSlugForClient } from "@/lib/tenant/resolve-tenant-context";
 
 type Job = {
@@ -152,7 +153,9 @@ export default function JobsPortalClient() {
                   {profession ? <p className="mt-2 text-sm font-medium text-slate-700">{profession}</p> : null}
                   {specialty ? <p className="mt-1 text-sm text-slate-600">{specialty}</p> : null}
                   <p className="mt-2 text-sm font-medium text-slate-600">{job.location}</p>
-                  <p className="mt-4 line-clamp-3 flex-1 text-sm leading-6 text-slate-600">{job.public_description}</p>
+                  <p className="mt-4 line-clamp-3 flex-1 text-sm leading-6 text-slate-600">
+                    {jobDescriptionPlainText(job.public_description || "")}
+                  </p>
                   <div className="mt-5 flex flex-wrap items-center gap-3">
                     {applyHref ? (
                       <Link

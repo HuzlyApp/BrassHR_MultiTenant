@@ -1,12 +1,14 @@
 "use client";
 
 import * as Dialog from "@radix-ui/react-dialog";
-import { FileText, X } from "lucide-react";
+import { X } from "lucide-react";
 import type { CSSProperties } from "react";
 import type { JobRequisitionInput } from "@/lib/jobs/types";
 import type { JobFormUiState } from "./job-form-shared";
 import { JOB_FORM_OUTLINE_BUTTON_CLASS, JOB_FORM_PRIMARY_BUTTON_CLASS } from "./job-form-shared";
 import { JobDescriptionHtml } from "./JobDescriptionEditor";
+
+const JOB_POST_PREVIEW_ICON_SRC = "/job-post-preview-icon.svg";
 
 type Props = {
   open: boolean;
@@ -36,8 +38,15 @@ export function JobPostPreviewModal({
         <Dialog.Content className="fixed left-1/2 top-1/2 z-[201] flex max-h-[92dvh] w-[min(720px,calc(100vw-24px))] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-xl border border-[#E5E7EB] bg-white shadow-xl outline-none">
           <div className="flex items-start justify-between gap-4 border-b border-[#E5E7EB] px-5 py-4">
             <div className="flex items-start gap-3">
-              <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#F8FAFC] text-[#64748B]">
-                <FileText className="h-5 w-5" aria-hidden />
+              <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#F8FAFC]">
+                <img
+                  src={JOB_POST_PREVIEW_ICON_SRC}
+                  alt=""
+                  width={24}
+                  height={24}
+                  className="h-6 w-6"
+                  aria-hidden
+                />
               </span>
               <div>
                 <Dialog.Title className="text-lg font-semibold text-[#1D2739]">

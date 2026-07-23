@@ -45,6 +45,8 @@ function toLegacyRateUnit(
 
   const compensation = (compensationType ?? "").trim().toLowerCase();
   if (compensation.includes("hour")) return "Hour";
+  if (compensation.includes("week")) return "Week";
+  if (compensation.includes("month")) return "Month";
   if (compensation.includes("annual") || compensation.includes("year")) return "Year";
 
   return null;
