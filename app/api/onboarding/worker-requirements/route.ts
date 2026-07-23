@@ -1,12 +1,23 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { getSupabaseUrl } from "@/lib/supabase-env"
-import { buildCacheKey, CACHE_TTL_SECONDS, getOrSetCache, invalidateResourceCache, invalidateTenantCache, invalidateUserCache } from "@/lib/cache"
+import {
+  buildCacheKey,
+  CACHE_TTL_SECONDS,
+  getOrSetCache,
+  invalidateResourceCache,
+  invalidateTenantCache,
+  invalidateUserCache,
+} from "@/lib/cache"
+import { resolveOnboardingTenantId } from "@/lib/tenant/resolve-onboarding-tenant-id"
+import { readOnboardingTenantSlugFromRequest } from "@/lib/onboarding/resolve-onboarding-worker"
+import { resolveWorkerByApplicantId } from "@/lib/onboarding/resolve-worker-context"
 
 export const runtime = "nodejs"
 
 type Body = {
   applicantId: string
+  tenantSlug?: string
   ssn_card_path?: string | null
   drivers_license_path?: string | null
   ssn_card_front_path?: string | null
@@ -53,6 +64,21 @@ function describeErr(err: unknown, fallback = "Unexpected error"): string {
   }
 }
 
+async function resolveTenantIdForRequest(
+  supabase: ReturnType<typeof createClient>,
+  req: NextRequest,
+  bodyTenantSlug?: string | null
+): Promise<string | null> {
+  const slug =
+    (typeof bodyTenantSlug === "string" ? bodyTenantSlug.trim().toLowerCase() : "") ||
+    req.nextUrl.searchParams.get("tenant")?.trim().toLowerCase() ||
+    req.nextUrl.searchParams.get("slug")?.trim().toLowerCase() ||
+    readOnboardingTenantSlugFromRequest(req) ||
+    ""
+  const tenantRes = await resolveOnboardingTenantId(supabase, slug || null)
+  return tenantRes.ok ? tenantRes.tenantId : null
+}
+
 export async function GET(req: NextRequest) {
   try {
     const applicantId = req.nextUrl.searchParams.get("applicantId")?.trim() || ""
@@ -67,31 +93,26 @@ export async function GET(req: NextRequest) {
     }
 
     const supabase = createClient(url, key)
+    const tenantId = await resolveTenantIdForRequest(supabase, req)
 
     const requirements = await getOrSetCache(
-      buildCacheKey("worker_requirements", ["user", applicantId], { status: true }),
+      buildCacheKey("worker_requirements", ["user", applicantId], {
+        status: true,
+        tenantId: tenantId ?? "any",
+      }),
       async () => {
-        // Validate applicant has a worker row (keeps behavior aligned with other onboarding APIs)
-        const { data: worker, error: wErr } = await supabase
-          .from("worker")
-          .select("id")
-          .eq("user_id", applicantId)
-          .maybeSingle()
-
-        if (wErr) throw wErr
-        if (!worker?.id) {
-          // This endpoint is used by the Step 4 documents page to *read* status.
-          return null
-        }
+        const workerCtx = await resolveWorkerByApplicantId(supabase, applicantId, tenantId)
+        if (!workerCtx?.workerId) return null
 
         const { data, error } = await supabase
           .from("worker_requirements")
           .select("*")
-          .or(`worker_id.eq.${worker.id},worker_id.eq.${applicantId}`)
-          .maybeSingle()
+          .or(`worker_id.eq.${workerCtx.workerId},worker_id.eq.${applicantId}`)
+          .order("updated_at", { ascending: false })
+          .limit(1)
 
         if (error) throw error
-        return data ?? null
+        return data?.[0] ?? null
       },
       CACHE_TTL_SECONDS.dashboards
     )
@@ -119,29 +140,26 @@ export async function POST(req: NextRequest) {
     }
 
     const supabase = createClient(url, key)
+    const tenantId = await resolveTenantIdForRequest(supabase, req, body.tenantSlug)
+    const workerCtx = await resolveWorkerByApplicantId(supabase, applicantId, tenantId)
 
-    const { data: worker, error: wErr } = await supabase
-      .from("worker")
-      .select("id, tenant_id")
-      .eq("user_id", applicantId)
-      .maybeSingle()
-
-    if (wErr) throw wErr
-    if (!worker?.id || worker.tenant_id == null) {
+    if (!workerCtx?.workerId || !workerCtx.tenantId) {
       return NextResponse.json(
         { error: "Worker not found; complete Step 1 (profile) before uploading documents." },
         { status: 400 }
       )
     }
 
-    const workerTenantId = String(worker.tenant_id)
+    const workerTenantId = workerCtx.tenantId
+    const workerId = workerCtx.workerId
 
     const { data: existingRows, error: selErr } = await supabase
       .from("worker_requirements")
       .select("id")
       // worker_requirements.worker_id should reference worker.id.
       // Fallback to applicantId to support legacy rows created with the wrong key.
-      .or(`worker_id.eq.${worker.id},worker_id.eq.${applicantId}`)
+      .or(`worker_id.eq.${workerId},worker_id.eq.${applicantId}`)
+      .order("updated_at", { ascending: false })
       .limit(1)
 
     if (selErr) throw selErr
@@ -191,10 +209,16 @@ export async function POST(req: NextRequest) {
     }
 
     if (existing?.id != null) {
-      let { error: upErr } = await supabase.from("worker_requirements").update(rowPayload).eq("id", existing.id)
+      let { error: upErr } = await supabase
+        .from("worker_requirements")
+        .update(rowPayload)
+        .eq("id", existing.id)
 
       if (upErr && isMissingColumnErr(upErr)) {
-        ;({ error: upErr } = await supabase.from("worker_requirements").update(legacyPayload).eq("id", existing.id))
+        ;({ error: upErr } = await supabase
+          .from("worker_requirements")
+          .update(legacyPayload)
+          .eq("id", existing.id))
       }
 
       if (upErr) {
@@ -205,14 +229,14 @@ export async function POST(req: NextRequest) {
     } else {
       let { error: insErr } = await supabase.from("worker_requirements").insert({
         tenant_id: workerTenantId,
-        worker_id: worker.id,
+        worker_id: workerId,
         ...rowPayload,
       })
 
       if (insErr && isMissingColumnErr(insErr)) {
         ;({ error: insErr } = await supabase.from("worker_requirements").insert({
           tenant_id: workerTenantId,
-          worker_id: worker.id,
+          worker_id: workerId,
           ...legacyPayload,
         }))
       }
@@ -225,10 +249,10 @@ export async function POST(req: NextRequest) {
     }
 
     await Promise.all([
-      invalidateResourceCache("worker_requirements", String(worker.id)),
+      invalidateResourceCache("worker_requirements", String(workerId)),
       invalidateTenantCache("worker_requirements", workerTenantId),
       invalidateUserCache("worker_requirements", applicantId),
-      invalidateResourceCache("worker", String(worker.id)),
+      invalidateResourceCache("worker", String(workerId)),
     ])
 
     return NextResponse.json({ ok: true })

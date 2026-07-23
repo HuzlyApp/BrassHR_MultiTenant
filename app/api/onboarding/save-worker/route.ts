@@ -43,12 +43,29 @@ export async function POST(req: NextRequest) {
 
     const tenantSlug =
       typeof body.tenantSlug === "string" ? body.tenantSlug.trim().toLowerCase() : ""
-    const tenantRes = await resolveOnboardingTenantId(supabase, tenantSlug || null)
+    let tenantRes = await resolveOnboardingTenantId(supabase, tenantSlug || null)
     if (!tenantRes.ok) {
       return NextResponse.json(
         { error: tenantRes.error, code: "MISSING_TENANT" },
         { status: 503 },
       )
+    }
+
+    // When slug is missing, prefer an existing worker tenant for this applicant over the
+    // platform default (first active tenant). Wrong default caused false DUPLICATE_EMAIL 409s.
+    if (!tenantSlug) {
+      const { data: existingWorkers } = await supabase
+        .from("worker")
+        .select("tenant_id")
+        .eq("user_id", applicantId)
+        .order("updated_at", { ascending: false })
+        .limit(1)
+      const existingTenantId = existingWorkers?.[0]?.tenant_id
+        ? String(existingWorkers[0].tenant_id).toLowerCase()
+        : ""
+      if (existingTenantId) {
+        tenantRes = { ok: true, tenantId: existingTenantId }
+      }
     }
     const tenantId = tenantRes.tenantId
 

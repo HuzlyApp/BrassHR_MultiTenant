@@ -465,6 +465,7 @@ export default function Step1Upload() {
               body: JSON.stringify({
                 applicantId: session.applicantId,
                 resume_path: uploadJson.storagePath,
+                ...(tenantSlug ? { tenantSlug } : {}),
               }),
             },
             WORKER_REQUIREMENTS_TIMEOUT_MS,

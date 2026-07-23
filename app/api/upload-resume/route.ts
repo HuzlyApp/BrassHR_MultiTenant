@@ -328,7 +328,7 @@ export async function POST(req: Request) {
       textLength,
     })
     await withTimeout(
-      persistWorkerResumePath(supabase, applicantId, objectPath),
+      persistWorkerResumePath(supabase, applicantId, objectPath, workerCtx.tenantId),
       RESUME_DB_TIMEOUT_MS,
       "Resume path persistence",
     )
