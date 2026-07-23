@@ -5,6 +5,9 @@ import { loadTenantOnboardingConfig } from "@/lib/onboarding/load-tenant-config"
 import { loadOnboardingBuilderMeta } from "@/lib/onboarding/load-onboarding-builder-meta";
 import { resolveTenantIdBySlug } from "@/lib/onboarding/resolve-worker-context";
 import { getEnabledTenantSteps } from "@/lib/onboarding/tenant-step-navigation";
+import { loadApplicantConfigForJobToken } from "@/lib/onboarding/load-config-for-job-workflow";
+import { JobApplicationGateError } from "@/lib/jobs/validate-job-application";
+import { normalizeJobToken } from "@/lib/jobs/public-application-routing";
 
 export const runtime = "nodejs";
 
@@ -13,6 +16,7 @@ export async function GET(req: NextRequest) {
   try {
     const slug = req.nextUrl.searchParams.get("slug")?.trim() || "";
     const tenantIdParam = req.nextUrl.searchParams.get("tenantId")?.trim() || "";
+    const jobToken = normalizeJobToken(req.nextUrl.searchParams.get("job_token"));
 
     const url = getSupabaseUrl();
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -21,6 +25,28 @@ export async function GET(req: NextRequest) {
     }
 
     const supabase = createClient(url, key);
+
+    if (jobToken) {
+      try {
+        const jobConfig = await loadApplicantConfigForJobToken(supabase, slug || null, jobToken);
+        return NextResponse.json({
+          config: jobConfig.config,
+          tenantSlug: jobConfig.tenantSlug,
+          publishStatus: "published",
+          source: "job-workflow",
+          workflowId: jobConfig.workflowId,
+          workflowName: jobConfig.workflowName,
+          jobToken: jobConfig.jobToken,
+        });
+      } catch (err: unknown) {
+        if (err instanceof JobApplicationGateError) {
+          const status =
+            err.code === "TENANT_NOT_FOUND" || err.code === "JOB_NOT_FOUND" ? 404 : 403;
+          return NextResponse.json({ error: err.message, code: err.code }, { status });
+        }
+        throw err;
+      }
+    }
 
     let tenantId = tenantIdParam;
     if (!tenantId && slug) {

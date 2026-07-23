@@ -687,21 +687,55 @@ export async function startOrResumeJobApplication(
 
   const snapshot = flow.builder_draft ?? { nodes: [], edges: [] };
   const workflowVersion = String(flow.updated_at ?? new Date().toISOString());
-  const { data: instance, error: instanceError } = await supabase
+  const workflowName = String(flow.name ?? "Workflow");
+
+  // Prefer the job-application schema; include legacy columns when present on staging.
+  const instancePayload = {
+    tenant_id: input.tenantId,
+    application_id: application.id,
+    workflow_id: job.workflow_id,
+    worker_id: input.workerId ?? null,
+    job_requisition_id: job.id,
+    onboarding_flow_id: job.workflow_id,
+    workflow_name: workflowName,
+    workflow_snapshot: snapshot,
+    workflow_version: workflowVersion,
+    status: "in_progress" as const,
+  };
+
+  let { data: instance, error: instanceError } = await supabase
     .from("applicant_workflow_instances")
-    .insert({
-      tenant_id: input.tenantId,
-      application_id: application.id,
-      workflow_id: job.workflow_id,
-      workflow_name: flow.name,
-      workflow_snapshot: snapshot,
-      workflow_version: workflowVersion,
-    })
+    .insert(instancePayload)
     .select("id")
     .single();
+
   if (instanceError) {
+    const message = String(instanceError.message ?? "");
+    const unknownLegacyColumn = /onboarding_flow_id|job_requisition_id|Could not find/i.test(
+      message
+    );
+    if (unknownLegacyColumn) {
+      const retry = await supabase
+        .from("applicant_workflow_instances")
+        .insert({
+          tenant_id: input.tenantId,
+          application_id: application.id,
+          workflow_id: job.workflow_id,
+          workflow_name: workflowName,
+          workflow_snapshot: snapshot,
+          workflow_version: workflowVersion,
+          status: "in_progress",
+        })
+        .select("id")
+        .single();
+      instance = retry.data;
+      instanceError = retry.error;
+    }
+  }
+
+  if (instanceError || !instance?.id) {
     await supabase.from("job_applications").delete().eq("id", application.id);
-    throw instanceError;
+    throw instanceError ?? new Error("Failed to create applicant workflow instance.");
   }
 
   const nodes = Array.isArray((snapshot as { nodes?: unknown[] }).nodes)

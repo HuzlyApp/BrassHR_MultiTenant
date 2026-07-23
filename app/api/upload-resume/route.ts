@@ -216,12 +216,39 @@ export async function POST(req: Request) {
         workerId: workerCtx.workerId,
       })
     } catch (error) {
-      const status = error instanceof JobValidationError ? 409 : 500
+      const validation =
+        error instanceof JobValidationError ||
+        (error instanceof Error && error.name === "JobValidationError");
+      const status = validation ? 409 : 500;
       const message =
         error instanceof Error
           ? error.message
-          : "This job is unavailable or no longer accepting applications."
-      return NextResponse.json({ error: message }, { status })
+          : typeof error === "object" &&
+              error &&
+              "message" in error &&
+              typeof (error as { message?: unknown }).message === "string"
+            ? (error as { message: string }).message
+            : "This job is unavailable or no longer accepting applications.";
+      console.error("[upload-resume] startOrResumeJobApplication", {
+        jobToken,
+        tenantId: workerCtx.tenantId,
+        error,
+      });
+      return NextResponse.json(
+        {
+          error: message,
+          code:
+            validation && error instanceof JobValidationError
+              ? error.code
+              : typeof error === "object" &&
+                  error &&
+                  "code" in error &&
+                  typeof (error as { code?: unknown }).code === "string"
+                ? (error as { code: string }).code
+                : undefined,
+        },
+        { status }
+      );
     }
   }
 

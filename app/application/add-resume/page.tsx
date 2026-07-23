@@ -172,6 +172,19 @@ export default function Step1Upload() {
 
   useEffect(() => {
     if (typeof window === "undefined") return
+    const hasSuccessfulUpload = Boolean(
+      localStorage.getItem("resumeStoragePath")?.trim() ||
+        localStorage.getItem("resumeId")?.trim()
+    )
+    if (!hasSuccessfulUpload) {
+      // Stale selection from a failed prior upload should not look "already uploaded".
+      localStorage.removeItem("resumeName")
+      localStorage.removeItem("resumeSizeBytes")
+      localStorage.removeItem("resumeMimeType")
+      setSavedResumeName("")
+      setSavedResumeSizeBytes(null)
+      return
+    }
     setSavedResumeName(localStorage.getItem("resumeName") || "")
     const sizeRaw = localStorage.getItem("resumeSizeBytes")
     const sizeNum = sizeRaw ? Number(sizeRaw) : null
@@ -189,6 +202,7 @@ export default function Step1Upload() {
     const timer = window.setTimeout(() => {
       setUploading(false)
       setUploadPhase("Uploading resume...")
+      clearFailedUploadSelection()
       setParseError(
         `Resume upload is taking too long while ${uploadPhase.toLowerCase()}. Please try again.`
       )
@@ -205,15 +219,28 @@ export default function Step1Upload() {
     return `${bytes} B`
   }
 
-  function persistSelectedFile(selected: File) {
-    localStorage.setItem("resumeName", selected.name)
-    localStorage.setItem("resumeSizeBytes", String(selected.size))
-    localStorage.setItem("resumeMimeType", selected.type || "")
-    // Clear previous parsing results when choosing a new file.
-    localStorage.removeItem("parsedResume")
-    localStorage.removeItem("resumeId")
-    setSavedResumeName(selected.name)
-    setSavedResumeSizeBytes(selected.size)
+  function clearFailedUploadSelection() {
+    setFile(null)
+    setFileRequiredError(null)
+    if (fileInput.current) fileInput.current.value = ""
+
+    const hasSuccessfulUpload = Boolean(
+      localStorage.getItem("resumeStoragePath")?.trim() ||
+        localStorage.getItem("resumeId")?.trim()
+    )
+    if (hasSuccessfulUpload) {
+      setSavedResumeName(localStorage.getItem("resumeName") || "")
+      const sizeRaw = localStorage.getItem("resumeSizeBytes")
+      const sizeNum = sizeRaw ? Number(sizeRaw) : null
+      setSavedResumeSizeBytes(sizeNum != null && Number.isFinite(sizeNum) ? sizeNum : null)
+      return
+    }
+
+    setSavedResumeName("")
+    setSavedResumeSizeBytes(null)
+    localStorage.removeItem("resumeName")
+    localStorage.removeItem("resumeSizeBytes")
+    localStorage.removeItem("resumeMimeType")
   }
 
   function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
@@ -230,8 +257,8 @@ export default function Step1Upload() {
       return
     }
 
+    // Keep selection in memory only until upload succeeds.
     setFile(selected)
-    persistSelectedFile(selected)
 
     // Allows selecting the same file again to retrigger `onChange`.
     e.target.value = ""
@@ -258,7 +285,6 @@ export default function Step1Upload() {
     }
 
     setFile(dropped)
-    persistSelectedFile(dropped)
   }
 
   function dragOver(e: React.DragEvent) {
@@ -392,12 +418,20 @@ export default function Step1Upload() {
         if (workerResult.tenantId) {
           fd.append("tenantId", workerResult.tenantId)
         }
+        const urlJobToken =
+          new URLSearchParams(window.location.search).get("job_token")?.trim() || ""
         const activeJobToken =
+          urlJobToken ||
           jobToken ||
           (typeof window !== "undefined" ? localStorage.getItem("applicationJobToken")?.trim() : "") ||
           ""
         if (activeJobToken) {
           fd.append("jobToken", activeJobToken)
+          try {
+            localStorage.setItem("applicationJobToken", activeJobToken)
+          } catch {
+            /* ignore */
+          }
         }
 
         const uploadRes = await fetchWithTimeout(
@@ -447,9 +481,13 @@ export default function Step1Upload() {
         }
 
         localStorage.setItem("resumeName", uploadJson?.fileName || file.name)
+        localStorage.setItem("resumeSizeBytes", String(file.size))
+        localStorage.setItem("resumeMimeType", file.type || "")
         localStorage.removeItem("parsedResume")
         localStorage.setItem("step1TermsAccepted", "false")
         localStorage.setItem("step1ReviewCompleted", "false")
+        setSavedResumeName(uploadJson?.fileName || file.name)
+        setSavedResumeSizeBytes(file.size)
         setParseStatus(uploadJson.parseStatus ?? "processing")
 
         setUploadPhase("Finishing...")
@@ -479,6 +517,7 @@ export default function Step1Upload() {
         router.push(applicationPath(APPLICATION_ROUTES.profileReview))
       } catch (e) {
         const msg = e instanceof Error ? e.message : "Failed to upload resume"
+        clearFailedUploadSelection()
         setParseError(msg)
       } finally {
         setUploading(false)
