@@ -13,6 +13,7 @@ import {
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
 import type { JobRequisitionInput, SourceType } from "@/lib/jobs/types";
 import { JobPostPreviewModal } from "./JobPostPreviewModal";
+import { JobReviewEditModal, type ReviewEditFieldId } from "./JobReviewEditModal";
 import {
   JobFormFooter,
   JobFormStepCompensation,
@@ -48,7 +49,8 @@ const initialJob: JobRequisitionInput = {
 export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
   const router = useRouter();
   const branding = useTenantBranding();
-  const brandStyle = primaryButtonStyle(brandingToCssVars(branding) as CSSProperties);
+  const brandVars = brandingToCssVars(branding) as CSSProperties;
+  const brandStyle = primaryButtonStyle(brandVars);
 
   const [step, setStep] = useState<JobFormStep>("requisition");
   const [job, setJob] = useState<JobRequisitionInput>(initialJob);
@@ -62,6 +64,7 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [reviewEditField, setReviewEditField] = useState<ReviewEditFieldId | null>(null);
   const [originalStatus, setOriginalStatus] = useState<"draft" | "published">("draft");
   const [confirmRoutingChange, setConfirmRoutingChange] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
@@ -415,7 +418,7 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
                 ui={ui}
                 professionName={professionLabel}
                 specialtyName={specialtyLabel}
-                onGoToStep={setStep}
+                onEditField={setReviewEditField}
               />
             ) : null}
           </div>
@@ -449,6 +452,28 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
           ) : null}
         </div>
       </div>
+
+      <JobReviewEditModal
+        open={reviewEditField != null}
+        field={reviewEditField}
+        job={job}
+        ui={ui}
+        brandStyle={brandStyle}
+        brandVars={brandVars}
+        professions={options?.professions ?? []}
+        specialties={options?.specialties ?? []}
+        employmentTypes={options?.employmentTypes ?? ["W2", "1099", "Contract"]}
+        sourceTypes={options?.sourceTypes ?? ["Internal", "MSP"]}
+        employerOfRecordOptions={options?.employerOfRecordOptions ?? []}
+        onOpenChange={(open) => {
+          if (!open) setReviewEditField(null);
+        }}
+        onUpdate={({ job: nextJob, ui: nextUi }) => {
+          setJob(nextJob);
+          setUi(nextUi);
+          setReviewEditField(null);
+        }}
+      />
 
       <JobPostPreviewModal
         open={previewOpen}

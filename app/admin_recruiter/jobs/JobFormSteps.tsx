@@ -24,6 +24,7 @@ import {
   JobDescriptionHtml,
   jobDescriptionPlainText,
 } from "./JobDescriptionEditor";
+import type { ReviewEditFieldId } from "./JobReviewEditModal";
 import {
   JOB_FORM_BENEFIT_OPTIONS,
   JOB_FORM_COMPENSATION_TYPES,
@@ -290,9 +291,9 @@ export function JobFormStepRequisition({
         </div>
 
         <div>
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
             <span className={`${JOB_FORM_LABEL_CLASS} mb-0 shrink-0`}>Employment Type</span>
-            <div className="flex flex-wrap gap-5 sm:justify-end">
+            <div className="flex flex-wrap gap-5">
               {employmentLabels.map((label) => (
                 <BrandedRadio
                   key={label}
@@ -472,11 +473,11 @@ export function JobFormStepRequisition({
           </div>
         </div>
 
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
           <span className={`${JOB_FORM_LABEL_CLASS} mb-0 shrink-0`}>
             Are you the employer on Record
           </span>
-          <div className="flex flex-wrap gap-5 sm:justify-end">
+          <div className="flex flex-wrap gap-5">
             <BrandedRadio
               name="employer-on-record"
               label="Yes"
@@ -1184,6 +1185,7 @@ export function JobFormStepCompensation({
         />
       </section>
 
+      {/* TODO(future): Additional public details — Qualifications / Responsibilities
       <section className="space-y-4">
         <h2 className={JOB_FORM_SECTION_TITLE_CLASS}>Additional public details</h2>
         <div className="grid gap-4 md:grid-cols-2">
@@ -1203,6 +1205,7 @@ export function JobFormStepCompensation({
           </PublicField>
         </div>
       </section>
+      */}
     </div>
   );
 }
@@ -1220,25 +1223,71 @@ function formatReviewDate(value: string | null | undefined): string {
   return `${match[2]}/${match[3]}/${match[1]}`;
 }
 
+function isReviewValueEmpty(value: string | null | undefined): boolean {
+  const trimmed = (value ?? "").trim();
+  return !trimmed || trimmed === "—" || trimmed === "-";
+}
+
+function reviewAddLabel(label: string, addLabel?: string): string {
+  if (addLabel?.trim()) return addLabel.trim();
+  return label.trim().toLowerCase();
+}
+
+function ReviewAddPlusIcon() {
+  return (
+    <span
+      className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[color:var(--brand-primary)] text-white"
+      aria-hidden
+    >
+      <Plus className="h-3 w-3" strokeWidth={2.75} />
+    </span>
+  );
+}
+
 function ReviewRow({
   label,
   value,
   onEdit,
+  addLabel,
 }: {
   label: string;
   value: string;
   onEdit?: () => void;
+  /** Custom text after “Add” when empty (defaults to lowercased label). */
+  addLabel?: string;
 }) {
+  const empty = isReviewValueEmpty(value);
+
   return (
     <div className="grid gap-2 border-b border-[#E5E7EB] py-4 md:grid-cols-[220px_1fr_auto] md:items-start">
       <div className="text-sm font-medium text-[#64748B]">{label}</div>
-      <div className="whitespace-pre-line text-sm text-[#1D2739]">{value || "—"}</div>
+      <div className="min-w-0 text-sm text-[#1D2739]">
+        {empty ? (
+          onEdit ? (
+            <button
+              type="button"
+              onClick={onEdit}
+              className="inline-flex cursor-pointer items-center gap-2 text-sm font-medium text-[color:var(--brand-primary)] transition hover:opacity-90"
+            >
+              <ReviewAddPlusIcon />
+              Add {reviewAddLabel(label, addLabel)}
+            </button>
+          ) : (
+            <span className="inline-flex items-center gap-2 font-medium text-[color:var(--brand-primary)]">
+              <ReviewAddPlusIcon />
+              Add {reviewAddLabel(label, addLabel)}
+            </span>
+          )
+        ) : (
+          <div className="whitespace-pre-line">{value}</div>
+        )}
+      </div>
       {onEdit ? (
         <button
           type="button"
           onClick={onEdit}
           className={JOB_FORM_ICON_BUTTON_CLASS}
-          aria-label={`Edit ${label}`}
+          aria-label={empty ? `Add ${reviewAddLabel(label, addLabel)}` : `Edit ${label}`}
         >
           <Pencil className="h-4 w-4" />
         </button>
@@ -1254,21 +1303,47 @@ export function JobFormStepReview({
   ui,
   professionName,
   specialtyName,
-  onGoToStep,
+  onEditField,
 }: {
   job: JobRequisitionInput;
   ui: JobFormUiState;
   professionName: string;
   specialtyName: string;
-  onGoToStep: (step: JobFormStep) => void;
+  onEditField: (field: ReviewEditFieldId) => void;
 }) {
   const descriptionHtml = job.publicDescription?.trim() || "";
-  const descriptionPlain = jobDescriptionPlainText(descriptionHtml) || "—";
+  const descriptionPlain = jobDescriptionPlainText(descriptionHtml);
+  const hasDescription = Boolean(descriptionPlain.trim());
   const shortDescription =
     descriptionPlain.length > 180
       ? `${descriptionPlain.slice(0, 180).trim()}…`
       : descriptionPlain;
   const isTruncated = descriptionPlain.length > 180;
+  const additionalLocationsValue = ui.additionalLocations.map((item) => item.trim()).filter(Boolean).join(", ");
+  const employmentTypeValue = job.employmentType
+    ? employmentTypeLabel(job.employmentType)
+    : "";
+  const compensationValue =
+    job.sourceType === "MSP"
+      ? ""
+      : (() => {
+          const paySummary = formatPaySummary(job, ui);
+          const payLine = [
+            ui.showPayBy,
+            paySummary !== "—" ? paySummary : "",
+          ]
+            .filter(Boolean)
+            .join(", ");
+          return [[ui.compensationType, ui.currency].filter(Boolean).join(", "), payLine]
+            .filter(Boolean)
+            .join("\n");
+        })();
+  const mspPayRateValue = [
+    formatReviewMoney(job.suggestedPayRate),
+    ui.compensationType,
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   return (
     <section className="space-y-1">
@@ -1279,203 +1354,189 @@ export function JobFormStepReview({
       <ReviewRow
         label="Job ID"
         value={job.internalRequisitionNumber ?? ""}
-        onEdit={() => onGoToStep("requisition")}
+        onEdit={() => onEditField("jobId")}
       />
-      <ReviewRow label="Job Title" value={job.publicTitle ?? ""} onEdit={() => onGoToStep("requisition")} />
-      <ReviewRow label="Profession" value={professionName} onEdit={() => onGoToStep("requisition")} />
-      <ReviewRow label="Specialty" value={specialtyName} onEdit={() => onGoToStep("requisition")} />
-      <ReviewRow label="Job Location" value={job.location ?? ""} onEdit={() => onGoToStep("requisition")} />
-      <ReviewRow label="Job Location Type" value={ui.jobLocationType} onEdit={() => onGoToStep("requisition")} />
+      <ReviewRow label="Job Title" value={job.publicTitle ?? ""} onEdit={() => onEditField("jobTitle")} />
+      <ReviewRow label="Profession" value={professionName} onEdit={() => onEditField("profession")} />
+      <ReviewRow
+        label="Specialty"
+        value={specialtyName}
+        addLabel="specialty"
+        onEdit={() => onEditField("specialty")}
+      />
+      <ReviewRow label="Job Location" value={job.location ?? ""} onEdit={() => onEditField("jobLocation")} />
+      <ReviewRow
+        label="Add Additional Location"
+        value={additionalLocationsValue}
+        addLabel="optional job information"
+        onEdit={() => onEditField("additionalLocation")}
+      />
+      <ReviewRow label="Job Location Type" value={ui.jobLocationType} onEdit={() => onEditField("jobLocationType")} />
       <ReviewRow
         label="Number of Positions"
-        value={String(ui.numberOfPositions)}
-        onEdit={() => onGoToStep("requisition")}
+        value={ui.numberOfPositions > 0 ? String(ui.numberOfPositions) : ""}
+        onEdit={() => onEditField("numberOfPositions")}
       />
       <ReviewRow
         label="Years of Experience"
         value={ui.yearsOfExperience}
-        onEdit={() => onGoToStep("requisition")}
+        onEdit={() => onEditField("yearsOfExperience")}
       />
       <ReviewRow
         label="Employment Type"
-        value={employmentTypeLabel(job.employmentType)}
-        onEdit={() => onGoToStep("requisition")}
+        value={employmentTypeValue}
+        onEdit={() => onEditField("employmentType")}
       />
       <ReviewRow
         label="Are you the employer on Record"
         value={
           ui.employerOnRecord === "yes" ? "Yes" : ui.employerOnRecord === "no" ? "No" : ""
         }
-        onEdit={() => onGoToStep("requisition")}
+        addLabel="employer on record"
+        onEdit={() => onEditField("employerOnRecord")}
       />
       {ui.employerOnRecord === "yes" ? (
         <ReviewRow
           label="Employer on Record"
           value={job.employerOfRecord ?? ""}
-          onEdit={() => onGoToStep("requisition")}
+          onEdit={() => onEditField("employerOfRecord")}
         />
       ) : null}
       <ReviewRow
         label="Job Source"
         value={job.sourceType || ""}
-        onEdit={() => onGoToStep("requisition")}
+        onEdit={() => onEditField("jobSource")}
       />
       {job.sourceType === "MSP" ? (
         <>
           <ReviewRow
             label="MSP (Job Source)"
             value={job.mspName ?? ""}
-            onEdit={() => onGoToStep("msp-details")}
+            addLabel="MSP"
+            onEdit={() => onEditField("mspName")}
           />
           <ReviewRow
             label="MSP Client Name"
             value={job.mspClient ?? ""}
-            onEdit={() => onGoToStep("msp-details")}
+            onEdit={() => onEditField("mspClient")}
           />
           <ReviewRow
             label="Source Job Req#"
             value={job.externalRequisitionId ?? ""}
-            onEdit={() => onGoToStep("msp-details")}
+            addLabel="source job ID"
+            onEdit={() => onEditField("sourceJobId")}
           />
           <ReviewRow
             label="Source Job Title"
             value={job.sourceJobTitle ?? ""}
-            onEdit={() => onGoToStep("msp-details")}
+            onEdit={() => onEditField("sourceJobTitle")}
           />
           <ReviewRow
             label="Facility/Location"
             value={job.facility?.trim() || job.location?.trim() || ""}
-            onEdit={() => onGoToStep("msp-details")}
+            onEdit={() => onEditField("facilityLocation")}
           />
           <ReviewRow
             label="Source Job URL"
             value={job.sourceJobUrl ?? ""}
-            onEdit={() => onGoToStep("msp-details")}
+            onEdit={() => onEditField("sourceJobUrl")}
           />
           <ReviewRow
             label="Bill Rate"
             value={formatReviewMoney(job.billRate)}
-            onEdit={() => onGoToStep("msp-details")}
+            onEdit={() => onEditField("billRate")}
           />
           <ReviewRow
             label="Pay Rate"
-            value={[
-              formatReviewMoney(job.suggestedPayRate),
-              ui.compensationType,
-            ]
-              .filter((part) => part && part !== "—")
-              .join(" ") || "—"}
-            onEdit={() => onGoToStep("msp-details")}
+            value={mspPayRateValue}
+            onEdit={() => onEditField("payRate")}
           />
           <ReviewRow
             label="Job Duration"
             value={job.duration ?? ""}
-            onEdit={() => onGoToStep("msp-details")}
+            onEdit={() => onEditField("jobDuration")}
           />
           <ReviewRow
             label="Start Date"
             value={formatReviewDate(job.targetStartDate)}
-            onEdit={() => onGoToStep("msp-details")}
+            onEdit={() => onEditField("startDate")}
           />
           <ReviewRow
             label="Required Credentials / Certifications"
             value={job.requiredCredentials ?? ""}
-            onEdit={() => onGoToStep("msp-details")}
+            addLabel="credentials"
+            onEdit={() => onEditField("credentials")}
           />
           <ReviewRow
             label="Special Requirement / Restrictions"
             value={job.specialRequirements ?? ""}
-            onEdit={() => onGoToStep("msp-details")}
+            addLabel="special requirements"
+            onEdit={() => onEditField("specialRequirements")}
           />
           <ReviewRow
             label="Job Details"
             value={job.sourceJobDetails ?? ""}
-            onEdit={() => onGoToStep("msp-details")}
+            onEdit={() => onEditField("sourceJobDetails")}
           />
           <ReviewRow
             label="Internal Notes"
             value={job.internalNotes ?? ""}
-            onEdit={() => onGoToStep("msp-details")}
+            onEdit={() => onEditField("internalNotes")}
           />
         </>
       ) : null}
-      {/* TODO(future): restore Internal job configuration review rows
-      <ReviewRow
-        label="Internal Requisition #"
-        value={job.internalRequisitionNumber ?? ""}
-        onEdit={() => onGoToStep("requisition")}
-      />
-      <ReviewRow
-        label="Department"
-        value={job.department ?? ""}
-        onEdit={() => onGoToStep("requisition")}
-      />
-      <ReviewRow
-        label="Facility"
-        value={job.facility ?? ""}
-        onEdit={() => onGoToStep("requisition")}
-      />
-      <ReviewRow
-        label="Shift Type"
-        value={job.shiftType ?? ""}
-        onEdit={() => onGoToStep("requisition")}
-      />
-      <ReviewRow
-        label="Target Start Date"
-        value={job.targetStartDate ?? ""}
-        onEdit={() => onGoToStep("requisition")}
-      />
-      <ReviewRow
-        label="Duration"
-        value={job.duration ?? ""}
-        onEdit={() => onGoToStep("requisition")}
-      />
-      */}
       {job.sourceType !== "MSP" ? (
         <ReviewRow
           label="Compensation"
-          value={[
-            [ui.compensationType, ui.currency].filter(Boolean).join(", "),
-            [ui.showPayBy, formatPaySummary(job, ui)].filter(Boolean).join(", "),
-          ]
-            .filter(Boolean)
-            .join("\n")
-            .replace(/\n—$/, "")}
-          onEdit={() => onGoToStep("compensation")}
+          value={compensationValue}
+          onEdit={() => onEditField("compensation")}
         />
       ) : null}
       <ReviewRow
         label="Benefits"
         value={ui.selectedBenefits.join(", ")}
-        onEdit={() => onGoToStep("compensation")}
+        onEdit={() => onEditField("benefits")}
       />
       <div className="grid gap-2 border-b border-[#E5E7EB] py-4 md:grid-cols-[220px_1fr_auto] md:items-start">
         <div className="text-sm font-medium text-[#64748B]">Job Description</div>
-        <div>
-          <p className="text-sm font-medium text-[#1D2739]">About the Role</p>
-          {isTruncated ? (
-            <p className="mt-1 whitespace-pre-wrap text-sm text-[#334155]">{shortDescription}</p>
-          ) : (
-            <JobDescriptionHtml
-              html={descriptionHtml}
-              className="mt-1"
-              emptyLabel="—"
-            />
-          )}
-          {isTruncated ? (
+        <div className="min-w-0">
+          {!hasDescription ? (
             <button
               type="button"
-              className="mt-2 cursor-pointer text-sm font-medium text-[color:var(--brand-primary)]"
+              onClick={() => onEditField("jobDescription")}
+              className="inline-flex cursor-pointer items-center gap-2 text-sm font-medium text-[color:var(--brand-primary)] transition hover:opacity-90"
             >
-              Show full description
+              <ReviewAddPlusIcon />
+              Add job description
             </button>
-          ) : null}
+          ) : (
+            <>
+              <p className="text-sm font-medium text-[#1D2739]">About the Role</p>
+              {isTruncated ? (
+                <p className="mt-1 whitespace-pre-wrap text-sm text-[#334155]">{shortDescription}</p>
+              ) : (
+                <JobDescriptionHtml
+                  html={descriptionHtml}
+                  className="mt-1"
+                  emptyLabel=""
+                />
+              )}
+              {isTruncated ? (
+                <button
+                  type="button"
+                  className="mt-2 cursor-pointer text-sm font-medium text-[color:var(--brand-primary)]"
+                >
+                  Show full description
+                </button>
+              ) : null}
+            </>
+          )}
         </div>
         <button
           type="button"
-          onClick={() => onGoToStep("compensation")}
+          onClick={() => onEditField("jobDescription")}
           className={JOB_FORM_ICON_BUTTON_CLASS}
-          aria-label="Edit Job Description"
+          aria-label={hasDescription ? "Edit Job Description" : "Add job description"}
         >
           <Pencil className="h-4 w-4" />
         </button>
