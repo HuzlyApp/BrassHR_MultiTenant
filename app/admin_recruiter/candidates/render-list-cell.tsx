@@ -8,6 +8,8 @@ import type { CandidateRow } from "./types"
 import { candidateStatusBadgeClassName } from "./candidate-status-badge"
 
 const BRAND_ICON = "var(--brand-primary)"
+/** Figma: Text/text-link — fixed email color under applicant name */
+const TEXT_LINK_COLOR = "#64748B"
 const LINK_CLASS =
   "truncate text-left transition hover:text-[color:var(--brand-primary)] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)]"
 
@@ -23,23 +25,32 @@ export function renderListCell(
           <CandidateListAvatar name={c.name || "NA"} photoUrl={c.profilePhotoUrl} />
           <div className="min-w-0">
             {c.name?.trim() ? (
-              <Link href={candidateProfileHref(c.id)} className={`block text-sm font-medium text-black ${LINK_CLASS}`}>
+              <Link
+                href={candidateProfileHref(c.id)}
+                className={`block text-sm font-medium ${LINK_CLASS}`}
+                style={{ color: "var(--brand-secondary)" }}
+              >
                 {c.name}
               </Link>
             ) : (
-              <div className="text-sm font-medium text-black truncate">—</div>
+              <div className="truncate text-sm font-medium" style={{ color: "var(--brand-secondary)" }}>
+                —
+              </div>
             )}
             {c.email?.trim() ? (
               <Link
                 href={candidateMailHref(c.id)}
                 target="_blank"
                 rel="noopener noreferrer"
-                className={`block text-xs text-[#4B5563] ${LINK_CLASS}`}
+                className={`block text-xs ${LINK_CLASS}`}
+                style={{ color: TEXT_LINK_COLOR }}
               >
                 {c.email}
               </Link>
             ) : (
-              <div className="text-xs text-[#4B5563] truncate">—</div>
+              <div className="truncate text-xs" style={{ color: TEXT_LINK_COLOR }}>
+                —
+              </div>
             )}
           </div>
           

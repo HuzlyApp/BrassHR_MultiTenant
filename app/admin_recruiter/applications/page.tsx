@@ -1,12 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import {
   Check,
   ChevronDown,
-  ChevronLeft,
-  ChevronRight,
   HelpCircle,
   MapPin,
   MoreHorizontal,
@@ -14,7 +13,9 @@ import {
   Search,
   X,
 } from "lucide-react";
+import { CandidateListAvatar } from "@/app/admin_recruiter/components/CandidateListAvatar";
 import { ColumnsEditorModal } from "@/app/admin_recruiter/components/ColumnsEditorModal";
+import { ListPaginationControls } from "@/app/admin_recruiter/components/ListPaginationControls";
 import { useCandidatesFilterRowsDefault } from "@/app/admin_recruiter/hooks/useCandidatesFilterRowsDefault";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import {
@@ -89,6 +90,9 @@ const APPLICATION_TABS: Array<{ id: ApplicationTab; label: string }> = [
 ];
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50];
+
+/** Figma: Text/text-link — fixed email color under applicant name */
+const TEXT_LINK_COLOR = "#64748B";
 
 const FORM_SURFACE_CLASS = "rounded-lg border border-[#CBD5E1] bg-white";
 const TOOLBAR_BUTTON_CLASS = `${FORM_SURFACE_CLASS} inline-flex h-8 items-center gap-1.5 px-3 text-sm font-normal leading-6 text-[#334155] transition hover:bg-zinc-50`;
@@ -207,19 +211,6 @@ function formatRelativeTime(iso: string): string {
   return date.toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" });
 }
 
-function formatAppliedMeta(iso: string): string {
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return "Applied";
-  const startOfToday = new Date();
-  startOfToday.setHours(0, 0, 0, 0);
-  const startOfThatDay = new Date(date);
-  startOfThatDay.setHours(0, 0, 0, 0);
-  const dayDiff = Math.round((startOfToday.getTime() - startOfThatDay.getTime()) / 86400000);
-  if (dayDiff === 0) return "Applied today";
-  if (dayDiff === 1) return "Applied yesterday";
-  return `Applied ${formatRelativeTime(iso)}`;
-}
-
 function formatActivity(row: ApplicationRow): string {
   const when = row.updated_at || row.submitted_at || row.created_at;
   const relative = formatRelativeTime(when);
@@ -250,10 +241,13 @@ function workflowName(row: ApplicationRow): string {
 export default function JobApplicationsPage() {
   const branding = useTenantBranding();
   const brandStyle = brandingToCssVars(branding) as CSSProperties;
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const jobMenuRef = useRef<HTMLDivElement>(null);
 
+  const jobId = searchParams.get("jobId")?.trim() ?? "";
   const [rows, setRows] = useState<ApplicationRow[]>([]);
-  const [jobId, setJobId] = useState("");
   const [job, setJob] = useState<JobHeader | null>(null);
   const [jobOptions, setJobOptions] = useState<JobOption[]>([]);
   const [jobMenuOpen, setJobMenuOpen] = useState(false);
@@ -262,9 +256,24 @@ export default function JobApplicationsPage() {
   const [jobStatusFilter, setJobStatusFilter] = useState("");
   const [jobLocationFilter, setJobLocationFilter] = useState("");
   const [jobSortBy, setJobSortBy] = useState<"newest" | "oldest">("newest");
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(Boolean(jobId));
   const [error, setError] = useState("");
-  const [activeTab, setActiveTab] = useState<ApplicationTab>("all");
+  const [activeTab, setActiveTab] = useState<ApplicationTab>(() => {
+    const initialTab = searchParams.get("tab")?.trim();
+    if (
+      initialTab === "all" ||
+      initialTab === "new" ||
+      initialTab === "reviewing" ||
+      initialTab === "interviewing" ||
+      initialTab === "rejected" ||
+      initialTab === "hired" ||
+      initialTab === "shortlisted" ||
+      initialTab === "undecided"
+    ) {
+      return initialTab;
+    }
+    return "all";
+  });
   const [showFilterRows, setShowFilterRows] = useCandidatesFilterRowsDefault();
   const [editColumnsOpen, setEditColumnsOpen] = useState(false);
   const [listColumnOrder, setListColumnOrder] = useState<ApplicationColumnId[]>([
@@ -277,24 +286,41 @@ export default function JobApplicationsPage() {
   const [pageSize, setPageSize] = useState(10);
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const initialJobId = params.get("jobId")?.trim();
-    if (initialJobId) setJobId(initialJobId);
-    const initialTab = params.get("tab")?.trim();
-    if (
-      initialTab === "all" ||
-      initialTab === "new" ||
-      initialTab === "reviewing" ||
-      initialTab === "interviewing" ||
-      initialTab === "rejected" ||
-      initialTab === "hired" ||
-      initialTab === "shortlisted" ||
-      initialTab === "undecided"
-    ) {
-      setActiveTab(initialTab);
-    }
     setListColumnOrder(loadApplicationColumnOrder());
   }, []);
+
+  useEffect(() => {
+    setSelectedIds(new Set());
+    setLocationFilter("");
+    setPage(1);
+    if (!jobId) {
+      setJob(null);
+      setRows([]);
+      setLoading(false);
+      setError("");
+      return;
+    }
+    // Drop previous job’s rows immediately so they never flash under a new job title.
+    setRows([]);
+    setLoading(true);
+    setJob((current) => (current?.id === jobId ? current : null));
+  }, [jobId]);
+
+  useEffect(() => {
+    const tabParam = searchParams.get("tab")?.trim();
+    if (
+      tabParam === "all" ||
+      tabParam === "new" ||
+      tabParam === "reviewing" ||
+      tabParam === "interviewing" ||
+      tabParam === "rejected" ||
+      tabParam === "hired" ||
+      tabParam === "shortlisted" ||
+      tabParam === "undecided"
+    ) {
+      setActiveTab(tabParam);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     if (!jobMenuOpen) return;
@@ -332,24 +358,29 @@ export default function JobApplicationsPage() {
     void loadJobOptions();
   }, [loadJobOptions]);
 
-  const selectJob = useCallback((nextJob: JobOption) => {
-    setJobId(nextJob.id);
-    setJob({
-      id: nextJob.id,
-      public_title: nextJob.public_title ?? null,
-      location: nextJob.location ?? null,
-      facility: nextJob.facility ?? null,
-      facility_name: nextJob.facility_name ?? null,
-    });
-    setSelectedIds(new Set());
-    setActiveTab("all");
-    setLocationFilter("");
-    setJobMenuOpen(false);
+  const selectJob = useCallback(
+    (nextJob: JobOption) => {
+      setJob({
+        id: nextJob.id,
+        public_title: nextJob.public_title ?? null,
+        location: nextJob.location ?? null,
+        facility: nextJob.facility ?? null,
+        facility_name: nextJob.facility_name ?? null,
+      });
+      setRows([]);
+      setSelectedIds(new Set());
+      setActiveTab("all");
+      setLocationFilter("");
+      setJobMenuOpen(false);
+      setLoading(true);
 
-    const url = new URL(window.location.href);
-    url.searchParams.set("jobId", nextJob.id);
-    window.history.replaceState({}, "", `${url.pathname}?${url.searchParams.toString()}`);
-  }, []);
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("jobId", nextJob.id);
+      params.delete("tab");
+      router.replace(`${pathname}?${params.toString()}`);
+    },
+    [pathname, router, searchParams]
+  );
 
   const clearJobDropdownFilters = useCallback(() => {
     setJobSearch("");
@@ -358,56 +389,75 @@ export default function JobApplicationsPage() {
     setJobSortBy("newest");
   }, []);
 
-  const loadApplications = useCallback(async () => {
-    const params = new URLSearchParams();
-    if (jobId) params.set("jobId", jobId);
-    setLoading(true);
-    try {
-      const response = await fetch(`/api/admin/job-applications?${params}`, { cache: "no-store" });
-      const payload = await response.json();
-      if (!response.ok) throw new Error(payload.error || "Failed to load applications");
-      setRows(payload.applications ?? []);
-      setError("");
-    } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : "Failed to load applications");
-    } finally {
-      setLoading(false);
+  useEffect(() => {
+    let cancelled = false;
+    async function run() {
+      if (!jobId) {
+        setRows([]);
+        setLoading(false);
+        setError("");
+        return;
+      }
+      const requestJobId = jobId;
+      const params = new URLSearchParams({ jobId: requestJobId });
+      setLoading(true);
+      try {
+        const response = await fetch(`/api/admin/job-applications?${params}`, { cache: "no-store" });
+        const payload = await response.json();
+        if (cancelled) return;
+        if (!response.ok) throw new Error(payload.error || "Failed to load applications");
+        const applications = (payload.applications ?? []) as ApplicationRow[];
+        setRows(applications.filter((row) => row.job_requisition_id === requestJobId));
+        setError("");
+      } catch (loadError) {
+        if (cancelled) return;
+        setError(loadError instanceof Error ? loadError.message : "Failed to load applications");
+        setRows([]);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
     }
-  }, [jobId]);
-
-  const loadJob = useCallback(async () => {
-    if (!jobId) {
-      setJob(null);
-      return;
-    }
-    try {
-      const response = await fetch(`/api/admin/jobs/${jobId}`, { cache: "no-store" });
-      const payload = await response.json();
-      if (!response.ok) throw new Error(payload.error || "Failed to load job");
-      const data = payload.job ?? null;
-      setJob(
-        data
-          ? {
-              id: data.id,
-              public_title: data.public_title ?? null,
-              location: data.location ?? null,
-              facility: data.facility ?? null,
-              facility_name: data.facility_name ?? null,
-            }
-          : null
-      );
-    } catch {
-      setJob(null);
-    }
+    void run();
+    return () => {
+      cancelled = true;
+    };
   }, [jobId]);
 
   useEffect(() => {
-    void loadApplications();
-  }, [loadApplications]);
-
-  useEffect(() => {
-    void loadJob();
-  }, [loadJob]);
+    let cancelled = false;
+    async function run() {
+      if (!jobId) {
+        setJob(null);
+        return;
+      }
+      try {
+        const response = await fetch(`/api/admin/jobs/${encodeURIComponent(jobId)}`, {
+          cache: "no-store",
+        });
+        const payload = await response.json();
+        if (cancelled) return;
+        if (!response.ok) throw new Error(payload.error || "Failed to load job");
+        const data = payload.job ?? null;
+        setJob(
+          data
+            ? {
+                id: data.id,
+                public_title: data.public_title ?? null,
+                location: data.location ?? null,
+                facility: data.facility ?? null,
+                facility_name: data.facility_name ?? null,
+              }
+            : null
+        );
+      } catch {
+        if (!cancelled) setJob(null);
+      }
+    }
+    void run();
+    return () => {
+      cancelled = true;
+    };
+  }, [jobId]);
 
   useEffect(() => {
     setPage(1);
@@ -453,12 +503,8 @@ export default function JobApplicationsPage() {
   const jobTitle =
     job?.public_title?.trim() ||
     selectedJobOption?.public_title?.trim() ||
-    String(one(rows[0]?.job_requisitions ?? null).public_title ?? "").trim() ||
     (jobId ? "Job" : "Select a job");
-  const jobLocation = formatJobLocation(
-    job ?? selectedJobOption,
-    one(rows[0]?.job_requisitions ?? null)
-  );
+  const jobLocation = formatJobLocation(job ?? selectedJobOption);
 
   const tabCounts = useMemo(() => {
     const counts = Object.fromEntries(APPLICATION_TABS.map((tab) => [tab.id, 0])) as Record<
@@ -532,18 +578,29 @@ export default function JobApplicationsPage() {
 
   function renderCell(colId: ApplicationColumnId, row: ApplicationRow) {
     switch (colId) {
-      case "candidates":
+      case "candidates": {
+        const name = applicantName(row);
+        const email = applicantEmail(row);
         return (
-          <div className="min-w-0">
-            <p className="truncate text-sm font-semibold leading-5 text-[#0F172A]">{applicantName(row)}</p>
-            <p className="mt-0.5 truncate text-xs leading-4 text-[#64748B]">
-              {applicantEmail(row) || jobLocation}
-            </p>
-            <p className="mt-0.5 truncate text-xs leading-4 text-[#64748B]">
-              {statusLabel(row.status)} • {formatAppliedMeta(row.submitted_at || row.created_at)}
-            </p>
+          <div className="flex min-w-0 items-center gap-3">
+            <CandidateListAvatar name={name || "NA"} />
+            <div className="min-w-0">
+              <p
+                className="truncate text-sm font-medium leading-5"
+                style={{ color: branding.secondaryHex || "#012352" }}
+              >
+                {name}
+              </p>
+              <p
+                className="mt-0.5 truncate text-xs leading-4"
+                style={{ color: TEXT_LINK_COLOR }}
+              >
+                {email || "—"}
+              </p>
+            </div>
           </div>
         );
+      }
       case "matches":
         return <p className="text-sm leading-5 text-[#64748B]">{MATCHES_PLACEHOLDER}</p>;
       case "activity":
@@ -1068,7 +1125,7 @@ export default function JobApplicationsPage() {
               <select
                 value={pageSize}
                 onChange={(e) => setPageSize(Number(e.target.value))}
-                className={`h-9 px-2 text-sm text-[#334155] xl:h-8 ${FORM_SURFACE_CLASS}`}
+                className={`box-border h-8 px-2 text-sm text-[#334155] ${FORM_SURFACE_CLASS}`}
               >
                 {PAGE_SIZE_OPTIONS.map((size) => (
                   <option key={size} value={size}>
@@ -1078,48 +1135,12 @@ export default function JobApplicationsPage() {
               </select>
             </label>
 
-            <div className="flex shrink-0 items-center gap-1">
-              <button
-                type="button"
-                onClick={() => setPage((current) => Math.max(1, current - 1))}
-                disabled={currentPage <= 1}
-                className={`inline-flex h-9 items-center gap-1 px-2.5 text-sm text-[#334155] disabled:cursor-not-allowed disabled:opacity-50 xl:h-8 ${FORM_SURFACE_CLASS}`}
-              >
-                <ChevronLeft className="h-4 w-4" />
-                <span className="hidden min-[480px]:inline">Previous</span>
-              </button>
-
-              {Array.from({ length: totalPages }, (_, index) => index + 1)
-                .slice(0, 5)
-                .map((pageNumber) => {
-                  const active = pageNumber === currentPage;
-                  return (
-                    <button
-                      key={pageNumber}
-                      type="button"
-                      onClick={() => setPage(pageNumber)}
-                      className={`inline-flex h-9 min-w-9 items-center justify-center px-2 text-sm xl:h-8 xl:min-w-8 ${
-                        active
-                          ? "rounded-lg border-transparent text-white"
-                          : `text-[#334155] hover:bg-[#F8FAFC] ${FORM_SURFACE_CLASS}`
-                      }`}
-                      style={active ? { backgroundColor: branding.secondaryHex } : undefined}
-                    >
-                      {pageNumber}
-                    </button>
-                  );
-                })}
-
-              <button
-                type="button"
-                onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
-                disabled={currentPage >= totalPages}
-                className={`inline-flex h-9 items-center gap-1 px-2.5 text-sm text-[#334155] disabled:cursor-not-allowed disabled:opacity-50 xl:h-8 ${FORM_SURFACE_CLASS}`}
-              >
-                <span className="hidden min-[480px]:inline">Next</span>
-                <ChevronRight className="h-4 w-4" />
-              </button>
-            </div>
+            <ListPaginationControls
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={setPage}
+              activeStyle={{ backgroundColor: branding.secondaryHex, borderColor: branding.secondaryHex }}
+            />
           </div>
         </div>
       </div>

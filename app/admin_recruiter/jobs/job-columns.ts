@@ -92,7 +92,7 @@ export function jobListColumnClassName(colId: JobColumnId): string {
   if (colId === "jobStatus") {
     return `${center.trim()} w-[1%] whitespace-nowrap`.trim()
   }
-  if (colId === "candidates") return "min-w-[280px]"
+  if (colId === "candidates") return "w-[350px] min-w-[350px]"
   if (colId === "actions") return "w-12"
   return ""
 }

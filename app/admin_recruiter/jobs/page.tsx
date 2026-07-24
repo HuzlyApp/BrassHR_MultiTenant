@@ -3,8 +3,9 @@
 import Link from "next/link";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
-import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import { ColumnsEditorModal } from "@/app/admin_recruiter/components/ColumnsEditorModal";
+import { ListPaginationControls } from "@/app/admin_recruiter/components/ListPaginationControls";
 import { useCandidatesFilterRowsDefault } from "@/app/admin_recruiter/hooks/useCandidatesFilterRowsDefault";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import {
@@ -58,7 +59,30 @@ const JOBS_POST_JOB_BUTTON_CLASS =
   "inline-flex h-8 items-center gap-1.5 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm font-normal leading-5 text-[#525252] transition hover:bg-zinc-50";
 
 const JOBS_STAR_FILLED_SRC = "/icons/jobs-icons/Star-filled.svg";
+const JOBS_STAR_DEFAULT_SRC = "/icons/jobs-icons/Star-default.svg";
+const JOBS_STARRED_STORAGE_KEY = "adminRecruiterJobsStarredIds";
 const JOB_SORT_ICON_SRC = "/sort-icon.svg";
+
+function loadStarredJobIds(): Set<string> {
+  if (typeof window === "undefined") return new Set();
+  try {
+    const raw = localStorage.getItem(JOBS_STARRED_STORAGE_KEY);
+    if (!raw) return new Set();
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return new Set();
+    return new Set(parsed.filter((id): id is string => typeof id === "string" && id.trim().length > 0));
+  } catch {
+    return new Set();
+  }
+}
+
+function saveStarredJobIds(ids: Set<string>) {
+  try {
+    localStorage.setItem(JOBS_STARRED_STORAGE_KEY, JSON.stringify(Array.from(ids)));
+  } catch {
+    /* ignore */
+  }
+}
 
 function JobsFilterIcon({ className = "h-4 w-4 shrink-0" }: { className?: string }) {
   return (
@@ -285,6 +309,8 @@ type JobsFilterFieldsProps = {
   onPostedByFilterChange: (value: string) => void;
   locationOptions: string[];
   resultsCount?: number;
+  showStarredOnly?: boolean;
+  onToggleStarredOnly?: () => void;
 };
 
 function JobsFilterSearchField({
@@ -327,6 +353,8 @@ function JobsFilterFields({
   onPostedByFilterChange,
   locationOptions,
   resultsCount,
+  showStarredOnly = false,
+  onToggleStarredOnly,
 }: JobsFilterFieldsProps) {
   const fields = (
     <>
@@ -386,88 +414,162 @@ function JobsFilterFields({
 
   if (variant === "grid") {
     return (
-      <div className="grid grid-cols-1 gap-2 rounded-lg border border-[#E8EEEC] bg-[#F8FAFC] p-2.5 min-[600px]:grid-cols-2 lg:grid-cols-3">
-        <CompactFilterField label="Job Id">
-          <JobsFilterSearchField
-            label="Job Id"
-            value={jobIdFilter}
-            onChange={onJobIdFilterChange}
-            variant="grid"
-          />
-        </CompactFilterField>
-        <CompactFilterField label="Status">
-          <JobsFilterSelect
-            label="Status"
-            value={statusFilter}
-            onChange={onStatusFilterChange}
-            variant="grid"
-          >
-            <option value="draft">Draft</option>
-            <option value="published">Published</option>
-            <option value="closed">Closed</option>
-            <option value="archived">Archived</option>
-          </JobsFilterSelect>
-        </CompactFilterField>
-        <CompactFilterField label="Title">
-          <JobsFilterSearchField
-            label="Title"
-            value={titleFilter}
-            onChange={onTitleFilterChange}
-            variant="grid"
-          />
-        </CompactFilterField>
-        <CompactFilterField label="Location">
-          <JobsFilterSelect
-            label="Location"
-            value={locationFilter}
-            onChange={onLocationFilterChange}
-            variant="grid"
-          >
-            {locationOptions.map((location) => (
-              <option key={location} value={location}>
-                {location}
-              </option>
-            ))}
-          </JobsFilterSelect>
-        </CompactFilterField>
-        <CompactFilterField label="Assignee">
-          <JobsFilterSelect
-            label="Assignee"
-            value={assigneeFilter}
-            onChange={onAssigneeFilterChange}
-            variant="grid"
-          >
-            <option value="HR Manager">HR Manager</option>
-          </JobsFilterSelect>
-        </CompactFilterField>
-        <CompactFilterField label="Posted by">
-          <JobsFilterSelect
-            label="Posted by"
-            value={postedByFilter}
-            onChange={onPostedByFilterChange}
-            variant="grid"
-          >
-            <option value="HR Manager">HR Manager</option>
-          </JobsFilterSelect>
-        </CompactFilterField>
+      <div className="space-y-2">
+        <div className="grid grid-cols-1 gap-5 rounded-lg border border-[#E8EEEC] bg-[#F8FAFC] p-2.5 min-[600px]:grid-cols-2 lg:grid-cols-3">
+          <CompactFilterField label="Job Id">
+            <JobsFilterSearchField
+              label="Job Id"
+              value={jobIdFilter}
+              onChange={onJobIdFilterChange}
+              variant="grid"
+            />
+          </CompactFilterField>
+          <CompactFilterField label="Status">
+            <JobsFilterSelect
+              label="Status"
+              value={statusFilter}
+              onChange={onStatusFilterChange}
+              variant="grid"
+            >
+              <option value="draft">Draft</option>
+              <option value="published">Published</option>
+              <option value="closed">Closed</option>
+              <option value="archived">Archived</option>
+            </JobsFilterSelect>
+          </CompactFilterField>
+          <CompactFilterField label="Title">
+            <JobsFilterSearchField
+              label="Title"
+              value={titleFilter}
+              onChange={onTitleFilterChange}
+              variant="grid"
+            />
+          </CompactFilterField>
+          <CompactFilterField label="Location">
+            <JobsFilterSelect
+              label="Location"
+              value={locationFilter}
+              onChange={onLocationFilterChange}
+              variant="grid"
+            >
+              {locationOptions.map((location) => (
+                <option key={location} value={location}>
+                  {location}
+                </option>
+              ))}
+            </JobsFilterSelect>
+          </CompactFilterField>
+          <CompactFilterField label="Assignee">
+            <JobsFilterSelect
+              label="Assignee"
+              value={assigneeFilter}
+              onChange={onAssigneeFilterChange}
+              variant="grid"
+            >
+              <option value="HR Manager">HR Manager</option>
+            </JobsFilterSelect>
+          </CompactFilterField>
+          <CompactFilterField label="Posted by">
+            <JobsFilterSelect
+              label="Posted by"
+              value={postedByFilter}
+              onChange={onPostedByFilterChange}
+              variant="grid"
+            >
+              <option value="HR Manager">HR Manager</option>
+            </JobsFilterSelect>
+          </CompactFilterField>
+        </div>
+        {typeof resultsCount === "number" ? (
+          <div className="flex shrink-0 items-center gap-5">
+            <button
+              type="button"
+              onClick={onToggleStarredOnly}
+              className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[#CBD5E1] bg-white transition hover:bg-[#F8FAFC] ${
+                showStarredOnly ? "border-[#FFC800] bg-[#FFF8E6]" : ""
+              }`}
+              aria-pressed={showStarredOnly}
+              aria-label={showStarredOnly ? "Show all jobs" : "Show starred jobs only"}
+              title={showStarredOnly ? "Show all jobs" : "Show starred jobs only"}
+            >
+              {showStarredOnly ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={JOBS_STAR_FILLED_SRC}
+                  alt=""
+                  width={14}
+                  height={14}
+                  className="h-[14px] w-[14px] shrink-0"
+                  aria-hidden
+                />
+              ) : (
+                <span
+                  aria-hidden
+                  className="inline-block h-[14px] w-[14px] shrink-0 bg-[#94A3B8]"
+                  style={{
+                    maskImage: `url(${JOBS_STAR_FILLED_SRC})`,
+                    WebkitMaskImage: `url(${JOBS_STAR_FILLED_SRC})`,
+                    maskSize: "contain",
+                    WebkitMaskSize: "contain",
+                    maskRepeat: "no-repeat",
+                    WebkitMaskRepeat: "no-repeat",
+                    maskPosition: "center",
+                    WebkitMaskPosition: "center",
+                  }}
+                />
+              )}
+            </button>
+            <span className="whitespace-nowrap text-sm font-medium text-[#334155]">
+              {resultsCount} results
+            </span>
+          </div>
+        ) : null}
       </div>
     );
   }
 
   return (
-    <div className="flex min-w-0 items-center gap-3">
+    <div className="flex min-w-0 items-center gap-5">
       {fields}
       {typeof resultsCount === "number" ? (
-        <div className="flex shrink-0 items-center gap-2">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={JOBS_STAR_FILLED_SRC}
-            alt=""
-            width={14}
-            height={14}
-            className="h-[14px] w-[14px] shrink-0"
-            aria-hidden
-          />
+        <div className="flex shrink-0 items-center gap-5">
+          <button
+            type="button"
+            onClick={onToggleStarredOnly}
+            className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[#CBD5E1] bg-white transition hover:bg-[#F8FAFC] ${
+              showStarredOnly ? "border-[#FFC800] bg-[#FFF8E6]" : ""
+            }`}
+            aria-pressed={showStarredOnly}
+            aria-label={showStarredOnly ? "Show all jobs" : "Show starred jobs only"}
+            title={showStarredOnly ? "Show all jobs" : "Show starred jobs only"}
+          >
+            {showStarredOnly ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={JOBS_STAR_FILLED_SRC}
+                alt=""
+                width={14}
+                height={14}
+                className="h-[14px] w-[14px] shrink-0"
+                aria-hidden
+              />
+            ) : (
+              <span
+                aria-hidden
+                className="inline-block h-[14px] w-[14px] shrink-0 bg-[#94A3B8]"
+                style={{
+                  maskImage: `url(${JOBS_STAR_FILLED_SRC})`,
+                  WebkitMaskImage: `url(${JOBS_STAR_FILLED_SRC})`,
+                  maskSize: "contain",
+                  WebkitMaskSize: "contain",
+                  maskRepeat: "no-repeat",
+                  WebkitMaskRepeat: "no-repeat",
+                  maskPosition: "center",
+                  WebkitMaskPosition: "center",
+                }}
+              />
+            )}
+          </button>
           <span className="whitespace-nowrap text-sm font-medium text-[#334155]">
             {resultsCount} results
           </span>
@@ -712,6 +814,7 @@ export default function AdminRecruiterJobsPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [starredIds, setStarredIds] = useState<Set<string>>(new Set());
+  const [showStarredOnly, setShowStarredOnly] = useState(false);
   const [listColumnOrder, setListColumnOrder] = useState<JobColumnId[]>(DEFAULT_JOB_COLUMNS);
   const [editColumnsOpen, setEditColumnsOpen] = useState(false);
   const [openActionsMenu, setOpenActionsMenu] = useState<{
@@ -761,11 +864,22 @@ export default function AdminRecruiterJobsPage() {
 
   useEffect(() => {
     setListColumnOrder(loadJobColumnOrder());
+    setStarredIds(loadStarredJobIds());
   }, []);
 
   useEffect(() => {
     setPage(1);
-  }, [jobTab, jobIdFilter, statusFilter, titleFilter, locationFilter, assigneeFilter, postedByFilter, pageSize]);
+  }, [
+    jobTab,
+    jobIdFilter,
+    statusFilter,
+    titleFilter,
+    locationFilter,
+    assigneeFilter,
+    postedByFilter,
+    showStarredOnly,
+    pageSize,
+  ]);
 
   async function transition(jobId: string, action: "publish" | "unpublish" | "close" | "archive") {
     const response = await fetch("/api/admin/jobs", {
@@ -803,6 +917,8 @@ export default function AdminRecruiterJobsPage() {
     return jobs.filter((job) => {
       if (!matchesJobTab(job, jobTab)) return false;
 
+      if (showStarredOnly && !starredIds.has(job.id)) return false;
+
       const idQuery = jobIdFilter.trim().toLowerCase();
       if (idQuery && !jobDisplayId(job).toLowerCase().includes(idQuery)) return false;
 
@@ -819,7 +935,18 @@ export default function AdminRecruiterJobsPage() {
 
       return true;
     });
-  }, [jobs, jobTab, jobIdFilter, statusFilter, titleFilter, locationFilter, assigneeFilter, postedByFilter]);
+  }, [
+    jobs,
+    jobTab,
+    showStarredOnly,
+    starredIds,
+    jobIdFilter,
+    statusFilter,
+    titleFilter,
+    locationFilter,
+    assigneeFilter,
+    postedByFilter,
+  ]);
 
   const sortedJobs = useMemo(() => {
     if (!sortField) return filteredJobs;
@@ -858,7 +985,13 @@ export default function AdminRecruiterJobsPage() {
   const listColumns = listColumnOrder.length ? listColumnOrder : DEFAULT_JOB_COLUMNS;
 
   const hasActiveFilters = Boolean(
-    jobIdFilter || statusFilter || titleFilter || locationFilter || assigneeFilter || postedByFilter
+    jobIdFilter ||
+      statusFilter ||
+      titleFilter ||
+      locationFilter ||
+      assigneeFilter ||
+      postedByFilter ||
+      showStarredOnly
   );
 
   const jobListCellContext = useMemo((): JobListCellContext => {
@@ -870,6 +1003,7 @@ export default function AdminRecruiterJobsPage() {
           const next = new Set(current);
           if (next.has(jobId)) next.delete(jobId);
           else next.add(jobId);
+          saveStarredJobIds(next);
           return next;
         });
       },
@@ -970,6 +1104,9 @@ export default function AdminRecruiterJobsPage() {
               postedByFilter={postedByFilter}
               onPostedByFilterChange={setPostedByFilter}
               locationOptions={locationOptions}
+              resultsCount={filteredJobs.length}
+              showStarredOnly={showStarredOnly}
+              onToggleStarredOnly={() => setShowStarredOnly((value) => !value)}
             />
           ) : null}
         </div>
@@ -1026,6 +1163,8 @@ export default function AdminRecruiterJobsPage() {
                 onPostedByFilterChange={setPostedByFilter}
                 locationOptions={locationOptions}
                 resultsCount={filteredJobs.length}
+                showStarredOnly={showStarredOnly}
+                onToggleStarredOnly={() => setShowStarredOnly((value) => !value)}
               />
             </div>
           ) : null}
@@ -1077,7 +1216,9 @@ export default function AdminRecruiterJobsPage() {
               ) : paginatedJobs.length === 0 ? (
                 <tr className="border-b border-[#E9EDF3]">
                   <td colSpan={listColumns.length} className="px-[14px] py-12 text-center text-[#64748B]">
-                    No jobs match these filters.
+                    {showStarredOnly
+                      ? "No starred jobs yet. Click the star next to a job title to save it here."
+                      : "No jobs match these filters."}
                   </td>
                 </tr>
               ) : (
@@ -1086,7 +1227,9 @@ export default function AdminRecruiterJobsPage() {
                     {listColumns.map((colId) => (
                       <td
                         key={colId}
-                        className={`border-r border-[#E5E7EB] px-[14px] py-4 align-middle last:border-r-0 ${jobListColumnClassName(colId)}`}
+                        className={`border-r border-[#E5E7EB] align-middle last:border-r-0 ${jobListColumnClassName(colId)} ${
+                          colId === "candidates" ? "px-0 py-0" : "px-[14px] py-4"
+                        }`}
                       >
                         {renderJobListCell(colId, job, jobListCellContext)}
                       </td>
@@ -1109,7 +1252,7 @@ export default function AdminRecruiterJobsPage() {
               <select
                 value={pageSize}
                 onChange={(e) => setPageSize(Number(e.target.value))}
-                className={`h-9 px-2 text-sm text-[#334155] xl:h-8 ${JOBS_FORM_SURFACE_CLASS}`}
+                className={`box-border h-8 px-2 text-sm text-[#334155] ${JOBS_FORM_SURFACE_CLASS}`}
               >
                 {PAGE_SIZE_OPTIONS.map((size) => (
                   <option key={size} value={size}>
@@ -1119,46 +1262,12 @@ export default function AdminRecruiterJobsPage() {
               </select>
             </label>
 
-            <div className="flex shrink-0 items-center gap-1">
-              <button
-                type="button"
-                onClick={() => setPage((current) => Math.max(1, current - 1))}
-                disabled={currentPage <= 1}
-                className={`inline-flex h-9 items-center gap-1 px-2.5 text-sm text-[#334155] disabled:cursor-not-allowed disabled:opacity-50 xl:h-8 ${JOBS_FORM_SURFACE_CLASS}`}
-              >
-                <ChevronLeft className="h-4 w-4" />
-                <span className="hidden min-[480px]:inline">Previous</span>
-              </button>
-
-              {Array.from({ length: totalPages }, (_, index) => index + 1).slice(0, 5).map((pageNumber) => {
-                const active = pageNumber === currentPage;
-                return (
-                  <button
-                    key={pageNumber}
-                    type="button"
-                    onClick={() => setPage(pageNumber)}
-                    className={`inline-flex h-9 min-w-9 items-center justify-center px-2 text-sm xl:h-8 xl:min-w-8 ${
-                      active
-                        ? "rounded-lg border-transparent text-white"
-                        : "text-[#334155] hover:bg-[#F8FAFC]"
-                    } ${active ? "" : JOBS_FORM_SURFACE_CLASS}`}
-                    style={active ? { backgroundColor: branding.secondaryHex } : undefined}
-                  >
-                    {pageNumber}
-                  </button>
-                );
-              })}
-
-              <button
-                type="button"
-                onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
-                disabled={currentPage >= totalPages}
-                className={`inline-flex h-9 items-center gap-1 px-2.5 text-sm text-[#334155] disabled:cursor-not-allowed disabled:opacity-50 xl:h-8 ${JOBS_FORM_SURFACE_CLASS}`}
-              >
-                <span className="hidden min-[480px]:inline">Next</span>
-                <ChevronRight className="h-4 w-4" />
-              </button>
-            </div>
+            <ListPaginationControls
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={setPage}
+              activeStyle={{ backgroundColor: branding.secondaryHex, borderColor: branding.secondaryHex }}
+            />
           </div>
         </div>
       </div>

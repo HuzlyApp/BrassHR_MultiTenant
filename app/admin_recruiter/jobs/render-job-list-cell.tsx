@@ -1,6 +1,6 @@
 import type { ReactNode } from "react"
 import Link from "next/link"
-import { MoreVertical } from "lucide-react"
+import { MoreHorizontal } from "lucide-react"
 import type { JobColumnId } from "./job-columns"
 
 const JOB_CANDIDATE_COUNTER_CLASS =
@@ -183,7 +183,11 @@ export function renderJobListCell(
         <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={() => ctx.onToggleStar(job.id)}
+            onClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              ctx.onToggleStar(job.id);
+            }}
             className="inline-flex h-[14px] w-[14px] shrink-0 items-center justify-center"
             aria-label={isStarred ? "Unstar job" : "Star job"}
             aria-pressed={isStarred}
@@ -214,7 +218,7 @@ export function renderJobListCell(
       return <span className="text-sm text-[#475569]">{jobDisplayId(job)}</span>
     case "candidates":
       return (
-        <div className="flex w-full min-w-[280px] items-center justify-between gap-3">
+        <div className="box-border flex h-[58px] w-[350px] max-w-full items-center justify-between px-[14px]">
           <JobCandidateMetric
             iconSrc={JOB_CANDIDATE_ICONS.all}
             label="All"
@@ -278,12 +282,12 @@ export function renderJobListCell(
         <button
           type="button"
           onClick={(event) => ctx.onOpenActionsMenu(job, event.currentTarget)}
-          className="inline-flex h-8 w-8 items-center justify-center rounded-md text-[#64748B] transition hover:bg-[#F1F5F9]"
+          className="inline-flex h-8 w-8 items-center justify-center rounded-md text-black transition hover:bg-[#F1F5F9]"
           aria-label="Job actions"
           aria-haspopup="menu"
           aria-expanded={ctx.openActionsJobId === job.id}
         >
-          <MoreVertical className="h-4 w-4" />
+          <MoreHorizontal className="h-4 w-4" />
         </button>
       )
     default:

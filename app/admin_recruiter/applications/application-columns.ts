@@ -9,7 +9,7 @@ export type ApplicationColumnId =
   | "dateApplied"
 
 export const APPLICATION_COLUMN_OPTIONS: { id: ApplicationColumnId; label: string }[] = [
-  { id: "candidates", label: "Candidates" },
+  { id: "candidates", label: "Name" },
   { id: "matches", label: "Matches to job post" },
   { id: "activity", label: "Activity" },
   { id: "interest", label: "Interest" },
