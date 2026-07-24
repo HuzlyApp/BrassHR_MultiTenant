@@ -311,9 +311,9 @@ export function JobFormStepRequisition({
         </div>
 
         <div>
-          <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+          <div className="flex flex-wrap items-center gap-x-[40px] gap-y-3">
             <span className={`${JOB_FORM_LABEL_CLASS} mb-0 shrink-0`}>Employment Type</span>
-            <div className="flex flex-wrap gap-5">
+            <div className="flex flex-wrap gap-x-[120px] gap-y-3">
               {employmentLabels.map((label) => (
                 <BrandedRadio
                   key={label}
@@ -493,11 +493,11 @@ export function JobFormStepRequisition({
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+        <div className="flex flex-wrap items-center gap-x-[40px] gap-y-3">
           <span className={`${JOB_FORM_LABEL_CLASS} mb-0 shrink-0`}>
             Are you the employer on Record
           </span>
-          <div className="flex flex-wrap gap-5">
+          <div className="flex flex-wrap gap-x-[120px] gap-y-3">
             <BrandedRadio
               name="employer-on-record"
               label="Yes"

@@ -200,7 +200,7 @@ export function renderJobListCell(
           </button>
           <div className="min-w-0">
             <Link
-              href={`/admin_recruiter/jobs/${job.id}/edit`}
+              href={`/admin_recruiter/jobs/${job.id}`}
               className="block truncate font-semibold hover:underline"
               style={{ color: ctx.brandingSecondaryHex }}
             >

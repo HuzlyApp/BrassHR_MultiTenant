@@ -556,7 +556,7 @@ function JobActionsMenuPortal({
       {job.status === "closed" ? (
         <>
           <Link
-            href={`/admin_recruiter/jobs/${job.id}/edit`}
+            href={`/admin_recruiter/jobs/${job.id}`}
             role="menuitem"
             className="block px-3 py-2 text-sm text-[#334155] hover:bg-[#F8FAFC]"
             onClick={onClose}
@@ -599,13 +599,23 @@ function JobActionsMenuPortal({
       ) : (
         <>
           <Link
-            href={`/admin_recruiter/jobs/${job.id}/edit`}
+            href={`/admin_recruiter/jobs/${job.id}`}
             role="menuitem"
             className="block px-3 py-2 text-sm text-[#334155] hover:bg-[#F8FAFC]"
             onClick={onClose}
           >
-            {job.status === "archived" ? "View" : "Edit"}
+            View
           </Link>
+          {job.status !== "archived" ? (
+            <Link
+              href={`/admin_recruiter/jobs/${job.id}/edit`}
+              role="menuitem"
+              className="block px-3 py-2 text-sm text-[#334155] hover:bg-[#F8FAFC]"
+              onClick={onClose}
+            >
+              Edit
+            </Link>
+          ) : null}
           {job.status === "draft" ? (
             <>
               <button

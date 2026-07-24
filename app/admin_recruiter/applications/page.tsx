@@ -276,8 +276,22 @@ export default function JobApplicationsPage() {
   const [pageSize, setPageSize] = useState(10);
 
   useEffect(() => {
-    const initialJobId = new URLSearchParams(window.location.search).get("jobId")?.trim();
+    const params = new URLSearchParams(window.location.search);
+    const initialJobId = params.get("jobId")?.trim();
     if (initialJobId) setJobId(initialJobId);
+    const initialTab = params.get("tab")?.trim();
+    if (
+      initialTab === "all" ||
+      initialTab === "new" ||
+      initialTab === "reviewing" ||
+      initialTab === "interviewing" ||
+      initialTab === "rejected" ||
+      initialTab === "hired" ||
+      initialTab === "shortlisted" ||
+      initialTab === "undecided"
+    ) {
+      setActiveTab(initialTab);
+    }
     setListColumnOrder(loadApplicationColumnOrder());
   }, []);
 
