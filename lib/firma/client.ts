@@ -507,6 +507,22 @@ export async function createFirmaWorkspace(input: {
 }
 
 /**
+ * Sync company-wide appearance defaults (app.firma.dev → Settings → Appearance).
+ * Workspace settings override these per workspace; company primary must be BrassHR gold
+ * so embedded editors inherit gold CTAs when workspace inherits from company.
+ */
+export async function updateFirmaCompanyAppearanceSettings(
+  settings: FirmaWorkspaceAppearanceSettings
+): Promise<FirmaWorkspaceAppearanceSettings> {
+  return firmaRequest<FirmaWorkspaceAppearanceSettings>("/company/settings", {
+    method: "PUT",
+    body: settings,
+    includeWorkspaceScope: false,
+    retries: 1,
+  });
+}
+
+/**
  * Sync workspace appearance (embedded editor + signing chrome).
  * Must authenticate with the target workspace's own api_key — company/other-workspace
  * keys return 403 for appearance settings even when template/signing ops work via workspace_id.
@@ -529,6 +545,48 @@ export async function updateFirmaWorkspaceSettings(
     apiKey: workspaceApiKey,
     retries: 1,
   });
+}
+
+export type FirmaWorkspaceLogoUploadResult = {
+  icon_url?: string | null;
+};
+
+/**
+ * Upload workspace logo (POST /workspaces/{id}/logo).
+ * Firma accepts PNG or JPEG up to 2MB; use the workspace api_key for auth.
+ */
+export async function uploadFirmaWorkspaceLogo(
+  workspaceId: string,
+  file: Buffer | Blob,
+  filename: string,
+  contentType: string
+): Promise<FirmaWorkspaceLogoUploadResult> {
+  const id = workspaceId.trim();
+  if (!id) {
+    throw new FirmaError("VALIDATION_ERROR", "Firma workspace id is required", 400);
+  }
+
+  const workspaceApiKey = await resolveFirmaWorkspaceApiKey(id);
+  const url = buildUrl(`/workspaces/${id}/logo`, undefined, false);
+  const mime = contentType.trim().toLowerCase();
+  const blob =
+    file instanceof Blob
+      ? file
+      : new Blob([new Uint8Array(file)], { type: mime });
+
+  const form = new FormData();
+  form.append("file", blob, filename);
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: workspaceApiKey,
+    },
+    body: form,
+    cache: "no-store",
+  });
+
+  return parseFirmaResponse<FirmaWorkspaceLogoUploadResult>(res);
 }
 
 export function resolveFirmaRecipientSigningUrl(

@@ -7,6 +7,9 @@ import {
   resolveOnboardingWorker,
 } from "@/lib/onboarding/resolve-onboarding-worker";
 import { loadTenantOnboardingConfig } from "@/lib/onboarding/load-tenant-config";
+import { loadApplicantConfigForJobToken } from "@/lib/onboarding/load-config-for-job-workflow";
+import { isPreviewOnboardingStepId } from "@/lib/onboarding/load-applicant-draft-config";
+import { normalizeJobToken } from "@/lib/jobs/public-application-routing";
 import { dispatchWorkflowIntegrationPartner } from "@/lib/onboarding/integration-partner-dispatch";
 import { notifyHrOnOnboardingStepFailure } from "@/lib/onboarding/notify-hr-on-step-failure";
 import { shouldPauseFlowOnStepFailure } from "@/lib/onboarding/workflow-settings";
@@ -16,13 +19,14 @@ import { isValidStep1Email } from "@/lib/onboardingStep1Validation";
 import { getEnabledTenantSteps } from "@/lib/onboarding/tenant-step-navigation";
 import { persistFarthestReachedStepIndex } from "@/lib/onboarding/persist-farthest-reached-step";
 import { resolveOnboardingProgressStep } from "@/lib/onboarding/resolve-onboarding-progress-step";
-import type { OnboardingStepStatus } from "@/lib/onboarding/types";
+import type { OnboardingStepStatus, TenantOnboardingConfig } from "@/lib/onboarding/types";
 
 export const runtime = "nodejs";
 
 type Body = {
   applicantId?: string;
   tenantSlug?: string;
+  jobToken?: string;
   stepId?: string;
   stepKey?: string;
   status?: OnboardingStepStatus;
@@ -63,9 +67,27 @@ export async function POST(req: NextRequest) {
 
     const payload = await ensureWorkerOnboardingProgress(supabase, ctx.workerId, ctx.tenantId);
 
-    let config = await loadTenantOnboardingConfig(supabase, ctx.tenantId, {
+    const jobToken = normalizeJobToken(
+      typeof body.jobToken === "string" ? body.jobToken : null
+    );
+
+    let tenantConfig = await loadTenantOnboardingConfig(supabase, ctx.tenantId, {
       workerFacing: true,
     });
+
+    let config: TenantOnboardingConfig | null = tenantConfig;
+    if (jobToken) {
+      try {
+        const jobConfig = await loadApplicantConfigForJobToken(
+          supabase,
+          tenantSlug || null,
+          jobToken
+        );
+        config = jobConfig.config;
+      } catch {
+        // Fall back to tenant published config when job token is stale.
+      }
+    }
 
     let stepRow = resolveOnboardingProgressStep(config, {
       stepId: body.stepId,
@@ -75,11 +97,12 @@ export async function POST(req: NextRequest) {
     let progressPayload = payload;
 
     // Stale tenant config cache can omit a just-published step key (e.g. custom_question).
-    if (!stepRow && (body.stepId?.trim() || body.stepKey?.trim())) {
-      config = await loadTenantOnboardingConfig(supabase, ctx.tenantId, {
+    if (!stepRow && !jobToken && (body.stepId?.trim() || body.stepKey?.trim())) {
+      tenantConfig = await loadTenantOnboardingConfig(supabase, ctx.tenantId, {
         workerFacing: true,
         bypassCache: true,
       });
+      config = tenantConfig;
       stepRow = resolveOnboardingProgressStep(config, {
         stepId: body.stepId,
         stepKey: body.stepKey,
@@ -93,10 +116,24 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const stepId = stepRow?.id ? String(stepRow.id) : "";
+    // Job workflows may surface preview-* ids for steps not in the last-published tenant config.
+    // Persist progress against the best matching published tenant step when needed.
+    let persistStep = stepRow;
+    if (stepRow && isPreviewOnboardingStepId(stepRow.id)) {
+      persistStep =
+        resolveOnboardingProgressStep(tenantConfig, {
+          stepKey: stepRow.step_key,
+        }) ?? stepRow;
+    }
+
+    const stepId =
+      persistStep && !isPreviewOnboardingStepId(persistStep.id)
+        ? String(persistStep.id)
+        : "";
     if (!stepId) {
       return NextResponse.json({ error: "Step not found" }, { status: 400 });
     }
+    stepRow = persistStep ?? stepRow;
 
     const completed_at = status === "completed" ? new Date().toISOString() : null;
 

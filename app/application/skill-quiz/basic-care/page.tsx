@@ -2,7 +2,7 @@
 
 import { APPLICATION_ROUTES } from "@/lib/onboarding/application-routes"
 import { applicationPath } from "@/lib/tenant/with-tenant"
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 // import Image from "next/image"
 import { getApplicantSupabaseClient } from "@/lib/supabase-applicant-browser"
@@ -31,6 +31,11 @@ import {
   SKILL_QUIZ_CONTENT_CLASS,
   SKILL_QUIZ_SHELL_CLASS,
 } from "@/app/application/skill-quiz/skill-quiz-responsive"
+import {
+  clampSkillQuizPage,
+  getSkillQuizPageQuestions,
+  getSkillQuizTotalPages,
+} from "@/lib/skill-quiz-pagination"
 
 const CATEGORY_SLUG = "basic-care"
 const PAGE_SIZE = 5
@@ -148,23 +153,28 @@ export default function BasicCareQuiz() {
   const [saving, setSaving] = useState(false)
 
   const answersRef = useRef<Record<string, number>>({})
+  const pageRef = useRef(page)
+  const questionsRef = useRef(questions)
   useEffect(() => {
     answersRef.current = answers
   }, [answers])
+  useEffect(() => {
+    pageRef.current = page
+  }, [page])
+  useEffect(() => {
+    questionsRef.current = questions
+  }, [questions])
 
   const { scheduleSave, saveState, flushPending } = useQuizAutosave(supabase, {
     categorySlug: CATEGORY_SLUG,
     answersRef,
   })
 
-  const totalPages = useMemo(
-    () => Math.max(1, Math.ceil(questions.length / PAGE_SIZE) || 1),
-    [questions.length]
+  const { pageQuestions, safePage, totalPages, start } = getSkillQuizPageQuestions(
+    questions,
+    page,
+    PAGE_SIZE
   )
-
-  const start = (page - 1) * PAGE_SIZE
-  const end = Math.min(start + PAGE_SIZE, questions.length)
-  const pageQuestions = questions.slice(start, end)
 
   const loadQuiz = useCallback(async () => {
     setLoadError(null)
@@ -269,8 +279,8 @@ export default function BasicCareQuiz() {
   }, [loadQuiz])
 
   useEffect(() => {
-    setPage((p) => Math.min(p, totalPages))
-  }, [totalPages])
+    setPage((p) => clampSkillQuizPage(p, questions.length, PAGE_SIZE))
+  }, [questions.length])
 
   const selectAnswer = (questionId: string, value: number) => {
     setAnswers((prev) => {
@@ -346,23 +356,27 @@ export default function BasicCareQuiz() {
   }
 
   async function next() {
-    if (questions.length === 0) {
+    if (questionsRef.current.length === 0) {
       router.push(applicationPath(APPLICATION_ROUTES.skillAssessment))
       return
     }
 
     await flushPending()
 
-    if (page >= totalPages) {
+    const count = questionsRef.current.length
+    const pages = getSkillQuizTotalPages(count, PAGE_SIZE)
+    const current = pageRef.current
+
+    if (current >= pages) {
       await saveAndFinish()
       return
     }
 
-    setPage((p) => p + 1)
+    setPage(current + 1)
   }
 
   function back() {
-    if (page > 1) setPage((p) => p - 1)
+    if (safePage > 1) setPage(safePage - 1)
     else router.back()
   }
 
@@ -515,7 +529,7 @@ export default function BasicCareQuiz() {
 
           <div className="mt-auto flex flex-col gap-3 pt-6 sm:flex-row sm:items-center sm:justify-between">
             <span className="text-[12px] font-medium text-slate-600 sm:text-[13px]">
-              {page} of {totalPages}
+              {questions.length === 0 ? "—" : `${safePage} of ${totalPages}`}
             </span>
             <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center sm:gap-3">
               <button
@@ -531,7 +545,7 @@ export default function BasicCareQuiz() {
                 disabled={saving}
                 className="group inline-flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-md bg-[color:var(--brand-primary)] px-3 py-2.5 text-[11px] font-medium leading-5 text-white transition hover:brightness-90 disabled:opacity-50 max-[399px]:px-3 sm:w-auto sm:gap-2 sm:px-6 sm:py-2 sm:text-[12px]"
               >
-                {saving ? "Saving..." : page >= totalPages ? "Submit" : "Save & Next"}
+                {saving ? "Saving..." : safePage >= totalPages ? "Submit" : "Save & Next"}
                 {!saving && <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />}
               </button>
             </div>

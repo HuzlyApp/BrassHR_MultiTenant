@@ -27,6 +27,7 @@ import {
   type TenantBranding,
 } from "@/lib/tenant/tenant-branding";
 import { OWNER_SIGNUP_EMAIL_TAKEN_MESSAGE } from "@/lib/tenant/tenant-email-uniqueness";
+import { markAccountReadyModalPending } from "@/lib/auth/account-ready-modal";
 // Social auth icons — unused while social signup is commented out on the form.
 // import { FaApple } from "react-icons/fa";
 // import { FaXTwitter } from "react-icons/fa6";
@@ -95,7 +96,7 @@ async function checkOwnerSignupEmailAvailable(email: string): Promise<boolean> {
 
 function getPasswordRules(password: string): PasswordRule[] {
   return [
-    { label: "Password must be at least 8 characters long.", passed: password.length >= 8 },
+    { label: "Password must be at least 12 characters long.", passed: password.length >= 12 },
     { label: "Password must contain at least one upper case.", passed: /[A-Z]/.test(password) },
     { label: "One lower case letter.", passed: /[a-z]/.test(password) },
     { label: "Password must contain at least one number.", passed: /\d/.test(password) },
@@ -652,6 +653,7 @@ export default function SignupPage() {
 
         setRedirecting(true);
         window.setTimeout(() => {
+          markAccountReadyModalPending(sessionStorage);
           window.location.assign("/your-trial");
         }, 80);
       } catch {

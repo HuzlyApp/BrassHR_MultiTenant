@@ -2,6 +2,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createFirmaWorkspace, isFirmaConfigured } from "@/lib/firma/client";
 import { FirmaError } from "@/lib/firma/errors";
+import { syncTenantBrandingToFirmaWorkspace } from "@/lib/firma/sync-workspace-branding";
 
 export type FirmaWorkspaceProvisioningMode = "manual" | "api" | "disabled";
 
@@ -156,6 +157,16 @@ export async function provisionFirmaWorkspaceForTenant(input: {
       firma_workspace_provisioning_error: null,
       firma_workspace_provisioned_at: provisionedAt,
     });
+
+    try {
+      await syncTenantBrandingToFirmaWorkspace(input.supabase, input.tenantId, created.id);
+    } catch (brandingErr) {
+      console.error("[firma-provision] workspace branding sync failed", {
+        tenantId: input.tenantId,
+        workspaceId: created.id,
+        error: brandingErr instanceof Error ? brandingErr.message : brandingErr,
+      });
+    }
 
     return {
       status: "created",

@@ -4,6 +4,33 @@ import type {
   WorkerOnboardingProgressPayload,
 } from "@/lib/onboarding/types";
 
+type StepPhase = "pre_hire" | "transition" | "post_hire";
+
+function readStepPhase(step: TenantOnboardingStep): StepPhase {
+  const fromSettings =
+    step.metadata?.workflow_settings &&
+    typeof step.metadata.workflow_settings === "object" &&
+    !Array.isArray(step.metadata.workflow_settings)
+      ? (step.metadata.workflow_settings as Record<string, unknown>).phase
+      : undefined;
+  const phase =
+    fromSettings ??
+    (typeof step.metadata?.phase === "string" ? step.metadata.phase : undefined);
+  if (phase === "transition" || phase === "post_hire") return phase;
+  return "pre_hire";
+}
+
+function isPostHireUnlocked(progress: WorkerOnboardingProgressPayload | null): boolean {
+  const appStatus = String(progress?.applicationStatus ?? "").toLowerCase();
+  if (appStatus === "approved" || appStatus === "hired" || appStatus === "active") return true;
+  for (const step of progress?.steps ?? []) {
+    if (step.data?.transition_approved === true || step.data?.post_hire_unlocked === true) {
+      return true;
+    }
+  }
+  return false;
+}
+
 export function buildProgressStatusMaps(
   enabledSteps: TenantOnboardingStep[],
   progress: WorkerOnboardingProgressPayload | null
@@ -42,11 +69,17 @@ export function computeMaxAllowedStepIndexFromProgress(
   if (!enabledSteps.length) return 1;
 
   const statusByStepId = buildProgressStatusMaps(enabledSteps, progress);
+  const postHireUnlocked = isPostHireUnlocked(progress);
 
   let max = 1;
 
   if (progress?.steps?.length) {
     for (let i = 0; i < enabledSteps.length; i++) {
+      const phase = readStepPhase(enabledSteps[i]!);
+      if (phase === "post_hire" && !postHireUnlocked) {
+        max = Math.max(max, i);
+        break;
+      }
       const st = statusByStepId.get(enabledSteps[i]!.id);
       if (st === "completed" || st === "skipped") {
         if (st === "skipped" && isUploadResumeStep(enabledSteps[i]!)) {

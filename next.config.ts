@@ -101,6 +101,28 @@ const nextConfig: NextConfig = {
         ],
       },
       {
+        source: "/signing/:path*",
+        headers: [
+          ...securityHeaders.filter((h) => h.key !== "Content-Security-Policy"),
+          {
+            key: "Content-Security-Policy",
+            value: [
+              "default-src 'self'",
+              "base-uri 'self'",
+              "frame-ancestors 'self'",
+              "object-src 'none'",
+              "img-src 'self' data: blob: https:",
+              "font-src 'self' data: https://fonts.gstatic.com https://fonts.cdnfonts.com",
+              "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://fonts.cdnfonts.com",
+              "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: data: https://www.googletagmanager.com https://www.google-analytics.com",
+              "worker-src 'self' blob: data:",
+              "connect-src 'self' https: wss: blob:",
+              "frame-src 'self' https:",
+            ].join("; "),
+          },
+        ],
+      },
+      {
         source: "/:path*",
         headers: securityHeaders,
       },
@@ -114,6 +136,10 @@ const nextConfig: NextConfig = {
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || "",
     NEXT_PUBLIC_PLATFORM_ENFORCE:
       process.env.NEXT_PUBLIC_PLATFORM_ENFORCE ?? process.env.PLATFORM_ENFORCE ?? "",
+    NEXT_PUBLIC_FIRMA_SIGNING_BRANDING_PROXY:
+      process.env.NEXT_PUBLIC_FIRMA_SIGNING_BRANDING_PROXY ??
+      process.env.FIRMA_SIGNING_BRANDING_PROXY ??
+      "1",
   },
   turbopack: {
     root: process.cwd(),

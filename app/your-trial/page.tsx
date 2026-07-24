@@ -7,9 +7,12 @@ import { Fragment, Suspense, useCallback, useEffect, useRef, useState } from "re
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   buildYourTrialPath,
+  clearAccountReadyModalPending,
   markAccountReadyModalSeen,
+  readAccountReadyModalPending,
   readAccountReadyModalSeen,
 } from "@/lib/auth/account-ready-modal";
+import { leaveOwnerTrialPreparation } from "@/lib/auth/leave-owner-trial-preparation";
 
 const interStyle = { fontFamily: "Inter, Arial, sans-serif" };
 
@@ -124,7 +127,9 @@ function YourTrialContent() {
   const [prepareError, setPrepareError] = useState<string | null>(null);
   const [slowMessage, setSlowMessage] = useState<string | null>(null);
   const [resending, setResending] = useState(false);
+  const [leavingHome, setLeavingHome] = useState(false);
   const preparationStartedRef = useRef(false);
+  const leaveHomeStartedRef = useRef(false);
 
   const cleanAccountReadyUrl = useCallback(() => {
     if (searchParams.get("account-ready") !== "true") return;
@@ -133,7 +138,10 @@ function YourTrialContent() {
 
   const openAccountReadyModalOnce = useCallback(() => {
     if (typeof window === "undefined") return false;
-    if (readAccountReadyModalSeen(sessionStorage)) return false;
+    const pendingFromSignup = readAccountReadyModalPending(sessionStorage);
+    // Fresh signup (pending flag) always opens once. Otherwise honor "already seen".
+    if (!pendingFromSignup && readAccountReadyModalSeen(sessionStorage)) return false;
+    clearAccountReadyModalPending(sessionStorage);
     markAccountReadyModalSeen(sessionStorage);
     setShowAccountReadyModal(true);
     return true;
@@ -212,9 +220,10 @@ function YourTrialContent() {
       const existingStatus = await fetchTrialStatus();
       if (cancelled) return;
       if (existingStatus?.phase === "email_sent" || existingStatus?.phase === "onboarding_complete") {
-        // Trial was already ready when this page loaded (e.g. a refresh) —
-        // show the ready state but do NOT re-open the "account ready" modal.
-        markTrialReady({ showModal: false });
+        // Already prepared (refresh, or Strict Mode remount after email send).
+        // Show modal only when this visit came from a fresh signup redirect.
+        const pendingFromSignup = readAccountReadyModalPending(sessionStorage);
+        markTrialReady({ showModal: pendingFromSignup });
         return;
       }
 
@@ -223,7 +232,6 @@ function YourTrialContent() {
       if (cancelled) return;
 
       setCompletedThrough(1);
-      let emailDelivered = false;
       try {
         const res = await fetch("/api/auth/signup/prepare-trial", { method: "POST" });
         const json = (await res.json().catch(() => ({}))) as {
@@ -237,9 +245,7 @@ function YourTrialContent() {
         if (!res.ok) {
           if (res.status === 401) {
             const statusAfterAuthLoss = await fetchTrialStatus();
-            if (statusAfterAuthLoss?.phase === "email_sent") {
-              emailDelivered = true;
-            } else {
+            if (statusAfterAuthLoss?.phase !== "email_sent") {
               setPrepareError(
                 "Your sign-in session expired, but trial preparation can continue. Use Resend setup link below if needed."
               );
@@ -248,7 +254,7 @@ function YourTrialContent() {
             setPrepareError(json.error || "Could not finish preparing your trial.");
           }
         } else if (json.sent || (json.skipped && json.reason === "ALREADY_SENT")) {
-          emailDelivered = true;
+          // Email delivered (or already sent) — continue to ready modal.
         } else if (json.failed || json.skipped) {
           setPrepareError(
             json.reason === "RESEND_NOT_CONFIGURED"
@@ -269,45 +275,50 @@ function YourTrialContent() {
       await delay(STEP_DELAY_MS);
       if (cancelled) return;
 
-      if (emailDelivered) {
-        markTrialReady();
-        return;
-      }
-
-      const polled = await fetchTrialStatus();
-      if (polled?.phase === "email_sent" || polled?.phase === "onboarding_complete") {
-        markTrialReady();
-      }
+      // After preparing steps finish, always open the account-ready modal for a
+      // fresh signup — including local runs where email send fails/skips.
+      markTrialReady();
     }
 
     void runPreparation();
     return () => {
       cancelled = true;
       window.clearTimeout(slowTimer);
+      // Allow React Strict Mode remount to start preparation again.
+      preparationStartedRef.current = false;
     };
   }, [trialPrepared, isAccountReadyFromUrl, fetchTrialStatus, markTrialReady]);
 
-  useEffect(() => {
-    // The short-lived signup session expires a couple of minutes after landing
-    // here. When it does, send the user back to the default landing page
-    // ("/" = brasshr.com in production, localhost:3000 locally).
-    // This fires unconditionally from mount so it works whether the trial is
-    // still preparing OR the "account ready" modal is showing.
-    const redirectTimer = window.setTimeout(() => {
-      window.location.href = "/";
-    }, SESSION_EXPIRY_REDIRECT_MS);
-
-    return () => {
-      window.clearTimeout(redirectTimer);
-    };
-  }, []);
-
-  const handleExit = () => {
-    setShowAccountReadyModal(false);
+  const leaveToBrassHrHome = useCallback(async () => {
+    if (leaveHomeStartedRef.current) return;
+    leaveHomeStartedRef.current = true;
+    setLeavingHome(true);
     if (typeof window !== "undefined") {
+      clearAccountReadyModalPending(sessionStorage);
       markAccountReadyModalSeen(sessionStorage);
     }
-    cleanAccountReadyUrl();
+    await leaveOwnerTrialPreparation();
+  }, []);
+
+  useEffect(() => {
+    // After 2 minutes, send the owner to BrassHR marketing home ("/").
+    // Session + trial-prep cookie stay intact so the setup email link can still
+    // open /tenant-onboarding directly. Middleware allows incomplete owners on "/".
+    const startedAt = Date.now();
+    const redirectTimer = window.setInterval(() => {
+      if (Date.now() - startedAt >= SESSION_EXPIRY_REDIRECT_MS) {
+        window.clearInterval(redirectTimer);
+        void leaveToBrassHrHome();
+      }
+    }, 1000);
+
+    return () => {
+      window.clearInterval(redirectTimer);
+    };
+  }, [leaveToBrassHrHome]);
+
+  const handleExit = () => {
+    void leaveToBrassHrHome();
   };
 
   const handleResendSetupLink = async () => {
@@ -495,14 +506,22 @@ function YourTrialContent() {
         <section className="trial-frame mx-auto w-full rounded-[24px] bg-white">
           <div className="trial-layout w-full rounded-[12px] bg-white">
             <div className="trial-content">
-              <Image
-                src="/icons/braas-HR/BrassHR-logo.svg"
-                alt="Brass HR"
-                width={160}
-                height={80}
-                priority
-                className="h-[56px] w-[112px] object-contain sm:h-[68px] sm:w-[136px] min-[1440px]:h-[80px] min-[1440px]:w-[160px] max-[1100px]:mx-auto max-[1100px]:block"
-              />
+              <button
+                type="button"
+                onClick={() => void leaveToBrassHrHome()}
+                disabled={leavingHome}
+                className="inline-flex max-[1100px]:mx-auto disabled:opacity-60"
+                aria-label="Back to BrassHR home"
+              >
+                <Image
+                  src="/icons/braas-HR/BrassHR-logo.svg"
+                  alt="Brass HR"
+                  width={160}
+                  height={80}
+                  priority
+                  className="h-[56px] w-[112px] object-contain sm:h-[68px] sm:w-[136px] min-[1440px]:h-[80px] min-[1440px]:w-[160px]"
+                />
+              </button>
 
               <SignupStepper phase={trialPrepared ? "ready" : "preparing"} />
 
@@ -528,7 +547,7 @@ function YourTrialContent() {
                     <button
                       type="button"
                       onClick={() => void handleResendSetupLink()}
-                      disabled={resending}
+                      disabled={resending || leavingHome}
                       className="rounded-[8px] border border-[#BC8B41] px-4 py-2 text-sm font-semibold text-[#BC8B41] transition hover:bg-[#BC8B41]/5 disabled:opacity-60"
                     >
                       {resending ? "Sending…" : "Resend setup link"}
@@ -541,12 +560,23 @@ function YourTrialContent() {
 
               <div className="min-h-[80px] flex-1 sm:min-h-[100px] min-[1440px]:min-h-[140px]" aria-hidden />
 
-              <p
-                className="text-[11px] font-normal leading-[15px] tracking-normal text-[#94a3b8] sm:text-[12px] sm:leading-[16px]"
-                style={interStyle}
-              >
-                Join 20,000+ companies in 190+ countries using Brass - HRsimplified
-              </p>
+              <div className="space-y-3">
+                <button
+                  type="button"
+                  onClick={() => void leaveToBrassHrHome()}
+                  disabled={leavingHome}
+                  className="text-[14px] font-semibold leading-[20px] text-[#BC8B41] transition hover:underline disabled:opacity-60 sm:text-[15px]"
+                  style={interStyle}
+                >
+                  {leavingHome ? "Returning to BrassHR…" : "Back to BrassHR"}
+                </button>
+                <p
+                  className="text-[11px] font-normal leading-[15px] tracking-normal text-[#94a3b8] sm:text-[12px] sm:leading-[16px]"
+                  style={interStyle}
+                >
+                  Join 20,000+ companies in 190+ countries using Brass - HRsimplified
+                </p>
+              </div>
             </div>
 
             <TrialArtPanel />

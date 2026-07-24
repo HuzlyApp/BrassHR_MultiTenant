@@ -6,7 +6,7 @@ import { validateStep1Form } from "@/lib/onboardingStep1Validation"
 import { resolveOnboardingTenantId } from "@/lib/tenant/resolve-onboarding-tenant-id"
 import { persistWorkerRow } from "@/lib/onboarding/persist-worker-row"
 import { sendProfileSaveStatusLinkEmail } from "@/lib/onboarding/send-profile-save-status-link-email"
-import { resolveAppOrigin } from "@/lib/resolve-app-origin"
+import { resolveApplicantEmailAppOrigin } from "@/lib/resolve-app-origin"
 
 export const runtime = "nodejs"
 
@@ -43,12 +43,29 @@ export async function POST(req: NextRequest) {
 
     const tenantSlug =
       typeof body.tenantSlug === "string" ? body.tenantSlug.trim().toLowerCase() : ""
-    const tenantRes = await resolveOnboardingTenantId(supabase, tenantSlug || null)
+    let tenantRes = await resolveOnboardingTenantId(supabase, tenantSlug || null)
     if (!tenantRes.ok) {
       return NextResponse.json(
         { error: tenantRes.error, code: "MISSING_TENANT" },
         { status: 503 },
       )
+    }
+
+    // When slug is missing, prefer an existing worker tenant for this applicant over the
+    // platform default (first active tenant). Wrong default caused false DUPLICATE_EMAIL 409s.
+    if (!tenantSlug) {
+      const { data: existingWorkers } = await supabase
+        .from("worker")
+        .select("tenant_id")
+        .eq("user_id", applicantId)
+        .order("updated_at", { ascending: false })
+        .limit(1)
+      const existingTenantId = existingWorkers?.[0]?.tenant_id
+        ? String(existingWorkers[0].tenant_id).toLowerCase()
+        : ""
+      if (existingTenantId) {
+        tenantRes = { ok: true, tenantId: existingTenantId }
+      }
     }
     const tenantId = tenantRes.tenantId
 
@@ -105,10 +122,7 @@ export async function POST(req: NextRequest) {
     const capturedTenantId = tenantId
     const capturedEmail = step1Fields.email.trim().toLowerCase()
     after(async () => {
-      const origin =
-        resolveAppOrigin(req) ??
-        process.env.NEXT_PUBLIC_APP_URL?.trim().replace(/\/+$/, "") ??
-        null
+      const origin = resolveApplicantEmailAppOrigin(req)
       if (!origin || !capturedWorkerId) {
         console.warn("[onboarding/save-worker] skipping status link email — missing origin or worker", {
           workerId: capturedWorkerId,

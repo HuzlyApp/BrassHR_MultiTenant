@@ -336,10 +336,12 @@ export default function SummaryPage() {
 
     setLoading(true)
     try {
+      const jobApplicationId =
+        localStorage.getItem("jobApplicationId")?.trim() || undefined
       const res = await fetch("/api/onboarding/submit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ applicantId, tenantSlug }),
+        body: JSON.stringify({ applicantId, tenantSlug, jobApplicationId }),
       })
       const json = (await res.json().catch(() => ({}))) as { error?: string }
       if (!res.ok) {

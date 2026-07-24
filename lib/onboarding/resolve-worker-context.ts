@@ -34,11 +34,22 @@ async function loadWorkerContext(
 
   if (tenantId) {
     query = query.eq("tenant_id", tenantId);
+    const { data: worker, error } = await query.maybeSingle();
+    if (error) throw error;
+    if (!worker?.id || worker.tenant_id == null) return null;
+    return {
+      workerId: String(worker.id),
+      tenantId: String(worker.tenant_id),
+      userId: String(worker.user_id ?? value),
+    };
   }
 
-  const { data: worker, error } = await query.maybeSingle();
-
+  // Same auth user can have one worker row per tenant — never use maybeSingle unscoped.
+  const { data: rows, error } = await query
+    .order("updated_at", { ascending: false })
+    .limit(1);
   if (error) throw error;
+  const worker = rows?.[0];
   if (!worker?.id || worker.tenant_id == null) return null;
 
   return {

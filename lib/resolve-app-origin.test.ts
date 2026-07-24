@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   migrateLegacyAppOrigin,
   resolveAppOrigin,
+  resolveApplicantEmailAppOrigin,
   resolvePlatformAppOrigin,
 } from "@/lib/resolve-app-origin";
 
@@ -124,5 +125,51 @@ describe("resolvePlatformAppOrigin", () => {
       headers: new Headers({ host: "jobs.brasshr.com", "x-forwarded-proto": "https" }),
     });
     expect(origin).toBe("https://brasshr.com");
+  });
+});
+
+describe("resolveApplicantEmailAppOrigin", () => {
+  const prevAppUrl = process.env.NEXT_PUBLIC_APP_URL;
+  const prevRoot = process.env.ROOT_DOMAIN;
+
+  afterEach(() => {
+    if (prevAppUrl === undefined) delete process.env.NEXT_PUBLIC_APP_URL;
+    else process.env.NEXT_PUBLIC_APP_URL = prevAppUrl;
+    if (prevRoot === undefined) delete process.env.ROOT_DOMAIN;
+    else process.env.ROOT_DOMAIN = prevRoot;
+  });
+
+  it("prefers localhost request host over production NEXT_PUBLIC_APP_URL", () => {
+    process.env.NEXT_PUBLIC_APP_URL = "https://remote.brasshr.com";
+    process.env.ROOT_DOMAIN = "brasshr.com";
+
+    const origin = resolveApplicantEmailAppOrigin({
+      headers: new Headers({ host: "localhost:3000" }),
+    });
+    expect(origin).toBe("http://localhost:3000");
+  });
+
+  it("prefers Vercel devmode request host over production NEXT_PUBLIC_APP_URL", () => {
+    process.env.NEXT_PUBLIC_APP_URL = "https://remote.brasshr.com";
+    process.env.ROOT_DOMAIN = "brasshr.com";
+
+    const origin = resolveApplicantEmailAppOrigin({
+      headers: new Headers({
+        host: "brasshr-devmode.vercel.app",
+        "x-forwarded-proto": "https",
+      }),
+    });
+    expect(origin).toBe("https://brasshr-devmode.vercel.app");
+  });
+
+  it("uses client origin when provided", () => {
+    process.env.NEXT_PUBLIC_APP_URL = "https://remote.brasshr.com";
+    process.env.ROOT_DOMAIN = "brasshr.com";
+
+    const origin = resolveApplicantEmailAppOrigin(
+      { headers: new Headers({ host: "remote.brasshr.com", "x-forwarded-proto": "https" }) },
+      "http://localhost:3000"
+    );
+    expect(origin).toBe("http://localhost:3000");
   });
 });

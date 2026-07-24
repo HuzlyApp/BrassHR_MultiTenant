@@ -207,11 +207,17 @@ export async function middleware(request: NextRequest) {
       const role = parseAppRole((user.app_metadata as { role?: unknown } | undefined)?.role);
       if (isGodAdminUser(user) || (role && isStaffRole(role))) {
         const onboardingStatus = await fetchOwnerOnboardingStatus(supabase, user);
-        const destination = resolvePostAuthRedirect(
-          onboardingStatus,
-          request.nextUrl.searchParams.get("next")
-        );
-        return redirectAuthenticatedUser(request, user, destination);
+        // Incomplete owners may open BrassHR marketing home while waiting for the
+        // setup email. Keep them signed in so the email continuation link can open
+        // /tenant-onboarding directly. Only redirect completed / god-admin users.
+        if (onboardingStatus.godAdmin || onboardingStatus.tenantOnboardingCompleted) {
+          const destination = resolvePostAuthRedirect(
+            onboardingStatus,
+            request.nextUrl.searchParams.get("next")
+          );
+          return redirectAuthenticatedUser(request, user, destination);
+        }
+        return response;
       }
 
       const tenant =

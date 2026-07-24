@@ -4,6 +4,10 @@ import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObjec
 import { RefreshCw } from "lucide-react";
 import toast from "react-hot-toast";
 import { recruiterTemplateFetch } from "@/app/admin_recruiter/components/recruiter-template-auth";
+import {
+  patchFirmaTemplateEditorBranding,
+  type FirmaTemplateEditorWithPalette,
+} from "@/lib/firma/embed-color-palette";
 import { prepareFirmaPdfWorker } from "@/lib/firma/pdf-worker-patch";
 import type {
   RecruiterTemplateBuilderSession,
@@ -35,9 +39,7 @@ type FirmaEditorMessage = {
   };
 };
 
-type FirmaTemplateEditorInstance = {
-  destroy?: () => void;
-};
+type FirmaTemplateEditorInstance = FirmaTemplateEditorWithPalette;
 
 type FirmaTemplateEditorOptions = {
   container: HTMLElement;
@@ -433,6 +435,10 @@ export default function FirmaTemplateBuilderFrame({
             }
           },
           onLoad: () => {
+            patchFirmaTemplateEditorBranding(
+              editorRef.current,
+              activeSession.embed_color_palette
+            );
             setEditorPhase(null);
             clearFirmaEditorTimer(initTimeoutRef);
             logFirmaBuilderPhase("editor-onload", {
@@ -447,6 +453,10 @@ export default function FirmaTemplateBuilderFrame({
         } else if (typeof FirmaTemplateEditor === "function") {
           editorRef.current = new FirmaTemplateEditor(options);
         }
+        patchFirmaTemplateEditorBranding(
+          editorRef.current,
+          activeSession.embed_color_palette
+        );
         logFirmaBuilderPhase("editor-mounted", {
           templateId,
           firmaTemplateId: activeSession.firma_template_id,

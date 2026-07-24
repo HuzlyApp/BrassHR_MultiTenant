@@ -68,7 +68,8 @@ describe("FirmaSigningIframe", () => {
 
     const iframe = screen.getByTestId("firma-signing-iframe") as HTMLIFrameElement;
     expect(iframe).toBeInTheDocument();
-    expect(iframe.src).toBe("https://app.firma.dev/signing/recipient-1");
+    expect(iframe.src).toContain("/signing/recipient-1");
+    expect(iframe.src).not.toContain("app.firma.dev");
     expect(iframe.getAttribute("allow")).toContain("camera");
   });
 

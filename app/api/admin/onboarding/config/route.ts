@@ -21,6 +21,7 @@ import {
   type SerializableWorkflowState,
 } from "@/lib/onboarding/workflow-builder-serialization";
 import { formatApiError } from "@/lib/api/format-api-error";
+import { requireWorkflowAdmin } from "@/lib/auth/workflow-admin";
 
 export const runtime = "nodejs";
 
@@ -58,6 +59,8 @@ async function resolveTenantId(
 export async function GET(req: NextRequest) {
   const auth = await requireStaffApiSession();
   if (auth instanceof NextResponse) return auth;
+  const forbidden = requireWorkflowAdmin(auth);
+  if (forbidden) return forbidden;
 
   const supabase = createServiceRoleClient();
   if (!supabase) {
@@ -116,6 +119,8 @@ type SaveBody = {
 export async function PUT(req: NextRequest) {
   const auth = await requireStaffApiSession();
   if (auth instanceof NextResponse) return auth;
+  const forbidden = requireWorkflowAdmin(auth);
+  if (forbidden) return forbidden;
 
   const supabase = createServiceRoleClient();
   if (!supabase) {

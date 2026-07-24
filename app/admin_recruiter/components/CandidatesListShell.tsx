@@ -1,11 +1,11 @@
 "use client";
 
-import { useMemo } from "react";
 import { Columns2, Filter, LayoutGrid, List, Search } from "lucide-react";
 import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
 import { CandidatesSubTabs } from "./CandidatesSubTabs";
 import { CandidatesPageHeader } from "./CandidatesPageHeader";
 import { ListExportDropdown } from "./ListExportDropdown";
+import { ListPaginationControls } from "./ListPaginationControls";
 import {
   CANDIDATES_FILTER_CONTROL_CLASS,
   CANDIDATES_FILTER_LABEL_CLASS,
@@ -264,15 +264,6 @@ export function CandidatesListShell({
   const safePage = Math.min(page, totalPages);
   const rangeStart = totalFiltered === 0 ? 0 : (safePage - 1) * pageSize + 1;
   const rangeEnd = Math.min(safePage * pageSize, totalFiltered);
-
-  const pageNumbers = useMemo(() => {
-    const maxButtons = 5;
-    if (totalPages <= maxButtons) {
-      return Array.from({ length: totalPages }, (_, i) => i + 1);
-    }
-    const start = Math.max(1, Math.min(safePage - 2, totalPages - maxButtons + 1));
-    return Array.from({ length: maxButtons }, (_, i) => start + i);
-  }, [safePage, totalPages]);
 
   const totalText = advancedSearchActive ? (
     <>
@@ -562,7 +553,7 @@ export function CandidatesListShell({
                 <select
                   value={pageSize}
                   onChange={(e) => onPageSizeChange(Number(e.target.value))}
-                  className="h-9 rounded-md border border-[#dce6e3] bg-white px-2 text-sm text-[#334155] focus:border-[color:var(--brand-primary)] focus:outline-none"
+                  className="box-border h-8 rounded-lg border border-[#CBD5E1] bg-white px-2 text-sm text-[#334155] focus:border-[color:var(--brand-primary)] focus:outline-none"
                 >
                   {[10, 20, 30].map((size) => (
                     <option key={size} value={size}>
@@ -571,38 +562,15 @@ export function CandidatesListShell({
                   ))}
                 </select>
               </label>
-              <div className="flex items-center gap-1">
-                <button
-                  type="button"
-                  disabled={safePage <= 1}
-                  onClick={() => onPageChange(safePage - 1)}
-                  className="h-9 rounded-md border border-[#dce6e3] bg-white px-3 text-sm text-[#334155] transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  Previous
-                </button>
-                {pageNumbers.map((num) => (
-                  <button
-                    key={num}
-                    type="button"
-                    onClick={() => onPageChange(num)}
-                    className={`h-9 min-w-9 rounded-md border px-3 text-sm transition ${
-                      num === safePage
-                        ? "border-[color:var(--brand-primary)] bg-[color:var(--brand-primary)] text-white"
-                        : "border-[#dce6e3] bg-white text-[#334155] hover:bg-zinc-50"
-                    }`}
-                  >
-                    {num}
-                  </button>
-                ))}
-                <button
-                  type="button"
-                  disabled={safePage >= totalPages}
-                  onClick={() => onPageChange(safePage + 1)}
-                  className="h-9 rounded-md border border-[#dce6e3] bg-white px-3 text-sm text-[#334155] transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  Next
-                </button>
-              </div>
+              <ListPaginationControls
+                currentPage={safePage}
+                totalPages={totalPages}
+                onPageChange={onPageChange}
+                activeStyle={{
+                  backgroundColor: "var(--brand-secondary)",
+                  borderColor: "var(--brand-secondary)",
+                }}
+              />
             </div>
           </div>
         ) : null}

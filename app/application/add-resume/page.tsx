@@ -4,7 +4,7 @@ import { APPLICATION_ROUTES } from "@/lib/onboarding/application-routes"
 import { applicationPath } from "@/lib/tenant/with-tenant"
 import { useEffect, useRef, useState } from "react"
 import type { CSSProperties } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import Image from "next/image"
 import OnboardingStepper from "@/app/components/OnboardingStepper"
 import OnboardingLoader from "@/app/components/OnboardingLoader"
@@ -33,6 +33,8 @@ import {
   findResumeUploadStep,
   markResumeUploadStepComplete,
 } from "@/lib/onboarding/mark-resume-upload-step-complete"
+import { workerSignInHref } from "@/lib/auth/worker-sign-in"
+import { currentOnboardingTenantSlug } from "@/lib/tenant/with-tenant"
 
 const APPLICANT_SESSION_TIMEOUT_MS = 15_000
 const WORKER_ENSURE_TIMEOUT_MS = 15_000
@@ -96,6 +98,9 @@ export default function Step1Upload() {
   const primaryBtnStyle = { backgroundColor: branding.primaryHex } as CSSProperties
   const brandTextStyle = { color: branding.primaryHex } as CSSProperties
   const secondaryTextStyle = { color: branding.secondaryHex } as CSSProperties
+  const workerSignInUrl = workerSignInHref({
+    tenant: branding.slug || currentOnboardingTenantSlug(),
+  })
 
   const ACCEPTED_RESUME_EXTENSIONS = [".pdf", ".doc", ".docx"]
 
@@ -115,6 +120,7 @@ export default function Step1Upload() {
   }
 
   const router = useRouter()
+  const searchParams = useSearchParams()
   const fileInput = useRef<HTMLInputElement>(null)
   const onboarding = useOnboardingConfigOptional()
 
@@ -127,9 +133,58 @@ export default function Step1Upload() {
   const [fileRequiredError, setFileRequiredError] = useState<string | null>(null)
   const [savedResumeName, setSavedResumeName] = useState("")
   const [savedResumeSizeBytes, setSavedResumeSizeBytes] = useState<number | null>(null)
+  const jobToken =
+    searchParams.get("job_token")?.trim() ||
+    (typeof window !== "undefined" ? localStorage.getItem("applicationJobToken")?.trim() : "") ||
+    ""
 
   useEffect(() => {
     if (typeof window === "undefined") return
+    if (jobToken) {
+      localStorage.setItem("applicationJobToken", jobToken)
+    }
+  }, [jobToken])
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    const tenantSlug =
+      searchParams.get("tenant")?.trim().toLowerCase() ||
+      branding.slug?.trim().toLowerCase() ||
+      currentOnboardingTenantSlug() ||
+      ""
+    if (!jobToken && tenantSlug) {
+      void fetch(`/api/public/application-entry?tenant=${encodeURIComponent(tenantSlug)}`, {
+        cache: "no-store",
+      })
+        .then(async (response) => {
+          const payload = (await response.json().catch(() => ({}))) as { path?: string }
+          if (response.ok && payload.path) {
+            router.replace(payload.path)
+          } else {
+            router.replace(`/jobs?tenant=${encodeURIComponent(tenantSlug)}`)
+          }
+        })
+        .catch(() => {
+          router.replace(`/jobs?tenant=${encodeURIComponent(tenantSlug)}`)
+        })
+    }
+  }, [branding.slug, jobToken, router, searchParams])
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    const hasSuccessfulUpload = Boolean(
+      localStorage.getItem("resumeStoragePath")?.trim() ||
+        localStorage.getItem("resumeId")?.trim()
+    )
+    if (!hasSuccessfulUpload) {
+      // Stale selection from a failed prior upload should not look "already uploaded".
+      localStorage.removeItem("resumeName")
+      localStorage.removeItem("resumeSizeBytes")
+      localStorage.removeItem("resumeMimeType")
+      setSavedResumeName("")
+      setSavedResumeSizeBytes(null)
+      return
+    }
     setSavedResumeName(localStorage.getItem("resumeName") || "")
     const sizeRaw = localStorage.getItem("resumeSizeBytes")
     const sizeNum = sizeRaw ? Number(sizeRaw) : null
@@ -147,6 +202,7 @@ export default function Step1Upload() {
     const timer = window.setTimeout(() => {
       setUploading(false)
       setUploadPhase("Uploading resume...")
+      clearFailedUploadSelection()
       setParseError(
         `Resume upload is taking too long while ${uploadPhase.toLowerCase()}. Please try again.`
       )
@@ -163,15 +219,28 @@ export default function Step1Upload() {
     return `${bytes} B`
   }
 
-  function persistSelectedFile(selected: File) {
-    localStorage.setItem("resumeName", selected.name)
-    localStorage.setItem("resumeSizeBytes", String(selected.size))
-    localStorage.setItem("resumeMimeType", selected.type || "")
-    // Clear previous parsing results when choosing a new file.
-    localStorage.removeItem("parsedResume")
-    localStorage.removeItem("resumeId")
-    setSavedResumeName(selected.name)
-    setSavedResumeSizeBytes(selected.size)
+  function clearFailedUploadSelection() {
+    setFile(null)
+    setFileRequiredError(null)
+    if (fileInput.current) fileInput.current.value = ""
+
+    const hasSuccessfulUpload = Boolean(
+      localStorage.getItem("resumeStoragePath")?.trim() ||
+        localStorage.getItem("resumeId")?.trim()
+    )
+    if (hasSuccessfulUpload) {
+      setSavedResumeName(localStorage.getItem("resumeName") || "")
+      const sizeRaw = localStorage.getItem("resumeSizeBytes")
+      const sizeNum = sizeRaw ? Number(sizeRaw) : null
+      setSavedResumeSizeBytes(sizeNum != null && Number.isFinite(sizeNum) ? sizeNum : null)
+      return
+    }
+
+    setSavedResumeName("")
+    setSavedResumeSizeBytes(null)
+    localStorage.removeItem("resumeName")
+    localStorage.removeItem("resumeSizeBytes")
+    localStorage.removeItem("resumeMimeType")
   }
 
   function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
@@ -188,8 +257,8 @@ export default function Step1Upload() {
       return
     }
 
+    // Keep selection in memory only until upload succeeds.
     setFile(selected)
-    persistSelectedFile(selected)
 
     // Allows selecting the same file again to retrigger `onChange`.
     e.target.value = ""
@@ -216,7 +285,6 @@ export default function Step1Upload() {
     }
 
     setFile(dropped)
-    persistSelectedFile(dropped)
   }
 
   function dragOver(e: React.DragEvent) {
@@ -350,6 +418,21 @@ export default function Step1Upload() {
         if (workerResult.tenantId) {
           fd.append("tenantId", workerResult.tenantId)
         }
+        const urlJobToken =
+          new URLSearchParams(window.location.search).get("job_token")?.trim() || ""
+        const activeJobToken =
+          urlJobToken ||
+          jobToken ||
+          (typeof window !== "undefined" ? localStorage.getItem("applicationJobToken")?.trim() : "") ||
+          ""
+        if (activeJobToken) {
+          fd.append("jobToken", activeJobToken)
+          try {
+            localStorage.setItem("applicationJobToken", activeJobToken)
+          } catch {
+            /* ignore */
+          }
+        }
 
         const uploadRes = await fetchWithTimeout(
           "/api/upload-resume",
@@ -382,6 +465,7 @@ export default function Step1Upload() {
               body: JSON.stringify({
                 applicantId: session.applicantId,
                 resume_path: uploadJson.storagePath,
+                ...(tenantSlug ? { tenantSlug } : {}),
               }),
             },
             WORKER_REQUIREMENTS_TIMEOUT_MS,
@@ -398,9 +482,13 @@ export default function Step1Upload() {
         }
 
         localStorage.setItem("resumeName", uploadJson?.fileName || file.name)
+        localStorage.setItem("resumeSizeBytes", String(file.size))
+        localStorage.setItem("resumeMimeType", file.type || "")
         localStorage.removeItem("parsedResume")
         localStorage.setItem("step1TermsAccepted", "false")
         localStorage.setItem("step1ReviewCompleted", "false")
+        setSavedResumeName(uploadJson?.fileName || file.name)
+        setSavedResumeSizeBytes(file.size)
         setParseStatus(uploadJson.parseStatus ?? "processing")
 
         setUploadPhase("Finishing...")
@@ -430,6 +518,7 @@ export default function Step1Upload() {
         router.push(applicationPath(APPLICATION_ROUTES.profileReview))
       } catch (e) {
         const msg = e instanceof Error ? e.message : "Failed to upload resume"
+        clearFailedUploadSelection()
         setParseError(msg)
       } finally {
         setUploading(false)
@@ -603,6 +692,17 @@ export default function Step1Upload() {
             </p>
           ) : null}
 
+          <p className="mt-4 text-sm text-slate-500">
+            Already have an account?{" "}
+            <a
+              href={workerSignInUrl}
+              className="font-semibold underline-offset-4 hover:underline"
+              style={brandTextStyle}
+            >
+              Sign in
+            </a>
+          </p>
+
           <div className="mt-6 grid grid-cols-2 gap-2 sm:mt-8 sm:gap-3 min-[1200px]:mt-10 min-[1200px]:flex min-[1200px]:justify-end min-[1200px]:gap-4">
             <button
               onClick={() => router.back()}
@@ -618,7 +718,7 @@ export default function Step1Upload() {
               className={`w-full cursor-pointer rounded-lg px-3 py-2.5 text-[11px] text-white transition hover:brightness-90 sm:px-4 sm:py-2.5 sm:text-sm min-[1200px]:w-auto min-[1200px]:px-8 min-[1200px]:py-2 ${uploading ? "cursor-not-allowed opacity-70" : ""}`}
               style={primaryBtnStyle}
             >
-              {uploading ? "Uploading..." : "Next"}
+              {uploading ? "Uploading..." : "Upload Resume and Continue"}
             </button>
           </div>
 

@@ -22,6 +22,7 @@ const ALL_SIDEBAR_ICON_TYPES: SidebarIconType[] = [
   "Applicant",
   "Clients",
   "Organization",
+  "Jobs",
   "My Profile",
   "Notifications",
   "Help & Support",
