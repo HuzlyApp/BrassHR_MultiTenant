@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import {
   Check,
@@ -856,7 +857,14 @@ export default function JobApplicationsPage() {
               <ColumnsIcon />
               Columns
             </button>
-            <button type="button" className={`${ADD_CANDIDATE_BUTTON_CLASS} ml-auto`}>
+            <Link
+              href={
+                jobId
+                  ? `/admin_recruiter/applications/add-candidate?jobId=${encodeURIComponent(jobId)}`
+                  : "/admin_recruiter/applications/add-candidate"
+              }
+              className={`${ADD_CANDIDATE_BUTTON_CLASS} ml-auto`}
+            >
               <Plus
                 className="h-4 w-4 shrink-0"
                 style={{ color: branding.secondaryHex }}
@@ -864,7 +872,7 @@ export default function JobApplicationsPage() {
                 aria-hidden
               />
               Add candidate
-            </button>
+            </Link>
           </div>
           {showFilterRows ? (
             <div className="flex flex-wrap items-center gap-2">
@@ -920,7 +928,14 @@ export default function JobApplicationsPage() {
               </button>
             </div>
 
-            <button type="button" className={ADD_CANDIDATE_BUTTON_CLASS}>
+            <Link
+              href={
+                jobId
+                  ? `/admin_recruiter/applications/add-candidate?jobId=${encodeURIComponent(jobId)}`
+                  : "/admin_recruiter/applications/add-candidate"
+              }
+              className={ADD_CANDIDATE_BUTTON_CLASS}
+            >
               <Plus
                 className="h-5 w-5 shrink-0"
                 style={{ color: branding.secondaryHex }}
@@ -928,7 +943,7 @@ export default function JobApplicationsPage() {
                 aria-hidden
               />
               Add candidate
-            </button>
+            </Link>
           </div>
 
           <div className="border-b border-[#E5E7EB]" aria-hidden />
