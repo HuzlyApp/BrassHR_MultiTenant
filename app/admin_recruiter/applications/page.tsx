@@ -23,12 +23,15 @@ import {
   CANDIDATES_PAGE_TITLE_STYLE,
 } from "@/app/admin_recruiter/candidates/candidates-typography";
 import {
+  APPLICATION_STATUS_OPTIONS,
   APPLICATION_STATUS_TABS,
   applicationStatusLabel,
   matchesApplicationStatusTab,
   normalizeApplicationStatus,
+  type ApplicationPipelineStatus,
   type ApplicationStatusTab,
 } from "@/lib/jobs/application-status";
+import toast from "react-hot-toast";
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
 import {
   APPLICATION_COLUMN_OPTIONS,
@@ -250,7 +253,10 @@ export default function JobApplicationsPage() {
   const [candidateSearchOpen, setCandidateSearchOpen] = useState(false);
   const [candidateSearchDraft, setCandidateSearchDraft] = useState("");
   const [candidateSearchQuery, setCandidateSearchQuery] = useState("");
+  const [interestMenuId, setInterestMenuId] = useState<string | null>(null);
+  const [statusBusyId, setStatusBusyId] = useState<string | null>(null);
   const candidateSearchInputRef = useRef<HTMLInputElement>(null);
+  const interestMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setListColumnOrder(loadApplicationColumnOrder());
@@ -263,6 +269,8 @@ export default function JobApplicationsPage() {
     setCandidateSearchOpen(false);
     setCandidateSearchDraft("");
     setCandidateSearchQuery("");
+    setInterestMenuId(null);
+    setStatusBusyId(null);
     if (!jobId) {
       setJob(null);
       setRows([]);
@@ -291,6 +299,24 @@ export default function JobApplicationsPage() {
       setActiveTab(tabParam);
     }
   }, [searchParams]);
+
+  useEffect(() => {
+    if (!interestMenuId) return;
+    function onPointerDown(event: MouseEvent) {
+      if (!interestMenuRef.current?.contains(event.target as Node)) {
+        setInterestMenuId(null);
+      }
+    }
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setInterestMenuId(null);
+    }
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [interestMenuId]);
 
   useEffect(() => {
     if (!jobMenuOpen) return;
@@ -569,6 +595,38 @@ export default function JobApplicationsPage() {
     });
   }
 
+  async function updateApplicationStatus(
+    applicationId: string,
+    nextStatus: ApplicationPipelineStatus
+  ) {
+    if (statusBusyId) return;
+    setStatusBusyId(applicationId);
+    setInterestMenuId(null);
+    try {
+      const response = await fetch(`/api/admin/job-applications/${applicationId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: nextStatus }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(
+          typeof payload.error === "string" ? payload.error : "Failed to update status"
+        );
+      }
+      setRows((current) =>
+        current.map((row) => (row.id === applicationId ? { ...row, status: nextStatus } : row))
+      );
+      toast.success(`Status updated to ${applicationStatusLabel(nextStatus)}`);
+    } catch (updateError) {
+      toast.error(
+        updateError instanceof Error ? updateError.message : "Failed to update status"
+      );
+    } finally {
+      setStatusBusyId(null);
+    }
+  }
+
   function renderCell(colId: ApplicationColumnId, row: ApplicationRow) {
     switch (colId) {
       case "candidates": {
@@ -603,14 +661,22 @@ export default function JobApplicationsPage() {
         return <p className="text-sm leading-5 text-[#64748B]">{MATCHES_PLACEHOLDER}</p>;
       case "activity":
         return <p className="text-sm leading-5 text-[#475569]">{formatActivity(row)}</p>;
-      case "interest":
+      case "interest": {
+        const currentStatus = normalizeApplicationStatus(row.status);
+        const statusOptions = APPLICATION_STATUS_OPTIONS.filter(
+          (option) => option.id !== currentStatus
+        );
+        const menuOpen = interestMenuId === row.id;
+        const busy = statusBusyId === row.id;
         return (
-          <div className="inline-flex items-center gap-1 rounded-lg bg-[#F1F5F9] px-1.5 py-1">
+          <div className="relative inline-flex items-center gap-1 rounded-lg bg-[#F1F5F9] px-1.5 py-1">
             <button
               type="button"
               className="inline-flex h-7 w-7 items-center justify-center rounded-md text-[#16A34A] transition hover:bg-white"
               aria-label="Accept candidate"
               title="Accept"
+              onClick={() => void updateApplicationStatus(row.id, "hired")}
+              disabled={busy || currentStatus === "hired"}
             >
               <Check className="h-4 w-4" strokeWidth={2.25} />
             </button>
@@ -619,6 +685,8 @@ export default function JobApplicationsPage() {
               className="inline-flex h-7 w-7 items-center justify-center rounded-md text-[#64748B] transition hover:bg-white"
               aria-label="Mark as maybe"
               title="Maybe"
+              onClick={() => void updateApplicationStatus(row.id, "undecided")}
+              disabled={busy || currentStatus === "undecided"}
             >
               <HelpCircle className="h-4 w-4" strokeWidth={2} />
             </button>
@@ -627,19 +695,58 @@ export default function JobApplicationsPage() {
               className="inline-flex h-7 w-7 items-center justify-center rounded-md text-[#DC2626] transition hover:bg-white"
               aria-label="Reject candidate"
               title="Reject"
+              onClick={() => void updateApplicationStatus(row.id, "rejected")}
+              disabled={busy || currentStatus === "rejected"}
             >
               <X className="h-4 w-4" strokeWidth={2.25} />
             </button>
-            <button
-              type="button"
-              className="inline-flex h-7 w-7 items-center justify-center rounded-md text-[#64748B] transition hover:bg-white"
-              aria-label="More actions"
-              title="More"
+            <div
+              className="relative"
+              ref={menuOpen ? interestMenuRef : undefined}
             >
-              <MoreHorizontal className="h-4 w-4" strokeWidth={2} />
-            </button>
+              <button
+                type="button"
+                className={`inline-flex h-7 w-7 items-center justify-center rounded-md text-[#64748B] transition hover:bg-white ${
+                  menuOpen ? "bg-white ring-1 ring-[#CBD5E1]" : ""
+                }`}
+                aria-label="Update status"
+                title="Update status"
+                aria-expanded={menuOpen}
+                aria-haspopup="menu"
+                disabled={busy}
+                onClick={() =>
+                  setInterestMenuId((current) => (current === row.id ? null : row.id))
+                }
+              >
+                <MoreHorizontal className="h-4 w-4" strokeWidth={2} />
+              </button>
+              {menuOpen ? (
+                <div
+                  role="menu"
+                  className="absolute right-0 z-30 mt-1 min-w-[160px] overflow-hidden rounded-xl border border-[#E5E7EB] bg-white py-1 text-left shadow-lg"
+                >
+                  {statusOptions.length === 0 ? (
+                    <p className="px-3 py-2 text-sm text-[#94A3B8]">No other statuses</p>
+                  ) : (
+                    statusOptions.map((option) => (
+                      <button
+                        key={option.id}
+                        type="button"
+                        role="menuitem"
+                        disabled={busy}
+                        onClick={() => void updateApplicationStatus(row.id, option.id)}
+                        className="flex w-full items-center px-3 py-2 text-left text-sm text-[#334155] hover:bg-[#F8FAFC] disabled:opacity-50"
+                      >
+                        {option.label}
+                      </button>
+                    ))
+                  )}
+                </div>
+              ) : null}
+            </div>
           </div>
         );
+      }
       case "status":
         return <span className="text-sm capitalize text-[#475569]">{statusLabel(row.status)}</span>;
       case "email":

@@ -21,6 +21,7 @@ import {
   normalizeJobToken,
 } from "@/lib/jobs/public-application-routing";
 import { resolveWorkflowMatch } from "@/lib/workflow-mappings/service";
+import { ensureAdminCandidateWorker } from "@/lib/jobs/ensure-admin-candidate-worker";
 
 type DbClient = SupabaseClient;
 
@@ -782,4 +783,315 @@ export async function startOrResumeJobApplication(
   if (linkError) throw linkError;
 
   return { application: linked, resumed: false };
+}
+
+function splitCandidateFullName(fullName: string): { firstName: string; lastName: string | null } {
+  const parts = fullName.trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return { firstName: "", lastName: null };
+  if (parts.length === 1) return { firstName: parts[0], lastName: null };
+  return { firstName: parts[0], lastName: parts.slice(1).join(" ") };
+}
+
+async function attachWorkflowInstanceToApplication(
+  supabase: DbClient,
+  input: {
+    tenantId: string;
+    applicationId: string;
+    jobRequisitionId: string;
+    workflowId: string;
+    workerId?: string | null;
+    flow: { name?: string | null; builder_draft?: unknown; updated_at?: string | null };
+  }
+) {
+  const snapshot = input.flow.builder_draft ?? { nodes: [], edges: [] };
+  const workflowVersion = String(input.flow.updated_at ?? new Date().toISOString());
+  const workflowName = String(input.flow.name ?? "Workflow");
+
+  const instancePayload = {
+    tenant_id: input.tenantId,
+    application_id: input.applicationId,
+    workflow_id: input.workflowId,
+    worker_id: input.workerId ?? null,
+    job_requisition_id: input.jobRequisitionId,
+    onboarding_flow_id: input.workflowId,
+    workflow_name: workflowName,
+    workflow_snapshot: snapshot,
+    workflow_version: workflowVersion,
+    status: "in_progress" as const,
+  };
+
+  let { data: instance, error: instanceError } = await supabase
+    .from("applicant_workflow_instances")
+    .insert(instancePayload)
+    .select("id")
+    .single();
+
+  if (instanceError) {
+    const message = String(instanceError.message ?? "");
+    const unknownLegacyColumn = /onboarding_flow_id|job_requisition_id|Could not find/i.test(
+      message
+    );
+    if (unknownLegacyColumn) {
+      const retry = await supabase
+        .from("applicant_workflow_instances")
+        .insert({
+          tenant_id: input.tenantId,
+          application_id: input.applicationId,
+          workflow_id: input.workflowId,
+          workflow_name: workflowName,
+          workflow_snapshot: snapshot,
+          workflow_version: workflowVersion,
+          status: "in_progress",
+        })
+        .select("id")
+        .single();
+      instance = retry.data;
+      instanceError = retry.error;
+    }
+  }
+
+  if (instanceError || !instance?.id) {
+    throw instanceError ?? new Error("Failed to create applicant workflow instance.");
+  }
+
+  const nodes = Array.isArray((snapshot as { nodes?: unknown[] }).nodes)
+    ? ((snapshot as { nodes: Array<Record<string, unknown>> }).nodes ?? [])
+    : [];
+  if (nodes.length) {
+    const stepRows = nodes.map((node, index) => {
+      const settings =
+        node.settings && typeof node.settings === "object"
+          ? (node.settings as Record<string, unknown>)
+          : {};
+      const phase =
+        typeof settings.phase === "string"
+          ? settings.phase
+          : typeof node.phase === "string"
+            ? node.phase
+            : "pre_hire";
+      return {
+        tenant_id: input.tenantId,
+        workflow_instance_id: instance.id,
+        snapshot_step_id: String(node.id ?? `step-${index + 1}`),
+        position: index + 1,
+        title: String(node.label ?? `Step ${index + 1}`),
+        step_type: String(node.stepId ?? "custom"),
+        is_required: node.required === true,
+        settings: { ...settings, phase },
+      };
+    });
+    const { error: stepsError } = await supabase
+      .from("applicant_workflow_step_records")
+      .insert(stepRows);
+    if (stepsError) throw stepsError;
+  }
+
+  const { data: linked, error: linkError } = await supabase
+    .from("job_applications")
+    .update({ applicant_workflow_instance_id: instance.id })
+    .eq("id", input.applicationId)
+    .eq("tenant_id", input.tenantId)
+    .select("id, applicant_workflow_instance_id, status, job_requisition_id, applicant_profile_id")
+    .single();
+  if (linkError) throw linkError;
+  return linked;
+}
+
+export type CreateAdminCandidateInput = {
+  tenantId: string;
+  jobRequisitionId: string;
+  name: string;
+  email: string;
+  phone?: string | null;
+  streetAddress?: string | null;
+  cityStateZip?: string | null;
+  country?: string | null;
+  lastJobTitle?: string | null;
+  lastCompany?: string | null;
+  createdByStaffUserId?: string | null;
+  resumePath?: string | null;
+  resumeFileName?: string | null;
+};
+
+/**
+ * Admin "Add candidate": create/update applicant_profiles + job_applications (status new)
+ * so the candidate appears in the job's candidates listing.
+ */
+export async function createAdminJobApplication(
+  supabase: DbClient,
+  input: CreateAdminCandidateInput
+) {
+  const email = input.email.trim();
+  const normalizedEmail = normalizeApplicantEmail(email);
+  const fullName = input.name.trim();
+  if (!fullName) {
+    throw new JobValidationError("Name is required.", { name: "Name is required." }, "NAME_REQUIRED");
+  }
+  if (!normalizedEmail) {
+    throw new JobValidationError("Email is required.", { email: "Email is required." }, "EMAIL_REQUIRED");
+  }
+
+  const { data: job, error: jobError } = await supabase
+    .from("job_requisitions")
+    .select(
+      "id, tenant_id, workflow_id, status, public_title, onboarding_flows!workflow_id(id, name, status, builder_draft, updated_at)"
+    )
+    .eq("tenant_id", input.tenantId)
+    .eq("id", input.jobRequisitionId)
+    .maybeSingle();
+  if (jobError) throw jobError;
+  if (!job?.workflow_id) {
+    throw new JobValidationError(
+      "This job is unavailable or has no workflow assigned.",
+      {},
+      "JOB_UNAVAILABLE"
+    );
+  }
+  if (String(job.status) !== "published") {
+    throw new JobValidationError(
+      "Only published jobs can accept candidates. Publish the job first.",
+      {},
+      "JOB_NOT_PUBLISHED"
+    );
+  }
+
+  const flow = Array.isArray(job.onboarding_flows)
+    ? job.onboarding_flows[0]
+    : job.onboarding_flows;
+  if (!flow || flow.status !== "published") {
+    throw new JobValidationError(
+      "This job's onboarding workflow is unavailable.",
+      {},
+      "WORKFLOW_UNAVAILABLE"
+    );
+  }
+
+  const { firstName, lastName } = splitCandidateFullName(fullName);
+  const profileFields = {
+    email,
+    normalized_email: normalizedEmail,
+    first_name: firstName,
+    last_name: lastName,
+    phone: clean(input.phone),
+    street_address: clean(input.streetAddress),
+    city_state_zip: clean(input.cityStateZip),
+    country: clean(input.country),
+    last_job_title: clean(input.lastJobTitle),
+    last_company: clean(input.lastCompany),
+    resume_path: clean(input.resumePath),
+    resume_file_name: clean(input.resumeFileName),
+    updated_at: new Date().toISOString(),
+  };
+
+  const { data: existingProfile, error: profileLookupError } = await supabase
+    .from("applicant_profiles")
+    .select("id, worker_id")
+    .eq("tenant_id", input.tenantId)
+    .eq("normalized_email", normalizedEmail)
+    .maybeSingle();
+  if (profileLookupError) throw profileLookupError;
+
+  let profileId = existingProfile?.id ? String(existingProfile.id) : null;
+  let linkedWorkerId = existingProfile?.worker_id ? String(existingProfile.worker_id) : null;
+  if (!profileId) {
+    const { data: profile, error: profileError } = await supabase
+      .from("applicant_profiles")
+      .insert({
+        tenant_id: input.tenantId,
+        ...profileFields,
+      })
+      .select("id, worker_id")
+      .single();
+    if (profileError) throw profileError;
+    profileId = String(profile.id);
+    linkedWorkerId = profile.worker_id ? String(profile.worker_id) : null;
+  } else {
+    const { error: profileUpdateError } = await supabase
+      .from("applicant_profiles")
+      .update(profileFields)
+      .eq("id", profileId)
+      .eq("tenant_id", input.tenantId);
+    if (profileUpdateError) throw profileUpdateError;
+  }
+
+  try {
+    const linked = await ensureAdminCandidateWorker(supabase, {
+      tenantId: input.tenantId,
+      applicantProfileId: profileId,
+      existingWorkerId: linkedWorkerId,
+      email,
+      firstName,
+      lastName,
+      phone: input.phone,
+      streetAddress: input.streetAddress,
+      cityStateZip: input.cityStateZip,
+      lastJobTitle: input.lastJobTitle,
+      resumePath: input.resumePath,
+    });
+    linkedWorkerId = linked.workerId;
+  } catch (workerError) {
+    throw new JobValidationError(
+      workerError instanceof Error ? workerError.message : "Failed to link candidate profile",
+      { email: workerError instanceof Error ? workerError.message : "Failed to link candidate profile" },
+      "WORKER_LINK_FAILED"
+    );
+  }
+
+  const { data: existingApplication, error: existingError } = await supabase
+    .from("job_applications")
+    .select("id, status, applicant_workflow_instance_id")
+    .eq("tenant_id", input.tenantId)
+    .eq("job_requisition_id", job.id)
+    .eq("applicant_profile_id", profileId)
+    .neq("status", "withdrawn")
+    .maybeSingle();
+  if (existingError) throw existingError;
+  if (existingApplication) {
+    throw new JobValidationError(
+      "This candidate already has an application for this job.",
+      { email: "A candidate with this email already applied for this job." },
+      "DUPLICATE_APPLICATION"
+    );
+  }
+
+  const nowIso = new Date().toISOString();
+  const { data: application, error: applicationError } = await supabase
+    .from("job_applications")
+    .insert({
+      tenant_id: input.tenantId,
+      job_requisition_id: job.id,
+      applicant_profile_id: profileId,
+      workflow_id: job.workflow_id,
+      worker_id: linkedWorkerId,
+      status: "new",
+      submitted_at: nowIso,
+      source: "admin",
+      created_by_staff_user_id: input.createdByStaffUserId ?? null,
+    })
+    .select("id, status, job_requisition_id, applicant_profile_id, worker_id")
+    .single();
+  if (applicationError) throw applicationError;
+
+  try {
+    const linked = await attachWorkflowInstanceToApplication(supabase, {
+      tenantId: input.tenantId,
+      applicationId: String(application.id),
+      jobRequisitionId: String(job.id),
+      workflowId: String(job.workflow_id),
+      workerId: linkedWorkerId,
+      flow: {
+        name: flow.name,
+        builder_draft: flow.builder_draft,
+        updated_at: flow.updated_at,
+      },
+    });
+    return {
+      application: linked,
+      applicantProfileId: profileId,
+      jobTitle: String(job.public_title ?? ""),
+    };
+  } catch (error) {
+    await supabase.from("job_applications").delete().eq("id", application.id);
+    throw error;
+  }
 }

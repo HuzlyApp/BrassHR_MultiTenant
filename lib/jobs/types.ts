@@ -64,7 +64,10 @@ export type WorkflowMatch = {
   workflowName: string;
 };
 
-export type FieldErrors = Partial<Record<keyof JobRequisitionInput | "workflowId", string>>;
+/** Job form fields plus admin Add-candidate fields (`name`, `email`). */
+export type FieldErrors = Partial<
+  Record<keyof JobRequisitionInput | "workflowId" | "name" | "email", string>
+>;
 
 export class JobValidationError extends Error {
   readonly fieldErrors: FieldErrors;

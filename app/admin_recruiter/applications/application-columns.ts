@@ -57,14 +57,26 @@ export function applicationColumnLabel(id: ApplicationColumnId): string {
   return APPLICATION_COLUMN_OPTIONS.find((c) => c.id === id)?.label ?? id
 }
 
+/** Name stays left; all other list columns are centered (header + cell). */
+const CENTER_ALIGNED_COLUMNS = new Set<ApplicationColumnId>([
+  "matches",
+  "activity",
+  "interest",
+  "status",
+  "email",
+  "workflow",
+  "dateApplied",
+])
+
 export function applicationListColumnClassName(colId: ApplicationColumnId): string {
+  const center = CENTER_ALIGNED_COLUMNS.has(colId) ? " text-center" : ""
   if (colId === "candidates") return "min-w-[220px]"
-  if (colId === "matches") return "min-w-[280px] max-w-[360px]"
-  if (colId === "activity") return "min-w-[180px] whitespace-nowrap"
-  if (colId === "interest") return "min-w-[160px] whitespace-nowrap"
-  if (colId === "email") return "min-w-[180px]"
-  if (colId === "workflow") return "min-w-[140px]"
-  if (colId === "dateApplied") return "min-w-[120px] whitespace-nowrap"
-  if (colId === "status") return "min-w-[100px] whitespace-nowrap"
-  return ""
+  if (colId === "matches") return `min-w-[280px] max-w-[360px]${center}`
+  if (colId === "activity") return `min-w-[180px] whitespace-nowrap${center}`
+  if (colId === "interest") return `min-w-[160px] whitespace-nowrap${center}`
+  if (colId === "email") return `min-w-[180px]${center}`
+  if (colId === "workflow") return `min-w-[140px]${center}`
+  if (colId === "dateApplied") return `min-w-[120px] whitespace-nowrap${center}`
+  if (colId === "status") return `min-w-[100px] whitespace-nowrap${center}`
+  return center.trim()
 }

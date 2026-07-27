@@ -449,7 +449,7 @@ export default function JobCandidateReviewClient() {
       className="box-border flex min-h-0 w-full min-w-0 max-w-full flex-col px-3 pb-8 pt-4 sm:px-5 sm:pt-5 lg:px-8"
       style={brandStyle}
     >
-      <div className="mb-3 flex flex-wrap items-center gap-2.5">
+      <div className="mb-3 flex flex-wrap items-center gap-2.5 border-b border-[#E5E7EB] pb-3">
         <h1 className={CANDIDATES_PAGE_TITLE_CLASS} style={CANDIDATES_PAGE_TITLE_STYLE}>
           Candidates
         </h1>
@@ -466,7 +466,7 @@ export default function JobCandidateReviewClient() {
         </Link>
       </div>
 
-      <div className="mb-3 flex min-w-0 flex-col gap-1">
+      <div className="mb-3 flex min-w-0 flex-col gap-1 border-b border-[#E5E7EB] pb-3">
         <div className="relative min-w-0" ref={jobMenuRef}>
           <button
             type="button"
@@ -523,9 +523,20 @@ export default function JobCandidateReviewClient() {
         <Link
           href="/admin_recruiter/jobs"
           className="inline-flex items-center gap-1 text-sm font-medium hover:underline"
-          style={{ color: branding.primaryHex }}
+          style={{ color: branding.secondaryHex || "#012352" }}
         >
-          ← Back to jobs
+          <span
+            aria-hidden
+            className="inline-block h-[14px] w-[14px] shrink-0"
+            style={{
+              backgroundColor: "currentColor",
+              maskImage: "url(/eva_arrow-back-fill.svg)",
+              WebkitMaskImage: "url(/eva_arrow-back-fill.svg)",
+              maskSize: "contain",
+              WebkitMaskSize: "contain",
+            }}
+          />
+          Back to jobs
         </Link>
         <div className="inline-flex shrink-0 items-center gap-1 text-sm text-[#64748B]">
           <button
@@ -797,9 +808,9 @@ export default function JobCandidateReviewClient() {
             )}
           </section>
 
-          {/* Right — Figma notes panel */}
+          {/* Right — Figma notes panel (compact card, not full-height) */}
           <aside
-            className="flex min-h-0 flex-col gap-4 rounded-2xl border border-[#E2E8F0] bg-[#F1F5F9] p-4"
+            className="flex h-fit flex-col gap-4 self-start rounded-[16px] border border-[#E2E8F0] bg-[#F8FAFC] p-4"
             ref={statusMenuRef}
           >
             <div className="relative">
@@ -836,7 +847,7 @@ export default function JobCandidateReviewClient() {
               ) : null}
             </div>
 
-            <div>
+            <div className="h-[88px] overflow-y-auto rounded-[12px]">
               <h3 className="text-sm font-semibold text-[#0F172A]">Activity feed</h3>
               {selected ? (
                 <div className="mt-2">
@@ -852,30 +863,29 @@ export default function JobCandidateReviewClient() {
               )}
             </div>
 
-            <div className="flex min-h-0 flex-1 flex-col">
-              <div className="flex min-h-[200px] flex-1 flex-col overflow-hidden rounded-xl border border-[#E2E8F0] bg-white">
-                <textarea
-                  value={noteDraft}
-                  onChange={(event) => setNoteDraft(event.target.value)}
-                  aria-label="Candidate note"
-                  className="min-h-[140px] flex-1 resize-none border-0 bg-transparent px-3 py-3 text-sm text-[#334155] outline-none placeholder:text-[#94A3B8]"
-                />
-                <div className="border-t border-[#F1F5F9] p-2.5">
-                  <button
-                    type="button"
-                    disabled={noteSaving || !selected || !noteDraft.trim()}
-                    onClick={() => void saveNote()}
-                    className="inline-flex h-9 w-full items-center justify-center rounded-xl px-3 text-sm font-semibold text-white disabled:bg-[#CBD5E1]"
-                    style={
-                      noteDraft.trim() && selected && !noteSaving
-                        ? { backgroundColor: branding.secondaryHex || "#012352" }
-                        : undefined
-                    }
-                  >
-                    {noteSaving ? "Saving…" : "Save Note"}
-                  </button>
-                </div>
-              </div>
+            <div>
+              <textarea
+                value={noteDraft}
+                onChange={(event) => setNoteDraft(event.target.value)}
+                aria-label="Candidate note"
+                className="h-[120px] w-full resize-none rounded-[12px] border border-[#E2E8F0] bg-white px-3 py-3 text-sm text-[#334155] outline-none placeholder:text-[#94A3B8]"
+              />
+              <button
+                type="button"
+                disabled={noteSaving || !selected || !noteDraft.trim()}
+                onClick={() => void saveNote()}
+                className="mt-3 inline-flex h-9 items-center justify-center rounded-xl bg-[#E2E8F0] px-4 text-sm font-semibold text-[#94A3B8] disabled:cursor-not-allowed disabled:opacity-80"
+                style={
+                  noteDraft.trim() && selected && !noteSaving
+                    ? {
+                        backgroundColor: branding.secondaryHex || "#012352",
+                        color: "#FFFFFF",
+                      }
+                    : undefined
+                }
+              >
+                {noteSaving ? "Saving…" : "Save Note"}
+              </button>
             </div>
           </aside>
         </div>
