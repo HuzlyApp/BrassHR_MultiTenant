@@ -39,13 +39,23 @@ export type JobFormUiState = {
 };
 
 export const JOB_FORM_BENEFIT_OPTIONS = [
-  "Health Insurance",
-  "Life Insurance",
-  "401(k)",
-  "Paid time off",
-  "403(b)",
+  "Flexible schedule",
   "Dental Insurance",
+  "401(k)",
+  "Tuition reimbursement",
+  "Retirement Plan",
+  "Employee Assistance Program",
+  "Referral Program",
+  "Paid time off",
+  "Health savings account",
   "Vision Insurance",
+  "Flexible spending account",
+  "Parental leave",
+  "Employee Discount",
+  "401(k) matching",
+  "Life Insurance",
+  "Health Insurance",
+  "Professional development assistance",
 ] as const;
 
 export const JOB_FORM_COMPENSATION_TYPES = ["Hourly", "Weekly", "Monthly", "Yearly"] as const;
@@ -66,6 +76,17 @@ export const JOB_FORM_YEARS_OF_EXPERIENCE = [
   "10+",
 ] as const;
 export const JOB_FORM_SHIFT_TYPES = ["Day", "Evening", "Night", "Rotating", "PRN"] as const;
+
+/** Figma create-job "Job type" chips (stored in job_requisitions.shift_type). */
+export const JOB_FORM_JOB_TYPES = [
+  "Permanent",
+  "Paid-time",
+  "Full-time",
+  "Part-time",
+  "Fixed term",
+] as const;
+
+export type JobFormJobType = (typeof JOB_FORM_JOB_TYPES)[number];
 
 export const JOB_FORM_SURFACE_CLASS =
   "rounded-lg border border-[#CBD5E1] bg-white text-sm text-[#334155]";

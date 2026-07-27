@@ -25,6 +25,8 @@ import {
   jobDescriptionPlainText,
 } from "./JobDescriptionEditor";
 import type { ReviewEditFieldId } from "./JobReviewEditModal";
+import { JobTypeChipSelect } from "./JobTypeChipSelect";
+import { BenefitsChipSelect } from "./BenefitsChipSelect";
 import {
   JOB_FORM_BENEFIT_OPTIONS,
   JOB_FORM_COMPENSATION_TYPES,
@@ -234,7 +236,8 @@ export function JobFormStepRequisition({
   const deadlineBounds = applicationDeadlineBounds();
 
   return (
-    <div className="space-y-5">
+    <div className="flex flex-1 flex-col">
+      <div className="flex-1 space-y-5">
         <div className="grid gap-4 md:grid-cols-2">
           <div>
             <label className={JOB_FORM_LABEL_CLASS} htmlFor="job-id">
@@ -446,6 +449,14 @@ export function JobFormStepRequisition({
                 <button
                   type="button"
                   className="inline-flex h-full w-10 cursor-pointer items-center justify-center bg-[#EEF2F6] text-[#64748B] transition hover:bg-[#E2E8F0] hover:text-[#334155]"
+                  onClick={() => onUiChange({ numberOfPositions: ui.numberOfPositions + 1 })}
+                  aria-label="Increase positions"
+                >
+                  <Plus className="h-4 w-4" />
+                </button>
+                <button
+                  type="button"
+                  className="inline-flex h-full w-10 cursor-pointer items-center justify-center border-l border-[#CBD5E1] bg-white text-[#64748B] transition hover:bg-[#F8FAFC] hover:text-[#334155]"
                   onClick={() =>
                     onUiChange({
                       numberOfPositions: Math.max(1, ui.numberOfPositions - 1),
@@ -454,14 +465,6 @@ export function JobFormStepRequisition({
                   aria-label="Decrease positions"
                 >
                   <Minus className="h-4 w-4" />
-                </button>
-                <button
-                  type="button"
-                  className="inline-flex h-full w-10 cursor-pointer items-center justify-center border-l border-[#CBD5E1] bg-white text-[#64748B] transition hover:bg-[#F8FAFC] hover:text-[#334155]"
-                  onClick={() => onUiChange({ numberOfPositions: ui.numberOfPositions + 1 })}
-                  aria-label="Increase positions"
-                >
-                  <Plus className="h-4 w-4" />
                 </button>
               </div>
             </div>
@@ -492,56 +495,6 @@ export function JobFormStepRequisition({
             </select>
           </div>
         </div>
-
-        <div className="flex flex-wrap items-center gap-x-[40px] gap-y-3">
-          <span className={`${JOB_FORM_LABEL_CLASS} mb-0 shrink-0`}>
-            Are you the employer on Record
-          </span>
-          <div className="flex flex-wrap gap-x-[120px] gap-y-3">
-            <BrandedRadio
-              name="employer-on-record"
-              label="Yes"
-              checked={ui.employerOnRecord === "yes"}
-              onChange={() => {
-                onUiChange({ employerOnRecord: "yes" });
-                onJobChange("sourceType", "Internal");
-              }}
-            />
-            <BrandedRadio
-              name="employer-on-record"
-              label="No"
-              checked={ui.employerOnRecord === "no"}
-              onChange={() => {
-                onUiChange({ employerOnRecord: "no" });
-                onJobChange("employerOfRecord", null);
-                onJobChange("sourceType", "MSP");
-              }}
-            />
-          </div>
-        </div>
-
-        {ui.employerOnRecord === "yes" ? (
-          <div>
-            <label className={JOB_FORM_LABEL_CLASS} htmlFor="employer-of-record">
-              Employer on Record
-            </label>
-            <select
-              id="employer-of-record"
-              className={`${JOB_FORM_SELECT_CLASS} ${selectedEor ? "text-[#334155]" : "text-[#94A3B8]"}`}
-              style={{ backgroundImage: JOB_FORM_SELECT_CHEVRON }}
-              value={selectedEor}
-              onChange={(event) => onJobChange("employerOfRecord", event.target.value || null)}
-            >
-              <option value="">Pick List of EORs (includes the tenant)</option>
-              {eorOptions.map((item) => (
-                <option key={item.id} value={item.name}>
-                  {item.name}
-                </option>
-              ))}
-            </select>
-            <FieldError error={fieldErrors.employerOfRecord} />
-          </div>
-        ) : null}
 
         <div className="grid gap-4 md:grid-cols-2">
           <PublicField label="Application Deadline">
@@ -598,6 +551,67 @@ export function JobFormStepRequisition({
             ) : null}
           </div>
         </div>
+      </div>
+
+      <div className="mt-auto space-y-5 border-t border-[#E5E7EB] pt-6">
+        <JobTypeChipSelect
+          value={job.shiftType ?? ""}
+          onChange={(next) => onJobChange("shiftType", next)}
+          error={fieldErrors.shiftType}
+        />
+
+        <div className="rounded-xl bg-[#F8FAFC] px-4 py-4 sm:px-5">
+          <div className="flex flex-wrap items-center gap-x-[40px] gap-y-3">
+            <span className={`${JOB_FORM_LABEL_CLASS} mb-0 shrink-0`}>
+              Are you the employer on Record
+            </span>
+            <div className="flex flex-wrap gap-x-[120px] gap-y-3">
+              <BrandedRadio
+                name="employer-on-record"
+                label="Yes"
+                checked={ui.employerOnRecord === "yes"}
+                onChange={() => {
+                  onUiChange({ employerOnRecord: "yes" });
+                  onJobChange("sourceType", "Internal");
+                }}
+              />
+              <BrandedRadio
+                name="employer-on-record"
+                label="No"
+                checked={ui.employerOnRecord === "no"}
+                onChange={() => {
+                  onUiChange({ employerOnRecord: "no" });
+                  onJobChange("employerOfRecord", null);
+                  onJobChange("sourceType", "MSP");
+                }}
+              />
+            </div>
+          </div>
+
+          {ui.employerOnRecord === "yes" ? (
+            <div className="mt-4">
+              <label className={JOB_FORM_LABEL_CLASS} htmlFor="employer-of-record">
+                Employer on Record
+              </label>
+              <select
+                id="employer-of-record"
+                className={`${JOB_FORM_SELECT_CLASS} ${selectedEor ? "text-[#334155]" : "text-[#94A3B8]"}`}
+                style={{ backgroundImage: JOB_FORM_SELECT_CHEVRON }}
+                value={selectedEor}
+                onChange={(event) => onJobChange("employerOfRecord", event.target.value || null)}
+              >
+                <option value="">Pick List of EORs (includes the tenant)</option>
+                {eorOptions.map((item) => (
+                  <option key={item.id} value={item.name}>
+                    {item.name}
+                  </option>
+                ))}
+              </select>
+              <FieldError error={fieldErrors.employerOfRecord} />
+            </div>
+          ) : null}
+        </div>
+      </div>
     </div>
   );
 }
@@ -1096,19 +1110,30 @@ export function JobFormStepCompensation({
       ) : null}
 
       <section className="space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className={JOB_FORM_SECTION_TITLE_CLASS}>Benefits</h2>
-          {!creatingBenefit ? (
-            <button
-              type="button"
-              onClick={() => setCreatingBenefit(true)}
-              className="inline-flex cursor-pointer items-center gap-1.5 text-sm font-medium text-[color:var(--brand-primary)] transition hover:opacity-90"
-            >
-              <Plus className="h-4 w-4" />
-              Create Benefit
-            </button>
-          ) : null}
-        </div>
+        <BenefitsChipSelect
+          options={benefitOptions}
+          selected={ui.selectedBenefits}
+          onToggle={toggleBenefit}
+          customBenefits={ui.customBenefits}
+          onRemoveCustom={(benefit) => {
+            onUiChange({
+              customBenefits: ui.customBenefits.filter((item) => item !== benefit),
+              selectedBenefits: ui.selectedBenefits.filter((item) => item !== benefit),
+            });
+          }}
+          headerAction={
+            !creatingBenefit ? (
+              <button
+                type="button"
+                onClick={() => setCreatingBenefit(true)}
+                className="inline-flex cursor-pointer items-center gap-1.5 text-sm font-medium text-[color:var(--brand-secondary)] transition hover:opacity-90"
+              >
+                <Plus className="h-4 w-4" />
+                Create Benefit
+              </button>
+            ) : null
+          }
+        />
 
         {creatingBenefit ? (
           <div className="flex flex-wrap items-center gap-2">
@@ -1153,58 +1178,6 @@ export function JobFormStepCompensation({
             </button>
           </div>
         ) : null}
-
-        <div className="flex flex-wrap gap-2">
-          {benefitOptions.map((benefit) => {
-            const selected = ui.selectedBenefits.includes(benefit);
-            const isCustom = ui.customBenefits.includes(benefit);
-            const chipClass = `inline-flex items-center gap-2 rounded-full border text-sm transition ${
-              selected
-                ? "border-[color:var(--brand-primary)] bg-[color:color-mix(in_srgb,var(--brand-primary)_8%,white)] text-[#334155]"
-                : "border-[#CBD5E1] bg-white text-[#64748B] hover:bg-[#F8FAFC]"
-            }`;
-
-            if (!isCustom) {
-              return (
-                <button
-                  key={benefit}
-                  type="button"
-                  onClick={() => toggleBenefit(benefit)}
-                  className={`${chipClass} cursor-pointer px-3 py-1.5`}
-                >
-                  {selected ? <Check className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
-                  {benefit}
-                </button>
-              );
-            }
-
-            return (
-              <div key={benefit} className={`${chipClass} pl-3 pr-1.5 py-1`}>
-                <button
-                  type="button"
-                  onClick={() => toggleBenefit(benefit)}
-                  className="inline-flex cursor-pointer items-center gap-2 py-0.5"
-                >
-                  {selected ? <Check className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
-                  {benefit}
-                </button>
-                <button
-                  type="button"
-                  aria-label={`Remove ${benefit}`}
-                  className="inline-flex h-5 w-5 cursor-pointer items-center justify-center rounded-full text-[#94A3B8] transition hover:bg-[#E2E8F0] hover:text-[#64748B]"
-                  onClick={() => {
-                    onUiChange({
-                      customBenefits: ui.customBenefits.filter((item) => item !== benefit),
-                      selectedBenefits: ui.selectedBenefits.filter((item) => item !== benefit),
-                    });
-                  }}
-                >
-                  ×
-                </button>
-              </div>
-            );
-          })}
-        </div>
       </section>
 
       <section className="space-y-4">
@@ -1417,6 +1390,11 @@ export function JobFormStepReview({
         label="Employment Type"
         value={employmentTypeValue}
         onEdit={() => onEditField("employmentType")}
+      />
+      <ReviewRow
+        label="Job type"
+        value={job.shiftType ?? ""}
+        onEdit={() => onEditField("jobType")}
       />
       <ReviewRow
         label="Are you the employer on Record"

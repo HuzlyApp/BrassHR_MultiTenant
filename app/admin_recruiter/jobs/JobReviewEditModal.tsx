@@ -1,10 +1,12 @@
 "use client";
 
 import * as Dialog from "@radix-ui/react-dialog";
-import { Check, Minus, Plus, X } from "lucide-react";
+import { Minus, Plus, X } from "lucide-react";
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import type { EmploymentType, JobRequisitionInput, SourceType } from "@/lib/jobs/types";
 import { JobDescriptionEditor } from "./JobDescriptionEditor";
+import { JobTypeChipSelect } from "./JobTypeChipSelect";
+import { BenefitsChipSelect } from "./BenefitsChipSelect";
 import {
   employmentTypeFromLabel,
   employmentTypeLabel,
@@ -40,6 +42,7 @@ export type ReviewEditFieldId =
   | "numberOfPositions"
   | "yearsOfExperience"
   | "employmentType"
+  | "jobType"
   | "employerOnRecord"
   | "employerOfRecord"
   | "jobSource"
@@ -402,18 +405,18 @@ export function JobReviewEditModal({
                   <button
                     type="button"
                     className="inline-flex h-full w-10 cursor-pointer items-center justify-center border-l border-[#CBD5E1] text-[#64748B] hover:bg-[#F8FAFC]"
+                    onClick={() => patchUi({ numberOfPositions: draft.ui.numberOfPositions + 1 })}
+                  >
+                    <Plus className="h-4 w-4" />
+                  </button>
+                  <button
+                    type="button"
+                    className="inline-flex h-full w-10 cursor-pointer items-center justify-center border-l border-[#CBD5E1] text-[#64748B] hover:bg-[#F8FAFC]"
                     onClick={() =>
                       patchUi({ numberOfPositions: Math.max(1, draft.ui.numberOfPositions - 1) })
                     }
                   >
                     <Minus className="h-4 w-4" />
-                  </button>
-                  <button
-                    type="button"
-                    className="inline-flex h-full w-10 cursor-pointer items-center justify-center border-l border-[#CBD5E1] text-[#64748B] hover:bg-[#F8FAFC]"
-                    onClick={() => patchUi({ numberOfPositions: draft.ui.numberOfPositions + 1 })}
-                  >
-                    <Plus className="h-4 w-4" />
                   </button>
                 </div>
               </div>
@@ -456,6 +459,14 @@ export function JobReviewEditModal({
                   />
                 ))}
               </div>
+            ) : null}
+
+            {field === "jobType" ? (
+              <JobTypeChipSelect
+                value={draft.job.shiftType ?? ""}
+                onChange={(next) => patchJob("shiftType", next)}
+                labelClassName="sr-only"
+              />
             ) : null}
 
             {field === "employerOnRecord" ? (
@@ -902,32 +913,25 @@ export function JobReviewEditModal({
 
             {field === "benefits" ? (
               <div className="space-y-4">
-                <div className="flex flex-wrap gap-2">
-                  {benefitOptions.map((benefit) => {
+                <BenefitsChipSelect
+                  options={benefitOptions}
+                  selected={draft.ui.selectedBenefits}
+                  onToggle={(benefit) => {
                     const selected = draft.ui.selectedBenefits.includes(benefit);
-                    return (
-                      <button
-                        key={benefit}
-                        type="button"
-                        onClick={() =>
-                          patchUi({
-                            selectedBenefits: selected
-                              ? draft.ui.selectedBenefits.filter((item) => item !== benefit)
-                              : [...draft.ui.selectedBenefits, benefit],
-                          })
-                        }
-                        className={`inline-flex cursor-pointer items-center gap-2 rounded-full border px-3 py-1.5 text-sm transition ${
-                          selected
-                            ? "border-[color:var(--brand-primary)] bg-[color:color-mix(in_srgb,var(--brand-primary)_8%,white)] text-[#334155]"
-                            : "border-[#CBD5E1] bg-white text-[#64748B] hover:bg-[#F8FAFC]"
-                        }`}
-                      >
-                        {selected ? <Check className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
-                        {benefit}
-                      </button>
-                    );
-                  })}
-                </div>
+                    patchUi({
+                      selectedBenefits: selected
+                        ? draft.ui.selectedBenefits.filter((item) => item !== benefit)
+                        : [...draft.ui.selectedBenefits, benefit],
+                    });
+                  }}
+                  customBenefits={draft.ui.customBenefits}
+                  onRemoveCustom={(benefit) => {
+                    patchUi({
+                      customBenefits: draft.ui.customBenefits.filter((item) => item !== benefit),
+                      selectedBenefits: draft.ui.selectedBenefits.filter((item) => item !== benefit),
+                    });
+                  }}
+                />
                 <div className="flex flex-wrap gap-2">
                   <input
                     className={`${JOB_FORM_INPUT_CLASS} max-w-xs`}

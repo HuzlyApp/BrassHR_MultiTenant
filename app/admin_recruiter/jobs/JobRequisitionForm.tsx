@@ -339,7 +339,7 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
 
   return (
     <main className="w-full px-3 py-4 sm:px-4 lg:px-5">
-      <div className={JOB_FORM_PAGE_CARD_CLASS}>
+      <div className={JOB_FORM_PAGE_CARD_CLASS} style={brandVars}>
         <div className={JOB_FORM_CENTER_COLUMN_CLASS}>
           <div className="mb-6 flex items-start justify-between gap-4">
             <div>
@@ -366,7 +366,13 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
             </div>
           ) : null}
 
-          <div className="flex-1 space-y-5">
+          <div
+            className={
+              step === "requisition"
+                ? "flex min-h-0 flex-1 flex-col gap-5"
+                : "flex-1 space-y-5"
+            }
+          >
             {step === "requisition" ? (
               <>
                 <JobFormStepRequisition

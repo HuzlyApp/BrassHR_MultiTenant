@@ -100,6 +100,7 @@ export function validatePublishableJob(
   if (!input.location?.trim()) errors.location = "Location is required.";
   if (!input.professionId) errors.professionId = "Profession is required.";
   if (!input.employmentType) errors.employmentType = "Employment type is required.";
+  if (!input.shiftType?.trim()) errors.shiftType = "Job type is required.";
   if (!input.sourceType) errors.sourceType = "Source type is required.";
   if (!workflowId) errors.workflowId = "A matching published workflow is required.";
 
