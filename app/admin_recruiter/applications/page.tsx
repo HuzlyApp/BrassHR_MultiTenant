@@ -22,6 +22,13 @@ import {
   CANDIDATES_PAGE_TITLE_CLASS,
   CANDIDATES_PAGE_TITLE_STYLE,
 } from "@/app/admin_recruiter/candidates/candidates-typography";
+import {
+  APPLICATION_STATUS_TABS,
+  applicationStatusLabel,
+  matchesApplicationStatusTab,
+  normalizeApplicationStatus,
+  type ApplicationStatusTab,
+} from "@/lib/jobs/application-status";
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
 import {
   APPLICATION_COLUMN_OPTIONS,
@@ -33,17 +40,9 @@ import {
   type ApplicationColumnId,
 } from "./application-columns";
 
-type ApplicationStatus = "in_progress" | "submitted" | "withdrawn" | "rejected" | "hired";
+type ApplicationStatus = string;
 
-type ApplicationTab =
-  | "all"
-  | "new"
-  | "reviewing"
-  | "interviewing"
-  | "rejected"
-  | "hired"
-  | "shortlisted"
-  | "undecided";
+type ApplicationTab = ApplicationStatusTab;
 
 type ApplicationRow = {
   id: string;
@@ -54,6 +53,7 @@ type ApplicationRow = {
   job_requisition_id: string;
   workflow_id: string;
   applicant_workflow_instance_id: string;
+  worker_id?: string | null;
   job_requisitions: Record<string, unknown> | Record<string, unknown>[] | null;
   onboarding_flows: Record<string, unknown> | Record<string, unknown>[] | null;
   applicant_profiles: Record<string, unknown> | Record<string, unknown>[] | null;
@@ -78,16 +78,7 @@ type JobOption = {
   created_at?: string | null;
 };
 
-const APPLICATION_TABS: Array<{ id: ApplicationTab; label: string }> = [
-  { id: "all", label: "All" },
-  { id: "new", label: "New" },
-  { id: "reviewing", label: "Reviewing" },
-  { id: "interviewing", label: "Interviewing" },
-  { id: "rejected", label: "Rejected" },
-  { id: "hired", label: "Hired" },
-  { id: "shortlisted", label: "Shortlisted" },
-  { id: "undecided", label: "Undecided" },
-];
+const APPLICATION_TABS = APPLICATION_STATUS_TABS;
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50];
 
@@ -157,43 +148,15 @@ function jobReference(option: JobOption): string {
 }
 
 function statusTabFor(status: string): ApplicationTab {
-  switch (status) {
-    case "submitted":
-      return "new";
-    case "in_progress":
-      return "reviewing";
-    case "rejected":
-      return "rejected";
-    case "hired":
-      return "hired";
-    case "withdrawn":
-      return "undecided";
-    default:
-      return "reviewing";
-  }
+  return normalizeApplicationStatus(status);
 }
 
 function matchesTab(row: ApplicationRow, tab: ApplicationTab): boolean {
-  if (tab === "all") return true;
-  if (tab === "interviewing" || tab === "shortlisted") return false;
-  return statusTabFor(row.status) === tab;
+  return matchesApplicationStatusTab(row.status, tab);
 }
 
 function statusLabel(status: string): string {
-  switch (status) {
-    case "submitted":
-      return "New";
-    case "in_progress":
-      return "Reviewing";
-    case "rejected":
-      return "Rejected";
-    case "hired":
-      return "Hired";
-    case "withdrawn":
-      return "Undecided";
-    default:
-      return status.replace(/_/g, " ");
-  }
+  return applicationStatusLabel(status);
 }
 
 function formatRelativeTime(iso: string): string {
@@ -214,7 +177,7 @@ function formatRelativeTime(iso: string): string {
 function formatActivity(row: ApplicationRow): string {
   const when = row.updated_at || row.submitted_at || row.created_at;
   const relative = formatRelativeTime(when);
-  if (row.status === "submitted") return `New Applicant • ${relative}`;
+  if (row.status === "submitted" || row.status === "new") return `New Applicant • ${relative}`;
   return `${relative} • ${new Date(when).toLocaleDateString(undefined, {
     month: "long",
     day: "numeric",
@@ -284,6 +247,10 @@ export default function JobApplicationsPage() {
   const [locationFilter, setLocationFilter] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const [candidateSearchOpen, setCandidateSearchOpen] = useState(false);
+  const [candidateSearchDraft, setCandidateSearchDraft] = useState("");
+  const [candidateSearchQuery, setCandidateSearchQuery] = useState("");
+  const candidateSearchInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setListColumnOrder(loadApplicationColumnOrder());
@@ -293,6 +260,9 @@ export default function JobApplicationsPage() {
     setSelectedIds(new Set());
     setLocationFilter("");
     setPage(1);
+    setCandidateSearchOpen(false);
+    setCandidateSearchDraft("");
+    setCandidateSearchQuery("");
     if (!jobId) {
       setJob(null);
       setRows([]);
@@ -461,7 +431,22 @@ export default function JobApplicationsPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [activeTab, sortBy, locationFilter, pageSize, jobId]);
+  }, [activeTab, sortBy, locationFilter, pageSize, jobId, candidateSearchQuery]);
+
+  useEffect(() => {
+    if (!candidateSearchOpen) return;
+    candidateSearchInputRef.current?.focus();
+  }, [candidateSearchOpen]);
+
+  const closeCandidateSearch = useCallback(() => {
+    setCandidateSearchOpen(false);
+    setCandidateSearchDraft("");
+    setCandidateSearchQuery("");
+  }, []);
+
+  const applyCandidateSearch = useCallback(() => {
+    setCandidateSearchQuery(candidateSearchDraft.trim());
+  }, [candidateSearchDraft]);
 
   const selectedJobOption = useMemo(
     () => jobOptions.find((option) => option.id === jobId) ?? null,
@@ -527,13 +512,21 @@ export default function JobApplicationsPage() {
         return loc.toLowerCase().includes(locationFilter.toLowerCase());
       });
     }
+    const query = candidateSearchQuery.trim().toLowerCase();
+    if (query) {
+      next = next.filter((row) => {
+        const name = applicantName(row).toLowerCase();
+        const email = applicantEmail(row).toLowerCase();
+        return name.includes(query) || email.includes(query);
+      });
+    }
     next = [...next].sort((a, b) => {
       const aTime = new Date(a.submitted_at || a.created_at).getTime();
       const bTime = new Date(b.submitted_at || b.created_at).getTime();
       return sortBy === "newest" ? bTime - aTime : aTime - bTime;
     });
     return next;
-  }, [rows, activeTab, locationFilter, sortBy]);
+  }, [rows, activeTab, locationFilter, sortBy, candidateSearchQuery]);
 
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / pageSize));
   const currentPage = Math.min(page, totalPages);
@@ -581,16 +574,21 @@ export default function JobApplicationsPage() {
       case "candidates": {
         const name = applicantName(row);
         const email = applicantEmail(row);
+        const detailHref =
+          jobId
+            ? `/admin_recruiter/applications/review?jobId=${encodeURIComponent(jobId)}&applicationId=${encodeURIComponent(row.id)}`
+            : `/admin_recruiter/applications/review?applicationId=${encodeURIComponent(row.id)}`;
         return (
           <div className="flex min-w-0 items-center gap-3">
             <CandidateListAvatar name={name || "NA"} />
             <div className="min-w-0">
-              <p
-                className="truncate text-sm font-medium leading-5"
+              <Link
+                href={detailHref}
+                className="block truncate text-sm font-medium leading-5 hover:underline"
                 style={{ color: branding.secondaryHex || "#012352" }}
               >
                 {name}
-              </p>
+              </Link>
               <p
                 className="mt-0.5 truncate text-xs leading-4"
                 style={{ color: TEXT_LINK_COLOR }}
@@ -665,7 +663,7 @@ export default function JobApplicationsPage() {
       style={brandStyle}
     >
       <div className="mb-9 flex items-start justify-between gap-3">
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <h1 className={CANDIDATES_PAGE_TITLE_CLASS} style={CANDIDATES_PAGE_TITLE_STYLE}>
             Candidates
           </h1>
@@ -844,14 +842,51 @@ export default function JobApplicationsPage() {
           </div>
         </div>
 
-        <button
-          type="button"
-          className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-[#E5E7EB] bg-white text-[#64748B] transition hover:bg-zinc-50"
-          aria-label="Search candidates"
-          title="Search"
-        >
-          <Search className="h-4 w-4" />
-        </button>
+        <div className="mt-11 flex shrink-0 items-center justify-end self-start sm:mt-12">
+          {candidateSearchOpen ? (
+            <form
+              className="flex w-[min(100vw-4rem,360px)] items-center gap-2 rounded-lg border border-[#CBD5E1] bg-white p-1.5 sm:w-[380px]"
+              onSubmit={(event) => {
+                event.preventDefault();
+                applyCandidateSearch();
+              }}
+            >
+              <input
+                ref={candidateSearchInputRef}
+                type="search"
+                value={candidateSearchDraft}
+                onChange={(e) => setCandidateSearchDraft(e.target.value)}
+                placeholder="Search candidates"
+                className="h-9 min-w-0 flex-1 rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm text-[#334155] placeholder:text-[#94A3B8] focus:border-[color:var(--brand-primary)] focus:outline-none focus:ring-0 [&::-webkit-search-cancel-button]:cursor-pointer [&::-webkit-search-decoration]:cursor-pointer"
+                aria-label="Search candidates"
+              />
+              <button
+                type="submit"
+                className="inline-flex h-9 shrink-0 items-center justify-center rounded-lg border border-[#CBD5E1] bg-white px-3.5 text-sm font-semibold text-[#1E293B] transition hover:bg-zinc-50"
+              >
+                Search
+              </button>
+              <button
+                type="button"
+                onClick={closeCandidateSearch}
+                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-[#334155] transition hover:bg-zinc-50"
+                aria-label="Close search"
+              >
+                <X className="h-4 w-4" strokeWidth={2} />
+              </button>
+            </form>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setCandidateSearchOpen(true)}
+              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[#E5E7EB] bg-white text-[#0F172A] shadow-sm transition hover:bg-zinc-50"
+              aria-label="Open candidate search"
+              title="Search"
+            >
+              <Search className="h-4 w-4" strokeWidth={2} />
+            </button>
+          )}
+        </div>
       </div>
 
       <nav

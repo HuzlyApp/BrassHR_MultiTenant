@@ -44,8 +44,12 @@ export async function GET(
 
     const rows = applications ?? [];
     const applicationsAll = rows.length;
-    const applicationsNew = rows.filter((row) => row.status === "submitted").length;
-    const applicationsStarted = rows.filter((row) => row.status === "in_progress").length;
+    const applicationsNew = rows.filter(
+      (row) => row.status === "submitted" || row.status === "new"
+    ).length;
+    const applicationsStarted = rows.filter(
+      (row) => row.status === "in_progress" || row.status === "reviewing"
+    ).length;
 
     const tenantSlug = String(tenant?.slug ?? tenant?.subdomain ?? "")
       .trim()
@@ -72,7 +76,10 @@ export async function GET(
         applicationsNew,
         applicationsStarted,
         applicationsSubmittedOrHired: rows.filter(
-          (row) => row.status === "submitted" || row.status === "hired"
+          (row) =>
+            row.status === "submitted" ||
+            row.status === "new" ||
+            row.status === "hired"
         ).length,
         // Performance tracking is not persisted yet — surface zeros for Figma layout.
         impressions: 0,

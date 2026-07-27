@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
       const submittedAt = result.submittedAt ?? new Date().toISOString();
       const { data: application, error: applicationError } = await supabase
         .from("job_applications")
-        .update({ status: "submitted", submitted_at: submittedAt })
+        .update({ status: "new", submitted_at: submittedAt })
         .eq("id", jobApplicationId)
         .eq("applicant_auth_user_id", applicantId)
         .select("id, applicant_workflow_instance_id, tenant_id")

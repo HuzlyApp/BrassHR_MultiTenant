@@ -5,6 +5,7 @@ import {
   deleteByPattern,
   getOrSetCache,
   hashQueryParams,
+  tablePattern,
 } from "@/lib/cache";
 
 afterEach(() => {
@@ -86,8 +87,9 @@ describe("cache utility", () => {
 
     expect(userA).not.toBe(userB);
     expect(tenantA).not.toBe(tenantB);
-    expect(userA).toContain("supabase:profiles:user:a");
-    expect(tenantA).toContain("supabase:projects:tenant:a");
+    expect(userA).toContain(":profiles:user:a");
+    expect(tenantA).toContain(":projects:tenant:a");
+    expect(userA.startsWith("supabase:")).toBe(true);
   });
 
   it("hashes query params deterministically", () => {
@@ -95,16 +97,19 @@ describe("cache utility", () => {
   });
 
   it("deletes matching cache keys by pattern", async () => {
+    const profilesA = `${buildCacheKey("profiles", ["user", "a"])}:1`;
+    const profilesB = `${buildCacheKey("profiles", ["user", "b"])}:1`;
+    const projectsA = `${buildCacheKey("projects", ["tenant", "a"])}:1`;
     const { adapter, store } = memoryAdapter(
       new Map([
-        ["supabase:profiles:user:a:1", "{}"],
-        ["supabase:profiles:user:b:1", "{}"],
-        ["supabase:projects:tenant:a:1", "{}"],
+        [profilesA, "{}"],
+        [profilesB, "{}"],
+        [projectsA, "{}"],
       ])
     );
     __setCacheAdapterForTests(adapter);
 
-    await deleteByPattern("supabase:profiles:*");
-    expect([...store.keys()]).toEqual(["supabase:projects:tenant:a:1"]);
+    await deleteByPattern(tablePattern("profiles"));
+    expect([...store.keys()]).toEqual([projectsA]);
   });
 });

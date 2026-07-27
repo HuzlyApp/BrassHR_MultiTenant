@@ -101,30 +101,34 @@ describe("cache utility extended", () => {
   });
 
   it("invalidateTenantCache removes tenant-scoped keys only", async () => {
+    const keep = `${buildCacheKey("worker", ["tenant", "bbb"])}:1`;
+    const drop = `${buildCacheKey("worker", ["tenant", "aaa"])}:1`;
     const { adapter, store } = memoryAdapter(
       new Map([
-        ["supabase:worker:tenant:aaa:1", "{}"],
-        ["supabase:worker:tenant:bbb:1", "{}"],
+        [drop, "{}"],
+        [keep, "{}"],
       ]),
     );
     __setCacheAdapterForTests(adapter);
     await invalidateTenantCache("worker", "aaa");
-    expect([...store.keys()]).toEqual(["supabase:worker:tenant:bbb:1"]);
-    expect(tenantPattern("worker", "aaa")).toBe("supabase:worker:tenant:aaa:*");
+    expect([...store.keys()]).toEqual([keep]);
+    expect(tenantPattern("worker", "aaa")).toMatch(/^supabase:[^:]+:worker:tenant:aaa:\*$/);
   });
 
   it("invalidateUserCache removes user-scoped keys only", async () => {
+    const keep = `${buildCacheKey("admin_header_data", ["user", "u2"])}:1`;
+    const drop = `${buildCacheKey("admin_header_data", ["user", "u1"])}:1`;
     const { adapter, store } = memoryAdapter(
       new Map([
-        ["supabase:admin_header_data:user:u1:1", "{}"],
-        ["supabase:admin_header_data:user:u2:1", "{}"],
+        [drop, "{}"],
+        [keep, "{}"],
       ]),
     );
     __setCacheAdapterForTests(adapter);
     await invalidateUserCache("admin_header_data", "u1");
-    expect([...store.keys()]).toEqual(["supabase:admin_header_data:user:u2:1"]);
-    expect(userPattern("admin_header_data", "u1")).toBe(
-      "supabase:admin_header_data:user:u1:*",
+    expect([...store.keys()]).toEqual([keep]);
+    expect(userPattern("admin_header_data", "u1")).toMatch(
+      /^supabase:[^:]+:admin_header_data:user:u1:\*$/,
     );
   });
 
