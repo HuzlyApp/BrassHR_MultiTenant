@@ -58,6 +58,19 @@ export function applicationStatusLabel(status: string): string {
   return APPLICATION_STATUS_OPTIONS.find((option) => option.id === normalized)?.label ?? normalized;
 }
 
+/** Figma: outlined pill for pipeline statuses (New uses secondary brand color). */
+export function applicationStatusBadgeClassName(status: string): string {
+  const normalized = normalizeApplicationStatus(status);
+  const base =
+    "inline-flex items-center justify-center whitespace-nowrap rounded-full border bg-white px-3 py-0.5 text-xs font-medium";
+
+  if (normalized === "new") {
+    return `${base} border-[color:var(--brand-secondary)] text-[color:var(--brand-secondary)]`;
+  }
+
+  return `${base} border-[#CBD5E1] text-[#475569]`;
+}
+
 export function isApplicationPipelineStatus(value: string): value is ApplicationPipelineStatus {
   return (APPLICATION_PIPELINE_STATUSES as readonly string[]).includes(value);
 }

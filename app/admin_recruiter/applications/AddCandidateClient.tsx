@@ -128,39 +128,57 @@ function SuccessModal({
   onClose: () => void;
   brandStyle: CSSProperties;
 }) {
+  useEffect(() => {
+    if (!open) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", onKeyDown);
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      document.body.style.overflow = "";
+    };
+  }, [open, onClose]);
+
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 p-4">
+    <div
+      className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 p-4"
+      role="presentation"
+      onClick={onClose}
+    >
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="add-candidate-success-title"
-        className="relative w-full max-w-[540px] rounded-2xl bg-white px-9 pb-9 pt-12 shadow-xl"
+        className="relative w-full max-w-[500px] rounded-[24px] bg-white px-8 pb-8 pt-10 shadow-xl"
+        onClick={(event) => event.stopPropagation()}
       >
         <button
           type="button"
           onClick={onClose}
-          className="absolute right-5 top-5 inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#1D2739] text-white transition hover:opacity-90"
+          className="absolute right-4 top-4 inline-flex h-6 w-6 items-center justify-center rounded-full bg-[#101828] text-white transition hover:brightness-110"
           aria-label="Close"
         >
-          <X className="h-4 w-4" strokeWidth={2.5} />
+          <X className="h-3 w-3" strokeWidth={2.5} />
         </button>
 
         <div className="flex flex-col items-center text-center">
-          <span className="inline-flex h-24 w-24 items-center justify-center rounded-full bg-[#012352] text-white">
-            <Check className="h-12 w-12" strokeWidth={2.5} />
+          <span className="inline-flex h-16 w-16 items-center justify-center rounded-full bg-[#012352] text-white">
+            <Check className="h-7 w-7" strokeWidth={2.5} aria-hidden />
           </span>
           <h2
             id="add-candidate-success-title"
-            className="mt-7 text-3xl font-semibold text-black"
+            className="mt-6 text-2xl font-semibold text-black"
           >
             Success!
           </h2>
           <button
             type="button"
             onClick={onClose}
-            className="mt-8 inline-flex h-12 min-w-[180px] items-center justify-center rounded-lg px-8 text-base font-medium text-white transition hover:opacity-95"
+            className="mt-6 inline-flex h-11 min-w-[160px] items-center justify-center rounded-lg px-8 text-sm font-semibold text-white transition hover:opacity-95"
             style={brandStyle}
           >
             Close

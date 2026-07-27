@@ -25,6 +25,7 @@ import {
 import {
   APPLICATION_STATUS_OPTIONS,
   APPLICATION_STATUS_TABS,
+  applicationStatusBadgeClassName,
   applicationStatusLabel,
   matchesApplicationStatusTab,
   normalizeApplicationStatus,
@@ -748,7 +749,11 @@ export default function JobApplicationsPage() {
         );
       }
       case "status":
-        return <span className="text-sm capitalize text-[#475569]">{statusLabel(row.status)}</span>;
+        return (
+          <span className={applicationStatusBadgeClassName(row.status)}>
+            {statusLabel(row.status)}
+          </span>
+        );
       case "email":
         return <span className="text-sm text-[#475569]">{applicantEmail(row) || "—"}</span>;
       case "workflow":
