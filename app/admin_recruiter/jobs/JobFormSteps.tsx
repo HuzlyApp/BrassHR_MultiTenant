@@ -71,9 +71,9 @@ function BrandedCheckbox({
 }) {
   return (
     <label
-      className={`inline-flex cursor-pointer items-start gap-2.5 text-sm text-[#334155] ${className}`}
+      className={`inline-flex cursor-pointer items-center gap-2.5 text-sm text-[#334155] ${className}`}
     >
-      <span className="relative mt-0.5 inline-flex h-5 w-5 shrink-0">
+      <span className="relative inline-flex h-5 w-5 shrink-0">
         <input
           type="checkbox"
           checked={checked}
@@ -553,7 +553,7 @@ export function JobFormStepRequisition({
         </div>
       </div>
 
-      <div className="mt-auto space-y-5 border-t border-[#E5E7EB] pt-6">
+      <div className="mt-auto space-y-5 pt-6">
         <JobTypeChipSelect
           value={job.shiftType ?? ""}
           onChange={(next) => onJobChange("shiftType", next)}

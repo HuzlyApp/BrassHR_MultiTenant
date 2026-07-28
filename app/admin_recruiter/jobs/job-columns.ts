@@ -79,7 +79,19 @@ export function isSortableJobColumn(colId: JobColumnId): colId is JobSortField {
   return SORTABLE_JOB_COLUMNS.has(colId)
 }
 
-const CENTER_ALIGNED_COLUMNS = new Set<JobColumnId>(["datePosted", "assignee", "jobStatus"])
+const CENTER_ALIGNED_COLUMNS = new Set<JobColumnId>([
+  "datePosted",
+  "assignee",
+  "jobStatus",
+  "location",
+  "employmentType",
+  "profession",
+  "specialty",
+  "workflow",
+  "createdDate",
+  "applicationDeadline",
+  "actions",
+])
 
 export function jobListColumnClassName(colId: JobColumnId): string {
   const center = CENTER_ALIGNED_COLUMNS.has(colId) ? " text-center" : ""
@@ -92,7 +104,7 @@ export function jobListColumnClassName(colId: JobColumnId): string {
   if (colId === "jobStatus") {
     return `${center.trim()} w-[1%] whitespace-nowrap`.trim()
   }
-  if (colId === "candidates") return "w-[350px] min-w-[350px]"
-  if (colId === "actions") return "w-12"
-  return ""
+  if (colId === "candidates") return `w-[350px] min-w-[350px]${center}`
+  if (colId === "actions") return `w-12${center}`
+  return center.trim()
 }

@@ -3,7 +3,7 @@
 import { Check } from "lucide-react";
 import type { InputHTMLAttributes } from "react";
 
-type ListTableCheckboxProps = Omit<InputHTMLAttributes<HTMLInputElement>, "type"> & {
+type ListTableCheckboxProps = Omit<InputHTMLAttributes<HTMLInputElement>, "type" | "size"> & {
   /** sm = 16px (applications table), md = 20px (candidates table) */
   size?: "sm" | "md";
 };

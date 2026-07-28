@@ -14,11 +14,30 @@ type BenefitsChipSelectProps = {
 };
 
 function benefitChipClass(selected: boolean) {
-  return `inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition ${
+  return `inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium text-[#1D2739] transition ${
     selected
-      ? "border border-[color:var(--brand-secondary)] bg-white text-[color:var(--brand-secondary)] shadow-sm"
-      : "border border-transparent bg-[#EEF2F6] text-[color:var(--brand-secondary)] hover:bg-[#E8EDF3]"
+      ? "border border-[color:var(--brand-secondary)] bg-white shadow-sm"
+      : "border border-transparent bg-[#EEF2F6] hover:bg-[#E8EDF3]"
   }`;
+}
+
+function BenefitChipIcon({ selected }: { selected: boolean }) {
+  if (selected) {
+    return (
+      <Check
+        className="h-3.5 w-3.5 shrink-0 text-[color:var(--brand-secondary)]"
+        strokeWidth={2.5}
+        aria-hidden
+      />
+    );
+  }
+  return (
+    <Plus
+      className="h-3.5 w-3.5 shrink-0 text-[color:var(--brand-secondary)]"
+      strokeWidth={2.5}
+      aria-hidden
+    />
+  );
 }
 
 export function BenefitsChipSelect({
@@ -50,11 +69,7 @@ export function BenefitsChipSelect({
                   className="inline-flex cursor-pointer items-center gap-2"
                   aria-pressed={isSelected}
                 >
-                  {isSelected ? (
-                    <Check className="h-3.5 w-3.5 shrink-0" strokeWidth={2.5} aria-hidden />
-                  ) : (
-                    <Plus className="h-3.5 w-3.5 shrink-0" strokeWidth={2.5} aria-hidden />
-                  )}
+                  <BenefitChipIcon selected={isSelected} />
                   {benefit}
                 </button>
                 <button
@@ -77,11 +92,7 @@ export function BenefitsChipSelect({
               className={`${benefitChipClass(isSelected)} cursor-pointer`}
               aria-pressed={isSelected}
             >
-              {isSelected ? (
-                <Check className="h-3.5 w-3.5 shrink-0" strokeWidth={2.5} aria-hidden />
-              ) : (
-                <Plus className="h-3.5 w-3.5 shrink-0" strokeWidth={2.5} aria-hidden />
-              )}
+              <BenefitChipIcon selected={isSelected} />
               {benefit}
             </button>
           );

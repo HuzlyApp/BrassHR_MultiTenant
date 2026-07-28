@@ -38,15 +38,19 @@ export function JobTypeChipSelect({
               onClick={() => onChange(option)}
               className={`inline-flex cursor-pointer items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition ${
                 isSelected
-                  ? "border border-[color:var(--brand-secondary)] bg-white text-[color:var(--brand-secondary)] shadow-sm"
-                  : "border border-transparent bg-[#EEF2F6] text-[color:var(--brand-secondary)] hover:bg-[#E8EDF3]"
+                  ? "border border-[color:var(--brand-secondary)] bg-white text-[#1D2739] shadow-sm"
+                  : "border border-transparent bg-[#EEF2F6] text-[#1D2739] hover:bg-[#E8EDF3]"
               }`}
               aria-pressed={isSelected}
             >
               {isSelected ? (
                 <Check className="h-3.5 w-3.5 shrink-0" strokeWidth={2.5} aria-hidden />
               ) : (
-                <Plus className="h-3.5 w-3.5 shrink-0" strokeWidth={2.5} aria-hidden />
+                <Plus
+                  className="h-3.5 w-3.5 shrink-0 text-[color:var(--brand-secondary)]"
+                  strokeWidth={2.5}
+                  aria-hidden
+                />
               )}
               {option}
             </button>

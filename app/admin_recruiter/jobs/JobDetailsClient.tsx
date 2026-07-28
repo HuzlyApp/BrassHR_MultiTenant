@@ -10,6 +10,7 @@ import {
   type CSSProperties,
 } from "react";
 import { ChevronDown, MoreVertical } from "lucide-react";
+import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import { JobDescriptionHtml } from "@/lib/jobs/job-description-html";
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
@@ -95,14 +96,10 @@ function CandidateCard({
   return (
     <div className="flex min-h-[120px] flex-col justify-between rounded-xl border border-[#E5E7EB] bg-white p-5 shadow-sm">
       <div className="flex items-start gap-3">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
+        <BrandedSvgIcon
           src={iconSrc}
-          alt=""
-          width={20}
-          height={20}
           className="mt-0.5 h-5 w-5 shrink-0"
-          aria-hidden
+          color={secondaryColor}
         />
         <div className="min-w-0">
           <p className="text-base font-semibold leading-6 text-[#374151]">
@@ -475,14 +472,14 @@ export default function JobDetailsClient({ jobId }: Props) {
                   {performanceDateRangeLabel(job)}
                 </span>
               </div>
-              <div className="mt-5 grid grid-cols-2 gap-4 border-y border-[#E5E7EB] py-5 sm:grid-cols-3 lg:grid-cols-5">
-                {performanceMetrics.map((metric, index) => (
+              <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
+                {performanceMetrics.map((metric) => (
                   <div
                     key={metric.label}
-                    className={`px-1 ${index > 0 ? "sm:border-l sm:border-[#E5E7EB] sm:pl-5" : ""}`}
+                    className="flex min-h-[104px] flex-col justify-between rounded-xl border border-[#E5E7EB] bg-white px-5 py-4 shadow-sm"
                   >
-                    <p className="text-2xl font-semibold text-[#1D2739]">{metric.value}</p>
-                    <p className="mt-1 text-sm text-[#64748B]">{metric.label}</p>
+                    <p className="text-[30px] font-semibold leading-9 text-[#1D2739]">{metric.value}</p>
+                    <p className="text-sm font-medium leading-5 text-[#64748B]">{metric.label}</p>
                   </div>
                 ))}
               </div>

@@ -71,6 +71,15 @@ type SearchWorkerRow = {
 
 const ADVANCED_SEARCH_STORAGE_KEY = "admin_recruiter_workers_advanced_search";
 type AdvancedSearchParams = { lat: number; lng: number; radius: number; place?: string };
+const WORKERS_FILTER_SELECT_CLASS =
+  `${CANDIDATES_FILTER_CONTROL_CLASS} appearance-none bg-[length:12px_12px] bg-[right_10px_center] bg-no-repeat pr-8`;
+const WORKERS_FILTER_GRID_SELECT_CLASS =
+  "relative z-10 h-10 w-full min-w-0 cursor-pointer appearance-none rounded-md border border-[#dce6e3] bg-white bg-[length:12px_12px] bg-[right_10px_center] bg-no-repeat pl-2 pr-8 text-sm text-[#334155] sm:h-9";
+const WORKERS_FILTER_SELECT_CHEVRON = {
+  backgroundImage: `url("data:image/svg+xml,${encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M3 4.5L6 7.5L9 4.5" stroke="#94A3B8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+  )}")`,
+} as const;
 
 function mapEmploymentWorkerRow(w: EmploymentWorkerRow): WorkerListRow {
   const name = `${w.first_name ?? ""} ${w.last_name ?? ""}`.trim() || "Unnamed";
@@ -540,7 +549,8 @@ export default function WorkersPage() {
                   <select
                     value={jobRoleFilter}
                     onChange={(e) => setJobRoleFilter(e.target.value)}
-                    className="h-10 w-full min-w-0 rounded-md border border-[#dce6e3] bg-white px-2 text-sm text-[#334155] sm:h-9 appearance-auto cursor-pointer relative z-10"
+                    className={WORKERS_FILTER_GRID_SELECT_CLASS}
+                    style={WORKERS_FILTER_SELECT_CHEVRON}
                   >
                     <option value="">All</option>
                     {jobRoleOptions.map((role) => (
@@ -554,7 +564,8 @@ export default function WorkersPage() {
                   <select
                     value={locationFilter}
                     onChange={(e) => setLocationFilter(e.target.value)}
-                    className="h-10 w-full min-w-0 rounded-md border border-[#dce6e3] bg-white px-2 text-sm text-[#334155] sm:h-9 appearance-auto cursor-pointer relative z-10"
+                    className={WORKERS_FILTER_GRID_SELECT_CLASS}
+                    style={WORKERS_FILTER_SELECT_CHEVRON}
                   >
                     <option value="">All</option>
                     {locationOptions.map((loc) => (
@@ -585,8 +596,8 @@ export default function WorkersPage() {
                     <select
                       value={jobRoleFilter}
                       onChange={(e) => setJobRoleFilter(e.target.value)}
-                      className={`${CANDIDATES_FILTER_CONTROL_CLASS} relative z-10`}
-                      style={CANDIDATES_PAGE_SUBTITLE_STYLE}
+                      className={`${WORKERS_FILTER_SELECT_CLASS} relative z-10`}
+                      style={{ ...CANDIDATES_PAGE_SUBTITLE_STYLE, ...WORKERS_FILTER_SELECT_CHEVRON }}
                     >
                       <option value="">All</option>
                       {jobRoleOptions.map((role) => (
@@ -600,8 +611,8 @@ export default function WorkersPage() {
                     <select
                       value={locationFilter}
                       onChange={(e) => setLocationFilter(e.target.value)}
-                      className={`${CANDIDATES_FILTER_CONTROL_CLASS} relative z-10`}
-                      style={CANDIDATES_PAGE_SUBTITLE_STYLE}
+                      className={`${WORKERS_FILTER_SELECT_CLASS} relative z-10`}
+                      style={{ ...CANDIDATES_PAGE_SUBTITLE_STYLE, ...WORKERS_FILTER_SELECT_CHEVRON }}
                     >
                       <option value="">All</option>
                       {locationOptions.map((loc) => (

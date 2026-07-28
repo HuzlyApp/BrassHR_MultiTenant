@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
+import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import {
   CANDIDATES_PAGE_SUBTITLE_CLASS,
@@ -354,8 +355,14 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
             </div>
             <Link
               href="/admin_recruiter/jobs"
-              className="shrink-0 text-sm font-medium text-[#64748B] transition hover:text-[#334155]"
+              className="inline-flex shrink-0 items-center gap-1 text-sm font-medium transition hover:opacity-80"
+              style={{ color: branding.secondaryHex || "#012352" }}
             >
+              <BrandedSvgIcon
+                src="/eva_arrow-back-fill.svg"
+                className="h-[14px] w-[14px]"
+                color={branding.secondaryHex || "#012352"}
+              />
               Back to jobs
             </Link>
           </div>
