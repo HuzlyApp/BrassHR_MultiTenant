@@ -5,7 +5,7 @@ import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
 import { CandidatesSubTabs } from "./CandidatesSubTabs";
 import { CandidatesPageHeader } from "./CandidatesPageHeader";
 import { ListExportDropdown } from "./ListExportDropdown";
-import { ListPaginationControls } from "./ListPaginationControls";
+import { ListPaginationControls, ListPaginationShowLabel } from "./ListPaginationControls";
 import {
   CANDIDATES_FILTER_CONTROL_CLASS,
   CANDIDATES_FILTER_LABEL_CLASS,
@@ -548,20 +548,11 @@ export function CandidatesListShell({
               Showing {rangeStart}-{rangeEnd} of {totalFiltered} results
             </p>
             <div className="flex w-full flex-wrap items-center justify-end gap-3 xl:w-auto">
-              <label className="flex items-center gap-2 text-sm text-[#64748B]">
-                Show
-                <select
-                  value={pageSize}
-                  onChange={(e) => onPageSizeChange(Number(e.target.value))}
-                  className="box-border h-8 rounded-lg border border-[#CBD5E1] bg-white px-2 text-sm text-[#334155] focus:border-[color:var(--brand-primary)] focus:outline-none"
-                >
-                  {[10, 20, 30].map((size) => (
-                    <option key={size} value={size}>
-                      {size}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <ListPaginationShowLabel
+                pageSize={pageSize}
+                options={[10, 20, 30]}
+                onPageSizeChange={onPageSizeChange}
+              />
               <ListPaginationControls
                 currentPage={safePage}
                 totalPages={totalPages}

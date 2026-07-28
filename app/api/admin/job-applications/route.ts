@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { requireStaffApiSession } from "@/lib/auth/api-session";
-import { createAdminJobApplication } from "@/lib/jobs/service";
+import { createAdminJobApplication, bulkDeleteJobApplications, parseBulkDeleteIds } from "@/lib/jobs/service";
 import { JobValidationError } from "@/lib/jobs/types";
 import { resolveStaffTenantId } from "@/lib/jobs/tenant";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
@@ -223,5 +223,35 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     const status = error instanceof JobValidationError ? 400 : 500;
     return NextResponse.json({ error: formatApiError(error, "Failed to add candidate") }, { status });
+  }
+}
+
+export async function DELETE(req: NextRequest) {
+  const auth = await requireStaffApiSession();
+  if (auth instanceof NextResponse) return auth;
+  const supabase = createServiceRoleClient();
+  if (!supabase) return NextResponse.json({ error: "Supabase not configured" }, { status: 503 });
+
+  try {
+    const tenantId = await resolveStaffTenantId(supabase, auth);
+    if (!tenantId) return NextResponse.json({ error: "No tenant selected" }, { status: 400 });
+
+    const body = (await req.json().catch(() => null)) as { ids?: unknown } | null;
+    const ids = parseBulkDeleteIds(body?.ids);
+    if (!ids.length) {
+      return NextResponse.json({ error: "At least one application id is required" }, { status: 400 });
+    }
+
+    const { deletedIds } = await bulkDeleteJobApplications(supabase, tenantId, ids);
+    if (!deletedIds.length) {
+      return NextResponse.json({ error: "No candidates were deleted" }, { status: 404 });
+    }
+
+    return NextResponse.json({ deletedIds, count: deletedIds.length });
+  } catch (error) {
+    return NextResponse.json(
+      { error: formatApiError(error, "Failed to delete candidates") },
+      { status: 500 }
+    );
   }
 }

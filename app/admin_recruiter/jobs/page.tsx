@@ -5,9 +5,13 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import { createPortal } from "react-dom";
 import { Plus } from "lucide-react";
 import { ColumnsEditorModal } from "@/app/admin_recruiter/components/ColumnsEditorModal";
-import { ListPaginationControls } from "@/app/admin_recruiter/components/ListPaginationControls";
+import { BulkDeleteConfirmModal } from "@/app/admin_recruiter/components/BulkDeleteConfirmModal";
+import { BulkDeleteToolbarButton } from "@/app/admin_recruiter/components/BulkDeleteToolbarButton";
+import { ListPaginationControls, ListPaginationShowLabel } from "@/app/admin_recruiter/components/ListPaginationControls";
+import { ListTableCheckbox } from "@/app/admin_recruiter/components/ListTableCheckbox";
 import { useCandidatesFilterRowsDefault } from "@/app/admin_recruiter/hooks/useCandidatesFilterRowsDefault";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
+import toast from "react-hot-toast";
 import {
   CANDIDATES_PAGE_SUBTITLE_STYLE,
   CANDIDATES_PAGE_TITLE_CLASS,
@@ -249,14 +253,17 @@ function JobsFiltersToggleButton({
       type="button"
       onClick={onClick}
       aria-expanded={active}
-      className={`inline-flex h-10 w-auto shrink-0 items-center gap-1 rounded-md border px-2.5 text-xs font-medium whitespace-nowrap transition sm:h-8 sm:px-3 sm:text-sm ${
+      aria-label="Filters"
+      title="Filters"
+      className={`inline-flex h-9 w-9 shrink-0 items-center justify-center gap-1.5 rounded-md border text-sm font-medium whitespace-nowrap transition sm:h-8 xl:w-auto xl:px-3 ${
         isOn
           ? "border-[color:var(--brand-primary)] bg-[color:color-mix(in_srgb,var(--brand-primary)_10%,white)] text-[color:var(--brand-primary)]"
           : "border-[#dce6e3] bg-white text-[#334155] hover:bg-zinc-50"
       } ${className}`}
     >
       <JobsFilterIcon />
-      <span className="hidden min-[480px]:inline">Filters</span>
+      {/* Label only on web (xl+); mobile/tablet show icon only */}
+      <span className="hidden">Filters</span>
     </button>
   );
 }
@@ -480,8 +487,10 @@ function JobsFilterFields({
             </JobsFilterSelect>
           </CompactFilterField>
         </div>
+        {/* Hidden below 450px — shown centered in the mobile toolbar instead.
+            Centered on tablet/mobile ≥450px; desktop keeps it inline in the filters row. */}
         {typeof resultsCount === "number" ? (
-          <div className="flex shrink-0 items-center gap-5">
+          <div className="flex w-full shrink-0 items-center justify-center gap-5 max-[449px]:hidden">
             <button
               type="button"
               onClick={onToggleStarredOnly}
@@ -821,6 +830,10 @@ export default function AdminRecruiterJobsPage() {
     job: JobListRow;
     anchor: HTMLElement;
   } | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const [jobIdFilter, setJobIdFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
@@ -972,6 +985,69 @@ export default function AdminRecruiterJobsPage() {
   const pageStart = sortedJobs.length === 0 ? 0 : (currentPage - 1) * pageSize + 1;
   const pageEnd = Math.min(currentPage * pageSize, sortedJobs.length);
   const paginatedJobs = sortedJobs.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  const allVisibleSelected =
+    paginatedJobs.length > 0 && paginatedJobs.every((job) => selectedIds.has(job.id));
+
+  function toggleSelectAllVisible() {
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      if (allVisibleSelected) {
+        for (const job of paginatedJobs) next.delete(job.id);
+      } else {
+        for (const job of paginatedJobs) next.add(job.id);
+      }
+      return next;
+    });
+  }
+
+  function toggleSelect(id: string) {
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  async function handleConfirmDeleteJobs() {
+    if (deleteBusy || selectedIds.size === 0) return;
+    setDeleteBusy(true);
+    setDeleteError(null);
+    try {
+      const response = await fetch("/api/admin/jobs", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: [...selectedIds] }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(typeof payload.error === "string" ? payload.error : "Failed to delete jobs");
+      }
+      const deletedIds = new Set<string>(
+        Array.isArray(payload.deletedIds) ? payload.deletedIds.map(String) : []
+      );
+      setJobs((current) => current.filter((job) => !deletedIds.has(job.id)));
+      setStarredIds((current) => {
+        const next = new Set(current);
+        for (const id of deletedIds) next.delete(id);
+        saveStarredJobIds(next);
+        return next;
+      });
+      setSelectedIds(new Set());
+      setDeleteConfirmOpen(false);
+      toast.success(
+        `Deleted ${typeof payload.count === "number" ? payload.count : deletedIds.size} job${
+          (payload.count ?? deletedIds.size) === 1 ? "" : "s"
+        }`
+      );
+    } catch (deleteErr) {
+      const message = deleteErr instanceof Error ? deleteErr.message : "Failed to delete jobs";
+      setDeleteError(message);
+      toast.error(message);
+    } finally {
+      setDeleteBusy(false);
+    }
+  }
 
   const locationOptions = useMemo(() => {
     const values = new Set<string>();
@@ -1043,7 +1119,7 @@ export default function AdminRecruiterJobsPage() {
               >
                 <span className="flex items-center gap-2">
                   <span>{tab.label}</span>
-                  <span className="inline-flex aspect-square h-4 w-4 shrink-0 items-center justify-center rounded-sm bg-[#CFCAC2] p-0.5 text-[10px] font-medium leading-none text-[#2B3D51]">
+                  <span className="inline-flex h-[18px] min-w-[18px] shrink-0 items-center justify-center rounded-sm bg-[#CFCAC2] px-1 text-[11px] font-medium leading-none text-[#2B3D51]">
                     {tabCounts[tab.id]}
                   </span>
                 </span>
@@ -1063,16 +1139,71 @@ export default function AdminRecruiterJobsPage() {
         {/* Mobile / tablet toolbar */}
         <div className="flex flex-col gap-2 border-b border-[#E5E7EB] px-3 py-2.5 xl:hidden">
           <div className="flex w-full items-center gap-2">
-            <JobsFiltersToggleButton
-              active={showFilterRows}
-              hasActiveFilters={hasActiveFilters}
-              onClick={() => setShowFilterRows((value) => !value)}
-              className="shrink-0"
-            />
-            <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
+            <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+              <JobsFiltersToggleButton
+                active={showFilterRows}
+                hasActiveFilters={hasActiveFilters}
+                onClick={() => setShowFilterRows((value) => !value)}
+                className="shrink-0"
+              />
               <MobileIconButton onClick={() => setEditColumnsOpen(true)} label="Columns">
                 <JobsColumnsIcon />
               </MobileIconButton>
+              <BulkDeleteToolbarButton
+                count={selectedIds.size}
+                disabled={deleteBusy}
+                onClick={() => {
+                  setDeleteError(null);
+                  setDeleteConfirmOpen(true);
+                }}
+              />
+            </div>
+            {/* Star + results: centered in toolbar below 450px */}
+            <div className="hidden min-w-0 flex-1 items-center justify-center max-[449px]:flex">
+              <div className="flex shrink-0 items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowStarredOnly((value) => !value)}
+                  className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[#CBD5E1] bg-white transition hover:bg-[#F8FAFC] ${
+                    showStarredOnly ? "border-[#FFC800] bg-[#FFF8E6]" : ""
+                  }`}
+                  aria-pressed={showStarredOnly}
+                  aria-label={showStarredOnly ? "Show all jobs" : "Show starred jobs only"}
+                  title={showStarredOnly ? "Show all jobs" : "Show starred jobs only"}
+                >
+                  {showStarredOnly ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={JOBS_STAR_FILLED_SRC}
+                      alt=""
+                      width={14}
+                      height={14}
+                      className="h-[14px] w-[14px] shrink-0"
+                      aria-hidden
+                    />
+                  ) : (
+                    <span
+                      aria-hidden
+                      className="inline-block h-[14px] w-[14px] shrink-0 bg-[#94A3B8]"
+                      style={{
+                        maskImage: `url(${JOBS_STAR_FILLED_SRC})`,
+                        WebkitMaskImage: `url(${JOBS_STAR_FILLED_SRC})`,
+                        maskSize: "contain",
+                        WebkitMaskSize: "contain",
+                        maskRepeat: "no-repeat",
+                        WebkitMaskRepeat: "no-repeat",
+                        maskPosition: "center",
+                        WebkitMaskPosition: "center",
+                      }}
+                    />
+                  )}
+                </button>
+                <span className="whitespace-nowrap text-sm font-medium text-[#334155]">
+                  {filteredJobs.length} results
+                </span>
+              </div>
+            </div>
+            <div className="ml-auto flex items-center gap-1.5 max-[449px]:ml-0 sm:gap-2">
               <Link
                 href="/admin_recruiter/jobs/new"
                 className={`${JOBS_POST_JOB_BUTTON_CLASS} inline-flex h-9 items-center gap-1.5 px-2.5 sm:h-8 sm:px-3`}
@@ -1130,6 +1261,14 @@ export default function AdminRecruiterJobsPage() {
                 <JobsColumnsIcon />
                 Columns
               </button>
+              <BulkDeleteToolbarButton
+                count={selectedIds.size}
+                disabled={deleteBusy}
+                onClick={() => {
+                  setDeleteError(null);
+                  setDeleteConfirmOpen(true);
+                }}
+              />
             </div>
 
             <Link href="/admin_recruiter/jobs/new" className={JOBS_POST_JOB_BUTTON_CLASS}>
@@ -1180,6 +1319,13 @@ export default function AdminRecruiterJobsPage() {
           <table className="min-w-[960px] w-full border-collapse text-left text-sm xl:min-w-full">
             <thead className="border-b border-[#E5E7EB] bg-[#F8FAFC] text-xs font-medium uppercase tracking-wide text-[#64748B]">
               <tr>
+                <th className="w-12 border-r border-[#E5E7EB] px-[14px] py-3">
+                  <ListTableCheckbox
+                    checked={allVisibleSelected}
+                    onChange={toggleSelectAllVisible}
+                    aria-label="Select all visible jobs"
+                  />
+                </th>
                 {listColumns.map((colId) => (
                   <th
                     key={colId}
@@ -1209,13 +1355,13 @@ export default function AdminRecruiterJobsPage() {
             <tbody>
               {loading ? (
                 <tr className="border-b border-[#E9EDF3]">
-                  <td colSpan={listColumns.length} className="px-[14px] py-12 text-center text-[#64748B]">
+                  <td colSpan={listColumns.length + 1} className="px-[14px] py-12 text-center text-[#64748B]">
                     Loading jobs…
                   </td>
                 </tr>
               ) : paginatedJobs.length === 0 ? (
                 <tr className="border-b border-[#E9EDF3]">
-                  <td colSpan={listColumns.length} className="px-[14px] py-12 text-center text-[#64748B]">
+                  <td colSpan={listColumns.length + 1} className="px-[14px] py-12 text-center text-[#64748B]">
                     {showStarredOnly
                       ? "No starred jobs yet. Click the star next to a job title to save it here."
                       : "No jobs match these filters."}
@@ -1224,6 +1370,13 @@ export default function AdminRecruiterJobsPage() {
               ) : (
                 paginatedJobs.map((job) => (
                   <tr key={job.id} className="border-b border-[#E9EDF3] align-middle hover:bg-[#FAFBFC]">
+                    <td className="border-r border-[#E5E7EB] px-[14px] py-2.5 align-middle">
+                      <ListTableCheckbox
+                        checked={selectedIds.has(job.id)}
+                        onChange={() => toggleSelect(job.id)}
+                        aria-label={`Select ${job.public_title?.trim() || "job"}`}
+                      />
+                    </td>
                     {listColumns.map((colId) => (
                       <td
                         key={colId}
@@ -1247,20 +1400,11 @@ export default function AdminRecruiterJobsPage() {
           </p>
 
           <div className="flex w-full items-center justify-between gap-3 sm:w-auto sm:flex-wrap sm:justify-end">
-            <label className="flex shrink-0 items-center gap-2 text-sm text-[#64748B]">
-              Show
-              <select
-                value={pageSize}
-                onChange={(e) => setPageSize(Number(e.target.value))}
-                className={`box-border h-8 px-2 text-sm text-[#334155] ${JOBS_FORM_SURFACE_CLASS}`}
-              >
-                {PAGE_SIZE_OPTIONS.map((size) => (
-                  <option key={size} value={size}>
-                    {size}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <ListPaginationShowLabel
+              pageSize={pageSize}
+              options={PAGE_SIZE_OPTIONS}
+              onPageSizeChange={setPageSize}
+            />
 
             <ListPaginationControls
               currentPage={currentPage}
@@ -1293,6 +1437,20 @@ export default function AdminRecruiterJobsPage() {
           setListColumnOrder(order);
           saveJobColumnOrder(order);
         }}
+      />
+
+      <BulkDeleteConfirmModal
+        open={deleteConfirmOpen}
+        entity="job"
+        count={selectedIds.size}
+        busy={deleteBusy}
+        error={deleteError}
+        onCancel={() => {
+          if (deleteBusy) return;
+          setDeleteConfirmOpen(false);
+          setDeleteError(null);
+        }}
+        onConfirm={() => void handleConfirmDeleteJobs()}
       />
     </div>
   );

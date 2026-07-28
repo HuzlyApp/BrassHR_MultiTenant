@@ -1095,3 +1095,53 @@ export async function createAdminJobApplication(
     throw error;
   }
 }
+
+const MAX_BULK_DELETE_COUNT = 100;
+
+function normalizeBulkDeleteIds(ids: unknown): string[] {
+  if (!Array.isArray(ids)) return [];
+  const unique = [...new Set(ids.map((id) => String(id).trim()).filter(Boolean))];
+  return unique.slice(0, MAX_BULK_DELETE_COUNT);
+}
+
+export function parseBulkDeleteIds(ids: unknown): string[] {
+  return normalizeBulkDeleteIds(ids);
+}
+
+export async function bulkDeleteJobApplications(
+  supabase: DbClient,
+  tenantId: string,
+  ids: string[]
+): Promise<{ deletedIds: string[] }> {
+  const normalized = normalizeBulkDeleteIds(ids);
+  if (!normalized.length) return { deletedIds: [] };
+
+  const { data, error } = await supabase
+    .from("job_applications")
+    .delete()
+    .in("id", normalized)
+    .eq("tenant_id", tenantId)
+    .select("id");
+
+  if (error) throw error;
+  return { deletedIds: (data ?? []).map((row) => String(row.id)) };
+}
+
+export async function bulkDeleteJobRequisitions(
+  supabase: DbClient,
+  tenantId: string,
+  ids: string[]
+): Promise<{ deletedIds: string[] }> {
+  const normalized = normalizeBulkDeleteIds(ids);
+  if (!normalized.length) return { deletedIds: [] };
+
+  const { data, error } = await supabase
+    .from("job_requisitions")
+    .delete()
+    .in("id", normalized)
+    .eq("tenant_id", tenantId)
+    .select("id");
+
+  if (error) throw error;
+  return { deletedIds: (data ?? []).map((row) => String(row.id)) };
+}

@@ -4,7 +4,7 @@ import { MoreHorizontal } from "lucide-react"
 import type { JobColumnId } from "./job-columns"
 
 const JOB_CANDIDATE_COUNTER_CLASS =
-  "inline-flex h-4 min-w-4 shrink-0 items-center justify-center rounded-sm bg-[color:color-mix(in_srgb,var(--brand-primary)_14%,white)] px-0.5 text-[10px] font-medium leading-none text-[#475569]"
+  "inline-flex h-[18px] min-w-[18px] shrink-0 items-center justify-center rounded-sm bg-[color:color-mix(in_srgb,var(--brand-primary)_14%,white)] px-1 text-[11px] font-medium leading-none text-[#475569]"
 
 const JOB_CANDIDATE_ICONS = {
   all: "/fluent_people-28-regular.svg",
