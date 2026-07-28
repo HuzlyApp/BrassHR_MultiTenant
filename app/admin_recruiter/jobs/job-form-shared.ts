@@ -93,7 +93,7 @@ export const JOB_FORM_SURFACE_CLASS =
 
 /** Centered field column inside the full-bleed white create-job card (Figma). */
 export const JOB_FORM_CENTER_COLUMN_CLASS =
-  "mx-auto flex w-full max-w-[720px] flex-1 flex-col px-5 py-6 sm:max-w-[760px] sm:px-10 sm:py-8 lg:px-12";
+  "mx-auto flex w-full max-w-[720px] flex-1 flex-col px-4 py-5 min-[700px]:max-w-[760px] min-[700px]:px-10 min-[700px]:py-8 lg:px-12";
 
 export const JOB_FORM_PAGE_CARD_CLASS =
   "flex min-h-[calc(100dvh-6.5rem)] w-full flex-col rounded-lg border border-[#E5E7EB] bg-white shadow-sm";
@@ -118,6 +118,15 @@ export const JOB_FORM_OUTLINE_BUTTON_CLASS =
 
 export const JOB_FORM_ICON_BUTTON_CLASS =
   "inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-md text-[color:var(--brand-primary)] transition hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_10%,white)] hover:opacity-90";
+
+/** Radio option row: 24px gap on mobile, 40px on web (≥700px). */
+export const JOB_FORM_RADIO_OPTIONS_CLASS = "job-form-radio-options flex flex-wrap";
+
+/** Figma vertical field spacing: 30px between field groups. */
+export const JOB_FORM_FIELDS_CLASS = "job-form-fields";
+
+/** Figma: 12px between Job Location and Add Additional Location row. */
+export const JOB_FORM_LOCATION_CLUSTER_CLASS = "job-form-fields--location-cluster";
 
 export const JOB_FORM_SELECT_CHEVRON =
   "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12' fill='none'%3E%3Cpath d='M3 4.5L6 7.5L9 4.5' stroke='%2394A3B8' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E\")";

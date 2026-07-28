@@ -8,7 +8,6 @@ import {
   Check,
   Copy,
   Eye,
-  GitBranch,
   MapPin,
   Minus,
   Pencil,
@@ -17,7 +16,12 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import type { CSSProperties, ReactNode } from "react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { getSidebarIconSrc } from "@/app/admin_recruiter/components/sidebar-icons";
+import {
+  ensureTintedSidebarIconMarkup,
+  getTintedSidebarIconMarkup,
+} from "@/lib/sidebar/sidebar-icon-markup";
 import type { EmploymentType, JobRequisitionInput, SourceType } from "@/lib/jobs/types";
 import {
   JobDescriptionEditor,
@@ -32,14 +36,17 @@ import {
   JOB_FORM_COMPENSATION_TYPES,
   JOB_FORM_CURRENCIES,
   JOB_FORM_DURATION_OPTIONS,
+  JOB_FORM_FIELDS_CLASS,
   JOB_FORM_ICON_BUTTON_CLASS,
   JOB_FORM_INPUT_CLASS,
   JOB_FORM_LABEL_CLASS,
+  JOB_FORM_LOCATION_CLUSTER_CLASS,
   JOB_FORM_LOCATION_TYPES,
   JOB_FORM_MSP_JOB_DETAIL_OPTIONS,
   JOB_FORM_OUTLINE_BUTTON_CLASS,
   JOB_FORM_PAY_PERIODS,
   JOB_FORM_PRIMARY_BUTTON_CLASS,
+  JOB_FORM_RADIO_OPTIONS_CLASS,
   JOB_FORM_SECTION_SUBTITLE_CLASS,
   JOB_FORM_SECTION_TITLE_CLASS,
   JOB_FORM_SELECT_CHEVRON,
@@ -237,8 +244,8 @@ export function JobFormStepRequisition({
 
   return (
     <div className="flex flex-1 flex-col">
-      <div className="flex-1 space-y-5">
-        <div className="grid gap-4 md:grid-cols-2">
+      <div className={`${JOB_FORM_FIELDS_CLASS} flex-1`}>
+        <div className="grid gap-4 min-[700px]:grid-cols-2">
           <div>
             <label className={JOB_FORM_LABEL_CLASS} htmlFor="job-id">
               Job ID
@@ -266,7 +273,7 @@ export function JobFormStepRequisition({
           </div>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid gap-4 min-[700px]:grid-cols-2">
           <div>
             <label className={JOB_FORM_LABEL_CLASS} htmlFor="profession">
               Profession
@@ -314,9 +321,9 @@ export function JobFormStepRequisition({
         </div>
 
         <div>
-          <div className="flex flex-wrap items-center gap-x-[40px] gap-y-3">
+          <div className="flex flex-col gap-3 min-[700px]:flex-row min-[700px]:flex-wrap min-[700px]:items-center min-[700px]:gap-x-10 min-[700px]:gap-y-3">
             <span className={`${JOB_FORM_LABEL_CLASS} mb-0 shrink-0`}>Employment Type</span>
-            <div className="flex flex-wrap gap-x-[120px] gap-y-3">
+            <div className={JOB_FORM_RADIO_OPTIONS_CLASS}>
               {employmentLabels.map((label) => (
                 <BrandedRadio
                   key={label}
@@ -331,80 +338,84 @@ export function JobFormStepRequisition({
           <FieldError error={fieldErrors.employmentType} />
         </div>
 
-        <div>
-          <label className={JOB_FORM_LABEL_CLASS} htmlFor="job-location">
-            Job Location
-          </label>
-          <div className="relative">
-            <MapPin className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94A3B8]" />
-            <input
-              id="job-location"
-              className={`${JOB_FORM_INPUT_CLASS} pl-9`}
-              value={job.location ?? ""}
-              onChange={(event) => onJobChange("location", event.target.value)}
-              placeholder="Enter job location"
-            />
+        {/* Figma: 12px between Job Location and Add Additional Location row */}
+        <div className={JOB_FORM_LOCATION_CLUSTER_CLASS}>
+          <div>
+            <label className={JOB_FORM_LABEL_CLASS} htmlFor="job-location">
+              Job Location
+            </label>
+            <div className="relative">
+              <MapPin className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94A3B8]" />
+              <input
+                id="job-location"
+                className={`${JOB_FORM_INPUT_CLASS} pl-9`}
+                value={job.location ?? ""}
+                onChange={(event) => onJobChange("location", event.target.value)}
+                placeholder="Enter job location"
+              />
+            </div>
+            <FieldError error={fieldErrors.location} />
           </div>
-          <FieldError error={fieldErrors.location} />
-        </div>
 
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          {ui.showInMultipleAreas ? (
-            <button
-              type="button"
-              className={`${JOB_FORM_OUTLINE_BUTTON_CLASS} w-fit`}
-              onClick={() =>
+          <div className="flex flex-col gap-3 min-[700px]:flex-row min-[700px]:items-center min-[700px]:justify-between">
+            <BrandedCheckbox
+              checked={ui.showInMultipleAreas}
+              onChange={(checked) =>
                 onUiChange({
-                  additionalLocations: [...ui.additionalLocations, ""],
+                  showInMultipleAreas: checked,
+                  additionalLocations: checked ? ui.additionalLocations : [],
                 })
               }
-            >
-              <Plus className="h-4 w-4" />
-              Add Additional Location
-            </button>
-          ) : (
-            <span className="hidden sm:block" />
-          )}
-          <BrandedCheckbox
-            checked={ui.showInMultipleAreas}
-            onChange={(checked) =>
-              onUiChange({
-                showInMultipleAreas: checked,
-                additionalLocations: checked ? ui.additionalLocations : [],
-              })
-            }
-            label="I want to show my job in multiple areas"
-          />
-        </div>
+              label="I want to show my job in multiple areas"
+              className="order-1 items-center min-[700px]:order-2"
+            />
+            {ui.showInMultipleAreas ? (
+              <button
+                type="button"
+                className="order-2 inline-flex h-10 w-fit cursor-pointer items-center gap-2 self-end rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm font-medium text-[#1D2739] no-underline transition hover:bg-[#F8FAFC] min-[700px]:order-1 min-[700px]:self-auto"
+                onClick={() =>
+                  onUiChange({
+                    additionalLocations: [...ui.additionalLocations, ""],
+                  })
+                }
+              >
+                <Plus className="h-4 w-4 shrink-0 text-[color:var(--brand-secondary)]" strokeWidth={2.5} />
+                Add Additional Location
+              </button>
+            ) : (
+              <span className="hidden min-[700px]:order-1 min-[700px]:block" />
+            )}
+          </div>
 
-        {ui.showInMultipleAreas
-          ? ui.additionalLocations.map((location, index) => (
-              <div key={`extra-location-${index}`} className="flex gap-2">
-                <input
-                  className={JOB_FORM_INPUT_CLASS}
-                  value={location}
-                  placeholder="Additional location"
-                  onChange={(event) => {
-                    const next = [...ui.additionalLocations];
-                    next[index] = event.target.value;
-                    onUiChange({ additionalLocations: next });
-                  }}
-                />
-                <button
-                  type="button"
-                  className={`${JOB_FORM_OUTLINE_BUTTON_CLASS} shrink-0 px-3`}
-                  onClick={() =>
-                    onUiChange({
-                      additionalLocations: ui.additionalLocations.filter((_, i) => i !== index),
-                    })
-                  }
-                  aria-label="Remove location"
-                >
-                  <Minus className="h-4 w-4" />
-                </button>
-              </div>
-            ))
-          : null}
+          {ui.showInMultipleAreas
+            ? ui.additionalLocations.map((location, index) => (
+                <div key={`extra-location-${index}`} className="flex gap-2">
+                  <input
+                    className={JOB_FORM_INPUT_CLASS}
+                    value={location}
+                    placeholder="Additional location"
+                    onChange={(event) => {
+                      const next = [...ui.additionalLocations];
+                      next[index] = event.target.value;
+                      onUiChange({ additionalLocations: next });
+                    }}
+                  />
+                  <button
+                    type="button"
+                    className={`${JOB_FORM_OUTLINE_BUTTON_CLASS} shrink-0 px-3`}
+                    onClick={() =>
+                      onUiChange({
+                        additionalLocations: ui.additionalLocations.filter((_, i) => i !== index),
+                      })
+                    }
+                    aria-label="Remove location"
+                  >
+                    <Minus className="h-4 w-4" />
+                  </button>
+                </div>
+              ))
+            : null}
+        </div>
 
         <div>
           <label className={JOB_FORM_LABEL_CLASS} htmlFor="job-location-type">
@@ -426,7 +437,7 @@ export function JobFormStepRequisition({
           </select>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid gap-4 min-[700px]:grid-cols-2">
           <div>
             <label className={JOB_FORM_LABEL_CLASS} htmlFor="number-of-positions">
               Number of Positions
@@ -496,7 +507,7 @@ export function JobFormStepRequisition({
           </div>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid gap-4 min-[700px]:grid-cols-2">
           <PublicField label="Application Deadline">
             <div className="relative">
               <input
@@ -553,19 +564,19 @@ export function JobFormStepRequisition({
         </div>
       </div>
 
-      <div className="mt-auto space-y-5 pt-6">
+      <div className={`${JOB_FORM_FIELDS_CLASS} mt-auto pt-[30px]`}>
         <JobTypeChipSelect
           value={job.shiftType ?? ""}
           onChange={(next) => onJobChange("shiftType", next)}
           error={fieldErrors.shiftType}
         />
 
-        <div className="rounded-xl bg-[#F8FAFC] px-4 py-4 sm:px-5">
-          <div className="flex flex-wrap items-center gap-x-[40px] gap-y-3">
+        <div className="rounded-xl bg-[#F8FAFC] px-4 py-4 min-[700px]:px-5">
+          <div className="flex flex-col gap-3 min-[700px]:flex-row min-[700px]:flex-wrap min-[700px]:items-center min-[700px]:gap-x-10 min-[700px]:gap-y-3">
             <span className={`${JOB_FORM_LABEL_CLASS} mb-0 shrink-0`}>
               Are you the employer on Record
             </span>
-            <div className="flex flex-wrap gap-x-[120px] gap-y-3">
+            <div className={JOB_FORM_RADIO_OPTIONS_CLASS}>
               <BrandedRadio
                 name="employer-on-record"
                 label="Yes"
@@ -643,7 +654,7 @@ export function JobFormStepMspDetails({
   }
 
   return (
-    <div className="space-y-5">
+    <div className={JOB_FORM_FIELDS_CLASS}>
       <div>
         <label className={JOB_FORM_LABEL_CLASS} htmlFor="msp-name">
           MSP (Job Source)
@@ -743,7 +754,7 @@ export function JobFormStepMspDetails({
       </div>
 
       {/* Figma: Bill Rate | Suggested Pay Rate | Annually — 3 equal columns */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 sm:items-end">
+      <div className="grid grid-cols-1 gap-4 min-[700px]:grid-cols-3 min-[700px]:items-end">
         <div>
           <label className={JOB_FORM_LABEL_CLASS} htmlFor="bill-rate">
             Bill Rate
@@ -813,7 +824,7 @@ export function JobFormStepMspDetails({
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-4 min-[700px]:grid-cols-2">
         <div>
           <label className={JOB_FORM_LABEL_CLASS} htmlFor="job-duration">
             Job Duration
@@ -984,7 +995,7 @@ export function JobFormStepCompensation({
   return (
     <div className="space-y-8">
       {!hidePaySection ? (
-        <section className="space-y-5">
+        <section className={JOB_FORM_FIELDS_CLASS}>
           <div>
             <h2 className={JOB_FORM_SECTION_TITLE_CLASS}>Compensation</h2>
             <p className={JOB_FORM_SECTION_SUBTITLE_CLASS}>
@@ -993,7 +1004,7 @@ export function JobFormStepCompensation({
             </p>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-4 min-[700px]:grid-cols-2">
             <div>
               <label className={JOB_FORM_LABEL_CLASS}>Compensation</label>
               <select
@@ -1034,7 +1045,7 @@ export function JobFormStepCompensation({
             </div>
           </div>
 
-          <div className="mt-4 grid gap-4 md:grid-cols-[1fr_auto_1fr_1fr_1fr] md:items-end">
+          <div className="mt-4 grid gap-4 min-[700px]:grid-cols-[1fr_auto_1fr_1fr_1fr] min-[700px]:items-end">
             <div>
               <label className={JOB_FORM_LABEL_CLASS}>Show pay by</label>
               <select
@@ -1051,7 +1062,7 @@ export function JobFormStepCompensation({
                 ))}
               </select>
             </div>
-            <span className="hidden pb-2 text-sm text-[#64748B] md:block">to</span>
+            <span className="hidden pb-2 text-sm text-[#64748B] min-[700px]:block">to</span>
             <div>
               <label className={JOB_FORM_LABEL_CLASS}>Minimum</label>
               <div className="relative">
@@ -1136,10 +1147,10 @@ export function JobFormStepCompensation({
         />
 
         {creatingBenefit ? (
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex w-full flex-col gap-2 min-[700px]:flex-row min-[700px]:flex-wrap min-[700px]:items-center">
             <input
               autoFocus
-              className={`${JOB_FORM_INPUT_CLASS} max-w-xs`}
+              className={`${JOB_FORM_INPUT_CLASS} w-full min-[700px]:max-w-xs`}
               value={newBenefitName}
               onChange={(event) => setNewBenefitName(event.target.value)}
               onKeyDown={(event) => {
@@ -1192,7 +1203,7 @@ export function JobFormStepCompensation({
       {/* TODO(future): Additional public details — Qualifications / Responsibilities
       <section className="space-y-4">
         <h2 className={JOB_FORM_SECTION_TITLE_CLASS}>Additional public details</h2>
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid gap-4 min-[700px]:grid-cols-2">
           <PublicField label="Qualifications">
             <textarea
               className={`${JOB_FORM_TEXTAREA_CLASS} min-h-[120px]`}
@@ -1263,8 +1274,8 @@ function ReviewRow({
   const empty = isReviewValueEmpty(value);
 
   return (
-    <div className="grid gap-2 border-b border-[#E5E7EB] py-4 md:grid-cols-[220px_1fr_auto] md:items-start">
-      <div className="text-sm font-medium text-[#64748B]">{label}</div>
+    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 gap-y-1 py-3 min-[700px]:grid-cols-[220px_1fr_auto] min-[700px]:gap-x-2 min-[700px]:gap-y-0">
+      <div className="col-span-2 text-sm font-medium text-[#64748B] min-[700px]:col-span-1">{label}</div>
       <div className="min-w-0 text-sm text-[#1D2739]">
         {empty ? (
           onEdit ? (
@@ -1290,14 +1301,12 @@ function ReviewRow({
         <button
           type="button"
           onClick={onEdit}
-          className={JOB_FORM_ICON_BUTTON_CLASS}
+          className={`${JOB_FORM_ICON_BUTTON_CLASS} shrink-0 self-center`}
           aria-label={empty ? `Add ${reviewAddLabel(label, addLabel)}` : `Edit ${label}`}
         >
           <Pencil className="h-4 w-4" />
         </button>
-      ) : (
-        <span className="hidden md:block" />
-      )}
+      ) : null}
     </div>
   );
 }
@@ -1506,8 +1515,8 @@ export function JobFormStepReview({
         value={ui.selectedBenefits.join(", ")}
         onEdit={() => onEditField("benefits")}
       />
-      <div className="grid gap-2 border-b border-[#E5E7EB] py-4 md:grid-cols-[220px_1fr_auto] md:items-start">
-        <div className="text-sm font-medium text-[#64748B]">Job Description</div>
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 gap-y-1 py-3 min-[700px]:grid-cols-[220px_1fr_auto] min-[700px]:gap-x-2 min-[700px]:gap-y-0">
+        <div className="col-span-2 text-sm font-medium text-[#64748B] min-[700px]:col-span-1">Job Description</div>
         <div className="min-w-0">
           {!hasDescription ? (
             <button
@@ -1544,13 +1553,151 @@ export function JobFormStepReview({
         <button
           type="button"
           onClick={() => onEditField("jobDescription")}
-          className={JOB_FORM_ICON_BUTTON_CLASS}
+          className={`${JOB_FORM_ICON_BUTTON_CLASS} shrink-0 self-center`}
           aria-label={hasDescription ? "Edit Job Description" : "Add job description"}
         >
           <Pencil className="h-4 w-4" />
         </button>
       </div>
     </section>
+  );
+}
+
+const WORKFLOW_AUTOMATION_ICON_SRC = getSidebarIconSrc("Automation", true);
+
+function WorkflowAutomationIcon() {
+  const [markup, setMarkup] = useState<string | null>(() =>
+    getTintedSidebarIconMarkup(WORKFLOW_AUTOMATION_ICON_SRC, "#FFFFFF")
+  );
+
+  useEffect(() => {
+    const cached = getTintedSidebarIconMarkup(WORKFLOW_AUTOMATION_ICON_SRC, "#FFFFFF");
+    if (cached) {
+      setMarkup(cached);
+      return;
+    }
+
+    let cancelled = false;
+    void ensureTintedSidebarIconMarkup(WORKFLOW_AUTOMATION_ICON_SRC, "#FFFFFF").then((next) => {
+      if (!cancelled) setMarkup(next);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (!markup) {
+    return <span className="inline-block h-5 w-5 shrink-0 rounded-sm bg-white/30" aria-hidden />;
+  }
+
+  return (
+    <span
+      className="inline-flex h-5 w-5 shrink-0 items-center justify-center [&>svg]:block [&>svg]:h-full [&>svg]:w-full"
+      aria-hidden
+      dangerouslySetInnerHTML={{ __html: markup }}
+    />
+  );
+}
+
+export function JobFormWorkflowBanner({
+  workflowName,
+  workflowWarning,
+  mappingCriteria,
+  mappingLink,
+  canManageWorkflows,
+  fieldError,
+}: {
+  workflowName?: string;
+  workflowWarning: string;
+  mappingCriteria?: string;
+  mappingLink: string;
+  canManageWorkflows: boolean;
+  fieldError?: string;
+}) {
+  const hasWorkflow = Boolean(workflowName);
+
+  return (
+    <div
+      className={`mt-6 overflow-hidden rounded-xl border ${
+        hasWorkflow
+          ? "border-[color:color-mix(in_srgb,var(--brand-primary)_22%,#E5E7EB)] bg-[color:color-mix(in_srgb,var(--brand-primary)_7%,white)]"
+          : "border-amber-200/90 bg-gradient-to-br from-amber-50 to-[#FFFBF5]"
+      }`}
+    >
+      <div className="flex flex-col gap-3 p-3 min-[700px]:flex-row min-[700px]:items-start min-[700px]:justify-between min-[700px]:gap-5 min-[700px]:p-5">
+        <div className="flex min-w-0 flex-1 items-start gap-3">
+          <span
+            className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${
+              hasWorkflow
+                ? "bg-[color:var(--brand-secondary)] text-white shadow-sm"
+                : "bg-amber-100 text-amber-700"
+            }`}
+            aria-hidden
+          >
+            {hasWorkflow ? (
+              <WorkflowAutomationIcon />
+            ) : (
+              <TriangleAlert className="h-5 w-5" />
+            )}
+          </span>
+
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <p className="text-sm font-semibold text-[#1D2739]">Assigned workflow</p>
+              <span
+                className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide ${
+                  hasWorkflow
+                    ? "bg-[color:color-mix(in_srgb,var(--brand-secondary)_12%,white)] text-[color:var(--brand-secondary)]"
+                    : "bg-amber-100 text-amber-800"
+                }`}
+              >
+                {hasWorkflow ? "Matched" : "Action needed"}
+              </span>
+            </div>
+
+            {hasWorkflow ? (
+              <>
+                <p className="mt-2 break-words text-base font-semibold leading-6 tracking-tight text-[color:var(--brand-primary)]">
+                  {workflowName}
+                </p>
+                {mappingCriteria ? (
+                  <p className="mt-1 text-xs leading-5 text-[#64748B]">
+                    Matched on{" "}
+                    <span className="font-medium text-[#475569]">{mappingCriteria}</span>
+                  </p>
+                ) : (
+                  <p className="mt-1 text-xs leading-5 text-[#64748B]">
+                    Applicants for this job will follow this workflow.
+                  </p>
+                )}
+              </>
+            ) : (
+              <p className="mt-2 whitespace-pre-line text-sm leading-6 text-amber-900/90">
+                {workflowWarning ||
+                  "Select profession and employment type to resolve a workflow."}
+              </p>
+            )}
+
+            {fieldError ? <p className="mt-2 text-xs text-rose-600">{fieldError}</p> : null}
+          </div>
+        </div>
+
+        {canManageWorkflows ? (
+          <Link
+            href={mappingLink}
+            className={`inline-flex h-10 w-full shrink-0 items-center justify-center gap-1.5 rounded-lg px-4 text-sm font-medium whitespace-nowrap transition min-[700px]:h-9 min-[700px]:w-auto min-[700px]:self-start ${
+              hasWorkflow
+                ? "border border-[color:color-mix(in_srgb,var(--brand-primary)_35%,#CBD5E1)] bg-white text-[color:var(--brand-primary)] hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_8%,white)]"
+                : "bg-[color:var(--brand-primary)] text-white hover:opacity-95"
+            }`}
+          >
+            {hasWorkflow ? "Manage mappings" : "Create mapping"}
+            <ArrowUpRight className="h-4 w-4 shrink-0" />
+          </Link>
+        ) : null}
+      </div>
+    </div>
   );
 }
 
@@ -1583,11 +1730,13 @@ export function JobFormFooter({
 }) {
   const isReview = step === "review";
   const isCompensation = step === "compensation";
+  const outlineButtonClass = `${JOB_FORM_OUTLINE_BUTTON_CLASS} w-full min-[700px]:w-auto`;
+  const primaryButtonClass = `${JOB_FORM_PRIMARY_BUTTON_CLASS} w-full min-[700px]:w-auto`;
 
   return (
     <div className="mt-8 border-t border-[#E5E7EB] pt-5">
       {isReview ? (
-        <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
+        <div className="mb-5 flex flex-col gap-3 min-[700px]:flex-row min-[700px]:items-start min-[700px]:justify-between min-[700px]:gap-6">
           <BrandedCheckbox
             checked={termsAccepted}
             onChange={onTermsChange}
@@ -1614,25 +1763,30 @@ export function JobFormFooter({
         </div>
       ) : null}
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-wrap items-center gap-2">
-          <button type="button" className={JOB_FORM_OUTLINE_BUTTON_CLASS} onClick={onBack} disabled={saving}>
+      <div className="grid grid-cols-2 gap-2 min-[700px]:flex min-[700px]:items-center min-[700px]:justify-between">
+        <div className="contents min-[700px]:flex min-[700px]:items-center min-[700px]:gap-2">
+          <button
+            type="button"
+            className={outlineButtonClass}
+            onClick={onBack}
+            disabled={saving}
+          >
             <ArrowLeft className="h-4 w-4" />
             Back
           </button>
           {isCompensation ? (
-            <button type="button" className={JOB_FORM_OUTLINE_BUTTON_CLASS} onClick={onPreview}>
+            <button type="button" className={outlineButtonClass} onClick={onPreview}>
               <Eye className="h-4 w-4" />
               Preview
             </button>
           ) : null}
         </div>
 
-        <div className="flex flex-wrap items-center justify-end gap-2">
+        <div className="contents min-[700px]:flex min-[700px]:items-center min-[700px]:justify-end min-[700px]:gap-2">
           {step === "requisition" || step === "msp-details" ? (
             <button
               type="button"
-              className={JOB_FORM_PRIMARY_BUTTON_CLASS}
+              className={primaryButtonClass}
               style={brandStyle}
               onClick={onNext}
             >
@@ -1642,7 +1796,7 @@ export function JobFormFooter({
           ) : isCompensation ? (
             <button
               type="button"
-              className={JOB_FORM_PRIMARY_BUTTON_CLASS}
+              className={`${primaryButtonClass} col-span-2 min-[700px]:col-span-1`}
               style={brandStyle}
               onClick={onNext}
             >
@@ -1653,7 +1807,7 @@ export function JobFormFooter({
             <>
               <button
                 type="button"
-                className={JOB_FORM_PRIMARY_BUTTON_CLASS}
+                className={primaryButtonClass}
                 style={brandStyle}
                 disabled={saving}
                 onClick={onSaveDraft}
@@ -1662,7 +1816,7 @@ export function JobFormFooter({
               </button>
               <button
                 type="button"
-                className={JOB_FORM_PRIMARY_BUTTON_CLASS}
+                className={`${primaryButtonClass} col-span-2 min-[700px]:col-span-1`}
                 style={brandStyle}
                 disabled={saving || !canPublish || !termsAccepted}
                 onClick={onPublish}
@@ -1674,7 +1828,7 @@ export function JobFormFooter({
           ) : (
             <button
               type="button"
-              className={JOB_FORM_PRIMARY_BUTTON_CLASS}
+              className={primaryButtonClass}
               style={brandStyle}
               disabled={saving}
               onClick={onSaveDraft}
@@ -1683,103 +1837,6 @@ export function JobFormFooter({
             </button>
           )}
         </div>
-      </div>
-    </div>
-  );
-}
-
-export function JobFormWorkflowBanner({
-  workflowName,
-  workflowWarning,
-  mappingCriteria,
-  mappingLink,
-  canManageWorkflows,
-  fieldError,
-}: {
-  workflowName?: string;
-  workflowWarning: string;
-  mappingCriteria?: string;
-  mappingLink: string;
-  canManageWorkflows: boolean;
-  fieldError?: string;
-}) {
-  const hasWorkflow = Boolean(workflowName);
-
-  return (
-    <div
-      className={`mt-6 overflow-hidden rounded-xl border ${
-        hasWorkflow
-          ? "border-[color:color-mix(in_srgb,var(--brand-primary)_22%,#E5E7EB)] bg-[color:color-mix(in_srgb,var(--brand-primary)_7%,white)]"
-          : "border-amber-200/90 bg-gradient-to-br from-amber-50 to-[#FFFBF5]"
-      }`}
-    >
-      <div className="flex flex-col gap-4 p-4 sm:flex-row sm:items-start sm:justify-between sm:gap-5 sm:p-5">
-        <div className="flex min-w-0 flex-1 gap-3">
-          <span
-            className={`mt-0.5 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${
-              hasWorkflow
-                ? "bg-[color:var(--brand-secondary)] text-white shadow-sm"
-                : "bg-amber-100 text-amber-700"
-            }`}
-            aria-hidden
-          >
-            {hasWorkflow ? <GitBranch className="h-5 w-5" /> : <TriangleAlert className="h-5 w-5" />}
-          </span>
-
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <p className="text-sm font-semibold text-[#1D2739]">Assigned workflow</p>
-              <span
-                className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide ${
-                  hasWorkflow
-                    ? "bg-[color:color-mix(in_srgb,var(--brand-secondary)_12%,white)] text-[color:var(--brand-secondary)]"
-                    : "bg-amber-100 text-amber-800"
-                }`}
-              >
-                {hasWorkflow ? "Matched" : "Action needed"}
-              </span>
-            </div>
-
-            {hasWorkflow ? (
-              <>
-                <p className="mt-2 text-base font-semibold tracking-tight text-[color:var(--brand-primary)]">
-                  {workflowName}
-                </p>
-                {mappingCriteria ? (
-                  <p className="mt-1 text-xs leading-5 text-[#64748B]">
-                    Matched on{" "}
-                    <span className="font-medium text-[#475569]">{mappingCriteria}</span>
-                  </p>
-                ) : (
-                  <p className="mt-1 text-xs leading-5 text-[#64748B]">
-                    Applicants for this job will follow this workflow.
-                  </p>
-                )}
-              </>
-            ) : (
-              <p className="mt-2 whitespace-pre-line text-sm leading-6 text-amber-900/90">
-                {workflowWarning ||
-                  "Select profession and employment type to resolve a workflow."}
-              </p>
-            )}
-
-            {fieldError ? <p className="mt-2 text-xs text-rose-600">{fieldError}</p> : null}
-          </div>
-        </div>
-
-        {canManageWorkflows ? (
-          <Link
-            href={mappingLink}
-            className={`inline-flex h-9 shrink-0 items-center justify-center gap-1.5 self-start rounded-lg px-3.5 text-sm font-medium transition ${
-              hasWorkflow
-                ? "border border-[color:color-mix(in_srgb,var(--brand-primary)_35%,#CBD5E1)] bg-white text-[color:var(--brand-primary)] hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_8%,white)]"
-                : "bg-[color:var(--brand-primary)] text-white hover:opacity-95"
-            }`}
-          >
-            {hasWorkflow ? "Manage mappings" : "Create mapping"}
-            <ArrowUpRight className="h-4 w-4" />
-          </Link>
-        ) : null}
       </div>
     </div>
   );

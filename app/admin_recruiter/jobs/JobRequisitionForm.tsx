@@ -339,11 +339,11 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
   const showPublishActions = step === "review";
 
   return (
-    <main className="w-full px-3 py-4 sm:px-4 lg:px-5">
+    <main className="w-full px-2 py-3 min-[700px]:px-4 min-[700px]:py-4 lg:px-5">
       <div className={JOB_FORM_PAGE_CARD_CLASS} style={brandVars}>
         <div className={JOB_FORM_CENTER_COLUMN_CLASS}>
-          <div className="mb-6 flex items-start justify-between gap-4">
-            <div>
+          <div className="mb-5 flex items-start justify-between gap-3 min-[700px]:mb-6 min-[700px]:gap-4">
+            <div className="min-w-0 flex-1">
               <h1 className={CANDIDATES_PAGE_TITLE_CLASS} style={CANDIDATES_PAGE_TITLE_STYLE}>
                 {pageTitle}
               </h1>
@@ -355,7 +355,7 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
             </div>
             <Link
               href="/admin_recruiter/jobs"
-              className="inline-flex shrink-0 items-center gap-1 text-sm font-medium transition hover:opacity-80"
+              className="mt-1 inline-flex shrink-0 items-center gap-1 self-start whitespace-nowrap text-sm font-medium no-underline transition hover:opacity-80 min-[700px]:mt-0"
               style={{ color: branding.secondaryHex || "#012352" }}
             >
               <BrandedSvgIcon

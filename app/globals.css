@@ -203,3 +203,28 @@ a[href] {
 .react-flow__controls-button:disabled {
   opacity: 0.4 !important;
 }
+
+/* Job create form — radio option spacing (web 40px, mobile 24px) */
+.job-form-radio-options {
+  column-gap: 24px;
+  row-gap: 12px;
+}
+
+@media (min-width: 700px) {
+  .job-form-radio-options {
+    column-gap: 40px;
+  }
+}
+
+/* Job create form — field group vertical spacing (Figma 30px) */
+.job-form-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 30px;
+}
+
+.job-form-fields--location-cluster {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}

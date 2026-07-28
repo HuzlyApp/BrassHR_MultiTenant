@@ -35,6 +35,8 @@ export function JobPostPreviewModal({
 }: Props) {
   const title = job.publicTitle?.trim() || "Untitled job";
   const location = job.location?.trim() || "Location not set";
+  const locationType = ui.jobLocationType?.trim() || "";
+  const locationLine = [locationType, location].filter(Boolean).join(" · ");
   const description = job.publicDescription?.trim() || "";
   const compensationLabel = [ui.compensationType, ui.currency].filter(Boolean).join(", ");
   const paySummary = formatPaySummary(job, ui);
@@ -50,48 +52,52 @@ export function JobPostPreviewModal({
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-[200] bg-black/40" />
         <Dialog.Content
-          className="fixed left-1/2 top-1/2 z-[201] flex max-h-[92dvh] w-[min(720px,calc(100vw-24px))] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-2xl border border-[#E5E7EB] bg-white shadow-xl outline-none"
+          className="fixed inset-x-0 bottom-0 z-[201] flex max-h-[min(92dvh,100dvh)] w-full flex-col overflow-hidden rounded-t-2xl border border-[#E5E7EB] bg-white shadow-xl outline-none min-[700px]:inset-x-auto min-[700px]:bottom-auto min-[700px]:left-1/2 min-[700px]:top-1/2 min-[700px]:max-h-[92dvh] min-[700px]:w-[min(720px,calc(100vw-48px))] min-[700px]:-translate-x-1/2 min-[700px]:-translate-y-1/2 min-[700px]:rounded-2xl"
           style={brandVars}
         >
-          <div className="relative flex items-start gap-3 px-5 pb-3 pt-5 pr-14">
-            <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[color:color-mix(in_srgb,var(--brand-primary)_12%,white)]">
+          <div className="relative flex items-start gap-2.5 px-3 pb-2 pt-4 pr-12 min-[700px]:gap-3 min-[700px]:px-5 min-[700px]:pb-3 min-[700px]:pt-5 min-[700px]:pr-14">
+            <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[color:color-mix(in_srgb,var(--brand-primary)_12%,white)] min-[700px]:h-11 min-[700px]:w-11">
               <img
                 src={JOB_POST_PREVIEW_ICON_SRC}
                 alt=""
                 width={24}
                 height={24}
-                className="h-6 w-6"
+                className="h-5 w-5 min-[700px]:h-6 min-[700px]:w-6"
                 aria-hidden
               />
             </span>
-            <div className="min-w-0 pt-0.5">
-              <Dialog.Title className="text-lg font-semibold text-[#1D2739]">
+            <div className="min-w-0 flex-1 pt-0.5">
+              <Dialog.Title className="text-base font-semibold text-[#1D2739] min-[700px]:text-lg">
                 Job post preview
               </Dialog.Title>
-              <Dialog.Description className="mt-0.5 text-sm text-[#64748B]">
+              <Dialog.Description className="mt-0.5 text-xs leading-5 text-[#64748B] min-[700px]:text-sm">
                 The live post people view may look slightly different.
               </Dialog.Description>
             </div>
             <Dialog.Close
               type="button"
-              className="absolute right-4 top-4 inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-full bg-[#1D2739] text-white transition hover:opacity-90"
+              className="absolute right-3 top-3 inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-full bg-[#1D2739] text-white transition hover:opacity-90 min-[700px]:right-4 min-[700px]:top-4"
               aria-label="Close preview"
             >
               <X className="h-4 w-4" strokeWidth={2.5} />
             </Dialog.Close>
           </div>
 
-          <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-2 pt-1">
-            <div className="rounded-xl border border-[#E5E7EB] bg-white p-5">
-              <div className="flex flex-col gap-4 border-b border-[#E5E7EB] pb-4 sm:flex-row sm:items-start sm:justify-between">
-                <div className="min-w-0">
-                  <h3 className="text-xl font-semibold text-[#1D2739]">{title}</h3>
-                  <p className="mt-1 text-sm font-medium text-[#334155]">{companyName}</p>
-                  <p className="mt-0.5 text-sm text-[#64748B]">{location}</p>
+          <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-2 pt-1 min-[700px]:px-5">
+            <div className="rounded-xl border border-[#E5E7EB] bg-white p-3 min-[700px]:p-5">
+              <div className="flex items-start justify-between gap-3 border-b border-[#E5E7EB] pb-4">
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-lg font-semibold leading-snug text-[#1D2739] min-[700px]:text-xl">
+                    {title}
+                  </h3>
+                  {companyName ? (
+                    <p className="mt-1 text-sm font-medium text-[#334155]">{companyName}</p>
+                  ) : null}
+                  <p className="mt-0.5 text-sm text-[#64748B]">{locationLine}</p>
                 </div>
                 <button
                   type="button"
-                  className={`${JOB_FORM_PRIMARY_BUTTON_CLASS} shrink-0 px-5`}
+                  className={`${JOB_FORM_PRIMARY_BUTTON_CLASS} h-9 shrink-0 px-3 text-xs min-[700px]:h-10 min-[700px]:px-5 min-[700px]:text-sm`}
                   style={brandStyle}
                 >
                   Apply Now
@@ -99,7 +105,7 @@ export function JobPostPreviewModal({
               </div>
 
               {isMsp && (mspPay || job.billRate != null) ? (
-                <div className="mt-4 grid gap-4 border-b border-[#E5E7EB] pb-4 sm:grid-cols-2">
+                <div className="mt-4 grid gap-3 border-b border-[#E5E7EB] pb-4 min-[700px]:grid-cols-2 min-[700px]:gap-4">
                   {job.billRate != null ? (
                     <div>
                       <p className="text-sm font-medium text-[#64748B]">Bill Rate</p>
@@ -107,7 +113,13 @@ export function JobPostPreviewModal({
                     </div>
                   ) : null}
                   {mspPay ? (
-                    <div className={job.billRate != null ? "sm:border-l sm:border-[#E5E7EB] sm:pl-4" : ""}>
+                    <div
+                      className={
+                        job.billRate != null
+                          ? "min-[700px]:border-l min-[700px]:border-[#E5E7EB] min-[700px]:pl-4"
+                          : ""
+                      }
+                    >
                       <p className="text-sm font-medium text-[#64748B]">Pay Rate</p>
                       <p className="mt-1 text-sm text-[#1D2739]">{mspPay}</p>
                     </div>
@@ -116,14 +128,14 @@ export function JobPostPreviewModal({
               ) : null}
 
               {!isMsp && showCompensation ? (
-                <div className="mt-4 grid gap-4 border-b border-[#E5E7EB] pb-4 sm:grid-cols-2">
+                <div className="mt-4 grid gap-3 border-b border-[#E5E7EB] pb-4 min-[700px]:grid-cols-2 min-[700px]:gap-4">
                   <div>
                     <p className="text-sm font-medium text-[#64748B]">Compensation</p>
                     <p className="mt-1 text-sm text-[#1D2739]">
                       {compensationLabel || "—"}
                     </p>
                   </div>
-                  <div className="sm:border-l sm:border-[#E5E7EB] sm:pl-4">
+                  <div className="min-[700px]:border-l min-[700px]:border-[#E5E7EB] min-[700px]:pl-4">
                     <p className="text-sm font-medium text-[#64748B]">
                       {ui.showPayBy ? `${ui.showPayBy}:` : "Range:"}
                     </p>
@@ -141,17 +153,17 @@ export function JobPostPreviewModal({
                     {ui.selectedBenefits.map((benefit) => (
                       <span
                         key={benefit}
-                        className="inline-flex items-center gap-1.5 rounded-full border border-[color:var(--brand-secondary)] bg-white px-4 py-2 text-sm font-medium text-[color:var(--brand-secondary)]"
+                        className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-[color:var(--brand-secondary)] bg-white px-3 py-1.5 text-xs font-medium text-[color:var(--brand-secondary)] min-[700px]:px-4 min-[700px]:py-2 min-[700px]:text-sm"
                       >
                         <Check className="h-3.5 w-3.5 shrink-0" strokeWidth={2.5} aria-hidden />
-                        {benefit}
+                        <span className="truncate">{benefit}</span>
                       </span>
                     ))}
                   </div>
                 </div>
               ) : null}
 
-              <div className="mt-4 max-h-[280px] overflow-y-auto pr-1">
+              <div className="mt-4 max-h-[min(280px,40dvh)] overflow-y-auto pr-1 min-[700px]:max-h-[280px]">
                 <JobDescriptionHtml
                   html={description}
                   className="mt-0"
@@ -161,8 +173,11 @@ export function JobPostPreviewModal({
             </div>
           </div>
 
-          <div className="flex justify-center px-5 py-5">
-            <Dialog.Close type="button" className={`${JOB_FORM_OUTLINE_BUTTON_CLASS} px-6`}>
+          <div className="flex justify-center border-t border-[#F1F5F9] px-3 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] min-[700px]:border-t-0 min-[700px]:px-5 min-[700px]:py-5 min-[700px]:pb-5">
+            <Dialog.Close
+              type="button"
+              className={`${JOB_FORM_OUTLINE_BUTTON_CLASS} w-full px-6 min-[700px]:w-auto`}
+            >
               Close Preview
             </Dialog.Close>
           </div>
