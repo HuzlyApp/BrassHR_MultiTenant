@@ -1,6 +1,6 @@
 "use client";
 
-import BrandedDeleteIcon from "@/app/admin_recruiter/components/BrandedDeleteIcon";
+import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
 
 type BulkDeleteToolbarButtonProps = {
   count: number;
@@ -27,7 +27,11 @@ export function BulkDeleteToolbarButton({
       aria-label={`Delete ${count} selected`}
       title="Delete"
     >
-      <BrandedDeleteIcon className="h-4 w-4 shrink-0" />
+      <BrandedSvgIcon
+        src="/icons/delete-icon.svg"
+        className="h-4 w-4 shrink-0"
+        color="currentColor"
+      />
       <span className="hidden text-sm font-normal leading-6 xl:inline">Delete</span>
     </button>
   );

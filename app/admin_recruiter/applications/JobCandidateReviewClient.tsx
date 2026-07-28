@@ -26,7 +26,7 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import AddCallLogModal from "@/app/admin_recruiter/components/AddCallLogModal";
-import CandidateCommunicationDialog from "@/app/admin_recruiter/components/CandidateCommunicationDialog";
+import CandidateChatPopup from "@/app/admin_recruiter/components/CandidateChatPopup";
 import { ScheduleInterviewModal } from "@/app/admin_recruiter/calendar/components/ScheduleInterviewModal";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import {
@@ -164,7 +164,6 @@ export default function JobCandidateReviewClient() {
   const [profile, setProfile] = useState<WorkerProfilePayload | null>(null);
   const [profileLoading, setProfileLoading] = useState(false);
   const [zoom, setZoom] = useState(100);
-  const [messageOpen, setMessageOpen] = useState(false);
   const [callOpen, setCallOpen] = useState(false);
   const [interviewOpen, setInterviewOpen] = useState(false);
   const [interviewSubmitting, setInterviewSubmitting] = useState(false);
@@ -172,6 +171,8 @@ export default function JobCandidateReviewClient() {
   const [noteDraft, setNoteDraft] = useState("");
   const [noteSaving, setNoteSaving] = useState(false);
   const [resumePreviewError, setResumePreviewError] = useState<string | null>(null);
+  const [chatOpen, setChatOpen] = useState(true);
+  const [chatPreferExpanded, setChatPreferExpanded] = useState(false);
 
   const selected = useMemo(
     () => rows.find((row) => row.id === applicationId) ?? rows[0] ?? null,
@@ -207,9 +208,6 @@ export default function JobCandidateReviewClient() {
     .join(" ");
   const displayName =
     profileName || (selected ? applicantName(selected) : "Candidate");
-  const displayEmail =
-    profile?.worker.email?.trim() || (selected ? applicantEmail(selected) : "");
-  const displayPhone = profile?.worker.phone?.trim() || null;
   const displayLocation = [
     profile?.worker.address,
     profile?.worker.city,
@@ -230,6 +228,27 @@ export default function JobCandidateReviewClient() {
   const currentStatus = selected
     ? normalizeApplicationStatus(selected.status)
     : "new";
+
+  const chatAppliedOnLabel = useMemo(() => {
+    if (!selected) return null;
+    const raw = selected.submitted_at || selected.created_at;
+    if (!raw) return null;
+    const date = new Date(raw);
+    if (Number.isNaN(date.getTime())) return null;
+    return `Applied on ${date.toLocaleDateString(undefined, {
+      month: "long",
+      day: "numeric",
+    })}`;
+  }, [selected]);
+
+  useEffect(() => {
+    if (workerId) {
+      setChatOpen(true);
+      setChatPreferExpanded(false);
+    } else {
+      setChatOpen(false);
+    }
+  }, [workerId]);
 
   const setApplicationId = useCallback(
     (nextId: string) => {
@@ -698,7 +717,10 @@ export default function JobCandidateReviewClient() {
                     <button
                       type="button"
                       disabled={!workerId}
-                      onClick={() => setMessageOpen(true)}
+                      onClick={() => {
+                        setChatPreferExpanded(true);
+                        setChatOpen(true);
+                      }}
                       className="inline-flex h-9 items-center gap-2 rounded-lg border bg-white px-3.5 text-sm font-medium disabled:opacity-50"
                       style={{
                         borderColor: branding.secondaryHex || "#012352",
@@ -893,13 +915,17 @@ export default function JobCandidateReviewClient() {
 
       {workerId ? (
         <>
-          <CandidateCommunicationDialog
-            open={messageOpen}
-            onClose={() => setMessageOpen(false)}
+          <CandidateChatPopup
+            key={workerId}
             workerId={workerId}
             candidateName={displayName}
-            email={displayEmail || profile?.worker.email || null}
-            phone={displayPhone}
+            appliedOnLabel={chatAppliedOnLabel}
+            open={chatOpen}
+            preferExpanded={chatPreferExpanded}
+            onOpenChange={(next) => {
+              setChatOpen(next);
+              if (!next) setChatPreferExpanded(false);
+            }}
           />
           <AddCallLogModal open={callOpen} workerId={workerId} onClose={() => setCallOpen(false)} />
           <ScheduleInterviewModal

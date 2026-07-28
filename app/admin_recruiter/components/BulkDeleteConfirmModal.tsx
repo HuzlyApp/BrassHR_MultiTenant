@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import BrandedDeleteIcon from "@/app/admin_recruiter/components/BrandedDeleteIcon";
+import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
 
 export type BulkDeleteEntity = "job" | "candidate";
 
@@ -63,8 +63,12 @@ export function BulkDeleteConfirmModal({
         onClick={(event) => event.stopPropagation()}
       >
         <div className="flex items-start gap-3">
-          <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[color:color-mix(in_srgb,var(--brand-primary)_10%,white)]">
-            <BrandedDeleteIcon className="h-5 w-5" />
+          <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#FEF2F2]">
+            <BrandedSvgIcon
+              src="/icons/delete-icon.svg"
+              className="h-5 w-5"
+              color="#DC2626"
+            />
           </span>
           <div className="min-w-0 flex-1">
             <h3 id="bulk-delete-title" className="text-lg font-semibold text-[#101828]">
