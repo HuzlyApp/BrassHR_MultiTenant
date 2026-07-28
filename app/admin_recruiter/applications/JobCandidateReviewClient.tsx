@@ -16,18 +16,21 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
-  Download,
   HelpCircle,
   MapPin,
   MessageSquare,
   MoreVertical,
   Phone,
   X,
+  ZoomIn,
+  ZoomOut,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import AddCallLogModal from "@/app/admin_recruiter/components/AddCallLogModal";
 import CandidateChatPopup from "@/app/admin_recruiter/components/CandidateChatPopup";
+import CandidateCommunicationDialog from "@/app/admin_recruiter/components/CandidateCommunicationDialog";
 import { ScheduleInterviewModal } from "@/app/admin_recruiter/calendar/components/ScheduleInterviewModal";
+import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import {
   CANDIDATES_PAGE_TITLE_CLASS,
@@ -164,6 +167,7 @@ export default function JobCandidateReviewClient() {
   const [profile, setProfile] = useState<WorkerProfilePayload | null>(null);
   const [profileLoading, setProfileLoading] = useState(false);
   const [zoom, setZoom] = useState(100);
+  const [messageOpen, setMessageOpen] = useState(false);
   const [callOpen, setCallOpen] = useState(false);
   const [interviewOpen, setInterviewOpen] = useState(false);
   const [interviewSubmitting, setInterviewSubmitting] = useState(false);
@@ -208,6 +212,9 @@ export default function JobCandidateReviewClient() {
     .join(" ");
   const displayName =
     profileName || (selected ? applicantName(selected) : "Candidate");
+  const displayEmail =
+    profile?.worker.email?.trim() || (selected ? applicantEmail(selected) : "");
+  const displayPhone = profile?.worker.phone?.trim() || null;
   const displayLocation = [
     profile?.worker.address,
     profile?.worker.city,
@@ -228,6 +235,8 @@ export default function JobCandidateReviewClient() {
   const currentStatus = selected
     ? normalizeApplicationStatus(selected.status)
     : "new";
+
+  const secondaryColor = branding.secondaryHex || "#012352";
 
   const chatAppliedOnLabel = useMemo(() => {
     if (!selected) return null;
@@ -658,7 +667,10 @@ export default function JobCandidateReviewClient() {
                 <div className="border-b border-[#E5E7EB] px-5 py-4">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <h2 className="text-[22px] font-semibold leading-7 text-[#0F172A]">
+                      <h2
+                        className="text-[22px] font-semibold leading-7"
+                        style={{ color: secondaryColor }}
+                      >
                         {displayName}
                       </h2>
                       <p className="mt-1 inline-flex items-center gap-1.5 text-sm text-[#64748B]">
@@ -716,11 +728,8 @@ export default function JobCandidateReviewClient() {
                     </button>
                     <button
                       type="button"
-                      disabled={!workerId}
-                      onClick={() => {
-                        setChatPreferExpanded(true);
-                        setChatOpen(true);
-                      }}
+                      disabled={!workerId || (!displayEmail && !displayPhone)}
+                      onClick={() => setMessageOpen(true)}
                       className="inline-flex h-9 items-center gap-2 rounded-lg border bg-white px-3.5 text-sm font-medium disabled:opacity-50"
                       style={{
                         borderColor: branding.secondaryHex || "#012352",
@@ -746,26 +755,33 @@ export default function JobCandidateReviewClient() {
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between gap-2 border-b border-[#E5E7EB] px-5 py-2.5">
-                  <h3 className="text-sm font-semibold text-[#0F172A]">Resume</h3>
-                  <div className="flex items-center gap-3">
-                    <div className="inline-flex items-center gap-1 rounded-lg border border-[#E5E7EB] bg-white px-1 text-sm text-[#64748B]">
+                <div className="border-b border-[#E5E7EB]">
+                  <h3
+                    className="px-5 pt-3 text-sm font-semibold"
+                    style={{ color: secondaryColor }}
+                  >
+                    Resume
+                  </h3>
+                  <div className="flex items-center justify-between gap-3 px-5 py-2.5">
+                    <div className="inline-flex items-center gap-2">
                       <button
                         type="button"
-                        className="inline-flex h-7 w-7 items-center justify-center rounded-md hover:bg-[#F1F5F9]"
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg transition hover:bg-[#F8FAFC]"
                         onClick={() => setZoom((value) => Math.max(50, value - 10))}
                         aria-label="Zoom out"
                       >
-                        −
+                        <ZoomOut className="h-4 w-4" style={{ color: secondaryColor }} strokeWidth={2} />
                       </button>
-                      <span className="min-w-[2.75rem] text-center tabular-nums">{zoom}%</span>
+                      <span className="inline-flex h-8 min-w-[3.5rem] items-center justify-center rounded-lg border border-[#E5E7EB] bg-[#F8FAFC] px-2.5 text-sm font-medium tabular-nums text-[#334155]">
+                        {zoom}%
+                      </span>
                       <button
                         type="button"
-                        className="inline-flex h-7 w-7 items-center justify-center rounded-md hover:bg-[#F1F5F9]"
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg transition hover:bg-[#F8FAFC]"
                         onClick={() => setZoom((value) => Math.min(150, value + 10))}
                         aria-label="Zoom in"
                       >
-                        +
+                        <ZoomIn className="h-4 w-4" style={{ color: secondaryColor }} strokeWidth={2} />
                       </button>
                     </div>
                     {resumeDownloadUrl ? (
@@ -773,10 +789,14 @@ export default function JobCandidateReviewClient() {
                         href={resumeDownloadUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 text-sm font-medium hover:underline"
-                        style={{ color: branding.primaryHex }}
+                        className="inline-flex h-9 shrink-0 items-center gap-2 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm font-medium transition hover:bg-[#F8FAFC]"
+                        style={{ color: secondaryColor }}
                       >
-                        <Download className="h-3.5 w-3.5" />
+                        <BrandedSvgIcon
+                          src="/icons/admin-recruiter/downloadicon.svg"
+                          className="h-3.5 w-3.5 shrink-0"
+                          color={secondaryColor}
+                        />
                         Download Resume
                       </a>
                     ) : null}
@@ -926,6 +946,14 @@ export default function JobCandidateReviewClient() {
               setChatOpen(next);
               if (!next) setChatPreferExpanded(false);
             }}
+          />
+          <CandidateCommunicationDialog
+            open={messageOpen}
+            onClose={() => setMessageOpen(false)}
+            workerId={workerId}
+            candidateName={displayName}
+            email={displayEmail || profile?.worker.email || null}
+            phone={displayPhone}
           />
           <AddCallLogModal open={callOpen} workerId={workerId} onClose={() => setCallOpen(false)} />
           <ScheduleInterviewModal
