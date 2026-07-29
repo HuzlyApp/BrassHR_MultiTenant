@@ -48,7 +48,9 @@ export default async function PublicJobDetailPage({
       <div className="mx-auto grid max-w-5xl gap-6 px-5 py-8 sm:px-8 lg:grid-cols-[1fr_280px]">
         <article className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
           <p className="text-sm font-semibold uppercase tracking-wide text-teal-700">{tenant.name}</p>
-          <h1 className="mt-2 text-3xl font-semibold text-slate-900">{job.public_title}</h1>
+          <h1 className="mt-2 text-xl font-semibold leading-snug text-slate-900 sm:text-2xl md:text-3xl">
+            {job.public_title}
+          </h1>
           <p className="mt-3 text-base font-medium text-slate-600">{job.location}</p>
           <p className="mt-2 text-sm text-slate-500">{facts.join(" · ")}</p>
 

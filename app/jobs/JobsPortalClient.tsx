@@ -100,9 +100,17 @@ export default function JobsPortalClient() {
   );
   const pageCount = Math.max(1, Math.ceil(total / pageSize));
 
+  const primaryHex = branding.primaryHex || "#0D9488";
+  const filterInputClass =
+    "rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[var(--brand-primary)] focus:ring-2 focus:ring-[color:color-mix(in_srgb,var(--brand-primary)_16%,transparent)]";
+  const filterSelectClass = `${filterInputClass} cursor-pointer appearance-none bg-[length:16px_16px] bg-[position:right_10px_center] bg-no-repeat pr-9 bg-[url("data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 6L8 10L12 6" stroke="#64748B" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>')}")`;
+
   return (
-    <main className="min-h-screen bg-slate-50">
-      <header className="px-5 py-12 text-white sm:px-8" style={{ backgroundColor: branding.primaryHex }}>
+    <main
+      className="min-h-screen bg-slate-50 text-slate-900"
+      style={{ "--brand-primary": primaryHex } as React.CSSProperties}
+    >
+      <header className="px-5 py-12 text-white sm:px-8" style={{ backgroundColor: primaryHex }}>
         <div className="mx-auto max-w-6xl">
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-white/75">{branding.companyName}</p>
           <h1 className="mt-2 text-3xl font-semibold sm:text-4xl">Open positions</h1>
@@ -113,18 +121,18 @@ export default function JobsPortalClient() {
       </header>
 
       <div className="mx-auto max-w-6xl px-5 py-8 sm:px-8">
-        <section className="-mt-14 grid gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-lg md:grid-cols-2 lg:grid-cols-5">
-          <input aria-label="Keyword" placeholder="Title or keyword" value={query} onChange={(e) => { setQuery(e.target.value); setPage(1); }} className="rounded-lg border border-slate-300 px-3 py-2.5 text-sm" />
-          <select aria-label="Profession" value={professionId} onChange={(e) => { setProfessionId(e.target.value); setSpecialtyId(""); setPage(1); }} className="rounded-lg border border-slate-300 px-3 py-2.5 text-sm">
+        <section className="-mt-14 grid gap-3 rounded-xl border border-slate-200 bg-white p-4 text-slate-900 shadow-lg md:grid-cols-2 lg:grid-cols-5">
+          <input aria-label="Keyword" placeholder="Title or keyword" value={query} onChange={(e) => { setQuery(e.target.value); setPage(1); }} className={filterInputClass} />
+          <select aria-label="Profession" value={professionId} onChange={(e) => { setProfessionId(e.target.value); setSpecialtyId(""); setPage(1); }} className={filterSelectClass}>
             <option value="">All professions</option>
             {professions.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
           </select>
-          <select aria-label="Specialty" value={specialtyId} onChange={(e) => { setSpecialtyId(e.target.value); setPage(1); }} className="rounded-lg border border-slate-300 px-3 py-2.5 text-sm">
+          <select aria-label="Specialty" value={specialtyId} onChange={(e) => { setSpecialtyId(e.target.value); setPage(1); }} className={filterSelectClass}>
             <option value="">All specialties</option>
             {filteredSpecialties.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
           </select>
-          <input aria-label="Location" placeholder="Location" value={location} onChange={(e) => { setLocation(e.target.value); setPage(1); }} className="rounded-lg border border-slate-300 px-3 py-2.5 text-sm" />
-          <select aria-label="Employment type" value={employmentType} onChange={(e) => { setEmploymentType(e.target.value); setPage(1); }} className="rounded-lg border border-slate-300 px-3 py-2.5 text-sm">
+          <input aria-label="Location" placeholder="Location" value={location} onChange={(e) => { setLocation(e.target.value); setPage(1); }} className={filterInputClass} />
+          <select aria-label="Employment type" value={employmentType} onChange={(e) => { setEmploymentType(e.target.value); setPage(1); }} className={filterSelectClass}>
             <option value="">All employment types</option>
             <option>W2</option><option>1099</option><option>Contract</option>
           </select>
@@ -145,7 +153,7 @@ export default function JobsPortalClient() {
               const jobToken = normalizeJobToken(job.public_job_token);
               const applyHref = jobToken ? buildApplyPath(tenant, jobToken) : null;
               return (
-                <article key={job.public_job_token || job.public_title} className="flex flex-col rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+                <article key={job.public_job_token || job.public_title} className="flex flex-col rounded-xl border border-slate-200 bg-white p-5 text-slate-900 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
                   <div className="flex items-start justify-between gap-3">
                     <h2 className="text-lg font-semibold text-slate-900">{job.public_title}</h2>
                     <span className="rounded-full bg-teal-50 px-2.5 py-1 text-xs font-semibold text-teal-700">{job.employment_type}</span>
@@ -188,8 +196,8 @@ export default function JobsPortalClient() {
         ) : null}
 
         <div className="mt-8 flex justify-center gap-3">
-          <button disabled={page <= 1} onClick={() => setPage((value) => Math.max(1, value - 1))} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium disabled:opacity-40">Previous</button>
-          <button disabled={page >= pageCount} onClick={() => setPage((value) => Math.min(pageCount, value + 1))} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium disabled:opacity-40">Next</button>
+          <button disabled={page <= 1} onClick={() => setPage((value) => Math.max(1, value - 1))} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 disabled:opacity-40">Previous</button>
+          <button disabled={page >= pageCount} onClick={() => setPage((value) => Math.min(pageCount, value + 1))} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 disabled:opacity-40">Next</button>
         </div>
       </div>
     </main>

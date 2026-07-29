@@ -111,10 +111,10 @@ export default function CandidateDetailReferenceField({
 
   return (
     <>
-      <div className="border-b border-r border-[#E5E7EB] px-5 py-3 text-[14px] font-normal leading-5 text-[#374151]">
+      <div className="border-b border-[#E5E7EB] px-3 py-3 text-[14px] font-normal leading-5 text-[#374151] sm:border-r sm:px-5">
         {label}
       </div>
-      <div className="border-b border-[#E5E7EB] px-5 py-3 text-[14px] font-normal leading-5 break-all text-[#111827]">
+      <div className="border-b border-[#E5E7EB] px-3 py-3 text-[14px] font-normal leading-5 break-all text-[#111827] sm:px-5">
         {editing ? (
           <div className="space-y-2">
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -214,7 +214,7 @@ export default function CandidateDetailReferenceField({
               type="button"
               onClick={openEditor}
               aria-label={`Edit ${label}`}
-              className="mt-0.5 shrink-0 cursor-pointer opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100"
+              className="mt-0.5 shrink-0 cursor-pointer opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100 focus:opacity-100"
             >
               <BrandedEditIcon className="h-4 w-4" />
             </button>

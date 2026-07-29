@@ -10,7 +10,7 @@ type AccountTabNavProps = {
 export default function AccountTabNav({ activeTab }: AccountTabNavProps) {
   return (
     <nav
-      className="mb-4 flex flex-nowrap items-end gap-6 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+      className="mb-4 flex flex-nowrap items-stretch gap-6 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
       aria-label="Account sections"
     >
       {ACCOUNT_TABS.map((tab) => {
@@ -19,18 +19,24 @@ export default function AccountTabNav({ activeTab }: AccountTabNavProps) {
           <Link
             key={tab.slug}
             href={`/admin_recruiter/account/${tab.slug}`}
-            className={`shrink-0 pb-3 pt-1 text-sm font-medium leading-5 whitespace-nowrap transition-colors ${
+            className={`relative shrink-0 pb-3 pt-1 text-sm font-medium leading-5 whitespace-nowrap transition-colors ${
               isActive
-                ? "-mb-px border-b-2 text-[var(--brand-primary,#BC8B41)]"
-                : "border-b-2 border-transparent text-[#2B3D51] hover:text-[var(--brand-primary,#BC8B41)]"
+                ? ""
+                : "text-[#2B3D51] hover:text-[var(--brand-primary,#BC8B41)]"
             }`}
             style={
               isActive
-                ? { borderBottomColor: "var(--brand-primary, #BC8B41)" }
+                ? { color: "var(--brand-primary, #BC8B41)" }
                 : undefined
             }
           >
             {tab.label}
+            {isActive ? (
+              <span
+                className="absolute bottom-0 left-0 h-[3px] w-full rounded-full"
+                style={{ backgroundColor: "var(--brand-primary, #BC8B41)" }}
+              />
+            ) : null}
           </Link>
         );
       })}

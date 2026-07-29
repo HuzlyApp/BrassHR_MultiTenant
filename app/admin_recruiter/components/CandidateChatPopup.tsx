@@ -67,7 +67,7 @@ export default function CandidateChatPopup({
 
   if (mode === "minimized") {
     return (
-      <div className="fixed bottom-0 right-0 z-[60] w-full max-w-[360px] sm:right-6">
+      <div className="fixed bottom-0 right-0 z-[60] w-[calc(100%-var(--admin-sidebar-collapsed-width-mobile,48px))] max-w-[320px] md:max-w-[360px] sm:right-6">
         <div
           className="flex h-12 items-center justify-between gap-2 rounded-t-lg px-3 shadow-lg"
           style={{ background: "var(--brand-secondary)" }}

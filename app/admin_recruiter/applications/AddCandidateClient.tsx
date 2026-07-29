@@ -328,8 +328,8 @@ export default function AddCandidateClient() {
   }
 
   return (
-    <div className="w-full px-8 pt-[30px]" style={brandVars}>
-      <div className="mx-auto w-full max-w-[min(100%,calc(100vw/3))]">
+    <div className="w-full px-3 pt-5 sm:px-5 lg:px-8 lg:pt-[30px]" style={brandVars}>
+      <div className="mx-auto w-full max-w-full lg:max-w-[min(100%,calc(100vw/3))]">
         <Link
           href={backHref}
           className="mb-5 inline-flex items-center gap-1 text-[10px] font-semibold leading-[15px] transition hover:opacity-80"

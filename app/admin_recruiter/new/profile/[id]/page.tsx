@@ -889,7 +889,7 @@ export default function NewApplicantProfilePage() {
               />
             ) : null}
 
-            <div className="w-full min-w-0 admin-recruiter-content-width overflow-x-auto rounded-lg border border-[#D1D5DB] bg-white">
+            <div className="w-full min-w-0 admin-recruiter-content-width overflow-x-hidden rounded-lg border border-[#D1D5DB] bg-white">
               <div className="hidden p-6 items-start justify-between gap-6 border-b border-[#9CC3FF]/30 bg-white/40">
                 <div className="flex items-center gap-4">
                   <div className="w-12 h-12 rounded-full bg-teal-600 text-white flex items-center justify-center font-semibold text-sm">
@@ -921,10 +921,12 @@ export default function NewApplicantProfilePage() {
               </div>
 
               <div className="grid grid-cols-1 gap-0 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] lg:items-stretch">
-                <section className="space-y-0 border-r border-[#D1D5DB]">
+                <section className="min-w-0 space-y-0 border-b border-[#D1D5DB] lg:border-b-0 lg:border-r">
                   <div className="overflow-hidden bg-white">
-                    <div className="flex h-11 items-center gap-2 border-b border-[#E5E7EB] px-5">
-                      <h2 className="text-[20px] font-semibold leading-7 text-[#111827]">Candidate Details</h2>
+                    <div className="flex min-h-11 items-center gap-2 border-b border-[#E5E7EB] px-3 sm:px-5">
+                      <h2 className="text-[17px] font-semibold leading-7 text-[#111827] sm:text-[20px]">
+                        Candidate Details
+                      </h2>
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2">
@@ -1031,10 +1033,10 @@ export default function NewApplicantProfilePage() {
                         onSave={(value) => saveWorkerField("ssn_last_four", value)}
                       />
                       <div className="contents">
-                        <div className="border-b border-r border-[#E5E7EB] px-5 py-3 text-[14px] font-normal leading-5 text-[#374151]">
+                        <div className="border-b border-[#E5E7EB] px-3 py-3 text-[14px] font-normal leading-5 text-[#374151] sm:border-r sm:px-5">
                           Work Status
                         </div>
-                        <div className="border-b border-[#E5E7EB] px-5 py-3 text-[14px] font-normal leading-5 text-[#111827]">
+                        <div className="border-b border-[#E5E7EB] px-3 py-3 text-[14px] font-normal leading-5 text-[#111827] sm:px-5">
                           {w?.status_label ?? "—"}
                         </div>
                       </div>
@@ -1065,10 +1067,10 @@ export default function NewApplicantProfilePage() {
                         onSave={(value) => saveReference(1, value)}
                       />
                       <div className="contents">
-                        <div className="border-b border-r border-[#E5E7EB] px-5 py-3 text-[14px] font-normal leading-5 text-[#374151]">
+                        <div className="border-b border-[#E5E7EB] px-3 py-3 text-[14px] font-normal leading-5 text-[#374151] sm:border-r sm:px-5">
                           Primary Practice Setting
                         </div>
-                        <div className="border-b border-[#E5E7EB] px-5 py-3 text-[14px] font-normal leading-5 break-all text-[#111827]">
+                        <div className="border-b border-[#E5E7EB] px-3 py-3 text-[14px] font-normal leading-5 break-all text-[#111827] sm:px-5">
                           {data?.facilities_assigned?.[0]?.facility_name ?? candidateLocation}
                         </div>
                       </div>
@@ -1128,17 +1130,19 @@ export default function NewApplicantProfilePage() {
                   </div>
 
                   <div className="border-t border-[#E5E7EB] bg-white">
-                    <div className="flex h-11 items-center justify-between gap-2 border-b border-[#E5E7EB] px-5">
-                      <div className="text-[20px] font-semibold leading-7 text-[#111827]">Nursing Licenses</div>
+                    <div className="flex min-h-11 items-center justify-between gap-2 border-b border-[#E5E7EB] px-3 sm:px-5">
+                      <div className="text-[17px] font-semibold leading-7 text-[#111827] sm:text-[20px]">
+                        Nursing Licenses
+                      </div>
                     </div>
-                    <div className="flex flex-col px-4 py-3">
-                      <div className="overflow-hidden rounded-md border border-[#E5E7EB]">
+                    <div className="flex flex-col px-3 py-3 sm:px-4">
+                      <div className="overflow-x-auto overflow-y-hidden rounded-md border border-[#E5E7EB]">
                         {nursingLicenseRows.map((row, rowIdx) => (
                           <div
                             key={row.tag}
-                            className={`grid grid-cols-[55px_minmax(0,1fr)] ${rowIdx > 0 ? "border-t border-[#E5E7EB]" : ""}`}
+                            className={`grid min-w-[280px] grid-cols-[40px_minmax(0,1fr)] sm:min-w-0 sm:grid-cols-[55px_minmax(0,1fr)] ${rowIdx > 0 ? "border-t border-[#E5E7EB]" : ""}`}
                           >
-                            <div className="flex min-h-[134px] md:h-[134px] items-center justify-center border-r border-[#E5E7EB] px-5 text-[12px] font-normal leading-4 text-[#6B7280]">
+                            <div className="flex min-h-[134px] items-center justify-center border-r border-[#E5E7EB] px-2 text-[12px] font-normal leading-4 text-[#6B7280] sm:px-5 md:h-[134px]">
                               {row.tag}
                             </div>
                             <div className="min-h-[134px] md:h-[134px]">
@@ -1151,12 +1155,12 @@ export default function NewApplicantProfilePage() {
                               ).map(([label, value], idx) => (
                                 <div
                                   key={`${row.tag}-${label}`}
-                                  className={`grid grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] ${idx > 0 ? "border-t border-[#E5E7EB]" : ""}`}
+                                  className={`grid grid-cols-1 sm:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] ${idx > 0 ? "border-t border-[#E5E7EB]" : ""}`}
                                 >
-                                  <div className="min-h-11 md:h-11 border-r border-[#E5E7EB] px-3 py-3 text-[14px] font-normal leading-5 text-[#374151]">
+                                  <div className="min-h-11 border-b border-[#E5E7EB] px-3 py-2 text-[13px] font-normal leading-5 text-[#374151] sm:border-b-0 sm:border-r sm:py-3 sm:text-[14px] md:h-11">
                                     {label}
                                   </div>
-                                  <div className="min-h-11 md:h-11 px-3 py-3 text-[14px] font-normal leading-5 text-[#111827]">
+                                  <div className="min-h-11 px-3 py-2 text-[13px] font-normal leading-5 text-[#111827] sm:py-3 sm:text-[14px] md:h-11">
                                     {label === "State Nursing License" && value !== "—" ? (
                                       <span className="text-[#111827]">
                                         <span className="mr-1 text-[#0D9488]">⌄</span>
@@ -1177,7 +1181,7 @@ export default function NewApplicantProfilePage() {
                         <button
                           type="button"
                           onClick={() => router.push(nursingLicenseRedirectHref)}
-                          className="inline-flex h-9 min-w-[175px] items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-[#0D9488] px-4 py-2 text-sm font-semibold text-[#0D9488]"
+                          className="inline-flex h-9 w-full max-w-[280px] items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-[#0D9488] px-4 py-2 text-sm font-semibold text-[#0D9488] sm:w-auto sm:min-w-[175px]"
                         >
                           <span className="text-base leading-none">+</span>
                           Add Nursing License
@@ -1187,10 +1191,12 @@ export default function NewApplicantProfilePage() {
                   </div>
 
                   <div className="border-t border-[#E5E7EB] bg-white">
-                    <div className="flex h-11 items-center gap-2 border-b border-[#E5E7EB] px-5">
-                      <div className="text-[20px] font-semibold leading-7 text-[#111827]">Activity Logs</div>
+                    <div className="flex min-h-11 items-center gap-2 border-b border-[#E5E7EB] px-3 sm:px-5">
+                      <div className="text-[17px] font-semibold leading-7 text-[#111827] sm:text-[20px]">
+                        Activity Logs
+                      </div>
                     </div>
-                    <div className="p-5">
+                    <div className="p-3 sm:p-5">
                     <div className="overflow-hidden rounded-md border border-[#E5E7EB] text-xs">
                       {(
                         [
@@ -1203,12 +1209,14 @@ export default function NewApplicantProfilePage() {
                       ).map(([k, v], idx) => (
                         <div
                           key={k}
-                          className={`grid grid-cols-2 ${idx > 0 ? "border-t border-[#E5E7EB]" : ""}`}
+                          className={`grid grid-cols-1 sm:grid-cols-2 ${idx > 0 ? "border-t border-[#E5E7EB]" : ""}`}
                         >
-                          <div className="border-r border-[#E5E7EB] px-4 py-3 text-[14px] leading-5 text-[#374151]">
+                          <div className="border-b border-[#E5E7EB] px-3 py-2 text-[13px] leading-5 text-[#374151] sm:border-b-0 sm:border-r sm:px-4 sm:py-3 sm:text-[14px]">
                             {k}
                           </div>
-                          <div className="px-4 py-3 text-[14px] leading-5 text-[#111827]">{v}</div>
+                          <div className="break-words px-3 py-2 text-[13px] leading-5 text-[#111827] sm:px-4 sm:py-3 sm:text-[14px]">
+                            {v}
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -1216,10 +1224,12 @@ export default function NewApplicantProfilePage() {
                   </div>
 
                   <div className="border-t border-[#E5E7EB] bg-white">
-                    <div className="flex h-11 items-center gap-2 border-b border-[#E5E7EB] px-5">
-                      <div className="text-[20px] font-semibold leading-7 text-[#111827]">Activity History</div>
+                    <div className="flex min-h-11 items-center gap-2 border-b border-[#E5E7EB] px-3 sm:px-5">
+                      <div className="text-[17px] font-semibold leading-7 text-[#111827] sm:text-[20px]">
+                        Activity History
+                      </div>
                     </div>
-                    <div className="p-5">
+                    <div className="p-3 sm:p-5">
                     <div>
                       {(data?.activity_history ?? []).length === 0 ? (
                         <div className="py-3 text-xs text-[#6B7280]">No activity history found.</div>
@@ -1246,20 +1256,22 @@ export default function NewApplicantProfilePage() {
                   </div>
                 </section>
 
-                <section className="h-full w-full min-w-0 space-y-0 border-l border-r border-[#D1D5DB]">
+                <section className="h-full w-full min-w-0 space-y-0 lg:border-l lg:border-[#D1D5DB]">
                   <div className="w-full bg-white pr-px">
-                      <div className="flex h-11 items-center justify-between gap-2 border-b border-[#E5E7EB] px-5">
-                        <div className="text-[20px] font-semibold leading-7 text-[#111827]">Education</div>
+                      <div className="flex min-h-11 items-center justify-between gap-2 border-b border-[#E5E7EB] px-3 sm:px-5">
+                        <div className="text-[17px] font-semibold leading-7 text-[#111827] sm:text-[20px]">
+                          Education
+                        </div>
                         <ProfileSectionNavLink
                           href={profileSectionLinks.education}
                           ariaLabel="Open resume and education"
                         />
                       </div>
-                      <div className="px-5 pb-5 pt-4">
+                      <div className="px-3 pb-5 pt-4 sm:px-5">
                       {educationSummaryLines.length > 0 ? (
                         <div className="space-y-2">
                           {educationSummaryLines.map((line) => (
-                            <div key={`${line.label}-${line.value}`} className="text-xs text-gray-600">
+                            <div key={`${line.label}-${line.value}`} className="break-words text-xs text-gray-600">
                               <span className="font-medium text-[#374151]">{line.label}: </span>
                               {line.href ? (
                                 <a
@@ -1283,17 +1295,19 @@ export default function NewApplicantProfilePage() {
                   </div>
 
                     <div className="w-full border-t border-[#E5E7EB] bg-white pr-px">
-                      <div className="flex h-11 items-center justify-between gap-2 border-b border-[#E5E7EB] px-5">
-                        <div className="text-[20px] font-semibold leading-7 text-[#111827]">Experience</div>
+                      <div className="flex min-h-11 items-center justify-between gap-2 border-b border-[#E5E7EB] px-3 sm:px-5">
+                        <div className="text-[17px] font-semibold leading-7 text-[#111827] sm:text-[20px]">
+                          Experience
+                        </div>
                         <ProfileSectionNavLink
                           href={profileSectionLinks.experience}
                           ariaLabel="Edit years of experience"
                           openEditAnchorId={PROFILE_YEARS_EXPERIENCE_ANCHOR_ID}
                         />
                       </div>
-                      <div className="px-5 pb-5 pt-4">
+                      <div className="px-3 pb-5 pt-4 sm:px-5">
                       <div className="text-xs text-gray-600">Job role</div>
-                      <div className="mt-2 text-sm text-[#111827]">
+                      <div className="mt-2 break-words text-sm text-[#111827]">
                         {data?.experience?.job_role ?? candidateRole}
                       </div>
                       <div className="mt-3 text-xs text-gray-600">Years in profession</div>
@@ -1303,27 +1317,29 @@ export default function NewApplicantProfilePage() {
                           : formatYearsExperience(w?.years_experience)}
                       </div>
                       <div className="mt-3 text-xs text-gray-600">Roles</div>
-                      <div className="mt-2 text-sm text-[#111827]">
+                      <div className="mt-2 break-words text-sm text-[#111827]">
                         {experienceRoleLabels.length > 0 ? experienceRoleLabels.join(", ") : "N/A"}
                       </div>
                       </div>
                     </div>
 
                     <div className="w-full border-t border-[#E5E7EB] bg-white pr-px">
-                      <div className="flex h-11 items-center justify-between gap-2 border-b border-[#E5E7EB] px-5">
-                        <div className="text-[20px] font-semibold leading-7 text-[#111827]">Skills</div>
+                      <div className="flex min-h-11 items-center justify-between gap-2 border-b border-[#E5E7EB] px-3 sm:px-5">
+                        <div className="text-[17px] font-semibold leading-7 text-[#111827] sm:text-[20px]">
+                          Skills
+                        </div>
                         <button
                           type="button"
                           onClick={() => setShowAddSkillModal(true)}
                           aria-label="Add skill"
-                          className="inline-flex shrink-0 rounded-full transition-opacity hover:opacity-80"
+                          className="inline-flex min-h-10 min-w-10 shrink-0 items-center justify-center rounded-full transition-opacity hover:opacity-80"
                         >
                           <BrandedPlusIcon className="h-6 w-6 cursor-pointer" />
                         </button>
                       </div>
-                      <div className="px-5 pb-5 pt-4">
+                      <div className="px-3 pb-5 pt-4 sm:px-5">
                       <div className="text-xs text-gray-600">Positions</div>
-                      <div className="mt-2 text-sm text-[#111827]">
+                      <div className="mt-2 break-words text-sm text-[#111827]">
                         {data?.skills?.positions?.length ? data.skills.positions.join(", ") : "N/A"}
                       </div>
                       <div className="mt-3 text-xs text-gray-600">Skills</div>
@@ -1347,24 +1363,26 @@ export default function NewApplicantProfilePage() {
                     </div>
 
                     <div className="w-full border-t border-b border-[#E5E7EB] bg-white pr-px">
-                      <div className="flex h-11 items-center justify-between gap-2 border-b border-[#E5E7EB] px-5">
-                        <div className="text-[20px] font-semibold leading-7 text-[#111827]">Facilities Assigned</div>
+                      <div className="flex min-h-11 items-center justify-between gap-2 border-b border-[#E5E7EB] px-3 sm:px-5">
+                        <div className="min-w-0 truncate text-[17px] font-semibold leading-7 text-[#111827] sm:text-[20px]">
+                          Facilities Assigned
+                        </div>
                         <ProfileSectionNavLink
                           href={profileSectionLinks.facilities}
                           ariaLabel="Open facility assignments"
                         />
                       </div>
-                      <div className="flex items-start justify-between gap-3 px-5 pb-5 pt-4">
+                      <div className="flex flex-col gap-3 px-3 pb-5 pt-4 sm:flex-row sm:items-start sm:justify-between sm:px-5">
                         <div className="min-w-0 flex-1 text-xs text-gray-600">
                           {data?.facilities_assigned?.length ? (
                             <div className="space-y-2">
                               {data.facilities_assigned.map((facility, index) => (
                                 <div key={facility.assignment_id ?? `${facility.facility_name}-${index}`}>
-                                  <div className="text-sm font-medium text-[#111827]">
+                                  <div className="break-words text-sm font-medium text-[#111827]">
                                     {facility.facility_name || facility.shift_title || "Assignment"}
                                   </div>
                                   {facility.facility_address ? (
-                                    <div className="mt-0.5 text-xs text-[#6B7280]">
+                                    <div className="mt-0.5 break-words text-xs text-[#6B7280]">
                                       {facility.facility_address}
                                     </div>
                                   ) : null}
@@ -1379,7 +1397,7 @@ export default function NewApplicantProfilePage() {
                           <button
                             type="button"
                             onClick={() => setShowAssignFacilityModal(true)}
-                            className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-lg bg-[#0D9488] px-4 py-2 text-sm font-semibold text-white"
+                            className="inline-flex h-9 w-full shrink-0 items-center justify-center gap-1.5 rounded-lg bg-[#0D9488] px-4 py-2 text-sm font-semibold text-white sm:w-auto"
                           >
                             + Add
                           </button>
@@ -1388,14 +1406,14 @@ export default function NewApplicantProfilePage() {
                     </div>
 
                     <div
-                      className="w-full border-t border-r border-[#D1D5DB] bg-white pr-px"
+                      className="w-full border-t border-[#E5E7EB] bg-white pr-px lg:border-r lg:border-[#D1D5DB]"
                       style={{ minHeight: `${onboardingSectionMinHeight}px` }}
                     >
-                      <div className="flex h-11 flex-nowrap items-center justify-between gap-2 border-b border-[#E5E7EB] px-5">
-                        <div className="min-w-0 truncate whitespace-nowrap text-[18px] font-semibold leading-6 text-[#111827]">
+                      <div className="flex min-h-11 flex-wrap items-center justify-between gap-2 border-b border-[#E5E7EB] px-3 py-2 sm:px-5 sm:py-0">
+                        <div className="min-w-0 text-[16px] font-semibold leading-6 text-[#111827] sm:truncate sm:whitespace-nowrap sm:text-[18px]">
                           Onboarding Progress
                           {data?.onboardingCompletion?.totalSteps ? (
-                            <span className="ml-2 text-sm font-normal text-[#6B7280]">
+                            <span className="ml-2 inline-block text-sm font-normal text-[#6B7280]">
                               {data.onboardingCompletion.completedSteps}/
                               {data.onboardingCompletion.totalSteps} (
                               {data.onboardingCompletion.percent}%)
@@ -1407,15 +1425,15 @@ export default function NewApplicantProfilePage() {
                         </span>
                       </div>
 
-                      <div className="p-5">
+                      <div className="p-3 sm:p-5">
                       {data?.onboardingSubmission?.submittedWithIncompleteSteps ? (
                         <div
                           role="status"
-                          className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"
+                          className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-3 text-sm text-amber-900 sm:px-4"
                         >
                           <p className="font-semibold">Submitted with incomplete onboarding items</p>
                           {data.onboardingSubmission.incompleteStepLabels.length > 0 ? (
-                            <p className="mt-1">
+                            <p className="mt-1 break-words">
                               Missing: {data.onboardingSubmission.incompleteStepLabels.join(", ")}
                             </p>
                           ) : null}
@@ -1424,8 +1442,8 @@ export default function NewApplicantProfilePage() {
                       <div className="relative space-y-0 text-xs text-gray-600">
                         <div className="absolute left-4 top-8 bottom-8 w-[2px] -translate-x-1/2 bg-[color:var(--brand-primary)]" />
                         {(data?.onboardingSteps ?? []).map((s, idx) => (
-                          <div key={s.id} className="flex min-h-[76px] items-center gap-4 py-1">
-                            <div className="relative flex h-[76px] w-8 shrink-0 items-center justify-center">
+                          <div key={s.id} className="flex min-h-[64px] items-center gap-3 py-1 sm:min-h-[76px] sm:gap-4">
+                            <div className="relative flex h-[64px] w-8 shrink-0 items-center justify-center sm:h-[76px]">
                               {s.state === "complete" ? (
                                 <BrandedStepperCompleteIcon className="relative z-10 h-8 w-8" />
                               ) : (
@@ -1434,10 +1452,10 @@ export default function NewApplicantProfilePage() {
                                 </div>
                               )}
                             </div>
-                            <div className="flex min-h-[76px] min-w-0 flex-1 flex-col justify-center gap-1 py-1">
-                              <div className="text-[14px] font-semibold leading-5 text-[#111827]">{s.label}</div>
+                            <div className="flex min-h-[64px] min-w-0 flex-1 flex-col justify-center gap-1 py-1 sm:min-h-[76px]">
+                              <div className="break-words text-[14px] font-semibold leading-5 text-[#111827]">{s.label}</div>
                               {s.detail ? (
-                                <div className="text-[12px] leading-5 text-[#6B7280]">{s.detail}</div>
+                                <div className="break-words text-[12px] leading-5 text-[#6B7280]">{s.detail}</div>
                               ) : null}
                             </div>
                           </div>
@@ -1450,10 +1468,12 @@ export default function NewApplicantProfilePage() {
                     </div>
 
                     <div className="w-full border-t border-[#E5E7EB] bg-white pr-px">
-                      <div className="flex h-11 items-center gap-2 border-b border-[#E5E7EB] px-5">
-                        <div className="text-[20px] font-semibold leading-7 text-[#111827]">Skill assessments</div>
+                      <div className="flex min-h-11 items-center gap-2 border-b border-[#E5E7EB] px-3 sm:px-5">
+                        <div className="text-[17px] font-semibold leading-7 text-[#111827] sm:text-[20px]">
+                          Skill assessments
+                        </div>
                       </div>
-                      <div className="p-5">
+                      <div className="p-3 sm:p-5">
                       <div className="text-xs text-gray-600">
                         Completed {data?.skillAssessments.completed ?? 0} of {data?.skillAssessments.total ?? 0}{" "}
                         tracked quizzes.
@@ -1462,29 +1482,31 @@ export default function NewApplicantProfilePage() {
                     </div>
 
                   <div className="w-full border-t border-[#E5E7EB] bg-white pr-px">
-                    <div className="flex h-11 items-center gap-2 border-b border-[#E5E7EB] px-5">
-                      <div className="text-[20px] font-semibold leading-7 text-[#111827]">Remarks</div>
+                    <div className="flex min-h-11 items-center gap-2 border-b border-[#E5E7EB] px-3 sm:px-5">
+                      <div className="text-[17px] font-semibold leading-7 text-[#111827] sm:text-[20px]">
+                        Remarks
+                      </div>
                     </div>
-                    <div className="p-5">
+                    <div className="p-3 sm:p-5">
                     <div className="mb-4 text-xs text-[#6B7280]">For job recommendation</div>
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
                       <button
                         type="button"
                         onClick={handleApproveForWork}
                         disabled={approvingForWork || !applicantId}
-                        className="inline-flex h-9 items-center justify-center rounded-lg bg-[#0D9488] px-4 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+                        className="inline-flex h-10 w-full items-center justify-center rounded-lg bg-[#0D9488] px-4 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60 sm:h-9 sm:w-auto"
                       >
                         {approvingForWork ? "Approving..." : "Approved for work"}
                       </button>
                       <button
                         type="button"
-                        className="inline-flex h-9 items-center justify-center rounded-lg border border-[#99D8D3] bg-white px-4 text-xs font-semibold text-[#0D9488]"
+                        className="inline-flex h-10 w-full items-center justify-center rounded-lg border border-[#99D8D3] bg-white px-4 text-xs font-semibold text-[#0D9488] sm:h-9 sm:w-auto"
                       >
                         Reactivate
                       </button>
                       <Link
                         href="/admin_recruiter/new"
-                        className="inline-flex h-9 items-center justify-center rounded-lg bg-[color:var(--brand-primary)] px-4 text-xs font-semibold text-white hover:brightness-95 transition"
+                        className="inline-flex h-10 w-full items-center justify-center rounded-lg bg-[color:var(--brand-primary)] px-4 text-xs font-semibold text-white transition hover:brightness-95 sm:h-9 sm:w-auto"
                       >
                         Back to New list
                       </Link>

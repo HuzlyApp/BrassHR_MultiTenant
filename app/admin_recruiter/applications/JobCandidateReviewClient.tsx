@@ -547,10 +547,10 @@ export default function JobCandidateReviewClient() {
       </div>
 
       {/* Figma: Back + pager row with full-width divider */}
-      <div className="flex items-center justify-between gap-3 border-b border-[#E5E7EB] pb-3">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#E5E7EB] pb-3 sm:gap-3">
         <Link
           href="/admin_recruiter/jobs"
-          className="inline-flex items-center gap-1 text-sm font-medium hover:underline"
+          className="inline-flex min-h-10 items-center gap-1 text-sm font-medium hover:underline sm:min-h-0"
           style={{ color: branding.secondaryHex || "#012352" }}
         >
           <span
@@ -571,7 +571,7 @@ export default function JobCandidateReviewClient() {
             type="button"
             onClick={() => goRelative(-1)}
             disabled={selectedIndex <= 0}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-[#E5E7EB] bg-white disabled:opacity-40"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-[#E5E7EB] bg-white disabled:opacity-40 sm:h-8 sm:w-8"
             aria-label="Previous candidate"
           >
             <ChevronLeft className="h-4 w-4" />
@@ -583,7 +583,7 @@ export default function JobCandidateReviewClient() {
             type="button"
             onClick={() => goRelative(1)}
             disabled={selectedIndex < 0 || selectedIndex >= rows.length - 1}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-[#E5E7EB] bg-white disabled:opacity-40"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-[#E5E7EB] bg-white disabled:opacity-40 sm:h-8 sm:w-8"
             aria-label="Next candidate"
           >
             <ChevronRight className="h-4 w-4" />
@@ -602,16 +602,16 @@ export default function JobCandidateReviewClient() {
           Select a job to review candidates.
         </p>
       ) : (
-        <div className="mt-4 grid min-h-[calc(100vh-260px)] grid-cols-1 gap-4 xl:grid-cols-[240px_minmax(0,1fr)_280px]">
+        <div className="mt-4 grid min-h-0 grid-cols-1 gap-3 sm:gap-4 xl:min-h-[calc(100vh-260px)] xl:grid-cols-[240px_minmax(0,1fr)_280px]">
           {/* Left — rounded candidate cards */}
-          <aside className="min-h-0">
-            <div className="flex max-h-[40vh] flex-col gap-2 overflow-y-auto pr-0.5 xl:max-h-[calc(100vh-260px)]">
+          <aside className="min-h-0 min-w-0 order-1 xl:order-none">
+            <div className="-mx-1 flex max-h-[28vh] snap-x snap-mandatory gap-2 overflow-x-auto overflow-y-hidden px-1 pb-1 sm:max-h-[32vh] sm:flex-col sm:overflow-x-hidden sm:overflow-y-auto sm:snap-none sm:pb-0 sm:pr-0.5 xl:max-h-[calc(100vh-260px)]">
               {loading ? (
-                <p className="rounded-xl border border-[#E5E7EB] bg-white px-3 py-8 text-center text-sm text-[#64748B]">
+                <p className="w-full rounded-xl border border-[#E5E7EB] bg-white px-3 py-8 text-center text-sm text-[#64748B]">
                   Loading…
                 </p>
               ) : rows.length === 0 ? (
-                <p className="rounded-xl border border-[#E5E7EB] bg-white px-3 py-8 text-center text-sm text-[#64748B]">
+                <p className="w-full rounded-xl border border-[#E5E7EB] bg-white px-3 py-8 text-center text-sm text-[#64748B]">
                   No candidates yet.
                 </p>
               ) : (
@@ -622,17 +622,16 @@ export default function JobCandidateReviewClient() {
                       key={row.id}
                       type="button"
                       onClick={() => setApplicationId(row.id)}
-                      className={`w-full rounded-xl border px-3.5 py-3 text-left transition ${
-                        active
+                      className={`w-[min(78vw,280px)] shrink-0 snap-start rounded-xl border px-3.5 py-3 text-left transition sm:w-full sm:shrink ${active
                           ? "shadow-sm"
                           : "border-[#E5E7EB] bg-white hover:border-[#CBD5E1] hover:bg-[#FAFBFC]"
-                      }`}
+                        }`}
                       style={
                         active
                           ? {
-                              borderColor: branding.primaryHex,
-                              backgroundColor: `color-mix(in srgb, ${branding.primaryHex} 8%, white)`,
-                            }
+                            borderColor: branding.primaryHex,
+                            backgroundColor: `color-mix(in srgb, ${branding.primaryHex} 8%, white)`,
+                          }
                           : undefined
                       }
                     >
@@ -657,31 +656,32 @@ export default function JobCandidateReviewClient() {
           </aside>
 
           {/* Center — profile + resume */}
-          <section className="flex min-w-0 flex-col overflow-hidden rounded-xl border border-[#E5E7EB] bg-white">
+          <section className="order-2 flex min-w-0 flex-col overflow-hidden rounded-xl border border-[#E5E7EB] bg-white xl:order-none">
             {!selected ? (
               <p className="px-4 py-12 text-center text-sm text-[#64748B]">
                 Select a candidate from the list.
               </p>
             ) : (
               <>
-                <div className="border-b border-[#E5E7EB] px-5 py-4">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="min-w-0">
+                <div className="border-b border-[#E5E7EB] px-3 py-4 sm:px-5">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
+                    <div className="min-w-0 flex-1">
                       <h2
-                        className="text-[22px] font-semibold leading-7"
+                        className="truncate text-[18px] font-semibold leading-7 sm:break-words sm:whitespace-normal sm:text-[22px]"
                         style={{ color: secondaryColor }}
+                        title={displayName}
                       >
                         {displayName}
                       </h2>
-                      <p className="mt-1 inline-flex items-center gap-1.5 text-sm text-[#64748B]">
-                        <MapPin className="h-3.5 w-3.5 shrink-0 text-[#94A3B8]" />
-                        {displayLocation}
+                      <p className="mt-1 flex min-w-0 items-start gap-1.5 text-sm text-[#64748B]">
+                        <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#94A3B8]" />
+                        <span className="min-w-0 break-words">{displayLocation}</span>
                       </p>
                     </div>
-                    <div className="inline-flex items-center gap-0.5">
+                    <div className="inline-flex w-full shrink-0 items-center justify-end gap-0.5 sm:w-auto">
                       <button
                         type="button"
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[#16A34A] transition hover:bg-[#F0FDF4]"
+                        className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-[#16A34A] transition hover:bg-[#F0FDF4] sm:h-8 sm:w-8"
                         aria-label="Accept"
                         title="Accept"
                         onClick={() => void updateStatus("hired")}
@@ -690,7 +690,7 @@ export default function JobCandidateReviewClient() {
                       </button>
                       <button
                         type="button"
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[#64748B] transition hover:bg-[#F8FAFC]"
+                        className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-[#64748B] transition hover:bg-[#F8FAFC] sm:h-8 sm:w-8"
                         aria-label="Maybe"
                         title="Maybe"
                         onClick={() => void updateStatus("undecided")}
@@ -699,7 +699,7 @@ export default function JobCandidateReviewClient() {
                       </button>
                       <button
                         type="button"
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[#DC2626] transition hover:bg-[#FEF2F2]"
+                        className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-[#DC2626] transition hover:bg-[#FEF2F2] sm:h-8 sm:w-8"
                         aria-label="Reject"
                         title="Reject"
                         onClick={() => void updateStatus("rejected")}
@@ -708,19 +708,19 @@ export default function JobCandidateReviewClient() {
                       </button>
                       <button
                         type="button"
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[#64748B] transition hover:bg-[#F8FAFC]"
+                        className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-[#64748B] transition hover:bg-[#F8FAFC] sm:h-8 sm:w-8"
                         aria-label="More"
                       >
                         <MoreVertical className="h-4 w-4" />
                       </button>
                     </div>
                   </div>
-                  <div className="mt-4 flex flex-wrap gap-2">
+                  <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
                     <button
                       type="button"
                       disabled={!workerId}
                       onClick={() => setInterviewOpen(true)}
-                      className="inline-flex h-9 items-center gap-2 rounded-lg px-3.5 text-sm font-semibold text-white disabled:opacity-50"
+                      className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg px-3.5 text-sm font-semibold text-white disabled:opacity-50 sm:h-9 sm:w-auto"
                       style={{ backgroundColor: branding.primaryHex }}
                     >
                       <CalendarDays className="h-4 w-4" />
@@ -730,7 +730,7 @@ export default function JobCandidateReviewClient() {
                       type="button"
                       disabled={!workerId || (!displayEmail && !displayPhone)}
                       onClick={() => setMessageOpen(true)}
-                      className="inline-flex h-9 items-center gap-2 rounded-lg border bg-white px-3.5 text-sm font-medium disabled:opacity-50"
+                      className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border bg-white px-3.5 text-sm font-medium disabled:opacity-50 sm:h-9 sm:w-auto"
                       style={{
                         borderColor: branding.secondaryHex || "#012352",
                         color: branding.secondaryHex || "#012352",
@@ -743,7 +743,7 @@ export default function JobCandidateReviewClient() {
                       type="button"
                       disabled={!workerId}
                       onClick={() => setCallOpen(true)}
-                      className="inline-flex h-9 items-center gap-2 rounded-lg border bg-white px-3.5 text-sm font-medium disabled:opacity-50"
+                      className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border bg-white px-3.5 text-sm font-medium disabled:opacity-50 sm:h-9 sm:w-auto"
                       style={{
                         borderColor: branding.secondaryHex || "#012352",
                         color: branding.secondaryHex || "#012352",
@@ -757,27 +757,27 @@ export default function JobCandidateReviewClient() {
 
                 <div className="border-b border-[#E5E7EB]">
                   <h3
-                    className="px-5 pt-3 text-sm font-semibold"
+                    className="px-3 pt-3 text-sm font-semibold sm:px-5"
                     style={{ color: secondaryColor }}
                   >
                     Resume
                   </h3>
-                  <div className="flex items-center justify-between gap-3 px-5 py-2.5">
+                  <div className="flex flex-col gap-2 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:px-5">
                     <div className="inline-flex items-center gap-2">
                       <button
                         type="button"
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg transition hover:bg-[#F8FAFC]"
+                        className="inline-flex h-10 w-10 items-center justify-center rounded-lg transition hover:bg-[#F8FAFC] sm:h-8 sm:w-8"
                         onClick={() => setZoom((value) => Math.max(50, value - 10))}
                         aria-label="Zoom out"
                       >
                         <ZoomOut className="h-4 w-4" style={{ color: secondaryColor }} strokeWidth={2} />
                       </button>
-                      <span className="inline-flex h-8 min-w-[3.5rem] items-center justify-center rounded-lg border border-[#E5E7EB] bg-[#F8FAFC] px-2.5 text-sm font-medium tabular-nums text-[#334155]">
+                      <span className="inline-flex h-10 min-w-[3.5rem] items-center justify-center rounded-lg border border-[#E5E7EB] bg-[#F8FAFC] px-2.5 text-sm font-medium tabular-nums text-[#334155] sm:h-8">
                         {zoom}%
                       </span>
                       <button
                         type="button"
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg transition hover:bg-[#F8FAFC]"
+                        className="inline-flex h-10 w-10 items-center justify-center rounded-lg transition hover:bg-[#F8FAFC] sm:h-8 sm:w-8"
                         onClick={() => setZoom((value) => Math.min(150, value + 10))}
                         aria-label="Zoom in"
                       >
@@ -789,7 +789,7 @@ export default function JobCandidateReviewClient() {
                         href={resumeDownloadUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex h-9 shrink-0 items-center gap-2 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm font-medium transition hover:bg-[#F8FAFC]"
+                        className="inline-flex h-10 w-full shrink-0 items-center justify-center gap-2 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm font-medium transition hover:bg-[#F8FAFC] sm:h-9 sm:w-auto"
                         style={{ color: secondaryColor }}
                       >
                         <BrandedSvgIcon
@@ -803,7 +803,7 @@ export default function JobCandidateReviewClient() {
                   </div>
                 </div>
 
-                <div className="min-h-[420px] flex-1 bg-[#F8FAFC] p-4">
+                <div className="min-h-[280px] flex-1 bg-[#F8FAFC] p-3 sm:min-h-[420px] sm:p-4">
                   {profileLoading ? (
                     <p className="py-16 text-center text-sm text-[#64748B]">Loading resume…</p>
                   ) : workerId && hasResume && resumePreviewUrl ? (
@@ -815,7 +815,7 @@ export default function JobCandidateReviewClient() {
                         key={resumePreviewUrl}
                         title={`${displayName} resume`}
                         src={resumePreviewUrl}
-                        className="h-[min(70vh,760px)] w-full bg-white"
+                        className="h-[min(55vh,520px)] w-full bg-white sm:h-[min(70vh,760px)]"
                         onError={() =>
                           setResumePreviewError(
                             "Preview is blocked on this device. Use Download Resume or open in a new tab."
@@ -823,7 +823,7 @@ export default function JobCandidateReviewClient() {
                         }
                       />
                       {resumePreviewError ? (
-                        <div className="border-t border-[#E5E7EB] bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                        <div className="border-t border-[#E5E7EB] bg-amber-50 px-3 py-3 text-sm text-amber-900 sm:px-4">
                           {resumePreviewError}{" "}
                           {resumeDownloadUrl ? (
                             <a
@@ -839,7 +839,7 @@ export default function JobCandidateReviewClient() {
                       ) : null}
                     </div>
                   ) : (
-                    <div className="flex h-full min-h-[420px] items-center justify-center rounded-xl border border-[#E5E7EB] bg-white px-4 text-center text-sm text-[#64748B]">
+                    <div className="flex h-full min-h-[280px] items-center justify-center rounded-xl border border-[#E5E7EB] bg-white px-4 text-center text-sm text-[#64748B] sm:min-h-[420px]">
                       {workerId
                         ? "No resume uploaded for this candidate yet."
                         : "Candidate profile is not linked yet, so resume is unavailable."}
@@ -852,7 +852,7 @@ export default function JobCandidateReviewClient() {
 
           {/* Right — Figma notes panel (compact card, not full-height) */}
           <aside
-            className="flex h-fit flex-col gap-4 self-start rounded-[16px] border border-[#E2E8F0] bg-[#F8FAFC] p-4"
+            className="order-3 flex h-fit w-full min-w-0 flex-col gap-4 self-start rounded-[16px] border border-[#E2E8F0] bg-[#F8FAFC] p-3 sm:p-4 xl:order-none"
             ref={statusMenuRef}
           >
             <div className="relative">
@@ -862,12 +862,12 @@ export default function JobCandidateReviewClient() {
                 onClick={() => setStatusMenuOpen((open) => !open)}
                 className="inline-flex h-10 w-full items-center justify-between gap-2 rounded-xl border border-[#CBD5E1] bg-white px-3 text-sm text-[#334155] disabled:opacity-50"
               >
-                <span>
+                <span className="min-w-0 truncate text-left">
                   Status:{" "}
                   <span className="font-semibold">{applicationStatusLabel(currentStatus)}</span>
                 </span>
                 <ChevronDown
-                  className={`h-4 w-4 text-[#94A3B8] ${statusMenuOpen ? "rotate-180" : ""}`}
+                  className={`h-4 w-4 shrink-0 text-[#94A3B8] ${statusMenuOpen ? "rotate-180" : ""}`}
                 />
               </button>
               {statusMenuOpen ? (
@@ -877,7 +877,7 @@ export default function JobCandidateReviewClient() {
                       key={option.id}
                       type="button"
                       onClick={() => void updateStatus(option.id)}
-                      className="flex w-full items-center justify-between px-3 py-2 text-left text-sm text-[#334155] hover:bg-[#F8FAFC]"
+                      className="flex min-h-10 w-full items-center justify-between px-3 py-2 text-left text-sm text-[#334155] hover:bg-[#F8FAFC]"
                     >
                       {option.label}
                       {currentStatus === option.id ? (
@@ -889,14 +889,14 @@ export default function JobCandidateReviewClient() {
               ) : null}
             </div>
 
-            <div className="h-[88px] overflow-y-auto rounded-[12px]">
+            <div className="max-h-[120px] overflow-y-auto rounded-[12px] sm:h-[88px] sm:max-h-none">
               <h3 className="text-sm font-semibold text-[#0F172A]">Activity feed</h3>
               {selected ? (
                 <div className="mt-2">
                   <p className="text-xs font-medium text-[#94A3B8]">
                     {formatActivityDate(selected.submitted_at || selected.created_at)}
                   </p>
-                  <p className="mt-0.5 text-xs leading-5 text-[#64748B]">
+                  <p className="mt-0.5 break-words text-xs leading-5 text-[#64748B]">
                     {applicantName(selected)} applied to {jobTitle}.
                   </p>
                 </div>
@@ -916,13 +916,13 @@ export default function JobCandidateReviewClient() {
                 type="button"
                 disabled={noteSaving || !selected || !noteDraft.trim()}
                 onClick={() => void saveNote()}
-                className="mt-3 inline-flex h-9 items-center justify-center rounded-xl bg-[#E2E8F0] px-4 text-sm font-semibold text-[#94A3B8] disabled:cursor-not-allowed disabled:opacity-80"
+                className="mt-3 inline-flex h-10 w-full items-center justify-center rounded-xl bg-[#E2E8F0] px-4 text-sm font-semibold text-[#94A3B8] disabled:cursor-not-allowed disabled:opacity-80 sm:h-9 sm:w-auto"
                 style={
                   noteDraft.trim() && selected && !noteSaving
                     ? {
-                        backgroundColor: branding.secondaryHex || "#012352",
-                        color: "#FFFFFF",
-                      }
+                      backgroundColor: branding.secondaryHex || "#012352",
+                      color: "#FFFFFF",
+                    }
                     : undefined
                 }
               >

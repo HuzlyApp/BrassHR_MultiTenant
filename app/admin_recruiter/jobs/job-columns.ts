@@ -35,6 +35,7 @@ export const DEFAULT_JOB_COLUMNS: JobColumnId[] = [
   "jobTitle",
   "candidates",
   "datePosted",
+  "location",
   "assignee",
   "jobStatus",
   "actions",
