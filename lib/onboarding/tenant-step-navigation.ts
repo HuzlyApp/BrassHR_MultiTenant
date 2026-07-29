@@ -1,4 +1,5 @@
 import { createDefaultOnboardingStepDrafts } from "@/lib/onboarding/default-onboarding-steps";
+import { findNavigableStepIndex } from "@/lib/onboarding/applicant-step-navigability";
 import { routeForApplicantStep } from "@/lib/onboarding/resolve-applicant-step-route";
 import { stepIndexFromPathname } from "@/lib/onboarding/step-index-from-pathname";
 import {
@@ -91,25 +92,29 @@ export function adjacentStepRoute(
     const legacy = getLegacyFallbackSteps();
     if (!legacy.length) return null;
     if (!current) {
-      const target = direction > 0 ? legacy[0] : null;
-      return target ? routeForApplicantStep(target, tenantSlug) : null;
+      if (direction < 0) return null;
+      const firstIdx = findNavigableStepIndex(legacy, -1, 1);
+      if (firstIdx === null) return null;
+      return routeForApplicantStep(legacy[firstIdx]!, tenantSlug);
     }
     const idx = legacy.findIndex((s) => s.id === current.id || s.step_key === current.step_key);
-    const next = legacy[idx + direction];
-    return next ? routeForApplicantStep(next, tenantSlug) : null;
+    const nextIdx = findNavigableStepIndex(legacy, idx, direction);
+    if (nextIdx === null) return null;
+    return routeForApplicantStep(legacy[nextIdx]!, tenantSlug);
   }
 
   if (!current) {
     if (direction < 0) return null;
-    const first = enabled[0];
-    return routeForApplicantStep(first, tenantSlug);
+    const firstIdx = findNavigableStepIndex(enabled, -1, 1);
+    if (firstIdx === null) return null;
+    return routeForApplicantStep(enabled[firstIdx]!, tenantSlug);
   }
 
   const idx = enabled.findIndex((s) => s.id === current.id);
   const resolvedIdx = idx >= 0 ? idx : enabled.findIndex((s) => s.step_key === current.step_key);
-  const next = enabled[resolvedIdx + direction];
-  if (!next) return null;
-  return routeForApplicantStep(next, tenantSlug);
+  const nextIdx = findNavigableStepIndex(enabled, resolvedIdx, direction);
+  if (nextIdx === null) return null;
+  return routeForApplicantStep(enabled[nextIdx]!, tenantSlug);
 }
 
 /** Route after completing the current step (next step, review, or applicant status). */

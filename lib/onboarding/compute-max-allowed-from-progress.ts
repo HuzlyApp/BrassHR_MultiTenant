@@ -1,4 +1,5 @@
 import { isUploadResumeStep } from "@/lib/onboarding/enforce-upload-resume-first";
+import { applicantStepHasNavigableScreen } from "@/lib/onboarding/applicant-step-navigability";
 import type {
   TenantOnboardingStep,
   WorkerOnboardingProgressPayload,
@@ -92,6 +93,8 @@ export function computeMaxAllowedStepIndexFromProgress(
         break;
       } else if (!enabledSteps[i]!.is_required) {
         max = Math.max(max, i + 2);
+      } else if (!applicantStepHasNavigableScreen(enabledSteps[i]!, enabledSteps)) {
+        max = Math.max(max, i + 2);
       } else {
         max = Math.max(max, i + 1);
         break;
@@ -121,6 +124,9 @@ export function resolveNextIncompleteStepIndex(
   for (let i = 0; i < enabledSteps.length; i++) {
     const st = statusByStepId.get(enabledSteps[i]!.id) ?? "pending";
     if (st !== "completed" && st !== "skipped") {
+      if (!applicantStepHasNavigableScreen(enabledSteps[i]!, enabledSteps)) {
+        continue;
+      }
       return i + 1;
     }
   }

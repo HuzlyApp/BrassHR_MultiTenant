@@ -45,7 +45,13 @@ import {
   hasLocalResumeUpload,
   markResumeUploadStepComplete,
 } from "@/lib/onboarding/mark-resume-upload-step-complete"
-import { adjacentStepRoute } from "@/lib/onboarding/tenant-step-navigation"
+import {
+  adjacentStepRoute,
+  getEnabledTenantSteps,
+} from "@/lib/onboarding/tenant-step-navigation"
+import { skipNonNavigableApplicantSteps } from "@/lib/onboarding/skip-non-navigable-applicant-steps"
+import { findNavigableStepIndex } from "@/lib/onboarding/applicant-step-navigability"
+import { routeForApplicantStep } from "@/lib/onboarding/resolve-applicant-step-route"
 import { useResumeParsePoll } from "@/lib/resume/use-resume-parse-poll"
 import { RESUME_PARSE_FAILED_USER_MESSAGE } from "@/lib/resumeParseQuality"
 
@@ -924,9 +930,26 @@ function Step1ReviewContent() {
         /* progress is best-effort; step 2 should still open */
       }
 
+      const enabled = getEnabledTenantSteps(nav.config)
+      const resumeIdx = resumeStep
+        ? enabled.findIndex((s) => s.id === resumeStep.id || s.step_key === resumeStep.step_key)
+        : -1
+      const nextIdx =
+        resumeIdx >= 0 ? findNavigableStepIndex(enabled, resumeIdx, 1) : null
+
+      await skipNonNavigableApplicantSteps({
+        enabledSteps: enabled,
+        progress: onboarding?.progress ?? null,
+        updateStepStatus: onboarding?.updateStepStatus,
+        afterIndex: resumeIdx,
+        beforeIndex: nextIdx ?? resumeIdx,
+      })
+
       const next =
-        adjacentStepRoute(nav.config, resumeStep, 1, nav.slug) ??
-        applicationPath(APPLICATION_ROUTES.professionalLicense)
+        nextIdx !== null
+          ? routeForApplicantStep(enabled[nextIdx]!, nav.slug)
+          : adjacentStepRoute(nav.config, resumeStep, 1, nav.slug) ??
+            applicationPath(APPLICATION_ROUTES.professionalLicense)
       router.push(next)
 
     } catch (err: unknown) {
