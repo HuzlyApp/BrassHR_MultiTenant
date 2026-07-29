@@ -4,11 +4,11 @@ import { useEffect, useRef } from "react";
 import { applicantStepHasNavigableScreen } from "@/lib/onboarding/applicant-step-navigability";
 import { buildProgressStatusMaps } from "@/lib/onboarding/compute-max-allowed-from-progress";
 import { persistStepProgress } from "@/lib/onboarding/use-mark-step-in-progress-if-pending";
-import type { TenantOnboardingStep, WorkerOnboardingProgressPayload } from "@/lib/onboarding/types";
+import type { OnboardingStepStatus, TenantOnboardingStep, WorkerOnboardingProgressPayload } from "@/lib/onboarding/types";
 
 type UpdateStepStatusFn = (
   stepKey: string,
-  status: "pending" | "in_progress" | "completed" | "skipped",
+  status: OnboardingStepStatus,
   data?: Record<string, unknown>
 ) => Promise<void>;
 

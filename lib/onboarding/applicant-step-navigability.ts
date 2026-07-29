@@ -8,7 +8,7 @@ const WORKFLOW_STEPS_WITHOUT_APPLICANT_SCREEN = new Set([
 ]);
 
 /** Paths that only serve resume upload + profile review (not follow-on profile steps). */
-const RESUME_FLOW_PATHS = new Set([
+const RESUME_FLOW_PATHS = new Set<string>([
   APPLICATION_ROUTES.addResume,
   APPLICATION_ROUTES.addResumeV2,
   APPLICATION_ROUTES.resumeUploadSuccess,
