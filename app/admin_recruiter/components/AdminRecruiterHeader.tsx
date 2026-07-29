@@ -332,14 +332,6 @@ export function AdminRecruiterHeader({
             </div>
 
             <div ref={profileAreaRef} className="relative">
-            <div className="flex items-center gap-1 rounded-lg border border-[#E5E7EB] bg-white px-1.5 py-1 sm:gap-2 sm:rounded-xl sm:px-2.5 sm:py-1.5">
-            <StaffProfileAvatar name={displayName} photoUrl={profilePhoto} size="sm" />
-            <div className="hidden min-w-0 leading-tight sm:block">
-              <p className="max-w-[88px] truncate text-sm font-semibold text-[#0F172A] md:max-w-[140px]">
-                {headerLoading ? "Loading..." : displayName}
-              </p>
-              <p className="max-w-[88px] truncate text-[11px] text-[#64748B] md:max-w-[140px]">{displayRole}</p>
-            </div>
             <button
               type="button"
               onClick={() => {
@@ -347,12 +339,19 @@ export function AdminRecruiterHeader({
                 setShowMessages(false);
                 setShowNotifications(false);
               }}
-              className="inline-flex h-6 w-6 items-center justify-center rounded-md text-[#94A3B8] transition hover:bg-slate-100"
+              className="flex max-w-full items-center gap-1 rounded-lg border border-[#E5E7EB] bg-white px-1.5 py-1 transition hover:bg-[#F8FAFC] sm:gap-2 sm:rounded-xl sm:px-2.5 sm:py-1.5"
               aria-label="Open profile menu"
+              aria-expanded={showProfileMenu}
             >
-              <ChevronDown className="h-4 w-4" />
-            </button>
+            <StaffProfileAvatar name={displayName} photoUrl={profilePhoto} size="sm" />
+            <div className="hidden min-w-0 leading-tight text-left sm:block">
+              <p className="max-w-[88px] truncate text-sm font-semibold text-[#0F172A] md:max-w-[140px]">
+                {headerLoading ? "Loading..." : displayName}
+              </p>
+              <p className="max-w-[88px] truncate text-[11px] text-[#64748B] md:max-w-[140px]">{displayRole}</p>
             </div>
+            <ChevronDown className="h-4 w-4 shrink-0 text-[#94A3B8]" aria-hidden />
+            </button>
 
           {showProfileMenu ? (
             <div className="absolute right-0 top-full z-50 mt-1 w-[220px] rounded-lg border border-[#d7e4e1] bg-white p-2 shadow-xl">

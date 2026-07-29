@@ -10,7 +10,7 @@ export type ApplicationColumnId =
 
 export const APPLICATION_COLUMN_OPTIONS: { id: ApplicationColumnId; label: string }[] = [
   { id: "candidates", label: "Name" },
-  { id: "matches", label: "Matches to job post" },
+  // { id: "matches", label: "Matches to job post" }, // Hidden until job-match scoring is implemented
   { id: "activity", label: "Activity" },
   { id: "interest", label: "Interest" },
   { id: "status", label: "Status" },
@@ -21,7 +21,7 @@ export const APPLICATION_COLUMN_OPTIONS: { id: ApplicationColumnId; label: strin
 
 export const DEFAULT_APPLICATION_COLUMNS: ApplicationColumnId[] = [
   "candidates",
-  "matches",
+  // "matches",
   "activity",
   "interest",
 ]
@@ -36,9 +36,11 @@ export function loadApplicationColumnOrder(): ApplicationColumnId[] {
     const parsed = JSON.parse(raw) as unknown
     if (!Array.isArray(parsed) || parsed.length === 0) return [...DEFAULT_APPLICATION_COLUMNS]
     const allowed = new Set(APPLICATION_COLUMN_OPTIONS.map((c) => c.id))
-    const cleaned = parsed.filter(
-      (id): id is ApplicationColumnId => typeof id === "string" && allowed.has(id as ApplicationColumnId)
-    )
+    const cleaned = parsed
+      .filter(
+        (id): id is ApplicationColumnId => typeof id === "string" && allowed.has(id as ApplicationColumnId)
+      )
+      .filter((id) => id !== "matches")
     return cleaned.length ? cleaned : [...DEFAULT_APPLICATION_COLUMNS]
   } catch {
     return [...DEFAULT_APPLICATION_COLUMNS]
@@ -59,7 +61,7 @@ export function applicationColumnLabel(id: ApplicationColumnId): string {
 
 /** Name stays left; all other list columns are centered (header + cell). */
 const CENTER_ALIGNED_COLUMNS = new Set<ApplicationColumnId>([
-  "matches",
+  // "matches",
   "activity",
   "interest",
   "status",
@@ -71,7 +73,7 @@ const CENTER_ALIGNED_COLUMNS = new Set<ApplicationColumnId>([
 export function applicationListColumnClassName(colId: ApplicationColumnId): string {
   const center = CENTER_ALIGNED_COLUMNS.has(colId) ? " text-center" : ""
   if (colId === "candidates") return "min-w-[220px]"
-  if (colId === "matches") return `min-w-[280px] max-w-[360px]${center}`
+  // if (colId === "matches") return `min-w-[280px] max-w-[360px]${center}`
   if (colId === "activity") return `min-w-[180px] whitespace-nowrap${center}`
   if (colId === "interest") return `min-w-[160px] whitespace-nowrap${center}`
   if (colId === "email") return `min-w-[180px]${center}`

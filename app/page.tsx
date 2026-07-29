@@ -274,12 +274,12 @@ export default function Home() {
               widthClassName="w-full max-w-[220px]"
               className="origin-center scale-[1.15]"
             />
-            <div className="mt-6 flex w-full flex-col items-center gap-5">
-            <div className="space-y-3">
-              <h1 className="whitespace-nowrap text-[38px] font-semibold leading-[44px] tracking-normal text-slate-800 max-[399px]:text-[22px] max-[399px]:leading-[28px] min-[400px]:max-[549px]:text-[32px] min-[400px]:max-[549px]:leading-[37px] min-[550px]:max-[1023px]:text-[34px] min-[550px]:max-[1023px]:leading-[40px]">
+            <div className="mt-6 flex w-full min-w-0 flex-col items-center gap-5">
+            <div className="w-full max-w-full space-y-3">
+              <h1 className="text-balance text-[38px] font-semibold leading-[1.15] tracking-normal text-slate-800 max-[399px]:text-[22px] max-[399px]:leading-[1.25] min-[400px]:max-[549px]:text-[32px] min-[550px]:max-[1023px]:text-[34px]">
                 {brand.headline}
               </h1>
-              <p className="text-[16px] font-normal leading-6 tracking-normal text-slate-500">{brand.subtitle}</p>
+              <p className="text-pretty text-[16px] font-normal leading-6 tracking-normal text-slate-500">{brand.subtitle}</p>
             </div>
 
             <button
@@ -317,12 +317,12 @@ export default function Home() {
 
         {/* Desktop/tablet split layout */}
         <section className="relative z-10 hidden h-[calc(100dvh-3rem)] max-h-[760px] w-full max-w-[1160px] grid-cols-1 overflow-hidden rounded-2xl bg-white shadow-[0_24px_70px_rgba(0,0,0,0.18)] min-[1024px]:grid min-[1024px]:grid-cols-[minmax(0,17fr)_minmax(300px,12fr)]">
-          <div className="flex flex-col items-center justify-center gap-5 px-10 py-10 text-center">
-            <div className="space-y-3">
-              <h1 className="whitespace-nowrap text-[42px] font-semibold leading-[50px] tracking-normal text-slate-800 max-[1079px]:text-[38px] max-[1079px]:leading-[45px] min-[1200px]:text-[48px] min-[1200px]:leading-[60px]">
+          <div className="flex min-w-0 w-full flex-col items-center justify-center gap-5 px-6 py-10 text-center sm:px-8 lg:px-10">
+            <div className="w-full max-w-[520px] space-y-3">
+              <h1 className="text-balance text-[42px] font-semibold leading-[1.15] tracking-normal text-slate-800 max-[1079px]:text-[38px] min-[1200px]:text-[48px]">
                 {brand.headline}
               </h1>
-              <p className="text-[16px] font-normal leading-6 tracking-normal text-slate-500">{brand.subtitle}</p>
+              <p className="text-pretty text-[16px] font-normal leading-6 tracking-normal text-slate-500">{brand.subtitle}</p>
             </div>
 
             <button
@@ -368,7 +368,7 @@ export default function Home() {
             */}
           </div>
 
-          <div className="relative flex w-[480px] items-center justify-center overflow-hidden border-l border-slate-200">
+          <div className="relative flex w-full min-w-0 items-center justify-center overflow-hidden border-l border-slate-200">
             <BrandingFillImage
               src={backgroundSrc}
               sizes="480px"

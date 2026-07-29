@@ -104,8 +104,8 @@ const FILTER_SELECT_CHEVRON = {
   )}")`,
 } as const;
 
-const MATCHES_PLACEHOLDER =
-  "We didn't find matching qualifications. Review the candidate's profile to see their skills and experience.";
+// const MATCHES_PLACEHOLDER =
+//   "We didn't find matching qualifications. Review the candidate's profile to see their skills and experience.";
 
 const INTEREST_STATUS_MENU_WIDTH = 160;
 const INTEREST_STATUS_MENU_ESTIMATED_HEIGHT = 280;
@@ -784,8 +784,8 @@ export default function JobApplicationsPage() {
           </div>
         );
       }
-      case "matches":
-        return <p className="text-sm leading-5 text-[#64748B]">{MATCHES_PLACEHOLDER}</p>;
+      // case "matches":
+      //   return <p className="text-sm leading-5 text-[#64748B]">{MATCHES_PLACEHOLDER}</p>;
       case "activity":
         return <p className="text-sm leading-5 text-[#475569]">{formatActivity(row)}</p>;
       case "interest": {
