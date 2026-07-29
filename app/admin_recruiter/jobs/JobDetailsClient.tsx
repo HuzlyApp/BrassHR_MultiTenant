@@ -244,8 +244,11 @@ export default function JobDetailsClient({ jobId }: Props) {
   ];
 
   return (
-    <div className="w-full" style={brandVars}>
-      <div className={`${JOB_FORM_PAGE_CARD_CLASS} p-5 sm:p-6 lg:p-8`}>
+    <div
+      className="box-border w-full min-w-0 max-w-full px-3 pb-8 pt-4 sm:px-5 sm:pt-5 lg:px-8"
+      style={brandVars}
+    >
+      <div className={`${JOB_FORM_PAGE_CARD_CLASS} p-4 sm:p-6 lg:p-8`}>
         <Link
           href="/admin_recruiter/jobs"
           className="inline-flex items-center gap-1 text-[10px] font-semibold leading-[15px] transition hover:opacity-80"
@@ -262,7 +265,7 @@ export default function JobDetailsClient({ jobId }: Props) {
         ) : job ? (
           <>
             <div className="mt-5 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-              <div className="min-w-0">
+              <div className="min-w-0 w-full lg:w-auto">
                 <h1 className="text-[20px] font-semibold leading-7 text-black">
                   {title}
                 </h1>
@@ -272,10 +275,10 @@ export default function JobDetailsClient({ jobId }: Props) {
                   Company: {companyName}
                 </p>
 
-                <div className="mt-4 flex flex-wrap items-center gap-3">
+                <div className="mt-4 flex w-full flex-col gap-3 min-[520px]:flex-row min-[520px]:flex-wrap min-[520px]:items-center">
                   <Link
                     href={`/admin_recruiter/jobs/${job.id}/edit`}
-                    className={JOB_FORM_PRIMARY_BUTTON_CLASS}
+                    className={`${JOB_FORM_PRIMARY_BUTTON_CLASS} w-full min-[520px]:w-auto`}
                     style={brandStyle}
                   >
                     Edit Job
@@ -285,7 +288,7 @@ export default function JobDetailsClient({ jobId }: Props) {
                       href={publicJobPath}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className={JOB_FORM_OUTLINE_BUTTON_CLASS}
+                      className={`${JOB_FORM_OUTLINE_BUTTON_CLASS} w-full min-[520px]:w-auto`}
                     >
                       View public job page
                     </Link>
@@ -294,7 +297,7 @@ export default function JobDetailsClient({ jobId }: Props) {
                       type="button"
                       disabled
                       title="Publish this job to view the public page"
-                      className={`${JOB_FORM_OUTLINE_BUTTON_CLASS} opacity-50`}
+                      className={`${JOB_FORM_OUTLINE_BUTTON_CLASS} w-full min-[520px]:w-auto opacity-50`}
                     >
                       View public job page
                     </button>
@@ -302,8 +305,8 @@ export default function JobDetailsClient({ jobId }: Props) {
                 </div>
               </div>
 
-              <div className="flex shrink-0 items-center gap-2 self-start">
-                <div className="relative" ref={statusRef}>
+              <div className="flex w-full shrink-0 items-center gap-2 self-stretch min-[520px]:w-auto min-[520px]:self-start lg:w-auto">
+                <div className="relative min-w-0 flex-1 min-[520px]:flex-none" ref={statusRef}>
                   <button
                     type="button"
                     onClick={() => {
@@ -311,7 +314,7 @@ export default function JobDetailsClient({ jobId }: Props) {
                       setActionsOpen(false);
                     }}
                     disabled={statusBusy}
-                    className={`inline-flex h-9 items-center gap-2 px-3 text-sm text-[#334155] ${JOB_FORM_SURFACE_CLASS}`}
+                    className={`inline-flex h-10 w-full items-center justify-between gap-2 px-3 text-sm text-[#334155] min-[520px]:h-9 min-[520px]:w-auto min-[520px]:justify-center ${JOB_FORM_SURFACE_CLASS}`}
                     aria-haspopup="listbox"
                     aria-expanded={statusOpen}
                   >
@@ -353,7 +356,7 @@ export default function JobDetailsClient({ jobId }: Props) {
                       setActionsOpen((open) => !open);
                       setStatusOpen(false);
                     }}
-                    className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-[#CBD5E1] bg-white text-[#64748B] transition hover:bg-[#F8FAFC]"
+                    className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[#CBD5E1] bg-white text-[#64748B] transition hover:bg-[#F8FAFC] min-[520px]:h-9 min-[520px]:w-9"
                     aria-label="More actions"
                     aria-haspopup="menu"
                     aria-expanded={actionsOpen}
