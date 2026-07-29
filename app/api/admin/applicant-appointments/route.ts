@@ -7,6 +7,8 @@ import {
   applicantDisplayName,
   interviewOrdinalTitle,
 } from "@/lib/interviews/format";
+import { markApplicationInterviewing } from "@/lib/interviews/mark-application-interviewing";
+import { sendScheduledInterviewEmail } from "@/lib/interviews/send-scheduled-interview-email";
 import { isoToScheduleFields, scheduleRowToIso } from "@/lib/interviews/schedule-fields";
 import { parseRequiredUuid } from "@/lib/validation/uuid";
 
@@ -168,6 +170,7 @@ export async function GET(req: NextRequest) {
     }
 
     const tab = parseTab(req.nextUrl.searchParams.get("tab"));
+    const workerIdFilter = req.nextUrl.searchParams.get("workerId")?.trim() ?? "";
     const nowMs = Date.now();
 
     const [{ data: scheduleData, error: scheduleError }, { data: workerData, error: workerError }] =
@@ -194,9 +197,11 @@ export async function GET(req: NextRequest) {
     if (workerError) throw workerError;
 
     const allSchedules = (scheduleData as InterviewScheduleRow[] | null) ?? [];
-    const schedules = allSchedules.filter((row) =>
-      tab === "upcoming" ? isUpcomingRow(row, nowMs) : isRecentRow(row, nowMs)
-    );
+    const schedules = allSchedules
+      .filter((row) =>
+        tab === "upcoming" ? isUpcomingRow(row, nowMs) : isRecentRow(row, nowMs)
+      )
+      .filter((row) => !workerIdFilter || row.worker_id === workerIdFilter);
 
     const workers = (workerData as WorkerRow[] | null) ?? [];
     const workersById = new Map(workers.map((w) => [w.id, w]));
@@ -279,6 +284,8 @@ export async function POST(req: NextRequest) {
 
     const body = (await req.json().catch(() => ({}))) as {
       workerId?: string;
+      applicationId?: string | null;
+      jobId?: string | null;
       startsAt?: string;
       endsAt?: string | null;
       meetingType?: string;
@@ -379,7 +386,50 @@ export async function POST(req: NextRequest) {
       updatedSequence
     );
 
-    return NextResponse.json({ ok: true, interview });
+    const applicationId = body.applicationId?.trim() || null;
+    const jobId = body.jobId?.trim() || null;
+
+    const statusResult = await markApplicationInterviewing({
+      supabase,
+      tenantId: scope.tenantId,
+      workerId: worker.id,
+      applicationId,
+      jobId,
+    });
+
+    let jobTitle: string | null = null;
+    if (jobId) {
+      const { data: jobRow } = await supabase
+        .from("job_requisitions")
+        .select("public_title")
+        .eq("id", jobId)
+        .eq("tenant_id", scope.tenantId)
+        .maybeSingle();
+      jobTitle = jobRow?.public_title?.trim() || null;
+    }
+
+    const emailResult = await sendScheduledInterviewEmail({
+      supabase,
+      tenantId: scope.tenantId,
+      workerId: worker.id,
+      applicationId: statusResult.applicationId ?? applicationId,
+      applicantName: applicantDisplayName(worker.first_name, worker.last_name),
+      interviewTitle: interview.title,
+      startsAt: interview.startsAt,
+      endsAt: interview.endsAt,
+      meetingLink: interview.meetingLink,
+      jobTitle,
+    });
+
+    return NextResponse.json({
+      ok: true,
+      interview,
+      statusUpdated: statusResult.updated,
+      applicationId: statusResult.applicationId,
+      emailSent: emailResult.sent,
+      emailSkipped: emailResult.skipped ?? false,
+      emailSkipReason: emailResult.reason ?? null,
+    });
   } catch (err) {
     console.error("[admin/applicant-appointments:post]", err);
     const message = err instanceof Error ? err.message : "Unexpected error";

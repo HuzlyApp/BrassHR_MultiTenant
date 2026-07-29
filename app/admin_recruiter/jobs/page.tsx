@@ -1102,7 +1102,7 @@ export default function AdminRecruiterJobsPage() {
       </div>
 
       <nav className="mb-4 w-full min-w-0 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden" aria-label="Jobs navigation">
-        <div className="flex w-max flex-nowrap items-start justify-start gap-5">
+        <div className="flex w-max flex-nowrap items-center justify-start gap-5">
           {JOB_TABS.map((tab) => {
             const active = jobTab === tab.id;
             return (
@@ -1110,18 +1110,16 @@ export default function AdminRecruiterJobsPage() {
                 key={tab.id}
                 type="button"
                 onClick={() => setJobTab(tab.id)}
-                className={`relative inline-flex shrink-0 flex-col items-stretch px-2 pb-2.5 pt-0 text-sm font-medium leading-none whitespace-nowrap transition-colors ${
+                className={`relative inline-flex shrink-0 flex-col items-center px-2 pb-2.5 pt-0 text-sm font-medium leading-none whitespace-nowrap transition-colors ${
                   active
                     ? "text-[color:var(--brand-primary)]"
                     : "text-[#2B3D51] hover:text-[color:var(--brand-primary)]"
                 }`}
                 aria-current={active ? "page" : undefined}
               >
-                <span className="flex items-center gap-2">
+                <span className="inline-flex items-center gap-2">
                   <span>{tab.label}</span>
-                  <span className="inline-flex h-[18px] min-w-[18px] shrink-0 items-center justify-center rounded-sm bg-[#CFCAC2] px-1 text-[11px] font-medium leading-none text-[#2B3D51]">
-                    {tabCounts[tab.id]}
-                  </span>
+                  <span className="admin-recruiter-tab-count rounded-sm">{tabCounts[tab.id]}</span>
                 </span>
                 <span
                   className={`absolute inset-x-0 bottom-0 block h-0.5 rounded-full ${
@@ -1399,7 +1397,7 @@ export default function AdminRecruiterJobsPage() {
             Showing {pageStart}-{pageEnd} of {filteredJobs.length} results
           </p>
 
-          <div className="flex w-full items-center justify-between gap-3 sm:w-auto sm:flex-wrap sm:justify-end">
+          <div className="flex w-full flex-wrap items-center justify-center gap-3 sm:w-auto sm:justify-end">
             <ListPaginationShowLabel
               pageSize={pageSize}
               options={PAGE_SIZE_OPTIONS}

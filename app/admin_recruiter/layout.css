@@ -512,3 +512,60 @@
     padding-bottom: 0;
   }
 }
+
+/* Status tab count pill — centered at fractional browser zoom (e.g. 80%) */
+.admin-recruiter-tab-count {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  background-color: #cfcac2;
+  color: #2b3d51;
+  font-size: 11px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  text-align: center;
+}
+
+/* Candidate review action / zoom chips — keep label+icon centered at 90% zoom */
+.admin-recruiter-action-chip {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  line-height: 1;
+  vertical-align: middle;
+}
+
+.admin-recruiter-action-chip > span,
+.admin-recruiter-action-chip > svg {
+  flex-shrink: 0;
+  display: block;
+}
+
+.admin-recruiter-zoom-pct {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  height: 2rem;
+  min-height: 2rem;
+  min-width: 3.5rem;
+  padding: 0 0.625rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.5rem;
+  background-color: #f8fafc;
+  color: #334155;
+  font-size: 0.875rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  text-align: center;
+}

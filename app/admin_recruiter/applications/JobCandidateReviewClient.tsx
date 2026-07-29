@@ -18,7 +18,6 @@ import {
   ChevronRight,
   HelpCircle,
   MapPin,
-  MessageSquare,
   MoreVertical,
   Phone,
   X,
@@ -42,7 +41,9 @@ import {
   normalizeApplicationStatus,
   type ApplicationPipelineStatus,
 } from "@/lib/jobs/application-status";
+import { formatInterviewDate, formatInterviewTimeRange } from "@/lib/interviews/format";
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
+import type { AdminInterviewItem } from "@/app/api/admin/applicant-appointments/route";
 
 type ApplicationRow = {
   id: string;
@@ -172,6 +173,8 @@ export default function JobCandidateReviewClient() {
   const [interviewOpen, setInterviewOpen] = useState(false);
   const [interviewSubmitting, setInterviewSubmitting] = useState(false);
   const [interviewError, setInterviewError] = useState<string | null>(null);
+  const [upcomingInterview, setUpcomingInterview] = useState<AdminInterviewItem | null>(null);
+  const [upcomingInterviewLoading, setUpcomingInterviewLoading] = useState(false);
   const [noteDraft, setNoteDraft] = useState("");
   const [noteSaving, setNoteSaving] = useState(false);
   const [resumePreviewError, setResumePreviewError] = useState<string | null>(null);
@@ -385,6 +388,40 @@ export default function JobCandidateReviewClient() {
     setZoom(100);
   }, [workerId, resumeUrl]);
 
+  useEffect(() => {
+    let cancelled = false;
+    async function run() {
+      if (!workerId) {
+        setUpcomingInterview(null);
+        setUpcomingInterviewLoading(false);
+        return;
+      }
+      setUpcomingInterviewLoading(true);
+      try {
+        const response = await fetch(
+          `/api/admin/applicant-appointments?tab=upcoming&workerId=${encodeURIComponent(workerId)}`,
+          { cache: "no-store" }
+        );
+        const payload = (await response.json()) as {
+          error?: string;
+          interviews?: AdminInterviewItem[];
+        };
+        if (cancelled) return;
+        if (!response.ok) throw new Error(payload.error || "Failed to load interviews");
+        const interviews = payload.interviews ?? [];
+        setUpcomingInterview(interviews[0] ?? null);
+      } catch {
+        if (!cancelled) setUpcomingInterview(null);
+      } finally {
+        if (!cancelled) setUpcomingInterviewLoading(false);
+      }
+    }
+    void run();
+    return () => {
+      cancelled = true;
+    };
+  }, [workerId]);
+
   async function updateStatus(nextStatus: ApplicationPipelineStatus) {
     if (!selected) return;
     setStatusBusy(true);
@@ -444,6 +481,7 @@ export default function JobCandidateReviewClient() {
     endsAt: string;
     meetingType: "online";
   }) {
+    if (!selected) return;
     setInterviewSubmitting(true);
     setInterviewError(null);
     try {
@@ -451,12 +489,39 @@ export default function JobCandidateReviewClient() {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          ...payload,
+          applicationId: selected.id,
+          jobId: jobId || selected.job_requisition_id,
+        }),
       });
-      const data = (await response.json().catch(() => ({}))) as { error?: string };
+      const data = (await response.json().catch(() => ({}))) as {
+        error?: string;
+        interview?: AdminInterviewItem;
+        statusUpdated?: boolean;
+        emailSent?: boolean;
+        emailSkipped?: boolean;
+      };
       if (!response.ok) throw new Error(data.error || "Failed to schedule interview");
+      if (data.interview) setUpcomingInterview(data.interview);
+      if (data.statusUpdated) {
+        setRows((current) =>
+          current.map((row) =>
+            row.id === selected.id ? { ...row, status: "interviewing" } : row
+          )
+        );
+      }
       setInterviewOpen(false);
-      toast.success("Interview scheduled");
+      if (data.emailSent) {
+        toast.success("Interview scheduled — invitation email sent");
+      } else if (data.emailSkipped) {
+        toast.success("Interview scheduled");
+        toast("No email sent — candidate email is missing or mail is not configured.", {
+          icon: "ℹ️",
+        });
+      } else {
+        toast.success("Interview scheduled");
+      }
     } catch (scheduleError) {
       setInterviewError(
         scheduleError instanceof Error ? scheduleError.message : "Failed to schedule interview"
@@ -474,10 +539,10 @@ export default function JobCandidateReviewClient() {
 
   return (
     <div
-      className="box-border flex min-h-0 w-full min-w-0 max-w-full flex-col px-3 pb-8 pt-4 sm:px-5 sm:pt-5 lg:px-8"
+      className="box-border flex min-h-0 w-full min-w-0 max-w-full flex-col px-5 pb-8"
       style={brandStyle}
     >
-      <div className="mb-3 flex flex-wrap items-center gap-2.5 border-b border-[#E5E7EB] pb-3">
+      <div className="flex flex-wrap items-center gap-5 border-b border-[#E5E7EB] py-5">
         <h1 className={CANDIDATES_PAGE_TITLE_CLASS} style={CANDIDATES_PAGE_TITLE_STYLE}>
           Candidates
         </h1>
@@ -487,14 +552,14 @@ export default function JobCandidateReviewClient() {
               ? `/admin_recruiter/applications?jobId=${encodeURIComponent(jobId)}`
               : "/admin_recruiter/applications"
           }
-          className="inline-flex h-7 items-center rounded-lg px-2.5 text-xs font-semibold text-white"
+          className="admin-recruiter-action-chip inline-flex h-7 items-center rounded-lg px-2.5 text-xs font-semibold text-white"
           style={{ backgroundColor: branding.primaryHex }}
         >
           All Candidates
         </Link>
       </div>
 
-      <div className="mb-3 flex min-w-0 flex-col gap-1 border-b border-[#E5E7EB] pb-3">
+      <div className="flex min-w-0 flex-col gap-1 border-b border-[#E5E7EB] py-5">
         <div className="relative min-w-0" ref={jobMenuRef}>
           <button
             type="button"
@@ -546,11 +611,11 @@ export default function JobCandidateReviewClient() {
         </p>
       </div>
 
-      {/* Figma: Back + pager row with full-width divider */}
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#E5E7EB] pb-3 sm:gap-3">
+      {/* Figma Frame 6926: Back + pager — 14px vertical, 20px left via page px-5 */}
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#E5E7EB] py-[14px] sm:gap-3">
         <Link
           href="/admin_recruiter/jobs"
-          className="inline-flex min-h-10 items-center gap-1 text-sm font-medium hover:underline sm:min-h-0"
+          className="inline-flex items-center gap-1 text-sm font-medium hover:underline"
           style={{ color: branding.secondaryHex || "#012352" }}
         >
           <span
@@ -655,15 +720,15 @@ export default function JobCandidateReviewClient() {
             </div>
           </aside>
 
-          {/* Center — profile + resume */}
+          {/* Center — profile + resume (Figma Frame 6927: 20px inset + gap) */}
           <section className="order-2 flex min-w-0 flex-col overflow-hidden rounded-xl border border-[#E5E7EB] bg-white xl:order-none">
             {!selected ? (
-              <p className="px-4 py-12 text-center text-sm text-[#64748B]">
+              <p className="px-5 py-12 text-center text-sm text-[#64748B]">
                 Select a candidate from the list.
               </p>
             ) : (
               <>
-                <div className="border-b border-[#E5E7EB] px-3 py-4 sm:px-5">
+                <div className="border-b border-[#E5E7EB] px-5 pt-5 pb-5">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
                     <div className="min-w-0 flex-1">
                       <h2
@@ -715,73 +780,130 @@ export default function JobCandidateReviewClient() {
                       </button>
                     </div>
                   </div>
-                  <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                  <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
                     <button
                       type="button"
                       disabled={!workerId}
                       onClick={() => setInterviewOpen(true)}
-                      className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg px-3.5 text-sm font-semibold text-white disabled:opacity-50 sm:h-9 sm:w-auto"
+                      className="admin-recruiter-action-chip h-10 w-full rounded-lg px-3.5 text-sm font-semibold text-white disabled:opacity-50 sm:h-9 sm:w-auto"
                       style={{ backgroundColor: branding.primaryHex }}
                     >
-                      <CalendarDays className="h-4 w-4" />
-                      Setup Interview
+                      <BrandedSvgIcon
+                        src="/interview-jobs.svg"
+                        className="h-4 w-4"
+                        color="#FFFFFF"
+                      />
+                      <span>
+                        {upcomingInterview ? "Schedule another interview" : "Setup Interview"}
+                      </span>
                     </button>
                     <button
                       type="button"
                       disabled={!workerId || (!displayEmail && !displayPhone)}
                       onClick={() => setMessageOpen(true)}
-                      className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border bg-white px-3.5 text-sm font-medium disabled:opacity-50 sm:h-9 sm:w-auto"
+                      className="admin-recruiter-action-chip h-10 w-full rounded-lg border bg-white px-3.5 text-sm font-medium disabled:opacity-50 sm:h-9 sm:w-auto"
                       style={{
                         borderColor: branding.secondaryHex || "#012352",
                         color: branding.secondaryHex || "#012352",
                       }}
                     >
-                      <MessageSquare className="h-4 w-4" />
-                      Message
+                      <BrandedSvgIcon
+                        src="/message.svg"
+                        className="h-4 w-4"
+                        color={branding.secondaryHex || "#012352"}
+                      />
+                      <span>Message</span>
                     </button>
                     <button
                       type="button"
                       disabled={!workerId}
                       onClick={() => setCallOpen(true)}
-                      className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border bg-white px-3.5 text-sm font-medium disabled:opacity-50 sm:h-9 sm:w-auto"
+                      className="admin-recruiter-action-chip h-10 w-full rounded-lg border bg-white px-3.5 text-sm font-medium disabled:opacity-50 sm:h-9 sm:w-auto"
                       style={{
                         borderColor: branding.secondaryHex || "#012352",
                         color: branding.secondaryHex || "#012352",
                       }}
                     >
-                      <Phone className="h-4 w-4" />
-                      Call
+                      <Phone className="h-4 w-4 shrink-0" aria-hidden />
+                      <span>Call</span>
                     </button>
                   </div>
+                  {upcomingInterviewLoading ? (
+                    <p className="mt-4 text-sm text-[#64748B]">Loading interview schedule…</p>
+                  ) : upcomingInterview ? (
+                    <div
+                      className="mt-4 rounded-xl border px-3.5 py-3 sm:px-4"
+                      style={{
+                        borderColor: `color-mix(in srgb, ${branding.primaryHex} 35%, #E5E7EB)`,
+                        backgroundColor: `color-mix(in srgb, ${branding.primaryHex} 6%, white)`,
+                      }}
+                    >
+                      <div className="flex items-start gap-3">
+                        <span
+                          className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
+                          style={{
+                            backgroundColor: `color-mix(in srgb, ${branding.primaryHex} 14%, white)`,
+                            color: branding.primaryHex,
+                          }}
+                        >
+                          <CalendarDays className="h-4 w-4" />
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-semibold" style={{ color: secondaryColor }}>
+                            Upcoming interview
+                          </p>
+                          <p className="mt-0.5 text-sm font-medium text-[#1F2937]">
+                            {upcomingInterview.title}
+                          </p>
+                          <p className="mt-1 text-sm text-[#64748B]">
+                            {formatInterviewDate(upcomingInterview.startsAt)} ·{" "}
+                            {formatInterviewTimeRange(
+                              upcomingInterview.startsAt,
+                              upcomingInterview.endsAt
+                            )}
+                          </p>
+                          {upcomingInterview.meetingLink ? (
+                            <a
+                              href={upcomingInterview.meetingLink}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="mt-2 inline-flex text-sm font-medium underline"
+                              style={{ color: branding.primaryHex }}
+                            >
+                              Open meeting link
+                            </a>
+                          ) : null}
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
 
-                <div className="border-b border-[#E5E7EB]">
+                <div className="border-b border-[#E5E7EB] px-5 pt-5">
                   <h3
-                    className="px-3 pt-3 text-sm font-semibold sm:px-5"
+                    className="text-lg font-semibold leading-7 sm:text-[20px]"
                     style={{ color: secondaryColor }}
                   >
                     Resume
                   </h3>
-                  <div className="flex flex-col gap-2 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:px-5">
+                  <div className="flex flex-col gap-2 py-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
                     <div className="inline-flex items-center gap-2">
                       <button
                         type="button"
-                        className="inline-flex h-10 w-10 items-center justify-center rounded-lg transition hover:bg-[#F8FAFC] sm:h-8 sm:w-8"
+                        className="admin-recruiter-action-chip h-10 w-10 rounded-lg transition hover:bg-[#F8FAFC] sm:h-9 sm:w-9"
                         onClick={() => setZoom((value) => Math.max(50, value - 10))}
                         aria-label="Zoom out"
                       >
-                        <ZoomOut className="h-4 w-4" style={{ color: secondaryColor }} strokeWidth={2} />
+                        <ZoomOut className="h-6 w-6 text-[#374151]" strokeWidth={2} aria-hidden />
                       </button>
-                      <span className="inline-flex h-10 min-w-[3.5rem] items-center justify-center rounded-lg border border-[#E5E7EB] bg-[#F8FAFC] px-2.5 text-sm font-medium tabular-nums text-[#334155] sm:h-8">
-                        {zoom}%
-                      </span>
+                      <span className="admin-recruiter-zoom-pct">{zoom}%</span>
                       <button
                         type="button"
-                        className="inline-flex h-10 w-10 items-center justify-center rounded-lg transition hover:bg-[#F8FAFC] sm:h-8 sm:w-8"
+                        className="admin-recruiter-action-chip h-10 w-10 rounded-lg transition hover:bg-[#F8FAFC] sm:h-9 sm:w-9"
                         onClick={() => setZoom((value) => Math.min(150, value + 10))}
                         aria-label="Zoom in"
                       >
-                        <ZoomIn className="h-4 w-4" style={{ color: secondaryColor }} strokeWidth={2} />
+                        <ZoomIn className="h-6 w-6 text-[#374151]" strokeWidth={2} aria-hidden />
                       </button>
                     </div>
                     {resumeDownloadUrl ? (
@@ -789,54 +911,55 @@ export default function JobCandidateReviewClient() {
                         href={resumeDownloadUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex h-10 w-full shrink-0 items-center justify-center gap-2 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm font-medium transition hover:bg-[#F8FAFC] sm:h-9 sm:w-auto"
-                        style={{ color: secondaryColor }}
+                        className="admin-recruiter-action-chip h-10 w-full shrink-0 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm font-medium text-[#525252] transition hover:bg-[#F8FAFC] sm:h-9 sm:w-auto"
                       >
                         <BrandedSvgIcon
                           src="/icons/admin-recruiter/downloadicon.svg"
-                          className="h-3.5 w-3.5 shrink-0"
-                          color={secondaryColor}
+                          className="h-4 w-4 shrink-0"
+                          color="#525252"
                         />
-                        Download Resume
+                        <span>Download Resume</span>
                       </a>
                     ) : null}
                   </div>
                 </div>
 
-                <div className="min-h-[280px] flex-1 bg-[#F8FAFC] p-3 sm:min-h-[420px] sm:p-4">
+                <div className="min-h-[280px] flex-1 overflow-auto bg-[#F8FAFC] p-5 sm:min-h-[420px]">
                   {profileLoading ? (
                     <p className="py-16 text-center text-sm text-[#64748B]">Loading resume…</p>
                   ) : workerId && hasResume && resumePreviewUrl ? (
-                    <div
-                      className="mx-auto overflow-hidden rounded-xl border border-[#E5E7EB] bg-white shadow-sm"
-                      style={{ width: `${zoom}%`, maxWidth: "100%" }}
-                    >
-                      <iframe
-                        key={resumePreviewUrl}
-                        title={`${displayName} resume`}
-                        src={resumePreviewUrl}
-                        className="h-[min(55vh,520px)] w-full bg-white sm:h-[min(70vh,760px)]"
-                        onError={() =>
-                          setResumePreviewError(
-                            "Preview is blocked on this device. Use Download Resume or open in a new tab."
-                          )
-                        }
-                      />
-                      {resumePreviewError ? (
-                        <div className="border-t border-[#E5E7EB] bg-amber-50 px-3 py-3 text-sm text-amber-900 sm:px-4">
-                          {resumePreviewError}{" "}
-                          {resumeDownloadUrl ? (
-                            <a
-                              href={resumeDownloadUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="font-semibold underline"
-                            >
-                              Open resume
-                            </a>
-                          ) : null}
-                        </div>
-                      ) : null}
+                    <div className="w-full overflow-auto">
+                      <div
+                        className="inline-block min-w-full rounded-xl border border-[#E5E7EB] bg-white shadow-sm"
+                        style={{ zoom: zoom / 100 }}
+                      >
+                        <iframe
+                          key={resumePreviewUrl}
+                          title={`${displayName} resume`}
+                          src={resumePreviewUrl}
+                          className="h-[min(55vh,520px)] w-full bg-white sm:h-[min(70vh,760px)]"
+                          onError={() =>
+                            setResumePreviewError(
+                              "Preview is blocked on this device. Use Download Resume or open in a new tab."
+                            )
+                          }
+                        />
+                        {resumePreviewError ? (
+                          <div className="border-t border-[#E5E7EB] bg-amber-50 px-3 py-3 text-sm text-amber-900 sm:px-4">
+                            {resumePreviewError}{" "}
+                            {resumeDownloadUrl ? (
+                              <a
+                                href={resumeDownloadUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="font-semibold underline"
+                              >
+                                Open resume
+                              </a>
+                            ) : null}
+                          </div>
+                        ) : null}
+                      </div>
                     </div>
                   ) : (
                     <div className="flex h-full min-h-[280px] items-center justify-center rounded-xl border border-[#E5E7EB] bg-white px-4 text-center text-sm text-[#64748B] sm:min-h-[420px]">
@@ -889,16 +1012,34 @@ export default function JobCandidateReviewClient() {
               ) : null}
             </div>
 
-            <div className="max-h-[120px] overflow-y-auto rounded-[12px] sm:h-[88px] sm:max-h-none">
+            <div className="max-h-[200px] overflow-y-auto rounded-[12px]">
               <h3 className="text-sm font-semibold text-[#0F172A]">Activity feed</h3>
               {selected ? (
-                <div className="mt-2">
-                  <p className="text-xs font-medium text-[#94A3B8]">
-                    {formatActivityDate(selected.submitted_at || selected.created_at)}
-                  </p>
-                  <p className="mt-0.5 break-words text-xs leading-5 text-[#64748B]">
-                    {applicantName(selected)} applied to {jobTitle}.
-                  </p>
+                <div className="mt-2 space-y-3">
+                  {upcomingInterview ? (
+                    <div>
+                      <p className="text-xs font-medium text-[#94A3B8]">
+                        {formatActivityDate(upcomingInterview.startsAt)}
+                      </p>
+                      <p className="mt-0.5 break-words text-xs leading-5 text-[#64748B]">
+                        Interview scheduled — {upcomingInterview.title} on{" "}
+                        {formatInterviewDate(upcomingInterview.startsAt)} at{" "}
+                        {formatInterviewTimeRange(
+                          upcomingInterview.startsAt,
+                          upcomingInterview.endsAt
+                        )}
+                        .
+                      </p>
+                    </div>
+                  ) : null}
+                  <div>
+                    <p className="text-xs font-medium text-[#94A3B8]">
+                      {formatActivityDate(selected.submitted_at || selected.created_at)}
+                    </p>
+                    <p className="mt-0.5 break-words text-xs leading-5 text-[#64748B]">
+                      {applicantName(selected)} applied to {jobTitle}.
+                    </p>
+                  </div>
                 </div>
               ) : (
                 <p className="mt-2 text-xs text-[#94A3B8]">No activity yet.</p>

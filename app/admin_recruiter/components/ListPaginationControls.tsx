@@ -7,13 +7,13 @@ import { ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 
 const SURFACE =
-  "box-border inline-flex h-8 min-h-8 items-center justify-center rounded-lg border border-[#CBD5E1] bg-white text-sm text-[#334155] transition hover:bg-[#F8FAFC] disabled:cursor-not-allowed disabled:opacity-50";
+  "box-border inline-flex h-8 min-h-8 min-w-8 items-center justify-center rounded-lg border border-[#CBD5E1] bg-white text-center text-sm leading-none tabular-nums text-[#334155] transition hover:bg-[#F8FAFC] disabled:cursor-not-allowed disabled:opacity-50";
 
 const PAGE_SIZE_SELECT_BOX_CLASS =
-  "relative inline-flex h-8 min-w-[3.5rem] items-center rounded-lg border border-[#CBD5E1] bg-white transition hover:bg-[#F8FAFC] focus-within:border-[#CBD5E1]";
+  "relative inline-flex h-8 min-w-[3.5rem] items-center justify-center rounded-lg border border-[#CBD5E1] bg-white transition hover:bg-[#F8FAFC] focus-within:border-[#CBD5E1]";
 
 const PAGE_SIZE_SELECT_TRIGGER_CLASS =
-  "flex h-8 min-w-[3.5rem] cursor-pointer items-center justify-center rounded-lg border-0 bg-transparent px-2 pr-7 text-sm text-[#334155] outline-none focus:outline-none focus:ring-0";
+  "flex h-8 w-full min-w-[3.5rem] cursor-pointer items-center justify-center rounded-lg border-0 bg-transparent px-6 text-center text-sm leading-none tabular-nums text-[#334155] outline-none focus:outline-none focus:ring-0";
 
 const PAGE_SIZE_SELECT_MENU_CLASS =
   "z-[200] overflow-hidden rounded-lg border border-[#CBD5E1] bg-white p-0 shadow-md";
@@ -70,7 +70,7 @@ export function ListPaginationControls({
             type="button"
             disabled={disabled}
             onClick={() => onPageChange(pageNumber)}
-            className={`${SURFACE} min-w-8 px-2 ${
+            className={`${SURFACE} min-w-8 px-0 ${
               active ? "border-transparent text-white hover:opacity-95" : ""
             }`}
             style={active ? activeStyle : undefined}

@@ -156,7 +156,9 @@ export default function JobsPortalClient() {
                 <article key={job.public_job_token || job.public_title} className="flex flex-col rounded-xl border border-slate-200 bg-white p-5 text-slate-900 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
                   <div className="flex items-start justify-between gap-3">
                     <h2 className="text-lg font-semibold text-slate-900">{job.public_title}</h2>
-                    <span className="rounded-full bg-teal-50 px-2.5 py-1 text-xs font-semibold text-teal-700">{job.employment_type}</span>
+                    <span className="rounded-full bg-[color:color-mix(in_srgb,var(--brand-primary)_14%,white)] px-2.5 py-1 text-xs font-semibold text-[color:var(--brand-primary)]">
+                      {job.employment_type}
+                    </span>
                   </div>
                   {profession ? <p className="mt-2 text-sm font-medium text-slate-700">{profession}</p> : null}
                   {specialty ? <p className="mt-1 text-sm text-slate-600">{specialty}</p> : null}
@@ -168,7 +170,7 @@ export default function JobsPortalClient() {
                     {applyHref ? (
                       <Link
                         href={applyHref}
-                        className="inline-flex rounded-lg bg-teal-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-teal-800"
+                        className="inline-flex rounded-lg bg-[color:var(--brand-primary)] px-4 py-2.5 text-sm font-semibold text-white transition hover:brightness-95"
                       >
                         Apply
                       </Link>
@@ -176,7 +178,7 @@ export default function JobsPortalClient() {
                     {jobToken ? (
                       <Link
                         href={`/jobs/${encodeURIComponent(jobToken)}?tenant=${encodeURIComponent(tenant)}`}
-                        className="text-sm font-semibold text-teal-700 hover:underline"
+                        className="text-sm font-semibold text-[color:var(--brand-primary)] hover:underline"
                       >
                         View details
                       </Link>
