@@ -450,7 +450,15 @@ export function AdminRecruiterSidebar({
           }`}
         >
           {!isCollapsed || isMobileRail ? (
-            <StaffProfileAvatar name={profileName} photoUrl={profilePhoto} size="sm" />
+            <Link
+              href="/admin_recruiter/account/personal"
+              onClick={handleNavClick}
+              title="Profile"
+              aria-label="Open profile"
+              className="shrink-0 rounded-full transition hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--brand-primary)]"
+            >
+              <StaffProfileAvatar name={profileName} photoUrl={profilePhoto} size="sm" />
+            </Link>
           ) : null}
           {!isCollapsed ? (
             <div className="min-w-0 flex-1">

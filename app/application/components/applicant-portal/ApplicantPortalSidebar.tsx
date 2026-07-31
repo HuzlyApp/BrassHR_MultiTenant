@@ -496,12 +496,19 @@ export function ApplicantPortalSidebar({
           }`}
         >
           {!isCollapsed || isMobileRail ? (
-            <WorkerPortalUserAvatar
-              name={applicantName}
-              photoUrl={profilePhotoUrl}
-              size={30}
-              className={isCollapsed ? "" : ""}
-            />
+            <Link
+              href="/application/applicant-dashboard/profile"
+              onClick={handleNavClick}
+              title="Profile"
+              aria-label="Open profile"
+              className="shrink-0 rounded-full transition hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--brand-primary)]"
+            >
+              <WorkerPortalUserAvatar
+                name={applicantName}
+                photoUrl={profilePhotoUrl}
+                size={30}
+              />
+            </Link>
           ) : null}
           {!isCollapsed ? (
             <div className="min-w-0 flex-1">

@@ -506,7 +506,30 @@ export async function listInternalJobs(
 
   const { data, error } = await query;
   if (error) throw error;
-  return data ?? [];
+  const jobs = data ?? [];
+  if (!jobs.length) return jobs;
+
+  // Dynamic "New" candidate counts (same statuses as job details / applications tab).
+  const jobIds = jobs.map((job) => String(job.id));
+  const { data: newRows, error: newError } = await supabase
+    .from("job_applications")
+    .select("job_requisition_id")
+    .eq("tenant_id", tenantId)
+    .in("job_requisition_id", jobIds)
+    .in("status", ["new", "submitted"]);
+  if (newError) throw newError;
+
+  const newCountByJob = new Map<string, number>();
+  for (const row of newRows ?? []) {
+    const id = String(row.job_requisition_id ?? "");
+    if (!id) continue;
+    newCountByJob.set(id, (newCountByJob.get(id) ?? 0) + 1);
+  }
+
+  return jobs.map((job) => ({
+    ...job,
+    new_application_count: newCountByJob.get(String(job.id)) ?? 0,
+  }));
 }
 
 export async function listPublicJobs(

@@ -69,6 +69,8 @@ export type JobListRow = {
   specialties: { name?: string } | { name?: string }[] | null
   onboarding_flows: { name?: string } | { name?: string }[] | null
   job_applications: { count?: number }[] | null
+  /** Candidates with status new/submitted — from listInternalJobs. */
+  new_application_count?: number
 }
 
 const JOB_FORM_SURFACE_CLASS = "rounded-lg border border-[#CBD5E1] bg-white"
@@ -80,6 +82,10 @@ function relationName(value: JobListRow["professions"]): string {
 
 export function applicantCount(job: JobListRow): number {
   return job.job_applications?.[0]?.count ?? 0
+}
+
+export function newApplicantCount(job: JobListRow): number {
+  return job.new_application_count ?? 0
 }
 
 export function jobLocation(job: JobListRow): string {
@@ -223,9 +229,14 @@ export function renderJobListCell(
             iconSrc={JOB_CANDIDATE_ICONS.all}
             label="All"
             count={totalCandidates}
-            href={`/admin_recruiter/applications?jobId=${job.id}`}
+            href={`/admin_recruiter/applications?jobId=${encodeURIComponent(job.id)}`}
           />
-          <JobCandidateMetric iconSrc={JOB_CANDIDATE_ICONS.new} label="New" count={0} />
+          <JobCandidateMetric
+            iconSrc={JOB_CANDIDATE_ICONS.new}
+            label="New"
+            count={newApplicantCount(job)}
+            href={`/admin_recruiter/applications?jobId=${encodeURIComponent(job.id)}&tab=new`}
+          />
           <JobCandidateMetric iconSrc={JOB_CANDIDATE_ICONS.matches} label="Matches" count={0} />
         </div>
       )
