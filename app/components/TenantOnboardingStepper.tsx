@@ -96,7 +96,9 @@ function StepIcon({ state }: { state: TenantStepIndicatorState }) {
 
   return (
     <span
-      className="relative z-10 flex items-center justify-center rounded-full border bg-white"
+      className={`relative z-10 flex items-center justify-center rounded-full border bg-white${
+        isCompleted || isCurrent ? " to-on-brand" : ""
+      }`}
       style={{
         width: ICON_SIZE,
         height: ICON_SIZE,
@@ -105,7 +107,9 @@ function StepIcon({ state }: { state: TenantStepIndicatorState }) {
         color: "#ffffff",
       }}
     >
-      {isCompleted ? <Check className="h-[10px] w-[10px]" strokeWidth={2.5} /> : null}
+      {isCompleted ? (
+        <Check className="h-[10px] w-[10px] text-white" strokeWidth={3} color="#ffffff" />
+      ) : null}
       {isCurrent ? <span className="h-[6px] w-[6px] rounded-full bg-white" /> : null}
       {isPending ? (
         <span className="h-[5px] w-[5px] rounded-full" style={{ backgroundColor: TRACK_LINE }} />

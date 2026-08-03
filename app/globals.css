@@ -55,8 +55,28 @@ body {
   color: #0f172a;
 }
 
+/* Gradient / dark filled controls — keep label and icon strokes white */
+.tenant-onboarding-light .to-on-brand,
+.tenant-onboarding-light .to-on-brand span,
+.tenant-onboarding-light button.to-on-brand,
+.tenant-onboarding-light a.to-on-brand {
+  color: #ffffff !important;
+}
+
+.tenant-onboarding-light .to-on-brand svg {
+  color: #ffffff !important;
+  stroke: currentColor;
+}
+
 .tenant-onboarding-light .text-muted {
   color: #475569;
+}
+
+.tenant-onboarding-light .to-field-error,
+.tenant-onboarding-light p.to-field-error,
+.tenant-onboarding-light span.to-field-error,
+.tenant-onboarding-light div.to-field-error {
+  color: #dc2626 !important;
 }
 
 .tenant-onboarding-input,
@@ -101,8 +121,27 @@ body {
     color: #0f172a !important;
   }
 
+  .tenant-onboarding-light .to-on-brand,
+  .tenant-onboarding-light .to-on-brand span,
+  .tenant-onboarding-light button.to-on-brand,
+  .tenant-onboarding-light a.to-on-brand {
+    color: #ffffff !important;
+  }
+
+  .tenant-onboarding-light .to-on-brand svg {
+    color: #ffffff !important;
+    stroke: currentColor;
+  }
+
   .tenant-onboarding-light .text-muted {
     color: #475569 !important;
+  }
+
+  .tenant-onboarding-light .to-field-error,
+  .tenant-onboarding-light p.to-field-error,
+  .tenant-onboarding-light span.to-field-error,
+  .tenant-onboarding-light div.to-field-error {
+    color: #dc2626 !important;
   }
 
   .tenant-onboarding-input,
