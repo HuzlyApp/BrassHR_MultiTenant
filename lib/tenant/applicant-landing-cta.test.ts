@@ -22,7 +22,7 @@ describe("applicant landing CTA", () => {
     expect(isTenantApplicantPortalSlug("nexus")).toBe(true);
   });
 
-  it("uses Get Started for platform and Start Application for tenants", () => {
+  it("uses Get Started for platform and Start Application for tenants without jobs", () => {
     expect(applicantLandingCtaLabel(null)).toBe(PLATFORM_ONBOARDING_CTA_GET_STARTED);
     expect(applicantLandingCtaLabel(PLATFORM_DEFAULT_TENANT_SLUG)).toBe(
       PLATFORM_ONBOARDING_CTA_GET_STARTED
@@ -30,7 +30,15 @@ describe("applicant landing CTA", () => {
     expect(applicantLandingCtaLabel("acme-staffing")).toBe(
       APPLICANT_PORTAL_CTA_START_APPLICATION
     );
-    expect(APPLICANT_PORTAL_CTA_START_APPLICATION).toBe("Start Application");
-    expect(APPLICANT_PORTAL_CTA_VIEW_OPEN_POSITIONS).toBe(APPLICANT_PORTAL_CTA_START_APPLICATION);
+    expect(applicantLandingCtaLabel("acme-staffing", { hasOpenJobs: false })).toBe(
+      APPLICANT_PORTAL_CTA_START_APPLICATION
+    );
+  });
+
+  it("uses View positions when the tenant has open jobs", () => {
+    expect(applicantLandingCtaLabel("acme-staffing", { hasOpenJobs: true })).toBe(
+      APPLICANT_PORTAL_CTA_VIEW_OPEN_POSITIONS
+    );
+    expect(APPLICANT_PORTAL_CTA_VIEW_OPEN_POSITIONS).toBe("View positions");
   });
 });

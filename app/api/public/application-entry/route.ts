@@ -22,6 +22,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       kind: route.kind,
       path: route.path,
+      ctaLabel: "ctaLabel" in route ? route.ctaLabel : undefined,
       jobToken: route.kind === "apply" ? route.jobToken : undefined,
       message: route.kind === "empty" ? route.message : undefined,
       tenantSlug: route.tenantSlug,

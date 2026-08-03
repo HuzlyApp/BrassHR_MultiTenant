@@ -5,7 +5,7 @@ import { loadTenantOnboardingConfig } from "@/lib/onboarding/load-tenant-config"
 import { loadOnboardingBuilderMeta } from "@/lib/onboarding/load-onboarding-builder-meta";
 import { resolveTenantIdBySlug } from "@/lib/onboarding/resolve-worker-context";
 import { getEnabledTenantSteps } from "@/lib/onboarding/tenant-step-navigation";
-import { loadApplicantConfigForJobToken } from "@/lib/onboarding/load-config-for-job-workflow";
+import { loadApplicantConfigForJobToken, loadApplicantConfigForTenantDefault } from "@/lib/onboarding/load-config-for-job-workflow";
 import { JobApplicationGateError } from "@/lib/jobs/validate-job-application";
 import { normalizeJobToken } from "@/lib/jobs/public-application-routing";
 
@@ -45,6 +45,30 @@ export async function GET(req: NextRequest) {
           return NextResponse.json({ error: err.message, code: err.code }, { status });
         }
         throw err;
+      }
+    }
+
+    // No job token: Worker Onboarding for direct Start Application (new tenants / no open jobs).
+    if (slug) {
+      try {
+        const defaultConfig = await loadApplicantConfigForTenantDefault(supabase, slug);
+        return NextResponse.json({
+          config: defaultConfig.config,
+          tenantSlug: defaultConfig.tenantSlug,
+          publishStatus: "published",
+          source: "worker-onboarding",
+          workflowId: defaultConfig.workflowId,
+          workflowName: defaultConfig.workflowName,
+        });
+      } catch (err: unknown) {
+        if (err instanceof JobApplicationGateError) {
+          if (err.code === "TENANT_NOT_FOUND") {
+            return NextResponse.json({ error: err.message, code: err.code }, { status: 404 });
+          }
+          // Fall through to legacy tenant published config when Worker Onboarding is missing.
+        } else {
+          throw err;
+        }
       }
     }
 

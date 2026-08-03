@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
+  APPLICANT_ENTRY_CTA_START_APPLICATION,
+  APPLICANT_ENTRY_CTA_VIEW_POSITIONS,
   buildApplyPath,
+  buildDirectOnboardingPath,
   buildJobsPortalPath,
   isJobRequisitionOpen,
   normalizeJobToken,
-  NO_OPEN_POSITIONS_MESSAGE,
   resolveApplicationEntryRoute,
 } from "@/lib/jobs/public-application-routing";
 
@@ -30,7 +32,7 @@ describe("public application routing", () => {
     ).toBe(true);
   });
 
-  it("routes multiple open jobs to the jobs portal", () => {
+  it("routes open jobs to the jobs portal with View positions CTA", () => {
     const route = resolveApplicationEntryRoute("acme", [
       { publicJobToken: "job-a" },
       { publicJobToken: "job-b" },
@@ -39,6 +41,7 @@ describe("public application routing", () => {
       kind: "jobs",
       tenantSlug: "acme",
       path: buildJobsPortalPath("acme"),
+      ctaLabel: APPLICANT_ENTRY_CTA_VIEW_POSITIONS,
     });
   });
 
@@ -48,17 +51,20 @@ describe("public application routing", () => {
       kind: "jobs",
       tenantSlug: "acme",
       path: buildJobsPortalPath("acme"),
+      ctaLabel: APPLICANT_ENTRY_CTA_VIEW_POSITIONS,
     });
   });
 
-  it("shows the empty state when no open jobs exist", () => {
+  it("starts direct Worker Onboarding when no open jobs exist", () => {
     const route = resolveApplicationEntryRoute("acme", []);
-    expect(route.kind).toBe("empty");
-    expect(route).toMatchObject({
+    expect(route).toEqual({
+      kind: "onboarding",
       tenantSlug: "acme",
-      path: buildJobsPortalPath("acme"),
-      message: NO_OPEN_POSITIONS_MESSAGE,
+      path: buildDirectOnboardingPath("acme"),
+      ctaLabel: APPLICANT_ENTRY_CTA_START_APPLICATION,
     });
+    expect(route.path).toBe("/application/add-resume?tenant=acme");
+    expect(route.path).not.toContain("job_token");
   });
 
   it("preserves the selected job token in apply URLs", () => {
@@ -71,6 +77,6 @@ describe("public application routing", () => {
 
   it("treats literal null tokens as missing when resolving entry routes", () => {
     const route = resolveApplicationEntryRoute("acme", [{ publicJobToken: "null" }]);
-    expect(route.kind).toBe("empty");
+    expect(route.kind).toBe("onboarding");
   });
 });

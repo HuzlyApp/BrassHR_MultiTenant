@@ -142,32 +142,40 @@ export default function Step1Upload() {
     if (typeof window === "undefined") return
     if (jobToken) {
       localStorage.setItem("applicationJobToken", jobToken)
+      return
     }
+    // Direct Start Application (no job): clear any stale token so config stays job-free.
+    localStorage.removeItem("applicationJobToken")
   }, [jobToken])
 
   useEffect(() => {
     if (typeof window === "undefined") return
+    if (jobToken) return
     const tenantSlug =
       searchParams.get("tenant")?.trim().toLowerCase() ||
       branding.slug?.trim().toLowerCase() ||
       currentOnboardingTenantSlug() ||
       ""
-    if (!jobToken && tenantSlug) {
-      void fetch(`/api/public/application-entry?tenant=${encodeURIComponent(tenantSlug)}`, {
-        cache: "no-store",
+    if (!tenantSlug) return
+
+    void fetch(`/api/public/application-entry?tenant=${encodeURIComponent(tenantSlug)}`, {
+      cache: "no-store",
+    })
+      .then(async (response) => {
+        const payload = (await response.json().catch(() => ({}))) as {
+          path?: string
+          kind?: string
+        }
+        if (!response.ok) return
+        // Tenant has open jobs — applicants should pick a position first.
+        if (payload.kind === "jobs" || payload.kind === "apply") {
+          router.replace(payload.path || `/jobs?tenant=${encodeURIComponent(tenantSlug)}`)
+        }
+        // kind === "onboarding": stay on add-resume without job_token
       })
-        .then(async (response) => {
-          const payload = (await response.json().catch(() => ({}))) as { path?: string }
-          if (response.ok && payload.path) {
-            router.replace(payload.path)
-          } else {
-            router.replace(`/jobs?tenant=${encodeURIComponent(tenantSlug)}`)
-          }
-        })
-        .catch(() => {
-          router.replace(`/jobs?tenant=${encodeURIComponent(tenantSlug)}`)
-        })
-    }
+      .catch(() => {
+        /* stay on page for direct onboarding */
+      })
   }, [branding.slug, jobToken, router, searchParams])
 
   useEffect(() => {

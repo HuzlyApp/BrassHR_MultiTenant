@@ -72,6 +72,8 @@ export default function Home() {
   const [activeTenantSlug, setActiveTenantSlug] = useState<string | null>(null);
   const [tenantNotFound, setTenantNotFound] = useState(false);
   const [startingApplication, setStartingApplication] = useState(false);
+  const [hasOpenJobs, setHasOpenJobs] = useState<boolean | null>(null);
+  const [entryCtaLabel, setEntryCtaLabel] = useState<string | null>(null);
 
   async function startTenantApplication(slug: string) {
     persistOnboardingSlugCookie(slug);
@@ -83,9 +85,15 @@ export default function Home() {
       const payload = (await res.json().catch(() => ({}))) as {
         path?: string;
         kind?: string;
+        ctaLabel?: string;
         message?: string;
       };
       if (res.ok && payload.path) {
+        if (payload.kind === "onboarding" && typeof window !== "undefined") {
+          localStorage.removeItem("applicationJobToken");
+        }
+        if (payload.ctaLabel) setEntryCtaLabel(payload.ctaLabel);
+        setHasOpenJobs(payload.kind === "jobs" || payload.kind === "apply");
         router.push(payload.path);
         return;
       }
@@ -124,8 +132,26 @@ export default function Home() {
       if (applicantPortalSlug) {
         persistOnboardingSlugCookie(applicantPortalSlug);
         if (alive) setActiveTenantSlug(applicantPortalSlug);
+        try {
+          const entryRes = await fetch(
+            `/api/public/application-entry?tenant=${encodeURIComponent(applicantPortalSlug)}`,
+            { cache: "no-store", signal: AbortSignal.timeout(12_000) }
+          );
+          const entry = (await entryRes.json().catch(() => ({}))) as {
+            kind?: string;
+            ctaLabel?: string;
+          };
+          if (alive && entryRes.ok) {
+            setHasOpenJobs(entry.kind === "jobs" || entry.kind === "apply");
+            if (entry.ctaLabel) setEntryCtaLabel(entry.ctaLabel);
+          }
+        } catch {
+          /* keep default Start Application until click */
+        }
       } else if (alive) {
         setActiveTenantSlug(null);
+        setHasOpenJobs(null);
+        setEntryCtaLabel(null);
       }
 
       const brandingSlug = applicantPortalSlug ?? PLATFORM_DEFAULT_TENANT_SLUG;
@@ -189,7 +215,11 @@ export default function Home() {
     tenant: resolvedPortalSlug,
   });
 
-  const primaryCtaLabel = applicantLandingCtaLabel(resolvedPortalSlug);
+  const primaryCtaLabel =
+    entryCtaLabel ??
+    applicantLandingCtaLabel(resolvedPortalSlug, {
+      hasOpenJobs: hasOpenJobs === true,
+    });
   const backgroundSrc = normalizeBrandingImageSrc(brand.loginBackgroundSrc, "/images/handshake.jpg");
   const logoSrc = normalizeBrandingImageSrc(
     tenantApplicantPanelLogoUrl(brand),

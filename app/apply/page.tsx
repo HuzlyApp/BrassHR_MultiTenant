@@ -1,11 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { headers } from "next/headers";
-import {
-  JobApplicationGateError,
-  resolveTenantApplicationEntry,
-  validatePublishedJobForApplication,
-} from "@/lib/jobs/validate-job-application";
-import { NO_OPEN_POSITIONS_MESSAGE, normalizeJobToken } from "@/lib/jobs/public-application-routing";
+import { JobApplicationGateError, resolveTenantApplicationEntry, validatePublishedJobForApplication } from "@/lib/jobs/validate-job-application";
+import { normalizeJobToken } from "@/lib/jobs/public-application-routing";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { resolveRequestTenantHost } from "@/lib/tenant/resolve-tenant-context";
 
@@ -42,9 +38,6 @@ export default async function ApplyPage({
   if (!token) {
     try {
       const route = await resolveTenantApplicationEntry(supabase, tenantSlug);
-      if (route.kind === "empty") {
-        return <ApplicationUnavailable message={NO_OPEN_POSITIONS_MESSAGE} />;
-      }
       redirect(route.path);
     } catch (error) {
       if (error instanceof JobApplicationGateError) notFound();

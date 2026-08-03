@@ -9,6 +9,7 @@ import {
   type SerializableWorkflowState,
 } from "@/lib/onboarding/workflow-builder-serialization";
 import { normalizeJobToken } from "@/lib/jobs/public-application-routing";
+import { resolvePublicTenant } from "@/lib/jobs/tenant";
 import {
   JobApplicationGateError,
   validatePublishedJobForApplication,
@@ -123,28 +124,24 @@ export type JobWorkflowConfigResult = {
   jobToken: string;
 };
 
-/**
- * Resolve applicant onboarding steps for a published job.
- * Job token still selects/validates the job; steps always come from Worker Onboarding.
- */
-export async function loadApplicantConfigForJobToken(
+export type TenantDefaultWorkflowConfigResult = {
+  config: TenantOnboardingConfig;
+  tenantId: string;
+  tenantSlug: string;
+  workflowId: string;
+  workflowName: string;
+};
+
+async function loadWorkerOnboardingApplicantConfig(
   supabase: OnboardingDbClient,
-  tenantSlug: string | null | undefined,
-  jobTokenInput: string | null | undefined
-): Promise<JobWorkflowConfigResult> {
-  const jobToken = normalizeJobToken(jobTokenInput);
-  if (!jobToken) {
-    throw new JobApplicationGateError(
-      "A job must be selected before starting an application.",
-      "JOB_TOKEN_REQUIRED"
-    );
-  }
-
-  const validated = await validatePublishedJobForApplication(supabase, tenantSlug, jobToken);
-
+  tenantId: string,
+  tenantSlug: string
+): Promise<Omit<TenantDefaultWorkflowConfigResult, "tenantId" | "tenantSlug"> & {
+  config: TenantOnboardingConfig;
+}> {
   let flow;
   try {
-    flow = await resolvePublishedWorkerOnboardingFlow(supabase, validated.tenantId);
+    flow = await resolvePublishedWorkerOnboardingFlow(supabase, tenantId);
   } catch (error) {
     throw new JobApplicationGateError(
       error instanceof Error
@@ -161,7 +158,7 @@ export async function loadApplicantConfigForJobToken(
     );
   }
 
-  const published = await loadTenantOnboardingConfig(supabase, validated.tenantId, {
+  const published = await loadTenantOnboardingConfig(supabase, tenantId, {
     workerFacing: false,
   });
   if (!published) {
@@ -182,10 +179,60 @@ export async function loadApplicantConfigForJobToken(
 
   return {
     config,
-    tenantId: validated.tenantId,
-    tenantSlug: validated.tenantSlug,
     workflowId: flow.id,
     workflowName: flow.name,
+  };
+}
+
+/**
+ * Applicant steps when starting without a job token (new tenant / no open jobs).
+ * Uses the same Worker Onboarding flow as job applications.
+ */
+export async function loadApplicantConfigForTenantDefault(
+  supabase: OnboardingDbClient,
+  tenantSlugInput: string | null | undefined
+): Promise<TenantDefaultWorkflowConfigResult> {
+  const tenant = await resolvePublicTenant(supabase as never, tenantSlugInput);
+  if (!tenant) {
+    throw new JobApplicationGateError("This organization was not found.", "TENANT_NOT_FOUND");
+  }
+
+  const loaded = await loadWorkerOnboardingApplicantConfig(supabase, tenant.id, tenant.slug);
+  return {
+    ...loaded,
+    tenantId: tenant.id,
+    tenantSlug: tenant.slug,
+  };
+}
+
+/**
+ * Resolve applicant onboarding steps for a published job.
+ * Job token still selects/validates the job; steps always come from Worker Onboarding.
+ */
+export async function loadApplicantConfigForJobToken(
+  supabase: OnboardingDbClient,
+  tenantSlug: string | null | undefined,
+  jobTokenInput: string | null | undefined
+): Promise<JobWorkflowConfigResult> {
+  const jobToken = normalizeJobToken(jobTokenInput);
+  if (!jobToken) {
+    throw new JobApplicationGateError(
+      "A job must be selected before starting an application.",
+      "JOB_TOKEN_REQUIRED"
+    );
+  }
+
+  const validated = await validatePublishedJobForApplication(supabase, tenantSlug, jobToken);
+  const loaded = await loadWorkerOnboardingApplicantConfig(
+    supabase,
+    validated.tenantId,
+    validated.tenantSlug
+  );
+
+  return {
+    ...loaded,
+    tenantId: validated.tenantId,
+    tenantSlug: validated.tenantSlug,
     jobToken: validated.jobToken,
   };
 }

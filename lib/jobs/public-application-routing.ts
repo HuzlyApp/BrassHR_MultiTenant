@@ -6,9 +6,19 @@ export type OpenJobSummary = {
 };
 
 export type ApplicationEntryRoute =
-  | { kind: "apply"; tenantSlug: string; jobToken: string; path: string }
-  | { kind: "jobs"; tenantSlug: string; path: string }
-  | { kind: "empty"; tenantSlug: string; path: string; message: string };
+  | { kind: "apply"; tenantSlug: string; jobToken: string; path: string; ctaLabel: string }
+  | { kind: "jobs"; tenantSlug: string; path: string; ctaLabel: string }
+  | {
+      kind: "onboarding";
+      tenantSlug: string;
+      path: string;
+      ctaLabel: string;
+    }
+  /** @deprecated Prefer kind "onboarding" for welcome/start-application when no jobs exist. */
+  | { kind: "empty"; tenantSlug: string; path: string; message: string; ctaLabel: string };
+
+export const APPLICANT_ENTRY_CTA_VIEW_POSITIONS = "View positions";
+export const APPLICANT_ENTRY_CTA_START_APPLICATION = "Start Application";
 
 export function formatDateOnlyUtc(date: Date): string {
   return date.toISOString().slice(0, 10);
@@ -47,12 +57,20 @@ export function buildApplyPath(tenantSlug: string, jobToken: string): string {
   return `/apply?${params}`;
 }
 
-export function buildAddResumePath(tenantSlug: string, jobToken: string): string {
+export function buildAddResumePath(tenantSlug: string, jobToken?: string | null): string {
   const params = new URLSearchParams({
     tenant: tenantSlug,
-    job_token: jobToken,
   });
+  const normalized = normalizeJobToken(jobToken);
+  if (normalized) {
+    params.set("job_token", normalized);
+  }
   return `/application/add-resume?${params}`;
+}
+
+/** Direct applicant onboarding when the tenant has no open published jobs yet. */
+export function buildDirectOnboardingPath(tenantSlug: string): string {
+  return buildAddResumePath(tenantSlug);
 }
 
 export function resolveApplicationEntryRoute(
@@ -63,15 +81,16 @@ export function resolveApplicationEntryRoute(
   const validJobs = openJobs.filter((job) => normalizeJobToken(job.publicJobToken));
   if (validJobs.length === 0) {
     return {
-      kind: "empty",
+      kind: "onboarding",
       tenantSlug: slug,
-      path: buildJobsPortalPath(slug),
-      message: NO_OPEN_POSITIONS_MESSAGE,
+      path: buildDirectOnboardingPath(slug),
+      ctaLabel: APPLICANT_ENTRY_CTA_START_APPLICATION,
     };
   }
   return {
     kind: "jobs",
     tenantSlug: slug,
     path: buildJobsPortalPath(slug),
+    ctaLabel: APPLICANT_ENTRY_CTA_VIEW_POSITIONS,
   };
 }

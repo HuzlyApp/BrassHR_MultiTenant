@@ -59,11 +59,8 @@ export type TenantBranding = {
 
 export const PLATFORM_DEFAULT_TENANT_SLUG = "braas-hr";
 
-/** CTA on marketing / welcome landings for tenant-owned applicant portals. */
 export const APPLICANT_PORTAL_CTA_START_APPLICATION = "Start Application";
-
-/** @deprecated Use APPLICANT_PORTAL_CTA_START_APPLICATION */
-export const APPLICANT_PORTAL_CTA_VIEW_OPEN_POSITIONS = APPLICANT_PORTAL_CTA_START_APPLICATION;
+export const APPLICANT_PORTAL_CTA_VIEW_OPEN_POSITIONS = "View positions";
 
 /** CTA on Braas HR platform pages that onboard a new tenant (not a job application). */
 export const PLATFORM_ONBOARDING_CTA_GET_STARTED = "Get Started";
@@ -126,10 +123,17 @@ export function isTenantApplicantPortalSlug(slug: string | null | undefined): bo
   return key !== PLATFORM_DEFAULT_TENANT_SLUG;
 }
 
-export function applicantLandingCtaLabel(slug: string | null | undefined): string {
-  return isTenantApplicantPortalSlug(slug)
-    ? APPLICANT_PORTAL_CTA_START_APPLICATION
-    : PLATFORM_ONBOARDING_CTA_GET_STARTED;
+export function applicantLandingCtaLabel(
+  slug: string | null | undefined,
+  opts?: { hasOpenJobs?: boolean }
+): string {
+  if (!isTenantApplicantPortalSlug(slug)) {
+    return PLATFORM_ONBOARDING_CTA_GET_STARTED;
+  }
+  if (opts?.hasOpenJobs === true) {
+    return APPLICANT_PORTAL_CTA_VIEW_OPEN_POSITIONS;
+  }
+  return APPLICANT_PORTAL_CTA_START_APPLICATION;
 }
 
 /** Braas HR platform owner UI (login, signup, tenant-onboarding shell). */

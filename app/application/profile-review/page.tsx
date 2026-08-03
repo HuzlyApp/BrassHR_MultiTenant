@@ -1118,16 +1118,8 @@ function Step1ReviewContent() {
                 </div>
               </div>
 
-              {/* City, State */}
+              {/* State, City */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
-                <SearchableSelect
-                  label="City"
-                  required
-                  value={form.city}
-                  placeholder="Select City"
-                  options={POPULAR_CITIES}
-                  onChange={(value) => handleChange("city", value)}
-                />
                 <SearchableSelect
                   label="State"
                   required
@@ -1135,6 +1127,14 @@ function Step1ReviewContent() {
                   placeholder="Select State"
                   options={US_STATES}
                   onChange={(value) => handleChange("state", value)}
+                />
+                <SearchableSelect
+                  label="City"
+                  required
+                  value={form.city}
+                  placeholder="Select City"
+                  options={POPULAR_CITIES}
+                  onChange={(value) => handleChange("city", value)}
                 />
               </div>
 
