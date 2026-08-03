@@ -322,14 +322,23 @@ export default function OnboardingConfigProvider({ children }: { children: React
         return;
       }
 
-      const step = config?.steps.find((s) => s.step_key === stepKey);
+      const step =
+        config?.steps.find((s) => s.step_key === stepKey) ??
+        config?.steps.find(
+          (s) => s.step_key.replace(/_\d+$/, "") === stepKey.replace(/_\d+$/, "")
+        );
       if (step) {
         setProgress((prev) => {
           if (!prev) return prev;
           const rows = prev.steps.slice();
-          const idx = rows.findIndex((row) => row.onboarding_step_id === step.id);
+          const idx = rows.findIndex(
+            (row) =>
+              row.onboarding_step_id === step.id ||
+              (row.step_key && row.step_key === step.step_key)
+          );
           const nextRow = {
             onboarding_step_id: step.id,
+            step_key: step.step_key,
             status,
             completed_at: status === "completed" ? new Date().toISOString() : null,
             data: data ?? rows[idx]?.data ?? {},

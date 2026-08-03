@@ -29,14 +29,42 @@ type Props = {
   currentPage: number;
   totalPages: number;
   onPageChange: (page: number) => void;
-  /** Active page background — branding secondary (navy). */
+  /** Active page background — branding secondary. */
   activeStyle?: CSSProperties;
   className?: string;
 };
 
+const MAX_VISIBLE_PAGES = 7;
+
+/** Build a compact page list: all pages when few, else window + ellipsis. */
+function getVisiblePageItems(currentPage: number, totalPages: number): Array<number | "ellipsis"> {
+  if (totalPages <= MAX_VISIBLE_PAGES) {
+    return Array.from({ length: totalPages }, (_, i) => i + 1);
+  }
+
+  const items: Array<number | "ellipsis"> = [1];
+  const windowStart = Math.max(2, currentPage - 1);
+  const windowEnd = Math.min(totalPages - 1, currentPage + 1);
+
+  if (windowStart > 2) {
+    items.push("ellipsis");
+  }
+
+  for (let page = windowStart; page <= windowEnd; page += 1) {
+    items.push(page);
+  }
+
+  if (windowEnd < totalPages - 1) {
+    items.push("ellipsis");
+  }
+
+  items.push(totalPages);
+  return items;
+}
+
 /**
- * Figma list pagination: fixed equal height, 8px radius, always shows pages 1–2.
- * Page 2 is disabled when there is no second page of data.
+ * List pagination: fixed equal height, 8px radius.
+ * Page numbers are generated from totalPages; active page uses branding secondary.
  */
 export function ListPaginationControls({
   currentPage,
@@ -45,9 +73,14 @@ export function ListPaginationControls({
   activeStyle,
   className = "",
 }: Props) {
+  const branding = useTenantBranding();
   const safeTotal = Math.max(1, totalPages);
   const safePage = Math.min(Math.max(1, currentPage), safeTotal);
-  const pageNumbers = [1, 2] as const;
+  const pageItems = getVisiblePageItems(safePage, safeTotal);
+  const resolvedActiveStyle: CSSProperties = activeStyle ?? {
+    backgroundColor: branding.secondaryHex,
+    borderColor: branding.secondaryHex,
+  };
 
   return (
     <div className={`flex shrink-0 items-center gap-1 ${className}`}>
@@ -61,22 +94,32 @@ export function ListPaginationControls({
         <span className="hidden min-[480px]:inline">Previous</span>
       </button>
 
-      {pageNumbers.map((pageNumber) => {
-        const disabled = pageNumber > safeTotal;
-        const active = !disabled && pageNumber === safePage;
+      {pageItems.map((item, index) => {
+        if (item === "ellipsis") {
+          return (
+            <span
+              key={`ellipsis-${index}`}
+              className="inline-flex h-8 min-w-8 items-center justify-center text-sm text-[#94A3B8]"
+              aria-hidden
+            >
+              …
+            </span>
+          );
+        }
+
+        const active = item === safePage;
         return (
           <button
-            key={pageNumber}
+            key={item}
             type="button"
-            disabled={disabled}
-            onClick={() => onPageChange(pageNumber)}
+            onClick={() => onPageChange(item)}
             className={`${SURFACE} min-w-8 px-0 ${
               active ? "border-transparent text-white hover:opacity-95" : ""
             }`}
-            style={active ? activeStyle : undefined}
+            style={active ? resolvedActiveStyle : undefined}
             aria-current={active ? "page" : undefined}
           >
-            {pageNumber}
+            {item}
           </button>
         );
       })}

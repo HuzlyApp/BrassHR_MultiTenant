@@ -22,6 +22,7 @@ import {
 } from "@/lib/jobs/public-application-routing";
 import { resolveWorkflowMatch } from "@/lib/workflow-mappings/service";
 import { ensureAdminCandidateWorker } from "@/lib/jobs/ensure-admin-candidate-worker";
+import { resolvePublishedWorkerOnboardingFlow } from "@/lib/onboarding/onboarding-flows";
 
 type DbClient = SupabaseClient;
 
@@ -617,9 +618,7 @@ export async function startOrResumeJobApplication(
 ) {
   const { data: job, error: jobError } = await supabase
     .from("job_requisitions")
-    .select(
-      "id, tenant_id, workflow_id, status, onboarding_flows!workflow_id!inner(id, name, status, builder_draft, updated_at)"
-    )
+    .select("id, tenant_id, workflow_id, status")
     .eq("tenant_id", input.tenantId)
     .eq("public_job_token", input.jobToken)
     .eq("status", "published")
@@ -633,16 +632,23 @@ export async function startOrResumeJobApplication(
     );
   }
 
-  const flow = Array.isArray(job.onboarding_flows)
-    ? job.onboarding_flows[0]
-    : job.onboarding_flows;
-  if (!flow || flow.status !== "published") {
+  let defaultFlow;
+  try {
+    defaultFlow = await resolvePublishedWorkerOnboardingFlow(supabase, input.tenantId);
+  } catch (error) {
     throw new JobValidationError(
-      "This job's onboarding workflow is unavailable.",
+      error instanceof Error
+        ? error.message
+        : "Worker Onboarding workflow is unavailable.",
       {},
       "WORKFLOW_UNAVAILABLE"
     );
   }
+
+  const workflowId = defaultFlow.id;
+  const snapshot = defaultFlow.builderDraft ?? { nodes: [], edges: [] };
+  const workflowVersion = String(defaultFlow.updatedAt ?? new Date().toISOString());
+  const workflowName = String(defaultFlow.name ?? "Worker Onboarding");
 
   const normalizedEmail = input.email ? normalizeApplicantEmail(input.email) : null;
   let profileQuery = supabase
@@ -705,24 +711,20 @@ export async function startOrResumeJobApplication(
       applicant_profile_id: profileId,
       applicant_auth_user_id: input.applicantAuthUserId,
       worker_id: input.workerId ?? null,
-      workflow_id: job.workflow_id,
+      workflow_id: workflowId,
     })
     .select("id, status")
     .single();
   if (applicationError) throw applicationError;
 
-  const snapshot = flow.builder_draft ?? { nodes: [], edges: [] };
-  const workflowVersion = String(flow.updated_at ?? new Date().toISOString());
-  const workflowName = String(flow.name ?? "Workflow");
-
   // Prefer the job-application schema; include legacy columns when present on staging.
   const instancePayload = {
     tenant_id: input.tenantId,
     application_id: application.id,
-    workflow_id: job.workflow_id,
+    workflow_id: workflowId,
     worker_id: input.workerId ?? null,
     job_requisition_id: job.id,
-    onboarding_flow_id: job.workflow_id,
+    onboarding_flow_id: workflowId,
     workflow_name: workflowName,
     workflow_snapshot: snapshot,
     workflow_version: workflowVersion,
@@ -746,7 +748,7 @@ export async function startOrResumeJobApplication(
         .insert({
           tenant_id: input.tenantId,
           application_id: application.id,
-          workflow_id: job.workflow_id,
+          workflow_id: workflowId,
           workflow_name: workflowName,
           workflow_snapshot: snapshot,
           workflow_version: workflowVersion,
@@ -956,9 +958,7 @@ export async function createAdminJobApplication(
 
   const { data: job, error: jobError } = await supabase
     .from("job_requisitions")
-    .select(
-      "id, tenant_id, workflow_id, status, public_title, onboarding_flows!workflow_id(id, name, status, builder_draft, updated_at)"
-    )
+    .select("id, tenant_id, workflow_id, status, public_title")
     .eq("tenant_id", input.tenantId)
     .eq("id", input.jobRequisitionId)
     .maybeSingle();
@@ -978,16 +978,20 @@ export async function createAdminJobApplication(
     );
   }
 
-  const flow = Array.isArray(job.onboarding_flows)
-    ? job.onboarding_flows[0]
-    : job.onboarding_flows;
-  if (!flow || flow.status !== "published") {
+  let defaultFlow;
+  try {
+    defaultFlow = await resolvePublishedWorkerOnboardingFlow(supabase, input.tenantId);
+  } catch (error) {
     throw new JobValidationError(
-      "This job's onboarding workflow is unavailable.",
+      error instanceof Error
+        ? error.message
+        : "Worker Onboarding workflow is unavailable.",
       {},
       "WORKFLOW_UNAVAILABLE"
     );
   }
+
+  const workflowId = defaultFlow.id;
 
   const { firstName, lastName } = splitCandidateFullName(fullName);
   const profileFields = {
@@ -1084,7 +1088,7 @@ export async function createAdminJobApplication(
       tenant_id: input.tenantId,
       job_requisition_id: job.id,
       applicant_profile_id: profileId,
-      workflow_id: job.workflow_id,
+      workflow_id: workflowId,
       worker_id: linkedWorkerId,
       status: "new",
       submitted_at: nowIso,
@@ -1100,12 +1104,12 @@ export async function createAdminJobApplication(
       tenantId: input.tenantId,
       applicationId: String(application.id),
       jobRequisitionId: String(job.id),
-      workflowId: String(job.workflow_id),
+      workflowId,
       workerId: linkedWorkerId,
       flow: {
-        name: flow.name,
-        builder_draft: flow.builder_draft,
-        updated_at: flow.updated_at,
+        name: defaultFlow.name,
+        builder_draft: defaultFlow.builderDraft,
+        updated_at: defaultFlow.updatedAt,
       },
     });
     return {

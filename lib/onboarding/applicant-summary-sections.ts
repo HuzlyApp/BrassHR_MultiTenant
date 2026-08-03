@@ -15,6 +15,7 @@ import type {
   WorkerOnboardingProgressPayload,
 } from "@/lib/onboarding/types";
 import { getEnabledTenantSteps } from "@/lib/onboarding/tenant-step-navigation";
+import { buildProgressStatusMaps } from "@/lib/onboarding/compute-max-allowed-from-progress";
 import { withTenant } from "@/lib/tenant/with-tenant";
 import {
   isSkillQuizDoneLocal,
@@ -99,8 +100,9 @@ function progressStatusForStep(
   step: TenantOnboardingStep
 ): OnboardingStepStatus | null {
   if (!progress) return null;
-  const row = progress.steps.find((r) => r.onboarding_step_id === step.id);
-  return row?.status ?? "pending";
+  const enabled = getEnabledTenantSteps(config);
+  const status = buildProgressStatusMaps(enabled, progress).get(step.id);
+  return (status as OnboardingStepStatus | undefined) ?? "pending";
 }
 
 function isProgressStepComplete(status: OnboardingStepStatus | null): boolean {

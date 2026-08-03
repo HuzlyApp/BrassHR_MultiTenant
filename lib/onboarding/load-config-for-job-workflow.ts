@@ -1,6 +1,6 @@
 import type { OnboardingDbClient } from "@/lib/onboarding/load-tenant-config";
 import { loadTenantOnboardingConfig } from "@/lib/onboarding/load-tenant-config";
-import { getOnboardingFlowById } from "@/lib/onboarding/onboarding-flows";
+import { resolvePublishedWorkerOnboardingFlow } from "@/lib/onboarding/onboarding-flows";
 import { applyApplicantConfigFilters } from "@/lib/onboarding/filter-applicant-steps";
 import { workflowStateToStepDrafts } from "@/lib/onboarding/workflow-to-drafts";
 import { enforceUploadResumeFirstInWorkflowState } from "@/lib/onboarding/normalize-builder-workflow";
@@ -124,7 +124,8 @@ export type JobWorkflowConfigResult = {
 };
 
 /**
- * Resolve applicant onboarding steps for a published job's assigned workflow.
+ * Resolve applicant onboarding steps for a published job.
+ * Job token still selects/validates the job; steps always come from Worker Onboarding.
  */
 export async function loadApplicantConfigForJobToken(
   supabase: OnboardingDbClient,
@@ -140,17 +141,22 @@ export async function loadApplicantConfigForJobToken(
   }
 
   const validated = await validatePublishedJobForApplication(supabase, tenantSlug, jobToken);
-  const flow = await getOnboardingFlowById(supabase, validated.tenantId, validated.workflowId);
-  if (!flow || flow.status !== "published") {
+
+  let flow;
+  try {
+    flow = await resolvePublishedWorkerOnboardingFlow(supabase, validated.tenantId);
+  } catch (error) {
     throw new JobApplicationGateError(
-      "This job's onboarding workflow is unavailable.",
+      error instanceof Error
+        ? error.message
+        : "Worker Onboarding workflow is unavailable.",
       "WORKFLOW_UNAVAILABLE"
     );
   }
 
   if (!isSerializableWorkflowState(flow.builderDraft) || !flow.builderDraft.nodes.length) {
     throw new JobApplicationGateError(
-      "This job's onboarding workflow is unavailable.",
+      "Worker Onboarding workflow is unavailable.",
       "WORKFLOW_DRAFT_MISSING"
     );
   }
@@ -169,7 +175,7 @@ export async function loadApplicantConfigForJobToken(
   const config = applyApplicantConfigFilters(fromFlow);
   if (!config.steps.length) {
     throw new JobApplicationGateError(
-      "This job's onboarding workflow has no applicant steps.",
+      "Worker Onboarding has no applicant steps.",
       "WORKFLOW_EMPTY"
     );
   }
@@ -178,8 +184,8 @@ export async function loadApplicantConfigForJobToken(
     config,
     tenantId: validated.tenantId,
     tenantSlug: validated.tenantSlug,
-    workflowId: validated.workflowId,
-    workflowName: validated.workflowName || flow.name,
+    workflowId: flow.id,
+    workflowName: flow.name,
     jobToken: validated.jobToken,
   };
 }

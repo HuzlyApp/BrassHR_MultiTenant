@@ -11,6 +11,7 @@ import {
 import { normalizeFlowNameKey } from "@/lib/onboarding/validate-flow-name";
 import { resolveOnboardingLibraryForFlows } from "@/lib/onboarding/onboarding-libraries";
 import type { WorkflowTemplateRow } from "@/lib/onboarding/workflow-templates";
+import { createDefaultWorkflowState } from "@/lib/onboarding/default-workflow";
 
 export type OnboardingFlowStatus = "draft" | "published" | "unpublished";
 
@@ -110,7 +111,10 @@ export type OnboardingFlowsListResult = {
   library: { id: string; name: string; slug: string } | null;
 };
 
-/** @deprecated Prefer DEFAULT_W2_FLOW_NAME / DEFAULT_1099_FLOW_NAME */
+/**
+ * Default applicant-facing onboarding flow for all job applications.
+ * Job tokens still bind applications to a job; stepper steps always come from this flow.
+ */
 export const DEFAULT_ONBOARDING_FLOW_NAME = "Worker Onboarding";
 
 export const DEFAULT_W2_FLOW_NAME = "W2 Employee Workflow";
@@ -124,15 +128,120 @@ const DEFAULT_EMPLOYMENT_FLOW_SEEDS = [
     presetName: DEFAULT_W2_PRESET_NAME,
     flowName: DEFAULT_W2_FLOW_NAME,
     employmentType: "W2" as const,
-    sortOrder: 1,
+    sortOrder: 2,
   },
   {
     presetName: DEFAULT_1099_PRESET_NAME,
     flowName: DEFAULT_1099_FLOW_NAME,
     employmentType: "1099" as const,
-    sortOrder: 2,
+    sortOrder: 3,
   },
 ] as const;
+
+async function findOnboardingFlowRowByName(
+  supabase: OnboardingDbClient,
+  tenantId: string,
+  flowName: string
+): Promise<OnboardingFlowRow | null> {
+  const target = normalizeFlowNameKey(flowName);
+  const { data, error } = await supabase
+    .from("onboarding_flows")
+    .select(
+      "id, tenant_id, library_id, template_id, name, status, created_as_blank, builder_draft, created_by, updated_by, created_at, updated_at"
+    )
+    .eq("tenant_id", tenantId);
+
+  if (error) throw error;
+
+  for (const row of data ?? []) {
+    if (normalizeFlowNameKey(String(row.name ?? "")) === target) {
+      return row as OnboardingFlowRow;
+    }
+  }
+  return null;
+}
+
+/**
+ * Ensures a published "Worker Onboarding" flow exists for the tenant.
+ * Creates it from the platform default 6-step canvas when missing.
+ */
+export async function ensureWorkerOnboardingFlow(
+  supabase: OnboardingDbClient,
+  tenantId: string,
+  createdBy?: string | null
+): Promise<OnboardingFlowDetail> {
+  const existing = await findOnboardingFlowRowByName(
+    supabase,
+    tenantId,
+    DEFAULT_ONBOARDING_FLOW_NAME
+  );
+
+  if (existing) {
+    const detail = await getOnboardingFlowById(supabase, tenantId, existing.id);
+    if (!detail) {
+      throw new Error(`Worker Onboarding flow ${existing.id} could not be loaded.`);
+    }
+    return detail;
+  }
+
+  const library = await resolveOnboardingLibraryForFlows(supabase, tenantId, {
+    librarySlug: "onboarding",
+  });
+  if (!library) {
+    throw new Error("Onboarding library is missing for this organization.");
+  }
+
+  const builderDraft = createDefaultWorkflowState();
+  const { data, error } = await supabase
+    .from("onboarding_flows")
+    .insert({
+      tenant_id: tenantId,
+      library_id: library.id,
+      template_id: null,
+      name: DEFAULT_ONBOARDING_FLOW_NAME,
+      status: "published",
+      created_as_blank: false,
+      builder_draft: builderDraft,
+      sort_order: 1,
+      created_by: createdBy ?? null,
+      updated_by: createdBy ?? null,
+    })
+    .select("id")
+    .single();
+
+  if (error) throw error;
+  if (!data?.id) {
+    throw new Error("Failed to create Worker Onboarding flow.");
+  }
+
+  if (builderDraft.nodes.length) {
+    await replaceFlowStepsFromDraft(supabase, String(data.id), builderDraft);
+  }
+
+  const created = await getOnboardingFlowById(supabase, tenantId, String(data.id));
+  if (!created) {
+    throw new Error("Failed to load Worker Onboarding flow after create.");
+  }
+  return created;
+}
+
+/**
+ * Resolve the published Worker Onboarding flow used for all applicant job applications.
+ */
+export async function resolvePublishedWorkerOnboardingFlow(
+  supabase: OnboardingDbClient,
+  tenantId: string,
+  createdBy?: string | null
+): Promise<OnboardingFlowDetail> {
+  const flow = await ensureWorkerOnboardingFlow(supabase, tenantId, createdBy);
+  if (flow.status !== "published") {
+    throw new Error("Worker Onboarding is not published for this organization.");
+  }
+  if (!isSerializableWorkflowState(flow.builderDraft) || !flow.builderDraft.nodes.length) {
+    throw new Error("Worker Onboarding has no applicant steps configured.");
+  }
+  return flow;
+}
 
 async function loadPublishedPresetByName(
   supabase: OnboardingDbClient,
@@ -153,8 +262,9 @@ async function loadPublishedPresetByName(
 }
 
 /**
- * When an onboarding library has no flows yet, seed published W2 + 1099 flows
- * from the system preset templates.
+ * When an onboarding library has no flows yet, seed published Worker Onboarding
+ * (default applicant flow) plus W2 + 1099 flows from system presets.
+ * Always ensures Worker Onboarding exists even when other flows are already present.
  */
 export async function ensureDefaultTenantOnboardingFlows(
   supabase: OnboardingDbClient,
@@ -169,40 +279,67 @@ export async function ensureDefaultTenantOnboardingFlows(
     .eq("library_id", libraryId);
 
   if (countError) throw countError;
-  if (count && count > 0) return;
 
-  for (const seed of DEFAULT_EMPLOYMENT_FLOW_SEEDS) {
-    const preset = await loadPublishedPresetByName(supabase, seed.presetName);
-    if (!preset) {
-      throw new Error(
-        `Missing published system preset "${seed.presetName}". Cannot seed default onboarding flows.`
-      );
-    }
-
-    const builderDraft = await workflowTemplateDraft(supabase, preset);
-    const { data, error } = await supabase
+  if (!count || count === 0) {
+    const workerDraft = createDefaultWorkflowState();
+    const { data: workerFlow, error: workerError } = await supabase
       .from("onboarding_flows")
       .insert({
         tenant_id: tenantId,
         library_id: libraryId,
-        template_id: preset.id,
-        name: seed.flowName,
+        template_id: null,
+        name: DEFAULT_ONBOARDING_FLOW_NAME,
         status: "published",
-        employment_type: seed.employmentType,
         created_as_blank: false,
-        builder_draft: builderDraft,
-        sort_order: seed.sortOrder,
+        builder_draft: workerDraft,
+        sort_order: 1,
         created_by: createdBy ?? null,
         updated_by: createdBy ?? null,
       })
       .select("id")
       .single();
 
-    if (error) throw error;
-    if (data?.id && builderDraft.nodes.length) {
-      await replaceFlowStepsFromDraft(supabase, String(data.id), builderDraft);
+    if (workerError) throw workerError;
+    if (workerFlow?.id && workerDraft.nodes.length) {
+      await replaceFlowStepsFromDraft(supabase, String(workerFlow.id), workerDraft);
     }
+
+    for (const seed of DEFAULT_EMPLOYMENT_FLOW_SEEDS) {
+      const preset = await loadPublishedPresetByName(supabase, seed.presetName);
+      if (!preset) {
+        throw new Error(
+          `Missing published system preset "${seed.presetName}". Cannot seed default onboarding flows.`
+        );
+      }
+
+      const builderDraft = await workflowTemplateDraft(supabase, preset);
+      const { data, error } = await supabase
+        .from("onboarding_flows")
+        .insert({
+          tenant_id: tenantId,
+          library_id: libraryId,
+          template_id: preset.id,
+          name: seed.flowName,
+          status: "published",
+          employment_type: seed.employmentType,
+          created_as_blank: false,
+          builder_draft: builderDraft,
+          sort_order: seed.sortOrder,
+          created_by: createdBy ?? null,
+          updated_by: createdBy ?? null,
+        })
+        .select("id")
+        .single();
+
+      if (error) throw error;
+      if (data?.id && builderDraft.nodes.length) {
+        await replaceFlowStepsFromDraft(supabase, String(data.id), builderDraft);
+      }
+    }
+    return;
   }
+
+  await ensureWorkerOnboardingFlow(supabase, tenantId, createdBy);
 }
 
 /** @deprecated Use ensureDefaultTenantOnboardingFlows */

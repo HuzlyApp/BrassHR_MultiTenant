@@ -73,6 +73,8 @@ export type TenantOnboardingConfig = {
 
 export type StepProgressRow = {
   onboarding_step_id: string;
+  /** Present when progress was loaded from tenant steps; used to match job-workflow step ids. */
+  step_key?: string | null;
   status: OnboardingStepStatus;
   completed_at: string | null;
   data: Record<string, unknown>;

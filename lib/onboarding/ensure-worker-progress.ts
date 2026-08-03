@@ -47,6 +47,7 @@ export async function ensureWorkerOnboardingProgress(
 
   const enabledSteps = getEnabledTenantSteps(config);
   const stepIds = enabledSteps.map((s) => s.id);
+  const stepKeyById = new Map(config.steps.map((s) => [s.id, s.step_key]));
 
   const { data: stepRows, error: srErr } = await supabase
     .from("worker_onboarding_step_progress")
@@ -79,12 +80,16 @@ export async function ensureWorkerOnboardingProgress(
 
   if (allErr) throw allErr;
 
-  const steps: StepProgressRow[] = (allSteps ?? []).map((r) => ({
-    onboarding_step_id: String(r.onboarding_step_id),
-    status: r.status as StepProgressRow["status"],
-    completed_at: r.completed_at != null ? String(r.completed_at) : null,
-    data: (r.data as Record<string, unknown>) ?? {},
-  }));
+  const steps: StepProgressRow[] = (allSteps ?? []).map((r) => {
+    const stepId = String(r.onboarding_step_id);
+    return {
+      onboarding_step_id: stepId,
+      step_key: stepKeyById.get(stepId) ?? null,
+      status: r.status as StepProgressRow["status"],
+      completed_at: r.completed_at != null ? String(r.completed_at) : null,
+      data: (r.data as Record<string, unknown>) ?? {},
+    };
+  });
 
   const persistedFarthest = Number(existing?.farthest_reached_step_index ?? 1);
   const payloadWithoutFarthest: WorkerOnboardingProgressPayload = {

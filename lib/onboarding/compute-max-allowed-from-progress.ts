@@ -1,11 +1,20 @@
 import { isUploadResumeStep } from "@/lib/onboarding/enforce-upload-resume-first";
 import { applicantStepHasNavigableScreen } from "@/lib/onboarding/applicant-step-navigability";
 import type {
+  OnboardingStepStatus,
   TenantOnboardingStep,
   WorkerOnboardingProgressPayload,
 } from "@/lib/onboarding/types";
 
 type StepPhase = "pre_hire" | "transition" | "post_hire";
+
+const PROGRESS_STATUS_RANK: Record<OnboardingStepStatus, number> = {
+  pending: 0,
+  in_progress: 1,
+  failed: 2,
+  skipped: 3,
+  completed: 4,
+};
 
 function readStepPhase(step: TenantOnboardingStep): StepPhase {
   const fromSettings =
@@ -32,27 +41,49 @@ function isPostHireUnlocked(progress: WorkerOnboardingProgressPayload | null): b
   return false;
 }
 
+function preferStatus(
+  current: string | undefined,
+  next: string
+): string {
+  const currentRank = PROGRESS_STATUS_RANK[(current as OnboardingStepStatus) ?? "pending"] ?? 0;
+  const nextRank = PROGRESS_STATUS_RANK[next as OnboardingStepStatus] ?? 0;
+  return nextRank >= currentRank ? next : (current ?? "pending");
+}
+
+/**
+ * Map each enabled config step id → DB progress status.
+ * Matches by step id first, then step_key (including progress.step_key) so job-workflow
+ * preview ids still resolve to published tenant progress rows.
+ */
 export function buildProgressStatusMaps(
   enabledSteps: TenantOnboardingStep[],
   progress: WorkerOnboardingProgressPayload | null
 ): Map<string, string> {
-  const byStepId = new Map(
-    (progress?.steps ?? []).map((p) => [p.onboarding_step_id, p.status])
-  );
+  const byStepId = new Map<string, string>();
   const byStepKey = new Map<string, string>();
 
   for (const row of progress?.steps ?? []) {
-    const step = enabledSteps.find((s) => s.id === row.onboarding_step_id);
-    if (step) {
-      byStepKey.set(step.step_key, row.status);
+    const status = String(row.status ?? "pending");
+    byStepId.set(row.onboarding_step_id, preferStatus(byStepId.get(row.onboarding_step_id), status));
+
+    const matched = enabledSteps.find((s) => s.id === row.onboarding_step_id);
+    const key = matched?.step_key || row.step_key?.trim() || "";
+    if (key) {
+      byStepKey.set(key, preferStatus(byStepKey.get(key), status));
+      const baseKey = key.replace(/_\d+$/, "");
+      if (baseKey !== key) {
+        byStepKey.set(baseKey, preferStatus(byStepKey.get(baseKey), status));
+      }
     }
   }
 
   return new Map(
     enabledSteps.map((step) => {
+      const baseKey = step.step_key.replace(/_\d+$/, "");
       const status =
         byStepId.get(step.id) ??
         byStepKey.get(step.step_key) ??
+        (baseKey !== step.step_key ? byStepKey.get(baseKey) : undefined) ??
         "pending";
       return [step.id, status] as const;
     })

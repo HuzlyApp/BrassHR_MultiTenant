@@ -12,6 +12,7 @@ import {
   isStepIndicatorAccessible,
   type StepIndicatorState,
 } from "@/lib/onboarding/step-indicator-status"
+import { buildProgressStatusMaps } from "@/lib/onboarding/compute-max-allowed-from-progress"
 import {
   resolveApplicantEnabledSteps,
   stepIndexFromPathname,
@@ -20,7 +21,6 @@ import { useOnboardingTenant } from "@/lib/tenant/use-onboarding-tenant"
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext"
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding"
 import { formatApplicantStepperLabel } from "@/lib/onboarding/format-applicant-stepper-label"
-import type { OnboardingStepStatus } from "@/lib/onboarding/types"
 
 interface Props {
   /** Optional override; otherwise derived from pathname + tenant steps. */
@@ -132,25 +132,22 @@ export default function OnboardingStepper({
 
   const maxAllowedStep = onboarding?.maxAllowedStepIndex ?? currentStep
 
-  const progressByStepId = useMemo(() => {
-    const m = new Map<string, OnboardingStepStatus>()
-    for (const p of onboarding?.progress?.steps ?? []) {
-      m.set(p.onboarding_step_id, p.status)
-    }
-    return m
-  }, [onboarding?.progress?.steps])
+  const statusByStepId = useMemo(
+    () => buildProgressStatusMaps(enabledSteps ?? [], onboarding?.progress ?? null),
+    [enabledSteps, onboarding?.progress]
+  )
 
   const stepStates = useMemo(() => {
     if (!enabledSteps?.length) return [] as StepIndicatorState[]
     return enabledSteps.map((configStep, index) =>
       deriveStepIndicatorState({
-        dbStatus: progressByStepId.get(configStep.id) ?? "pending",
+        dbStatus: statusByStepId.get(configStep.id) ?? "pending",
         stepNumber: index + 1,
         currentStepNumber: currentStep,
         isRequired: configStep.is_required !== false,
       })
     )
-  }, [enabledSteps, progressByStepId, currentStep])
+  }, [enabledSteps, statusByStepId, currentStep])
 
   if (!enabledSteps?.length) {
     return onboarding?.loading ? (

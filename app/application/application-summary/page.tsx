@@ -17,6 +17,7 @@ import OnboardingStepper from "@/app/components/OnboardingStepper"
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext"
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding"
 import OnboardingSuccessPopup from "@/app/components/OnboardingSuccessPopup"
+import { buildProgressStatusMaps } from "@/lib/onboarding/compute-max-allowed-from-progress"
 import { countCompleteReferencesFromStorage } from "@/lib/referencesValidation"
 import type { SummaryDisplayStatus } from "@/lib/onboarding/applicant-summary-sections"
 import {
@@ -291,6 +292,39 @@ export default function SummaryPage() {
     if (!onboarding?.progressHydrated) return
     void loadSnapshot()
   }, [loadSnapshot, onboarding?.progressHydrated, onboarding?.progress])
+
+  /** If references were saved but progress still shows pending/skipped, mark completed for the stepper. */
+  useEffect(() => {
+    if (!onboarding?.progressHydrated || !onboarding.updateStepStatus || nav.configLoading) return
+    const enabled = nav.enabledSteps ?? []
+    const refsStep =
+      enabled.find((s) => s.step_type === "references") ??
+      enabled.find((s) => s.step_key === "references" || s.step_key.startsWith("references_"))
+    if (!refsStep?.step_key) return
+
+    const minRaw = refsStep.metadata?.min_count
+    const min =
+      typeof minRaw === "number" && minRaw > 0
+        ? Math.floor(minRaw)
+        : Number.isFinite(Number(minRaw)) && Number(minRaw) > 0
+          ? Math.floor(Number(minRaw))
+          : 1
+    if (snapshot.referencesCount < min) return
+
+    const status = buildProgressStatusMaps(enabled, onboarding.progress ?? null).get(refsStep.id)
+    if (status === "completed") return
+
+    void onboarding.updateStepStatus(refsStep.step_key, "completed").catch(() => {
+      /* non-blocking heal */
+    })
+  }, [
+    onboarding?.progressHydrated,
+    onboarding?.updateStepStatus,
+    onboarding?.progress,
+    nav.configLoading,
+    nav.enabledSteps,
+    snapshot.referencesCount,
+  ])
 
   const summarySnapshot = useMemo(
     () => ({ ...snapshot, clientStorageReady }),

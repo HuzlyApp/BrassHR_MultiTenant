@@ -33,7 +33,7 @@ import {
   uploadRequiredOnboardingFile,
 } from "@/lib/onboarding/upload-required-file-client";
 import { useOnboardingStepNav } from "@/lib/onboarding/use-onboarding-step-nav";
-import { useMarkStepInProgressIfPending } from "@/lib/onboarding/use-mark-step-in-progress-if-pending";
+import { useMarkStepInProgressIfPending, persistStepProgress } from "@/lib/onboarding/use-mark-step-in-progress-if-pending";
 import { skipOnboardingStep } from "@/lib/onboarding/skip-onboarding-step";
 import { resolveClientOnboardingTenantSlug } from "@/lib/tenant/client-onboarding-slug";
 import type { Step2FileType } from "@/lib/onboardingSummaryData";
@@ -548,7 +548,12 @@ export default function Step2License() {
       }
 
       if (licenseStep?.step_key) {
-        await onboarding?.updateStepStatus?.(licenseStep.step_key, "completed");
+        await persistStepProgress(
+          onboarding?.updateStepStatus,
+          licenseStep.step_key,
+          "completed",
+          completingRef
+        );
       }
       const nextRoute =
         nextStepRouteAfter(onboarding?.config, licenseStep, tenantSlug) ??
