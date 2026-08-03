@@ -279,7 +279,7 @@ export default function ReferencesPage() {
 
   return (
     <OnboardingLayout
-      cardClassName="md:h-auto md:min-h-[700px]"
+      cardClassName="min-[700px]:h-auto min-[700px]:min-h-[540px] min-[1200px]:min-h-[700px]"
       rightPanelImageClassName="opacity-60 object-top"
       rightPanelOverlayClassName="bg-white/65"
     >

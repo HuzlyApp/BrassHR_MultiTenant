@@ -1012,10 +1012,10 @@ function Step1ReviewContent() {
       style={shellStyle}
     >
       <div
-        className="bg-white rounded-xl sm:rounded-2xl shadow-2xl overflow-hidden flex flex-col min-[1200px]:flex-row relative mx-auto w-full max-w-[1060px] min-[1200px]:min-h-[640px] min-h-0"
+        className="bg-white rounded-xl sm:rounded-2xl shadow-2xl overflow-hidden flex flex-col min-[700px]:flex-row relative mx-auto w-full max-w-[1060px] min-[700px]:min-h-[640px] min-h-0"
       >
         {/* LEFT - Form */}
-        <div className="w-full min-[1200px]:w-[65%] p-4 sm:p-6 min-[1200px]:p-10 flex flex-col justify-between min-w-0">
+        <div className="w-full min-[700px]:w-[65%] p-4 sm:p-6 min-[700px]:p-8 min-[1200px]:p-10 flex flex-col justify-between min-w-0">
           <div className="min-w-0">
             <OnboardingStepper />
 
@@ -1319,7 +1319,7 @@ function Step1ReviewContent() {
         </div>
 
         {/* RIGHT - Branding and Image */}
-        <div className="relative hidden min-h-[320px] shrink-0 bg-gray-50 min-[1200px]:block min-[1200px]:min-h-0 min-[1200px]:w-[35%]">
+        <div className="relative hidden min-h-[320px] shrink-0 bg-gray-50 min-[700px]:block min-[700px]:min-h-0 min-[700px]:w-[35%]">
           <div className="absolute inset-0 z-0">
             {panelUseNativeImg ? (
               <img
@@ -1332,7 +1332,7 @@ function Step1ReviewContent() {
                 src={panelSrc}
                 alt=""
                 fill
-                sizes="(max-width: 1199px) 0px, 35vw"
+                sizes="(max-width: 699px) 0px, 35vw"
                 className="object-cover object-top opacity-60 grayscale"
                 priority
               />
@@ -1341,12 +1341,12 @@ function Step1ReviewContent() {
           </div>
 
           <div
-            className={`absolute inset-0 z-10 flex flex-col items-center justify-center ${BRANDING_RIGHT_PANEL_STACK_GAP_CLASS} px-10`}
+            className={`absolute inset-0 z-10 flex flex-col items-center justify-center ${BRANDING_RIGHT_PANEL_STACK_GAP_CLASS} px-5 min-[900px]:px-10`}
           >
             <BrandingRightPanelLogo
               src={logoSrc}
               alt={branding.companyName}
-              widthClassName="w-full max-w-[204px]"
+              widthClassName="w-full max-w-[180px] min-[900px]:max-w-[204px]"
             />
 
             <div className="flex w-full max-w-[280px] items-center justify-center gap-4">
@@ -1358,7 +1358,7 @@ function Step1ReviewContent() {
               />
               <div className="h-px flex-1 bg-slate-300/80" />
             </div>
-            <p className="max-w-[280px] text-center text-[16px] font-normal leading-6 text-[#1e293b]">
+            <p className="max-w-[280px] text-center text-[14px] font-normal leading-5 text-[#1e293b] min-[900px]:text-[16px] min-[900px]:leading-6">
               {branding.tagline}
             </p>
           </div>

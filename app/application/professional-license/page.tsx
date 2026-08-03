@@ -570,7 +570,7 @@ export default function Step2License() {
 
   return (
     <OnboardingLayout
-      cardClassName="md:min-w-0 md:max-w-[950px] md:w-full md:grid-cols-[2fr_1fr] md:h-auto md:min-h-[0]"
+      cardClassName="min-[700px]:min-w-0 min-[700px]:max-w-[950px] min-[700px]:w-full min-[700px]:grid-cols-[2fr_1fr] min-[700px]:h-auto min-[700px]:min-h-0"
       rightPanelContentClassName="p-5"
       rightPanelImageClassName="opacity-90 object-top"
       rightPanelOverlayClassName="bg-white/70"

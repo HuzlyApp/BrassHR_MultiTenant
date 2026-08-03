@@ -554,15 +554,15 @@ export default function Step1Upload() {
 
   return (
     <div
-      className="relative flex min-h-screen items-center justify-center p-3 sm:p-4 min-[1200px]:p-8"
+      className="relative flex min-h-screen items-center justify-center p-3 sm:p-4 min-[700px]:p-6 min-[1200px]:p-8"
       style={shellStyle}
     >
 
       <div
-        className={`flex min-h-0 w-full max-w-5xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl transition-opacity min-[1200px]:min-h-[540px] min-[1200px]:flex-row ${uploading ? "opacity-50" : "opacity-100"}`}
+        className={`flex min-h-0 w-full max-w-5xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl transition-opacity min-[700px]:min-h-[540px] min-[700px]:flex-row ${uploading ? "opacity-50" : "opacity-100"}`}
       >
 
-        <div className="w-full min-w-0 px-4 pb-6 pt-6 sm:px-6 sm:pb-8 sm:pt-8 min-[1200px]:w-2/3 min-[1200px]:p-10">
+        <div className="w-full min-w-0 px-4 pb-6 pt-6 sm:px-6 sm:pb-8 sm:pt-8 min-[700px]:w-2/3 min-[700px]:p-8 min-[1200px]:p-10">
 
           <OnboardingStepper />
 
@@ -578,7 +578,7 @@ export default function Step1Upload() {
             tabIndex={0}
             onClick={browse}
             className={`cursor-pointer rounded-xl border-2 border-dashed text-center transition ${
-              file || savedResumeName ? "p-3 sm:p-4" : "p-4 sm:p-6 min-[1200px]:p-10"
+              file || savedResumeName ? "p-3 sm:p-4" : "p-4 sm:p-6 min-[700px]:p-8 min-[1200px]:p-10"
             }`}
             style={
               dragActive
@@ -711,10 +711,10 @@ export default function Step1Upload() {
             </a>
           </p>
 
-          <div className="mt-6 grid grid-cols-2 gap-2 sm:mt-8 sm:gap-3 min-[1200px]:mt-10 min-[1200px]:flex min-[1200px]:justify-end min-[1200px]:gap-4">
+          <div className="mt-6 grid grid-cols-2 gap-2 sm:mt-8 sm:gap-3 min-[700px]:mt-8 min-[700px]:flex min-[700px]:justify-end min-[700px]:gap-3 min-[1200px]:mt-10 min-[1200px]:gap-4">
             <button
               onClick={() => router.back()}
-              className="w-full cursor-pointer rounded-lg border px-3 py-2.5 text-[11px] hover:bg-gray-50 sm:px-4 sm:py-2.5 sm:text-sm min-[1200px]:w-auto min-[1200px]:px-6 min-[1200px]:py-2"
+              className="w-full cursor-pointer rounded-lg border px-3 py-2.5 text-[11px] hover:bg-gray-50 sm:px-4 sm:py-2.5 sm:text-sm min-[700px]:w-auto min-[700px]:px-5 min-[1200px]:px-6 min-[1200px]:py-2"
               style={{ ...brandBorderStyle, ...brandTextStyle }}
             >
               Cancel
@@ -723,7 +723,7 @@ export default function Step1Upload() {
             <button
               onClick={next}
               disabled={uploading}
-              className={`w-full cursor-pointer rounded-lg px-3 py-2.5 text-[11px] text-white transition hover:brightness-90 sm:px-4 sm:py-2.5 sm:text-sm min-[1200px]:w-auto min-[1200px]:px-8 min-[1200px]:py-2 ${uploading ? "cursor-not-allowed opacity-70" : ""}`}
+              className={`w-full cursor-pointer rounded-lg px-3 py-2.5 text-[11px] text-white transition hover:brightness-90 sm:px-4 sm:py-2.5 sm:text-sm min-[700px]:w-auto min-[700px]:px-6 min-[1200px]:px-8 min-[1200px]:py-2 ${uploading ? "cursor-not-allowed opacity-70" : ""}`}
               style={primaryBtnStyle}
             >
               {uploading ? "Uploading..." : "Upload Resume and Continue"}
@@ -732,7 +732,7 @@ export default function Step1Upload() {
 
         </div>
 
-        <div className="relative hidden w-1/3 min-[1200px]:block">
+        <div className="relative hidden w-1/3 min-[700px]:block">
           {panelUseNativeImg ? (
             <img
               src={panelSrc}
@@ -744,12 +744,12 @@ export default function Step1Upload() {
               src={panelSrc}
               alt=""
               fill
-              sizes="(max-width: 1199px) 0px, 33vw"
+              sizes="(max-width: 699px) 0px, 33vw"
               className="object-cover grayscale opacity-60"
             />
           )}
           <div className="absolute inset-0 bg-white/65" />
-          <div className="absolute inset-0 flex items-center justify-center p-8 pt-[calc(2rem+12%)] text-center">
+          <div className="absolute inset-0 flex items-center justify-center p-5 pt-[calc(1.5rem+10%)] text-center min-[900px]:p-8 min-[900px]:pt-[calc(2rem+12%)]">
             <div className={`flex w-full max-w-[270px] flex-col items-center ${BRANDING_RIGHT_PANEL_STACK_GAP_CLASS}`}>
               <BrandingRightPanelLogo
                 src={logoSrc}
@@ -765,7 +765,7 @@ export default function Step1Upload() {
                 />
                 <div className="h-px flex-1 bg-slate-400/55" />
               </div>
-              <p className="text-center text-[16px] font-normal leading-6 tracking-normal text-black">
+              <p className="text-center text-[14px] font-normal leading-5 tracking-normal text-black min-[900px]:text-[16px] min-[900px]:leading-6">
                 {branding.tagline}
               </p>
             </div>
