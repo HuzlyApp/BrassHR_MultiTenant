@@ -182,6 +182,19 @@ export function brandingFontFamily(fontId: TenantBrandingFontId): string {
   return FONT_FAMILY_BY_ID[fontId] ?? FONT_FAMILY_BY_ID.inter;
 }
 
+/** Apply a single onboarding font choice to all typography slots. */
+export function applyPrimaryFontToBranding(
+  branding: TenantBranding,
+  fontId: TenantBrandingFontId
+): TenantBranding {
+  return {
+    ...branding,
+    primaryFontId: fontId,
+    headingFontId: fontId,
+    bodyFontId: fontId,
+  };
+}
+
 function brandingTypographyDefaults(primaryHex: string) {
   return {
     primaryFontId: DEFAULT_FONT_ID,
@@ -362,7 +375,8 @@ export function brandingToCssVars(b: TenantBranding): Record<string, string> {
     // not a primary→secondary (navy) split.
     "--brand-gradient-from": lightenForGradient(b.primaryHex),
     "--brand-gradient-to": b.primaryHex,
-    "--brand-font-family": brandingFontFamily(b.bodyFontId),
+    "--brand-font-family": brandingFontFamily(b.primaryFontId),
+    "--brand-font-primary": brandingFontFamily(b.primaryFontId),
     "--brand-font-heading": brandingFontFamily(b.headingFontId),
     "--brand-font-body": brandingFontFamily(b.bodyFontId),
     "--brand-text": b.fontColor,

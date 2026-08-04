@@ -1,11 +1,15 @@
 import type { CSSProperties } from "react";
+import {
+  BRAND_FONT_BODY_STYLE,
+  BRAND_FONT_HEADING_STYLE,
+} from "@/lib/tenant/branding-typography-styles";
 
 /** Figma: worker schedule page title — "Schedules" */
 export const WORKER_SCHEDULE_TITLE_CLASS =
   "text-[24px] font-semibold leading-8 tracking-normal text-black align-middle sm:text-[30px] sm:leading-9";
 
 export const WORKER_SCHEDULE_TITLE_STYLE: CSSProperties = {
-  fontFamily: "Inter, Arial, sans-serif",
+  ...BRAND_FONT_HEADING_STYLE,
 };
 
 /** Figma: worker schedule page subtitle */
@@ -13,7 +17,7 @@ export const WORKER_SCHEDULE_SUBTITLE_CLASS =
   "mt-1 text-[16px] font-normal leading-6 tracking-normal text-[#6B7280] align-middle";
 
 export const WORKER_SCHEDULE_SUBTITLE_STYLE: CSSProperties = {
-  fontFamily: "Inter, Arial, sans-serif",
+  ...BRAND_FONT_BODY_STYLE,
 };
 
 /** Figma: card section titles — Timer, Clock-In, Clock Out, Schedules, etc. */
@@ -21,7 +25,7 @@ export const WORKER_SECTION_TITLE_CLASS =
   "text-[14px] font-semibold leading-5 tracking-normal text-black align-middle";
 
 export const WORKER_SECTION_TITLE_STYLE: CSSProperties = {
-  fontFamily: "Inter, Arial, sans-serif",
+  ...BRAND_FONT_HEADING_STYLE,
 };
 
 export const WORKER_SCHEDULE_CARD_CLASS =
@@ -56,7 +60,7 @@ export const WORKER_TIMESHEET_META_CLASS =
   "text-[12px] font-normal leading-5 tracking-normal text-[#6B7280] align-middle";
 
 export const WORKER_TIMESHEET_FONT_STYLE: CSSProperties = {
-  fontFamily: "Inter, Arial, sans-serif",
+  ...BRAND_FONT_BODY_STYLE,
 };
 
 /** Figma: date range controls — Last 7 days / calendar */

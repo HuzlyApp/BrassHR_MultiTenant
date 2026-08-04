@@ -30,6 +30,7 @@ import {
   validateTenantSubdomainInput,
 } from "@/lib/tenant/subdomain-validation";
 import {
+  applyPrimaryFontToBranding,
   defaultTenantBranding,
   PLATFORM_DEFAULT_TENANT_SLUG,
   type TenantBranding,
@@ -216,21 +217,35 @@ export default function TenantOnboardingPage() {
   }, []);
 
   const preview = useMemo((): TenantBranding => {
-    return {
-      ...brand,
-      companyName: orgName.trim() || brand.companyName,
-      logoUrl: logoUrl.trim() || brand.logoUrl,
-      primaryHex,
-      secondaryHex,
-      accentHex,
-      headline: headline.trim() || `Welcome to ${orgName.trim() || brand.companyName}`,
-      subtitle: subtitle.trim() || brand.subtitle,
-      loginBackgroundSrc: backgroundUrl.trim() || brand.loginBackgroundSrc,
-      tagline: subtitle.trim()
-        ? subtitle.trim()
-        : `Applicants can onboard with branding unique to ${orgName.trim() || brand.companyName}.`,
-    };
-  }, [accentHex, backgroundUrl, brand, headline, logoUrl, orgName, primaryHex, secondaryHex, subtitle]);
+    return applyPrimaryFontToBranding(
+      {
+        ...brand,
+        companyName: orgName.trim() || brand.companyName,
+        logoUrl: logoUrl.trim() || brand.logoUrl,
+        primaryHex,
+        secondaryHex,
+        accentHex,
+        headline: headline.trim() || `Welcome to ${orgName.trim() || brand.companyName}`,
+        subtitle: subtitle.trim() || brand.subtitle,
+        loginBackgroundSrc: backgroundUrl.trim() || brand.loginBackgroundSrc,
+        tagline: subtitle.trim()
+          ? subtitle.trim()
+          : `Applicants can onboard with branding unique to ${orgName.trim() || brand.companyName}.`,
+      },
+      brandingFontId
+    );
+  }, [
+    accentHex,
+    backgroundUrl,
+    brand,
+    brandingFontId,
+    headline,
+    logoUrl,
+    orgName,
+    primaryHex,
+    secondaryHex,
+    subtitle,
+  ]);
 
   useEffect(() => {
     if (!backgroundFile) {
@@ -393,6 +408,9 @@ export default function TenantOnboardingPage() {
             backgroundFile || !isPersistableBrandingUrl(backgroundUrl)
               ? null
               : backgroundUrl.trim() || null,
+          primaryFont: brandingFontId,
+          headingFont: brandingFontId,
+          bodyFont: brandingFontId,
           adminEmail: adminEmail.trim().toLowerCase(),
           adminPassword: "",
           industry: businessInfo.industry,

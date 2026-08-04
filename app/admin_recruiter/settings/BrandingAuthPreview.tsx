@@ -21,7 +21,12 @@ const SIGNUP_STEP_LABELS = ["Sign Up", "Preparing your trial", "Account is ready
 function PreviewField({ label }: { label: string }) {
   return (
     <div>
-      <span className="mb-1 block text-[10px] font-normal leading-tight text-[#0f172a]">{label}</span>
+      <span
+        className="mb-1 block text-[10px] font-normal leading-tight"
+        style={{ color: "var(--brand-text)", fontFamily: "var(--brand-font-body)" }}
+      >
+        {label}
+      </span>
       <div className="h-8 w-full rounded-[5px] border border-[#d7e0ea] bg-white" aria-hidden />
     </div>
   );
@@ -55,7 +60,12 @@ function PreviewRightPanel({
             <BrandedSvgIcon src="/icons/circle-star-icon.svg" className="h-3.5 w-3.5 flex-none" color={primaryHex} />
             <div className="h-px flex-1 bg-slate-400/55" />
           </div>
-          <p className="line-clamp-3 text-[9px] leading-snug text-black">{tagline}</p>
+          <p
+            className="line-clamp-3 text-[9px] leading-snug"
+            style={{ color: "var(--brand-text)", fontFamily: "var(--brand-font-body)" }}
+          >
+            {tagline}
+          </p>
         </div>
       </div>
     </div>
@@ -97,7 +107,10 @@ function PreviewSignupStepper({ primaryHex }: { primaryHex: string }) {
                 </span>
                 <span
                   className="mt-1.5 line-clamp-2 text-center text-[7px] leading-tight"
-                  style={{ color: isPending ? "#94a3b8" : "#0f172a" }}
+                  style={{
+                    color: isPending ? "var(--brand-muted)" : "var(--brand-heading)",
+                    fontFamily: "var(--brand-font-body)",
+                  }}
                 >
                   {label}
                 </span>
@@ -145,7 +158,9 @@ function LoginPreview({ branding }: { branding: TenantBranding }) {
 
           <div className="mt-2 flex items-start gap-1.5">
             <span className="mt-0.5 h-3 w-3 shrink-0 rounded border border-gray-300 bg-white" aria-hidden />
-            <span className="text-[8px] leading-tight text-gray-600">Terms &amp; Conditions</span>
+            <span className="text-[8px] leading-tight" style={{ color: "var(--brand-muted)" }}>
+              Terms &amp; Conditions
+            </span>
           </div>
 
           <div className="mt-3 flex gap-2">

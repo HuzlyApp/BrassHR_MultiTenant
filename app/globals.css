@@ -267,3 +267,41 @@ a[href] {
   flex-direction: column;
   gap: 12px;
 }
+
+/* Tenant typography — inherit brand fonts/colors within branded surfaces */
+.tenant-branded-surface {
+  font-family: var(--brand-font-body);
+  color: var(--brand-text);
+}
+
+.tenant-branded-surface h1,
+.tenant-branded-surface h2,
+.tenant-branded-surface h3,
+.tenant-branded-surface h4,
+.tenant-branded-surface h5,
+.tenant-branded-surface h6 {
+  font-family: var(--brand-font-heading);
+  color: var(--brand-heading);
+}
+
+.tenant-branded-surface .admin-recruiter-shell,
+.tenant-branded-surface .applicant-portal-shell,
+.tenant-branded-surface .applicant-portal-main-wrap,
+.tenant-branded-surface .tenant-onboarding-light {
+  font-family: var(--brand-font-body);
+  color: var(--brand-text);
+}
+
+/* Override hardcoded Inter utility classes within tenant-branded app shells */
+.tenant-branded-surface .font-\[Inter\,sans-serif\] {
+  font-family: var(--brand-font-body) !important;
+}
+
+.tenant-branded-surface h1.font-\[Inter\,sans-serif\],
+.tenant-branded-surface h2.font-\[Inter\,sans-serif\],
+.tenant-branded-surface h3.font-\[Inter\,sans-serif\],
+.tenant-branded-surface h4.font-\[Inter\,sans-serif\],
+.tenant-branded-surface h5.font-\[Inter\,sans-serif\],
+.tenant-branded-surface h6.font-\[Inter\,sans-serif\] {
+  font-family: var(--brand-font-heading) !important;
+}
