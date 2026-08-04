@@ -488,7 +488,12 @@ export function BusinessStep({
 
   const selectedStateCode = useMemo(() => {
     const fromRows = stateRows.find((row) => row.name === businessInfo.state)?.code;
-    return fromRows ?? getStateCodeFromName(businessInfo.state) ?? "";
+    if (fromRows) return fromRows;
+    const fromName = getStateCodeFromName(businessInfo.state);
+    if (fromName) return fromName;
+    const trimmed = businessInfo.state.trim().toUpperCase();
+    if (trimmed.length === 2 && getStateNameFromCode(trimmed)) return trimmed;
+    return "";
   }, [businessInfo.state, stateRows]);
 
   useEffect(() => {
@@ -541,18 +546,63 @@ export function BusinessStep({
     }
     return [...cityOptions, city].sort((a, b) => a.localeCompare(b));
   }, [businessInfo.city, cityOptions]);
+
+  const effectiveStateOptions = useMemo(() => {
+    const state = businessInfo.state.trim();
+    if (!state) return stateOptions;
+
+    if (stateOptions.includes(state)) return stateOptions;
+
+    // Address autocomplete / saved data may store a 2-letter code — resolve to name.
+    const fromCode = getStateNameFromCode(state);
+    if (fromCode && stateOptions.includes(fromCode)) return stateOptions;
+
+    return [...stateOptions, fromCode || state].sort((a, b) => a.localeCompare(b));
+  }, [businessInfo.state, stateOptions]);
+
+  const displayStateValue = useMemo(() => {
+    const raw = businessInfo.state.trim();
+    if (!raw) return "";
+    if (stateOptions.includes(raw) || effectiveStateOptions.includes(raw)) return raw;
+    const fromCode = getStateNameFromCode(raw);
+    if (fromCode && (stateOptions.includes(fromCode) || effectiveStateOptions.includes(fromCode))) {
+      return fromCode;
+    }
+    return raw;
+  }, [businessInfo.state, effectiveStateOptions, stateOptions]);
+
+  // Normalize a stored state code (e.g. "AZ") to the full name once options load.
+  useEffect(() => {
+    const raw = businessInfo.state.trim();
+    if (!raw || stateOptions.length === 0) return;
+    if (stateOptions.includes(raw)) return;
+    const fromCode = getStateNameFromCode(raw);
+    if (fromCode && stateOptions.includes(fromCode) && fromCode !== raw) {
+      onBusinessInfoChange({ state: fromCode });
+    }
+    // Parent passes an inline setter; only re-run when the stored value/options change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- avoid re-running on unstable callback identity
+  }, [businessInfo.state, stateOptions]);
+
   const stateOptionsUnavailable = !locationLoading && stateOptions.length === 0;
   const cityOptionsUnavailable = Boolean(businessInfo.state) && !citiesLoading && effectiveCityOptions.length === 0;
 
   const validationContext = useMemo(
     () => ({
       stateCode: selectedStateCode || undefined,
-      stateName: businessInfo.state || undefined,
-      allowedStateNames: stateOptions,
+      stateName: displayStateValue || businessInfo.state || undefined,
+      allowedStateNames: effectiveStateOptions.length > 0 ? effectiveStateOptions : stateOptions,
       allowedCityNames: effectiveCityOptions.length > 0 ? effectiveCityOptions : undefined,
       requireEin: true,
     }),
-    [businessInfo.state, effectiveCityOptions, selectedStateCode, stateOptions]
+    [
+      businessInfo.state,
+      displayStateValue,
+      effectiveCityOptions,
+      effectiveStateOptions,
+      selectedStateCode,
+      stateOptions,
+    ]
   );
 
   const formInput = useMemo(
@@ -743,16 +793,25 @@ export function BusinessStep({
         </div>
 
         <div className="grid grid-cols-1 gap-[14px] min-[600px]:grid-cols-2 sm:gap-[24px]">
-          <SelectField
+          <SearchableSelectField
             label="State"
             required
-            value={businessInfo.state}
-            onChange={(value) => handleBusinessFieldChange({ state: value, city: "" })}
-            placeholder={locationLoading ? "Loading…" : stateOptionsUnavailable ? "No states found" : "Select state"}
-            options={stateOptions}
+            loading={locationLoading}
             disabled={locationLoading || stateOptionsUnavailable}
+            value={displayStateValue}
+            onChange={(value) => handleBusinessFieldChange({ state: value, city: "" })}
+            onBlur={() => handleFieldBlur("state")}
+            placeholder={
+              locationLoading
+                ? "Loading…"
+                : stateOptionsUnavailable
+                  ? "No states found"
+                  : "Search state"
+            }
+            searchPlaceholder="Type to search states"
+            options={effectiveStateOptions}
             error={showFieldError("state")}
-            emptyMessage="No states found"
+            emptyMessage="No states found. Try another search."
           />
           <SearchableSelectField
             label="City"
@@ -1023,12 +1082,25 @@ export function CompanyLogoStep({
     handleFile(event.dataTransfer.files?.[0] ?? null);
   };
 
+  const onFaviconDrop = (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    handleFaviconFile(event.dataTransfer.files?.[0] ?? null);
+  };
+
   const onFileInput = (event: ChangeEvent<HTMLInputElement>) => {
     handleFile(event.target.files?.[0] ?? null);
   };
 
+  const onFaviconFileInput = (event: ChangeEvent<HTMLInputElement>) => {
+    handleFaviconFile(event.target.files?.[0] ?? null);
+  };
+
   const openFilePicker = () => {
     inputRef.current?.click();
+  };
+
+  const openFaviconFilePicker = () => {
+    faviconInputRef.current?.click();
   };
 
   const handleRemoveLogo = (event: React.MouseEvent) => {
@@ -1040,7 +1112,8 @@ export function CompanyLogoStep({
     if (inputRef.current) inputRef.current.value = "";
   };
 
-  const handleRemoveFavicon = () => {
+  const handleRemoveFavicon = (event: React.MouseEvent) => {
+    event.stopPropagation();
     setFaviconError(null);
     onFaviconFileChange(null);
     if (faviconInputRef.current) faviconInputRef.current.value = "";
@@ -1226,71 +1299,127 @@ export function CompanyLogoStep({
           onChange={onFileInput}
         />
 
-        <section className="rounded-[14px] border border-[#e8edf4] bg-[#fafafa] px-[16px] py-[18px]">
-          <FieldLabel required={false}>Favicon</FieldLabel>
-          <p className="mb-3 text-[12px] leading-[18px] text-[#64748b]" style={interStyle}>
-            Small icon for the browser tab, sidebar, and header. Square image works best. Falls back
-            to company logo if skipped. PNG, JPG, WEBP, SVG, or ICO. Max 2 MB.
-          </p>
+        <div>
+          <h3
+            className="text-[16px] font-semibold leading-[24px] text-[#0f172a]"
+            style={interStyle}
+          >
+            Upload your favicon icon
+          </h3>
+
           {faviconFile && faviconPreviewSrc ? (
-            <div className="flex items-center gap-[14px] rounded-[12px] border border-[color:var(--brand-primary)] bg-white px-[14px] py-[12px]">
+            <div className="mt-[16px] flex items-center gap-[14px] rounded-[12px] border border-[color:var(--brand-primary)] bg-[#F4F4F4] px-[16px] py-[14px]">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={faviconPreviewSrc}
                 alt=""
-                className="h-[48px] w-[48px] shrink-0 rounded-[10px] border border-[#e2e8f0] bg-white object-contain p-1"
+                className="h-[56px] w-[56px] shrink-0 rounded-[10px] border border-[#e2e8f0] bg-white object-contain p-1"
               />
-              <div className="min-w-0 flex-1">
+              <div className="min-w-0 flex-1 text-left">
                 <p
-                  className="truncate text-[14px] font-semibold leading-[20px] text-[#0f172a]"
+                  className="truncate text-[16px] font-semibold leading-[22px] text-[#374151]"
                   style={interStyle}
                 >
                   {faviconFile.name}
                 </p>
-                <p className="text-[12px] text-[#64748b]" style={interStyle}>
+                <p
+                  className="truncate text-[14px] font-normal leading-[20px] text-[#94a3b8]"
+                  style={interStyle}
+                >
                   Uploaded favicon
                 </p>
               </div>
               <button
                 type="button"
                 onClick={handleRemoveFavicon}
-                className="flex h-[40px] w-[40px] shrink-0 items-center justify-center rounded-[8px] text-[color:var(--brand-primary)] transition hover:bg-[#f1f5f9]"
+                className="flex h-[40px] w-[40px] shrink-0 items-center justify-center rounded-[8px] text-[color:var(--brand-primary)] transition hover:bg-white/80"
                 aria-label="Remove favicon"
               >
                 <Trash2 className="h-[20px] w-[20px]" strokeWidth={2} />
               </button>
             </div>
           ) : (
-            <div className="flex flex-wrap items-center gap-3">
-              <input
-                ref={faviconInputRef}
-                type="file"
-                accept={FAVICON_ACCEPT}
-                className="hidden"
-                onChange={(event) => handleFaviconFile(event.target.files?.[0] ?? null)}
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={openFaviconFilePicker}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") openFaviconFilePicker();
+              }}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={onFaviconDrop}
+              className="mt-[16px] flex cursor-pointer flex-col items-center justify-center rounded-[10px] border-2 border-dashed border-[#94a3b8] bg-white px-4 py-[24px] transition hover:border-[#64748b] hover:bg-[#fafafa] sm:px-6 sm:py-[28px]"
+            >
+              <Image
+                src="/icons/braas-HR/tenant-onboarding/upload.svg"
+                alt=""
+                width={36}
+                height={36}
+                className="h-[30px] w-[30px] sm:h-[36px] sm:w-[36px]"
               />
+
+              <p
+                className="mt-[12px] text-center text-[14px] font-medium leading-[20px] text-[#104b83] sm:mt-[16px] sm:text-[16px] sm:leading-[24px]"
+                style={interStyle}
+              >
+                Drag your file(s) to start uploading
+              </p>
+
+              <div className="my-[16px] flex w-full max-w-[320px] items-center gap-3">
+                <div className="h-px flex-1 bg-[#cbd5e1]" aria-hidden />
+                <span
+                  className="text-[14px] font-medium leading-[20px] text-[#64748b]"
+                  style={interStyle}
+                >
+                  OR
+                </span>
+                <div className="h-px flex-1 bg-[#cbd5e1]" aria-hidden />
+              </div>
+
               <button
                 type="button"
-                onClick={() => faviconInputRef.current?.click()}
-                className="to-on-brand inline-flex h-[40px] cursor-pointer items-center justify-center rounded-lg bg-[#012352] px-4 text-[14px] font-medium text-white transition hover:brightness-110"
-                style={{ ...interStyle, color: "#ffffff" }}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  openFaviconFilePicker();
+                }}
+                className="flex h-[44px] min-w-[160px] items-center justify-center rounded-[8px] border border-[#104b83] bg-white px-6 text-[14px] font-semibold leading-[20px] text-[#104b83] transition hover:bg-[#f8fafc]"
+                style={interStyle}
               >
-                Choose file
+                Browse files
               </button>
-              <span className="text-[13px] text-[#64748b]" style={interStyle}>
-                No file chosen
-              </span>
+
+              <p
+                className="mt-[12px] text-[13px] leading-[18px] text-[#94a3b8]"
+                style={interStyle}
+              >
+                Max 2 MB files are allowed
+              </p>
             </div>
           )}
+
           {faviconError ? (
             <p
-              className="to-field-error mt-2 text-[12px] font-medium text-[#DC2626]"
+              className="to-field-error mt-[8px] text-[13px] font-medium leading-[18px] text-[#DC2626]"
               style={{ ...interStyle, color: VALIDATION_ERROR_RED }}
             >
               {faviconError}
             </p>
           ) : null}
-        </section>
+
+          {!faviconFile ? (
+            <p className="mt-[12px] text-[13px] leading-[18px] text-[#94a3b8]" style={interStyle}>
+              PNG, JPG, WEBP, SVG, or ICO. Max 2 MB.
+            </p>
+          ) : null}
+        </div>
+
+        <input
+          ref={faviconInputRef}
+          type="file"
+          accept={FAVICON_ACCEPT}
+          className="hidden"
+          onChange={onFaviconFileInput}
+        />
       </div>
 
       <StepActions

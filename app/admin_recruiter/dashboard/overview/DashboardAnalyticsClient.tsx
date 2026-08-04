@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
+import AnalyticsChartFrame from "@/app/components/charts/AnalyticsChartFrame";
 import {
   ArrowDownRight,
   ArrowUpRight,
@@ -199,6 +200,20 @@ const CHART_GREEN_COLOR = "#008C36";
 function getBreakdownColor(slice: BreakdownSlice): string {
   if (slice.key === "active") return CHART_GREEN_COLOR;
   return slice.color;
+}
+
+function getWorkforceChartSlices(breakdown: BreakdownSlice[]): BreakdownSlice[] {
+  const total = breakdown.reduce((sum, slice) => sum + slice.value, 0);
+  if (total > 0) return breakdown;
+  return [
+    {
+      key: "empty",
+      label: "No workforce data yet",
+      value: 1,
+      pct: 0,
+      color: "#E5E7EB",
+    },
+  ];
 }
 
 function AnalyticsMetric({
@@ -423,6 +438,8 @@ export default function DashboardAnalyticsClient({ focusSection }: DashboardAnal
   const lineChartMargin = compactCharts
     ? { top: 8, right: 4, left: -20, bottom: 0 }
     : { top: 8, right: 12, left: -12, bottom: 0 };
+  const workforceChartSlices = getWorkforceChartSlices(data.workforce.breakdown);
+  const workforceChartIsEmpty = data.workforce.breakdown.every((slice) => slice.value === 0);
 
   return (
     <div className="admin-recruiter-page-pad w-full min-w-0 space-y-3 overflow-x-hidden sm:space-y-[14px]">
@@ -502,7 +519,7 @@ export default function DashboardAnalyticsClient({ focusSection }: DashboardAnal
                   changePct={data.recruitment.metrics.hires.changePct}
                 />
               </div>
-              <div className="h-[200px] w-full min-w-0 sm:h-[240px]">
+              <AnalyticsChartFrame className="h-[200px] w-full min-w-0 sm:h-[240px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={data.recruitment.trend} margin={lineChartMargin}>
                     <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_STROKE} vertical={false} />
@@ -519,7 +536,7 @@ export default function DashboardAnalyticsClient({ focusSection }: DashboardAnal
                     />
                   </LineChart>
                 </ResponsiveContainer>
-              </div>
+              </AnalyticsChartFrame>
             </div>
           </SectionCard>
 
@@ -549,29 +566,36 @@ export default function DashboardAnalyticsClient({ focusSection }: DashboardAnal
                   changePct={data.workforce.metrics.shiftCoverage.changePct}
                 />
               </div>
-              <div className="flex h-[200px] min-h-[180px] w-full min-w-0 items-center justify-center px-1 sm:h-[240px]">
+              <AnalyticsChartFrame className="relative flex h-[200px] min-h-[180px] w-full min-w-0 items-center justify-center px-1 sm:h-[240px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart margin={{ top: 8, right: 8, bottom: 8, left: 8 }}>
                     <Pie
-                      data={data.workforce.breakdown}
+                      data={workforceChartSlices}
                       dataKey="value"
                       nameKey="label"
                       cx="50%"
                       cy="50%"
                       innerRadius="58%"
                       outerRadius="82%"
-                      paddingAngle={2}
+                      paddingAngle={workforceChartIsEmpty ? 0 : 2}
                       stroke="#FFFFFF"
                       strokeWidth={2}
                     >
-                      {data.workforce.breakdown.map((slice) => (
+                      {workforceChartSlices.map((slice) => (
                         <Cell key={slice.key} fill={getBreakdownColor(slice)} />
                       ))}
                     </Pie>
                     <Tooltip />
                   </PieChart>
                 </ResponsiveContainer>
-              </div>
+                {workforceChartIsEmpty ? (
+                  <div className="pointer-events-none absolute inset-0 flex items-center justify-center px-4 text-center">
+                    <span className="font-[Inter,sans-serif] text-[12px] font-medium leading-4 text-[#9CA3AF]">
+                      No workforce data yet
+                    </span>
+                  </div>
+                ) : null}
+              </AnalyticsChartFrame>
               <div className="space-y-2 sm:space-y-[14px]">
                 {data.workforce.breakdown.map((slice) => (
                   <BreakdownLegendItem key={slice.key} slice={slice} />
@@ -599,7 +623,7 @@ export default function DashboardAnalyticsClient({ focusSection }: DashboardAnal
             <p className="mb-3 font-[Inter,sans-serif] text-[14px] font-semibold leading-[20px] text-[#111827] sm:mb-[14px]">
               Revenue Trend
             </p>
-            <div className="h-[180px] w-full min-w-0 sm:h-[220px]">
+            <AnalyticsChartFrame className="h-[180px] w-full min-w-0 sm:h-[220px]">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={data.financial.revenueTrend} margin={lineChartMargin}>
                   <defs>
@@ -628,7 +652,7 @@ export default function DashboardAnalyticsClient({ focusSection }: DashboardAnal
                   />
                 </LineChart>
               </ResponsiveContainer>
-            </div>
+            </AnalyticsChartFrame>
           </SectionCard>
 
           <SectionCard
@@ -659,7 +683,7 @@ export default function DashboardAnalyticsClient({ focusSection }: DashboardAnal
             <p className="mb-3 font-[Inter,sans-serif] text-[14px] font-semibold leading-[20px] text-[#111827] sm:mb-[14px]">
               Pending Approvals by type
             </p>
-            <div className="h-[180px] w-full min-w-0 sm:h-[220px]">
+            <AnalyticsChartFrame className="h-[180px] w-full min-w-0 sm:h-[220px]">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart
                   data={data.operational.pendingApprovalsByType}
@@ -678,7 +702,7 @@ export default function DashboardAnalyticsClient({ focusSection }: DashboardAnal
                   <Bar dataKey="count" fill="#3B82F6" radius={[0, 4, 4, 0]} barSize={16} />
                 </BarChart>
               </ResponsiveContainer>
-            </div>
+            </AnalyticsChartFrame>
           </SectionCard>
         </div>
 
