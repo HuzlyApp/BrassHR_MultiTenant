@@ -28,6 +28,7 @@ import {
   JobDescriptionHtml,
   jobDescriptionPlainText,
 } from "./JobDescriptionEditor";
+import AiJobDescriptionPanel from "./AiJobDescriptionPanel";
 import type { ReviewEditFieldId } from "./JobReviewEditModal";
 import { JobTypeChipSelect } from "./JobTypeChipSelect";
 import { BenefitsChipSelect } from "./BenefitsChipSelect";
@@ -836,7 +837,7 @@ export function JobFormStepMspDetails({
             value={job.duration ?? ""}
             onChange={(event) => onJobChange("duration", event.target.value || null)}
           >
-            <option value="">Eg: 13 weeks</option>
+            <option value="">Select Job duration</option>
             {JOB_FORM_DURATION_OPTIONS.map((value) => (
               <option key={value} value={value}>
                 {value}
@@ -1190,37 +1191,86 @@ export function JobFormStepCompensation({
           </div>
         ) : null}
       </section>
+    </div>
+  );
+}
 
-      <section className="space-y-4">
-        <h2 className={JOB_FORM_SECTION_TITLE_CLASS}>Job Description</h2>
-        <JobDescriptionEditor
-          value={job.publicDescription ?? ""}
-          onChange={(next) => onJobChange("publicDescription", next)}
-          error={fieldErrors.publicDescription}
-        />
-      </section>
+export function JobFormStepDescription({
+  job,
+  ui,
+  fieldErrors,
+  onJobChange,
+  professionName,
+  specialtyName,
+}: {
+  job: JobRequisitionInput;
+  ui: JobFormUiState;
+  fieldErrors: Record<string, string>;
+  onJobChange: <K extends keyof JobRequisitionInput>(key: K, value: JobRequisitionInput[K]) => void;
+  professionName?: string;
+  specialtyName?: string;
+}) {
+  return (
+    <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(300px,380px)] xl:items-start">
+      <div className="flex flex-col gap-6">
+        <section>
+          <JobDescriptionEditor
+            value={job.publicDescription ?? ""}
+            onChange={(next) => onJobChange("publicDescription", next)}
+            error={fieldErrors.publicDescription}
+            ariaLabel="Job description"
+            placeholder={"Write a clear summary of the role…\n\nInclude what the team does and who this hire will support."}
+            bodyHeightClassName="h-[340px] xl:h-[360px]"
+          />
+        </section>
 
-      {/* TODO(future): Additional public details — Qualifications / Responsibilities
-      <section className="space-y-4">
-        <h2 className={JOB_FORM_SECTION_TITLE_CLASS}>Additional public details</h2>
-        <div className="grid gap-4 min-[700px]:grid-cols-2">
-          <PublicField label="Qualifications">
-            <textarea
-              className={`${JOB_FORM_TEXTAREA_CLASS} min-h-[120px]`}
-              value={job.qualifications ?? ""}
-              onChange={(event) => onJobChange("qualifications", event.target.value)}
-            />
-          </PublicField>
-          <PublicField label="Responsibilities">
-            <textarea
-              className={`${JOB_FORM_TEXTAREA_CLASS} min-h-[120px]`}
-              value={job.responsibilities ?? ""}
-              onChange={(event) => onJobChange("responsibilities", event.target.value)}
-            />
-          </PublicField>
-        </div>
-      </section>
-      */}
+        <section className="space-y-3">
+          <h2 className={JOB_FORM_SECTION_TITLE_CLASS}>Job Responsibilities</h2>
+          <JobDescriptionEditor
+            value={job.responsibilities ?? ""}
+            onChange={(next) => onJobChange("responsibilities", next)}
+            error={fieldErrors.responsibilities}
+            ariaLabel="Job responsibilities"
+            placeholder={"Emergency Room (ER) Nurse\n• Assess and triage patients\n• Administer medications\n• Collaborate with physicians and care teams"}
+            bodyHeightClassName="h-[420px] xl:h-[460px]"
+          />
+        </section>
+      </div>
+
+      <AiJobDescriptionPanel
+        context={{
+          jobTitle: job.publicTitle ?? "",
+          professionName: professionName ?? "",
+          specialtyName: specialtyName ?? "",
+          employmentType: job.employmentType ?? "",
+          location: job.location ?? "",
+          locationType: ui.jobLocationType ?? "",
+          yearsOfExperience: ui.yearsOfExperience ?? "",
+          benefits: ui.selectedBenefits ?? [],
+          compensationType: ui.compensationType ?? "",
+          currency: ui.currency ?? "",
+          showPayBy: ui.showPayBy ?? "",
+          payRatePeriod: ui.payRatePeriod ?? "",
+          payRateMin: job.payRateMin ?? null,
+          payRateMax: job.payRateMax ?? null,
+          duration: job.duration ?? "",
+          shiftType: job.shiftType ?? "",
+          facility: job.facility ?? "",
+          department: job.department ?? "",
+          requiredCredentials: job.requiredCredentials ?? "",
+          specialRequirements: job.specialRequirements ?? "",
+          numberOfPositions: ui.numberOfPositions ?? null,
+          applicationDeadline: job.applicationDeadline ?? "",
+        }}
+        onInsert={({ descriptionHtml, responsibilitiesHtml }) => {
+          if (descriptionHtml.trim()) {
+            onJobChange("publicDescription", descriptionHtml);
+          }
+          if (responsibilitiesHtml.trim()) {
+            onJobChange("responsibilities", responsibilitiesHtml);
+          }
+        }}
+      />
     </div>
   );
 }
@@ -1559,6 +1609,11 @@ export function JobFormStepReview({
           <Pencil className="h-4 w-4" />
         </button>
       </div>
+      <ReviewRow
+        label="Job Responsibilities"
+        value={jobDescriptionPlainText(job.responsibilities ?? "")}
+        onEdit={() => onEditField("jobDescription")}
+      />
     </section>
   );
 }
@@ -1730,6 +1785,7 @@ export function JobFormFooter({
 }) {
   const isReview = step === "review";
   const isCompensation = step === "compensation";
+  const isDescription = step === "description";
   const outlineButtonClass = `${JOB_FORM_OUTLINE_BUTTON_CLASS} w-full min-[700px]:w-auto`;
   const primaryButtonClass = `${JOB_FORM_PRIMARY_BUTTON_CLASS} w-full min-[700px]:w-auto`;
 
@@ -1800,9 +1856,29 @@ export function JobFormFooter({
               style={brandStyle}
               onClick={onNext}
             >
-              Continue to Review
+              Next
               <ArrowRight className="h-4 w-4" />
             </button>
+          ) : isDescription ? (
+            <>
+              <button
+                type="button"
+                className={outlineButtonClass}
+                onClick={onPreview}
+              >
+                <Eye className="h-4 w-4" />
+                Preview
+              </button>
+              <button
+                type="button"
+                className={`${primaryButtonClass} col-span-2 min-[700px]:col-span-1`}
+                style={brandStyle}
+                onClick={onNext}
+              >
+                Continue to Review
+                <ArrowRight className="h-4 w-4" />
+              </button>
+            </>
           ) : showPublishActions ? (
             <>
               <button

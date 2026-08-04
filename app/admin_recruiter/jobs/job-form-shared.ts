@@ -1,7 +1,11 @@
 import type { CSSProperties } from "react";
 import type { EmploymentType, JobRequisitionInput, SourceType } from "@/lib/jobs/types";
 
-export type JobFormStep = "requisition" | "msp-details" | "compensation" | "review";
+export type JobFormStep = "requisition" | "msp-details" | "compensation" | "description" | "review";
+
+/** Wider centered column for Job Description + AI panel layout. */
+export const JOB_FORM_WIDE_COLUMN_CLASS =
+  "mx-auto flex w-full max-w-[1100px] flex-1 flex-col px-4 py-5 min-[700px]:px-8 min-[700px]:py-8 lg:px-10";
 
 export const JOB_FORM_MSP_JOB_DETAIL_OPTIONS = [
   "Long-Term Care",
@@ -114,7 +118,7 @@ export const JOB_FORM_PRIMARY_BUTTON_CLASS =
   "inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-lg px-5 text-sm font-medium text-white transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-50";
 
 export const JOB_FORM_OUTLINE_BUTTON_CLASS =
-  "inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-lg border border-[#CBD5E1] bg-white px-4 text-sm font-medium text-[#334155] transition hover:bg-[#F8FAFC] disabled:cursor-not-allowed disabled:opacity-50";
+  "inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-lg border border-[color:var(--brand-secondary)] bg-white px-4 text-sm font-medium text-[color:var(--brand-secondary)] transition hover:bg-[#F8FAFC] disabled:cursor-not-allowed disabled:opacity-50";
 
 export const JOB_FORM_ICON_BUTTON_CLASS =
   "inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-md text-[color:var(--brand-primary)] transition hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_10%,white)] hover:opacity-90";

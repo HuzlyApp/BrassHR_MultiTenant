@@ -7,6 +7,13 @@ type Props = {
   value: string;
   onChange: (value: string) => void;
   error?: string;
+  ariaLabel?: string;
+  placeholder?: string;
+  /**
+   * Fixed height for the scrollable editor body (e.g. "h-[280px]").
+   * Content scrolls inside; the box does not grow with text.
+   */
+  bodyHeightClassName?: string;
 };
 
 function looksLikeHtml(value: string): boolean {
@@ -30,25 +37,14 @@ function normalizeEditorHtml(html: string): string {
   return html;
 }
 
-function stripHtml(value: string): string {
-  if (!looksLikeHtml(value)) return value;
-  return value
-    .replace(/<br\s*\/?>/gi, "\n")
-    .replace(/<\/(p|div|li|h[1-6])>/gi, "\n")
-    .replace(/<[^>]+>/g, "")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
-}
-
-export function jobDescriptionPlainText(value: string): string {
-  return stripHtml(value ?? "");
-}
-
-export function JobDescriptionEditor({ value, onChange, error }: Props) {
+export function JobDescriptionEditor({
+  value,
+  onChange,
+  error,
+  ariaLabel = "Job description",
+  placeholder = "About the Role\n\nKey Responsibilities\n• ...\n\nQualifications\n• ...",
+  bodyHeightClassName = "h-[280px]",
+}: Props) {
   const editorRef = useRef<HTMLDivElement>(null);
   const lastEmittedRef = useRef(value);
   const [isEmpty, setIsEmpty] = useState(!value?.trim());
@@ -128,14 +124,14 @@ export function JobDescriptionEditor({ value, onChange, error }: Props) {
   return (
     <div>
       <div className="overflow-hidden rounded-lg border border-[#CBD5E1]">
-        <div className="flex flex-wrap items-center gap-1 border-b border-[#E5E7EB] bg-[#F8FAFC] px-2 py-2">
+        <div className="flex shrink-0 flex-wrap items-center gap-1 border-b border-[#E5E7EB] bg-[#F8FAFC] px-2 py-2">
           {tools.map(({ icon: Icon, label, onClick }) => (
             <button
               key={label}
               type="button"
               onMouseDown={(event) => event.preventDefault()}
               onClick={onClick}
-              className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-md text-[#64748B] transition hover:bg-white hover:text-[#334155]"
+              className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-md text-[#64748B] transition hover:bg-white hover:text-[color:var(--brand-secondary)]"
               aria-label={label}
               title={label}
             >
@@ -151,23 +147,24 @@ export function JobDescriptionEditor({ value, onChange, error }: Props) {
           </span>
         </div>
 
-        <div className="relative">
+        {/* Fixed-height viewport — contentEditable grows inside; this box scrolls. */}
+        <div className={`relative ${bodyHeightClassName} overflow-x-hidden overflow-y-auto`}>
           {isEmpty ? (
             <div
               aria-hidden
-              className="pointer-events-none absolute inset-0 whitespace-pre-wrap px-3 py-3 text-sm leading-6 text-[#94A3B8]"
+              className="pointer-events-none absolute inset-0 z-[1] whitespace-pre-wrap px-3 py-3 text-sm leading-6 text-[#94A3B8]"
             >
-              {"About the Role\n\nKey Responsibilities\n• ...\n\nQualifications\n• ..."}
+              {placeholder}
             </div>
           ) : null}
           <div
             ref={editorRef}
             role="textbox"
             aria-multiline="true"
-            aria-label="Job description"
+            aria-label={ariaLabel}
             contentEditable
             suppressContentEditableWarning
-            className="job-description-editor relative min-h-[320px] cursor-pointer px-3 py-3 text-sm leading-6 text-[#334155] outline-none"
+            className="job-description-editor min-h-full cursor-text px-3 py-3 text-sm leading-6 text-[#334155] outline-none"
             onInput={emitChange}
             onBlur={emitChange}
           />
@@ -177,19 +174,47 @@ export function JobDescriptionEditor({ value, onChange, error }: Props) {
       <style>{`
         .job-description-editor ul,
         .job-description-html ul {
-          list-style: disc;
-          padding-left: 1.25rem;
-          margin: 0.5rem 0;
+          list-style: disc inside;
+          padding-left: 0.15rem;
+          margin: 0.75rem 0 1.25rem;
         }
         .job-description-editor ol,
         .job-description-html ol {
-          list-style: decimal;
-          padding-left: 1.25rem;
-          margin: 0.5rem 0;
+          list-style: decimal inside;
+          padding-left: 0.15rem;
+          margin: 0.75rem 0 1.25rem;
+        }
+        .job-description-editor li,
+        .job-description-html li {
+          margin: 0.75rem 0;
+          line-height: 1.75;
         }
         .job-description-editor p,
         .job-description-html p {
-          margin: 0 0 0.5rem;
+          margin: 0;
+          line-height: 1.6;
+        }
+        .job-description-editor p + p,
+        .job-description-html p + p {
+          margin-top: 0.4rem;
+        }
+        .job-description-editor p:has(> strong:only-child),
+        .job-description-html p:has(> strong:only-child) {
+          margin-top: 1rem;
+          margin-bottom: 0.35rem;
+        }
+        .job-description-editor > p:has(> strong:only-child):first-child,
+        .job-description-html > p:has(> strong:only-child):first-child {
+          margin-top: 0;
+        }
+        .job-description-editor p:has(> br:only-child),
+        .job-description-html p:has(> br:only-child),
+        .job-description-editor p:empty,
+        .job-description-html p:empty {
+          display: none;
+          margin: 0;
+          height: 0;
+          overflow: hidden;
         }
         .job-description-editor b,
         .job-description-editor strong,
@@ -208,26 +233,7 @@ export function JobDescriptionEditor({ value, onChange, error }: Props) {
   );
 }
 
-export function JobDescriptionHtml({
-  html,
-  className = "",
-  emptyLabel = "—",
-}: {
-  html: string;
-  className?: string;
-  emptyLabel?: string;
-}) {
-  const content = html.trim();
-  if (!content) return <p className={className}>{emptyLabel}</p>;
-
-  if (!looksLikeHtml(content)) {
-    return <p className={`whitespace-pre-wrap ${className}`}>{content}</p>;
-  }
-
-  return (
-    <div
-      className={`job-description-html prose prose-sm max-w-none text-sm leading-6 text-[#334155] ${className}`}
-      dangerouslySetInnerHTML={{ __html: content }}
-    />
-  );
-}
+export {
+  JobDescriptionHtml,
+  jobDescriptionPlainText,
+} from "@/lib/jobs/job-description-html";

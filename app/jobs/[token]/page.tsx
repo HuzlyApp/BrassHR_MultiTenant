@@ -42,6 +42,11 @@ export default async function PublicJobDetailPage({
     job.schedule,
   ].filter(Boolean);
 
+  const descriptionHtml = String(job.public_description ?? "");
+  const descriptionHasResponsibilities = /Key Responsibilities|Responsibilities/i.test(descriptionHtml);
+  const descriptionHasQualifications = /Qualifications/i.test(descriptionHtml);
+  const descriptionHasBenefits = /Benefits/i.test(descriptionHtml);
+
   return (
     <main className="min-h-screen bg-slate-50 text-slate-900" style={brandVars}>
       <div className="border-b border-slate-200 bg-white">
@@ -84,14 +89,44 @@ export default async function PublicJobDetailPage({
           <section className="mt-8">
             <h2 className="text-lg font-semibold text-slate-900">About this role</h2>
             <JobDescriptionHtml
-              html={String(job.public_description ?? "")}
-              className="mt-3 leading-7"
+              html={descriptionHtml}
+              className="mt-3 text-slate-700"
               emptyLabel=""
             />
           </section>
-          {job.responsibilities ? <section className="mt-7"><h2 className="text-lg font-semibold text-slate-900">Responsibilities</h2><p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-700">{job.responsibilities}</p></section> : null}
-          {job.qualifications ? <section className="mt-7"><h2 className="text-lg font-semibold text-slate-900">Qualifications</h2><p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-700">{job.qualifications}</p></section> : null}
-          {job.benefits ? <section className="mt-7"><h2 className="text-lg font-semibold text-slate-900">Benefits</h2><p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-700">{job.benefits}</p></section> : null}
+          {job.responsibilities && !descriptionHasResponsibilities ? (
+            <section className="mt-7">
+              <h2 className="text-lg font-semibold text-slate-900">Responsibilities</h2>
+              <JobDescriptionHtml
+                html={String(job.responsibilities)}
+                asList
+                className="mt-3 text-slate-700"
+                emptyLabel=""
+              />
+            </section>
+          ) : null}
+          {job.qualifications && !descriptionHasQualifications ? (
+            <section className="mt-7">
+              <h2 className="text-lg font-semibold text-slate-900">Qualifications</h2>
+              <JobDescriptionHtml
+                html={String(job.qualifications)}
+                asList
+                className="mt-3 text-slate-700"
+                emptyLabel=""
+              />
+            </section>
+          ) : null}
+          {job.benefits && !descriptionHasBenefits ? (
+            <section className="mt-7">
+              <h2 className="text-lg font-semibold text-slate-900">Benefits</h2>
+              <JobDescriptionHtml
+                html={String(job.benefits)}
+                asList
+                className="mt-3 text-slate-700"
+                emptyLabel=""
+              />
+            </section>
+          ) : null}
         </article>
         <aside className="h-fit rounded-xl border border-slate-200 bg-white p-5 shadow-sm lg:sticky lg:top-6">
           <h2 className="font-semibold text-slate-900">Ready to apply?</h2>

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
@@ -18,6 +18,7 @@ import { JobReviewEditModal, type ReviewEditFieldId } from "./JobReviewEditModal
 import {
   JobFormFooter,
   JobFormStepCompensation,
+  JobFormStepDescription,
   JobFormStepMspDetails,
   JobFormStepRequisition,
   JobFormStepReview,
@@ -28,6 +29,7 @@ import {
   defaultJobFormUiState,
   JOB_FORM_CENTER_COLUMN_CLASS,
   JOB_FORM_PAGE_CARD_CLASS,
+  JOB_FORM_WIDE_COLUMN_CLASS,
   jobFormUiFromJob,
   primaryButtonStyle,
   type JobFormOptionsPayload,
@@ -69,6 +71,20 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
   const [originalStatus, setOriginalStatus] = useState<"draft" | "published">("draft");
   const [confirmRoutingChange, setConfirmRoutingChange] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
+  const formTopRef = useRef<HTMLElement>(null);
+  const isFirstStepRender = useRef(true);
+
+  useEffect(() => {
+    if (isFirstStepRender.current) {
+      isFirstStepRender.current = false;
+      return;
+    }
+    const anchor = formTopRef.current;
+    if (anchor) {
+      anchor.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [step]);
 
   useEffect(() => {
     void fetch("/api/admin/job-options", { cache: "no-store" })
@@ -305,8 +321,12 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
       setStep(job.sourceType === "MSP" ? "msp-details" : "requisition");
       return;
     }
-    if (step === "review") {
+    if (step === "description") {
       setStep("compensation");
+      return;
+    }
+    if (step === "review") {
+      setStep("description");
       return;
     }
     router.push("/admin_recruiter/jobs");
@@ -321,27 +341,44 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
       setStep("compensation");
       return;
     }
-    if (step === "compensation") setStep("review");
+    if (step === "compensation") {
+      setStep("description");
+      return;
+    }
+    if (step === "description") setStep("review");
   }
 
   const pageTitle =
-    step === "review" ? "Review" : jobId ? "Edit job post" : "Create a job post";
+    step === "review"
+      ? "Review"
+      : step === "description"
+        ? "Job description"
+        : jobId
+          ? "Edit job post"
+          : "Create a job post";
   const pageSubtitle =
     step === "review"
       ? ""
-      : step === "compensation"
-        ? job.sourceType === "MSP"
-          ? "Benefits & Description"
-          : "Compensation & Description"
-        : step === "msp-details"
-          ? "Job Source Details"
-          : "Job Requisition";
+      : step === "description"
+        ? "Add job description."
+        : step === "compensation"
+          ? job.sourceType === "MSP"
+            ? "Benefits"
+            : "Compensation & Benefits"
+          : step === "msp-details"
+            ? "Job Source Details"
+            : "Job Requisition";
   const showPublishActions = step === "review";
+  const columnClass =
+    step === "description" ? JOB_FORM_WIDE_COLUMN_CLASS : JOB_FORM_CENTER_COLUMN_CLASS;
 
   return (
-    <main className="w-full px-2 py-3 min-[700px]:px-4 min-[700px]:py-4 lg:px-5">
+    <main
+      ref={formTopRef}
+      className="w-full px-2 py-3 min-[700px]:px-4 min-[700px]:py-4 lg:px-5"
+    >
       <div className={JOB_FORM_PAGE_CARD_CLASS} style={brandVars}>
-        <div className={JOB_FORM_CENTER_COLUMN_CLASS}>
+        <div className={columnClass}>
           <div className="mb-5 flex items-start justify-between gap-3 min-[700px]:mb-6 min-[700px]:gap-4">
             <div className="min-w-0 flex-1">
               <h1 className={CANDIDATES_PAGE_TITLE_CLASS} style={CANDIDATES_PAGE_TITLE_STYLE}>
@@ -422,6 +459,17 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
                 fieldErrors={fieldErrors}
                 onJobChange={updateJob}
                 onUiChange={updateUi}
+              />
+            ) : null}
+
+            {step === "description" ? (
+              <JobFormStepDescription
+                job={job}
+                ui={ui}
+                fieldErrors={fieldErrors}
+                onJobChange={updateJob}
+                professionName={professionLabel}
+                specialtyName={specialtyLabel}
               />
             ) : null}
 

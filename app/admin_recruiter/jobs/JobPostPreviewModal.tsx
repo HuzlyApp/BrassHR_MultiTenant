@@ -3,6 +3,7 @@
 import * as Dialog from "@radix-ui/react-dialog";
 import { Check, X } from "lucide-react";
 import type { CSSProperties } from "react";
+import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
 import type { JobRequisitionInput } from "@/lib/jobs/types";
 import {
   formatPaySummary,
@@ -57,13 +58,10 @@ export function JobPostPreviewModal({
         >
           <div className="relative flex items-start gap-2.5 px-3 pb-2 pt-4 pr-12 min-[700px]:gap-3 min-[700px]:px-5 min-[700px]:pb-3 min-[700px]:pt-5 min-[700px]:pr-14">
             <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[color:color-mix(in_srgb,var(--brand-primary)_12%,white)] min-[700px]:h-11 min-[700px]:w-11">
-              <img
+              <BrandedSvgIcon
                 src={JOB_POST_PREVIEW_ICON_SRC}
-                alt=""
-                width={24}
-                height={24}
                 className="h-5 w-5 min-[700px]:h-6 min-[700px]:w-6"
-                aria-hidden
+                color="var(--brand-primary)"
               />
             </span>
             <div className="min-w-0 flex-1 pt-0.5">
@@ -164,11 +162,22 @@ export function JobPostPreviewModal({
               ) : null}
 
               <div className="mt-4 max-h-[min(280px,40dvh)] overflow-y-auto pr-1 min-[700px]:max-h-[280px]">
+                <p className="mb-2 text-sm font-medium text-[#64748B]">Job Description</p>
                 <JobDescriptionHtml
                   html={description}
                   className="mt-0"
                   emptyLabel="No description added yet."
                 />
+                {job.responsibilities?.trim() ? (
+                  <div className="mt-4 border-t border-[#E5E7EB] pt-4">
+                    <p className="mb-2 text-sm font-medium text-[#64748B]">Job Responsibilities</p>
+                    <JobDescriptionHtml
+                      html={job.responsibilities}
+                      className="mt-0"
+                      emptyLabel="—"
+                    />
+                  </div>
+                ) : null}
               </div>
             </div>
           </div>

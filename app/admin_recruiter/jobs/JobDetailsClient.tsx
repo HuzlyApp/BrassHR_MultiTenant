@@ -69,11 +69,28 @@ function SummaryList({ title, items }: { title: string; items: string[] }) {
   return (
     <section className="mt-6">
       <h3 className="text-base font-semibold text-[#1D2739]">{title}</h3>
-      <ul className="mt-2 list-disc space-y-1.5 pl-5 text-sm leading-6 text-[#334155]">
+      <ul className="job-description-html mt-3 list-inside list-disc space-y-3 pl-1 text-sm leading-7 text-[#334155]">
         {items.map((item) => (
           <li key={`${title}-${item}`}>{item}</li>
         ))}
       </ul>
+    </section>
+  );
+}
+
+function SummaryHtmlSection({
+  title,
+  html,
+}: {
+  title: string;
+  html: string | null | undefined;
+}) {
+  const content = html?.trim() || "";
+  if (!content) return null;
+  return (
+    <section className="mt-6">
+      <h3 className="text-base font-semibold text-[#1D2739]">{title}</h3>
+      <JobDescriptionHtml html={content} asList className="mt-3 text-sm text-[#334155]" emptyLabel="" />
     </section>
   );
 }
@@ -502,22 +519,30 @@ export default function JobDetailsClient({ jobId }: Props) {
                   <h3 className="text-base font-semibold text-[#1D2739]">Job Summary</h3>
                   <JobDescriptionHtml
                     html={summaryHtml}
-                    className="mt-2 text-sm leading-6 text-[#334155]"
+                    className="mt-4 text-sm leading-7 text-[#334155]"
                     emptyLabel="No job summary added yet."
                   />
                 </section>
 
-                <SummaryList title="Key Responsibilities" items={responsibilities} />
-                <SummaryList title="Qualifications" items={qualifications} />
+                {/* Prefer HTML list rendering so bullets survive; fall back to split plain items. */}
+                {job?.responsibilities?.trim() &&
+                !/Key Responsibilities|Responsibilities/i.test(summaryHtml) ? (
+                  <SummaryHtmlSection title="Key Responsibilities" html={job.responsibilities} />
+                ) : responsibilities.length &&
+                  !/Key Responsibilities|Responsibilities/i.test(summaryHtml) ? (
+                  <SummaryList title="Key Responsibilities" items={responsibilities} />
+                ) : null}
+                {job?.qualifications?.trim() && !/Qualifications/i.test(summaryHtml) ? (
+                  <SummaryHtmlSection title="Qualifications" html={job.qualifications} />
+                ) : qualifications.length && !/Qualifications/i.test(summaryHtml) ? (
+                  <SummaryList title="Qualifications" items={qualifications} />
+                ) : null}
                 <SummaryList title="Preferred Skills" items={preferredSkills} />
 
-                {benefits.length ? (
-                  <section className="mt-6">
-                    <h3 className="text-base font-semibold text-[#1D2739]">Benefits</h3>
-                    <p className="mt-2 text-sm leading-6 text-[#334155]">
-                      {benefits.join(", ")}
-                    </p>
-                  </section>
+                {job?.benefits?.trim() && !/Benefits/i.test(summaryHtml) ? (
+                  <SummaryHtmlSection title="Benefits" html={job.benefits} />
+                ) : benefits.length && !/Benefits/i.test(summaryHtml) ? (
+                  <SummaryList title="Benefits" items={benefits} />
                 ) : null}
 
                 <section className="mt-6">

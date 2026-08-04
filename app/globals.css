@@ -292,6 +292,57 @@ a[href] {
   color: var(--brand-text);
 }
 
+/*
+ * Job description HTML — Tailwind Preflight resets list-style, and overflow
+ * containers clip outside markers. Force visible bullets + readable spacing.
+ */
+.job-description-html ul {
+  list-style-type: disc !important;
+  list-style-position: inside;
+  padding-left: 0.15rem;
+  margin: 0.75rem 0 1.25rem;
+}
+.job-description-html ol {
+  list-style-type: decimal !important;
+  list-style-position: inside;
+  padding-left: 0.15rem;
+  margin: 0.75rem 0 1.25rem;
+}
+.job-description-html li {
+  display: list-item !important;
+  margin: 0.75rem 0;
+  line-height: 1.75;
+  padding-left: 0.25rem;
+}
+.job-description-html p {
+  margin: 0;
+  line-height: 1.6;
+}
+/* Tight gap between body paragraphs — no large blank bands */
+.job-description-html p + p {
+  margin-top: 0.4rem;
+}
+/* Section headings (e.g. About the Role) get a bit more top space */
+.job-description-html p:has(> strong:only-child) {
+  margin-top: 1rem;
+  margin-bottom: 0.35rem;
+}
+.job-description-html > p:has(> strong:only-child):first-child {
+  margin-top: 0;
+}
+/* Drop empty spacer paragraphs left over from older AI output */
+.job-description-html p:has(> br:only-child),
+.job-description-html p:empty {
+  display: none;
+  margin: 0;
+  height: 0;
+  overflow: hidden;
+}
+.job-description-html strong,
+.job-description-html b {
+  font-weight: 700;
+}
+
 /* Override hardcoded Inter utility classes within tenant-branded app shells */
 .tenant-branded-surface .font-\[Inter\,sans-serif\] {
   font-family: var(--brand-font-body) !important;

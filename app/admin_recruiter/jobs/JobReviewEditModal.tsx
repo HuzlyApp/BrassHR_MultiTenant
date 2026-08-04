@@ -705,7 +705,7 @@ export function JobReviewEditModal({
                   value={draft.job.duration ?? ""}
                   onChange={(event) => patchJob("duration", event.target.value || null)}
                 >
-                  <option value="">Eg: 13 weeks</option>
+                  <option value="">Select Job duration</option>
                   {JOB_FORM_DURATION_OPTIONS.map((value) => (
                     <option key={value} value={value}>
                       {value}
@@ -982,12 +982,28 @@ export function JobReviewEditModal({
             ) : null}
 
             {field === "jobDescription" ? (
-              <div>
-                <label className={JOB_FORM_LABEL_CLASS}>Job Description</label>
-                <JobDescriptionEditor
-                  value={draft.job.publicDescription ?? ""}
-                  onChange={(next) => patchJob("publicDescription", next)}
-                />
+              <div className="space-y-5">
+                <div>
+                  <label className={JOB_FORM_LABEL_CLASS}>Job Description</label>
+                  <JobDescriptionEditor
+                    value={draft.job.publicDescription ?? ""}
+                    onChange={(next) => patchJob("publicDescription", next)}
+                    ariaLabel="Job description"
+                    bodyHeightClassName="h-[220px]"
+                  />
+                </div>
+                <div>
+                  <label className={JOB_FORM_LABEL_CLASS}>Job Responsibilities</label>
+                  <JobDescriptionEditor
+                    value={draft.job.responsibilities ?? ""}
+                    onChange={(next) => patchJob("responsibilities", next)}
+                    ariaLabel="Job responsibilities"
+                    placeholder={
+                      "Emergency Room (ER) Nurse\n• Assess and triage patients\n• Administer medications"
+                    }
+                    bodyHeightClassName="h-[220px]"
+                  />
+                </div>
               </div>
             ) : null}
           </div>
