@@ -198,7 +198,8 @@ export async function resolveWorkflowForCriteria(
       mappingId: match.mappingId,
       workflowId: match.workflowId,
       workflowName: match.workflowName,
-      source: match.source,
+      // Automatic resolve never returns "manual" (job-level override only).
+      source: match.source === "default" ? "default" : "mapping",
       specificity: match.specificity,
       criteriaLabel: formatRoutingCriteriaLabel({
         employmentType: matchKey.employmentType,
