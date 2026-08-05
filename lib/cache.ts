@@ -5,6 +5,7 @@ import { logPerf } from "@/lib/perf";
 import {
   buildCacheKey,
   CACHE_TTL_SECONDS,
+  cachePrefix,
   hashQueryParams,
   resourcePattern,
   tablePattern,
@@ -21,6 +22,7 @@ import {
 export {
   buildCacheKey,
   CACHE_TTL_SECONDS,
+  cachePrefix,
   hashQueryParams,
   tablePattern,
   tenantPattern,

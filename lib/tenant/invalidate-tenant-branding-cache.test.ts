@@ -26,6 +26,7 @@ vi.mock("@/lib/cache", () => ({
     (_table: string, scope: string[], params?: unknown) =>
       `mock:${scope.join(":")}:${JSON.stringify(params ?? null)}`
   ),
+  cachePrefix: () => "supabase:testproj",
   deleteCache,
   deleteByPattern,
 }));
@@ -69,16 +70,18 @@ describe("invalidateTenantBrandingCache", () => {
     async ({ tenantId, slug, subdomain }) => {
       await invalidateTenantBrandingCache({ tenantId, slug, subdomain });
 
-      expect(deleteCache).toHaveBeenCalledTimes(1);
+      expect(deleteCache).toHaveBeenCalledTimes(2);
       expect(deleteByPattern).toHaveBeenCalledWith(
-        `supabase:admin_effective_branding:*:tenant:${tenantId}:*`
+        `supabase:testproj:admin_effective_branding:*:tenant:${tenantId}:*`
       );
       expect(deleteByPattern).toHaveBeenCalledWith(
-        `supabase:tenant_branding:tenantId:${tenantId}:*`
+        `supabase:testproj:tenant_branding:tenantId:${tenantId}:*`
       );
-      expect(deleteByPattern).toHaveBeenCalledWith(`supabase:tenant_branding:slug:${slug}:*`);
       expect(deleteByPattern).toHaveBeenCalledWith(
-        `supabase:tenant_branding:subdomain:${subdomain}:*`
+        `supabase:testproj:tenant_branding:slug:${slug}:*`
+      );
+      expect(deleteByPattern).toHaveBeenCalledWith(
+        `supabase:testproj:tenant_branding:subdomain:${subdomain}:*`
       );
       expect(maybeSingle).not.toHaveBeenCalled();
     }
@@ -103,9 +106,11 @@ describe("invalidateTenantBrandingCache", () => {
       await invalidateTenantBrandingCache(tenantId);
 
       expect(maybeSingle).toHaveBeenCalled();
-      expect(deleteByPattern).toHaveBeenCalledWith(`supabase:tenant_branding:slug:${slug}:*`);
       expect(deleteByPattern).toHaveBeenCalledWith(
-        `supabase:tenant_branding:subdomain:${subdomain}:*`
+        `supabase:testproj:tenant_branding:slug:${slug}:*`
+      );
+      expect(deleteByPattern).toHaveBeenCalledWith(
+        `supabase:testproj:tenant_branding:subdomain:${subdomain}:*`
       );
     }
   );

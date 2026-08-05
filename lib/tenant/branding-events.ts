@@ -1,6 +1,13 @@
+import type { TenantBranding } from "@/lib/tenant/tenant-branding";
+
 export const BRANDING_UPDATED_EVENT = "brasshr:branding-updated";
 
-export function notifyBrandingUpdated(): void {
+export type BrandingUpdatedDetail = {
+  branding?: TenantBranding;
+};
+
+export function notifyBrandingUpdated(branding?: TenantBranding): void {
   if (typeof window === "undefined") return;
-  window.dispatchEvent(new Event(BRANDING_UPDATED_EVENT));
+  const detail: BrandingUpdatedDetail = branding ? { branding } : {};
+  window.dispatchEvent(new CustomEvent(BRANDING_UPDATED_EVENT, { detail }));
 }

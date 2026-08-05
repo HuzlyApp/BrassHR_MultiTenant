@@ -1,6 +1,6 @@
 import "server-only";
 
-import { buildCacheKey, deleteCache, deleteByPattern } from "@/lib/cache";
+import { buildCacheKey, cachePrefix, deleteCache, deleteByPattern } from "@/lib/cache";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 
 export type TenantBrandingCacheIdentity = {
@@ -39,28 +39,38 @@ async function resolveTenantBrandingCacheIdentity(
 
 /**
  * Clears tenant branding for admin chrome, public login/applicant APIs, and tenant row cache.
+ *
+ * Keys use `supabase:{projectRef}:…` — patterns must include {@link cachePrefix}.
  */
 export async function invalidateTenantBrandingCache(
   identity: string | TenantBrandingCacheIdentity
 ): Promise<void> {
   const { tenantId, slug, subdomain } = await resolveTenantBrandingCacheIdentity(identity);
+  const prefix = cachePrefix();
 
+  // Actual effective-branding key shape:
+  //   {prefix}:admin_effective_branding:user:{userId}:tenant:{tenantId}:{hash}
   const patterns = [
-    `supabase:admin_effective_branding:*:tenant:${tenantId}:*`,
-    `supabase:tenant_branding:tenantId:${tenantId}:*`,
+    `${prefix}:admin_effective_branding:*:tenant:${tenantId}:*`,
+    `${prefix}:tenant_branding:tenantId:${tenantId}:*`,
   ];
 
   if (slug) {
-    patterns.push(`supabase:tenant_branding:slug:${slug}:*`);
+    patterns.push(`${prefix}:tenant_branding:slug:${slug}:*`);
   }
   if (subdomain) {
-    patterns.push(`supabase:tenant_branding:subdomain:${subdomain}:*`);
+    patterns.push(`${prefix}:tenant_branding:subdomain:${subdomain}:*`);
   }
 
   await Promise.all([
     deleteCache(
       buildCacheKey("tenants", ["tenant", tenantId, "branding"], {
         fields: "branding",
+      })
+    ),
+    deleteCache(
+      buildCacheKey("tenants", ["tenant", tenantId, "branding"], {
+        fields: "branding+typography",
       })
     ),
     ...patterns.map((pattern) => deleteByPattern(pattern)),

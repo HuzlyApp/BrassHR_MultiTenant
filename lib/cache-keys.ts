@@ -27,7 +27,8 @@ export function cacheProjectSegment(): string {
   }
 }
 
-function cachePrefix(): string {
+/** Prefix for all Redis/memory cache keys (`supabase:{projectRef}`). */
+export function cachePrefix(): string {
   return `supabase:${cacheProjectSegment()}`;
 }
 

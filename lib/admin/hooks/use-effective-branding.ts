@@ -3,7 +3,10 @@
 import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 import type { TenantBranding } from "@/lib/tenant/tenant-branding";
-import { BRANDING_UPDATED_EVENT } from "@/lib/tenant/branding-events";
+import {
+  BRANDING_UPDATED_EVENT,
+  type BrandingUpdatedDetail,
+} from "@/lib/tenant/branding-events";
 import { staffFetchInit } from "@/lib/staff-auth-headers";
 
 export type EffectiveBrandingViewer = {
@@ -33,10 +36,35 @@ export function patchEffectiveBrandingCache(
   queryClient: QueryClient,
   branding: TenantBranding
 ): void {
-  queryClient.setQueryData<EffectiveBrandingPayload>(
-    effectiveBrandingQueryKey(typeof window !== "undefined" ? window.location.hostname : null),
-    (prev) => (prev ? { ...prev, branding } : prev)
+  const key = effectiveBrandingQueryKey(
+    typeof window !== "undefined" ? window.location.hostname : null
   );
+  queryClient.setQueryData<EffectiveBrandingPayload>(key, (prev) =>
+    prev
+      ? { ...prev, branding }
+      : {
+          branding,
+          viewer: {
+            scoped: Boolean(branding.id),
+            tenantId: branding.id ?? null,
+            tenantName: branding.companyName ?? null,
+          },
+        }
+  );
+}
+
+/**
+ * Invalidate host-scoped effective-branding queries.
+ * Use `refetch: false` after an optimistic patch so a stale server response cannot wipe it.
+ */
+export function invalidateEffectiveBrandingQueries(
+  queryClient: QueryClient,
+  options?: { refetch?: boolean }
+): void {
+  void queryClient.invalidateQueries({
+    queryKey: ["admin-effective-branding"],
+    refetchType: options?.refetch === false ? "none" : "active",
+  });
 }
 
 async function fetchEffectiveBranding(): Promise<EffectiveBrandingPayload> {
@@ -66,12 +94,15 @@ export function useEffectiveBranding() {
   });
 
   useEffect(() => {
-    const handler = () => {
-      void queryClient.invalidateQueries({
-        queryKey: effectiveBrandingQueryKey(
-          typeof window !== "undefined" ? window.location.hostname : null
-        ),
-      });
+    const handler = (event: Event) => {
+      const detail = (event as CustomEvent<BrandingUpdatedDetail>).detail;
+      if (detail?.branding) {
+        // Saved branding is authoritative — apply immediately and skip refetch race.
+        patchEffectiveBrandingCache(queryClient, detail.branding);
+        invalidateEffectiveBrandingQueries(queryClient, { refetch: false });
+        return;
+      }
+      invalidateEffectiveBrandingQueries(queryClient);
     };
     window.addEventListener(BRANDING_UPDATED_EVENT, handler);
     return () => window.removeEventListener(BRANDING_UPDATED_EVENT, handler);

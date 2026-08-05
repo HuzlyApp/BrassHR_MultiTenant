@@ -12,7 +12,7 @@ import type { StaffApiAuthContext } from "@/lib/auth/api-session";
 async function loadTenant(id: string): Promise<TenantBrandingRow | null> {
   return getOrSetCache(
     buildCacheKey("tenants", ["tenant", id, "branding"], {
-      fields: "branding",
+      fields: "branding+typography",
     }),
     async () => {
       const sb = createServiceRoleClient();

@@ -15,10 +15,11 @@ import {
   type TenantBrandingFontId,
 } from "@/app/tenant-onboarding/constants";
 import {
-  EFFECTIVE_BRANDING_QUERY_KEY,
+  invalidateEffectiveBrandingQueries,
   patchEffectiveBrandingCache,
 } from "@/lib/admin/hooks/use-effective-branding";
 import { notifyBrandingUpdated } from "@/lib/tenant/branding-events";
+import { writeCachedTenantBranding } from "@/lib/tenant/client-branding-cache";
 import {
   BRAAS_ACCENT,
   BRAAS_PRIMARY,
@@ -329,6 +330,7 @@ export default function BrandingSettingsPanel() {
       if (payload.branding) {
         applyBranding(payload.branding);
         patchEffectiveBrandingCache(queryClient, payload.branding);
+        writeCachedTenantBranding(payload.branding);
       }
       setTenantId(payload.tenantId ?? null);
     } catch (err) {
@@ -538,10 +540,13 @@ export default function BrandingSettingsPanel() {
       if (payload.branding) {
         applyBranding(payload.branding);
         patchEffectiveBrandingCache(queryClient, payload.branding);
+        writeCachedTenantBranding(payload.branding);
+        // Pass branding so chrome updates instantly without a stale refetch overwrite.
+        notifyBrandingUpdated(payload.branding);
+      } else {
+        invalidateEffectiveBrandingQueries(queryClient);
+        notifyBrandingUpdated();
       }
-
-      void queryClient.invalidateQueries({ queryKey: EFFECTIVE_BRANDING_QUERY_KEY });
-      notifyBrandingUpdated();
       toast.success("Saved! Your team and workers will see the new look.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save branding.");
