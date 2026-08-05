@@ -37,6 +37,7 @@ import {
   type JobDetailsStats,
   type StatusTransitionAction,
 } from "./job-details-helpers";
+import { JobPublicViewLink } from "./JobPublicViewLink";
 
 const STATUS_OPTIONS: JobStatus[] = ["published", "draft", "closed", "archived"];
 
@@ -266,9 +267,15 @@ export default function JobDetailsClient({ jobId }: Props) {
           <>
             <div className="mt-5 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div className="min-w-0 w-full lg:w-auto">
-                <h1 className="text-[20px] font-semibold leading-7 text-black">
-                  {title}
-                </h1>
+                <div className="flex min-w-0 items-start gap-2">
+                  <h1 className="min-w-0 text-[20px] font-semibold leading-7 text-black">
+                    {title}
+                  </h1>
+                  <JobPublicViewLink
+                    href={publicJobPath}
+                    className="mt-0.5"
+                  />
+                </div>
                 <p className="mt-1.5 text-sm text-[#374151]">
                   Location: {location}
                   <span className="mx-1.5 text-[#CBD5E1]">•</span>

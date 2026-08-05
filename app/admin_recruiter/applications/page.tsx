@@ -47,6 +47,7 @@ import {
   saveApplicationColumnOrder,
   type ApplicationColumnId,
 } from "./application-columns";
+import { JobPublicViewLink } from "@/app/admin_recruiter/jobs/JobPublicViewLink";
 
 type ApplicationStatus = string;
 
@@ -318,6 +319,7 @@ export default function JobApplicationsPage() {
   const jobId = searchParams.get("jobId")?.trim() ?? "";
   const [rows, setRows] = useState<ApplicationRow[]>([]);
   const [job, setJob] = useState<JobHeader | null>(null);
+  const [publicJobPath, setPublicJobPath] = useState<string | null>(null);
   const [jobOptions, setJobOptions] = useState<JobOption[]>([]);
   const [jobMenuOpen, setJobMenuOpen] = useState(false);
   const [jobsLoading, setJobsLoading] = useState(false);
@@ -514,6 +516,7 @@ export default function JobApplicationsPage() {
     async function run() {
       if (!jobId) {
         setJob(null);
+        setPublicJobPath(null);
         return;
       }
       try {
@@ -535,8 +538,14 @@ export default function JobApplicationsPage() {
               }
             : null
         );
+        setPublicJobPath(
+          typeof payload.publicJobPath === "string" ? payload.publicJobPath : null
+        );
       } catch {
-        if (!cancelled) setJob(null);
+        if (!cancelled) {
+          setJob(null);
+          setPublicJobPath(null);
+        }
       }
     }
     void run();
@@ -894,22 +903,25 @@ export default function JobApplicationsPage() {
 
           <div className="mt-4 flex min-w-0 flex-col gap-1">
             <div className="relative min-w-0" ref={jobMenuRef}>
-              <button
-                type="button"
-                onClick={() => setJobMenuOpen((open) => !open)}
-                className="inline-flex min-h-7 max-w-full items-center gap-1.5 text-left text-black transition hover:opacity-80"
-                aria-expanded={jobMenuOpen}
-                aria-haspopup="listbox"
-                aria-label="Select job"
-              >
-                <span className="text-base font-semibold leading-7 tracking-normal break-words">
-                  {jobTitle}
-                </span>
-                <ChevronDown
-                  className={`h-4 w-4 shrink-0 text-[#94A3B8] transition ${jobMenuOpen ? "rotate-180" : ""}`}
-                  aria-hidden
-                />
-              </button>
+              <div className="flex min-w-0 items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setJobMenuOpen((open) => !open)}
+                  className="inline-flex min-h-7 min-w-0 max-w-full items-center gap-1.5 text-left text-black transition hover:opacity-80"
+                  aria-expanded={jobMenuOpen}
+                  aria-haspopup="listbox"
+                  aria-label="Select job"
+                >
+                  <span className="text-base font-semibold leading-7 tracking-normal break-words">
+                    {jobTitle}
+                  </span>
+                  <ChevronDown
+                    className={`h-4 w-4 shrink-0 text-[#94A3B8] transition ${jobMenuOpen ? "rotate-180" : ""}`}
+                    aria-hidden
+                  />
+                </button>
+                <JobPublicViewLink href={publicJobPath} />
+              </div>
 
               {jobMenuOpen ? (
                 <div

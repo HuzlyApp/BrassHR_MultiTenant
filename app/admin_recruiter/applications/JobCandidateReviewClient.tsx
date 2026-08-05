@@ -44,6 +44,7 @@ import {
 import { formatInterviewDate, formatInterviewTimeRange } from "@/lib/interviews/format";
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
 import type { AdminInterviewItem } from "@/app/api/admin/applicant-appointments/route";
+import { JobPublicViewLink } from "@/app/admin_recruiter/jobs/JobPublicViewLink";
 
 type ApplicationRow = {
   id: string;
@@ -180,6 +181,7 @@ export default function JobCandidateReviewClient() {
   const [resumePreviewError, setResumePreviewError] = useState<string | null>(null);
   const [chatOpen, setChatOpen] = useState(true);
   const [chatPreferExpanded, setChatPreferExpanded] = useState(false);
+  const [publicJobPath, setPublicJobPath] = useState<string | null>(null);
 
   const selected = useMemo(
     () => rows.find((row) => row.id === applicationId) ?? rows[0] ?? null,
@@ -306,6 +308,36 @@ export default function JobCandidateReviewClient() {
       }
     })();
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function run() {
+      if (!jobId) {
+        setPublicJobPath(null);
+        return;
+      }
+      try {
+        const response = await fetch(`/api/admin/jobs/${encodeURIComponent(jobId)}`, {
+          cache: "no-store",
+        });
+        const payload = await response.json();
+        if (cancelled) return;
+        if (!response.ok) {
+          setPublicJobPath(null);
+          return;
+        }
+        setPublicJobPath(
+          typeof payload.publicJobPath === "string" ? payload.publicJobPath : null
+        );
+      } catch {
+        if (!cancelled) setPublicJobPath(null);
+      }
+    }
+    void run();
+    return () => {
+      cancelled = true;
+    };
+  }, [jobId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -561,23 +593,26 @@ export default function JobCandidateReviewClient() {
 
       <div className="flex min-w-0 flex-col gap-1 border-b border-[#E5E7EB] py-5">
         <div className="relative min-w-0" ref={jobMenuRef}>
-          <button
-            type="button"
-            onClick={() => setJobMenuOpen((open) => !open)}
-            className="inline-flex min-h-7 max-w-full items-center gap-1.5 text-left transition hover:opacity-80"
-            aria-expanded={jobMenuOpen}
-          >
-            <span
-              className="text-lg font-semibold leading-7 break-words"
-              style={{ color: branding.primaryHex }}
+          <div className="flex min-w-0 items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setJobMenuOpen((open) => !open)}
+              className="inline-flex min-h-7 min-w-0 max-w-full items-center gap-1.5 text-left transition hover:opacity-80"
+              aria-expanded={jobMenuOpen}
             >
-              {jobTitle}
-            </span>
-            <ChevronDown
-              className={`h-4 w-4 shrink-0 transition ${jobMenuOpen ? "rotate-180" : ""}`}
-              style={{ color: branding.primaryHex }}
-            />
-          </button>
+              <span
+                className="text-lg font-semibold leading-7 break-words"
+                style={{ color: branding.primaryHex }}
+              >
+                {jobTitle}
+              </span>
+              <ChevronDown
+                className={`h-4 w-4 shrink-0 transition ${jobMenuOpen ? "rotate-180" : ""}`}
+                style={{ color: branding.primaryHex }}
+              />
+            </button>
+            <JobPublicViewLink href={publicJobPath} />
+          </div>
           {jobMenuOpen ? (
             <div className="absolute left-0 z-40 mt-2 max-h-72 w-[min(100vw-2rem,360px)] overflow-y-auto rounded-xl border border-[#E5E7EB] bg-white py-1 shadow-lg">
               {jobOptions.map((option) => (

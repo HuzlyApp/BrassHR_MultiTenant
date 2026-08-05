@@ -41,19 +41,26 @@ export async function GET(req: NextRequest) {
     await closeExpiredPublishedJobs(supabase, tenantId, auth.userId);
 
     const status = req.nextUrl.searchParams.get("status") || undefined;
-    const jobs = await listInternalJobs(supabase, tenantId, {
-      status:
-        status === "draft" ||
-        status === "published" ||
-        status === "closed" ||
-        status === "archived"
-          ? status
-          : undefined,
-      professionId: req.nextUrl.searchParams.get("professionId") || undefined,
-      employmentType: req.nextUrl.searchParams.get("employmentType") || undefined,
-      createdBy: req.nextUrl.searchParams.get("createdBy") || undefined,
-    });
-    return NextResponse.json({ jobs, tenantId });
+    const [jobs, tenantResult] = await Promise.all([
+      listInternalJobs(supabase, tenantId, {
+        status:
+          status === "draft" ||
+          status === "published" ||
+          status === "closed" ||
+          status === "archived"
+            ? status
+            : undefined,
+        professionId: req.nextUrl.searchParams.get("professionId") || undefined,
+        employmentType: req.nextUrl.searchParams.get("employmentType") || undefined,
+        createdBy: req.nextUrl.searchParams.get("createdBy") || undefined,
+      }),
+      supabase.from("tenants").select("slug, subdomain").eq("id", tenantId).maybeSingle(),
+    ]);
+    if (tenantResult.error) throw tenantResult.error;
+    const tenantSlug = String(tenantResult.data?.slug ?? tenantResult.data?.subdomain ?? "")
+      .trim()
+      .toLowerCase();
+    return NextResponse.json({ jobs, tenantId, tenantSlug: tenantSlug || null });
   } catch (error) {
     return NextResponse.json(
       { error: formatApiError(error, "Failed to load jobs") },

@@ -23,10 +23,10 @@ import {
 } from "@/lib/sidebar/sidebar-icon-markup";
 import type { EmploymentType, JobRequisitionInput, SourceType } from "@/lib/jobs/types";
 import {
-  JobDescriptionEditor,
   JobDescriptionHtml,
   jobDescriptionPlainText,
 } from "./JobDescriptionEditor";
+import { JobDescriptionWithAiSuggest } from "./JobDescriptionWithAiSuggest";
 import type { ReviewEditFieldId } from "./JobReviewEditModal";
 import { JobTypeChipSelect } from "./JobTypeChipSelect";
 import { BenefitsChipSelect } from "./BenefitsChipSelect";
@@ -925,12 +925,20 @@ export function JobFormStepCompensation({
   fieldErrors,
   onJobChange,
   onUiChange,
+  professionName = "",
+  specialtyName = "",
+  companyName = "",
+  brandStyle,
 }: {
   job: JobRequisitionInput;
   ui: JobFormUiState;
   fieldErrors: Record<string, string>;
   onJobChange: <K extends keyof JobRequisitionInput>(key: K, value: JobRequisitionInput[K]) => void;
   onUiChange: (patch: Partial<JobFormUiState>) => void;
+  professionName?: string;
+  specialtyName?: string;
+  companyName?: string;
+  brandStyle?: CSSProperties;
 }) {
   const hidePaySection = job.sourceType === "MSP";
   const [creatingBenefit, setCreatingBenefit] = useState(false);
@@ -1176,11 +1184,45 @@ export function JobFormStepCompensation({
       </section>
 
       <section className="space-y-4">
-        <h2 className={JOB_FORM_SECTION_TITLE_CLASS}>Job Description</h2>
-        <JobDescriptionEditor
+        <JobDescriptionWithAiSuggest
           value={job.publicDescription ?? ""}
           onChange={(next) => onJobChange("publicDescription", next)}
           error={fieldErrors.publicDescription}
+          brandStyle={brandStyle}
+          buildPayload={() => {
+            const shiftParts = [job.shiftType, job.shiftDetails, job.schedule]
+              .map((item) => item?.trim())
+              .filter(Boolean);
+            const benefitList =
+              ui.selectedBenefits.length > 0
+                ? ui.selectedBenefits
+                : (job.benefits ?? "")
+                    .split(/[,;\n]/)
+                    .map((item) => item.trim())
+                    .filter(Boolean);
+
+            return {
+              jobTitle: job.publicTitle,
+              profession: professionName || null,
+              specialty: specialtyName || null,
+              employmentType: job.employmentType || null,
+              location: job.location,
+              locationType: job.jobLocationType || ui.jobLocationType || null,
+              yearsOfExperience: job.yearsOfExperience || ui.yearsOfExperience || null,
+              numberOfPositions: job.numberOfPositions ?? ui.numberOfPositions ?? null,
+              shiftOrSchedule: shiftParts.length ? shiftParts.join(" · ") : null,
+              benefits: benefitList,
+              responsibilities: job.responsibilities,
+              qualifications: job.qualifications,
+              companyName: companyName || null,
+              department: job.department,
+              facility: job.facility,
+              duration: job.duration,
+              requiredCredentials: job.requiredCredentials,
+              specialRequirements: job.specialRequirements,
+              additionalLocations: job.additionalLocations ?? ui.additionalLocations ?? [],
+            };
+          }}
         />
       </section>
 

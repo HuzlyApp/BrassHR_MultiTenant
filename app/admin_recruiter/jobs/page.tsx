@@ -816,6 +816,7 @@ export default function AdminRecruiterJobsPage() {
   const brandStyle = brandingToCssVars(branding);
 
   const [jobs, setJobs] = useState<JobListRow[]>([]);
+  const [tenantSlug, setTenantSlug] = useState<string | null>(null);
   const [jobTab, setJobTab] = useState<JobTab>("all");
   const [showFilterRows, setShowFilterRows] = useCandidatesFilterRowsDefault();
   const [loading, setLoading] = useState(true);
@@ -864,6 +865,11 @@ export default function AdminRecruiterJobsPage() {
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "Failed to load jobs");
       setJobs(payload.jobs ?? []);
+      setTenantSlug(
+        typeof payload.tenantSlug === "string" && payload.tenantSlug.trim()
+          ? payload.tenantSlug.trim().toLowerCase()
+          : null
+      );
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Failed to load jobs");
     } finally {
@@ -1073,6 +1079,7 @@ export default function AdminRecruiterJobsPage() {
   const jobListCellContext = useMemo((): JobListCellContext => {
     return {
       brandingSecondaryHex: branding.secondaryHex,
+      tenantSlug,
       starredIds,
       onToggleStar: (jobId) => {
         setStarredIds((current) => {
@@ -1088,7 +1095,7 @@ export default function AdminRecruiterJobsPage() {
         setOpenActionsMenu((current) => (current?.job.id === job.id ? null : { job, anchor }));
       },
     };
-  }, [branding.secondaryHex, starredIds, openActionsMenu?.job.id]);
+  }, [branding.secondaryHex, tenantSlug, starredIds, openActionsMenu?.job.id]);
 
   return (
     <div className="box-border w-full min-w-0 max-w-full px-3 pb-8 pt-4 sm:px-5 sm:pt-5 lg:px-8" style={brandStyle}>

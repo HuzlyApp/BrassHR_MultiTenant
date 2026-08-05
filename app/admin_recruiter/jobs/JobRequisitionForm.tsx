@@ -479,6 +479,10 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
                 fieldErrors={fieldErrors}
                 onJobChange={updateJob}
                 onUiChange={updateUi}
+                professionName={professionLabel}
+                specialtyName={specialtyLabel}
+                companyName={branding.companyName}
+                brandStyle={brandStyle}
               />
             ) : null}
 

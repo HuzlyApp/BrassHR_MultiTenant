@@ -2,6 +2,7 @@ import type { ReactNode } from "react"
 import Link from "next/link"
 import { MoreHorizontal } from "lucide-react"
 import type { JobColumnId } from "./job-columns"
+import { JobPublicViewLink } from "./JobPublicViewLink"
 
 const JOB_CANDIDATE_COUNTER_CLASS =
   "inline-flex h-[18px] min-w-[18px] shrink-0 items-center justify-center rounded-sm bg-[color:color-mix(in_srgb,var(--brand-primary)_14%,white)] px-1 text-[11px] font-medium leading-none text-[#475569]"
@@ -57,6 +58,7 @@ export type JobListRow = {
   id: string
   internal_requisition_number: string | null
   public_title: string | null
+  public_job_token?: string | null
   employment_type: string
   status: "draft" | "published" | "closed" | "archived"
   created_at: string
@@ -167,10 +169,19 @@ function formatDateShort(iso: string | null): string {
 
 export type JobListCellContext = {
   brandingSecondaryHex: string
+  tenantSlug: string | null
   starredIds: Set<string>
   onToggleStar: (jobId: string) => void
   openActionsJobId: string | null
   onOpenActionsMenu: (job: JobListRow, anchor: HTMLElement) => void
+}
+
+function publicJobPathFor(job: JobListRow, tenantSlug: string | null): string | null {
+  if (job.status !== "published") return null
+  const token = typeof job.public_job_token === "string" ? job.public_job_token.trim() : ""
+  const slug = tenantSlug?.trim().toLowerCase() ?? ""
+  if (!token || !slug) return null
+  return `/jobs/${encodeURIComponent(token)}?tenant=${encodeURIComponent(slug)}`
 }
 
 export function renderJobListCell(
@@ -208,14 +219,20 @@ export function renderJobListCell(
               aria-hidden
             />
           </button>
-          <div className="min-w-0">
-            <Link
-              href={`/admin_recruiter/jobs/${job.id}`}
-              className="block truncate font-semibold hover:underline"
-              style={{ color: ctx.brandingSecondaryHex }}
-            >
-              {job.public_title || "Untitled draft"}
-            </Link>
+          <div className="min-w-0 flex-1">
+            <div className="flex min-w-0 items-center gap-1.5">
+              <Link
+                href={`/admin_recruiter/jobs/${job.id}`}
+                className="min-w-0 truncate font-semibold hover:underline"
+                style={{ color: ctx.brandingSecondaryHex }}
+              >
+                {job.public_title || "Untitled draft"}
+              </Link>
+              <JobPublicViewLink
+                href={publicJobPathFor(job, ctx.tenantSlug)}
+                className="h-7 w-7 border-0 shadow-none"
+              />
+            </div>
             <p className="mt-0.5 text-xs text-[#64748B]">{jobLocation(job)}</p>
           </div>
         </div>
