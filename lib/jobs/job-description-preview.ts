@@ -95,6 +95,7 @@ function stripSectionHeading(html: string, title: string): string {
           ),
           ""
         )
+        .replace(new RegExp(`^\\s*<p\\b[^>]*>\\s*${escaped}\\s*<\\/p>\\s*`, "i"), "")
         .trim();
       if (withoutHtmlHeading !== trimmed) return withoutHtmlHeading;
     }
@@ -102,7 +103,7 @@ function stripSectionHeading(html: string, title: string): string {
     const plain = jobDescriptionPlainText(trimmed);
     const withoutPlainHeading = plain.replace(new RegExp(`^\\s*${escaped}\\s*\\n*`, "i"), "").trim();
     if (withoutPlainHeading !== plain) {
-      return looksLikeHtml(trimmed) ? withoutHtmlHeading || trimmed : withoutPlainHeading;
+      return looksLikeHtml(trimmed) ? trimmed : withoutPlainHeading;
     }
   }
 

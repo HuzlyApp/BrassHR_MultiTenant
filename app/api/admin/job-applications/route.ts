@@ -54,7 +54,7 @@ export async function GET(req: NextRequest) {
     let query = supabase
       .from("job_applications")
       .select(
-        "id, status, created_at, submitted_at, updated_at, job_requisition_id, workflow_id, applicant_workflow_instance_id, worker_id, job_requisitions(public_title, profession_id, employment_type, location, facility, facility_name, professions(name)), onboarding_flows(name), applicant_profiles(id, first_name, last_name, email, worker_id)"
+        "id, status, created_at, submitted_at, updated_at, job_requisition_id, workflow_id, applicant_workflow_instance_id, worker_id, job_requisitions(public_title, profession_id, employment_type, location, facility, facility_name, professions(name)), onboarding_flows(name), applicant_profiles(id, first_name, last_name, email, worker_id), worker(id, first_name, last_name, email)"
       )
       .eq("tenant_id", tenantId)
       .eq("job_requisition_id", jobId)

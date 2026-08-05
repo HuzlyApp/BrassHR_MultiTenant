@@ -651,12 +651,37 @@ export async function startOrResumeJobApplication(
   const workflowName = String(defaultFlow.name ?? "Worker Onboarding");
 
   const normalizedEmail = input.email ? normalizeApplicantEmail(input.email) : null;
+
+  let workerFirstName: string | null = null;
+  let workerLastName: string | null = null;
+  let workerEmail: string | null = input.email?.trim() || null;
+  if (input.workerId) {
+    const { data: workerRow, error: workerLookupError } = await supabase
+      .from("worker")
+      .select("first_name, last_name, email")
+      .eq("id", input.workerId)
+      .eq("tenant_id", input.tenantId)
+      .maybeSingle();
+    if (workerLookupError) throw workerLookupError;
+    if (workerRow) {
+      workerFirstName = workerRow.first_name ? String(workerRow.first_name).trim() || null : null;
+      workerLastName = workerRow.last_name ? String(workerRow.last_name).trim() || null : null;
+      if (!workerEmail && workerRow.email) {
+        workerEmail = String(workerRow.email).trim() || null;
+      }
+    }
+  }
+  const profileEmail = workerEmail;
+  const profileNormalizedEmail = profileEmail
+    ? normalizeApplicantEmail(profileEmail)
+    : normalizedEmail;
+
   let profileQuery = supabase
     .from("applicant_profiles")
     .select("id")
     .eq("tenant_id", input.tenantId);
-  profileQuery = normalizedEmail
-    ? profileQuery.eq("normalized_email", normalizedEmail)
+  profileQuery = profileNormalizedEmail
+    ? profileQuery.eq("normalized_email", profileNormalizedEmail)
     : profileQuery.eq("auth_user_id", input.applicantAuthUserId);
   const { data: existingProfile, error: profileLookupError } = await profileQuery.maybeSingle();
   if (profileLookupError) throw profileLookupError;
@@ -669,8 +694,10 @@ export async function startOrResumeJobApplication(
         tenant_id: input.tenantId,
         auth_user_id: input.applicantAuthUserId,
         worker_id: input.workerId ?? null,
-        email: input.email?.trim() || null,
-        normalized_email: normalizedEmail,
+        email: profileEmail,
+        normalized_email: profileNormalizedEmail,
+        first_name: workerFirstName,
+        last_name: workerLastName,
       })
       .select("id")
       .single();
@@ -682,8 +709,10 @@ export async function startOrResumeJobApplication(
       .update({
         auth_user_id: input.applicantAuthUserId,
         worker_id: input.workerId ?? undefined,
-        email: input.email?.trim() || undefined,
-        normalized_email: normalizedEmail ?? undefined,
+        email: profileEmail ?? undefined,
+        normalized_email: profileNormalizedEmail ?? undefined,
+        first_name: workerFirstName ?? undefined,
+        last_name: workerLastName ?? undefined,
       })
       .eq("id", profileId)
       .eq("tenant_id", input.tenantId);

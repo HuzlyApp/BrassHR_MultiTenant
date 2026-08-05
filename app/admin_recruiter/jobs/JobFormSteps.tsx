@@ -584,7 +584,6 @@ export function JobFormStepRequisition({
                 checked={ui.employerOnRecord === "yes"}
                 onChange={() => {
                   onUiChange({ employerOnRecord: "yes" });
-                  onJobChange("sourceType", "Internal");
                 }}
               />
               <BrandedRadio
@@ -594,7 +593,6 @@ export function JobFormStepRequisition({
                 onChange={() => {
                   onUiChange({ employerOnRecord: "no" });
                   onJobChange("employerOfRecord", null);
-                  onJobChange("sourceType", "MSP");
                 }}
               />
             </div>
@@ -1046,7 +1044,7 @@ export function JobFormStepCompensation({
             </div>
           </div>
 
-          <div className="mt-4 grid gap-4 min-[700px]:grid-cols-[1fr_auto_1fr_1fr_1fr] min-[700px]:items-end">
+          <div className="mt-4 grid gap-4 min-[700px]:grid-cols-[1fr_1fr_auto_1fr_1fr] min-[700px]:items-end">
             <div>
               <label className={JOB_FORM_LABEL_CLASS}>Show pay by</label>
               <select
@@ -1063,7 +1061,6 @@ export function JobFormStepCompensation({
                 ))}
               </select>
             </div>
-            <span className="hidden pb-2 text-sm text-[#64748B] min-[700px]:block">to</span>
             <div>
               <label className={JOB_FORM_LABEL_CLASS}>Minimum</label>
               <div className="relative">
@@ -1082,6 +1079,7 @@ export function JobFormStepCompensation({
                 />
               </div>
             </div>
+            <span className="hidden pb-2 text-sm text-[#64748B] min-[700px]:block">to</span>
             <div>
               <label className={JOB_FORM_LABEL_CLASS}>Maximum</label>
               <div className="relative">

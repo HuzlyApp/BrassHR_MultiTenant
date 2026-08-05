@@ -55,6 +55,7 @@ type ApplicationRow = {
   worker_id: string | null;
   job_requisitions: Record<string, unknown> | Record<string, unknown>[] | null;
   applicant_profiles: Record<string, unknown> | Record<string, unknown>[] | null;
+  worker?: Record<string, unknown> | Record<string, unknown>[] | null;
 };
 
 type JobOption = {
@@ -91,14 +92,16 @@ function one(value: Record<string, unknown> | Record<string, unknown>[] | null |
 
 function applicantName(row: ApplicationRow): string {
   const profile = one(row.applicant_profiles);
+  const worker = one(row.worker);
   return (
     [profile.first_name, profile.last_name].filter(Boolean).join(" ") ||
-    String(profile.email ?? "Applicant")
+    [worker.first_name, worker.last_name].filter(Boolean).join(" ") ||
+    String(profile.email ?? worker.email ?? "Applicant")
   );
 }
 
 function applicantEmail(row: ApplicationRow): string {
-  return String(one(row.applicant_profiles).email ?? "");
+  return String(one(row.applicant_profiles).email ?? one(row.worker).email ?? "");
 }
 
 function resolveWorkerId(row: ApplicationRow): string | null {

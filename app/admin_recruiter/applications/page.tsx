@@ -65,6 +65,7 @@ type ApplicationRow = {
   job_requisitions: Record<string, unknown> | Record<string, unknown>[] | null;
   onboarding_flows: Record<string, unknown> | Record<string, unknown>[] | null;
   applicant_profiles: Record<string, unknown> | Record<string, unknown>[] | null;
+  worker?: Record<string, unknown> | Record<string, unknown>[] | null;
 };
 
 type JobHeader = {
@@ -205,7 +206,7 @@ function InterestStatusMenuPortal({
   );
 }
 
-function one(value: Record<string, unknown> | Record<string, unknown>[] | null) {
+function one(value: Record<string, unknown> | Record<string, unknown>[] | null | undefined) {
   return Array.isArray(value) ? value[0] ?? {} : value ?? {};
 }
 
@@ -293,14 +294,16 @@ function formatActivity(row: ApplicationRow): string {
 
 function applicantName(row: ApplicationRow): string {
   const applicant = one(row.applicant_profiles);
+  const worker = one(row.worker);
   return (
     [applicant.first_name, applicant.last_name].filter(Boolean).join(" ") ||
-    String(applicant.email ?? "Applicant")
+    [worker.first_name, worker.last_name].filter(Boolean).join(" ") ||
+    String(applicant.email ?? worker.email ?? "Applicant")
   );
 }
 
 function applicantEmail(row: ApplicationRow): string {
-  return String(one(row.applicant_profiles).email ?? "");
+  return String(one(row.applicant_profiles).email ?? one(row.worker).email ?? "");
 }
 
 function workflowName(row: ApplicationRow): string {

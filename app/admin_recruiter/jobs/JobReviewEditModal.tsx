@@ -477,7 +477,6 @@ export function JobReviewEditModal({
                   checked={draft.ui.employerOnRecord === "yes"}
                   onChange={() => {
                     patchUi({ employerOnRecord: "yes" });
-                    patchJob("sourceType", "Internal");
                   }}
                 />
                 <ModalRadio
@@ -487,7 +486,6 @@ export function JobReviewEditModal({
                   onChange={() => {
                     patchUi({ employerOnRecord: "no" });
                     patchJob("employerOfRecord", null);
-                    patchJob("sourceType", "MSP");
                   }}
                 />
               </div>
@@ -864,7 +862,7 @@ export function JobReviewEditModal({
                     </select>
                   </div>
                 </div>
-                <div className="grid gap-4 sm:grid-cols-2">
+                <div className="grid gap-4 min-[700px]:grid-cols-[1fr_auto_1fr] min-[700px]:items-end">
                   <div>
                     <label className={JOB_FORM_LABEL_CLASS}>Minimum</label>
                     <div className="relative">
@@ -886,6 +884,7 @@ export function JobReviewEditModal({
                       />
                     </div>
                   </div>
+                  <span className="hidden pb-2 text-sm text-[#64748B] min-[700px]:block">to</span>
                   <div>
                     <label className={JOB_FORM_LABEL_CLASS}>Maximum</label>
                     <div className="relative">
