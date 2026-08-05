@@ -8,26 +8,38 @@ import type { EmploymentType } from "@/lib/jobs/types";
 
 type MappingItem = {
   id: string;
-  professionId: string;
-  professionName: string;
+  professionId: string | null;
+  professionName: string | null;
+  specialtyId: string | null;
+  specialtyName: string | null;
   employmentType: EmploymentType;
+  location: string | null;
+  locationType: string | null;
+  yearsOfExperience: string | null;
   workflowId: string;
   workflowName: string;
   workflowEmploymentType: string | null;
   isActive: boolean;
   priority: number;
+  specificity: number;
 };
 
 type OptionsPayload = {
   professions: Array<{ id: string; name: string }>;
+  specialties: Array<{ id: string; name: string; profession_id: string }>;
   employmentTypes: EmploymentType[];
+  locationTypes: string[];
   workflows: Array<{ id: string; name: string; employment_type?: string | null }>;
 };
 
 type FormState = {
   id?: string;
   professionId: string;
+  specialtyId: string;
   employmentType: EmploymentType;
+  location: string;
+  locationType: string;
+  yearsOfExperience: string;
   workflowId: string;
   priority: number;
   isActive: boolean;
@@ -35,7 +47,11 @@ type FormState = {
 
 const emptyForm = (): FormState => ({
   professionId: "",
+  specialtyId: "",
   employmentType: "W2",
+  location: "",
+  locationType: "",
+  yearsOfExperience: "",
   workflowId: "",
   priority: 100,
   isActive: true,
@@ -46,6 +62,21 @@ const selectClass =
 
 const modalInputClass =
   "w-full rounded-lg border border-[color-mix(in_srgb,var(--brand-primary)_40%,#D1D5DB)] bg-white px-3 py-2.5 text-sm text-[#111827] outline-none transition focus:border-[color:var(--brand-primary)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--brand-primary)_15%,transparent)]";
+
+function employmentLabel(type: EmploymentType): string {
+  return type === "Contract" ? "R&R" : type;
+}
+
+function criteriaSummary(mapping: MappingItem): string {
+  const parts = [employmentLabel(mapping.employmentType)];
+  if (mapping.professionName) parts.push(mapping.professionName);
+  else parts.push("Any profession");
+  if (mapping.specialtyName) parts.push(mapping.specialtyName);
+  if (mapping.locationType) parts.push(mapping.locationType);
+  if (mapping.location) parts.push(mapping.location);
+  if (mapping.yearsOfExperience) parts.push(`${mapping.yearsOfExperience} yrs`);
+  return parts.join(" + ");
+}
 
 export default function WorkflowMappingsClient() {
   const searchParams = useSearchParams();
@@ -84,17 +115,11 @@ export default function WorkflowMappingsClient() {
       .finally(() => setLoading(false));
   }, [loadMappings, loadOptions]);
 
-  const conflicts = useMemo(() => {
-    const activeKeys = new Map<string, string>();
-    const duplicateIds = new Set<string>();
-    for (const mapping of mappings) {
-      if (!mapping.isActive) continue;
-      const key = `${mapping.professionId}:${mapping.employmentType}`;
-      if (activeKeys.has(key)) duplicateIds.add(mapping.id);
-      else activeKeys.set(key, mapping.id);
-    }
-    return duplicateIds;
-  }, [mappings]);
+  const specialtyOptions = useMemo(() => {
+    if (!options) return [];
+    if (!form.professionId) return options.specialties;
+    return options.specialties.filter((item) => item.profession_id === form.professionId);
+  }, [form.professionId, options]);
 
   function openCreate(prefill?: Partial<FormState>) {
     setForm({ ...emptyForm(), ...prefill });
@@ -125,8 +150,12 @@ export default function WorkflowMappingsClient() {
   function openEdit(mapping: MappingItem) {
     setForm({
       id: mapping.id,
-      professionId: mapping.professionId,
+      professionId: mapping.professionId ?? "",
+      specialtyId: mapping.specialtyId ?? "",
       employmentType: mapping.employmentType,
+      location: mapping.location ?? "",
+      locationType: mapping.locationType ?? "",
+      yearsOfExperience: mapping.yearsOfExperience ?? "",
       workflowId: mapping.workflowId,
       priority: mapping.priority,
       isActive: mapping.isActive,
@@ -137,12 +166,24 @@ export default function WorkflowMappingsClient() {
   async function saveMapping() {
     setSaving(true);
     try {
+      const body = {
+        id: form.id,
+        professionId: form.professionId || null,
+        specialtyId: form.specialtyId || null,
+        employmentType: form.employmentType,
+        location: form.location || null,
+        locationType: form.locationType || null,
+        yearsOfExperience: form.yearsOfExperience || null,
+        workflowId: form.workflowId,
+        priority: form.priority,
+        isActive: form.isActive,
+      };
       const response = await fetch(
         form.id ? `/api/admin/workflow-mappings/${form.id}` : "/api/admin/workflow-mappings",
         {
           method: form.id ? "PATCH" : "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(form),
+          body: JSON.stringify(body),
         }
       );
       const payload = await response.json();
@@ -158,7 +199,7 @@ export default function WorkflowMappingsClient() {
   }
 
   async function removeMapping(mapping: MappingItem) {
-    if (!window.confirm(`Remove mapping for ${mapping.professionName} + ${mapping.employmentType}?`)) {
+    if (!window.confirm(`Remove mapping for ${criteriaSummary(mapping)}?`)) {
       return;
     }
     try {
@@ -180,15 +221,15 @@ export default function WorkflowMappingsClient() {
 
   return (
     <main className="w-full min-w-0 overflow-x-hidden px-3 py-4 sm:px-5 sm:py-6 lg:px-8">
-      {/* Header */}
       <div className="mb-5 flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-[22px] font-semibold leading-7 text-[#111827] sm:text-2xl">
             Workflow Mappings
           </h1>
           <p className="mt-1.5 max-w-2xl text-[13px] leading-5 text-[#6B7280]">
-            Connect profession and employment type to a published tenant workflow. Jobs and applicants
-            resolve workflows from these mappings automatically.
+            Map employment type and optional job attributes to a published workflow. Jobs pick the
+            most specific matching rule automatically; leave attributes blank to match any value
+            (employment-type defaults).
           </p>
         </div>
         <button
@@ -204,7 +245,6 @@ export default function WorkflowMappingsClient() {
         </button>
       </div>
 
-      {/* Filters */}
       <section className="mb-5 rounded-xl border border-[#E5E7EB] bg-white p-4 shadow-sm">
         <div className="flex flex-wrap items-end gap-3">
           <label className="block w-full text-sm sm:w-[220px]">
@@ -216,12 +256,16 @@ export default function WorkflowMappingsClient() {
             >
               <option value="">All professions</option>
               {options?.professions.map((item) => (
-                <option key={item.id} value={item.id}>{item.name}</option>
+                <option key={item.id} value={item.id}>
+                  {item.name}
+                </option>
               ))}
             </select>
           </label>
           <label className="block w-full text-sm sm:w-[220px]">
-            <span className="mb-1 block text-xs font-medium text-[#374151]">Filter employment type</span>
+            <span className="mb-1 block text-xs font-medium text-[#374151]">
+              Filter employment type
+            </span>
             <select
               className={selectClass}
               value={filterEmployment}
@@ -229,14 +273,15 @@ export default function WorkflowMappingsClient() {
             >
               <option value="">All employment types</option>
               {options?.employmentTypes.map((value) => (
-                <option key={value}>{value}</option>
+                <option key={value} value={value}>
+                  {employmentLabel(value)}
+                </option>
               ))}
             </select>
           </label>
         </div>
       </section>
 
-      {/* Table */}
       <section className="overflow-hidden rounded-xl border border-[#E5E7EB] bg-white shadow-sm">
         {loading ? (
           <p className="p-6 text-sm text-[#6B7280]">Loading mappings…</p>
@@ -244,7 +289,8 @@ export default function WorkflowMappingsClient() {
           <div className="p-6 text-center">
             <p className="text-sm font-medium text-[#374151]">No workflow mappings configured yet.</p>
             <p className="mt-1 text-sm text-[#6B7280]">
-              Publish a tenant workflow, then create a mapping so jobs can assign it automatically.
+              Create an employment-type default or a specific attribute combination so jobs assign
+              workflows automatically.
             </p>
             <button
               type="button"
@@ -263,34 +309,42 @@ export default function WorkflowMappingsClient() {
             <table className="min-w-full text-sm">
               <thead>
                 <tr className="border-b border-[#E5E7EB] bg-[#F9FAFB]">
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[#6B7280]">Profession</th>
-                  <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-[#6B7280]">Employment</th>
-                  <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-[#6B7280]">Workflow</th>
-                  <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-[#6B7280]">Priority</th>
-                  <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-[#6B7280]">Status</th>
-                  <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-[#6B7280]">Actions</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[#6B7280]">
+                    Criteria
+                  </th>
+                  <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-[#6B7280]">
+                    Specificity
+                  </th>
+                  <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-[#6B7280]">
+                    Workflow
+                  </th>
+                  <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-[#6B7280]">
+                    Priority
+                  </th>
+                  <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-[#6B7280]">
+                    Status
+                  </th>
+                  <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-[#6B7280]">
+                    Actions
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {mappings.map((mapping) => (
-                  <tr key={mapping.id} className="border-t border-[#F3F4F6] transition hover:bg-[#F9FAFB]">
-                    <td className="px-4 py-3.5 font-medium text-[#111827]">{mapping.professionName}</td>
-                    <td className="px-4 py-3.5 text-center text-[#374151]">{mapping.employmentType}</td>
+                  <tr
+                    key={mapping.id}
+                    className="border-t border-[#F3F4F6] transition hover:bg-[#F9FAFB]"
+                  >
+                    <td className="px-4 py-3.5 font-medium text-[#111827]">
+                      {criteriaSummary(mapping)}
+                    </td>
+                    <td className="px-4 py-3.5 text-center text-[#374151]">{mapping.specificity}</td>
                     <td className="px-4 py-3.5 text-center">
                       <span className="font-medium text-[#111827]">{mapping.workflowName}</span>
-                      {mapping.workflowEmploymentType ? (
-                        <span className="mt-0.5 block text-xs text-[#9CA3AF]">
-                          Type: {mapping.workflowEmploymentType}
-                        </span>
-                      ) : null}
                     </td>
                     <td className="px-4 py-3.5 text-center text-[#374151]">{mapping.priority}</td>
                     <td className="px-4 py-3.5 text-center">
-                      {conflicts.has(mapping.id) ? (
-                        <span className="inline-flex items-center rounded-full bg-red-50 px-2.5 py-0.5 text-xs font-semibold text-red-700">
-                          Conflict
-                        </span>
-                      ) : mapping.isActive ? (
+                      {mapping.isActive ? (
                         <span
                           className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold"
                           style={{
@@ -333,29 +387,21 @@ export default function WorkflowMappingsClient() {
         )}
       </section>
 
-      {/* Modal */}
       {formOpen ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-lg rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-xl sm:p-6">
+          <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-xl sm:p-6">
             <h2 className="text-lg font-semibold text-[#111827]">
               {form.id ? "Edit workflow mapping" : "Create workflow mapping"}
             </h2>
+            <p className="mt-1 text-xs text-[#6B7280]">
+              Leave optional fields blank to match any value. Employment type alone creates a
+              default mapping for that type.
+            </p>
             <div className="mt-5 space-y-4">
               <label className="block text-sm">
-                <span className="mb-1.5 block text-xs font-medium text-[#374151]">Profession</span>
-                <select
-                  className={modalInputClass}
-                  value={form.professionId}
-                  onChange={(e) => setForm((c) => ({ ...c, professionId: e.target.value }))}
-                >
-                  <option value="">Select profession</option>
-                  {options?.professions.map((item) => (
-                    <option key={item.id} value={item.id}>{item.name}</option>
-                  ))}
-                </select>
-              </label>
-              <label className="block text-sm">
-                <span className="mb-1.5 block text-xs font-medium text-[#374151]">Employment type</span>
+                <span className="mb-1.5 block text-xs font-medium text-[#374151]">
+                  Employment type
+                </span>
                 <select
                   className={modalInputClass}
                   value={form.employmentType}
@@ -368,12 +414,92 @@ export default function WorkflowMappingsClient() {
                   }
                 >
                   {options?.employmentTypes.map((value) => (
-                    <option key={value}>{value}</option>
+                    <option key={value} value={value}>
+                      {employmentLabel(value)}
+                    </option>
                   ))}
                 </select>
               </label>
               <label className="block text-sm">
-                <span className="mb-1.5 block text-xs font-medium text-[#374151]">Published workflow</span>
+                <span className="mb-1.5 block text-xs font-medium text-[#374151]">
+                  Profession (optional)
+                </span>
+                <select
+                  className={modalInputClass}
+                  value={form.professionId}
+                  onChange={(e) =>
+                    setForm((c) => ({ ...c, professionId: e.target.value, specialtyId: "" }))
+                  }
+                >
+                  <option value="">Any profession</option>
+                  {options?.professions.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="block text-sm">
+                <span className="mb-1.5 block text-xs font-medium text-[#374151]">
+                  Specialty (optional)
+                </span>
+                <select
+                  className={modalInputClass}
+                  value={form.specialtyId}
+                  onChange={(e) => setForm((c) => ({ ...c, specialtyId: e.target.value }))}
+                  disabled={!form.professionId}
+                >
+                  <option value="">Any specialty</option>
+                  {specialtyOptions.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="block text-sm">
+                <span className="mb-1.5 block text-xs font-medium text-[#374151]">
+                  Location type (optional)
+                </span>
+                <select
+                  className={modalInputClass}
+                  value={form.locationType}
+                  onChange={(e) => setForm((c) => ({ ...c, locationType: e.target.value }))}
+                >
+                  <option value="">Any location type</option>
+                  {(options?.locationTypes ?? ["On-site", "Remote", "Hybrid"]).map((value) => (
+                    <option key={value} value={value}>
+                      {value}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="block text-sm">
+                <span className="mb-1.5 block text-xs font-medium text-[#374151]">
+                  Job location (optional)
+                </span>
+                <input
+                  className={modalInputClass}
+                  value={form.location}
+                  onChange={(e) => setForm((c) => ({ ...c, location: e.target.value }))}
+                  placeholder="e.g. Dallas, TX"
+                />
+              </label>
+              <label className="block text-sm">
+                <span className="mb-1.5 block text-xs font-medium text-[#374151]">
+                  Years of experience (optional)
+                </span>
+                <input
+                  className={modalInputClass}
+                  value={form.yearsOfExperience}
+                  onChange={(e) => setForm((c) => ({ ...c, yearsOfExperience: e.target.value }))}
+                  placeholder="e.g. 3+"
+                />
+              </label>
+              <label className="block text-sm">
+                <span className="mb-1.5 block text-xs font-medium text-[#374151]">
+                  Published workflow
+                </span>
                 <select
                   className={modalInputClass}
                   value={form.workflowId}
@@ -381,12 +507,16 @@ export default function WorkflowMappingsClient() {
                 >
                   <option value="">Select published workflow</option>
                   {options?.workflows.map((item) => (
-                    <option key={item.id} value={item.id}>{item.name}</option>
+                    <option key={item.id} value={item.id}>
+                      {item.name}
+                    </option>
                   ))}
                 </select>
               </label>
               <label className="block text-sm">
-                <span className="mb-1.5 block text-xs font-medium text-[#374151]">Priority</span>
+                <span className="mb-1.5 block text-xs font-medium text-[#374151]">
+                  Priority (lower wins ties)
+                </span>
                 <input
                   className={modalInputClass}
                   type="number"
@@ -399,8 +529,12 @@ export default function WorkflowMappingsClient() {
                 <span
                   className="relative flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-2 transition"
                   style={{
-                    borderColor: form.isActive ? "var(--brand-secondary, var(--brand-primary))" : "#D1D5DB",
-                    backgroundColor: form.isActive ? "var(--brand-secondary, var(--brand-primary))" : "transparent",
+                    borderColor: form.isActive
+                      ? "var(--brand-secondary, var(--brand-primary))"
+                      : "#D1D5DB",
+                    backgroundColor: form.isActive
+                      ? "var(--brand-secondary, var(--brand-primary))"
+                      : "transparent",
                   }}
                 >
                   <input
@@ -411,7 +545,13 @@ export default function WorkflowMappingsClient() {
                   />
                   {form.isActive ? (
                     <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden>
-                      <path d="M2.5 6L5 8.5L9.5 3.5" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                      <path
+                        d="M2.5 6L5 8.5L9.5 3.5"
+                        stroke="white"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
                     </svg>
                   ) : null}
                 </span>
@@ -428,7 +568,7 @@ export default function WorkflowMappingsClient() {
               </button>
               <button
                 type="button"
-                disabled={saving || !form.professionId || !form.workflowId}
+                disabled={saving || !form.workflowId}
                 onClick={() => void saveMapping()}
                 className="rounded-lg px-4 py-2.5 text-sm font-semibold text-white transition hover:brightness-[0.95] disabled:opacity-50"
                 style={{ backgroundColor: "var(--brand-primary)" }}

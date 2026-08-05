@@ -56,12 +56,33 @@ export type JobRequisitionInput = {
   internalNotes?: string | null;
 };
 
-export type WorkflowMatchKey = Pick<JobRequisitionInput, "professionId" | "employmentType">;
+export type WorkflowMatchKey = {
+  employmentType: EmploymentType;
+  professionId?: string | null;
+  specialtyId?: string | null;
+  location?: string | null;
+  yearsOfExperience?: string | null;
+  jobLocationType?: string | null;
+  locationType?: string | null;
+};
+
+export type WorkflowAssignmentMode = "automatic" | "manual";
 
 export type WorkflowMatch = {
-  mappingId: string;
+  mappingId: string | null;
   workflowId: string;
   workflowName: string;
+  source: "mapping" | "default" | "manual";
+  specificity: number;
+  criteriaLabel?: string;
+};
+
+/** Options controlling automatic vs manual workflow assignment on save. */
+export type JobWorkflowAssignmentOptions = {
+  /** Force re-resolve even if the job currently has a manual override. */
+  resetToAutomatic?: boolean;
+  /** Explicit admin override of the assigned published workflow. */
+  overrideWorkflowId?: string | null;
 };
 
 /** Job form fields plus admin Add-candidate fields (`name`, `email`). */

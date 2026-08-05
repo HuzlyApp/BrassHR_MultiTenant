@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireStaffApiSession } from "@/lib/auth/api-session";
 import { EMPLOYMENT_TYPES } from "@/lib/jobs/types";
-import { resolveWorkflowMatch } from "@/lib/jobs/service";
-import { workflowNoMatchMessage } from "@/lib/jobs/validation";
+import { resolveWorkflowForCriteria } from "@/lib/workflow-mappings/service";
 import { resolveStaffTenantId } from "@/lib/jobs/tenant";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 
@@ -12,35 +11,51 @@ export async function GET(req: NextRequest) {
   const supabase = createServiceRoleClient();
   if (!supabase) return NextResponse.json({ error: "Supabase not configured" }, { status: 503 });
 
-  const professionId = req.nextUrl.searchParams.get("professionId")?.trim() ?? "";
   const employmentType = req.nextUrl.searchParams.get("employmentType")?.trim() ?? "";
-  if (
-    !professionId ||
-    !EMPLOYMENT_TYPES.includes(employmentType as (typeof EMPLOYMENT_TYPES)[number])
-  ) {
-    return NextResponse.json({ error: "Profession and employment type are required" }, { status: 400 });
+  if (!EMPLOYMENT_TYPES.includes(employmentType as (typeof EMPLOYMENT_TYPES)[number])) {
+    return NextResponse.json({ error: "Employment type is required" }, { status: 400 });
   }
+
+  const professionId = req.nextUrl.searchParams.get("professionId")?.trim() || null;
+  const specialtyId = req.nextUrl.searchParams.get("specialtyId")?.trim() || null;
+  const location = req.nextUrl.searchParams.get("location")?.trim() || null;
+  const locationType =
+    req.nextUrl.searchParams.get("locationType")?.trim() ||
+    req.nextUrl.searchParams.get("jobLocationType")?.trim() ||
+    null;
+  const yearsOfExperience = req.nextUrl.searchParams.get("yearsOfExperience")?.trim() || null;
 
   try {
     const tenantId = await resolveStaffTenantId(supabase, auth);
     if (!tenantId) return NextResponse.json({ error: "No tenant selected" }, { status: 400 });
-    const match = await resolveWorkflowMatch(supabase, tenantId, {
-      professionId,
-      employmentType: employmentType as (typeof EMPLOYMENT_TYPES)[number],
-    });
-    if (match) return NextResponse.json({ match });
 
-    const { data: profession } = await supabase
-      .from("professions")
-      .select("name")
-      .eq("id", professionId)
-      .maybeSingle();
+    const result = await resolveWorkflowForCriteria(supabase, tenantId, {
+      professionId,
+      specialtyId,
+      employmentType: employmentType as (typeof EMPLOYMENT_TYPES)[number],
+      location,
+      locationType,
+      jobLocationType: locationType,
+      yearsOfExperience,
+    });
+
+    if (result.matched) {
+      return NextResponse.json({
+        match: {
+          mappingId: result.mappingId,
+          workflowId: result.workflowId,
+          workflowName: result.workflowName,
+          source: result.source,
+          specificity: result.specificity,
+          mappingCriteria: result.criteriaLabel,
+        },
+      });
+    }
+
     return NextResponse.json(
       {
         match: null,
-        warning: workflowNoMatchMessage(String(profession?.name ?? professionId), {
-          employmentType: employmentType as (typeof EMPLOYMENT_TYPES)[number],
-        }),
+        warning: result.message,
       },
       { status: 404 }
     );

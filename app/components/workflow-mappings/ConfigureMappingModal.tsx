@@ -45,26 +45,26 @@ export default function ConfigureMappingModal({
   if (!open) return null;
 
   async function saveMapping() {
-    if (!professionId) {
-      toast.error("Select a profession.");
-      return;
-    }
     setSaving(true);
     try {
       const response = await fetch("/api/admin/workflow-mappings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          professionId,
+          professionId: professionId || null,
           employmentType,
           workflowId,
           isActive: true,
-          priority: 100,
+          priority: professionId ? 100 : 1000,
         }),
       });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "Failed to create mapping");
-      toast.success("Automatic assignment configured");
+      toast.success(
+        professionId
+          ? "Automatic assignment configured"
+          : "Employment-type default mapping configured"
+      );
       onSaved?.();
       onClose();
     } catch (error) {
@@ -84,9 +84,11 @@ export default function ConfigureMappingModal({
         </p>
         <div className="mt-4 space-y-4">
           <label className="block text-sm">
-            <span className="mb-1 block font-medium text-slate-700">Profession</span>
+            <span className="mb-1 block font-medium text-slate-700">
+              Profession (optional — blank = employment-type default)
+            </span>
             <select className={inputClass} value={professionId} onChange={(e) => setProfessionId(e.target.value)}>
-              <option value="">Select profession</option>
+              <option value="">Any profession (default)</option>
               {professions.map((item) => (
                 <option key={item.id} value={item.id}>
                   {item.name}
@@ -101,9 +103,9 @@ export default function ConfigureMappingModal({
               value={employmentType}
               onChange={(e) => setEmploymentType(e.target.value as EmploymentType)}
             >
-              <option>W2</option>
-              <option>1099</option>
-              <option>Contract</option>
+              <option value="W2">W2</option>
+              <option value="1099">1099</option>
+              <option value="Contract">R&R</option>
             </select>
           </label>
         </div>
@@ -123,7 +125,7 @@ export default function ConfigureMappingModal({
           </Link>
           <button
             type="button"
-            disabled={saving || !professionId}
+            disabled={saving}
             onClick={() => void saveMapping()}
             className="rounded-lg bg-teal-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
           >

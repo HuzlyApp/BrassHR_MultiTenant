@@ -9,6 +9,8 @@ function forbidden() {
   return NextResponse.json({ error: "Administrator role required" }, { status: 403 });
 }
 
+const LOCATION_TYPES = ["On-site", "Remote", "Hybrid"];
+
 export async function GET(req: Request) {
   const auth = await requireStaffApiSession();
   if (auth instanceof NextResponse) return auth;
@@ -23,10 +25,16 @@ export async function GET(req: Request) {
     const url = new URL(req.url);
     const employmentType = url.searchParams.get("employmentType") || undefined;
 
-    const [professions, workflows] = await Promise.all([
+    const [professions, specialties, workflows] = await Promise.all([
       supabase
         .from("professions")
         .select("id, name, code")
+        .or(`tenant_id.is.null,tenant_id.eq.${tenantId}`)
+        .eq("is_active", true)
+        .order("name"),
+      supabase
+        .from("specialties")
+        .select("id, profession_id, name, code")
         .or(`tenant_id.is.null,tenant_id.eq.${tenantId}`)
         .eq("is_active", true)
         .order("name"),
@@ -34,10 +42,13 @@ export async function GET(req: Request) {
     ]);
 
     if (professions.error) throw professions.error;
+    if (specialties.error) throw specialties.error;
 
     return NextResponse.json({
       professions: professions.data ?? [],
+      specialties: specialties.data ?? [],
       employmentTypes: EMPLOYMENT_TYPES,
+      locationTypes: LOCATION_TYPES,
       workflows,
     });
   } catch (error) {

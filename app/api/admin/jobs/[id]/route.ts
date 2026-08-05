@@ -20,7 +20,7 @@ export async function GET(
     const [{ data: job, error: jobError }, { data: tenant, error: tenantError }] = await Promise.all([
       supabase
         .from("job_requisitions")
-        .select("*")
+        .select("*, onboarding_flows!workflow_id(id, name)")
         .eq("id", id)
         .eq("tenant_id", tenantId)
         .maybeSingle(),

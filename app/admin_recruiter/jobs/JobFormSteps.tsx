@@ -8,7 +8,6 @@ import {
   Check,
   Copy,
   Eye,
-  MapPin,
   Minus,
   Pencil,
   Plus,
@@ -31,6 +30,7 @@ import {
 import type { ReviewEditFieldId } from "./JobReviewEditModal";
 import { JobTypeChipSelect } from "./JobTypeChipSelect";
 import { BenefitsChipSelect } from "./BenefitsChipSelect";
+import JobLocationAutocompleteField from "./JobLocationAutocompleteField";
 import {
   JOB_FORM_BENEFIT_OPTIONS,
   JOB_FORM_COMPENSATION_TYPES,
@@ -340,22 +340,14 @@ export function JobFormStepRequisition({
 
         {/* Figma: 12px between Job Location and Add Additional Location row */}
         <div className={JOB_FORM_LOCATION_CLUSTER_CLASS}>
-          <div>
-            <label className={JOB_FORM_LABEL_CLASS} htmlFor="job-location">
-              Job Location
-            </label>
-            <div className="relative">
-              <MapPin className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94A3B8]" />
-              <input
-                id="job-location"
-                className={`${JOB_FORM_INPUT_CLASS} pl-9`}
-                value={job.location ?? ""}
-                onChange={(event) => onJobChange("location", event.target.value)}
-                placeholder="Enter job location"
-              />
-            </div>
-            <FieldError error={fieldErrors.location} />
-          </div>
+          <JobLocationAutocompleteField
+            id="job-location"
+            label="Job Location"
+            value={job.location ?? ""}
+            onChange={(next) => onJobChange("location", next)}
+            placeholder="Search city, area, or address"
+            error={fieldErrors.location}
+          />
 
           <div className="flex flex-col gap-3 min-[700px]:flex-row min-[700px]:items-center min-[700px]:justify-between">
             <BrandedCheckbox
@@ -390,19 +382,22 @@ export function JobFormStepRequisition({
           {ui.showInMultipleAreas
             ? ui.additionalLocations.map((location, index) => (
                 <div key={`extra-location-${index}`} className="flex gap-2">
-                  <input
-                    className={JOB_FORM_INPUT_CLASS}
+                  <JobLocationAutocompleteField
+                    id={`job-additional-location-${index}`}
+                    label={`Additional location ${index + 1}`}
+                    showLabel={false}
+                    className="min-w-0 flex-1"
                     value={location}
-                    placeholder="Additional location"
-                    onChange={(event) => {
-                      const next = [...ui.additionalLocations];
-                      next[index] = event.target.value;
-                      onUiChange({ additionalLocations: next });
+                    placeholder="Search additional location"
+                    onChange={(next) => {
+                      const nextLocations = [...ui.additionalLocations];
+                      nextLocations[index] = next;
+                      onUiChange({ additionalLocations: nextLocations });
                     }}
                   />
                   <button
                     type="button"
-                    className={`${JOB_FORM_OUTLINE_BUTTON_CLASS} shrink-0 px-3`}
+                    className={`${JOB_FORM_OUTLINE_BUTTON_CLASS} shrink-0 self-start px-3`}
                     onClick={() =>
                       onUiChange({
                         additionalLocations: ui.additionalLocations.filter((_, i) => i !== index),
@@ -733,24 +728,13 @@ export function JobFormStepMspDetails({
       </div>
 
       <div>
-        <label className={JOB_FORM_LABEL_CLASS} htmlFor="msp-facility">
-          Facility/Location
-        </label>
-        <div className="relative">
-          <MapPin className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94A3B8]" />
-          <input
-            id="msp-facility"
-            className={`${JOB_FORM_INPUT_CLASS} appearance-none bg-[length:12px_12px] bg-[right_12px_center] bg-no-repeat pl-9 pr-10`}
-            style={{ backgroundImage: JOB_FORM_SELECT_CHEVRON }}
-            value={facilityValue}
-            onChange={(event) => onJobChange("facility", event.target.value)}
-            placeholder="Facility or location"
-            list="msp-facility-suggestions"
-          />
-          <datalist id="msp-facility-suggestions">
-            {job.location?.trim() ? <option value={job.location.trim()} /> : null}
-          </datalist>
-        </div>
+        <JobLocationAutocompleteField
+          id="msp-facility"
+          label="Facility/Location"
+          value={facilityValue}
+          onChange={(next) => onJobChange("facility", next)}
+          placeholder="Search facility or location"
+        />
       </div>
 
       {/* Figma: Bill Rate | Suggested Pay Rate | Annually — 3 equal columns */}
@@ -1607,6 +1591,11 @@ export function JobFormWorkflowBanner({
   mappingLink,
   canManageWorkflows,
   fieldError,
+  assignmentMode = "automatic",
+  publishedWorkflows = [],
+  overrideWorkflowId = null,
+  onOverrideWorkflow,
+  onResetToAutomatic,
 }: {
   workflowName?: string;
   workflowWarning: string;
@@ -1614,8 +1603,14 @@ export function JobFormWorkflowBanner({
   mappingLink: string;
   canManageWorkflows: boolean;
   fieldError?: string;
+  assignmentMode?: "automatic" | "manual";
+  publishedWorkflows?: Array<{ id: string; name: string }>;
+  overrideWorkflowId?: string | null;
+  onOverrideWorkflow?: (workflowId: string) => void;
+  onResetToAutomatic?: () => void;
 }) {
   const hasWorkflow = Boolean(workflowName);
+  const isManual = assignmentMode === "manual";
 
   return (
     <div
@@ -1652,7 +1647,7 @@ export function JobFormWorkflowBanner({
                     : "bg-amber-100 text-amber-800"
                 }`}
               >
-                {hasWorkflow ? "Matched" : "Action needed"}
+                {hasWorkflow ? (isManual ? "Manual" : "Automatic") : "Action needed"}
               </span>
             </div>
 
@@ -1663,21 +1658,58 @@ export function JobFormWorkflowBanner({
                 </p>
                 {mappingCriteria ? (
                   <p className="mt-1 text-xs leading-5 text-[#64748B]">
-                    Matched on{" "}
+                    {isManual ? "Overridden — " : "Matched on "}
                     <span className="font-medium text-[#475569]">{mappingCriteria}</span>
                   </p>
                 ) : (
                   <p className="mt-1 text-xs leading-5 text-[#64748B]">
-                    Applicants for this job will follow this workflow.
+                    New applicants for this job will follow this workflow. Existing applicants keep
+                    their current workflow.
                   </p>
                 )}
               </>
             ) : (
               <p className="mt-2 whitespace-pre-line text-sm leading-6 text-amber-900/90">
                 {workflowWarning ||
-                  "Select profession and employment type to resolve a workflow."}
+                  "Select employment type (and optional attributes) to resolve a workflow."}
               </p>
             )}
+
+            {canManageWorkflows && onOverrideWorkflow ? (
+              <div className="mt-3 space-y-2">
+                <label className="block text-xs font-medium text-[#475569]">
+                  Override assigned workflow
+                  <select
+                    className="mt-1 w-full rounded-lg border border-[#D1D5DB] bg-white px-3 py-2 text-sm text-[#111827]"
+                    value={isManual ? (overrideWorkflowId ?? "") : ""}
+                    onChange={(event) => {
+                      const value = event.target.value;
+                      if (!value) {
+                        onResetToAutomatic?.();
+                        return;
+                      }
+                      onOverrideWorkflow(value);
+                    }}
+                  >
+                    <option value="">Use automatic mapping</option>
+                    {publishedWorkflows.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                {isManual && onResetToAutomatic ? (
+                  <button
+                    type="button"
+                    onClick={onResetToAutomatic}
+                    className="text-xs font-semibold text-[color:var(--brand-primary)] hover:underline"
+                  >
+                    Reset to automatic mapping
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
 
             {fieldError ? <p className="mt-2 text-xs text-rose-600">{fieldError}</p> : null}
           </div>

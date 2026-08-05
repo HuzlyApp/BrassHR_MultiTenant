@@ -130,14 +130,24 @@ export function normalizeApplicantEmail(email: string): string {
 
 export function workflowNoMatchMessage(
   professionName: string,
-  key: Pick<WorkflowMatchKey, "employmentType">
+  key: Pick<WorkflowMatchKey, "employmentType" | "specialtyId" | "location" | "jobLocationType" | "yearsOfExperience">
 ): string {
-  return [
+  const employmentLabel = key.employmentType === "Contract" ? "R&R" : key.employmentType;
+  const lines = [
     "No published workflow is configured for this job.",
     "",
     `Profession: ${professionName}`,
-    `Employment Type: ${key.employmentType}`,
+    `Employment Type: ${employmentLabel}`,
+  ];
+  if (key.specialtyId) lines.push(`Specialty: ${key.specialtyId}`);
+  if (key.jobLocationType?.trim()) lines.push(`Location Type: ${key.jobLocationType.trim()}`);
+  if (key.location?.trim()) lines.push(`Location: ${key.location.trim()}`);
+  if (key.yearsOfExperience?.trim()) {
+    lines.push(`Years of Experience: ${key.yearsOfExperience.trim()}`);
+  }
+  lines.push(
     "",
-    "Ask an administrator to create a workflow mapping before publishing.",
-  ].join("\n");
+    "Ask an administrator to create a workflow mapping or employment-type default before publishing."
+  );
+  return lines.join("\n");
 }

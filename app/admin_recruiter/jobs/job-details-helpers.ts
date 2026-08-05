@@ -26,6 +26,10 @@ export type JobDetailsRow = {
   special_requirements: string | null;
   public_job_token: string | null;
   application_deadline: string | null;
+  workflow_id?: string | null;
+  workflow_assignment_mode?: "automatic" | "manual" | string | null;
+  workflow_assignment_error?: string | null;
+  onboarding_flows?: { name?: string | null } | { name?: string | null }[] | null;
 };
 
 export type JobDetailsStats = {

@@ -7,6 +7,7 @@ import type { EmploymentType, JobRequisitionInput, SourceType } from "@/lib/jobs
 import { JobDescriptionEditor } from "./JobDescriptionEditor";
 import { JobTypeChipSelect } from "./JobTypeChipSelect";
 import { BenefitsChipSelect } from "./BenefitsChipSelect";
+import JobLocationAutocompleteField from "./JobLocationAutocompleteField";
 import {
   employmentTypeFromLabel,
   employmentTypeLabel,
@@ -297,17 +298,13 @@ export function JobReviewEditModal({
             ) : null}
 
             {field === "jobLocation" ? (
-              <div>
-                <label className={JOB_FORM_LABEL_CLASS} htmlFor="review-edit-location">
-                  Job Location
-                </label>
-                <input
-                  id="review-edit-location"
-                  className={JOB_FORM_INPUT_CLASS}
-                  value={draft.job.location ?? ""}
-                  onChange={(event) => patchJob("location", event.target.value)}
-                />
-              </div>
+              <JobLocationAutocompleteField
+                id="review-edit-location"
+                label="Job Location"
+                value={draft.job.location ?? ""}
+                onChange={(next) => patchJob("location", next)}
+                placeholder="Search city, area, or address"
+              />
             ) : null}
 
             {field === "additionalLocation" ? (
@@ -318,16 +315,19 @@ export function JobReviewEditModal({
                   : [""]
                 ).map((location, index) => (
                   <div key={`addl-${index}`} className="flex gap-2">
-                    <input
-                      className={JOB_FORM_INPUT_CLASS}
+                    <JobLocationAutocompleteField
+                      id={`review-edit-additional-location-${index}`}
+                      label={`Additional location ${index + 1}`}
+                      showLabel={false}
+                      className="min-w-0 flex-1"
                       value={location}
-                      placeholder="Enter additional location"
-                      onChange={(event) => {
-                        const next = [...draft.ui.additionalLocations];
-                        if (!next.length) next.push("");
-                        next[index] = event.target.value;
+                      placeholder="Search additional location"
+                      onChange={(next) => {
+                        const nextLocations = [...draft.ui.additionalLocations];
+                        if (!nextLocations.length) nextLocations.push("");
+                        nextLocations[index] = next;
                         patchUi({
-                          additionalLocations: next,
+                          additionalLocations: nextLocations,
                           showInMultipleAreas: true,
                         });
                       }}
@@ -335,7 +335,7 @@ export function JobReviewEditModal({
                     {draft.ui.additionalLocations.length > 1 ? (
                       <button
                         type="button"
-                        className={JOB_FORM_OUTLINE_BUTTON_CLASS}
+                        className={`${JOB_FORM_OUTLINE_BUTTON_CLASS} shrink-0 self-start`}
                         onClick={() =>
                           patchUi({
                             additionalLocations: draft.ui.additionalLocations.filter(
@@ -594,17 +594,13 @@ export function JobReviewEditModal({
             ) : null}
 
             {field === "facilityLocation" ? (
-              <div>
-                <label className={JOB_FORM_LABEL_CLASS} htmlFor="review-edit-facility">
-                  Facility/Location
-                </label>
-                <input
-                  id="review-edit-facility"
-                  className={JOB_FORM_INPUT_CLASS}
-                  value={draft.job.facility ?? ""}
-                  onChange={(event) => patchJob("facility", event.target.value)}
-                />
-              </div>
+              <JobLocationAutocompleteField
+                id="review-edit-facility"
+                label="Facility/Location"
+                value={draft.job.facility ?? ""}
+                onChange={(next) => patchJob("facility", next)}
+                placeholder="Search facility or location"
+              />
             ) : null}
 
             {field === "sourceJobUrl" ? (

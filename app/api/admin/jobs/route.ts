@@ -114,6 +114,13 @@ export async function POST(req: NextRequest) {
       jobId: jobId || undefined,
       publish: parsed.data.action === "publish",
       confirmRoutingChange: rawRecord.confirmRoutingChange === true,
+      resetToAutomatic: rawRecord.resetToAutomatic === true,
+      overrideWorkflowId:
+        typeof rawRecord.overrideWorkflowId === "string"
+          ? rawRecord.overrideWorkflowId.trim() || null
+          : rawRecord.overrideWorkflowId === null
+            ? null
+            : undefined,
     });
     return NextResponse.json(result, { status: jobId ? 200 : 201 });
   } catch (error) {

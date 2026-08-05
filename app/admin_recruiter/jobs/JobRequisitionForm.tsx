@@ -57,10 +57,15 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
   const [job, setJob] = useState<JobRequisitionInput>(initialJob);
   const [ui, setUi] = useState<JobFormUiState>(defaultJobFormUiState);
   const [options, setOptions] = useState<JobFormOptionsPayload | null>(null);
-  const [workflow, setWorkflow] = useState<{ workflowName: string; mappingCriteria?: string } | null>(
-    null
-  );
+  const [workflow, setWorkflow] = useState<{
+    workflowId?: string;
+    workflowName: string;
+    mappingCriteria?: string;
+    source?: string;
+  } | null>(null);
   const [workflowWarning, setWorkflowWarning] = useState("");
+  const [assignmentMode, setAssignmentMode] = useState<"automatic" | "manual">("automatic");
+  const [overrideWorkflowId, setOverrideWorkflowId] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
@@ -163,6 +168,19 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
         };
         setJob(loadedJob);
         setUi(jobFormUiFromJob(loadedJob));
+        const mode = row.workflow_assignment_mode === "manual" ? "manual" : "automatic";
+        setAssignmentMode(mode);
+        if (mode === "manual" && row.workflow_id) {
+          setOverrideWorkflowId(String(row.workflow_id));
+          const flow = row.onboarding_flows as { name?: string } | { name?: string }[] | null;
+          const flowName = Array.isArray(flow) ? flow[0]?.name : flow?.name;
+          setWorkflow({
+            workflowId: String(row.workflow_id),
+            workflowName: flowName ? String(flowName) : "Manually assigned workflow",
+            mappingCriteria: "Manual override",
+            source: "manual",
+          });
+        }
       })
       .catch((error) => setMessage(error instanceof Error ? error.message : "Failed to load job"));
   }, [jobId]);
@@ -185,15 +203,32 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
   }, [job.employmentType, job.professionId]);
 
   useEffect(() => {
-    if (!job.professionId || !job.employmentType) {
+    if (assignmentMode === "manual" && overrideWorkflowId) {
+      const selected = options?.workflows?.find((item) => item.id === overrideWorkflowId);
+      setWorkflow({
+        workflowId: overrideWorkflowId,
+        workflowName: selected?.name ?? "Manually assigned workflow",
+        mappingCriteria: "Manual override",
+        source: "manual",
+      });
+      setWorkflowWarning("");
+      return;
+    }
+
+    if (!job.employmentType) {
       setWorkflow(null);
       setWorkflowWarning("");
       return;
     }
     const params = new URLSearchParams({
-      professionId: job.professionId,
       employmentType: job.employmentType,
     });
+    if (job.professionId) params.set("professionId", job.professionId);
+    if (job.specialtyId) params.set("specialtyId", job.specialtyId);
+    if (job.location) params.set("location", job.location);
+    if (job.jobLocationType) params.set("locationType", job.jobLocationType);
+    if (job.yearsOfExperience) params.set("yearsOfExperience", job.yearsOfExperience);
+
     const controller = new AbortController();
     const timer = window.setTimeout(() => {
       void fetch(`/api/admin/jobs/workflow-preview?${params}`, {
@@ -203,12 +238,11 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
         .then(async (response) => {
           const payload = await response.json();
           if (response.ok && payload.match) {
-            const criteria = professionLabel
-              ? `${professionLabel} + ${job.employmentType}`
-              : undefined;
             setWorkflow({
+              workflowId: payload.match.workflowId,
               workflowName: payload.match.workflowName,
-              mappingCriteria: criteria,
+              mappingCriteria: payload.match.mappingCriteria,
+              source: payload.match.source,
             });
             setWorkflowWarning("");
           } else {
@@ -226,7 +260,17 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
       window.clearTimeout(timer);
       controller.abort();
     };
-  }, [job.professionId, job.employmentType, professionLabel]);
+  }, [
+    assignmentMode,
+    overrideWorkflowId,
+    job.professionId,
+    job.specialtyId,
+    job.employmentType,
+    job.location,
+    job.jobLocationType,
+    job.yearsOfExperience,
+    options?.workflows,
+  ]);
 
   const specialties = useMemo(
     () => options?.specialties.filter((item) => item.profession_id === job.professionId) ?? [],
@@ -270,6 +314,8 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
           job: payloadJob,
           jobId,
           confirmRoutingChange: forceRoutingChange || confirmRoutingChange,
+          resetToAutomatic: assignmentMode === "automatic",
+          overrideWorkflowId: assignmentMode === "manual" ? overrideWorkflowId : undefined,
         }),
       });
       const payload = await response.json();
@@ -401,6 +447,17 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
                   mappingLink={mappingLink}
                   canManageWorkflows={Boolean(options?.canManageWorkflows)}
                   fieldError={fieldErrors.workflowId}
+                  assignmentMode={assignmentMode}
+                  publishedWorkflows={options?.workflows ?? []}
+                  overrideWorkflowId={overrideWorkflowId}
+                  onOverrideWorkflow={(workflowId) => {
+                    setAssignmentMode("manual");
+                    setOverrideWorkflowId(workflowId);
+                  }}
+                  onResetToAutomatic={() => {
+                    setAssignmentMode("automatic");
+                    setOverrideWorkflowId(null);
+                  }}
                 />
               </>
             ) : null}

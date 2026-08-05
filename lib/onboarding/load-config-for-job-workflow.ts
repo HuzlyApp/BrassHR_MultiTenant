@@ -1,6 +1,9 @@
 import type { OnboardingDbClient } from "@/lib/onboarding/load-tenant-config";
 import { loadTenantOnboardingConfig } from "@/lib/onboarding/load-tenant-config";
-import { resolvePublishedWorkerOnboardingFlow } from "@/lib/onboarding/onboarding-flows";
+import {
+  getOnboardingFlowById,
+  resolvePublishedWorkerOnboardingFlow,
+} from "@/lib/onboarding/onboarding-flows";
 import { applyApplicantConfigFilters } from "@/lib/onboarding/filter-applicant-steps";
 import { workflowStateToStepDrafts } from "@/lib/onboarding/workflow-to-drafts";
 import { enforceUploadResumeFirstInWorkflowState } from "@/lib/onboarding/normalize-builder-workflow";
@@ -132,30 +135,22 @@ export type TenantDefaultWorkflowConfigResult = {
   workflowName: string;
 };
 
-async function loadWorkerOnboardingApplicantConfig(
+async function loadApplicantConfigFromFlow(
   supabase: OnboardingDbClient,
   tenantId: string,
-  tenantSlug: string
-): Promise<Omit<TenantDefaultWorkflowConfigResult, "tenantId" | "tenantSlug"> & {
+  flow: {
+    id: string;
+    name: string;
+    builderDraft: SerializableWorkflowState | null;
+  },
+  unavailableMessage: string
+): Promise<{
   config: TenantOnboardingConfig;
+  workflowId: string;
+  workflowName: string;
 }> {
-  let flow;
-  try {
-    flow = await resolvePublishedWorkerOnboardingFlow(supabase, tenantId);
-  } catch (error) {
-    throw new JobApplicationGateError(
-      error instanceof Error
-        ? error.message
-        : "Worker Onboarding workflow is unavailable.",
-      "WORKFLOW_UNAVAILABLE"
-    );
-  }
-
   if (!isSerializableWorkflowState(flow.builderDraft) || !flow.builderDraft.nodes.length) {
-    throw new JobApplicationGateError(
-      "Worker Onboarding workflow is unavailable.",
-      "WORKFLOW_DRAFT_MISSING"
-    );
+    throw new JobApplicationGateError(unavailableMessage, "WORKFLOW_DRAFT_MISSING");
   }
 
   const published = await loadTenantOnboardingConfig(supabase, tenantId, {
@@ -172,7 +167,7 @@ async function loadWorkerOnboardingApplicantConfig(
   const config = applyApplicantConfigFilters(fromFlow);
   if (!config.steps.length) {
     throw new JobApplicationGateError(
-      "Worker Onboarding has no applicant steps.",
+      "This workflow has no applicant steps.",
       "WORKFLOW_EMPTY"
     );
   }
@@ -184,9 +179,37 @@ async function loadWorkerOnboardingApplicantConfig(
   };
 }
 
+async function loadWorkerOnboardingApplicantConfig(
+  supabase: OnboardingDbClient,
+  tenantId: string
+): Promise<{
+  config: TenantOnboardingConfig;
+  workflowId: string;
+  workflowName: string;
+}> {
+  let flow;
+  try {
+    flow = await resolvePublishedWorkerOnboardingFlow(supabase, tenantId);
+  } catch (error) {
+    throw new JobApplicationGateError(
+      error instanceof Error
+        ? error.message
+        : "Worker Onboarding workflow is unavailable.",
+      "WORKFLOW_UNAVAILABLE"
+    );
+  }
+
+  return loadApplicantConfigFromFlow(
+    supabase,
+    tenantId,
+    flow,
+    "Worker Onboarding workflow is unavailable."
+  );
+}
+
 /**
  * Applicant steps when starting without a job token (new tenant / no open jobs).
- * Uses the same Worker Onboarding flow as job applications.
+ * Uses Worker Onboarding as the tenant fallback.
  */
 export async function loadApplicantConfigForTenantDefault(
   supabase: OnboardingDbClient,
@@ -197,7 +220,7 @@ export async function loadApplicantConfigForTenantDefault(
     throw new JobApplicationGateError("This organization was not found.", "TENANT_NOT_FOUND");
   }
 
-  const loaded = await loadWorkerOnboardingApplicantConfig(supabase, tenant.id, tenant.slug);
+  const loaded = await loadWorkerOnboardingApplicantConfig(supabase, tenant.id);
   return {
     ...loaded,
     tenantId: tenant.id,
@@ -207,7 +230,7 @@ export async function loadApplicantConfigForTenantDefault(
 
 /**
  * Resolve applicant onboarding steps for a published job.
- * Job token still selects/validates the job; steps always come from Worker Onboarding.
+ * Uses the workflow assigned to the job (`job.workflow_id`).
  */
 export async function loadApplicantConfigForJobToken(
   supabase: OnboardingDbClient,
@@ -223,10 +246,19 @@ export async function loadApplicantConfigForJobToken(
   }
 
   const validated = await validatePublishedJobForApplication(supabase, tenantSlug, jobToken);
-  const loaded = await loadWorkerOnboardingApplicantConfig(
+  const flow = await getOnboardingFlowById(supabase, validated.tenantId, validated.workflowId);
+  if (!flow || flow.status !== "published") {
+    throw new JobApplicationGateError(
+      "The workflow assigned to this job is unavailable.",
+      "WORKFLOW_UNAVAILABLE"
+    );
+  }
+
+  const loaded = await loadApplicantConfigFromFlow(
     supabase,
     validated.tenantId,
-    validated.tenantSlug
+    flow,
+    "The workflow assigned to this job is unavailable."
   );
 
   return {

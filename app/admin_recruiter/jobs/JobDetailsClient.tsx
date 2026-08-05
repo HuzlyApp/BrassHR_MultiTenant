@@ -274,6 +274,35 @@ export default function JobDetailsClient({ jobId }: Props) {
                   <span className="mx-1.5 text-[#CBD5E1]">•</span>
                   Company: {companyName}
                 </p>
+                {(() => {
+                  const flow = job.onboarding_flows;
+                  const workflowName = Array.isArray(flow)
+                    ? flow[0]?.name
+                    : flow?.name;
+                  if (!workflowName && !job.workflow_assignment_error) return null;
+                  return (
+                    <p className="mt-2 text-sm text-[#475569]">
+                      Assigned workflow:{" "}
+                      <span className="font-semibold text-[#111827]">
+                        {workflowName || "Unmapped"}
+                      </span>
+                      {job.workflow_assignment_mode === "manual" ? (
+                        <span className="ml-2 text-xs font-medium uppercase tracking-wide text-[#64748B]">
+                          (manual override)
+                        </span>
+                      ) : workflowName ? (
+                        <span className="ml-2 text-xs font-medium uppercase tracking-wide text-[#64748B]">
+                          (automatic)
+                        </span>
+                      ) : null}
+                      {job.workflow_assignment_error ? (
+                        <span className="mt-1 block text-xs text-amber-700 whitespace-pre-line">
+                          {job.workflow_assignment_error}
+                        </span>
+                      ) : null}
+                    </p>
+                  );
+                })()}
 
                 <div className="mt-4 flex w-full flex-col gap-3 min-[520px]:flex-row min-[520px]:flex-wrap min-[520px]:items-center">
                   <Link

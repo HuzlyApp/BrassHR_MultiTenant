@@ -7,7 +7,9 @@ import {
   type EmploymentType,
   type JobRequisitionInput,
   type JobStatus,
+  type JobWorkflowAssignmentOptions,
   type SourceType,
+  type WorkflowAssignmentMode,
   type WorkflowMatch,
 } from "@/lib/jobs/types";
 import {
@@ -22,7 +24,7 @@ import {
 } from "@/lib/jobs/public-application-routing";
 import { resolveWorkflowMatch } from "@/lib/workflow-mappings/service";
 import { ensureAdminCandidateWorker } from "@/lib/jobs/ensure-admin-candidate-worker";
-import { resolvePublishedWorkerOnboardingFlow } from "@/lib/onboarding/onboarding-flows";
+import { getOnboardingFlowById } from "@/lib/onboarding/onboarding-flows";
 
 type DbClient = SupabaseClient;
 
@@ -144,6 +146,10 @@ function toJobRow(input: JobRequisitionInput) {
 }
 
 
+function cleanMatchText(value: string | null | undefined): string {
+  return value?.trim().toLowerCase() || "";
+}
+
 async function routingKeyChanged(
   supabase: DbClient,
   tenantId: string,
@@ -152,16 +158,183 @@ async function routingKeyChanged(
 ): Promise<boolean> {
   const { data, error } = await supabase
     .from("job_requisitions")
-    .select("profession_id, employment_type")
+    .select(
+      "profession_id, specialty_id, employment_type, location, location_type, years_of_experience"
+    )
     .eq("id", jobId)
     .eq("tenant_id", tenantId)
     .maybeSingle();
   if (error) throw error;
   if (!data) return false;
+  const nextLocationType = cleanMatchText(input.jobLocationType ?? input.schedule);
   return (
-    String(data.profession_id) !== input.professionId ||
-    String(data.employment_type) !== input.employmentType
+    String(data.profession_id ?? "") !== input.professionId ||
+    String(data.specialty_id ?? "") !== String(input.specialtyId ?? "") ||
+    String(data.employment_type) !== input.employmentType ||
+    cleanMatchText(data.location as string | null) !== cleanMatchText(input.location) ||
+    cleanMatchText(data.location_type as string | null) !== nextLocationType ||
+    cleanMatchText(data.years_of_experience as string | null) !==
+      cleanMatchText(input.yearsOfExperience)
   );
+}
+
+async function loadExistingWorkflowAssignment(
+  supabase: DbClient,
+  tenantId: string,
+  jobId: string
+): Promise<{
+  workflowId: string | null;
+  assignmentMode: WorkflowAssignmentMode;
+  mappingId: string | null;
+} | null> {
+  const { data, error } = await supabase
+    .from("job_requisitions")
+    .select("workflow_id, workflow_assignment_mode, workflow_mapping_id")
+    .eq("id", jobId)
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
+  if (error) {
+    const message = String(error.message ?? "").toLowerCase();
+    if (message.includes("workflow_assignment_mode") || message.includes("does not exist")) {
+      const legacy = await supabase
+        .from("job_requisitions")
+        .select("workflow_id")
+        .eq("id", jobId)
+        .eq("tenant_id", tenantId)
+        .maybeSingle();
+      if (legacy.error) throw legacy.error;
+      if (!legacy.data) return null;
+      return {
+        workflowId: legacy.data.workflow_id ? String(legacy.data.workflow_id) : null,
+        assignmentMode: "automatic",
+        mappingId: null,
+      };
+    }
+    throw error;
+  }
+  if (!data) return null;
+  return {
+    workflowId: data.workflow_id ? String(data.workflow_id) : null,
+    assignmentMode:
+      data.workflow_assignment_mode === "manual" ? "manual" : "automatic",
+    mappingId: data.workflow_mapping_id ? String(data.workflow_mapping_id) : null,
+  };
+}
+
+async function resolveManualOverrideMatch(
+  supabase: DbClient,
+  tenantId: string,
+  workflowId: string
+): Promise<WorkflowMatch> {
+  const flow = await getOnboardingFlowById(supabase, tenantId, workflowId);
+  if (!flow || flow.status !== "published") {
+    throw new JobValidationError(
+      "Select a published workflow to override the automatic assignment.",
+      { workflowId: "Published workflow is required." },
+      "WORKFLOW_OVERRIDE_INVALID"
+    );
+  }
+  return {
+    mappingId: null,
+    workflowId: flow.id,
+    workflowName: flow.name,
+    source: "manual",
+    specificity: 0,
+    criteriaLabel: "Manual override",
+  };
+}
+
+async function resolveJobWorkflowAssignment(
+  supabase: DbClient,
+  tenantId: string,
+  input: JobRequisitionInput,
+  options: {
+    jobId?: string;
+    resetToAutomatic?: boolean;
+    overrideWorkflowId?: string | null;
+  }
+): Promise<{
+  match: WorkflowMatch | null;
+  assignmentMode: WorkflowAssignmentMode;
+  assignmentError: string | null;
+}> {
+  const existing = options.jobId
+    ? await loadExistingWorkflowAssignment(supabase, tenantId, options.jobId)
+    : null;
+
+  const overrideId = options.overrideWorkflowId?.trim() || null;
+  if (overrideId) {
+    const match = await resolveManualOverrideMatch(supabase, tenantId, overrideId);
+    return { match, assignmentMode: "manual", assignmentError: null };
+  }
+
+  const keepManual =
+    !options.resetToAutomatic &&
+    existing?.assignmentMode === "manual" &&
+    Boolean(existing.workflowId);
+
+  if (keepManual && existing?.workflowId) {
+    const match = await resolveManualOverrideMatch(supabase, tenantId, existing.workflowId);
+    return { match, assignmentMode: "manual", assignmentError: null };
+  }
+
+  const match = await resolveWorkflowMatch(supabase, tenantId, {
+    professionId: input.professionId,
+    specialtyId: input.specialtyId,
+    employmentType: input.employmentType,
+    location: input.location,
+    locationType: input.jobLocationType,
+    jobLocationType: input.jobLocationType,
+    yearsOfExperience: input.yearsOfExperience,
+  });
+
+  if (!match) {
+    const name = await professionName(supabase, tenantId, input.professionId);
+    return {
+      match: null,
+      assignmentMode: "automatic",
+      assignmentError: workflowNoMatchMessage(name, {
+        employmentType: input.employmentType,
+        specialtyId: input.specialtyId,
+        location: input.location,
+        jobLocationType: input.jobLocationType,
+        yearsOfExperience: input.yearsOfExperience,
+      }),
+    };
+  }
+
+  return { match, assignmentMode: "automatic", assignmentError: null };
+}
+
+/** Load the published onboarding flow assigned to a job (for new applicants). */
+export async function resolvePublishedFlowForJobWorkflow(
+  supabase: DbClient,
+  tenantId: string,
+  workflowId: string
+) {
+  const flow = await getOnboardingFlowById(supabase, tenantId, workflowId);
+  if (!flow) {
+    throw new JobValidationError(
+      "The workflow assigned to this job is unavailable.",
+      {},
+      "WORKFLOW_UNAVAILABLE"
+    );
+  }
+  if (flow.status !== "published") {
+    throw new JobValidationError(
+      "The workflow assigned to this job is not published.",
+      {},
+      "WORKFLOW_UNAVAILABLE"
+    );
+  }
+  if (!flow.builderDraft || !Array.isArray(flow.builderDraft.nodes) || !flow.builderDraft.nodes.length) {
+    throw new JobValidationError(
+      "The workflow assigned to this job has no applicant steps.",
+      {},
+      "WORKFLOW_UNAVAILABLE"
+    );
+  }
+  return flow;
 }
 
 async function countActiveApplicantsForJob(
@@ -236,20 +409,30 @@ export async function saveJobRequisition(
   tenantId: string,
   actorUserId: string,
   input: JobRequisitionInput,
-  options: { jobId?: string; publish: boolean; confirmRoutingChange?: boolean }
+  options: {
+    jobId?: string;
+    publish: boolean;
+    confirmRoutingChange?: boolean;
+  } & JobWorkflowAssignmentOptions
 ) {
   if (options.jobId) {
     const { data: existingJob, error: existingJobError } = await supabase
       .from("job_requisitions")
-      .select("status")
+      .select("status, workflow_assignment_mode")
       .eq("id", options.jobId)
       .eq("tenant_id", tenantId)
       .maybeSingle();
-    if (existingJobError) throw existingJobError;
+    if (existingJobError) {
+      const message = String(existingJobError.message ?? "").toLowerCase();
+      if (!message.includes("workflow_assignment_mode") && !message.includes("does not exist")) {
+        throw existingJobError;
+      }
+    }
 
     if (existingJob?.status === "published") {
       const routingChanged = await routingKeyChanged(supabase, tenantId, options.jobId, input);
-      if (routingChanged) {
+      const isManual = existingJob?.workflow_assignment_mode === "manual";
+      if (routingChanged && !isManual && !options.resetToAutomatic) {
         const applicantCount = await countActiveApplicantsForJob(
           supabase,
           tenantId,
@@ -257,7 +440,7 @@ export async function saveJobRequisition(
         );
         if (applicantCount > 0 && !options.confirmRoutingChange) {
           throw new JobValidationError(
-            "Changing profession or employment type will assign a different workflow for new applicants. Existing applicants remain on their original workflow. Confirm to continue.",
+            "Changing job attributes will assign a different workflow for new applicants. Existing applicants remain on their original workflow. Confirm to continue.",
             { professionId: "Confirm routing change to update workflow assignment." },
             "ROUTING_CHANGE_CONFIRMATION_REQUIRED"
           );
@@ -266,7 +449,12 @@ export async function saveJobRequisition(
     }
   }
 
-  const match = await resolveWorkflowMatch(supabase, tenantId, input);
+  const { match, assignmentMode, assignmentError } = await resolveJobWorkflowAssignment(
+    supabase,
+    tenantId,
+    input,
+    options
+  );
   if (options.publish) await requirePublishable(supabase, tenantId, input, match);
 
   const now = new Date().toISOString();
@@ -276,6 +464,9 @@ export async function saveJobRequisition(
   const patch = {
     ...toJobRow(input),
     workflow_id: match?.workflowId ?? null,
+    workflow_mapping_id: assignmentMode === "automatic" ? match?.mappingId ?? null : null,
+    workflow_assignment_mode: assignmentMode,
+    workflow_assignment_error: match ? null : assignmentError,
     status: options.publish ? ("published" as const) : ("draft" as const),
     published_at: options.publish ? now : null,
     closed_at: null,
@@ -284,31 +475,90 @@ export async function saveJobRequisition(
     ...(publicJobToken ? { public_job_token: publicJobToken } : {}),
   };
 
+  const selectCols =
+    "*, professions(name), specialties(name), onboarding_flows!workflow_id(name)";
+
   if (options.jobId) {
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from("job_requisitions")
       .update(patch)
       .eq("id", options.jobId)
       .eq("tenant_id", tenantId)
-      .select(
-        "*, professions(name), specialties(name), onboarding_flows!workflow_id(name)"
-      )
+      .select(selectCols)
       .single();
+
+    if (error) {
+      const message = String(error.message ?? "").toLowerCase();
+      if (
+        message.includes("workflow_assignment_mode") ||
+        message.includes("workflow_mapping_id") ||
+        message.includes("does not exist")
+      ) {
+        const legacyPatch = {
+          ...toJobRow(input),
+          workflow_id: match?.workflowId ?? null,
+          status: options.publish ? ("published" as const) : ("draft" as const),
+          published_at: options.publish ? now : null,
+          closed_at: null,
+          archived_at: null,
+          updated_by: actorUserId,
+          ...(publicJobToken ? { public_job_token: publicJobToken } : {}),
+        };
+        const retry = await supabase
+          .from("job_requisitions")
+          .update(legacyPatch)
+          .eq("id", options.jobId)
+          .eq("tenant_id", tenantId)
+          .select(selectCols)
+          .single();
+        data = retry.data;
+        error = retry.error;
+      }
+    }
     if (error) throw error;
     return { job: data, workflow: match };
   }
 
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from("job_requisitions")
     .insert({
       ...patch,
       tenant_id: tenantId,
       created_by: actorUserId,
     })
-    .select(
-      "*, professions(name), specialties(name), onboarding_flows!workflow_id(name)"
-    )
+    .select(selectCols)
     .single();
+
+  if (error) {
+    const message = String(error.message ?? "").toLowerCase();
+    if (
+      message.includes("workflow_assignment_mode") ||
+      message.includes("workflow_mapping_id") ||
+      message.includes("does not exist")
+    ) {
+      const legacyPatch = {
+        ...toJobRow(input),
+        workflow_id: match?.workflowId ?? null,
+        status: options.publish ? ("published" as const) : ("draft" as const),
+        published_at: options.publish ? now : null,
+        closed_at: null,
+        archived_at: null,
+        updated_by: actorUserId,
+        ...(publicJobToken ? { public_job_token: publicJobToken } : {}),
+      };
+      const retry = await supabase
+        .from("job_requisitions")
+        .insert({
+          ...legacyPatch,
+          tenant_id: tenantId,
+          created_by: actorUserId,
+        })
+        .select(selectCols)
+        .single();
+      data = retry.data;
+      error = retry.error;
+    }
+  }
   if (error) throw error;
   return { job: data, workflow: match };
 }
@@ -632,23 +882,27 @@ export async function startOrResumeJobApplication(
     );
   }
 
-  let defaultFlow;
+  let assignedFlow;
   try {
-    defaultFlow = await resolvePublishedWorkerOnboardingFlow(supabase, input.tenantId);
+    assignedFlow = await resolvePublishedFlowForJobWorkflow(
+      supabase,
+      input.tenantId,
+      String(job.workflow_id)
+    );
   } catch (error) {
     throw new JobValidationError(
       error instanceof Error
         ? error.message
-        : "Worker Onboarding workflow is unavailable.",
+        : "The workflow assigned to this job is unavailable.",
       {},
       "WORKFLOW_UNAVAILABLE"
     );
   }
 
-  const workflowId = defaultFlow.id;
-  const snapshot = defaultFlow.builderDraft ?? { nodes: [], edges: [] };
-  const workflowVersion = String(defaultFlow.updatedAt ?? new Date().toISOString());
-  const workflowName = String(defaultFlow.name ?? "Worker Onboarding");
+  const workflowId = assignedFlow.id;
+  const snapshot = assignedFlow.builderDraft ?? { nodes: [], edges: [] };
+  const workflowVersion = String(assignedFlow.updatedAt ?? new Date().toISOString());
+  const workflowName = String(assignedFlow.name ?? "Assigned Workflow");
 
   const normalizedEmail = input.email ? normalizeApplicantEmail(input.email) : null;
   let profileQuery = supabase
@@ -978,20 +1232,24 @@ export async function createAdminJobApplication(
     );
   }
 
-  let defaultFlow;
+  let assignedFlow;
   try {
-    defaultFlow = await resolvePublishedWorkerOnboardingFlow(supabase, input.tenantId);
+    assignedFlow = await resolvePublishedFlowForJobWorkflow(
+      supabase,
+      input.tenantId,
+      String(job.workflow_id)
+    );
   } catch (error) {
     throw new JobValidationError(
       error instanceof Error
         ? error.message
-        : "Worker Onboarding workflow is unavailable.",
+        : "The workflow assigned to this job is unavailable.",
       {},
       "WORKFLOW_UNAVAILABLE"
     );
   }
 
-  const workflowId = defaultFlow.id;
+  const workflowId = assignedFlow.id;
 
   const { firstName, lastName } = splitCandidateFullName(fullName);
   const profileFields = {
@@ -1107,9 +1365,9 @@ export async function createAdminJobApplication(
       workflowId,
       workerId: linkedWorkerId,
       flow: {
-        name: defaultFlow.name,
-        builder_draft: defaultFlow.builderDraft,
-        updated_at: defaultFlow.updatedAt,
+        name: assignedFlow.name,
+        builder_draft: assignedFlow.builderDraft,
+        updated_at: assignedFlow.updatedAt,
       },
     });
     return {

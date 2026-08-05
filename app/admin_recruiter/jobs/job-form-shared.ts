@@ -265,6 +265,7 @@ export type JobFormSpecialtyOption = JobFormOption & { profession_id: string };
 export type JobFormOptionsPayload = {
   professions: JobFormOption[];
   specialties: JobFormSpecialtyOption[];
+  workflows?: JobFormOption[];
   employmentTypes: EmploymentType[];
   sourceTypes: SourceType[];
   employerOfRecordOptions: JobFormOption[];

@@ -119,9 +119,11 @@ export const DEFAULT_ONBOARDING_FLOW_NAME = "Worker Onboarding";
 
 export const DEFAULT_W2_FLOW_NAME = "W2 Employee Workflow";
 export const DEFAULT_1099_FLOW_NAME = "1099 Contractor Workflow";
+export const DEFAULT_RR_FLOW_NAME = "R&R Workflow";
 
 export const DEFAULT_W2_PRESET_NAME = "Default W2 Employee Workflow";
 export const DEFAULT_1099_PRESET_NAME = "Default 1099 Contractor Workflow";
+export const DEFAULT_RR_PRESET_NAME = "Default R&R Workflow";
 
 const DEFAULT_EMPLOYMENT_FLOW_SEEDS = [
   {
@@ -135,6 +137,12 @@ const DEFAULT_EMPLOYMENT_FLOW_SEEDS = [
     flowName: DEFAULT_1099_FLOW_NAME,
     employmentType: "1099" as const,
     sortOrder: 3,
+  },
+  {
+    presetName: DEFAULT_RR_PRESET_NAME,
+    flowName: DEFAULT_RR_FLOW_NAME,
+    employmentType: "Contract" as const,
+    sortOrder: 4,
   },
 ] as const;
 
@@ -305,8 +313,13 @@ export async function ensureDefaultTenantOnboardingFlows(
     }
 
     for (const seed of DEFAULT_EMPLOYMENT_FLOW_SEEDS) {
-      const preset = await loadPublishedPresetByName(supabase, seed.presetName);
+      let preset = await loadPublishedPresetByName(supabase, seed.presetName);
+      // R&R preset may not exist yet on older installs — fall back to 1099 canvas.
+      if (!preset && seed.employmentType === "Contract") {
+        preset = await loadPublishedPresetByName(supabase, DEFAULT_1099_PRESET_NAME);
+      }
       if (!preset) {
+        if (seed.employmentType === "Contract") continue;
         throw new Error(
           `Missing published system preset "${seed.presetName}". Cannot seed default onboarding flows.`
         );
@@ -336,10 +349,28 @@ export async function ensureDefaultTenantOnboardingFlows(
         await replaceFlowStepsFromDraft(supabase, String(data.id), builderDraft);
       }
     }
+
+    try {
+      const { ensureEmploymentTypeDefaultMappings } = await import(
+        "@/lib/workflow-mappings/service"
+      );
+      await ensureEmploymentTypeDefaultMappings(supabase as never, tenantId, createdBy);
+    } catch {
+      // Mapping seed is best-effort; jobs still resolve once mappings exist.
+    }
     return;
   }
 
   await ensureWorkerOnboardingFlow(supabase, tenantId, createdBy);
+
+  try {
+    const { ensureEmploymentTypeDefaultMappings } = await import(
+      "@/lib/workflow-mappings/service"
+    );
+    await ensureEmploymentTypeDefaultMappings(supabase as never, tenantId, createdBy);
+  } catch {
+    // best-effort
+  }
 }
 
 /** @deprecated Use ensureDefaultTenantOnboardingFlows */

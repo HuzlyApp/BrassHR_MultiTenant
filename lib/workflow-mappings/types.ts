@@ -1,8 +1,12 @@
 import type { EmploymentType } from "@/lib/jobs/types";
 
 export type WorkflowMappingKey = {
-  professionId: string;
   employmentType: EmploymentType;
+  professionId?: string | null;
+  specialtyId?: string | null;
+  location?: string | null;
+  locationType?: string | null;
+  yearsOfExperience?: string | null;
 };
 
 export type WorkflowMappingInput = WorkflowMappingKey & {
@@ -14,14 +18,20 @@ export type WorkflowMappingInput = WorkflowMappingKey & {
 
 export type WorkflowMappingListItem = {
   id: string;
-  professionId: string;
-  professionName: string;
+  professionId: string | null;
+  professionName: string | null;
+  specialtyId: string | null;
+  specialtyName: string | null;
   employmentType: EmploymentType;
+  location: string | null;
+  locationType: string | null;
+  yearsOfExperience: string | null;
   workflowId: string;
   workflowName: string;
   workflowEmploymentType: string | null;
   isActive: boolean;
   priority: number;
+  specificity: number;
   createdAt: string;
   updatedAt: string;
 };
@@ -29,15 +39,20 @@ export type WorkflowMappingListItem = {
 export type WorkflowResolveResult =
   | {
       matched: true;
-      mappingId: string;
+      mappingId: string | null;
       workflowId: string;
       workflowName: string;
+      source: "mapping" | "default";
+      specificity: number;
+      criteriaLabel: string;
     }
   | {
       matched: false;
       workflowId: null;
       message: string;
     };
+
+export type WorkflowAssignmentMode = "automatic" | "manual";
 
 export class WorkflowMappingError extends Error {
   readonly code: string;
