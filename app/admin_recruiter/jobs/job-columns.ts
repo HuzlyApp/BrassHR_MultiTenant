@@ -12,12 +12,13 @@ export type JobColumnId =
   | "workflow"
   | "createdDate"
   | "applicationDeadline"
+  | "description"
   | "actions"
 
 export const JOB_COLUMN_OPTIONS: { id: JobColumnId; label: string }[] = [
   { id: "jobTitle", label: "Job Title" },
   { id: "jobId", label: "Job Id" },
-  { id: "candidates", label: "Candidates" },
+  { id: "candidates", label: "# Applicants" },
   { id: "datePosted", label: "Date Posted" },
   { id: "assignee", label: "Assignee" },
   { id: "jobStatus", label: "Job Status" },
@@ -28,7 +29,8 @@ export const JOB_COLUMN_OPTIONS: { id: JobColumnId; label: string }[] = [
   { id: "workflow", label: "Assigned Workflow" },
   { id: "createdDate", label: "Created Date" },
   { id: "applicationDeadline", label: "Application Deadline" },
-  { id: "actions", label: "Actions" },
+  { id: "description", label: "Description" },
+  { id: "actions", label: "Publish / Unpublish" },
 ]
 
 export const DEFAULT_JOB_COLUMNS: JobColumnId[] = [
@@ -38,6 +40,7 @@ export const DEFAULT_JOB_COLUMNS: JobColumnId[] = [
   "location",
   "assignee",
   "jobStatus",
+  "description",
   "actions",
 ]
 
@@ -54,6 +57,11 @@ export function loadJobColumnOrder(): JobColumnId[] {
     const cleaned = parsed.filter(
       (id): id is JobColumnId => typeof id === "string" && allowed.has(id as JobColumnId)
     )
+    if (cleaned.length && !cleaned.includes("description")) {
+      const actionsIndex = cleaned.indexOf("actions")
+      if (actionsIndex >= 0) cleaned.splice(actionsIndex, 0, "description")
+      else cleaned.push("description")
+    }
     return cleaned.length ? cleaned : [...DEFAULT_JOB_COLUMNS]
   } catch {
     return [...DEFAULT_JOB_COLUMNS]
@@ -72,12 +80,14 @@ export function jobColumnLabel(id: JobColumnId): string {
   return JOB_COLUMN_OPTIONS.find((c) => c.id === id)?.label ?? id
 }
 
-export type JobSortField = "jobTitle" | "jobStatus"
-
-export const SORTABLE_JOB_COLUMNS = new Set<JobColumnId>(["jobTitle", "jobStatus"])
+export type JobSortField = Exclude<JobColumnId, "actions">
 
 export function isSortableJobColumn(colId: JobColumnId): colId is JobSortField {
-  return SORTABLE_JOB_COLUMNS.has(colId)
+  return colId !== "actions"
+}
+
+export function isCenterAlignedJobColumn(colId: JobColumnId): boolean {
+  return CENTER_ALIGNED_COLUMNS.has(colId)
 }
 
 const CENTER_ALIGNED_COLUMNS = new Set<JobColumnId>([
@@ -91,6 +101,7 @@ const CENTER_ALIGNED_COLUMNS = new Set<JobColumnId>([
   "workflow",
   "createdDate",
   "applicationDeadline",
+  "description",
   "actions",
 ])
 
@@ -106,6 +117,7 @@ export function jobListColumnClassName(colId: JobColumnId): string {
     return `${center.trim()} w-[1%] whitespace-nowrap`.trim()
   }
   if (colId === "candidates") return `w-[350px] min-w-[350px]${center}`
-  if (colId === "actions") return `w-12${center}`
+  if (colId === "description") return `min-w-[130px] whitespace-nowrap${center}`
+  if (colId === "actions") return `min-w-[132px] w-[1%] whitespace-nowrap${center}`
   return center.trim()
 }

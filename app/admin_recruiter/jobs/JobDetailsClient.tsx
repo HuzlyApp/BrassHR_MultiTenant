@@ -69,7 +69,7 @@ function SummaryList({ title, items }: { title: string; items: string[] }) {
   return (
     <section className="mt-6">
       <h3 className="text-base font-semibold text-[#1D2739]">{title}</h3>
-      <ul className="job-description-html mt-3 list-inside list-disc space-y-3 pl-1 text-sm leading-7 text-[#334155]">
+      <ul className="job-description-html mt-3 list-inside list-disc pl-1 text-sm leading-6 text-[#334155]">
         {items.map((item) => (
           <li key={`${title}-${item}`}>{item}</li>
         ))}

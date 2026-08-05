@@ -28,6 +28,22 @@ const AI_FOCUS_AREA_OPTIONS = [
 
 const MAX_FOCUS_AREAS = 5;
 
+/** Clean card shell — no outer glow (shadow stays inside the header only). */
+const AI_PANEL_SURFACE_CLASS =
+  "overflow-hidden rounded-xl border border-[#E5E7EB] bg-white";
+
+/**
+ * Figma: primary-tinted header with a soft primary shadow under the bar
+ * (inset so it does not spill outside the card border).
+ */
+const AI_PANEL_HEADER_CLASS =
+  "flex items-center gap-2.5 bg-[color:color-mix(in_srgb,var(--brand-primary)_12%,white)] px-5 py-3.5 shadow-[inset_0_-6px_12px_-4px_color-mix(in_srgb,var(--brand-primary)_28%,transparent)]";
+
+const AI_PANEL_TITLE_CLASS = "text-base font-semibold";
+
+/** Beat `.tenant-branded-surface h3 { color: var(--brand-heading) }` from globals. */
+const AI_PANEL_TITLE_STYLE = { color: "var(--brand-primary)" } as const;
+
 export type AiJobDescriptionContext = {
   jobTitle?: string;
   professionName?: string;
@@ -258,13 +274,13 @@ export default function AiJobDescriptionPanel({
 
   return (
     <aside className="space-y-4">
-      <section className="overflow-hidden rounded-xl border border-[#E5E7EB] bg-white shadow-sm">
-        <div className="flex items-center gap-2 bg-[color:color-mix(in_srgb,var(--brand-primary)_12%,white)] px-5 py-3.5">
+      <section className={AI_PANEL_SURFACE_CLASS}>
+        <div className={AI_PANEL_HEADER_CLASS}>
           <Sparkles
             className="h-5 w-5 shrink-0 text-[color:var(--brand-primary)]"
             aria-hidden
           />
-          <h3 className="text-base font-semibold text-[color:var(--brand-primary)]">
+          <h3 className={AI_PANEL_TITLE_CLASS} style={AI_PANEL_TITLE_STYLE}>
             AI Description Generator
           </h3>
         </div>
@@ -493,16 +509,17 @@ export default function AiJobDescriptionPanel({
         </div>
       </section>
 
-      <section className="overflow-hidden rounded-xl border border-[#E5E7EB] bg-white shadow-sm">
-        <div className="flex items-center justify-between gap-3 bg-[color:color-mix(in_srgb,var(--brand-primary)_12%,white)] px-5 py-3.5">
-          <h3 className="text-base font-semibold text-[color:var(--brand-primary)]">
+      <section className={AI_PANEL_SURFACE_CLASS}>
+        <div className={`${AI_PANEL_HEADER_CLASS} justify-between`}>
+          <h3 className={AI_PANEL_TITLE_CLASS} style={AI_PANEL_TITLE_STYLE}>
             AI Generated Description
           </h3>
           <button
             type="button"
             onClick={handleCopyAll}
             disabled={!hasGenerated || generating}
-            className="inline-flex cursor-pointer items-center gap-1.5 text-sm font-medium text-[color:var(--brand-primary)] transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+            className="inline-flex cursor-pointer items-center gap-1.5 text-sm font-medium transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+            style={{ color: "var(--brand-primary)" }}
           >
             <Copy className="h-3.5 w-3.5" aria-hidden />
             Copy All

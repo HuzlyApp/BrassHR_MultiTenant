@@ -1,7 +1,10 @@
 import type { ReactNode } from "react"
 import Link from "next/link"
 import { MoreHorizontal } from "lucide-react"
-import type { JobColumnId } from "./job-columns"
+import type { JobColumnId, JobSortField } from "./job-columns"
+import JobPublishToggle from "./JobPublishToggle"
+import { isJobRequisitionOpen } from "@/lib/jobs/public-application-routing"
+import { jobDescriptionPlainText } from "@/lib/jobs/job-description-html"
 
 const JOB_CANDIDATE_COUNTER_CLASS =
   "inline-flex h-[18px] min-w-[18px] shrink-0 items-center justify-center rounded-sm bg-[color:color-mix(in_srgb,var(--brand-primary)_14%,white)] px-1 text-[11px] font-medium leading-none text-[#475569]"
@@ -58,6 +61,8 @@ export type JobListRow = {
   internal_requisition_number: string | null
   public_title: string | null
   employment_type: string
+  /** Job source — Internal vs MSP (from job_requisitions.source_type). */
+  source_type?: "Internal" | "MSP" | string | null
   status: "draft" | "published" | "closed" | "archived"
   created_at: string
   published_at: string | null
@@ -65,6 +70,10 @@ export type JobListRow = {
   facility: string | null
   facility_name: string | null
   application_deadline: string | null
+  public_description: string | null
+  responsibilities: string | null
+  qualifications: string | null
+  benefits: string | null
   professions: { name?: string } | { name?: string }[] | null
   specialties: { name?: string } | { name?: string }[] | null
   onboarding_flows: { name?: string } | { name?: string }[] | null
@@ -75,9 +84,51 @@ export type JobListRow = {
 
 const JOB_FORM_SURFACE_CLASS = "rounded-lg border border-[#CBD5E1] bg-white"
 
-function relationName(value: JobListRow["professions"]): string {
+function relationName(
+  value: JobListRow["professions"] | JobListRow["specialties"] | JobListRow["onboarding_flows"]
+): string {
   const row = Array.isArray(value) ? value[0] : value
   return row?.name ?? ""
+}
+
+/** Comparable value for list sorting (string or number). */
+export function jobSortValue(job: JobListRow, field: JobSortField): string | number {
+  switch (field) {
+    case "jobTitle":
+      return (job.public_title || "").trim().toLowerCase()
+    case "jobId":
+      return jobDisplayId(job).toLowerCase()
+    case "candidates":
+      return applicantCount(job)
+    case "datePosted":
+      return new Date(job.published_at || job.created_at || 0).getTime() || 0
+    case "assignee":
+      return "hr manager"
+    case "jobStatus":
+      return jobStatusSortLabel(job.status).toLowerCase()
+    case "location":
+      return jobLocation(job).toLowerCase()
+    case "employmentType":
+      return (job.employment_type || "").toLowerCase()
+    case "profession":
+      return relationName(job.professions).toLowerCase()
+    case "specialty":
+      return relationName(job.specialties).toLowerCase()
+    case "workflow":
+      return relationName(job.onboarding_flows).toLowerCase()
+    case "createdDate":
+      return new Date(job.created_at || 0).getTime() || 0
+    case "applicationDeadline":
+      return new Date(job.application_deadline || 0).getTime() || 0
+    case "description":
+      return jobDescriptionPlainText(
+        [job.public_description, job.responsibilities, job.qualifications, job.benefits]
+          .filter(Boolean)
+          .join(" ")
+      ).toLowerCase()
+    default:
+      return ""
+  }
 }
 
 export function applicantCount(job: JobListRow): number {
@@ -171,6 +222,9 @@ export type JobListCellContext = {
   onToggleStar: (jobId: string) => void
   openActionsJobId: string | null
   onOpenActionsMenu: (job: JobListRow, anchor: HTMLElement) => void
+  publishBusyIds: Set<string>
+  onPublishToggle: (job: JobListRow) => void
+  onViewDescription: (job: JobListRow) => void
 }
 
 export function renderJobListCell(
@@ -288,19 +342,52 @@ export function renderJobListCell(
       return (
         <span className="text-sm text-[#475569]">{formatDateShort(job.application_deadline)}</span>
       )
-    case "actions":
+    case "description":
       return (
         <button
           type="button"
-          onClick={(event) => ctx.onOpenActionsMenu(job, event.currentTarget)}
-          className="inline-flex h-8 w-8 items-center justify-center rounded-md text-black transition hover:bg-[#F1F5F9]"
-          aria-label="Job actions"
-          aria-haspopup="menu"
-          aria-expanded={ctx.openActionsJobId === job.id}
+          onClick={() => ctx.onViewDescription(job)}
+          className="text-sm font-medium underline transition hover:opacity-80"
+          style={{ color: ctx.brandingSecondaryHex }}
         >
-          <MoreHorizontal className="h-4 w-4" />
+          View description
         </button>
       )
+    case "actions": {
+      const isPublished = job.status === "published"
+      const publishBusy = ctx.publishBusyIds.has(job.id)
+      const canRepublish =
+        job.status === "closed" &&
+        isJobRequisitionOpen({ application_deadline: job.application_deadline })
+      const toggleDisabled =
+        publishBusy || job.status === "archived" || (job.status === "closed" && !canRepublish)
+
+      return (
+        <div className="flex items-center justify-center gap-3 px-[14px] py-2.5">
+          <JobPublishToggle
+            checked={isPublished}
+            busy={publishBusy}
+            disabled={toggleDisabled}
+            ariaLabel={
+              isPublished
+                ? `Unpublish ${job.public_title || "job"}`
+                : `Publish ${job.public_title || "job"}`
+            }
+            onToggle={() => ctx.onPublishToggle(job)}
+          />
+          <button
+            type="button"
+            onClick={(event) => ctx.onOpenActionsMenu(job, event.currentTarget)}
+            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-black transition hover:bg-[#F1F5F9]"
+            aria-label="Job actions"
+            aria-haspopup="menu"
+            aria-expanded={ctx.openActionsJobId === job.id}
+          >
+            <MoreHorizontal className="h-4 w-4" />
+          </button>
+        </div>
+      )
+    }
     default:
       return "—"
   }

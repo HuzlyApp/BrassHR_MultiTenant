@@ -186,8 +186,8 @@ export function JobDescriptionEditor({
         }
         .job-description-editor li,
         .job-description-html li {
-          margin: 0.75rem 0;
-          line-height: 1.75;
+          margin: 0.125rem 0;
+          line-height: 1.5;
         }
         .job-description-editor p,
         .job-description-html p {
