@@ -20,6 +20,7 @@ import { BulkDeleteConfirmModal } from "@/app/admin_recruiter/components/BulkDel
 import { BulkDeleteToolbarButton } from "@/app/admin_recruiter/components/BulkDeleteToolbarButton";
 import { ListPaginationControls, ListPaginationShowLabel } from "@/app/admin_recruiter/components/ListPaginationControls";
 import { ListTableCheckbox } from "@/app/admin_recruiter/components/ListTableCheckbox";
+import { CandidateAiFinalApprovalLink } from "@/app/admin_recruiter/candidates/CandidateAiFinalApprovalLink";
 import { useCandidatesFilterRowsDefault } from "@/app/admin_recruiter/hooks/useCandidatesFilterRowsDefault";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import {
@@ -29,6 +30,7 @@ import {
 import {
   resolveApplicationApplicantEmail,
   resolveApplicationApplicantName,
+  resolveApplicationWorkerId,
 } from "@/lib/jobs/application-applicant-display";
 import {
   APPLICATION_STATUS_OPTIONS,
@@ -769,14 +771,15 @@ export default function JobApplicationsPage() {
       case "candidates": {
         const name = applicantName(row);
         const email = applicantEmail(row);
+        const workerId = resolveApplicationWorkerId(row);
         const detailHref =
           jobId
             ? `/admin_recruiter/applications/review?jobId=${encodeURIComponent(jobId)}&applicationId=${encodeURIComponent(row.id)}`
             : `/admin_recruiter/applications/review?applicationId=${encodeURIComponent(row.id)}`;
         return (
-          <div className="flex min-w-0 items-center gap-3">
+          <div className="flex w-full min-w-0 items-center gap-3">
             <CandidateListAvatar name={name || "NA"} />
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <Link
                 href={detailHref}
                 className="block truncate text-sm font-medium leading-5 hover:underline"
@@ -790,6 +793,13 @@ export default function JobApplicationsPage() {
               >
                 {email || "—"}
               </p>
+            </div>
+            <div className="ml-auto flex shrink-0 items-center">
+              <CandidateAiFinalApprovalLink
+                workerId={workerId}
+                status={row.status}
+                candidateName={name}
+              />
             </div>
           </div>
         );

@@ -3,10 +3,11 @@
 import Link from "next/link";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
-import { Plus, Upload, Download, ListChecks } from "lucide-react";
+import { Plus, Download, ListChecks } from "lucide-react";
 import { ColumnsEditorModal } from "@/app/admin_recruiter/components/ColumnsEditorModal";
 import { BulkDeleteConfirmModal } from "@/app/admin_recruiter/components/BulkDeleteConfirmModal";
 import { BulkDeleteToolbarButton } from "@/app/admin_recruiter/components/BulkDeleteToolbarButton";
+import { ListExportDropdown } from "@/app/admin_recruiter/components/ListExportDropdown";
 import { ListPaginationControls, ListPaginationShowLabel } from "@/app/admin_recruiter/components/ListPaginationControls";
 import { ListTableCheckbox } from "@/app/admin_recruiter/components/ListTableCheckbox";
 import { useCandidatesFilterRowsDefault } from "@/app/admin_recruiter/hooks/useCandidatesFilterRowsDefault";
@@ -32,6 +33,7 @@ import {
   type JobColumnId,
   type JobSortField,
 } from "./job-columns";
+import { exportJobsCsv, exportJobsXls } from "./export-jobs";
 import {
   jobDisplayId,
   jobLocation,
@@ -1030,6 +1032,29 @@ export default function AdminRecruiterJobsPage() {
     return next;
   }, [filteredJobs, sortField, sortDirection]);
 
+  /** Selected rows when any are checked; otherwise current filtered/sorted result set. */
+  const exportJobs = useMemo(() => {
+    if (selectedIds.size === 0) return sortedJobs;
+    const selected = sortedJobs.filter((job) => selectedIds.has(job.id));
+    return selected.length > 0 ? selected : sortedJobs;
+  }, [sortedJobs, selectedIds]);
+
+  const handleExportCsv = useCallback(() => {
+    if (exportJobs.length === 0) {
+      toast.error("No jobs to export");
+      return;
+    }
+    exportJobsCsv(exportJobs, { columnOrder: listColumnOrder });
+  }, [exportJobs, listColumnOrder]);
+
+  const handleExportXls = useCallback(() => {
+    if (exportJobs.length === 0) {
+      toast.error("No jobs to export");
+      return;
+    }
+    exportJobsXls(exportJobs, { columnOrder: listColumnOrder });
+  }, [exportJobs, listColumnOrder]);
+
   const totalPages = Math.max(1, Math.ceil(sortedJobs.length / pageSize));
   const currentPage = Math.min(page, totalPages);
   const pageStart = sortedJobs.length === 0 ? 0 : (currentPage - 1) * pageSize + 1;
@@ -1197,10 +1222,11 @@ export default function AdminRecruiterJobsPage() {
             <ListChecks className="h-4 w-4 shrink-0" aria-hidden />
             Unpublish
           </button>
-          <button type="button" className={JOBS_BULK_OUTLINE_BUTTON_CLASS} aria-label="Export jobs">
-            <Upload className="h-4 w-4 shrink-0" aria-hidden />
-            Export
-          </button>
+          <ListExportDropdown
+            onExportCsv={handleExportCsv}
+            onExportXls={handleExportXls}
+            disabled={exportJobs.length === 0}
+          />
           <button
             type="button"
             className={JOBS_BULK_PRIMARY_BUTTON_CLASS}

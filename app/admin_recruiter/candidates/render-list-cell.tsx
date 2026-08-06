@@ -2,6 +2,7 @@ import type { ReactNode } from "react"
 import Link from "next/link"
 import BrandedSvgIcon from "@/app/components/BrandedSvgIcon"
 import { CandidateListAvatar } from "@/app/admin_recruiter/components/CandidateListAvatar"
+import { CandidateAiFinalApprovalLink } from "./CandidateAiFinalApprovalLink"
 import { candidateMailHref, candidateProfileHref } from "./candidate-links"
 import type { CandidateColumnId } from "./column-config"
 import type { CandidateRow } from "./types"
@@ -21,9 +22,9 @@ export function renderListCell(
   switch (col) {
     case "name":
       return (
-        <div className="flex items-center gap-3 min-w-0 w-full">
+        <div className="flex w-full min-w-0 items-center gap-3">
           <CandidateListAvatar name={c.name || "NA"} photoUrl={c.profilePhotoUrl} />
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             {c.name?.trim() ? (
               <Link
                 href={candidateProfileHref(c.id)}
@@ -53,8 +54,13 @@ export function renderListCell(
               </div>
             )}
           </div>
-          
+
           <div className="ml-auto flex shrink-0 items-center gap-1.5">
+            <CandidateAiFinalApprovalLink
+              workerId={c.id}
+              status={c.status}
+              candidateName={c.name}
+            />
             <Link
               href={`/admin_recruiter/new/attachments/${c.id}`}
               className="inline-flex h-7 w-7 items-center justify-center rounded-md transition hover:bg-[color-mix(in_srgb,var(--brand-primary)_8%,white)]"

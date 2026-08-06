@@ -8,6 +8,7 @@ import { candidateStatusBadgeClassName } from "./candidate-status-badge";
 import { CANDIDATE_CARD_SURFACE_CLASS } from "./candidate-card-surface";
 import type { CandidateRow } from "./types";
 
+import { CandidateAiFinalApprovalLink } from "./CandidateAiFinalApprovalLink";
 import { candidateMailHref, candidateProfileHref } from "./candidate-links";
 
 const BRAND_ICON = "var(--brand-primary)";
@@ -46,6 +47,13 @@ export function CandidateGridCard({
           </div>
 
           <div className="pointer-events-auto flex shrink-0 items-center gap-1.5">
+            <CandidateAiFinalApprovalLink
+              workerId={c.id}
+              status={c.status}
+              candidateName={c.name}
+              className="flex h-6 w-6 items-center justify-center rounded-md transition hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_8%,white)]"
+              iconClassName="h-3.5 w-3.5 text-[color:var(--brand-primary)]"
+            />
             {onMessage ? (
               <button
                 type="button"

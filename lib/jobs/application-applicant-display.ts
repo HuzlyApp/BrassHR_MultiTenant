@@ -36,3 +36,19 @@ export function resolveApplicationApplicantEmail(row: ApplicationApplicantSource
   const worker = oneEmbedded(row.worker);
   return String(profile.email ?? worker.email ?? "").trim();
 }
+
+/** Resolves the worker id used by Final Approval / candidate detail routes. */
+export function resolveApplicationWorkerId(
+  row: ApplicationApplicantSource & { worker_id?: string | null }
+): string | null {
+  const direct = typeof row.worker_id === "string" ? row.worker_id.trim() : "";
+  if (direct) return direct;
+
+  const worker = oneEmbedded(row.worker);
+  const fromWorker = typeof worker.id === "string" ? worker.id.trim() : "";
+  if (fromWorker) return fromWorker;
+
+  const profile = oneEmbedded(row.applicant_profiles);
+  const fromProfile = typeof profile.worker_id === "string" ? profile.worker_id.trim() : "";
+  return fromProfile || null;
+}

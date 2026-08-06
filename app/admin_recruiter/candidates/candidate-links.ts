@@ -10,3 +10,8 @@ export function candidateMailHref(workerId: string) {
   });
   return `/admin_recruiter/mail?${params.toString()}`;
 }
+
+/** AI / Final Approval review for a linked worker candidate. */
+export function candidateFinalApprovalHref(workerId: string) {
+  return `/admin_recruiter/new/final-approval/${encodeURIComponent(workerId)}`;
+}
