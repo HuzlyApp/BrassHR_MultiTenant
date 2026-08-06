@@ -8,6 +8,7 @@ import {
   Check,
   Copy,
   Eye,
+  HelpCircle,
   Minus,
   Pencil,
   Plus,
@@ -15,7 +16,8 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import type { CSSProperties, ReactNode } from "react";
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { getSidebarIconSrc } from "@/app/admin_recruiter/components/sidebar-icons";
 import {
   ensureTintedSidebarIconMarkup,
@@ -47,7 +49,6 @@ import {
   JOB_FORM_PAY_PERIODS,
   JOB_FORM_PRIMARY_BUTTON_CLASS,
   JOB_FORM_RADIO_OPTIONS_CLASS,
-  JOB_FORM_SECTION_SUBTITLE_CLASS,
   JOB_FORM_SECTION_TITLE_CLASS,
   JOB_FORM_SELECT_CHEVRON,
   JOB_FORM_SELECT_CLASS,
@@ -58,6 +59,8 @@ import {
   JOB_FORM_YEARS_OF_EXPERIENCE,
   employmentTypeFromLabel,
   employmentTypeLabel,
+  REVIEW_LOCKED_EMPLOYMENT_TYPE_TOOLTIP,
+  specialtySelectPlaceholder,
   formatPaySummary,
   type JobFormOption,
   type JobFormSpecialtyOption,
@@ -309,7 +312,7 @@ export function JobFormStepRequisition({
               disabled={!job.professionId}
               onChange={(event) => onJobChange("specialtyId", event.target.value || null)}
             >
-              <option value="">Select Specialty</option>
+              <option value="">{specialtySelectPlaceholder(job.professionId, specialties.length)}</option>
               {specialties.map((item) => (
                 <option key={item.id} value={item.id}>
                   {item.name}
@@ -330,7 +333,13 @@ export function JobFormStepRequisition({
                   name="employment-type"
                   label={label}
                   checked={Boolean(job.employmentType) && employmentTypeLabel(job.employmentType) === label}
-                  onChange={() => onJobChange("employmentType", employmentTypeFromLabel(label))}
+                  onChange={() => {
+                    const nextType = employmentTypeFromLabel(label);
+                    onJobChange("employmentType", nextType);
+                    if (nextType === "Contract") {
+                      onJobChange("sourceType", "MSP");
+                    }
+                  }}
                 />
               ))}
             </div>
@@ -576,10 +585,7 @@ export function JobFormStepRequisition({
                 name="employer-on-record"
                 label="Yes"
                 checked={ui.employerOnRecord === "yes"}
-                onChange={() => {
-                  onUiChange({ employerOnRecord: "yes" });
-                  onJobChange("sourceType", "Internal");
-                }}
+                onChange={() => onUiChange({ employerOnRecord: "yes" })}
               />
               <BrandedRadio
                 name="employer-on-record"
@@ -588,7 +594,6 @@ export function JobFormStepRequisition({
                 onChange={() => {
                   onUiChange({ employerOnRecord: "no" });
                   onJobChange("employerOfRecord", null);
-                  onJobChange("sourceType", "MSP");
                 }}
               />
             </div>
@@ -925,20 +930,12 @@ export function JobFormStepCompensation({
   fieldErrors,
   onJobChange,
   onUiChange,
-  professionName = "",
-  specialtyName = "",
-  companyName = "",
-  brandStyle,
 }: {
   job: JobRequisitionInput;
   ui: JobFormUiState;
   fieldErrors: Record<string, string>;
   onJobChange: <K extends keyof JobRequisitionInput>(key: K, value: JobRequisitionInput[K]) => void;
   onUiChange: (patch: Partial<JobFormUiState>) => void;
-  professionName?: string;
-  specialtyName?: string;
-  companyName?: string;
-  brandStyle?: CSSProperties;
 }) {
   const hidePaySection = job.sourceType === "MSP";
   const [creatingBenefit, setCreatingBenefit] = useState(false);
@@ -988,14 +985,6 @@ export function JobFormStepCompensation({
     <div className="space-y-8">
       {!hidePaySection ? (
         <section className={JOB_FORM_FIELDS_CLASS}>
-          <div>
-            <h2 className={JOB_FORM_SECTION_TITLE_CLASS}>Compensation</h2>
-            <p className={JOB_FORM_SECTION_SUBTITLE_CLASS}>
-              Review the pay we estimated for your job and adjust as needed. Check your local minimum
-              wage.
-            </p>
-          </div>
-
           <div className="grid gap-4 min-[700px]:grid-cols-2">
             <div>
               <label className={JOB_FORM_LABEL_CLASS}>Compensation</label>
@@ -1114,6 +1103,7 @@ export function JobFormStepCompensation({
 
       <section className="space-y-4">
         <BenefitsChipSelect
+          labelClassName={JOB_FORM_SECTION_TITLE_CLASS}
           options={benefitOptions}
           selected={ui.selectedBenefits}
           onToggle={toggleBenefit}
@@ -1182,72 +1172,72 @@ export function JobFormStepCompensation({
           </div>
         ) : null}
       </section>
-
-      <section className="space-y-4">
-        <JobDescriptionWithAiSuggest
-          value={job.publicDescription ?? ""}
-          onChange={(next) => onJobChange("publicDescription", next)}
-          error={fieldErrors.publicDescription}
-          brandStyle={brandStyle}
-          buildPayload={() => {
-            const shiftParts = [job.shiftType, job.shiftDetails, job.schedule]
-              .map((item) => item?.trim())
-              .filter(Boolean);
-            const benefitList =
-              ui.selectedBenefits.length > 0
-                ? ui.selectedBenefits
-                : (job.benefits ?? "")
-                    .split(/[,;\n]/)
-                    .map((item) => item.trim())
-                    .filter(Boolean);
-
-            return {
-              jobTitle: job.publicTitle,
-              profession: professionName || null,
-              specialty: specialtyName || null,
-              employmentType: job.employmentType || null,
-              location: job.location,
-              locationType: job.jobLocationType || ui.jobLocationType || null,
-              yearsOfExperience: job.yearsOfExperience || ui.yearsOfExperience || null,
-              numberOfPositions: job.numberOfPositions ?? ui.numberOfPositions ?? null,
-              shiftOrSchedule: shiftParts.length ? shiftParts.join(" · ") : null,
-              benefits: benefitList,
-              responsibilities: job.responsibilities,
-              qualifications: job.qualifications,
-              companyName: companyName || null,
-              department: job.department,
-              facility: job.facility,
-              duration: job.duration,
-              requiredCredentials: job.requiredCredentials,
-              specialRequirements: job.specialRequirements,
-              additionalLocations: job.additionalLocations ?? ui.additionalLocations ?? [],
-            };
-          }}
-        />
-      </section>
-
-      {/* TODO(future): Additional public details — Qualifications / Responsibilities
-      <section className="space-y-4">
-        <h2 className={JOB_FORM_SECTION_TITLE_CLASS}>Additional public details</h2>
-        <div className="grid gap-4 min-[700px]:grid-cols-2">
-          <PublicField label="Qualifications">
-            <textarea
-              className={`${JOB_FORM_TEXTAREA_CLASS} min-h-[120px]`}
-              value={job.qualifications ?? ""}
-              onChange={(event) => onJobChange("qualifications", event.target.value)}
-            />
-          </PublicField>
-          <PublicField label="Responsibilities">
-            <textarea
-              className={`${JOB_FORM_TEXTAREA_CLASS} min-h-[120px]`}
-              value={job.responsibilities ?? ""}
-              onChange={(event) => onJobChange("responsibilities", event.target.value)}
-            />
-          </PublicField>
-        </div>
-      </section>
-      */}
     </div>
+  );
+}
+
+export function JobFormStepDescription({
+  job,
+  ui,
+  fieldErrors,
+  onJobChange,
+  professionName = "",
+  specialtyName = "",
+  companyName = "",
+  brandStyle,
+}: {
+  job: JobRequisitionInput;
+  ui: JobFormUiState;
+  fieldErrors: Record<string, string>;
+  onJobChange: <K extends keyof JobRequisitionInput>(key: K, value: JobRequisitionInput[K]) => void;
+  professionName?: string;
+  specialtyName?: string;
+  companyName?: string;
+  brandStyle?: CSSProperties;
+}) {
+  return (
+    <section className="space-y-4">
+      <JobDescriptionWithAiSuggest
+        value={job.publicDescription ?? ""}
+        onChange={(next) => onJobChange("publicDescription", next)}
+        error={fieldErrors.publicDescription}
+        brandStyle={brandStyle}
+        buildPayload={() => {
+          const shiftParts = [job.shiftType, job.shiftDetails, job.schedule]
+            .map((item) => item?.trim())
+            .filter(Boolean);
+          const benefitList =
+            ui.selectedBenefits.length > 0
+              ? ui.selectedBenefits
+              : (job.benefits ?? "")
+                  .split(/[,;\n]/)
+                  .map((item) => item.trim())
+                  .filter(Boolean);
+
+          return {
+            jobTitle: job.publicTitle,
+            profession: professionName || null,
+            specialty: specialtyName || null,
+            employmentType: job.employmentType || null,
+            location: job.location,
+            locationType: job.jobLocationType || ui.jobLocationType || null,
+            yearsOfExperience: job.yearsOfExperience || ui.yearsOfExperience || null,
+            numberOfPositions: job.numberOfPositions ?? ui.numberOfPositions ?? null,
+            shiftOrSchedule: shiftParts.length ? shiftParts.join(" · ") : null,
+            benefits: benefitList,
+            responsibilities: job.responsibilities,
+            qualifications: job.qualifications,
+            companyName: companyName || null,
+            department: job.department,
+            facility: job.facility,
+            duration: job.duration,
+            requiredCredentials: job.requiredCredentials,
+            specialRequirements: job.specialRequirements,
+            additionalLocations: job.additionalLocations ?? ui.additionalLocations ?? [],
+          };
+        }}
+      />
+    </section>
   );
 }
 
@@ -1285,26 +1275,105 @@ function ReviewAddPlusIcon() {
   );
 }
 
+function ReviewLockedHelpButton({ message }: { message: string }) {
+  const [open, setOpen] = useState(false);
+  const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    if (!open || !buttonRef.current) {
+      setPosition(null);
+      return;
+    }
+    const rect = buttonRef.current.getBoundingClientRect();
+    const width = 260;
+    const left = Math.max(12, Math.min(rect.right - width, window.innerWidth - width - 12));
+    setPosition({ top: rect.bottom + 8, left });
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const handlePointerDown = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (buttonRef.current?.contains(target)) return;
+      if (popoverRef.current?.contains(target)) return;
+      setOpen(false);
+    };
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleEscape);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [open]);
+
+  return (
+    <>
+      <button
+        ref={buttonRef}
+        type="button"
+        onClick={() => setOpen((current) => !current)}
+        className="inline-flex h-5 w-5 cursor-pointer items-center justify-center rounded-full text-[#94A3B8] transition hover:text-[#64748B]"
+        aria-label="Why can't this be edited?"
+        aria-expanded={open}
+        aria-describedby={open ? "review-locked-help-popover" : undefined}
+      >
+        <HelpCircle className="h-4 w-4" strokeWidth={2} />
+      </button>
+      {open && position && typeof document !== "undefined"
+        ? createPortal(
+            <div
+              ref={popoverRef}
+              id="review-locked-help-popover"
+              role="tooltip"
+              style={{ position: "fixed", top: position.top, left: position.left, zIndex: 200 }}
+              className="w-[260px] rounded-lg border border-[#E5E7EB] bg-white px-3 py-2.5 text-left text-xs leading-5 text-[#475569] shadow-lg"
+            >
+              {message}
+            </div>,
+            document.body
+          )
+        : null}
+    </>
+  );
+}
+
 function ReviewRow({
   label,
   value,
   onEdit,
   addLabel,
+  readOnly = false,
+  valueAsChip = false,
+  lockedNotice,
 }: {
   label: string;
   value: string;
   onEdit?: () => void;
   /** Custom text after “Add” when empty (defaults to lowercased label). */
   addLabel?: string;
+  /** Hide edit control — used for fields locked after earlier steps (Figma review). */
+  readOnly?: boolean;
+  /** Render the value inside a grey pill (employment type on review). */
+  valueAsChip?: boolean;
+  /** “Cannot be edited” hint with tooltip on the trailing column. */
+  lockedNotice?: { tooltip: string };
 }) {
   const empty = isReviewValueEmpty(value);
+  const editable = Boolean(onEdit) && !readOnly;
 
   return (
     <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 gap-y-1 py-3 min-[700px]:grid-cols-[220px_1fr_auto] min-[700px]:gap-x-2 min-[700px]:gap-y-0">
       <div className="col-span-2 text-sm font-medium text-[#64748B] min-[700px]:col-span-1">{label}</div>
       <div className="min-w-0 text-sm text-[#1D2739]">
         {empty ? (
-          onEdit ? (
+          readOnly ? (
+            <span className="text-[#94A3B8]">—</span>
+          ) : editable ? (
             <button
               type="button"
               onClick={onEdit}
@@ -1319,11 +1388,15 @@ function ReviewRow({
               Add {reviewAddLabel(label, addLabel)}
             </span>
           )
+        ) : valueAsChip ? (
+          <span className="inline-flex rounded-full bg-[#EEF2F6] px-3 py-1 text-sm font-medium text-[#1D2739]">
+            {value}
+          </span>
         ) : (
           <div className="whitespace-pre-line">{value}</div>
         )}
       </div>
-      {onEdit ? (
+      {editable ? (
         <button
           type="button"
           onClick={onEdit}
@@ -1332,6 +1405,11 @@ function ReviewRow({
         >
           <Pencil className="h-4 w-4" />
         </button>
+      ) : lockedNotice ? (
+        <div className="col-span-2 flex items-center justify-end gap-1.5 self-center min-[700px]:col-span-1">
+          <span className="text-sm text-[#94A3B8]">Cannot be edited</span>
+          <ReviewLockedHelpButton message={lockedNotice.tooltip} />
+        </div>
       ) : null}
     </div>
   );
@@ -1396,7 +1474,7 @@ export function JobFormStepReview({
         onEdit={() => onEditField("jobId")}
       />
       <ReviewRow label="Job Title" value={job.publicTitle ?? ""} onEdit={() => onEditField("jobTitle")} />
-      <ReviewRow label="Profession" value={professionName} onEdit={() => onEditField("profession")} />
+      <ReviewRow label="Profession" value={professionName} readOnly />
       <ReviewRow
         label="Specialty"
         value={specialtyName}
@@ -1424,7 +1502,9 @@ export function JobFormStepReview({
       <ReviewRow
         label="Employment Type"
         value={employmentTypeValue}
-        onEdit={() => onEditField("employmentType")}
+        readOnly
+        valueAsChip={Boolean(employmentTypeValue)}
+        lockedNotice={{ tooltip: REVIEW_LOCKED_EMPLOYMENT_TYPE_TOOLTIP }}
       />
       <ReviewRow
         label="Job type"
@@ -1718,34 +1798,38 @@ export function JobFormWorkflowBanner({
             )}
 
             {canManageWorkflows && onOverrideWorkflow ? (
-              <div className="mt-3 space-y-2">
-                <label className="block text-xs font-medium text-[#475569]">
+              <div className="mt-3 w-full min-w-0 max-w-full space-y-2">
+                <label className={JOB_FORM_LABEL_CLASS} htmlFor="workflow-override">
                   Override assigned workflow
-                  <select
-                    className="mt-1 w-full rounded-lg border border-[#D1D5DB] bg-white px-3 py-2 text-sm text-[#111827]"
-                    value={isManual ? (overrideWorkflowId ?? "") : ""}
-                    onChange={(event) => {
-                      const value = event.target.value;
-                      if (!value) {
-                        onResetToAutomatic?.();
-                        return;
-                      }
-                      onOverrideWorkflow(value);
-                    }}
-                  >
-                    <option value="">Use automatic mapping</option>
-                    {publishedWorkflows.map((item) => (
-                      <option key={item.id} value={item.id}>
-                        {item.name}
-                      </option>
-                    ))}
-                  </select>
                 </label>
+                <select
+                  id="workflow-override"
+                  className={`${JOB_FORM_SELECT_CLASS} ${
+                    isManual && overrideWorkflowId ? "text-[#334155]" : "text-[#94A3B8]"
+                  }`}
+                  style={{ backgroundImage: JOB_FORM_SELECT_CHEVRON }}
+                  value={isManual ? (overrideWorkflowId ?? "") : ""}
+                  onChange={(event) => {
+                    const value = event.target.value;
+                    if (!value) {
+                      onResetToAutomatic?.();
+                      return;
+                    }
+                    onOverrideWorkflow(value);
+                  }}
+                >
+                  <option value="">Use automatic mapping</option>
+                  {publishedWorkflows.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.name}
+                    </option>
+                  ))}
+                </select>
                 {isManual && onResetToAutomatic ? (
                   <button
                     type="button"
                     onClick={onResetToAutomatic}
-                    className="text-xs font-semibold text-[color:var(--brand-primary)] hover:underline"
+                    className="cursor-pointer text-xs font-semibold text-[color:var(--brand-primary)] hover:underline"
                   >
                     Reset to automatic mapping
                   </button>
@@ -1804,6 +1888,7 @@ export function JobFormFooter({
 }) {
   const isReview = step === "review";
   const isCompensation = step === "compensation";
+  const isDescription = step === "description";
   const outlineButtonClass = `${JOB_FORM_OUTLINE_BUTTON_CLASS} w-full min-[700px]:w-auto`;
   const primaryButtonClass = `${JOB_FORM_PRIMARY_BUTTON_CLASS} w-full min-[700px]:w-auto`;
 
@@ -1848,7 +1933,7 @@ export function JobFormFooter({
             <ArrowLeft className="h-4 w-4" />
             Back
           </button>
-          {isCompensation ? (
+          {isCompensation || isDescription ? (
             <button type="button" className={outlineButtonClass} onClick={onPreview}>
               <Eye className="h-4 w-4" />
               Preview
@@ -1857,7 +1942,7 @@ export function JobFormFooter({
         </div>
 
         <div className="contents min-[700px]:flex min-[700px]:items-center min-[700px]:justify-end min-[700px]:gap-2">
-          {step === "requisition" || step === "msp-details" ? (
+          {step === "requisition" || step === "msp-details" || isCompensation ? (
             <button
               type="button"
               className={primaryButtonClass}
@@ -1867,7 +1952,7 @@ export function JobFormFooter({
               Next
               <ArrowRight className="h-4 w-4" />
             </button>
-          ) : isCompensation ? (
+          ) : isDescription ? (
             <button
               type="button"
               className={`${primaryButtonClass} col-span-2 min-[700px]:col-span-1`}

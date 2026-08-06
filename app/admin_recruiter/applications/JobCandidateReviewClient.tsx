@@ -36,6 +36,10 @@ import {
   CANDIDATES_PAGE_TITLE_STYLE,
 } from "@/app/admin_recruiter/candidates/candidates-typography";
 import {
+  resolveApplicationApplicantEmail,
+  resolveApplicationApplicantName,
+} from "@/lib/jobs/application-applicant-display";
+import {
   APPLICATION_STATUS_OPTIONS,
   applicationStatusLabel,
   normalizeApplicationStatus,
@@ -56,6 +60,7 @@ type ApplicationRow = {
   worker_id: string | null;
   job_requisitions: Record<string, unknown> | Record<string, unknown>[] | null;
   applicant_profiles: Record<string, unknown> | Record<string, unknown>[] | null;
+  worker?: Record<string, unknown> | Record<string, unknown>[] | null;
 };
 
 type JobOption = {
@@ -91,15 +96,11 @@ function one(value: Record<string, unknown> | Record<string, unknown>[] | null |
 }
 
 function applicantName(row: ApplicationRow): string {
-  const profile = one(row.applicant_profiles);
-  return (
-    [profile.first_name, profile.last_name].filter(Boolean).join(" ") ||
-    String(profile.email ?? "Applicant")
-  );
+  return resolveApplicationApplicantName(row);
 }
 
 function applicantEmail(row: ApplicationRow): string {
-  return String(one(row.applicant_profiles).email ?? "");
+  return resolveApplicationApplicantEmail(row);
 }
 
 function resolveWorkerId(row: ApplicationRow): string | null {

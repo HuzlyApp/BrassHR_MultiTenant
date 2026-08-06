@@ -4,6 +4,7 @@ import { requireStaffApiSession } from "@/lib/auth/api-session";
 import { createAdminJobApplication, bulkDeleteJobApplications, parseBulkDeleteIds } from "@/lib/jobs/service";
 import { JobValidationError } from "@/lib/jobs/types";
 import { resolveStaffTenantId } from "@/lib/jobs/tenant";
+import { JOB_APPLICATION_APPLICANT_EMBED } from "@/lib/jobs/application-applicant-display";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { WORKER_RESUMES_BUCKET } from "@/lib/supabase-storage-buckets";
 
@@ -54,7 +55,7 @@ export async function GET(req: NextRequest) {
     let query = supabase
       .from("job_applications")
       .select(
-        "id, status, created_at, submitted_at, updated_at, job_requisition_id, workflow_id, applicant_workflow_instance_id, worker_id, job_requisitions(public_title, profession_id, employment_type, location, facility, facility_name, professions(name)), onboarding_flows(name), applicant_profiles(id, first_name, last_name, email, worker_id)"
+        `id, status, created_at, submitted_at, updated_at, job_requisition_id, workflow_id, applicant_workflow_instance_id, worker_id, job_requisitions(public_title, profession_id, employment_type, location, facility, facility_name, professions(name)), onboarding_flows(name), ${JOB_APPLICATION_APPLICANT_EMBED}`
       )
       .eq("tenant_id", tenantId)
       .eq("job_requisition_id", jobId)

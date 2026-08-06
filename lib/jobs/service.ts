@@ -745,7 +745,7 @@ export async function listInternalJobs(
   let query = supabase
     .from("job_requisitions")
     .select(
-      "id, internal_requisition_number, public_title, public_job_token, profession_id, specialty_id, employment_type, status, workflow_id, created_by, created_at, published_at, location, facility, facility_name, application_deadline, professions(name), specialties(name), onboarding_flows!workflow_id(name), job_applications!job_requisition_id(count)"
+      "id, internal_requisition_number, public_title, public_job_token, profession_id, specialty_id, employment_type, source_type, status, workflow_id, created_by, created_at, published_at, location, facility, facility_name, application_deadline, professions(name), specialties(name), onboarding_flows!workflow_id(name), job_applications!job_requisition_id(count)"
     )
     .eq("tenant_id", tenantId)
     .order("created_at", { ascending: false });

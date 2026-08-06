@@ -27,6 +27,10 @@ import {
   CANDIDATES_PAGE_TITLE_STYLE,
 } from "@/app/admin_recruiter/candidates/candidates-typography";
 import {
+  resolveApplicationApplicantEmail,
+  resolveApplicationApplicantName,
+} from "@/lib/jobs/application-applicant-display";
+import {
   APPLICATION_STATUS_OPTIONS,
   APPLICATION_STATUS_TABS,
   applicationStatusBadgeClassName,
@@ -66,6 +70,7 @@ type ApplicationRow = {
   job_requisitions: Record<string, unknown> | Record<string, unknown>[] | null;
   onboarding_flows: Record<string, unknown> | Record<string, unknown>[] | null;
   applicant_profiles: Record<string, unknown> | Record<string, unknown>[] | null;
+  worker?: Record<string, unknown> | Record<string, unknown>[] | null;
 };
 
 type JobHeader = {
@@ -293,15 +298,11 @@ function formatActivity(row: ApplicationRow): string {
 }
 
 function applicantName(row: ApplicationRow): string {
-  const applicant = one(row.applicant_profiles);
-  return (
-    [applicant.first_name, applicant.last_name].filter(Boolean).join(" ") ||
-    String(applicant.email ?? "Applicant")
-  );
+  return resolveApplicationApplicantName(row);
 }
 
 function applicantEmail(row: ApplicationRow): string {
-  return String(one(row.applicant_profiles).email ?? "");
+  return resolveApplicationApplicantEmail(row);
 }
 
 function workflowName(row: ApplicationRow): string {

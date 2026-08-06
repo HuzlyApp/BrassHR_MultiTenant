@@ -1,7 +1,9 @@
 import type { ReactNode } from "react"
 import Link from "next/link"
 import { MoreHorizontal } from "lucide-react"
-import type { JobColumnId } from "./job-columns"
+import type { JobColumnId, JobSortField } from "./job-columns"
+import JobPublishToggle from "./JobPublishToggle"
+import { isJobRequisitionOpen } from "@/lib/jobs/public-application-routing"
 import { JobPublicViewLink } from "./JobPublicViewLink"
 
 const JOB_CANDIDATE_COUNTER_CLASS =
@@ -60,6 +62,7 @@ export type JobListRow = {
   public_title: string | null
   public_job_token?: string | null
   employment_type: string
+  source_type?: "Internal" | "MSP" | string | null
   status: "draft" | "published" | "closed" | "archived"
   created_at: string
   published_at: string | null
@@ -107,9 +110,9 @@ export function jobDisplayId(job: JobListRow): string {
 export function jobStatusSortLabel(status: JobListRow["status"]): string {
   switch (status) {
     case "published":
-      return "Open"
+      return "Published"
     case "draft":
-      return "Drafts"
+      return "Unpublished"
     case "closed":
       return "Closed"
     case "archived":
@@ -119,19 +122,64 @@ export function jobStatusSortLabel(status: JobListRow["status"]): string {
   }
 }
 
+export function jobSortValue(job: JobListRow, field: JobSortField): string | number {
+  switch (field) {
+    case "jobTitle":
+      return (job.public_title || "").trim().toLowerCase()
+    case "jobId":
+      return jobDisplayId(job).toLowerCase()
+    case "candidates":
+      return applicantCount(job)
+    case "datePosted":
+      return new Date(job.published_at || job.created_at || 0).getTime() || 0
+    case "assignee":
+      return "hr manager"
+    case "jobStatus":
+      return jobStatusSortLabel(job.status).toLowerCase()
+    case "location":
+      return jobLocation(job).toLowerCase()
+    case "employmentType":
+      return (job.employment_type || "").toLowerCase()
+    case "profession":
+      return relationName(job.professions).toLowerCase()
+    case "specialty":
+      return relationName(job.specialties).toLowerCase()
+    case "workflow":
+      return relationName(job.onboarding_flows).toLowerCase()
+    case "createdDate":
+      return new Date(job.created_at || 0).getTime() || 0
+    case "applicationDeadline":
+      return new Date(job.application_deadline || 0).getTime() || 0
+    default:
+      return ""
+  }
+}
+
 function displayJobStatus(status: JobListRow["status"]): { label: string; dotClass: string } {
   switch (status) {
     case "published":
-      return { label: jobStatusSortLabel(status), dotClass: "bg-[#3B82F6]" }
+      return { label: "Published", dotClass: "bg-[#3B82F6]" }
     case "draft":
-      return { label: jobStatusSortLabel(status), dotClass: "bg-[#94A3B8]" }
+      return { label: "Unpublished", dotClass: "bg-[#94A3B8]" }
     case "closed":
-      return { label: jobStatusSortLabel(status), dotClass: "bg-[#EF4444]" }
+      return { label: "Closed", dotClass: "bg-[#EF4444]" }
     case "archived":
-      return { label: jobStatusSortLabel(status), dotClass: "bg-[#EF4444]" }
+      return { label: "Archived", dotClass: "bg-[#EF4444]" }
     default:
       return { label: jobStatusSortLabel(status), dotClass: "bg-[#94A3B8]" }
   }
+}
+
+function isPublishToggleChecked(status: JobListRow["status"]): boolean {
+  return status === "published"
+}
+
+function isPublishToggleDisabled(job: JobListRow): boolean {
+  if (job.status === "archived") return true
+  if (job.status === "closed") {
+    return !isJobRequisitionOpen({ application_deadline: job.application_deadline })
+  }
+  return false
 }
 
 function formatPostedDate(iso: string | null): { relative: string; absolute: string } {
@@ -174,6 +222,8 @@ export type JobListCellContext = {
   onToggleStar: (jobId: string) => void
   openActionsJobId: string | null
   onOpenActionsMenu: (job: JobListRow, anchor: HTMLElement) => void
+  publishBusyIds: Set<string>
+  onPublishToggle: (job: JobListRow) => void
 }
 
 function publicJobPathFor(job: JobListRow, tenantSlug: string | null): string | null {
@@ -197,7 +247,7 @@ export function renderJobListCell(
   switch (col) {
     case "jobTitle":
       return (
-        <div className="flex items-center gap-2">
+        <div className="flex w-full min-w-0 items-center gap-2 pr-2">
           <button
             type="button"
             onClick={(event) => {
@@ -220,21 +270,19 @@ export function renderJobListCell(
             />
           </button>
           <div className="min-w-0 flex-1">
-            <div className="flex min-w-0 items-center gap-1.5">
-              <Link
-                href={`/admin_recruiter/jobs/${job.id}`}
-                className="min-w-0 truncate font-semibold hover:underline"
-                style={{ color: ctx.brandingSecondaryHex }}
-              >
-                {job.public_title || "Untitled draft"}
-              </Link>
-              <JobPublicViewLink
-                href={publicJobPathFor(job, ctx.tenantSlug)}
-                className="h-7 w-7 border-0 shadow-none"
-              />
-            </div>
-            <p className="mt-0.5 text-xs text-[#64748B]">{jobLocation(job)}</p>
+            <Link
+              href={`/admin_recruiter/jobs/${job.id}`}
+              className="block truncate font-semibold hover:underline"
+              style={{ color: ctx.brandingSecondaryHex }}
+            >
+              {job.public_title || "Untitled draft"}
+            </Link>
+            <p className="mt-0.5 truncate text-xs text-[#64748B]">{jobLocation(job)}</p>
           </div>
+          <JobPublicViewLink
+            href={publicJobPathFor(job, ctx.tenantSlug)}
+            className="ml-auto shrink-0"
+          />
         </div>
       )
     case "jobId":
@@ -307,16 +355,28 @@ export function renderJobListCell(
       )
     case "actions":
       return (
-        <button
-          type="button"
-          onClick={(event) => ctx.onOpenActionsMenu(job, event.currentTarget)}
-          className="inline-flex h-8 w-8 items-center justify-center rounded-md text-black transition hover:bg-[#F1F5F9]"
-          aria-label="Job actions"
-          aria-haspopup="menu"
-          aria-expanded={ctx.openActionsJobId === job.id}
-        >
-          <MoreHorizontal className="h-4 w-4" />
-        </button>
+        <div className="flex items-center justify-center gap-3 px-[14px] py-[10px]">
+          <JobPublishToggle
+            checked={isPublishToggleChecked(job.status)}
+            disabled={isPublishToggleDisabled(job)}
+            busy={ctx.publishBusyIds.has(job.id)}
+            activeColor={ctx.brandingSecondaryHex}
+            onChange={() => ctx.onPublishToggle(job)}
+          />
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation()
+              ctx.onOpenActionsMenu(job, event.currentTarget)
+            }}
+            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#F1F5F9] text-[#334155] transition hover:bg-[#E2E8F0]"
+            aria-label="Job actions"
+            aria-haspopup="menu"
+            aria-expanded={ctx.openActionsJobId === job.id}
+          >
+            <MoreHorizontal className="h-4 w-4" />
+          </button>
+        </div>
       )
     default:
       return "—"

@@ -15,9 +15,11 @@ import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
 import type { JobRequisitionInput, SourceType } from "@/lib/jobs/types";
 import { JobPostPreviewModal } from "./JobPostPreviewModal";
 import { JobReviewEditModal, type ReviewEditFieldId } from "./JobReviewEditModal";
+import { jobDescriptionPlainText } from "./JobDescriptionEditor";
 import {
   JobFormFooter,
   JobFormStepCompensation,
+  JobFormStepDescription,
   JobFormStepMspDetails,
   JobFormStepRequisition,
   JobFormStepReview,
@@ -28,6 +30,8 @@ import {
   defaultJobFormUiState,
   JOB_FORM_CENTER_COLUMN_CLASS,
   JOB_FORM_PAGE_CARD_CLASS,
+  JOB_FORM_SECTION_SUBTITLE_CLASS,
+  JOB_FORM_SECTION_TITLE_CLASS,
   jobFormUiFromJob,
   primaryButtonStyle,
   type JobFormOptionsPayload,
@@ -300,11 +304,46 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
     return applyUiToJob(job, ui);
   }
 
+  function validateRequisitionStep(current: JobRequisitionInput): Record<string, string> {
+    const errors: Record<string, string> = {};
+    if (!current.shiftType?.trim()) {
+      errors.shiftType = "Job type is required.";
+    }
+    return errors;
+  }
+
+  function validateDescriptionStep(current: JobRequisitionInput): Record<string, string> {
+    const errors: Record<string, string> = {};
+    if (!jobDescriptionPlainText(current.publicDescription ?? "").trim()) {
+      errors.publicDescription = "Job description is required.";
+    }
+    return errors;
+  }
+
   async function save(action: "save_draft" | "publish", forceRoutingChange = false) {
     setSaving(true);
     setMessage("");
     setFieldErrors({});
     const payloadJob = buildPayloadJob();
+
+    if (action === "publish") {
+      const stepErrors = {
+        ...validateRequisitionStep(payloadJob),
+        ...validateDescriptionStep(payloadJob),
+      };
+      if (Object.keys(stepErrors).length > 0) {
+        setFieldErrors(stepErrors);
+        setSaving(false);
+        if (stepErrors.publicDescription) {
+          setStep("description");
+        } else if (stepErrors.shiftType) {
+          setStep("requisition");
+        }
+        setMessage("Please complete the required fields before publishing.");
+        return;
+      }
+    }
+
     try {
       const response = await fetch("/api/admin/jobs", {
         method: "POST",
@@ -351,8 +390,12 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
       setStep(job.sourceType === "MSP" ? "msp-details" : "requisition");
       return;
     }
-    if (step === "review") {
+    if (step === "description") {
       setStep("compensation");
+      return;
+    }
+    if (step === "review") {
+      setStep("description");
       return;
     }
     router.push("/admin_recruiter/jobs");
@@ -360,6 +403,11 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
 
   function handleNext() {
     if (step === "requisition") {
+      const errors = validateRequisitionStep(job);
+      if (Object.keys(errors).length > 0) {
+        setFieldErrors((current) => ({ ...current, ...errors }));
+        return;
+      }
       setStep(job.sourceType === "MSP" ? "msp-details" : "compensation");
       return;
     }
@@ -367,22 +415,54 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
       setStep("compensation");
       return;
     }
-    if (step === "compensation") setStep("review");
+    if (step === "compensation") {
+      setStep("description");
+      return;
+    }
+    if (step === "description") {
+      const errors = validateDescriptionStep(job);
+      if (Object.keys(errors).length > 0) {
+        setFieldErrors((current) => ({ ...current, ...errors }));
+        return;
+      }
+      setStep("review");
+    }
   }
 
   const pageTitle =
-    step === "review" ? "Review" : jobId ? "Edit job post" : "Create a job post";
+    step === "review"
+      ? "Review"
+      : step === "description"
+        ? "Describe the job"
+        : step === "compensation"
+          ? job.sourceType === "MSP"
+            ? "Benefits"
+            : "Compensation"
+          : jobId
+            ? "Edit job post"
+            : "Create a job post";
   const pageSubtitle =
     step === "review"
       ? ""
-      : step === "compensation"
-        ? job.sourceType === "MSP"
-          ? "Benefits & Description"
-          : "Compensation & Description"
-        : step === "msp-details"
-          ? "Job Source Details"
-          : "Job Requisition";
+      : step === "description"
+        ? "Add job description"
+        : step === "compensation"
+          ? job.sourceType === "MSP"
+            ? ""
+            : "Review the pay we estimated for your job and adjust as needed. Check your local minimum wage."
+          : step === "msp-details"
+            ? "Job Source Details"
+            : "Job Requisition";
   const showPublishActions = step === "review";
+  const useSectionHeaderTypography = step === "compensation" || step === "description";
+  const headerTitleClass = useSectionHeaderTypography
+    ? JOB_FORM_SECTION_TITLE_CLASS
+    : CANDIDATES_PAGE_TITLE_CLASS;
+  const headerTitleStyle = useSectionHeaderTypography ? undefined : CANDIDATES_PAGE_TITLE_STYLE;
+  const headerSubtitleClass = useSectionHeaderTypography
+    ? JOB_FORM_SECTION_SUBTITLE_CLASS
+    : CANDIDATES_PAGE_SUBTITLE_CLASS;
+  const headerSubtitleStyle = useSectionHeaderTypography ? undefined : CANDIDATES_PAGE_SUBTITLE_STYLE;
 
   return (
     <main className="w-full px-2 py-3 min-[700px]:px-4 min-[700px]:py-4 lg:px-5">
@@ -390,11 +470,15 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
         <div className={JOB_FORM_CENTER_COLUMN_CLASS}>
           <div className="mb-5 flex items-start justify-between gap-3 min-[700px]:mb-6 min-[700px]:gap-4">
             <div className="min-w-0 flex-1">
-              <h1 className={CANDIDATES_PAGE_TITLE_CLASS} style={CANDIDATES_PAGE_TITLE_STYLE}>
-                {pageTitle}
-              </h1>
+              {useSectionHeaderTypography ? (
+                <h2 className={headerTitleClass}>{pageTitle}</h2>
+              ) : (
+                <h1 className={headerTitleClass} style={headerTitleStyle}>
+                  {pageTitle}
+                </h1>
+              )}
               {pageSubtitle ? (
-                <p className={CANDIDATES_PAGE_SUBTITLE_CLASS} style={CANDIDATES_PAGE_SUBTITLE_STYLE}>
+                <p className={headerSubtitleClass} style={headerSubtitleStyle}>
                   {pageSubtitle}
                 </p>
               ) : null}
@@ -479,6 +563,15 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
                 fieldErrors={fieldErrors}
                 onJobChange={updateJob}
                 onUiChange={updateUi}
+              />
+            ) : null}
+
+            {step === "description" ? (
+              <JobFormStepDescription
+                job={job}
+                ui={ui}
+                fieldErrors={fieldErrors}
+                onJobChange={updateJob}
                 professionName={professionLabel}
                 specialtyName={specialtyLabel}
                 companyName={branding.companyName}

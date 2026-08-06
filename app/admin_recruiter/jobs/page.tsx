@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
-import { Plus } from "lucide-react";
+import { Plus, Upload, Download, ListChecks } from "lucide-react";
 import { ColumnsEditorModal } from "@/app/admin_recruiter/components/ColumnsEditorModal";
 import { BulkDeleteConfirmModal } from "@/app/admin_recruiter/components/BulkDeleteConfirmModal";
 import { BulkDeleteToolbarButton } from "@/app/admin_recruiter/components/BulkDeleteToolbarButton";
@@ -26,6 +26,7 @@ import {
   jobColumnLabel,
   jobListColumnClassName,
   isSortableJobColumn,
+  isCenterAlignedJobColumn,
   loadJobColumnOrder,
   saveJobColumnOrder,
   type JobColumnId,
@@ -34,20 +35,23 @@ import {
 import {
   jobDisplayId,
   jobLocation,
-  jobStatusSortLabel,
+  jobSortValue,
   renderJobListCell,
   type JobListCellContext,
   type JobListRow,
 } from "./render-job-list-cell";
 
-type JobTab = "all" | "active" | "expiring" | "pending" | "inactive";
+type JobTab = "all" | "internal" | "msp" | "draft" | "open" | "closed" | "hot";
 
+/** Figma jobs listing tabs */
 const JOB_TABS: Array<{ id: JobTab; label: string }> = [
   { id: "all", label: "All" },
-  { id: "active", label: "Active" },
-  { id: "expiring", label: "Expiring" },
-  { id: "pending", label: "Pending" },
-  { id: "inactive", label: "Inactive" },
+  { id: "internal", label: "Internal" },
+  { id: "msp", label: "MSP" },
+  { id: "draft", label: "Draft" },
+  { id: "open", label: "Open" },
+  { id: "closed", label: "Closed" },
+  { id: "hot", label: "Hot Jobs" },
 ];
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50];
@@ -61,6 +65,13 @@ const JOBS_FILTER_CONTROL_CLASS = `${JOBS_FORM_SURFACE_CLASS} h-10 w-full min-w-
 
 const JOBS_POST_JOB_BUTTON_CLASS =
   "inline-flex h-8 items-center gap-1.5 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm font-normal leading-5 text-[#525252] transition hover:bg-zinc-50";
+
+/** Figma jobs listing bulk actions — UI only (except Unpublish uses selection). */
+const JOBS_BULK_OUTLINE_BUTTON_CLASS =
+  "inline-flex h-9 items-center gap-2 rounded-lg border border-[#E5E7EB] bg-white px-4 text-sm font-medium text-[#334155] transition hover:bg-[#F8FAFC] disabled:cursor-not-allowed disabled:opacity-50";
+
+const JOBS_BULK_PRIMARY_BUTTON_CLASS =
+  "inline-flex h-9 items-center gap-2 rounded-lg px-4 text-sm font-medium text-white transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-50";
 
 const JOBS_STAR_FILLED_SRC = "/icons/jobs-icons/Star-filled.svg";
 const JOBS_STAR_DEFAULT_SRC = "/icons/jobs-icons/Star-default.svg";
@@ -140,45 +151,47 @@ function JobTableSortHeader({
   onToggleSort: (field: JobSortField) => void;
 }) {
   const isActive = sortField === colId;
+  const centered = isCenterAlignedJobColumn(colId);
 
   return (
     <button
       type="button"
       onClick={() => onToggleSort(colId)}
-      className={`inline-flex items-center gap-1.5 font-medium normal-case tracking-normal text-[#64748B] transition hover:text-[#334155] ${
-        colId === "jobStatus" ? "mx-auto" : ""
+      className={`inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap font-medium normal-case tracking-normal text-[#64748B] transition hover:text-[#334155] ${
+        centered ? "mx-auto" : ""
       }`}
       aria-label={`Sort by ${jobColumnLabel(colId)}${
         isActive ? `, ${sortDirection === "asc" ? "ascending" : "descending"}` : ""
       }`}
     >
-      <span>{jobColumnLabel(colId)}</span>
+      <span className="whitespace-nowrap">{jobColumnLabel(colId)}</span>
       <img src={JOB_SORT_ICON_SRC} width={12} height={12} className="h-3 w-3 shrink-0" alt="" aria-hidden />
     </button>
   );
 }
 
-function isExpiringSoon(deadline: string | null): boolean {
-  if (!deadline) return false;
-  const end = new Date(deadline);
-  if (Number.isNaN(end.getTime())) return false;
-  const now = new Date();
-  const diffDays = (end.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
-  return diffDays >= 0 && diffDays <= 14;
+function jobSourceType(job: JobListRow): "Internal" | "MSP" {
+  const raw = String(job.source_type ?? "").trim().toLowerCase();
+  if (raw === "msp") return "MSP";
+  return "Internal";
 }
 
-function matchesJobTab(job: JobListRow, tab: JobTab): boolean {
+function matchesJobTab(job: JobListRow, tab: JobTab, starredIds: Set<string>): boolean {
   switch (tab) {
     case "all":
       return true;
-    case "active":
-      return job.status === "published";
-    case "expiring":
-      return job.status === "published" && isExpiringSoon(job.application_deadline);
-    case "pending":
+    case "internal":
+      return jobSourceType(job) === "Internal";
+    case "msp":
+      return jobSourceType(job) === "MSP";
+    case "draft":
       return job.status === "draft";
-    case "inactive":
+    case "open":
+      return job.status === "published" && isJobRequisitionOpen(job);
+    case "closed":
       return job.status === "closed" || job.status === "archived";
+    case "hot":
+      return starredIds.has(job.id);
     default:
       return true;
   }
@@ -831,6 +844,7 @@ export default function AdminRecruiterJobsPage() {
     job: JobListRow;
     anchor: HTMLElement;
   } | null>(null);
+  const [publishBusyIds, setPublishBusyIds] = useState<Set<string>>(new Set());
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteBusy, setDeleteBusy] = useState(false);
@@ -901,40 +915,68 @@ export default function AdminRecruiterJobsPage() {
   ]);
 
   async function transition(jobId: string, action: "publish" | "unpublish" | "close" | "archive") {
-    const response = await fetch("/api/admin/jobs", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ jobId, action }),
-    });
-    const payload = await response.json();
-    if (!response.ok) {
-      setError(payload.error || "Failed to update job");
+    setPublishBusyIds((current) => new Set(current).add(jobId));
+    try {
+      const response = await fetch("/api/admin/jobs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jobId, action }),
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        setError(payload.error || "Failed to update job");
+        return;
+      }
+      setOpenActionsMenu(null);
+      await load();
+    } finally {
+      setPublishBusyIds((current) => {
+        const next = new Set(current);
+        next.delete(jobId);
+        return next;
+      });
+    }
+  }
+
+  function handlePublishToggle(job: JobListRow) {
+    if (publishBusyIds.has(job.id)) return;
+    if (job.status === "published") {
+      void transition(job.id, "unpublish");
       return;
     }
-    setOpenActionsMenu(null);
-    await load();
+    if (job.status === "draft") {
+      void transition(job.id, "publish");
+      return;
+    }
+    if (job.status === "closed" && canRepublishClosedJob(job)) {
+      void transition(job.id, "publish");
+    }
   }
 
   const tabCounts = useMemo(() => {
     const counts: Record<JobTab, number> = {
       all: jobs.length,
-      active: 0,
-      expiring: 0,
-      pending: 0,
-      inactive: 0,
+      internal: 0,
+      msp: 0,
+      draft: 0,
+      open: 0,
+      closed: 0,
+      hot: 0,
     };
     for (const job of jobs) {
-      if (matchesJobTab(job, "active")) counts.active += 1;
-      if (matchesJobTab(job, "expiring")) counts.expiring += 1;
-      if (matchesJobTab(job, "pending")) counts.pending += 1;
-      if (matchesJobTab(job, "inactive")) counts.inactive += 1;
+      if (matchesJobTab(job, "internal", starredIds)) counts.internal += 1;
+      if (matchesJobTab(job, "msp", starredIds)) counts.msp += 1;
+      if (matchesJobTab(job, "draft", starredIds)) counts.draft += 1;
+      if (matchesJobTab(job, "open", starredIds)) counts.open += 1;
+      if (matchesJobTab(job, "closed", starredIds)) counts.closed += 1;
+      if (matchesJobTab(job, "hot", starredIds)) counts.hot += 1;
     }
     return counts;
-  }, [jobs]);
+  }, [jobs, starredIds]);
 
   const filteredJobs = useMemo(() => {
     return jobs.filter((job) => {
-      if (!matchesJobTab(job, jobTab)) return false;
+      if (!matchesJobTab(job, jobTab, starredIds)) return false;
 
       if (showStarredOnly && !starredIds.has(job.id)) return false;
 
@@ -972,15 +1014,17 @@ export default function AdminRecruiterJobsPage() {
 
     const next = [...filteredJobs];
     next.sort((a, b) => {
-      const left =
-        sortField === "jobTitle"
-          ? (a.public_title || "").trim()
-          : jobStatusSortLabel(a.status);
-      const right =
-        sortField === "jobTitle"
-          ? (b.public_title || "").trim()
-          : jobStatusSortLabel(b.status);
-      const cmp = left.localeCompare(right, undefined, { sensitivity: "base", numeric: true });
+      const left = jobSortValue(a, sortField);
+      const right = jobSortValue(b, sortField);
+      let cmp = 0;
+      if (typeof left === "number" && typeof right === "number") {
+        cmp = left - right;
+      } else {
+        cmp = String(left).localeCompare(String(right), undefined, {
+          sensitivity: "base",
+          numeric: true,
+        });
+      }
       return sortDirection === "asc" ? cmp : -cmp;
     });
     return next;
@@ -1094,8 +1138,10 @@ export default function AdminRecruiterJobsPage() {
       onOpenActionsMenu: (job, anchor) => {
         setOpenActionsMenu((current) => (current?.job.id === job.id ? null : { job, anchor }));
       },
+      publishBusyIds,
+      onPublishToggle: handlePublishToggle,
     };
-  }, [branding.secondaryHex, tenantSlug, starredIds, openActionsMenu?.job.id]);
+  }, [branding.secondaryHex, tenantSlug, starredIds, openActionsMenu?.job.id, publishBusyIds]);
 
   return (
     <div className="box-border w-full min-w-0 max-w-full px-3 pb-8 pt-4 sm:px-5 sm:pt-5 lg:px-8" style={brandStyle}>
@@ -1108,37 +1154,64 @@ export default function AdminRecruiterJobsPage() {
         </p>
       </div>
 
-      <nav className="mb-4 w-full min-w-0 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden" aria-label="Jobs navigation">
-        <div className="flex w-max flex-nowrap items-center justify-start gap-5">
-          {JOB_TABS.map((tab) => {
-            const active = jobTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setJobTab(tab.id)}
-                className={`relative inline-flex shrink-0 flex-col items-center px-2 pb-2.5 pt-0 text-sm font-medium leading-none whitespace-nowrap transition-colors ${
-                  active
-                    ? "text-[color:var(--brand-primary)]"
-                    : "text-[#2B3D51] hover:text-[color:var(--brand-primary)]"
-                }`}
-                aria-current={active ? "page" : undefined}
-              >
-                <span className="inline-flex items-center gap-2">
-                  <span>{tab.label}</span>
-                  <span className="admin-recruiter-tab-count rounded-sm">{tabCounts[tab.id]}</span>
-                </span>
-                <span
-                  className={`absolute inset-x-0 bottom-0 block h-0.5 rounded-full ${
-                    active ? "bg-[color:var(--brand-primary)]" : "bg-transparent"
+      <div className="mb-4 flex w-full min-w-0 flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <nav className="w-full min-w-0 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden" aria-label="Jobs navigation">
+          <div className="flex w-max flex-nowrap items-center justify-start gap-5">
+            {JOB_TABS.map((tab) => {
+              const active = jobTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setJobTab(tab.id)}
+                  className={`relative inline-flex shrink-0 flex-col items-center px-2 pb-2.5 pt-0 text-sm font-medium leading-none whitespace-nowrap transition-colors ${
+                    active
+                      ? "text-[color:var(--brand-primary)]"
+                      : "text-[#2B3D51] hover:text-[color:var(--brand-primary)]"
                   }`}
-                  aria-hidden
-                />
-              </button>
-            );
-          })}
+                  aria-current={active ? "page" : undefined}
+                >
+                  <span className="inline-flex items-center gap-2">
+                    <span>{tab.label}</span>
+                    <span className="admin-recruiter-tab-count rounded-sm">{tabCounts[tab.id]}</span>
+                  </span>
+                  <span
+                    className={`absolute inset-x-0 bottom-0 block h-0.5 rounded-full ${
+                      active ? "bg-[color:var(--brand-primary)]" : "bg-transparent"
+                    }`}
+                    aria-hidden
+                  />
+                </button>
+              );
+            })}
+          </div>
+        </nav>
+
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          <button
+            type="button"
+            disabled={selectedIds.size === 0}
+            className={JOBS_BULK_OUTLINE_BUTTON_CLASS}
+            aria-label="Unpublish selected jobs"
+          >
+            <ListChecks className="h-4 w-4 shrink-0" aria-hidden />
+            Unpublish
+          </button>
+          <button type="button" className={JOBS_BULK_OUTLINE_BUTTON_CLASS} aria-label="Export jobs">
+            <Upload className="h-4 w-4 shrink-0" aria-hidden />
+            Export
+          </button>
+          <button
+            type="button"
+            className={JOBS_BULK_PRIMARY_BUTTON_CLASS}
+            style={{ backgroundColor: branding.primaryHex }}
+            aria-label="Import from MSP"
+          >
+            <Download className="h-4 w-4 shrink-0" aria-hidden />
+            Import from MSP
+          </button>
         </div>
-      </nav>
+      </div>
 
       <div className="w-full overflow-hidden rounded-[12px] border border-[#E5E7EB] bg-white">
         {/* Mobile / tablet toolbar */}
@@ -1321,10 +1394,10 @@ export default function AdminRecruiterJobsPage() {
         ) : null}
 
         <div className="overflow-x-auto">
-          <table className="min-w-[960px] w-full border-collapse text-left text-sm xl:min-w-full">
+          <table className="w-max min-w-full border-collapse text-left text-sm">
             <thead className="border-b border-[#E5E7EB] bg-[#F8FAFC] text-xs font-medium uppercase tracking-wide text-[#64748B]">
               <tr>
-                <th className="w-12 border-r border-[#E5E7EB] px-[14px] py-3">
+                <th className="w-12 shrink-0 whitespace-nowrap border-r border-[#E5E7EB] px-[14px] py-3">
                   <ListTableCheckbox
                     checked={allVisibleSelected}
                     onChange={toggleSelectAllVisible}
@@ -1334,7 +1407,7 @@ export default function AdminRecruiterJobsPage() {
                 {listColumns.map((colId) => (
                   <th
                     key={colId}
-                    className={`border-r border-[#E5E7EB] px-[14px] py-3 font-medium normal-case tracking-normal last:border-r-0 ${jobListColumnClassName(colId)}`}
+                    className={`whitespace-nowrap border-r border-[#E5E7EB] px-[14px] py-3 font-medium normal-case tracking-normal last:border-r-0 ${jobListColumnClassName(colId)}`}
                     aria-sort={
                       isSortableJobColumn(colId) && sortField === colId
                         ? sortDirection === "asc"
@@ -1351,7 +1424,13 @@ export default function AdminRecruiterJobsPage() {
                         onToggleSort={handleToggleSort}
                       />
                     ) : (
-                      jobColumnLabel(colId)
+                      <span
+                        className={`whitespace-nowrap ${
+                          isCenterAlignedJobColumn(colId) ? "mx-auto block w-fit" : ""
+                        }`}
+                      >
+                        {jobColumnLabel(colId)}
+                      </span>
                     )}
                   </th>
                 ))}
@@ -1386,7 +1465,11 @@ export default function AdminRecruiterJobsPage() {
                       <td
                         key={colId}
                         className={`border-r border-[#E5E7EB] align-middle last:border-r-0 ${jobListColumnClassName(colId)} ${
-                          colId === "candidates" ? "px-0 py-0" : "px-[14px] py-4"
+                          colId === "candidates"
+                            ? "px-0 py-0"
+                            : colId === "actions"
+                              ? "px-0 py-0"
+                              : "px-[14px] py-4"
                         }`}
                       >
                         {renderJobListCell(colId, job, jobListCellContext)}

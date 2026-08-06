@@ -1,7 +1,12 @@
 import type { CSSProperties } from "react";
 import type { EmploymentType, JobRequisitionInput, SourceType } from "@/lib/jobs/types";
 
-export type JobFormStep = "requisition" | "msp-details" | "compensation" | "review";
+export type JobFormStep =
+  | "requisition"
+  | "msp-details"
+  | "compensation"
+  | "description"
+  | "review";
 
 export const JOB_FORM_MSP_JOB_DETAIL_OPTIONS = [
   "Long-Term Care",
@@ -140,6 +145,20 @@ export function employmentTypeFromLabel(label: string): EmploymentType {
   if (label === "R&R") return "Contract";
   if (label === "1099" || label === "W2" || label === "Contract") return label;
   return "W2";
+}
+
+/** Review step: employment type is locked because it drives workflow routing. */
+export const REVIEW_LOCKED_EMPLOYMENT_TYPE_TOOLTIP =
+  "Employment type is set in Job Details and determines which onboarding workflow is assigned to applicants for this job. To change it, go back to the Job Details step.";
+
+/** Placeholder label for the specialty dropdown on job create/edit. */
+export function specialtySelectPlaceholder(
+  professionId: string | null | undefined,
+  specialtyCount: number
+): string {
+  if (!professionId?.trim()) return "Select Specialty";
+  if (specialtyCount === 0) return "Not found";
+  return "Select Specialty";
 }
 
 export function defaultJobFormUiState(): JobFormUiState {

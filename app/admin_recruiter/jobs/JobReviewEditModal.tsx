@@ -27,6 +27,7 @@ import {
   JOB_FORM_SHOW_PAY_BY,
   JOB_FORM_TEXTAREA_CLASS,
   JOB_FORM_YEARS_OF_EXPERIENCE,
+  specialtySelectPlaceholder,
   type JobFormOption,
   type JobFormSpecialtyOption,
   type JobFormUiState,
@@ -287,7 +288,9 @@ export function JobReviewEditModal({
                   onChange={(event) => patchJob("specialtyId", event.target.value || null)}
                   disabled={!draft.job.professionId}
                 >
-                  <option value="">Select Specialty</option>
+                  <option value="">
+                    {specialtySelectPlaceholder(draft.job.professionId, filteredSpecialties.length)}
+                  </option>
                   {filteredSpecialties.map((item) => (
                     <option key={item.id} value={item.id}>
                       {item.name}
@@ -455,7 +458,13 @@ export function JobReviewEditModal({
                       Boolean(draft.job.employmentType) &&
                       employmentTypeLabel(draft.job.employmentType) === label
                     }
-                    onChange={() => patchJob("employmentType", employmentTypeFromLabel(label))}
+                    onChange={() => {
+                      const nextType = employmentTypeFromLabel(label);
+                      patchJob("employmentType", nextType);
+                      if (nextType === "Contract") {
+                        patchJob("sourceType", "MSP");
+                      }
+                    }}
                   />
                 ))}
               </div>
@@ -475,10 +484,7 @@ export function JobReviewEditModal({
                   name="review-edit-eor"
                   label="Yes"
                   checked={draft.ui.employerOnRecord === "yes"}
-                  onChange={() => {
-                    patchUi({ employerOnRecord: "yes" });
-                    patchJob("sourceType", "Internal");
-                  }}
+                  onChange={() => patchUi({ employerOnRecord: "yes" })}
                 />
                 <ModalRadio
                   name="review-edit-eor"
@@ -487,7 +493,6 @@ export function JobReviewEditModal({
                   onChange={() => {
                     patchUi({ employerOnRecord: "no" });
                     patchJob("employerOfRecord", null);
-                    patchJob("sourceType", "MSP");
                   }}
                 />
               </div>
