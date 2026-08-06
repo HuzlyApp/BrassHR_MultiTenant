@@ -5,6 +5,7 @@ import { RefreshCw } from "lucide-react";
 import toast from "react-hot-toast";
 import { recruiterTemplateFetch } from "@/app/admin_recruiter/components/recruiter-template-auth";
 import {
+  installFirmaEmbeddedTemplateDataPalettePatch,
   patchFirmaTemplateEditorBranding,
   type FirmaTemplateEditorWithPalette,
 } from "@/lib/firma/embed-color-palette";
@@ -374,6 +375,9 @@ export default function FirmaTemplateBuilderFrame({
     const activeSession = session;
     const activeWrapper = wrapperRef.current;
     let cancelled = false;
+    const restoreFetch = activeSession.embed_color_palette
+      ? installFirmaEmbeddedTemplateDataPalettePatch(activeSession.embed_color_palette)
+      : () => undefined;
 
     async function mountEditor() {
       setEditorPhase("Loading Firma editor...");
@@ -472,6 +476,7 @@ export default function FirmaTemplateBuilderFrame({
 
     return () => {
       cancelled = true;
+      restoreFetch();
       clearFirmaEditorTimer(initTimeoutRef);
       editorRef.current?.destroy?.();
       editorRef.current = null;

@@ -43,6 +43,7 @@ vi.mock("@/lib/supabase/service-role", () => ({
   })),
 }));
 
+import { cachePrefix } from "@/lib/cache-keys";
 import { invalidateTenantBrandingCache } from "@/lib/tenant/invalidate-tenant-branding-cache";
 
 describe("invalidateTenantBrandingCache", () => {
@@ -67,18 +68,19 @@ describe("invalidateTenantBrandingCache", () => {
   ])(
     "clears caches for $label using its slug and subdomain",
     async ({ tenantId, slug, subdomain }) => {
+      const prefix = cachePrefix();
       await invalidateTenantBrandingCache({ tenantId, slug, subdomain });
 
       expect(deleteCache).toHaveBeenCalledTimes(1);
       expect(deleteByPattern).toHaveBeenCalledWith(
-        `supabase:admin_effective_branding:*:tenant:${tenantId}:*`
+        `${prefix}:admin_effective_branding:*:tenant:${tenantId}:*`
       );
       expect(deleteByPattern).toHaveBeenCalledWith(
-        `supabase:tenant_branding:tenantId:${tenantId}:*`
+        `${prefix}:tenant_branding:tenantId:${tenantId}:*`
       );
-      expect(deleteByPattern).toHaveBeenCalledWith(`supabase:tenant_branding:slug:${slug}:*`);
+      expect(deleteByPattern).toHaveBeenCalledWith(`${prefix}:tenant_branding:slug:${slug}:*`);
       expect(deleteByPattern).toHaveBeenCalledWith(
-        `supabase:tenant_branding:subdomain:${subdomain}:*`
+        `${prefix}:tenant_branding:subdomain:${subdomain}:*`
       );
       expect(maybeSingle).not.toHaveBeenCalled();
     }
@@ -100,12 +102,13 @@ describe("invalidateTenantBrandingCache", () => {
   ])(
     "loads slug and subdomain from the database when only tenant id is provided ($label)",
     async ({ tenantId, slug, subdomain }) => {
+      const prefix = cachePrefix();
       await invalidateTenantBrandingCache(tenantId);
 
       expect(maybeSingle).toHaveBeenCalled();
-      expect(deleteByPattern).toHaveBeenCalledWith(`supabase:tenant_branding:slug:${slug}:*`);
+      expect(deleteByPattern).toHaveBeenCalledWith(`${prefix}:tenant_branding:slug:${slug}:*`);
       expect(deleteByPattern).toHaveBeenCalledWith(
-        `supabase:tenant_branding:subdomain:${subdomain}:*`
+        `${prefix}:tenant_branding:subdomain:${subdomain}:*`
       );
     }
   );

@@ -70,3 +70,48 @@ export function patchFirmaTemplateEditorBranding(
   editor.applyPalette = () => original(palette);
   original(palette);
 }
+
+/**
+ * Intercept Firma `get-embedded-template-data` responses and replace `color_palette`
+ * with the tenant palette. Mirrors the signing branding fetch patch.
+ * Returns a restore function for cleanup.
+ */
+export function installFirmaEmbeddedTemplateDataPalettePatch(
+  palette: FirmaEmbedColorPalette
+): () => void {
+  if (typeof window === "undefined") return () => undefined;
+
+  const originalFetch = window.fetch.bind(window);
+  window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+    const response = await originalFetch(input, init);
+    try {
+      const url =
+        typeof input === "string"
+          ? input
+          : input instanceof URL
+            ? input.href
+            : input instanceof Request
+              ? input.url
+              : String(input);
+      if (!url.includes("get-embedded-template-data")) return response;
+
+      const json = (await response.clone().json()) as Record<string, unknown>;
+      if (json && typeof json === "object" && json.color_palette) {
+        json.color_palette = palette;
+      }
+      const headers = new Headers(response.headers);
+      headers.set("content-type", "application/json");
+      return new Response(JSON.stringify(json), {
+        status: response.status,
+        statusText: response.statusText,
+        headers,
+      });
+    } catch {
+      return response;
+    }
+  };
+
+  return () => {
+    window.fetch = originalFetch;
+  };
+}

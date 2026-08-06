@@ -27,7 +27,8 @@ export function cacheProjectSegment(): string {
   }
 }
 
-function cachePrefix(): string {
+/** Shared Redis/memory key prefix (`supabase:{projectRef}`). Export for invalidation patterns. */
+export function cachePrefix(): string {
   return `supabase:${cacheProjectSegment()}`;
 }
 
