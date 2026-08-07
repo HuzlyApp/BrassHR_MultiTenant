@@ -156,7 +156,7 @@ export function jobListColumnClassName(colId: JobColumnId): string {
     case "jobStatus":
       return `min-w-[120px] w-[1%]${nowrap}${center}`.trim()
     case "payRate":
-      return `min-w-[120px]${nowrap}${center}`.trim()
+      return `min-w-[140px]${nowrap}${center}`.trim()
     case "placementType":
     case "jobType":
     case "employmentType":

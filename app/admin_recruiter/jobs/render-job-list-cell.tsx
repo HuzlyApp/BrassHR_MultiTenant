@@ -96,7 +96,7 @@ export function jobProfession(job: JobListRow): string {
   return relationName(job.professions)
 }
 
-/** Employment type chips (shift_type) — Figma jobs filter "Placement Type". */
+/** Employment type chips (shift_type) — jobs listing filter. */
 export function jobShiftType(job: JobListRow): string {
   return job.shift_type?.trim() || ""
 }
@@ -447,15 +447,17 @@ export function renderJobListCell(
     case "payRate": {
       const pay = formatJobListPayRateParts(job)
       if (!pay) {
-        return <span className="text-sm text-[#475569]">—</span>
+        return <span className="mx-auto block w-fit text-sm text-[#475569]">—</span>
       }
       return (
-        <span className="inline-flex items-baseline justify-center gap-0 text-sm text-[#475569]">
-          <span className="font-semibold text-[#1D2739]">{pay.amount}</span>
-          {pay.period ? (
-            <span className="font-normal text-[#475569]">{` / ${pay.period}`}</span>
-          ) : null}
-        </span>
+        <div className="flex w-full justify-center">
+          <span className="inline-flex items-baseline whitespace-nowrap text-sm">
+            <span className="font-semibold tabular-nums text-[#1D2739]">{pay.amount}</span>
+            {pay.period ? (
+              <span className="font-normal text-[#475569]">{` / ${pay.period}`}</span>
+            ) : null}
+          </span>
+        </div>
       )
     }
     case "location":

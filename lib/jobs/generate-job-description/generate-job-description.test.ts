@@ -69,4 +69,79 @@ describe("buildJobRequisitionJson", () => {
     const json = buildJobRequisitionJson(parsed);
     expect(json).toEqual({ jobTitle: "RN", profession: "Nursing" });
   });
+
+  it("includes MSP source details when sourceType is MSP", () => {
+    const parsed = generateJobDescriptionRequestSchema.parse({
+      jobTitle: "RN",
+      sourceType: "MSP",
+      sourceJobTitle: "Registered Nurse - Acute Care",
+      sourceJobDetails: "Travel Assignment",
+      mspClient: "Novant",
+      facility: "Texas City, Texas",
+      duration: "8 weeks",
+      specialRequirements: "BLS required",
+    });
+    const json = buildJobRequisitionJson(parsed);
+    expect(json.sourceType).toBe("MSP");
+    expect(json.sourceJobTitle).toBe("Registered Nurse - Acute Care");
+    expect(json.sourceJobDetails).toBe("Travel Assignment");
+    expect(json.mspClient).toBe("Novant");
+    expect(json.facility).toBe("Texas City, Texas");
+    expect(json.duration).toBe("8 weeks");
+    expect(json.specialRequirements).toBe("BLS required");
+  });
+
+  it("keeps Internal payloads free of MSP-only empty fields", () => {
+    const parsed = generateJobDescriptionRequestSchema.parse({
+      jobTitle: "CNA",
+      sourceType: "Internal",
+      profession: "Allied Health",
+    });
+    const json = buildJobRequisitionJson(parsed);
+    expect(json).toEqual({
+      jobTitle: "CNA",
+      profession: "Allied Health",
+      sourceType: "Internal",
+    });
+  });
+});
+
+describe("resolvePreferredJobTitle", () => {
+  it("prefers MSP sourceJobTitle over opaque public titles", async () => {
+    const { resolvePreferredJobTitle } = await import(
+      "@/lib/jobs/generate-job-description/prompts"
+    );
+    const parsed = generateJobDescriptionRequestSchema.parse({
+      jobTitle: "RN - 100",
+      sourceType: "MSP",
+      sourceJobTitle: "Registered Nurse - Home Health",
+      profession: "Nursing",
+    });
+    expect(resolvePreferredJobTitle(parsed)).toBe("Registered Nurse - Home Health");
+  });
+
+  it("falls back to profession when MSP title is opaque", async () => {
+    const { resolvePreferredJobTitle } = await import(
+      "@/lib/jobs/generate-job-description/prompts"
+    );
+    const parsed = generateJobDescriptionRequestSchema.parse({
+      jobTitle: "RN - 100",
+      sourceType: "MSP",
+      profession: "Nursing",
+      specialty: "Home Health",
+    });
+    expect(resolvePreferredJobTitle(parsed)).toBe("Nursing (Home Health)");
+  });
+
+  it("keeps Internal title unchanged", async () => {
+    const { resolvePreferredJobTitle } = await import(
+      "@/lib/jobs/generate-job-description/prompts"
+    );
+    const parsed = generateJobDescriptionRequestSchema.parse({
+      jobTitle: "Certified Nursing Assistant",
+      sourceType: "Internal",
+      profession: "Allied Health",
+    });
+    expect(resolvePreferredJobTitle(parsed)).toBe("Certified Nursing Assistant");
+  });
 });

@@ -586,6 +586,7 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
                 professionName={professionLabel}
                 specialtyName={specialtyLabel}
                 onEditField={setReviewEditField}
+                brandVars={brandVars}
               />
             ) : null}
           </div>

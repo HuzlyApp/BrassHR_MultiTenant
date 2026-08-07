@@ -1363,7 +1363,7 @@ export default function JobApplicationsPage() {
 
         <div className="overflow-x-auto">
           <table className="min-w-[960px] w-full border-collapse text-left text-sm xl:min-w-full">
-            <thead className="border-b border-[#E5E7EB] bg-[#F8FAFC] text-xs font-medium text-[#64748B]">
+            <thead className="border-b border-[#E5E7EB] bg-[#F8FAFC] text-xs font-medium text-black">
               <tr>
                 <th className="w-12 border-r border-[#E5E7EB] px-[14px] py-3">
                   <ListTableCheckbox

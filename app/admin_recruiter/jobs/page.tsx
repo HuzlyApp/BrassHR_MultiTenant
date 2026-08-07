@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { Plus, Download, ListChecks } from "lucide-react";
+import { Plus, Download } from "lucide-react";
 import { ColumnsEditorModal } from "@/app/admin_recruiter/components/ColumnsEditorModal";
 import { BulkDeleteConfirmModal } from "@/app/admin_recruiter/components/BulkDeleteConfirmModal";
 import { BulkDeleteToolbarButton } from "@/app/admin_recruiter/components/BulkDeleteToolbarButton";
@@ -66,10 +66,6 @@ const JOBS_TOOLBAR_BUTTON_CLASS = `${JOBS_FORM_SURFACE_CLASS} inline-flex h-8 it
 
 const JOBS_POST_JOB_BUTTON_CLASS =
   "inline-flex h-8 items-center gap-1.5 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm font-normal leading-5 text-[#525252] transition hover:bg-zinc-50";
-
-/** Figma jobs listing bulk actions — UI only (except Unpublish uses selection). */
-const JOBS_BULK_OUTLINE_BUTTON_CLASS =
-  "inline-flex h-9 items-center gap-2 rounded-lg border border-[#E5E7EB] bg-white px-4 text-sm font-medium text-[#334155] transition hover:bg-[#F8FAFC] disabled:cursor-not-allowed disabled:opacity-50";
 
 const JOBS_BULK_PRIMARY_BUTTON_CLASS =
   "inline-flex h-9 items-center gap-2 rounded-lg px-4 text-sm font-medium text-white transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-50";
@@ -158,7 +154,7 @@ function JobTableSortHeader({
     <button
       type="button"
       onClick={() => onToggleSort(colId)}
-      className={`inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap font-medium normal-case tracking-normal text-[#64748B] transition hover:text-[#334155] ${
+      className={`inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap font-medium normal-case tracking-normal text-black transition hover:opacity-80 ${
         centered ? "w-full justify-center" : ""
       }`}
       aria-label={`Sort by ${jobColumnLabel(colId)}${
@@ -539,7 +535,7 @@ function JobsFilterFields({
 
   const placementTypeSelect = (
     <JobsFilterSelect
-      label="Placement Type"
+      label="Employment Type"
       value={placementTypeFilter}
       onChange={onPlacementTypeFilterChange}
       variant={variant}
@@ -573,7 +569,7 @@ function JobsFilterFields({
         <div className="grid grid-cols-1 gap-5 rounded-lg border border-[#E8EEEC] bg-[#F8FAFC] p-2.5 min-[600px]:grid-cols-2 lg:grid-cols-4">
           <CompactFilterField label="Profession">{professionSelect}</CompactFilterField>
           <CompactFilterField label="Status">{statusSelect}</CompactFilterField>
-          <CompactFilterField label="Placement Type">{placementTypeSelect}</CompactFilterField>
+          <CompactFilterField label="Employment Type">{placementTypeSelect}</CompactFilterField>
           <CompactFilterField label="Location">{locationSelect}</CompactFilterField>
         </div>
         {/* Hidden below 450px — shown centered in the mobile toolbar instead.
@@ -630,7 +626,7 @@ function JobsFilterFields({
     <div className="flex min-w-0 items-center gap-5">
       <InlineLabeledFilter label="Profession">{professionSelect}</InlineLabeledFilter>
       <InlineLabeledFilter label="Status">{statusSelect}</InlineLabeledFilter>
-      <InlineLabeledFilter label="Placement Type">{placementTypeSelect}</InlineLabeledFilter>
+      <InlineLabeledFilter label="Employment Type">{placementTypeSelect}</InlineLabeledFilter>
       <InlineLabeledFilter label="Location">{locationSelect}</InlineLabeledFilter>
       {typeof resultsCount === "number" ? (
         <div className="flex shrink-0 items-center gap-5">
@@ -1294,15 +1290,6 @@ export default function AdminRecruiterJobsPage() {
         </nav>
 
         <div className="flex shrink-0 flex-wrap items-center gap-2">
-          <button
-            type="button"
-            disabled={selectedIds.size === 0}
-            className={JOBS_BULK_OUTLINE_BUTTON_CLASS}
-            aria-label="Unpublish selected jobs"
-          >
-            <ListChecks className="h-4 w-4 shrink-0" aria-hidden />
-            Unpublish
-          </button>
           <ListExportDropdown
             onExportCsv={handleExportCsv}
             onExportXls={handleExportXls}
@@ -1498,7 +1485,7 @@ export default function AdminRecruiterJobsPage() {
 
         <JobsListScrollArea>
           <table className="w-max min-w-full border-collapse text-left text-sm">
-            <thead className="border-b border-[#E5E7EB] bg-[#F8FAFC] text-xs font-medium uppercase tracking-wide text-[#64748B]">
+            <thead className="border-b border-[#E5E7EB] bg-[#F8FAFC] text-xs font-medium uppercase tracking-wide text-black">
               <tr>
                 <th className="w-12 shrink-0 whitespace-nowrap border-r border-[#E5E7EB] px-[14px] py-3">
                   <ListTableCheckbox

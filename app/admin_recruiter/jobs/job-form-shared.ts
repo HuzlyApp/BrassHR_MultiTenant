@@ -171,7 +171,7 @@ export function defaultJobFormUiState(): JobFormUiState {
     employerOnRecord: "",
     compensationType: "",
     currency: "",
-    showPayBy: "",
+    showPayBy: "Exact amount",
     payRatePeriod: "",
     selectedBenefits: [],
     customBenefits: [],
@@ -205,7 +205,18 @@ export function jobFormUiFromJob(job: JobRequisitionInput): JobFormUiState {
     return raw;
   })();
   ui.currency = job.currency?.trim() || "";
-  ui.showPayBy = job.showPayBy?.trim() || "";
+  ui.showPayBy = (() => {
+    const raw = job.showPayBy?.trim() || "";
+    if (raw && (JOB_FORM_SHOW_PAY_BY as readonly string[]).includes(raw)) return raw;
+    if (
+      job.payRateMin != null &&
+      job.payRateMax != null &&
+      job.payRateMin !== job.payRateMax
+    ) {
+      return "Range";
+    }
+    return "Exact amount";
+  })();
   ui.payRatePeriod = job.payRatePeriod?.trim() || "";
   if (job.benefits?.trim()) {
     const parsed = job.benefits
@@ -230,6 +241,8 @@ export function applyUiToJob(job: JobRequisitionInput, ui: JobFormUiState): JobR
   /** MSP pay lives on Job Source Details; mirror into public pay fields for listings. */
   const mspPayRate = isMsp ? (job.suggestedPayRate ?? null) : null;
   const mspPeriod = isMsp ? ui.compensationType.trim() : "";
+  const showPayBy = ui.showPayBy.trim() || "Exact amount";
+  const isRange = showPayBy === "Range";
 
   return {
     ...job,
@@ -245,13 +258,22 @@ export function applyUiToJob(job: JobRequisitionInput, ui: JobFormUiState): JobR
     employerOfRecord: isYes ? job.employerOfRecord ?? null : isNo ? null : job.employerOfRecord ?? null,
     compensationType: ui.compensationType,
     currency: isMsp ? ui.currency.trim() || "USD" : ui.currency,
-    showPayBy: isMsp ? ui.showPayBy.trim() || "Range" : ui.showPayBy,
+    showPayBy: isMsp ? showPayBy || "Range" : showPayBy,
     payRatePeriod: isMsp ? mspPeriod || ui.payRatePeriod : ui.payRatePeriod,
     payRateMin: isMsp ? mspPayRate : job.payRateMin,
-    payRateMax: isMsp ? mspPayRate : job.payRateMax,
+    // Only Range keeps a max; Starting/Exact are single-amount fields.
+    payRateMax: isMsp ? mspPayRate : isRange ? job.payRateMax : null,
     benefits: ui.selectedBenefits.join(", "),
     publicTitle: job.publicTitle?.trim() || job.publicTitle,
   };
+}
+
+function normalizeShowPayBy(value: string | null | undefined): string {
+  const raw = String(value ?? "").trim().toLowerCase();
+  if (raw === "range") return "Range";
+  if (raw === "starting amount") return "Starting amount";
+  if (raw === "exact amount") return "Exact amount";
+  return "Exact amount";
 }
 
 export function formatPaySummary(
@@ -260,14 +282,23 @@ export function formatPaySummary(
 ): string {
   const min = job.payRateMin;
   const max = job.payRateMax;
-  if (min == null && max == null) return "—";
   const period = ui.payRatePeriod.trim().toLowerCase();
-  if (min != null && max != null) {
-    return period ? `$${min} to $${max} ${period}` : `$${min} to $${max}`;
+  const showPayBy = normalizeShowPayBy(ui.showPayBy || job.showPayBy);
+
+  if (showPayBy === "Range") {
+    if (min == null && max == null) return "—";
+    if (min != null && max != null && min !== max) {
+      return period ? `$${min} to $${max} ${period}` : `$${min} to $${max}`;
+    }
+    const amount = min ?? max;
+    if (amount == null) return "—";
+    return period ? `$${amount} ${period}` : `$${amount}`;
   }
-  if (min != null) return period ? `$${min} ${period}` : `$${min}`;
-  if (max != null) return period ? `$${max} ${period}` : `$${max}`;
-  return "—";
+
+  // Starting amount / Exact amount — always a single value (never "min to max").
+  const amount = min ?? max;
+  if (amount == null) return "—";
+  return period ? `$${amount} ${period}` : `$${amount}`;
 }
 
 export function primaryButtonStyle(brandStyle: CSSProperties): CSSProperties {

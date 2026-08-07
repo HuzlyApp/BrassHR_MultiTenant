@@ -1,7 +1,7 @@
 "use client";
 
 import * as Dialog from "@radix-ui/react-dialog";
-import { Check, X } from "lucide-react";
+import { X } from "lucide-react";
 import { useMemo, type CSSProperties } from "react";
 import type { JobRequisitionInput } from "@/lib/jobs/types";
 import { boldJobDescriptionSectionTitles } from "@/lib/jobs/generate-job-description/sanitize-html";
@@ -153,28 +153,11 @@ export function JobPostPreviewModal({
                   </div>
                   <div className="min-[700px]:border-l min-[700px]:border-[#E5E7EB] min-[700px]:pl-4">
                     <p className="text-sm font-medium text-[#64748B]">
-                      {ui.showPayBy ? `${ui.showPayBy}:` : "Range:"}
+                      {ui.showPayBy?.trim() || "Exact amount"}:
                     </p>
                     <p className="mt-1 text-sm text-[#1D2739]">
                       {paySummary !== "—" ? paySummary : "—"}
                     </p>
-                  </div>
-                </div>
-              ) : null}
-
-              {ui.selectedBenefits.length ? (
-                <div className="mt-4 border-b border-[#E5E7EB] pb-4">
-                  <p className="text-sm font-medium text-[#64748B]">Benefits</p>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {ui.selectedBenefits.map((benefit) => (
-                      <span
-                        key={benefit}
-                        className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-[color:var(--brand-secondary)] bg-white px-3 py-1.5 text-xs font-medium text-[color:var(--brand-secondary)] min-[700px]:px-4 min-[700px]:py-2 min-[700px]:text-sm"
-                      >
-                        <Check className="h-3.5 w-3.5 shrink-0" strokeWidth={2.5} aria-hidden />
-                        <span className="truncate">{benefit}</span>
-                      </span>
-                    ))}
                   </div>
                 </div>
               ) : null}
@@ -263,6 +246,16 @@ export function JobPostPreviewModal({
                   className="job-preview-description mt-0"
                   emptyLabel="No description added yet."
                 />
+                {ui.selectedBenefits.length ? (
+                  <section className="job-preview-description mt-6">
+                    <h3 className="m-0 text-sm font-semibold leading-6 text-[#1D2739]">Benefits</h3>
+                    <ul className="mt-1 list-outside list-disc space-y-1 pl-5 text-sm leading-6 text-[#667085]">
+                      {ui.selectedBenefits.map((benefit) => (
+                        <li key={benefit}>{benefit}</li>
+                      ))}
+                    </ul>
+                  </section>
+                ) : null}
               </div>
             </div>
           </div>

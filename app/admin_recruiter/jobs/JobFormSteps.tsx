@@ -28,6 +28,7 @@ import {
   JobDescriptionHtml,
   jobDescriptionPlainText,
 } from "./JobDescriptionEditor";
+import { JobDescriptionViewModal } from "./JobDescriptionViewModal";
 import { JobDescriptionWithAiSuggest } from "./JobDescriptionWithAiSuggest";
 import type { ReviewEditFieldId } from "./JobReviewEditModal";
 import { JobTypeChipSelect } from "./JobTypeChipSelect";
@@ -1028,16 +1029,27 @@ export function JobFormStepCompensation({
             </div>
           </div>
 
-          <div className="mt-4 grid gap-4 min-[700px]:grid-cols-[1fr_auto_1fr_1fr_1fr] min-[700px]:items-end">
-            <div>
+          <div
+            className={`mt-4 grid gap-4 min-[700px]:items-end ${
+              ui.showPayBy === "Range"
+                ? "min-[700px]:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_auto_minmax(0,1fr)_minmax(0,1fr)]"
+                : "min-[700px]:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1fr)]"
+            }`}
+          >
+            <div className="min-w-0">
               <label className={JOB_FORM_LABEL_CLASS}>Show pay by</label>
               <select
-                className={`${JOB_FORM_SELECT_CLASS} ${ui.showPayBy ? "text-[#334155]" : "text-[#94A3B8]"}`}
+                className={`${JOB_FORM_SELECT_CLASS} text-[#334155]`}
                 style={{ backgroundImage: JOB_FORM_SELECT_CHEVRON }}
-                value={ui.showPayBy}
-                onChange={(event) => onUiChange({ showPayBy: event.target.value })}
+                value={ui.showPayBy || "Exact amount"}
+                onChange={(event) => {
+                  const next = event.target.value;
+                  onUiChange({ showPayBy: next });
+                  if (next !== "Range") {
+                    onJobChange("payRateMax", null);
+                  }
+                }}
               >
-                <option value="">Select Show pay by</option>
                 {JOB_FORM_SHOW_PAY_BY.map((value) => (
                   <option key={value} value={value}>
                     {value}
@@ -1045,45 +1057,81 @@ export function JobFormStepCompensation({
                 ))}
               </select>
             </div>
-            <span className="hidden pb-2 text-sm text-[#64748B] min-[700px]:block">to</span>
-            <div>
-              <label className={JOB_FORM_LABEL_CLASS}>Minimum</label>
-              <div className="relative">
-                <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[#94A3B8]">
-                  $
-                </span>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  className={`${JOB_FORM_INPUT_CLASS} pl-7`}
-                  value={job.payRateMin ?? ""}
-                  onChange={(event) =>
-                    onJobChange("payRateMin", event.target.value ? Number(event.target.value) : null)
-                  }
-                />
+
+            {ui.showPayBy === "Range" ? (
+              <>
+                <div className="min-w-0">
+                  <label className={JOB_FORM_LABEL_CLASS}>Minimum</label>
+                  <div className="relative">
+                    <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[#94A3B8]">
+                      $
+                    </span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      className={`${JOB_FORM_INPUT_CLASS} pl-7`}
+                      value={job.payRateMin ?? ""}
+                      onChange={(event) =>
+                        onJobChange(
+                          "payRateMin",
+                          event.target.value ? Number(event.target.value) : null
+                        )
+                      }
+                    />
+                  </div>
+                </div>
+                <span className="hidden pb-2 text-sm text-[#64748B] min-[700px]:block">to</span>
+                <div className="min-w-0">
+                  <label className={JOB_FORM_LABEL_CLASS}>Maximum</label>
+                  <div className="relative">
+                    <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[#94A3B8]">
+                      $
+                    </span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      className={`${JOB_FORM_INPUT_CLASS} pl-7`}
+                      value={job.payRateMax ?? ""}
+                      onChange={(event) =>
+                        onJobChange(
+                          "payRateMax",
+                          event.target.value ? Number(event.target.value) : null
+                        )
+                      }
+                    />
+                  </div>
+                  <FieldError error={fieldErrors.payRateMax} />
+                </div>
+              </>
+            ) : (
+              <div className="min-w-0">
+                <label className={JOB_FORM_LABEL_CLASS}>
+                  {ui.showPayBy === "Starting amount" ? "Starting amount" : "Exact amount"}
+                </label>
+                <div className="relative">
+                  <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[#94A3B8]">
+                    $
+                  </span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    className={`${JOB_FORM_INPUT_CLASS} pl-7`}
+                    value={job.payRateMin ?? ""}
+                    onChange={(event) =>
+                      onJobChange(
+                        "payRateMin",
+                        event.target.value ? Number(event.target.value) : null
+                      )
+                    }
+                  />
+                </div>
               </div>
-            </div>
-            <div>
-              <label className={JOB_FORM_LABEL_CLASS}>Maximum</label>
-              <div className="relative">
-                <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[#94A3B8]">
-                  $
-                </span>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  className={`${JOB_FORM_INPUT_CLASS} pl-7`}
-                  value={job.payRateMax ?? ""}
-                  onChange={(event) =>
-                    onJobChange("payRateMax", event.target.value ? Number(event.target.value) : null)
-                  }
-                />
-              </div>
-              <FieldError error={fieldErrors.payRateMax} />
-            </div>
-            <div>
+            )}
+
+            <div className="min-w-0">
               <label className={JOB_FORM_LABEL_CLASS}>Rate</label>
               <select
                 className={`${JOB_FORM_SELECT_CLASS} ${ui.payRatePeriod ? "text-[#334155]" : "text-[#94A3B8]"}`}
@@ -1217,11 +1265,15 @@ export function JobFormStepDescription({
                   .filter(Boolean);
 
           return {
-            jobTitle: job.publicTitle,
+            // MSP: prefer source job title so About the Role is not driven by opaque codes.
+            jobTitle:
+              job.sourceType === "MSP"
+                ? job.sourceJobTitle || job.publicTitle || null
+                : job.publicTitle || null,
             profession: professionName || null,
             specialty: specialtyName || null,
             employmentType: job.employmentType || null,
-            location: job.location,
+            location: job.location || job.facility || null,
             locationType: job.jobLocationType || ui.jobLocationType || null,
             yearsOfExperience: job.yearsOfExperience || ui.yearsOfExperience || null,
             numberOfPositions: job.numberOfPositions ?? ui.numberOfPositions ?? null,
@@ -1236,6 +1288,12 @@ export function JobFormStepDescription({
             requiredCredentials: job.requiredCredentials,
             specialRequirements: job.specialRequirements,
             additionalLocations: job.additionalLocations ?? ui.additionalLocations ?? [],
+            sourceType: job.sourceType || "Internal",
+            mspName: job.sourceType === "MSP" ? job.mspName : null,
+            mspClient: job.sourceType === "MSP" ? job.mspClient : null,
+            sourceJobTitle: job.sourceType === "MSP" ? job.sourceJobTitle : null,
+            sourceJobDetails: job.sourceType === "MSP" ? job.sourceJobDetails : null,
+            targetStartDate: job.sourceType === "MSP" ? job.targetStartDate : null,
           };
         }}
       />
@@ -1423,13 +1481,16 @@ export function JobFormStepReview({
   professionName,
   specialtyName,
   onEditField,
+  brandVars,
 }: {
   job: JobRequisitionInput;
   ui: JobFormUiState;
   professionName: string;
   specialtyName: string;
   onEditField: (field: ReviewEditFieldId) => void;
+  brandVars?: CSSProperties;
 }) {
+  const [descriptionViewOpen, setDescriptionViewOpen] = useState(false);
   const descriptionHtml = job.publicDescription?.trim() || "";
   const descriptionPlain = jobDescriptionPlainText(descriptionHtml);
   const hasDescription = Boolean(descriptionPlain.trim());
@@ -1639,19 +1700,19 @@ export function JobFormStepReview({
             </button>
           ) : (
             <>
-              <p className="text-sm font-medium text-[#1D2739]">About the Role</p>
               {isTruncated ? (
-                <p className="mt-1 whitespace-pre-wrap text-sm text-[#334155]">{shortDescription}</p>
+                <p className="whitespace-pre-wrap text-sm text-[#334155]">{shortDescription}</p>
               ) : (
                 <JobDescriptionHtml
                   html={descriptionHtml}
-                  className="mt-1"
+                  className=""
                   emptyLabel=""
                 />
               )}
               {isTruncated ? (
                 <button
                   type="button"
+                  onClick={() => setDescriptionViewOpen(true)}
                   className="mt-2 cursor-pointer text-sm font-medium text-[color:var(--brand-primary)]"
                 >
                   Show full description
@@ -1669,6 +1730,12 @@ export function JobFormStepReview({
           <Pencil className="h-4 w-4" />
         </button>
       </div>
+      <JobDescriptionViewModal
+        open={descriptionViewOpen}
+        onOpenChange={setDescriptionViewOpen}
+        html={descriptionHtml}
+        brandVars={brandVars}
+      />
     </section>
   );
 }

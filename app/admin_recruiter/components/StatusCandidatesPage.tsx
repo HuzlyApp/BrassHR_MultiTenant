@@ -327,7 +327,7 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
               <div className="overflow-hidden rounded-md border border-[#E5E7EB]">
                 <div className="overflow-auto">
                   <table className="min-w-[820px] w-full border-collapse">
-                    <thead className="bg-[#F8FAFC]">
+                    <thead className="bg-[#F8FAFC] text-black">
                       <tr className="border-b border-[#E5E7EB]">
                         <th className="w-12 border-r border-[#E5E7EB] bg-[#E5E7EB] px-3 py-3 text-center">
                           <ListTableCheckbox size="md" aria-label="Select all candidates" />

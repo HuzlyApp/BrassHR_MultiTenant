@@ -35,6 +35,12 @@ export type JobDescriptionSuggestPayload = {
   requiredCredentials?: string | null;
   specialRequirements?: string | null;
   additionalLocations?: string[];
+  sourceType?: "Internal" | "MSP" | string | null;
+  mspName?: string | null;
+  mspClient?: string | null;
+  sourceJobTitle?: string | null;
+  sourceJobDetails?: string | null;
+  targetStartDate?: string | null;
 };
 
 type PendingMode = "replace" | "insert" | null;
@@ -57,6 +63,7 @@ const AI_DESCRIPTION_HELP_MESSAGE =
 function hasRequiredSuggestInput(payload: JobDescriptionSuggestPayload): boolean {
   return Boolean(
     payload.jobTitle?.trim() ||
+      payload.sourceJobTitle?.trim() ||
       payload.profession?.trim() ||
       payload.specialty?.trim()
   );

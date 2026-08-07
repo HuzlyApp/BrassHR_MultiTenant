@@ -53,9 +53,24 @@ export const generateJobDescriptionRequestSchema = z
     requiredCredentials: optionalTrimmed,
     specialRequirements: optionalTrimmed,
     additionalLocations: stringList,
+    /** Internal vs MSP — changes how About the Role is written. */
+    sourceType: z
+      .union([z.literal("Internal"), z.literal("MSP"), z.string(), z.null(), z.undefined()])
+      .optional()
+      .transform((value) => {
+        const raw = String(value ?? "").trim();
+        if (raw.toLowerCase() === "msp") return "MSP" as const;
+        if (raw.toLowerCase() === "internal") return "Internal" as const;
+        return undefined;
+      }),
+    mspName: optionalTrimmed,
+    mspClient: optionalTrimmed,
+    sourceJobTitle: optionalTrimmed,
+    sourceJobDetails: optionalTrimmed,
+    targetStartDate: optionalTrimmed,
   })
   .superRefine((data, ctx) => {
-    if (!data.jobTitle && !data.profession && !data.specialty) {
+    if (!data.jobTitle && !data.profession && !data.specialty && !data.sourceJobTitle) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: "Provide at least a job title, profession, or specialty.",

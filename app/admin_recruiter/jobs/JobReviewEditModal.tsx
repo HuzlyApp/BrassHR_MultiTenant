@@ -839,10 +839,15 @@ export function JobReviewEditModal({
                     <select
                       className={JOB_FORM_SELECT_CLASS}
                       style={{ backgroundImage: JOB_FORM_SELECT_CHEVRON }}
-                      value={draft.ui.showPayBy}
-                      onChange={(event) => patchUi({ showPayBy: event.target.value })}
+                      value={draft.ui.showPayBy || "Exact amount"}
+                      onChange={(event) => {
+                        const next = event.target.value;
+                        patchUi({ showPayBy: next });
+                        if (next !== "Range") {
+                          patchJob("payRateMax", null);
+                        }
+                      }}
                     >
-                      <option value="">Select Show pay by</option>
                       {JOB_FORM_SHOW_PAY_BY.map((value) => (
                         <option key={value} value={value}>
                           {value}
@@ -867,9 +872,59 @@ export function JobReviewEditModal({
                     </select>
                   </div>
                 </div>
-                <div className="grid gap-4 sm:grid-cols-2">
+                {draft.ui.showPayBy === "Range" ? (
+                  <div className="grid gap-4 sm:grid-cols-[1fr_auto_1fr] sm:items-end">
+                    <div>
+                      <label className={JOB_FORM_LABEL_CLASS}>Minimum</label>
+                      <div className="relative">
+                        <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[#94A3B8]">
+                          $
+                        </span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          className={`${JOB_FORM_INPUT_CLASS} pl-7`}
+                          value={draft.job.payRateMin ?? ""}
+                          onChange={(event) =>
+                            patchJob(
+                              "payRateMin",
+                              event.target.value ? Number(event.target.value) : null
+                            )
+                          }
+                        />
+                      </div>
+                    </div>
+                    <span className="hidden pb-2 text-sm text-[#64748B] sm:block">to</span>
+                    <div>
+                      <label className={JOB_FORM_LABEL_CLASS}>Maximum</label>
+                      <div className="relative">
+                        <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[#94A3B8]">
+                          $
+                        </span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          className={`${JOB_FORM_INPUT_CLASS} pl-7`}
+                          value={draft.job.payRateMax ?? ""}
+                          onChange={(event) =>
+                            patchJob(
+                              "payRateMax",
+                              event.target.value ? Number(event.target.value) : null
+                            )
+                          }
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ) : (
                   <div>
-                    <label className={JOB_FORM_LABEL_CLASS}>Minimum</label>
+                    <label className={JOB_FORM_LABEL_CLASS}>
+                      {draft.ui.showPayBy === "Starting amount"
+                        ? "Starting amount"
+                        : "Exact amount"}
+                    </label>
                     <div className="relative">
                       <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[#94A3B8]">
                         $
@@ -889,28 +944,7 @@ export function JobReviewEditModal({
                       />
                     </div>
                   </div>
-                  <div>
-                    <label className={JOB_FORM_LABEL_CLASS}>Maximum</label>
-                    <div className="relative">
-                      <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[#94A3B8]">
-                        $
-                      </span>
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        className={`${JOB_FORM_INPUT_CLASS} pl-7`}
-                        value={draft.job.payRateMax ?? ""}
-                        onChange={(event) =>
-                          patchJob(
-                            "payRateMax",
-                            event.target.value ? Number(event.target.value) : null
-                          )
-                        }
-                      />
-                    </div>
-                  </div>
-                </div>
+                )}
               </div>
             ) : null}
 
