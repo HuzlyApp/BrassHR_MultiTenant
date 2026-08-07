@@ -8,6 +8,7 @@ import type { JobColumnId } from "./job-columns";
 import {
   applicantCount,
   formatJobListPayRateText,
+  jobContractGroup,
   jobLocation,
   jobPlacementType,
   jobStatusSortLabel,
@@ -32,6 +33,10 @@ const JOB_EXPORT_COLUMN_BUILDERS: Partial<
 > = {
   jobTitle: { header: "Job Title", value: (row) => row.public_title?.trim() || "" },
   // jobId: { header: "Job Id", value: (row) => jobDisplayId(row) }, // Job ID hidden for now
+  contractGroup: {
+    header: "Contract Group",
+    value: (row) => jobContractGroup(row),
+  },
   candidates: [
     { header: "Applicants (All)", value: (row) => applicantCount(row) },
     { header: "Applicants (New)", value: (row) => newApplicantCount(row) },
@@ -93,6 +98,7 @@ const SOURCE_TYPE_COLUMN: ExportColumn<JobListRow> = {
 const DEFAULT_EXPORT_COLUMN_IDS: JobColumnId[] = [
   "jobTitle",
   // "jobId", // Job ID hidden for now
+  "contractGroup",
   "jobType",
   "employmentType",
   "profession",

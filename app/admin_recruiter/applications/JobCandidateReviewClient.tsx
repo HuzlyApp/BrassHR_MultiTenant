@@ -615,29 +615,31 @@ export default function JobCandidateReviewClient() {
             <JobPublicViewLink href={publicJobPath} />
           </div>
           {jobMenuOpen ? (
-            <div className="absolute left-0 z-40 mt-2 max-h-72 w-[min(100vw-2rem,360px)] overflow-y-auto rounded-xl border border-[#E5E7EB] bg-white py-1 shadow-lg">
-              {jobOptions.map((option) => (
-                <button
-                  key={option.id}
-                  type="button"
-                  onClick={() => selectJob(option)}
-                  className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm hover:bg-[#F8FAFC]"
-                >
-                  <span className="inline-flex h-4 w-4 items-center justify-center">
-                    {option.id === jobId ? (
-                      <Check className="h-4 w-4" style={{ color: branding.primaryHex }} />
-                    ) : null}
-                  </span>
-                  <span className="min-w-0">
-                    <span className="block truncate font-medium text-[#1E293B]">
-                      {option.public_title || "Untitled job"}
+            <div className="absolute left-0 z-40 mt-2 w-[min(100vw-2rem,360px)] overflow-hidden rounded-xl border border-[#E5E7EB] bg-white shadow-lg">
+              <div className="max-h-72 overflow-y-auto py-1">
+                {jobOptions.map((option) => (
+                  <button
+                    key={option.id}
+                    type="button"
+                    onClick={() => selectJob(option)}
+                    className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm hover:bg-[#F8FAFC]"
+                  >
+                    <span className="inline-flex h-4 w-4 items-center justify-center">
+                      {option.id === jobId ? (
+                        <Check className="h-4 w-4" style={{ color: branding.primaryHex }} />
+                      ) : null}
                     </span>
-                    <span className="block truncate text-xs text-[#64748B]">
-                      {formatJobLocation(option)}
+                    <span className="min-w-0">
+                      <span className="block truncate font-medium text-[#1E293B]">
+                        {option.public_title || "Untitled job"}
+                      </span>
+                      <span className="block truncate text-xs text-[#64748B]">
+                        {formatJobLocation(option)}
+                      </span>
                     </span>
-                  </span>
-                </button>
-              ))}
+                  </button>
+                ))}
+              </div>
             </div>
           ) : null}
         </div>

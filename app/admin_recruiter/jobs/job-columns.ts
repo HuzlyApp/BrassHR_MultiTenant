@@ -1,6 +1,7 @@
 export type JobColumnId =
   | "jobTitle"
   | "jobId"
+  | "contractGroup"
   | "candidates"
   | "datePosted"
   | "assignee"
@@ -20,6 +21,7 @@ export type JobColumnId =
 export const JOB_COLUMN_OPTIONS: { id: JobColumnId; label: string }[] = [
   { id: "jobTitle", label: "Job Title" },
   // { id: "jobId", label: "Job Id" }, // Job ID hidden for now
+  { id: "contractGroup", label: "Contract Group" },
   { id: "candidates", label: "# Applicants" },
   { id: "datePosted", label: "Date Posted" },
   { id: "assignee", label: "Assignee" },
@@ -39,6 +41,7 @@ export const JOB_COLUMN_OPTIONS: { id: JobColumnId; label: string }[] = [
 
 export const DEFAULT_JOB_COLUMNS: JobColumnId[] = [
   "jobTitle",
+  "contractGroup",
   "candidates",
   "datePosted",
   "location",
@@ -51,13 +54,14 @@ export const DEFAULT_JOB_COLUMNS: JobColumnId[] = [
 ]
 
 const STORAGE_KEY = "nexus-jobs-list-columns"
-const COLUMN_MIGRATION_KEY = "nexus-jobs-list-columns-v2-placement-employment"
+const COLUMN_MIGRATION_KEY = "nexus-jobs-list-columns-v3-contract-group"
 
 /** Columns added after initial release — inject into saved layouts once. */
 const ENSURE_VISIBLE_COLUMNS: { id: JobColumnId; after?: JobColumnId }[] = [
   { id: "payRate", after: "jobStatus" },
   { id: "placementType", after: "location" },
   { id: "jobType", after: "placementType" },
+  { id: "contractGroup", after: "jobTitle" },
 ]
 
 export function loadJobColumnOrder(): JobColumnId[] {
@@ -118,6 +122,7 @@ export function isCenterAlignedJobColumn(colId: JobColumnId): boolean {
 }
 
 const CENTER_ALIGNED_COLUMNS = new Set<JobColumnId>([
+  "contractGroup",
   "candidates",
   "datePosted",
   "assignee",
@@ -144,6 +149,8 @@ export function jobListColumnClassName(colId: JobColumnId): string {
       return `min-w-[260px]${nowrap}`
     // case "jobId":
     //   return `min-w-[100px]${nowrap}${center}`
+    case "contractGroup":
+      return `min-w-[150px]${nowrap}${center}`
     case "candidates":
       return `w-[350px] min-w-[350px]${nowrap}${center}`
     case "datePosted":

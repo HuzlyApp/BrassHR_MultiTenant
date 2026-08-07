@@ -113,7 +113,12 @@ export default function JobsPortalClient() {
       <header className="px-5 py-12 text-white sm:px-8" style={{ backgroundColor: primaryHex }}>
         <div className="mx-auto max-w-6xl">
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-white/75">{branding.companyName}</p>
-          <h1 className="mt-2 text-3xl font-semibold sm:text-4xl">Open positions</h1>
+          <h1
+            className="mt-2 text-3xl font-semibold !text-white sm:text-4xl"
+            style={{ color: "#ffffff" }}
+          >
+            Open positions
+          </h1>
           <p className="mt-3 max-w-2xl text-white/80">
             Browse published roles and apply to the position that matches your background.
           </p>

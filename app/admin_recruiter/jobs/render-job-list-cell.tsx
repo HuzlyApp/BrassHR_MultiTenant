@@ -62,6 +62,9 @@ export type JobListRow = {
   public_job_token?: string | null
   employment_type: string
   source_type?: "Internal" | "MSP" | string | null
+  /** MSP (Job Source) — shown as Contract Group for MSP jobs. */
+  msp_name?: string | null
+  msp_client?: string | null
   status: "draft" | "published" | "closed" | "archived"
   created_at: string
   published_at: string | null
@@ -99,6 +102,13 @@ export function jobProfession(job: JobListRow): string {
 /** Employment type chips (shift_type) — jobs listing filter. */
 export function jobShiftType(job: JobListRow): string {
   return job.shift_type?.trim() || ""
+}
+
+/** Contract Group for MSP jobs (MSP / job source name). */
+export function jobContractGroup(job: JobListRow): string {
+  const source = String(job.source_type ?? "").trim().toLowerCase()
+  if (source !== "msp") return ""
+  return job.msp_name?.trim() || job.msp_client?.trim() || ""
 }
 
 export function applicantCount(job: JobListRow): number {
@@ -215,6 +225,8 @@ export function jobSortValue(job: JobListRow, field: JobSortField): string | num
       return (job.public_title || "").trim().toLowerCase()
     // case "jobId":
     //   return jobDisplayId(job).toLowerCase()
+    case "contractGroup":
+      return jobContractGroup(job).toLowerCase()
     case "candidates":
       return applicantCount(job)
     case "datePosted":
@@ -396,6 +408,10 @@ export function renderJobListCell(
       )
     // case "jobId":
     //   return <span className="text-sm text-[#475569]">{jobDisplayId(job)}</span>
+    case "contractGroup": {
+      const group = jobContractGroup(job)
+      return <span className="text-sm text-[#475569]">{group || "—"}</span>
+    }
     case "candidates":
       return (
         <div className="box-border flex h-[58px] w-[350px] max-w-full items-center justify-between px-[14px]">
