@@ -51,7 +51,7 @@ export function stripJobDescriptionBenefitsSection(value: string): string {
 }
 
 const LIST_SECTION_HEADING =
-  /^(?:key\s+responsibilities|responsibilities|qualifications|required\s+qualifications|preferred\s+qualifications|preferred\s+skills)$/i;
+  /^(?:key\s+responsibilities|responsibilities|qualifications|required\s+qualifications|preferred\s+qualifications|preferred\s+skills|benefits)$/i;
 
 function stripTags(value: string): string {
   return value
