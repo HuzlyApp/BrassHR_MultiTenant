@@ -19,6 +19,8 @@ Use these sections:
 
 Use short paragraphs and bullet points. Do not include introductory commentary such as ‘Here is the description.’
 
+Wrap each section title in <strong> tags, for example: <p><strong>About the Role</strong></p>, <p><strong>Key Responsibilities</strong></p>, <p><strong>Required Qualifications</strong></p>, <p><strong>Work Location and Schedule</strong></p>, and <p><strong>Benefits</strong></p> when those sections are included. Do not bold the body text under each section.
+
 Return valid JSON only with:
 
 {
@@ -80,5 +82,6 @@ Important requirements:
 - Do not add benefits that are not listed.
 - Do not add licensing or certification requirements unless supplied or clearly mandatory for the stated profession.
 - Mention the employment type and work arrangement naturally.
+- Make section titles bold with <strong> (About the Role, Key Responsibilities, Required Qualifications, Work Location and Schedule, Benefits, etc.).
 - Return valid JSON only.`;
 }

@@ -17,7 +17,6 @@ const JOB_CANDIDATE_ICONS = {
 
 /** Figma jobs list star — 14×14 */
 const JOB_STAR_ICON_SIZE = 14
-const JOB_STAR_DEFAULT_SRC = "/icons/jobs-icons/Star-default.svg"
 const JOB_STAR_FILLED_SRC = "/icons/jobs-icons/Star-filled.svg"
 
 function JobCandidateMetric({
@@ -70,6 +69,14 @@ export type JobListRow = {
   facility: string | null
   facility_name: string | null
   application_deadline: string | null
+  pay_rate_min?: number | null
+  pay_rate_max?: number | null
+  pay_rate_period?: string | null
+  rate_unit?: string | null
+  pay_rate?: number | null
+  location_type?: string | null
+  schedule?: string | null
+  shift_type?: string | null
   professions: { name?: string } | { name?: string }[] | null
   specialties: { name?: string } | { name?: string }[] | null
   onboarding_flows: { name?: string } | { name?: string }[] | null
@@ -83,6 +90,15 @@ const JOB_FORM_SURFACE_CLASS = "rounded-lg border border-[#CBD5E1] bg-white"
 function relationName(value: JobListRow["professions"]): string {
   const row = Array.isArray(value) ? value[0] : value
   return row?.name ?? ""
+}
+
+export function jobProfession(job: JobListRow): string {
+  return relationName(job.professions)
+}
+
+/** Employment type chips (shift_type) — Figma jobs filter "Placement Type". */
+export function jobShiftType(job: JobListRow): string {
+  return job.shift_type?.trim() || ""
 }
 
 export function applicantCount(job: JobListRow): number {
@@ -103,8 +119,79 @@ export function jobLocation(job: JobListRow): string {
   )
 }
 
+export function jobPlacementType(job: JobListRow): string {
+  return job.location_type?.trim() || job.schedule?.trim() || ""
+}
+
 export function jobDisplayId(job: JobListRow): string {
   return job.internal_requisition_number?.trim() || job.id.slice(0, 8).toUpperCase()
+}
+
+function toNumberOrNull(value: unknown): number | null {
+  if (value == null || value === "") return null
+  const n = Number(value)
+  return Number.isFinite(n) ? n : null
+}
+
+function formatPayAmount(value: number): string {
+  return Number.isInteger(value) ? String(value) : value.toFixed(2).replace(/\.?0+$/, "")
+}
+
+/** Normalize DB / form period labels to Figma style unit (e.g. "hour"). */
+export function jobPayRatePeriodLabel(job: JobListRow): string {
+  const raw = String(job.pay_rate_period || job.rate_unit || "").trim().toLowerCase()
+  if (!raw) return ""
+  if (raw.includes("hour")) return "hour"
+  if (raw.includes("day")) return "day"
+  if (raw.includes("week")) return "week"
+  if (raw.includes("month")) return "month"
+  if (raw.includes("year") || raw.includes("annual")) return "year"
+  if (raw.includes("flat")) return "flat"
+  return raw.replace(/^per\s+/i, "").trim()
+}
+
+export function jobPayRateSortValue(job: JobListRow): number {
+  const suggested = toNumberOrNull(job.pay_rate)
+  if (suggested != null) return suggested
+  const min = toNumberOrNull(job.pay_rate_min)
+  const max = toNumberOrNull(job.pay_rate_max)
+  if (min != null && max != null) return Math.min(min, max)
+  if (min != null) return min
+  if (max != null) return max
+  return -1
+}
+
+/** Plain-text pay rate for export / aria (e.g. "$50 / hour"). */
+export function formatJobListPayRateText(job: JobListRow): string {
+  const parts = formatJobListPayRateParts(job)
+  if (!parts) return "—"
+  return parts.period ? `${parts.amount} / ${parts.period}` : parts.amount
+}
+
+export function formatJobListPayRateParts(
+  job: JobListRow
+): { amount: string; period: string } | null {
+  const suggested = toNumberOrNull(job.pay_rate)
+  const min = toNumberOrNull(job.pay_rate_min)
+  const max = toNumberOrNull(job.pay_rate_max)
+  const period = jobPayRatePeriodLabel(job)
+
+  let amount = ""
+  if (suggested != null) {
+    amount = `$${formatPayAmount(suggested)}`
+  } else if (min != null && max != null) {
+    amount =
+      min === max
+        ? `$${formatPayAmount(min)}`
+        : `$${formatPayAmount(min)} - $${formatPayAmount(max)}`
+  } else if (min != null) {
+    amount = `$${formatPayAmount(min)}`
+  } else if (max != null) {
+    amount = `$${formatPayAmount(max)}`
+  }
+
+  if (!amount) return null
+  return { amount, period }
 }
 
 export function jobStatusSortLabel(status: JobListRow["status"]): string {
@@ -126,8 +213,8 @@ export function jobSortValue(job: JobListRow, field: JobSortField): string | num
   switch (field) {
     case "jobTitle":
       return (job.public_title || "").trim().toLowerCase()
-    case "jobId":
-      return jobDisplayId(job).toLowerCase()
+    // case "jobId":
+    //   return jobDisplayId(job).toLowerCase()
     case "candidates":
       return applicantCount(job)
     case "datePosted":
@@ -136,10 +223,16 @@ export function jobSortValue(job: JobListRow, field: JobSortField): string | num
       return "hr manager"
     case "jobStatus":
       return jobStatusSortLabel(job.status).toLowerCase()
+    case "payRate":
+      return jobPayRateSortValue(job)
     case "location":
       return jobLocation(job).toLowerCase()
+    case "placementType":
+      return jobPlacementType(job).toLowerCase()
     case "employmentType":
       return (job.employment_type || "").toLowerCase()
+    case "jobType":
+      return (job.shift_type || "").trim().toLowerCase()
     case "profession":
       return relationName(job.professions).toLowerCase()
     case "specialty":
@@ -259,15 +352,32 @@ export function renderJobListCell(
             aria-label={isStarred ? "Unstar job" : "Star job"}
             aria-pressed={isStarred}
           >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={isStarred ? JOB_STAR_FILLED_SRC : JOB_STAR_DEFAULT_SRC}
-              alt=""
-              width={JOB_STAR_ICON_SIZE}
-              height={JOB_STAR_ICON_SIZE}
-              className="h-[14px] w-[14px]"
-              aria-hidden
-            />
+            {isStarred ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={JOB_STAR_FILLED_SRC}
+                alt=""
+                width={JOB_STAR_ICON_SIZE}
+                height={JOB_STAR_ICON_SIZE}
+                className="h-[14px] w-[14px]"
+                aria-hidden
+              />
+            ) : (
+              <span
+                aria-hidden
+                className="inline-block h-[14px] w-[14px] shrink-0 bg-[#94A3B8]"
+                style={{
+                  maskImage: `url(${JOB_STAR_FILLED_SRC})`,
+                  WebkitMaskImage: `url(${JOB_STAR_FILLED_SRC})`,
+                  maskSize: "contain",
+                  WebkitMaskSize: "contain",
+                  maskRepeat: "no-repeat",
+                  WebkitMaskRepeat: "no-repeat",
+                  maskPosition: "center",
+                  WebkitMaskPosition: "center",
+                }}
+              />
+            )}
           </button>
           <div className="min-w-0 flex-1">
             <Link
@@ -277,7 +387,6 @@ export function renderJobListCell(
             >
               {job.public_title || "Untitled draft"}
             </Link>
-            <p className="mt-0.5 truncate text-xs text-[#64748B]">{jobLocation(job)}</p>
           </div>
           <JobPublicViewLink
             href={publicJobPathFor(job, ctx.tenantSlug)}
@@ -285,8 +394,8 @@ export function renderJobListCell(
           />
         </div>
       )
-    case "jobId":
-      return <span className="text-sm text-[#475569]">{jobDisplayId(job)}</span>
+    // case "jobId":
+    //   return <span className="text-sm text-[#475569]">{jobDisplayId(job)}</span>
     case "candidates":
       return (
         <div className="box-border flex h-[58px] w-[350px] max-w-full items-center justify-between px-[14px]">
@@ -335,10 +444,30 @@ export function renderJobListCell(
           </div>
         </div>
       )
+    case "payRate": {
+      const pay = formatJobListPayRateParts(job)
+      if (!pay) {
+        return <span className="text-sm text-[#475569]">—</span>
+      }
+      return (
+        <span className="inline-flex items-baseline justify-center gap-0 text-sm text-[#475569]">
+          <span className="font-semibold text-[#1D2739]">{pay.amount}</span>
+          {pay.period ? (
+            <span className="font-normal text-[#475569]">{` / ${pay.period}`}</span>
+          ) : null}
+        </span>
+      )
+    }
     case "location":
       return <span className="text-sm text-[#475569]">{jobLocation(job)}</span>
+    case "placementType":
+      return (
+        <span className="text-sm text-[#475569]">{jobPlacementType(job) || "—"}</span>
+      )
     case "employmentType":
       return <span className="text-sm text-[#475569]">{job.employment_type || "—"}</span>
+    case "jobType":
+      return <span className="text-sm text-[#475569]">{job.shift_type?.trim() || "—"}</span>
     case "profession":
       return <span className="text-sm text-[#475569]">{relationName(job.professions) || "—"}</span>
     case "specialty":

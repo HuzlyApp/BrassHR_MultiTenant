@@ -86,3 +86,38 @@ export function htmlToPlainText(html: string): string {
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 }
+
+/** Known job-description section titles that should render bold in the editor. */
+const SECTION_TITLES = [
+  "About the Role",
+  "Key Responsibilities",
+  "Required Qualifications",
+  "Preferred Qualifications",
+  "Qualifications",
+  "Work Location and Schedule",
+  "Benefits",
+] as const;
+
+/**
+ * Ensure section titles are wrapped in <strong> after AI generation.
+ * Does not change body copy or list markup.
+ */
+export function boldJobDescriptionSectionTitles(html: string): string {
+  const input = (html ?? "").trim();
+  if (!input) return "";
+
+  let result = input;
+  for (const title of SECTION_TITLES) {
+    const escaped = title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    // <p|h2-h4>Title</…> or already partially bold → <…><strong>Title</strong></…>
+    result = result.replace(
+      new RegExp(
+        `<(p|h[2-4])>\\s*(?:<(?:strong|b)>)?\\s*${escaped}\\s*:?\\s*(?:</(?:strong|b)>)?\\s*</\\1>`,
+        "gi"
+      ),
+      `<$1><strong>${title}</strong></$1>`
+    );
+  }
+  return result;
+}
+

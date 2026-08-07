@@ -9,5 +9,5 @@ export {
   getJobDescriptionModelName,
   JobDescriptionGenerationError,
 } from "./service";
-export { sanitizeJobDescriptionHtml, htmlToPlainText } from "./sanitize-html";
+export { sanitizeJobDescriptionHtml, htmlToPlainText, boldJobDescriptionSectionTitles } from "./sanitize-html";
 export { buildJobRequisitionJson } from "./prompts";

@@ -307,7 +307,7 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
   function validateRequisitionStep(current: JobRequisitionInput): Record<string, string> {
     const errors: Record<string, string> = {};
     if (!current.shiftType?.trim()) {
-      errors.shiftType = "Job type is required.";
+      errors.shiftType = "Employment Type is required.";
     }
     return errors;
   }

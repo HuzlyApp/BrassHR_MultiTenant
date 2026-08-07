@@ -5,8 +5,11 @@ export type JobColumnId =
   | "datePosted"
   | "assignee"
   | "jobStatus"
+  | "payRate"
   | "location"
+  | "placementType"
   | "employmentType"
+  | "jobType"
   | "profession"
   | "specialty"
   | "workflow"
@@ -16,13 +19,16 @@ export type JobColumnId =
 
 export const JOB_COLUMN_OPTIONS: { id: JobColumnId; label: string }[] = [
   { id: "jobTitle", label: "Job Title" },
-  { id: "jobId", label: "Job Id" },
+  // { id: "jobId", label: "Job Id" }, // Job ID hidden for now
   { id: "candidates", label: "# Applicants" },
   { id: "datePosted", label: "Date Posted" },
   { id: "assignee", label: "Assignee" },
   { id: "jobStatus", label: "Job Status" },
+  { id: "payRate", label: "Pay Rate" },
   { id: "location", label: "Location" },
-  { id: "employmentType", label: "Employment Type" },
+  { id: "placementType", label: "Placement type" },
+  { id: "employmentType", label: "W2 / 1099" },
+  { id: "jobType", label: "Employment Type" },
   { id: "profession", label: "Profession" },
   { id: "specialty", label: "Specialty" },
   { id: "workflow", label: "Assigned Workflow" },
@@ -36,12 +42,23 @@ export const DEFAULT_JOB_COLUMNS: JobColumnId[] = [
   "candidates",
   "datePosted",
   "location",
+  "placementType",
+  "jobType",
   "assignee",
   "jobStatus",
+  "payRate",
   "actions",
 ]
 
 const STORAGE_KEY = "nexus-jobs-list-columns"
+const COLUMN_MIGRATION_KEY = "nexus-jobs-list-columns-v2-placement-employment"
+
+/** Columns added after initial release — inject into saved layouts once. */
+const ENSURE_VISIBLE_COLUMNS: { id: JobColumnId; after?: JobColumnId }[] = [
+  { id: "payRate", after: "jobStatus" },
+  { id: "placementType", after: "location" },
+  { id: "jobType", after: "placementType" },
+]
 
 export function loadJobColumnOrder(): JobColumnId[] {
   if (typeof window === "undefined") return [...DEFAULT_JOB_COLUMNS]
@@ -54,7 +71,25 @@ export function loadJobColumnOrder(): JobColumnId[] {
     const cleaned = parsed.filter(
       (id): id is JobColumnId => typeof id === "string" && allowed.has(id as JobColumnId)
     )
-    return cleaned.length ? cleaned : [...DEFAULT_JOB_COLUMNS]
+    if (!cleaned.length) return [...DEFAULT_JOB_COLUMNS]
+
+    const migrated = localStorage.getItem(COLUMN_MIGRATION_KEY) === "1"
+    if (!migrated) {
+      for (const { id, after } of ENSURE_VISIBLE_COLUMNS) {
+        if (cleaned.includes(id)) continue
+        const afterIdx = after ? cleaned.indexOf(after) : -1
+        if (afterIdx >= 0) cleaned.splice(afterIdx + 1, 0, id)
+        else cleaned.push(id)
+      }
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(cleaned))
+        localStorage.setItem(COLUMN_MIGRATION_KEY, "1")
+      } catch {
+        /* ignore quota */
+      }
+    }
+
+    return cleaned
   } catch {
     return [...DEFAULT_JOB_COLUMNS]
   }
@@ -83,11 +118,15 @@ export function isCenterAlignedJobColumn(colId: JobColumnId): boolean {
 }
 
 const CENTER_ALIGNED_COLUMNS = new Set<JobColumnId>([
+  "candidates",
   "datePosted",
   "assignee",
   "jobStatus",
+  "payRate",
   "location",
+  "placementType",
   "employmentType",
+  "jobType",
   "profession",
   "specialty",
   "workflow",
@@ -103,8 +142,8 @@ export function jobListColumnClassName(colId: JobColumnId): string {
   switch (colId) {
     case "jobTitle":
       return `min-w-[260px]${nowrap}`
-    case "jobId":
-      return `min-w-[100px]${nowrap}${center}`
+    // case "jobId":
+    //   return `min-w-[100px]${nowrap}${center}`
     case "candidates":
       return `w-[350px] min-w-[350px]${nowrap}${center}`
     case "datePosted":
@@ -116,8 +155,12 @@ export function jobListColumnClassName(colId: JobColumnId): string {
       return `min-w-[140px]${nowrap}${center}`.trim()
     case "jobStatus":
       return `min-w-[120px] w-[1%]${nowrap}${center}`.trim()
+    case "payRate":
+      return `min-w-[120px]${nowrap}${center}`.trim()
+    case "placementType":
+    case "jobType":
     case "employmentType":
-      return `min-w-[150px]${nowrap}${center}`
+      return `min-w-[140px]${nowrap}${center}`
     case "profession":
       return `min-w-[120px]${nowrap}${center}`
     case "specialty":

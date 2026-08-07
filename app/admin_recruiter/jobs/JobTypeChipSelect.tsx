@@ -26,7 +26,7 @@ export function JobTypeChipSelect({
   return (
     <div>
       <span className={labelClassName}>
-        Job type <span className="text-[#EF4444]">*</span>
+        Employment Type <span className="text-[#EF4444]">*</span>
       </span>
       <div className="flex flex-wrap gap-2">
         {JOB_FORM_JOB_TYPES.map((option) => {

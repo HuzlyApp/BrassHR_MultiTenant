@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { Plus, Download, ListChecks } from "lucide-react";
 import { ColumnsEditorModal } from "@/app/admin_recruiter/components/ColumnsEditorModal";
@@ -35,8 +35,9 @@ import {
 } from "./job-columns";
 import { exportJobsCsv, exportJobsXls } from "./export-jobs";
 import {
-  jobDisplayId,
   jobLocation,
+  jobProfession,
+  jobShiftType,
   jobSortValue,
   renderJobListCell,
   type JobListCellContext,
@@ -62,8 +63,6 @@ const PAGE_SIZE_OPTIONS = [10, 20, 50];
 const JOBS_FORM_SURFACE_CLASS = "rounded-lg border border-[#CBD5E1] bg-white";
 
 const JOBS_TOOLBAR_BUTTON_CLASS = `${JOBS_FORM_SURFACE_CLASS} inline-flex h-8 items-center gap-1.5 px-3 text-sm font-normal leading-6 text-[#334155] transition hover:bg-zinc-50`;
-
-const JOBS_FILTER_CONTROL_CLASS = `${JOBS_FORM_SURFACE_CLASS} h-10 w-full min-w-0 px-2.5 text-sm font-normal leading-6 text-[#334155] hover:bg-zinc-50 focus:border-[color:var(--brand-primary)] focus:outline-none focus:ring-0 sm:h-8 sm:min-w-[100px] sm:max-w-[160px] sm:w-auto appearance-auto cursor-pointer`;
 
 const JOBS_POST_JOB_BUTTON_CLASS =
   "inline-flex h-8 items-center gap-1.5 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm font-normal leading-5 text-[#525252] transition hover:bg-zinc-50";
@@ -160,7 +159,7 @@ function JobTableSortHeader({
       type="button"
       onClick={() => onToggleSort(colId)}
       className={`inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap font-medium normal-case tracking-normal text-[#64748B] transition hover:text-[#334155] ${
-        centered ? "mx-auto" : ""
+        centered ? "w-full justify-center" : ""
       }`}
       aria-label={`Sort by ${jobColumnLabel(colId)}${
         isActive ? `, ${sortDirection === "asc" ? "ascending" : "descending"}` : ""
@@ -169,6 +168,148 @@ function JobTableSortHeader({
       <span className="whitespace-nowrap">{jobColumnLabel(colId)}</span>
       <img src={JOB_SORT_ICON_SRC} width={12} height={12} className="h-3 w-3 shrink-0" alt="" aria-hidden />
     </button>
+  );
+}
+
+/** Custom horizontal scrollbar so hover can use cursor:pointer (native bars force the arrow). */
+function JobsListScrollArea({ children }: { children: ReactNode }) {
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const trackRef = useRef<HTMLDivElement>(null);
+  const thumbWidthRef = useRef(0);
+  const dragRef = useRef<{ startX: number; startScrollLeft: number } | null>(null);
+  const [scrollState, setScrollState] = useState({
+    canScroll: false,
+    thumbWidth: 0,
+    thumbLeft: 0,
+  });
+
+  const syncThumb = useCallback(() => {
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+    const { scrollWidth, clientWidth, scrollLeft } = viewport;
+    const canScroll = scrollWidth > clientWidth + 1;
+    if (!canScroll) {
+      thumbWidthRef.current = 0;
+      setScrollState((prev) =>
+        prev.canScroll || prev.thumbWidth || prev.thumbLeft
+          ? { canScroll: false, thumbWidth: 0, thumbLeft: 0 }
+          : prev
+      );
+      return;
+    }
+    const ratio = clientWidth / scrollWidth;
+    const thumbWidth = Math.max(40, clientWidth * ratio);
+    const maxThumbLeft = clientWidth - thumbWidth;
+    const maxScrollLeft = scrollWidth - clientWidth;
+    const thumbLeft =
+      maxScrollLeft <= 0 ? 0 : (scrollLeft / maxScrollLeft) * maxThumbLeft;
+    thumbWidthRef.current = thumbWidth;
+    setScrollState((prev) =>
+      prev.canScroll === canScroll &&
+      prev.thumbWidth === thumbWidth &&
+      Math.abs(prev.thumbLeft - thumbLeft) < 0.5
+        ? prev
+        : { canScroll: true, thumbWidth, thumbLeft }
+    );
+  }, []);
+
+  useLayoutEffect(() => {
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+    syncThumb();
+    const onScroll = () => syncThumb();
+    viewport.addEventListener("scroll", onScroll, { passive: true });
+    const observer = new ResizeObserver(() => syncThumb());
+    observer.observe(viewport);
+    if (viewport.firstElementChild) observer.observe(viewport.firstElementChild);
+    window.addEventListener("resize", syncThumb);
+    return () => {
+      viewport.removeEventListener("scroll", onScroll);
+      observer.disconnect();
+      window.removeEventListener("resize", syncThumb);
+    };
+  }, [syncThumb]);
+
+  // Re-measure after column/data updates change table width.
+  useLayoutEffect(() => {
+    syncThumb();
+  });
+
+  useEffect(() => {
+    function onMove(event: MouseEvent) {
+      const drag = dragRef.current;
+      const viewport = viewportRef.current;
+      if (!drag || !viewport) return;
+      const thumbWidth = thumbWidthRef.current;
+      const maxScrollLeft = viewport.scrollWidth - viewport.clientWidth;
+      const maxThumbLeft = viewport.clientWidth - thumbWidth;
+      if (maxThumbLeft <= 0 || maxScrollLeft <= 0) return;
+      const deltaX = event.clientX - drag.startX;
+      const nextScroll =
+        drag.startScrollLeft + (deltaX / maxThumbLeft) * maxScrollLeft;
+      viewport.scrollLeft = Math.min(maxScrollLeft, Math.max(0, nextScroll));
+    }
+    function onUp() {
+      dragRef.current = null;
+      document.body.style.removeProperty("cursor");
+      document.body.style.removeProperty("user-select");
+    }
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+  }, []);
+
+  return (
+    <div className="jobs-list-table-scroll">
+      <div ref={viewportRef} className="jobs-list-table-viewport overflow-x-auto">
+        {children}
+      </div>
+      {scrollState.canScroll ? (
+        <div
+          ref={trackRef}
+          className="jobs-list-table-scrollbar-track"
+          onMouseDown={(event) => {
+            const viewport = viewportRef.current;
+            const track = trackRef.current;
+            if (!viewport || !track) return;
+            const trackRect = track.getBoundingClientRect();
+            const clickX = event.clientX - trackRect.left;
+            const thumbWidth = thumbWidthRef.current;
+            const maxScrollLeft = viewport.scrollWidth - viewport.clientWidth;
+            const maxThumbLeft = viewport.clientWidth - thumbWidth;
+            if (maxThumbLeft <= 0) return;
+            const targetLeft = Math.min(
+              maxThumbLeft,
+              Math.max(0, clickX - thumbWidth / 2)
+            );
+            viewport.scrollLeft = (targetLeft / maxThumbLeft) * maxScrollLeft;
+          }}
+        >
+          <div
+            className="jobs-list-table-scrollbar-thumb"
+            style={{
+              width: scrollState.thumbWidth,
+              transform: `translateX(${scrollState.thumbLeft}px)`,
+            }}
+            onMouseDown={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              const viewport = viewportRef.current;
+              if (!viewport) return;
+              dragRef.current = {
+                startX: event.clientX,
+                startScrollLeft: viewport.scrollLeft,
+              };
+              document.body.style.cursor = "pointer";
+              document.body.style.userSelect = "none";
+            }}
+          />
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -289,12 +430,14 @@ function JobsFilterSelect({
   onChange,
   children,
   variant = "inline",
+  placeholder = "All",
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   children: React.ReactNode;
   variant?: "inline" | "grid";
+  placeholder?: string;
 }) {
   const controlClass =
     variant === "grid"
@@ -309,198 +452,129 @@ function JobsFilterSelect({
       className={controlClass}
       style={{ ...CANDIDATES_PAGE_SUBTITLE_STYLE, ...JOBS_FILTER_SELECT_CHEVRON }}
     >
-      <option value="">{label}</option>
+      <option value="">{placeholder}</option>
       {children}
     </select>
   );
 }
 
+function InlineLabeledFilter({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex shrink-0 items-center gap-2">
+      <span className="whitespace-nowrap text-sm font-medium text-[#475569]">{label}:</span>
+      {children}
+    </div>
+  );
+}
+
 type JobsFilterFieldsProps = {
   variant: "grid" | "inline";
-  jobIdFilter: string;
-  onJobIdFilterChange: (value: string) => void;
+  professionFilter: string;
+  onProfessionFilterChange: (value: string) => void;
   statusFilter: string;
   onStatusFilterChange: (value: string) => void;
-  titleFilter: string;
-  onTitleFilterChange: (value: string) => void;
+  placementTypeFilter: string;
+  onPlacementTypeFilterChange: (value: string) => void;
   locationFilter: string;
   onLocationFilterChange: (value: string) => void;
-  assigneeFilter: string;
-  onAssigneeFilterChange: (value: string) => void;
-  postedByFilter: string;
-  onPostedByFilterChange: (value: string) => void;
+  professionOptions: string[];
+  placementTypeOptions: string[];
   locationOptions: string[];
   resultsCount?: number;
   showStarredOnly?: boolean;
   onToggleStarredOnly?: () => void;
 };
 
-function JobsFilterSearchField({
-  label,
-  value,
-  onChange,
-  variant = "inline",
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  variant?: "inline" | "grid";
-}) {
-  return (
-    <input
-      type="search"
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      placeholder={label}
-      aria-label={label}
-      className={variant === "grid" ? JOBS_FILTER_GRID_CONTROL_CLASS : JOBS_FILTER_CONTROL_CLASS}
-      style={CANDIDATES_PAGE_SUBTITLE_STYLE}
-    />
-  );
-}
-
 function JobsFilterFields({
   variant,
-  jobIdFilter,
-  onJobIdFilterChange,
+  professionFilter,
+  onProfessionFilterChange,
   statusFilter,
   onStatusFilterChange,
-  titleFilter,
-  onTitleFilterChange,
+  placementTypeFilter,
+  onPlacementTypeFilterChange,
   locationFilter,
   onLocationFilterChange,
-  assigneeFilter,
-  onAssigneeFilterChange,
-  postedByFilter,
-  onPostedByFilterChange,
+  professionOptions,
+  placementTypeOptions,
   locationOptions,
   resultsCount,
   showStarredOnly = false,
   onToggleStarredOnly,
 }: JobsFilterFieldsProps) {
-  const fields = (
-    <>
-      <JobsFilterSearchField
-        label="Job Id"
-        value={jobIdFilter}
-        onChange={onJobIdFilterChange}
-        variant={variant}
-      />
-      <JobsFilterSelect
-        label="Status"
-        value={statusFilter}
-        onChange={onStatusFilterChange}
-        variant={variant}
-      >
-        <option value="draft">Draft</option>
-        <option value="published">Published</option>
-        <option value="closed">Closed</option>
-        <option value="archived">Archived</option>
-      </JobsFilterSelect>
-      <JobsFilterSearchField
-        label="Title"
-        value={titleFilter}
-        onChange={onTitleFilterChange}
-        variant={variant}
-      />
-      <JobsFilterSelect
-        label="Location"
-        value={locationFilter}
-        onChange={onLocationFilterChange}
-        variant={variant}
-      >
-        {locationOptions.map((location) => (
-          <option key={location} value={location}>
-            {location}
-          </option>
-        ))}
-      </JobsFilterSelect>
-      <JobsFilterSelect
-        label="Assignee"
-        value={assigneeFilter}
-        onChange={onAssigneeFilterChange}
-        variant={variant}
-      >
-        <option value="HR Manager">HR Manager</option>
-      </JobsFilterSelect>
-      <JobsFilterSelect
-        label="Posted by"
-        value={postedByFilter}
-        onChange={onPostedByFilterChange}
-        variant={variant}
-      >
-        <option value="HR Manager">HR Manager</option>
-      </JobsFilterSelect>
-    </>
+  const professionSelect = (
+    <JobsFilterSelect
+      label="Profession"
+      value={professionFilter}
+      onChange={onProfessionFilterChange}
+      variant={variant}
+    >
+      {professionOptions.map((profession) => (
+        <option key={profession} value={profession}>
+          {profession}
+        </option>
+      ))}
+    </JobsFilterSelect>
+  );
+
+  const statusSelect = (
+    <JobsFilterSelect
+      label="Status"
+      value={statusFilter}
+      onChange={onStatusFilterChange}
+      variant={variant}
+    >
+      <option value="draft">Draft</option>
+      <option value="published">Published</option>
+      <option value="closed">Closed</option>
+      <option value="archived">Archived</option>
+    </JobsFilterSelect>
+  );
+
+  const placementTypeSelect = (
+    <JobsFilterSelect
+      label="Placement Type"
+      value={placementTypeFilter}
+      onChange={onPlacementTypeFilterChange}
+      variant={variant}
+    >
+      {placementTypeOptions.map((placementType) => (
+        <option key={placementType} value={placementType}>
+          {placementType}
+        </option>
+      ))}
+    </JobsFilterSelect>
+  );
+
+  const locationSelect = (
+    <JobsFilterSelect
+      label="Location"
+      value={locationFilter}
+      onChange={onLocationFilterChange}
+      variant={variant}
+    >
+      {locationOptions.map((location) => (
+        <option key={location} value={location}>
+          {location}
+        </option>
+      ))}
+    </JobsFilterSelect>
   );
 
   if (variant === "grid") {
     return (
       <div className="space-y-2">
-        <div className="grid grid-cols-1 gap-5 rounded-lg border border-[#E8EEEC] bg-[#F8FAFC] p-2.5 min-[600px]:grid-cols-2 lg:grid-cols-3">
-          <CompactFilterField label="Job Id">
-            <JobsFilterSearchField
-              label="Job Id"
-              value={jobIdFilter}
-              onChange={onJobIdFilterChange}
-              variant="grid"
-            />
-          </CompactFilterField>
-          <CompactFilterField label="Status">
-            <JobsFilterSelect
-              label="Status"
-              value={statusFilter}
-              onChange={onStatusFilterChange}
-              variant="grid"
-            >
-              <option value="draft">Draft</option>
-              <option value="published">Published</option>
-              <option value="closed">Closed</option>
-              <option value="archived">Archived</option>
-            </JobsFilterSelect>
-          </CompactFilterField>
-          <CompactFilterField label="Title">
-            <JobsFilterSearchField
-              label="Title"
-              value={titleFilter}
-              onChange={onTitleFilterChange}
-              variant="grid"
-            />
-          </CompactFilterField>
-          <CompactFilterField label="Location">
-            <JobsFilterSelect
-              label="Location"
-              value={locationFilter}
-              onChange={onLocationFilterChange}
-              variant="grid"
-            >
-              {locationOptions.map((location) => (
-                <option key={location} value={location}>
-                  {location}
-                </option>
-              ))}
-            </JobsFilterSelect>
-          </CompactFilterField>
-          <CompactFilterField label="Assignee">
-            <JobsFilterSelect
-              label="Assignee"
-              value={assigneeFilter}
-              onChange={onAssigneeFilterChange}
-              variant="grid"
-            >
-              <option value="HR Manager">HR Manager</option>
-            </JobsFilterSelect>
-          </CompactFilterField>
-          <CompactFilterField label="Posted by">
-            <JobsFilterSelect
-              label="Posted by"
-              value={postedByFilter}
-              onChange={onPostedByFilterChange}
-              variant="grid"
-            >
-              <option value="HR Manager">HR Manager</option>
-            </JobsFilterSelect>
-          </CompactFilterField>
+        <div className="grid grid-cols-1 gap-5 rounded-lg border border-[#E8EEEC] bg-[#F8FAFC] p-2.5 min-[600px]:grid-cols-2 lg:grid-cols-4">
+          <CompactFilterField label="Profession">{professionSelect}</CompactFilterField>
+          <CompactFilterField label="Status">{statusSelect}</CompactFilterField>
+          <CompactFilterField label="Placement Type">{placementTypeSelect}</CompactFilterField>
+          <CompactFilterField label="Location">{locationSelect}</CompactFilterField>
         </div>
         {/* Hidden below 450px — shown centered in the mobile toolbar instead.
             Centered on tablet/mobile ≥450px; desktop keeps it inline in the filters row. */}
@@ -554,7 +628,10 @@ function JobsFilterFields({
 
   return (
     <div className="flex min-w-0 items-center gap-5">
-      {fields}
+      <InlineLabeledFilter label="Profession">{professionSelect}</InlineLabeledFilter>
+      <InlineLabeledFilter label="Status">{statusSelect}</InlineLabeledFilter>
+      <InlineLabeledFilter label="Placement Type">{placementTypeSelect}</InlineLabeledFilter>
+      <InlineLabeledFilter label="Location">{locationSelect}</InlineLabeledFilter>
       {typeof resultsCount === "number" ? (
         <div className="flex shrink-0 items-center gap-5">
           <button
@@ -852,12 +929,10 @@ export default function AdminRecruiterJobsPage() {
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
-  const [jobIdFilter, setJobIdFilter] = useState("");
+  const [professionFilter, setProfessionFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
-  const [titleFilter, setTitleFilter] = useState("");
+  const [placementTypeFilter, setPlacementTypeFilter] = useState("");
   const [locationFilter, setLocationFilter] = useState("");
-  const [assigneeFilter, setAssigneeFilter] = useState("");
-  const [postedByFilter, setPostedByFilter] = useState("");
   const [sortField, setSortField] = useState<JobSortField | null>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
 
@@ -906,12 +981,10 @@ export default function AdminRecruiterJobsPage() {
     setPage(1);
   }, [
     jobTab,
-    jobIdFilter,
+    professionFilter,
     statusFilter,
-    titleFilter,
+    placementTypeFilter,
     locationFilter,
-    assigneeFilter,
-    postedByFilter,
     showStarredOnly,
     pageSize,
   ]);
@@ -982,19 +1055,13 @@ export default function AdminRecruiterJobsPage() {
 
       if (showStarredOnly && !starredIds.has(job.id)) return false;
 
-      const idQuery = jobIdFilter.trim().toLowerCase();
-      if (idQuery && !jobDisplayId(job).toLowerCase().includes(idQuery)) return false;
+      if (professionFilter && jobProfession(job) !== professionFilter) return false;
 
       if (statusFilter && job.status !== statusFilter) return false;
 
-      const titleQuery = titleFilter.trim().toLowerCase();
-      if (titleQuery && !(job.public_title || "").toLowerCase().includes(titleQuery)) return false;
+      if (placementTypeFilter && jobShiftType(job) !== placementTypeFilter) return false;
 
       if (locationFilter && jobLocation(job) !== locationFilter) return false;
-
-      if (assigneeFilter && assigneeFilter !== "HR Manager") return false;
-
-      if (postedByFilter && postedByFilter !== "HR Manager") return false;
 
       return true;
     });
@@ -1003,12 +1070,10 @@ export default function AdminRecruiterJobsPage() {
     jobTab,
     showStarredOnly,
     starredIds,
-    jobIdFilter,
+    professionFilter,
     statusFilter,
-    titleFilter,
+    placementTypeFilter,
     locationFilter,
-    assigneeFilter,
-    postedByFilter,
   ]);
 
   const sortedJobs = useMemo(() => {
@@ -1124,6 +1189,24 @@ export default function AdminRecruiterJobsPage() {
     }
   }
 
+  const professionOptions = useMemo(() => {
+    const values = new Set<string>();
+    for (const job of jobs) {
+      const profession = jobProfession(job);
+      if (profession) values.add(profession);
+    }
+    return Array.from(values).sort((a, b) => a.localeCompare(b));
+  }, [jobs]);
+
+  const placementTypeOptions = useMemo(() => {
+    const values = new Set<string>();
+    for (const job of jobs) {
+      const placementType = jobShiftType(job);
+      if (placementType) values.add(placementType);
+    }
+    return Array.from(values).sort((a, b) => a.localeCompare(b));
+  }, [jobs]);
+
   const locationOptions = useMemo(() => {
     const values = new Set<string>();
     for (const job of jobs) {
@@ -1136,12 +1219,10 @@ export default function AdminRecruiterJobsPage() {
   const listColumns = listColumnOrder.length ? listColumnOrder : DEFAULT_JOB_COLUMNS;
 
   const hasActiveFilters = Boolean(
-    jobIdFilter ||
+    professionFilter ||
       statusFilter ||
-      titleFilter ||
+      placementTypeFilter ||
       locationFilter ||
-      assigneeFilter ||
-      postedByFilter ||
       showStarredOnly
   );
 
@@ -1326,18 +1407,16 @@ export default function AdminRecruiterJobsPage() {
           {showFilterRows ? (
             <JobsFilterFields
               variant="grid"
-              jobIdFilter={jobIdFilter}
-              onJobIdFilterChange={setJobIdFilter}
+              professionFilter={professionFilter}
+              onProfessionFilterChange={setProfessionFilter}
               statusFilter={statusFilter}
               onStatusFilterChange={setStatusFilter}
-              titleFilter={titleFilter}
-              onTitleFilterChange={setTitleFilter}
+              placementTypeFilter={placementTypeFilter}
+              onPlacementTypeFilterChange={setPlacementTypeFilter}
               locationFilter={locationFilter}
               onLocationFilterChange={setLocationFilter}
-              assigneeFilter={assigneeFilter}
-              onAssigneeFilterChange={setAssigneeFilter}
-              postedByFilter={postedByFilter}
-              onPostedByFilterChange={setPostedByFilter}
+              professionOptions={professionOptions}
+              placementTypeOptions={placementTypeOptions}
               locationOptions={locationOptions}
               resultsCount={filteredJobs.length}
               showStarredOnly={showStarredOnly}
@@ -1392,18 +1471,16 @@ export default function AdminRecruiterJobsPage() {
             <div className="flex w-full shrink-0 items-center gap-3 overflow-x-auto border-b border-[#E5E7EB] px-[14px] py-3 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
               <JobsFilterFields
                 variant="inline"
-                jobIdFilter={jobIdFilter}
-                onJobIdFilterChange={setJobIdFilter}
+                professionFilter={professionFilter}
+                onProfessionFilterChange={setProfessionFilter}
                 statusFilter={statusFilter}
                 onStatusFilterChange={setStatusFilter}
-                titleFilter={titleFilter}
-                onTitleFilterChange={setTitleFilter}
+                placementTypeFilter={placementTypeFilter}
+                onPlacementTypeFilterChange={setPlacementTypeFilter}
                 locationFilter={locationFilter}
                 onLocationFilterChange={setLocationFilter}
-                assigneeFilter={assigneeFilter}
-                onAssigneeFilterChange={setAssigneeFilter}
-                postedByFilter={postedByFilter}
-                onPostedByFilterChange={setPostedByFilter}
+                professionOptions={professionOptions}
+                placementTypeOptions={placementTypeOptions}
                 locationOptions={locationOptions}
                 resultsCount={filteredJobs.length}
                 showStarredOnly={showStarredOnly}
@@ -1419,7 +1496,7 @@ export default function AdminRecruiterJobsPage() {
           </div>
         ) : null}
 
-        <div className="overflow-x-auto">
+        <JobsListScrollArea>
           <table className="w-max min-w-full border-collapse text-left text-sm">
             <thead className="border-b border-[#E5E7EB] bg-[#F8FAFC] text-xs font-medium uppercase tracking-wide text-[#64748B]">
               <tr>
@@ -1506,7 +1583,7 @@ export default function AdminRecruiterJobsPage() {
               )}
             </tbody>
           </table>
-        </div>
+        </JobsListScrollArea>
 
         <div className="flex flex-col gap-3 rounded-b-[12px] border-t border-[#E5E7EB] bg-white px-3 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-4">
           <p className="text-sm text-[#64748B]">

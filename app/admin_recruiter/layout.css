@@ -172,6 +172,43 @@
   background-color: #e5e7eb;
 }
 
+/* Jobs list table — custom horizontal scrollbar (pointer cursor on hover) */
+.jobs-list-table-scroll {
+  width: 100%;
+}
+
+.jobs-list-table-viewport {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.jobs-list-table-viewport::-webkit-scrollbar {
+  display: none;
+  height: 0;
+}
+
+.jobs-list-table-scrollbar-track {
+  position: relative;
+  height: 8px;
+  margin: 1px 0;
+  cursor: pointer;
+  background: transparent;
+}
+
+.jobs-list-table-scrollbar-thumb {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 8px;
+  border-radius: 999px;
+  background-color: #cbd5e1;
+  cursor: pointer;
+}
+
+.jobs-list-table-scrollbar-thumb:hover {
+  background-color: #94a3b8;
+}
+
 /* Schedule / calendar week view — thin 4px scrollbar */
 .schedule-calendar-scroll {
   scrollbar-width: thin;

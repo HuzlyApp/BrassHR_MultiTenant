@@ -4,6 +4,7 @@ import { Info, Loader2, Sparkles } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import toast from "react-hot-toast";
+import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
 import {
   JOB_FORM_LABEL_CLASS,
   JOB_FORM_OUTLINE_BUTTON_CLASS,
@@ -251,16 +252,17 @@ export function JobDescriptionWithAiSuggest({
       </div>
 
       <div className="flex flex-col gap-3 rounded-xl border border-[color:color-mix(in_srgb,var(--brand-primary)_35%,#F8E7C8)] bg-[color:color-mix(in_srgb,var(--brand-primary)_8%,#FFFBF5)] px-4 py-3 min-[700px]:flex-row min-[700px]:items-center min-[700px]:justify-between min-[700px]:gap-4">
-        <div className="flex min-w-0 items-start gap-3">
-          <span
-            className="mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-[color:var(--brand-primary)] shadow-sm"
-            aria-hidden
-          >
-            <Sparkles className="h-4 w-4" strokeWidth={2} />
-          </span>
+        <div className="flex min-w-0 items-center gap-3">
+          <BrandedSvgIcon
+            src="/AI-job-decription-icon.svg"
+            className="h-[42px] w-[42px]"
+            color="var(--brand-primary)"
+          />
           <div className="min-w-0">
-            <p className="text-sm font-semibold text-[#1D2739]">Improve your job description</p>
-            <p className="mt-0.5 text-sm leading-5 text-[#64748B]">
+            <p className="text-base font-semibold leading-6 text-[#1D2739]">
+              Improve your job description
+            </p>
+            <p className="mt-0.5 text-sm leading-5 text-[#667085]">
               Add more details like skills and credentials, and we&apos;ll rewrite your job
               description.
             </p>

@@ -222,6 +222,7 @@ export function JobReviewEditModal({
           </div>
 
           <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-8 pt-3">
+            {/* Job ID hidden for now
             {field === "jobId" ? (
               <div>
                 <label className={JOB_FORM_LABEL_CLASS} htmlFor="review-edit-job-id">
@@ -235,6 +236,7 @@ export function JobReviewEditModal({
                 />
               </div>
             ) : null}
+            */}
 
             {field === "jobTitle" ? (
               <div>
@@ -371,7 +373,7 @@ export function JobReviewEditModal({
             {field === "jobLocationType" ? (
               <div>
                 <label className={JOB_FORM_LABEL_CLASS} htmlFor="review-edit-location-type">
-                  Job Location Type
+                  Placement type
                 </label>
                 <select
                   id="review-edit-location-type"
@@ -380,7 +382,7 @@ export function JobReviewEditModal({
                   value={draft.ui.jobLocationType}
                   onChange={(event) => patchUi({ jobLocationType: event.target.value })}
                 >
-                  <option value="">Select Job Location Type</option>
+                  <option value="">Select Placement type</option>
                   {JOB_FORM_LOCATION_TYPES.map((value) => (
                     <option key={value} value={value}>
                       {value}

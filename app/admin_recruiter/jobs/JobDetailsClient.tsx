@@ -12,7 +12,11 @@ import {
 import { ChevronDown, MoreVertical } from "lucide-react";
 import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
-import { JobDescriptionHtml } from "@/lib/jobs/job-description-html";
+import {
+  JobDescriptionHtml,
+  ensureJobDescriptionBulletLists,
+  stripJobDescriptionBenefitsSection,
+} from "@/lib/jobs/job-description-html";
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
 import type { JobStatus } from "@/lib/jobs/types";
 import {
@@ -37,7 +41,6 @@ import {
   type JobDetailsStats,
   type StatusTransitionAction,
 } from "./job-details-helpers";
-import { JobPublicViewLink } from "./JobPublicViewLink";
 
 const STATUS_OPTIONS: JobStatus[] = ["published", "draft", "closed", "archived"];
 
@@ -68,9 +71,9 @@ function BrandBackIcon({ className = "", flip = false }: { className?: string; f
 function SummaryList({ title, items }: { title: string; items: string[] }) {
   if (!items.length) return null;
   return (
-    <section className="mt-6">
+    <section className="mt-8">
       <h3 className="text-base font-semibold text-[#1D2739]">{title}</h3>
-      <ul className="mt-2 list-disc space-y-1.5 pl-5 text-sm leading-6 text-[#334155]">
+      <ul className="mt-2 list-disc space-y-1.5 pl-5 text-sm leading-6 text-[#667085]">
         {items.map((item) => (
           <li key={`${title}-${item}`}>{item}</li>
         ))}
@@ -228,7 +231,10 @@ export default function JobDetailsClient({ jobId }: Props) {
   );
   const benefits = useMemo(() => splitJobListContent(job?.benefits), [job?.benefits]);
   const workLocation = job ? formatWorkLocationLabel(job) : "—";
-  const summaryHtml = job?.public_description?.trim() || "";
+  const summaryHtml = useMemo(() => {
+    const raw = job?.public_description?.trim() || "";
+    return ensureJobDescriptionBulletLists(stripJobDescriptionBenefitsSection(raw));
+  }, [job?.public_description]);
 
   const performanceMetrics = [
     { value: String(stats?.impressions ?? 0), label: "Impressions" },
@@ -271,10 +277,6 @@ export default function JobDetailsClient({ jobId }: Props) {
                   <h1 className="min-w-0 text-[20px] font-semibold leading-7 text-black">
                     {title}
                   </h1>
-                  <JobPublicViewLink
-                    href={publicJobPath}
-                    className="mt-0.5"
-                  />
                 </div>
                 <p className="mt-1.5 text-sm text-[#374151]">
                   Location: {location}
@@ -535,10 +537,88 @@ export default function JobDetailsClient({ jobId }: Props) {
                 </p>
 
                 <section className="mt-6">
-                  <h3 className="text-base font-semibold text-[#1D2739]">Job Summary</h3>
+                  <h3 className="mb-4 text-base font-semibold text-[#1D2739]">Job Summary</h3>
+                  <style>{`
+                    .job-summary-description.job-description-html > :first-child {
+                      margin-top: 0 !important;
+                    }
+                    .job-summary-description.job-description-html h2,
+                    .job-summary-description.job-description-html h3,
+                    .job-summary-description.job-description-html h4 {
+                      margin-top: 2rem;
+                      margin-bottom: 0.5rem;
+                      font-size: 1rem;
+                      line-height: 1.5rem;
+                      font-weight: 600;
+                      color: #1D2739;
+                    }
+                    .job-summary-description.job-description-html h2 strong,
+                    .job-summary-description.job-description-html h2 b,
+                    .job-summary-description.job-description-html h3 strong,
+                    .job-summary-description.job-description-html h3 b,
+                    .job-summary-description.job-description-html h4 strong,
+                    .job-summary-description.job-description-html h4 b {
+                      font-weight: 600;
+                    }
+                    .job-summary-description.job-description-html p,
+                    .job-summary-description.job-description-html ul,
+                    .job-summary-description.job-description-html ol {
+                      margin-top: 0;
+                      margin-bottom: 0;
+                      color: #667085;
+                      font-size: 0.875rem;
+                      line-height: 1.5rem;
+                    }
+                    .job-summary-description.job-description-html ul {
+                      list-style-type: disc;
+                      list-style-position: outside;
+                      padding-left: 1.25rem;
+                      margin-top: 0.25rem;
+                    }
+                    .job-summary-description.job-description-html ol {
+                      list-style-type: decimal;
+                      list-style-position: outside;
+                      padding-left: 1.25rem;
+                      margin-top: 0.25rem;
+                    }
+                    .job-summary-description.job-description-html li {
+                      display: list-item;
+                      margin-top: 0.25rem;
+                      margin-bottom: 0.25rem;
+                      color: #667085;
+                    }
+                    .job-summary-description.job-description-html p + h2,
+                    .job-summary-description.job-description-html p + h3,
+                    .job-summary-description.job-description-html p + h4,
+                    .job-summary-description.job-description-html ul + h2,
+                    .job-summary-description.job-description-html ul + h3,
+                    .job-summary-description.job-description-html ul + h4,
+                    .job-summary-description.job-description-html ol + h2,
+                    .job-summary-description.job-description-html ol + h3,
+                    .job-summary-description.job-description-html ol + h4 {
+                      margin-top: 2rem;
+                    }
+                    .job-summary-description.job-description-html p:has(> strong:only-child),
+                    .job-summary-description.job-description-html p:has(> b:only-child) {
+                      margin-top: 2rem;
+                      margin-bottom: 0.5rem;
+                      font-size: 1rem;
+                      line-height: 1.5rem;
+                      font-weight: 600;
+                      color: #1D2739;
+                    }
+                    .job-summary-description.job-description-html p:has(> strong:only-child) > strong,
+                    .job-summary-description.job-description-html p:has(> b:only-child) > b {
+                      font-weight: 600;
+                    }
+                    .job-summary-description.job-description-html > p:has(> strong:only-child):first-child,
+                    .job-summary-description.job-description-html > p:has(> b:only-child):first-child {
+                      margin-top: 0;
+                    }
+                  `}</style>
                   <JobDescriptionHtml
                     html={summaryHtml}
-                    className="mt-2 text-sm leading-6 text-[#334155]"
+                    className="job-summary-description text-sm leading-6 text-[#667085]"
                     emptyLabel="No job summary added yet."
                   />
                 </section>
@@ -548,17 +628,17 @@ export default function JobDetailsClient({ jobId }: Props) {
                 <SummaryList title="Preferred Skills" items={preferredSkills} />
 
                 {benefits.length ? (
-                  <section className="mt-6">
+                  <section className="mt-8">
                     <h3 className="text-base font-semibold text-[#1D2739]">Benefits</h3>
-                    <p className="mt-2 text-sm leading-6 text-[#334155]">
+                    <p className="mt-2 text-sm leading-6 text-[#667085]">
                       {benefits.join(", ")}
                     </p>
                   </section>
                 ) : null}
 
-                <section className="mt-6">
+                <section className="mt-8">
                   <h3 className="text-base font-semibold text-[#1D2739]">Work Location</h3>
-                  <p className="mt-2 text-sm leading-6 text-[#334155]">{workLocation}</p>
+                  <p className="mt-2 text-sm leading-6 text-[#667085]">{workLocation}</p>
                 </section>
               </div>
             </section>

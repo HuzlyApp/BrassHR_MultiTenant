@@ -249,6 +249,7 @@ export function JobFormStepRequisition({
     <div className="flex flex-1 flex-col">
       <div className={`${JOB_FORM_FIELDS_CLASS} flex-1`}>
         <div className="grid gap-4 min-[700px]:grid-cols-2">
+          {/* Job ID hidden for now
           <div>
             <label className={JOB_FORM_LABEL_CLASS} htmlFor="job-id">
               Job ID
@@ -262,7 +263,8 @@ export function JobFormStepRequisition({
             />
             <FieldError error={fieldErrors.internalRequisitionNumber} />
           </div>
-          <div>
+          */}
+          <div className="min-[700px]:col-span-2">
             <label className={JOB_FORM_LABEL_CLASS} htmlFor="job-title">
               Job Title
             </label>
@@ -423,7 +425,7 @@ export function JobFormStepRequisition({
 
         <div>
           <label className={JOB_FORM_LABEL_CLASS} htmlFor="job-location-type">
-            Job Location Type
+            Placement type
           </label>
           <select
             id="job-location-type"
@@ -432,7 +434,7 @@ export function JobFormStepRequisition({
             value={ui.jobLocationType}
             onChange={(event) => onUiChange({ jobLocationType: event.target.value })}
           >
-            <option value="">Select Job Location Type</option>
+            <option value="">Select Placement type</option>
             {JOB_FORM_LOCATION_TYPES.map((value) => (
               <option key={value} value={value}>
                 {value}
@@ -1468,11 +1470,13 @@ export function JobFormStepReview({
         <h2 className={JOB_FORM_SECTION_TITLE_CLASS}>Job Details</h2>
       </div>
 
+      {/* Job ID hidden for now
       <ReviewRow
         label="Job ID"
         value={job.internalRequisitionNumber ?? ""}
         onEdit={() => onEditField("jobId")}
       />
+      */}
       <ReviewRow label="Job Title" value={job.publicTitle ?? ""} onEdit={() => onEditField("jobTitle")} />
       <ReviewRow label="Profession" value={professionName} readOnly />
       <ReviewRow
@@ -1488,7 +1492,7 @@ export function JobFormStepReview({
         addLabel="optional job information"
         onEdit={() => onEditField("additionalLocation")}
       />
-      <ReviewRow label="Job Location Type" value={ui.jobLocationType} onEdit={() => onEditField("jobLocationType")} />
+      <ReviewRow label="Placement type" value={ui.jobLocationType} onEdit={() => onEditField("jobLocationType")} />
       <ReviewRow
         label="Number of Positions"
         value={ui.numberOfPositions > 0 ? String(ui.numberOfPositions) : ""}
@@ -1507,7 +1511,7 @@ export function JobFormStepReview({
         lockedNotice={{ tooltip: REVIEW_LOCKED_EMPLOYMENT_TYPE_TOOLTIP }}
       />
       <ReviewRow
-        label="Job type"
+        label="Employment Type"
         value={job.shiftType ?? ""}
         onEdit={() => onEditField("jobType")}
       />

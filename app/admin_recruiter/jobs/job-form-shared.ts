@@ -82,7 +82,7 @@ export const JOB_FORM_YEARS_OF_EXPERIENCE = [
 ] as const;
 export const JOB_FORM_SHIFT_TYPES = ["Day", "Evening", "Night", "Rotating", "PRN"] as const;
 
-/** Figma create-job "Job type" chips (stored in job_requisitions.shift_type). */
+/** Figma create-job "Employment Type" chips (stored in job_requisitions.shift_type). */
 export const JOB_FORM_JOB_TYPES = [
   "Permanent",
   "Paid-time",

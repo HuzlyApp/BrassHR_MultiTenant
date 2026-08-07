@@ -2,8 +2,13 @@
 
 import * as Dialog from "@radix-ui/react-dialog";
 import { Check, X } from "lucide-react";
-import type { CSSProperties } from "react";
+import { useMemo, type CSSProperties } from "react";
 import type { JobRequisitionInput } from "@/lib/jobs/types";
+import { boldJobDescriptionSectionTitles } from "@/lib/jobs/generate-job-description/sanitize-html";
+import {
+  ensureJobDescriptionBulletLists,
+  stripJobDescriptionBenefitsSection,
+} from "@/lib/jobs/job-description-html";
 import {
   formatPaySummary,
   JOB_FORM_OUTLINE_BUTTON_CLASS,
@@ -13,6 +18,14 @@ import {
 import { JobDescriptionHtml } from "./JobDescriptionEditor";
 
 const JOB_POST_PREVIEW_ICON_SRC = "/job-post-preview-icon.svg";
+
+function formatPreviewDescriptionHtml(raw: string): string {
+  const trimmed = raw.trim();
+  if (!trimmed) return "";
+  return ensureJobDescriptionBulletLists(
+    boldJobDescriptionSectionTitles(stripJobDescriptionBenefitsSection(trimmed))
+  );
+}
 
 type Props = {
   open: boolean;
@@ -37,7 +50,10 @@ export function JobPostPreviewModal({
   const location = job.location?.trim() || "Location not set";
   const locationType = ui.jobLocationType?.trim() || "";
   const locationLine = [locationType, location].filter(Boolean).join(" · ");
-  const description = job.publicDescription?.trim() || "";
+  const descriptionHtml = useMemo(
+    () => formatPreviewDescriptionHtml(job.publicDescription ?? ""),
+    [job.publicDescription]
+  );
   const compensationLabel = [ui.compensationType, ui.currency].filter(Boolean).join(", ");
   const paySummary = formatPaySummary(job, ui);
   const showCompensation = Boolean(compensationLabel || (paySummary !== "—" && paySummary));
@@ -164,9 +180,87 @@ export function JobPostPreviewModal({
               ) : null}
 
               <div className="mt-4 max-h-[min(280px,40dvh)] overflow-y-auto pr-1 min-[700px]:max-h-[280px]">
+                <style>{`
+                  .job-preview-description.job-description-html > :first-child {
+                    margin-top: 0 !important;
+                  }
+                  .job-preview-description.job-description-html h2,
+                  .job-preview-description.job-description-html h3,
+                  .job-preview-description.job-description-html h4 {
+                    margin-top: 1.5rem;
+                    margin-bottom: 0.5rem;
+                    font-size: 0.875rem;
+                    line-height: 1.5rem;
+                    font-weight: 600;
+                    color: #1D2739;
+                  }
+                  .job-preview-description.job-description-html h2 strong,
+                  .job-preview-description.job-description-html h2 b,
+                  .job-preview-description.job-description-html h3 strong,
+                  .job-preview-description.job-description-html h3 b,
+                  .job-preview-description.job-description-html h4 strong,
+                  .job-preview-description.job-description-html h4 b {
+                    font-weight: 600;
+                  }
+                  .job-preview-description.job-description-html p,
+                  .job-preview-description.job-description-html ul,
+                  .job-preview-description.job-description-html ol {
+                    margin-top: 0;
+                    margin-bottom: 0;
+                    color: #667085;
+                    font-size: 0.875rem;
+                    line-height: 1.5rem;
+                  }
+                  .job-preview-description.job-description-html ul {
+                    list-style-type: disc;
+                    list-style-position: outside;
+                    padding-left: 1.25rem;
+                    margin-top: 0.25rem;
+                  }
+                  .job-preview-description.job-description-html ol {
+                    list-style-type: decimal;
+                    list-style-position: outside;
+                    padding-left: 1.25rem;
+                    margin-top: 0.25rem;
+                  }
+                  .job-preview-description.job-description-html li {
+                    display: list-item;
+                    margin-top: 0.25rem;
+                    margin-bottom: 0.25rem;
+                    color: #667085;
+                  }
+                  .job-preview-description.job-description-html p + h2,
+                  .job-preview-description.job-description-html p + h3,
+                  .job-preview-description.job-description-html p + h4,
+                  .job-preview-description.job-description-html ul + h2,
+                  .job-preview-description.job-description-html ul + h3,
+                  .job-preview-description.job-description-html ul + h4,
+                  .job-preview-description.job-description-html ol + h2,
+                  .job-preview-description.job-description-html ol + h3,
+                  .job-preview-description.job-description-html ol + h4 {
+                    margin-top: 1.5rem;
+                  }
+                  .job-preview-description.job-description-html p:has(> strong:only-child),
+                  .job-preview-description.job-description-html p:has(> b:only-child) {
+                    margin-top: 1.5rem;
+                    margin-bottom: 0.5rem;
+                    font-size: 0.875rem;
+                    line-height: 1.5rem;
+                    font-weight: 600;
+                    color: #1D2739;
+                  }
+                  .job-preview-description.job-description-html p:has(> strong:only-child) > strong,
+                  .job-preview-description.job-description-html p:has(> b:only-child) > b {
+                    font-weight: 600;
+                  }
+                  .job-preview-description.job-description-html > p:has(> strong:only-child):first-child,
+                  .job-preview-description.job-description-html > p:has(> b:only-child):first-child {
+                    margin-top: 0;
+                  }
+                `}</style>
                 <JobDescriptionHtml
-                  html={description}
-                  className="mt-0"
+                  html={descriptionHtml}
+                  className="job-preview-description mt-0"
                   emptyLabel="No description added yet."
                 />
               </div>

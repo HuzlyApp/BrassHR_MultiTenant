@@ -7,8 +7,9 @@ import {
 import type { JobColumnId } from "./job-columns";
 import {
   applicantCount,
-  jobDisplayId,
+  formatJobListPayRateText,
   jobLocation,
+  jobPlacementType,
   jobStatusSortLabel,
   newApplicantCount,
   type JobListRow,
@@ -30,7 +31,7 @@ const JOB_EXPORT_COLUMN_BUILDERS: Partial<
   Record<JobColumnId, ExportColumn<JobListRow> | ExportColumn<JobListRow>[]>
 > = {
   jobTitle: { header: "Job Title", value: (row) => row.public_title?.trim() || "" },
-  jobId: { header: "Job Id", value: (row) => jobDisplayId(row) },
+  // jobId: { header: "Job Id", value: (row) => jobDisplayId(row) }, // Job ID hidden for now
   candidates: [
     { header: "Applicants (All)", value: (row) => applicantCount(row) },
     { header: "Applicants (New)", value: (row) => newApplicantCount(row) },
@@ -44,10 +45,22 @@ const JOB_EXPORT_COLUMN_BUILDERS: Partial<
     header: "Job Status",
     value: (row) => jobStatusSortLabel(row.status),
   },
+  payRate: {
+    header: "Pay Rate",
+    value: (row) => formatJobListPayRateText(row),
+  },
   location: { header: "Location", value: (row) => jobLocation(row) },
+  placementType: {
+    header: "Placement type",
+    value: (row) => jobPlacementType(row),
+  },
   employmentType: {
-    header: "Employment Type",
+    header: "W2 / 1099",
     value: (row) => row.employment_type || "",
+  },
+  jobType: {
+    header: "Employment Type",
+    value: (row) => row.shift_type?.trim() || "",
   },
   profession: {
     header: "Profession",
@@ -79,12 +92,15 @@ const SOURCE_TYPE_COLUMN: ExportColumn<JobListRow> = {
 
 const DEFAULT_EXPORT_COLUMN_IDS: JobColumnId[] = [
   "jobTitle",
-  "jobId",
+  // "jobId", // Job ID hidden for now
+  "jobType",
   "employmentType",
   "profession",
   "specialty",
   "location",
+  "placementType",
   "jobStatus",
+  "payRate",
   "datePosted",
   "candidates",
   "assignee",

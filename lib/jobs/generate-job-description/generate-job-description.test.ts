@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { buildJobRequisitionJson } from "@/lib/jobs/generate-job-description/prompts";
 import { generateJobDescriptionRequestSchema } from "@/lib/jobs/generate-job-description/schema";
 import {
+  boldJobDescriptionSectionTitles,
   htmlToPlainText,
   sanitizeJobDescriptionHtml,
 } from "@/lib/jobs/generate-job-description/sanitize-html";
@@ -44,6 +45,18 @@ describe("sanitizeJobDescriptionHtml", () => {
     const plain = htmlToPlainText("<h3>About the Role</h3><p>Lead care.<br>More</p>");
     expect(plain).toContain("About the Role");
     expect(plain).toContain("Lead care.");
+  });
+
+  it("bolds known section titles without changing body copy", () => {
+    const input =
+      "<p>About the Role</p><p>Lead care.</p><h3>Key Responsibilities</h3><ul><li>Assist patients</li></ul><p>Required Qualifications</p><p>CNA license</p>";
+    const bolded = boldJobDescriptionSectionTitles(input);
+    expect(bolded).toContain("<p><strong>About the Role</strong></p>");
+    expect(bolded).toContain("<h3><strong>Key Responsibilities</strong></h3>");
+    expect(bolded).toContain("<p><strong>Required Qualifications</strong></p>");
+    expect(bolded).toContain("<p>Lead care.</p>");
+    expect(bolded).toContain("<li>Assist patients</li>");
+    expect(bolded).toContain("<p>CNA license</p>");
   });
 });
 

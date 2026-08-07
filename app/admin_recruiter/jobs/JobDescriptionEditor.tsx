@@ -1,13 +1,17 @@
 "use client";
 
 import { Bold, HelpCircle, Italic, List, Trash2 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 type Props = {
   value: string;
   onChange: (value: string) => void;
   error?: string;
 };
+
+const JOB_DESCRIPTION_HELP_MESSAGE =
+  "Select text, then use Bold, Italic, or Bullet list to format your job description. Clear removes all content so you can start over.";
 
 function looksLikeHtml(value: string): boolean {
   return /<\/?[a-z][\s\S]*>/i.test(value);
@@ -46,6 +50,80 @@ function stripHtml(value: string): string {
 
 export function jobDescriptionPlainText(value: string): string {
   return stripHtml(value ?? "");
+}
+
+function JobDescriptionHelpButton({ message }: { message: string }) {
+  const [open, setOpen] = useState(false);
+  const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    if (!open || !buttonRef.current) {
+      setPosition(null);
+      return;
+    }
+    const rect = buttonRef.current.getBoundingClientRect();
+    const width = 280;
+    const gap = 8;
+    // Prefer opening to the right of the icon; fall back left if needed.
+    let left = rect.right + gap;
+    if (left + width > window.innerWidth - 12) {
+      left = Math.max(12, rect.left - width - gap);
+    }
+    const top = Math.max(12, Math.min(rect.top, window.innerHeight - 120));
+    setPosition({ top, left });
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const handlePointerDown = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (buttonRef.current?.contains(target)) return;
+      if (popoverRef.current?.contains(target)) return;
+      setOpen(false);
+    };
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleEscape);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [open]);
+
+  return (
+    <>
+      <button
+        ref={buttonRef}
+        type="button"
+        onMouseDown={(event) => event.preventDefault()}
+        onClick={() => setOpen((current) => !current)}
+        className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-md text-[#94A3B8] transition hover:bg-white hover:text-[#64748B]"
+        aria-label="Job description formatting help"
+        aria-expanded={open}
+        aria-describedby={open ? "job-description-help-popover" : undefined}
+      >
+        <HelpCircle className="h-4 w-4" />
+      </button>
+      {open && position && typeof document !== "undefined"
+        ? createPortal(
+            <div
+              ref={popoverRef}
+              id="job-description-help-popover"
+              role="tooltip"
+              style={{ position: "fixed", top: position.top, left: position.left, zIndex: 200 }}
+              className="w-[280px] rounded-lg border border-[#E5E7EB] bg-white px-3 py-2.5 text-left text-xs leading-5 text-[#475569] shadow-lg"
+            >
+              {message}
+            </div>,
+            document.body
+          )
+        : null}
+    </>
+  );
 }
 
 export function JobDescriptionEditor({ value, onChange, error }: Props) {
@@ -102,7 +180,7 @@ export function JobDescriptionEditor({ value, onChange, error }: Props) {
     onChange("");
   }
 
-  const tools = [
+  const formatTools = [
     {
       icon: Italic,
       label: "Italic",
@@ -118,18 +196,13 @@ export function JobDescriptionEditor({ value, onChange, error }: Props) {
       label: "Bullet list",
       onClick: () => runCommand("insertUnorderedList"),
     },
-    {
-      icon: Trash2,
-      label: "Clear description",
-      onClick: clearDescription,
-    },
   ] as const;
 
   return (
     <div>
       <div className="overflow-hidden rounded-lg border border-[#CBD5E1]">
         <div className="flex flex-wrap items-center gap-1 border-b border-[#E5E7EB] bg-[#F8FAFC] px-2 py-2">
-          {tools.map(({ icon: Icon, label, onClick }) => (
+          {formatTools.map(({ icon: Icon, label, onClick }) => (
             <button
               key={label}
               type="button"
@@ -142,13 +215,19 @@ export function JobDescriptionEditor({ value, onChange, error }: Props) {
               <Icon className="h-4 w-4" />
             </button>
           ))}
-          <span
-            className="inline-flex h-8 w-8 cursor-help items-center justify-center rounded-md text-[#94A3B8]"
-            title="Select text, then use Bold, Italic, or List"
-            aria-label="Formatting help"
-          >
-            <HelpCircle className="h-4 w-4" />
-          </span>
+          <div className="ml-auto flex shrink-0 items-center gap-1">
+            <button
+              type="button"
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={clearDescription}
+              className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-md text-[#64748B] transition hover:bg-white hover:text-[#334155]"
+              aria-label="Clear description"
+              title="Clear description"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+            <JobDescriptionHelpButton message={JOB_DESCRIPTION_HELP_MESSAGE} />
+          </div>
         </div>
 
         <div className="relative">
