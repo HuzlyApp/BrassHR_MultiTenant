@@ -592,6 +592,7 @@ export function JobFormStepMspDetails({
           }}
           placeholder="e.g. Registered Nurse - Acute Care"
         />
+        <FieldError error={fieldErrors.sourceJobTitle} />
       </div>
 
       <div>
@@ -655,6 +656,7 @@ export function JobFormStepMspDetails({
             onJobChange("location", next);
           }}
           placeholder="Search address, city, state, zip"
+          error={fieldErrors.location}
         />
       </div>
 

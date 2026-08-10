@@ -297,9 +297,33 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
 
   function validateRequisitionStep(current: JobRequisitionInput): Record<string, string> {
     const errors: Record<string, string> = {};
+    const isMsp = current.sourceType === "MSP";
+
+    const location = current.location?.trim() || current.facility?.trim() || "";
+    if (!location) {
+      errors.location = "Location is required.";
+    }
+
     if (!current.shiftType?.trim()) {
       errors.shiftType = "Employment Type is required.";
     }
+
+    if (isMsp) {
+      if (!current.sourceJobTitle?.trim()) {
+        errors.sourceJobTitle = "Source Job Title is required.";
+      }
+    } else {
+      if (!current.publicTitle?.trim()) {
+        errors.publicTitle = "Job Title is required.";
+      }
+      if (!current.professionId) {
+        errors.professionId = "Profession is required.";
+      }
+      if (!current.employmentType) {
+        errors.employmentType = "Employment Type is required.";
+      }
+    }
+
     return errors;
   }
 
@@ -327,7 +351,14 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
         setSaving(false);
         if (stepErrors.publicDescription) {
           setStep("description");
-        } else if (stepErrors.shiftType) {
+        } else if (
+          stepErrors.location ||
+          stepErrors.shiftType ||
+          stepErrors.sourceJobTitle ||
+          stepErrors.publicTitle ||
+          stepErrors.professionId ||
+          stepErrors.employmentType
+        ) {
           setStep(payloadJob.sourceType === "MSP" ? "msp-details" : "requisition");
         }
         setMessage("Please complete the required fields before publishing.");

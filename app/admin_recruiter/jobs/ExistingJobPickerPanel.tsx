@@ -54,7 +54,7 @@ export function ExistingJobPickerPanel({
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [locationFilter, setLocationFilter] = useState("");
-  const [sortBy, setSortBy] = useState<"newest" | "oldest">("newest");
+  const [sortBy, setSortBy] = useState<"newest" | "oldest" | "">("");
 
   const locationOptions = useMemo(() => {
     const values = new Set<string>();
@@ -84,7 +84,7 @@ export function ExistingJobPickerPanel({
     next = [...next].sort((a, b) => {
       const aTime = new Date(a.published_at || a.created_at || 0).getTime();
       const bTime = new Date(b.published_at || b.created_at || 0).getTime();
-      return sortBy === "newest" ? bTime - aTime : aTime - bTime;
+      return sortBy === "oldest" ? aTime - bTime : bTime - aTime;
     });
     return next;
   }, [jobs, search, statusFilter, locationFilter, sortBy]);
@@ -93,6 +93,7 @@ export function ExistingJobPickerPanel({
     setSearch("");
     setStatusFilter("");
     setLocationFilter("");
+    setSortBy("");
   }
 
   return (
@@ -158,19 +159,17 @@ export function ExistingJobPickerPanel({
           </div>
 
           <div className="flex shrink-0 items-center gap-2 sm:gap-3">
-            <div className="flex shrink-0 items-center gap-2">
-              <span className="text-sm whitespace-nowrap text-[#64748B]">Sort by</span>
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as "newest" | "oldest")}
-                className={`${FILTER_SELECT_CLASS} shrink-0`}
-                style={FILTER_SELECT_CHEVRON}
-                aria-label="Sort jobs"
-              >
-                <option value="newest">Newest</option>
-                <option value="oldest">Oldest</option>
-              </select>
-            </div>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as "newest" | "oldest" | "")}
+              className={`${FILTER_SELECT_CLASS} shrink-0`}
+              style={FILTER_SELECT_CHEVRON}
+              aria-label="Sort jobs"
+            >
+              <option value="">Sort by</option>
+              <option value="newest">Newest</option>
+              <option value="oldest">Oldest</option>
+            </select>
             <p className="inline-flex shrink-0 items-center gap-1.5 text-sm whitespace-nowrap text-[#64748B]">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
