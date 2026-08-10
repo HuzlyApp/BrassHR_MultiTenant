@@ -25,19 +25,26 @@ import {
   JobFormStepReview,
   JobFormWorkflowBanner,
 } from "./JobFormSteps";
+import { JobFormStepSetup } from "./JobFormStepSetup";
+import type { ExistingJobPickerOption } from "./ExistingJobPickerPanel";
 import {
   applyUiToJob,
   defaultJobFormUiState,
   JOB_FORM_CENTER_COLUMN_CLASS,
+  JOB_FORM_OUTLINE_BUTTON_CLASS,
   JOB_FORM_PAGE_CARD_CLASS,
+  JOB_FORM_PRIMARY_BUTTON_CLASS,
   JOB_FORM_SECTION_SUBTITLE_CLASS,
   JOB_FORM_SECTION_TITLE_CLASS,
   jobFormUiFromJob,
+  jobRequisitionInputForNewFromReference,
+  jobRequisitionInputFromApiRow,
   primaryButtonStyle,
   type JobFormOptionsPayload,
   type JobFormStep,
   type JobFormUiState,
 } from "./job-form-shared";
+import { ArrowRight } from "lucide-react";
 
 const initialJob: JobRequisitionInput = {
   sourceType: "" as SourceType,
@@ -57,10 +64,15 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
   const brandVars = brandingToCssVars(branding) as CSSProperties;
   const brandStyle = primaryButtonStyle(brandVars);
 
-  const [step, setStep] = useState<JobFormStep>("requisition");
+  const [step, setStep] = useState<JobFormStep>(jobId ? "requisition" : "setup");
   const [job, setJob] = useState<JobRequisitionInput>(initialJob);
   const [ui, setUi] = useState<JobFormUiState>(defaultJobFormUiState);
   const [options, setOptions] = useState<JobFormOptionsPayload | null>(null);
+  const [mspSourcedByClient, setMspSourcedByClient] = useState<boolean | null>(null);
+  const [referenceJobId, setReferenceJobId] = useState<string | null>(null);
+  const [referenceJobOptions, setReferenceJobOptions] = useState<ExistingJobPickerOption[]>([]);
+  const [referenceJobsLoading, setReferenceJobsLoading] = useState(false);
+  const [setupBusy, setSetupBusy] = useState(false);
   const [workflow, setWorkflow] = useState<{
     workflowId?: string;
     workflowName: string;
@@ -90,6 +102,19 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
   }, []);
 
   useEffect(() => {
+    if (jobId) return;
+    setReferenceJobsLoading(true);
+    void fetch("/api/admin/jobs", { cache: "no-store" })
+      .then(async (response) => {
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.error || "Failed to load jobs");
+        setReferenceJobOptions((payload.jobs ?? []) as ExistingJobPickerOption[]);
+      })
+      .catch(() => setReferenceJobOptions([]))
+      .finally(() => setReferenceJobsLoading(false));
+  }, [jobId]);
+
+  useEffect(() => {
     if (!jobId) return;
     void fetch(`/api/admin/jobs/${encodeURIComponent(jobId)}`, { cache: "no-store" })
       .then(async (response) => {
@@ -97,81 +122,14 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
         if (!response.ok) throw new Error(payload.error || "Failed to load job");
         const row = payload.job as Record<string, unknown>;
         setOriginalStatus(row.status === "published" ? "published" : "draft");
-        const additionalRaw = row.additional_locations;
-        const additionalLocations = Array.isArray(additionalRaw)
-          ? additionalRaw.map((item) => String(item ?? "").trim()).filter(Boolean)
-          : [];
-        const loadedJob: JobRequisitionInput = {
-          internalRequisitionNumber: String(row.internal_requisition_number ?? ""),
-          externalRequisitionId: String(row.external_requisition_id ?? ""),
-          sourceType: row.source_type as JobRequisitionInput["sourceType"],
-          mspClient: String(row.msp_client ?? ""),
-          professionId: String(row.profession_id ?? ""),
-          specialtyId: row.specialty_id ? String(row.specialty_id) : null,
-          employmentType: row.employment_type as JobRequisitionInput["employmentType"],
-          employerOfRecord: String(row.employer_of_record ?? ""),
-          department: String(row.department ?? ""),
-          facility: String(row.facility ?? ""),
-          billRate: row.bill_rate == null ? null : Number(row.bill_rate),
-          payRateMin: row.pay_rate_min == null ? null : Number(row.pay_rate_min),
-          payRateMax: row.pay_rate_max == null ? null : Number(row.pay_rate_max),
-          targetStartDate: row.target_start_date ? String(row.target_start_date) : null,
-          duration: String(row.duration ?? ""),
-          shiftType: String(row.shift_type ?? ""),
-          shiftDetails: String(row.shift_details ?? ""),
-          hoursPerWeek: row.hours_per_week == null ? null : Number(row.hours_per_week),
-          publicTitle: String(row.public_title ?? ""),
-          publicDescription: String(row.public_description ?? ""),
-          location: String(row.location ?? ""),
-          schedule: String(row.schedule ?? ""),
-          qualifications: String(row.qualifications ?? ""),
-          responsibilities: String(row.responsibilities ?? ""),
-          benefits: String(row.benefits ?? ""),
-          applicationDeadline: row.application_deadline ? String(row.application_deadline) : null,
-          numberOfPositions:
-            row.positions_count == null ? 1 : Math.max(1, Number(row.positions_count) || 1),
-          yearsOfExperience: row.years_of_experience
-            ? String(row.years_of_experience)
-            : row.years_experience_required != null
-              ? `${row.years_experience_required} yrs`
-              : null,
-          additionalLocations,
-          showInMultipleAreas: Boolean(row.show_in_multiple_areas),
-          jobLocationType: row.location_type
-            ? String(row.location_type)
-            : row.schedule
-              ? String(row.schedule)
-              : null,
-          isEmployerOnRecord:
-            typeof row.is_employer_on_record === "boolean" ? row.is_employer_on_record : true,
-          compensationType: row.compensation_type ? String(row.compensation_type) : null,
-          currency: row.currency ? String(row.currency) : null,
-          showPayBy: row.show_pay_by ? String(row.show_pay_by) : null,
-          payRatePeriod: row.pay_rate_period
-            ? String(row.pay_rate_period)
-            : row.rate_unit
-              ? String(row.rate_unit)
-              : null,
-          mspName: row.msp_name ? String(row.msp_name) : null,
-          sourceJobTitle: row.source_job_title ? String(row.source_job_title) : null,
-          sourceJobUrl: row.source_job_url ? String(row.source_job_url) : null,
-          sourceJobDetails: row.source_job_details ? String(row.source_job_details) : null,
-          suggestedPayRate: row.pay_rate == null ? null : Number(row.pay_rate),
-          requiredCredentials: Array.isArray(row.required_credentials)
-            ? row.required_credentials
-                .map((item) => String(item ?? "").trim())
-                .filter(Boolean)
-                .join(", ")
-            : row.required_credentials
-              ? String(row.required_credentials)
-              : null,
-          specialRequirements: row.special_requirements
-            ? String(row.special_requirements)
-            : null,
-          internalNotes: row.internal_notes ? String(row.internal_notes) : null,
-        };
+        const loadedJob = jobRequisitionInputFromApiRow(row);
+        if (loadedJob.sourceType === "MSP" && loadedJob.employmentType !== "Contract") {
+          loadedJob.employmentType = "Contract";
+        }
         setJob(loadedJob);
         setUi(jobFormUiFromJob(loadedJob));
+        const sourceRaw = String(row.source_type ?? "").trim().toLowerCase();
+        setMspSourcedByClient(sourceRaw === "msp");
         const mode = row.workflow_assignment_mode === "manual" ? "manual" : "automatic";
         setAssignmentMode(mode);
         if (mode === "manual" && row.workflow_id) {
@@ -188,6 +146,17 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
       })
       .catch((error) => setMessage(error instanceof Error ? error.message : "Failed to load job"));
   }, [jobId]);
+
+  /** MSP create/edit: locked Employment Type is always R&R (Contract). */
+  useEffect(() => {
+    if (job.sourceType !== "MSP") return;
+    if (job.employmentType === "Contract") return;
+    setJob((current) =>
+      current.sourceType === "MSP" && current.employmentType !== "Contract"
+        ? { ...current, employmentType: "Contract" }
+        : current
+    );
+  }, [job.sourceType, job.employmentType]);
 
   const professionLabel = useMemo(
     () => options?.professions.find((item) => item.id === job.professionId)?.name ?? "",
@@ -337,7 +306,7 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
         if (stepErrors.publicDescription) {
           setStep("description");
         } else if (stepErrors.shiftType) {
-          setStep("requisition");
+          setStep(payloadJob.sourceType === "MSP" ? "msp-details" : "requisition");
         }
         setMessage("Please complete the required fields before publishing.");
         return;
@@ -382,8 +351,20 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
   }
 
   function handleBack() {
+    if (step === "setup") {
+      router.push("/admin_recruiter/jobs");
+      return;
+    }
     if (step === "msp-details") {
-      setStep("requisition");
+      setStep(jobId ? "requisition" : "setup");
+      return;
+    }
+    if (step === "requisition") {
+      if (!jobId) {
+        setStep("setup");
+        return;
+      }
+      router.push("/admin_recruiter/jobs");
       return;
     }
     if (step === "compensation") {
@@ -401,6 +382,47 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
     router.push("/admin_recruiter/jobs");
   }
 
+  async function handleSetupContinue() {
+    if (mspSourcedByClient == null) {
+      setFieldErrors({ mspSourcedByClient: "Please select Yes or No." });
+      return;
+    }
+    setFieldErrors({});
+    setSetupBusy(true);
+    setMessage("");
+
+    const nextSourceType: SourceType = mspSourcedByClient ? "MSP" : "Internal";
+
+    try {
+      if (referenceJobId) {
+        const response = await fetch(`/api/admin/jobs/${encodeURIComponent(referenceJobId)}`, {
+          cache: "no-store",
+        });
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.error || "Failed to load reference job");
+        const loaded = jobRequisitionInputFromApiRow(payload.job as Record<string, unknown>);
+        const nextJob = jobRequisitionInputForNewFromReference(loaded, nextSourceType);
+        setJob(nextJob);
+        setUi(jobFormUiFromJob(nextJob));
+      } else {
+        setJob((current) => ({
+          ...initialJob,
+          sourceType: nextSourceType,
+          publicTitle: current.publicTitle,
+          /** MSP jobs use R&R (stored as Contract) for workflow routing. */
+          employmentType: mspSourcedByClient ? "Contract" : ("" as JobRequisitionInput["employmentType"]),
+        }));
+        setUi(defaultJobFormUiState());
+      }
+
+      setStep(mspSourcedByClient ? "msp-details" : "requisition");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Failed to load reference job");
+    } finally {
+      setSetupBusy(false);
+    }
+  }
+
   function handleNext() {
     if (step === "requisition") {
       const errors = validateRequisitionStep(job);
@@ -412,6 +434,11 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
       return;
     }
     if (step === "msp-details") {
+      const errors = validateRequisitionStep(buildPayloadJob());
+      if (Object.keys(errors).length > 0) {
+        setFieldErrors((current) => ({ ...current, ...errors }));
+        return;
+      }
       setStep("compensation");
       return;
     }
@@ -430,29 +457,31 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
   }
 
   const pageTitle =
-    step === "review"
-      ? "Review"
-      : step === "description"
-        ? "Describe the job"
-        : step === "compensation"
-          ? job.sourceType === "MSP"
-            ? "Benefits"
-            : "Compensation"
-          : jobId
-            ? "Edit job post"
-            : "Create a job post";
+    step === "setup"
+      ? "Create Job Requisition"
+      : step === "review"
+        ? "Review"
+        : step === "description"
+          ? "Describe the job"
+          : step === "compensation"
+            ? job.sourceType === "MSP"
+              ? "Rates & Contract"
+              : "Compensation"
+            : jobId
+              ? "Edit job post"
+              : "Create a job post";
   const pageSubtitle =
-    step === "review"
+    step === "setup"
       ? ""
-      : step === "description"
-        ? "Add job description"
-        : step === "compensation"
-          ? job.sourceType === "MSP"
-            ? ""
-            : "Review the pay we estimated for your job and adjust as needed. Check your local minimum wage."
-          : step === "msp-details"
-            ? "Job Source Details"
-            : "Job Requisition";
+      : step === "review"
+        ? ""
+        : step === "description"
+          ? "Add job description"
+          : step === "compensation"
+            ? "Review the pay we estimated for your job and adjust as needed. Check your local minimum wage."
+            : step === "msp-details"
+              ? "Job Source Details"
+              : "Job Requisition";
   const showPublishActions = step === "review";
   const useSectionHeaderTypography = step === "compensation" || step === "description";
   const headerTitleClass = useSectionHeaderTypography
@@ -485,7 +514,9 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
             </div>
             <Link
               href="/admin_recruiter/jobs"
-              className="mt-1 inline-flex shrink-0 items-center gap-1 self-start whitespace-nowrap text-sm font-medium no-underline transition hover:opacity-80 min-[700px]:mt-0"
+              className={`mt-1 inline-flex shrink-0 items-center gap-1 self-start whitespace-nowrap text-sm font-medium no-underline transition hover:opacity-80 min-[700px]:mt-0 ${
+                step === "setup" ? "hidden" : ""
+              }`}
               style={{ color: branding.secondaryHex || "#012352" }}
             >
               <BrandedSvgIcon
@@ -505,11 +536,30 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
 
           <div
             className={
-              step === "requisition"
+              step === "requisition" || step === "setup"
                 ? "flex min-h-0 flex-1 flex-col gap-5"
                 : "flex-1 space-y-5"
             }
           >
+            {step === "setup" ? (
+              <JobFormStepSetup
+                mspSourcedByClient={mspSourcedByClient}
+                onMspSourcedByClientChange={(value) => {
+                  setMspSourcedByClient(value);
+                  setFieldErrors((current) => {
+                    const next = { ...current };
+                    delete next.mspSourcedByClient;
+                    return next;
+                  });
+                }}
+                jobs={referenceJobOptions}
+                jobsLoading={referenceJobsLoading}
+                selectedReferenceJobId={referenceJobId}
+                onSelectReferenceJob={setReferenceJobId}
+                fieldErrors={fieldErrors}
+              />
+            ) : null}
+
             {step === "requisition" ? (
               <>
                 <JobFormStepRequisition
@@ -518,9 +568,7 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
                   fieldErrors={fieldErrors}
                   professions={options?.professions ?? []}
                   specialties={specialties}
-                  employmentTypes={options?.employmentTypes ?? ["W2", "1099", "Contract"]}
-                  sourceTypes={options?.sourceTypes ?? ["Internal", "MSP"]}
-                  employerOfRecordOptions={options?.employerOfRecordOptions ?? []}
+                  employmentTypes={options?.employmentTypes ?? ["W2", "1099"]}
                   onJobChange={updateJob}
                   onUiChange={updateUi}
                 />
@@ -591,20 +639,41 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
             ) : null}
           </div>
 
-          <JobFormFooter
-            step={step}
-            saving={saving}
-            canPublish={Boolean(workflow)}
-            showPublishActions={showPublishActions && originalStatus !== "published"}
-            termsAccepted={termsAccepted}
-            brandStyle={brandStyle}
-            onBack={handleBack}
-            onNext={handleNext}
-            onPreview={() => setPreviewOpen(true)}
-            onSaveDraft={() => void save(originalStatus === "published" ? "publish" : "save_draft")}
-            onPublish={() => void save("publish")}
-            onTermsChange={setTermsAccepted}
-          />
+          {step === "setup" ? (
+            <div className="mt-8 flex flex-col-reverse gap-2 border-t border-[#E5E7EB] pt-5 min-[700px]:flex-row min-[700px]:items-center min-[700px]:justify-between">
+              <Link
+                href="/admin_recruiter/jobs"
+                className={`${JOB_FORM_OUTLINE_BUTTON_CLASS} w-full min-[700px]:w-auto text-center no-underline`}
+              >
+                Cancel
+              </Link>
+              <button
+                type="button"
+                className={`${JOB_FORM_PRIMARY_BUTTON_CLASS} w-full min-[700px]:w-auto`}
+                style={brandStyle}
+                disabled={setupBusy}
+                onClick={() => void handleSetupContinue()}
+              >
+                Continue
+                <ArrowRight className="h-4 w-4" />
+              </button>
+            </div>
+          ) : (
+            <JobFormFooter
+              step={step}
+              saving={saving}
+              canPublish={Boolean(workflow)}
+              showPublishActions={showPublishActions && originalStatus !== "published"}
+              termsAccepted={termsAccepted}
+              brandStyle={brandStyle}
+              onBack={handleBack}
+              onNext={handleNext}
+              onPreview={() => setPreviewOpen(true)}
+              onSaveDraft={() => void save(originalStatus === "published" ? "publish" : "save_draft")}
+              onPublish={() => void save("publish")}
+              onTermsChange={setTermsAccepted}
+            />
+          )}
 
           {originalStatus === "published" && step === "review" ? (
             <div className="mt-3 flex justify-end">

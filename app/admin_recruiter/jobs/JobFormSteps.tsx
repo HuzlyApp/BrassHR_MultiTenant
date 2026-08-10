@@ -37,15 +37,17 @@ import JobLocationAutocompleteField from "./JobLocationAutocompleteField";
 import {
   JOB_FORM_BENEFIT_OPTIONS,
   JOB_FORM_COMPENSATION_TYPES,
-  JOB_FORM_CURRENCIES,
   JOB_FORM_DURATION_OPTIONS,
   JOB_FORM_FIELDS_CLASS,
+  JOB_FORM_HOURS_SHOW_BY,
   JOB_FORM_ICON_BUTTON_CLASS,
   JOB_FORM_INPUT_CLASS,
   JOB_FORM_LABEL_CLASS,
   JOB_FORM_LOCATION_CLUSTER_CLASS,
+  JOB_FORM_JOB_TYPES,
   JOB_FORM_LOCATION_TYPES,
   JOB_FORM_MSP_JOB_DETAIL_OPTIONS,
+  JOB_FORM_NUMBER_OF_POSITION_OPTIONS,
   JOB_FORM_OUTLINE_BUTTON_CLASS,
   JOB_FORM_PAY_PERIODS,
   JOB_FORM_PRIMARY_BUTTON_CLASS,
@@ -221,8 +223,6 @@ export function JobFormStepRequisition({
   professions,
   specialties,
   employmentTypes,
-  sourceTypes,
-  employerOfRecordOptions,
   onJobChange,
   onUiChange,
 }: {
@@ -232,18 +232,13 @@ export function JobFormStepRequisition({
   professions: JobFormOption[];
   specialties: JobFormSpecialtyOption[];
   employmentTypes: EmploymentType[];
-  sourceTypes: SourceType[];
-  employerOfRecordOptions: JobFormOption[];
   onJobChange: <K extends keyof JobRequisitionInput>(key: K, value: JobRequisitionInput[K]) => void;
   onUiChange: (patch: Partial<JobFormUiState>) => void;
 }) {
-  const employmentLabels = employmentTypes.map((type) => employmentTypeLabel(type));
-  const selectedEor = job.employerOfRecord?.trim() || "";
-  const eorOptions =
-    selectedEor &&
-    !employerOfRecordOptions.some((item) => item.name === selectedEor || item.id === selectedEor)
-      ? [...employerOfRecordOptions, { id: selectedEor, name: selectedEor }]
-      : employerOfRecordOptions;
+  const requisitionEmploymentTypes = employmentTypes.filter(
+    (type) => type === "W2" || type === "1099"
+  );
+  const employmentLabels = requisitionEmploymentTypes.map((type) => employmentTypeLabel(type));
   const deadlineBounds = applicationDeadlineBounds();
 
   return (
@@ -339,9 +334,6 @@ export function JobFormStepRequisition({
                   onChange={() => {
                     const nextType = employmentTypeFromLabel(label);
                     onJobChange("employmentType", nextType);
-                    if (nextType === "Contract") {
-                      onJobChange("sourceType", "MSP");
-                    }
                   }}
                 />
               ))}
@@ -514,7 +506,7 @@ export function JobFormStepRequisition({
           </div>
         </div>
 
-        <div className="grid gap-4 min-[700px]:grid-cols-2">
+        <div className="grid gap-4 min-[700px]:grid-cols-1">
           <PublicField label="Application Deadline">
             <div className="relative">
               <input
@@ -541,33 +533,6 @@ export function JobFormStepRequisition({
               />
             </div>
           </PublicField>
-
-          <div>
-            <label className={JOB_FORM_LABEL_CLASS} htmlFor="job-source">
-              Job Source
-            </label>
-            <select
-              id="job-source"
-              className={`${JOB_FORM_SELECT_CLASS} ${job.sourceType ? "text-[#334155]" : "text-[#94A3B8]"}`}
-              style={{ backgroundImage: JOB_FORM_SELECT_CHEVRON }}
-              value={job.sourceType || ""}
-              onChange={(event) =>
-                onJobChange("sourceType", event.target.value as SourceType)
-              }
-            >
-              <option value="">Select Job Source</option>
-              {sourceTypes.map((value) => (
-                <option key={value} value={value}>
-                  {value}
-                </option>
-              ))}
-            </select>
-            {job.sourceType === "MSP" ? (
-              <p className="mt-1.5 text-xs text-[#64748B]">
-                MSP source details will open on the next step.
-              </p>
-            ) : null}
-          </div>
         </div>
       </div>
 
@@ -577,54 +542,6 @@ export function JobFormStepRequisition({
           onChange={(next) => onJobChange("shiftType", next)}
           error={fieldErrors.shiftType}
         />
-
-        <div className="rounded-xl bg-[#F8FAFC] px-4 py-4 min-[700px]:px-5">
-          <div className="flex flex-col gap-3 min-[700px]:flex-row min-[700px]:flex-wrap min-[700px]:items-center min-[700px]:gap-x-10 min-[700px]:gap-y-3">
-            <span className={`${JOB_FORM_LABEL_CLASS} mb-0 shrink-0`}>
-              Are you the employer on Record
-            </span>
-            <div className={JOB_FORM_RADIO_OPTIONS_CLASS}>
-              <BrandedRadio
-                name="employer-on-record"
-                label="Yes"
-                checked={ui.employerOnRecord === "yes"}
-                onChange={() => onUiChange({ employerOnRecord: "yes" })}
-              />
-              <BrandedRadio
-                name="employer-on-record"
-                label="No"
-                checked={ui.employerOnRecord === "no"}
-                onChange={() => {
-                  onUiChange({ employerOnRecord: "no" });
-                  onJobChange("employerOfRecord", null);
-                }}
-              />
-            </div>
-          </div>
-
-          {ui.employerOnRecord === "yes" ? (
-            <div className="mt-4">
-              <label className={JOB_FORM_LABEL_CLASS} htmlFor="employer-of-record">
-                Employer on Record
-              </label>
-              <select
-                id="employer-of-record"
-                className={`${JOB_FORM_SELECT_CLASS} ${selectedEor ? "text-[#334155]" : "text-[#94A3B8]"}`}
-                style={{ backgroundImage: JOB_FORM_SELECT_CHEVRON }}
-                value={selectedEor}
-                onChange={(event) => onJobChange("employerOfRecord", event.target.value || null)}
-              >
-                <option value="">Pick List of EORs (includes the tenant)</option>
-                {eorOptions.map((item) => (
-                  <option key={item.id} value={item.name}>
-                    {item.name}
-                  </option>
-                ))}
-              </select>
-              <FieldError error={fieldErrors.employerOfRecord} />
-            </div>
-          ) : null}
-        </div>
       </div>
     </div>
   );
@@ -659,57 +576,6 @@ export function JobFormStepMspDetails({
   return (
     <div className={JOB_FORM_FIELDS_CLASS}>
       <div>
-        <label className={JOB_FORM_LABEL_CLASS} htmlFor="msp-name">
-          MSP (Job Source)
-        </label>
-        <input
-          id="msp-name"
-          className={JOB_FORM_INPUT_CLASS}
-          value={job.mspName ?? ""}
-          onChange={(event) => onJobChange("mspName", event.target.value)}
-          placeholder="e.g. Aya Healthcare"
-        />
-      </div>
-
-      <div>
-        <label className={JOB_FORM_LABEL_CLASS} htmlFor="msp-client-name">
-          MSP Client Name
-        </label>
-        <input
-          id="msp-client-name"
-          className={JOB_FORM_INPUT_CLASS}
-          value={job.mspClient ?? ""}
-          onChange={(event) => onJobChange("mspClient", event.target.value)}
-          placeholder="e.g. Novant"
-        />
-        <FieldError error={fieldErrors.mspClient} />
-      </div>
-
-      <div>
-        <label className={JOB_FORM_LABEL_CLASS} htmlFor="source-job-id">
-          Source Job ID
-        </label>
-        <div className="relative">
-          <input
-            id="source-job-id"
-            className={`${JOB_FORM_INPUT_CLASS} pr-10`}
-            value={job.externalRequisitionId ?? ""}
-            onChange={(event) => onJobChange("externalRequisitionId", event.target.value)}
-            placeholder="e.g. 122ZO3892"
-          />
-          <button
-            type="button"
-            onClick={() => void copySourceJobId()}
-            className="absolute right-2 top-1/2 inline-flex h-7 w-7 -translate-y-1/2 cursor-pointer items-center justify-center rounded-md text-[#94A3B8] transition hover:bg-[#F8FAFC] hover:text-[#334155]"
-            aria-label="Copy Source Job ID"
-          >
-            <Copy className="h-4 w-4" />
-          </button>
-        </div>
-        <FieldError error={fieldErrors.externalRequisitionId} />
-      </div>
-
-      <div>
         <label className={JOB_FORM_LABEL_CLASS} htmlFor="source-job-title">
           Source Job Title
         </label>
@@ -723,8 +589,69 @@ export function JobFormStepMspDetails({
       </div>
 
       <div>
+        <label className={JOB_FORM_LABEL_CLASS} htmlFor="source-job-id">
+          Internal Reference / Source Job ID
+        </label>
+        <div className="relative">
+          <input
+            id="source-job-id"
+            className={`${JOB_FORM_INPUT_CLASS} pr-10`}
+            value={job.externalRequisitionId ?? ""}
+            onChange={(event) => onJobChange("externalRequisitionId", event.target.value)}
+            placeholder="e.g. 122ZO3892"
+          />
+          <button
+            type="button"
+            onClick={() => void copySourceJobId()}
+            className="absolute right-2 top-1/2 inline-flex h-7 w-7 -translate-y-1/2 cursor-pointer items-center justify-center rounded-md text-[#94A3B8] transition hover:bg-[#F8FAFC] hover:text-[#334155]"
+            aria-label="Copy Internal Reference / Source Job ID"
+          >
+            <Copy className="h-4 w-4" />
+          </button>
+        </div>
+        <FieldError error={fieldErrors.externalRequisitionId} />
+      </div>
+
+      <div>
+        <label className={JOB_FORM_LABEL_CLASS} htmlFor="msp-client-name">
+          MSP Name
+        </label>
+        <input
+          id="msp-client-name"
+          className={JOB_FORM_INPUT_CLASS}
+          value={job.mspClient ?? ""}
+          onChange={(event) => onJobChange("mspClient", event.target.value)}
+          placeholder="e.g. Novant"
+        />
+        <FieldError error={fieldErrors.mspClient} />
+      </div>
+
+      <div>
+        <label className={JOB_FORM_LABEL_CLASS} htmlFor="msp-contract-group">
+          Contract Group / Client
+        </label>
+        <input
+          id="msp-contract-group"
+          className={JOB_FORM_INPUT_CLASS}
+          value={job.mspName ?? ""}
+          onChange={(event) => onJobChange("mspName", event.target.value)}
+          placeholder="e.g. Probationary"
+        />
+      </div>
+
+      <div>
+        <JobLocationAutocompleteField
+          id="msp-facility"
+          label="Location"
+          value={facilityValue}
+          onChange={(next) => onJobChange("facility", next)}
+          placeholder="Search address, city, state, zip"
+        />
+      </div>
+
+      <div>
         <label className={JOB_FORM_LABEL_CLASS} htmlFor="source-job-url">
-          Source Job URL
+          Direct Source Job URL
         </label>
         <input
           id="source-job-url"
@@ -735,131 +662,86 @@ export function JobFormStepMspDetails({
         />
       </div>
 
-      <div>
-        <JobLocationAutocompleteField
-          id="msp-facility"
-          label="Facility/Location"
-          value={facilityValue}
-          onChange={(next) => onJobChange("facility", next)}
-          placeholder="Search facility or location"
-        />
-      </div>
-
-      {/* Figma: Bill Rate | Suggested Pay Rate | Annually — 3 equal columns */}
-      <div className="grid grid-cols-1 gap-4 min-[700px]:grid-cols-3 min-[700px]:items-end">
+      <div className="grid grid-cols-1 gap-4 min-[700px]:grid-cols-3">
         <div>
-          <label className={JOB_FORM_LABEL_CLASS} htmlFor="bill-rate">
-            Bill Rate
-          </label>
-          <div className="relative">
-            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[#94A3B8]">
-              $
-            </span>
-            <input
-              id="bill-rate"
-              type="number"
-              min="0"
-              step="0.01"
-              className={`${JOB_FORM_INPUT_CLASS} pl-7`}
-              value={job.billRate ?? ""}
-              onChange={(event) =>
-                onJobChange("billRate", event.target.value ? Number(event.target.value) : null)
-              }
-            />
-          </div>
-        </div>
-
-        <div>
-          <label className={JOB_FORM_LABEL_CLASS} htmlFor="suggested-pay-rate">
-            Suggested Pay Rate
-          </label>
-          <div className="relative">
-            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[#94A3B8]">
-              $
-            </span>
-            <input
-              id="suggested-pay-rate"
-              type="number"
-              min="0"
-              step="0.01"
-              className={`${JOB_FORM_INPUT_CLASS} pl-7`}
-              value={job.suggestedPayRate ?? ""}
-              onChange={(event) =>
-                onJobChange(
-                  "suggestedPayRate",
-                  event.target.value ? Number(event.target.value) : null
-                )
-              }
-            />
-          </div>
-        </div>
-
-        <div>
-          <label className={`${JOB_FORM_LABEL_CLASS} sm:invisible`} htmlFor="suggested-pay-period">
-            Period
+          <label className={JOB_FORM_LABEL_CLASS} htmlFor="msp-number-of-positions">
+            Number of Positions
           </label>
           <select
-            id="suggested-pay-period"
-            className={`${JOB_FORM_SELECT_CLASS} ${ui.compensationType ? "text-[#334155]" : "text-[#94A3B8]"}`}
+            id="msp-number-of-positions"
+            className={`${JOB_FORM_SELECT_CLASS} text-[#334155]`}
             style={{ backgroundImage: JOB_FORM_SELECT_CHEVRON }}
-            value={ui.compensationType}
-            onChange={(event) => onUiChange({ compensationType: event.target.value })}
-            aria-label="Suggested pay rate period"
+            value={ui.numberOfPositions}
+            onChange={(event) =>
+              onUiChange({
+                numberOfPositions: Math.max(1, Math.trunc(Number(event.target.value) || 1)),
+              })
+            }
           >
-            <option value="">Select Compensation</option>
-            {JOB_FORM_COMPENSATION_TYPES.map((value) => (
+            {JOB_FORM_NUMBER_OF_POSITION_OPTIONS.map((value) => (
               <option key={value} value={value}>
                 {value}
               </option>
             ))}
-          </select>
-        </div>
-      </div>
-
-      <div className="grid gap-4 min-[700px]:grid-cols-2">
-        <div>
-          <label className={JOB_FORM_LABEL_CLASS} htmlFor="job-duration">
-            Job Duration
-          </label>
-          <select
-            id="job-duration"
-            className={JOB_FORM_SELECT_CLASS}
-            style={{ backgroundImage: JOB_FORM_SELECT_CHEVRON }}
-            value={job.duration ?? ""}
-            onChange={(event) => onJobChange("duration", event.target.value || null)}
-          >
-            <option value="">Eg: 13 weeks</option>
-            {JOB_FORM_DURATION_OPTIONS.map((value) => (
-              <option key={value} value={value}>
-                {value}
-              </option>
-            ))}
-            {job.duration &&
-            !JOB_FORM_DURATION_OPTIONS.includes(
-              job.duration as (typeof JOB_FORM_DURATION_OPTIONS)[number]
-            ) ? (
-              <option value={job.duration}>{job.duration}</option>
+            {ui.numberOfPositions > JOB_FORM_NUMBER_OF_POSITION_OPTIONS.length ? (
+              <option value={ui.numberOfPositions}>{ui.numberOfPositions}</option>
             ) : null}
           </select>
         </div>
 
         <div>
-          <label className={JOB_FORM_LABEL_CLASS} htmlFor="msp-start-date">
-            Start Date
+          <label className={JOB_FORM_LABEL_CLASS} htmlFor="msp-employment-type">
+            Employment Type
           </label>
-          <div className="relative">
-            <Calendar className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94A3B8]" />
-            <input
-              id="msp-start-date"
-              type="date"
-              className={`${JOB_FORM_INPUT_CLASS} pl-9`}
-              value={job.targetStartDate ?? ""}
-              onChange={(event) => onJobChange("targetStartDate", event.target.value || null)}
-            />
-          </div>
+          <select
+            id="msp-employment-type"
+            className={`${JOB_FORM_SELECT_CLASS} ${job.shiftType ? "text-[#334155]" : "text-[#94A3B8]"}`}
+            style={{ backgroundImage: JOB_FORM_SELECT_CHEVRON }}
+            value={job.shiftType ?? ""}
+            onChange={(event) => onJobChange("shiftType", event.target.value)}
+          >
+            <option value="">Select Employment Type</option>
+            {JOB_FORM_JOB_TYPES.map((value) => (
+              <option key={value} value={value}>
+                {value}
+              </option>
+            ))}
+            {job.shiftType &&
+            !JOB_FORM_JOB_TYPES.includes(job.shiftType as (typeof JOB_FORM_JOB_TYPES)[number]) ? (
+              <option value={job.shiftType}>{job.shiftType}</option>
+            ) : null}
+          </select>
+          <FieldError error={fieldErrors.shiftType} />
+        </div>
+
+        <div>
+          <label className={JOB_FORM_LABEL_CLASS} htmlFor="msp-placement-type">
+            Placement Type
+          </label>
+          <select
+            id="msp-placement-type"
+            className={`${JOB_FORM_SELECT_CLASS} ${ui.jobLocationType ? "text-[#334155]" : "text-[#94A3B8]"}`}
+            style={{ backgroundImage: JOB_FORM_SELECT_CHEVRON }}
+            value={ui.jobLocationType}
+            onChange={(event) => onUiChange({ jobLocationType: event.target.value })}
+          >
+            <option value="">Select Placement Type</option>
+            {JOB_FORM_LOCATION_TYPES.map((value) => (
+              <option key={value} value={value}>
+                {value}
+              </option>
+            ))}
+            {ui.jobLocationType &&
+            !JOB_FORM_LOCATION_TYPES.includes(
+              ui.jobLocationType as (typeof JOB_FORM_LOCATION_TYPES)[number]
+            ) ? (
+              <option value={ui.jobLocationType}>{ui.jobLocationType}</option>
+            ) : null}
+          </select>
         </div>
       </div>
 
+      {/* Required Credentials / Certifications & Special Requirement / Restrictions hidden for now
       <div>
         <label className={JOB_FORM_LABEL_CLASS} htmlFor="required-credentials">
           Required Credentials / Certifications
@@ -885,7 +767,9 @@ export function JobFormStepMspDetails({
           placeholder="Special Requirement / Restrictions"
         />
       </div>
+      */}
 
+      {/* Job Details hidden for now
       <div>
         <label className={JOB_FORM_LABEL_CLASS} htmlFor="source-job-details">
           Job Details
@@ -911,6 +795,7 @@ export function JobFormStepMspDetails({
           ) : null}
         </select>
       </div>
+      */}
 
       <div>
         <label className={JOB_FORM_LABEL_CLASS} htmlFor="internal-notes">
@@ -940,9 +825,10 @@ export function JobFormStepCompensation({
   onJobChange: <K extends keyof JobRequisitionInput>(key: K, value: JobRequisitionInput[K]) => void;
   onUiChange: (patch: Partial<JobFormUiState>) => void;
 }) {
-  const hidePaySection = job.sourceType === "MSP";
   const [creatingBenefit, setCreatingBenefit] = useState(false);
   const [newBenefitName, setNewBenefitName] = useState("");
+  const hoursShowBy = ui.hoursShowBy || "Fixed Hours";
+  const showFixedHours = hoursShowBy === "Fixed Hours";
 
   const benefitOptions = [
     ...JOB_FORM_BENEFIT_OPTIONS,
@@ -986,130 +872,63 @@ export function JobFormStepCompensation({
 
   return (
     <div className="space-y-8">
-      {!hidePaySection ? (
-        <section className={JOB_FORM_FIELDS_CLASS}>
-          <div className="grid gap-4 min-[700px]:grid-cols-2">
-            <div>
-              <label className={JOB_FORM_LABEL_CLASS}>Compensation</label>
-              <select
-                className={`${JOB_FORM_SELECT_CLASS} ${ui.compensationType ? "text-[#334155]" : "text-[#94A3B8]"}`}
-                style={{ backgroundImage: JOB_FORM_SELECT_CHEVRON }}
-                value={ui.compensationType}
-                onChange={(event) => onUiChange({ compensationType: event.target.value })}
-              >
-                <option value="">Select Compensation</option>
-                {JOB_FORM_COMPENSATION_TYPES.map((value) => (
-                  <option key={value} value={value}>
-                    {value}
-                  </option>
-                ))}
-                {ui.compensationType &&
-                !JOB_FORM_COMPENSATION_TYPES.includes(
-                  ui.compensationType as (typeof JOB_FORM_COMPENSATION_TYPES)[number]
-                ) ? (
-                  <option value={ui.compensationType}>{ui.compensationType}</option>
-                ) : null}
-              </select>
-            </div>
-            <div>
-              <label className={JOB_FORM_LABEL_CLASS}>Currency</label>
-              <select
-                className={`${JOB_FORM_SELECT_CLASS} ${ui.currency ? "text-[#334155]" : "text-[#94A3B8]"}`}
-                style={{ backgroundImage: JOB_FORM_SELECT_CHEVRON }}
-                value={ui.currency}
-                onChange={(event) => onUiChange({ currency: event.target.value })}
-              >
-                <option value="">Select Currency</option>
-                {JOB_FORM_CURRENCIES.map((value) => (
-                  <option key={value} value={value}>
-                    {value}
-                  </option>
-                ))}
-              </select>
-            </div>
+      <section className={JOB_FORM_FIELDS_CLASS}>
+        <div>
+          <label className={JOB_FORM_LABEL_CLASS}>Compensation</label>
+          <select
+            className={`${JOB_FORM_SELECT_CLASS} ${ui.compensationType ? "text-[#334155]" : "text-[#94A3B8]"}`}
+            style={{ backgroundImage: JOB_FORM_SELECT_CHEVRON }}
+            value={ui.compensationType}
+            onChange={(event) => onUiChange({ compensationType: event.target.value })}
+          >
+            <option value="">Select Compensation</option>
+            {JOB_FORM_COMPENSATION_TYPES.map((value) => (
+              <option key={value} value={value}>
+                {value}
+              </option>
+            ))}
+            {ui.compensationType &&
+            !JOB_FORM_COMPENSATION_TYPES.includes(
+              ui.compensationType as (typeof JOB_FORM_COMPENSATION_TYPES)[number]
+            ) ? (
+              <option value={ui.compensationType}>{ui.compensationType}</option>
+            ) : null}
+          </select>
+        </div>
+
+        <div
+          className={`mt-4 grid gap-4 min-[700px]:items-end ${
+            ui.showPayBy === "Range"
+              ? "min-[700px]:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_auto_minmax(0,1fr)_minmax(0,1fr)]"
+              : "min-[700px]:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1fr)]"
+          }`}
+        >
+          <div className="min-w-0">
+            <label className={JOB_FORM_LABEL_CLASS}>Show pay by</label>
+            <select
+              className={`${JOB_FORM_SELECT_CLASS} text-[#334155]`}
+              style={{ backgroundImage: JOB_FORM_SELECT_CHEVRON }}
+              value={ui.showPayBy || "Exact amount"}
+              onChange={(event) => {
+                const next = event.target.value;
+                onUiChange({ showPayBy: next });
+                if (next !== "Range") {
+                  onJobChange("payRateMax", null);
+                }
+              }}
+            >
+              {JOB_FORM_SHOW_PAY_BY.map((value) => (
+                <option key={value} value={value}>
+                  {value}
+                </option>
+              ))}
+            </select>
           </div>
 
-          <div
-            className={`mt-4 grid gap-4 min-[700px]:items-end ${
-              ui.showPayBy === "Range"
-                ? "min-[700px]:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_auto_minmax(0,1fr)_minmax(0,1fr)]"
-                : "min-[700px]:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1fr)]"
-            }`}
-          >
-            <div className="min-w-0">
-              <label className={JOB_FORM_LABEL_CLASS}>Show pay by</label>
-              <select
-                className={`${JOB_FORM_SELECT_CLASS} text-[#334155]`}
-                style={{ backgroundImage: JOB_FORM_SELECT_CHEVRON }}
-                value={ui.showPayBy || "Exact amount"}
-                onChange={(event) => {
-                  const next = event.target.value;
-                  onUiChange({ showPayBy: next });
-                  if (next !== "Range") {
-                    onJobChange("payRateMax", null);
-                  }
-                }}
-              >
-                {JOB_FORM_SHOW_PAY_BY.map((value) => (
-                  <option key={value} value={value}>
-                    {value}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {ui.showPayBy === "Range" ? (
-              <>
-                <div className="min-w-0">
-                  <label className={JOB_FORM_LABEL_CLASS}>Minimum</label>
-                  <div className="relative">
-                    <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[#94A3B8]">
-                      $
-                    </span>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      className={`${JOB_FORM_INPUT_CLASS} pl-7`}
-                      value={job.payRateMin ?? ""}
-                      onChange={(event) =>
-                        onJobChange(
-                          "payRateMin",
-                          event.target.value ? Number(event.target.value) : null
-                        )
-                      }
-                    />
-                  </div>
-                </div>
-                <span className="hidden pb-2 text-sm text-[#64748B] min-[700px]:block">to</span>
-                <div className="min-w-0">
-                  <label className={JOB_FORM_LABEL_CLASS}>Maximum</label>
-                  <div className="relative">
-                    <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[#94A3B8]">
-                      $
-                    </span>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      className={`${JOB_FORM_INPUT_CLASS} pl-7`}
-                      value={job.payRateMax ?? ""}
-                      onChange={(event) =>
-                        onJobChange(
-                          "payRateMax",
-                          event.target.value ? Number(event.target.value) : null
-                        )
-                      }
-                    />
-                  </div>
-                  <FieldError error={fieldErrors.payRateMax} />
-                </div>
-              </>
-            ) : (
+          {ui.showPayBy === "Range" ? (
+            <>
               <div className="min-w-0">
-                <label className={JOB_FORM_LABEL_CLASS}>
-                  {ui.showPayBy === "Starting amount" ? "Starting amount" : "Exact amount"}
-                </label>
+                <label className={JOB_FORM_LABEL_CLASS}>Minimum</label>
                 <div className="relative">
                   <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[#94A3B8]">
                     $
@@ -1129,27 +948,186 @@ export function JobFormStepCompensation({
                   />
                 </div>
               </div>
-            )}
-
+              <span className="hidden pb-2 text-sm text-[#64748B] min-[700px]:block">to</span>
+              <div className="min-w-0">
+                <label className={JOB_FORM_LABEL_CLASS}>Maximum</label>
+                <div className="relative">
+                  <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[#94A3B8]">
+                    $
+                  </span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    className={`${JOB_FORM_INPUT_CLASS} pl-7`}
+                    value={job.payRateMax ?? ""}
+                    onChange={(event) =>
+                      onJobChange(
+                        "payRateMax",
+                        event.target.value ? Number(event.target.value) : null
+                      )
+                    }
+                  />
+                </div>
+                <FieldError error={fieldErrors.payRateMax} />
+              </div>
+            </>
+          ) : (
             <div className="min-w-0">
-              <label className={JOB_FORM_LABEL_CLASS}>Rate</label>
-              <select
-                className={`${JOB_FORM_SELECT_CLASS} ${ui.payRatePeriod ? "text-[#334155]" : "text-[#94A3B8]"}`}
-                style={{ backgroundImage: JOB_FORM_SELECT_CHEVRON }}
-                value={ui.payRatePeriod}
-                onChange={(event) => onUiChange({ payRatePeriod: event.target.value })}
-              >
-                <option value="">Select Rate</option>
-                {JOB_FORM_PAY_PERIODS.map((value) => (
-                  <option key={value} value={value}>
-                    {value}
-                  </option>
-                ))}
-              </select>
+              <label className={JOB_FORM_LABEL_CLASS}>
+                {ui.showPayBy === "Starting amount" ? "Starting amount" : "Exact amount"}
+              </label>
+              <div className="relative">
+                <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[#94A3B8]">
+                  $
+                </span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  className={`${JOB_FORM_INPUT_CLASS} pl-7`}
+                  value={job.payRateMin ?? ""}
+                  onChange={(event) =>
+                    onJobChange(
+                      "payRateMin",
+                      event.target.value ? Number(event.target.value) : null
+                    )
+                  }
+                />
+              </div>
+            </div>
+          )}
+
+          <div className="min-w-0">
+            <label className={JOB_FORM_LABEL_CLASS}>Rate</label>
+            <select
+              className={`${JOB_FORM_SELECT_CLASS} ${ui.payRatePeriod ? "text-[#334155]" : "text-[#94A3B8]"}`}
+              style={{ backgroundImage: JOB_FORM_SELECT_CHEVRON }}
+              value={ui.payRatePeriod}
+              onChange={(event) => onUiChange({ payRatePeriod: event.target.value })}
+            >
+              <option value="">Select Rate</option>
+              {JOB_FORM_PAY_PERIODS.map((value) => (
+                <option key={value} value={value}>
+                  {value}
+                </option>
+              ))}
+              {ui.payRatePeriod &&
+              !JOB_FORM_PAY_PERIODS.includes(
+                ui.payRatePeriod as (typeof JOB_FORM_PAY_PERIODS)[number]
+              ) ? (
+                <option value={ui.payRatePeriod}>{ui.payRatePeriod}</option>
+              ) : null}
+            </select>
+          </div>
+        </div>
+
+        <div className="mt-4 grid gap-4 min-[700px]:grid-cols-2">
+          <div>
+            <label className={JOB_FORM_LABEL_CLASS} htmlFor="job-duration">
+              Duration
+            </label>
+            <select
+              id="job-duration"
+              className={JOB_FORM_SELECT_CLASS}
+              style={{ backgroundImage: JOB_FORM_SELECT_CHEVRON }}
+              value={job.duration ?? ""}
+              onChange={(event) => onJobChange("duration", event.target.value || null)}
+            >
+              <option value="">Please select duration</option>
+              {JOB_FORM_DURATION_OPTIONS.map((value) => (
+                <option key={value} value={value}>
+                  {value}
+                </option>
+              ))}
+              {job.duration &&
+              !JOB_FORM_DURATION_OPTIONS.includes(
+                job.duration as (typeof JOB_FORM_DURATION_OPTIONS)[number]
+              ) ? (
+                <option value={job.duration}>{job.duration}</option>
+              ) : null}
+            </select>
+          </div>
+
+          <div>
+            <label className={JOB_FORM_LABEL_CLASS} htmlFor="compensation-start-date">
+              Start Date
+            </label>
+            <div className="relative">
+              <Calendar className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94A3B8]" />
+              <input
+                id="compensation-start-date"
+                type="date"
+                className={`${JOB_FORM_INPUT_CLASS} pl-9`}
+                value={job.targetStartDate ?? ""}
+                onChange={(event) => onJobChange("targetStartDate", event.target.value || null)}
+              />
             </div>
           </div>
-        </section>
-      ) : null}
+        </div>
+      </section>
+
+      <hr className="border-[#E5E7EB]" />
+
+      <section className="flex flex-col gap-[15px]">
+        <h3 className={JOB_FORM_SECTION_TITLE_CLASS}>Expected hours</h3>
+        <div
+          className={`grid gap-4 min-[700px]:items-end ${
+            showFixedHours
+              ? "min-[700px]:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_auto]"
+              : "min-[700px]:grid-cols-[minmax(0,1.2fr)]"
+          }`}
+        >
+          <div className="min-w-0">
+            <label className={JOB_FORM_LABEL_CLASS}>Show by</label>
+            <select
+              className={`${JOB_FORM_SELECT_CLASS} text-[#334155]`}
+              style={{ backgroundImage: JOB_FORM_SELECT_CHEVRON }}
+              value={hoursShowBy}
+              onChange={(event) => {
+                const next = event.target.value;
+                onUiChange({ hoursShowBy: next });
+                onJobChange("shiftDetails", next || null);
+              }}
+            >
+              {JOB_FORM_HOURS_SHOW_BY.map((value) => (
+                <option key={value} value={value}>
+                  {value}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {showFixedHours ? (
+            <>
+              <div className="min-w-0">
+                <label className={JOB_FORM_LABEL_CLASS} htmlFor="hours-per-week">
+                  Fixed at
+                </label>
+                <input
+                  id="hours-per-week"
+                  type="number"
+                  min="0"
+                  step="1"
+                  className={JOB_FORM_INPUT_CLASS}
+                  value={job.hoursPerWeek ?? ""}
+                  onChange={(event) =>
+                    onJobChange(
+                      "hoursPerWeek",
+                      event.target.value ? Number(event.target.value) : null
+                    )
+                  }
+                />
+              </div>
+              <span className="hidden pb-2 text-sm text-[#64748B] min-[700px]:block">
+                Hours per week
+              </span>
+            </>
+          ) : null}
+        </div>
+      </section>
+
+      <hr className="border-[#E5E7EB]" />
 
       <section className="space-y-4">
         <BenefitsChipSelect
@@ -1503,27 +1481,26 @@ export function JobFormStepReview({
   const employmentTypeValue = job.employmentType
     ? employmentTypeLabel(job.employmentType)
     : "";
-  const compensationValue =
-    job.sourceType === "MSP"
-      ? ""
-      : (() => {
-          const paySummary = formatPaySummary(job, ui);
-          const payLine = [
-            ui.showPayBy,
-            paySummary !== "—" ? paySummary : "",
-          ]
-            .filter(Boolean)
-            .join(", ");
-          return [[ui.compensationType, ui.currency].filter(Boolean).join(", "), payLine]
-            .filter(Boolean)
-            .join("\n");
-        })();
-  const mspPayRateValue = [
-    formatReviewMoney(job.suggestedPayRate),
-    ui.compensationType,
-  ]
-    .filter(Boolean)
-    .join(" ");
+  const compensationValue = (() => {
+    const paySummary = formatPaySummary(job, ui);
+    const payLine = [ui.showPayBy, paySummary !== "—" ? paySummary : ""].filter(Boolean).join(", ");
+    const hoursLine =
+      ui.hoursShowBy === "Fixed Hours" && job.hoursPerWeek != null
+        ? `${ui.hoursShowBy}: ${job.hoursPerWeek} hrs/week`
+        : ui.hoursShowBy || "";
+    const durationLine = [job.duration, job.targetStartDate ? formatReviewDate(job.targetStartDate) : ""]
+      .filter(Boolean)
+      .join(", ");
+    return [
+      [ui.compensationType, ui.payRatePeriod].filter(Boolean).join(", "),
+      payLine,
+      durationLine,
+      hoursLine,
+    ]
+      .filter(Boolean)
+      .join("\n");
+  })();
+  const mspPayRateValue = formatPaySummary(job, ui);
 
   return (
     <section className="space-y-1">
@@ -1576,6 +1553,7 @@ export function JobFormStepReview({
         value={job.shiftType ?? ""}
         onEdit={() => onEditField("jobType")}
       />
+      {/* EOR hidden on review — removed from create job flow
       <ReviewRow
         label="Are you the employer on Record"
         value={
@@ -1591,6 +1569,7 @@ export function JobFormStepReview({
           onEdit={() => onEditField("employerOfRecord")}
         />
       ) : null}
+      */}
       <ReviewRow
         label="Job Source"
         value={job.sourceType || ""}
@@ -1599,34 +1578,34 @@ export function JobFormStepReview({
       {job.sourceType === "MSP" ? (
         <>
           <ReviewRow
-            label="MSP (Job Source)"
-            value={job.mspName ?? ""}
-            addLabel="MSP"
-            onEdit={() => onEditField("mspName")}
-          />
-          <ReviewRow
-            label="MSP Client Name"
-            value={job.mspClient ?? ""}
-            onEdit={() => onEditField("mspClient")}
-          />
-          <ReviewRow
-            label="Source Job Req#"
-            value={job.externalRequisitionId ?? ""}
-            addLabel="source job ID"
-            onEdit={() => onEditField("sourceJobId")}
-          />
-          <ReviewRow
             label="Source Job Title"
             value={job.sourceJobTitle ?? ""}
             onEdit={() => onEditField("sourceJobTitle")}
           />
           <ReviewRow
-            label="Facility/Location"
+            label="Internal Reference / Source Job ID"
+            value={job.externalRequisitionId ?? ""}
+            addLabel="source job ID"
+            onEdit={() => onEditField("sourceJobId")}
+          />
+          <ReviewRow
+            label="MSP Name"
+            value={job.mspClient ?? ""}
+            onEdit={() => onEditField("mspClient")}
+          />
+          <ReviewRow
+            label="Contract Group / Client"
+            value={job.mspName ?? ""}
+            addLabel="contract group"
+            onEdit={() => onEditField("mspName")}
+          />
+          <ReviewRow
+            label="Location"
             value={job.facility?.trim() || job.location?.trim() || ""}
             onEdit={() => onEditField("facilityLocation")}
           />
           <ReviewRow
-            label="Source Job URL"
+            label="Direct Source Job URL"
             value={job.sourceJobUrl ?? ""}
             onEdit={() => onEditField("sourceJobUrl")}
           />
@@ -1637,19 +1616,29 @@ export function JobFormStepReview({
           />
           <ReviewRow
             label="Pay Rate"
-            value={mspPayRateValue}
-            onEdit={() => onEditField("payRate")}
+            value={mspPayRateValue !== "—" ? mspPayRateValue : ""}
+            onEdit={() => onEditField("compensation")}
           />
           <ReviewRow
             label="Job Duration"
             value={job.duration ?? ""}
-            onEdit={() => onEditField("jobDuration")}
+            onEdit={() => onEditField("compensation")}
           />
           <ReviewRow
             label="Start Date"
             value={formatReviewDate(job.targetStartDate)}
-            onEdit={() => onEditField("startDate")}
+            onEdit={() => onEditField("compensation")}
           />
+          <ReviewRow
+            label="Expected Hours"
+            value={
+              ui.hoursShowBy === "Fixed Hours" && job.hoursPerWeek != null
+                ? `${job.hoursPerWeek} hrs/week`
+                : ui.hoursShowBy || ""
+            }
+            onEdit={() => onEditField("compensation")}
+          />
+          {/* Required Credentials / Certifications & Special Requirement / Restrictions hidden for now
           <ReviewRow
             label="Required Credentials / Certifications"
             value={job.requiredCredentials ?? ""}
@@ -1662,11 +1651,14 @@ export function JobFormStepReview({
             addLabel="special requirements"
             onEdit={() => onEditField("specialRequirements")}
           />
+          */}
+          {/* Job Details hidden for now
           <ReviewRow
             label="Job Details"
             value={job.sourceJobDetails ?? ""}
             onEdit={() => onEditField("sourceJobDetails")}
           />
+          */}
           <ReviewRow
             label="Internal Notes"
             value={job.internalNotes ?? ""}

@@ -255,6 +255,21 @@ a[href] {
   }
 }
 
+/* Figma: Create Job Requisition — MSP source question field */
+.job-form-setup-msp-field {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  border-radius: 8px;
+  background-color: #F1F5F9;
+  padding: 20px;
+}
+
+.job-form-setup-msp-field .job-form-radio-options {
+  column-gap: 40px;
+  row-gap: 12px;
+}
+
 /* Job create form — field group vertical spacing (Figma 30px) */
 .job-form-fields {
   display: flex;

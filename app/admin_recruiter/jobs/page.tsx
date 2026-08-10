@@ -1,9 +1,19 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
 import { createPortal } from "react-dom";
-import { Plus, Download } from "lucide-react";
+import { Plus, Download, ChevronDown } from "lucide-react";
 import { ColumnsEditorModal } from "@/app/admin_recruiter/components/ColumnsEditorModal";
 import { BulkDeleteConfirmModal } from "@/app/admin_recruiter/components/BulkDeleteConfirmModal";
 import { BulkDeleteToolbarButton } from "@/app/admin_recruiter/components/BulkDeleteToolbarButton";
@@ -13,6 +23,12 @@ import { ListTableCheckbox } from "@/app/admin_recruiter/components/ListTableChe
 import { useCandidatesFilterRowsDefault } from "@/app/admin_recruiter/hooks/useCandidatesFilterRowsDefault";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import toast from "react-hot-toast";
+import {
+  EditJobsFiltersModal,
+  jobMatchesDatePostedFilter,
+  jobMatchesPayRateFilter,
+  type JobsExtendedFilterValues,
+} from "./EditJobsFiltersModal";
 import {
   CANDIDATES_PAGE_SUBTITLE_STYLE,
   CANDIDATES_PAGE_TITLE_CLASS,
@@ -35,7 +51,9 @@ import {
 } from "./job-columns";
 import { exportJobsCsv, exportJobsXls } from "./export-jobs";
 import {
+  jobContractGroup,
   jobLocation,
+  jobPlacementType,
   jobProfession,
   jobShiftType,
   jobSortValue,
@@ -43,6 +61,13 @@ import {
   type JobListCellContext,
   type JobListRow,
 } from "./render-job-list-cell";
+
+function relationNameFromJob(
+  value: JobListRow["professions"] | JobListRow["specialties"] | JobListRow["onboarding_flows"]
+): string {
+  const row = Array.isArray(value) ? value[0] : value;
+  return row?.name?.trim() || "";
+}
 
 type JobTab = "all" | "internal" | "msp" | "draft" | "open" | "closed" | "hot";
 
@@ -388,35 +413,166 @@ function MobileIconButton({
   );
 }
 
-function JobsFiltersToggleButton({
-  active,
-  hasActiveFilters,
-  onClick,
-  className = "",
+function JobsFiltersMenu({
+  menuId,
+  style,
+  filtersVisible,
+  onHideOrShowFilters,
+  onMoreFilters,
+  onClose,
 }: {
-  active: boolean;
-  hasActiveFilters: boolean;
-  onClick: () => void;
-  className?: string;
+  menuId: string;
+  style: CSSProperties;
+  filtersVisible: boolean;
+  onHideOrShowFilters: () => void;
+  onMoreFilters: () => void;
+  onClose: () => void;
 }) {
-  const isOn = active || hasActiveFilters;
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-expanded={active}
-      aria-label="Filters"
-      title="Filters"
-      className={`inline-flex h-9 w-9 shrink-0 items-center justify-center gap-1.5 rounded-md border text-sm font-medium whitespace-nowrap transition sm:h-8 xl:w-auto xl:px-3 ${
-        isOn
-          ? "border-[color:var(--brand-primary)] bg-[color:color-mix(in_srgb,var(--brand-primary)_10%,white)] text-[color:var(--brand-primary)]"
-          : "border-[#dce6e3] bg-white text-[#334155] hover:bg-zinc-50"
-      } ${className}`}
+  return createPortal(
+    <div
+      id={menuId}
+      role="menu"
+      style={style}
+      className="z-[200] min-w-[168px] overflow-visible rounded-md border border-[#dce6e3] bg-white py-1 shadow-lg"
     >
-      <JobsFilterIcon />
-      {/* Label only on web (xl+); mobile/tablet show icon only */}
-      <span className="hidden">Filters</span>
-    </button>
+      <button
+        type="button"
+        role="menuitem"
+        onClick={() => {
+          onHideOrShowFilters();
+          onClose();
+        }}
+        className="flex w-full items-center whitespace-nowrap px-3 py-2.5 text-left text-sm font-normal leading-6 text-[#334155] transition hover:bg-zinc-50"
+        style={CANDIDATES_PAGE_SUBTITLE_STYLE}
+      >
+        {filtersVisible ? "Hide Filters" : "Show Filters"}
+      </button>
+      <button
+        type="button"
+        role="menuitem"
+        onClick={() => {
+          onMoreFilters();
+          onClose();
+        }}
+        className="flex w-full items-center whitespace-nowrap px-3 py-2.5 text-left text-sm font-normal leading-6 text-[#334155] transition hover:bg-zinc-50"
+        style={CANDIDATES_PAGE_SUBTITLE_STYLE}
+      >
+        More Filters
+      </button>
+    </div>,
+    document.body
+  );
+}
+
+function JobsFiltersDropdown({
+  filtersVisible,
+  hasActiveFilters,
+  onToggleFiltersVisibility,
+  onMoreFilters,
+  className = "",
+  showLabel = false,
+}: {
+  filtersVisible: boolean;
+  hasActiveFilters: boolean;
+  onToggleFiltersVisibility: () => void;
+  onMoreFilters: () => void;
+  className?: string;
+  showLabel?: boolean;
+}) {
+  const autoId = useId();
+  const menuId = `${autoId}-filters-menu`;
+  const rootRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const [open, setOpen] = useState(false);
+  const [menuStyle, setMenuStyle] = useState<CSSProperties | null>(null);
+  const isOn = filtersVisible || hasActiveFilters || open;
+
+  const updateMenuPosition = () => {
+    const trigger = triggerRef.current;
+    if (!trigger) return;
+    const rect = trigger.getBoundingClientRect();
+    setMenuStyle({
+      position: "fixed",
+      top: rect.bottom + 4,
+      left: rect.left,
+      minWidth: Math.max(rect.width, 168),
+    });
+  };
+
+  useLayoutEffect(() => {
+    if (!open) {
+      setMenuStyle(null);
+      return;
+    }
+    updateMenuPosition();
+    window.addEventListener("resize", updateMenuPosition);
+    window.addEventListener("scroll", updateMenuPosition, true);
+    return () => {
+      window.removeEventListener("resize", updateMenuPosition);
+      window.removeEventListener("scroll", updateMenuPosition, true);
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const handlePointerDown = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (rootRef.current?.contains(target)) return;
+      const menu = document.getElementById(menuId);
+      if (menu?.contains(target)) return;
+      setOpen(false);
+    };
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleEscape);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [open, menuId]);
+
+  return (
+    <div ref={rootRef} className={`relative ${className}`}>
+      <button
+        ref={triggerRef}
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label="Filters"
+        title="Filters"
+        className={`inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-md border text-sm font-medium whitespace-nowrap transition sm:h-8 ${
+          showLabel ? "w-auto px-3" : "w-9"
+        } ${
+          isOn
+            ? "border-[color:var(--brand-primary)] bg-[color:color-mix(in_srgb,var(--brand-primary)_10%,white)] text-[color:var(--brand-primary)]"
+            : "border-[#dce6e3] bg-white text-[#334155] hover:bg-zinc-50"
+        }`}
+      >
+        <JobsFilterIcon />
+        {showLabel ? (
+          <>
+            <span>Filters</span>
+            <ChevronDown
+              className={`h-3.5 w-3.5 shrink-0 transition ${open ? "rotate-180" : ""}`}
+              aria-hidden
+            />
+          </>
+        ) : null}
+      </button>
+      {open && menuStyle && typeof document !== "undefined" ? (
+        <JobsFiltersMenu
+          menuId={menuId}
+          style={menuStyle}
+          filtersVisible={filtersVisible}
+          onHideOrShowFilters={onToggleFiltersVisibility}
+          onMoreFilters={onMoreFilters}
+          onClose={() => setOpen(false)}
+        />
+      ) : null}
+    </div>
   );
 }
 
@@ -927,8 +1083,18 @@ export default function AdminRecruiterJobsPage() {
 
   const [professionFilter, setProfessionFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  /** Employment Type filter (shift_type) — kept name for existing inline filter bar. */
   const [placementTypeFilter, setPlacementTypeFilter] = useState("");
   const [locationFilter, setLocationFilter] = useState("");
+  const [locationTypeFilter, setLocationTypeFilter] = useState("");
+  const [specialtyFilter, setSpecialtyFilter] = useState("");
+  const [contractGroupFilter, setContractGroupFilter] = useState("");
+  const [w2TypeFilter, setW2TypeFilter] = useState("");
+  const [sourceTypeFilter, setSourceTypeFilter] = useState("");
+  const [workflowFilter, setWorkflowFilter] = useState("");
+  const [payRateFilter, setPayRateFilter] = useState("");
+  const [datePostedFilter, setDatePostedFilter] = useState("");
+  const [editFiltersOpen, setEditFiltersOpen] = useState(false);
   const [sortField, setSortField] = useState<JobSortField | null>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
 
@@ -981,6 +1147,14 @@ export default function AdminRecruiterJobsPage() {
     statusFilter,
     placementTypeFilter,
     locationFilter,
+    locationTypeFilter,
+    specialtyFilter,
+    contractGroupFilter,
+    w2TypeFilter,
+    sourceTypeFilter,
+    workflowFilter,
+    payRateFilter,
+    datePostedFilter,
     showStarredOnly,
     pageSize,
   ]);
@@ -1059,6 +1233,27 @@ export default function AdminRecruiterJobsPage() {
 
       if (locationFilter && jobLocation(job) !== locationFilter) return false;
 
+      if (locationTypeFilter && jobPlacementType(job) !== locationTypeFilter) return false;
+
+      if (specialtyFilter && relationNameFromJob(job.specialties) !== specialtyFilter) return false;
+
+      if (contractGroupFilter && jobContractGroup(job) !== contractGroupFilter) return false;
+
+      if (w2TypeFilter && (job.employment_type || "").trim() !== w2TypeFilter) return false;
+
+      if (sourceTypeFilter) {
+        const source = String(job.source_type ?? "").trim();
+        if (source.toLowerCase() !== sourceTypeFilter.toLowerCase()) return false;
+      }
+
+      if (workflowFilter && relationNameFromJob(job.onboarding_flows) !== workflowFilter) {
+        return false;
+      }
+
+      if (!jobMatchesPayRateFilter(job, payRateFilter)) return false;
+
+      if (!jobMatchesDatePostedFilter(job, datePostedFilter)) return false;
+
       return true;
     });
   }, [
@@ -1070,6 +1265,14 @@ export default function AdminRecruiterJobsPage() {
     statusFilter,
     placementTypeFilter,
     locationFilter,
+    locationTypeFilter,
+    specialtyFilter,
+    contractGroupFilter,
+    w2TypeFilter,
+    sourceTypeFilter,
+    workflowFilter,
+    payRateFilter,
+    datePostedFilter,
   ]);
 
   const sortedJobs = useMemo(() => {
@@ -1212,6 +1415,60 @@ export default function AdminRecruiterJobsPage() {
     return Array.from(values).sort((a, b) => a.localeCompare(b));
   }, [jobs]);
 
+  const locationTypeOptions = useMemo(() => {
+    const values = new Set<string>();
+    for (const job of jobs) {
+      const value = jobPlacementType(job);
+      if (value) values.add(value);
+    }
+    return Array.from(values).sort((a, b) => a.localeCompare(b));
+  }, [jobs]);
+
+  const specialtyOptions = useMemo(() => {
+    const values = new Set<string>();
+    for (const job of jobs) {
+      const value = relationNameFromJob(job.specialties);
+      if (value) values.add(value);
+    }
+    return Array.from(values).sort((a, b) => a.localeCompare(b));
+  }, [jobs]);
+
+  const contractGroupOptions = useMemo(() => {
+    const values = new Set<string>();
+    for (const job of jobs) {
+      const value = jobContractGroup(job);
+      if (value) values.add(value);
+    }
+    return Array.from(values).sort((a, b) => a.localeCompare(b));
+  }, [jobs]);
+
+  const w2TypeOptions = useMemo(() => {
+    const values = new Set<string>();
+    for (const job of jobs) {
+      const value = (job.employment_type || "").trim();
+      if (value) values.add(value);
+    }
+    return Array.from(values).sort((a, b) => a.localeCompare(b));
+  }, [jobs]);
+
+  const sourceTypeOptions = useMemo(() => {
+    const values = new Set<string>();
+    for (const job of jobs) {
+      const value = String(job.source_type ?? "").trim();
+      if (value) values.add(value);
+    }
+    return Array.from(values).sort((a, b) => a.localeCompare(b));
+  }, [jobs]);
+
+  const workflowOptions = useMemo(() => {
+    const values = new Set<string>();
+    for (const job of jobs) {
+      const value = relationNameFromJob(job.onboarding_flows);
+      if (value) values.add(value);
+    }
+    return Array.from(values).sort((a, b) => a.localeCompare(b));
+  }, [jobs]);
+
   const listColumns = listColumnOrder.length ? listColumnOrder : DEFAULT_JOB_COLUMNS;
 
   const hasActiveFilters = Boolean(
@@ -1219,8 +1476,62 @@ export default function AdminRecruiterJobsPage() {
       statusFilter ||
       placementTypeFilter ||
       locationFilter ||
+      locationTypeFilter ||
+      specialtyFilter ||
+      contractGroupFilter ||
+      w2TypeFilter ||
+      sourceTypeFilter ||
+      workflowFilter ||
+      payRateFilter ||
+      datePostedFilter ||
       showStarredOnly
   );
+
+  const editFiltersValue = useMemo(
+    (): JobsExtendedFilterValues => ({
+      profession: professionFilter,
+      status: statusFilter,
+      employmentType: placementTypeFilter,
+      location: locationFilter,
+      placementType: locationTypeFilter,
+      specialty: specialtyFilter,
+      contractGroup: contractGroupFilter,
+      w2Type: w2TypeFilter,
+      sourceType: sourceTypeFilter,
+      workflow: workflowFilter,
+      payRate: payRateFilter,
+      datePosted: datePostedFilter,
+    }),
+    [
+      professionFilter,
+      statusFilter,
+      placementTypeFilter,
+      locationFilter,
+      locationTypeFilter,
+      specialtyFilter,
+      contractGroupFilter,
+      w2TypeFilter,
+      sourceTypeFilter,
+      workflowFilter,
+      payRateFilter,
+      datePostedFilter,
+    ]
+  );
+
+  const handleSaveEditFilters = useCallback((next: JobsExtendedFilterValues) => {
+    setProfessionFilter(next.profession);
+    setStatusFilter(next.status);
+    setPlacementTypeFilter(next.employmentType);
+    setLocationFilter(next.location);
+    setLocationTypeFilter(next.placementType);
+    setSpecialtyFilter(next.specialty);
+    setContractGroupFilter(next.contractGroup);
+    setW2TypeFilter(next.w2Type);
+    setSourceTypeFilter(next.sourceType);
+    setWorkflowFilter(next.workflow);
+    setPayRateFilter(next.payRate);
+    setDatePostedFilter(next.datePosted);
+  }, []);
 
   const jobListCellContext = useMemo((): JobListCellContext => {
     return {
@@ -1312,10 +1623,11 @@ export default function AdminRecruiterJobsPage() {
         <div className="flex flex-col gap-2 border-b border-[#E5E7EB] px-3 py-2.5 xl:hidden">
           <div className="flex w-full items-center gap-2">
             <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
-              <JobsFiltersToggleButton
-                active={showFilterRows}
+              <JobsFiltersDropdown
+                filtersVisible={showFilterRows}
                 hasActiveFilters={hasActiveFilters}
-                onClick={() => setShowFilterRows((value) => !value)}
+                onToggleFiltersVisibility={() => setShowFilterRows((value) => !value)}
+                onMoreFilters={() => setEditFiltersOpen(true)}
                 className="shrink-0"
               />
               <MobileIconButton onClick={() => setEditColumnsOpen(true)} label="Columns">
@@ -1416,11 +1728,12 @@ export default function AdminRecruiterJobsPage() {
         <div className="hidden w-full flex-col xl:flex">
           <div className="flex w-full shrink-0 items-center justify-between gap-3 rounded-t-[12px] bg-white px-[14px] py-3">
             <div className="flex shrink-0 items-center gap-2">
-              <JobsFiltersToggleButton
-                active={showFilterRows}
+              <JobsFiltersDropdown
+                filtersVisible={showFilterRows}
                 hasActiveFilters={hasActiveFilters}
-                onClick={() => setShowFilterRows((value) => !value)}
-                className="[&_span]:inline"
+                onToggleFiltersVisibility={() => setShowFilterRows((value) => !value)}
+                onMoreFilters={() => setEditFiltersOpen(true)}
+                showLabel
               />
               <button
                 type="button"
@@ -1615,6 +1928,25 @@ export default function AdminRecruiterJobsPage() {
           setListColumnOrder(order);
           saveJobColumnOrder(order);
         }}
+      />
+
+      <EditJobsFiltersModal
+        key={editFiltersOpen ? "job-filters-open" : "job-filters-closed"}
+        open={editFiltersOpen}
+        onOpenChange={setEditFiltersOpen}
+        value={editFiltersValue}
+        options={{
+          professions: professionOptions,
+          employmentTypes: placementTypeOptions,
+          locations: locationOptions,
+          placementTypes: locationTypeOptions,
+          specialties: specialtyOptions,
+          contractGroups: contractGroupOptions,
+          w2Types: w2TypeOptions,
+          sourceTypes: sourceTypeOptions,
+          workflows: workflowOptions,
+        }}
+        onSave={handleSaveEditFilters}
       />
 
       <BulkDeleteConfirmModal

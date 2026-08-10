@@ -2,6 +2,7 @@ import type { CSSProperties } from "react";
 import type { EmploymentType, JobRequisitionInput, SourceType } from "@/lib/jobs/types";
 
 export type JobFormStep =
+  | "setup"
   | "requisition"
   | "msp-details"
   | "compensation"
@@ -38,6 +39,8 @@ export type JobFormUiState = {
   currency: string;
   showPayBy: string;
   payRatePeriod: string;
+  /** Expected hours display mode (stored in shift_details). */
+  hoursShowBy: string;
   selectedBenefits: string[];
   /** User-created benefit chips (shown alongside presets). */
   customBenefits: string[];
@@ -63,10 +66,11 @@ export const JOB_FORM_BENEFIT_OPTIONS = [
   "Professional development assistance",
 ] as const;
 
-export const JOB_FORM_COMPENSATION_TYPES = ["Hourly", "Weekly", "Monthly", "Yearly"] as const;
+export const JOB_FORM_COMPENSATION_TYPES = ["Hourly", "Weekly", "Monthly", "Annually"] as const;
 export const JOB_FORM_CURRENCIES = ["United States Dollar $"] as const;
 export const JOB_FORM_SHOW_PAY_BY = ["Range", "Starting amount", "Exact amount"] as const;
-export const JOB_FORM_PAY_PERIODS = ["Per month", "Per hour", "Per year"] as const;
+export const JOB_FORM_PAY_PERIODS = ["Hourly", "Weekly", "Monthly", "Annually"] as const;
+export const JOB_FORM_HOURS_SHOW_BY = ["Fixed Hours", "Flexible Hours"] as const;
 export const JOB_FORM_LOCATION_TYPES = ["Remote", "Hybrid", "On-site", "Remote, Hybrid"] as const;
 export const JOB_FORM_YEARS_OF_EXPERIENCE = [
   "1 yr",
@@ -92,6 +96,9 @@ export const JOB_FORM_JOB_TYPES = [
 ] as const;
 
 export type JobFormJobType = (typeof JOB_FORM_JOB_TYPES)[number];
+
+/** Select options for Number of Positions (Figma MSP Job Source Details). */
+export const JOB_FORM_NUMBER_OF_POSITION_OPTIONS = Array.from({ length: 20 }, (_, index) => index + 1);
 
 export const JOB_FORM_SURFACE_CLASS =
   "rounded-lg border border-[#CBD5E1] bg-white text-sm text-[#334155]";
@@ -127,6 +134,12 @@ export const JOB_FORM_ICON_BUTTON_CLASS =
 /** Radio option row: 24px gap on mobile, 40px on web (≥700px). */
 export const JOB_FORM_RADIO_OPTIONS_CLASS = "job-form-radio-options flex flex-wrap";
 
+/** Figma Neutral/500 — highlighted setup field surface. */
+export const JOB_FORM_NEUTRAL_500_BG = "#F1F5F9";
+
+/** Figma: MSP setup question block (620×135, 20px padding, 16px label-to-options gap). */
+export const JOB_FORM_SETUP_MSP_FIELD_CLASS = "job-form-setup-msp-field";
+
 /** Figma vertical field spacing: 30px between field groups. */
 export const JOB_FORM_FIELDS_CLASS = "job-form-fields";
 
@@ -135,6 +148,18 @@ export const JOB_FORM_LOCATION_CLUSTER_CLASS = "job-form-fields--location-cluste
 
 export const JOB_FORM_SELECT_CHEVRON =
   "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12' fill='none'%3E%3Cpath d='M3 4.5L6 7.5L9 4.5' stroke='%2394A3B8' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E\")";
+
+export function normalizePayRatePeriod(value?: string | null): string {
+  const raw = value?.trim() || "";
+  if (!raw) return "";
+  const lower = raw.toLowerCase();
+  if (lower.includes("hour")) return "Hourly";
+  if (lower.includes("week")) return "Weekly";
+  if (lower.includes("month")) return "Monthly";
+  if (lower.includes("year") || lower.includes("annual")) return "Annually";
+  if ((JOB_FORM_PAY_PERIODS as readonly string[]).includes(raw)) return raw;
+  return raw;
+}
 
 export function employmentTypeLabel(type: EmploymentType): string {
   if (type === "Contract") return "R&R";
@@ -173,6 +198,7 @@ export function defaultJobFormUiState(): JobFormUiState {
     currency: "",
     showPayBy: "Exact amount",
     payRatePeriod: "",
+    hoursShowBy: "",
     selectedBenefits: [],
     customBenefits: [],
   };
@@ -201,7 +227,7 @@ export function jobFormUiFromJob(job: JobRequisitionInput): JobFormUiState {
   }
   ui.compensationType = (() => {
     const raw = job.compensationType?.trim() || "";
-    if (raw === "Annually" || raw.toLowerCase() === "annual") return "Yearly";
+    if (raw === "Yearly" || raw === "Annually" || raw.toLowerCase() === "annual") return "Annually";
     return raw;
   })();
   ui.currency = job.currency?.trim() || "";
@@ -217,7 +243,13 @@ export function jobFormUiFromJob(job: JobRequisitionInput): JobFormUiState {
     }
     return "Exact amount";
   })();
-  ui.payRatePeriod = job.payRatePeriod?.trim() || "";
+  ui.payRatePeriod = normalizePayRatePeriod(job.payRatePeriod);
+  const shiftDetails = job.shiftDetails?.trim() || "";
+  if ((JOB_FORM_HOURS_SHOW_BY as readonly string[]).includes(shiftDetails)) {
+    ui.hoursShowBy = shiftDetails;
+  } else if (job.hoursPerWeek != null) {
+    ui.hoursShowBy = "Fixed Hours";
+  }
   if (job.benefits?.trim()) {
     const parsed = job.benefits
       .split(",")
@@ -234,15 +266,119 @@ export function jobFormUiFromJob(job: JobRequisitionInput): JobFormUiState {
   return ui;
 }
 
+/** Map a job_requisitions API row into form state (create-from-reference or edit). */
+export function jobRequisitionInputFromApiRow(row: Record<string, unknown>): JobRequisitionInput {
+  const additionalRaw = row.additional_locations;
+  const additionalLocations = Array.isArray(additionalRaw)
+    ? additionalRaw.map((item) => String(item ?? "").trim()).filter(Boolean)
+    : [];
+
+  const employmentRaw = String(row.employment_type ?? "").trim();
+  const employmentType: JobRequisitionInput["employmentType"] =
+    employmentRaw === "1099" || employmentRaw === "W2" || employmentRaw === "Contract"
+      ? employmentRaw
+      : (employmentRaw as JobRequisitionInput["employmentType"]) || "W2";
+
+  const payRateMin = row.pay_rate_min == null ? null : Number(row.pay_rate_min);
+  const suggestedPayRate = row.pay_rate == null ? null : Number(row.pay_rate);
+
+  return {
+    internalRequisitionNumber: String(row.internal_requisition_number ?? ""),
+    externalRequisitionId: String(row.external_requisition_id ?? ""),
+    sourceType: row.source_type as JobRequisitionInput["sourceType"],
+    mspClient: String(row.msp_client ?? ""),
+    professionId: String(row.profession_id ?? ""),
+    specialtyId: row.specialty_id ? String(row.specialty_id) : null,
+    employmentType,
+    employerOfRecord: String(row.employer_of_record ?? ""),
+    department: String(row.department ?? ""),
+    facility: String(row.facility ?? ""),
+    billRate: row.bill_rate == null ? null : Number(row.bill_rate),
+    payRateMin: payRateMin ?? suggestedPayRate,
+    payRateMax: row.pay_rate_max == null ? null : Number(row.pay_rate_max),
+    targetStartDate: row.target_start_date ? String(row.target_start_date) : null,
+    duration: String(row.duration ?? ""),
+    shiftType: String(row.shift_type ?? ""),
+    shiftDetails: String(row.shift_details ?? ""),
+    hoursPerWeek: row.hours_per_week == null ? null : Number(row.hours_per_week),
+    publicTitle: String(row.public_title ?? ""),
+    publicDescription: String(row.public_description ?? ""),
+    location: String(row.location ?? ""),
+    schedule: String(row.schedule ?? ""),
+    qualifications: String(row.qualifications ?? ""),
+    responsibilities: String(row.responsibilities ?? ""),
+    benefits: String(row.benefits ?? ""),
+    applicationDeadline: row.application_deadline ? String(row.application_deadline) : null,
+    numberOfPositions:
+      row.positions_count == null ? 1 : Math.max(1, Number(row.positions_count) || 1),
+    yearsOfExperience: row.years_of_experience
+      ? String(row.years_of_experience)
+      : row.years_experience_required != null
+        ? `${row.years_experience_required} yrs`
+        : null,
+    additionalLocations,
+    showInMultipleAreas: Boolean(row.show_in_multiple_areas),
+    jobLocationType: row.location_type
+      ? String(row.location_type)
+      : row.schedule
+        ? String(row.schedule)
+        : null,
+    isEmployerOnRecord:
+      typeof row.is_employer_on_record === "boolean" ? row.is_employer_on_record : true,
+    compensationType: row.compensation_type ? String(row.compensation_type) : null,
+    currency: row.currency ? String(row.currency) : null,
+    showPayBy: row.show_pay_by ? String(row.show_pay_by) : null,
+    payRatePeriod: row.pay_rate_period
+      ? String(row.pay_rate_period)
+      : row.rate_unit
+        ? String(row.rate_unit)
+        : null,
+    mspName: row.msp_name ? String(row.msp_name) : null,
+    sourceJobTitle: row.source_job_title ? String(row.source_job_title) : null,
+    sourceJobUrl: row.source_job_url ? String(row.source_job_url) : null,
+    sourceJobDetails: row.source_job_details ? String(row.source_job_details) : null,
+    suggestedPayRate,
+    requiredCredentials: Array.isArray(row.required_credentials)
+      ? row.required_credentials
+          .map((item) => String(item ?? "").trim())
+          .filter(Boolean)
+          .join(", ")
+      : row.required_credentials
+        ? String(row.required_credentials)
+        : null,
+    specialRequirements: row.special_requirements ? String(row.special_requirements) : null,
+    internalNotes: row.internal_notes ? String(row.internal_notes) : null,
+  };
+}
+
+/** Strip identifiers when cloning an existing job as a new requisition. */
+export function jobRequisitionInputForNewFromReference(
+  loaded: JobRequisitionInput,
+  sourceType: SourceType
+): JobRequisitionInput {
+  return {
+    ...loaded,
+    sourceType,
+    internalRequisitionNumber: "",
+    externalRequisitionId: "",
+    employerOfRecord: null,
+    /** MSP → R&R (Contract); Internal → keep W2/1099 only. */
+    employmentType:
+      sourceType === "MSP"
+        ? "Contract"
+        : loaded.employmentType === "1099" || loaded.employmentType === "W2"
+          ? loaded.employmentType
+          : "W2",
+  };
+}
+
 export function applyUiToJob(job: JobRequisitionInput, ui: JobFormUiState): JobRequisitionInput {
   const isYes = ui.employerOnRecord === "yes";
   const isNo = ui.employerOnRecord === "no";
-  const isMsp = job.sourceType === "MSP";
-  /** MSP pay lives on Job Source Details; mirror into public pay fields for listings. */
-  const mspPayRate = isMsp ? (job.suggestedPayRate ?? null) : null;
-  const mspPeriod = isMsp ? ui.compensationType.trim() : "";
   const showPayBy = ui.showPayBy.trim() || "Exact amount";
   const isRange = showPayBy === "Range";
+  const compensationType =
+    ui.compensationType === "Annually" ? "Yearly" : ui.compensationType;
 
   return {
     ...job,
@@ -256,13 +392,17 @@ export function applyUiToJob(job: JobRequisitionInput, ui: JobFormUiState): JobR
     showInMultipleAreas: ui.showInMultipleAreas,
     isEmployerOnRecord: isYes ? true : isNo ? false : null,
     employerOfRecord: isYes ? job.employerOfRecord ?? null : isNo ? null : job.employerOfRecord ?? null,
-    compensationType: ui.compensationType,
-    currency: isMsp ? ui.currency.trim() || "USD" : ui.currency,
-    showPayBy: isMsp ? showPayBy || "Range" : showPayBy,
-    payRatePeriod: isMsp ? mspPeriod || ui.payRatePeriod : ui.payRatePeriod,
-    payRateMin: isMsp ? mspPayRate : job.payRateMin,
-    // Only Range keeps a max; Starting/Exact are single-amount fields.
-    payRateMax: isMsp ? mspPayRate : isRange ? job.payRateMax : null,
+    /** MSP jobs always use R&R (Contract) for workflow routing. */
+    employmentType: job.sourceType === "MSP" ? "Contract" : job.employmentType,
+    compensationType,
+    currency: ui.currency.trim() || "USD",
+    showPayBy,
+    payRatePeriod: ui.payRatePeriod,
+    payRateMin: job.payRateMin,
+    payRateMax: isRange ? job.payRateMax : null,
+    suggestedPayRate: job.payRateMin ?? job.suggestedPayRate ?? null,
+    hoursPerWeek: job.hoursPerWeek ?? null,
+    shiftDetails: ui.hoursShowBy.trim() || job.shiftDetails || null,
     benefits: ui.selectedBenefits.join(", "),
     publicTitle: job.publicTitle?.trim() || job.publicTitle,
   };

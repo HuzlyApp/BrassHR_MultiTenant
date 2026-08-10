@@ -547,7 +547,7 @@ export function JobReviewEditModal({
             {field === "mspName" ? (
               <div>
                 <label className={JOB_FORM_LABEL_CLASS} htmlFor="review-edit-msp-name">
-                  MSP (Job Source)
+                  Contract Group / Client
                 </label>
                 <input
                   id="review-edit-msp-name"
@@ -561,7 +561,7 @@ export function JobReviewEditModal({
             {field === "mspClient" ? (
               <div>
                 <label className={JOB_FORM_LABEL_CLASS} htmlFor="review-edit-msp-client">
-                  MSP Client Name
+                  MSP Name
                 </label>
                 <input
                   id="review-edit-msp-client"
@@ -575,7 +575,7 @@ export function JobReviewEditModal({
             {field === "sourceJobId" ? (
               <div>
                 <label className={JOB_FORM_LABEL_CLASS} htmlFor="review-edit-source-job-id">
-                  Source Job ID
+                  Internal Reference / Source Job ID
                 </label>
                 <input
                   id="review-edit-source-job-id"
@@ -603,17 +603,17 @@ export function JobReviewEditModal({
             {field === "facilityLocation" ? (
               <JobLocationAutocompleteField
                 id="review-edit-facility"
-                label="Facility/Location"
+                label="Location"
                 value={draft.job.facility ?? ""}
                 onChange={(next) => patchJob("facility", next)}
-                placeholder="Search facility or location"
+                placeholder="Search address, city, state, zip"
               />
             ) : null}
 
             {field === "sourceJobUrl" ? (
               <div>
                 <label className={JOB_FORM_LABEL_CLASS} htmlFor="review-edit-source-url">
-                  Source Job URL
+                  Direct Source Job URL
                 </label>
                 <input
                   id="review-edit-source-url"
@@ -708,7 +708,7 @@ export function JobReviewEditModal({
                   value={draft.job.duration ?? ""}
                   onChange={(event) => patchJob("duration", event.target.value || null)}
                 >
-                  <option value="">Eg: 13 weeks</option>
+                  <option value="">Please select duration</option>
                   {JOB_FORM_DURATION_OPTIONS.map((value) => (
                     <option key={value} value={value}>
                       {value}
@@ -869,6 +869,12 @@ export function JobReviewEditModal({
                           {value}
                         </option>
                       ))}
+                      {draft.ui.payRatePeriod &&
+                      !JOB_FORM_PAY_PERIODS.includes(
+                        draft.ui.payRatePeriod as (typeof JOB_FORM_PAY_PERIODS)[number]
+                      ) ? (
+                        <option value={draft.ui.payRatePeriod}>{draft.ui.payRatePeriod}</option>
+                      ) : null}
                     </select>
                   </div>
                 </div>
