@@ -12,7 +12,7 @@ export type JobRequisitionInput = {
   externalRequisitionId?: string | null;
   sourceType: SourceType;
   mspClient?: string | null;
-  professionId: string;
+  professionId?: string | null;
   specialtyId?: string | null;
   employmentType: EmploymentType;
   employerOfRecord?: string | null;

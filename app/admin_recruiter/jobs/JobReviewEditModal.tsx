@@ -15,10 +15,13 @@ import {
   JOB_FORM_COMPENSATION_TYPES,
   JOB_FORM_CURRENCIES,
   JOB_FORM_DURATION_OPTIONS,
+  JOB_FORM_HOURS_SHOW_BY,
   JOB_FORM_INPUT_CLASS,
+  JOB_FORM_JOB_TYPES,
   JOB_FORM_LABEL_CLASS,
   JOB_FORM_LOCATION_TYPES,
   JOB_FORM_MSP_JOB_DETAIL_OPTIONS,
+  JOB_FORM_NUMBER_OF_POSITION_OPTIONS,
   JOB_FORM_OUTLINE_BUTTON_CLASS,
   JOB_FORM_PAY_PERIODS,
   JOB_FORM_PRIMARY_BUTTON_CLASS,
@@ -58,6 +61,7 @@ export type ReviewEditFieldId =
   | "payRate"
   | "jobDuration"
   | "startDate"
+  | "expectedHours"
   | "credentials"
   | "specialRequirements"
   | "sourceJobDetails"
@@ -174,6 +178,7 @@ export function JobReviewEditModal({
   );
 
   const employmentLabels = employmentTypes.map((type) => employmentTypeLabel(type));
+  const isMsp = draft.job.sourceType === "MSP";
 
   function patchJob<K extends keyof JobRequisitionInput>(key: K, value: JobRequisitionInput[K]) {
     setDraft((current) => ({ ...current, job: { ...current.job, [key]: value } }));
@@ -190,6 +195,9 @@ export function JobReviewEditModal({
 
   if (!field) return null;
 
+  const isLocationField =
+    field === "jobLocation" || field === "facilityLocation" || field === "additionalLocation";
+
   const benefitOptions = [
     ...JOB_FORM_BENEFIT_OPTIONS,
     ...draft.ui.customBenefits.filter(
@@ -202,10 +210,14 @@ export function JobReviewEditModal({
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-[200] bg-black/40" />
         <Dialog.Content
-          className="fixed left-1/2 top-1/2 z-[201] flex max-h-[92dvh] w-[min(560px,calc(100vw-24px))] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-2xl border border-[#E5E7EB] bg-white shadow-xl outline-none [&_input]:border-[#CBD5E1] [&_input]:outline-none [&_input]:focus:border-[color:var(--brand-primary)] [&_input]:focus:ring-2 [&_input]:focus:ring-[color:color-mix(in_srgb,var(--brand-primary)_20%,transparent)] [&_select]:border-[#CBD5E1] [&_select]:outline-none [&_select]:focus:border-[color:var(--brand-primary)] [&_select]:focus:ring-2 [&_select]:focus:ring-[color:color-mix(in_srgb,var(--brand-primary)_20%,transparent)] [&_textarea]:border-[#CBD5E1] [&_textarea]:outline-none [&_textarea]:focus:border-[color:var(--brand-primary)] [&_textarea]:focus:ring-2 [&_textarea]:focus:ring-[color:color-mix(in_srgb,var(--brand-primary)_20%,transparent)]"
+          className={`fixed left-1/2 top-1/2 z-[201] flex w-[min(560px,calc(100vw-24px))] -translate-x-1/2 -translate-y-1/2 flex-col rounded-2xl border border-[#E5E7EB] bg-white shadow-xl outline-none [&_input]:border-[#CBD5E1] [&_input]:outline-none [&_input]:focus:border-[color:var(--brand-primary)] [&_input]:focus:ring-2 [&_input]:focus:ring-[color:color-mix(in_srgb,var(--brand-primary)_20%,transparent)] [&_select]:border-[#CBD5E1] [&_select]:outline-none [&_select]:focus:border-[color:var(--brand-primary)] [&_select]:focus:ring-2 [&_select]:focus:ring-[color:color-mix(in_srgb,var(--brand-primary)_20%,transparent)] [&_textarea]:border-[#CBD5E1] [&_textarea]:outline-none [&_textarea]:focus:border-[color:var(--brand-primary)] [&_textarea]:focus:ring-2 [&_textarea]:focus:ring-[color:color-mix(in_srgb,var(--brand-primary)_20%,transparent)] ${
+            isLocationField
+              ? "min-h-[min(480px,85dvh)] max-h-[92dvh] overflow-visible"
+              : "max-h-[92dvh] overflow-hidden"
+          }`}
           style={brandVars}
         >
-          <div className="flex items-start justify-between gap-4 px-5 pt-5 pb-3">
+          <div className="flex shrink-0 items-start justify-between gap-4 px-5 pt-5 pb-3">
             <Dialog.Title className="text-lg font-semibold text-[#1D2739]">
               Edit the job post
             </Dialog.Title>
@@ -221,7 +233,11 @@ export function JobReviewEditModal({
             </Dialog.Close>
           </div>
 
-          <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-8 pt-3">
+          <div
+            className={`min-h-0 flex-1 px-5 pt-3 ${
+              isLocationField ? "overflow-visible pb-[22rem]" : "overflow-y-auto pb-8"
+            }`}
+          >
             {/* Job ID hidden for now
             {field === "jobId" ? (
               <div>
@@ -309,6 +325,7 @@ export function JobReviewEditModal({
                 value={draft.job.location ?? ""}
                 onChange={(next) => patchJob("location", next)}
                 placeholder="Search city, area, or address"
+                suggestionsClassName="!max-h-[21rem]"
               />
             ) : null}
 
@@ -327,6 +344,7 @@ export function JobReviewEditModal({
                       className="min-w-0 flex-1"
                       value={location}
                       placeholder="Search additional location"
+                      suggestionsClassName="!max-h-[21rem]"
                       onChange={(next) => {
                         const nextLocations = [...draft.ui.additionalLocations];
                         if (!nextLocations.length) nextLocations.push("");
@@ -373,57 +391,94 @@ export function JobReviewEditModal({
             {field === "jobLocationType" ? (
               <div>
                 <label className={JOB_FORM_LABEL_CLASS} htmlFor="review-edit-location-type">
-                  Placement type
+                  Placement Type
                 </label>
                 <select
                   id="review-edit-location-type"
                   className={JOB_FORM_SELECT_CLASS}
                   style={{ backgroundImage: JOB_FORM_SELECT_CHEVRON }}
-                  value={draft.ui.jobLocationType}
+                  value={draft.ui.jobLocationType ?? ""}
                   onChange={(event) => patchUi({ jobLocationType: event.target.value })}
                 >
-                  <option value="">Select Placement type</option>
+                  <option value="">Select Placement Type</option>
                   {JOB_FORM_LOCATION_TYPES.map((value) => (
                     <option key={value} value={value}>
                       {value}
                     </option>
                   ))}
+                  {draft.ui.jobLocationType &&
+                  !JOB_FORM_LOCATION_TYPES.includes(
+                    draft.ui.jobLocationType as (typeof JOB_FORM_LOCATION_TYPES)[number]
+                  ) ? (
+                    <option value={draft.ui.jobLocationType}>{draft.ui.jobLocationType}</option>
+                  ) : null}
                 </select>
               </div>
             ) : null}
 
             {field === "numberOfPositions" ? (
               <div>
-                <label className={JOB_FORM_LABEL_CLASS}>Number of Positions</label>
-                <div className="flex h-10 items-center overflow-hidden rounded-lg border border-[#CBD5E1]">
-                  <input
-                    type="number"
-                    min={1}
-                    className="h-full min-w-0 flex-1 border-0 px-3 text-sm text-[#334155] outline-none"
+                <label className={JOB_FORM_LABEL_CLASS} htmlFor="review-edit-positions">
+                  Number of Positions
+                </label>
+                {isMsp ? (
+                  <select
+                    id="review-edit-positions"
+                    className={`${JOB_FORM_SELECT_CLASS} text-[#334155]`}
+                    style={{ backgroundImage: JOB_FORM_SELECT_CHEVRON }}
                     value={draft.ui.numberOfPositions}
                     onChange={(event) =>
                       patchUi({
-                        numberOfPositions: Math.max(1, Number(event.target.value) || 1),
+                        numberOfPositions: Math.max(1, Math.trunc(Number(event.target.value) || 1)),
                       })
                     }
-                  />
-                  <button
-                    type="button"
-                    className="inline-flex h-full w-10 cursor-pointer items-center justify-center border-l border-[#CBD5E1] text-[#64748B] hover:bg-[#F8FAFC]"
-                    onClick={() => patchUi({ numberOfPositions: draft.ui.numberOfPositions + 1 })}
                   >
-                    <Plus className="h-4 w-4" />
-                  </button>
-                  <button
-                    type="button"
-                    className="inline-flex h-full w-10 cursor-pointer items-center justify-center border-l border-[#CBD5E1] text-[#64748B] hover:bg-[#F8FAFC]"
-                    onClick={() =>
-                      patchUi({ numberOfPositions: Math.max(1, draft.ui.numberOfPositions - 1) })
-                    }
-                  >
-                    <Minus className="h-4 w-4" />
-                  </button>
-                </div>
+                    {JOB_FORM_NUMBER_OF_POSITION_OPTIONS.map((value) => (
+                      <option key={value} value={value}>
+                        {value}
+                      </option>
+                    ))}
+                    {draft.ui.numberOfPositions > JOB_FORM_NUMBER_OF_POSITION_OPTIONS.length ? (
+                      <option value={draft.ui.numberOfPositions}>
+                        {draft.ui.numberOfPositions}
+                      </option>
+                    ) : null}
+                  </select>
+                ) : (
+                  <div className="flex h-10 items-center overflow-hidden rounded-lg border border-[#CBD5E1]">
+                    <input
+                      type="number"
+                      min={1}
+                      className="h-full min-w-0 flex-1 border-0 px-3 text-sm text-[#334155] outline-none"
+                      value={draft.ui.numberOfPositions}
+                      onChange={(event) =>
+                        patchUi({
+                          numberOfPositions: Math.max(1, Number(event.target.value) || 1),
+                        })
+                      }
+                    />
+                    <button
+                      type="button"
+                      className="inline-flex h-full w-10 cursor-pointer items-center justify-center border-l border-[#CBD5E1] text-[#64748B] hover:bg-[#F8FAFC]"
+                      onClick={() =>
+                        patchUi({ numberOfPositions: draft.ui.numberOfPositions + 1 })
+                      }
+                    >
+                      <Plus className="h-4 w-4" />
+                    </button>
+                    <button
+                      type="button"
+                      className="inline-flex h-full w-10 cursor-pointer items-center justify-center border-l border-[#CBD5E1] text-[#64748B] hover:bg-[#F8FAFC]"
+                      onClick={() =>
+                        patchUi({
+                          numberOfPositions: Math.max(1, draft.ui.numberOfPositions - 1),
+                        })
+                      }
+                    >
+                      <Minus className="h-4 w-4" />
+                    </button>
+                  </div>
+                )}
               </div>
             ) : null}
 
@@ -473,11 +528,41 @@ export function JobReviewEditModal({
             ) : null}
 
             {field === "jobType" ? (
-              <JobTypeChipSelect
-                value={draft.job.shiftType ?? ""}
-                onChange={(next) => patchJob("shiftType", next)}
-                labelClassName="sr-only"
-              />
+              isMsp ? (
+                <div>
+                  <label className={JOB_FORM_LABEL_CLASS} htmlFor="review-edit-job-type">
+                    Employment Type
+                  </label>
+                  <select
+                    id="review-edit-job-type"
+                    className={`${JOB_FORM_SELECT_CLASS} ${
+                      draft.job.shiftType ? "text-[#334155]" : "text-[#94A3B8]"
+                    }`}
+                    style={{ backgroundImage: JOB_FORM_SELECT_CHEVRON }}
+                    value={draft.job.shiftType ?? ""}
+                    onChange={(event) => patchJob("shiftType", event.target.value)}
+                  >
+                    <option value="">Select Employment Type</option>
+                    {JOB_FORM_JOB_TYPES.map((value) => (
+                      <option key={value} value={value}>
+                        {value}
+                      </option>
+                    ))}
+                    {draft.job.shiftType &&
+                    !JOB_FORM_JOB_TYPES.includes(
+                      draft.job.shiftType as (typeof JOB_FORM_JOB_TYPES)[number]
+                    ) ? (
+                      <option value={draft.job.shiftType}>{draft.job.shiftType}</option>
+                    ) : null}
+                  </select>
+                </div>
+              ) : (
+                <JobTypeChipSelect
+                  value={draft.job.shiftType ?? ""}
+                  onChange={(next) => patchJob("shiftType", next)}
+                  labelClassName="sr-only"
+                />
+              )
             ) : null}
 
             {field === "employerOnRecord" ? (
@@ -595,7 +680,14 @@ export function JobReviewEditModal({
                   id="review-edit-source-job-title"
                   className={JOB_FORM_INPUT_CLASS}
                   value={draft.job.sourceJobTitle ?? ""}
-                  onChange={(event) => patchJob("sourceJobTitle", event.target.value)}
+                  onChange={(event) => {
+                    const next = event.target.value;
+                    patchJob("sourceJobTitle", next);
+                    if (isMsp && !draft.job.publicTitle?.trim()) {
+                      patchJob("publicTitle", next);
+                    }
+                  }}
+                  placeholder="e.g. Registered Nurse - Acute Care"
                 />
               </div>
             ) : null}
@@ -604,9 +696,13 @@ export function JobReviewEditModal({
               <JobLocationAutocompleteField
                 id="review-edit-facility"
                 label="Location"
-                value={draft.job.facility ?? ""}
-                onChange={(next) => patchJob("facility", next)}
+                value={draft.job.facility?.trim() || draft.job.location?.trim() || ""}
+                onChange={(next) => {
+                  patchJob("facility", next);
+                  if (isMsp) patchJob("location", next);
+                }}
                 placeholder="Search address, city, state, zip"
+                suggestionsClassName="!max-h-[21rem]"
               />
             ) : null}
 
@@ -730,6 +826,69 @@ export function JobReviewEditModal({
                   value={draft.job.targetStartDate ?? ""}
                   onChange={(event) => patchJob("targetStartDate", event.target.value || null)}
                 />
+              </div>
+            ) : null}
+
+            {field === "expectedHours" ? (
+              <div className="space-y-4">
+                <h3 className="text-base font-semibold text-[#1D2739]">Expected hours</h3>
+                <div
+                  className={`grid gap-4 min-[700px]:items-end ${
+                    (draft.ui.hoursShowBy || "Fixed Hours") === "Fixed Hours"
+                      ? "min-[700px]:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_auto]"
+                      : "min-[700px]:grid-cols-[minmax(0,1.2fr)]"
+                  }`}
+                >
+                  <div className="min-w-0">
+                    <label className={JOB_FORM_LABEL_CLASS} htmlFor="review-edit-hours-show-by">
+                      Show by
+                    </label>
+                    <select
+                      id="review-edit-hours-show-by"
+                      className={`${JOB_FORM_SELECT_CLASS} text-[#334155]`}
+                      style={{ backgroundImage: JOB_FORM_SELECT_CHEVRON }}
+                      value={draft.ui.hoursShowBy || "Fixed Hours"}
+                      onChange={(event) => {
+                        const next = event.target.value;
+                        patchUi({ hoursShowBy: next });
+                        patchJob("shiftDetails", next || null);
+                      }}
+                    >
+                      {JOB_FORM_HOURS_SHOW_BY.map((value) => (
+                        <option key={value} value={value}>
+                          {value}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {(draft.ui.hoursShowBy || "Fixed Hours") === "Fixed Hours" ? (
+                    <>
+                      <div className="min-w-0">
+                        <label className={JOB_FORM_LABEL_CLASS} htmlFor="review-edit-hours-per-week">
+                          Fixed at
+                        </label>
+                        <input
+                          id="review-edit-hours-per-week"
+                          type="number"
+                          min="0"
+                          step="1"
+                          className={JOB_FORM_INPUT_CLASS}
+                          value={draft.job.hoursPerWeek ?? ""}
+                          onChange={(event) =>
+                            patchJob(
+                              "hoursPerWeek",
+                              event.target.value ? Number(event.target.value) : null
+                            )
+                          }
+                        />
+                      </div>
+                      <span className="hidden pb-2 text-sm text-[#64748B] min-[700px]:block">
+                        Hours per week
+                      </span>
+                    </>
+                  ) : null}
+                </div>
               </div>
             ) : null}
 
@@ -1035,7 +1194,7 @@ export function JobReviewEditModal({
             ) : null}
           </div>
 
-          <div className="flex items-center justify-end gap-3 border-t border-[#E5E7EB] px-5 py-4">
+          <div className="flex shrink-0 items-center justify-end gap-3 border-t border-[#E5E7EB] px-5 py-4">
             <Dialog.Close type="button" className={JOB_FORM_OUTLINE_BUTTON_CLASS}>
               Close
             </Dialog.Close>

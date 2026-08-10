@@ -29,7 +29,10 @@ export const jobRequisitionInputSchema = z.object({
   externalRequisitionId: optionalText,
   sourceType: z.enum(SOURCE_TYPES),
   mspClient: optionalText,
-  professionId: z.uuid(),
+  professionId: z
+    .union([z.string(), z.null(), z.undefined()])
+    .transform((value) => value?.trim() || null)
+    .pipe(z.union([z.uuid(), z.null()])),
   specialtyId: optionalText.pipe(z.uuid().nullable()),
   employmentType: z.enum(EMPLOYMENT_TYPES),
   employerOfRecord: optionalText,
@@ -93,18 +96,24 @@ export function validatePublishableJob(
   workflowId: string | null
 ): FieldErrors {
   const errors: FieldErrors = {};
+  const isMsp = input.sourceType === "MSP";
+  const location = input.location?.trim() || input.facility?.trim() || "";
+
   if (!input.publicTitle?.trim()) errors.publicTitle = "Public job title is required.";
   if (!input.publicDescription?.trim()) {
     errors.publicDescription = "Public job description is required.";
   }
-  if (!input.location?.trim()) errors.location = "Location is required.";
-  if (!input.professionId) errors.professionId = "Profession is required.";
+  if (!location) errors.location = "Location is required.";
   if (!input.employmentType) errors.employmentType = "Employment type is required.";
   if (!input.shiftType?.trim()) errors.shiftType = "Employment Type is required.";
   if (!input.sourceType) errors.sourceType = "Source type is required.";
-  if (!workflowId) errors.workflowId = "A matching published workflow is required.";
 
-  if (input.sourceType === "MSP") {
+  if (!isMsp) {
+    if (!input.professionId) errors.professionId = "Profession is required.";
+    if (!workflowId) errors.workflowId = "A matching published workflow is required.";
+  }
+
+  if (isMsp) {
     if (!input.mspClient?.trim()) errors.mspClient = "MSP client is required.";
     if (!input.externalRequisitionId?.trim()) {
       errors.externalRequisitionId = "External requisition ID is required.";

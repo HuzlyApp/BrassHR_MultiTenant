@@ -394,6 +394,13 @@ export function applyUiToJob(job: JobRequisitionInput, ui: JobFormUiState): JobR
     employerOfRecord: isYes ? job.employerOfRecord ?? null : isNo ? null : job.employerOfRecord ?? null,
     /** MSP jobs always use R&R (Contract) for workflow routing. */
     employmentType: job.sourceType === "MSP" ? "Contract" : job.employmentType,
+    /** MSP Location maps to facility; keep public location in sync. */
+    location:
+      job.sourceType === "MSP"
+        ? job.facility?.trim() || job.location?.trim() || null
+        : job.location,
+    professionId: job.sourceType === "MSP" ? job.professionId || null : job.professionId,
+    specialtyId: job.sourceType === "MSP" ? null : job.specialtyId,
     compensationType,
     currency: ui.currency.trim() || "USD",
     showPayBy,

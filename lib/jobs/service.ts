@@ -77,6 +77,10 @@ function toJobRow(input: JobRequisitionInput) {
   const requiredCredentials = clean(input.requiredCredentials);
   const suggestedPayRate =
     input.suggestedPayRate ?? input.payRateMin ?? input.payRateMax ?? null;
+  const professionId = clean(input.professionId);
+  /** MSP Location field writes facility; mirror into location for public/list display. */
+  const location =
+    clean(input.location) ?? (input.sourceType === "MSP" ? facility : null);
 
   return {
     internal_requisition_number: clean(input.internalRequisitionNumber),
@@ -85,7 +89,7 @@ function toJobRow(input: JobRequisitionInput) {
     msp_client: mspClient,
     msp_name: clean(input.mspName),
     msp_client_name: mspClient,
-    profession_id: input.professionId,
+    profession_id: professionId,
     specialty_id: clean(input.specialtyId),
     employment_type: input.employmentType,
     employer_of_record: clean(input.employerOfRecord),
@@ -101,7 +105,7 @@ function toJobRow(input: JobRequisitionInput) {
     hours_per_week: input.hoursPerWeek ?? null,
     public_title: publicTitle,
     public_description: publicDescription,
-    location: clean(input.location),
+    location,
     schedule: jobLocationType,
     qualifications: clean(input.qualifications),
     responsibilities: clean(input.responsibilities),
@@ -168,7 +172,7 @@ async function routingKeyChanged(
   if (!data) return false;
   const nextLocationType = cleanMatchText(input.jobLocationType ?? input.schedule);
   return (
-    String(data.profession_id ?? "") !== input.professionId ||
+    String(data.profession_id ?? "") !== String(input.professionId ?? "") ||
     String(data.specialty_id ?? "") !== String(input.specialtyId ?? "") ||
     String(data.employment_type) !== input.employmentType ||
     cleanMatchText(data.location as string | null) !== cleanMatchText(input.location) ||
@@ -278,6 +282,11 @@ async function resolveJobWorkflowAssignment(
     return { match, assignmentMode: "manual", assignmentError: null };
   }
 
+  /** MSP jobs publish without an onboarding workflow assignment. */
+  if (input.sourceType === "MSP") {
+    return { match: null, assignmentMode: "automatic", assignmentError: null };
+  }
+
   const match = await resolveWorkflowMatch(supabase, tenantId, {
     professionId: input.professionId,
     specialtyId: input.specialtyId,
@@ -289,7 +298,7 @@ async function resolveJobWorkflowAssignment(
   });
 
   if (!match) {
-    const name = await professionName(supabase, tenantId, input.professionId);
+    const name = await professionName(supabase, tenantId, input.professionId ?? "");
     return {
       match: null,
       assignmentMode: "automatic",
@@ -376,10 +385,13 @@ async function requirePublishable(
   if (Object.keys(fieldErrors).length === 0) return;
 
   let message = "Complete the required fields before publishing.";
-  if (!match) {
-    message = workflowNoMatchMessage(await professionName(supabase, tenantId, input.professionId), {
-      employmentType: input.employmentType,
-    });
+  if (input.sourceType !== "MSP" && !match) {
+    message = workflowNoMatchMessage(
+      await professionName(supabase, tenantId, input.professionId ?? ""),
+      {
+        employmentType: input.employmentType,
+      }
+    );
   }
   throw new JobValidationError(message, fieldErrors);
 }

@@ -17,6 +17,8 @@ type Props = {
   error?: string;
   showLabel?: boolean;
   className?: string;
+  /** Extra space for suggestion list (e.g. review edit modal). */
+  suggestionsClassName?: string;
 };
 
 /**
@@ -32,6 +34,7 @@ export default function JobLocationAutocompleteField({
   error,
   showLabel = true,
   className,
+  suggestionsClassName,
 }: Props) {
   const generatedId = useId();
   const inputId = id ?? generatedId;
@@ -89,7 +92,9 @@ export default function JobLocationAutocompleteField({
             id={listboxId}
             role="listbox"
             aria-label={`${label} suggestions`}
-            className="absolute left-0 right-0 top-[calc(100%+4px)] z-30 max-h-56 overflow-y-auto rounded-lg border border-[#E5E7EB] bg-white shadow-lg"
+            className={`absolute left-0 right-0 top-[calc(100%+4px)] z-30 max-h-56 overflow-y-auto rounded-lg border border-[#E5E7EB] bg-white shadow-lg ${
+              suggestionsClassName ?? ""
+            }`}
           >
             {suggestions.map((suggestion) => (
               <li key={suggestion.id} role="option" aria-selected={false}>

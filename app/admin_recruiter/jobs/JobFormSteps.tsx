@@ -283,9 +283,9 @@ export function JobFormStepRequisition({
               id="profession"
               className={JOB_FORM_SELECT_CLASS}
               style={{ backgroundImage: JOB_FORM_SELECT_CHEVRON }}
-              value={job.professionId}
+              value={job.professionId ?? ""}
               onChange={(event) => {
-                onJobChange("professionId", event.target.value);
+                onJobChange("professionId", event.target.value || null);
                 onJobChange("specialtyId", null);
               }}
             >
@@ -583,7 +583,13 @@ export function JobFormStepMspDetails({
           id="source-job-title"
           className={JOB_FORM_INPUT_CLASS}
           value={job.sourceJobTitle ?? ""}
-          onChange={(event) => onJobChange("sourceJobTitle", event.target.value)}
+          onChange={(event) => {
+            const next = event.target.value;
+            onJobChange("sourceJobTitle", next);
+            if (!job.publicTitle?.trim()) {
+              onJobChange("publicTitle", next);
+            }
+          }}
           placeholder="e.g. Registered Nurse - Acute Care"
         />
       </div>
@@ -644,7 +650,10 @@ export function JobFormStepMspDetails({
           id="msp-facility"
           label="Location"
           value={facilityValue}
-          onChange={(next) => onJobChange("facility", next)}
+          onChange={(next) => {
+            onJobChange("facility", next);
+            onJobChange("location", next);
+          }}
           placeholder="Search address, city, state, zip"
         />
       </div>
@@ -1515,32 +1524,55 @@ export function JobFormStepReview({
         onEdit={() => onEditField("jobId")}
       />
       */}
-      <ReviewRow label="Job Title" value={job.publicTitle ?? ""} onEdit={() => onEditField("jobTitle")} />
-      <ReviewRow label="Profession" value={professionName} readOnly />
       <ReviewRow
-        label="Specialty"
-        value={specialtyName}
-        addLabel="specialty"
-        onEdit={() => onEditField("specialty")}
+        label="Job Title"
+        value={
+          job.publicTitle?.trim() ||
+          (job.sourceType === "MSP" ? job.sourceJobTitle?.trim() || "" : "")
+        }
+        onEdit={() => onEditField("jobTitle")}
       />
-      <ReviewRow label="Job Location" value={job.location ?? ""} onEdit={() => onEditField("jobLocation")} />
-      <ReviewRow
-        label="Add Additional Location"
-        value={additionalLocationsValue}
-        addLabel="optional job information"
-        onEdit={() => onEditField("additionalLocation")}
-      />
-      <ReviewRow label="Placement type" value={ui.jobLocationType} onEdit={() => onEditField("jobLocationType")} />
-      <ReviewRow
-        label="Number of Positions"
-        value={ui.numberOfPositions > 0 ? String(ui.numberOfPositions) : ""}
-        onEdit={() => onEditField("numberOfPositions")}
-      />
-      <ReviewRow
-        label="Years of Experience"
-        value={ui.yearsOfExperience}
-        onEdit={() => onEditField("yearsOfExperience")}
-      />
+      {job.sourceType !== "MSP" ? (
+        <ReviewRow label="Profession" value={professionName} readOnly />
+      ) : null}
+      {job.sourceType !== "MSP" ? (
+        <ReviewRow
+          label="Specialty"
+          value={specialtyName}
+          addLabel="specialty"
+          onEdit={() => onEditField("specialty")}
+        />
+      ) : null}
+      {job.sourceType !== "MSP" ? (
+        <>
+          <ReviewRow
+            label="Job Location"
+            value={job.location ?? ""}
+            onEdit={() => onEditField("jobLocation")}
+          />
+          <ReviewRow
+            label="Add Additional Location"
+            value={additionalLocationsValue}
+            addLabel="optional job information"
+            onEdit={() => onEditField("additionalLocation")}
+          />
+          <ReviewRow
+            label="Placement type"
+            value={ui.jobLocationType}
+            onEdit={() => onEditField("jobLocationType")}
+          />
+          <ReviewRow
+            label="Number of Positions"
+            value={ui.numberOfPositions > 0 ? String(ui.numberOfPositions) : ""}
+            onEdit={() => onEditField("numberOfPositions")}
+          />
+          <ReviewRow
+            label="Years of Experience"
+            value={ui.yearsOfExperience}
+            onEdit={() => onEditField("yearsOfExperience")}
+          />
+        </>
+      ) : null}
       <ReviewRow
         label="Employment Type"
         value={employmentTypeValue}
@@ -1548,11 +1580,13 @@ export function JobFormStepReview({
         valueAsChip={Boolean(employmentTypeValue)}
         lockedNotice={{ tooltip: REVIEW_LOCKED_EMPLOYMENT_TYPE_TOOLTIP }}
       />
-      <ReviewRow
-        label="Employment Type"
-        value={job.shiftType ?? ""}
-        onEdit={() => onEditField("jobType")}
-      />
+      {job.sourceType !== "MSP" ? (
+        <ReviewRow
+          label="Employment Type"
+          value={job.shiftType ?? ""}
+          onEdit={() => onEditField("jobType")}
+        />
+      ) : null}
       {/* EOR hidden on review — removed from create job flow
       <ReviewRow
         label="Are you the employer on Record"
@@ -1570,11 +1604,6 @@ export function JobFormStepReview({
         />
       ) : null}
       */}
-      <ReviewRow
-        label="Job Source"
-        value={job.sourceType || ""}
-        onEdit={() => onEditField("jobSource")}
-      />
       {job.sourceType === "MSP" ? (
         <>
           <ReviewRow
@@ -1591,6 +1620,7 @@ export function JobFormStepReview({
           <ReviewRow
             label="MSP Name"
             value={job.mspClient ?? ""}
+            addLabel="MSP name"
             onEdit={() => onEditField("mspClient")}
           />
           <ReviewRow
@@ -1602,32 +1632,55 @@ export function JobFormStepReview({
           <ReviewRow
             label="Location"
             value={job.facility?.trim() || job.location?.trim() || ""}
+            addLabel="location"
             onEdit={() => onEditField("facilityLocation")}
           />
           <ReviewRow
             label="Direct Source Job URL"
             value={job.sourceJobUrl ?? ""}
+            addLabel="source job URL"
             onEdit={() => onEditField("sourceJobUrl")}
           />
           <ReviewRow
-            label="Bill Rate"
-            value={formatReviewMoney(job.billRate)}
-            onEdit={() => onEditField("billRate")}
+            label="Number of Positions"
+            value={ui.numberOfPositions > 0 ? String(ui.numberOfPositions) : ""}
+            onEdit={() => onEditField("numberOfPositions")}
+          />
+          <ReviewRow
+            label="Employment Type"
+            value={job.shiftType ?? ""}
+            addLabel="employment type"
+            onEdit={() => onEditField("jobType")}
+          />
+          <ReviewRow
+            label="Placement Type"
+            value={ui.jobLocationType}
+            addLabel="placement type"
+            onEdit={() => onEditField("jobLocationType")}
+          />
+          <ReviewRow
+            label="Internal Notes"
+            value={job.internalNotes ?? ""}
+            addLabel="internal notes"
+            onEdit={() => onEditField("internalNotes")}
           />
           <ReviewRow
             label="Pay Rate"
             value={mspPayRateValue !== "—" ? mspPayRateValue : ""}
+            addLabel="pay rate"
             onEdit={() => onEditField("compensation")}
           />
           <ReviewRow
-            label="Job Duration"
+            label="Duration"
             value={job.duration ?? ""}
-            onEdit={() => onEditField("compensation")}
+            addLabel="duration"
+            onEdit={() => onEditField("jobDuration")}
           />
           <ReviewRow
             label="Start Date"
             value={formatReviewDate(job.targetStartDate)}
-            onEdit={() => onEditField("compensation")}
+            addLabel="start date"
+            onEdit={() => onEditField("startDate")}
           />
           <ReviewRow
             label="Expected Hours"
@@ -1636,33 +1689,8 @@ export function JobFormStepReview({
                 ? `${job.hoursPerWeek} hrs/week`
                 : ui.hoursShowBy || ""
             }
-            onEdit={() => onEditField("compensation")}
-          />
-          {/* Required Credentials / Certifications & Special Requirement / Restrictions hidden for now
-          <ReviewRow
-            label="Required Credentials / Certifications"
-            value={job.requiredCredentials ?? ""}
-            addLabel="credentials"
-            onEdit={() => onEditField("credentials")}
-          />
-          <ReviewRow
-            label="Special Requirement / Restrictions"
-            value={job.specialRequirements ?? ""}
-            addLabel="special requirements"
-            onEdit={() => onEditField("specialRequirements")}
-          />
-          */}
-          {/* Job Details hidden for now
-          <ReviewRow
-            label="Job Details"
-            value={job.sourceJobDetails ?? ""}
-            onEdit={() => onEditField("sourceJobDetails")}
-          />
-          */}
-          <ReviewRow
-            label="Internal Notes"
-            value={job.internalNotes ?? ""}
-            onEdit={() => onEditField("internalNotes")}
+            addLabel="expected hours"
+            onEdit={() => onEditField("expectedHours")}
           />
         </>
       ) : null}
@@ -2042,7 +2070,13 @@ export function JobFormFooter({
                 style={brandStyle}
                 disabled={saving || !canPublish || !termsAccepted}
                 onClick={onPublish}
-                title={!termsAccepted ? "Accept terms to publish" : undefined}
+                title={
+                  !termsAccepted
+                    ? "Accept terms to publish"
+                    : !canPublish
+                      ? "Assign a published workflow before publishing"
+                      : undefined
+                }
               >
                 Save and Publish
               </button>

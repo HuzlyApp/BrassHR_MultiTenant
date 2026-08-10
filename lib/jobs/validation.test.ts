@@ -29,7 +29,7 @@ describe("job requisition validation", () => {
     expect(result.success).toBe(true);
   });
 
-  it("requires public fields and a workflow before publishing", () => {
+  it("requires public fields and a workflow before publishing Internal jobs", () => {
     const errors = validatePublishableJob(
       { ...validJob, publicTitle: "", publicDescription: "", location: "" },
       null
@@ -42,10 +42,37 @@ describe("job requisition validation", () => {
     });
   });
 
+  it("does not require workflow or profession for MSP publish", () => {
+    const errors = validatePublishableJob(
+      {
+        ...validJob,
+        sourceType: "MSP",
+        professionId: null,
+        mspClient: "CVS Health",
+        externalRequisitionId: "53534534",
+        facility: "Texas City, Texas, United States",
+        location: "",
+        shiftType: "Full-time",
+        employmentType: "Contract",
+      },
+      null
+    );
+    expect(errors.workflowId).toBeUndefined();
+    expect(errors.professionId).toBeUndefined();
+    expect(errors.location).toBeUndefined();
+  });
+
   it("requires MSP fields for a published MSP job", () => {
     const errors = validatePublishableJob(
-      { ...validJob, sourceType: "MSP", mspClient: "", externalRequisitionId: "" },
-      "22222222-2222-4222-8222-222222222222"
+      {
+        ...validJob,
+        sourceType: "MSP",
+        mspClient: "",
+        externalRequisitionId: "",
+        shiftType: "Full-time",
+        employmentType: "Contract",
+      },
+      null
     );
     expect(errors.mspClient).toBeTruthy();
     expect(errors.externalRequisitionId).toBeTruthy();

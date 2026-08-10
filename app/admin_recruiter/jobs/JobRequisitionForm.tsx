@@ -158,6 +158,20 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
     );
   }, [job.sourceType, job.employmentType]);
 
+  /** Keep create-job steps starting at the top after Next/Back. */
+  useEffect(() => {
+    const scrollToTop = () => {
+      window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+      const wrap = document.querySelector(".admin-recruiter-main-wrap");
+      if (wrap instanceof HTMLElement) wrap.scrollTop = 0;
+    };
+    scrollToTop();
+    const frame = window.requestAnimationFrame(scrollToTop);
+    return () => window.cancelAnimationFrame(frame);
+  }, [step]);
+
   const professionLabel = useMemo(
     () => options?.professions.find((item) => item.id === job.professionId)?.name ?? "",
     [job.professionId, options?.professions]
@@ -184,6 +198,13 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
         mappingCriteria: "Manual override",
         source: "manual",
       });
+      setWorkflowWarning("");
+      return;
+    }
+
+    /** MSP jobs do not require an assigned onboarding workflow. */
+    if (job.sourceType === "MSP") {
+      setWorkflow(null);
       setWorkflowWarning("");
       return;
     }
@@ -236,6 +257,7 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
   }, [
     assignmentMode,
     overrideWorkflowId,
+    job.sourceType,
     job.professionId,
     job.specialtyId,
     job.employmentType,
@@ -662,7 +684,7 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
             <JobFormFooter
               step={step}
               saving={saving}
-              canPublish={Boolean(workflow)}
+              canPublish={job.sourceType === "MSP" || Boolean(workflow)}
               showPublishActions={showPublishActions && originalStatus !== "published"}
               termsAccepted={termsAccepted}
               brandStyle={brandStyle}
