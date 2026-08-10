@@ -40,6 +40,7 @@ type WorkerProfile = {
   zip?: string | null;
   created_at: string | null;
   status?: string | null;
+  application_status_name?: string | null;
   profile_photo?: string | null;
   profile_photo_url?: string | null;
 };
@@ -197,7 +198,8 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
         zip: item.zip ?? "",
         address1: item.address1 ?? "",
         address2: item.address2 ?? "",
-        status: formatCandidateStatusLabel(item.status ?? statusLabel),
+        status: item.application_status_name?.trim()
+          || formatCandidateStatusLabel(item.status ?? statusLabel),
         createdAt: item.created_at,
         reference: item.id.slice(0, 7).toUpperCase(),
         dateOfBirth: null,

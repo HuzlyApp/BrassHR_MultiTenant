@@ -33,14 +33,10 @@ import {
   resolveApplicationWorkerId,
 } from "@/lib/jobs/application-applicant-display";
 import {
-  APPLICATION_STATUS_OPTIONS,
-  APPLICATION_STATUS_TABS,
   applicationStatusBadgeClassName,
   applicationStatusLabel,
-  matchesApplicationStatusTab,
   normalizeApplicationStatus,
   type ApplicationPipelineStatus,
-  type ApplicationStatusTab,
 } from "@/lib/jobs/application-status";
 import toast from "react-hot-toast";
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
@@ -53,15 +49,23 @@ import {
   saveApplicationColumnOrder,
   type ApplicationColumnId,
 } from "./application-columns";
+import {
+  ApplicationStatusChangeModal,
+  ApplicationStatusHistoryDialog,
+  type ApplicationStatusOption,
+} from "./ApplicationStatusUi";
+import { MatchScoreCell } from "./MatchAnalysisPanel";
 import { JobPublicViewLink } from "@/app/admin_recruiter/jobs/JobPublicViewLink";
 
 type ApplicationStatus = string;
 
-type ApplicationTab = ApplicationStatusTab;
+type ApplicationTab = "all" | string;
 
 type ApplicationRow = {
   id: string;
   status: ApplicationStatus | string;
+  status_id?: string | null;
+  statusName?: string | null;
   created_at: string;
   submitted_at: string | null;
   updated_at?: string | null;
@@ -69,6 +73,16 @@ type ApplicationRow = {
   workflow_id: string;
   applicant_workflow_instance_id: string;
   worker_id?: string | null;
+  ai_match_status?: string | null;
+  ai_match_score?: number | null;
+  ai_match_category?: string | null;
+  ai_match_action?: string | null;
+  ai_match_readiness?: string | null;
+  ai_match_display_category?: string | null;
+  application_statuses?:
+    | { id?: string; name?: string; system_key?: string | null; color?: string | null }
+    | { id?: string; name?: string; system_key?: string | null; color?: string | null }[]
+    | null;
   job_requisitions: Record<string, unknown> | Record<string, unknown>[] | null;
   onboarding_flows: Record<string, unknown> | Record<string, unknown>[] | null;
   applicant_profiles: Record<string, unknown> | Record<string, unknown>[] | null;
@@ -94,8 +108,6 @@ type JobOption = {
   created_at?: string | null;
 };
 
-const APPLICATION_TABS = APPLICATION_STATUS_TABS;
-
 const PAGE_SIZE_OPTIONS = [10, 20, 50];
 
 /** Figma: Text/text-link — fixed email color under applicant name */
@@ -112,24 +124,21 @@ const FILTER_SELECT_CHEVRON = {
   )}")`,
 } as const;
 
-// const MATCHES_PLACEHOLDER =
-//   "We didn't find matching qualifications. Review the candidate's profile to see their skills and experience.";
+const ROW_ACTIONS_MENU_WIDTH = 180;
+const ROW_ACTIONS_MENU_ESTIMATED_HEIGHT = 120;
+const STATUS_DROPDOWN_WIDTH = 180;
+const STATUS_DROPDOWN_ESTIMATED_HEIGHT = 280;
 
-const INTEREST_STATUS_MENU_WIDTH = 160;
-const INTEREST_STATUS_MENU_ESTIMATED_HEIGHT = 280;
-
-function InterestStatusMenuPortal({
-  options,
+function RowActionsMenuPortal({
   anchor,
-  busy,
   onClose,
-  onSelect,
+  onViewCandidate,
+  onViewHistory,
 }: {
-  options: Array<{ id: ApplicationPipelineStatus; label: string }>;
   anchor: HTMLElement;
-  busy: boolean;
   onClose: () => void;
-  onSelect: (status: ApplicationPipelineStatus) => void;
+  onViewCandidate: () => void;
+  onViewHistory: () => void;
 }) {
   const menuRef = useRef<HTMLDivElement>(null);
   const [style, setStyle] = useState<CSSProperties>({ visibility: "hidden" });
@@ -137,14 +146,14 @@ function InterestStatusMenuPortal({
   const updatePosition = useCallback(() => {
     const rect = anchor.getBoundingClientRect();
     let top = rect.bottom + 4;
-    if (top + INTEREST_STATUS_MENU_ESTIMATED_HEIGHT > window.innerHeight - 8) {
-      top = Math.max(8, rect.top - INTEREST_STATUS_MENU_ESTIMATED_HEIGHT - 4);
+    if (top + ROW_ACTIONS_MENU_ESTIMATED_HEIGHT > window.innerHeight - 8) {
+      top = Math.max(8, rect.top - ROW_ACTIONS_MENU_ESTIMATED_HEIGHT - 4);
     }
     setStyle({
       position: "fixed",
       top,
-      left: Math.max(8, rect.right - INTEREST_STATUS_MENU_WIDTH),
-      width: INTEREST_STATUS_MENU_WIDTH,
+      left: Math.max(8, rect.right - ROW_ACTIONS_MENU_WIDTH),
+      width: ROW_ACTIONS_MENU_WIDTH,
       visibility: "visible",
     });
   }, [anchor]);
@@ -189,22 +198,124 @@ function InterestStatusMenuPortal({
       style={style}
       className="z-[200] overflow-hidden rounded-xl border border-[#E5E7EB] bg-white py-1 text-left shadow-lg"
     >
-      {options.length === 0 ? (
+      <button
+        type="button"
+        role="menuitem"
+        onClick={() => {
+          onViewCandidate();
+          onClose();
+        }}
+        className="flex w-full items-center px-3 py-2 text-left text-sm text-[#334155] hover:bg-[#F8FAFC]"
+      >
+        View candidate
+      </button>
+      <button
+        type="button"
+        role="menuitem"
+        onClick={() => {
+          onViewHistory();
+          onClose();
+        }}
+        className="flex w-full items-center px-3 py-2 text-left text-sm text-[#334155] hover:bg-[#F8FAFC]"
+      >
+        Status history
+      </button>
+    </div>,
+    document.body
+  );
+}
+
+function StatusDropdownPortal({
+  options,
+  currentStatusId,
+  anchor,
+  busy,
+  onClose,
+  onSelect,
+}: {
+  options: ApplicationStatusOption[];
+  currentStatusId: string | null;
+  anchor: HTMLElement;
+  busy: boolean;
+  onClose: () => void;
+  onSelect: (option: ApplicationStatusOption) => void;
+}) {
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [style, setStyle] = useState<CSSProperties>({ visibility: "hidden" });
+
+  const updatePosition = useCallback(() => {
+    const rect = anchor.getBoundingClientRect();
+    let top = rect.bottom + 4;
+    if (top + STATUS_DROPDOWN_ESTIMATED_HEIGHT > window.innerHeight - 8) {
+      top = Math.max(8, rect.top - STATUS_DROPDOWN_ESTIMATED_HEIGHT - 4);
+    }
+    setStyle({
+      position: "fixed",
+      top,
+      left: Math.max(8, Math.min(rect.left, window.innerWidth - STATUS_DROPDOWN_WIDTH - 8)),
+      width: STATUS_DROPDOWN_WIDTH,
+      visibility: "visible",
+    });
+  }, [anchor]);
+
+  useLayoutEffect(() => {
+    updatePosition();
+  }, [updatePosition]);
+
+  useEffect(() => {
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+    };
+  }, [updatePosition]);
+
+  useEffect(() => {
+    const handlePointerDown = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (anchor.contains(target)) return;
+      if (menuRef.current?.contains(target)) return;
+      onClose();
+    };
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleEscape);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [anchor, onClose]);
+
+  if (typeof document === "undefined") return null;
+
+  const selectable = options.filter((option) => option.id !== currentStatusId);
+
+  return createPortal(
+    <div
+      ref={menuRef}
+      role="menu"
+      style={style}
+      className="z-[200] max-h-72 overflow-y-auto rounded-xl border border-[#E5E7EB] bg-white py-1 text-left shadow-lg"
+    >
+      {selectable.length === 0 ? (
         <p className="px-3 py-2 text-sm text-[#94A3B8]">No other statuses</p>
       ) : (
-        options.map((option) => (
+        selectable.map((option) => (
           <button
             key={option.id}
             type="button"
             role="menuitem"
             disabled={busy}
             onClick={() => {
-              onSelect(option.id);
+              onSelect(option);
               onClose();
             }}
             className="flex w-full items-center px-3 py-2 text-left text-sm text-[#334155] hover:bg-[#F8FAFC] disabled:opacity-50"
           >
-            {option.label}
+            {option.name}
           </button>
         ))
       )}
@@ -261,16 +372,46 @@ function jobReference(option: JobOption): string {
   return option.internal_requisition_number?.trim() || option.id.slice(0, 8).toUpperCase();
 }
 
-function statusTabFor(status: string): ApplicationTab {
-  return normalizeApplicationStatus(status);
+function oneStatusJoin(
+  value:
+    | { id?: string; name?: string; system_key?: string | null; color?: string | null }
+    | { id?: string; name?: string; system_key?: string | null; color?: string | null }[]
+    | null
+    | undefined
+) {
+  if (!value) return null;
+  return Array.isArray(value) ? value[0] ?? null : value;
 }
 
-function matchesTab(row: ApplicationRow, tab: ApplicationTab): boolean {
-  return matchesApplicationStatusTab(row.status, tab);
+function rowStatusId(row: ApplicationRow): string | null {
+  const joined = oneStatusJoin(row.application_statuses);
+  return row.status_id?.trim() || joined?.id?.trim() || null;
 }
 
-function statusLabel(status: string): string {
-  return applicationStatusLabel(status);
+function rowStatusName(row: ApplicationRow, options: ApplicationStatusOption[]): string {
+  const joined = oneStatusJoin(row.application_statuses);
+  return (
+    row.statusName?.trim() ||
+    joined?.name?.trim() ||
+    options.find((option) => option.id === rowStatusId(row))?.name ||
+    applicationStatusLabel(row.status)
+  );
+}
+
+function matchesTab(
+  row: ApplicationRow,
+  tab: ApplicationTab,
+  options: ApplicationStatusOption[]
+): boolean {
+  if (tab === "all") return true;
+  const statusId = rowStatusId(row);
+  if (statusId && statusId === tab) return true;
+  const option = options.find((item) => item.id === tab);
+  if (option?.systemKey) {
+    return normalizeApplicationStatus(row.status) === option.systemKey;
+  }
+  // Legacy URL tab keys (new/reviewing/…)
+  return normalizeApplicationStatus(row.status) === tab;
 }
 
 function formatRelativeTime(iso: string): string {
@@ -333,20 +474,7 @@ export default function JobApplicationsPage() {
   const [loading, setLoading] = useState(Boolean(jobId));
   const [error, setError] = useState("");
   const [activeTab, setActiveTab] = useState<ApplicationTab>(() => {
-    const initialTab = searchParams.get("tab")?.trim();
-    if (
-      initialTab === "all" ||
-      initialTab === "new" ||
-      initialTab === "reviewing" ||
-      initialTab === "interviewing" ||
-      initialTab === "rejected" ||
-      initialTab === "hired" ||
-      initialTab === "shortlisted" ||
-      initialTab === "undecided"
-    ) {
-      return initialTab;
-    }
-    return "all";
+    return searchParams.get("tab")?.trim() || "all";
   });
   const [showFilterRows, setShowFilterRows] = useCandidatesFilterRowsDefault();
   const [editColumnsOpen, setEditColumnsOpen] = useState(false);
@@ -354,18 +482,46 @@ export default function JobApplicationsPage() {
     ...DEFAULT_APPLICATION_COLUMNS,
   ]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [sortBy, setSortBy] = useState<"newest" | "oldest">("newest");
+  const [sortBy, setSortBy] = useState<"newest" | "oldest" | "matchScore">("newest");
   const [locationFilter, setLocationFilter] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [candidateSearchOpen, setCandidateSearchOpen] = useState(false);
   const [candidateSearchDraft, setCandidateSearchDraft] = useState("");
   const [candidateSearchQuery, setCandidateSearchQuery] = useState("");
-  const [interestMenu, setInterestMenu] = useState<{
+  const [rowActionsMenu, setRowActionsMenu] = useState<{
+    rowId: string;
+    anchor: HTMLElement;
+  } | null>(null);
+  const [statusMenu, setStatusMenu] = useState<{
     rowId: string;
     anchor: HTMLElement;
   } | null>(null);
   const [statusBusyId, setStatusBusyId] = useState<string | null>(null);
+  const [statusOptions, setStatusOptions] = useState<ApplicationStatusOption[]>([]);
+  const [pendingStatusChange, setPendingStatusChange] = useState<{
+    applicationId: string;
+    fromLabel: string;
+    toOption: ApplicationStatusOption;
+  } | null>(null);
+  const [statusChangeNote, setStatusChangeNote] = useState("");
+  const [historyDialog, setHistoryDialog] = useState<{
+    applicationId: string;
+    candidateName: string;
+  } | null>(null);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+  const [historyEntries, setHistoryEntries] = useState<
+    Array<{
+      id: string;
+      fromStatus: { id: string | null; name: string | null };
+      toStatus: { id: string | null; name: string };
+      note: string | null;
+      changedBy: { id: string | null; name: string | null };
+      changedAt: string;
+    }>
+  >([]);
+  const [matchAnalyzingId, setMatchAnalyzingId] = useState<string | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -382,8 +538,12 @@ export default function JobApplicationsPage() {
     setCandidateSearchOpen(false);
     setCandidateSearchDraft("");
     setCandidateSearchQuery("");
-    setInterestMenu(null);
+    setRowActionsMenu(null);
+    setStatusMenu(null);
     setStatusBusyId(null);
+    setPendingStatusChange(null);
+    setStatusChangeNote("");
+    setHistoryDialog(null);
     if (!jobId) {
       setJob(null);
       setRows([]);
@@ -399,19 +559,31 @@ export default function JobApplicationsPage() {
 
   useEffect(() => {
     const tabParam = searchParams.get("tab")?.trim();
-    if (
-      tabParam === "all" ||
-      tabParam === "new" ||
-      tabParam === "reviewing" ||
-      tabParam === "interviewing" ||
-      tabParam === "rejected" ||
-      tabParam === "hired" ||
-      tabParam === "shortlisted" ||
-      tabParam === "undecided"
-    ) {
-      setActiveTab(tabParam);
-    }
+    setActiveTab(tabParam || "all");
   }, [searchParams]);
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const response = await fetch("/api/admin/application-statuses?activeOnly=1", {
+          cache: "no-store",
+        });
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.error || "Failed to load statuses");
+        setStatusOptions(
+          ((payload.statuses ?? []) as Array<Record<string, unknown>>).map((row) => ({
+            id: String(row.id),
+            name: String(row.name),
+            systemKey: (row.systemKey as string | null) ?? null,
+            color: (row.color as string | null) ?? null,
+            sortOrder: Number(row.sortOrder ?? 0),
+          }))
+        );
+      } catch {
+        setStatusOptions([]);
+      }
+    })();
+  }, []);
 
   useEffect(() => {
     if (!jobMenuOpen) return;
@@ -619,21 +791,33 @@ export default function JobApplicationsPage() {
     (jobId ? "Job" : "Select a job");
   const jobLocation = formatJobLocation(job ?? selectedJobOption);
 
+  const statusTabs = useMemo(
+    () => [{ id: "all" as const, label: "All" }, ...statusOptions.map((s) => ({ id: s.id, label: s.name }))],
+    [statusOptions]
+  );
+
   const tabCounts = useMemo(() => {
-    const counts = Object.fromEntries(APPLICATION_TABS.map((tab) => [tab.id, 0])) as Record<
-      ApplicationTab,
-      number
-    >;
+    const counts: Record<string, number> = { all: 0 };
+    for (const option of statusOptions) counts[option.id] = 0;
     for (const row of rows) {
       counts.all += 1;
-      const tab = statusTabFor(row.status);
-      counts[tab] += 1;
+      const statusId = rowStatusId(row);
+      if (statusId && statusId in counts) {
+        counts[statusId] += 1;
+        continue;
+      }
+      const byKey = statusOptions.find(
+        (option) =>
+          option.systemKey &&
+          option.systemKey === normalizeApplicationStatus(row.status)
+      );
+      if (byKey) counts[byKey.id] += 1;
     }
     return counts;
-  }, [rows]);
+  }, [rows, statusOptions]);
 
   const filteredRows = useMemo(() => {
-    let next = rows.filter((row) => matchesTab(row, activeTab));
+    let next = rows.filter((row) => matchesTab(row, activeTab, statusOptions));
     if (locationFilter) {
       next = next.filter((row) => {
         const loc = formatJobLocation(null, one(row.job_requisitions));
@@ -649,12 +833,17 @@ export default function JobApplicationsPage() {
       });
     }
     next = [...next].sort((a, b) => {
+      if (sortBy === "matchScore") {
+        const aScore = a.ai_match_score == null ? -1 : Number(a.ai_match_score);
+        const bScore = b.ai_match_score == null ? -1 : Number(b.ai_match_score);
+        if (bScore !== aScore) return bScore - aScore;
+      }
       const aTime = new Date(a.submitted_at || a.created_at).getTime();
       const bTime = new Date(b.submitted_at || b.created_at).getTime();
-      return sortBy === "newest" ? bTime - aTime : aTime - bTime;
+      return sortBy === "oldest" ? aTime - bTime : bTime - aTime;
     });
     return next;
-  }, [rows, activeTab, locationFilter, sortBy, candidateSearchQuery]);
+  }, [rows, activeTab, locationFilter, sortBy, candidateSearchQuery, statusOptions]);
 
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / pageSize));
   const currentPage = Math.min(page, totalPages);
@@ -734,35 +923,168 @@ export default function JobApplicationsPage() {
     }
   }
 
-  async function updateApplicationStatus(
+  function beginStatusChange(applicationId: string, toOption: ApplicationStatusOption) {
+    const row = rows.find((item) => item.id === applicationId);
+    if (!row) return;
+    if (rowStatusId(row) === toOption.id) {
+      setStatusMenu(null);
+      return;
+    }
+    setStatusMenu(null);
+    setRowActionsMenu(null);
+    setPendingStatusChange({
+      applicationId,
+      fromLabel: rowStatusName(row, statusOptions),
+      toOption,
+    });
+    setStatusChangeNote("");
+  }
+
+  function beginStatusChangeBySystemKey(
     applicationId: string,
-    nextStatus: ApplicationPipelineStatus
+    systemKey: ApplicationPipelineStatus
   ) {
-    if (statusBusyId) return;
+    const option = statusOptions.find((item) => item.systemKey === systemKey);
+    if (!option) {
+      toast.error("That status is not configured for this organization.");
+      return;
+    }
+    beginStatusChange(applicationId, option);
+  }
+
+  async function confirmStatusChange() {
+    if (!pendingStatusChange || statusBusyId) return;
+    const { applicationId, toOption } = pendingStatusChange;
     setStatusBusyId(applicationId);
-    setInterestMenu(null);
     try {
-      const response = await fetch(`/api/admin/job-applications/${applicationId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: nextStatus }),
-      });
+      const response = await fetch(
+        `/api/admin/job-applications/${encodeURIComponent(applicationId)}/status`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            statusId: toOption.id,
+            note: statusChangeNote.trim() || undefined,
+          }),
+        }
+      );
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
         throw new Error(
           typeof payload.error === "string" ? payload.error : "Failed to update status"
         );
       }
+      const nextStatus = String(payload.application?.status ?? toOption.systemKey ?? "custom");
+      const nextStatusId = String(payload.application?.statusId ?? toOption.id);
+      const nextStatusName = String(payload.application?.statusName ?? toOption.name);
       setRows((current) =>
-        current.map((row) => (row.id === applicationId ? { ...row, status: nextStatus } : row))
+        current.map((row) =>
+          row.id === applicationId
+            ? {
+                ...row,
+                status: nextStatus,
+                status_id: nextStatusId,
+                statusName: nextStatusName,
+                application_statuses: {
+                  id: nextStatusId,
+                  name: nextStatusName,
+                  system_key: toOption.systemKey,
+                  color: toOption.color,
+                },
+              }
+            : row
+        )
       );
-      toast.success(`Status updated to ${applicationStatusLabel(nextStatus)}`);
+      setPendingStatusChange(null);
+      setStatusChangeNote("");
+      toast.success(
+        payload.unchanged ? "Status unchanged" : `Status updated to ${nextStatusName}`
+      );
+      if (historyDialog?.applicationId === applicationId) {
+        void loadStatusHistory(applicationId);
+      }
     } catch (updateError) {
       toast.error(
         updateError instanceof Error ? updateError.message : "Failed to update status"
       );
     } finally {
       setStatusBusyId(null);
+    }
+  }
+
+  async function loadStatusHistory(applicationId: string) {
+    setHistoryLoading(true);
+    setHistoryError(null);
+    try {
+      const response = await fetch(
+        `/api/admin/job-applications/${encodeURIComponent(applicationId)}/status-history`,
+        { cache: "no-store" }
+      );
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(
+          typeof payload.error === "string" ? payload.error : "Failed to load status history"
+        );
+      }
+      setHistoryEntries(payload.history ?? []);
+    } catch (err) {
+      setHistoryEntries([]);
+      setHistoryError(err instanceof Error ? err.message : "Failed to load status history");
+    } finally {
+      setHistoryLoading(false);
+    }
+  }
+
+  async function openStatusHistory(row: ApplicationRow) {
+    setHistoryDialog({
+      applicationId: row.id,
+      candidateName: applicantName(row),
+    });
+    await loadStatusHistory(row.id);
+  }
+
+  async function runMatchAnalyze(applicationId: string) {
+    setMatchAnalyzingId(applicationId);
+    try {
+      const response = await fetch(
+        `/api/admin/job-applications/${applicationId}/match-analysis`,
+        {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({}),
+        }
+      );
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || "Match analysis failed");
+      setRows((current) =>
+        current.map((row) =>
+          row.id === applicationId
+            ? {
+                ...row,
+                ai_match_status: payload.status ?? row.ai_match_status,
+                ai_match_score: payload.score ?? row.ai_match_score,
+                ai_match_category: payload.category ?? row.ai_match_category,
+                ai_match_action: payload.action ?? row.ai_match_action,
+                ai_match_readiness: payload.readiness ?? row.ai_match_readiness,
+                ai_match_display_category:
+                  payload.analysis?.candidate_match?.display_category ??
+                  row.ai_match_display_category,
+              }
+            : row
+        )
+      );
+      if (payload.status === "NEEDS_REVIEW") {
+        toast.error(payload.error || "Needs résumé text before analysis");
+      } else if (payload.status === "ANALYZED") {
+        toast.success("Match analysis complete");
+      }
+    } catch (analyzeError) {
+      toast.error(
+        analyzeError instanceof Error ? analyzeError.message : "Match analysis failed"
+      );
+    } finally {
+      setMatchAnalyzingId(null);
     }
   }
 
@@ -804,13 +1126,22 @@ export default function JobApplicationsPage() {
           </div>
         );
       }
-      // case "matches":
-      //   return <p className="text-sm leading-5 text-[#64748B]">{MATCHES_PLACEHOLDER}</p>;
+      case "matches":
+        return (
+          <MatchScoreCell
+            status={row.ai_match_status}
+            score={row.ai_match_score}
+            category={row.ai_match_category}
+            displayCategory={row.ai_match_display_category}
+            analyzing={matchAnalyzingId === row.id}
+            onAnalyze={() => void runMatchAnalyze(row.id)}
+          />
+        );
       case "activity":
         return <p className="text-sm leading-5 text-[#475569]">{formatActivity(row)}</p>;
       case "interest": {
         const currentStatus = normalizeApplicationStatus(row.status);
-        const menuOpen = interestMenu?.rowId === row.id;
+        const menuOpen = rowActionsMenu?.rowId === row.id;
         const busy = statusBusyId === row.id;
         return (
           <div className="inline-flex items-center gap-1 rounded-lg bg-[#F1F5F9] px-1.5 py-1">
@@ -819,7 +1150,7 @@ export default function JobApplicationsPage() {
               className="inline-flex h-7 w-7 items-center justify-center rounded-md text-[#16A34A] transition hover:bg-white"
               aria-label="Accept candidate"
               title="Accept"
-              onClick={() => void updateApplicationStatus(row.id, "hired")}
+              onClick={() => beginStatusChangeBySystemKey(row.id, "hired")}
               disabled={busy || currentStatus === "hired"}
             >
               <Check className="h-4 w-4" strokeWidth={2.25} />
@@ -829,7 +1160,7 @@ export default function JobApplicationsPage() {
               className="inline-flex h-7 w-7 items-center justify-center rounded-md text-[#64748B] transition hover:bg-white"
               aria-label="Mark as maybe"
               title="Maybe"
-              onClick={() => void updateApplicationStatus(row.id, "undecided")}
+              onClick={() => beginStatusChangeBySystemKey(row.id, "undecided")}
               disabled={busy || currentStatus === "undecided"}
             >
               <HelpCircle className="h-4 w-4" strokeWidth={2} />
@@ -839,7 +1170,7 @@ export default function JobApplicationsPage() {
               className="inline-flex h-7 w-7 items-center justify-center rounded-md text-[#DC2626] transition hover:bg-white"
               aria-label="Reject candidate"
               title="Reject"
-              onClick={() => void updateApplicationStatus(row.id, "rejected")}
+              onClick={() => beginStatusChangeBySystemKey(row.id, "rejected")}
               disabled={busy || currentStatus === "rejected"}
             >
               <X className="h-4 w-4" strokeWidth={2.25} />
@@ -849,14 +1180,15 @@ export default function JobApplicationsPage() {
               className={`inline-flex h-7 w-7 items-center justify-center rounded-md text-[#64748B] transition hover:bg-white ${
                 menuOpen ? "bg-white ring-1 ring-[#CBD5E1]" : ""
               }`}
-              aria-label="Update status"
-              title="Update status"
+              aria-label="More actions"
+              title="More actions"
               aria-expanded={menuOpen}
               aria-haspopup="menu"
               disabled={busy}
               onClick={(event) => {
                 const anchor = event.currentTarget;
-                setInterestMenu((current) =>
+                setStatusMenu(null);
+                setRowActionsMenu((current) =>
                   current?.rowId === row.id ? null : { rowId: row.id, anchor }
                 );
               }}
@@ -866,12 +1198,33 @@ export default function JobApplicationsPage() {
           </div>
         );
       }
-      case "status":
+      case "status": {
+        const label = rowStatusName(row, statusOptions);
+        const menuOpen = statusMenu?.rowId === row.id;
+        const busy = statusBusyId === row.id;
         return (
-          <span className={applicationStatusBadgeClassName(row.status)}>
-            {statusLabel(row.status)}
-          </span>
+          <div className="inline-flex justify-center">
+            <button
+              type="button"
+              disabled={busy || statusOptions.length === 0}
+              aria-expanded={menuOpen}
+              aria-haspopup="menu"
+              onClick={(event) => {
+                const anchor = event.currentTarget;
+                setRowActionsMenu(null);
+                setStatusMenu((current) =>
+                  current?.rowId === row.id ? null : { rowId: row.id, anchor }
+                );
+              }}
+              className={`${applicationStatusBadgeClassName(row.status)} inline-flex items-center gap-1 transition hover:bg-[#F8FAFC] disabled:opacity-50`}
+              title="Change status"
+            >
+              <span className="max-w-[7.5rem] truncate">{label}</span>
+              <ChevronDown className={`h-3.5 w-3.5 shrink-0 ${menuOpen ? "rotate-180" : ""}`} />
+            </button>
+          </div>
         );
+      }
       case "email":
         return <span className="text-sm text-[#475569]">{applicantEmail(row) || "—"}</span>;
       case "workflow":
@@ -1151,13 +1504,19 @@ export default function JobApplicationsPage() {
         aria-label="Candidates status"
       >
         <div className="flex w-max flex-nowrap items-center justify-start gap-5">
-          {APPLICATION_TABS.map((tab) => {
+          {statusTabs.map((tab) => {
             const active = activeTab === tab.id;
             return (
                 <button
                   key={tab.id}
                   type="button"
-                  onClick={() => setActiveTab(tab.id)}
+                  onClick={() => {
+                    setActiveTab(tab.id);
+                    const params = new URLSearchParams(searchParams.toString());
+                    if (tab.id === "all") params.delete("tab");
+                    else params.set("tab", tab.id);
+                    router.replace(`${pathname}?${params.toString()}`);
+                  }}
                   className={`relative inline-flex shrink-0 flex-col items-center px-2 pb-2.5 pt-0 text-sm font-medium leading-none whitespace-nowrap transition-colors ${
                     active
                       ? "text-[color:var(--brand-primary)]"
@@ -1167,7 +1526,9 @@ export default function JobApplicationsPage() {
                 >
                   <span className="inline-flex items-center gap-2">
                     <span>{tab.label}</span>
-                    <span className="admin-recruiter-tab-count rounded-sm">{tabCounts[tab.id]}</span>
+                    <span className="admin-recruiter-tab-count rounded-sm">
+                      {tabCounts[tab.id] ?? 0}
+                    </span>
                   </span>
                   <span
                     className={`absolute inset-x-0 bottom-0 block h-0.5 rounded-full ${
@@ -1241,13 +1602,16 @@ export default function JobApplicationsPage() {
                 <span className="text-xs font-medium leading-4 text-[#475569]">Sort by</span>
                 <select
                   value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value as "newest" | "oldest")}
+                  onChange={(e) =>
+                    setSortBy(e.target.value as "newest" | "oldest" | "matchScore")
+                  }
                   className={`${FILTER_SELECT_CLASS} h-10 w-full min-w-0`}
                   style={FILTER_SELECT_CHEVRON}
                   aria-label="Sort by"
                 >
                   <option value="newest">Apply date (Newest first)</option>
                   <option value="oldest">Apply date (Oldest first)</option>
+                  <option value="matchScore">Match score (Highest first)</option>
                 </select>
               </label>
               <label className="flex min-w-0 flex-col gap-1">
@@ -1331,12 +1695,15 @@ export default function JobApplicationsPage() {
               <span className="shrink-0 text-sm text-[#64748B]">Sort by:</span>
               <select
                 value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as "newest" | "oldest")}
+                onChange={(e) =>
+                  setSortBy(e.target.value as "newest" | "oldest" | "matchScore")
+                }
                 className={FILTER_SELECT_CLASS}
                 style={FILTER_SELECT_CHEVRON}
               >
                 <option value="newest">Apply date (Newest first)</option>
                 <option value="oldest">Apply date (Oldest first)</option>
+                <option value="matchScore">Match score (Highest first)</option>
               </select>
               <select
                 value={locationFilter}
@@ -1467,21 +1834,85 @@ export default function JobApplicationsPage() {
         }}
       />
 
-      {interestMenu ? (
-        <InterestStatusMenuPortal
-          options={APPLICATION_STATUS_OPTIONS.filter((option) => {
-            const menuRow = rows.find((row) => row.id === interestMenu.rowId);
-            if (!menuRow) return true;
-            return option.id !== normalizeApplicationStatus(menuRow.status);
-          })}
-          anchor={interestMenu.anchor}
-          busy={statusBusyId === interestMenu.rowId}
-          onClose={() => setInterestMenu(null)}
-          onSelect={(status) => {
-            void updateApplicationStatus(interestMenu.rowId, status);
+      {rowActionsMenu ? (
+        <RowActionsMenuPortal
+          anchor={rowActionsMenu.anchor}
+          onClose={() => setRowActionsMenu(null)}
+          onViewCandidate={() => {
+            const row = rows.find((item) => item.id === rowActionsMenu.rowId);
+            if (!row) return;
+            const href = jobId
+              ? `/admin_recruiter/applications/review?jobId=${encodeURIComponent(jobId)}&applicationId=${encodeURIComponent(row.id)}`
+              : `/admin_recruiter/applications/review?applicationId=${encodeURIComponent(row.id)}`;
+            router.push(href);
+          }}
+          onViewHistory={() => {
+            const row = rows.find((item) => item.id === rowActionsMenu.rowId);
+            if (row) void openStatusHistory(row);
           }}
         />
       ) : null}
+
+      {statusMenu ? (
+        <StatusDropdownPortal
+          options={statusOptions}
+          currentStatusId={(() => {
+            const menuRow = rows.find((row) => row.id === statusMenu.rowId);
+            return menuRow ? rowStatusId(menuRow) : null;
+          })()}
+          anchor={statusMenu.anchor}
+          busy={statusBusyId === statusMenu.rowId}
+          onClose={() => setStatusMenu(null)}
+          onSelect={(option) => beginStatusChange(statusMenu.rowId, option)}
+        />
+      ) : null}
+
+      <ApplicationStatusChangeModal
+        open={Boolean(pendingStatusChange)}
+        candidateName={
+          pendingStatusChange
+            ? applicantName(
+                rows.find((row) => row.id === pendingStatusChange.applicationId) ??
+                  ({
+                    id: pendingStatusChange.applicationId,
+                    status: "new",
+                    created_at: "",
+                    submitted_at: null,
+                    job_requisition_id: "",
+                    workflow_id: "",
+                    applicant_workflow_instance_id: "",
+                    job_requisitions: null,
+                    onboarding_flows: null,
+                    applicant_profiles: { first_name: "Candidate", last_name: "" },
+                  } as ApplicationRow)
+              )
+            : ""
+        }
+        fromLabel={pendingStatusChange?.fromLabel ?? ""}
+        toLabel={pendingStatusChange?.toOption.name ?? ""}
+        note={statusChangeNote}
+        busy={Boolean(pendingStatusChange && statusBusyId === pendingStatusChange.applicationId)}
+        onNoteChange={setStatusChangeNote}
+        onCancel={() => {
+          if (statusBusyId) return;
+          setPendingStatusChange(null);
+          setStatusChangeNote("");
+        }}
+        onConfirm={() => void confirmStatusChange()}
+      />
+
+      <ApplicationStatusHistoryDialog
+        open={Boolean(historyDialog)}
+        candidateName={historyDialog?.candidateName ?? ""}
+        loading={historyLoading}
+        error={historyError}
+        history={historyEntries}
+        onClose={() => {
+          setHistoryDialog(null);
+          setHistoryEntries([]);
+          setHistoryError(null);
+        }}
+      />
 
       <BulkDeleteConfirmModal
         open={deleteConfirmOpen}

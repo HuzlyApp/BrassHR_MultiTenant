@@ -962,11 +962,27 @@ export async function startOrResumeJobApplication(
     .eq("tenant_id", input.tenantId)
     .eq("job_requisition_id", job.id)
     .eq("applicant_profile_id", profileId)
-    .neq("status", "withdrawn")
+    .not("status", "in", '("rejected","withdrawn")')
     .maybeSingle();
   if (existingError) throw existingError;
   if (existingApplication) {
     return { application: existingApplication, resumed: true };
+  }
+
+  // Also check by worker_id when available (DB unique job_applications_worker_job_uidx)
+  if (input.workerId) {
+    const { data: byWorker, error: byWorkerError } = await supabase
+      .from("job_applications")
+      .select("id, applicant_workflow_instance_id, status")
+      .eq("tenant_id", input.tenantId)
+      .eq("job_requisition_id", job.id)
+      .eq("worker_id", input.workerId)
+      .not("status", "in", '("rejected","withdrawn")')
+      .maybeSingle();
+    if (byWorkerError) throw byWorkerError;
+    if (byWorker) {
+      return { application: byWorker, resumed: true };
+    }
   }
 
   const { data: application, error: applicationError } = await supabase
@@ -981,7 +997,25 @@ export async function startOrResumeJobApplication(
     })
     .select("id, status")
     .single();
-  if (applicationError) throw applicationError;
+
+  if (applicationError) {
+    // Concurrent duplicate apply: return existing active application
+    const isDuplicate =
+      applicationError.code === "23505" ||
+      /duplicate key|unique constraint/i.test(String(applicationError.message ?? ""));
+    if (isDuplicate) {
+      const { data: raced } = await supabase
+        .from("job_applications")
+        .select("id, applicant_workflow_instance_id, status")
+        .eq("tenant_id", input.tenantId)
+        .eq("job_requisition_id", job.id)
+        .eq("applicant_profile_id", profileId)
+        .not("status", "in", '("rejected","withdrawn")')
+        .maybeSingle();
+      if (raced) return { application: raced, resumed: true };
+    }
+    throw applicationError;
+  }
 
   // Prefer the job-application schema; include legacy columns when present on staging.
   const instancePayload = {
@@ -1340,7 +1374,7 @@ export async function createAdminJobApplication(
     .eq("tenant_id", input.tenantId)
     .eq("job_requisition_id", job.id)
     .eq("applicant_profile_id", profileId)
-    .neq("status", "withdrawn")
+    .not("status", "in", '("rejected","withdrawn")')
     .maybeSingle();
   if (existingError) throw existingError;
   if (existingApplication) {
@@ -1382,6 +1416,17 @@ export async function createAdminJobApplication(
         updated_at: assignedFlow.updatedAt,
       },
     });
+
+    // Attach any worker-level requirements row to this application when still unscoped
+    if (linkedWorkerId) {
+      await supabase
+        .from("worker_requirements")
+        .update({ application_id: String(application.id), updated_at: nowIso })
+        .eq("worker_id", linkedWorkerId)
+        .eq("tenant_id", input.tenantId)
+        .is("application_id", null);
+    }
+
     return {
       application: linked,
       applicantProfileId: profileId,

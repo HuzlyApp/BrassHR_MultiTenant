@@ -2,6 +2,7 @@
 
 import { Link2, Loader2, Mail } from "lucide-react";
 import CandidateAvatarIcon from "./CandidateAvatarIcon";
+import { CandidateApplicationStatusControl } from "./CandidateApplicationStatusControl";
 import { useResendApplicationStatusLink } from "@/app/admin_recruiter/hooks/useResendApplicationStatusLink";
 
 const CANDIDATE_DETAIL_ICON = "/icons/candidate-detail-icon.svg";
@@ -49,6 +50,7 @@ export default function DetailedCandidateHeader({
   const displayName = loading ? "Loading..." : name.trim() || "Applicant";
   const displayRole = loading ? "—" : role.trim() || "—";
   const displayStatus = status?.trim();
+  const canEditApplicationStatus = Boolean(workerId?.trim()) && !loading;
 
   return (
     <div className="sticky top-0 z-20 mb-4 bg-zinc-50/95 py-1 backdrop-blur-sm">
@@ -76,7 +78,12 @@ export default function DetailedCandidateHeader({
         </div>
 
         <div className="flex w-full shrink-0 items-stretch gap-1.5 min-[700px]:w-auto min-[700px]:items-center min-[700px]:justify-end min-[700px]:gap-2">
-          {displayStatus ? (
+          {canEditApplicationStatus ? (
+            <CandidateApplicationStatusControl
+              workerId={workerId!.trim()}
+              fallbackStatus={displayStatus}
+            />
+          ) : displayStatus ? (
             <span className="inline-flex h-8 min-w-0 flex-1 items-center justify-center truncate rounded-md border border-[#D1D5DB] bg-white px-1.5 text-center text-[10px] font-semibold leading-4 text-[#111827] min-[700px]:max-w-none min-[700px]:flex-none min-[700px]:px-3 min-[700px]:text-xs">
               {displayStatus}
             </span>

@@ -330,7 +330,31 @@ export async function POST(req: NextRequest) {
     if (workerError) throw workerError;
     if (!worker?.id) return NextResponse.json({ error: "Applicant not found." }, { status: 404 });
 
-    const applicantId = await ensureApplicantForWorker(supabase, scope.tenantId, worker);
+    const { resolveApplicationContextForWorker } = await import(
+      "@/lib/jobs/resolve-application-context"
+    );
+    const appCtx = await resolveApplicationContextForWorker({
+      supabase,
+      tenantId: scope.tenantId,
+      workerId: worker.id,
+      applicationId: body.applicationId ?? null,
+    });
+    if (body.applicationId?.trim() && !appCtx.applicationId) {
+      return NextResponse.json({ error: "Application not found for this worker." }, { status: 404 });
+    }
+    if (appCtx.ambiguous && !appCtx.applicationId) {
+      return NextResponse.json(
+        { error: "applicationId is required when the worker has multiple applications." },
+        { status: 400 }
+      );
+    }
+
+    const applicantId = await ensureApplicantForWorker(
+      supabase,
+      scope.tenantId,
+      worker,
+      appCtx.applicationId
+    );
 
     const scheduleFields = isoToScheduleFields(startsAt, endsAt, timezone);
 
@@ -344,6 +368,7 @@ export async function POST(req: NextRequest) {
         tenant_id: scope.tenantId,
         applicant_id: applicantId,
         worker_id: worker.id,
+        application_id: appCtx.applicationId,
         title,
         description: `${title} schedule with ${applicantDisplayName(worker.first_name, worker.last_name)}`,
         scheduled_date: scheduleFields.scheduled_date,
@@ -386,7 +411,7 @@ export async function POST(req: NextRequest) {
       updatedSequence
     );
 
-    const applicationId = body.applicationId?.trim() || null;
+    const applicationId = appCtx.applicationId;
     const jobId = body.jobId?.trim() || null;
 
     const statusResult = await markApplicationInterviewing({

@@ -52,14 +52,25 @@ export async function GET(req: NextRequest) {
       );
     }
 
+    const sortBy = req.nextUrl.searchParams.get("sortBy")?.trim();
+    const ascending = req.nextUrl.searchParams.get("sortDir") === "asc";
+
     let query = supabase
       .from("job_applications")
       .select(
-        `id, status, created_at, submitted_at, updated_at, job_requisition_id, workflow_id, applicant_workflow_instance_id, worker_id, job_requisitions(public_title, profession_id, employment_type, location, facility, facility_name, professions(name)), onboarding_flows(name), ${JOB_APPLICATION_APPLICANT_EMBED}`
+        `id, status, status_id, created_at, submitted_at, updated_at, job_requisition_id, workflow_id, applicant_workflow_instance_id, worker_id, ai_match_status, ai_match_score, ai_match_category, ai_match_action, ai_match_readiness, ai_match_display_category, ai_analyzed_at, ai_analysis_error, ai_analysis_progress, application_statuses(id, name, system_key, color), job_requisitions(public_title, profession_id, employment_type, location, facility, facility_name, professions(name)), onboarding_flows(name), ${JOB_APPLICATION_APPLICANT_EMBED}`
       )
       .eq("tenant_id", tenantId)
-      .eq("job_requisition_id", jobId)
-      .order("created_at", { ascending: false });
+      .eq("job_requisition_id", jobId);
+
+    if (sortBy === "ai_match_score") {
+      query = query.order("ai_match_score", {
+        ascending,
+        nullsFirst: false,
+      });
+    } else {
+      query = query.order("created_at", { ascending: false });
+    }
 
     const status = req.nextUrl.searchParams.get("status");
     const workflowId = req.nextUrl.searchParams.get("workflowId");
@@ -88,7 +99,19 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    return NextResponse.json({ applications });
+    return NextResponse.json({
+      applications: applications.map((row) => {
+        const statusJoin = Array.isArray(
+          (row as { application_statuses?: unknown }).application_statuses
+        )
+          ? (row as { application_statuses: Array<{ name?: string }> }).application_statuses[0]
+          : (row as { application_statuses?: { name?: string } | null }).application_statuses;
+        return {
+          ...row,
+          statusName: statusJoin?.name ?? null,
+        };
+      }),
+    });
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Failed to load applications" },

@@ -149,15 +149,21 @@ async function listPipelineChecklistTables(supabase: SupabaseClient): Promise<st
 async function findPipelineItemRecord(
   supabase: SupabaseClient,
   workerId: string,
-  itemKey: PipelineChecklistItemKey
+  itemKey: PipelineChecklistItemKey,
+  applicationId?: string | null
 ): Promise<{ table: string; id: string; row: PipelineChecklistItemRow } | null> {
   for (const table of TABLE_NAMES) {
-    const { data, error } = await supabase
+    let query = supabase
       .from(table)
       .select(PIPELINE_ITEM_COLUMNS)
       .eq("worker_id", workerId)
       .eq("item_key", itemKey)
-      .maybeSingle()
+
+    if (applicationId) {
+      query = query.eq("application_id", applicationId)
+    }
+
+    const { data, error } = await query.maybeSingle()
 
     if (error) {
       if (isMissingTableError(error, /worker_pipeline_checklist_items|worker_screening_checklist_items/i)) {
@@ -182,6 +188,7 @@ export async function saveWorkerPipelineChecklistItem(
     itemKey: PipelineChecklistItemKey
     completed: boolean
     completedBy: string | null
+    applicationId?: string | null
   }
 ): Promise<PipelineChecklistItemRow> {
   const tables = await listPipelineChecklistTables(supabase)
@@ -189,7 +196,12 @@ export async function saveWorkerPipelineChecklistItem(
     throw new Error("Checklist table not configured")
   }
 
-  const existing = await findPipelineItemRecord(supabase, input.workerId, input.itemKey)
+  const existing = await findPipelineItemRecord(
+    supabase,
+    input.workerId,
+    input.itemKey,
+    input.applicationId
+  )
   const now = new Date().toISOString()
   const targetTable = existing?.table ?? tables[0]!
 
@@ -229,6 +241,7 @@ export async function saveWorkerPipelineChecklistItem(
       .insert({
         tenant_id: input.tenantId,
         worker_id: input.workerId,
+        application_id: input.applicationId ?? null,
         item_key: input.itemKey,
         ...manualPayload,
         call_log_completed: false,

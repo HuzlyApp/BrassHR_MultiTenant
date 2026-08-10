@@ -82,17 +82,23 @@ async function persistWorkerResumePath(
   supabase: SupabaseClient,
   tenantId: string,
   workerId: string,
-  resumePath: string
+  resumePath: string,
+  applicationId?: string | null
 ): Promise<void> {
   const trimmed = resumePath.trim();
   if (!trimmed) return;
 
-  const { data: existingRows, error: selectError } = await supabase
+  let selectQuery = supabase
     .from("worker_requirements")
     .select("id")
     .eq("worker_id", workerId)
     .order("updated_at", { ascending: false })
     .limit(1);
+  if (applicationId) {
+    selectQuery = selectQuery.eq("application_id", applicationId);
+  }
+
+  const { data: existingRows, error: selectError } = await selectQuery;
   if (selectError) throw selectError;
 
   const updatedAt = new Date().toISOString();
@@ -100,7 +106,11 @@ async function persistWorkerResumePath(
   if (existing?.id != null) {
     const { error } = await supabase
       .from("worker_requirements")
-      .update({ resume_path: trimmed, updated_at: updatedAt })
+      .update({
+        resume_path: trimmed,
+        updated_at: updatedAt,
+        ...(applicationId ? { application_id: applicationId } : {}),
+      })
       .eq("id", existing.id);
     if (error) throw error;
     return;
@@ -109,6 +119,7 @@ async function persistWorkerResumePath(
   const { error: insertError } = await supabase.from("worker_requirements").insert({
     tenant_id: tenantId,
     worker_id: workerId,
+    application_id: applicationId ?? null,
     resume_path: trimmed,
     updated_at: updatedAt,
   });

@@ -51,6 +51,7 @@ export async function PATCH(req: NextRequest) {
       workerId?: string
       itemKey?: string
       completed?: boolean
+      applicationId?: string | null
     }
 
     const idCheck = parseRequiredUuid(body.workerId?.trim() ?? "", "workerId")
@@ -92,6 +93,25 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 
+    const { resolveApplicationContextForWorker } = await import(
+      "@/lib/jobs/resolve-application-context"
+    )
+    const appCtx = await resolveApplicationContextForWorker({
+      supabase,
+      tenantId,
+      workerId: idCheck.value,
+      applicationId: body.applicationId ?? null,
+    })
+    if (body.applicationId?.trim() && !appCtx.applicationId) {
+      return NextResponse.json({ error: "Application not found for this worker" }, { status: 404 })
+    }
+    if (appCtx.ambiguous && !appCtx.applicationId) {
+      return NextResponse.json(
+        { error: "applicationId is required when the worker has multiple applications" },
+        { status: 400 }
+      )
+    }
+
     const itemKey = body.itemKey
     const completedBy = auth.devBypass ? null : auth.userId
 
@@ -101,6 +121,7 @@ export async function PATCH(req: NextRequest) {
       itemKey,
       completed: body.completed,
       completedBy,
+      applicationId: appCtx.applicationId,
     })
 
     void writeActivityLog({

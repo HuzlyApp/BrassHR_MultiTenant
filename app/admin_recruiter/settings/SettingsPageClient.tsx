@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import BrandingSettingsPanel from "@/app/admin_recruiter/settings/BrandingSettingsPanel";
+import CandidateStatusesPanel from "@/app/admin_recruiter/settings/CandidateStatusesPanel";
 
 function SettingsContent() {
   const router = useRouter();
@@ -33,6 +34,13 @@ function SettingsContent() {
           Branding
         </h2>
         <BrandingSettingsPanel />
+      </section>
+
+      <section aria-labelledby="candidate-statuses-heading">
+        <h2 id="candidate-statuses-heading" className="sr-only">
+          Candidate Statuses
+        </h2>
+        <CandidateStatusesPanel />
       </section>
     </main>
   );

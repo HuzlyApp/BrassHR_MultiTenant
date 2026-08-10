@@ -5,6 +5,7 @@ import DetailedCandidateHeader from "../../../../components/DetailedCandidateHea
 import DetailedTabs from "../../../../components/DetailedTabs";
 import CandidateDetailLoader from "../../../../components/CandidateDetailLoader";
 import ProfileSubTabs from "../../../../components/ProfileSubTabs";
+import { CandidateStatusHistoryPanel } from "../../../../components/CandidateApplicationStatusControl";
 import CandidateNotesPanel from "../../../../components/CandidateNotesPanel";
 import { useCandidateHeader } from "../../../../hooks/useCandidateHeader";
 
@@ -41,6 +42,7 @@ export default function NewApplicantProfileNotesPage() {
             <ProfileSubTabs applicantId={id} activeTab="Notes" />
 
             <div className="admin-recruiter-content-width">
+              <CandidateStatusHistoryPanel workerId={id} layout="page" />
               <CandidateNotesPanel
                 workerId={id}
                 candidateName={candidateName}

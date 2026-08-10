@@ -48,7 +48,12 @@ const SCHEDULE_ACTIVE_PREFIXES = [SCHEDULE_HOME, TIMESHEETS_HOME];
 
 const MY_SHIFTS_CHILDREN: WorkerSidebarLink[] = [
   { label: "Active Shifts", href: "#", matchPrefixes: [], disabled: true },
-  { label: "Applications", href: "#", matchPrefixes: [], disabled: true },
+  {
+    label: "Applications",
+    href: "/application/applicant-dashboard/applications",
+    matchPrefixes: ["/application/applicant-dashboard/applications"],
+    matchExact: true,
+  },
   { label: "Interviews", href: "#", matchPrefixes: [], disabled: true },
 ];
 

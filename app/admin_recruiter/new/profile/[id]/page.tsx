@@ -12,6 +12,7 @@ import ProfileSubTabs from "../../../components/ProfileSubTabs";
 import BrandedPlusIcon from "../../../components/BrandedPlusIcon";
 import AssignFacilityModal from "../../../components/AssignFacilityModal";
 import AddWorkerSkillModal from "../../../components/AddWorkerSkillModal";
+import { CandidateStatusHistoryPanel } from "../../../components/CandidateApplicationStatusControl";
 import CandidateNotesPanel from "../../../components/CandidateNotesPanel";
 import CandidateDetailEditableField from "../../../components/CandidateDetailEditableField";
 import CandidateDetailSelectField, {
@@ -1514,7 +1515,8 @@ export default function NewApplicantProfilePage() {
                     </div>
                   </div>
 
-                  <div className="w-full border-t border-[#E5E7EB]">
+                  <div className="w-full space-y-3 border-t border-[#E5E7EB] p-3">
+                    <CandidateStatusHistoryPanel workerId={id} layout="sidebar" />
                     <CandidateNotesPanel
                       workerId={id}
                       candidateName={candidateName}

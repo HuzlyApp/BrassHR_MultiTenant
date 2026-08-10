@@ -40,19 +40,20 @@ import {
   resolveApplicationApplicantName,
 } from "@/lib/jobs/application-applicant-display";
 import {
-  APPLICATION_STATUS_OPTIONS,
   applicationStatusLabel,
   normalizeApplicationStatus,
-  type ApplicationPipelineStatus,
 } from "@/lib/jobs/application-status";
 import { formatInterviewDate, formatInterviewTimeRange } from "@/lib/interviews/format";
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
 import type { AdminInterviewItem } from "@/app/api/admin/applicant-appointments/route";
 import { JobPublicViewLink } from "@/app/admin_recruiter/jobs/JobPublicViewLink";
+import { MatchAnalysisPanel } from "./MatchAnalysisPanel";
 
 type ApplicationRow = {
   id: string;
   status: string;
+  status_id?: string | null;
+  statusName?: string | null;
   created_at: string;
   submitted_at: string | null;
   updated_at?: string | null;
@@ -61,6 +62,21 @@ type ApplicationRow = {
   job_requisitions: Record<string, unknown> | Record<string, unknown>[] | null;
   applicant_profiles: Record<string, unknown> | Record<string, unknown>[] | null;
   worker?: Record<string, unknown> | Record<string, unknown>[] | null;
+};
+
+type StatusOption = {
+  id: string;
+  name: string;
+  systemKey: string | null;
+};
+
+type StatusHistoryItem = {
+  id: string;
+  fromStatus: { id: string | null; name: string | null };
+  toStatus: { id: string | null; name: string };
+  note: string | null;
+  changedBy: { id: string | null; name: string | null };
+  changedAt: string;
 };
 
 type JobOption = {
@@ -183,6 +199,11 @@ export default function JobCandidateReviewClient() {
   const [chatOpen, setChatOpen] = useState(true);
   const [chatPreferExpanded, setChatPreferExpanded] = useState(false);
   const [publicJobPath, setPublicJobPath] = useState<string | null>(null);
+  const [statusOptions, setStatusOptions] = useState<StatusOption[]>([]);
+  const [pendingStatus, setPendingStatus] = useState<StatusOption | null>(null);
+  const [statusChangeNote, setStatusChangeNote] = useState("");
+  const [statusHistory, setStatusHistory] = useState<StatusHistoryItem[]>([]);
+  const [statusHistoryLoading, setStatusHistoryLoading] = useState(false);
 
   const selected = useMemo(
     () => rows.find((row) => row.id === applicationId) ?? rows[0] ?? null,
@@ -238,7 +259,13 @@ export default function JobCandidateReviewClient() {
     : null;
   const resumeDownloadUrl = resumeUrl || resumePreviewUrl;
 
-  const currentStatus = selected
+  const currentStatusLabel = selected
+    ? selected.statusName?.trim() ||
+      statusOptions.find((option) => option.id === selected.status_id)?.name ||
+      applicationStatusLabel(selected.status)
+    : "—";
+
+  const currentStatusKey = selected
     ? normalizeApplicationStatus(selected.status)
     : "new";
 
@@ -455,24 +482,111 @@ export default function JobCandidateReviewClient() {
     };
   }, [workerId]);
 
-  async function updateStatus(nextStatus: ApplicationPipelineStatus) {
-    if (!selected) return;
-    setStatusBusy(true);
-    setStatusMenuOpen(false);
+  useEffect(() => {
+    void (async () => {
+      try {
+        const response = await fetch("/api/admin/application-statuses?activeOnly=1", {
+          cache: "no-store",
+        });
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.error || "Failed to load statuses");
+        setStatusOptions(
+          ((payload.statuses ?? []) as Array<Record<string, unknown>>).map((row) => ({
+            id: String(row.id),
+            name: String(row.name),
+            systemKey: (row.systemKey as string | null) ?? null,
+          }))
+        );
+      } catch {
+        setStatusOptions([]);
+      }
+    })();
+  }, []);
+
+  const loadStatusHistory = useCallback(async (appId: string) => {
+    setStatusHistoryLoading(true);
     try {
-      const response = await fetch(`/api/admin/job-applications/${encodeURIComponent(selected.id)}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: nextStatus }),
-      });
+      const response = await fetch(
+        `/api/admin/job-applications/${encodeURIComponent(appId)}/status-history`,
+        { cache: "no-store" }
+      );
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Failed to load status history");
+      setStatusHistory((payload.history ?? []) as StatusHistoryItem[]);
+    } catch {
+      setStatusHistory([]);
+    } finally {
+      setStatusHistoryLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!selected?.id) {
+      setStatusHistory([]);
+      return;
+    }
+    void loadStatusHistory(selected.id);
+  }, [selected?.id, loadStatusHistory]);
+
+  function beginStatusChange(option: StatusOption) {
+    if (!selected) return;
+    if (option.id === selected.status_id) {
+      setStatusMenuOpen(false);
+      return;
+    }
+    setStatusMenuOpen(false);
+    setPendingStatus(option);
+    setStatusChangeNote("");
+  }
+
+  function beginStatusChangeBySystemKey(systemKey: string) {
+    const option = statusOptions.find((item) => item.systemKey === systemKey);
+    if (!option) {
+      toast.error("That status is not configured for this organization.");
+      return;
+    }
+    beginStatusChange(option);
+  }
+
+  async function confirmStatusChange() {
+    if (!selected || !pendingStatus) return;
+    setStatusBusy(true);
+    try {
+      const response = await fetch(
+        `/api/admin/job-applications/${encodeURIComponent(selected.id)}/status`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            statusId: pendingStatus.id,
+            note: statusChangeNote.trim() || undefined,
+          }),
+        }
+      );
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "Failed to update status");
       setRows((current) =>
         current.map((row) =>
-          row.id === selected.id ? { ...row, status: nextStatus } : row
+          row.id === selected.id
+            ? {
+                ...row,
+                status: String(payload.application?.status ?? pendingStatus.systemKey ?? row.status),
+                status_id: String(payload.application?.statusId ?? pendingStatus.id),
+                statusName: String(
+                  payload.application?.statusName ?? pendingStatus.name
+                ),
+              }
+            : row
         )
       );
-      toast.success(`Status updated to ${applicationStatusLabel(nextStatus)}`);
+      setPendingStatus(null);
+      setStatusChangeNote("");
+      toast.success(
+        payload.unchanged
+          ? "Status unchanged"
+          : `Status updated to ${payload.application?.statusName ?? pendingStatus.name}`
+      );
+      await loadStatusHistory(selected.id);
     } catch (updateError) {
       toast.error(updateError instanceof Error ? updateError.message : "Failed to update status");
     } finally {
@@ -787,7 +901,7 @@ export default function JobCandidateReviewClient() {
                         className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-[#16A34A] transition hover:bg-[#F0FDF4] sm:h-8 sm:w-8"
                         aria-label="Accept"
                         title="Accept"
-                        onClick={() => void updateStatus("hired")}
+                        onClick={() => beginStatusChangeBySystemKey("hired")}
                       >
                         <Check className="h-4 w-4" strokeWidth={2.25} />
                       </button>
@@ -796,7 +910,7 @@ export default function JobCandidateReviewClient() {
                         className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-[#64748B] transition hover:bg-[#F8FAFC] sm:h-8 sm:w-8"
                         aria-label="Maybe"
                         title="Maybe"
-                        onClick={() => void updateStatus("undecided")}
+                        onClick={() => beginStatusChangeBySystemKey("undecided")}
                       >
                         <HelpCircle className="h-4 w-4" />
                       </button>
@@ -805,7 +919,7 @@ export default function JobCandidateReviewClient() {
                         className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-[#DC2626] transition hover:bg-[#FEF2F2] sm:h-8 sm:w-8"
                         aria-label="Reject"
                         title="Reject"
-                        onClick={() => void updateStatus("rejected")}
+                        onClick={() => beginStatusChangeBySystemKey("rejected")}
                       >
                         <X className="h-4 w-4" strokeWidth={2.25} />
                       </button>
@@ -1025,7 +1139,7 @@ export default function JobCandidateReviewClient() {
               >
                 <span className="min-w-0 truncate text-left">
                   Status:{" "}
-                  <span className="font-semibold">{applicationStatusLabel(currentStatus)}</span>
+                  <span className="font-semibold">{currentStatusLabel}</span>
                 </span>
                 <ChevronDown
                   className={`h-4 w-4 shrink-0 text-[#94A3B8] ${statusMenuOpen ? "rotate-180" : ""}`}
@@ -1033,21 +1147,52 @@ export default function JobCandidateReviewClient() {
               </button>
               {statusMenuOpen ? (
                 <div className="absolute left-0 right-0 z-20 mt-1 overflow-hidden rounded-xl border border-[#E5E7EB] bg-white py-1 shadow-lg">
-                  {APPLICATION_STATUS_OPTIONS.map((option) => (
+                  {statusOptions.map((option) => (
                     <button
                       key={option.id}
                       type="button"
-                      onClick={() => void updateStatus(option.id)}
+                      onClick={() => beginStatusChange(option)}
                       className="flex min-h-10 w-full items-center justify-between px-3 py-2 text-left text-sm text-[#334155] hover:bg-[#F8FAFC]"
                     >
-                      {option.label}
-                      {currentStatus === option.id ? (
+                      {option.name}
+                      {selected?.status_id === option.id ||
+                      (!selected?.status_id && option.systemKey === currentStatusKey) ? (
                         <Check className="h-4 w-4" style={{ color: branding.primaryHex }} />
                       ) : null}
                     </button>
                   ))}
                 </div>
               ) : null}
+            </div>
+
+            <div className="max-h-[240px] overflow-y-auto rounded-[12px]">
+              <h3 className="text-sm font-semibold text-[#0F172A]">Status History</h3>
+              {statusHistoryLoading ? (
+                <p className="mt-2 text-xs text-[#94A3B8]">Loading history…</p>
+              ) : statusHistory.length > 0 ? (
+                <div className="mt-2 space-y-3">
+                  {statusHistory.map((entry) => (
+                    <div key={entry.id} className="border-l-2 border-[#CBD5E1] pl-3">
+                      <p className="text-sm font-medium text-[#0F172A]">{entry.toStatus.name}</p>
+                      <p className="mt-0.5 text-xs text-[#94A3B8]">
+                        {formatActivityDate(entry.changedAt)} · {entry.changedBy.name || "System"}
+                      </p>
+                      {entry.fromStatus.name ? (
+                        <p className="mt-0.5 text-xs text-[#64748B]">
+                          From {entry.fromStatus.name}
+                        </p>
+                      ) : (
+                        <p className="mt-0.5 text-xs text-[#64748B]">Application created</p>
+                      )}
+                      {entry.note?.trim() ? (
+                        <p className="mt-1 text-xs leading-5 text-[#475569]">{entry.note}</p>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-2 text-xs text-[#94A3B8]">No status changes yet.</p>
+              )}
             </div>
 
             <div className="max-h-[200px] overflow-y-auto rounded-[12px]">
@@ -1083,6 +1228,12 @@ export default function JobCandidateReviewClient() {
                 <p className="mt-2 text-xs text-[#94A3B8]">No activity yet.</p>
               )}
             </div>
+
+            {selected ? (
+              <div className="min-h-0 overflow-y-auto">
+                <MatchAnalysisPanel applicationId={selected.id} compact />
+              </div>
+            ) : null}
 
             <div>
               <textarea
@@ -1137,7 +1288,7 @@ export default function JobCandidateReviewClient() {
           <AddCallLogModal open={callOpen} workerId={workerId} onClose={() => setCallOpen(false)} />
           <ScheduleInterviewModal
             open={interviewOpen}
-            applicants={[{ id: workerId, name: displayName, status: currentStatus }]}
+            applicants={[{ id: workerId, name: displayName, status: currentStatusKey }]}
             submitting={interviewSubmitting}
             error={interviewError}
             onClose={() => {
@@ -1149,6 +1300,56 @@ export default function JobCandidateReviewClient() {
             fixedApplicantName={displayName}
           />
         </>
+      ) : null}
+
+      {pendingStatus && selected ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="change-status-title"
+            className="w-full max-w-md rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-xl"
+          >
+            <h2 id="change-status-title" className="text-lg font-semibold text-[#0F172A]">
+              Change Status
+            </h2>
+            <p className="mt-1 text-sm text-[#64748B]">
+              {currentStatusLabel} → {pendingStatus.name}
+            </p>
+            <label className="mt-4 block space-y-1.5">
+              <span className="text-sm font-medium text-[#0F172A]">Note (optional)</span>
+              <textarea
+                value={statusChangeNote}
+                onChange={(event) => setStatusChangeNote(event.target.value)}
+                rows={4}
+                className="w-full resize-none rounded-xl border border-[#CBD5E1] bg-white px-3 py-2 text-sm text-[#334155] outline-none"
+                placeholder="Add context for this status change…"
+              />
+            </label>
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                disabled={statusBusy}
+                onClick={() => {
+                  setPendingStatus(null);
+                  setStatusChangeNote("");
+                }}
+                className="h-10 rounded-xl border border-[#CBD5E1] bg-white px-4 text-sm font-medium text-[#334155]"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={statusBusy}
+                onClick={() => void confirmStatusChange()}
+                className="h-10 rounded-xl px-4 text-sm font-semibold text-white disabled:opacity-50"
+                style={{ backgroundColor: branding.secondaryHex || "#012352" }}
+              >
+                {statusBusy ? "Updating…" : "Update Status"}
+              </button>
+            </div>
+          </div>
+        </div>
       ) : null}
     </div>
   );
