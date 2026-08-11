@@ -12,7 +12,13 @@ import {
   CANDIDATES_PAGE_TITLE_STYLE,
 } from "@/app/admin_recruiter/candidates/candidates-typography";
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
-import type { JobRequisitionInput, SourceType } from "@/lib/jobs/types";
+import type { JobRequisitionInput, PlacementType, SourceType } from "@/lib/jobs/types";
+import {
+  jobRequiresWorkflow,
+  isMspRecruitAndEor,
+  isMspRecruitAndRelease,
+  resolvePlacementTypeForSource,
+} from "@/lib/jobs/placement";
 import { JobPostPreviewModal } from "./JobPostPreviewModal";
 import { JobReviewEditModal, type ReviewEditFieldId } from "./JobReviewEditModal";
 import { jobDescriptionPlainText } from "./JobDescriptionEditor";
@@ -34,8 +40,6 @@ import {
   JOB_FORM_OUTLINE_BUTTON_CLASS,
   JOB_FORM_PAGE_CARD_CLASS,
   JOB_FORM_PRIMARY_BUTTON_CLASS,
-  JOB_FORM_SECTION_SUBTITLE_CLASS,
-  JOB_FORM_SECTION_TITLE_CLASS,
   jobFormUiFromJob,
   jobRequisitionInputForNewFromReference,
   jobRequisitionInputFromApiRow,
@@ -48,6 +52,7 @@ import { ArrowRight } from "lucide-react";
 
 const initialJob: JobRequisitionInput = {
   sourceType: "" as SourceType,
+  placementType: null,
   professionId: "",
   specialtyId: null,
   employmentType: "" as JobRequisitionInput["employmentType"],
@@ -69,6 +74,7 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
   const [ui, setUi] = useState<JobFormUiState>(defaultJobFormUiState);
   const [options, setOptions] = useState<JobFormOptionsPayload | null>(null);
   const [mspSourcedByClient, setMspSourcedByClient] = useState<boolean | null>(null);
+  const [mspPlacementType, setMspPlacementType] = useState<PlacementType | null>(null);
   const [referenceJobId, setReferenceJobId] = useState<string | null>(null);
   const [referenceJobOptions, setReferenceJobOptions] = useState<ExistingJobPickerOption[]>([]);
   const [referenceJobsLoading, setReferenceJobsLoading] = useState(false);
@@ -123,13 +129,17 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
         const row = payload.job as Record<string, unknown>;
         setOriginalStatus(row.status === "published" ? "published" : "draft");
         const loadedJob = jobRequisitionInputFromApiRow(row);
-        if (loadedJob.sourceType === "MSP" && loadedJob.employmentType !== "Contract") {
-          loadedJob.employmentType = "Contract";
-        }
         setJob(loadedJob);
         setUi(jobFormUiFromJob(loadedJob));
         const sourceRaw = String(row.source_type ?? "").trim().toLowerCase();
         setMspSourcedByClient(sourceRaw === "msp");
+        if (sourceRaw === "msp") {
+          setMspPlacementType(
+            loadedJob.placementType === "Recruit_and_EOR"
+              ? "Recruit_and_EOR"
+              : "Recruit_and_Release"
+          );
+        }
         const mode = row.workflow_assignment_mode === "manual" ? "manual" : "automatic";
         setAssignmentMode(mode);
         if (mode === "manual" && row.workflow_id) {
@@ -143,20 +153,22 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
             source: "manual",
           });
         }
+        setStep(loadedJob.sourceType === "MSP" ? "msp-details" : "requisition");
       })
       .catch((error) => setMessage(error instanceof Error ? error.message : "Failed to load job"));
   }, [jobId]);
 
-  /** MSP create/edit: locked Employment Type is always R&R (Contract). */
+  /** MSP R&R locks employment type to Contract; EOR W2/1099 must be chosen by the user. */
   useEffect(() => {
     if (job.sourceType !== "MSP") return;
-    if (job.employmentType === "Contract") return;
-    setJob((current) =>
-      current.sourceType === "MSP" && current.employmentType !== "Contract"
-        ? { ...current, employmentType: "Contract" }
-        : current
-    );
-  }, [job.sourceType, job.employmentType]);
+    if (job.placementType === "Recruit_and_Release" && job.employmentType !== "Contract") {
+      setJob((current) =>
+        current.sourceType === "MSP" && current.placementType === "Recruit_and_Release"
+          ? { ...current, employmentType: "Contract" }
+          : current
+      );
+    }
+  }, [job.sourceType, job.placementType, job.employmentType]);
 
   /** Keep create-job steps starting at the top after Next/Back. */
   useEffect(() => {
@@ -202,8 +214,8 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
       return;
     }
 
-    /** MSP jobs do not require an assigned onboarding workflow. */
-    if (job.sourceType === "MSP") {
+    /** MSP Recruit & Release jobs do not require an assigned onboarding workflow. */
+    if (job.sourceType === "MSP" && !isMspRecruitAndEor(job)) {
       setWorkflow(null);
       setWorkflowWarning("");
       return;
@@ -258,6 +270,7 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
     assignmentMode,
     overrideWorkflowId,
     job.sourceType,
+    job.placementType,
     job.professionId,
     job.specialtyId,
     job.employmentType,
@@ -298,6 +311,7 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
   function validateRequisitionStep(current: JobRequisitionInput): Record<string, string> {
     const errors: Record<string, string> = {};
     const isMsp = current.sourceType === "MSP";
+    const isMspEor = isMsp && current.placementType === "Recruit_and_EOR";
 
     const location = current.location?.trim() || current.facility?.trim() || "";
     if (!location) {
@@ -320,6 +334,14 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
       }
       if (!current.externalRequisitionId?.trim()) {
         errors.externalRequisitionId = "Internal Reference / Source Job ID is required.";
+      }
+      if (isMspEor) {
+        if (!current.professionId) {
+          errors.professionId = "Profession is required.";
+        }
+        if (current.employmentType !== "W2" && current.employmentType !== "1099") {
+          errors.employmentType = "Select W2 or 1099 for EOR placements.";
+        }
       }
     } else {
       if (!current.publicTitle?.trim()) {
@@ -452,11 +474,19 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
       setFieldErrors({ mspSourcedByClient: "Please select Yes or No." });
       return;
     }
+    if (mspSourcedByClient && !mspPlacementType) {
+      setFieldErrors({ mspPlacementType: "Select Recruit & Release or Recruit & EOR." });
+      return;
+    }
     setFieldErrors({});
     setSetupBusy(true);
     setMessage("");
 
     const nextSourceType: SourceType = mspSourcedByClient ? "MSP" : "Internal";
+    const nextPlacementType = resolvePlacementTypeForSource(
+      nextSourceType,
+      mspPlacementType
+    );
 
     try {
       if (referenceJobId) {
@@ -466,16 +496,24 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
         const payload = await response.json();
         if (!response.ok) throw new Error(payload.error || "Failed to load reference job");
         const loaded = jobRequisitionInputFromApiRow(payload.job as Record<string, unknown>);
-        const nextJob = jobRequisitionInputForNewFromReference(loaded, nextSourceType);
+        const nextJob = jobRequisitionInputForNewFromReference(
+          loaded,
+          nextSourceType,
+          mspPlacementType
+        );
         setJob(nextJob);
         setUi(jobFormUiFromJob(nextJob));
       } else {
         setJob((current) => ({
           ...initialJob,
           sourceType: nextSourceType,
+          placementType: nextPlacementType,
           publicTitle: current.publicTitle,
-          /** MSP jobs use R&R (stored as Contract) for workflow routing. */
-          employmentType: mspSourcedByClient ? "Contract" : ("" as JobRequisitionInput["employmentType"]),
+          employmentType: mspSourcedByClient
+            ? nextPlacementType === "Recruit_and_EOR"
+              ? ("" as JobRequisitionInput["employmentType"])
+              : ("Contract" as JobRequisitionInput["employmentType"])
+            : ("" as JobRequisitionInput["employmentType"]),
         }));
         setUi(defaultJobFormUiState());
       }
@@ -529,9 +567,11 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
         : step === "description"
           ? "Describe the job"
           : step === "compensation"
-            ? job.sourceType === "MSP"
-              ? "Rates & Contract"
-              : "Compensation"
+            ? isMspRecruitAndRelease(job)
+              ? "Commission Fees"
+              : job.sourceType === "MSP"
+                ? "Rates & Contract"
+                : "Compensation"
             : jobId
               ? "Edit job post"
               : "Create a job post";
@@ -543,20 +583,14 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
         : step === "description"
           ? "Add job description"
           : step === "compensation"
-            ? "Review the pay we estimated for your job and adjust as needed. Check your local minimum wage."
+            ? isMspRecruitAndRelease(job)
+              ? "Set the tenant commission fee for this Recruit & Release placement."
+              : "Review the pay we estimated for your job and adjust as needed. Check your local minimum wage."
             : step === "msp-details"
               ? "Job Source Details"
               : "Job Requisition";
   const showPublishActions = step === "review";
-  const useSectionHeaderTypography = step === "compensation" || step === "description";
-  const headerTitleClass = useSectionHeaderTypography
-    ? JOB_FORM_SECTION_TITLE_CLASS
-    : CANDIDATES_PAGE_TITLE_CLASS;
-  const headerTitleStyle = useSectionHeaderTypography ? undefined : CANDIDATES_PAGE_TITLE_STYLE;
-  const headerSubtitleClass = useSectionHeaderTypography
-    ? JOB_FORM_SECTION_SUBTITLE_CLASS
-    : CANDIDATES_PAGE_SUBTITLE_CLASS;
-  const headerSubtitleStyle = useSectionHeaderTypography ? undefined : CANDIDATES_PAGE_SUBTITLE_STYLE;
+  const requiresWorkflow = jobRequiresWorkflow(buildPayloadJob());
 
   return (
     <main className="w-full px-2 py-3 min-[700px]:px-4 min-[700px]:py-4 lg:px-5">
@@ -564,15 +598,11 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
         <div className={JOB_FORM_CENTER_COLUMN_CLASS}>
           <div className="mb-5 flex items-start justify-between gap-3 min-[700px]:mb-6 min-[700px]:gap-4">
             <div className="min-w-0 flex-1">
-              {useSectionHeaderTypography ? (
-                <h2 className={headerTitleClass}>{pageTitle}</h2>
-              ) : (
-                <h1 className={headerTitleClass} style={headerTitleStyle}>
-                  {pageTitle}
-                </h1>
-              )}
+              <h1 className={CANDIDATES_PAGE_TITLE_CLASS} style={CANDIDATES_PAGE_TITLE_STYLE}>
+                {pageTitle}
+              </h1>
               {pageSubtitle ? (
-                <p className={headerSubtitleClass} style={headerSubtitleStyle}>
+                <p className={CANDIDATES_PAGE_SUBTITLE_CLASS} style={CANDIDATES_PAGE_SUBTITLE_STYLE}>
                   {pageSubtitle}
                 </p>
               ) : null}
@@ -611,9 +641,11 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
                 mspSourcedByClient={mspSourcedByClient}
                 onMspSourcedByClientChange={(value) => {
                   setMspSourcedByClient(value);
+                  if (!value) setMspPlacementType(null);
                   setFieldErrors((current) => {
                     const next = { ...current };
                     delete next.mspSourcedByClient;
+                    delete next.mspPlacementType;
                     return next;
                   });
                   setReferenceJobId((current) => {
@@ -623,6 +655,15 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
                     const isMsp =
                       String(selected.source_type ?? "").trim().toLowerCase() === "msp";
                     return value === isMsp ? current : null;
+                  });
+                }}
+                mspPlacementType={mspPlacementType}
+                onMspPlacementTypeChange={(value) => {
+                  setMspPlacementType(value);
+                  setFieldErrors((current) => {
+                    const next = { ...current };
+                    delete next.mspPlacementType;
+                    return next;
                   });
                 }}
                 jobs={referenceJobOptions}
@@ -668,13 +709,38 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
             ) : null}
 
             {step === "msp-details" ? (
-              <JobFormStepMspDetails
-                job={job}
-                ui={ui}
-                fieldErrors={fieldErrors}
-                onJobChange={updateJob}
-                onUiChange={updateUi}
-              />
+              <>
+                <JobFormStepMspDetails
+                  job={job}
+                  ui={ui}
+                  fieldErrors={fieldErrors}
+                  professions={options?.professions ?? []}
+                  specialties={specialties}
+                  onJobChange={updateJob}
+                  onUiChange={updateUi}
+                />
+                {isMspRecruitAndEor(job) ? (
+                  <JobFormWorkflowBanner
+                    workflowName={workflow?.workflowName}
+                    workflowWarning={workflowWarning}
+                    mappingCriteria={workflow?.mappingCriteria}
+                    mappingLink={mappingLink}
+                    canManageWorkflows={Boolean(options?.canManageWorkflows)}
+                    fieldError={fieldErrors.workflowId}
+                    assignmentMode={assignmentMode}
+                    publishedWorkflows={options?.workflows ?? []}
+                    overrideWorkflowId={overrideWorkflowId}
+                    onOverrideWorkflow={(workflowId) => {
+                      setAssignmentMode("manual");
+                      setOverrideWorkflowId(workflowId);
+                    }}
+                    onResetToAutomatic={() => {
+                      setAssignmentMode("automatic");
+                      setOverrideWorkflowId(null);
+                    }}
+                  />
+                ) : null}
+              </>
             ) : null}
 
             {step === "compensation" ? (
@@ -735,7 +801,7 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
             <JobFormFooter
               step={step}
               saving={saving}
-              canPublish={job.sourceType === "MSP" || Boolean(workflow)}
+              canPublish={!requiresWorkflow || Boolean(workflow)}
               showPublishActions={showPublishActions && originalStatus !== "published"}
               termsAccepted={termsAccepted}
               brandStyle={brandStyle}

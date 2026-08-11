@@ -52,6 +52,7 @@ import {
 import { exportJobsCsv, exportJobsXls } from "./export-jobs";
 import {
   jobContractGroup,
+  jobListDisplayTitle,
   jobLocation,
   jobPlacementType,
   jobProfession,
@@ -1861,7 +1862,7 @@ export default function AdminRecruiterJobsPage() {
                       <ListTableCheckbox
                         checked={selectedIds.has(job.id)}
                         onChange={() => toggleSelect(job.id)}
-                        aria-label={`Select ${job.public_title?.trim() || "job"}`}
+                        aria-label={`Select ${jobListDisplayTitle(job)}`}
                       />
                     </td>
                     {listColumns.map((colId) => (

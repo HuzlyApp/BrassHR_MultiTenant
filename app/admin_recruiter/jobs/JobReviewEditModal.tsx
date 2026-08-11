@@ -4,6 +4,7 @@ import * as Dialog from "@radix-ui/react-dialog";
 import { Minus, Plus, X } from "lucide-react";
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import type { EmploymentType, JobRequisitionInput, SourceType } from "@/lib/jobs/types";
+import { isMspRecruitAndRelease } from "@/lib/jobs/placement";
 import { JobDescriptionEditor } from "./JobDescriptionEditor";
 import { JobTypeChipSelect } from "./JobTypeChipSelect";
 import { BenefitsChipSelect } from "./BenefitsChipSelect";
@@ -12,6 +13,7 @@ import {
   employmentTypeFromLabel,
   employmentTypeLabel,
   JOB_FORM_BENEFIT_OPTIONS,
+  JOB_FORM_COMMISSION_FEE_TYPES,
   JOB_FORM_COMPENSATION_TYPES,
   JOB_FORM_CURRENCIES,
   JOB_FORM_DURATION_OPTIONS,
@@ -34,6 +36,7 @@ import {
   type JobFormOption,
   type JobFormSpecialtyOption,
   type JobFormUiState,
+  type CommissionFeeType,
 } from "./job-form-shared";
 import { JobFormRequiredMark } from "./JobFormRequiredMark";
 
@@ -180,6 +183,7 @@ export function JobReviewEditModal({
 
   const employmentLabels = employmentTypes.map((type) => employmentTypeLabel(type));
   const isMsp = draft.job.sourceType === "MSP";
+  const isMspRnr = isMspRecruitAndRelease(draft.job);
 
   function patchJob<K extends keyof JobRequisitionInput>(key: K, value: JobRequisitionInput[K]) {
     setDraft((current) => ({ ...current, job: { ...current.job, [key]: value } }));
@@ -966,6 +970,103 @@ export function JobReviewEditModal({
             ) : null}
 
             {field === "compensation" ? (
+              isMspRnr ? (
+                <div className="space-y-4">
+                  <p className="text-sm text-[#64748B]">
+                    Commission fees for Recruit &amp; Release (USD only).
+                  </p>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div>
+                      <label className={JOB_FORM_LABEL_CLASS} htmlFor="review-commission-fee-type">
+                        Please select commission fees
+                      </label>
+                      <select
+                        id="review-commission-fee-type"
+                        className={JOB_FORM_SELECT_CLASS}
+                        style={{ backgroundImage: JOB_FORM_SELECT_CHEVRON }}
+                        value={draft.ui.commissionFeeType}
+                        onChange={(event) => {
+                          const next = event.target.value as CommissionFeeType;
+                          patchUi({ commissionFeeType: next });
+                          if (next === "percentage") {
+                            patchJob("commissionFixedAmount", null);
+                          } else if (next === "fixed_amount") {
+                            patchJob("commissionPercent", null);
+                          } else {
+                            patchJob("commissionPercent", null);
+                            patchJob("commissionFixedAmount", null);
+                          }
+                        }}
+                      >
+                        <option value="">Please select commission fees</option>
+                        {JOB_FORM_COMMISSION_FEE_TYPES.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {draft.ui.commissionFeeType === "percentage" ? (
+                      <div>
+                        <label className={JOB_FORM_LABEL_CLASS} htmlFor="review-commission-percent">
+                          Commission Percentage
+                        </label>
+                        <div className="relative">
+                          <input
+                            id="review-commission-percent"
+                            type="number"
+                            min="0"
+                            max="100"
+                            step="0.01"
+                            className={`${JOB_FORM_INPUT_CLASS} pr-10`}
+                            value={draft.job.commissionPercent ?? ""}
+                            onChange={(event) =>
+                              patchJob(
+                                "commissionPercent",
+                                event.target.value ? Number(event.target.value) : null
+                              )
+                            }
+                          />
+                          <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-[#94A3B8]">
+                            %
+                          </span>
+                        </div>
+                      </div>
+                    ) : null}
+
+                    {draft.ui.commissionFeeType === "fixed_amount" ? (
+                      <div>
+                        <label className={JOB_FORM_LABEL_CLASS} htmlFor="review-commission-fixed">
+                          Fixed Commission Amount
+                        </label>
+                        <div className="relative">
+                          <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[#94A3B8]">
+                            $
+                          </span>
+                          <input
+                            id="review-commission-fixed"
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            className={`${JOB_FORM_INPUT_CLASS} pl-7 pr-14`}
+                            value={draft.job.commissionFixedAmount ?? ""}
+                            onChange={(event) =>
+                              patchJob(
+                                "commissionFixedAmount",
+                                event.target.value ? Number(event.target.value) : null
+                              )
+                            }
+                          />
+                          <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-medium text-[#94A3B8]">
+                            USD
+                          </span>
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              ) : (
               <div className="space-y-4">
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div>
@@ -1125,6 +1226,7 @@ export function JobReviewEditModal({
                   </div>
                 )}
               </div>
+              )
             ) : null}
 
             {field === "benefits" ? (

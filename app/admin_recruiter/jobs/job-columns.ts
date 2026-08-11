@@ -7,6 +7,7 @@ export type JobColumnId =
   | "assignee"
   | "jobStatus"
   | "payRate"
+  | "commissionFee"
   | "location"
   | "placementType"
   | "employmentType"
@@ -27,6 +28,7 @@ export const JOB_COLUMN_OPTIONS: { id: JobColumnId; label: string }[] = [
   { id: "assignee", label: "Assignee" },
   { id: "jobStatus", label: "Job Status" },
   { id: "payRate", label: "Pay Rate" },
+  { id: "commissionFee", label: "Commission Fee" },
   { id: "location", label: "Location" },
   { id: "placementType", label: "Placement type" },
   { id: "employmentType", label: "W2 / 1099" },
@@ -50,15 +52,17 @@ export const DEFAULT_JOB_COLUMNS: JobColumnId[] = [
   "assignee",
   "jobStatus",
   "payRate",
+  "commissionFee",
   "actions",
 ]
 
 const STORAGE_KEY = "nexus-jobs-list-columns"
-const COLUMN_MIGRATION_KEY = "nexus-jobs-list-columns-v3-contract-group"
+const COLUMN_MIGRATION_KEY = "nexus-jobs-list-columns-v4-commission-fee"
 
 /** Columns added after initial release — inject into saved layouts once. */
 const ENSURE_VISIBLE_COLUMNS: { id: JobColumnId; after?: JobColumnId }[] = [
   { id: "payRate", after: "jobStatus" },
+  { id: "commissionFee", after: "payRate" },
   { id: "placementType", after: "location" },
   { id: "jobType", after: "placementType" },
   { id: "contractGroup", after: "jobTitle" },
@@ -128,6 +132,7 @@ const CENTER_ALIGNED_COLUMNS = new Set<JobColumnId>([
   "assignee",
   "jobStatus",
   "payRate",
+  "commissionFee",
   "location",
   "placementType",
   "employmentType",
@@ -164,6 +169,8 @@ export function jobListColumnClassName(colId: JobColumnId): string {
       return `min-w-[120px] w-[1%]${nowrap}${center}`.trim()
     case "payRate":
       return `min-w-[140px]${nowrap}${center}`.trim()
+    case "commissionFee":
+      return `min-w-[150px]${nowrap}${center}`.trim()
     case "placementType":
     case "jobType":
     case "employmentType":

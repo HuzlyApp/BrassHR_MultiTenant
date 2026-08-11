@@ -7,8 +7,10 @@ import {
 import type { JobColumnId } from "./job-columns";
 import {
   applicantCount,
+  formatJobListCommissionFeeText,
   formatJobListPayRateText,
   jobContractGroup,
+  jobListDisplayTitle,
   jobLocation,
   jobPlacementType,
   jobStatusSortLabel,
@@ -31,7 +33,7 @@ function sourceTypeLabel(job: JobListRow): string {
 const JOB_EXPORT_COLUMN_BUILDERS: Partial<
   Record<JobColumnId, ExportColumn<JobListRow> | ExportColumn<JobListRow>[]>
 > = {
-  jobTitle: { header: "Job Title", value: (row) => row.public_title?.trim() || "" },
+  jobTitle: { header: "Job Title", value: (row) => jobListDisplayTitle(row) },
   // jobId: { header: "Job Id", value: (row) => jobDisplayId(row) }, // Job ID hidden for now
   contractGroup: {
     header: "Contract Group",
@@ -53,6 +55,10 @@ const JOB_EXPORT_COLUMN_BUILDERS: Partial<
   payRate: {
     header: "Pay Rate",
     value: (row) => formatJobListPayRateText(row),
+  },
+  commissionFee: {
+    header: "Commission Fee",
+    value: (row) => formatJobListCommissionFeeText(row),
   },
   location: { header: "Location", value: (row) => jobLocation(row) },
   placementType: {
@@ -107,6 +113,7 @@ const DEFAULT_EXPORT_COLUMN_IDS: JobColumnId[] = [
   "placementType",
   "jobStatus",
   "payRate",
+  "commissionFee",
   "datePosted",
   "candidates",
   "assignee",

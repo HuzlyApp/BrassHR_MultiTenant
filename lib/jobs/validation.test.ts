@@ -42,11 +42,12 @@ describe("job requisition validation", () => {
     });
   });
 
-  it("does not require workflow or profession for MSP publish", () => {
+  it("does not require workflow or profession for MSP Recruit & Release publish", () => {
     const errors = validatePublishableJob(
       {
         ...validJob,
         sourceType: "MSP",
+        placementType: "Recruit_and_Release",
         professionId: null,
         mspClient: "CVS Health",
         mspName: "Probationary",
@@ -55,12 +56,57 @@ describe("job requisition validation", () => {
         location: "",
         shiftType: "Full-time",
         employmentType: "Contract",
+        commissionPercent: 10,
+        commissionFixedAmount: 500,
       },
       null
     );
     expect(errors.workflowId).toBeUndefined();
     expect(errors.professionId).toBeUndefined();
+    expect(errors.commissionPercent).toBeUndefined();
     expect(errors.location).toBeUndefined();
+  });
+
+  it("requires workflow and profession for MSP Recruit & EOR publish", () => {
+    const errors = validatePublishableJob(
+      {
+        ...validJob,
+        sourceType: "MSP",
+        placementType: "Recruit_and_EOR",
+        professionId: null,
+        mspClient: "CVS Health",
+        mspName: "Probationary",
+        externalRequisitionId: "53534534",
+        facility: "Texas City, Texas, United States",
+        shiftType: "Full-time",
+        employmentType: "W2",
+      },
+      null
+    );
+    expect(errors.workflowId).toBeDefined();
+    expect(errors.professionId).toBeDefined();
+  });
+
+  it("requires commission fees for MSP Recruit & Release publish", () => {
+    const errors = validatePublishableJob(
+      {
+        ...validJob,
+        sourceType: "MSP",
+        placementType: "Recruit_and_Release",
+        mspClient: "CVS Health",
+        mspName: "Probationary",
+        externalRequisitionId: "53534534",
+        facility: "Texas City, Texas, United States",
+        location: "Texas City, Texas, United States",
+        shiftType: "Full-time",
+        employmentType: "Contract",
+        commissionPercent: null,
+        commissionFixedAmount: null,
+      },
+      null
+    );
+    expect(errors.commissionPercent).toBeDefined();
+    expect(errors.commissionFixedAmount).toBeDefined();
   });
 
   it("requires MSP fields for a published MSP job", () => {
@@ -68,6 +114,7 @@ describe("job requisition validation", () => {
       {
         ...validJob,
         sourceType: "MSP",
+        placementType: "Recruit_and_Release",
         mspClient: "",
         mspName: "",
         externalRequisitionId: "",

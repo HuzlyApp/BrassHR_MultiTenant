@@ -2,11 +2,13 @@ import { z } from "zod";
 import {
   EMPLOYMENT_TYPES,
   JOB_STATUSES,
+  PLACEMENT_TYPES,
   SOURCE_TYPES,
   type FieldErrors,
   type JobRequisitionInput,
   type WorkflowMatchKey,
 } from "@/lib/jobs/types";
+import { jobRequiresWorkflow } from "@/lib/jobs/placement";
 
 const optionalText = z
   .union([z.string(), z.null(), z.undefined()])
@@ -28,6 +30,8 @@ export const jobRequisitionInputSchema = z.object({
   internalRequisitionNumber: optionalText,
   externalRequisitionId: optionalText,
   sourceType: z.enum(SOURCE_TYPES),
+  placementType: z.enum(PLACEMENT_TYPES).nullable().optional(),
+  eorType: z.enum(["Tenant", "MSP"]).nullable().optional(),
   mspClient: optionalText,
   professionId: z
     .union([z.string(), z.null(), z.undefined()])
@@ -41,6 +45,8 @@ export const jobRequisitionInputSchema = z.object({
   billRate: optionalNumber,
   payRateMin: optionalNumber,
   payRateMax: optionalNumber,
+  commissionPercent: optionalNumber,
+  commissionFixedAmount: optionalNumber,
   targetStartDate: optionalText,
   duration: optionalText,
   shiftType: optionalText,
@@ -97,6 +103,9 @@ export function validatePublishableJob(
 ): FieldErrors {
   const errors: FieldErrors = {};
   const isMsp = input.sourceType === "MSP";
+  const isMspEor = isMsp && input.placementType === "Recruit_and_EOR";
+  const isMspRnr = isMsp && input.placementType === "Recruit_and_Release";
+  const requiresWorkflow = jobRequiresWorkflow(input);
   const location = input.location?.trim() || input.facility?.trim() || "";
 
   if (!input.publicTitle?.trim()) errors.publicTitle = "Public job title is required.";
@@ -110,15 +119,52 @@ export function validatePublishableJob(
 
   if (!isMsp) {
     if (!input.professionId) errors.professionId = "Profession is required.";
-    if (!workflowId) errors.workflowId = "A matching published workflow is required.";
+    if (requiresWorkflow && !workflowId) {
+      errors.workflowId = "A matching published workflow is required.";
+    }
   }
 
-  if (isMsp) {
+  if (isMspRnr) {
     if (!input.mspClient?.trim()) errors.mspClient = "MSP Name is required.";
     if (!input.mspName?.trim()) errors.mspName = "Contract Group / Client is required.";
     if (!input.externalRequisitionId?.trim()) {
       errors.externalRequisitionId = "Internal Reference / Source Job ID is required.";
     }
+    const hasCommission =
+      (input.commissionPercent != null && input.commissionPercent > 0) ||
+      (input.commissionFixedAmount != null && input.commissionFixedAmount > 0);
+    if (!hasCommission) {
+      errors.commissionPercent = "Select a commission fee type and enter the amount.";
+      errors.commissionFixedAmount = "Select a commission fee type and enter the amount.";
+    }
+    if (
+      input.commissionPercent != null &&
+      (input.commissionPercent < 0 || input.commissionPercent > 100)
+    ) {
+      errors.commissionPercent = "Commission percentage must be between 0 and 100.";
+    }
+    if (input.commissionFixedAmount != null && input.commissionFixedAmount < 0) {
+      errors.commissionFixedAmount = "Fixed commission amount cannot be negative.";
+    }
+  }
+
+  if (isMspEor) {
+    if (!input.mspClient?.trim()) errors.mspClient = "MSP Name is required.";
+    if (!input.mspName?.trim()) errors.mspName = "Contract Group / Client is required.";
+    if (!input.externalRequisitionId?.trim()) {
+      errors.externalRequisitionId = "Internal Reference / Source Job ID is required.";
+    }
+    if (!input.professionId) errors.professionId = "Profession is required.";
+    if (input.employmentType !== "W2" && input.employmentType !== "1099") {
+      errors.employmentType = "Select W2 or 1099 for EOR placements.";
+    }
+    if (requiresWorkflow && !workflowId) {
+      errors.workflowId = "A matching published workflow is required.";
+    }
+  }
+
+  if (isMsp && !input.placementType) {
+    errors.placementType = "Select Recruit & Release or Recruit & EOR.";
   }
 
   if (

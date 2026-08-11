@@ -1,5 +1,13 @@
 import type { CSSProperties } from "react";
-import type { EmploymentType, JobRequisitionInput, SourceType } from "@/lib/jobs/types";
+import type { EmploymentType, JobRequisitionInput, PlacementType, SourceType } from "@/lib/jobs/types";
+import {
+  defaultEmploymentTypeForJob,
+  deriveEorType,
+  isMspRecruitAndEor,
+  isMspRecruitAndRelease,
+  placementTypeFromApiRow,
+  resolvePlacementTypeForSource,
+} from "@/lib/jobs/placement";
 
 export type JobFormStep =
   | "setup"
@@ -28,6 +36,13 @@ export const JOB_FORM_DURATION_OPTIONS = [
   "52 weeks",
 ] as const;
 
+export const JOB_FORM_COMMISSION_FEE_TYPES = [
+  { value: "percentage", label: "Percentage" },
+  { value: "fixed_amount", label: "Fixed Amount" },
+] as const;
+
+export type CommissionFeeType = "" | (typeof JOB_FORM_COMMISSION_FEE_TYPES)[number]["value"];
+
 export type JobFormUiState = {
   numberOfPositions: number;
   yearsOfExperience: string;
@@ -41,6 +56,8 @@ export type JobFormUiState = {
   payRatePeriod: string;
   /** Expected hours display mode (stored in shift_details). */
   hoursShowBy: string;
+  /** MSP R&R: percentage vs fixed USD commission fee. */
+  commissionFeeType: CommissionFeeType;
   selectedBenefits: string[];
   /** User-created benefit chips (shown alongside presets). */
   customBenefits: string[];
@@ -199,6 +216,7 @@ export function defaultJobFormUiState(): JobFormUiState {
     showPayBy: "Exact amount",
     payRatePeriod: "",
     hoursShowBy: "",
+    commissionFeeType: "",
     selectedBenefits: [],
     customBenefits: [],
   };
@@ -265,6 +283,13 @@ export function jobFormUiFromJob(job: JobRequisitionInput): JobFormUiState {
       );
     }
   }
+  if (isMspRecruitAndRelease(job)) {
+    if (job.commissionPercent != null && job.commissionPercent > 0) {
+      ui.commissionFeeType = "percentage";
+    } else if (job.commissionFixedAmount != null && job.commissionFixedAmount > 0) {
+      ui.commissionFeeType = "fixed_amount";
+    }
+  }
   return ui;
 }
 
@@ -288,6 +313,13 @@ export function jobRequisitionInputFromApiRow(row: Record<string, unknown>): Job
     internalRequisitionNumber: String(row.internal_requisition_number ?? ""),
     externalRequisitionId: String(row.external_requisition_id ?? ""),
     sourceType: row.source_type as JobRequisitionInput["sourceType"],
+    placementType: placementTypeFromApiRow(
+      row.source_type as SourceType,
+      row.placement_type,
+      row.employment_type
+    ),
+    eorType:
+      row.eor_type === "Tenant" || row.eor_type === "MSP" ? row.eor_type : null,
     mspClient: String(row.msp_client ?? ""),
     professionId: String(row.profession_id ?? ""),
     specialtyId: row.specialty_id ? String(row.specialty_id) : null,
@@ -296,6 +328,10 @@ export function jobRequisitionInputFromApiRow(row: Record<string, unknown>): Job
     department: String(row.department ?? ""),
     facility: String(row.facility ?? ""),
     billRate: row.bill_rate == null ? null : Number(row.bill_rate),
+    commissionPercent:
+      row.commission_percent == null ? null : Number(row.commission_percent),
+    commissionFixedAmount:
+      row.commission_fixed_amount == null ? null : Number(row.commission_fixed_amount),
     payRateMin: payRateMin ?? suggestedPayRate,
     payRateMax: row.pay_rate_max == null ? null : Number(row.pay_rate_max),
     targetStartDate: row.target_start_date ? String(row.target_start_date) : null,
@@ -356,21 +392,40 @@ export function jobRequisitionInputFromApiRow(row: Record<string, unknown>): Job
 /** Strip identifiers when cloning an existing job as a new requisition. */
 export function jobRequisitionInputForNewFromReference(
   loaded: JobRequisitionInput,
-  sourceType: SourceType
+  sourceType: SourceType,
+  mspPlacementType?: PlacementType | null
 ): JobRequisitionInput {
-  return {
+  const placementType = resolvePlacementTypeForSource(sourceType, mspPlacementType);
+  const base = {
     ...loaded,
     sourceType,
+    placementType,
+    eorType: deriveEorType({ sourceType, placementType, eorType: null }),
     internalRequisitionNumber: "",
     externalRequisitionId: "",
     employerOfRecord: null,
-    /** MSP → R&R (Contract); Internal → keep W2/1099 only. */
-    employmentType:
-      sourceType === "MSP"
-        ? "Contract"
-        : loaded.employmentType === "1099" || loaded.employmentType === "W2"
+  };
+
+  if (sourceType === "MSP" && placementType === "Recruit_and_Release") {
+    return { ...base, employmentType: "Contract" };
+  }
+
+  if (sourceType === "MSP" && placementType === "Recruit_and_EOR") {
+    return {
+      ...base,
+      employmentType:
+        loaded.employmentType === "1099" || loaded.employmentType === "W2"
           ? loaded.employmentType
-          : "W2",
+          : ("" as EmploymentType),
+    };
+  }
+
+  return {
+    ...base,
+    employmentType:
+      loaded.employmentType === "1099" || loaded.employmentType === "W2"
+        ? loaded.employmentType
+        : ("" as EmploymentType),
   };
 }
 
@@ -384,6 +439,10 @@ export function applyUiToJob(job: JobRequisitionInput, ui: JobFormUiState): JobR
 
   return {
     ...job,
+    placementType:
+      job.placementType ??
+      (job.sourceType === "Internal" ? "Internal" : "Recruit_and_Release"),
+    eorType: deriveEorType(job),
     schedule: ui.jobLocationType,
     jobLocationType: ui.jobLocationType,
     numberOfPositions: Math.max(1, Math.trunc(ui.numberOfPositions || 1)),
@@ -394,25 +453,46 @@ export function applyUiToJob(job: JobRequisitionInput, ui: JobFormUiState): JobR
     showInMultipleAreas: ui.showInMultipleAreas,
     isEmployerOnRecord: isYes ? true : isNo ? false : null,
     employerOfRecord: isYes ? job.employerOfRecord ?? null : isNo ? null : job.employerOfRecord ?? null,
-    /** MSP jobs always use R&R (Contract) for workflow routing. */
-    employmentType: job.sourceType === "MSP" ? "Contract" : job.employmentType,
+    employmentType: isMspRecruitAndRelease(job)
+      ? "Contract"
+      : defaultEmploymentTypeForJob(job),
     /** MSP Location maps to facility; keep public location in sync. */
     location:
       job.sourceType === "MSP"
         ? job.facility?.trim() || job.location?.trim() || null
         : job.location,
-    professionId: job.sourceType === "MSP" ? job.professionId || null : job.professionId,
-    specialtyId: job.sourceType === "MSP" ? null : job.specialtyId,
-    compensationType,
-    currency: ui.currency.trim() || "USD",
-    showPayBy,
-    payRatePeriod: ui.payRatePeriod || ui.compensationType,
-    payRateMin: job.payRateMin,
-    payRateMax: isRange ? job.payRateMax : null,
-    suggestedPayRate: job.payRateMin ?? job.suggestedPayRate ?? null,
-    hoursPerWeek: job.hoursPerWeek ?? null,
-    shiftDetails: ui.hoursShowBy.trim() || job.shiftDetails || null,
-    benefits: ui.selectedBenefits.join(", "),
+    professionId:
+      job.sourceType === "MSP" && isMspRecruitAndRelease(job)
+        ? job.professionId || null
+        : job.professionId,
+    specialtyId:
+      job.sourceType === "Internal" || isMspRecruitAndEor(job)
+        ? job.specialtyId
+        : null,
+    compensationType: isMspRecruitAndRelease(job) ? null : compensationType,
+    currency: isMspRecruitAndRelease(job) ? "USD" : ui.currency.trim() || "USD",
+    showPayBy: isMspRecruitAndRelease(job) ? null : showPayBy,
+    payRatePeriod: isMspRecruitAndRelease(job) ? null : ui.payRatePeriod || ui.compensationType,
+    payRateMin: isMspRecruitAndRelease(job) ? null : job.payRateMin,
+    payRateMax: isMspRecruitAndRelease(job) ? null : isRange ? job.payRateMax : null,
+    suggestedPayRate: isMspRecruitAndRelease(job)
+      ? null
+      : job.payRateMin ?? job.suggestedPayRate ?? null,
+    commissionPercent: isMspRecruitAndRelease(job)
+      ? ui.commissionFeeType === "fixed_amount"
+        ? null
+        : job.commissionPercent ?? null
+      : null,
+    commissionFixedAmount: isMspRecruitAndRelease(job)
+      ? ui.commissionFeeType === "percentage"
+        ? null
+        : job.commissionFixedAmount ?? null
+      : null,
+    hoursPerWeek: isMspRecruitAndRelease(job) ? null : job.hoursPerWeek ?? null,
+    shiftDetails: isMspRecruitAndRelease(job)
+      ? null
+      : ui.hoursShowBy.trim() || job.shiftDetails || null,
+    benefits: isMspRecruitAndRelease(job) ? null : ui.selectedBenefits.join(", "),
     publicTitle: job.publicTitle?.trim() || job.publicTitle,
   };
 }
@@ -423,6 +503,34 @@ function normalizeShowPayBy(value: string | null | undefined): string {
   if (raw === "starting amount") return "Starting amount";
   if (raw === "exact amount") return "Exact amount";
   return "Exact amount";
+}
+
+export function formatCommissionSummary(job: JobRequisitionInput): string {
+  const parts: string[] = [];
+  if (job.commissionPercent != null && job.commissionPercent > 0) {
+    parts.push(`${job.commissionPercent}%`);
+  }
+  if (job.commissionFixedAmount != null && job.commissionFixedAmount > 0) {
+    parts.push(`$${job.commissionFixedAmount} USD`);
+  }
+  return parts.length ? parts.join(" + ") : "—";
+}
+
+export function formatCommissionFeeTypeLabel(type: CommissionFeeType): string {
+  return JOB_FORM_COMMISSION_FEE_TYPES.find((item) => item.value === type)?.label ?? "";
+}
+
+export function formatCommissionPercentValue(job: JobRequisitionInput): string {
+  if (job.commissionPercent == null || job.commissionPercent <= 0) return "";
+  return `${job.commissionPercent}%`;
+}
+
+export function formatCommissionFixedValue(job: JobRequisitionInput): string {
+  if (job.commissionFixedAmount == null || job.commissionFixedAmount <= 0) return "";
+  const amount = Number.isInteger(job.commissionFixedAmount)
+    ? String(job.commissionFixedAmount)
+    : job.commissionFixedAmount.toFixed(2).replace(/\.?0+$/, "");
+  return `$${amount} USD`;
 }
 
 export function formatPaySummary(

@@ -7,10 +7,24 @@ export type EmploymentType = (typeof EMPLOYMENT_TYPES)[number];
 export const SOURCE_TYPES = ["Internal", "MSP"] as const;
 export type SourceType = (typeof SOURCE_TYPES)[number];
 
+export const PLACEMENT_TYPES = [
+  "Internal",
+  "Recruit_and_Release",
+  "Recruit_and_EOR",
+] as const;
+export type PlacementType = (typeof PLACEMENT_TYPES)[number];
+
+export const EOR_TYPES = ["Tenant", "MSP"] as const;
+export type EorType = (typeof EOR_TYPES)[number];
+
 export type JobRequisitionInput = {
   internalRequisitionNumber?: string | null;
   externalRequisitionId?: string | null;
   sourceType: SourceType;
+  /** Internal | Recruit_and_Release | Recruit_and_EOR */
+  placementType?: PlacementType | null;
+  /** Tenant (tenant EOR) | MSP (MSP EOR for R&R) */
+  eorType?: EorType | null;
   mspClient?: string | null;
   professionId?: string | null;
   specialtyId?: string | null;
@@ -21,6 +35,9 @@ export type JobRequisitionInput = {
   billRate?: number | null;
   payRateMin?: number | null;
   payRateMax?: number | null;
+  /** MSP R&R: tenant commission fee (USD fixed and/or percent). */
+  commissionPercent?: number | null;
+  commissionFixedAmount?: number | null;
   targetStartDate?: string | null;
   duration?: string | null;
   shiftType?: string | null;

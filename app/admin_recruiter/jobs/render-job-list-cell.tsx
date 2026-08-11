@@ -4,6 +4,8 @@ import { MoreHorizontal } from "lucide-react"
 import type { JobColumnId, JobSortField } from "./job-columns"
 import JobPublishToggle from "./JobPublishToggle"
 import { isJobRequisitionOpen } from "@/lib/jobs/public-application-routing"
+import { isMspRecruitAndRelease, placementTypeFromApiRow } from "@/lib/jobs/placement"
+import type { SourceType } from "@/lib/jobs/types"
 import { JobPublicViewLink } from "./JobPublicViewLink"
 
 const JOB_CANDIDATE_COUNTER_CLASS =
@@ -62,6 +64,12 @@ export type JobListRow = {
   public_job_token?: string | null
   employment_type: string
   source_type?: "Internal" | "MSP" | string | null
+  placement_type?: string | null
+  /** MSP R&R / EOR: source job title from Job Source Details. */
+  source_job_title?: string | null
+  /** MSP R&R commission fee fields. */
+  commission_percent?: number | null
+  commission_fixed_amount?: number | null
   /** MSP (Job Source) — shown as Contract Group for MSP jobs. */
   msp_name?: string | null
   msp_client?: string | null
@@ -109,6 +117,57 @@ export function jobContractGroup(job: JobListRow): string {
   const source = String(job.source_type ?? "").trim().toLowerCase()
   if (source !== "msp") return ""
   return job.msp_name?.trim() || job.msp_client?.trim() || ""
+}
+
+function jobListSourceType(job: JobListRow): SourceType {
+  const raw = String(job.source_type ?? "").trim().toLowerCase()
+  return raw === "msp" ? "MSP" : "Internal"
+}
+
+export function isJobListMspRecruitAndRelease(job: JobListRow): boolean {
+  return isMspRecruitAndRelease({
+    sourceType: jobListSourceType(job),
+    placementType: placementTypeFromApiRow(
+      jobListSourceType(job),
+      job.placement_type,
+      job.employment_type
+    ),
+  })
+}
+
+/** Job Title column: MSP R&R uses Source Job Title; others use public title. */
+export function jobListDisplayTitle(job: JobListRow): string {
+  if (isJobListMspRecruitAndRelease(job)) {
+    return (
+      job.source_job_title?.trim() ||
+      job.public_title?.trim() ||
+      "Untitled draft"
+    )
+  }
+  return job.public_title?.trim() || "Untitled draft"
+}
+
+export function formatJobListCommissionFeeText(job: JobListRow): string {
+  if (!isJobListMspRecruitAndRelease(job)) return "—"
+  const parts: string[] = []
+  const percent = toNumberOrNull(job.commission_percent)
+  const fixed = toNumberOrNull(job.commission_fixed_amount)
+  if (percent != null && percent > 0) {
+    parts.push(`${formatPayAmount(percent)}%`)
+  }
+  if (fixed != null && fixed > 0) {
+    parts.push(`$${formatPayAmount(fixed)} USD`)
+  }
+  return parts.length ? parts.join(" + ") : "—"
+}
+
+export function jobCommissionFeeSortValue(job: JobListRow): number {
+  if (!isJobListMspRecruitAndRelease(job)) return -1
+  const percent = toNumberOrNull(job.commission_percent)
+  const fixed = toNumberOrNull(job.commission_fixed_amount)
+  if (percent != null && percent > 0) return percent
+  if (fixed != null && fixed > 0) return fixed
+  return -1
 }
 
 export function applicantCount(job: JobListRow): number {
@@ -222,7 +281,7 @@ export function jobStatusSortLabel(status: JobListRow["status"]): string {
 export function jobSortValue(job: JobListRow, field: JobSortField): string | number {
   switch (field) {
     case "jobTitle":
-      return (job.public_title || "").trim().toLowerCase()
+      return jobListDisplayTitle(job).toLowerCase()
     // case "jobId":
     //   return jobDisplayId(job).toLowerCase()
     case "contractGroup":
@@ -237,6 +296,8 @@ export function jobSortValue(job: JobListRow, field: JobSortField): string | num
       return jobStatusSortLabel(job.status).toLowerCase()
     case "payRate":
       return jobPayRateSortValue(job)
+    case "commissionFee":
+      return jobCommissionFeeSortValue(job)
     case "location":
       return jobLocation(job).toLowerCase()
     case "placementType":
@@ -397,7 +458,7 @@ export function renderJobListCell(
               className="block truncate font-semibold hover:underline"
               style={{ color: ctx.brandingSecondaryHex }}
             >
-              {job.public_title || "Untitled draft"}
+              {jobListDisplayTitle(job)}
             </Link>
           </div>
           <JobPublicViewLink
@@ -474,6 +535,14 @@ export function renderJobListCell(
             ) : null}
           </span>
         </div>
+      )
+    }
+    case "commissionFee": {
+      const commission = formatJobListCommissionFeeText(job)
+      return (
+        <span className="mx-auto block w-fit text-sm tabular-nums text-[#475569]">
+          {commission}
+        </span>
       )
     }
     case "location":

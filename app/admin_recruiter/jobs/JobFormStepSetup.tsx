@@ -6,6 +6,8 @@ import {
   JOB_FORM_RADIO_OPTIONS_CLASS,
 } from "./job-form-shared";
 import { JobFormRequiredMark } from "./JobFormRequiredMark";
+import type { PlacementType } from "@/lib/jobs/types";
+import { PLACEMENT_TYPE_LABELS } from "@/lib/jobs/placement";
 
 function BrandedRadio({
   checked,
@@ -58,6 +60,8 @@ function FieldError({ error }: { error?: string }) {
 type JobFormStepSetupProps = {
   mspSourcedByClient: boolean | null;
   onMspSourcedByClientChange: (value: boolean) => void;
+  mspPlacementType: PlacementType | null;
+  onMspPlacementTypeChange: (value: PlacementType) => void;
   jobs: ExistingJobPickerOption[];
   jobsLoading: boolean;
   selectedReferenceJobId: string | null;
@@ -68,6 +72,8 @@ type JobFormStepSetupProps = {
 export function JobFormStepSetup({
   mspSourcedByClient,
   onMspSourcedByClientChange,
+  mspPlacementType,
+  onMspPlacementTypeChange,
   jobs,
   jobsLoading,
   selectedReferenceJobId,
@@ -104,6 +110,30 @@ export function JobFormStepSetup({
         </div>
         <FieldError error={fieldErrors.mspSourcedByClient} />
       </div>
+
+      {mspSourcedByClient === true ? (
+        <div className={JOB_FORM_SETUP_MSP_FIELD_CLASS}>
+          <p className="text-sm font-normal leading-5 text-[#64748B]">
+            Are you the Employer of Record (EOR) for this MSP job?
+            <JobFormRequiredMark />
+          </p>
+          <div className={JOB_FORM_RADIO_OPTIONS_CLASS}>
+            <BrandedRadio
+              name="msp-placement-type"
+              label={PLACEMENT_TYPE_LABELS.Recruit_and_Release}
+              checked={mspPlacementType === "Recruit_and_Release"}
+              onChange={() => onMspPlacementTypeChange("Recruit_and_Release")}
+            />
+            <BrandedRadio
+              name="msp-placement-type"
+              label={PLACEMENT_TYPE_LABELS.Recruit_and_EOR}
+              checked={mspPlacementType === "Recruit_and_EOR"}
+              onChange={() => onMspPlacementTypeChange("Recruit_and_EOR")}
+            />
+          </div>
+          <FieldError error={fieldErrors.mspPlacementType} />
+        </div>
+      ) : null}
 
       <div className="flex min-h-0 flex-1 flex-col gap-3">
         <h2 className="text-base font-semibold text-[#1E293B]">New job or existing job?</h2>

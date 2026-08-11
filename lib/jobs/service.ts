@@ -22,6 +22,13 @@ import {
   isJobRequisitionOpen,
   normalizeJobToken,
 } from "@/lib/jobs/public-application-routing";
+import {
+  deriveEorType,
+  isMspRecruitAndRelease,
+  jobRequiresWorkflow,
+  placementTypeFromApiRow,
+  resolvePlacementTypeForSource,
+} from "@/lib/jobs/placement";
 import { resolveWorkflowMatch } from "@/lib/workflow-mappings/service";
 import { ensureAdminCandidateWorker } from "@/lib/jobs/ensure-admin-candidate-worker";
 import { getOnboardingFlowById } from "@/lib/onboarding/onboarding-flows";
@@ -96,8 +103,10 @@ function toJobRow(input: JobRequisitionInput) {
     department: clean(input.department),
     facility,
     bill_rate: input.billRate ?? null,
-    pay_rate_min: input.payRateMin ?? null,
-    pay_rate_max: input.payRateMax ?? null,
+    pay_rate_min: isMspRecruitAndRelease(input) ? null : input.payRateMin ?? null,
+    pay_rate_max: isMspRecruitAndRelease(input) ? null : input.payRateMax ?? null,
+    commission_percent: input.commissionPercent ?? null,
+    commission_fixed_amount: input.commissionFixedAmount ?? null,
     target_start_date: clean(input.targetStartDate),
     duration,
     shift_type: clean(input.shiftType),
@@ -140,13 +149,49 @@ function toJobRow(input: JobRequisitionInput) {
     // Legacy columns still required on upgraded job_requisitions tables.
     title: publicTitle ?? "Untitled job",
     description: publicDescription,
-    placement_type: input.sourceType === "MSP" ? "Recruit_and_Release" : "Internal",
+    placement_type:
+      input.placementType ??
+      (input.sourceType === "MSP" ? "Recruit_and_Release" : "Internal"),
+    eor_type: deriveEorType(input),
     external_req_id: externalRequisitionId,
     facility_name: facility,
     job_duration: duration,
     benefits_summary: benefits,
-    pay_rate: suggestedPayRate,
+    pay_rate: isMspRecruitAndRelease(input) ? null : suggestedPayRate,
   };
+}
+
+type JobDbRow = ReturnType<typeof toJobRow> & { eor_tenant_id?: string | null };
+
+/** MSP Recruit & EOR (tenant EOR) requires eor_tenant_id — enforced by DB check constraint. */
+function applyTenantEorRowFields(
+  row: ReturnType<typeof toJobRow>,
+  tenantId: string,
+  tenantName: string | null
+): JobDbRow {
+  if (row.placement_type !== "Recruit_and_EOR" || row.eor_type !== "Tenant") {
+    return row;
+  }
+
+  return {
+    ...row,
+    eor_tenant_id: tenantId,
+    is_employer_on_record: true,
+    employer_of_record: row.employer_of_record ?? tenantName,
+  };
+}
+
+async function resolveTenantName(
+  supabase: DbClient,
+  tenantId: string
+): Promise<string | null> {
+  const { data, error } = await supabase
+    .from("tenants")
+    .select("name")
+    .eq("id", tenantId)
+    .maybeSingle();
+  if (error) throw error;
+  return data?.name ? String(data.name).trim() : null;
 }
 
 
@@ -282,8 +327,8 @@ async function resolveJobWorkflowAssignment(
     return { match, assignmentMode: "manual", assignmentError: null };
   }
 
-  /** MSP jobs publish without an onboarding workflow assignment. */
-  if (input.sourceType === "MSP") {
+  /** MSP Recruit & Release jobs publish without an onboarding workflow assignment. */
+  if (input.sourceType === "MSP" && input.placementType !== "Recruit_and_EOR") {
     return { match: null, assignmentMode: "automatic", assignmentError: null };
   }
 
@@ -385,7 +430,7 @@ async function requirePublishable(
   if (Object.keys(fieldErrors).length === 0) return;
 
   let message = "Complete the required fields before publishing.";
-  if (input.sourceType !== "MSP" && !match) {
+  if (jobRequiresWorkflow(input) && !match) {
     message = workflowNoMatchMessage(
       await professionName(supabase, tenantId, input.professionId ?? ""),
       {
@@ -469,12 +514,19 @@ export async function saveJobRequisition(
   );
   if (options.publish) await requirePublishable(supabase, tenantId, input, match);
 
+  const baseRow = toJobRow(input);
+  const tenantName =
+    baseRow.placement_type === "Recruit_and_EOR" && baseRow.eor_type === "Tenant"
+      ? await resolveTenantName(supabase, tenantId)
+      : null;
+  const jobRow = applyTenantEorRowFields(baseRow, tenantId, tenantName);
+
   const now = new Date().toISOString();
   const publicJobToken = options.publish
     ? await resolvePublicJobTokenForPublish(supabase, tenantId, options.jobId)
     : undefined;
   const patch = {
-    ...toJobRow(input),
+    ...jobRow,
     workflow_id: match?.workflowId ?? null,
     workflow_mapping_id: assignmentMode === "automatic" ? match?.mappingId ?? null : null,
     workflow_assignment_mode: assignmentMode,
@@ -507,7 +559,7 @@ export async function saveJobRequisition(
         message.includes("does not exist")
       ) {
         const legacyPatch = {
-          ...toJobRow(input),
+          ...applyTenantEorRowFields(toJobRow(input), tenantId, tenantName),
           workflow_id: match?.workflowId ?? null,
           status: options.publish ? ("published" as const) : ("draft" as const),
           published_at: options.publish ? now : null,
@@ -549,7 +601,7 @@ export async function saveJobRequisition(
       message.includes("does not exist")
     ) {
       const legacyPatch = {
-        ...toJobRow(input),
+        ...applyTenantEorRowFields(toJobRow(input), tenantId, tenantName),
         workflow_id: match?.workflowId ?? null,
         status: options.publish ? ("published" as const) : ("draft" as const),
         published_at: options.publish ? now : null,
@@ -636,6 +688,13 @@ function jobRowToInput(row: Record<string, unknown>): JobRequisitionInput {
       : null,
     externalRequisitionId: row.external_requisition_id ? String(row.external_requisition_id) : null,
     sourceType: (row.source_type as SourceType) || "Internal",
+    placementType: placementTypeFromApiRow(
+      (row.source_type as SourceType) || "Internal",
+      row.placement_type,
+      row.employment_type
+    ),
+    eorType:
+      row.eor_type === "Tenant" || row.eor_type === "MSP" ? row.eor_type : null,
     mspClient: row.msp_client ? String(row.msp_client) : null,
     professionId: String(row.profession_id ?? ""),
     specialtyId: row.specialty_id ? String(row.specialty_id) : null,
@@ -644,6 +703,10 @@ function jobRowToInput(row: Record<string, unknown>): JobRequisitionInput {
     department: row.department ? String(row.department) : null,
     facility: row.facility ? String(row.facility) : null,
     billRate: row.bill_rate == null ? null : Number(row.bill_rate),
+    commissionPercent:
+      row.commission_percent == null ? null : Number(row.commission_percent),
+    commissionFixedAmount:
+      row.commission_fixed_amount == null ? null : Number(row.commission_fixed_amount),
     payRateMin: row.pay_rate_min == null ? null : Number(row.pay_rate_min),
     payRateMax: row.pay_rate_max == null ? null : Number(row.pay_rate_max),
     targetStartDate: row.target_start_date ? String(row.target_start_date) : null,
@@ -757,7 +820,7 @@ export async function listInternalJobs(
   let query = supabase
     .from("job_requisitions")
     .select(
-      "id, internal_requisition_number, public_title, public_job_token, profession_id, specialty_id, employment_type, source_type, msp_name, msp_client, status, workflow_id, created_by, created_at, published_at, location, facility, facility_name, application_deadline, location_type, schedule, shift_type, pay_rate_min, pay_rate_max, pay_rate_period, rate_unit, pay_rate, professions(name), specialties(name), onboarding_flows!workflow_id(name), job_applications!job_requisition_id(count)"
+      "id, internal_requisition_number, public_title, public_job_token, profession_id, specialty_id, employment_type, source_type, placement_type, msp_name, msp_client, source_job_title, status, workflow_id, created_by, created_at, published_at, location, facility, facility_name, application_deadline, location_type, schedule, shift_type, pay_rate_min, pay_rate_max, pay_rate_period, rate_unit, pay_rate, commission_percent, commission_fixed_amount, professions(name), specialties(name), onboarding_flows!workflow_id(name), job_applications!job_requisition_id(count)"
     )
     .eq("tenant_id", tenantId)
     .order("created_at", { ascending: false });
