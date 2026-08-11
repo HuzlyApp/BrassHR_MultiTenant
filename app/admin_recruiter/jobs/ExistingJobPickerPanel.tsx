@@ -7,6 +7,7 @@ import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext
 export type ExistingJobPickerOption = {
   id: string;
   public_title: string | null;
+  source_job_title?: string | null;
   location: string | null;
   facility: string | null;
   facility_name: string | null;
@@ -76,6 +77,17 @@ function formatJobLocation(job: ExistingJobPickerOption): string {
   );
 }
 
+function jobPickerDisplayTitle(option: ExistingJobPickerOption): string {
+  if (jobPickerSourceType(option) === "MSP") {
+    return (
+      option.source_job_title?.trim() ||
+      option.public_title?.trim() ||
+      "Untitled job"
+    );
+  }
+  return option.public_title?.trim() || "Untitled job";
+}
+
 function jobReference(option: ExistingJobPickerOption): string {
   return option.internal_requisition_number?.trim() || option.id.slice(0, 8).toUpperCase();
 }
@@ -130,7 +142,7 @@ export function ExistingJobPickerPanel({
         if (loc !== locationFilter) return false;
       }
       if (q) {
-        const title = (option.public_title ?? "").toLowerCase();
+        const title = jobPickerDisplayTitle(option).toLowerCase();
         const ref = jobReference(option).toLowerCase();
         if (!title.includes(q) && !ref.includes(q)) return false;
       }
@@ -252,7 +264,7 @@ export function ExistingJobPickerPanel({
           <p className="px-4 py-6 text-sm text-[#64748B]">No jobs match these filters.</p>
         ) : (
           filteredJobs.map((option) => {
-            const title = option.public_title?.trim() || "Untitled job";
+            const title = jobPickerDisplayTitle(option);
             const location = formatJobLocation(option);
             const selected = option.id === selectedJobId;
             return (

@@ -695,7 +695,7 @@ export function JobReviewEditModal({
                   onChange={(event) => {
                     const next = event.target.value;
                     patchJob("sourceJobTitle", next);
-                    if (isMsp && !draft.job.publicTitle?.trim()) {
+                    if (isMsp) {
                       patchJob("publicTitle", next);
                     }
                   }}

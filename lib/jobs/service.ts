@@ -65,6 +65,12 @@ function toLegacyRateUnit(
 
 function toJobRow(input: JobRequisitionInput) {
   const publicTitle = clean(input.publicTitle);
+  const sourceJobTitle = clean(input.sourceJobTitle);
+  /** MSP: Job Title and Source Job Title are the same field — prefer source title. */
+  const resolvedPublicTitle =
+    input.sourceType === "MSP"
+      ? sourceJobTitle ?? publicTitle
+      : publicTitle;
   const publicDescription = clean(input.publicDescription);
   const facility = clean(input.facility);
   const duration = clean(input.duration);
@@ -112,7 +118,7 @@ function toJobRow(input: JobRequisitionInput) {
     shift_type: clean(input.shiftType),
     shift_details: clean(input.shiftDetails),
     hours_per_week: input.hoursPerWeek ?? null,
-    public_title: publicTitle,
+    public_title: resolvedPublicTitle,
     public_description: publicDescription,
     location,
     schedule: jobLocationType,
@@ -135,7 +141,7 @@ function toJobRow(input: JobRequisitionInput) {
     show_pay_by: clean(input.showPayBy),
     pay_rate_period: payRatePeriod,
     rate_unit: toLegacyRateUnit(payRatePeriod, compensationType),
-    source_job_title: clean(input.sourceJobTitle),
+    source_job_title: input.sourceType === "MSP" ? sourceJobTitle ?? resolvedPublicTitle : null,
     source_job_url: clean(input.sourceJobUrl),
     source_job_details: clean(input.sourceJobDetails),
     special_requirements: clean(input.specialRequirements),
@@ -147,7 +153,7 @@ function toJobRow(input: JobRequisitionInput) {
           .filter(Boolean)
       : [],
     // Legacy columns still required on upgraded job_requisitions tables.
-    title: publicTitle ?? "Untitled job",
+    title: resolvedPublicTitle ?? "Untitled job",
     description: publicDescription,
     placement_type:
       input.placementType ??

@@ -213,7 +213,14 @@ export default function JobDetailsClient({ jobId }: Props) {
     await transition(action);
   }
 
-  const title = job?.public_title?.trim() || "Untitled job";
+  const title = (() => {
+    if (!job) return "Untitled job";
+    const isMsp = String(job.source_type ?? "").trim().toLowerCase() === "msp";
+    if (isMsp) {
+      return job.source_job_title?.trim() || job.public_title?.trim() || "Untitled job";
+    }
+    return job.public_title?.trim() || "Untitled job";
+  })();
   const location = job ? formatJobDetailsLocation(job) : "—";
   const pay = job ? formatJobDetailsPay(job) : "—";
   const posted = job ? formatJobDetailsDate(job.published_at || job.created_at) : "—";

@@ -46,7 +46,11 @@ export function JobPostPreviewModal({
   brandStyle,
   brandVars,
 }: Props) {
-  const title = job.publicTitle?.trim() || "Untitled job";
+  const isMsp = job.sourceType === "MSP";
+  const title =
+    (isMsp
+      ? job.sourceJobTitle?.trim() || job.publicTitle?.trim()
+      : job.publicTitle?.trim()) || "Untitled job";
   const location = job.location?.trim() || "Location not set";
   const locationType = ui.jobLocationType?.trim() || "";
   const locationLine = [locationType, location].filter(Boolean).join(" · ");
@@ -57,7 +61,6 @@ export function JobPostPreviewModal({
   const compensationLabel = [ui.compensationType, ui.currency].filter(Boolean).join(", ");
   const paySummary = formatPaySummary(job, ui);
   const showCompensation = Boolean(compensationLabel || (paySummary !== "—" && paySummary));
-  const isMsp = job.sourceType === "MSP";
   const mspPay =
     job.suggestedPayRate != null
       ? `$${job.suggestedPayRate}${ui.compensationType ? ` ${ui.compensationType}` : ""}`

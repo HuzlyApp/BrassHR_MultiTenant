@@ -396,6 +396,8 @@ export function jobRequisitionInputForNewFromReference(
   mspPlacementType?: PlacementType | null
 ): JobRequisitionInput {
   const placementType = resolvePlacementTypeForSource(sourceType, mspPlacementType);
+  const mspTitle =
+    loaded.sourceJobTitle?.trim() || loaded.publicTitle?.trim() || null;
   const base = {
     ...loaded,
     sourceType,
@@ -404,6 +406,12 @@ export function jobRequisitionInputForNewFromReference(
     internalRequisitionNumber: "",
     externalRequisitionId: "",
     employerOfRecord: null,
+    ...(sourceType === "MSP"
+      ? {
+          sourceJobTitle: mspTitle,
+          publicTitle: mspTitle,
+        }
+      : {}),
   };
 
   if (sourceType === "MSP" && placementType === "Recruit_and_Release") {
@@ -493,7 +501,14 @@ export function applyUiToJob(job: JobRequisitionInput, ui: JobFormUiState): JobR
       ? null
       : ui.hoursShowBy.trim() || job.shiftDetails || null,
     benefits: isMspRecruitAndRelease(job) ? null : ui.selectedBenefits.join(", "),
-    publicTitle: job.publicTitle?.trim() || job.publicTitle,
+    publicTitle:
+      job.sourceType === "MSP"
+        ? job.sourceJobTitle?.trim() || job.publicTitle?.trim() || null
+        : job.publicTitle?.trim() || job.publicTitle,
+    sourceJobTitle:
+      job.sourceType === "MSP"
+        ? job.sourceJobTitle?.trim() || job.publicTitle?.trim() || null
+        : job.sourceJobTitle,
   };
 }
 

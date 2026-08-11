@@ -135,9 +135,10 @@ export function isJobListMspRecruitAndRelease(job: JobListRow): boolean {
   })
 }
 
-/** Job Title column: MSP R&R uses Source Job Title; others use public title. */
+/** Job Title column: MSP uses Source Job Title; Internal uses public title. */
 export function jobListDisplayTitle(job: JobListRow): string {
-  if (isJobListMspRecruitAndRelease(job)) {
+  const source = String(job.source_type ?? "").trim().toLowerCase()
+  if (source === "msp") {
     return (
       job.source_job_title?.trim() ||
       job.public_title?.trim() ||

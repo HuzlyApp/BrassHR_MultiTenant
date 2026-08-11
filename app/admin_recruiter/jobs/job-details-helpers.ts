@@ -5,6 +5,8 @@ export type JobDetailsRow = {
   id: string;
   status: JobStatus | string;
   public_title: string | null;
+  source_type?: string | null;
+  source_job_title?: string | null;
   location: string | null;
   facility: string | null;
   facility_name: string | null;

@@ -757,9 +757,8 @@ export function JobFormStepMspDetails({
           onChange={(event) => {
             const next = event.target.value;
             onJobChange("sourceJobTitle", next);
-            if (!job.publicTitle?.trim()) {
-              onJobChange("publicTitle", next);
-            }
+            // MSP: Job Title and Source Job Title are the same field.
+            onJobChange("publicTitle", next);
           }}
           placeholder="e.g. Registered Nurse - Acute Care"
         />
@@ -1906,13 +1905,10 @@ export function JobFormStepReview({
         onEdit={() => onEditField("jobId")}
       />
       */}
-      {!isMspRnr ? (
+      {job.sourceType !== "MSP" ? (
         <ReviewRow
           label="Job Title"
-          value={
-            job.publicTitle?.trim() ||
-            (job.sourceType === "MSP" ? job.sourceJobTitle?.trim() || "" : "")
-          }
+          value={job.publicTitle?.trim() || ""}
           onEdit={() => onEditField("jobTitle")}
         />
       ) : null}
