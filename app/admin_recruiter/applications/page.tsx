@@ -23,6 +23,9 @@ import { ListTableCheckbox } from "@/app/admin_recruiter/components/ListTableChe
 import AddCallLogModal from "@/app/admin_recruiter/components/AddCallLogModal";
 import CandidateCommunicationDialog from "@/app/admin_recruiter/components/CandidateCommunicationDialog";
 import { ScheduleInterviewModal } from "@/app/admin_recruiter/calendar/components/ScheduleInterviewModal";
+import SuccessModal from "@/app/components/SuccessModal";
+import ErrorModal from "@/app/components/ErrorModal";
+import { validateResumeUploadFile } from "@/lib/resume/validate-resume-upload";
 import { CandidateAiFinalApprovalLink } from "@/app/admin_recruiter/candidates/CandidateAiFinalApprovalLink";
 import { useCandidatesFilterRowsDefault } from "@/app/admin_recruiter/hooks/useCandidatesFilterRowsDefault";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
@@ -40,6 +43,7 @@ import {
 import {
   applicationStatusDotClassName,
   applicationStatusLabel,
+  isArchivedApplicationStatus,
   normalizeApplicationStatus,
   type ApplicationPipelineStatus,
 } from "@/lib/jobs/application-status";
@@ -314,15 +318,29 @@ function rowStatusDotColor(row: ApplicationRow, options: ApplicationStatusOption
   return fromOption || null;
 }
 
+function isRowArchived(row: ApplicationRow, options: ApplicationStatusOption[]): boolean {
+  const joined = oneStatusJoin(row.application_statuses);
+  if (joined?.system_key === "archived") return true;
+  const option = options.find((item) => item.id === rowStatusId(row));
+  if (option?.systemKey === "archived") return true;
+  return isArchivedApplicationStatus(row.status);
+}
+
 function matchesTab(
   row: ApplicationRow,
   tab: ApplicationTab,
   options: ApplicationStatusOption[]
 ): boolean {
-  if (tab === "all") return true;
+  const archived = isRowArchived(row, options);
+  if (tab === "all") return !archived;
+
   const statusId = rowStatusId(row);
   if (statusId && statusId === tab) return true;
+
   const option = options.find((item) => item.id === tab);
+  if (option?.systemKey === "archived") return archived;
+  if (archived) return false;
+
   if (option?.systemKey) {
     return normalizeApplicationStatus(row.status) === option.systemKey;
   }
@@ -456,6 +474,12 @@ export default function JobApplicationsPage() {
   const [interviewOpen, setInterviewOpen] = useState(false);
   const [interviewSubmitting, setInterviewSubmitting] = useState(false);
   const [interviewError, setInterviewError] = useState<string | null>(null);
+  const [resumeUploadApplicationId, setResumeUploadApplicationId] = useState<string | null>(null);
+  const [resumeUploading, setResumeUploading] = useState(false);
+  const [resumeSuccessOpen, setResumeSuccessOpen] = useState(false);
+  const [resumeErrorOpen, setResumeErrorOpen] = useState(false);
+  const [resumeErrorMessage, setResumeErrorMessage] = useState("");
+  const resumeInputRef = useRef<HTMLInputElement>(null);
   const candidateSearchInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -731,7 +755,9 @@ export default function JobApplicationsPage() {
     const counts: Record<string, number> = { all: 0 };
     for (const option of statusOptions) counts[option.id] = 0;
     for (const row of rows) {
-      counts.all += 1;
+      const archived = isRowArchived(row, statusOptions);
+      if (!archived) counts.all += 1;
+
       const statusId = rowStatusId(row);
       if (statusId && statusId in counts) {
         counts[statusId] += 1;
@@ -740,7 +766,8 @@ export default function JobApplicationsPage() {
       const byKey = statusOptions.find(
         (option) =>
           option.systemKey &&
-          option.systemKey === normalizeApplicationStatus(row.status)
+          option.systemKey ===
+            (archived ? "archived" : normalizeApplicationStatus(row.status))
       );
       if (byKey) counts[byKey.id] += 1;
     }
@@ -871,15 +898,166 @@ export default function JobApplicationsPage() {
     setDeleteConfirmOpen(true);
   }
 
-  function beginArchiveCandidate(applicationId: string) {
-    const archivedOption =
-      statusOptions.find((option) => /archiv/i.test(option.name)) ??
-      statusOptions.find((option) => option.systemKey === "rejected");
-    if (!archivedOption) {
-      toast.error("Archive status is not available");
+  function beginUpdateResume(applicationId: string) {
+    const row = rows.find((item) => item.id === applicationId);
+    if (!row) return;
+    const workerId = resolveApplicationWorkerId(row);
+    const profile = Array.isArray(row.applicant_profiles)
+      ? row.applicant_profiles[0]
+      : row.applicant_profiles;
+    const profileId =
+      profile && typeof profile === "object" && typeof (profile as { id?: unknown }).id === "string"
+        ? String((profile as { id: string }).id).trim()
+        : "";
+    if (!workerId && !profileId) {
+      setResumeErrorMessage("Candidate profile is not linked yet. Cannot update resume.");
+      setResumeErrorOpen(true);
       return;
     }
-    beginStatusChange(applicationId, archivedOption);
+    setResumeUploadApplicationId(applicationId);
+    // Defer click so React state is committed before the picker opens.
+    window.requestAnimationFrame(() => {
+      resumeInputRef.current?.click();
+    });
+  }
+
+  async function handleResumeFileSelected(file: File | undefined) {
+    const applicationId = resumeUploadApplicationId;
+    setResumeUploadApplicationId(null);
+    if (resumeInputRef.current) resumeInputRef.current.value = "";
+    if (!file || !applicationId) return;
+
+    const validationError = validateResumeUploadFile({
+      name: file.name,
+      type: file.type,
+      size: file.size,
+    });
+    if (validationError) {
+      setResumeErrorMessage(validationError);
+      setResumeErrorOpen(true);
+      return;
+    }
+
+    setResumeUploading(true);
+    try {
+      const form = new FormData();
+      form.set("resume", file);
+      const response = await fetch(
+        `/api/admin/job-applications/${encodeURIComponent(applicationId)}/resume`,
+        { method: "POST", body: form }
+      );
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(
+          typeof payload.error === "string" ? payload.error : "Failed to upload resume"
+        );
+      }
+      setRows((current) =>
+        current.map((row) =>
+          row.id === applicationId
+            ? {
+                ...row,
+                ai_match_status: null,
+                ai_match_score: null,
+                ai_match_category: null,
+                ai_match_action: null,
+                ai_match_readiness: null,
+                ai_match_display_category: null,
+              }
+            : row
+        )
+      );
+      setResumeSuccessOpen(true);
+    } catch (uploadError) {
+      setResumeErrorMessage(
+        uploadError instanceof Error ? uploadError.message : "Failed to upload resume"
+      );
+      setResumeErrorOpen(true);
+    } finally {
+      setResumeUploading(false);
+    }
+  }
+
+  function beginArchiveCandidate(applicationId: string) {
+    const archivedOption = statusOptions.find((option) => option.systemKey === "archived");
+    if (!archivedOption) {
+      toast.error("Archived status is not configured for this organization.");
+      return;
+    }
+    const row = rows.find((item) => item.id === applicationId);
+    if (!row) return;
+    if (isRowArchived(row, statusOptions)) {
+      toast.success("Candidate is already archived");
+      return;
+    }
+    void applyApplicationStatus(applicationId, archivedOption, "Archived from candidates list");
+  }
+
+  async function applyApplicationStatus(
+    applicationId: string,
+    toOption: ApplicationStatusOption,
+    note?: string
+  ) {
+    if (statusBusyId) return;
+    setStatusBusyId(applicationId);
+    try {
+      const response = await fetch(
+        `/api/admin/job-applications/${encodeURIComponent(applicationId)}/status`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            statusId: toOption.id,
+            note: note?.trim() || undefined,
+          }),
+        }
+      );
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(
+          typeof payload.error === "string" ? payload.error : "Failed to update status"
+        );
+      }
+      const nextStatus = String(payload.application?.status ?? toOption.systemKey ?? "custom");
+      const nextStatusId = String(payload.application?.statusId ?? toOption.id);
+      const nextStatusName = String(payload.application?.statusName ?? toOption.name);
+      setRows((current) =>
+        current.map((row) =>
+          row.id === applicationId
+            ? {
+                ...row,
+                status: nextStatus,
+                status_id: nextStatusId,
+                statusName: nextStatusName,
+                application_statuses: {
+                  id: nextStatusId,
+                  name: nextStatusName,
+                  system_key: toOption.systemKey,
+                  color: toOption.color,
+                },
+              }
+            : row
+        )
+      );
+      setPendingStatusChange(null);
+      setStatusChangeNote("");
+      if (toOption.systemKey === "archived") {
+        toast.success("Candidate archived");
+      } else {
+        toast.success(
+          payload.unchanged ? "Status unchanged" : `Status updated to ${nextStatusName}`
+        );
+      }
+      if (historyDialog?.applicationId === applicationId) {
+        void loadStatusHistory(applicationId);
+      }
+    } catch (updateError) {
+      toast.error(
+        updateError instanceof Error ? updateError.message : "Failed to update status"
+      );
+    } finally {
+      setStatusBusyId(null);
+    }
   }
 
   async function handleScheduleInterview(payload: {
@@ -970,61 +1148,11 @@ export default function JobApplicationsPage() {
   async function confirmStatusChange() {
     if (!pendingStatusChange || statusBusyId) return;
     const { applicationId, toOption } = pendingStatusChange;
-    setStatusBusyId(applicationId);
-    try {
-      const response = await fetch(
-        `/api/admin/job-applications/${encodeURIComponent(applicationId)}/status`,
-        {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            statusId: toOption.id,
-            note: statusChangeNote.trim() || undefined,
-          }),
-        }
-      );
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        throw new Error(
-          typeof payload.error === "string" ? payload.error : "Failed to update status"
-        );
-      }
-      const nextStatus = String(payload.application?.status ?? toOption.systemKey ?? "custom");
-      const nextStatusId = String(payload.application?.statusId ?? toOption.id);
-      const nextStatusName = String(payload.application?.statusName ?? toOption.name);
-      setRows((current) =>
-        current.map((row) =>
-          row.id === applicationId
-            ? {
-                ...row,
-                status: nextStatus,
-                status_id: nextStatusId,
-                statusName: nextStatusName,
-                application_statuses: {
-                  id: nextStatusId,
-                  name: nextStatusName,
-                  system_key: toOption.systemKey,
-                  color: toOption.color,
-                },
-              }
-            : row
-        )
-      );
-      setPendingStatusChange(null);
-      setStatusChangeNote("");
-      toast.success(
-        payload.unchanged ? "Status unchanged" : `Status updated to ${nextStatusName}`
-      );
-      if (historyDialog?.applicationId === applicationId) {
-        void loadStatusHistory(applicationId);
-      }
-    } catch (updateError) {
-      toast.error(
-        updateError instanceof Error ? updateError.message : "Failed to update status"
-      );
-    } finally {
-      setStatusBusyId(null);
-    }
+    await applyApplicationStatus(
+      applicationId,
+      toOption,
+      statusChangeNote.trim() || undefined
+    );
   }
 
   async function loadStatusHistory(applicationId: string) {
@@ -1870,13 +1998,16 @@ export default function JobApplicationsPage() {
           hired={normalizeApplicationStatus(
             rows.find((item) => item.id === rowActionsMenu.rowId)?.status ?? ""
           ) === "hired"}
+          archived={(() => {
+            const row = rows.find((item) => item.id === rowActionsMenu.rowId);
+            return row ? isRowArchived(row, statusOptions) : false;
+          })()}
+          resumeUploading={resumeUploading}
           onClose={() => setRowActionsMenu(null)}
           onReanalyze={() => {
             void runMatchAnalyze(rowActionsMenu.rowId);
           }}
-          onUpdateResume={() => {
-            /* Placeholder — Update Resume not implemented yet */
-          }}
+          onUpdateResume={() => beginUpdateResume(rowActionsMenu.rowId)}
           onArchive={() => beginArchiveCandidate(rowActionsMenu.rowId)}
           onMessage={() => {
             const row = rows.find((item) => item.id === rowActionsMenu.rowId);
@@ -1992,6 +2123,47 @@ export default function JobApplicationsPage() {
         }}
         onConfirm={() => void handleConfirmDeleteCandidates()}
       />
+
+      <input
+        ref={resumeInputRef}
+        type="file"
+        accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        className="hidden"
+        aria-hidden
+        tabIndex={-1}
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          void handleResumeFileSelected(file);
+        }}
+      />
+
+      <SuccessModal
+        open={resumeSuccessOpen}
+        onClose={() => setResumeSuccessOpen(false)}
+        title="Success!"
+        message="Resume uploaded successfully."
+        size="large"
+        actionLabel="Close"
+        onAction={() => setResumeSuccessOpen(false)}
+      />
+
+      <ErrorModal
+        open={resumeErrorOpen}
+        onClose={() => {
+          setResumeErrorOpen(false);
+          setResumeErrorMessage("");
+        }}
+        title="Upload failed"
+        message={resumeErrorMessage || "Failed to upload resume. Please try again."}
+      />
+
+      {resumeUploading ? (
+        <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/30 backdrop-blur-[1px]">
+          <div className="rounded-xl border border-[#E5E7EB] bg-white px-5 py-4 text-sm font-medium text-[#334155] shadow-lg">
+            Uploading resume…
+          </div>
+        </div>
+      ) : null}
 
       {(() => {
         const target = actionRow();

@@ -8,6 +8,7 @@ export const APPLICATION_PIPELINE_STATUSES = [
   "hired",
   "shortlisted",
   "undecided",
+  "archived",
 ] as const;
 
 export type ApplicationPipelineStatus = (typeof APPLICATION_PIPELINE_STATUSES)[number];
@@ -25,6 +26,7 @@ export const APPLICATION_STATUS_TABS: Array<{ id: ApplicationStatusTab; label: s
   { id: "hired", label: "Hired" },
   { id: "shortlisted", label: "Shortlisted" },
   { id: "undecided", label: "Undecided" },
+  { id: "archived", label: "Archived" },
 ];
 
 /** Dropdown options for candidate detail status (excludes All). */
@@ -47,6 +49,7 @@ export function normalizeApplicationStatus(status: string): ApplicationPipelineS
     case "hired":
     case "shortlisted":
     case "undecided":
+    case "archived":
       return status;
     default:
       return "reviewing";
@@ -75,6 +78,8 @@ export function applicationStatusDotClassName(status: string): string {
       return "bg-[#EF4444]";
     case "undecided":
       return "bg-[#94A3B8]";
+    case "archived":
+      return "bg-[#64748B]";
     default:
       return "bg-[#94A3B8]";
   }
@@ -97,10 +102,18 @@ export function isApplicationPipelineStatus(value: string): value is Application
   return (APPLICATION_PIPELINE_STATUSES as readonly string[]).includes(value);
 }
 
+export function isArchivedApplicationStatus(
+  status: string | null | undefined,
+  systemKey?: string | null
+): boolean {
+  if (systemKey === "archived") return true;
+  return String(status ?? "").trim().toLowerCase() === "archived";
+}
+
 export function matchesApplicationStatusTab(
   status: string,
   tab: ApplicationStatusTab
 ): boolean {
-  if (tab === "all") return true;
+  if (tab === "all") return !isArchivedApplicationStatus(status);
   return normalizeApplicationStatus(status) === tab;
 }

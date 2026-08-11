@@ -25,6 +25,8 @@ type CandidateRowActionsMenuProps = {
   onClose: () => void;
   analyzing?: boolean;
   hired?: boolean;
+  archived?: boolean;
+  resumeUploading?: boolean;
 } & CandidateRowActionsHandlers;
 
 function menuItemClassName(opts?: { highlight?: boolean; active?: boolean }) {
@@ -44,6 +46,8 @@ export function CandidateRowActionsMenu({
   onClose,
   analyzing = false,
   hired = false,
+  archived = false,
+  resumeUploading = false,
   onReanalyze,
   onUpdateResume,
   onArchive,
@@ -171,16 +175,18 @@ export function CandidateRowActionsMenu({
         <button
           type="button"
           role="menuitem"
+          disabled={resumeUploading}
           onClick={() => runAndClose(onUpdateResume)}
-          className={menuItemClassName()}
+          className={`${menuItemClassName()} disabled:opacity-50`}
         >
           Update Resume
         </button>
         <button
           type="button"
           role="menuitem"
+          disabled={archived}
           onClick={() => runAndClose(onArchive)}
-          className={menuItemClassName()}
+          className={`${menuItemClassName()} disabled:opacity-50`}
         >
           Archive
         </button>

@@ -24,6 +24,11 @@ async function extractTextFromBuffer(
     const result = await mammoth.extractRawText({ buffer });
     return normalizeResumeWhitespace(result.value || "");
   }
+  if (lower.endsWith(".doc")) {
+    throw new Error(
+      "Legacy .doc files are not supported. Please save the resume as .docx or PDF."
+    );
+  }
   if (lower.endsWith(".txt") || lower.endsWith(".md")) {
     return normalizeResumeWhitespace(buffer.toString("utf8"));
   }
@@ -41,6 +46,14 @@ async function extractTextFromBuffer(
     /* ignore */
   }
   return "";
+}
+
+/** Extract résumé text from an uploaded file buffer (PDF / DOCX). */
+export async function extractResumeTextFromUpload(
+  buffer: Buffer,
+  fileName: string
+): Promise<string> {
+  return extractTextFromBuffer(buffer, fileName);
 }
 
 /**
