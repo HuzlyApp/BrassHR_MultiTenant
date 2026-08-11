@@ -7,6 +7,7 @@ import {
   JOB_FORM_INPUT_CLASS,
   JOB_FORM_LABEL_CLASS,
 } from "@/app/admin_recruiter/jobs/job-form-shared";
+import { JobFormRequiredMark } from "@/app/admin_recruiter/jobs/JobFormRequiredMark";
 
 type Props = {
   id?: string;
@@ -16,6 +17,7 @@ type Props = {
   placeholder?: string;
   error?: string;
   showLabel?: boolean;
+  required?: boolean;
   className?: string;
   /** Extra space for suggestion list (e.g. review edit modal). */
   suggestionsClassName?: string;
@@ -33,6 +35,7 @@ export default function JobLocationAutocompleteField({
   placeholder = "Search city, area, or address",
   error,
   showLabel = true,
+  required = false,
   className,
   suggestionsClassName,
 }: Props) {
@@ -57,6 +60,7 @@ export default function JobLocationAutocompleteField({
       {showLabel ? (
         <label className={JOB_FORM_LABEL_CLASS} htmlFor={inputId}>
           {label}
+          {required ? <JobFormRequiredMark /> : null}
         </label>
       ) : (
         <label className="sr-only" htmlFor={inputId}>

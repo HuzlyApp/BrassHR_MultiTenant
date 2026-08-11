@@ -20,12 +20,12 @@ import {
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
 import type { JobStatus } from "@/lib/jobs/types";
 import {
-  JOB_FORM_OUTLINE_BUTTON_CLASS,
   JOB_FORM_PAGE_CARD_CLASS,
   JOB_FORM_PRIMARY_BUTTON_CLASS,
   JOB_FORM_SURFACE_CLASS,
   primaryButtonStyle,
 } from "./job-form-shared";
+import { JobPublicViewLink } from "./JobPublicViewLink";
 import {
   formatJobDetailsDate,
   formatJobDetailsLocation,
@@ -321,25 +321,11 @@ export default function JobDetailsClient({ jobId }: Props) {
                   >
                     Edit Job
                   </Link>
-                  {publicJobPath ? (
-                    <Link
-                      href={publicJobPath}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className={`${JOB_FORM_OUTLINE_BUTTON_CLASS} w-full min-[520px]:w-auto`}
-                    >
-                      View public job page
-                    </Link>
-                  ) : (
-                    <button
-                      type="button"
-                      disabled
-                      title="Publish this job to view the public page"
-                      className={`${JOB_FORM_OUTLINE_BUTTON_CLASS} w-full min-[520px]:w-auto opacity-50`}
-                    >
-                      View public job page
-                    </button>
-                  )}
+                  <JobPublicViewLink
+                    href={publicJobPath}
+                    variant="button"
+                    className="w-full min-[520px]:w-auto"
+                  />
                 </div>
               </div>
 

@@ -70,6 +70,7 @@ import {
   type JobFormStep,
   type JobFormUiState,
 } from "./job-form-shared";
+import { JobFormRequiredMark } from "./JobFormRequiredMark";
 
 function BrandedCheckbox({
   checked,
@@ -201,15 +202,20 @@ function InternalField({
 function PublicField({
   label,
   error,
+  required = false,
   children,
 }: {
   label: string;
   error?: string;
+  required?: boolean;
   children: ReactNode;
 }) {
   return (
     <label className="block">
-      <span className={JOB_FORM_LABEL_CLASS}>{label}</span>
+      <span className={JOB_FORM_LABEL_CLASS}>
+        {label}
+        {required ? <JobFormRequiredMark /> : null}
+      </span>
       {children}
       <FieldError error={error} />
     </label>
@@ -263,6 +269,7 @@ export function JobFormStepRequisition({
           <div className="min-[700px]:col-span-2">
             <label className={JOB_FORM_LABEL_CLASS} htmlFor="job-title">
               Job Title
+              <JobFormRequiredMark />
             </label>
             <input
               id="job-title"
@@ -278,6 +285,7 @@ export function JobFormStepRequisition({
           <div>
             <label className={JOB_FORM_LABEL_CLASS} htmlFor="profession">
               Profession
+              <JobFormRequiredMark />
             </label>
             <select
               id="profession"
@@ -323,7 +331,10 @@ export function JobFormStepRequisition({
 
         <div>
           <div className="flex flex-col gap-3 min-[700px]:flex-row min-[700px]:flex-wrap min-[700px]:items-center min-[700px]:gap-x-10 min-[700px]:gap-y-3">
-            <span className={`${JOB_FORM_LABEL_CLASS} mb-0 shrink-0`}>Employment Type</span>
+            <span className={`${JOB_FORM_LABEL_CLASS} mb-0 shrink-0`}>
+              Employment Type
+              <JobFormRequiredMark />
+            </span>
             <div className={JOB_FORM_RADIO_OPTIONS_CLASS}>
               {employmentLabels.map((label) => (
                 <BrandedRadio
@@ -347,6 +358,7 @@ export function JobFormStepRequisition({
           <JobLocationAutocompleteField
             id="job-location"
             label="Job Location"
+            required
             value={job.location ?? ""}
             onChange={(next) => onJobChange("location", next)}
             placeholder="Search city, area, or address"
@@ -578,6 +590,7 @@ export function JobFormStepMspDetails({
       <div>
         <label className={JOB_FORM_LABEL_CLASS} htmlFor="source-job-title">
           Source Job Title
+          <JobFormRequiredMark />
         </label>
         <input
           id="source-job-title"
@@ -598,6 +611,7 @@ export function JobFormStepMspDetails({
       <div>
         <label className={JOB_FORM_LABEL_CLASS} htmlFor="source-job-id">
           Internal Reference / Source Job ID
+          <JobFormRequiredMark />
         </label>
         <div className="relative">
           <input
@@ -622,6 +636,7 @@ export function JobFormStepMspDetails({
       <div>
         <label className={JOB_FORM_LABEL_CLASS} htmlFor="msp-client-name">
           MSP Name
+          <JobFormRequiredMark />
         </label>
         <input
           id="msp-client-name"
@@ -636,6 +651,7 @@ export function JobFormStepMspDetails({
       <div>
         <label className={JOB_FORM_LABEL_CLASS} htmlFor="msp-contract-group">
           Contract Group / Client
+          <JobFormRequiredMark />
         </label>
         <input
           id="msp-contract-group"
@@ -644,12 +660,14 @@ export function JobFormStepMspDetails({
           onChange={(event) => onJobChange("mspName", event.target.value)}
           placeholder="e.g. Probationary"
         />
+        <FieldError error={fieldErrors.mspName} />
       </div>
 
       <div>
         <JobLocationAutocompleteField
           id="msp-facility"
           label="Location"
+          required
           value={facilityValue}
           onChange={(next) => {
             onJobChange("facility", next);
@@ -703,6 +721,7 @@ export function JobFormStepMspDetails({
         <div>
           <label className={JOB_FORM_LABEL_CLASS} htmlFor="msp-employment-type">
             Employment Type
+            <JobFormRequiredMark />
           </label>
           <select
             id="msp-employment-type"
@@ -890,7 +909,12 @@ export function JobFormStepCompensation({
             className={`${JOB_FORM_SELECT_CLASS} ${ui.compensationType ? "text-[#334155]" : "text-[#94A3B8]"}`}
             style={{ backgroundImage: JOB_FORM_SELECT_CHEVRON }}
             value={ui.compensationType}
-            onChange={(event) => onUiChange({ compensationType: event.target.value })}
+            onChange={(event) =>
+              onUiChange({
+                compensationType: event.target.value,
+                payRatePeriod: event.target.value,
+              })
+            }
           >
             <option value="">Select Compensation</option>
             {JOB_FORM_COMPENSATION_TYPES.map((value) => (
@@ -910,8 +934,8 @@ export function JobFormStepCompensation({
         <div
           className={`mt-4 grid gap-4 min-[700px]:items-end ${
             ui.showPayBy === "Range"
-              ? "min-[700px]:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_auto_minmax(0,1fr)_minmax(0,1fr)]"
-              : "min-[700px]:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1fr)]"
+              ? "min-[700px]:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_auto_minmax(0,1fr)]"
+              : "min-[700px]:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]"
           }`}
         >
           <div className="min-w-0">
@@ -1009,6 +1033,7 @@ export function JobFormStepCompensation({
             </div>
           )}
 
+          {/* Rate duplicates Compensation (Hourly / Weekly / Monthly / Annually) — hidden in create flow.
           <div className="min-w-0">
             <label className={JOB_FORM_LABEL_CLASS}>Rate</label>
             <select
@@ -1031,6 +1056,7 @@ export function JobFormStepCompensation({
               ) : null}
             </select>
           </div>
+          */}
         </div>
 
         <div className="mt-4 grid gap-4 min-[700px]:grid-cols-2">
@@ -1503,7 +1529,7 @@ export function JobFormStepReview({
       .filter(Boolean)
       .join(", ");
     return [
-      [ui.compensationType, ui.payRatePeriod].filter(Boolean).join(", "),
+      ui.compensationType,
       payLine,
       durationLine,
       hoursLine,

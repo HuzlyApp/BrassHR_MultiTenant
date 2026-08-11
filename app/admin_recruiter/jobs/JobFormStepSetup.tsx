@@ -1,10 +1,11 @@
 "use client";
 
-import { ExistingJobPickerPanel, type ExistingJobPickerOption } from "./ExistingJobPickerPanel";
+import { ExistingJobPickerPanel, type ExistingJobPickerOption, type ExistingJobSourceTypeFilter } from "./ExistingJobPickerPanel";
 import {
   JOB_FORM_SETUP_MSP_FIELD_CLASS,
   JOB_FORM_RADIO_OPTIONS_CLASS,
 } from "./job-form-shared";
+import { JobFormRequiredMark } from "./JobFormRequiredMark";
 
 function BrandedRadio({
   checked,
@@ -73,11 +74,19 @@ export function JobFormStepSetup({
   onSelectReferenceJob,
   fieldErrors,
 }: JobFormStepSetupProps) {
+  const sourceTypeFilter: ExistingJobSourceTypeFilter =
+    mspSourcedByClient === true ? "MSP" : "Internal";
+
+  function handleSourceTypeFilterChange(value: ExistingJobSourceTypeFilter) {
+    onMspSourcedByClientChange(value === "MSP");
+  }
+
   return (
     <div className="flex flex-1 flex-col gap-6">
       <div className={JOB_FORM_SETUP_MSP_FIELD_CLASS}>
         <p className="text-sm font-normal leading-5 text-[#64748B]">
           Is this job being source by client (MSP)?
+          <JobFormRequiredMark />
         </p>
         <div className={JOB_FORM_RADIO_OPTIONS_CLASS}>
           <BrandedRadio
@@ -103,6 +112,8 @@ export function JobFormStepSetup({
           loading={jobsLoading}
           selectedJobId={selectedReferenceJobId}
           onSelectJob={onSelectReferenceJob}
+          sourceTypeFilter={sourceTypeFilter}
+          onSourceTypeFilterChange={handleSourceTypeFilterChange}
         />
         <p className="text-xs text-[#64748B]">
           Optional — select an existing job to pre-fill details as a reference for this new posting.

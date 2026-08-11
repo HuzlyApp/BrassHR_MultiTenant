@@ -49,6 +49,7 @@ describe("job requisition validation", () => {
         sourceType: "MSP",
         professionId: null,
         mspClient: "CVS Health",
+        mspName: "Probationary",
         externalRequisitionId: "53534534",
         facility: "Texas City, Texas, United States",
         location: "",
@@ -68,14 +69,18 @@ describe("job requisition validation", () => {
         ...validJob,
         sourceType: "MSP",
         mspClient: "",
+        mspName: "",
         externalRequisitionId: "",
         shiftType: "Full-time",
         employmentType: "Contract",
       },
       null
     );
-    expect(errors.mspClient).toBeTruthy();
-    expect(errors.externalRequisitionId).toBeTruthy();
+    expect(errors.mspClient).toBe("MSP Name is required.");
+    expect(errors.mspName).toBe("Contract Group / Client is required.");
+    expect(errors.externalRequisitionId).toBe(
+      "Internal Reference / Source Job ID is required."
+    );
   });
 
   it("rejects uncontrolled enum variations", () => {

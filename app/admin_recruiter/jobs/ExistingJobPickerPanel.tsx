@@ -1,7 +1,7 @@
 "use client";
 
 import { Check } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 
 export type ExistingJobPickerOption = {
@@ -11,10 +11,53 @@ export type ExistingJobPickerOption = {
   facility: string | null;
   facility_name: string | null;
   status?: string;
+  source_type?: string | null;
   internal_requisition_number?: string | null;
   created_at?: string | null;
   published_at?: string | null;
 };
+
+export type ExistingJobSourceTypeFilter = "Internal" | "MSP";
+
+function jobPickerSourceType(option: ExistingJobPickerOption): ExistingJobSourceTypeFilter {
+  const raw = String(option.source_type ?? "").trim().toLowerCase();
+  return raw === "msp" ? "MSP" : "Internal";
+}
+
+function JobSourceTypeToggle({
+  value,
+  onChange,
+}: {
+  value: ExistingJobSourceTypeFilter;
+  onChange: (value: ExistingJobSourceTypeFilter) => void;
+}) {
+  return (
+    <div
+      className="inline-flex h-10 shrink-0 rounded-lg border border-[#CBD5E1] bg-[#F8FAFC] p-0.5"
+      role="group"
+      aria-label="Job source type"
+    >
+      {(["Internal", "MSP"] as const).map((option) => {
+        const selected = value === option;
+        return (
+          <button
+            key={option}
+            type="button"
+            aria-pressed={selected}
+            onClick={() => onChange(option)}
+            className={`min-w-[76px] rounded-md px-3 text-sm font-medium transition ${
+              selected
+                ? "bg-[color:var(--brand-primary)] text-white shadow-sm"
+                : "text-[#64748B] hover:text-[#334155]"
+            }`}
+          >
+            {option}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 const FORM_SURFACE_CLASS = "rounded-lg border border-[#CBD5E1] bg-white";
 const FILTER_SELECT_CLASS = `${FORM_SURFACE_CLASS} h-8 cursor-pointer appearance-none bg-[length:12px_12px] bg-[right_10px_center] bg-no-repeat px-2.5 pr-8 text-sm font-normal leading-6 text-[#334155] hover:bg-zinc-50 focus:border-[color:var(--brand-primary)] focus:outline-none focus:ring-0`;
@@ -42,6 +85,8 @@ type ExistingJobPickerPanelProps = {
   loading: boolean;
   selectedJobId: string | null;
   onSelectJob: (jobId: string | null) => void;
+  sourceTypeFilter: ExistingJobSourceTypeFilter;
+  onSourceTypeFilterChange: (value: ExistingJobSourceTypeFilter) => void;
 };
 
 export function ExistingJobPickerPanel({
@@ -49,6 +94,8 @@ export function ExistingJobPickerPanel({
   loading,
   selectedJobId,
   onSelectJob,
+  sourceTypeFilter,
+  onSourceTypeFilterChange,
 }: ExistingJobPickerPanelProps) {
   const branding = useTenantBranding();
   const [search, setSearch] = useState("");
@@ -56,18 +103,27 @@ export function ExistingJobPickerPanel({
   const [locationFilter, setLocationFilter] = useState("");
   const [sortBy, setSortBy] = useState<"newest" | "oldest" | "">("");
 
+  useEffect(() => {
+    setLocationFilter("");
+  }, [sourceTypeFilter]);
+
+  const sourceFilteredJobs = useMemo(
+    () => jobs.filter((option) => jobPickerSourceType(option) === sourceTypeFilter),
+    [jobs, sourceTypeFilter]
+  );
+
   const locationOptions = useMemo(() => {
     const values = new Set<string>();
-    for (const job of jobs) {
+    for (const job of sourceFilteredJobs) {
       const loc = formatJobLocation(job);
       if (loc && loc !== "—") values.add(loc);
     }
     return Array.from(values).sort((a, b) => a.localeCompare(b));
-  }, [jobs]);
+  }, [sourceFilteredJobs]);
 
   const filteredJobs = useMemo(() => {
     const q = search.trim().toLowerCase();
-    let next = jobs.filter((option) => {
+    let next = sourceFilteredJobs.filter((option) => {
       if (statusFilter && option.status !== statusFilter) return false;
       if (locationFilter) {
         const loc = formatJobLocation(option);
@@ -87,7 +143,7 @@ export function ExistingJobPickerPanel({
       return sortBy === "oldest" ? aTime - bTime : bTime - aTime;
     });
     return next;
-  }, [jobs, search, statusFilter, locationFilter, sortBy]);
+  }, [sourceFilteredJobs, search, statusFilter, locationFilter, sortBy]);
 
   function clearFilters() {
     setSearch("");
@@ -99,24 +155,27 @@ export function ExistingJobPickerPanel({
   return (
     <div className="rounded-xl border border-[#E5E7EB] bg-white">
       <div className="space-y-3 border-b border-[#E5E7EB] p-3 sm:p-4">
-        <label className="relative block">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src="/search-candidate-jobs.svg"
-            alt=""
-            width={20}
-            height={20}
-            className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2"
-            aria-hidden
-          />
-          <input
-            type="search"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by job title"
-            className="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white py-2 pl-11 pr-3 text-sm text-[#334155] placeholder:text-[#94A3B8] focus:border-[color:var(--brand-primary)] focus:outline-none focus:ring-0 [&::-webkit-search-cancel-button]:cursor-pointer [&::-webkit-search-decoration]:cursor-pointer"
-          />
-        </label>
+        <div className="flex flex-col gap-3 min-[640px]:flex-row min-[640px]:items-center">
+          <label className="relative block min-w-0 flex-1">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/search-candidate-jobs.svg"
+              alt=""
+              width={20}
+              height={20}
+              className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2"
+              aria-hidden
+            />
+            <input
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search by job title"
+              className="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white py-2 pl-11 pr-3 text-sm text-[#334155] placeholder:text-[#94A3B8] focus:border-[color:var(--brand-primary)] focus:outline-none focus:ring-0 [&::-webkit-search-cancel-button]:cursor-pointer [&::-webkit-search-decoration]:cursor-pointer"
+            />
+          </label>
+          <JobSourceTypeToggle value={sourceTypeFilter} onChange={onSourceTypeFilterChange} />
+        </div>
 
         <div className="flex items-center gap-2 sm:gap-3">
           <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
@@ -180,7 +239,7 @@ export function ExistingJobPickerPanel({
                 className="h-3.5 w-3.5 shrink-0"
                 aria-hidden
               />
-              <span>{filteredJobs.length} of {jobs.length} jobs</span>
+              <span>{filteredJobs.length} of {sourceFilteredJobs.length} jobs</span>
             </p>
           </div>
         </div>

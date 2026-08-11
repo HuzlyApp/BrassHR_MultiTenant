@@ -114,9 +114,10 @@ export function validatePublishableJob(
   }
 
   if (isMsp) {
-    if (!input.mspClient?.trim()) errors.mspClient = "MSP client is required.";
+    if (!input.mspClient?.trim()) errors.mspClient = "MSP Name is required.";
+    if (!input.mspName?.trim()) errors.mspName = "Contract Group / Client is required.";
     if (!input.externalRequisitionId?.trim()) {
-      errors.externalRequisitionId = "External requisition ID is required.";
+      errors.externalRequisitionId = "Internal Reference / Source Job ID is required.";
     }
   }
 

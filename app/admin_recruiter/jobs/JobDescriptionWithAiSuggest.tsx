@@ -10,6 +10,7 @@ import {
   JOB_FORM_OUTLINE_BUTTON_CLASS,
   JOB_FORM_PRIMARY_BUTTON_CLASS,
 } from "./job-form-shared";
+import { JobFormRequiredMark } from "./JobFormRequiredMark";
 import { JobDescriptionEditor, jobDescriptionPlainText } from "./JobDescriptionEditor";
 
 export type JobDescriptionSuggestPayload = {
@@ -250,7 +251,8 @@ export function JobDescriptionWithAiSuggest({
     <div className="space-y-4">
       <div>
         <label className={JOB_FORM_LABEL_CLASS} htmlFor="job-description-editor">
-          Job description <span className="text-[#EF4444]">*</span>
+          Job description
+          <JobFormRequiredMark />
         </label>
         <p className="mt-1 flex flex-wrap items-center gap-1.5 text-sm leading-5 text-[#64748B]">
           <span>This is an AI powered job description. You can edit or replace it.</span>

@@ -2,6 +2,7 @@
 
 import { Check, Plus } from "lucide-react";
 import { JOB_FORM_JOB_TYPES } from "./job-form-shared";
+import { JobFormRequiredMark } from "./JobFormRequiredMark";
 
 type JobTypeChipSelectProps = {
   value: string;
@@ -26,7 +27,8 @@ export function JobTypeChipSelect({
   return (
     <div>
       <span className={labelClassName}>
-        Employment Type <span className="text-[#EF4444]">*</span>
+        Employment Type
+        <JobFormRequiredMark />
       </span>
       <div className="flex flex-wrap gap-2">
         {JOB_FORM_JOB_TYPES.map((option) => {

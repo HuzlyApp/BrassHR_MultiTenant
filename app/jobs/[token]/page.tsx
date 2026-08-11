@@ -57,6 +57,7 @@ export default async function PublicJobDetailPage({
   const secondaryColor = branding.secondaryHex || "#012352";
 
   const applyUrl = `/apply?tenant=${encodeURIComponent(tenant.slug)}&job_token=${encodeURIComponent(String(job.public_job_token))}`;
+  const canApply = Boolean(job.workflow_id);
   const facts = [
     relationName(job.professions),
     relationName(job.specialties),
@@ -225,14 +226,25 @@ export default async function PublicJobDetailPage({
         <aside className="h-fit rounded-xl border border-slate-200 bg-white p-5 shadow-sm lg:sticky lg:top-6">
           <h2 className="font-semibold text-slate-900">Ready to apply?</h2>
           <p className="mt-2 text-sm leading-6 text-slate-600">
-            Start by uploading your resume. An account is not required.
+            {canApply
+              ? "Start by uploading your resume. An account is not required."
+              : "This job is posted for visibility. Online applications are not open yet."}
           </p>
-          <Link
-            href={applyUrl}
-            className="mt-5 flex w-full items-center justify-center rounded-lg bg-[color:var(--brand-primary)] px-4 py-3 text-sm font-semibold text-white transition hover:brightness-95"
-          >
-            Apply
-          </Link>
+          {canApply ? (
+            <Link
+              href={applyUrl}
+              className="mt-5 flex w-full items-center justify-center rounded-lg bg-[color:var(--brand-primary)] px-4 py-3 text-sm font-semibold text-white transition hover:brightness-95"
+            >
+              Apply
+            </Link>
+          ) : (
+            <span
+              className="mt-5 flex w-full cursor-not-allowed items-center justify-center rounded-lg bg-slate-200 px-4 py-3 text-sm font-semibold text-slate-500"
+              title="Online applications are not available for this job yet"
+            >
+              Apply
+            </span>
+          )}
           {job.application_deadline ? (
             <p className="mt-3 text-xs text-slate-500">
               Apply by {new Date(`${job.application_deadline}T00:00:00`).toLocaleDateString()}

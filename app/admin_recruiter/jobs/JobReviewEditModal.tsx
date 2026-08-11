@@ -35,6 +35,7 @@ import {
   type JobFormSpecialtyOption,
   type JobFormUiState,
 } from "./job-form-shared";
+import { JobFormRequiredMark } from "./JobFormRequiredMark";
 
 export type ReviewEditFieldId =
   | "jobId"
@@ -257,7 +258,8 @@ export function JobReviewEditModal({
             {field === "jobTitle" ? (
               <div>
                 <label className={JOB_FORM_LABEL_CLASS} htmlFor="review-edit-job-title">
-                  Job title <span className="text-rose-500">*</span>
+                  Job title
+                  <JobFormRequiredMark />
                 </label>
                 <input
                   id="review-edit-job-title"
@@ -271,7 +273,8 @@ export function JobReviewEditModal({
             {field === "profession" ? (
               <div>
                 <label className={JOB_FORM_LABEL_CLASS} htmlFor="review-edit-profession">
-                  Which category best describes this job? <span className="text-rose-500">*</span>
+                  Which category best describes this job?
+                  <JobFormRequiredMark />
                 </label>
                 <select
                   id="review-edit-profession"
@@ -322,6 +325,7 @@ export function JobReviewEditModal({
               <JobLocationAutocompleteField
                 id="review-edit-location"
                 label="Job Location"
+                required
                 value={draft.job.location ?? ""}
                 onChange={(next) => patchJob("location", next)}
                 placeholder="Search city, area, or address"
@@ -633,6 +637,7 @@ export function JobReviewEditModal({
               <div>
                 <label className={JOB_FORM_LABEL_CLASS} htmlFor="review-edit-msp-name">
                   Contract Group / Client
+                  <JobFormRequiredMark />
                 </label>
                 <input
                   id="review-edit-msp-name"
@@ -647,6 +652,7 @@ export function JobReviewEditModal({
               <div>
                 <label className={JOB_FORM_LABEL_CLASS} htmlFor="review-edit-msp-client">
                   MSP Name
+                  <JobFormRequiredMark />
                 </label>
                 <input
                   id="review-edit-msp-client"
@@ -661,6 +667,7 @@ export function JobReviewEditModal({
               <div>
                 <label className={JOB_FORM_LABEL_CLASS} htmlFor="review-edit-source-job-id">
                   Internal Reference / Source Job ID
+                  <JobFormRequiredMark />
                 </label>
                 <input
                   id="review-edit-source-job-id"
@@ -675,6 +682,7 @@ export function JobReviewEditModal({
               <div>
                 <label className={JOB_FORM_LABEL_CLASS} htmlFor="review-edit-source-job-title">
                   Source Job Title
+                  <JobFormRequiredMark />
                 </label>
                 <input
                   id="review-edit-source-job-title"
@@ -696,6 +704,7 @@ export function JobReviewEditModal({
               <JobLocationAutocompleteField
                 id="review-edit-facility"
                 label="Location"
+                required
                 value={draft.job.facility?.trim() || draft.job.location?.trim() || ""}
                 onChange={(next) => {
                   patchJob("facility", next);
@@ -965,7 +974,12 @@ export function JobReviewEditModal({
                       className={JOB_FORM_SELECT_CLASS}
                       style={{ backgroundImage: JOB_FORM_SELECT_CHEVRON }}
                       value={draft.ui.compensationType}
-                      onChange={(event) => patchUi({ compensationType: event.target.value })}
+                      onChange={(event) =>
+                        patchUi({
+                          compensationType: event.target.value,
+                          payRatePeriod: event.target.value,
+                        })
+                      }
                     >
                       <option value="">Select Compensation</option>
                       {JOB_FORM_COMPENSATION_TYPES.map((value) => (
@@ -992,51 +1006,51 @@ export function JobReviewEditModal({
                     </select>
                   </div>
                 </div>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div>
-                    <label className={JOB_FORM_LABEL_CLASS}>Show pay by</label>
-                    <select
-                      className={JOB_FORM_SELECT_CLASS}
-                      style={{ backgroundImage: JOB_FORM_SELECT_CHEVRON }}
-                      value={draft.ui.showPayBy || "Exact amount"}
-                      onChange={(event) => {
-                        const next = event.target.value;
-                        patchUi({ showPayBy: next });
-                        if (next !== "Range") {
-                          patchJob("payRateMax", null);
-                        }
-                      }}
-                    >
-                      {JOB_FORM_SHOW_PAY_BY.map((value) => (
-                        <option key={value} value={value}>
-                          {value}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className={JOB_FORM_LABEL_CLASS}>Rate</label>
-                    <select
-                      className={JOB_FORM_SELECT_CLASS}
-                      style={{ backgroundImage: JOB_FORM_SELECT_CHEVRON }}
-                      value={draft.ui.payRatePeriod}
-                      onChange={(event) => patchUi({ payRatePeriod: event.target.value })}
-                    >
-                      <option value="">Select Rate</option>
-                      {JOB_FORM_PAY_PERIODS.map((value) => (
-                        <option key={value} value={value}>
-                          {value}
-                        </option>
-                      ))}
-                      {draft.ui.payRatePeriod &&
-                      !JOB_FORM_PAY_PERIODS.includes(
-                        draft.ui.payRatePeriod as (typeof JOB_FORM_PAY_PERIODS)[number]
-                      ) ? (
-                        <option value={draft.ui.payRatePeriod}>{draft.ui.payRatePeriod}</option>
-                      ) : null}
-                    </select>
-                  </div>
+                <div>
+                  <label className={JOB_FORM_LABEL_CLASS}>Show pay by</label>
+                  <select
+                    className={JOB_FORM_SELECT_CLASS}
+                    style={{ backgroundImage: JOB_FORM_SELECT_CHEVRON }}
+                    value={draft.ui.showPayBy || "Exact amount"}
+                    onChange={(event) => {
+                      const next = event.target.value;
+                      patchUi({ showPayBy: next });
+                      if (next !== "Range") {
+                        patchJob("payRateMax", null);
+                      }
+                    }}
+                  >
+                    {JOB_FORM_SHOW_PAY_BY.map((value) => (
+                      <option key={value} value={value}>
+                        {value}
+                      </option>
+                    ))}
+                  </select>
                 </div>
+                {/* Rate duplicates Compensation — hidden in create/review flow.
+                <div>
+                  <label className={JOB_FORM_LABEL_CLASS}>Rate</label>
+                  <select
+                    className={JOB_FORM_SELECT_CLASS}
+                    style={{ backgroundImage: JOB_FORM_SELECT_CHEVRON }}
+                    value={draft.ui.payRatePeriod}
+                    onChange={(event) => patchUi({ payRatePeriod: event.target.value })}
+                  >
+                    <option value="">Select Rate</option>
+                    {JOB_FORM_PAY_PERIODS.map((value) => (
+                      <option key={value} value={value}>
+                        {value}
+                      </option>
+                    ))}
+                    {draft.ui.payRatePeriod &&
+                    !JOB_FORM_PAY_PERIODS.includes(
+                      draft.ui.payRatePeriod as (typeof JOB_FORM_PAY_PERIODS)[number]
+                    ) ? (
+                      <option value={draft.ui.payRatePeriod}>{draft.ui.payRatePeriod}</option>
+                    ) : null}
+                  </select>
+                </div>
+                */}
                 {draft.ui.showPayBy === "Range" ? (
                   <div className="grid gap-4 sm:grid-cols-[1fr_auto_1fr] sm:items-end">
                     <div>
@@ -1185,7 +1199,10 @@ export function JobReviewEditModal({
 
             {field === "jobDescription" ? (
               <div>
-                <label className={JOB_FORM_LABEL_CLASS}>Job Description</label>
+                <label className={JOB_FORM_LABEL_CLASS}>
+                  Job Description
+                  <JobFormRequiredMark />
+                </label>
                 <JobDescriptionEditor
                   value={draft.job.publicDescription ?? ""}
                   onChange={(next) => patchJob("publicDescription", next)}

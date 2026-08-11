@@ -312,6 +312,15 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
       if (!current.sourceJobTitle?.trim()) {
         errors.sourceJobTitle = "Source Job Title is required.";
       }
+      if (!current.mspClient?.trim()) {
+        errors.mspClient = "MSP Name is required.";
+      }
+      if (!current.mspName?.trim()) {
+        errors.mspName = "Contract Group / Client is required.";
+      }
+      if (!current.externalRequisitionId?.trim()) {
+        errors.externalRequisitionId = "Internal Reference / Source Job ID is required.";
+      }
     } else {
       if (!current.publicTitle?.trim()) {
         errors.publicTitle = "Job Title is required.";
@@ -355,6 +364,9 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
           stepErrors.location ||
           stepErrors.shiftType ||
           stepErrors.sourceJobTitle ||
+          stepErrors.mspClient ||
+          stepErrors.mspName ||
+          stepErrors.externalRequisitionId ||
           stepErrors.publicTitle ||
           stepErrors.professionId ||
           stepErrors.employmentType
@@ -603,6 +615,14 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
                     const next = { ...current };
                     delete next.mspSourcedByClient;
                     return next;
+                  });
+                  setReferenceJobId((current) => {
+                    if (!current) return null;
+                    const selected = referenceJobOptions.find((row) => row.id === current);
+                    if (!selected) return null;
+                    const isMsp =
+                      String(selected.source_type ?? "").trim().toLowerCase() === "msp";
+                    return value === isMsp ? current : null;
                   });
                 }}
                 jobs={referenceJobOptions}

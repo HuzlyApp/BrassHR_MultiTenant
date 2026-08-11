@@ -243,7 +243,9 @@ export function jobFormUiFromJob(job: JobRequisitionInput): JobFormUiState {
     }
     return "Exact amount";
   })();
-  ui.payRatePeriod = normalizePayRatePeriod(job.payRatePeriod);
+  ui.payRatePeriod =
+    normalizePayRatePeriod(job.payRatePeriod) ||
+    normalizePayRatePeriod(job.compensationType);
   const shiftDetails = job.shiftDetails?.trim() || "";
   if ((JOB_FORM_HOURS_SHOW_BY as readonly string[]).includes(shiftDetails)) {
     ui.hoursShowBy = shiftDetails;
@@ -404,7 +406,7 @@ export function applyUiToJob(job: JobRequisitionInput, ui: JobFormUiState): JobR
     compensationType,
     currency: ui.currency.trim() || "USD",
     showPayBy,
-    payRatePeriod: ui.payRatePeriod,
+    payRatePeriod: ui.payRatePeriod || ui.compensationType,
     payRateMin: job.payRateMin,
     payRateMax: isRange ? job.payRateMax : null,
     suggestedPayRate: job.payRateMin ?? job.suggestedPayRate ?? null,
@@ -429,7 +431,7 @@ export function formatPaySummary(
 ): string {
   const min = job.payRateMin;
   const max = job.payRateMax;
-  const period = ui.payRatePeriod.trim().toLowerCase();
+  const period = (ui.payRatePeriod || ui.compensationType).trim().toLowerCase();
   const showPayBy = normalizeShowPayBy(ui.showPayBy || job.showPayBy);
 
   if (showPayBy === "Range") {

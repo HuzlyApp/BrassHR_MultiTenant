@@ -822,7 +822,7 @@ export async function listPublicJobs(
     )
     .eq("tenant_id", tenantId)
     .eq("status", "published")
-    .not("workflow_id", "is", null)
+    // MSP jobs publish without workflow_id; still list them on the public board.
     .or(`application_deadline.is.null,application_deadline.gte.${today}`)
     .order("published_at", { ascending: false })
     .range(from, to);
@@ -859,7 +859,7 @@ export async function getPublishedJobByToken(
     .eq("tenant_id", tenantId)
     .eq("public_job_token", token)
     .eq("status", "published")
-    .not("workflow_id", "is", null)
+    // MSP jobs are intentionally published without workflow_id; public detail still shows.
     .maybeSingle();
   if (error) throw error;
   if (!data || !isJobRequisitionOpen(data)) return null;
