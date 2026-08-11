@@ -25,6 +25,7 @@ export function MyApplicationsClient() {
     setError(null);
     try {
       const headers = await authHeaders();
+      if (!headers) throw new Error("You need to sign in again.");
       const res = await fetch("/api/me/applications", { headers, cache: "no-store" });
       const payload = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(payload.error || "Could not load applications.");
