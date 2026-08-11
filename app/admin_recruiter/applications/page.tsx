@@ -20,6 +20,9 @@ import { BulkDeleteConfirmModal } from "@/app/admin_recruiter/components/BulkDel
 import { BulkDeleteToolbarButton } from "@/app/admin_recruiter/components/BulkDeleteToolbarButton";
 import { ListPaginationControls, ListPaginationShowLabel } from "@/app/admin_recruiter/components/ListPaginationControls";
 import { ListTableCheckbox } from "@/app/admin_recruiter/components/ListTableCheckbox";
+import AddCallLogModal from "@/app/admin_recruiter/components/AddCallLogModal";
+import CandidateCommunicationDialog from "@/app/admin_recruiter/components/CandidateCommunicationDialog";
+import { ScheduleInterviewModal } from "@/app/admin_recruiter/calendar/components/ScheduleInterviewModal";
 import { CandidateAiFinalApprovalLink } from "@/app/admin_recruiter/candidates/CandidateAiFinalApprovalLink";
 import { useCandidatesFilterRowsDefault } from "@/app/admin_recruiter/hooks/useCandidatesFilterRowsDefault";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
@@ -29,11 +32,13 @@ import {
 } from "@/app/admin_recruiter/candidates/candidates-typography";
 import {
   resolveApplicationApplicantEmail,
+  resolveApplicationApplicantLocation,
   resolveApplicationApplicantName,
+  resolveApplicationApplicantPhone,
   resolveApplicationWorkerId,
 } from "@/lib/jobs/application-applicant-display";
 import {
-  applicationStatusBadgeClassName,
+  applicationStatusDotClassName,
   applicationStatusLabel,
   normalizeApplicationStatus,
   type ApplicationPipelineStatus,
@@ -54,6 +59,7 @@ import {
   ApplicationStatusHistoryDialog,
   type ApplicationStatusOption,
 } from "./ApplicationStatusUi";
+import { CandidateRowActionsMenu } from "./CandidateRowActionsMenu";
 import { MatchScoreCell } from "./MatchAnalysisPanel";
 import { JobPublicViewLink } from "@/app/admin_recruiter/jobs/JobPublicViewLink";
 
@@ -124,106 +130,8 @@ const FILTER_SELECT_CHEVRON = {
   )}")`,
 } as const;
 
-const ROW_ACTIONS_MENU_WIDTH = 180;
-const ROW_ACTIONS_MENU_ESTIMATED_HEIGHT = 120;
 const STATUS_DROPDOWN_WIDTH = 180;
 const STATUS_DROPDOWN_ESTIMATED_HEIGHT = 280;
-
-function RowActionsMenuPortal({
-  anchor,
-  onClose,
-  onViewCandidate,
-  onViewHistory,
-}: {
-  anchor: HTMLElement;
-  onClose: () => void;
-  onViewCandidate: () => void;
-  onViewHistory: () => void;
-}) {
-  const menuRef = useRef<HTMLDivElement>(null);
-  const [style, setStyle] = useState<CSSProperties>({ visibility: "hidden" });
-
-  const updatePosition = useCallback(() => {
-    const rect = anchor.getBoundingClientRect();
-    let top = rect.bottom + 4;
-    if (top + ROW_ACTIONS_MENU_ESTIMATED_HEIGHT > window.innerHeight - 8) {
-      top = Math.max(8, rect.top - ROW_ACTIONS_MENU_ESTIMATED_HEIGHT - 4);
-    }
-    setStyle({
-      position: "fixed",
-      top,
-      left: Math.max(8, rect.right - ROW_ACTIONS_MENU_WIDTH),
-      width: ROW_ACTIONS_MENU_WIDTH,
-      visibility: "visible",
-    });
-  }, [anchor]);
-
-  useLayoutEffect(() => {
-    updatePosition();
-  }, [updatePosition]);
-
-  useEffect(() => {
-    window.addEventListener("resize", updatePosition);
-    window.addEventListener("scroll", updatePosition, true);
-    return () => {
-      window.removeEventListener("resize", updatePosition);
-      window.removeEventListener("scroll", updatePosition, true);
-    };
-  }, [updatePosition]);
-
-  useEffect(() => {
-    const handlePointerDown = (event: MouseEvent) => {
-      const target = event.target as Node;
-      if (anchor.contains(target)) return;
-      if (menuRef.current?.contains(target)) return;
-      onClose();
-    };
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
-    };
-    document.addEventListener("mousedown", handlePointerDown);
-    document.addEventListener("keydown", handleEscape);
-    return () => {
-      document.removeEventListener("mousedown", handlePointerDown);
-      document.removeEventListener("keydown", handleEscape);
-    };
-  }, [anchor, onClose]);
-
-  if (typeof document === "undefined") return null;
-
-  return createPortal(
-    <div
-      ref={menuRef}
-      role="menu"
-      style={style}
-      className="z-[200] overflow-hidden rounded-xl border border-[#E5E7EB] bg-white py-1 text-left shadow-lg"
-    >
-      <button
-        type="button"
-        role="menuitem"
-        onClick={() => {
-          onViewCandidate();
-          onClose();
-        }}
-        className="flex w-full items-center px-3 py-2 text-left text-sm text-[#334155] hover:bg-[#F8FAFC]"
-      >
-        View candidate
-      </button>
-      <button
-        type="button"
-        role="menuitem"
-        onClick={() => {
-          onViewHistory();
-          onClose();
-        }}
-        className="flex w-full items-center px-3 py-2 text-left text-sm text-[#334155] hover:bg-[#F8FAFC]"
-      >
-        Status history
-      </button>
-    </div>,
-    document.body
-  );
-}
 
 function StatusDropdownPortal({
   options,
@@ -398,6 +306,14 @@ function rowStatusName(row: ApplicationRow, options: ApplicationStatusOption[]):
   );
 }
 
+function rowStatusDotColor(row: ApplicationRow, options: ApplicationStatusOption[]): string | null {
+  const joined = oneStatusJoin(row.application_statuses);
+  const fromJoin = typeof joined?.color === "string" ? joined.color.trim() : "";
+  if (fromJoin) return fromJoin;
+  const fromOption = options.find((option) => option.id === rowStatusId(row))?.color?.trim();
+  return fromOption || null;
+}
+
 function matchesTab(
   row: ApplicationRow,
   tab: ApplicationTab,
@@ -446,6 +362,14 @@ function applicantName(row: ApplicationRow): string {
 
 function applicantEmail(row: ApplicationRow): string {
   return resolveApplicationApplicantEmail(row);
+}
+
+function applicantLocation(row: ApplicationRow): string {
+  return resolveApplicationApplicantLocation(row);
+}
+
+function applicantPhone(row: ApplicationRow): string {
+  return resolveApplicationApplicantPhone(row);
 }
 
 function workflowName(row: ApplicationRow): string {
@@ -525,6 +449,13 @@ export default function JobApplicationsPage() {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [pendingDeleteIds, setPendingDeleteIds] = useState<string[]>([]);
+  const [actionTargetRowId, setActionTargetRowId] = useState<string | null>(null);
+  const [messageOpen, setMessageOpen] = useState(false);
+  const [callOpen, setCallOpen] = useState(false);
+  const [interviewOpen, setInterviewOpen] = useState(false);
+  const [interviewSubmitting, setInterviewSubmitting] = useState(false);
+  const [interviewError, setInterviewError] = useState<string | null>(null);
   const candidateSearchInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -820,7 +751,7 @@ export default function JobApplicationsPage() {
     let next = rows.filter((row) => matchesTab(row, activeTab, statusOptions));
     if (locationFilter) {
       next = next.filter((row) => {
-        const loc = formatJobLocation(null, one(row.job_requisitions));
+        const loc = applicantLocation(row);
         return loc.toLowerCase().includes(locationFilter.toLowerCase());
       });
     }
@@ -858,12 +789,11 @@ export default function JobApplicationsPage() {
   const locationOptions = useMemo(() => {
     const set = new Set<string>();
     for (const row of rows) {
-      const loc = formatJobLocation(null, one(row.job_requisitions));
-      if (loc && loc !== "—") set.add(loc);
+      const loc = applicantLocation(row);
+      if (loc) set.add(loc);
     }
-    if (jobLocation && jobLocation !== "—") set.add(jobLocation);
     return Array.from(set).sort((a, b) => a.localeCompare(b));
-  }, [rows, jobLocation]);
+  }, [rows]);
 
   function toggleSelectAllVisible() {
     setSelectedIds((current) => {
@@ -887,14 +817,16 @@ export default function JobApplicationsPage() {
   }
 
   async function handleConfirmDeleteCandidates() {
-    if (deleteBusy || selectedIds.size === 0) return;
+    const idsToDelete =
+      pendingDeleteIds.length > 0 ? pendingDeleteIds : [...selectedIds];
+    if (deleteBusy || idsToDelete.length === 0) return;
     setDeleteBusy(true);
     setDeleteError(null);
     try {
       const response = await fetch("/api/admin/job-applications", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ids: [...selectedIds] }),
+        body: JSON.stringify({ ids: idsToDelete }),
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
@@ -906,7 +838,12 @@ export default function JobApplicationsPage() {
         Array.isArray(payload.deletedIds) ? payload.deletedIds.map(String) : []
       );
       setRows((current) => current.filter((row) => !deletedIds.has(row.id)));
-      setSelectedIds(new Set());
+      setSelectedIds((current) => {
+        const next = new Set(current);
+        for (const id of deletedIds) next.delete(id);
+        return next;
+      });
+      setPendingDeleteIds([]);
       setDeleteConfirmOpen(false);
       toast.success(
         `Deleted ${typeof payload.count === "number" ? payload.count : deletedIds.size} candidate${
@@ -920,6 +857,84 @@ export default function JobApplicationsPage() {
       toast.error(message);
     } finally {
       setDeleteBusy(false);
+    }
+  }
+
+  function actionRow(): ApplicationRow | null {
+    if (!actionTargetRowId) return null;
+    return rows.find((row) => row.id === actionTargetRowId) ?? null;
+  }
+
+  function beginDeleteCandidate(applicationId: string) {
+    setPendingDeleteIds([applicationId]);
+    setDeleteError(null);
+    setDeleteConfirmOpen(true);
+  }
+
+  function beginArchiveCandidate(applicationId: string) {
+    const archivedOption =
+      statusOptions.find((option) => /archiv/i.test(option.name)) ??
+      statusOptions.find((option) => option.systemKey === "rejected");
+    if (!archivedOption) {
+      toast.error("Archive status is not available");
+      return;
+    }
+    beginStatusChange(applicationId, archivedOption);
+  }
+
+  async function handleScheduleInterview(payload: {
+    workerId: string;
+    startsAt: string;
+    endsAt: string;
+    meetingType: "online";
+  }) {
+    const row = actionRow();
+    if (!row) return;
+    setInterviewSubmitting(true);
+    setInterviewError(null);
+    try {
+      const response = await fetch("/api/admin/applicant-appointments", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...payload,
+          applicationId: row.id,
+          jobId: jobId || row.job_requisition_id,
+        }),
+      });
+      const data = (await response.json().catch(() => ({}))) as {
+        error?: string;
+        statusUpdated?: boolean;
+        emailSent?: boolean;
+        emailSkipped?: boolean;
+      };
+      if (!response.ok) throw new Error(data.error || "Failed to schedule interview");
+      if (data.statusUpdated) {
+        setRows((current) =>
+          current.map((item) =>
+            item.id === row.id ? { ...item, status: "interviewing" } : item
+          )
+        );
+      }
+      setInterviewOpen(false);
+      if (data.emailSent) {
+        toast.success("Interview scheduled — invitation email sent");
+      } else if (data.emailSkipped) {
+        toast.success("Interview scheduled");
+        toast("No email sent — candidate email is missing or mail is not configured.", {
+          icon: "ℹ️",
+        });
+      } else {
+        toast.success("Interview scheduled");
+      }
+    } catch (scheduleError) {
+      const message =
+        scheduleError instanceof Error ? scheduleError.message : "Failed to schedule interview";
+      setInterviewError(message);
+      toast.error(message);
+    } finally {
+      setInterviewSubmitting(false);
     }
   }
 
@@ -1131,12 +1146,14 @@ export default function JobApplicationsPage() {
           <MatchScoreCell
             status={row.ai_match_status}
             score={row.ai_match_score}
-            category={row.ai_match_category}
-            displayCategory={row.ai_match_display_category}
             analyzing={matchAnalyzingId === row.id}
             onAnalyze={() => void runMatchAnalyze(row.id)}
           />
         );
+      case "location": {
+        const loc = applicantLocation(row);
+        return <span className="text-sm leading-5 text-[#0F172A]">{loc || "—"}</span>;
+      }
       case "activity":
         return <p className="text-sm leading-5 text-[#475569]">{formatActivity(row)}</p>;
       case "interest": {
@@ -1202,6 +1219,7 @@ export default function JobApplicationsPage() {
         const label = rowStatusName(row, statusOptions);
         const menuOpen = statusMenu?.rowId === row.id;
         const busy = statusBusyId === row.id;
+        const customDot = rowStatusDotColor(row, statusOptions);
         return (
           <div className="inline-flex justify-center">
             <button
@@ -1216,11 +1234,20 @@ export default function JobApplicationsPage() {
                   current?.rowId === row.id ? null : { rowId: row.id, anchor }
                 );
               }}
-              className={`${applicationStatusBadgeClassName(row.status)} inline-flex items-center gap-1 transition hover:bg-[#F8FAFC] disabled:opacity-50`}
+              className={`inline-flex h-8 w-fit items-center justify-center gap-2 whitespace-nowrap px-2.5 text-sm text-[#334155] transition hover:bg-zinc-50 disabled:opacity-50 ${FORM_SURFACE_CLASS}`}
               title="Change status"
             >
+              <span
+                className={`h-2 w-2 shrink-0 rounded-full ${
+                  customDot ? "" : applicationStatusDotClassName(row.status)
+                }`}
+                style={customDot ? { backgroundColor: customDot } : undefined}
+                aria-hidden
+              />
               <span className="max-w-[7.5rem] truncate">{label}</span>
-              <ChevronDown className={`h-3.5 w-3.5 shrink-0 ${menuOpen ? "rotate-180" : ""}`} />
+              <ChevronDown
+                className={`h-3.5 w-3.5 shrink-0 text-[#94A3B8] ${menuOpen ? "rotate-180" : ""}`}
+              />
             </button>
           </div>
         );
@@ -1573,6 +1600,7 @@ export default function JobApplicationsPage() {
                 count={selectedIds.size}
                 disabled={deleteBusy}
                 onClick={() => {
+                  setPendingDeleteIds([]);
                   setDeleteError(null);
                   setDeleteConfirmOpen(true);
                 }}
@@ -1664,6 +1692,7 @@ export default function JobApplicationsPage() {
                 count={selectedIds.size}
                 disabled={deleteBusy}
                 onClick={() => {
+                  setPendingDeleteIds([]);
                   setDeleteError(null);
                   setDeleteConfirmOpen(true);
                 }}
@@ -1835,21 +1864,56 @@ export default function JobApplicationsPage() {
       />
 
       {rowActionsMenu ? (
-        <RowActionsMenuPortal
+        <CandidateRowActionsMenu
           anchor={rowActionsMenu.anchor}
+          analyzing={matchAnalyzingId === rowActionsMenu.rowId}
+          hired={normalizeApplicationStatus(
+            rows.find((item) => item.id === rowActionsMenu.rowId)?.status ?? ""
+          ) === "hired"}
           onClose={() => setRowActionsMenu(null)}
-          onViewCandidate={() => {
+          onReanalyze={() => {
+            void runMatchAnalyze(rowActionsMenu.rowId);
+          }}
+          onUpdateResume={() => {
+            /* Placeholder — Update Resume not implemented yet */
+          }}
+          onArchive={() => beginArchiveCandidate(rowActionsMenu.rowId)}
+          onMessage={() => {
             const row = rows.find((item) => item.id === rowActionsMenu.rowId);
             if (!row) return;
-            const href = jobId
-              ? `/admin_recruiter/applications/review?jobId=${encodeURIComponent(jobId)}&applicationId=${encodeURIComponent(row.id)}`
-              : `/admin_recruiter/applications/review?applicationId=${encodeURIComponent(row.id)}`;
-            router.push(href);
+            const workerId = resolveApplicationWorkerId(row);
+            if (!workerId) {
+              toast.error("Candidate profile is not linked yet");
+              return;
+            }
+            setActionTargetRowId(row.id);
+            setMessageOpen(true);
           }}
-          onViewHistory={() => {
+          onCall={() => {
             const row = rows.find((item) => item.id === rowActionsMenu.rowId);
-            if (row) void openStatusHistory(row);
+            if (!row) return;
+            const workerId = resolveApplicationWorkerId(row);
+            if (!workerId) {
+              toast.error("Candidate profile is not linked yet");
+              return;
+            }
+            setActionTargetRowId(row.id);
+            setCallOpen(true);
           }}
+          onSetupInterview={() => {
+            const row = rows.find((item) => item.id === rowActionsMenu.rowId);
+            if (!row) return;
+            const workerId = resolveApplicationWorkerId(row);
+            if (!workerId) {
+              toast.error("Candidate profile is not linked yet");
+              return;
+            }
+            setActionTargetRowId(row.id);
+            setInterviewError(null);
+            setInterviewOpen(true);
+          }}
+          onDeleteCandidate={() => beginDeleteCandidate(rowActionsMenu.rowId)}
+          onMarkAsHired={() => beginStatusChangeBySystemKey(rowActionsMenu.rowId, "hired")}
         />
       ) : null}
 
@@ -1917,16 +1981,70 @@ export default function JobApplicationsPage() {
       <BulkDeleteConfirmModal
         open={deleteConfirmOpen}
         entity="candidate"
-        count={selectedIds.size}
+        count={pendingDeleteIds.length > 0 ? pendingDeleteIds.length : selectedIds.size}
         busy={deleteBusy}
         error={deleteError}
         onCancel={() => {
           if (deleteBusy) return;
           setDeleteConfirmOpen(false);
+          setPendingDeleteIds([]);
           setDeleteError(null);
         }}
         onConfirm={() => void handleConfirmDeleteCandidates()}
       />
+
+      {(() => {
+        const target = actionRow();
+        if (!target) return null;
+        const workerId = resolveApplicationWorkerId(target);
+        if (!workerId) return null;
+        const name = applicantName(target);
+        const email = applicantEmail(target);
+        const phone = applicantPhone(target);
+        return (
+          <>
+            <CandidateCommunicationDialog
+              open={messageOpen}
+              onClose={() => {
+                setMessageOpen(false);
+                setActionTargetRowId(null);
+              }}
+              workerId={workerId}
+              candidateName={name}
+              email={email || null}
+              phone={phone || null}
+            />
+            <AddCallLogModal
+              open={callOpen}
+              workerId={workerId}
+              onClose={() => {
+                setCallOpen(false);
+                setActionTargetRowId(null);
+              }}
+            />
+            <ScheduleInterviewModal
+              open={interviewOpen}
+              applicants={[
+                {
+                  id: workerId,
+                  name,
+                  status: normalizeApplicationStatus(target.status),
+                },
+              ]}
+              submitting={interviewSubmitting}
+              error={interviewError}
+              onClose={() => {
+                setInterviewOpen(false);
+                setInterviewError(null);
+                setActionTargetRowId(null);
+              }}
+              onSubmit={(payload) => void handleScheduleInterview(payload)}
+              fixedWorkerId={workerId}
+              fixedApplicantName={name}
+            />
+          </>
+        );
+      })()}
     </div>
   );
 }

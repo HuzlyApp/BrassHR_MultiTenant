@@ -58,7 +58,29 @@ export function applicationStatusLabel(status: string): string {
   return APPLICATION_STATUS_OPTIONS.find((option) => option.id === normalized)?.label ?? normalized;
 }
 
-/** Figma: outlined pill for pipeline statuses (New uses secondary brand color). */
+/** Colored status dot — same pattern as jobs list / job details status UI. */
+export function applicationStatusDotClassName(status: string): string {
+  switch (normalizeApplicationStatus(status)) {
+    case "new":
+      return "bg-[#3B82F6]";
+    case "reviewing":
+      return "bg-[#F59E0B]";
+    case "shortlisted":
+      return "bg-[#22C55E]";
+    case "interviewing":
+      return "bg-[#8B5CF6]";
+    case "hired":
+      return "bg-[#16A34A]";
+    case "rejected":
+      return "bg-[#EF4444]";
+    case "undecided":
+      return "bg-[#94A3B8]";
+    default:
+      return "bg-[#94A3B8]";
+  }
+}
+
+/** Outlined pill (legacy). Prefer list cell: surface + colored dot + label. */
 export function applicationStatusBadgeClassName(status: string): string {
   const normalized = normalizeApplicationStatus(status);
   const base =

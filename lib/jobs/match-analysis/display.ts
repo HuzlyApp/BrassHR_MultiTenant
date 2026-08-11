@@ -5,6 +5,7 @@ import {
   type RecommendedAction,
 } from "@/lib/jobs/match-analysis/schema";
 
+/** Soft badges for detail panels (not the ranking table). */
 export function matchScoreBadgeClassName(score: number | null | undefined): string {
   if (score == null || !Number.isFinite(Number(score))) {
     return "bg-[#F1F5F9] text-[#64748B]";
@@ -15,6 +16,34 @@ export function matchScoreBadgeClassName(score: number | null | undefined): stri
   if (n >= 60) return "bg-[#FEF9C3] text-[#854D0E]";
   if (n >= 40) return "bg-[#FFEDD5] text-[#9A3412]";
   return "bg-[#FEE2E2] text-[#991B1B]";
+}
+
+/** Ranking-list tiers aligned with Figma Match Score (BEST / GOOD / WEAK). */
+export type ListMatchScoreTier = "best" | "good" | "weak";
+
+export function listMatchScoreTier(score: number | null | undefined): ListMatchScoreTier | null {
+  if (score == null || !Number.isFinite(Number(score))) return null;
+  const n = Number(score);
+  if (n >= 75) return "best";
+  if (n >= 50) return "good";
+  return "weak";
+}
+
+/** Solid pill colors for candidates ranking table (white % text). */
+export function listMatchScorePillClassName(score: number | null | undefined): string {
+  const tier = listMatchScoreTier(score);
+  if (!tier) return "bg-[#F1F5F9] text-[#64748B]";
+  if (tier === "best") return "bg-[#22C55E] text-white";
+  if (tier === "good") return "bg-[#3B82F6] text-white";
+  return "bg-[#FB7185] text-white";
+}
+
+export function formatListMatchScoreLabel(score: number | null | undefined): string {
+  const tier = listMatchScoreTier(score);
+  if (!tier) return "";
+  if (tier === "best") return "BEST MATCH";
+  if (tier === "good") return "GOOD MATCH";
+  return "WEAK MATCH";
 }
 
 export function matchCategoryBadgeClassName(category: string | null | undefined): string {

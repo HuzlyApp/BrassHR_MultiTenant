@@ -4,9 +4,11 @@ import { useCallback, useEffect, useState } from "react";
 import { Loader2, RefreshCw, Sparkles } from "lucide-react";
 import toast from "react-hot-toast";
 import {
+  formatListMatchScoreLabel,
   formatMatchCategory,
   formatMatchScore,
   formatRecommendedAction,
+  listMatchScorePillClassName,
   matchCategoryBadgeClassName,
   matchScoreBadgeClassName,
 } from "@/lib/jobs/match-analysis/display";
@@ -323,16 +325,16 @@ export function MatchAnalysisPanel({ applicationId, compact = false, onAnalyzed 
   );
 }
 
-/** Compact list-cell display for match score / category. */
+/** Compact list-cell display for match score (Figma: solid pill + BEST/GOOD/WEAK MATCH). */
 export function MatchScoreCell(props: {
   status: string | null | undefined;
   score: number | null | undefined;
-  category: string | null | undefined;
+  category?: string | null | undefined;
   displayCategory?: string | null;
   onAnalyze?: () => void;
   analyzing?: boolean;
 }) {
-  const { status, score, category, displayCategory, onAnalyze, analyzing } = props;
+  const { status, score, onAnalyze, analyzing } = props;
 
   if (status === "ANALYZING" || analyzing) {
     return (
@@ -344,16 +346,19 @@ export function MatchScoreCell(props: {
   }
 
   if (status === "ANALYZED") {
+    const label = formatListMatchScoreLabel(score);
     return (
-      <div className="inline-flex flex-col items-center gap-0.5">
+      <div className="inline-flex flex-col items-center gap-1">
         <span
-          className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold ${matchScoreBadgeClassName(score)}`}
+          className={`inline-flex h-5 w-10 shrink-0 items-center justify-center rounded-full text-[11px] font-bold leading-none tabular-nums ${listMatchScorePillClassName(score)}`}
         >
           {formatMatchScore(score)}
         </span>
-        <span className="max-w-[160px] truncate text-[10px] text-[#64748B]">
-          {displayCategory || formatMatchCategory(category)}
-        </span>
+        {label ? (
+          <span className="text-[10px] font-medium uppercase tracking-wide text-[#64748B]">
+            {label}
+          </span>
+        ) : null}
       </div>
     );
   }

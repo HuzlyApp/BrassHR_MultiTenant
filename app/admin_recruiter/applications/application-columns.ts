@@ -1,6 +1,7 @@
 export type ApplicationColumnId =
   | "candidates"
   | "matches"
+  | "location"
   | "activity"
   | "status"
   | "interest"
@@ -10,7 +11,8 @@ export type ApplicationColumnId =
 
 export const APPLICATION_COLUMN_OPTIONS: { id: ApplicationColumnId; label: string }[] = [
   { id: "candidates", label: "Name" },
-  { id: "matches", label: "Matches to job post" },
+  { id: "matches", label: "Match Score" },
+  { id: "location", label: "Location" },
   { id: "activity", label: "Activity" },
   { id: "status", label: "Status" },
   { id: "interest", label: "Interest" },
@@ -22,6 +24,7 @@ export const APPLICATION_COLUMN_OPTIONS: { id: ApplicationColumnId; label: strin
 export const DEFAULT_APPLICATION_COLUMNS: ApplicationColumnId[] = [
   "candidates",
   "matches",
+  "location",
   "activity",
   "status",
   "interest",
@@ -40,6 +43,18 @@ function ensureStatusBeforeInterest(order: ApplicationColumnId[]): ApplicationCo
   return [...order, "status"];
 }
 
+/** Insert Location after Match Score for saved column prefs that predate the column. */
+function ensureLocationAfterMatches(order: ApplicationColumnId[]): ApplicationColumnId[] {
+  if (order.includes("location")) return order;
+  const matchesIndex = order.indexOf("matches");
+  if (matchesIndex >= 0) {
+    const next = [...order];
+    next.splice(matchesIndex + 1, 0, "location");
+    return next;
+  }
+  return [...order, "location"];
+}
+
 export function loadApplicationColumnOrder(): ApplicationColumnId[] {
   if (typeof window === "undefined") return [...DEFAULT_APPLICATION_COLUMNS];
   try {
@@ -52,8 +67,8 @@ export function loadApplicationColumnOrder(): ApplicationColumnId[] {
       (id): id is ApplicationColumnId =>
         typeof id === "string" && allowed.has(id as ApplicationColumnId)
     );
-    return ensureStatusBeforeInterest(
-      cleaned.length ? cleaned : [...DEFAULT_APPLICATION_COLUMNS]
+    return ensureLocationAfterMatches(
+      ensureStatusBeforeInterest(cleaned.length ? cleaned : [...DEFAULT_APPLICATION_COLUMNS])
     );
   } catch {
     return [...DEFAULT_APPLICATION_COLUMNS];
@@ -72,7 +87,7 @@ export function applicationColumnLabel(id: ApplicationColumnId): string {
   return APPLICATION_COLUMN_OPTIONS.find((c) => c.id === id)?.label ?? id;
 }
 
-/** Name stays left; all other list columns are centered (header + cell). */
+/** Name stays left; Location left-aligned; remaining list columns centered. */
 const CENTER_ALIGNED_COLUMNS = new Set<ApplicationColumnId>([
   "matches",
   "activity",
@@ -86,7 +101,8 @@ const CENTER_ALIGNED_COLUMNS = new Set<ApplicationColumnId>([
 export function applicationListColumnClassName(colId: ApplicationColumnId): string {
   const center = CENTER_ALIGNED_COLUMNS.has(colId) ? " text-center" : "";
   if (colId === "candidates") return "min-w-[220px]";
-  if (colId === "matches") return `min-w-[200px] max-w-[280px]${center}`;
+  if (colId === "matches") return `min-w-[120px] max-w-[160px]${center}`;
+  if (colId === "location") return "min-w-[120px] whitespace-nowrap";
   if (colId === "activity") return `min-w-[180px] whitespace-nowrap${center}`;
   if (colId === "interest") return `min-w-[160px] whitespace-nowrap${center}`;
   if (colId === "email") return `min-w-[180px]${center}`;
