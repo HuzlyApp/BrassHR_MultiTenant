@@ -1,14 +1,18 @@
-import { Suspense } from "react";
-import AddCandidateClient from "@/app/admin_recruiter/applications/AddCandidateClient";
+import { redirect } from "next/navigation";
 
-export default function AddCandidatePage() {
-  return (
-    <Suspense
-      fallback={
-        <div className="w-full px-1 py-2 text-sm text-[#64748B]">Loading…</div>
-      }
-    >
-      <AddCandidateClient />
-    </Suspense>
-  );
+type AddCandidatePageProps = {
+  searchParams: Promise<{ jobId?: string }>;
+};
+
+/**
+ * Legacy full-page add candidate route — replaced by AddCandidateModal on the
+ * candidates listing. Redirects back to the listing.
+ */
+export default async function AddCandidatePage({ searchParams }: AddCandidatePageProps) {
+  const params = await searchParams;
+  const jobId = params.jobId?.trim();
+  if (jobId) {
+    redirect(`/admin_recruiter/applications?jobId=${encodeURIComponent(jobId)}`);
+  }
+  redirect("/admin_recruiter/applications");
 }

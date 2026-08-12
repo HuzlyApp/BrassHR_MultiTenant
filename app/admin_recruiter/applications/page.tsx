@@ -70,6 +70,7 @@ import { MatchScoreCell } from "./MatchAnalysisPanel";
 import { ReplaceResumeConfirmModal } from "./ReplaceResumeConfirmModal";
 import { matchCategoryRelevanceRank } from "@/lib/jobs/match-analysis/display";
 import { JobPublicViewLink } from "@/app/admin_recruiter/jobs/JobPublicViewLink";
+import AddCandidateModal from "./AddCandidateModal";
 
 type ApplicationStatus = string;
 
@@ -489,6 +490,8 @@ export default function JobApplicationsPage() {
   const [resumeSuccessOpen, setResumeSuccessOpen] = useState(false);
   const [resumeErrorOpen, setResumeErrorOpen] = useState(false);
   const [resumeErrorMessage, setResumeErrorMessage] = useState("");
+  const [addCandidateOpen, setAddCandidateOpen] = useState(false);
+  const [applicationsRefreshNonce, setApplicationsRefreshNonce] = useState(0);
   const resumeInputRef = useRef<HTMLInputElement>(null);
   const candidateSearchInputRef = useRef<HTMLInputElement>(null);
 
@@ -649,7 +652,15 @@ export default function JobApplicationsPage() {
     return () => {
       cancelled = true;
     };
-  }, [jobId]);
+  }, [jobId, applicationsRefreshNonce]);
+
+  function openAddCandidateModal() {
+    if (!jobId) {
+      toast.error("Select a job before adding a candidate.");
+      return;
+    }
+    setAddCandidateOpen(true);
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -1784,12 +1795,9 @@ export default function JobApplicationsPage() {
                 }}
               />
             </div>
-            <Link
-              href={
-                jobId
-                  ? `/admin_recruiter/applications/add-candidate?jobId=${encodeURIComponent(jobId)}`
-                  : "/admin_recruiter/applications/add-candidate"
-              }
+            <button
+              type="button"
+              onClick={openAddCandidateModal}
               className={`${ADD_CANDIDATE_BUTTON_CLASS} ml-auto h-9 whitespace-nowrap px-2.5 sm:h-8 sm:px-3`}
             >
               <Plus
@@ -1800,7 +1808,7 @@ export default function JobApplicationsPage() {
               />
               <span className="hidden min-[480px]:inline">Add candidate</span>
               <span className="min-[480px]:hidden">Add</span>
-            </Link>
+            </button>
           </div>
           {showFilterRows ? (
             <div className="grid grid-cols-1 gap-5 rounded-lg border border-[#E8EEEC] bg-[#F8FAFC] p-2.5 min-[450px]:grid-cols-2">
@@ -1880,12 +1888,9 @@ export default function JobApplicationsPage() {
               />
             </div>
 
-            <Link
-              href={
-                jobId
-                  ? `/admin_recruiter/applications/add-candidate?jobId=${encodeURIComponent(jobId)}`
-                  : "/admin_recruiter/applications/add-candidate"
-              }
+            <button
+              type="button"
+              onClick={openAddCandidateModal}
               className={ADD_CANDIDATE_BUTTON_CLASS}
             >
               <Plus
@@ -1895,7 +1900,7 @@ export default function JobApplicationsPage() {
                 aria-hidden
               />
               Add candidate
-            </Link>
+            </button>
           </div>
 
           <div className="border-b border-[#E5E7EB]" aria-hidden />
@@ -2246,6 +2251,14 @@ export default function JobApplicationsPage() {
           setPendingResumeApplicationId(null);
         }}
         onConfirm={() => void confirmReplaceResumeFromList()}
+      />
+
+      <AddCandidateModal
+        open={addCandidateOpen}
+        onClose={() => setAddCandidateOpen(false)}
+        jobId={jobId}
+        jobTitle={jobTitle}
+        onSuccess={() => setApplicationsRefreshNonce((value) => value + 1)}
       />
 
       <SuccessModal
