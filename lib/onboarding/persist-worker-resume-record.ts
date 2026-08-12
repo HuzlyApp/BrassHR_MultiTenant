@@ -20,13 +20,24 @@ export async function persistWorkerResumeRecord(
   applicantId: string,
   opts: PersistWorkerResumeRecordOpts
 ): Promise<string | null> {
-  const { data: worker, error: wErr } = await supabase
+  const byUser = await supabase
     .from("worker")
     .select("id, tenant_id")
     .eq("user_id", applicantId)
     .maybeSingle();
+  if (byUser.error) throw byUser.error;
 
-  if (wErr) throw wErr;
+  let worker = byUser.data;
+  if (!worker?.id) {
+    const byId = await supabase
+      .from("worker")
+      .select("id, tenant_id")
+      .eq("id", applicantId)
+      .maybeSingle();
+    if (byId.error) throw byId.error;
+    worker = byId.data;
+  }
+
   if (!worker?.id || worker.tenant_id == null) return null;
 
   const workerId = String(worker.id);

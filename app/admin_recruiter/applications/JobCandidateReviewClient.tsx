@@ -17,9 +17,11 @@ import {
   ChevronLeft,
   ChevronRight,
   HelpCircle,
+  Loader2,
   MapPin,
   MoreVertical,
   Phone,
+  Upload,
   X,
   ZoomIn,
   ZoomOut,
@@ -44,10 +46,12 @@ import {
   normalizeApplicationStatus,
 } from "@/lib/jobs/application-status";
 import { formatInterviewDate, formatInterviewTimeRange } from "@/lib/interviews/format";
+import { validateResumeUploadFile } from "@/lib/resume/validate-resume-upload";
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
 import type { AdminInterviewItem } from "@/app/api/admin/applicant-appointments/route";
 import { JobPublicViewLink } from "@/app/admin_recruiter/jobs/JobPublicViewLink";
 import { MatchAnalysisPanel } from "./MatchAnalysisPanel";
+import { ReplaceResumeConfirmModal } from "./ReplaceResumeConfirmModal";
 
 type ApplicationRow = {
   id: string;
@@ -59,6 +63,12 @@ type ApplicationRow = {
   updated_at?: string | null;
   job_requisition_id: string;
   worker_id: string | null;
+  ai_match_status?: string | null;
+  ai_match_score?: number | null;
+  ai_match_category?: string | null;
+  ai_match_action?: string | null;
+  ai_match_readiness?: string | null;
+  ai_match_display_category?: string | null;
   job_requisitions: Record<string, unknown> | Record<string, unknown>[] | null;
   applicant_profiles: Record<string, unknown> | Record<string, unknown>[] | null;
   worker?: Record<string, unknown> | Record<string, unknown>[] | null;
@@ -196,6 +206,11 @@ export default function JobCandidateReviewClient() {
   const [noteDraft, setNoteDraft] = useState("");
   const [noteSaving, setNoteSaving] = useState(false);
   const [resumePreviewError, setResumePreviewError] = useState<string | null>(null);
+  const [resumePreviewKey, setResumePreviewKey] = useState(0);
+  const [matchReloadToken, setMatchReloadToken] = useState(0);
+  const [resumeUploading, setResumeUploading] = useState(false);
+  const [pendingResumeFile, setPendingResumeFile] = useState<File | null>(null);
+  const resumeInputRef = useRef<HTMLInputElement | null>(null);
   const [chatOpen, setChatOpen] = useState(true);
   const [chatPreferExpanded, setChatPreferExpanded] = useState(false);
   const [publicJobPath, setPublicJobPath] = useState<string | null>(null);
@@ -255,9 +270,11 @@ export default function JobCandidateReviewClient() {
   const resumeUrl = profile?.requirements?.resume_url?.trim() || null;
   const hasResume = Boolean(resumePath || resumeUrl);
   const resumePreviewUrl = workerId
-    ? `/api/admin/worker-resume-preview?workerId=${encodeURIComponent(workerId)}`
+    ? `/api/admin/worker-resume-preview?workerId=${encodeURIComponent(workerId)}&v=${resumePreviewKey}`
     : null;
-  const resumeDownloadUrl = resumeUrl || resumePreviewUrl;
+  const resumeDownloadUrl = resumeUrl
+    ? `${resumeUrl}${resumeUrl.includes("?") ? "&" : "?"}v=${resumePreviewKey}`
+    : resumePreviewUrl;
 
   const currentStatusLabel = selected
     ? selected.statusName?.trim() ||
@@ -446,7 +463,125 @@ export default function JobCandidateReviewClient() {
   useEffect(() => {
     setResumePreviewError(null);
     setZoom(100);
-  }, [workerId, resumeUrl]);
+  }, [workerId, resumeUrl, resumePreviewKey]);
+
+  const reloadWorkerProfile = useCallback(async (targetWorkerId: string) => {
+    const response = await fetch(
+      `/api/admin/worker-profile?workerId=${encodeURIComponent(targetWorkerId)}`,
+      { cache: "no-store" }
+    );
+    const payload = (await response.json()) as WorkerProfilePayload & { error?: string };
+    if (!response.ok) throw new Error(payload.error || "Failed to refresh profile");
+    setProfile(payload);
+  }, []);
+
+  function beginReuploadResume() {
+    if (!selected?.id) return;
+    if (!workerId) {
+      toast.error("Candidate profile is not linked yet, so resume cannot be uploaded.");
+      return;
+    }
+    window.requestAnimationFrame(() => {
+      resumeInputRef.current?.click();
+    });
+  }
+
+  function handleResumeFilePicked(file: File | undefined) {
+    if (resumeInputRef.current) resumeInputRef.current.value = "";
+    if (!file) return;
+
+    const validationError = validateResumeUploadFile({
+      name: file.name,
+      type: file.type,
+      size: file.size,
+    });
+    if (validationError) {
+      toast.error(validationError);
+      return;
+    }
+    setPendingResumeFile(file);
+  }
+
+  async function confirmReplaceResume() {
+    if (!pendingResumeFile || !selected?.id) return;
+    const applicationIdForUpload = selected.id;
+    const workerIdForUpload = workerId;
+    setResumeUploading(true);
+    try {
+      const form = new FormData();
+      form.set("resume", pendingResumeFile);
+      const response = await fetch(
+        `/api/admin/job-applications/${encodeURIComponent(applicationIdForUpload)}/resume`,
+        { method: "POST", body: form }
+      );
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(
+          typeof payload.error === "string" ? payload.error : "Failed to upload resume"
+        );
+      }
+
+      if (workerIdForUpload) {
+        await reloadWorkerProfile(workerIdForUpload);
+      }
+      setResumePreviewKey((value) => value + 1);
+      setResumePreviewError(null);
+
+      // Recalculate match % / explanation against the new résumé.
+      try {
+        const matchResponse = await fetch(
+          `/api/admin/job-applications/${encodeURIComponent(applicationIdForUpload)}/match-analysis`,
+          {
+            method: "POST",
+            credentials: "include",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({}),
+          }
+        );
+        const matchPayload = await matchResponse.json().catch(() => ({}));
+        if (!matchResponse.ok) {
+          throw new Error(
+            typeof matchPayload.error === "string"
+              ? matchPayload.error
+              : "Resume updated, but match analysis failed"
+          );
+        }
+        setRows((current) =>
+          current.map((row) =>
+            row.id === applicationIdForUpload
+              ? {
+                  ...row,
+                  ai_match_status: matchPayload.status ?? "ANALYZED",
+                  ai_match_score: matchPayload.score ?? row.ai_match_score,
+                  ai_match_category: matchPayload.category ?? row.ai_match_category,
+                  ai_match_action: matchPayload.action ?? row.ai_match_action,
+                  ai_match_readiness: matchPayload.readiness ?? row.ai_match_readiness,
+                  ai_match_display_category:
+                    matchPayload.displayCategory ?? row.ai_match_display_category,
+                }
+              : row
+          )
+        );
+      } catch (matchError) {
+        toast.error(
+          matchError instanceof Error
+            ? matchError.message
+            : "Resume updated, but match analysis failed"
+        );
+      } finally {
+        setMatchReloadToken((value) => value + 1);
+      }
+
+      setPendingResumeFile(null);
+      toast.success("Resume updated successfully.");
+    } catch (uploadError) {
+      toast.error(
+        uploadError instanceof Error ? uploadError.message : "Failed to upload resume"
+      );
+    } finally {
+      setResumeUploading(false);
+    }
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -1058,21 +1193,38 @@ export default function JobCandidateReviewClient() {
                         <ZoomIn className="h-6 w-6 text-[#374151]" strokeWidth={2} aria-hidden />
                       </button>
                     </div>
-                    {resumeDownloadUrl ? (
-                      <a
-                        href={resumeDownloadUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="admin-recruiter-action-chip h-10 w-full shrink-0 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm font-medium text-[#525252] transition hover:bg-[#F8FAFC] sm:h-9 sm:w-auto"
-                      >
-                        <BrandedSvgIcon
-                          src="/icons/admin-recruiter/downloadicon.svg"
-                          className="h-4 w-4 shrink-0"
-                          color="#525252"
-                        />
-                        <span>Download Resume</span>
-                      </a>
-                    ) : null}
+                    <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:justify-end">
+                      {workerId ? (
+                        <button
+                          type="button"
+                          onClick={beginReuploadResume}
+                          disabled={resumeUploading}
+                          className="admin-recruiter-action-chip h-10 w-full shrink-0 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm font-medium text-[#525252] transition hover:bg-[#F8FAFC] disabled:opacity-50 sm:h-9 sm:w-auto"
+                        >
+                          {resumeUploading ? (
+                            <Loader2 className="h-4 w-4 shrink-0 animate-spin" aria-hidden />
+                          ) : (
+                            <Upload className="h-4 w-4 shrink-0" strokeWidth={2} aria-hidden />
+                          )}
+                          <span>{resumeUploading ? "Uploading…" : "Re-upload Resume"}</span>
+                        </button>
+                      ) : null}
+                      {resumeDownloadUrl ? (
+                        <a
+                          href={resumeDownloadUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="admin-recruiter-action-chip h-10 w-full shrink-0 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm font-medium text-[#525252] transition hover:bg-[#F8FAFC] sm:h-9 sm:w-auto"
+                        >
+                          <BrandedSvgIcon
+                            src="/icons/admin-recruiter/downloadicon.svg"
+                            className="h-4 w-4 shrink-0"
+                            color="#525252"
+                          />
+                          <span>Download Resume</span>
+                        </a>
+                      ) : null}
+                    </div>
                   </div>
                 </div>
 
@@ -1231,7 +1383,11 @@ export default function JobCandidateReviewClient() {
 
             {selected ? (
               <div className="min-h-0 overflow-y-auto">
-                <MatchAnalysisPanel applicationId={selected.id} compact />
+                <MatchAnalysisPanel
+                  applicationId={selected.id}
+                  compact
+                  reloadToken={matchReloadToken}
+                />
               </div>
             ) : null}
 
@@ -1351,6 +1507,26 @@ export default function JobCandidateReviewClient() {
           </div>
         </div>
       ) : null}
+
+      <input
+        ref={resumeInputRef}
+        type="file"
+        accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        className="hidden"
+        onChange={(event) => handleResumeFilePicked(event.target.files?.[0])}
+      />
+
+      <ReplaceResumeConfirmModal
+        open={Boolean(pendingResumeFile)}
+        fileName={pendingResumeFile?.name ?? ""}
+        busy={resumeUploading}
+        hasExistingResume={hasResume}
+        onCancel={() => {
+          if (resumeUploading) return;
+          setPendingResumeFile(null);
+        }}
+        onConfirm={() => void confirmReplaceResume()}
+      />
     </div>
   );
 }

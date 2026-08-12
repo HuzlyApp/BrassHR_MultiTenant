@@ -11,7 +11,7 @@ export type ApplicationColumnId =
 
 export const APPLICATION_COLUMN_OPTIONS: { id: ApplicationColumnId; label: string }[] = [
   { id: "candidates", label: "Name" },
-  { id: "matches", label: "Match Score" },
+  { id: "matches", label: "Match %" },
   { id: "location", label: "Location" },
   { id: "activity", label: "Activity" },
   { id: "status", label: "Status" },
@@ -43,7 +43,7 @@ function ensureStatusBeforeInterest(order: ApplicationColumnId[]): ApplicationCo
   return [...order, "status"];
 }
 
-/** Insert Location after Match Score for saved column prefs that predate the column. */
+/** Insert Location after Match % for saved column prefs that predate the column. */
 function ensureLocationAfterMatches(order: ApplicationColumnId[]): ApplicationColumnId[] {
   if (order.includes("location")) return order;
   const matchesIndex = order.indexOf("matches");
