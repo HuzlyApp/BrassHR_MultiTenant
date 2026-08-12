@@ -18,15 +18,19 @@ export function WorkerAccountTabNav({ activeTab }: WorkerAccountTabNavProps) {
   const tabHref = useWorkerAccountTabHref();
   const onAdminWorkerProfile =
     pathname?.includes("/admin_recruiter/workers/") && pathname?.includes("/profile");
+  const onApplicationsRoute =
+    !onAdminWorkerProfile && pathname?.includes("/applications");
   const onDocumentsRoute =
     !onAdminWorkerProfile &&
     (pathname?.includes("/documents") || pathname?.includes("/attachments"));
   const onLicensesRoute = !onAdminWorkerProfile && pathname?.includes("/licenses");
-  const resolvedTab: WorkerAccountTab = onDocumentsRoute
-    ? "documents"
-    : onLicensesRoute
-      ? "skills"
-      : activeTab;
+  const resolvedTab: WorkerAccountTab = onApplicationsRoute
+    ? "applications"
+    : onDocumentsRoute
+      ? "documents"
+      : onLicensesRoute
+        ? "skills"
+        : activeTab;
 
   return (
     <nav className="w-full min-w-0" aria-label="Account sections">

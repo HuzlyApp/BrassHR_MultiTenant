@@ -173,6 +173,7 @@ export async function POST(
         textLength: extractedText.trim().length,
         extractedText,
         parsedData: { text: extractedText },
+        tenantId,
       });
     }
 

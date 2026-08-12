@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { formatApiError } from "@/lib/api/format-api-error";
-import { loadMeApplications } from "@/lib/applicant-portal/load-me-applications";
-import { listWorkersForAuthUser } from "@/lib/onboarding/resolve-worker-context";
+import { loadApplicationPipeline } from "@/lib/applicant-portal/load-application-pipeline";
 
 export const runtime = "nodejs";
 
@@ -13,10 +12,18 @@ function bearerToken(req: NextRequest): string | null {
   return token.length > 0 ? token : null;
 }
 
-export async function GET(req: NextRequest) {
+export async function GET(
+  req: NextRequest,
+  context: { params: Promise<{ applicationId: string }> }
+) {
   try {
     const token = bearerToken(req);
     if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    const { applicationId } = await context.params;
+    if (!applicationId?.trim()) {
+      return NextResponse.json({ error: "Missing application id" }, { status: 400 });
+    }
 
     const supabase = createServiceRoleClient();
     if (!supabase) {
@@ -28,33 +35,18 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const workers = await listWorkersForAuthUser(supabase, authData.user.id);
-    const workerIds = workers.map((w) => w.workerId);
-    const tenantIds = [...new Set(workers.map((w) => w.tenantId))];
-
-    if (!tenantIds.length) {
-      return NextResponse.json({
-        applications: [],
-        summary: {
-          total: 0,
-          w2Count: 0,
-          count1099: 0,
-          overallStatusLabel: "In Progress",
-          statusCounts: [],
-          workTypeCounts: [],
-        },
-      });
-    }
-
-    const payload = await loadMeApplications(supabase, {
-      workerIds,
-      tenantIds,
+    const pipeline = await loadApplicationPipeline(supabase, {
+      applicationId: applicationId.trim(),
       applicantAuthUserId: authData.user.id,
     });
 
-    return NextResponse.json(payload);
+    if (!pipeline) {
+      return NextResponse.json({ error: "Application not found" }, { status: 404 });
+    }
+
+    return NextResponse.json(pipeline);
   } catch (err) {
-    console.error("[me/applications]", err);
+    console.error("[me/applications/pipeline]", err);
     return NextResponse.json({ error: formatApiError(err) }, { status: 500 });
   }
 }

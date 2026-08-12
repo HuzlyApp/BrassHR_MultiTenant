@@ -1,5 +1,6 @@
 export type WorkerAccountTab =
   | "overview"
+  | "applications"
   | "personal"
   | "employment"
   | "documents"
@@ -65,6 +66,7 @@ export type WorkerAccountOverviewPayload = {
 
 export const WORKER_ACCOUNT_TABS: Array<{ id: WorkerAccountTab; label: string }> = [
   { id: "overview", label: "Overview" },
+  { id: "applications", label: "Applications" },
   { id: "personal", label: "Personal Information" },
   { id: "employment", label: "Employment Details" },
   { id: "documents", label: "Documents" },
@@ -74,11 +76,13 @@ export const WORKER_ACCOUNT_TABS: Array<{ id: WorkerAccountTab; label: string }>
 ];
 
 export const WORKER_ACCOUNT_PROFILE_HREF = "/application/applicant-dashboard/profile";
+export const WORKER_ACCOUNT_APPLICATIONS_HREF = "/application/applicant-dashboard/applications";
 export const WORKER_ACCOUNT_DOCUMENTS_HREF = "/application/applicant-dashboard/documents";
 export const WORKER_ACCOUNT_LICENSES_HREF = "/application/applicant-dashboard/licenses";
 
 export function workerAccountTabHref(tab: WorkerAccountTab): string {
   if (tab === "overview") return WORKER_ACCOUNT_PROFILE_HREF;
+  if (tab === "applications") return WORKER_ACCOUNT_APPLICATIONS_HREF;
   if (tab === "documents") return WORKER_ACCOUNT_DOCUMENTS_HREF;
   if (tab === "skills") return WORKER_ACCOUNT_LICENSES_HREF;
   return `${WORKER_ACCOUNT_PROFILE_HREF}?tab=${tab}`;

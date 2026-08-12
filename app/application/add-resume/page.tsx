@@ -28,6 +28,7 @@ import BrandingRightPanelLogo, {
 } from "@/app/components/BrandingRightPanelLogo"
 import BrandedUploadIcon from "@/app/components/BrandedUploadIcon"
 import { setScopedApplicantId } from "@/lib/tenant/scoped-storage"
+import { ensureJobApplicationForCurrentJob, persistJobApplicationId } from "@/lib/onboarding/client-job-application"
 import { useOnboardingConfigOptional } from "@/app/components/onboarding/OnboardingConfigProvider"
 import {
   findResumeUploadStep,
@@ -147,6 +148,27 @@ export default function Step1Upload() {
     // Direct Start Application (no job): clear any stale token so config stays job-free.
     localStorage.removeItem("applicationJobToken")
   }, [jobToken])
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !jobToken) return
+    const applicantId = localStorage.getItem("applicantId")?.trim() || ""
+    const tenantSlug =
+      searchParams.get("tenant")?.trim().toLowerCase() ||
+      branding.slug?.trim().toLowerCase() ||
+      currentOnboardingTenantSlug() ||
+      ""
+    if (!applicantId || !tenantSlug) return
+
+    void ensureJobApplicationForCurrentJob({
+      applicantId,
+      tenantSlug,
+      jobToken,
+    }).then((result) => {
+      if (result.alreadySubmitted) {
+        router.replace(applicationPath("/application/application-status", tenantSlug))
+      }
+    })
+  }, [branding.slug, jobToken, router, searchParams])
 
   useEffect(() => {
     if (typeof window === "undefined") return
@@ -354,6 +376,18 @@ export default function Step1Upload() {
             return
           }
           setScopedApplicantId(session.applicantId)
+          const tenantSlugForJob =
+            searchParams.get("tenant")?.trim().toLowerCase() ||
+            branding.slug?.trim().toLowerCase() ||
+            currentOnboardingTenantSlug() ||
+            ""
+          if (jobToken && tenantSlugForJob) {
+            await ensureJobApplicationForCurrentJob({
+              applicantId: session.applicantId,
+              tenantSlug: tenantSlugForJob,
+              jobToken,
+            })
+          }
           await ensureApplicantWorker(session.applicantId).catch(() => {
             /* best-effort; resume-upload-success will retry */
           })
@@ -461,6 +495,11 @@ export default function Step1Upload() {
           storagePath?: string
           resumeId?: string | null
           parseStatus?: string
+          applicationId?: string | null
+        }
+
+        if (uploadJson.applicationId) {
+          persistJobApplicationId(uploadJson.applicationId)
         }
 
         if (uploadJson.storagePath) {

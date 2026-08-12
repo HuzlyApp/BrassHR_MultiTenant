@@ -9,6 +9,9 @@ import {
 } from "@/app/application/components/applicant-portal/worker-account-types";
 
 function resolveActiveTab(pathname: string, tabParam: string | null): WorkerAccountTab {
+  if (pathname.includes("/applications")) {
+    return "applications";
+  }
   if (pathname.includes("/documents") || pathname.includes("/attachments")) {
     return "documents";
   }

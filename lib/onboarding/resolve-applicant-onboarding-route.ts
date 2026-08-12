@@ -1,4 +1,5 @@
 import { APPLICATION_ROUTES } from "@/lib/onboarding/application-routes";
+import { searchHasJobToken } from "@/lib/onboarding/applicant-job-application-context";
 import {
   computeMaxAllowedStepIndexFromProgress,
   resolveNextIncompleteStepIndex,
@@ -35,6 +36,8 @@ export type ResolveApplicantOnboardingRouteInput = {
   pathname: string;
   search: string;
   isDraftPreview?: boolean;
+  /** null = still checking whether this job was already submitted */
+  jobApplicationAlreadySubmitted?: boolean | null;
 };
 
 const EXEMPT_PATH_PREFIXES = [
@@ -89,6 +92,12 @@ function pathsEqual(a: string, b: string): boolean {
   return pathA === pathB;
 }
 
+function applicationStatusHref(tenantSlug: string | null): string {
+  return tenantSlug
+    ? `${APPLICATION_ROUTES.applicationStatus}?tenant=${encodeURIComponent(tenantSlug)}`
+    : APPLICATION_ROUTES.applicationStatus;
+}
+
 /**
  * Central applicant onboarding route resolver.
  * Returns `loading` while required state is unresolved; never treats missing data during load as no progress.
@@ -108,6 +117,7 @@ export function resolveApplicantOnboardingRoute(
     pathname,
     search,
     isDraftPreview = false,
+    jobApplicationAlreadySubmitted = null,
   } = input;
 
   if (isDraftPreview) {
@@ -141,12 +151,20 @@ export function resolveApplicantOnboardingRoute(
     if (isPostSubmitAllowedPath(normalizedPath) || isExemptApplicantPath(normalizedPath)) {
       return { status: "allow" };
     }
-    const href = mergeOnboardingQuery(
-      tenantSlug
-        ? `${APPLICATION_ROUTES.applicationStatus}?tenant=${encodeURIComponent(tenantSlug)}`
-        : APPLICATION_ROUTES.applicationStatus,
-      search
-    );
+    if (searchHasJobToken(search)) {
+      if (jobApplicationAlreadySubmitted === null) {
+        return { status: "loading" };
+      }
+      if (jobApplicationAlreadySubmitted) {
+        const href = applicationStatusHref(tenantSlug);
+        if (pathsEqual(href, normalizedPath)) {
+          return { status: "allow" };
+        }
+        return { status: "redirect", href };
+      }
+      return { status: "allow" };
+    }
+    const href = mergeOnboardingQuery(applicationStatusHref(tenantSlug), search);
     if (pathsEqual(href, normalizedPath)) {
       return { status: "allow" };
     }

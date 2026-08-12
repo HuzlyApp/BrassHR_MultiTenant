@@ -48,12 +48,6 @@ const SCHEDULE_ACTIVE_PREFIXES = [SCHEDULE_HOME, TIMESHEETS_HOME];
 
 const MY_SHIFTS_CHILDREN: WorkerSidebarLink[] = [
   { label: "Active Shifts", href: "#", matchPrefixes: [], disabled: true },
-  {
-    label: "Applications",
-    href: "/application/applicant-dashboard/applications",
-    matchPrefixes: ["/application/applicant-dashboard/applications"],
-    matchExact: true,
-  },
   { label: "Interviews", href: "#", matchPrefixes: [], disabled: true },
 ];
 
@@ -105,6 +99,12 @@ const PROFILE_CHILDREN: WorkerSidebarLink[] = [
     label: "Personal Information",
     href: "/application/applicant-dashboard/profile",
     matchPrefixes: ["/application/applicant-dashboard/profile"],
+    matchExact: true,
+  },
+  {
+    label: "Applications",
+    href: "/application/applicant-dashboard/applications",
+    matchPrefixes: ["/application/applicant-dashboard/applications"],
     matchExact: true,
   },
   {
@@ -197,6 +197,7 @@ export const WORKER_SIDEBAR_SECTIONS: WorkerSidebarSection[] = [
     iconType: ICON.profile,
     matchPrefixes: [
       "/application/applicant-dashboard/profile",
+      "/application/applicant-dashboard/applications",
       "/application/applicant-dashboard/documents",
       "/application/applicant-dashboard/licenses",
     ],

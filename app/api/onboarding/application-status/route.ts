@@ -6,6 +6,7 @@ import {
   type ApplicationStatusKey,
 } from "@/lib/applicant-portal";
 import { ensureWorkerOnboardingProgress } from "@/lib/onboarding/ensure-worker-progress";
+import { listApplicantJobApplications } from "@/lib/onboarding/list-applicant-job-applications";
 import { resolveWorkerByApplicantId } from "@/lib/onboarding/resolve-worker-context";
 import { getSupabaseUrl } from "@/lib/supabase-env";
 
@@ -82,11 +83,19 @@ export async function GET(req: NextRequest) {
       workerUpdatedAt: worker?.updated_at ? String(worker.updated_at) : null,
     });
 
+    const jobApplications = await listApplicantJobApplications(supabase, {
+      workerId: ctx.workerId,
+      tenantId: ctx.tenantId,
+      applicantAuthUserId: ctx.userId,
+      workerStatus: worker?.status ? String(worker.status) : null,
+    });
+
     return NextResponse.json({
       applicationStatus,
       statusLabel: applicantStatusLabel(worker?.status as string | null | undefined),
       submittedAt,
       onboardingProgressStatus: progressRow?.status ? String(progressRow.status) : progress.status,
+      jobApplications,
     });
   } catch (err: unknown) {
     console.error("[onboarding/application-status]", err);

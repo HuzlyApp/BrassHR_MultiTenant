@@ -943,6 +943,106 @@ type StartApplicationInput = {
   email?: string | null;
 };
 
+export type JobApplicationCheckResult = {
+  exists: boolean;
+  alreadySubmitted: boolean;
+  applicationId: string | null;
+};
+
+/** Read-only: whether this applicant already has an active application for the job. */
+export async function checkExistingJobApplication(
+  supabase: DbClient,
+  input: StartApplicationInput
+): Promise<JobApplicationCheckResult> {
+  const { data: job, error: jobError } = await supabase
+    .from("job_requisitions")
+    .select("id")
+    .eq("tenant_id", input.tenantId)
+    .eq("public_job_token", input.jobToken)
+    .eq("status", "published")
+    .maybeSingle();
+  if (jobError) throw jobError;
+  if (!job?.id) {
+    return { exists: false, alreadySubmitted: false, applicationId: null };
+  }
+
+  const normalizedEmail = input.email ? normalizeApplicantEmail(input.email) : null;
+  let profileQuery = supabase
+    .from("applicant_profiles")
+    .select("id")
+    .eq("tenant_id", input.tenantId);
+  profileQuery = normalizedEmail
+    ? profileQuery.eq("normalized_email", normalizedEmail)
+    : profileQuery.eq("auth_user_id", input.applicantAuthUserId);
+  const { data: existingProfile, error: profileLookupError } = await profileQuery.maybeSingle();
+  if (profileLookupError) throw profileLookupError;
+
+  const profileId = existingProfile?.id ? String(existingProfile.id) : null;
+
+  const lookupExisting = async () => {
+    if (profileId) {
+      const { data, error } = await supabase
+        .from("job_applications")
+        .select("id, submitted_at, status")
+        .eq("tenant_id", input.tenantId)
+        .eq("job_requisition_id", job.id)
+        .eq("applicant_profile_id", profileId)
+        .not("status", "in", '("rejected","withdrawn")')
+        .maybeSingle();
+      if (error) throw error;
+      if (data) return data;
+    }
+
+    if (input.workerId) {
+      const { data, error } = await supabase
+        .from("job_applications")
+        .select("id, submitted_at, status")
+        .eq("tenant_id", input.tenantId)
+        .eq("job_requisition_id", job.id)
+        .eq("worker_id", input.workerId)
+        .not("status", "in", '("rejected","withdrawn")')
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    }
+
+    return null;
+  };
+
+  const existingApplication = await lookupExisting();
+  if (!existingApplication?.id) {
+    const { data: byAuth, error: byAuthError } = await supabase
+      .from("job_applications")
+      .select("id, submitted_at, status")
+      .eq("tenant_id", input.tenantId)
+      .eq("job_requisition_id", job.id)
+      .eq("applicant_auth_user_id", input.applicantAuthUserId)
+      .not("status", "in", '("rejected","withdrawn")')
+      .maybeSingle();
+    if (byAuthError) throw byAuthError;
+    if (byAuth?.id) {
+      const submittedAt = byAuth.submitted_at ? String(byAuth.submitted_at) : null;
+      return {
+        exists: true,
+        alreadySubmitted: Boolean(submittedAt?.trim()),
+        applicationId: String(byAuth.id),
+      };
+    }
+
+    return { exists: false, alreadySubmitted: false, applicationId: null };
+  }
+
+  const submittedAt = existingApplication.submitted_at
+    ? String(existingApplication.submitted_at)
+    : null;
+
+  return {
+    exists: true,
+    alreadySubmitted: Boolean(submittedAt?.trim()),
+    applicationId: String(existingApplication.id),
+  };
+}
+
 export async function startOrResumeJobApplication(
   supabase: DbClient,
   input: StartApplicationInput
@@ -1027,7 +1127,7 @@ export async function startOrResumeJobApplication(
 
   const { data: existingApplication, error: existingError } = await supabase
     .from("job_applications")
-    .select("id, applicant_workflow_instance_id, status")
+    .select("id, applicant_workflow_instance_id, status, submitted_at")
     .eq("tenant_id", input.tenantId)
     .eq("job_requisition_id", job.id)
     .eq("applicant_profile_id", profileId)
@@ -1042,7 +1142,7 @@ export async function startOrResumeJobApplication(
   if (input.workerId) {
     const { data: byWorker, error: byWorkerError } = await supabase
       .from("job_applications")
-      .select("id, applicant_workflow_instance_id, status")
+      .select("id, applicant_workflow_instance_id, status, submitted_at")
       .eq("tenant_id", input.tenantId)
       .eq("job_requisition_id", job.id)
       .eq("worker_id", input.workerId)
@@ -1052,6 +1152,19 @@ export async function startOrResumeJobApplication(
     if (byWorker) {
       return { application: byWorker, resumed: true };
     }
+  }
+
+  const { data: byAuth, error: byAuthError } = await supabase
+    .from("job_applications")
+    .select("id, applicant_workflow_instance_id, status, submitted_at")
+    .eq("tenant_id", input.tenantId)
+    .eq("job_requisition_id", job.id)
+    .eq("applicant_auth_user_id", input.applicantAuthUserId)
+    .not("status", "in", '("rejected","withdrawn")')
+    .maybeSingle();
+  if (byAuthError) throw byAuthError;
+  if (byAuth) {
+    return { application: byAuth, resumed: true };
   }
 
   const { data: application, error: applicationError } = await supabase
@@ -1064,7 +1177,7 @@ export async function startOrResumeJobApplication(
       worker_id: input.workerId ?? null,
       workflow_id: workflowId,
     })
-    .select("id, status")
+    .select("id, status, submitted_at")
     .single();
 
   if (applicationError) {
@@ -1075,7 +1188,7 @@ export async function startOrResumeJobApplication(
     if (isDuplicate) {
       const { data: raced } = await supabase
         .from("job_applications")
-        .select("id, applicant_workflow_instance_id, status")
+        .select("id, applicant_workflow_instance_id, status, submitted_at")
         .eq("tenant_id", input.tenantId)
         .eq("job_requisition_id", job.id)
         .eq("applicant_profile_id", profileId)
@@ -1172,7 +1285,7 @@ export async function startOrResumeJobApplication(
     .update({ applicant_workflow_instance_id: instance.id })
     .eq("id", application.id)
     .eq("tenant_id", input.tenantId)
-    .select("id, applicant_workflow_instance_id, status")
+    .select("id, applicant_workflow_instance_id, status, submitted_at")
     .single();
   if (linkError) throw linkError;
 

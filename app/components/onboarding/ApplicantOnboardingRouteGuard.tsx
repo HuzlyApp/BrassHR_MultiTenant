@@ -4,9 +4,14 @@ import { useEffect, useMemo, useRef } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useOnboardingConfigOptional } from "@/app/components/onboarding/OnboardingConfigProvider";
 import { useApplicantSession } from "@/lib/onboarding/applicant-session-context";
+import { searchHasJobToken } from "@/lib/onboarding/applicant-job-application-context";
 import { resolveApplicantOnboardingRoute } from "@/lib/onboarding/resolve-applicant-onboarding-route";
 import { resolveApplicantEnabledSteps } from "@/lib/onboarding/tenant-step-navigation";
 import { useAutoSkipNonNavigableApplicantSteps } from "@/lib/onboarding/use-auto-skip-non-navigable-steps";
+import {
+  readJobTokenFromSearch,
+  useJobApplicationAlreadySubmitted,
+} from "@/lib/onboarding/use-job-application-already-submitted";
 import { resolveClientOnboardingTenantSlug } from "@/lib/tenant/client-onboarding-slug";
 import { useOnboardingTenant } from "@/lib/tenant/use-onboarding-tenant";
 
@@ -32,6 +37,20 @@ function OnboardingRouteGuardInner({ children }: { children: React.ReactNode }) 
   const isApplicantDashboard =
     pathname.startsWith("/application/applicant-dashboard") ||
     pathname.startsWith("/application/home");
+
+  const jobToken = useMemo(() => readJobTokenFromSearch(search), [search]);
+  const shouldCheckJobApplication =
+    !isApplicantDashboard &&
+    !isDraftPreview &&
+    Boolean(jobToken) &&
+    searchHasJobToken(search);
+
+  const jobApplicationAlreadySubmitted = useJobApplicationAlreadySubmitted({
+    jobToken,
+    tenantSlug,
+    sessionReady,
+    enabled: shouldCheckJobApplication,
+  });
 
   const enabledSteps = useMemo(
     () => resolveApplicantEnabledSteps(onboarding?.config ?? null, onboarding?.loadingConfig ?? true),
@@ -64,6 +83,9 @@ function OnboardingRouteGuardInner({ children }: { children: React.ReactNode }) 
       pathname,
       search,
       isDraftPreview,
+      jobApplicationAlreadySubmitted: shouldCheckJobApplication
+        ? jobApplicationAlreadySubmitted
+        : null,
     });
   }, [
     isApplicantDashboard,
@@ -74,6 +96,8 @@ function OnboardingRouteGuardInner({ children }: { children: React.ReactNode }) 
     isDraftPreview,
     pathname,
     search,
+    shouldCheckJobApplication,
+    jobApplicationAlreadySubmitted,
   ]);
 
   useEffect(() => {
@@ -88,7 +112,11 @@ function OnboardingRouteGuardInner({ children }: { children: React.ReactNode }) 
 
   const showLoading =
     decision.status === "loading" &&
-    (!onboarding?.progressHydrated || onboarding.loadingConfig || sessionLoading || !sessionReady);
+    (!onboarding?.progressHydrated ||
+      onboarding.loadingConfig ||
+      sessionLoading ||
+      !sessionReady ||
+      (shouldCheckJobApplication && jobApplicationAlreadySubmitted === null));
 
   if (showLoading) {
     return (

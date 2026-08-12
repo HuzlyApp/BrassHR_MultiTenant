@@ -344,6 +344,7 @@ export async function POST(req: Request) {
         fileType,
         fileSizeBytes,
         extractedText: text,
+        tenantId: workerCtx.tenantId,
       }),
       RESUME_DB_TIMEOUT_MS,
       "Resume record persistence",
@@ -354,7 +355,12 @@ export async function POST(req: Request) {
     })
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Failed to save resume record"
-    console.error("[upload-resume] worker_resumes", e)
+    console.error("[upload-resume] worker_resumes", {
+      message: msg,
+      error: e,
+      workerId: workerCtx.workerId,
+      tenantId: workerCtx.tenantId,
+    })
     return NextResponse.json({ error: msg }, { status: 500 })
   }
 
