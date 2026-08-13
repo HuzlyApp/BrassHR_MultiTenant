@@ -9,6 +9,8 @@ import {
   upsertApplicationScreeningAnswers,
   type ApplicationScreeningAnswerInput,
 } from "@/lib/jobs/screening-questions";
+import { PARAMETERIZED_JOB_APPLICATION_WORKFLOW_STEP_ID } from "@/lib/onboarding/complete-non-navigable-step";
+import { markTenantStepCompletedByWorkflowLibraryId } from "@/lib/onboarding/mark-tenant-step-completed";
 import { readOnboardingTenantSlugFromRequest, resolveOnboardingWorker } from "@/lib/onboarding/resolve-onboarding-worker";
 import { resolvePublicTenant } from "@/lib/jobs/tenant";
 
@@ -148,6 +150,31 @@ export async function POST(req: NextRequest) {
         (item) => item && typeof item.questionId === "string" && item.questionId.trim()
       ),
     });
+
+    // Persist Parameterized Job Application as completed once screening answers are saved.
+    // Do not rely on client auto-skip (previously wrote `skipped` → orange required_missing).
+    try {
+      await markTenantStepCompletedByWorkflowLibraryId(supabase, {
+        workerId: ctx.workerId,
+        tenantId: tenant.id,
+        workflowStepId: PARAMETERIZED_JOB_APPLICATION_WORKFLOW_STEP_ID,
+        data: {
+          source: "job_screening_answers",
+          application_id: String(application.application.id),
+        },
+      });
+    } catch (markError) {
+      console.error("[job-screening-answers] failed to complete parameterized step", markError);
+      return NextResponse.json(
+        {
+          error:
+            markError instanceof Error
+              ? markError.message
+              : "Screening answers saved but workflow step could not be completed",
+        },
+        { status: 500 }
+      );
+    }
 
     const context = await loadApplicationScreeningContext(
       supabase,

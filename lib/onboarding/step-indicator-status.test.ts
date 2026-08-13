@@ -59,6 +59,28 @@ describe("deriveStepIndicatorState", () => {
       })
     ).toBe("completed");
   });
+
+  it("keeps a prior completed Parameterized Job Application green while on References", () => {
+    expect(
+      deriveStepIndicatorState({
+        dbStatus: "completed",
+        stepNumber: 2,
+        currentStepNumber: 3,
+        isRequired: true,
+      })
+    ).toBe("completed");
+  });
+
+  it("does not treat pending-before-current required as completed", () => {
+    expect(
+      deriveStepIndicatorState({
+        dbStatus: "pending",
+        stepNumber: 2,
+        currentStepNumber: 3,
+        isRequired: true,
+      })
+    ).toBe("required_missing");
+  });
 });
 
 describe("isStepIndicatorAccessible", () => {
