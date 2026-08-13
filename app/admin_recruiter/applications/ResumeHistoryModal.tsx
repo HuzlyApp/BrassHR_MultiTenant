@@ -32,7 +32,7 @@ type ResumeHistoryModalProps = {
 };
 
 const INDEX_COL_CLASS = "w-8 shrink-0";
-const ICON_COL_CLASS = "w-9 shrink-0";
+const ICON_COL_CLASS = "w-[1.8rem] shrink-0";
 const ACTIONS_COL_CLASS = "flex w-[4.75rem] shrink-0 items-center justify-center gap-1";
 const UPLOADER_COL_CLASS = "w-[7.5rem] shrink-0 min-w-0 text-right sm:w-[8.5rem]";
 
@@ -80,7 +80,7 @@ function ResumeHistoryRow({
         {index}
       </span>
 
-      <BrandedFileTypeIcon type={fileIconType} className={`${ICON_COL_CLASS} h-9 w-9`} />
+      <BrandedFileTypeIcon type={fileIconType} className={`${ICON_COL_CLASS} h-[1.8rem] w-[1.8rem]`} />
 
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-semibold text-[color:var(--brand-primary)]">
@@ -210,7 +210,7 @@ export function ResumeHistoryModal({
             <div>
               <div className="mb-3 flex items-center gap-3 px-3 sm:px-4">
                 <span className={`${INDEX_COL_CLASS} inline-flex h-8`} aria-hidden />
-                <span className={`${ICON_COL_CLASS} inline-flex h-9`} aria-hidden />
+                <span className={`${ICON_COL_CLASS} inline-flex h-[1.8rem]`} aria-hidden />
                 <p className="min-w-0 flex-1 text-sm font-semibold text-[#334155]">Resumes</p>
                 <span className={ACTIONS_COL_CLASS} aria-hidden />
                 <p className={`${UPLOADER_COL_CLASS} text-sm font-semibold text-[#334155]`}>
@@ -245,7 +245,7 @@ export function ResumeHistoryModal({
             type="button"
             disabled={reuploadBusy || reuploadDisabled || adminUploadLimitReached}
             onClick={onReupload}
-            className="admin-recruiter-action-chip inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-[#E5E7EB] bg-white px-4 text-sm font-medium text-[#525252] transition hover:bg-[#F8FAFC] disabled:opacity-50"
+            className="admin-recruiter-action-chip inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-transparent bg-[color:var(--brand-primary)] px-4 text-sm font-semibold text-white transition hover:brightness-95 disabled:opacity-50"
           >
             {reuploadBusy ? (
               <Loader2 className="h-4 w-4 animate-spin" aria-hidden />

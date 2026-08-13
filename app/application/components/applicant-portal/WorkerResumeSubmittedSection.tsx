@@ -317,14 +317,11 @@ function UploadResumeModal({
                   } ${!selectedJobId ? "text-[#94A3B8]" : ""}`}
                 >
                   <option value="">Select a job</option>
-                  {appliedJobs.map((job) => {
-                    const count = workerUploadCountForJob(resumes, job.applicationId);
-                    return (
-                      <option key={job.applicationId} value={job.applicationId}>
-                        {job.jobTitle} ({count}/{MAX_RESUME_UPLOADS_PER_ROLE})
-                      </option>
-                    );
-                  })}
+                  {appliedJobs.map((job) => (
+                    <option key={job.applicationId} value={job.applicationId}>
+                      {job.jobTitle}
+                    </option>
+                  ))}
                 </select>
                 {fieldErrors.job ? (
                   <p className="mt-1 text-xs text-red-600">{fieldErrors.job}</p>
