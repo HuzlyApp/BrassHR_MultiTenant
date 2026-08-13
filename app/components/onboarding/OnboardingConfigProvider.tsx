@@ -24,6 +24,7 @@ import { safeFetchJson } from "@/lib/api/safe-fetch-json";
 import { useApplicantSession } from "@/lib/onboarding/applicant-session-context";
 import { normalizeJobToken } from "@/lib/jobs/public-application-routing";
 import { currentApplicationJobToken } from "@/lib/tenant/with-tenant";
+import { ensureJobApplicationForCurrentJob } from "@/lib/onboarding/client-job-application";
 
 export type OnboardingConfigSource =
   | "published"
@@ -137,12 +138,19 @@ export default function OnboardingConfigProvider({ children }: { children: React
   const progressFetchSeq = useRef(0);
   const configFetchSeq = useRef(0);
 
-  const fetchProgress = useCallback(async (aid: string, slug: string) => {
+  const fetchProgress = useCallback(async (aid: string, slug: string, jobToken?: string | null) => {
     const requestId = ++progressFetchSeq.current;
     setLoadingProgress(true);
     try {
+      const progressQuery = new URLSearchParams({
+        applicantId: aid,
+        tenant: slug,
+      });
+      const token = normalizeJobToken(jobToken);
+      if (token) progressQuery.set("job_token", token);
+
       const progRes = await safeFetchJson<{ progress?: WorkerOnboardingProgressPayload | null }>(
-        `/api/onboarding/progress?applicantId=${encodeURIComponent(aid)}&tenant=${encodeURIComponent(slug)}`,
+        `/api/onboarding/progress?${progressQuery}`,
         { cache: "no-store" }
       );
       if (requestId !== progressFetchSeq.current) return;
@@ -151,6 +159,8 @@ export default function OnboardingConfigProvider({ children }: { children: React
         setProgress((prev) => {
           if (!incoming) return null;
           if (!prev) return incoming;
+          // Different application / progress row — never merge prior job completions.
+          if (prev.progressId !== incoming.progressId) return incoming;
           return mergeProgressMonotonic(prev, incoming);
         });
         setProgressHydrated(true);
@@ -276,13 +286,27 @@ export default function OnboardingConfigProvider({ children }: { children: React
     }
 
     if (aid && slug) {
-      await fetchProgress(aid, slug);
+      if (resolvedJobToken) {
+        const ensured = await ensureJobApplicationForCurrentJob({
+          applicantId: aid,
+          tenantSlug: slug,
+          jobToken: resolvedJobToken,
+        });
+        // Already submitted this job — do not hydrate onboarding progress for it.
+        if (ensured.alreadySubmitted) {
+          setProgress(null);
+          setProgressHydrated(true);
+          setLoadingProgress(false);
+          return;
+        }
+      }
+      await fetchProgress(aid, slug, resolvedJobToken);
     } else {
       setProgress(null);
       setProgressHydrated(true);
       setLoadingProgress(false);
     }
-  }, [fetchProgress, isDraftPreview, sessionReady, sessionLoading]);
+  }, [fetchProgress, isDraftPreview, sessionReady, sessionLoading, resolvedJobToken]);
 
   const refresh = useCallback(async () => {
     await refreshConfig();
@@ -294,6 +318,9 @@ export default function OnboardingConfigProvider({ children }: { children: React
   }, [refreshConfig, tenantFromUrl, resolvedJobToken]);
 
   useEffect(() => {
+    // When the job token changes, drop prior job progress until the scoped fetch returns.
+    setProgress(null);
+    setProgressHydrated(false);
     void refreshProgressOnly();
   }, [refreshProgressOnly, tenantFromUrl, resolvedJobToken, sessionReady, sessionLoading]);
 

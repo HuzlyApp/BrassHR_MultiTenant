@@ -8,6 +8,7 @@ import type { WorkerOnboardingProgressPayload } from "@/lib/onboarding/types";
 export type SubmitOnboardingApplicationInput = {
   applicantId: string;
   tenantSlug: string;
+  applicationId?: string | null;
 };
 
 export type SubmitOnboardingApplicationResult =
@@ -45,7 +46,9 @@ export async function submitOnboardingApplication(
     return { ok: false, status: 400, error: "No onboarding configuration for tenant" };
   }
 
-  const progress = await ensureWorkerOnboardingProgress(supabase, ctx.workerId, ctx.tenantId);
+  const progress = await ensureWorkerOnboardingProgress(supabase, ctx.workerId, ctx.tenantId, {
+    applicationId: input.applicationId,
+  });
 
   if (progress.submittedAt) {
     return {
@@ -117,7 +120,9 @@ export async function submitOnboardingApplication(
 
   if (workerErr) throw workerErr;
 
-  const refreshed = await ensureWorkerOnboardingProgress(supabase, ctx.workerId, ctx.tenantId);
+  const refreshed = await ensureWorkerOnboardingProgress(supabase, ctx.workerId, ctx.tenantId, {
+    applicationId: input.applicationId,
+  });
 
   const payload: WorkerOnboardingProgressPayload = {
     ...refreshed,

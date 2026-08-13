@@ -559,4 +559,25 @@ describe("resolveApplicantOnboardingRoute", () => {
       expect(decision.href).not.toContain("job_token");
     }
   });
+
+  it("redirects re-apply on a submitted job even without progress.submittedAt", () => {
+    const decision = resolveApplicantOnboardingRoute(
+      baseInput({
+        progress: {
+          progressId: "prog-fresh",
+          status: "in_progress",
+          submittedAt: null,
+          steps: [],
+        },
+        pathname: APPLICATION_ROUTES.addResume,
+        search: "?tenant=zipstaff&job_token=job-token-abc",
+        jobApplicationAlreadySubmitted: true,
+      })
+    );
+    expect(decision.status).toBe("redirect");
+    if (decision.status === "redirect") {
+      expect(decision.href).toContain("application-status");
+      expect(decision.href).not.toContain("job_token");
+    }
+  });
 });

@@ -165,7 +165,29 @@ export default function Step1Upload() {
       jobToken,
     }).then((result) => {
       if (result.alreadySubmitted) {
-        router.replace(applicationPath("/application/application-status", tenantSlug))
+        router.replace(
+          `/application/application-status?tenant=${encodeURIComponent(tenantSlug)}`
+        )
+        return
+      }
+      // After starting a new job, draft localStorage may have been cleared —
+      // refresh the resume UI from whatever remains for this application.
+      const hasSuccessfulUpload = Boolean(
+        localStorage.getItem("resumeStoragePath")?.trim() ||
+          localStorage.getItem("resumeId")?.trim()
+      )
+      if (!hasSuccessfulUpload) {
+        localStorage.removeItem("resumeName")
+        localStorage.removeItem("resumeSizeBytes")
+        localStorage.removeItem("resumeMimeType")
+        setSavedResumeName("")
+        setSavedResumeSizeBytes(null)
+        setFile(null)
+      } else {
+        setSavedResumeName(localStorage.getItem("resumeName") || "")
+        const sizeRaw = localStorage.getItem("resumeSizeBytes")
+        const sizeNum = sizeRaw ? Number(sizeRaw) : null
+        setSavedResumeSizeBytes(sizeNum != null && Number.isFinite(sizeNum) ? sizeNum : null)
       }
     })
   }, [branding.slug, jobToken, router, searchParams])

@@ -30,6 +30,24 @@ export function persistApplicationJobContext(input: {
   }
 }
 
+/** Clear UI draft keys so a new job apply does not show another job's resume/files. */
+export function clearApplicantJobDraftLocalState(): void {
+  if (typeof window === "undefined") return;
+  localStorage.removeItem("resumeName");
+  localStorage.removeItem("resumeSizeBytes");
+  localStorage.removeItem("resumeMimeType");
+  localStorage.removeItem("resumeStoragePath");
+  localStorage.removeItem("resumeId");
+  localStorage.removeItem("parsedResume");
+  localStorage.removeItem("identityDocuments");
+  localStorage.removeItem("skillStatus");
+  localStorage.removeItem("referencesCount");
+  localStorage.removeItem("referenceData");
+  localStorage.removeItem("referenceDataDraft");
+  localStorage.removeItem("step1TermsAccepted");
+  localStorage.removeItem("step1ReviewCompleted");
+}
+
 export async function ensureJobApplicationForCurrentJob(input: {
   applicantId: string;
   tenantSlug: string;
@@ -43,6 +61,7 @@ export async function ensureJobApplicationForCurrentJob(input: {
   }
 
   try {
+    const previousApplicationId = readJobApplicationId();
     const res = await fetch("/api/onboarding/job-application/start", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -55,6 +74,7 @@ export async function ensureJobApplicationForCurrentJob(input: {
     const payload = (await res.json().catch(() => ({}))) as {
       applicationId?: string;
       alreadySubmitted?: boolean;
+      resumed?: boolean;
       error?: string;
     };
     if (!res.ok) {
@@ -67,7 +87,15 @@ export async function ensureJobApplicationForCurrentJob(input: {
       };
     }
     if (payload.applicationId) {
-      persistJobApplicationId(payload.applicationId);
+      const nextId = String(payload.applicationId);
+      // Fresh application (or switched job) — do not show prior job's local draft UI.
+      if (!payload.resumed || previousApplicationId !== nextId) {
+        clearApplicantJobDraftLocalState();
+      }
+      persistApplicationJobContext({
+        applicationId: nextId,
+        jobToken,
+      });
     }
     return { applicationId: payload.applicationId, alreadySubmitted: false };
   } catch {

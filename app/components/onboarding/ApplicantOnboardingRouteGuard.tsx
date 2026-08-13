@@ -50,6 +50,7 @@ function OnboardingRouteGuardInner({ children }: { children: React.ReactNode }) 
     tenantSlug,
     sessionReady,
     enabled: shouldCheckJobApplication,
+    recheckKey: onboarding?.progress?.submittedAt ?? null,
   });
 
   const enabledSteps = useMemo(
@@ -75,7 +76,8 @@ function OnboardingRouteGuardInner({ children }: { children: React.ReactNode }) 
     return resolveApplicantOnboardingRoute({
       isLoadingSession: sessionLoading || !sessionReady,
       isLoadingTenant: !tenantSlug && !isDraftPreview,
-      isLoadingConfig: onboarding.loadingConfig,
+      // Keep the current screen mounted while a background refresh reloads config.
+      isLoadingConfig: onboarding.loadingConfig && !onboarding.config,
       isLoadingProgress: initialLoad,
       tenantSlug,
       config: onboarding.config,

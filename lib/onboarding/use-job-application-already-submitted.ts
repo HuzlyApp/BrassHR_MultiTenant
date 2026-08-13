@@ -10,6 +10,8 @@ export function useJobApplicationAlreadySubmitted(input: {
   tenantSlug: string | null;
   sessionReady: boolean;
   enabled: boolean;
+  /** When this changes (e.g. progress.submittedAt), re-check submission state. */
+  recheckKey?: string | null;
 }): JobApplicationCheckState {
   const [alreadySubmitted, setAlreadySubmitted] = useState<JobApplicationCheckState>(null);
 
@@ -56,7 +58,13 @@ export function useJobApplicationAlreadySubmitted(input: {
     return () => {
       alive = false;
     };
-  }, [input.enabled, input.jobToken, input.sessionReady, input.tenantSlug]);
+  }, [
+    input.enabled,
+    input.jobToken,
+    input.sessionReady,
+    input.tenantSlug,
+    input.recheckKey,
+  ]);
 
   return alreadySubmitted;
 }

@@ -130,6 +130,12 @@ export function resolveApplicantOnboardingRoute(
     return { status: "allow" };
   }
 
+  // Success / status screens are always reachable (e.g. right after submit, before
+  // client progress refresh has hydrated submittedAt).
+  if (isPostSubmitAllowedPath(normalizedPath)) {
+    return { status: "allow" };
+  }
+
   if (isLoadingSession || isLoadingTenant || isLoadingConfig || isLoadingProgress || isLoadingResume) {
     return { status: "loading" };
   }
@@ -147,21 +153,27 @@ export function resolveApplicantOnboardingRoute(
     return { status: "allow" };
   }
 
+  // Same job already submitted — always send them to status (even if a fresh
+  // application-scoped progress row has no submittedAt yet).
+  if (searchHasJobToken(search)) {
+    if (jobApplicationAlreadySubmitted === null) {
+      return { status: "loading" };
+    }
+    if (jobApplicationAlreadySubmitted) {
+      const href = applicationStatusHref(tenantSlug);
+      if (pathsEqual(href, normalizedPath)) {
+        return { status: "allow" };
+      }
+      return { status: "redirect", href };
+    }
+  }
+
   if (progress?.submittedAt) {
     if (isPostSubmitAllowedPath(normalizedPath) || isExemptApplicantPath(normalizedPath)) {
       return { status: "allow" };
     }
     if (searchHasJobToken(search)) {
-      if (jobApplicationAlreadySubmitted === null) {
-        return { status: "loading" };
-      }
-      if (jobApplicationAlreadySubmitted) {
-        const href = applicationStatusHref(tenantSlug);
-        if (pathsEqual(href, normalizedPath)) {
-          return { status: "allow" };
-        }
-        return { status: "redirect", href };
-      }
+      // New job apply after a prior submission — allow this job's onboarding.
       return { status: "allow" };
     }
     const href = mergeOnboardingQuery(applicationStatusHref(tenantSlug), search);

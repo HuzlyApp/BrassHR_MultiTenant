@@ -1,6 +1,6 @@
 "use client"
 
-import { applicationPath } from "@/lib/tenant/with-tenant"
+import { currentApplicationJobToken } from "@/lib/tenant/with-tenant"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
@@ -16,8 +16,9 @@ import OnboardingLayout from "@/app/components/OnboardingLayout"
 import OnboardingStepper from "@/app/components/OnboardingStepper"
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext"
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding"
-import OnboardingSuccessPopup from "@/app/components/OnboardingSuccessPopup"
+import { APPLICATION_ROUTES } from "@/lib/onboarding/application-routes"
 import { buildProgressStatusMaps } from "@/lib/onboarding/compute-max-allowed-from-progress"
+import { sendApplicationSubmissionEmail } from "@/lib/onboarding/send-application-submission-email"
 import { countCompleteReferencesFromStorage } from "@/lib/referencesValidation"
 import type { SummaryDisplayStatus } from "@/lib/onboarding/applicant-summary-sections"
 import {
@@ -127,7 +128,6 @@ export default function SummaryPage() {
   )
   const [submitGuardError, setSubmitGuardError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
-  const [success, setSuccess] = useState(false)
   /** After mount, safe to read localStorage during render (legacy skill counts). */
   const [clientStorageReady, setClientStorageReady] = useState(false)
 
@@ -354,6 +354,11 @@ export default function SummaryPage() {
     localStorage.removeItem("referenceDataDraft")
   }
 
+  const applicationStatusHref = (tenantSlug: string) => {
+    // Do not preserve job_token — status is a post-submit surface.
+    return `${APPLICATION_ROUTES.applicationStatus}?tenant=${encodeURIComponent(tenantSlug)}`
+  }
+
   const submitApplication = async () => {
     setSubmitGuardError(null)
     const applicantId = localStorage.getItem("applicantId")?.trim() || ""
@@ -372,17 +377,34 @@ export default function SummaryPage() {
     try {
       const jobApplicationId =
         localStorage.getItem("jobApplicationId")?.trim() || undefined
+      const jobToken = currentApplicationJobToken() || undefined
       const res = await fetch("/api/onboarding/submit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ applicantId, tenantSlug, jobApplicationId }),
+        body: JSON.stringify({ applicantId, tenantSlug, jobApplicationId, jobToken }),
       })
       const json = (await res.json().catch(() => ({}))) as { error?: string }
       if (!res.ok) {
         throw new Error(json.error || "Could not submit your application.")
       }
-      await onboarding?.refresh?.()
-      setSuccess(true)
+
+      clearLocalOnboardingDrafts()
+
+      void fetch("/api/onboarding/continuation-session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ completed: true }),
+      }).catch(() => {
+        /* best-effort tracking only */
+      })
+      void sendApplicationSubmissionEmail(applicantId).catch(() => {
+        /* best-effort; applicant still lands on status */
+      })
+
+      // Navigate immediately — refresh() sets loadingConfig and remounts this page
+      // before the success popup can show, leaving the applicant stuck on Summary.
+      router.replace(applicationStatusHref(tenantSlug))
+      void onboarding?.refresh?.()
     } catch (e) {
       setSubmitGuardError(e instanceof Error ? e.message : "Could not submit your application.")
       setLoading(false)
@@ -396,11 +418,6 @@ export default function SummaryPage() {
       return
     }
     void submitApplication()
-  }
-
-  const handleSuccessContinue = () => {
-    clearLocalOnboardingDrafts()
-    router.push(applicationPath("/application/success"))
   }
 
   return (
@@ -488,10 +505,6 @@ export default function SummaryPage() {
           </div>
         </div>
       </div>
-      <OnboardingSuccessPopup
-        open={success}
-        onContinue={handleSuccessContinue}
-      />
     </OnboardingLayout>
     </>
   )

@@ -19,6 +19,7 @@ import { isValidStep1Email } from "@/lib/onboardingStep1Validation";
 import { getEnabledTenantSteps } from "@/lib/onboarding/tenant-step-navigation";
 import { persistFarthestReachedStepIndex } from "@/lib/onboarding/persist-farthest-reached-step";
 import { resolveOnboardingProgressStep } from "@/lib/onboarding/resolve-onboarding-progress-step";
+import { resolveJobApplicationIdForApplicant } from "@/lib/onboarding/resolve-job-application-id";
 import type { OnboardingStepStatus, TenantOnboardingConfig } from "@/lib/onboarding/types";
 
 export const runtime = "nodejs";
@@ -27,6 +28,7 @@ type Body = {
   applicantId?: string;
   tenantSlug?: string;
   jobToken?: string;
+  applicationId?: string;
   stepId?: string;
   stepKey?: string;
   status?: OnboardingStepStatus;
@@ -65,11 +67,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Worker not found" }, { status: 404 });
     }
 
-    const payload = await ensureWorkerOnboardingProgress(supabase, ctx.workerId, ctx.tenantId);
-
     const jobToken = normalizeJobToken(
       typeof body.jobToken === "string" ? body.jobToken : null
     );
+    const applicationId = await resolveJobApplicationIdForApplicant(supabase, {
+      tenantId: ctx.tenantId,
+      applicantAuthUserId: applicantId,
+      workerId: ctx.workerId,
+      jobToken,
+      applicationId: typeof body.applicationId === "string" ? body.applicationId : null,
+    });
+    const ensureProgress = () =>
+      ensureWorkerOnboardingProgress(supabase, ctx.workerId, ctx.tenantId, { applicationId });
+
+    const payload = await ensureProgress();
 
     let tenantConfig = await loadTenantOnboardingConfig(supabase, ctx.tenantId, {
       workerFacing: true,
@@ -108,11 +119,7 @@ export async function POST(req: NextRequest) {
         stepKey: body.stepKey,
       });
       if (stepRow) {
-        progressPayload = await ensureWorkerOnboardingProgress(
-          supabase,
-          ctx.workerId,
-          ctx.tenantId
-        );
+        progressPayload = await ensureProgress();
       }
     }
 
@@ -197,7 +204,7 @@ export async function POST(req: NextRequest) {
       terminalStatuses.includes(existingStatus) &&
       downgradeStatuses.includes(status)
     ) {
-      const progress = await ensureWorkerOnboardingProgress(supabase, ctx.workerId, ctx.tenantId);
+      const progress = await ensureProgress();
       return NextResponse.json({ progress, noop: true });
     }
 
@@ -262,6 +269,7 @@ export async function POST(req: NextRequest) {
           tenant_id: ctx.tenantId,
           onboarding_step_id: stepId,
           status: "pending",
+          ...(applicationId ? { application_id: applicationId } : {}),
         });
       if (insertMissingErr && insertMissingErr.code !== "23505") throw insertMissingErr;
     }
@@ -291,7 +299,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const progress = await ensureWorkerOnboardingProgress(supabase, ctx.workerId, ctx.tenantId);
+    const progress = await ensureProgress();
     return NextResponse.json({ progress });
   } catch (err: unknown) {
     console.error("[onboarding/progress/step]", err);
