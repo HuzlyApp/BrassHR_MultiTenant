@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireStaffApiSession } from "@/lib/auth/api-session";
 import { resolveStaffTenantId } from "@/lib/jobs/tenant";
+import {
+  jobScreeningQuestionToInput,
+  loadJobScreeningQuestions,
+} from "@/lib/jobs/screening-questions";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 
 export async function GET(
@@ -61,6 +65,8 @@ export async function GET(
         ? `/jobs/${encodeURIComponent(publicToken)}?tenant=${encodeURIComponent(tenantSlug)}`
         : null;
 
+    const screeningQuestionRows = await loadJobScreeningQuestions(supabase, tenantId, id);
+
     return NextResponse.json({
       job,
       tenant: tenant
@@ -71,6 +77,7 @@ export async function GET(
           }
         : null,
       publicJobPath,
+      screeningQuestions: screeningQuestionRows.map(jobScreeningQuestionToInput),
       stats: {
         applicationsAll,
         applicationsNew,

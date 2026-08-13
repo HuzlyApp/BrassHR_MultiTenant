@@ -12,6 +12,7 @@ import {
   transitionJobStatus,
   unarchiveJobRequisition,
 } from "@/lib/jobs/service";
+import { parseScreeningQuestionsFromBody } from "@/lib/jobs/screening-questions";
 import { resolveStaffTenantId } from "@/lib/jobs/tenant";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 
@@ -137,6 +138,7 @@ export async function POST(req: NextRequest) {
           : rawRecord.overrideWorkflowId === null
             ? null
             : undefined,
+      screeningQuestions: parseScreeningQuestionsFromBody(rawRecord.screeningQuestions),
     });
     return NextResponse.json(result, { status: jobId ? 200 : 201 });
   } catch (error) {

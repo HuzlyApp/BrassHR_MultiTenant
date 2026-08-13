@@ -65,14 +65,42 @@ export async function resolveResumeTextForMatch(args: {
   tenantId: string;
   workerId?: string | null;
   applicantProfileId?: string | null;
+  jobApplicationId?: string | null;
 }): Promise<ResumeTextResult> {
-  const { supabase, tenantId, workerId, applicantProfileId } = args;
+  const { supabase, tenantId, workerId, applicantProfileId, jobApplicationId } = args;
 
+  if (jobApplicationId?.trim()) {
+    const { data: applicationResume } = await supabase
+      .from("worker_resumes")
+      .select("extracted_text, storage_path, file_name, original_file_name, uploaded_at")
+      .eq("tenant_id", tenantId)
+      .eq("job_application_id", jobApplicationId.trim())
+      .is("deleted_at", null)
+      .order("uploaded_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const extracted = (applicationResume?.extracted_text as string | null)?.trim();
+    if (extracted) {
+      const normalized = normalizeResumeWhitespace(extracted);
+      return {
+        text: normalized,
+        sanitized: sanitizeResumeForMatchAnalysis(normalized),
+        source: "worker_resumes",
+        path: (applicationResume?.storage_path as string | null) ?? null,
+      };
+    }
+  }
+
+  // Prefer job_application_id above. worker_id fallback is same-tenant only and
+  // must not run unless this application has no bound résumé.
   if (workerId) {
     const { data: resumeRow } = await supabase
       .from("worker_resumes")
       .select("extracted_text, storage_path, file_name, original_file_name, uploaded_at")
       .eq("worker_id", workerId)
+      .eq("tenant_id", tenantId)
+      .is("deleted_at", null)
       .order("uploaded_at", { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -101,6 +129,7 @@ export async function resolveResumeTextForMatch(args: {
 
     const { data: req } = await supabase
       .from("worker_requirements")
+      // Same-tenant worker fallback after job_application_id lookup above.
       .select("resume_path")
       .eq("worker_id", workerId)
       .maybeSingle();

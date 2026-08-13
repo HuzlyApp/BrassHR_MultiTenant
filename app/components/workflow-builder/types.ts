@@ -66,6 +66,7 @@ export type WorkflowNodeData = {
   required: boolean;
   settings: StepSettings;
   onDelete?: (id: string) => void;
+  phaseBanner?: "pre_hire" | "placement_gate" | null;
   [key: string]: unknown;
 };
 

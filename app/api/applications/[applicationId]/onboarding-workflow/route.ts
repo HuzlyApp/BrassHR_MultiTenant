@@ -5,6 +5,8 @@ import { loadTenantOnboardingConfig } from "@/lib/onboarding/load-tenant-config"
 import { resolveTenantIdBySlug } from "@/lib/onboarding/resolve-worker-context";
 import { getEnabledTenantSteps } from "@/lib/onboarding/tenant-step-navigation";
 import { tenantConfigToPublishedWorkflow } from "@/lib/onboarding/applicant-workflow";
+import { applyApplicantPhaseToWorkflow } from "@/lib/onboarding/workflow-phase";
+import { resolveApplicationWorkflowPhase } from "@/lib/onboarding/resolve-application-workflow-phase";
 import { loadOnboardingBuilderMeta } from "@/lib/onboarding/load-onboarding-builder-meta";
 import {
   getApplicantWorkflow as getApplicantWorkflowFromStore,
@@ -33,7 +35,12 @@ export async function GET(req: NextRequest, context: RouteContext) {
 
     const inMemory = resolvePublishedWorkflowForApplicant(tenant, applicationId.trim());
     if (inMemory) {
-      return NextResponse.json(inMemory);
+      const workflowPhase = inMemory.workflowPhase ?? "pre_hire";
+      return NextResponse.json({
+        ...applyApplicantPhaseToWorkflow(inMemory, workflowPhase),
+        workflowPhase,
+        applicationId: applicationId.trim(),
+      });
     }
 
     const url = getSupabaseUrl();
@@ -44,7 +51,12 @@ export async function GET(req: NextRequest, context: RouteContext) {
           tenant,
           applicationId: applicationId.trim(),
         });
-        return NextResponse.json(workflow);
+        const workflowPhase = workflow.workflowPhase ?? "pre_hire";
+        return NextResponse.json({
+          ...applyApplicantPhaseToWorkflow(workflow, workflowPhase),
+          workflowPhase,
+          applicationId: applicationId.trim(),
+        });
       } catch {
         return NextResponse.json({ error: "Supabase not configured" }, { status: 503 });
       }
@@ -63,16 +75,26 @@ export async function GET(req: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: "Published workflow not found" }, { status: 404 });
     }
 
-    const workflow = tenantConfigToPublishedWorkflow(
-      config,
-      tenant,
-      "worker_onboarding",
-      builder.publishStatus === "draft" ? "published" : "published"
+    const phaseRecord = await resolveApplicationWorkflowPhase(supabase, {
+      tenantId,
+      applicationId: applicationId.trim(),
+    });
+    const workflowPhase = phaseRecord?.phase ?? "pre_hire";
+    const workflow = applyApplicantPhaseToWorkflow(
+      tenantConfigToPublishedWorkflow(
+        config,
+        tenant,
+        "worker_onboarding",
+        builder.publishStatus === "draft" ? "published" : "published"
+      ),
+      workflowPhase
     );
 
     return NextResponse.json({
       ...workflow,
       status: "published",
+      workflowPhase,
+      applicationId: applicationId.trim(),
     });
   } catch (err: unknown) {
     console.error("[applications/onboarding-workflow]", err);

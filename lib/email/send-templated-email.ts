@@ -165,6 +165,8 @@ export async function sendOnboardingApplicantEmail(
       ? "welcome"
       : params.templateKey === "resume_continuation"
         ? "resume_continuation"
+      : params.templateKey === "placement_accepted"
+        ? "placement_accepted"
       : params.templateKey === "application_status" || params.templateKey === "approved"
         ? "application_status"
         : "manual_notification");

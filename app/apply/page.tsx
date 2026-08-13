@@ -47,7 +47,7 @@ export default async function ApplyPage({
 
   try {
     const validated = await validatePublishedJobForApplication(supabase, tenantSlug, token);
-    redirect(validated.resumeUploadPath);
+    redirect(validated.screeningPath);
   } catch (error) {
     if (error instanceof JobApplicationGateError) {
       return <ApplicationUnavailable message={error.message} />;

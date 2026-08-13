@@ -32,6 +32,7 @@ export type ValidatedJobApplicationTarget = {
   workflowId: string;
   workflowName: string;
   resumeUploadPath: string;
+  screeningPath: string;
 };
 
 const JOB_APPLICATION_SELECT =
@@ -152,5 +153,6 @@ export async function validatePublishedJobForApplication(
     workflowId: String(job.workflow_id),
     workflowName: String(flow.name ?? job.workflow_id),
     resumeUploadPath: buildAddResumePath(tenant.slug, jobToken),
+    screeningPath: `/application/job-screening?tenant=${encodeURIComponent(tenant.slug)}&job_token=${encodeURIComponent(jobToken)}`,
   };
 }

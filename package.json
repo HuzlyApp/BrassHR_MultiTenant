@@ -15,8 +15,9 @@
     "perf:report": "node scripts/perf-benchmark.mjs --mode=report",
     "security:secrets": "node scripts/security-scan.mjs",
     "security:audit": "npm audit --audit-level=moderate",
-    "security:check": "npm run security:secrets && npm run security:audit && npm test -- lib/security/rate-limit.test.ts",
+    "security:check": "npm run security:secrets && npm run security:audit && npm test -- lib/security",
     "test": "vitest run --config vitest.config.mts",
+    "test:rls": "vitest run --config vitest.config.mts lib/security",
     "test:watch": "vitest --config vitest.config.mts",
     "redis:cli": "node scripts/redis-cli.mjs",
     "setup:supabase-otp-template": "node scripts/apply-supabase-otp-template.mjs"

@@ -20,6 +20,11 @@ import { getEnabledTenantSteps } from "@/lib/onboarding/tenant-step-navigation";
 import { persistFarthestReachedStepIndex } from "@/lib/onboarding/persist-farthest-reached-step";
 import { resolveOnboardingProgressStep } from "@/lib/onboarding/resolve-onboarding-progress-step";
 import type { OnboardingStepStatus, TenantOnboardingConfig } from "@/lib/onboarding/types";
+import { resolveApplicationWorkflowPhase } from "@/lib/onboarding/resolve-application-workflow-phase";
+import {
+  applicantMayActOnStep,
+  readStepLifecyclePhase,
+} from "@/lib/onboarding/workflow-phase";
 
 export const runtime = "nodejs";
 
@@ -27,6 +32,7 @@ type Body = {
   applicantId?: string;
   tenantSlug?: string;
   jobToken?: string;
+  applicationId?: string;
   stepId?: string;
   stepKey?: string;
   status?: OnboardingStepStatus;
@@ -70,6 +76,8 @@ export async function POST(req: NextRequest) {
     const jobToken = normalizeJobToken(
       typeof body.jobToken === "string" ? body.jobToken : null
     );
+    const applicationId =
+      typeof body.applicationId === "string" ? body.applicationId.trim() : "";
 
     let tenantConfig = await loadTenantOnboardingConfig(supabase, ctx.tenantId, {
       workerFacing: true,
@@ -134,6 +142,30 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Step not found" }, { status: 400 });
     }
     stepRow = persistStep ?? stepRow;
+
+    const phaseRecord = await resolveApplicationWorkflowPhase(supabase, {
+      tenantId: ctx.tenantId,
+      workerId: ctx.workerId,
+      applicationId: applicationId || null,
+      jobToken,
+    });
+    const activePhase = phaseRecord?.phase ?? "pre_hire";
+    if (
+      stepRow &&
+      (status === "completed" || status === "skipped" || status === "in_progress" || status === "failed") &&
+      !applicantMayActOnStep({
+        activePhase,
+        stepPhase: readStepLifecyclePhase(stepRow),
+      })
+    ) {
+      return NextResponse.json(
+        {
+          error: "This step is not part of your current application phase.",
+          code: "PHASE_FORBIDDEN",
+        },
+        { status: 403 }
+      );
+    }
 
     const completed_at = status === "completed" ? new Date().toISOString() : null;
 

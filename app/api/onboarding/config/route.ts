@@ -8,6 +8,8 @@ import { getEnabledTenantSteps } from "@/lib/onboarding/tenant-step-navigation";
 import { loadApplicantConfigForJobToken, loadApplicantConfigForTenantDefault } from "@/lib/onboarding/load-config-for-job-workflow";
 import { JobApplicationGateError } from "@/lib/jobs/validate-job-application";
 import { normalizeJobToken } from "@/lib/jobs/public-application-routing";
+import { phaseGateApplicantConfig } from "@/lib/onboarding/phase-gate-applicant-config";
+import { resolveOnboardingWorker } from "@/lib/onboarding/resolve-onboarding-worker";
 
 export const runtime = "nodejs";
 
@@ -17,6 +19,8 @@ export async function GET(req: NextRequest) {
     const slug = req.nextUrl.searchParams.get("slug")?.trim() || "";
     const tenantIdParam = req.nextUrl.searchParams.get("tenantId")?.trim() || "";
     const jobToken = normalizeJobToken(req.nextUrl.searchParams.get("job_token"));
+    const applicantId = req.nextUrl.searchParams.get("applicantId")?.trim() || "";
+    const applicationId = req.nextUrl.searchParams.get("applicationId")?.trim() || "";
 
     const url = getSupabaseUrl();
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -25,18 +29,31 @@ export async function GET(req: NextRequest) {
     }
 
     const supabase = createClient(url, key);
+    const workerCtx = applicantId
+      ? await resolveOnboardingWorker(supabase, applicantId, slug)
+      : null;
 
     if (jobToken) {
       try {
         const jobConfig = await loadApplicantConfigForJobToken(supabase, slug || null, jobToken);
-        return NextResponse.json({
+        const gated = await phaseGateApplicantConfig(supabase, {
+          tenantId: jobConfig.tenantId,
           config: jobConfig.config,
+          workerId: workerCtx?.workerId,
+          applicationId: applicationId || null,
+          jobToken,
+        });
+        return NextResponse.json({
+          config: gated.config,
           tenantSlug: jobConfig.tenantSlug,
           publishStatus: "published",
           source: "job-workflow",
           workflowId: jobConfig.workflowId,
           workflowName: jobConfig.workflowName,
           jobToken: jobConfig.jobToken,
+          workflowPhase: gated.workflowPhase,
+          applicationId: gated.applicationId,
+          postHireActivatedAt: gated.postHireActivatedAt,
         });
       } catch (err: unknown) {
         if (err instanceof JobApplicationGateError) {
@@ -52,13 +69,22 @@ export async function GET(req: NextRequest) {
     if (slug) {
       try {
         const defaultConfig = await loadApplicantConfigForTenantDefault(supabase, slug);
-        return NextResponse.json({
+        const gated = await phaseGateApplicantConfig(supabase, {
+          tenantId: defaultConfig.tenantId,
           config: defaultConfig.config,
+          workerId: workerCtx?.workerId,
+          applicationId: applicationId || null,
+        });
+        return NextResponse.json({
+          config: gated.config,
           tenantSlug: defaultConfig.tenantSlug,
           publishStatus: "published",
           source: "worker-onboarding",
           workflowId: defaultConfig.workflowId,
           workflowName: defaultConfig.workflowName,
+          workflowPhase: gated.workflowPhase,
+          applicationId: gated.applicationId,
+          postHireActivatedAt: gated.postHireActivatedAt,
         });
       } catch (err: unknown) {
         if (err instanceof JobApplicationGateError) {
@@ -104,7 +130,15 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Configuration not found" }, { status: 404 });
     }
 
-    if (!getEnabledTenantSteps(config).length) {
+    const gated = await phaseGateApplicantConfig(supabase, {
+      tenantId,
+      config,
+      workerId: workerCtx?.workerId,
+      applicationId: applicationId || null,
+      jobToken,
+    });
+
+    if (!getEnabledTenantSteps(gated.config).length) {
       return NextResponse.json(
         {
           error: "This tenant has not published an onboarding flow yet.",
@@ -121,15 +155,19 @@ export async function GET(req: NextRequest) {
       console.info("[onboarding/config] serving published steps; builder draft not applied to applicants", {
         tenantId,
         tenantSlug: tenantRow.slug ?? slug,
-        enabledSteps: getEnabledTenantSteps(config).length,
+        enabledSteps: getEnabledTenantSteps(gated.config).length,
+        workflowPhase: gated.workflowPhase,
       });
     }
 
     return NextResponse.json({
-      config,
+      config: gated.config,
       tenantSlug: tenantRow.slug ?? slug,
       publishStatus,
       source: "published",
+      workflowPhase: gated.workflowPhase,
+      applicationId: gated.applicationId,
+      postHireActivatedAt: gated.postHireActivatedAt,
     });
   } catch (err: unknown) {
     console.error("[onboarding/config]", err);

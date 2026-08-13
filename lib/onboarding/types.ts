@@ -90,4 +90,6 @@ export type WorkerOnboardingProgressPayload = {
   submittedWithIncompleteSteps?: boolean;
   incompleteStepKeys?: string[];
   applicationStatus?: string | null;
+  applicationId?: string | null;
+  workflowPhase?: "pre_hire" | "post_hire" | "completed" | null;
 };

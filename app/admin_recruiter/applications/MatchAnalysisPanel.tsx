@@ -26,6 +26,23 @@ type RequirementRow = {
   recruiter_note: string | null;
 };
 
+type ScreeningQuestionView = {
+  id: string;
+  question: string;
+  questionType: string;
+  isRequired: boolean;
+  answerDisplay: string;
+  answered: boolean;
+};
+
+type ScreeningAssessment = {
+  answered: number;
+  total: number;
+  requiredAnswered: number;
+  requiredTotal: number;
+  summary: string;
+};
+
 type MatchPayload = {
   application: {
     id: string;
@@ -41,6 +58,8 @@ type MatchPayload = {
     ai_analysis_progress: string | null;
   };
   requirements: RequirementRow[];
+  screeningQuestions?: ScreeningQuestionView[];
+  screeningAssessment?: ScreeningAssessment | null;
 };
 
 type Props = {
@@ -235,6 +254,55 @@ export function MatchAnalysisPanel({
               </p>
             ) : null}
 
+            <div>
+              <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-[#64748B]">
+                Screening questions
+              </h4>
+              {data?.screeningAssessment?.total ? (
+                <>
+                  <p className="mb-2 text-xs text-[#64748B]">
+                    {data.screeningAssessment.summary}
+                  </p>
+                  <ul className="space-y-2">
+                    {(data.screeningQuestions ?? []).map((item) => (
+                      <li
+                        key={item.id}
+                        className="rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-2"
+                      >
+                        <div className="flex items-start gap-2">
+                          <span
+                            className={`mt-0.5 text-sm ${item.answered ? "text-[#16A34A]" : "text-[#D97706]"}`}
+                            aria-hidden
+                          >
+                            {item.answered ? "✓" : "!"}
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium text-[#0F172A]">
+                              {item.question}
+                              {item.isRequired ? (
+                                <span className="ml-1 text-[10px] font-semibold uppercase text-[#64748B]">
+                                  Required
+                                </span>
+                              ) : null}
+                            </p>
+                            <p
+                              className={`mt-1 text-sm ${item.answered ? "text-[#334155]" : "text-[#94A3B8] italic"}`}
+                            >
+                              {item.answerDisplay}
+                            </p>
+                          </div>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              ) : (
+                <p className="text-sm text-[#64748B]">
+                  No screening questions were configured for this job.
+                </p>
+              )}
+            </div>
+
             {!compact && analysis?.strengths?.length ? (
               <div>
                 <h4 className="mb-1 text-xs font-semibold uppercase tracking-wide text-[#64748B]">
@@ -311,7 +379,7 @@ export function MatchAnalysisPanel({
             {!compact && analysis?.screening_questions?.length ? (
               <div>
                 <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-[#64748B]">
-                  Screening questions
+                  Suggested follow-up questions
                 </h4>
                 <ol className="list-decimal space-y-2 pl-5 text-sm text-[#334155]">
                   {analysis.screening_questions.map((q) => (

@@ -10,7 +10,20 @@ import {
   type ApplicationPipelineStatus,
 } from "@/lib/jobs/application-status";
 import { resolveStaffTenantId } from "@/lib/jobs/tenant";
+import { NextRequest, NextResponse } from "next/server";
+import { requireStaffApiSession } from "@/lib/auth/api-session";
+import {
+  ApplicationStatusError,
+  changeApplicationStatus,
+  changeApplicationStatusBySystemKey,
+} from "@/lib/jobs/application-statuses";
+import {
+  isApplicationPipelineStatus,
+  type ApplicationPipelineStatus,
+} from "@/lib/jobs/application-status";
+import { resolveStaffTenantId } from "@/lib/jobs/tenant";
 import { JOB_APPLICATION_APPLICANT_EMBED } from "@/lib/jobs/application-applicant-display";
+import { resolveApplicantEmailAppOrigin } from "@/lib/resolve-app-origin";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 
 /**
@@ -52,6 +65,7 @@ export async function PATCH(
     const statusId = typeof body?.statusId === "string" ? body.statusId.trim() : "";
     const status =
       typeof body?.status === "string" ? body.status.trim().toLowerCase() : "";
+    const origin = resolveApplicantEmailAppOrigin(req);
 
     let result;
     if (statusId) {
@@ -61,6 +75,7 @@ export async function PATCH(
         statusId,
         changedByUserId: auth.userId,
         note,
+        origin,
       });
     } else if (isApplicationPipelineStatus(status)) {
       result = await changeApplicationStatusBySystemKey(supabase, {
@@ -69,6 +84,7 @@ export async function PATCH(
         systemKey: status as ApplicationPipelineStatus,
         changedByUserId: auth.userId,
         note,
+        origin,
       });
     } else {
       return NextResponse.json({ error: "Invalid application status" }, { status: 400 });
@@ -77,7 +93,7 @@ export async function PATCH(
     const { data, error } = await supabase
       .from("job_applications")
       .select(
-        "id, status, status_id, created_at, submitted_at, updated_at, job_requisition_id, workflow_id, applicant_workflow_instance_id, worker_id"
+        "id, status, status_id, workflow_phase, post_hire_activated_at, created_at, submitted_at, updated_at, job_requisition_id, workflow_id, applicant_workflow_instance_id, worker_id"
       )
       .eq("id", applicationId)
       .eq("tenant_id", tenantId)
@@ -128,7 +144,7 @@ export async function GET(
     const { data, error } = await supabase
       .from("job_applications")
       .select(
-        `id, status, status_id, created_at, submitted_at, updated_at, job_requisition_id, workflow_id, applicant_workflow_instance_id, worker_id, job_requisitions(public_title, location, facility, facility_name, professions(name)), onboarding_flows(name), ${JOB_APPLICATION_APPLICANT_EMBED}`
+        `id, status, status_id, workflow_phase, post_hire_activated_at, created_at, submitted_at, updated_at, job_requisition_id, workflow_id, applicant_workflow_instance_id, worker_id, job_requisitions(public_title, location, facility, facility_name, professions(name)), onboarding_flows(name), ${JOB_APPLICATION_APPLICANT_EMBED}`
       )
       .eq("id", applicationId)
       .eq("tenant_id", tenantId)

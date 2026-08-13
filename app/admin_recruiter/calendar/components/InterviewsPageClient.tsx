@@ -7,6 +7,10 @@ import { formatInterviewDate, formatInterviewTimeRange } from "@/lib/interviews/
 import { localDateString } from "@/lib/interviews/schedule-fields";
 import { InterviewSuccessModal } from "./InterviewSuccessModal";
 import { ScheduleInterviewModal } from "./ScheduleInterviewModal";
+import {
+  invitationSuccessMessage,
+  type ScheduleInterviewPayload,
+} from "@/lib/interviews/schedule-payload";
 
 type TabId = "upcoming" | "recent";
 type ViewMode = "list" | "calendar";
@@ -529,12 +533,7 @@ export default function InterviewsPageClient({
     setCalendarWeekAnchor((prev) => addDays(prev ?? new Date(), deltaDays));
   }
 
-  async function handleSchedule(payload: {
-    workerId: string;
-    startsAt: string;
-    endsAt: string;
-    meetingType: "online";
-  }) {
+  async function handleSchedule(payload: ScheduleInterviewPayload) {
     setSubmitting(true);
     setScheduleError(null);
     try {
@@ -544,12 +543,23 @@ export default function InterviewsPageClient({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        invitation?: {
+          sentCount: number;
+          failedCount: number;
+          skippedCount: number;
+          invitationStatus: "sent" | "partial" | "failed" | "pending";
+        };
+      };
       if (!res.ok) throw new Error(data.error || "Failed to schedule interview");
       setScheduleOpen(false);
       setSuccessOpen(true);
       setTab("upcoming");
       await loadInterviews("upcoming");
+      if (data.invitation?.invitationStatus === "partial" || data.invitation?.invitationStatus === "failed") {
+        setScheduleError(invitationSuccessMessage(data.invitation));
+      }
     } catch (err) {
       setScheduleError(err instanceof Error ? err.message : "Failed to schedule interview");
     } finally {

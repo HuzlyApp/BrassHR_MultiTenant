@@ -26,6 +26,8 @@ export type PublishedWorkflow = {
   version: number;
   status: PublishedWorkflowStatus;
   steps: PublishedWorkflowStep[];
+  applicationId?: string;
+  workflowPhase?: "pre_hire" | "post_hire" | "completed";
 };
 
 export type ApplicantStepStatusValue =

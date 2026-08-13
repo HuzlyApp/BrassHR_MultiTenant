@@ -92,6 +92,7 @@ describe("validatePublishedJobForApplication", () => {
       workflowId: "workflow-1",
       workflowName: "RN W2 Workflow",
       resumeUploadPath: "/application/add-resume?tenant=acme&job_token=token-1",
+      screeningPath: "/application/job-screening?tenant=acme&job_token=token-1",
     });
   });
 

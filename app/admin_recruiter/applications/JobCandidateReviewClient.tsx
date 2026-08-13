@@ -53,8 +53,13 @@ import {
 } from "@/lib/resume/resume-upload-limit";
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
 import type { AdminInterviewItem } from "@/app/api/admin/applicant-appointments/route";
+import {
+  invitationSuccessMessage,
+  type ScheduleInterviewPayload,
+} from "@/lib/interviews/schedule-payload";
 import { JobPublicViewLink } from "@/app/admin_recruiter/jobs/JobPublicViewLink";
-import { MatchAnalysisPanel } from "./MatchAnalysisPanel";
+import { CandidateAnalysisWorkspace } from "./CandidateAnalysisWorkspace";
+import { CandidateActivityTimeline } from "./CandidateActivityTimeline";
 import { ReplaceResumeConfirmModal } from "./ReplaceResumeConfirmModal";
 import { ResumeHistoryModal, type ResumeHistoryItem } from "./ResumeHistoryModal";
 
@@ -63,6 +68,7 @@ type ApplicationRow = {
   status: string;
   status_id?: string | null;
   statusName?: string | null;
+  workflow_phase?: string | null;
   created_at: string;
   submitted_at: string | null;
   updated_at?: string | null;
@@ -204,6 +210,7 @@ export default function JobCandidateReviewClient() {
   const [messageOpen, setMessageOpen] = useState(false);
   const [callOpen, setCallOpen] = useState(false);
   const [interviewOpen, setInterviewOpen] = useState(false);
+  const [editingInterviewId, setEditingInterviewId] = useState<string | null>(null);
   const [interviewSubmitting, setInterviewSubmitting] = useState(false);
   const [interviewError, setInterviewError] = useState<string | null>(null);
   const [upcomingInterview, setUpcomingInterview] = useState<AdminInterviewItem | null>(null);
@@ -230,6 +237,8 @@ export default function JobCandidateReviewClient() {
   const [statusChangeNote, setStatusChangeNote] = useState("");
   const [statusHistory, setStatusHistory] = useState<StatusHistoryItem[]>([]);
   const [statusHistoryLoading, setStatusHistoryLoading] = useState(false);
+  const [workspaceTab, setWorkspaceTab] = useState<"overview" | "activity">("overview");
+  const [removingFromJob, setRemovingFromJob] = useState(false);
 
   const selected = useMemo(
     () => rows.find((row) => row.id === applicationId) ?? rows[0] ?? null,
@@ -711,7 +720,7 @@ export default function JobCandidateReviewClient() {
       setUpcomingInterviewLoading(true);
       try {
         const response = await fetch(
-          `/api/admin/applicant-appointments?tab=upcoming&workerId=${encodeURIComponent(workerId)}`,
+          `/api/admin/applicant-appointments?tab=upcoming&workerId=${encodeURIComponent(workerId)}&applicationId=${encodeURIComponent(selected?.id ?? "")}`,
           { cache: "no-store" }
         );
         const payload = (await response.json()) as {
@@ -732,7 +741,7 @@ export default function JobCandidateReviewClient() {
     return () => {
       cancelled = true;
     };
-  }, [workerId]);
+  }, [workerId, selected?.id]);
 
   useEffect(() => {
     void (async () => {
@@ -827,6 +836,9 @@ export default function JobCandidateReviewClient() {
                 statusName: String(
                   payload.application?.statusName ?? pendingStatus.name
                 ),
+                workflow_phase: String(
+                  payload.postHire?.phase ?? row.workflow_phase ?? "pre_hire"
+                ),
               }
             : row
         )
@@ -836,7 +848,9 @@ export default function JobCandidateReviewClient() {
       toast.success(
         payload.unchanged
           ? "Status unchanged"
-          : `Status updated to ${payload.application?.statusName ?? pendingStatus.name}`
+          : payload.postHire?.activated
+            ? `Status updated to ${payload.application?.statusName ?? pendingStatus.name}. Onboarding invitation sent.`
+            : `Status updated to ${payload.application?.statusName ?? pendingStatus.name}`
       );
       await loadStatusHistory(selected.id);
     } catch (updateError) {
@@ -861,12 +875,13 @@ export default function JobCandidateReviewClient() {
       const response = await fetch("/api/admin/worker-notes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ workerId, body }),
+        body: JSON.stringify({ workerId, body, applicationId: selected?.id }),
       });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "Failed to save note");
       setNoteDraft("");
       toast.success("Note saved");
+      setMatchReloadToken((value) => value + 1);
     } catch (noteError) {
       toast.error(noteError instanceof Error ? noteError.message : "Failed to save note");
     } finally {
@@ -874,36 +889,81 @@ export default function JobCandidateReviewClient() {
     }
   }
 
-  async function handleSchedule(payload: {
-    workerId: string;
-    startsAt: string;
-    endsAt: string;
-    meetingType: "online";
-  }) {
+  async function handleRemoveFromJob() {
+    if (!selected) return;
+    if (!window.confirm(`Remove ${displayName} from ${jobTitle}? This does not delete the candidate or other job applications.`)) {
+      return;
+    }
+    setRemovingFromJob(true);
+    try {
+      const response = await fetch(`/api/admin/job-applications/${encodeURIComponent(selected.id)}/remove`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || "Failed to remove from job");
+      toast.success("Candidate removed from this job");
+      setRows((current) => current.filter((row) => row.id !== selected.id));
+    } catch (removeError) {
+      toast.error(removeError instanceof Error ? removeError.message : "Failed to remove from job");
+    } finally {
+      setRemovingFromJob(false);
+    }
+  }
+
+  async function reloadUpcomingInterview() {
+    if (!workerId) {
+      setUpcomingInterview(null);
+      return;
+    }
+    const response = await fetch(
+      `/api/admin/applicant-appointments?tab=upcoming&workerId=${encodeURIComponent(workerId)}&applicationId=${encodeURIComponent(selected?.id ?? "")}`,
+      { cache: "no-store" }
+    );
+    const payload = (await response.json()) as {
+      error?: string;
+      interviews?: AdminInterviewItem[];
+    };
+    if (!response.ok) throw new Error(payload.error || "Failed to load interviews");
+    const interviews = payload.interviews ?? [];
+    setUpcomingInterview(interviews[0] ?? null);
+  }
+
+  async function handleSchedule(payload: ScheduleInterviewPayload) {
     if (!selected) return;
     setInterviewSubmitting(true);
     setInterviewError(null);
     try {
-      const response = await fetch("/api/admin/applicant-appointments", {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...payload,
-          applicationId: selected.id,
-          jobId: jobId || selected.job_requisition_id,
-        }),
-      });
+      const isEdit = Boolean(editingInterviewId);
+      const response = await fetch(
+        isEdit
+          ? `/api/admin/applicant-appointments/${encodeURIComponent(editingInterviewId as string)}`
+          : "/api/admin/applicant-appointments",
+        {
+          method: isEdit ? "PATCH" : "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            ...payload,
+            applicationId: selected.id,
+            jobId: jobId || selected.job_requisition_id,
+          }),
+        }
+      );
       const data = (await response.json().catch(() => ({}))) as {
         error?: string;
         interview?: AdminInterviewItem;
         statusUpdated?: boolean;
-        emailSent?: boolean;
-        emailSkipped?: boolean;
+        invitation?: {
+          sentCount: number;
+          failedCount: number;
+          skippedCount: number;
+          invitationStatus: "sent" | "partial" | "failed" | "pending";
+        };
       };
       if (!response.ok) throw new Error(data.error || "Failed to schedule interview");
-      if (data.interview) setUpcomingInterview(data.interview);
-      if (data.statusUpdated) {
+      await reloadUpcomingInterview();
+      if (!isEdit && data.statusUpdated) {
         setRows((current) =>
           current.map((row) =>
             row.id === selected.id ? { ...row, status: "interviewing" } : row
@@ -911,20 +971,35 @@ export default function JobCandidateReviewClient() {
         );
       }
       setInterviewOpen(false);
-      if (data.emailSent) {
-        toast.success("Interview scheduled — invitation email sent");
-      } else if (data.emailSkipped) {
-        toast.success("Interview scheduled");
-        toast("No email sent — candidate email is missing or mail is not configured.", {
-          icon: "ℹ️",
-        });
-      } else {
-        toast.success("Interview scheduled");
-      }
+      setEditingInterviewId(null);
+      toast.success(
+        isEdit
+          ? invitationSuccessMessage(data.invitation).replace("scheduled", "updated")
+          : invitationSuccessMessage(data.invitation)
+      );
     } catch (scheduleError) {
       setInterviewError(
         scheduleError instanceof Error ? scheduleError.message : "Failed to schedule interview"
       );
+    } finally {
+      setInterviewSubmitting(false);
+    }
+  }
+
+  async function handleCancelInterview() {
+    if (!upcomingInterview) return;
+    setInterviewSubmitting(true);
+    try {
+      const response = await fetch(
+        `/api/admin/applicant-appointments/${encodeURIComponent(upcomingInterview.id)}`,
+        { method: "DELETE", credentials: "include" }
+      );
+      const data = (await response.json().catch(() => ({}))) as { error?: string };
+      if (!response.ok) throw new Error(data.error || "Failed to cancel interview");
+      await reloadUpcomingInterview();
+      toast.success("Interview cancelled and cancellation notices sent.");
+    } catch (cancelError) {
+      toast.error(cancelError instanceof Error ? cancelError.message : "Failed to cancel interview");
     } finally {
       setInterviewSubmitting(false);
     }
@@ -1142,6 +1217,7 @@ export default function JobCandidateReviewClient() {
                       >
                         {displayName}
                       </h2>
+                      <p className="mt-1 text-sm font-medium text-[#334155]">{jobTitle}</p>
                       <p className="mt-1 flex min-w-0 items-start gap-1.5 text-sm text-[#64748B]">
                         <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#94A3B8]" />
                         <span className="min-w-0 break-words">{displayLocation}</span>
@@ -1232,6 +1308,17 @@ export default function JobCandidateReviewClient() {
                       <span>Call</span>
                     </button>
                   </div>
+                  {statusHistory[0] ? (
+                    <p className="mt-3 text-xs text-[#64748B]">
+                      Status updated by: {statusHistory[0].changedBy.name || "System"} ·{" "}
+                      {formatActivityDate(statusHistory[0].changedAt)}
+                    </p>
+                  ) : null}
+                  {selected.created_at ? (
+                    <p className="mt-1 text-xs text-[#64748B]">
+                      Application created {formatActivityDate(selected.created_at)}
+                    </p>
+                  ) : null}
                   {upcomingInterviewLoading ? (
                     <p className="mt-4 text-sm text-[#64748B]">Loading interview schedule…</p>
                   ) : upcomingInterview ? (
@@ -1277,10 +1364,71 @@ export default function JobCandidateReviewClient() {
                               Open meeting link
                             </a>
                           ) : null}
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              disabled={interviewSubmitting}
+                              onClick={() => {
+                                setEditingInterviewId(upcomingInterview.id);
+                                setInterviewOpen(true);
+                              }}
+                              className="rounded-lg border border-[#CBD5E1] bg-white px-3 py-1.5 text-xs font-semibold text-[#334155] disabled:opacity-50"
+                            >
+                              Reschedule
+                            </button>
+                            <button
+                              type="button"
+                              disabled={interviewSubmitting}
+                              onClick={() => void handleCancelInterview()}
+                              className="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 disabled:opacity-50"
+                            >
+                              Cancel interview
+                            </button>
+                          </div>
                         </div>
                       </div>
                     </div>
                   ) : null}
+                </div>
+
+                <div className="flex gap-2 border-b border-[#E5E7EB] px-5 pt-3">
+                  <button
+                    type="button"
+                    onClick={() => setWorkspaceTab("overview")}
+                    className={`border-b-2 px-2 pb-2 text-sm font-semibold ${
+                      workspaceTab === "overview"
+                        ? "border-[color:var(--brand-primary,#bc8b41)] text-[#0F172A]"
+                        : "border-transparent text-[#64748B]"
+                    }`}
+                  >
+                    Overview
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setWorkspaceTab("activity")}
+                    className={`border-b-2 px-2 pb-2 text-sm font-semibold ${
+                      workspaceTab === "activity"
+                        ? "border-[color:var(--brand-primary,#bc8b41)] text-[#0F172A]"
+                        : "border-transparent text-[#64748B]"
+                    }`}
+                  >
+                    Activity
+                  </button>
+                </div>
+
+                {workspaceTab === "activity" ? (
+                  <CandidateActivityTimeline applicationId={selected.id} reloadToken={matchReloadToken} />
+                ) : (
+                  <>
+                <div className="border-b border-[#E5E7EB] px-5 pt-5">
+                  <CandidateAnalysisWorkspace
+                    applicationId={selected.id}
+                    workerId={workerId}
+                    candidateName={displayName}
+                    profile={profile?.worker ?? null}
+                    reloadToken={matchReloadToken}
+                    onAnalyzed={() => setMatchReloadToken((value) => value + 1)}
+                  />
                 </div>
 
                 <div className="border-b border-[#E5E7EB] px-5 pt-5">
@@ -1336,6 +1484,14 @@ export default function JobCandidateReviewClient() {
                           <span>Download Resume</span>
                         </a>
                       ) : null}
+                      <button
+                        type="button"
+                        disabled={removingFromJob}
+                        onClick={() => void handleRemoveFromJob()}
+                        className="admin-recruiter-action-chip h-10 w-full shrink-0 rounded-lg border border-red-200 bg-white px-3 text-sm font-medium text-red-700 transition hover:bg-red-50 sm:h-9 sm:w-auto"
+                      >
+                        {removingFromJob ? "Removing…" : "Remove from job"}
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -1385,6 +1541,8 @@ export default function JobCandidateReviewClient() {
                     </div>
                   )}
                 </div>
+                  </>
+                )}
               </>
             )}
           </section>
@@ -1409,6 +1567,13 @@ export default function JobCandidateReviewClient() {
                   className={`h-4 w-4 shrink-0 text-[#94A3B8] ${statusMenuOpen ? "rotate-180" : ""}`}
                 />
               </button>
+              {selected ? (
+                <p className="mt-2 text-[11px] font-medium uppercase tracking-[0.12em] text-slate-500">
+                  {selected.workflow_phase === "post_hire" || selected.workflow_phase === "completed"
+                    ? "Post-Hire in progress"
+                    : "Pre-Hire"}
+                </p>
+              ) : null}
               {statusMenuOpen ? (
                 <div className="absolute left-0 right-0 z-20 mt-1 overflow-hidden rounded-xl border border-[#E5E7EB] bg-white py-1 shadow-lg">
                   {statusOptions.map((option) => (
@@ -1493,16 +1658,6 @@ export default function JobCandidateReviewClient() {
               )}
             </div>
 
-            {selected ? (
-              <div className="min-h-0 overflow-y-auto">
-                <MatchAnalysisPanel
-                  applicationId={selected.id}
-                  compact
-                  reloadToken={matchReloadToken}
-                />
-              </div>
-            ) : null}
-
             <div>
               <textarea
                 value={noteDraft}
@@ -1562,10 +1717,16 @@ export default function JobCandidateReviewClient() {
             onClose={() => {
               setInterviewOpen(false);
               setInterviewError(null);
+              setEditingInterviewId(null);
             }}
             onSubmit={handleSchedule}
             fixedWorkerId={workerId}
             fixedApplicantName={displayName}
+            fixedJobTitle={jobTitle}
+            defaultTitle={
+              upcomingInterview?.title ??
+              (displayName ? `Interview with ${displayName}` : undefined)
+            }
           />
         </>
       ) : null}

@@ -17,6 +17,7 @@ import {
   persistMatchRequirements,
   updateApplicationMatchFields,
 } from "./persist";
+import { snapshotCurrentAnalysisVersion } from "./versions";
 import type {
   AiMatchPipelineStatus,
   MatchAnalysisResponse,
@@ -68,6 +69,7 @@ export async function runMatchAnalysisForApplication(args: {
   jobApplicationId: string;
   recruiterNotes?: string | null;
   verifiedRecruiterInfo?: Record<string, unknown> | null;
+  analyzedByUserId?: string | null;
   onProgress?: (event: MatchAnalysisProgressEvent) => void;
 }): Promise<RunMatchAnalysisResult> {
   const {
@@ -76,6 +78,7 @@ export async function runMatchAnalysisForApplication(args: {
     jobApplicationId,
     recruiterNotes,
     verifiedRecruiterInfo,
+    analyzedByUserId,
     onProgress,
   } = args;
 
@@ -163,6 +166,7 @@ export async function runMatchAnalysisForApplication(args: {
       tenantId,
       workerId: application.worker_id as string | null,
       applicantProfileId: application.applicant_profile_id as string | null,
+      jobApplicationId,
     });
 
     if (!resume.sanitized.trim()) {
@@ -201,13 +205,13 @@ export async function runMatchAnalysisForApplication(args: {
     const meta = jobMetaFromRequisition(job as JobRequisitionForRequirements);
     const fullJd = buildFullJobDescriptionText(job as JobRequisitionForRequirements);
 
-    // Pull recruiter notes from worker_notes if not provided
     let notes = recruiterNotes?.trim() || "";
-    if (!notes && application.worker_id) {
+    if (!notes) {
       const { data: noteRows } = await supabase
         .from("worker_notes")
         .select("body")
-        .eq("worker_id", application.worker_id)
+        .eq("tenant_id", tenantId)
+        .eq("application_id", jobApplicationId)
         .order("created_at", { ascending: false })
         .limit(5);
       notes = (noteRows ?? [])
@@ -215,6 +219,28 @@ export async function runMatchAnalysisForApplication(args: {
         .filter(Boolean)
         .join("\n---\n");
     }
+
+    let verified = verifiedRecruiterInfo ?? null;
+    if (!verified) {
+      const { data: verifiedRows } = await supabase
+        .from("job_application_verified_information")
+        .select("category, title, details")
+        .eq("tenant_id", tenantId)
+        .eq("application_id", jobApplicationId)
+        .order("created_at", { ascending: false })
+        .limit(20);
+      if (verifiedRows?.length) {
+        verified = { items: verifiedRows };
+      }
+    }
+
+    const previousVersion = await snapshotCurrentAnalysisVersion({
+      supabase,
+      tenantId,
+      applicationId: jobApplicationId,
+      analyzedBy: analyzedByUserId ?? null,
+    });
+    const nextVersion = previousVersion + 1;
 
     emit("analyzing", "Running Grok match analysis", "ANALYZING");
     await setProgress(supabase, tenantId, jobApplicationId, "analyzing");
@@ -228,7 +254,7 @@ export async function runMatchAnalysisForApplication(args: {
       structured,
       fullJobDescription: fullJd,
       resumeText: resume.sanitized,
-      verifiedRecruiterInfo: verifiedRecruiterInfo ?? null,
+      verifiedRecruiterInfo: verified ?? null,
       recruiterNotes: notes || null,
     });
 
@@ -263,10 +289,32 @@ export async function runMatchAnalysisForApplication(args: {
         ai_analysis_raw: modelResult.rawObject,
         ai_analysis: analysis,
         ai_analyzed_at: new Date().toISOString(),
+        ai_analyzed_by: analyzedByUserId ?? null,
+        ai_analysis_model: modelResult.model,
+        ai_analysis_version: nextVersion,
         ai_analysis_error: null,
         ai_analysis_progress: "completed",
       },
     });
+
+    await supabase.from("job_application_analysis_versions").upsert(
+      {
+        tenant_id: tenantId,
+        application_id: jobApplicationId,
+        version: nextVersion,
+        analysis,
+        score: analysis.candidate_match.recommended_overall_match_score,
+        category: analysis.candidate_match.match_category,
+        recommended_action: analysis.candidate_match.recommended_action,
+        display_category:
+          analysis.candidate_match.display_category ||
+          analysis.candidate_match.match_category,
+        model: modelResult.model,
+        analyzed_by: analyzedByUserId ?? null,
+        analyzed_at: new Date().toISOString(),
+      },
+      { onConflict: "application_id,version" }
+    );
 
     emit("completed", "Match analysis complete", "ANALYZED");
 

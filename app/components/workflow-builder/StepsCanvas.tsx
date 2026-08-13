@@ -689,16 +689,27 @@ export default function StepsCanvas({
   }, [onSelectNode]);
 
   const enhancedNodes = useMemo(
-    () =>
-      nodes.map((n) => {
+    () => {
+      const stepNodes = nodes.filter(isStepNode).slice().sort((a, b) => a.position.y - b.position.y);
+      const firstPreHireId = stepNodes.find((n) => n.data.settings.phase !== "post_hire")?.id ?? null;
+      const firstPostHireId = stepNodes.find((n) => n.data.settings.phase === "post_hire")?.id ?? null;
+
+      return nodes.map((n) => {
         if (isDropZoneNode(n)) {
           return { ...n, selected: false, draggable: false };
         }
+        const phaseBanner =
+          isStepNode(n) && n.id === firstPostHireId
+            ? "placement_gate"
+            : isStepNode(n) && n.id === firstPreHireId
+              ? "pre_hire"
+              : null;
         return {
           ...n,
           selected: n.id === selectedNodeId,
           data: {
             ...n.data,
+            phaseBanner,
             onDelete:
               readOnly ||
               !isStepNode(n) ||
@@ -708,7 +719,8 @@ export default function StepsCanvas({
                 : handleDeleteNode,
           },
         };
-      }),
+      });
+    },
     [nodes, selectedNodeId, handleDeleteNode, readOnly]
   );
 

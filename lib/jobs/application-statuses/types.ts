@@ -45,6 +45,12 @@ export type ChangeApplicationStatusResult = {
     changedByUserId: string | null;
     changedAt: string;
   } | null;
+  postHire?: {
+    activated: boolean;
+    alreadyActive: boolean;
+    phase: string;
+    emailSent: boolean;
+  } | null;
 };
 
 export class ApplicationStatusError extends Error {

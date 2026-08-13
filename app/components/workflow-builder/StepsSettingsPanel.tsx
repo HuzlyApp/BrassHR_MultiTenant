@@ -177,12 +177,14 @@ function SettingsBody({ node, onUpdate, onSaveStep, onCloneWorkflow, readOnly = 
         />
         <SelectField
           label="Phase"
-          value={settings.phase}
-          options={["pre_hire", "transition", "post_hire"]}
+          value={settings.phase === "transition" ? "pre_hire" : settings.phase}
+          options={["pre_hire", "post_hire"]}
+          optionLabels={{ pre_hire: "Pre-Hire", post_hire: "Post-Hire" }}
+          hint="Approval is a step type. Pre-Hire is candidate evaluation; Post-Hire is onboarding after acceptance."
           onChange={(v) =>
             patchSettings({
               phase: (v as StepSettings["phase"]) ?? "pre_hire",
-              phaseOrder: v === "transition" ? 2 : v === "post_hire" ? 3 : 1,
+              phaseOrder: v === "post_hire" ? 3 : 1,
             })
           }
         />
@@ -357,6 +359,7 @@ function SelectField({
   label,
   value,
   options,
+  optionLabels,
   onChange,
   disabled,
   hint,
@@ -364,6 +367,7 @@ function SelectField({
   label: string;
   value: string;
   options: string[];
+  optionLabels?: Record<string, string>;
   onChange: (v: string) => void;
   disabled?: boolean;
   hint?: string;
@@ -386,7 +390,7 @@ function SelectField({
         >
           {options.map((opt) => (
             <option key={opt} value={opt}>
-              {opt}
+              {optionLabels?.[opt] ?? opt}
             </option>
           ))}
         </select>

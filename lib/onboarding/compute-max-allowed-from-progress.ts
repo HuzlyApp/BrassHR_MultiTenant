@@ -1,5 +1,6 @@
 import { isUploadResumeStep } from "@/lib/onboarding/enforce-upload-resume-first";
 import { applicantStepHasNavigableScreen } from "@/lib/onboarding/applicant-step-navigability";
+import { readStepTemplatePhase } from "@/lib/onboarding/workflow-phase";
 import type {
   OnboardingStepStatus,
   TenantOnboardingStep,
@@ -17,22 +18,15 @@ const PROGRESS_STATUS_RANK: Record<OnboardingStepStatus, number> = {
 };
 
 function readStepPhase(step: TenantOnboardingStep): StepPhase {
-  const fromSettings =
-    step.metadata?.workflow_settings &&
-    typeof step.metadata.workflow_settings === "object" &&
-    !Array.isArray(step.metadata.workflow_settings)
-      ? (step.metadata.workflow_settings as Record<string, unknown>).phase
-      : undefined;
-  const phase =
-    fromSettings ??
-    (typeof step.metadata?.phase === "string" ? step.metadata.phase : undefined);
-  if (phase === "transition" || phase === "post_hire") return phase;
-  return "pre_hire";
+  return readStepTemplatePhase(step);
 }
 
 function isPostHireUnlocked(progress: WorkerOnboardingProgressPayload | null): boolean {
+  if (progress?.workflowPhase === "post_hire" || progress?.workflowPhase === "completed") {
+    return true;
+  }
   const appStatus = String(progress?.applicationStatus ?? "").toLowerCase();
-  if (appStatus === "approved" || appStatus === "hired" || appStatus === "active") return true;
+  if (appStatus === "hired") return true;
   for (const step of progress?.steps ?? []) {
     if (step.data?.transition_approved === true || step.data?.post_hire_unlocked === true) {
       return true;

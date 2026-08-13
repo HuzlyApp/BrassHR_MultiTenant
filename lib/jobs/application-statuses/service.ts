@@ -1,6 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ApplicationPipelineStatus } from "@/lib/jobs/application-status";
 import {
+  activatePostHire,
+  shouldActivatePostHireAfterStatusChange,
+} from "@/lib/onboarding/activate-post-hire";
+import {
   ApplicationStatusError,
   type ApplicationStatusHistoryRecord,
   type ApplicationStatusRecord,
@@ -263,6 +267,7 @@ export async function changeApplicationStatus(
     statusId: string;
     changedByUserId?: string | null;
     note?: string | null;
+    origin?: string | null;
   }
 ): Promise<ChangeApplicationStatusResult> {
   const note =
@@ -313,7 +318,7 @@ export async function changeApplicationStatus(
     };
   };
 
-  return {
+  const result: ChangeApplicationStatusResult = {
     unchanged: Boolean(payload.unchanged),
     application: payload.application,
     history: payload.history
@@ -332,7 +337,33 @@ export async function changeApplicationStatus(
           changedAt: payload.history.changedAt,
         }
       : null,
+    postHire: null,
   };
+
+  if (shouldActivatePostHireAfterStatusChange({
+    unchanged: result.unchanged,
+    status: result.application.status,
+  })) {
+    try {
+      const postHire = await activatePostHire(supabase, {
+        tenantId: input.tenantId,
+        applicationId: input.applicationId,
+        actorUserId: input.changedByUserId,
+        origin: input.origin,
+        sendEmail: Boolean(input.origin),
+      });
+      result.postHire = {
+        activated: postHire.activated,
+        alreadyActive: postHire.alreadyActive,
+        phase: postHire.phase,
+        emailSent: Boolean(postHire.email?.sent),
+      };
+    } catch (activationError) {
+      console.error("[changeApplicationStatus] activatePostHire", activationError);
+    }
+  }
+
+  return result;
 }
 
 export async function changeApplicationStatusBySystemKey(
@@ -343,6 +374,7 @@ export async function changeApplicationStatusBySystemKey(
     systemKey: ApplicationPipelineStatus | "withdrawn";
     changedByUserId?: string | null;
     note?: string | null;
+    origin?: string | null;
   }
 ): Promise<ChangeApplicationStatusResult> {
   const status = await getStatusBySystemKey(supabase, input.tenantId, input.systemKey);
@@ -362,6 +394,7 @@ export async function changeApplicationStatusBySystemKey(
     statusId: status.id,
     changedByUserId: input.changedByUserId,
     note: input.note,
+    origin: input.origin,
   });
 }
 
