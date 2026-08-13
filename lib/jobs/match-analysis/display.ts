@@ -86,3 +86,25 @@ export function formatMatchScore(score: number | null | undefined): string {
   if (score == null || !Number.isFinite(Number(score))) return "—";
   return `${Math.round(Number(score))}%`;
 }
+
+/** Higher = stronger qualification/relevance for secondary ranking when Match % ties. */
+export function matchCategoryRelevanceRank(category: string | null | undefined): number {
+  switch (category) {
+    case "STRONG_MATCH":
+      return 7;
+    case "GOOD_MATCH":
+      return 6;
+    case "POSSIBLE_MATCH":
+      return 5;
+    case "NEEDS_MORE_INFORMATION":
+      return 4;
+    case "WEAK_MATCH":
+      return 3;
+    case "NOT_A_MATCH":
+      return 2;
+    case "NOT_CURRENTLY_SUBMITTABLE":
+      return 1;
+    default:
+      return 0;
+  }
+}

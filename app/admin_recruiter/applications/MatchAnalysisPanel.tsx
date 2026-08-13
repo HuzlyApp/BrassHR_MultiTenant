@@ -47,9 +47,16 @@ type Props = {
   applicationId: string;
   compact?: boolean;
   onAnalyzed?: () => void;
+  /** Bump to force a reload (e.g. after resume re-upload). */
+  reloadToken?: number;
 };
 
-export function MatchAnalysisPanel({ applicationId, compact = false, onAnalyzed }: Props) {
+export function MatchAnalysisPanel({
+  applicationId,
+  compact = false,
+  onAnalyzed,
+  reloadToken = 0,
+}: Props) {
   const [loading, setLoading] = useState(true);
   const [analyzing, setAnalyzing] = useState(false);
   const [data, setData] = useState<MatchPayload | null>(null);
@@ -73,7 +80,7 @@ export function MatchAnalysisPanel({ applicationId, compact = false, onAnalyzed 
 
   useEffect(() => {
     void load();
-  }, [load]);
+  }, [load, reloadToken]);
 
   const runAnalyze = async () => {
     setAnalyzing(true);

@@ -6,7 +6,11 @@ import TenantQuerySync from "./TenantQuerySync";
 import ApplicantOnboardingGate from "./ApplicantOnboardingGate";
 import ApplicantOnboardingRouteGuard from "@/app/components/onboarding/ApplicantOnboardingRouteGuard";
 import { loadTenantBrandingBySlug } from "@/lib/tenant/load-tenant-branding-server";
-import { isTenantApplicantPortalSlug } from "@/lib/tenant/tenant-branding";
+import {
+  brandingFallbackForSlug,
+  isTenantApplicantPortalSlug,
+} from "@/lib/tenant/tenant-branding";
+import { buildTenantDocumentMetadata } from "@/lib/tenant/tenant-document-metadata";
 
 export async function generateMetadata(): Promise<Metadata> {
   const headersList = await headers();
@@ -16,26 +20,11 @@ export async function generateMetadata(): Promise<Metadata> {
     return {};
   }
 
-  const favicon = `/api/tenant-favicon?slug=${encodeURIComponent(slug)}`;
-
   try {
     const branding = await loadTenantBrandingBySlug(slug);
-    return {
-      title: branding.companyName,
-      icons: {
-        icon: favicon,
-        shortcut: favicon,
-        apple: favicon,
-      },
-    };
+    return buildTenantDocumentMetadata(branding);
   } catch {
-    return {
-      icons: {
-        icon: favicon,
-        shortcut: favicon,
-        apple: favicon,
-      },
-    };
+    return buildTenantDocumentMetadata(brandingFallbackForSlug(slug));
   }
 }
 

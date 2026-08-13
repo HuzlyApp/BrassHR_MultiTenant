@@ -5,6 +5,8 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import {
+  ArrowDown,
+  ArrowUp,
   Check,
   ChevronDown,
   HelpCircle,
@@ -65,7 +67,10 @@ import {
 } from "./ApplicationStatusUi";
 import { CandidateRowActionsMenu } from "./CandidateRowActionsMenu";
 import { MatchScoreCell } from "./MatchAnalysisPanel";
+import { ReplaceResumeConfirmModal } from "./ReplaceResumeConfirmModal";
+import { matchCategoryRelevanceRank } from "@/lib/jobs/match-analysis/display";
 import { JobPublicViewLink } from "@/app/admin_recruiter/jobs/JobPublicViewLink";
+import AddCandidateModal from "./AddCandidateModal";
 
 type ApplicationStatus = string;
 
@@ -424,7 +429,9 @@ export default function JobApplicationsPage() {
     ...DEFAULT_APPLICATION_COLUMNS,
   ]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [sortBy, setSortBy] = useState<"newest" | "oldest" | "matchScore">("newest");
+  const [sortBy, setSortBy] = useState<"newest" | "oldest" | "matchScore" | "matchScoreAsc">(
+    "matchScore"
+  );
   const [locationFilter, setLocationFilter] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -476,9 +483,15 @@ export default function JobApplicationsPage() {
   const [interviewError, setInterviewError] = useState<string | null>(null);
   const [resumeUploadApplicationId, setResumeUploadApplicationId] = useState<string | null>(null);
   const [resumeUploading, setResumeUploading] = useState(false);
+  const [pendingResumeFile, setPendingResumeFile] = useState<File | null>(null);
+  const [pendingResumeApplicationId, setPendingResumeApplicationId] = useState<string | null>(
+    null
+  );
   const [resumeSuccessOpen, setResumeSuccessOpen] = useState(false);
   const [resumeErrorOpen, setResumeErrorOpen] = useState(false);
   const [resumeErrorMessage, setResumeErrorMessage] = useState("");
+  const [addCandidateOpen, setAddCandidateOpen] = useState(false);
+  const [applicationsRefreshNonce, setApplicationsRefreshNonce] = useState(0);
   const resumeInputRef = useRef<HTMLInputElement>(null);
   const candidateSearchInputRef = useRef<HTMLInputElement>(null);
 
@@ -639,7 +652,15 @@ export default function JobApplicationsPage() {
     return () => {
       cancelled = true;
     };
-  }, [jobId]);
+  }, [jobId, applicationsRefreshNonce]);
+
+  function openAddCandidateModal() {
+    if (!jobId) {
+      toast.error("Select a job before adding a candidate.");
+      return;
+    }
+    setAddCandidateOpen(true);
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -791,10 +812,16 @@ export default function JobApplicationsPage() {
       });
     }
     next = [...next].sort((a, b) => {
-      if (sortBy === "matchScore") {
+      if (sortBy === "matchScore" || sortBy === "matchScoreAsc") {
         const aScore = a.ai_match_score == null ? -1 : Number(a.ai_match_score);
         const bScore = b.ai_match_score == null ? -1 : Number(b.ai_match_score);
-        if (bScore !== aScore) return bScore - aScore;
+        if (bScore !== aScore) {
+          return sortBy === "matchScoreAsc" ? aScore - bScore : bScore - aScore;
+        }
+        // Tie-break: higher overall qualification/relevance first
+        const aRelevance = matchCategoryRelevanceRank(a.ai_match_category);
+        const bRelevance = matchCategoryRelevanceRank(b.ai_match_category);
+        if (bRelevance !== aRelevance) return bRelevance - aRelevance;
       }
       const aTime = new Date(a.submitted_at || a.created_at).getTime();
       const bTime = new Date(b.submitted_at || b.created_at).getTime();
@@ -938,6 +965,15 @@ export default function JobApplicationsPage() {
       return;
     }
 
+    setPendingResumeApplicationId(applicationId);
+    setPendingResumeFile(file);
+  }
+
+  async function confirmReplaceResumeFromList() {
+    const applicationId = pendingResumeApplicationId;
+    const file = pendingResumeFile;
+    if (!file || !applicationId) return;
+
     setResumeUploading(true);
     try {
       const form = new FormData();
@@ -952,21 +988,46 @@ export default function JobApplicationsPage() {
           typeof payload.error === "string" ? payload.error : "Failed to upload resume"
         );
       }
+
+      let nextMatch: Partial<ApplicationRow> = {
+        ai_match_status: "READY",
+        ai_match_score: null,
+        ai_match_category: null,
+        ai_match_action: null,
+        ai_match_readiness: null,
+        ai_match_display_category: null,
+      };
+
+      try {
+        const matchResponse = await fetch(
+          `/api/admin/job-applications/${encodeURIComponent(applicationId)}/match-analysis`,
+          {
+            method: "POST",
+            credentials: "include",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({}),
+          }
+        );
+        const matchPayload = await matchResponse.json().catch(() => ({}));
+        if (matchResponse.ok) {
+          nextMatch = {
+            ai_match_status: matchPayload.status ?? "ANALYZED",
+            ai_match_score: matchPayload.score ?? null,
+            ai_match_category: matchPayload.category ?? null,
+            ai_match_action: matchPayload.action ?? null,
+            ai_match_readiness: matchPayload.readiness ?? null,
+            ai_match_display_category: matchPayload.displayCategory ?? null,
+          };
+        }
+      } catch {
+        /* keep READY reset; upload already succeeded */
+      }
+
       setRows((current) =>
-        current.map((row) =>
-          row.id === applicationId
-            ? {
-                ...row,
-                ai_match_status: null,
-                ai_match_score: null,
-                ai_match_category: null,
-                ai_match_action: null,
-                ai_match_readiness: null,
-                ai_match_display_category: null,
-              }
-            : row
-        )
+        current.map((row) => (row.id === applicationId ? { ...row, ...nextMatch } : row))
       );
+      setPendingResumeFile(null);
+      setPendingResumeApplicationId(null);
       setResumeSuccessOpen(true);
     } catch (uploadError) {
       setResumeErrorMessage(
@@ -1734,12 +1795,9 @@ export default function JobApplicationsPage() {
                 }}
               />
             </div>
-            <Link
-              href={
-                jobId
-                  ? `/admin_recruiter/applications/add-candidate?jobId=${encodeURIComponent(jobId)}`
-                  : "/admin_recruiter/applications/add-candidate"
-              }
+            <button
+              type="button"
+              onClick={openAddCandidateModal}
               className={`${ADD_CANDIDATE_BUTTON_CLASS} ml-auto h-9 whitespace-nowrap px-2.5 sm:h-8 sm:px-3`}
             >
               <Plus
@@ -1750,7 +1808,7 @@ export default function JobApplicationsPage() {
               />
               <span className="hidden min-[480px]:inline">Add candidate</span>
               <span className="min-[480px]:hidden">Add</span>
-            </Link>
+            </button>
           </div>
           {showFilterRows ? (
             <div className="grid grid-cols-1 gap-5 rounded-lg border border-[#E8EEEC] bg-[#F8FAFC] p-2.5 min-[450px]:grid-cols-2">
@@ -1759,15 +1817,18 @@ export default function JobApplicationsPage() {
                 <select
                   value={sortBy}
                   onChange={(e) =>
-                    setSortBy(e.target.value as "newest" | "oldest" | "matchScore")
+                    setSortBy(
+                      e.target.value as "newest" | "oldest" | "matchScore" | "matchScoreAsc"
+                    )
                   }
                   className={`${FILTER_SELECT_CLASS} h-10 w-full min-w-0`}
                   style={FILTER_SELECT_CHEVRON}
                   aria-label="Sort by"
                 >
+                  <option value="matchScore">Match % (Highest first)</option>
+                  <option value="matchScoreAsc">Match % (Lowest first)</option>
                   <option value="newest">Apply date (Newest first)</option>
                   <option value="oldest">Apply date (Oldest first)</option>
-                  <option value="matchScore">Match score (Highest first)</option>
                 </select>
               </label>
               <label className="flex min-w-0 flex-col gap-1">
@@ -1827,12 +1888,9 @@ export default function JobApplicationsPage() {
               />
             </div>
 
-            <Link
-              href={
-                jobId
-                  ? `/admin_recruiter/applications/add-candidate?jobId=${encodeURIComponent(jobId)}`
-                  : "/admin_recruiter/applications/add-candidate"
-              }
+            <button
+              type="button"
+              onClick={openAddCandidateModal}
               className={ADD_CANDIDATE_BUTTON_CLASS}
             >
               <Plus
@@ -1842,7 +1900,7 @@ export default function JobApplicationsPage() {
                 aria-hidden
               />
               Add candidate
-            </Link>
+            </button>
           </div>
 
           <div className="border-b border-[#E5E7EB]" aria-hidden />
@@ -1853,14 +1911,17 @@ export default function JobApplicationsPage() {
               <select
                 value={sortBy}
                 onChange={(e) =>
-                  setSortBy(e.target.value as "newest" | "oldest" | "matchScore")
+                  setSortBy(
+                    e.target.value as "newest" | "oldest" | "matchScore" | "matchScoreAsc"
+                  )
                 }
                 className={FILTER_SELECT_CLASS}
                 style={FILTER_SELECT_CHEVRON}
               >
+                <option value="matchScore">Match % (Highest first)</option>
+                <option value="matchScoreAsc">Match % (Lowest first)</option>
                 <option value="newest">Apply date (Newest first)</option>
                 <option value="oldest">Apply date (Oldest first)</option>
-                <option value="matchScore">Match score (Highest first)</option>
               </select>
               <select
                 value={locationFilter}
@@ -1896,14 +1957,56 @@ export default function JobApplicationsPage() {
                     aria-label="Select all visible candidates"
                   />
                 </th>
-                {listColumns.map((colId) => (
-                  <th
-                    key={colId}
-                    className={`border-r border-[#E5E7EB] px-[14px] py-3 font-medium normal-case tracking-normal last:border-r-0 ${applicationListColumnClassName(colId)}`}
-                  >
-                    {applicationColumnLabel(colId)}
-                  </th>
-                ))}
+                {listColumns.map((colId) => {
+                  const isMatchCol = colId === "matches";
+                  const matchSortActive =
+                    sortBy === "matchScore" || sortBy === "matchScoreAsc";
+                  return (
+                    <th
+                      key={colId}
+                      className={`border-r border-[#E5E7EB] px-[14px] py-3 font-medium normal-case tracking-normal last:border-r-0 ${applicationListColumnClassName(colId)}`}
+                      aria-sort={
+                        isMatchCol && matchSortActive
+                          ? sortBy === "matchScore"
+                            ? "descending"
+                            : "ascending"
+                          : undefined
+                      }
+                    >
+                      {isMatchCol ? (
+                        <button
+                          type="button"
+                          className="inline-flex items-center justify-center gap-1 text-xs font-medium text-black transition hover:text-[#0F172A]"
+                          onClick={() =>
+                            setSortBy((current) =>
+                              current === "matchScore" ? "matchScoreAsc" : "matchScore"
+                            )
+                          }
+                          aria-label={
+                            sortBy === "matchScore"
+                              ? "Sort Match % lowest to highest"
+                              : "Sort Match % highest to lowest"
+                          }
+                          title="Sort by Match %"
+                        >
+                          {applicationColumnLabel(colId)}
+                          {sortBy === "matchScoreAsc" ? (
+                            <ArrowUp className="h-3.5 w-3.5 shrink-0 text-[#64748B]" aria-hidden />
+                          ) : (
+                            <ArrowDown
+                              className={`h-3.5 w-3.5 shrink-0 ${
+                                matchSortActive ? "text-[#64748B]" : "text-[#CBD5E1]"
+                              }`}
+                              aria-hidden
+                            />
+                          )}
+                        </button>
+                      ) : (
+                        applicationColumnLabel(colId)
+                      )}
+                    </th>
+                  );
+                })}
               </tr>
             </thead>
             <tbody>
@@ -2127,7 +2230,7 @@ export default function JobApplicationsPage() {
       <input
         ref={resumeInputRef}
         type="file"
-        accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
         className="hidden"
         aria-hidden
         tabIndex={-1}
@@ -2137,11 +2240,32 @@ export default function JobApplicationsPage() {
         }}
       />
 
+      <ReplaceResumeConfirmModal
+        open={Boolean(pendingResumeFile && pendingResumeApplicationId)}
+        fileName={pendingResumeFile?.name ?? ""}
+        busy={resumeUploading}
+        hasExistingResume
+        onCancel={() => {
+          if (resumeUploading) return;
+          setPendingResumeFile(null);
+          setPendingResumeApplicationId(null);
+        }}
+        onConfirm={() => void confirmReplaceResumeFromList()}
+      />
+
+      <AddCandidateModal
+        open={addCandidateOpen}
+        onClose={() => setAddCandidateOpen(false)}
+        jobId={jobId}
+        jobTitle={jobTitle}
+        onSuccess={() => setApplicationsRefreshNonce((value) => value + 1)}
+      />
+
       <SuccessModal
         open={resumeSuccessOpen}
         onClose={() => setResumeSuccessOpen(false)}
         title="Success!"
-        message="Resume uploaded successfully."
+        message="Resume updated successfully."
         size="large"
         actionLabel="Close"
         onAction={() => setResumeSuccessOpen(false)}

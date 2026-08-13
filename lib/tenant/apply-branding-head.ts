@@ -1,13 +1,8 @@
+import type { TenantBranding } from "@/lib/tenant/tenant-branding";
 import {
-  BRAAS_PLATFORM_FAVICON,
-  brandingFallbackForSlug,
-  isTenantApplicantPortalSlug,
-  normalizeBrandingImageSrc,
-  PLATFORM_DEFAULT_TENANT_SLUG,
-  type TenantBranding,
-} from "@/lib/tenant/tenant-branding";
-
-const DEFAULT_FAVICON = BRAAS_PLATFORM_FAVICON;
+  resolveTenantDocumentFaviconHref,
+  resolveTenantDocumentTitle,
+} from "@/lib/tenant/tenant-document-metadata";
 
 const FAVICON_REL_VALUES = ["icon", "shortcut icon", "apple-touch-icon"] as const;
 
@@ -19,6 +14,21 @@ function faviconType(href: string): string | undefined {
   if (path.endsWith(".webp")) return "image/webp";
   if (path.endsWith(".ico")) return "image/x-icon";
   return undefined;
+}
+
+function encodeHref(href: string): string {
+  if (href.startsWith("blob:") || href.startsWith("data:")) return href;
+  try {
+    // Encode spaces / unsafe chars in path while preserving query string.
+    const url = new URL(href, "http://local.invalid");
+    const encodedPath = url.pathname
+      .split("/")
+      .map((segment) => encodeURIComponent(decodeURIComponent(segment)))
+      .join("/");
+    return `${encodedPath}${url.search}${url.hash}`;
+  } catch {
+    return encodeURI(href);
+  }
 }
 
 function isFaviconLink(node: Element): node is HTMLLinkElement {
@@ -51,47 +61,36 @@ function syncFaviconLinks(href: string) {
 }
 
 export function resolveFaviconHref(branding: TenantBranding): string {
-  const slug = branding.slug?.trim().toLowerCase() ?? "";
+  return resolveTenantDocumentFaviconHref(branding);
+}
 
-  if (typeof window !== "undefined") {
-    const path = window.location.pathname;
-    const isRecruiterAuthEntry =
-      path === "/admin" ||
-      path.startsWith("/admin/") ||
-      path === "/login" ||
-      path.startsWith("/login/") ||
-      path === "/signin" ||
-      path.startsWith("/signin/");
-    if (isRecruiterAuthEntry) {
-      const fallback = brandingFallbackForSlug(branding.slug).logoUrl || DEFAULT_FAVICON;
-      return normalizeBrandingImageSrc(branding.faviconUrl || branding.logoUrl, fallback, {
-        allowBlob: true,
-      });
-    }
-  }
+export function desiredDocumentTitle(branding: TenantBranding): string {
+  return resolveTenantDocumentTitle(branding);
+}
 
-  if (isTenantApplicantPortalSlug(slug)) {
-    return `/api/tenant-favicon?slug=${encodeURIComponent(slug)}`;
-  }
-
-  if (slug === PLATFORM_DEFAULT_TENANT_SLUG) {
-    return `/api/tenant-favicon?slug=${encodeURIComponent(PLATFORM_DEFAULT_TENANT_SLUG)}`;
-  }
-
-  const fallback = brandingFallbackForSlug(branding.slug).logoUrl || DEFAULT_FAVICON;
-  return normalizeBrandingImageSrc(branding.faviconUrl || branding.logoUrl, fallback, {
-    allowBlob: true,
-  });
+export function desiredFaviconHref(branding: TenantBranding): string {
+  const iconSrc = resolveFaviconHref(branding);
+  const withCache = `${iconSrc}${iconSrc.includes("?") ? "&" : "?"}v=${encodeURIComponent(branding.slug ?? "default")}`;
+  return encodeHref(withCache);
 }
 
 export function applyBrandingHead(branding: TenantBranding) {
   if (typeof document === "undefined") return;
 
-  const iconSrc = resolveFaviconHref(branding);
-  const cacheBust = `${iconSrc}${iconSrc.includes("?") ? "&" : "?"}v=${encodeURIComponent(branding.slug ?? "default")}`;
+  syncFaviconLinks(desiredFaviconHref(branding));
+  document.title = desiredDocumentTitle(branding);
+}
 
-  syncFaviconLinks(cacheBust);
+/** True when the live document head already matches this branding. */
+export function documentHeadMatchesBranding(branding: TenantBranding): boolean {
+  if (typeof document === "undefined") return true;
+  if (document.title !== desiredDocumentTitle(branding)) return false;
 
-  const company = branding.companyName?.trim();
-  if (company) document.title = company;
+  const desired = desiredFaviconHref(branding);
+  const links = Array.from(document.querySelectorAll("link[rel]")).filter(isFaviconLink);
+  if (!links.length) return false;
+  return links.every((link) => {
+    const href = link.getAttribute("href") ?? "";
+    return href === desired || href.includes(`slug=${encodeURIComponent(branding.slug ?? "")}`);
+  });
 }

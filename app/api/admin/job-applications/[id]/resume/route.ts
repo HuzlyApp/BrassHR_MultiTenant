@@ -169,7 +169,7 @@ export async function POST(
         originalFileName: safeName,
         fileType,
         fileSizeBytes: file.size,
-        parsingStatus: "pending",
+        parsingStatus: extractedText.trim() ? "completed" : "pending",
         textLength: extractedText.trim().length,
         extractedText,
         parsedData: { text: extractedText },
@@ -190,11 +190,12 @@ export async function POST(
       if (profileError) throw profileError;
     }
 
-    // Resume changed — clear stale AI match so recruiters reanalyze.
-    await supabase
+    // Resume changed — reset match cache so UI can recalculate against the new file.
+    // Keep previous file in storage until this new upload succeeds (we never delete first).
+    const { error: matchResetError } = await supabase
       .from("job_applications")
       .update({
-        ai_match_status: null,
+        ai_match_status: "READY",
         ai_match_score: null,
         ai_match_category: null,
         ai_match_action: null,
@@ -202,16 +203,19 @@ export async function POST(
         ai_match_display_category: null,
         ai_analyzed_at: null,
         ai_analysis_error: null,
+        ai_analysis_progress: null,
         updated_at: new Date().toISOString(),
       })
       .eq("tenant_id", tenantId)
       .eq("id", applicationId);
+    if (matchResetError) throw matchResetError;
 
     return NextResponse.json({
       ok: true,
       path: objectPath,
       fileName: safeName,
       applicationId,
+      workerId,
     });
   } catch (error) {
     console.error("[admin/job-applications/resume]", error);

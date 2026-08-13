@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { cookies, headers } from "next/headers";
-import AdminRecruiterShell from "@/app/admin_recruiter/AdminRecruiterShell";
 import { ONBOARDING_TENANT_SLUG_COOKIE } from "@/lib/tenant/constants";
 import { loadAuthTenantBranding } from "@/lib/tenant/load-public-tenant-branding";
 import { buildTenantDocumentMetadata } from "@/lib/tenant/tenant-document-metadata";
@@ -17,6 +16,6 @@ export async function generateMetadata(): Promise<Metadata> {
   return buildTenantDocumentMetadata(branding);
 }
 
-export default function AdminRecruiterLayout({ children }: { children: ReactNode }) {
-  return <AdminRecruiterShell>{children}</AdminRecruiterShell>;
+export default function WorkerSignInLayout({ children }: { children: ReactNode }) {
+  return children;
 }

@@ -60,11 +60,28 @@ export async function persistWorkerResumeRecord(
   applicantId: string,
   opts: PersistWorkerResumeRecordOpts
 ): Promise<string | null> {
-  const workerCtx = await resolveWorkerByApplicantId(supabase, applicantId, opts.tenantId ?? null);
-  if (!workerCtx?.workerId || !workerCtx.tenantId) return null;
+  const byUser = await supabase
+    .from("worker")
+    .select("id, tenant_id")
+    .eq("user_id", applicantId)
+    .maybeSingle();
+  if (byUser.error) throw byUser.error;
 
-  const workerId = workerCtx.workerId;
-  const tenantId = workerCtx.tenantId;
+  let worker = byUser.data;
+  if (!worker?.id) {
+    const byId = await supabase
+      .from("worker")
+      .select("id, tenant_id")
+      .eq("id", applicantId)
+      .maybeSingle();
+    if (byId.error) throw byId.error;
+    worker = byId.data;
+  }
+
+  if (!worker?.id || worker.tenant_id == null) return null;
+
+  const workerId = String(worker.id);
+  const tenantId = String(worker.tenant_id);
   const parsingStatus = opts.parsingStatus ?? (opts.parsedData ? "completed" : "pending");
   const now = new Date().toISOString();
   const fileUrl = opts.fileUrl.trim();

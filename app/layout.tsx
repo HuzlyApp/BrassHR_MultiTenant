@@ -45,10 +45,7 @@ const tenantBrandingUbuntu = Ubuntu({
 });
 
 export const metadata: Metadata = {
-  title: {
-    default: "Onboarding",
-    template: "%s | Onboarding",
-  },
+  title: "Brass HR",
   description: "Configurable applicant and recruiter onboarding for healthcare staffing teams.",
   icons: {
     icon: BRAAS_PLATFORM_FAVICON,
