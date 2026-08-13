@@ -15,6 +15,7 @@ import { WORKER_RESUMES_BUCKET } from "@/lib/supabase-storage-buckets"
 import { enforceRateLimit, getClientIp } from "@/lib/security/rate-limit"
 import { JobValidationError } from "@/lib/jobs/types"
 import { startOrResumeJobApplication } from "@/lib/jobs/service"
+import { isResumeUploadValidationError } from "@/lib/resume/validate-resume-upload"
 
 export const runtime = "nodejs"
 const MAX_RESUME_BYTES = Number(process.env.MAX_RESUME_UPLOAD_BYTES ?? 10 * 1024 * 1024)
@@ -346,6 +347,7 @@ export async function POST(req: Request) {
         extractedText: text,
         jobApplicationId: jobApplication?.application.id ?? null,
         uploadedByUserId: applicantId,
+        uploaderRole: "worker",
       }),
       RESUME_DB_TIMEOUT_MS,
       "Resume record persistence",
@@ -357,7 +359,10 @@ export async function POST(req: Request) {
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Failed to save resume record"
     console.error("[upload-resume] worker_resumes", e)
-    return NextResponse.json({ error: msg }, { status: 500 })
+    return NextResponse.json(
+      { error: msg },
+      { status: isResumeUploadValidationError(e) ? 400 : 500 },
+    )
   }
 
   if (!resumeId) {

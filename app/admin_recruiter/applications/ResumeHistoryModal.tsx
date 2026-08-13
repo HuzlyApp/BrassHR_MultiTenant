@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { Eye, Loader2, Trash2, Upload, X } from "lucide-react";
 import BrandedFileTypeIcon from "@/app/admin_recruiter/components/BrandedFileTypeIcon";
+import { MAX_RESUME_UPLOADS_PER_ROLE, resumeUploadLimitMessage } from "@/lib/resume/resume-upload-limit";
 
 export type ResumeHistoryItem = {
   id: string;
@@ -23,6 +24,7 @@ type ResumeHistoryModalProps = {
   busyResumeId?: string | null;
   reuploadBusy?: boolean;
   reuploadDisabled?: boolean;
+  reuploadDisabledReason?: string | null;
   onClose: () => void;
   onReupload: () => void;
   onView: (resumeId: string) => void;
@@ -128,6 +130,7 @@ export function ResumeHistoryModal({
   busyResumeId = null,
   reuploadBusy = false,
   reuploadDisabled = false,
+  reuploadDisabledReason = null,
   onClose,
   onReupload,
   onView,
@@ -149,6 +152,12 @@ export function ResumeHistoryModal({
   }, [open, modalBusy, onClose]);
 
   if (!open) return null;
+
+  const adminUploadCount = resumes.filter((resume) => resume.uploadedByType === "staff").length;
+  const adminUploadLimitReached = adminUploadCount >= MAX_RESUME_UPLOADS_PER_ROLE;
+  const limitMessage =
+    reuploadDisabledReason ||
+    (adminUploadLimitReached ? resumeUploadLimitMessage("admin") : null);
 
   return (
     <div
@@ -225,9 +234,16 @@ export function ResumeHistoryModal({
         </div>
 
         <div className="border-t border-[#E5E7EB] bg-white px-5 py-4">
+          {limitMessage ? (
+            <p className="mb-3 text-sm text-[#B91C1C]">{limitMessage}</p>
+          ) : (
+            <p className="mb-3 text-sm text-[#64748B]">
+              {adminUploadCount} of {MAX_RESUME_UPLOADS_PER_ROLE} admin uploads used for this job.
+            </p>
+          )}
           <button
             type="button"
-            disabled={reuploadBusy || reuploadDisabled}
+            disabled={reuploadBusy || reuploadDisabled || adminUploadLimitReached}
             onClick={onReupload}
             className="admin-recruiter-action-chip inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-[#E5E7EB] bg-white px-4 text-sm font-medium text-[#525252] transition hover:bg-[#F8FAFC] disabled:opacity-50"
           >

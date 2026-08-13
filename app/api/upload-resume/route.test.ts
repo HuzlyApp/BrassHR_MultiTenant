@@ -27,6 +27,9 @@ vi.mock("@/lib/onboarding/resolve-worker-context", () => ({
 vi.mock("@/lib/onboarding/persist-worker-resume-path", () => ({
   persistWorkerResumePath: vi.fn(async () => undefined),
 }))
+vi.mock("@/lib/onboarding/sync-worker-primary-resume-path", () => ({
+  syncWorkerPrimaryResumePath: vi.fn(async () => undefined),
+}))
 vi.mock("@/lib/onboarding/persist-worker-resume-record", () => ({
   persistWorkerResumeRecord: (...args: unknown[]) => persistRecordMock(...args),
 }))
@@ -36,6 +39,7 @@ vi.mock("@/lib/onboarding/send-resume-continuation-email", () => ({
 }))
 vi.mock("@/lib/resolve-app-origin", () => ({
   resolveAppOrigin: () => "http://localhost:3000",
+  resolveApplicantEmailAppOrigin: () => "http://localhost:3000",
 }))
 vi.mock("@/lib/security/rate-limit", () => ({
   enforceRateLimit: vi.fn(async () => null),

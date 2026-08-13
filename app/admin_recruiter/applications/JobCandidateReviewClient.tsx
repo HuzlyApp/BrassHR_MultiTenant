@@ -47,6 +47,10 @@ import {
 } from "@/lib/jobs/application-status";
 import { formatInterviewDate, formatInterviewTimeRange } from "@/lib/interviews/format";
 import { validateResumeUploadFile } from "@/lib/resume/validate-resume-upload";
+import {
+  MAX_RESUME_UPLOADS_PER_ROLE,
+  resumeUploadLimitMessage,
+} from "@/lib/resume/resume-upload-limit";
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
 import type { AdminInterviewItem } from "@/app/api/admin/applicant-appointments/route";
 import { JobPublicViewLink } from "@/app/admin_recruiter/jobs/JobPublicViewLink";
@@ -241,6 +245,12 @@ export default function JobCandidateReviewClient() {
     () => jobOptions.find((option) => option.id === jobId) ?? null,
     [jobOptions, jobId]
   );
+
+  const adminResumeUploadCount = resumeHistoryItems.filter(
+    (resume) => resume.uploadedByType === "staff"
+  ).length;
+  const adminResumeUploadLimitReached =
+    adminResumeUploadCount >= MAX_RESUME_UPLOADS_PER_ROLE;
 
   const jobTitle =
     selectedJob?.public_title?.trim() ||
@@ -486,6 +496,13 @@ export default function JobCandidateReviewClient() {
     if (!selected?.id) return;
     if (!workerId) {
       toast.error("Candidate profile is not linked yet, so resume cannot be uploaded.");
+      return;
+    }
+    const adminUploadCount = resumeHistoryItems.filter(
+      (resume) => resume.uploadedByType === "staff"
+    ).length;
+    if (adminUploadCount >= MAX_RESUME_UPLOADS_PER_ROLE) {
+      toast.error(resumeUploadLimitMessage("admin"));
       return;
     }
     window.requestAnimationFrame(() => {
@@ -1631,7 +1648,10 @@ export default function JobCandidateReviewClient() {
         error={resumeHistoryError}
         busyResumeId={resumeHistoryBusyId}
         reuploadBusy={resumeUploading}
-        reuploadDisabled={!workerId}
+        reuploadDisabled={!workerId || adminResumeUploadLimitReached}
+        reuploadDisabledReason={
+          adminResumeUploadLimitReached ? resumeUploadLimitMessage("admin") : null
+        }
         onClose={() => {
           if (resumeUploading || resumeHistoryBusyId) return;
           setResumeHistoryOpen(false);

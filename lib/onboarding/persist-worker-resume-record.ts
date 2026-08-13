@@ -1,4 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { assertResumeUploadWithinLimit } from "@/lib/resume/assert-resume-upload-limit";
+import type { ResumeUploaderRole } from "@/lib/resume/resume-upload-limit";
 
 export type WorkerResumeParsingStatus = "pending" | "processing" | "completed" | "failed";
 
@@ -15,6 +17,7 @@ export type PersistWorkerResumeRecordOpts = {
   extractedText?: string | null;
   jobApplicationId?: string | null;
   uploadedByUserId?: string | null;
+  uploaderRole?: ResumeUploaderRole;
 };
 
 export type PersistWorkerResumeRecordMode = "insert" | "update";
@@ -27,10 +30,10 @@ export type PersistWorkerResumeRecordOptions = {
 async function resolveWorkerForResume(
   supabase: SupabaseClient,
   applicantId: string
-): Promise<{ workerId: string; tenantId: string } | null> {
+): Promise<{ workerId: string; tenantId: string; userId: string | null } | null> {
   const byUser = await supabase
     .from("worker")
-    .select("id, tenant_id")
+    .select("id, tenant_id, user_id")
     .eq("user_id", applicantId)
     .maybeSingle();
   if (byUser.error) throw byUser.error;
@@ -39,7 +42,7 @@ async function resolveWorkerForResume(
   if (!worker?.id) {
     const byId = await supabase
       .from("worker")
-      .select("id, tenant_id")
+      .select("id, tenant_id, user_id")
       .eq("id", applicantId)
       .maybeSingle();
     if (byId.error) throw byId.error;
@@ -47,7 +50,11 @@ async function resolveWorkerForResume(
   }
 
   if (!worker?.id || worker.tenant_id == null) return null;
-  return { workerId: String(worker.id), tenantId: String(worker.tenant_id) };
+  return {
+    workerId: String(worker.id),
+    tenantId: String(worker.tenant_id),
+    userId: worker.user_id != null ? String(worker.user_id) : null,
+  };
 }
 
 function buildResumeRow(
@@ -97,6 +104,16 @@ export async function persistWorkerResumeRecord(
 
   const mode = recordOptions?.mode ?? "insert";
   const row = buildResumeRow(worker.workerId, worker.tenantId, opts);
+
+  if (mode === "insert") {
+    await assertResumeUploadWithinLimit(supabase, {
+      workerId: worker.workerId,
+      workerUserId: worker.userId,
+      jobApplicationId: opts.jobApplicationId,
+      uploadedByUserId: opts.uploadedByUserId,
+      role: opts.uploaderRole,
+    });
+  }
 
   if (mode === "update") {
     const resumeId = recordOptions?.resumeId?.trim();

@@ -5,7 +5,9 @@ import { resolveStaffTenantId } from "@/lib/jobs/tenant";
 import { extractResumeTextFromUpload } from "@/lib/jobs/match-analysis/extract-resume-text";
 import { persistWorkerResumeRecord } from "@/lib/onboarding/persist-worker-resume-record";
 import { syncWorkerPrimaryResumePath } from "@/lib/onboarding/sync-worker-primary-resume-path";
+import { assertResumeUploadWithinLimit } from "@/lib/resume/assert-resume-upload-limit";
 import {
+  isResumeUploadValidationError,
   resolveResumeFileType,
   validateExtractedResumeText,
   validateResumeUploadFile,
@@ -131,6 +133,32 @@ export async function POST(
       );
     }
 
+    let resumeOwnerId: string | null = null;
+    let workerUserId: string | null = null;
+    if (workerId) {
+      const { data: worker, error: workerError } = await supabase
+        .from("worker")
+        .select("id, user_id, tenant_id")
+        .eq("id", workerId)
+        .eq("tenant_id", tenantId)
+        .maybeSingle();
+      if (workerError) throw workerError;
+
+      workerUserId =
+        worker?.user_id != null && String(worker.user_id).trim()
+          ? String(worker.user_id).trim()
+          : null;
+      resumeOwnerId = workerUserId || workerId;
+
+      await assertResumeUploadWithinLimit(supabase, {
+        workerId,
+        workerUserId,
+        jobApplicationId: applicationId,
+        uploadedByUserId: auth.userId,
+        role: "admin",
+      });
+    }
+
     const safeName = sanitizeFileName(file.name || "resume.pdf");
     const objectPath = workerId
       ? `${workerId}/${randomUUID()}-${safeName}`
@@ -149,20 +177,7 @@ export async function POST(
       );
     }
 
-    if (workerId) {
-      const { data: worker, error: workerError } = await supabase
-        .from("worker")
-        .select("id, user_id, tenant_id")
-        .eq("id", workerId)
-        .eq("tenant_id", tenantId)
-        .maybeSingle();
-      if (workerError) throw workerError;
-
-      const resumeOwnerId =
-        worker?.user_id != null && String(worker.user_id).trim()
-          ? String(worker.user_id).trim()
-          : workerId;
-
+    if (workerId && resumeOwnerId) {
       await persistWorkerResumeRecord(supabase, resumeOwnerId, {
         fileUrl: objectPath,
         originalFileName: safeName,
@@ -174,6 +189,7 @@ export async function POST(
         parsedData: { text: extractedText },
         jobApplicationId: applicationId,
         uploadedByUserId: auth.userId,
+        uploaderRole: "admin",
       });
       await syncWorkerPrimaryResumePath(supabase, workerId, resumeOwnerId);
     }
@@ -222,7 +238,7 @@ export async function POST(
     console.error("[admin/job-applications/resume]", error);
     return NextResponse.json(
       { error: formatApiError(error, "Failed to upload resume") },
-      { status: 500 }
+      { status: isResumeUploadValidationError(error) ? 400 : 500 }
     );
   }
 }
