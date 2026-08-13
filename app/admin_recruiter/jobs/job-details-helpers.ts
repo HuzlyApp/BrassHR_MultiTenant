@@ -167,7 +167,7 @@ export function performanceDateRangeLabel(job: JobDetailsRow): string {
   return `${start} - Today`;
 }
 
-export type StatusTransitionAction = "publish" | "unpublish" | "close" | "archive";
+export type StatusTransitionAction = "publish" | "unpublish" | "close" | "archive" | "unarchive";
 
 export function statusActionForTarget(
   current: string,
@@ -178,5 +178,6 @@ export function statusActionForTarget(
   if (target === "draft") return "unpublish";
   if (target === "closed") return "close";
   if (target === "archived") return "archive";
+  if (current === "archived" && target === "draft") return "unarchive";
   return null;
 }

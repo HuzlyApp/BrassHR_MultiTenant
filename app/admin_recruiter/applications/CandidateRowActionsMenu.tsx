@@ -13,6 +13,7 @@ export type CandidateRowActionsHandlers = {
   onReanalyze: () => void;
   onUpdateResume: () => void;
   onArchive: () => void;
+  onUnarchive: () => void;
   onMessage: () => void;
   onCall: () => void;
   onSetupInterview: () => void;
@@ -51,6 +52,7 @@ export function CandidateRowActionsMenu({
   onReanalyze,
   onUpdateResume,
   onArchive,
+  onUnarchive,
   onMessage,
   onCall,
   onSetupInterview,
@@ -181,15 +183,25 @@ export function CandidateRowActionsMenu({
         >
           Update Resume
         </button>
-        <button
-          type="button"
-          role="menuitem"
-          disabled={archived}
-          onClick={() => runAndClose(onArchive)}
-          className={`${menuItemClassName()} disabled:opacity-50`}
-        >
-          Archive
-        </button>
+        {archived ? (
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => runAndClose(onUnarchive)}
+            className={menuItemClassName()}
+          >
+            Unarchive
+          </button>
+        ) : (
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => runAndClose(onArchive)}
+            className={menuItemClassName()}
+          >
+            Archive
+          </button>
+        )}
         <button
           ref={moreItemRef}
           type="button"

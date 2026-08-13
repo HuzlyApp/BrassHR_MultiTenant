@@ -379,6 +379,33 @@ function formatActivity(row: ApplicationRow): string {
   })}`;
 }
 
+const ACTION_TOAST_DURATION_MS = 4000;
+
+function statusChangeSuccessMessage(
+  systemKey: string | null,
+  statusName: string,
+  candidateName: string
+): string {
+  switch (systemKey) {
+    case "hired":
+      return `${candidateName} marked as hired successfully`;
+    case "rejected":
+      return `${candidateName} marked as rejected`;
+    case "undecided":
+      return `${candidateName} marked as undecided`;
+    case "shortlisted":
+      return `${candidateName} shortlisted successfully`;
+    case "interviewing":
+      return `${candidateName} moved to interviewing`;
+    case "reviewing":
+      return `${candidateName} moved to reviewing`;
+    case "new":
+      return `${candidateName} moved to new`;
+    default:
+      return `${candidateName} status updated to ${statusName}`;
+  }
+}
+
 function applicantName(row: ApplicationRow): string {
   return resolveApplicationApplicantName(row);
 }
@@ -767,8 +794,18 @@ export default function JobApplicationsPage() {
     (jobId ? "Job" : "Select a job");
   const jobLocation = formatJobLocation(job ?? selectedJobOption);
 
-  const statusTabs = useMemo(
-    () => [{ id: "all" as const, label: "All" }, ...statusOptions.map((s) => ({ id: s.id, label: s.name }))],
+  const statusTabs = useMemo(() => {
+    const pipeline = statusOptions.filter((option) => option.systemKey !== "archived");
+    const archivedTab = statusOptions.find((option) => option.systemKey === "archived");
+    return [
+      { id: "all" as const, label: "All" },
+      ...pipeline.map((s) => ({ id: s.id, label: s.name })),
+      ...(archivedTab ? [{ id: archivedTab.id, label: archivedTab.name }] : []),
+    ];
+  }, [statusOptions]);
+
+  const selectableStatusOptions = useMemo(
+    () => statusOptions.filter((option) => option.systemKey !== "archived"),
     [statusOptions]
   );
 
@@ -899,10 +936,11 @@ export default function JobApplicationsPage() {
       });
       setPendingDeleteIds([]);
       setDeleteConfirmOpen(false);
+      const deletedCount =
+        typeof payload.count === "number" ? payload.count : deletedIds.size;
       toast.success(
-        `Deleted ${typeof payload.count === "number" ? payload.count : deletedIds.size} candidate${
-          (payload.count ?? deletedIds.size) === 1 ? "" : "s"
-        }`
+        `Deleted ${deletedCount} candidate${deletedCount === 1 ? "" : "s"}`,
+        { duration: ACTION_TOAST_DURATION_MS }
       );
     } catch (deleteErr) {
       const message =
@@ -1028,6 +1066,12 @@ export default function JobApplicationsPage() {
       );
       setPendingResumeFile(null);
       setPendingResumeApplicationId(null);
+      const candidateLabel = applicantName(
+        rows.find((row) => row.id === applicationId) ?? ({ id: applicationId } as ApplicationRow)
+      );
+      toast.success(`${candidateLabel}: resume updated successfully`, {
+        duration: ACTION_TOAST_DURATION_MS,
+      });
       setResumeSuccessOpen(true);
     } catch (uploadError) {
       setResumeErrorMessage(
@@ -1051,15 +1095,38 @@ export default function JobApplicationsPage() {
       toast.success("Candidate is already archived");
       return;
     }
-    void applyApplicationStatus(applicationId, archivedOption, "Archived from candidates list");
+    void applyApplicationStatus(applicationId, archivedOption, "Archived from candidates list", {
+      switchToArchivedTab: true,
+    });
+  }
+
+  function beginUnarchiveCandidate(applicationId: string) {
+    const newOption = statusOptions.find((option) => option.systemKey === "new");
+    if (!newOption) {
+      toast.error("New status is not configured for this organization.");
+      return;
+    }
+    const row = rows.find((item) => item.id === applicationId);
+    if (!row) return;
+    if (!isRowArchived(row, statusOptions)) {
+      toast.success("Candidate is not archived");
+      return;
+    }
+    void applyApplicationStatus(applicationId, newOption, "Restored from archive");
   }
 
   async function applyApplicationStatus(
     applicationId: string,
     toOption: ApplicationStatusOption,
-    note?: string
+    note?: string,
+    options?: { switchToArchivedTab?: boolean }
   ) {
-    if (statusBusyId) return;
+    if (statusBusyId) {
+      toast.error("Please wait — a status update is already in progress.");
+      return false;
+    }
+    const previousRow = rows.find((item) => item.id === applicationId);
+    const wasArchived = previousRow ? isRowArchived(previousRow, statusOptions) : false;
     setStatusBusyId(applicationId);
     try {
       const response = await fetch(
@@ -1103,19 +1170,37 @@ export default function JobApplicationsPage() {
       setPendingStatusChange(null);
       setStatusChangeNote("");
       if (toOption.systemKey === "archived") {
-        toast.success("Candidate archived");
+        const candidateLabel = previousRow ? applicantName(previousRow) : "Candidate";
+        toast.success(`${candidateLabel} archived successfully`, { duration: ACTION_TOAST_DURATION_MS });
+        if (options?.switchToArchivedTab) {
+          window.setTimeout(() => {
+            setActiveTab(toOption.id);
+            const params = new URLSearchParams(searchParams.toString());
+            params.set("tab", toOption.id);
+            router.replace(`${pathname}?${params.toString()}`);
+          }, 300);
+        }
+      } else if (wasArchived && toOption.systemKey !== "archived") {
+        const candidateLabel = previousRow ? applicantName(previousRow) : "Candidate";
+        toast.success(`${candidateLabel} restored from archive`, { duration: ACTION_TOAST_DURATION_MS });
+      } else if (payload.unchanged) {
+        toast.success("Status unchanged");
       } else {
+        const candidateLabel = previousRow ? applicantName(previousRow) : "Candidate";
         toast.success(
-          payload.unchanged ? "Status unchanged" : `Status updated to ${nextStatusName}`
+          statusChangeSuccessMessage(toOption.systemKey, nextStatusName, candidateLabel),
+          { duration: ACTION_TOAST_DURATION_MS }
         );
       }
       if (historyDialog?.applicationId === applicationId) {
         void loadStatusHistory(applicationId);
       }
+      return true;
     } catch (updateError) {
       toast.error(
         updateError instanceof Error ? updateError.message : "Failed to update status"
       );
+      return false;
     } finally {
       setStatusBusyId(null);
     }
@@ -1157,15 +1242,24 @@ export default function JobApplicationsPage() {
         );
       }
       setInterviewOpen(false);
+      setInterviewError(null);
+      setActionTargetRowId(null);
+      const candidateLabel = applicantName(row);
       if (data.emailSent) {
-        toast.success("Interview scheduled — invitation email sent");
+        toast.success(`${candidateLabel}: interview scheduled — invitation sent`, {
+          duration: ACTION_TOAST_DURATION_MS,
+        });
       } else if (data.emailSkipped) {
-        toast.success("Interview scheduled");
+        toast.success(`${candidateLabel}: interview scheduled`, {
+          duration: ACTION_TOAST_DURATION_MS,
+        });
         toast("No email sent — candidate email is missing or mail is not configured.", {
           icon: "ℹ️",
         });
       } else {
-        toast.success("Interview scheduled");
+        toast.success(`${candidateLabel}: interview scheduled`, {
+          duration: ACTION_TOAST_DURATION_MS,
+        });
       }
     } catch (scheduleError) {
       const message =
@@ -1175,6 +1269,25 @@ export default function JobApplicationsPage() {
     } finally {
       setInterviewSubmitting(false);
     }
+  }
+
+  function beginQuickStatusChange(
+    applicationId: string,
+    systemKey: ApplicationPipelineStatus,
+    note?: string
+  ) {
+    const option = statusOptions.find((item) => item.systemKey === systemKey);
+    if (!option) {
+      toast.error("That status is not configured for this organization.");
+      return;
+    }
+    const row = rows.find((item) => item.id === applicationId);
+    if (!row) return;
+    if (rowStatusId(row) === option.id) {
+      toast.success(`Candidate is already ${option.name.toLowerCase()}`);
+      return;
+    }
+    void applyApplicationStatus(applicationId, option, note);
   }
 
   function beginStatusChange(applicationId: string, toOption: ApplicationStatusOption) {
@@ -1249,6 +1362,9 @@ export default function JobApplicationsPage() {
 
   async function runMatchAnalyze(applicationId: string) {
     setMatchAnalyzingId(applicationId);
+    const candidateLabel = applicantName(
+      rows.find((row) => row.id === applicationId) ?? ({ id: applicationId } as ApplicationRow)
+    );
     try {
       const response = await fetch(
         `/api/admin/job-applications/${applicationId}/match-analysis`,
@@ -1280,8 +1396,10 @@ export default function JobApplicationsPage() {
       );
       if (payload.status === "NEEDS_REVIEW") {
         toast.error(payload.error || "Needs résumé text before analysis");
-      } else if (payload.status === "ANALYZED") {
-        toast.success("Match analysis complete");
+      } else {
+        toast.success(`${candidateLabel}: match analysis complete`, {
+          duration: ACTION_TOAST_DURATION_MS,
+        });
       }
     } catch (analyzeError) {
       toast.error(
@@ -1510,32 +1628,41 @@ export default function JobApplicationsPage() {
                   aria-label="Jobs"
                 >
                   <div className="space-y-3 border-b border-[#E5E7EB] p-3 sm:p-4">
-                    <label className="relative block">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src="/search-candidate-jobs.svg"
-                        alt=""
-                        width={20}
-                        height={20}
-                        className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2"
-                        aria-hidden
-                      />
-                      <input
-                        type="search"
-                        value={jobSearch}
-                        onChange={(e) => setJobSearch(e.target.value)}
-                        placeholder="Search by job title or reference number"
-                        className="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white py-2 pl-11 pr-3 text-sm text-[#334155] placeholder:text-[#94A3B8] focus:border-[color:var(--brand-primary)] focus:outline-none focus:ring-0 [&::-webkit-search-cancel-button]:cursor-pointer [&::-webkit-search-decoration]:cursor-pointer"
-                        autoFocus
-                      />
-                    </label>
+                    <div className="flex items-center gap-2">
+                      <label className="relative block min-w-0 flex-1">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src="/search-candidate-jobs.svg"
+                          alt=""
+                          width={20}
+                          height={20}
+                          className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2"
+                          aria-hidden
+                        />
+                        <input
+                          type="search"
+                          value={jobSearch}
+                          onChange={(e) => setJobSearch(e.target.value)}
+                          placeholder="Search by job title or reference number"
+                          className="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white py-2 pl-11 pr-3 text-sm text-[#334155] placeholder:text-[#94A3B8] focus:border-[color:var(--brand-primary)] focus:outline-none focus:ring-0 [&::-webkit-search-cancel-button]:cursor-pointer [&::-webkit-search-decoration]:cursor-pointer"
+                          autoFocus
+                        />
+                      </label>
+                      <button
+                        type="button"
+                        onClick={clearJobDropdownFilters}
+                        className="shrink-0 px-1 text-sm font-bold whitespace-nowrap text-black transition hover:opacity-80"
+                      >
+                        Clear all
+                      </button>
+                    </div>
 
-                    <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
-                      <div className="flex min-w-0 flex-wrap items-center gap-2 sm:gap-4">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+                      <div className="flex min-w-0 items-center gap-2 sm:gap-3">
                         <select
                           value={jobStatusFilter}
                           onChange={(e) => setJobStatusFilter(e.target.value)}
-                          className={`${FILTER_SELECT_CLASS} min-w-0 flex-1 sm:flex-none sm:shrink-0`}
+                          className={`${FILTER_SELECT_CLASS} shrink-0`}
                           style={FILTER_SELECT_CHEVRON}
                           aria-label="Filter by status"
                         >
@@ -1549,7 +1676,7 @@ export default function JobApplicationsPage() {
                         <select
                           value={jobLocationFilter}
                           onChange={(e) => setJobLocationFilter(e.target.value)}
-                          className={`${FILTER_SELECT_CLASS} min-w-0 flex-1 sm:flex-none sm:shrink-0`}
+                          className={`${FILTER_SELECT_CLASS} min-w-0 max-w-[120px] flex-1 sm:max-w-[140px] sm:flex-none`}
                           style={FILTER_SELECT_CHEVRON}
                           aria-label="Filter by location"
                         >
@@ -1560,17 +1687,9 @@ export default function JobApplicationsPage() {
                             </option>
                           ))}
                         </select>
-
-                        <button
-                          type="button"
-                          onClick={clearJobDropdownFilters}
-                          className="shrink-0 px-1 text-sm font-bold whitespace-nowrap text-black transition hover:opacity-80"
-                        >
-                          Clear all
-                        </button>
                       </div>
 
-                      <div className="flex w-full min-w-0 items-center justify-between gap-2 sm:ml-auto sm:w-auto sm:justify-start sm:gap-4">
+                      <div className="flex shrink-0 items-center justify-end gap-2 sm:ml-auto sm:gap-3">
                         <div className="flex shrink-0 items-center gap-2">
                           <span className="text-sm whitespace-nowrap text-[#64748B]">Sort by</span>
                           <select
@@ -1584,7 +1703,7 @@ export default function JobApplicationsPage() {
                             <option value="oldest">Oldest</option>
                           </select>
                         </div>
-                        <p className="inline-flex min-w-0 items-center gap-1.5 text-sm text-[#64748B]">
+                        <p className="inline-flex min-w-0 items-center gap-1.5 text-sm whitespace-nowrap text-[#64748B]">
                           {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img
                             src="/jobs-count-icon.svg"
@@ -1594,7 +1713,7 @@ export default function JobApplicationsPage() {
                             className="h-3.5 w-3.5 shrink-0"
                             aria-hidden
                           />
-                          <span className="truncate">
+                          <span>
                             {filteredJobOptions.length} of {jobOptions.length} jobs
                           </span>
                         </p>
@@ -2112,6 +2231,7 @@ export default function JobApplicationsPage() {
           }}
           onUpdateResume={() => beginUpdateResume(rowActionsMenu.rowId)}
           onArchive={() => beginArchiveCandidate(rowActionsMenu.rowId)}
+          onUnarchive={() => beginUnarchiveCandidate(rowActionsMenu.rowId)}
           onMessage={() => {
             const row = rows.find((item) => item.id === rowActionsMenu.rowId);
             if (!row) return;
@@ -2147,13 +2267,19 @@ export default function JobApplicationsPage() {
             setInterviewOpen(true);
           }}
           onDeleteCandidate={() => beginDeleteCandidate(rowActionsMenu.rowId)}
-          onMarkAsHired={() => beginStatusChangeBySystemKey(rowActionsMenu.rowId, "hired")}
+          onMarkAsHired={() =>
+            beginQuickStatusChange(
+              rowActionsMenu.rowId,
+              "hired",
+              "Marked as hired from candidates list"
+            )
+          }
         />
       ) : null}
 
       {statusMenu ? (
         <StatusDropdownPortal
-          options={statusOptions}
+          options={selectableStatusOptions}
           currentStatusId={(() => {
             const menuRow = rows.find((row) => row.id === statusMenu.rowId);
             return menuRow ? rowStatusId(menuRow) : null;
@@ -2313,6 +2439,7 @@ export default function JobApplicationsPage() {
             <AddCallLogModal
               open={callOpen}
               workerId={workerId}
+              candidateName={name}
               onClose={() => {
                 setCallOpen(false);
                 setActionTargetRowId(null);

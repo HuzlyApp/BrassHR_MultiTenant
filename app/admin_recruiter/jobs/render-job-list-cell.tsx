@@ -4,6 +4,7 @@ import { MoreHorizontal } from "lucide-react"
 import type { JobColumnId, JobSortField } from "./job-columns"
 import JobPublishToggle from "./JobPublishToggle"
 import { isJobRequisitionOpen } from "@/lib/jobs/public-application-routing"
+import { normalizeJobRequisitionStatus } from "@/lib/jobs/job-status"
 import { isMspRecruitAndRelease, placementTypeFromApiRow } from "@/lib/jobs/placement"
 import type { SourceType } from "@/lib/jobs/types"
 import { JobPublicViewLink } from "./JobPublicViewLink"
@@ -323,7 +324,7 @@ export function jobSortValue(job: JobListRow, field: JobSortField): string | num
 }
 
 function displayJobStatus(status: JobListRow["status"]): { label: string; dotClass: string } {
-  switch (status) {
+  switch (normalizeJobRequisitionStatus(String(status ?? ""))) {
     case "published":
       return { label: "Published", dotClass: "bg-[#3B82F6]" }
     case "draft":
@@ -338,12 +339,13 @@ function displayJobStatus(status: JobListRow["status"]): { label: string; dotCla
 }
 
 function isPublishToggleChecked(status: JobListRow["status"]): boolean {
-  return status === "published"
+  return normalizeJobRequisitionStatus(String(status ?? "")) === "published"
 }
 
 function isPublishToggleDisabled(job: JobListRow): boolean {
-  if (job.status === "archived") return true
-  if (job.status === "closed") {
+  const status = normalizeJobRequisitionStatus(String(job.status ?? ""))
+  if (status === "archived") return true
+  if (status === "closed") {
     return !isJobRequisitionOpen({ application_deadline: job.application_deadline })
   }
   return false
@@ -394,7 +396,7 @@ export type JobListCellContext = {
 }
 
 function publicJobPathFor(job: JobListRow, tenantSlug: string | null): string | null {
-  if (job.status !== "published") return null
+  if (normalizeJobRequisitionStatus(String(job.status ?? "")) !== "published") return null
   const token = typeof job.public_job_token === "string" ? job.public_job_token.trim() : ""
   const slug = tenantSlug?.trim().toLowerCase() ?? ""
   if (!token || !slug) return null

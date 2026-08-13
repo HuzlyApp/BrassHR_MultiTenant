@@ -32,6 +32,29 @@ export function normalizeJobToken(value: string | null | undefined): string | nu
   return token;
 }
 
+/**
+ * Public job board / detail title.
+ * Contract (MSP R&R) jobs should show Source Job Title, not an opaque public title.
+ */
+export function publicJobDisplayTitle(job: {
+  public_title?: string | null;
+  source_job_title?: string | null;
+  source_type?: string | null;
+  employment_type?: string | null;
+}): string {
+  const isContract =
+    String(job.employment_type ?? "").trim() === "Contract" ||
+    String(job.source_type ?? "").trim().toLowerCase() === "msp";
+  if (isContract) {
+    return (
+      job.source_job_title?.trim() ||
+      job.public_title?.trim() ||
+      "Untitled job"
+    );
+  }
+  return job.public_title?.trim() || "Untitled job";
+}
+
 export function isJobRequisitionOpen(
   job: { application_deadline?: string | null },
   now: Date = new Date()

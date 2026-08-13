@@ -10,6 +10,7 @@ import {
   publishExistingJob,
   saveJobRequisition,
   transitionJobStatus,
+  unarchiveJobRequisition,
 } from "@/lib/jobs/service";
 import { resolveStaffTenantId } from "@/lib/jobs/tenant";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
@@ -85,7 +86,10 @@ export async function POST(req: NextRequest) {
     if (!tenantId) return NextResponse.json({ error: "No tenant selected" }, { status: 400 });
 
     if (
-      (action === "unpublish" || action === "close" || action === "archive") &&
+      (action === "unpublish" ||
+        action === "close" ||
+        action === "archive" ||
+        action === "unarchive") &&
       !jobId
     ) {
       return NextResponse.json({ error: "Job ID is required" }, { status: 400 });
@@ -100,6 +104,11 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "Job ID is required" }, { status: 400 });
       }
       const result = await publishExistingJob(supabase, tenantId, auth.userId, jobId);
+      return NextResponse.json({ job: result });
+    }
+
+    if (action === "unarchive") {
+      const result = await unarchiveJobRequisition(supabase, tenantId, auth.userId, jobId);
       return NextResponse.json({ job: result });
     }
 

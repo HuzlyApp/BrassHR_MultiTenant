@@ -29,6 +29,7 @@ import {
   placementTypeFromApiRow,
   resolvePlacementTypeForSource,
 } from "@/lib/jobs/placement";
+import { normalizeJobRequisitionStatus } from "@/lib/jobs/job-status";
 import { resolveWorkflowMatch } from "@/lib/workflow-mappings/service";
 import { ensureAdminCandidateWorker } from "@/lib/jobs/ensure-admin-candidate-worker";
 import { getOnboardingFlowById } from "@/lib/onboarding/onboarding-flows";
@@ -641,13 +642,23 @@ export async function transitionJobStatus(
   status: Exclude<JobStatus, "published">
 ) {
   const now = new Date().toISOString();
-  const patch = {
+  const patch: Record<string, string | null> = {
     status,
     updated_by: actorUserId,
-    published_at: status === "draft" ? null : undefined,
-    closed_at: status === "closed" ? now : null,
-    archived_at: status === "archived" ? now : null,
   };
+
+  if (status === "draft") {
+    patch.published_at = null;
+    patch.closed_at = null;
+    patch.archived_at = null;
+  } else if (status === "closed") {
+    patch.closed_at = now;
+    patch.archived_at = null;
+  } else if (status === "archived") {
+    patch.archived_at = now;
+    patch.closed_at = null;
+    patch.published_at = null;
+  }
 
   const { data, error } = await supabase
     .from("job_requisitions")
@@ -658,6 +669,27 @@ export async function transitionJobStatus(
     .single();
   if (error) throw error;
   return data;
+}
+
+/** Restore an archived job to draft (off public board, editable). */
+export async function unarchiveJobRequisition(
+  supabase: DbClient,
+  tenantId: string,
+  actorUserId: string,
+  jobId: string
+) {
+  const { data: row, error } = await supabase
+    .from("job_requisitions")
+    .select("id, status")
+    .eq("id", jobId)
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!row) throw new JobValidationError("Job not found.", {}, "JOB_NOT_FOUND");
+  if (normalizeJobRequisitionStatus(String(row.status ?? "")) !== "archived") {
+    throw new JobValidationError("Job is not archived.", {}, "JOB_NOT_ARCHIVED");
+  }
+  return transitionJobStatus(supabase, tenantId, actorUserId, jobId, "draft");
 }
 
 /** Close published jobs whose application deadline has passed. */
@@ -784,10 +816,10 @@ export async function publishExistingJob(
   if (!row) throw new JobValidationError("Job not found.", {}, "JOB_NOT_FOUND");
 
   const status = String(row.status ?? "");
-  if (status === "published") {
+  if (normalizeJobRequisitionStatus(status) === "published") {
     throw new JobValidationError("Job is already published.", {}, "JOB_ALREADY_PUBLISHED");
   }
-  if (status === "archived") {
+  if (normalizeJobRequisitionStatus(status) === "archived") {
     throw new JobValidationError("Unarchive the job before publishing.", {}, "JOB_ARCHIVED");
   }
 
@@ -860,6 +892,7 @@ export async function listInternalJobs(
 
   return jobs.map((job) => ({
     ...job,
+    status: normalizeJobRequisitionStatus(String(job.status ?? "")),
     new_application_count: newCountByJob.get(String(job.id)) ?? 0,
   }));
 }
@@ -886,7 +919,7 @@ export async function listPublicJobs(
   let query = supabase
     .from("job_requisitions")
     .select(
-      "id, public_job_token, public_title, public_description, location, schedule, employment_type, pay_rate_min, pay_rate_max, qualifications, responsibilities, benefits, application_deadline, published_at, profession_id, specialty_id, professions(name), specialties(name)",
+      "id, public_job_token, public_title, source_job_title, source_type, public_description, location, schedule, employment_type, pay_rate_min, pay_rate_max, qualifications, responsibilities, benefits, application_deadline, published_at, profession_id, specialty_id, professions(name), specialties(name)",
       { count: "exact" }
     )
     .eq("tenant_id", tenantId)
@@ -899,7 +932,7 @@ export async function listPublicJobs(
   if (filters.query?.trim()) {
     const term = filters.query.trim().replace(/[%_,]/g, " ");
     query = query.or(
-      `public_title.ilike.%${term}%,public_description.ilike.%${term}%,location.ilike.%${term}%`
+      `public_title.ilike.%${term}%,source_job_title.ilike.%${term}%,public_description.ilike.%${term}%,location.ilike.%${term}%`
     );
   }
   if (filters.professionId) query = query.eq("profession_id", filters.professionId);
@@ -923,7 +956,7 @@ export async function getPublishedJobByToken(
   const { data, error } = await supabase
     .from("job_requisitions")
     .select(
-      "id, tenant_id, public_job_token, public_title, public_description, location, schedule, employment_type, pay_rate_min, pay_rate_max, qualifications, responsibilities, benefits, application_deadline, published_at, profession_id, specialty_id, workflow_id, professions(name), specialties(name)"
+      "id, tenant_id, public_job_token, public_title, source_job_title, source_type, public_description, location, schedule, employment_type, pay_rate_min, pay_rate_max, qualifications, responsibilities, benefits, application_deadline, published_at, profession_id, specialty_id, workflow_id, professions(name), specialties(name)"
     )
     .eq("tenant_id", tenantId)
     .eq("public_job_token", token)
