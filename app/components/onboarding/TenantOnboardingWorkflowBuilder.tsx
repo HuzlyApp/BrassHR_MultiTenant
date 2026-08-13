@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { Edge, Node } from "@xyflow/react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useSearchParams, usePathname } from "next/navigation";
+import { useSearchParams, usePathname, useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 
 import BuilderWorkflowHeaderSlots from "@/app/admin_recruiter/components/BuilderWorkflowHeaderSlots";
@@ -29,6 +29,8 @@ import { applyApplicantConfigFilters } from "@/lib/onboarding/filter-applicant-s
 import { configFromWorkflowDraft } from "@/lib/onboarding/config-from-builder-draft";
 import { isValidFlowNameInput, normalizeFlowNameKey } from "@/lib/onboarding/validate-flow-name";
 import { FLOWS_QUERY_KEY } from "@/lib/onboarding/hooks/use-onboarding-flows";
+import { TEMPLATES_QUERY_KEY } from "@/lib/onboarding/hooks/use-onboarding-templates";
+import { resolveWorkflowPersistTarget } from "@/lib/onboarding/workflow-template-persist";
 import { isSerializableWorkflowState } from "@/lib/onboarding/workflow-builder-serialization";
 import {
   clearPendingWorkflowPaste,
@@ -71,6 +73,8 @@ type WorkflowTemplateListItem = {
   name: string;
   folder: "presets" | "saved-templates";
   isPreset: boolean;
+  status?: "draft" | "published" | "unpublished";
+  employmentType?: "W2" | "1099" | null;
   flowName: string | null;
   updatedAt: string;
 };
@@ -81,6 +85,8 @@ type EditingTemplate = {
   folder: "presets" | "saved-templates";
   isReadOnly: boolean;
   isViewOnly?: boolean;
+  status?: "draft" | "published" | "unpublished";
+  employmentType?: "W2" | "1099" | null;
   updatedAt: string | null;
 };
 
@@ -162,6 +168,7 @@ export default function TenantOnboardingWorkflowBuilder({
   const isDashboard = variant === "dashboard";
   const workflowHeader = useOptionalWorkflowDashboardHeader();
   const pathname = usePathname() ?? "";
+  const router = useRouter();
   const searchParams = useSearchParams();
   const templateIdFromUrl = searchParams.get("template")?.trim() || null;
   const flowIdFromUrl = searchParams.get("flow")?.trim() || null;
@@ -434,6 +441,8 @@ export default function TenantOnboardingWorkflowBuilder({
             name: string;
             folder: "presets" | "saved-templates";
             isReadOnly?: boolean;
+            status?: "draft" | "published" | "unpublished";
+            employmentType?: "W2" | "1099" | null;
             flowName: string | null;
             builderDraft: unknown;
             updatedAt?: string;
@@ -459,6 +468,8 @@ export default function TenantOnboardingWorkflowBuilder({
           folder: template.folder,
           isReadOnly: template.isReadOnly === true,
           isViewOnly: templateViewOnly,
+          status: template.status,
+          employmentType: template.employmentType ?? null,
           updatedAt: template.updatedAt ?? null,
         });
         setTemplateUpdatedAt(template.updatedAt ?? null);
@@ -467,7 +478,13 @@ export default function TenantOnboardingWorkflowBuilder({
         setFlowTitle(displayTitle);
         flowTitleRef.current = displayTitle;
         savedFlowTitleRef.current = displayTitle;
-        setPublishStatus("draft");
+        setPublishStatus(
+          template.isReadOnly === true
+            ? "draft"
+            : template.status === "published"
+              ? "published"
+              : "draft"
+        );
         setActiveFlowKey(`${tenantId}:template:${templateIdFromUrl}:${template.updatedAt ?? "new"}`);
         skipNextChange.current = true;
       } catch (e) {
@@ -484,7 +501,7 @@ export default function TenantOnboardingWorkflowBuilder({
   const persistTemplateUpdate = useCallback(
     async (
       state: WorkflowState,
-      options: { template?: boolean; silent?: boolean },
+      options: { template?: boolean; silent?: boolean; publish?: boolean },
       templateId: string
     ) => {
       const builderDraft = serializeWorkflowState(state.nodes, state.edges);
@@ -497,35 +514,64 @@ export default function TenantOnboardingWorkflowBuilder({
           name: flowTitleRef.current,
           flowName: flowTitleRef.current,
           builderDraft,
+          ...(options.publish ? { publish: true } : { status: "draft" }),
         }),
       });
       const payload = (await res.json()) as {
         template?: WorkflowTemplateListItem;
+        appliedFlowId?: string | null;
         error?: string;
       };
       if (!res.ok) throw new Error(payload.error || "Failed to save template");
 
       const saved = payload.template;
-      if (saved) {
-        setEditingTemplate((prev) =>
-          prev
-            ? {
-                ...prev,
-                name: saved.name,
-                updatedAt: saved.updatedAt,
-              }
-            : prev
-        );
-        setTemplateUpdatedAt(saved.updatedAt);
+      if (!saved?.id) throw new Error("Template was not updated");
+      if (options.publish && saved.status !== "published") {
+        throw new Error("Template was not published");
+      }
+
+      const displayTitle = saved.flowName?.trim() || saved.name.replace(/\.tpl$/i, "");
+      flowTitleRef.current = displayTitle;
+      savedFlowTitleRef.current = displayTitle;
+      setFlowTitle(displayTitle);
+      setEditingTemplate((prev) =>
+        prev
+          ? {
+              ...prev,
+              id: saved.id,
+              name: saved.name,
+              folder: "saved-templates",
+              isReadOnly: false,
+              status: saved.status,
+              employmentType: saved.employmentType,
+              updatedAt: saved.updatedAt,
+            }
+          : prev
+      );
+      setTemplateUpdatedAt(saved.updatedAt);
+      setPublishStatus(saved.status === "published" ? "published" : "draft");
+      void queryClient.invalidateQueries({ queryKey: TEMPLATES_QUERY_KEY });
+      if (options.publish) {
+        void queryClient.invalidateQueries({ queryKey: FLOWS_QUERY_KEY });
       }
 
       if (!options.silent) {
         void loadTemplateLists();
-        if (options.template) {
+        if (options.publish) {
           setSuccessModal({
             open: true,
             title: "Success!",
-            message: `Template "${saved?.name ?? flowTitle}" has been saved`,
+            message: payload.appliedFlowId
+              ? `"${displayTitle}" is published and will be used for new matching applications.`
+              : `"${displayTitle}" is published.`,
+            actionHref: "/admin_recruiter/dashboard/templates",
+            actionLabel: "View templates",
+          });
+        } else if (options.template) {
+          setSuccessModal({
+            open: true,
+            title: "Success!",
+            message: `Template "${saved.name}" has been saved`,
             actionHref: "/admin_recruiter/dashboard/templates",
             actionLabel: "View templates",
           });
@@ -534,13 +580,12 @@ export default function TenantOnboardingWorkflowBuilder({
         }
       }
     },
-    [loadTemplateLists]
+    [loadTemplateLists, queryClient]
   );
 
   const persistNewTemplate = useCallback(
-    async (state: WorkflowState, options: { silent?: boolean }) => {
+    async (state: WorkflowState, options: { silent?: boolean; publish?: boolean }) => {
       const builderDraft = serializeWorkflowState(state.nodes, state.edges);
-      const folder = editingTemplate?.folder ?? "saved-templates";
       const res = await fetch("/api/admin/workflow-templates", {
         ...(await staffFetchInit({
           "Content-Type": "application/json",
@@ -548,31 +593,77 @@ export default function TenantOnboardingWorkflowBuilder({
         method: "POST",
         body: JSON.stringify({
           name: flowTitleRef.current,
-          folder,
+          folder: "saved-templates",
           flowName: flowTitleRef.current,
           builderDraft,
+          publish: options.publish === true,
         }),
       });
       const payload = (await res.json()) as {
         template?: WorkflowTemplateListItem;
+        appliedFlowId?: string | null;
         error?: string;
       };
       if (!res.ok) throw new Error(payload.error || "Failed to save template");
 
       const saved = payload.template;
+      if (!saved?.id) throw new Error("Template was not created");
+      if (options.publish && saved.status !== "published") {
+        throw new Error("Template was not published");
+      }
+
+      const displayTitle = saved.flowName?.trim() || saved.name.replace(/\.tpl$/i, "");
+      flowTitleRef.current = displayTitle;
+      savedFlowTitleRef.current = displayTitle;
+      setFlowTitle(displayTitle);
+      setEditingTemplate({
+        id: saved.id,
+        name: saved.name,
+        folder: "saved-templates",
+        isReadOnly: false,
+        status: saved.status,
+        employmentType: saved.employmentType,
+        updatedAt: saved.updatedAt,
+      });
+      setTemplateUpdatedAt(saved.updatedAt);
+      setPublishStatus(saved.status === "published" ? "published" : "draft");
+      setActiveFlowKey(`${tenantId ?? "none"}:template:${saved.id}:${saved.updatedAt}`);
+      skipNextChange.current = true;
+
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("template", saved.id);
+      params.delete("view");
+      router.replace(`${pathname}?${params.toString()}`);
+
+      void queryClient.invalidateQueries({ queryKey: TEMPLATES_QUERY_KEY });
+      if (options.publish) {
+        void queryClient.invalidateQueries({ queryKey: FLOWS_QUERY_KEY });
+      }
 
       if (!options.silent) {
         void loadTemplateLists();
-        setSuccessModal({
-          open: true,
-          title: "Success!",
-          message: `Template "${saved?.name ?? flowTitleRef.current}" has been saved`,
-          actionHref: "/admin_recruiter/dashboard/templates",
-          actionLabel: "View templates",
-        });
+        if (options.publish) {
+          setSuccessModal({
+            open: true,
+            title: "Success!",
+            message: payload.appliedFlowId
+              ? `"${displayTitle}" is published and will be used for new matching applications.`
+              : `"${displayTitle}" is published.`,
+            actionHref: "/admin_recruiter/dashboard/templates",
+            actionLabel: "View templates",
+          });
+        } else {
+          setSuccessModal({
+            open: true,
+            title: "Success!",
+            message: `Template "${saved.name}" has been saved`,
+            actionHref: "/admin_recruiter/dashboard/templates",
+            actionLabel: "View templates",
+          });
+        }
       }
     },
-    [editingTemplate?.folder, loadTemplateLists]
+    [loadTemplateLists, pathname, queryClient, router, searchParams, tenantId]
   );
 
   const persist = useCallback(
@@ -596,19 +687,45 @@ export default function TenantOnboardingWorkflowBuilder({
       setLocalError(null);
       lastPersistOptionsRef.current = options;
       try {
-        if (editingTemplate?.id && !options.publish) {
-          if (editingTemplate.isReadOnly) {
-            if (!options.template) return;
-            await persistNewTemplate(state, { silent: options.silent });
-            return;
-          }
-          await persistTemplateUpdate(state, options, editingTemplate.id);
+        const persistTarget = resolveWorkflowPersistTarget({
+          viewOnly: editingTemplate?.isViewOnly,
+          editingTemplate: editingTemplate
+            ? { id: editingTemplate.id, isReadOnly: editingTemplate.isReadOnly }
+            : null,
+          flowId: flowIdFromUrl,
+          options,
+        });
+
+        if (persistTarget.action === "noop") return;
+
+        if (
+          persistTarget.action === "fork-preset" ||
+          persistTarget.action === "create-saved-template"
+        ) {
+          await persistNewTemplate(state, {
+            silent: options.silent,
+            publish: persistTarget.publish,
+          });
+          return;
+        }
+
+        if (persistTarget.action === "update-template") {
+          await persistTemplateUpdate(
+            state,
+            {
+              template: options.template,
+              silent: options.silent,
+              publish: persistTarget.publish,
+            },
+            persistTarget.templateId
+          );
           return;
         }
 
         const builderDraft = serializeWorkflowState(state.nodes, state.edges);
 
-        const activeFlowId = flowIdFromUrl;
+        const activeFlowId =
+          persistTarget.action === "update-flow" ? persistTarget.flowId : null;
         if (activeFlowId) {
           const patchBody: Record<string, unknown> = {
             name: effectiveFlowName,
@@ -678,11 +795,6 @@ export default function TenantOnboardingWorkflowBuilder({
               toast.success("Draft saved");
             }
           }
-          return;
-        }
-
-        if (options.template) {
-          await persistNewTemplate(state, { silent: options.silent });
           return;
         }
 
@@ -788,7 +900,7 @@ export default function TenantOnboardingWorkflowBuilder({
         }
       }
     },
-    [editingFlow, editingTemplate, flowIdFromUrl, persistNewTemplate, persistTemplateUpdate, queryClient, data?.payload, data?.stepLibrary, stepLibrary, tenantId]
+    [editingFlow, editingTemplate, flowIdFromUrl, loadTemplateLists, persistNewTemplate, persistTemplateUpdate, queryClient, data?.payload, data?.stepLibrary, stepLibrary, tenantId]
   );
 
   const handlePreview = useCallback(
@@ -1009,7 +1121,7 @@ export default function TenantOnboardingWorkflowBuilder({
     .join(" · ");
 
   const dashboardShellClass = "flex min-h-0 flex-1 flex-col overflow-hidden";
-  const isDraft = editingTemplate ? true : publishStatus === "draft";
+  const isDraft = publishStatus === "draft";
 
   const setUndoControlsRef = useRef(workflowHeader?.setUndoControls);
   setUndoControlsRef.current = workflowHeader?.setUndoControls;
@@ -1145,8 +1257,10 @@ export default function TenantOnboardingWorkflowBuilder({
             {editingTemplate.isViewOnly
               ? "View only — you cannot change this template"
               : editingTemplate.isReadOnly
-                ? "Editing a system preset — Save as Template creates your own copy"
-                : "Editing a saved template — changes update this template"}
+                ? "Editing a system preset — Save as Template or Publish creates your own copy. The preset itself is not changed."
+                : publishStatus === "published"
+                  ? "Editing a saved template — this version is published. Edits save as a draft until you publish again."
+                  : "Editing a saved template — changes update this template"}
           </p>
         </div>
       ) : null}
@@ -1211,6 +1325,7 @@ export default function TenantOnboardingWorkflowBuilder({
           onSaveAsTemplate={(state) => void persist(state, { template: true })}
           onPreview={handlePreview}
           onPublish={(state) => void persist(state, { publish: true })}
+          publishLabel={editingTemplate ? "Publish" : "Publish to All"}
         />
       </div>
 

@@ -185,7 +185,7 @@ export async function PUT(req: NextRequest) {
       if (body.saveTemplate) {
         savedTemplate = await createWorkflowTemplate(supabase as OnboardingDbClient, tenantId, {
           name: body.templateName?.trim() || body.flowName?.trim() || "New Template",
-          folder: body.templateFolder ?? "saved-templates",
+          folder: "saved-templates",
           builderDraft: body.builderDraft,
           flowName: body.flowName,
           createdBy: auth.userId,

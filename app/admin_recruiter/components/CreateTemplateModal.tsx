@@ -92,7 +92,6 @@ function CheckIcon() {
 }
 
 const DEFAULT_FOLDER_OPTIONS: TemplateFolderOption[] = [
-  { id: "presets", label: "Presets" },
   { id: "saved-templates", label: "Saved Templates" },
 ];
 
@@ -107,7 +106,7 @@ export default function CreateTemplateModal({
   const branding = useTenantBranding();
   const [templateName, setTemplateName] = useState("");
   const [search, setSearch] = useState("");
-  const [selectedFolder, setSelectedFolder] = useState<TemplateFolder>("presets");
+  const [selectedFolder, setSelectedFolder] = useState<TemplateFolder>("saved-templates");
   const [showFolders, setShowFolders] = useState(true);
   const listboxId = useId();
   const containerRef = useRef<HTMLFormElement>(null);
@@ -134,7 +133,7 @@ export default function CreateTemplateModal({
     if (open) return;
     setTemplateName("");
     setSearch("");
-    setSelectedFolder("presets");
+    setSelectedFolder("saved-templates");
     setShowFolders(true);
   }, [open]);
 
