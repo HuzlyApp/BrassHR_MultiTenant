@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type RefObject } from "react";
 
 import { NAVY } from "./constants";
 
@@ -17,7 +17,7 @@ type ConnectorActionMenuProps = {
   /** Hide parallel option when branch already split. */
   showParallelFlow?: boolean;
   /** Clicks on this element (e.g. + button) should not close the menu. */
-  anchorEl?: HTMLElement | null;
+  anchorRef?: RefObject<HTMLElement | null>;
 };
 
 const MENU_ITEMS: Array<{
@@ -36,7 +36,7 @@ export default function ConnectorActionMenu({
   onClose,
   onSelect,
   showParallelFlow = true,
-  anchorEl = null,
+  anchorRef,
 }: ConnectorActionMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -46,7 +46,7 @@ export default function ConnectorActionMenu({
     const onPointerDown = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
       if (menuRef.current?.contains(target)) return;
-      if (anchorEl?.contains(target)) return;
+      if (anchorRef?.current?.contains(target)) return;
       onClose();
     };
 
@@ -60,7 +60,7 @@ export default function ConnectorActionMenu({
       document.removeEventListener("mousedown", onPointerDown);
       document.removeEventListener("keydown", onKeyDown);
     };
-  }, [open, onClose, anchorEl]);
+  }, [open, onClose, anchorRef]);
 
   if (!open) return null;
 

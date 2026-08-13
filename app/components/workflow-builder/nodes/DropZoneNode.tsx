@@ -5,6 +5,7 @@ import { Handle, Position, type NodeProps, type Node } from "@xyflow/react";
 import {
   DROP_ZONE_HEIGHT,
   DROP_ZONE_WIDTH,
+  GOLD,
   NAVY,
   TEXT_MUTED,
 } from "../constants";
@@ -12,15 +13,20 @@ import type { DropZoneNodeData } from "../types";
 
 type DropZoneNodeType = Node<DropZoneNodeData>;
 
-export default function DropZoneNode({ selected }: NodeProps<DropZoneNodeType>) {
+export default function DropZoneNode({ data, selected }: NodeProps<DropZoneNodeType>) {
+  const highlighted = data.highlighted === true;
+  const libraryDragActive = data.libraryDragActive === true;
+
   return (
     <div
       className="flex items-center justify-center rounded-md border-2 border-dashed transition"
       style={{
         width: DROP_ZONE_WIDTH,
         height: DROP_ZONE_HEIGHT,
-        borderColor: selected ? NAVY : "#cbd5e1",
-        backgroundColor: "#f1f5f9",
+        borderColor: highlighted ? GOLD : selected ? NAVY : "#cbd5e1",
+        backgroundColor: highlighted ? "#faf6ef" : "#f1f5f9",
+        boxShadow: highlighted ? "0 0 0 4px rgba(188, 139, 65, 0.18)" : undefined,
+        cursor: libraryDragActive ? "copy" : "pointer",
       }}
     >
       <Handle
@@ -35,9 +41,9 @@ export default function DropZoneNode({ selected }: NodeProps<DropZoneNodeType>) 
       />
       <span
         className="px-3 text-center text-[11px] font-semibold leading-4"
-        style={{ color: TEXT_MUTED }}
+        style={{ color: highlighted ? GOLD : TEXT_MUTED }}
       >
-        Drag steps here
+        {highlighted || libraryDragActive ? "Drop here" : "Drag steps here"}
       </span>
       <Handle
         type="source"
