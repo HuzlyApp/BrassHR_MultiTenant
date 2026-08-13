@@ -57,7 +57,7 @@ function ResumeTabBar({
   ];
 
   return (
-    <div className="mx-auto flex w-full max-w-[420px] rounded-lg bg-[#F1F5F9] p-1">
+    <div className="flex w-full rounded-lg bg-[#F1F5F9] p-1">
       {tabs.map((tab) => {
         const active = activeTab === tab.id;
         return (

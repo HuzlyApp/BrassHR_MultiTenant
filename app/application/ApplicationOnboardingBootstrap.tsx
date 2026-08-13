@@ -119,7 +119,13 @@ export default function ApplicationOnboardingBootstrap({ children }: { children:
     if (brandingReady) {
       applyBrandingHead(brand);
     }
-  }, [brandingReady, brand.slug, brand.companyName, brand.logoUrl]);
+  }, [
+    brandingReady,
+    brand.slug,
+    brand.companyName,
+    brand.logoUrl,
+    brand.faviconUrl,
+  ]);
 
   if (error) {
     return (

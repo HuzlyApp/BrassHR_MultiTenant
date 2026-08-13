@@ -1546,6 +1546,16 @@ export async function bulkDeleteJobRequisitions(
   const normalized = normalizeBulkDeleteIds(ids);
   if (!normalized.length) return { deletedIds: [] };
 
+  // Remove linked applications first so delete works even when the DB FK is still RESTRICT
+  // (staging missed the ON DELETE CASCADE migration). Child rows cascade from applications.
+  const { error: applicationsError } = await supabase
+    .from("job_applications")
+    .delete()
+    .in("job_requisition_id", normalized)
+    .eq("tenant_id", tenantId);
+
+  if (applicationsError) throw applicationsError;
+
   const { data, error } = await supabase
     .from("job_requisitions")
     .delete()
