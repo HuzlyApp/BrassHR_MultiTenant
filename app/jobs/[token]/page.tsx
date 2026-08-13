@@ -7,6 +7,7 @@ import {
   JobDescriptionHtml,
   stripJobDescriptionBenefitsSection,
 } from "@/lib/jobs/job-description-html";
+import { publicJobDisplayTitle } from "@/lib/jobs/public-application-routing";
 import { getPublishedJobByToken } from "@/lib/jobs/service";
 import { resolvePublicTenant } from "@/lib/jobs/tenant";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
@@ -105,7 +106,7 @@ export default async function PublicJobDetailPage({
             {tenant.name}
           </p>
           <h1 className="mt-2 text-xl font-semibold leading-snug text-slate-900 sm:text-2xl md:text-3xl">
-            {job.public_title}
+            {publicJobDisplayTitle(job)}
           </h1>
           <p className="mt-3 text-base font-medium text-slate-600">{job.location}</p>
           <p className="mt-2 text-sm text-slate-500">{facts.join(" · ")}</p>

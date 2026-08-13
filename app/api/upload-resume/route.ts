@@ -4,7 +4,7 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js"
 import pdfParse from "pdf-parse"
 import mammoth from "mammoth"
 import { getSupabaseUrl } from "@/lib/supabase-env"
-import { persistWorkerResumePath } from "@/lib/onboarding/persist-worker-resume-path"
+import { syncWorkerPrimaryResumePath } from "@/lib/onboarding/sync-worker-primary-resume-path"
 import { persistWorkerResumeRecord } from "@/lib/onboarding/persist-worker-resume-record"
 import { resolveOrEnsureWorkerForApplicant, resolveWorkerByApplicantId, type WorkerContext } from "@/lib/onboarding/resolve-worker-context"
 import { runResumeParseJob } from "@/lib/resume/run-resume-parse-job"
@@ -328,7 +328,7 @@ export async function POST(req: Request) {
       textLength,
     })
     await withTimeout(
-      persistWorkerResumePath(supabase, applicantId, objectPath, workerCtx.tenantId),
+      syncWorkerPrimaryResumePath(supabase, workerCtx.workerId, applicantId),
       RESUME_DB_TIMEOUT_MS,
       "Resume path persistence",
     )
@@ -345,6 +345,8 @@ export async function POST(req: Request) {
         fileSizeBytes,
         extractedText: text,
         tenantId: workerCtx.tenantId,
+        jobApplicationId: jobApplication?.application.id ?? null,
+        uploadedByUserId: applicantId,
       }),
       RESUME_DB_TIMEOUT_MS,
       "Resume record persistence",

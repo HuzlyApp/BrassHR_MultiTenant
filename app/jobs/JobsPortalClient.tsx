@@ -8,6 +8,7 @@ import {
   buildApplyPath,
   NO_OPEN_POSITIONS_MESSAGE,
   normalizeJobToken,
+  publicJobDisplayTitle,
 } from "@/lib/jobs/public-application-routing";
 import { jobDescriptionPlainText } from "@/lib/jobs/job-description-html";
 import { resolveTenantSlugForClient } from "@/lib/tenant/resolve-tenant-context";
@@ -15,6 +16,8 @@ import { resolveTenantSlugForClient } from "@/lib/tenant/resolve-tenant-context"
 type Job = {
   public_job_token: string;
   public_title: string;
+  source_job_title?: string | null;
+  source_type?: string | null;
   public_description: string;
   location: string;
   schedule: string | null;
@@ -155,12 +158,13 @@ export default function JobsPortalClient() {
             {jobs.map((job) => {
               const profession = relationName(job.professions);
               const specialty = relationName(job.specialties);
+              const displayTitle = publicJobDisplayTitle(job);
               const jobToken = normalizeJobToken(job.public_job_token);
               const applyHref = jobToken ? buildApplyPath(tenant, jobToken) : null;
               return (
-                <article key={job.public_job_token || job.public_title} className="flex flex-col rounded-xl border border-slate-200 bg-white p-5 text-slate-900 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+                <article key={job.public_job_token || displayTitle} className="flex flex-col rounded-xl border border-slate-200 bg-white p-5 text-slate-900 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
                   <div className="flex items-start justify-between gap-3">
-                    <h2 className="text-lg font-semibold text-slate-900">{job.public_title}</h2>
+                    <h2 className="text-lg font-semibold text-slate-900">{displayTitle}</h2>
                     <span className="rounded-full bg-[color:color-mix(in_srgb,var(--brand-primary)_14%,white)] px-2.5 py-1 text-xs font-semibold text-[color:var(--brand-primary)]">
                       {job.employment_type}
                     </span>

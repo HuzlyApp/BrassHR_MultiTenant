@@ -9,6 +9,7 @@ type CallLogOutcome = "answered" | "no_answer";
 type AddCallLogModalProps = {
   open: boolean;
   workerId: string;
+  candidateName?: string;
   onClose: () => void;
   onAdded?: () => void | Promise<void>;
   attemptNumber?: number | null;
@@ -17,6 +18,7 @@ type AddCallLogModalProps = {
 export default function AddCallLogModal({
   open,
   workerId,
+  candidateName,
   onClose,
   onAdded,
   attemptNumber = null,
@@ -59,7 +61,12 @@ export default function AddCallLogModal({
       if (!res.ok) {
         throw new Error(json.error || "Could not save call log");
       }
-      toast.success("Call log saved");
+      toast.success(
+        candidateName?.trim()
+          ? `${candidateName.trim()}: call log saved`
+          : "Call log saved",
+        { duration: 4000 }
+      );
       await onAdded?.();
       onClose();
     } catch (error) {

@@ -62,4 +62,29 @@ Authorization to obtain background check consent form.
 `.repeat(5);
     expect(validateExtractedResumeText(text)).toMatch(/another document|not a resume/i);
   });
+
+  it("accepts healthcare resumes that mention TB test or drug screen", () => {
+    const text = `
+Hailey Sparks
+hailey.sparks@email.com
+(555) 987-6543
+
+Professional Summary
+Certified Nursing Assistant with experience in long-term care and rehabilitation.
+
+Work Experience
+CNA — Golden Years Care — 2021–Present
+Provided patient care, vital signs, and ADL support.
+
+Certifications
+CNA license, CPR/BLS, current TB test, cleared drug screen.
+
+Education
+Nursing Assistant Program — Community College
+
+Skills
+Patient care, documentation, teamwork
+`.repeat(2);
+    expect(validateExtractedResumeText(text)).toBeNull();
+  });
 });

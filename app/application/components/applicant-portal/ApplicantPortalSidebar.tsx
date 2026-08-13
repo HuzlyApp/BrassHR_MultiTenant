@@ -122,7 +122,6 @@ export function ApplicantPortalSidebar({
   const [sidebarHovered, setSidebarHovered] = useState(false);
   const navRef = useRef<HTMLElement>(null);
 
-  const firstName = applicantName.split(" ")[0] || "Applicant";
   const logoUseNativeImg = isRemoteOrBlobImageSrc(logoSrc);
 
   useEffect(() => {
@@ -288,10 +287,10 @@ export function ApplicantPortalSidebar({
             </button>
             {!isCollapsed ? (
               <div className="min-w-0">
-                <p className="truncate text-[18px] leading-[28px] font-semibold text-[color:var(--brand-secondary)]">
-                  {firstName}
+                <p className="truncate text-[18px] leading-[28px] font-semibold text-[#0F3B76]">
+                  {branding.companyName}
                 </p>
-                <p className="text-[10px] leading-[15px] font-light uppercase tracking-normal text-[color:var(--brand-primary)]">
+                <p className="text-[10px] leading-[15px] font-light uppercase tracking-normal text-[#94A3B8]">
                   Dashboard
                 </p>
               </div>

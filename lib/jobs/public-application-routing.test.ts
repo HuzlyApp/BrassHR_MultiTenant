@@ -7,6 +7,7 @@ import {
   buildJobsPortalPath,
   isJobRequisitionOpen,
   normalizeJobToken,
+  publicJobDisplayTitle,
   resolveApplicationEntryRoute,
 } from "@/lib/jobs/public-application-routing";
 
@@ -73,6 +74,30 @@ describe("public application routing", () => {
 
   it("ignores invalid job tokens when building apply URLs", () => {
     expect(buildApplyPath("acme", "null")).toBe("/jobs?tenant=acme");
+  });
+
+  it("prefers source job title for contract and MSP jobs", () => {
+    expect(
+      publicJobDisplayTitle({
+        public_title: "Certified Nursing Assistant (CNA) - Long-Term Care",
+        source_job_title: "QA professional",
+        employment_type: "Contract",
+      })
+    ).toBe("QA professional");
+    expect(
+      publicJobDisplayTitle({
+        public_title: "RN - 100",
+        source_job_title: "Registered Nurse - Home Health",
+        source_type: "MSP",
+      })
+    ).toBe("Registered Nurse - Home Health");
+    expect(
+      publicJobDisplayTitle({
+        public_title: "Certified Nursing Assistant (CNA) - 1121",
+        source_job_title: null,
+        employment_type: "W2",
+      })
+    ).toBe("Certified Nursing Assistant (CNA) - 1121");
   });
 
   it("treats literal null tokens as missing when resolving entry routes", () => {

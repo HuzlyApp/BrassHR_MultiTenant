@@ -10,6 +10,7 @@ import {
   type CSSProperties,
 } from "react";
 import { ChevronDown, MoreVertical } from "lucide-react";
+import toast from "react-hot-toast";
 import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import {
@@ -195,9 +196,22 @@ export default function JobDetailsClient({ jobId }: Props) {
       if (!response.ok) throw new Error(payload.error || "Failed to update status");
       setStatusOpen(false);
       setActionsOpen(false);
+      if (action === "archive") {
+        toast.success("Job archived successfully");
+      } else if (action === "unarchive") {
+        toast.success("Job restored from archive");
+      } else if (action === "publish") {
+        toast.success("Job published");
+      } else if (action === "close") {
+        toast.success("Job closed");
+      } else if (action === "unpublish") {
+        toast.success("Job unpublished");
+      }
       await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to update status");
+      const message = err instanceof Error ? err.message : "Failed to update status";
+      setError(message);
+      toast.error(message);
     } finally {
       setStatusBusy(false);
     }
@@ -443,7 +457,7 @@ export default function JobDetailsClient({ jobId }: Props) {
                           type="button"
                           role="menuitem"
                           className="block w-full px-3 py-2 text-left text-sm text-[#334155] hover:bg-[#F8FAFC]"
-                          onClick={() => void transition("unpublish")}
+                          onClick={() => void transition("unarchive")}
                         >
                           Unarchive
                         </button>

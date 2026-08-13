@@ -24,8 +24,47 @@ const RESUME_SECTION_HINTS = [
   /\b(CNA|RN|LPN|LVN|Caregiver|Medical\s*Assistant|Nurse|Nursing\s*Assistant|Home\s*Health)\b/i,
 ];
 
-const NON_RESUME_DOCUMENT_HINTS =
-  /\b(form\s*w-?2|w-?2\s*wage|form\s*i-?9|i-?9\s*employment|driver'?s?\s*licen[sc]e|social\s*security\s*card|ssn\s*card|tb\s*test|tuberculosis|drug\s*screen|pay\s*stub|invoice\b|authorization\s+to\s+(?:release|obtain)|consent\s+to\s+background|background\s*check\s*authorization)\b/i;
+const STRONG_NON_RESUME_DOCUMENT_HINTS =
+  /\b(form\s*w-?2|w-?2\s+wage\s+and\s+tax|form\s*i-?9|i-?9\s+employment\s+eligibility)\b/i;
+
+const WEAK_NON_RESUME_DOCUMENT_HINTS =
+  /\b(driver'?s?\s*licen[sc]e|social\s*security\s*card|ssn\s*card|pay\s*stub)\b/i;
+
+export class ResumeUploadValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ResumeUploadValidationError";
+  }
+}
+
+export function isResumeUploadValidationError(error: unknown): boolean {
+  if (error instanceof ResumeUploadValidationError) return true;
+  if (!(error instanceof Error)) return false;
+  const message = error.message.toLowerCase();
+  return (
+    message.includes("does not look like a resume") ||
+    message.includes("not a resume") ||
+    message.includes("please upload a resume") ||
+    message.includes("pdf, doc, or docx") ||
+    message.includes("max file size") ||
+    message.includes("choose a resume") ||
+    message.includes("legacy .doc") ||
+    message.includes("only pdf") ||
+    message.includes("another document") ||
+    message.includes("select a job") ||
+    message.includes("select a valid job")
+  );
+}
+
+function countResumeSignals(text: string): number {
+  let signals = 0;
+  if (EMAIL_RE.test(text)) signals += 1;
+  if (PHONE_RE.test(text)) signals += 1;
+  for (const hint of RESUME_SECTION_HINTS) {
+    if (hint.test(text)) signals += 1;
+  }
+  return signals;
+}
 
 export function isAcceptedResumeFileName(fileName: string): boolean {
   const lower = fileName.toLowerCase();
@@ -64,15 +103,14 @@ export function validateExtractedResumeText(text: string): string | null {
     return "This file does not look like a resume. Please upload a readable resume (PDF or DOCX).";
   }
 
-  if (NON_RESUME_DOCUMENT_HINTS.test(trimmed)) {
+  const signals = countResumeSignals(trimmed);
+
+  if (STRONG_NON_RESUME_DOCUMENT_HINTS.test(trimmed) && signals < 3) {
     return "This file looks like another document, not a resume. Please upload the candidate’s resume only.";
   }
 
-  let signals = 0;
-  if (EMAIL_RE.test(trimmed)) signals += 1;
-  if (PHONE_RE.test(trimmed)) signals += 1;
-  for (const hint of RESUME_SECTION_HINTS) {
-    if (hint.test(trimmed)) signals += 1;
+  if (WEAK_NON_RESUME_DOCUMENT_HINTS.test(trimmed) && signals < 2) {
+    return "This file looks like another document, not a resume. Please upload the candidate’s resume only.";
   }
 
   if (signals < 2) {

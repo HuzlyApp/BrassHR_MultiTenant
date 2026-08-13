@@ -15,5 +15,8 @@ export const WORKER_BTN_GHOST_ICON =
 export const WORKER_BTN_OUTLINE =
   "inline-flex w-full min-w-0 items-center justify-center rounded-md border border-[#D1D5DB] px-3 py-1.5 text-xs font-semibold text-[#334155] transition hover:border-[color:color-mix(in_srgb,var(--brand-primary)_35%,#D1D5DB)] hover:bg-[#F8FAFC] hover:text-[color:var(--brand-primary)] disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto";
 
+export const WORKER_BTN_OUTLINE_BRAND =
+  "inline-flex items-center justify-center rounded-md border border-[color:var(--brand-primary)] px-3 py-1.5 text-xs font-semibold text-[color:var(--brand-primary)] transition hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_8%,white)] disabled:cursor-not-allowed disabled:opacity-50";
+
 export const WORKER_BTN_LINK =
   "inline-flex h-11 w-full items-center justify-center rounded-md bg-[color:var(--brand-primary)] px-4 text-sm font-semibold text-white transition hover:brightness-90 active:brightness-95";

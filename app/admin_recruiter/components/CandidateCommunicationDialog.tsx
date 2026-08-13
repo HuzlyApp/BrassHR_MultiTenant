@@ -85,7 +85,12 @@ export default function CandidateCommunicationDialog({
         return;
       }
 
-      toast.success(channel === "email" ? "Email sent" : "SMS sent");
+      toast.success(
+        channel === "email"
+          ? `${candidateName}: email sent`
+          : `${candidateName}: SMS sent`,
+        { duration: 4000 }
+      );
       onSent?.();
       onClose();
     } catch {

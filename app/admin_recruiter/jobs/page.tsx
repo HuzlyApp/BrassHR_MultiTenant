@@ -23,8 +23,10 @@ import { ListTableCheckbox } from "@/app/admin_recruiter/components/ListTableChe
 import { useCandidatesFilterRowsDefault } from "@/app/admin_recruiter/hooks/useCandidatesFilterRowsDefault";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import toast from "react-hot-toast";
+import { normalizeJobRequisitionStatus } from "@/lib/jobs/job-status";
 import {
   EditJobsFiltersModal,
+  EMPTY_JOBS_EXTENDED_FILTERS,
   jobMatchesDatePostedFilter,
   jobMatchesPayRateFilter,
   type JobsExtendedFilterValues,
@@ -70,7 +72,7 @@ function relationNameFromJob(
   return row?.name?.trim() || "";
 }
 
-type JobTab = "all" | "internal" | "msp" | "draft" | "open" | "closed" | "hot";
+type JobTab = "all" | "internal" | "msp" | "draft" | "open" | "closed" | "archived" | "hot";
 
 /** Figma jobs listing tabs */
 const JOB_TABS: Array<{ id: JobTab; label: string }> = [
@@ -80,6 +82,7 @@ const JOB_TABS: Array<{ id: JobTab; label: string }> = [
   { id: "draft", label: "Draft" },
   { id: "open", label: "Open" },
   { id: "closed", label: "Closed" },
+  { id: "archived", label: "Archived" },
   { id: "hot", label: "Hot Jobs" },
 ];
 
@@ -341,20 +344,27 @@ function jobSourceType(job: JobListRow): "Internal" | "MSP" {
   return "Internal";
 }
 
+function jobListStatus(job: JobListRow) {
+  return normalizeJobRequisitionStatus(String(job.status ?? ""));
+}
+
 function matchesJobTab(job: JobListRow, tab: JobTab, starredIds: Set<string>): boolean {
+  const status = jobListStatus(job);
   switch (tab) {
     case "all":
-      return true;
+      return status !== "archived";
     case "internal":
-      return jobSourceType(job) === "Internal";
+      return status !== "archived" && jobSourceType(job) === "Internal";
     case "msp":
-      return jobSourceType(job) === "MSP";
+      return status !== "archived" && jobSourceType(job) === "MSP";
     case "draft":
-      return job.status === "draft";
+      return status === "draft";
     case "open":
-      return job.status === "published" && isJobRequisitionOpen(job);
+      return status === "published" && isJobRequisitionOpen(job);
     case "closed":
-      return job.status === "closed" || job.status === "archived";
+      return status === "closed";
+    case "archived":
+      return status === "archived";
     case "hot":
       return starredIds.has(job.id);
     default:
@@ -849,7 +859,7 @@ function JobActionsMenuPortal({
   job: JobListRow;
   anchor: HTMLElement;
   onClose: () => void;
-  onTransition: (jobId: string, action: "publish" | "unpublish" | "close" | "archive") => void;
+  onTransition: (jobId: string, action: "publish" | "unpublish" | "close" | "archive" | "unarchive") => void;
 }) {
   const menuRef = useRef<HTMLDivElement>(null);
   const [style, setStyle] = useState<CSSProperties>({ visibility: "hidden" });
@@ -902,6 +912,8 @@ function JobActionsMenuPortal({
 
   if (typeof document === "undefined") return null;
 
+  const status = jobListStatus(job);
+
   return createPortal(
     <div
       ref={menuRef}
@@ -909,7 +921,7 @@ function JobActionsMenuPortal({
       style={style}
       className={`z-[200] min-w-[140px] ${JOBS_FORM_SURFACE_CLASS} py-1 shadow-lg`}
     >
-      {job.status === "closed" ? (
+      {status === "closed" ? (
         <>
           <Link
             href={`/admin_recruiter/jobs/${job.id}`}
@@ -962,7 +974,7 @@ function JobActionsMenuPortal({
           >
             View
           </Link>
-          {job.status !== "archived" ? (
+          {status !== "archived" ? (
             <Link
               href={`/admin_recruiter/jobs/${job.id}/edit`}
               role="menuitem"
@@ -972,7 +984,7 @@ function JobActionsMenuPortal({
               Edit
             </Link>
           ) : null}
-          {job.status === "draft" ? (
+          {status === "draft" ? (
             <>
               <button
                 type="button"
@@ -998,7 +1010,7 @@ function JobActionsMenuPortal({
               </button>
             </>
           ) : null}
-          {job.status === "published" ? (
+          {status === "published" ? (
             <>
               <button
                 type="button"
@@ -1024,19 +1036,19 @@ function JobActionsMenuPortal({
               </button>
             </>
           ) : null}
-          {job.status === "archived" ? (
+          {status === "archived" ? (
             <button
               type="button"
               role="menuitem"
               onClick={() => {
-                onTransition(job.id, "unpublish");
+                onTransition(job.id, "unarchive");
                 onClose();
               }}
               className="block w-full px-3 py-2 text-left text-sm text-[#334155] hover:bg-[#F8FAFC]"
             >
               Unarchive
             </button>
-          ) : job.status === "draft" || job.status === "published" ? (
+          ) : status === "draft" || status === "published" ? (
             <button
               type="button"
               role="menuitem"
@@ -1160,8 +1172,13 @@ export default function AdminRecruiterJobsPage() {
     pageSize,
   ]);
 
-  async function transition(jobId: string, action: "publish" | "unpublish" | "close" | "archive") {
+  async function transition(
+    jobId: string,
+    action: "publish" | "unpublish" | "close" | "archive" | "unarchive"
+  ) {
     setPublishBusyIds((current) => new Set(current).add(jobId));
+    const job = jobs.find((item) => item.id === jobId);
+    const jobTitle = job ? jobListDisplayTitle(job) : "Job";
     try {
       const response = await fetch("/api/admin/jobs", {
         method: "POST",
@@ -1170,10 +1187,26 @@ export default function AdminRecruiterJobsPage() {
       });
       const payload = await response.json();
       if (!response.ok) {
-        setError(payload.error || "Failed to update job");
+        const message = payload.error || "Failed to update job";
+        setError(message);
+        toast.error(message);
         return;
       }
       setOpenActionsMenu(null);
+      setError("");
+      if (action === "archive") {
+        toast.success(`${jobTitle} archived successfully`, { duration: 4000 });
+        setJobTab("archived");
+      } else if (action === "unarchive") {
+        toast.success(`${jobTitle} restored from archive`, { duration: 4000 });
+        setJobTab("draft");
+      } else if (action === "close") {
+        toast.success(`${jobTitle} closed`, { duration: 4000 });
+      } else if (action === "publish") {
+        toast.success(`${jobTitle} published`, { duration: 4000 });
+      } else if (action === "unpublish") {
+        toast.success(`${jobTitle} unpublished`, { duration: 4000 });
+      }
       await load();
     } finally {
       setPublishBusyIds((current) => {
@@ -1186,35 +1219,40 @@ export default function AdminRecruiterJobsPage() {
 
   function handlePublishToggle(job: JobListRow) {
     if (publishBusyIds.has(job.id)) return;
-    if (job.status === "published") {
+    const status = jobListStatus(job);
+    if (status === "published") {
       void transition(job.id, "unpublish");
       return;
     }
-    if (job.status === "draft") {
+    if (status === "draft") {
       void transition(job.id, "publish");
       return;
     }
-    if (job.status === "closed" && canRepublishClosedJob(job)) {
+    if (status === "closed" && canRepublishClosedJob(job)) {
       void transition(job.id, "publish");
     }
   }
 
   const tabCounts = useMemo(() => {
     const counts: Record<JobTab, number> = {
-      all: jobs.length,
+      all: 0,
       internal: 0,
       msp: 0,
       draft: 0,
       open: 0,
       closed: 0,
+      archived: 0,
       hot: 0,
     };
     for (const job of jobs) {
+      const status = jobListStatus(job);
+      if (status !== "archived") counts.all += 1;
       if (matchesJobTab(job, "internal", starredIds)) counts.internal += 1;
       if (matchesJobTab(job, "msp", starredIds)) counts.msp += 1;
       if (matchesJobTab(job, "draft", starredIds)) counts.draft += 1;
       if (matchesJobTab(job, "open", starredIds)) counts.open += 1;
       if (matchesJobTab(job, "closed", starredIds)) counts.closed += 1;
+      if (matchesJobTab(job, "archived", starredIds)) counts.archived += 1;
       if (matchesJobTab(job, "hot", starredIds)) counts.hot += 1;
     }
     return counts;
@@ -1228,7 +1266,7 @@ export default function AdminRecruiterJobsPage() {
 
       if (professionFilter && jobProfession(job) !== professionFilter) return false;
 
-      if (statusFilter && job.status !== statusFilter) return false;
+      if (statusFilter && jobListStatus(job) !== statusFilter) return false;
 
       if (placementTypeFilter && jobShiftType(job) !== placementTypeFilter) return false;
 
@@ -1534,6 +1572,11 @@ export default function AdminRecruiterJobsPage() {
     setDatePostedFilter(next.datePosted);
   }, []);
 
+  const handleResetFilters = useCallback(() => {
+    handleSaveEditFilters(EMPTY_JOBS_EXTENDED_FILTERS);
+    setShowStarredOnly(false);
+  }, [handleSaveEditFilters]);
+
   const jobListCellContext = useMemo((): JobListCellContext => {
     return {
       brandingSecondaryHex: branding.secondaryHex,
@@ -1609,9 +1652,11 @@ export default function AdminRecruiterJobsPage() {
           />
           <button
             type="button"
+            disabled
             className={JOBS_BULK_PRIMARY_BUTTON_CLASS}
             style={{ backgroundColor: branding.primaryHex }}
-            aria-label="Import from MSP"
+            aria-label="Import from MSP (coming soon)"
+            title="Coming soon"
           >
             <Download className="h-4 w-4 shrink-0" aria-hidden />
             Import from MSP
@@ -1634,6 +1679,16 @@ export default function AdminRecruiterJobsPage() {
               <MobileIconButton onClick={() => setEditColumnsOpen(true)} label="Columns">
                 <JobsColumnsIcon />
               </MobileIconButton>
+              {hasActiveFilters ? (
+                <button
+                  type="button"
+                  onClick={handleResetFilters}
+                  className={`${JOBS_TOOLBAR_BUTTON_CLASS} shrink-0 whitespace-nowrap`}
+                  style={CANDIDATES_PAGE_SUBTITLE_STYLE}
+                >
+                  Reset Filters
+                </button>
+              ) : null}
               <BulkDeleteToolbarButton
                 count={selectedIds.size}
                 disabled={deleteBusy}
@@ -1745,6 +1800,16 @@ export default function AdminRecruiterJobsPage() {
                 <JobsColumnsIcon />
                 Columns
               </button>
+              {hasActiveFilters ? (
+                <button
+                  type="button"
+                  onClick={handleResetFilters}
+                  className={JOBS_TOOLBAR_BUTTON_CLASS}
+                  style={CANDIDATES_PAGE_SUBTITLE_STYLE}
+                >
+                  Reset Filters
+                </button>
+              ) : null}
               <BulkDeleteToolbarButton
                 count={selectedIds.size}
                 disabled={deleteBusy}
