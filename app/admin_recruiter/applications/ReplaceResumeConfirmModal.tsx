@@ -56,12 +56,12 @@ export function ReplaceResumeConfirmModal({
           </span>
           <div className="min-w-0 flex-1">
             <h3 id="replace-resume-title" className="text-lg font-semibold text-[#101828]">
-              {hasExistingResume ? "Replace current resume?" : "Upload resume?"}
+              {hasExistingResume ? "Re-upload resume?" : "Upload resume?"}
             </h3>
             <p className="mt-2 text-sm leading-5 text-[#475569]">
               {hasExistingResume
-                ? "Uploading this file will replace the candidate's current resume and may update their candidate information and job match score."
-                : "Uploading this file will attach a resume to this candidate and may update their candidate information and job match score."}
+                ? "This file will be added to resume history for this job. Previous uploads stay saved. The newest resume becomes the one shown on the candidate profile and may update the job match score."
+                : "Uploading this file will attach a resume to this candidate for this job and may update their candidate information and job match score."}
             </p>
             <p className="mt-3 truncate rounded-lg border border-[#E5E7EB] bg-[#F8FAFC] px-3 py-2 text-sm font-medium text-[#0F172A]">
               {fileName}
@@ -90,7 +90,7 @@ export function ReplaceResumeConfirmModal({
                 Uploading…
               </>
             ) : hasExistingResume ? (
-              "Replace Resume"
+              "Re-upload Resume"
             ) : (
               "Upload Resume"
             )}

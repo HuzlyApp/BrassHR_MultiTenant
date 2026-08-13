@@ -28,6 +28,16 @@ export const WORKER_SECTION_TITLE_STYLE: CSSProperties = {
   ...BRAND_FONT_HEADING_STYLE,
 };
 
+/** Documents tab — "Resume Submitted" and "Documents" (+60% vs card section title). */
+export const WORKER_DOCUMENTS_PAGE_SECTION_TITLE_CLASS =
+  "font-bold leading-7 tracking-normal text-black align-middle";
+
+export const WORKER_DOCUMENTS_PAGE_SECTION_TITLE_STYLE: CSSProperties = {
+  ...BRAND_FONT_HEADING_STYLE,
+  fontSize: "calc(14px * 1.6)",
+  fontWeight: 700,
+};
+
 export const WORKER_SCHEDULE_CARD_CLASS =
   "overflow-hidden rounded-[12px] border border-[#E5E7EB] bg-white";
 

@@ -18,10 +18,10 @@ import {
   ChevronRight,
   HelpCircle,
   Loader2,
+  History,
   MapPin,
   MoreVertical,
   Phone,
-  Upload,
   X,
   ZoomIn,
   ZoomOut,
@@ -52,6 +52,7 @@ import type { AdminInterviewItem } from "@/app/api/admin/applicant-appointments/
 import { JobPublicViewLink } from "@/app/admin_recruiter/jobs/JobPublicViewLink";
 import { MatchAnalysisPanel } from "./MatchAnalysisPanel";
 import { ReplaceResumeConfirmModal } from "./ReplaceResumeConfirmModal";
+import { ResumeHistoryModal, type ResumeHistoryItem } from "./ResumeHistoryModal";
 
 type ApplicationRow = {
   id: string;
@@ -211,6 +212,12 @@ export default function JobCandidateReviewClient() {
   const [resumeUploading, setResumeUploading] = useState(false);
   const [pendingResumeFile, setPendingResumeFile] = useState<File | null>(null);
   const resumeInputRef = useRef<HTMLInputElement | null>(null);
+  const [resumeHistoryOpen, setResumeHistoryOpen] = useState(false);
+  const [resumeHistoryLoading, setResumeHistoryLoading] = useState(false);
+  const [resumeHistoryError, setResumeHistoryError] = useState<string | null>(null);
+  const [resumeHistoryJobTitle, setResumeHistoryJobTitle] = useState("");
+  const [resumeHistoryItems, setResumeHistoryItems] = useState<ResumeHistoryItem[]>([]);
+  const [resumeHistoryBusyId, setResumeHistoryBusyId] = useState<string | null>(null);
   const [chatOpen, setChatOpen] = useState(true);
   const [chatPreferExpanded, setChatPreferExpanded] = useState(false);
   const [publicJobPath, setPublicJobPath] = useState<string | null>(null);
@@ -486,6 +493,96 @@ export default function JobCandidateReviewClient() {
     });
   }
 
+  const loadResumeHistory = useCallback(async (applicationIdForHistory: string) => {
+    setResumeHistoryLoading(true);
+    setResumeHistoryError(null);
+    try {
+      const response = await fetch(
+        `/api/admin/job-applications/${encodeURIComponent(applicationIdForHistory)}/resume-history`,
+        { cache: "no-store" }
+      );
+      const payload = (await response.json()) as {
+        error?: string;
+        jobTitle?: string;
+        resumes?: ResumeHistoryItem[];
+      };
+      if (!response.ok) {
+        throw new Error(payload.error || "Could not load resume history.");
+      }
+      setResumeHistoryJobTitle(payload.jobTitle?.trim() || jobTitle);
+      setResumeHistoryItems(payload.resumes ?? []);
+    } catch (err) {
+      setResumeHistoryError(err instanceof Error ? err.message : "Could not load resume history.");
+      setResumeHistoryItems([]);
+    } finally {
+      setResumeHistoryLoading(false);
+    }
+  }, [jobTitle]);
+
+  function openResumeHistory() {
+    if (!selected?.id) return;
+    setResumeHistoryOpen(true);
+    void loadResumeHistory(selected.id);
+  }
+
+  async function viewResumeFromHistory(resumeId: string) {
+    if (!selected?.id) return;
+    setResumeHistoryBusyId(resumeId);
+    try {
+      const response = await fetch(
+        `/api/admin/job-applications/${encodeURIComponent(selected.id)}/resumes/${encodeURIComponent(resumeId)}`,
+        { cache: "no-store" }
+      );
+      const payload = (await response.json().catch(() => ({}))) as {
+        url?: string;
+        error?: string;
+      };
+      const url = payload.url?.trim() ?? "";
+      if (!response.ok || !url) {
+        throw new Error(payload.error || "Could not open resume.");
+      }
+      window.open(url, "_blank", "noopener,noreferrer");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not open resume.");
+    } finally {
+      setResumeHistoryBusyId(null);
+    }
+  }
+
+  async function deleteResumeFromHistory(resumeId: string, fileName: string) {
+    if (!selected?.id) return;
+    if (!window.confirm(`Delete ${fileName}? This cannot be undone.`)) return;
+
+    const applicationIdForDelete = selected.id;
+    const workerIdForDelete = workerId;
+    setResumeHistoryBusyId(resumeId);
+    try {
+      const response = await fetch(
+        `/api/admin/job-applications/${encodeURIComponent(applicationIdForDelete)}/resumes/${encodeURIComponent(resumeId)}`,
+        { method: "DELETE" }
+      );
+      const payload = (await response.json().catch(() => ({}))) as {
+        resumes?: ResumeHistoryItem[];
+        error?: string;
+      };
+      if (!response.ok) {
+        throw new Error(payload.error || "Could not delete resume.");
+      }
+
+      setResumeHistoryItems(payload.resumes ?? []);
+      if (workerIdForDelete) {
+        await reloadWorkerProfile(workerIdForDelete);
+      }
+      setResumePreviewKey((value) => value + 1);
+      setResumePreviewError(null);
+      toast.success("Resume deleted.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not delete resume.");
+    } finally {
+      setResumeHistoryBusyId(null);
+    }
+  }
+
   function handleResumeFilePicked(file: File | undefined) {
     if (resumeInputRef.current) resumeInputRef.current.value = "";
     if (!file) return;
@@ -574,6 +671,9 @@ export default function JobCandidateReviewClient() {
 
       setPendingResumeFile(null);
       toast.success("Resume updated successfully.");
+      if (resumeHistoryOpen) {
+        void loadResumeHistory(applicationIdForUpload);
+      }
     } catch (uploadError) {
       toast.error(
         uploadError instanceof Error ? uploadError.message : "Failed to upload resume"
@@ -1008,7 +1108,7 @@ export default function JobCandidateReviewClient() {
           </aside>
 
           {/* Center — profile + resume (Figma Frame 6927: 20px inset + gap) */}
-          <section className="order-2 flex min-w-0 flex-col overflow-hidden rounded-xl border border-[#E5E7EB] bg-white xl:order-none">
+          <section className="order-2 flex min-w-0 flex-col self-start overflow-hidden rounded-xl border border-[#E5E7EB] bg-white xl:order-none xl:w-full">
             {!selected ? (
               <p className="px-5 py-12 text-center text-sm text-[#64748B]">
                 Select a candidate from the list.
@@ -1194,19 +1294,14 @@ export default function JobCandidateReviewClient() {
                       </button>
                     </div>
                     <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:justify-end">
-                      {workerId ? (
+                      {selected?.id ? (
                         <button
                           type="button"
-                          onClick={beginReuploadResume}
-                          disabled={resumeUploading}
-                          className="admin-recruiter-action-chip h-10 w-full shrink-0 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm font-medium text-[#525252] transition hover:bg-[#F8FAFC] disabled:opacity-50 sm:h-9 sm:w-auto"
+                          onClick={openResumeHistory}
+                          className="admin-recruiter-action-chip h-10 w-full shrink-0 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm font-medium text-[#525252] transition hover:bg-[#F8FAFC] sm:h-9 sm:w-auto"
                         >
-                          {resumeUploading ? (
-                            <Loader2 className="h-4 w-4 shrink-0 animate-spin" aria-hidden />
-                          ) : (
-                            <Upload className="h-4 w-4 shrink-0" strokeWidth={2} aria-hidden />
-                          )}
-                          <span>{resumeUploading ? "Uploading…" : "Re-upload Resume"}</span>
+                          <History className="h-4 w-4 shrink-0" strokeWidth={2} aria-hidden />
+                          <span>Resume history</span>
                         </button>
                       ) : null}
                       {resumeDownloadUrl ? (
@@ -1228,7 +1323,7 @@ export default function JobCandidateReviewClient() {
                   </div>
                 </div>
 
-                <div className="min-h-[280px] flex-1 overflow-auto bg-[#F8FAFC] p-5 sm:min-h-[420px]">
+                <div className="overflow-auto bg-[#F8FAFC] p-5">
                   {profileLoading ? (
                     <p className="py-16 text-center text-sm text-[#64748B]">Loading resume…</p>
                   ) : workerId && hasResume && resumePreviewUrl ? (
@@ -1241,7 +1336,7 @@ export default function JobCandidateReviewClient() {
                           key={resumePreviewUrl}
                           title={`${displayName} resume`}
                           src={resumePreviewUrl}
-                          className="h-[min(55vh,520px)] w-full bg-white sm:h-[min(70vh,760px)]"
+                          className="block h-[min(55vh,520px)] w-full bg-white sm:h-[min(70vh,760px)]"
                           onError={() =>
                             setResumePreviewError(
                               "Preview is blocked on this device. Use Download Resume or open in a new tab."
@@ -1266,7 +1361,7 @@ export default function JobCandidateReviewClient() {
                       </div>
                     </div>
                   ) : (
-                    <div className="flex h-full min-h-[280px] items-center justify-center rounded-xl border border-[#E5E7EB] bg-white px-4 text-center text-sm text-[#64748B] sm:min-h-[420px]">
+                    <div className="flex min-h-[280px] items-center justify-center rounded-xl border border-[#E5E7EB] bg-white px-4 py-12 text-center text-sm text-[#64748B] sm:min-h-[320px]">
                       {workerId
                         ? "No resume uploaded for this candidate yet."
                         : "Candidate profile is not linked yet, so resume is unavailable."}
@@ -1526,6 +1621,24 @@ export default function JobCandidateReviewClient() {
           setPendingResumeFile(null);
         }}
         onConfirm={() => void confirmReplaceResume()}
+      />
+
+      <ResumeHistoryModal
+        open={resumeHistoryOpen}
+        jobTitle={resumeHistoryJobTitle || jobTitle}
+        resumes={resumeHistoryItems}
+        loading={resumeHistoryLoading}
+        error={resumeHistoryError}
+        busyResumeId={resumeHistoryBusyId}
+        reuploadBusy={resumeUploading}
+        reuploadDisabled={!workerId}
+        onClose={() => {
+          if (resumeUploading || resumeHistoryBusyId) return;
+          setResumeHistoryOpen(false);
+        }}
+        onReupload={beginReuploadResume}
+        onView={viewResumeFromHistory}
+        onDelete={deleteResumeFromHistory}
       />
     </div>
   );

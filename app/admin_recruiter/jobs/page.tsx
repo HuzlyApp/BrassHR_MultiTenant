@@ -26,6 +26,7 @@ import toast from "react-hot-toast";
 import { normalizeJobRequisitionStatus } from "@/lib/jobs/job-status";
 import {
   EditJobsFiltersModal,
+  EMPTY_JOBS_EXTENDED_FILTERS,
   jobMatchesDatePostedFilter,
   jobMatchesPayRateFilter,
   type JobsExtendedFilterValues,
@@ -1571,6 +1572,11 @@ export default function AdminRecruiterJobsPage() {
     setDatePostedFilter(next.datePosted);
   }, []);
 
+  const handleResetFilters = useCallback(() => {
+    handleSaveEditFilters(EMPTY_JOBS_EXTENDED_FILTERS);
+    setShowStarredOnly(false);
+  }, [handleSaveEditFilters]);
+
   const jobListCellContext = useMemo((): JobListCellContext => {
     return {
       brandingSecondaryHex: branding.secondaryHex,
@@ -1646,9 +1652,11 @@ export default function AdminRecruiterJobsPage() {
           />
           <button
             type="button"
+            disabled
             className={JOBS_BULK_PRIMARY_BUTTON_CLASS}
             style={{ backgroundColor: branding.primaryHex }}
-            aria-label="Import from MSP"
+            aria-label="Import from MSP (coming soon)"
+            title="Coming soon"
           >
             <Download className="h-4 w-4 shrink-0" aria-hidden />
             Import from MSP
@@ -1671,6 +1679,16 @@ export default function AdminRecruiterJobsPage() {
               <MobileIconButton onClick={() => setEditColumnsOpen(true)} label="Columns">
                 <JobsColumnsIcon />
               </MobileIconButton>
+              {hasActiveFilters ? (
+                <button
+                  type="button"
+                  onClick={handleResetFilters}
+                  className={`${JOBS_TOOLBAR_BUTTON_CLASS} shrink-0 whitespace-nowrap`}
+                  style={CANDIDATES_PAGE_SUBTITLE_STYLE}
+                >
+                  Reset Filters
+                </button>
+              ) : null}
               <BulkDeleteToolbarButton
                 count={selectedIds.size}
                 disabled={deleteBusy}
@@ -1782,6 +1800,16 @@ export default function AdminRecruiterJobsPage() {
                 <JobsColumnsIcon />
                 Columns
               </button>
+              {hasActiveFilters ? (
+                <button
+                  type="button"
+                  onClick={handleResetFilters}
+                  className={JOBS_TOOLBAR_BUTTON_CLASS}
+                  style={CANDIDATES_PAGE_SUBTITLE_STYLE}
+                >
+                  Reset Filters
+                </button>
+              ) : null}
               <BulkDeleteToolbarButton
                 count={selectedIds.size}
                 disabled={deleteBusy}

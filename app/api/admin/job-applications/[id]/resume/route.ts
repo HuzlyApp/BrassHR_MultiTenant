@@ -3,8 +3,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireStaffApiSession } from "@/lib/auth/api-session";
 import { resolveStaffTenantId } from "@/lib/jobs/tenant";
 import { extractResumeTextFromUpload } from "@/lib/jobs/match-analysis/extract-resume-text";
-import { persistWorkerResumePath } from "@/lib/onboarding/persist-worker-resume-path";
 import { persistWorkerResumeRecord } from "@/lib/onboarding/persist-worker-resume-record";
+import { syncWorkerPrimaryResumePath } from "@/lib/onboarding/sync-worker-primary-resume-path";
 import {
   resolveResumeFileType,
   validateExtractedResumeText,
@@ -163,7 +163,6 @@ export async function POST(
           ? String(worker.user_id).trim()
           : workerId;
 
-      await persistWorkerResumePath(supabase, resumeOwnerId, objectPath, tenantId);
       await persistWorkerResumeRecord(supabase, resumeOwnerId, {
         fileUrl: objectPath,
         originalFileName: safeName,
@@ -173,7 +172,10 @@ export async function POST(
         textLength: extractedText.trim().length,
         extractedText,
         parsedData: { text: extractedText },
+        jobApplicationId: applicationId,
+        uploadedByUserId: auth.userId,
       });
+      await syncWorkerPrimaryResumePath(supabase, workerId, resumeOwnerId);
     }
 
     if (profileId) {
