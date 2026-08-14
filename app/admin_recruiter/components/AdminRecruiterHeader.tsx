@@ -8,11 +8,7 @@ import {
   isCandidateDetailPage,
   navigateCandidateDetailBack,
 } from "./candidate-detail-navigation";
-
-const SIDEBAR_TOGGLE_ICON = "/icons/sidebar-on-off-icon.svg";
-const NOTIFICATION_ICON = "/icons/braas-HR/client-dashboard/notification-icon.svg";
-const MESSAGE_ICON = "/icons/braas-HR/client-dashboard/message-icon.svg";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import GodAdminTenantSwitcher from "./GodAdminTenantSwitcher";
 import { useAccountData } from "@/app/admin_recruiter/hooks/useAccountData";
 import { formatRoleLabel, getAccountDisplayName } from "@/lib/account/display-name";
@@ -32,6 +28,7 @@ import { useStaffConversations } from "@/lib/messaging/hooks/use-staff-conversat
 import { useMarkConversationRead } from "@/lib/messaging/hooks/use-mark-conversation-read";
 import { useQueryClient } from "@tanstack/react-query";
 import { StaffProfileAvatar } from "@/app/admin_recruiter/components/StaffProfileAvatar";
+import SidebarNavIcon from "@/app/admin_recruiter/components/SidebarNavIcon";
 
 type ConversationItem = StaffConversation;
 
@@ -43,6 +40,7 @@ type AdminRecruiterHeaderProps = {
 };
 
 const DEFAULT_TENANT_LOGO = BRAAS_PLATFORM_FAVICON;
+const SIDEBAR_TOGGLE_ICON = "/icons/sidebar-on-off-icon.svg";
 
 /** Static count removed — use live unreadNotifications from header data API. */
 
@@ -165,6 +163,7 @@ export function AdminRecruiterHeader({
                 height={20}
                 className="h-5 w-5 shrink-0"
                 aria-hidden
+                unoptimized
               />
             </button>
           ) : null}
@@ -183,6 +182,7 @@ export function AdminRecruiterHeader({
                 height={20}
                 className="h-5 w-5 shrink-0"
                 aria-hidden
+                unoptimized
               />
             </button>
           ) : null}
@@ -216,14 +216,7 @@ export function AdminRecruiterHeader({
                 className="relative inline-flex h-8 w-8 items-center justify-center rounded-md text-[#94A3B8] transition hover:bg-slate-100"
                 aria-label="Open messages"
               >
-                <Image
-                  src={MESSAGE_ICON}
-                  alt=""
-                  width={20}
-                  height={20}
-                  className="h-5 w-5 shrink-0"
-                  aria-hidden
-                />
+                <SidebarNavIcon iconType="Chat" active={false} />
                 {unreadMessages > 0 ? (
                   <span className="absolute -right-0.5 -top-0.5 inline-flex min-h-[16px] min-w-[16px] items-center justify-center rounded-full bg-[#0EA5A4] px-1 text-[10px] font-semibold text-white">
                     {unreadMessages > 9 ? "9+" : unreadMessages}
@@ -240,14 +233,7 @@ export function AdminRecruiterHeader({
                 className="relative inline-flex h-8 w-8 items-center justify-center rounded-md text-[#94A3B8] transition hover:bg-slate-100"
                 aria-label={`Open notifications${unreadNotifications > 0 ? `, ${unreadNotifications} unread` : ""}`}
               >
-                <Image
-                  src={NOTIFICATION_ICON}
-                  alt=""
-                  width={20}
-                  height={20}
-                  className="h-5 w-5 shrink-0"
-                  aria-hidden
-                />
+                <SidebarNavIcon iconType="Notifications" active={false} />
                 <HeaderIconCountBadge count={unreadNotifications} />
               </button>
 

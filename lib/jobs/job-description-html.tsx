@@ -51,7 +51,7 @@ export function stripJobDescriptionBenefitsSection(value: string): string {
 }
 
 const LIST_SECTION_HEADING =
-  /^(?:key\s+responsibilities|responsibilities|qualifications|required\s+qualifications|preferred\s+qualifications|preferred\s+skills|benefits)$/i;
+  /^(?:key\s+responsibilities|responsibilities|qualifications|required\s+qualifications|preferred\s+qualifications|preferred\s+skills|benefits|work\s+location(?:\s+and\s+schedule)?)$/i;
 
 function stripTags(value: string): string {
   return value
@@ -87,10 +87,19 @@ function splitBlockItems(block: string): string[] {
     .replace(/<\/(?:p|div)>/gi, "\n")
     .replace(/<br\s*\/?>/gi, "\n");
   const plain = stripTags(withBreaks);
-  return plain
+  const fromLines = plain
     .split(/\n+/)
     .map((line) => line.replace(/^[\s•\u2022\-–—*]+/, "").trim())
     .filter(Boolean);
+  if (fromLines.length > 1) return fromLines;
+
+  const fromBullets = plain
+    .split(/\s*[•\u2022]\s+/)
+    .map((line) => line.replace(/^[\s\-–—*]+/, "").trim())
+    .filter(Boolean);
+  if (fromBullets.length > 1) return fromBullets;
+
+  return fromLines;
 }
 
 function toBulletList(items: string[]): string {
@@ -142,8 +151,13 @@ export function ensureJobDescriptionBulletLists(value: string): string {
 
     const collected: string[] = [];
 
-    // One paragraph with multiple lines/breaks → list items
-    if (/^<p\b/i.test(next.trim()) && /<br\s*\/?>/i.test(next) && !isSectionHeadingHtml(next)) {
+    const nextHasInlineBullets = /[•\u2022]/.test(next);
+    // One paragraph with line breaks or inline • separators → list items
+    if (
+      /^<p\b/i.test(next.trim()) &&
+      (/<br\s*\/?>/i.test(next) || nextHasInlineBullets) &&
+      !isSectionHeadingHtml(next)
+    ) {
       collected.push(...splitBlockItems(next));
       i += 1;
     } else {

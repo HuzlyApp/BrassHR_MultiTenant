@@ -17,6 +17,8 @@ import {
   validatePublishableJob,
   workflowNoMatchMessage,
 } from "@/lib/jobs/validation";
+import { isStrongAiMatchScore } from "@/lib/jobs/match-analysis/display";
+import { normalizeApplicationStatus } from "@/lib/jobs/application-status";
 import {
   formatDateOnlyUtc,
   isJobRequisitionOpen,
@@ -338,11 +340,6 @@ async function resolveJobWorkflowAssignment(
   if (keepManual && existing?.workflowId) {
     const match = await resolveManualOverrideMatch(supabase, tenantId, existing.workflowId);
     return { match, assignmentMode: "manual", assignmentError: null };
-  }
-
-  /** MSP Recruit & Release jobs publish without an onboarding workflow assignment. */
-  if (input.sourceType === "MSP" && input.placementType !== "Recruit_and_EOR") {
-    return { match: null, assignmentMode: "automatic", assignmentError: null };
   }
 
   const match = await resolveWorkflowMatch(supabase, tenantId, {
@@ -908,28 +905,64 @@ export async function listInternalJobs(
   const jobs = data ?? [];
   if (!jobs.length) return jobs;
 
-  // Dynamic "New" candidate counts (same statuses as job details / applications tab).
   const jobIds = jobs.map((job) => String(job.id));
-  const { data: newRows, error: newError } = await supabase
+  const { data: applicationRows, error: applicationError } = await supabase
     .from("job_applications")
-    .select("job_requisition_id")
+    .select(
+      "job_requisition_id, status, ai_match_status, ai_match_score, ai_match_readiness, ai_analyzed_at"
+    )
     .eq("tenant_id", tenantId)
-    .in("job_requisition_id", jobIds)
-    .in("status", ["new", "submitted"]);
-  if (newError) throw newError;
+    .in("job_requisition_id", jobIds);
+  if (applicationError) throw applicationError;
 
-  const newCountByJob = new Map<string, number>();
-  for (const row of newRows ?? []) {
+  type JobListMetricCounts = {
+    newCount: number;
+    analyzedCount: number;
+    strongCount: number;
+    readyCount: number;
+    hiredCount: number;
+  };
+  const metricsByJob = new Map<string, JobListMetricCounts>();
+  for (const row of applicationRows ?? []) {
     const id = String(row.job_requisition_id ?? "");
     if (!id) continue;
-    newCountByJob.set(id, (newCountByJob.get(id) ?? 0) + 1);
+    const current = metricsByJob.get(id) ?? {
+      newCount: 0,
+      analyzedCount: 0,
+      strongCount: 0,
+      readyCount: 0,
+      hiredCount: 0,
+    };
+    const status = String(row.status ?? "").toLowerCase();
+    if (status === "new" || status === "submitted") current.newCount += 1;
+    if (normalizeApplicationStatus(status) === "hired") current.hiredCount += 1;
+
+    const matchStatus = String(row.ai_match_status ?? "");
+    const score = Number(row.ai_match_score);
+    const hasMatchScore = Number.isFinite(score);
+    const analysisDone =
+      matchStatus === "ANALYZED" || hasMatchScore || Boolean(row.ai_analyzed_at);
+
+    if (analysisDone) current.analyzedCount += 1;
+    if (isStrongAiMatchScore(row.ai_match_score)) current.strongCount += 1;
+    if (analysisDone && String(row.ai_match_readiness ?? "") === "READY_TO_SUBMIT") {
+      current.readyCount += 1;
+    }
+    metricsByJob.set(id, current);
   }
 
-  return jobs.map((job) => ({
-    ...job,
-    status: normalizeJobRequisitionStatus(String(job.status ?? "")),
-    new_application_count: newCountByJob.get(String(job.id)) ?? 0,
-  }));
+  return jobs.map((job) => {
+    const metrics = metricsByJob.get(String(job.id));
+    return {
+      ...job,
+      status: normalizeJobRequisitionStatus(String(job.status ?? "")),
+      new_application_count: metrics?.newCount ?? 0,
+      analyzed_application_count: metrics?.analyzedCount ?? 0,
+      strong_match_count: metrics?.strongCount ?? 0,
+      ready_to_submit_count: metrics?.readyCount ?? 0,
+      hired_application_count: metrics?.hiredCount ?? 0,
+    };
+  });
 }
 
 export async function listPublicJobs(

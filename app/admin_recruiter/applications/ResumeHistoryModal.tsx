@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { Eye, Loader2, Trash2, Upload, X } from "lucide-react";
+import { Check, Eye, Loader2, ScanText, Trash2, Upload, X } from "lucide-react";
 import BrandedFileTypeIcon from "@/app/admin_recruiter/components/BrandedFileTypeIcon";
 import { MAX_RESUME_UPLOADS_PER_ROLE, resumeUploadLimitMessage } from "@/lib/resume/resume-upload-limit";
 
@@ -13,6 +13,7 @@ export type ResumeHistoryItem = {
   uploadedByName: string;
   uploadedByPhotoUrl?: string | null;
   uploadedByType: "worker" | "staff" | "unknown";
+  parsingStatus?: "pending" | "processing" | "completed" | "failed";
 };
 
 type ResumeHistoryModalProps = {
@@ -29,11 +30,12 @@ type ResumeHistoryModalProps = {
   onReupload: () => void;
   onView: (resumeId: string) => void;
   onDelete: (resumeId: string, fileName: string) => void;
+  onParse: (resumeId: string) => void;
 };
 
 const INDEX_COL_CLASS = "w-8 shrink-0";
 const ICON_COL_CLASS = "w-[1.8rem] shrink-0";
-const ACTIONS_COL_CLASS = "flex w-[4.75rem] shrink-0 items-center justify-center gap-1";
+const ACTIONS_COL_CLASS = "flex w-[7.25rem] shrink-0 items-center justify-center gap-1";
 const UPLOADER_COL_CLASS = "w-[7.5rem] shrink-0 min-w-0 text-right sm:w-[8.5rem]";
 
 function uploaderRoleLabel(type: ResumeHistoryItem["uploadedByType"]): string {
@@ -63,14 +65,19 @@ function ResumeHistoryRow({
   busy,
   onView,
   onDelete,
+  onParse,
 }: {
   resume: ResumeHistoryItem;
   index: number;
   busy: boolean;
   onView: () => void;
   onDelete: () => void;
+  onParse: () => void;
 }) {
   const fileIconType = resume.fileIconType ?? "pdf";
+  const parsingStatus = resume.parsingStatus ?? "pending";
+  const parsed = parsingStatus === "completed";
+  const parsing = parsingStatus === "processing";
 
   return (
     <div className="flex items-center gap-3 rounded-xl border border-[#E5E7EB] bg-white px-3 py-3 sm:gap-3 sm:px-4">
@@ -90,6 +97,28 @@ function ResumeHistoryRow({
       </div>
 
       <div className={ACTIONS_COL_CLASS}>
+        {parsed ? (
+          <span className="inline-flex h-9 items-center gap-1 rounded-lg bg-[color:var(--brand-secondary)] px-2 text-[10px] font-semibold text-white">
+            <Check className="h-3 w-3" aria-hidden />
+            Parsed
+          </span>
+        ) : (
+          <button
+            type="button"
+            disabled={busy || parsing}
+            onClick={onParse}
+            className="inline-flex h-9 items-center justify-center gap-1 rounded-lg border border-[#E5E7EB] bg-white px-2 text-[11px] font-semibold text-[#334155] transition hover:bg-[#F8FAFC] disabled:opacity-50"
+            aria-label={`Parse ${resume.fileName}`}
+            title="Parse resume"
+          >
+            {busy || parsing ? (
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+            ) : (
+              <ScanText className="h-4 w-4" aria-hidden />
+            )}
+            <span>{parsing ? "Parsing…" : "Parse"}</span>
+          </button>
+        )}
         <button
           type="button"
           disabled={busy}
@@ -135,6 +164,7 @@ export function ResumeHistoryModal({
   onReupload,
   onView,
   onDelete,
+  onParse,
 }: ResumeHistoryModalProps) {
   const modalBusy = reuploadBusy || Boolean(busyResumeId);
 
@@ -226,6 +256,7 @@ export function ResumeHistoryModal({
                     busy={busyResumeId === resume.id}
                     onView={() => onView(resume.id)}
                     onDelete={() => onDelete(resume.id, resume.fileName)}
+                    onParse={() => onParse(resume.id)}
                   />
                 ))}
               </div>

@@ -9,6 +9,7 @@ import {
   applicantCount,
   formatJobListCommissionFeeText,
   formatJobListPayRateText,
+  hiredApplicantCount,
   jobContractGroup,
   jobListDisplayTitle,
   jobLocation,
@@ -42,6 +43,7 @@ const JOB_EXPORT_COLUMN_BUILDERS: Partial<
   candidates: [
     { header: "Applicants (All)", value: (row) => applicantCount(row) },
     { header: "Applicants (New)", value: (row) => newApplicantCount(row) },
+    { header: "Applicants (Hired)", value: (row) => hiredApplicantCount(row) },
   ],
   datePosted: {
     header: "Date Posted",

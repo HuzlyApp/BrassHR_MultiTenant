@@ -16,7 +16,7 @@ export const MSP_PLACEMENT_SUMMARIES: Record<
     lines: [
       "You recruit candidates for jobs posted by the MSP.",
       "The MSP employs the placed worker after hire.",
-      "Commission-based fee — minimal onboarding, no workflow assignment.",
+      "Commission-based fee — assign an applicant workflow for this placement.",
     ],
   },
   Recruit_and_EOR: {
@@ -34,7 +34,7 @@ export function jobRequiresWorkflow(
   job: Pick<JobRequisitionInput, "sourceType" | "placementType">
 ): boolean {
   if (job.sourceType === "Internal") return true;
-  if (job.sourceType === "MSP" && job.placementType === "Recruit_and_EOR") return true;
+  if (job.sourceType === "MSP") return true;
   return false;
 }
 

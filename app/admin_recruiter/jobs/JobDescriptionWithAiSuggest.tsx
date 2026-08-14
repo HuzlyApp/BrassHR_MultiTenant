@@ -42,6 +42,7 @@ export type JobDescriptionSuggestPayload = {
   sourceJobTitle?: string | null;
   sourceJobDetails?: string | null;
   targetStartDate?: string | null;
+  placementType?: string | null;
 };
 
 type PendingMode = "replace" | "insert" | null;

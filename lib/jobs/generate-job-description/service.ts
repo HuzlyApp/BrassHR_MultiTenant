@@ -12,9 +12,10 @@ import {
   type GenerateJobDescriptionResult,
 } from "./schema";
 import { htmlToPlainText, sanitizeJobDescriptionHtml, boldJobDescriptionSectionTitles } from "./sanitize-html";
+import { ensureJobDescriptionBulletLists } from "@/lib/jobs/job-description-html";
 
 const DEFAULT_MODEL = "grok-4.3";
-const MAX_OUTPUT_TOKENS = 700;
+const MAX_OUTPUT_TOKENS = 1100;
 const TEMPERATURE = 0.4;
 const API_TIMEOUT_MS = 12_000;
 
@@ -117,8 +118,8 @@ function parseModelResult(rawText: string): GenerateJobDescriptionResult {
         ? parsed.plain_text
         : "";
 
-  const descriptionHtml = boldJobDescriptionSectionTitles(
-    sanitizeJobDescriptionHtml(rawHtml)
+  const descriptionHtml = ensureJobDescriptionBulletLists(
+    boldJobDescriptionSectionTitles(sanitizeJobDescriptionHtml(rawHtml))
   );
   const plainText =
     (typeof rawPlain === "string" && rawPlain.trim()
@@ -139,8 +140,8 @@ function parseModelResult(rawText: string): GenerateJobDescriptionResult {
       .join("");
 
   return {
-    descriptionHtml: boldJobDescriptionSectionTitles(
-      sanitizeJobDescriptionHtml(finalHtml)
+    descriptionHtml: ensureJobDescriptionBulletLists(
+      boldJobDescriptionSectionTitles(sanitizeJobDescriptionHtml(finalHtml))
     ),
     plainText: plainText || htmlToPlainText(finalHtml),
     warnings: normalizeWarnings(parsed.warnings),

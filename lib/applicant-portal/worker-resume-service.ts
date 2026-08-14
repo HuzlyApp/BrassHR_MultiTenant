@@ -1,5 +1,4 @@
 import { randomUUID } from "node:crypto";
-import { after } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import pdfParse from "pdf-parse";
 import mammoth from "mammoth";
@@ -13,7 +12,6 @@ import {
   type WorkerResumeParsingStatus,
 } from "@/lib/onboarding/persist-worker-resume-record";
 import { syncWorkerPrimaryResumePath } from "@/lib/onboarding/sync-worker-primary-resume-path";
-import { runResumeParseJob } from "@/lib/resume/run-resume-parse-job";
 import { assertResumeUploadWithinLimit } from "@/lib/resume/assert-resume-upload-limit";
 import {
   resolveResumeFileType,
@@ -248,7 +246,6 @@ async function storeResumeFromFile(
   const fileType = resolveResumeFileType(file);
   const folder = userId.trim() || applicant.id;
   const objectPath = await uploadResumeBuffer(supabase, folder, file, buffer);
-  const parseStartedAt = new Date().toISOString();
   const textLength = text.trim().length;
 
   const persistedId = await persistWorkerResumeRecord(
@@ -258,9 +255,8 @@ async function storeResumeFromFile(
       fileUrl: objectPath,
       originalFileName: file.name,
       parsedData: { text },
-      parsingStatus: "processing",
+      parsingStatus: "pending",
       textLength,
-      parseStartedAt,
       fileType,
       fileSizeBytes: file.size,
       extractedText: text,
@@ -277,15 +273,7 @@ async function storeResumeFromFile(
 
   await syncWorkerPrimaryResumePath(supabase, applicant.id, applicant.user_id);
 
-  after(async () => {
-    await runResumeParseJob({
-      supabase,
-      resumeId: persistedId,
-      text,
-    });
-  });
-
-  return { resumeId: persistedId, parseStatus: "processing" };
+  return { resumeId: persistedId, parseStatus: "pending" };
 }
 
 const RESUME_LIST_SELECT = `

@@ -5,13 +5,21 @@ import {
   type RecommendedAction,
 } from "@/lib/jobs/match-analysis/schema";
 
+/** AI match % at or above this is a Strong match on jobs listing and score badges. */
+export const STRONG_MATCH_MIN_SCORE = 90;
+
+export function isStrongAiMatchScore(score: unknown): boolean {
+  const n = Number(score);
+  return Number.isFinite(n) && n >= STRONG_MATCH_MIN_SCORE;
+}
+
 /** Soft badges for detail panels (not the ranking table). */
 export function matchScoreBadgeClassName(score: number | null | undefined): string {
   if (score == null || !Number.isFinite(Number(score))) {
     return "bg-[#F1F5F9] text-[#64748B]";
   }
   const n = Number(score);
-  if (n >= 90) return "bg-[#DCFCE7] text-[#166534]";
+  if (n >= STRONG_MATCH_MIN_SCORE) return "bg-[#DCFCE7] text-[#166534]";
   if (n >= 75) return "bg-[#E0F2FE] text-[#075985]";
   if (n >= 60) return "bg-[#FEF9C3] text-[#854D0E]";
   if (n >= 40) return "bg-[#FFEDD5] text-[#9A3412]";

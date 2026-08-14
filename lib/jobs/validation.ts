@@ -125,10 +125,8 @@ export function validatePublishableJob(
   }
 
   if (isMspRnr) {
-    if (!input.mspClient?.trim()) errors.mspClient = "MSP Name is required.";
-    if (!input.mspName?.trim()) errors.mspName = "Contract Group / Client is required.";
-    if (!input.externalRequisitionId?.trim()) {
-      errors.externalRequisitionId = "Internal Reference / Source Job ID is required.";
+    if (requiresWorkflow && !workflowId) {
+      errors.workflowId = "A matching published workflow is required.";
     }
     const hasCommission =
       (input.commissionPercent != null && input.commissionPercent > 0) ||
@@ -149,12 +147,6 @@ export function validatePublishableJob(
   }
 
   if (isMspEor) {
-    if (!input.mspClient?.trim()) errors.mspClient = "MSP Name is required.";
-    if (!input.mspName?.trim()) errors.mspName = "Contract Group / Client is required.";
-    if (!input.externalRequisitionId?.trim()) {
-      errors.externalRequisitionId = "Internal Reference / Source Job ID is required.";
-    }
-    if (!input.professionId) errors.professionId = "Profession is required.";
     if (input.employmentType !== "W2" && input.employmentType !== "1099") {
       errors.employmentType = "Select W2 or 1099 for EOR placements.";
     }

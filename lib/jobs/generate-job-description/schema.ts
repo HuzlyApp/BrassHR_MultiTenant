@@ -68,6 +68,7 @@ export const generateJobDescriptionRequestSchema = z
     sourceJobTitle: optionalTrimmed,
     sourceJobDetails: optionalTrimmed,
     targetStartDate: optionalTrimmed,
+    placementType: optionalTrimmed,
   })
   .superRefine((data, ctx) => {
     if (!data.jobTitle && !data.profession && !data.specialty && !data.sourceJobTitle) {

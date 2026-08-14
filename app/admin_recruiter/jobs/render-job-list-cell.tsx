@@ -15,7 +15,7 @@ const JOB_CANDIDATE_COUNTER_CLASS =
 const JOB_CANDIDATE_ICONS = {
   all: "/fluent_people-28-regular.svg",
   new: "/fluent_person-add-24-regular.svg",
-  matches: "/fluent_person-star-24-regular.svg",
+  hired: "/fluent_person-star-24-regular.svg",
 } as const
 
 /** Figma jobs list star — 14×14 */
@@ -33,10 +33,8 @@ function JobCandidateMetric({
   count: number
   href?: string
 }) {
-  const counter = <span className={JOB_CANDIDATE_COUNTER_CLASS}>{count}</span>
-
-  return (
-    <div className="flex items-center gap-1.5">
+  const body = (
+    <>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={iconSrc}
@@ -47,15 +45,23 @@ function JobCandidateMetric({
         aria-hidden
       />
       <span className="text-xs font-normal text-[#475569]">{label}</span>
-      {href ? (
-        <Link href={href} className="inline-flex transition hover:opacity-80">
-          {counter}
-        </Link>
-      ) : (
-        counter
-      )}
-    </div>
+      <span className={JOB_CANDIDATE_COUNTER_CLASS}>{count}</span>
+    </>
   )
+
+  if (href) {
+    return (
+      <Link
+        href={href}
+        className="flex cursor-pointer items-center gap-1.5 rounded-md transition hover:opacity-80"
+        aria-label={`${label} ${count}`}
+      >
+        {body}
+      </Link>
+    )
+  }
+
+  return <div className="flex items-center gap-1.5">{body}</div>
 }
 
 export type JobListRow = {
@@ -95,6 +101,14 @@ export type JobListRow = {
   job_applications: { count?: number }[] | null
   /** Candidates with status new/submitted — from listInternalJobs. */
   new_application_count?: number
+  /** Applications with completed AI match analysis. */
+  analyzed_application_count?: number
+  /** Applications whose AI match score is 90% or higher. */
+  strong_match_count?: number
+  /** Analyzed applications ready to submit. */
+  ready_to_submit_count?: number
+  /** Applications with hired status. */
+  hired_application_count?: number
 }
 
 const JOB_FORM_SURFACE_CLASS = "rounded-lg border border-[#CBD5E1] bg-white"
@@ -178,6 +192,30 @@ export function applicantCount(job: JobListRow): number {
 
 export function newApplicantCount(job: JobListRow): number {
   return job.new_application_count ?? 0
+}
+
+export function analyzedApplicantCount(job: JobListRow): number {
+  return job.analyzed_application_count ?? 0
+}
+
+export function strongMatchCount(job: JobListRow): number {
+  return job.strong_match_count ?? 0
+}
+
+export function readyToSubmitCount(job: JobListRow): number {
+  return job.ready_to_submit_count ?? 0
+}
+
+export function hiredApplicantCount(job: JobListRow): number {
+  return job.hired_application_count ?? 0
+}
+
+export function jobCandidatesHref(jobId: string): string {
+  return `/admin_recruiter/applications?jobId=${encodeURIComponent(jobId)}`
+}
+
+export function jobHiredCandidatesHref(jobId: string): string {
+  return `${jobCandidatesHref(jobId)}&tab=hired`
 }
 
 export function jobLocation(job: JobListRow): string {
@@ -395,7 +433,7 @@ export type JobListCellContext = {
   onPublishToggle: (job: JobListRow) => void
 }
 
-function publicJobPathFor(job: JobListRow, tenantSlug: string | null): string | null {
+export function publicJobPathFor(job: JobListRow, tenantSlug: string | null): string | null {
   if (normalizeJobRequisitionStatus(String(job.status ?? "")) !== "published") return null
   const token = typeof job.public_job_token === "string" ? job.public_job_token.trim() : ""
   const slug = tenantSlug?.trim().toLowerCase() ?? ""
@@ -483,15 +521,20 @@ export function renderJobListCell(
             iconSrc={JOB_CANDIDATE_ICONS.all}
             label="All"
             count={totalCandidates}
-            href={`/admin_recruiter/applications?jobId=${encodeURIComponent(job.id)}`}
+            href={jobCandidatesHref(job.id)}
           />
           <JobCandidateMetric
             iconSrc={JOB_CANDIDATE_ICONS.new}
             label="New"
             count={newApplicantCount(job)}
-            href={`/admin_recruiter/applications?jobId=${encodeURIComponent(job.id)}&tab=new`}
+            href={`${jobCandidatesHref(job.id)}&tab=new`}
           />
-          <JobCandidateMetric iconSrc={JOB_CANDIDATE_ICONS.matches} label="Matches" count={0} />
+          <JobCandidateMetric
+            iconSrc={JOB_CANDIDATE_ICONS.hired}
+            label="Hired"
+            count={hiredApplicantCount(job)}
+            href={jobHiredCandidatesHref(job.id)}
+          />
         </div>
       )
     case "datePosted":

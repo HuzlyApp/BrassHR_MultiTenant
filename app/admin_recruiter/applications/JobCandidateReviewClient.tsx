@@ -237,7 +237,7 @@ export default function JobCandidateReviewClient() {
   const [statusChangeNote, setStatusChangeNote] = useState("");
   const [statusHistory, setStatusHistory] = useState<StatusHistoryItem[]>([]);
   const [statusHistoryLoading, setStatusHistoryLoading] = useState(false);
-  const [workspaceTab, setWorkspaceTab] = useState<"overview" | "activity">("overview");
+  const [workspaceTab, setWorkspaceTab] = useState<"overview" | "activity" | "resume">("overview");
   const [removingFromJob, setRemovingFromJob] = useState(false);
 
   const selected = useMemo(
@@ -575,6 +575,31 @@ export default function JobCandidateReviewClient() {
     }
   }
 
+  async function parseResumeFromHistory(resumeId: string) {
+    if (!selected?.id) return;
+    setResumeHistoryBusyId(resumeId);
+    try {
+      const response = await fetch(
+        `/api/admin/job-applications/${encodeURIComponent(selected.id)}/resumes/${encodeURIComponent(resumeId)}/parse`,
+        { method: "POST" }
+      );
+      const payload = (await response.json().catch(() => ({}))) as {
+        error?: string;
+        resumes?: ResumeHistoryItem[];
+      };
+      if (!response.ok) {
+        throw new Error(payload.error || "Could not parse resume.");
+      }
+      if (payload.resumes) setResumeHistoryItems(payload.resumes);
+      else await loadResumeHistory(selected.id);
+      toast.success("Resume parsed.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not parse resume.");
+    } finally {
+      setResumeHistoryBusyId(null);
+    }
+  }
+
   async function deleteResumeFromHistory(resumeId: string, fileName: string) {
     if (!selected?.id) return;
     if (!window.confirm(`Delete ${fileName}? This cannot be undone.`)) return;
@@ -644,62 +669,83 @@ export default function JobCandidateReviewClient() {
         );
       }
 
-      if (workerIdForUpload) {
-        await reloadWorkerProfile(workerIdForUpload);
-      }
-      setResumePreviewKey((value) => value + 1);
-      setResumePreviewError(null);
-
-      // Recalculate match % / explanation against the new résumé.
-      try {
-        const matchResponse = await fetch(
-          `/api/admin/job-applications/${encodeURIComponent(applicationIdForUpload)}/match-analysis`,
-          {
-            method: "POST",
-            credentials: "include",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({}),
-          }
-        );
-        const matchPayload = await matchResponse.json().catch(() => ({}));
-        if (!matchResponse.ok) {
-          throw new Error(
-            typeof matchPayload.error === "string"
-              ? matchPayload.error
-              : "Resume updated, but match analysis failed"
-          );
-        }
-        setRows((current) =>
-          current.map((row) =>
-            row.id === applicationIdForUpload
-              ? {
-                  ...row,
-                  ai_match_status: matchPayload.status ?? "ANALYZED",
-                  ai_match_score: matchPayload.score ?? row.ai_match_score,
-                  ai_match_category: matchPayload.category ?? row.ai_match_category,
-                  ai_match_action: matchPayload.action ?? row.ai_match_action,
-                  ai_match_readiness: matchPayload.readiness ?? row.ai_match_readiness,
-                  ai_match_display_category:
-                    matchPayload.displayCategory ?? row.ai_match_display_category,
-                }
-              : row
-          )
-        );
-      } catch (matchError) {
-        toast.error(
-          matchError instanceof Error
-            ? matchError.message
-            : "Resume updated, but match analysis failed"
-        );
-      } finally {
-        setMatchReloadToken((value) => value + 1);
-      }
-
       setPendingResumeFile(null);
       toast.success("Resume updated successfully.");
+      if (workerIdForUpload) {
+        void reloadWorkerProfile(workerIdForUpload).then(() => {
+          setResumePreviewKey((value) => value + 1);
+          setResumePreviewError(null);
+        });
+      } else {
+        setResumePreviewKey((value) => value + 1);
+        setResumePreviewError(null);
+      }
       if (resumeHistoryOpen) {
         void loadResumeHistory(applicationIdForUpload);
       }
+
+      setRows((current) =>
+        current.map((row) =>
+          row.id === applicationIdForUpload
+            ? {
+                ...row,
+                ai_match_status: "ANALYZING",
+                ai_match_score: null,
+                ai_match_category: null,
+                ai_match_action: null,
+                ai_match_readiness: null,
+                ai_match_display_category: null,
+              }
+            : row
+        )
+      );
+      setMatchReloadToken((value) => value + 1);
+
+      void (async () => {
+        try {
+          const matchResponse = await fetch(
+            `/api/admin/job-applications/${encodeURIComponent(applicationIdForUpload)}/match-analysis`,
+            {
+              method: "POST",
+              credentials: "include",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({}),
+            }
+          );
+          const matchPayload = await matchResponse.json().catch(() => ({}));
+          if (!matchResponse.ok) {
+            throw new Error(
+              typeof matchPayload.error === "string"
+                ? matchPayload.error
+                : "Resume updated, but match analysis failed"
+            );
+          }
+          setRows((current) =>
+            current.map((row) =>
+              row.id === applicationIdForUpload
+                ? {
+                    ...row,
+                    ai_match_status: matchPayload.status ?? "ANALYZED",
+                    ai_match_score: matchPayload.score ?? row.ai_match_score,
+                    ai_match_category: matchPayload.category ?? row.ai_match_category,
+                    ai_match_action: matchPayload.action ?? row.ai_match_action,
+                    ai_match_readiness: matchPayload.readiness ?? row.ai_match_readiness,
+                    ai_match_display_category:
+                      matchPayload.displayCategory ?? row.ai_match_display_category,
+                  }
+                : row
+            )
+          );
+        } catch (matchError) {
+          toast.error(
+            matchError instanceof Error
+              ? matchError.message
+              : "Resume updated, but match analysis failed"
+          );
+        } finally {
+          setMatchReloadToken((value) => value + 1);
+        }
+      })();
     } catch (uploadError) {
       toast.error(
         uploadError instanceof Error ? uploadError.message : "Failed to upload resume"
@@ -1391,46 +1437,39 @@ export default function JobCandidateReviewClient() {
                   ) : null}
                 </div>
 
-                <div className="flex gap-2 border-b border-[#E5E7EB] px-5 pt-3">
-                  <button
-                    type="button"
-                    onClick={() => setWorkspaceTab("overview")}
-                    className={`border-b-2 px-2 pb-2 text-sm font-semibold ${
-                      workspaceTab === "overview"
-                        ? "border-[color:var(--brand-primary,#bc8b41)] text-[#0F172A]"
-                        : "border-transparent text-[#64748B]"
-                    }`}
-                  >
-                    Overview
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setWorkspaceTab("activity")}
-                    className={`border-b-2 px-2 pb-2 text-sm font-semibold ${
-                      workspaceTab === "activity"
-                        ? "border-[color:var(--brand-primary,#bc8b41)] text-[#0F172A]"
-                        : "border-transparent text-[#64748B]"
-                    }`}
-                  >
-                    Activity
-                  </button>
+                <div
+                  className="flex gap-2 border-b border-[#E5E7EB] px-5 pt-3"
+                  role="tablist"
+                  aria-label="Applicant details"
+                >
+                  {(
+                    [
+                      ["overview", "Overview"],
+                      ["activity", "Activity"],
+                      ["resume", "Resume"],
+                    ] as const
+                  ).map(([id, label]) => (
+                    <button
+                      key={id}
+                      type="button"
+                      role="tab"
+                      aria-selected={workspaceTab === id}
+                      onClick={() => setWorkspaceTab(id)}
+                      className={`border-b-2 px-2 pb-2 text-sm font-semibold ${
+                        workspaceTab === id
+                          ? "border-[color:var(--brand-primary,#bc8b41)] text-[#0F172A]"
+                          : "border-transparent text-[#64748B]"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
                 </div>
 
                 {workspaceTab === "activity" ? (
                   <CandidateActivityTimeline applicationId={selected.id} reloadToken={matchReloadToken} />
-                ) : (
+                ) : workspaceTab === "resume" ? (
                   <>
-                <div className="border-b border-[#E5E7EB] px-5 pt-5">
-                  <CandidateAnalysisWorkspace
-                    applicationId={selected.id}
-                    workerId={workerId}
-                    candidateName={displayName}
-                    profile={profile?.worker ?? null}
-                    reloadToken={matchReloadToken}
-                    onAnalyzed={() => setMatchReloadToken((value) => value + 1)}
-                  />
-                </div>
-
                 <div className="border-b border-[#E5E7EB] px-5 pt-5">
                   <h3
                     className="text-lg font-semibold leading-7 sm:text-[20px]"
@@ -1542,6 +1581,17 @@ export default function JobCandidateReviewClient() {
                   )}
                 </div>
                   </>
+                ) : (
+                  <div className="border-b border-[#E5E7EB] px-5 pt-5">
+                    <CandidateAnalysisWorkspace
+                      applicationId={selected.id}
+                      workerId={workerId}
+                      candidateName={displayName}
+                      profile={profile?.worker ?? null}
+                      reloadToken={matchReloadToken}
+                      onAnalyzed={() => setMatchReloadToken((value) => value + 1)}
+                    />
+                  </div>
                 )}
               </>
             )}
@@ -1820,6 +1870,7 @@ export default function JobCandidateReviewClient() {
         onReupload={beginReuploadResume}
         onView={viewResumeFromHistory}
         onDelete={deleteResumeFromHistory}
+        onParse={parseResumeFromHistory}
       />
     </div>
   );
