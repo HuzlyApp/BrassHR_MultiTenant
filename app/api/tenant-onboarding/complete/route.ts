@@ -418,6 +418,10 @@ export async function POST(req: Request) {
 
   if (tenantId) {
     try {
+      console.info("[tenant-onboarding] Firma workspace provisioning starting", {
+        tenantId,
+        createdNewTenant,
+      });
       const result = await provisionFirmaWorkspaceForTenant({
         supabase: svc,
         tenantId,
@@ -432,7 +436,7 @@ export async function POST(req: Request) {
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Firma workspace provisioning failed unexpectedly";
-      console.error("[tenant-onboarding] Firma provisioning", message);
+      console.error("[tenant-onboarding] Firma provisioning", { tenantId, error: message });
       firmaProvisioning = {
         status: "failed",
         workspaceId: null,

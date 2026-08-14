@@ -67,4 +67,30 @@ describe("updateFirmaWorkspaceSettings workspace api key", () => {
     expect(result.color_primary).toBe("#0d9488");
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
+
+  it("caches missing workspace api keys so branding retries do not re-list workspaces", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith("/workspaces") && (!init?.method || init.method === "GET")) {
+        return new Response(
+          JSON.stringify({
+            results: [{ id: "ws-other", api_key: "key-other" }],
+            pagination: { current_page: 1, total_pages: 1 },
+          }),
+          { status: 200 }
+        );
+      }
+      return new Response(JSON.stringify({ error: `unexpected ${url}` }), { status: 500 });
+    });
+    global.fetch = fetchMock as typeof fetch;
+
+    const { resolveFirmaWorkspaceApiKey, clearFirmaWorkspaceApiKeyCache } = await import(
+      "@/lib/firma/client"
+    );
+    clearFirmaWorkspaceApiKeyCache();
+
+    await expect(resolveFirmaWorkspaceApiKey("ws-missing")).rejects.toThrow(/api_key was not found/);
+    await expect(resolveFirmaWorkspaceApiKey("ws-missing")).rejects.toThrow(/api_key was not found/);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
 });

@@ -15,6 +15,7 @@ import { APPLICATION_ROUTES } from "@/lib/onboarding/application-routes";
 import { filterApplicantVisibleSteps } from "@/lib/onboarding/filter-applicant-steps";
 import { withTenant } from "@/lib/tenant/with-tenant";
 import { computeMaxAllowedStepIndexFromProgress } from "@/lib/onboarding/compute-max-allowed-from-progress";
+import { computeCandidateOnboardingFrontier } from "@/lib/onboarding/candidate-onboarding-projection";
 import { resolveApplicantNavBoundaries } from "@/lib/onboarding/farthest-reached-step";
 
 /** Enabled steps for applicants, ordered by tenant `sort_order`. */
@@ -164,11 +165,25 @@ export function computeMaxAllowedStepIndex(
     }
   }
 
-  const naturalFrontier = computeMaxAllowedStepIndexFromProgress(steps, progress);
+  const frontier = config?.candidateEngineOrder?.length
+    ? computeCandidateOnboardingFrontier({
+        engineOrder: config.candidateEngineOrder,
+        candidateSteps: steps,
+        progress,
+      })
+    : {
+        maxAllowedStepIndex: computeMaxAllowedStepIndexFromProgress(steps, progress),
+        waitingOnInternal: false,
+      };
+  if (frontier.maxAllowedStepIndex < 1) return 0;
+  if (frontier.waitingOnInternal) {
+    return Math.min(frontier.maxAllowedStepIndex, steps.length);
+  }
+
   const { farthestReachedIndex } = resolveApplicantNavBoundaries(
     steps,
     progress,
-    naturalFrontier
+    frontier.maxAllowedStepIndex
   );
 
   let max = farthestReachedIndex;

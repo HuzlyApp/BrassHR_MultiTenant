@@ -16,10 +16,13 @@ import {
 import {
   getWorkflowSettings,
   integrationProviderLabel,
+  isApplicantWaitingGateStep,
   isIntegrationPartnerStep,
+  showsApplicantPartnerScreeningNotice,
 } from "@/lib/onboarding/workflow-settings";
 import { dedicatedRouteForWorkflowStep } from "@/lib/onboarding/resolve-applicant-step-route";
 import { APPLICATION_ROUTES } from "@/lib/onboarding/application-routes";
+import { resolveCustomStepContinue } from "@/lib/onboarding/custom-step-continue";
 import {
   APPLICANT_ACTION_ROW,
   APPLICANT_BTN_BACK,
@@ -49,6 +52,8 @@ export default function CustomOnboardingStepPage() {
   const settings = step ? getWorkflowSettings(step) : null;
   const partnerLabel = step ? integrationProviderLabel(step) : null;
   const usesPartner = step ? isIntegrationPartnerStep(step) : false;
+  const waitingGate = step ? isApplicantWaitingGateStep(step) : false;
+  const showScreeningNotice = step ? showsApplicantPartnerScreeningNotice(step) : false;
 
   const isGenericCustom =
     step?.step_type === "custom_question" &&
@@ -75,7 +80,17 @@ export default function CustomOnboardingStepPage() {
   async function handleComplete() {
     if (!step) return;
     setError("");
-    if (settings?.required && !answer.trim()) {
+    if (waitingGate) {
+      nav.goNext();
+      return;
+    }
+    const formVisible = isGenericCustom || showCustomForm;
+    const decision = resolveCustomStepContinue({
+      formVisible,
+      required: settings?.required === true,
+      answer,
+    });
+    if (decision.action === "require-answer") {
       setError("This step is required. Enter a response before continuing.");
       return;
     }
@@ -87,7 +102,7 @@ export default function CustomOnboardingStepPage() {
         "completed",
         completingRef,
         {
-          response: answer.trim(),
+          response: decision.response,
           step_type: step.step_type,
         }
       );
@@ -139,10 +154,15 @@ export default function CustomOnboardingStepPage() {
             <p className="text-sm text-slate-600">{step.description}</p>
           ) : null}
 
-          {settings && usesPartner && partnerLabel ? (
+          {waitingGate ? (
+            <p className="mt-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+              Your recruiter or HR team completes this approval. Continue does not unlock the next
+              stage — you will get an email when they accept your placement.
+            </p>
+          ) : showScreeningNotice && partnerLabel ? (
             <p className="mt-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
               Your background screening is handled by {partnerLabel}.
-              {settings.timeline ? ` Typical turnaround: ${settings.timeline}.` : ""}
+              {settings?.timeline ? ` Typical turnaround: ${settings.timeline}.` : ""}
             </p>
           ) : settings && !usesPartner ? (
             <p className="mt-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
@@ -188,18 +208,17 @@ export default function CustomOnboardingStepPage() {
               type="button"
               disabled={saving}
               onClick={() => {
-                if (isGenericCustom || showCustomForm) {
-                  void handleComplete();
-                  return;
-                }
-                if (step) {
-                  const route = APPLICATION_ROUTES.customStep(step.step_key);
-                  nav.push(route);
-                }
+                void handleComplete();
               }}
               className={`${APPLICANT_BTN_PRIMARY} disabled:cursor-not-allowed disabled:opacity-50`}
             >
-              {saving ? "Saving…" : isGenericCustom || showCustomForm ? "Save & continue" : "Continue"}
+              {saving
+                ? "Saving…"
+                : waitingGate
+                  ? "View application status"
+                  : isGenericCustom || showCustomForm
+                    ? "Save & continue"
+                    : "Continue"}
             </button>
           </div>
         </div>

@@ -2,7 +2,6 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { StepProgressRow, WorkerOnboardingProgressPayload } from "@/lib/onboarding/types";
 import { loadTenantOnboardingConfig } from "@/lib/onboarding/load-tenant-config";
 import { backfillFarthestReachedStepIndex } from "@/lib/onboarding/persist-farthest-reached-step";
-import { getEnabledTenantSteps } from "@/lib/onboarding/tenant-step-navigation";
 
 export async function ensureWorkerOnboardingProgress(
   supabase: SupabaseClient,
@@ -45,7 +44,7 @@ export async function ensureWorkerOnboardingProgress(
     status = String(inserted.status);
   }
 
-  const enabledSteps = getEnabledTenantSteps(config);
+  const enabledSteps = config.steps.filter((s) => s.is_enabled);
   const stepIds = enabledSteps.map((s) => s.id);
   const stepKeyById = new Map(config.steps.map((s) => [s.id, s.step_key]));
 

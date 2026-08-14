@@ -4,7 +4,7 @@ import {
   getOnboardingFlowById,
   resolvePublishedWorkerOnboardingFlow,
 } from "@/lib/onboarding/onboarding-flows";
-import { applyApplicantConfigFilters } from "@/lib/onboarding/filter-applicant-steps";
+import { projectCandidateOnboardingConfig } from "@/lib/onboarding/candidate-onboarding-projection";
 import { workflowStateToStepDrafts } from "@/lib/onboarding/workflow-to-drafts";
 import { enforceUploadResumeFirstInWorkflowState } from "@/lib/onboarding/normalize-builder-workflow";
 import {
@@ -164,8 +164,8 @@ async function loadApplicantConfigFromFlow(
   }
 
   const fromFlow = configFromJobWorkflowDraft(published, flow.builderDraft);
-  const config = applyApplicantConfigFilters(fromFlow);
-  if (!config.steps.length) {
+  const candidatePreview = projectCandidateOnboardingConfig(fromFlow);
+  if (!candidatePreview.steps.length) {
     throw new JobApplicationGateError(
       "This workflow has no applicant steps.",
       "WORKFLOW_EMPTY"
@@ -173,7 +173,7 @@ async function loadApplicantConfigFromFlow(
   }
 
   return {
-    config,
+    config: fromFlow,
     workflowId: flow.id,
     workflowName: flow.name,
   };

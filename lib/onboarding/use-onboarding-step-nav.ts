@@ -9,9 +9,12 @@ import {
   findStepForPathname,
   firstOnboardingStepRoute,
   resolveApplicantEnabledSteps,
+  resolvePostStepContinueRoute,
   stepIndexFromPathname,
 } from "@/lib/onboarding/tenant-step-navigation";
 import { useOnboardingTenant } from "@/lib/tenant/use-onboarding-tenant";
+import { APPLICATION_ROUTES } from "@/lib/onboarding/application-routes";
+import { withTenant } from "@/lib/tenant/with-tenant";
 
 /** Tenant-ordered onboarding navigation for applicant pages. */
 export function useOnboardingStepNav() {
@@ -73,7 +76,13 @@ export function useOnboardingStepNav() {
     prevRoute,
     firstRoute,
     goNext: () => {
-      if (nextRoute) push(nextRoute);
+      if (onboarding?.waitingOnInternal) {
+        push(withTenant(APPLICATION_ROUTES.applicationStatus, slug));
+        return;
+      }
+      const href =
+        nextRoute ?? resolvePostStepContinueRoute(onboarding?.config, currentStep, slug);
+      if (href) push(href);
     },
     goPrev: () => {
       if (prevRoute) push(prevRoute);

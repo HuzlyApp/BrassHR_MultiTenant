@@ -1,13 +1,10 @@
 import { APPLICATION_ROUTES } from "@/lib/onboarding/application-routes";
-import {
-  computeMaxAllowedStepIndexFromProgress,
-  resolveNextIncompleteStepIndex,
-} from "@/lib/onboarding/compute-max-allowed-from-progress";
-import { resolveApplicantNavBoundaries } from "@/lib/onboarding/farthest-reached-step";
+import { resolveNextIncompleteStepIndex } from "@/lib/onboarding/compute-max-allowed-from-progress";
 import { resolveApplicantStepFromPath, stepIndexForApplicantStep } from "@/lib/onboarding/find-applicant-step";
 import { mergeOnboardingQuery } from "@/lib/onboarding/legacy-add-references-redirect";
 import { routeForApplicantStep } from "@/lib/onboarding/resolve-applicant-step-route";
 import {
+  computeMaxAllowedStepIndex,
   getEnabledTenantSteps,
   getLegacyFallbackSteps,
   resolveApplicantEnabledSteps,
@@ -154,15 +151,25 @@ export function resolveApplicantOnboardingRoute(
   }
 
   const currentStep = resolveApplicantStepFromPath(normalizedPath, search, enabledSteps);
-  const naturalFrontier = computeMaxAllowedStepIndexFromProgress(enabledSteps, progress);
-  const { farthestReachedIndex } = resolveApplicantNavBoundaries(
-    enabledSteps,
-    progress,
-    naturalFrontier
-  );
+  const maxAllowed = computeMaxAllowedStepIndex(config, progress, normalizedPath);
+  if (maxAllowed < 1) {
+    const href = mergeOnboardingQuery(
+      tenantSlug
+        ? `${APPLICATION_ROUTES.applicationStatus}?tenant=${encodeURIComponent(tenantSlug)}`
+        : APPLICATION_ROUTES.applicationStatus,
+      search
+    );
+    if (pathsEqual(href, normalizedPath) || isPostSubmitAllowedPath(normalizedPath)) {
+      return { status: "allow" };
+    }
+    return { status: "redirect", href };
+  }
 
   if (!currentStep) {
-    const nextIndex = resolveNextIncompleteStepIndex(enabledSteps, progress);
+    const nextIndex = Math.min(
+      resolveNextIncompleteStepIndex(enabledSteps, progress),
+      maxAllowed
+    );
     const href = routeForStepIndex(enabledSteps, nextIndex, tenantSlug, search);
     if (pathsEqual(href, normalizedPath)) {
       return { status: "allow" };
@@ -172,13 +179,13 @@ export function resolveApplicantOnboardingRoute(
 
   const currentIndex = stepIndexForApplicantStep(currentStep, enabledSteps);
 
-  if (currentIndex <= farthestReachedIndex) {
+  if (currentIndex <= maxAllowed) {
     return { status: "allow" };
   }
 
   const redirectIndex = Math.min(
     resolveNextIncompleteStepIndex(enabledSteps, progress),
-    naturalFrontier
+    maxAllowed
   );
   const href = routeForStepIndex(enabledSteps, redirectIndex, tenantSlug, search);
   if (pathsEqual(href, normalizedPath)) {

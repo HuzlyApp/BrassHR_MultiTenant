@@ -10,6 +10,7 @@ import { workflowStateToStepDrafts } from "@/lib/onboarding/workflow-to-drafts";
 import {
   isWorkerPerformableStep,
   isWorkerVisibleStep,
+  showsApplicantPartnerScreeningNotice,
 } from "@/lib/onboarding/workflow-settings";
 import type { SerializableWorkflowState } from "@/lib/onboarding/workflow-builder-serialization";
 import type { TenantOnboardingConfig, TenantOnboardingStep } from "@/lib/onboarding/types";
@@ -207,5 +208,76 @@ describe("runtime performer visibility", () => {
     const visible = step({ clientPerforms: true, required: true });
     expect(isWorkerPerformableStep(visible)).toBe(true);
     expect(isWorkerVisibleStep(visible)).toBe(true);
+  });
+
+  it("hides Pre-Hire Approval and other internal conversion gates from applicants", () => {
+    const preHire = step({
+      clientPerforms: true,
+      phase: "transition",
+      completionOwner: "authorized_internal",
+    });
+    expect(isWorkerPerformableStep(preHire)).toBe(false);
+    expect(isWorkerVisibleStep(preHire)).toBe(false);
+
+    const hrFinal = step({
+      clientPerforms: true,
+      phase: "pre_hire",
+      completionOwner: "hr_admin",
+    });
+    expect(isWorkerVisibleStep(hrFinal)).toBe(false);
+  });
+
+  it("keeps applicant-owned pre-hire steps visible", () => {
+    const offer = step({
+      clientPerforms: true,
+      phase: "pre_hire",
+      completionOwner: "applicant",
+    });
+    expect(isWorkerVisibleStep(offer)).toBe(true);
+  });
+});
+
+describe("applicant partner screening notice", () => {
+  it("does not show Checker copy on Pre-Hire Approval even when defaults include Checker", () => {
+    const preHire: TenantOnboardingStep = {
+      id: "gate",
+      step_key: "custom_question_2",
+      title: "Pre-Hire Approval",
+      description: "Approve conversion to 1099 contractor and unlock post-hire setup.",
+      step_type: "custom_question",
+      sort_order: 90,
+      is_required: true,
+      is_enabled: true,
+      metadata: {
+        workflow_step_id: "completion-milestone",
+        workflow_settings: {
+          phase: "transition",
+          completionOwner: "authorized_internal",
+        },
+      },
+    };
+    expect(showsApplicantPartnerScreeningNotice(preHire)).toBe(false);
+  });
+
+  it("shows Checker copy only on screening library steps", () => {
+    const background: TenantOnboardingStep = {
+      id: "bg",
+      step_key: "custom_question",
+      title: "Background Check",
+      description: null,
+      step_type: "custom_question",
+      sort_order: 70,
+      is_required: true,
+      is_enabled: true,
+      metadata: {
+        workflow_step_id: "background-check",
+        workflow_settings: {
+          useBraasPartner: true,
+          provider: "Checker (connected)",
+          timeline: "5 business days",
+        },
+      },
+    };
+    expect(showsApplicantPartnerScreeningNotice(background)).toBe(true);
   });
 });
