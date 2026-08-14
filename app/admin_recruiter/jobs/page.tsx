@@ -1782,8 +1782,8 @@ export default function AdminRecruiterJobsPage() {
                   strokeWidth={2}
                   aria-hidden
                 />
-                <span className="hidden min-[480px]:inline">Post a job</span>
-                <span className="min-[480px]:hidden">Post</span>
+                <span className="hidden min-[480px]:inline">Create a job</span>
+                <span className="min-[480px]:hidden">Create</span>
               </Link>
               <JobsViewToggle value={listingView} onChange={handleListingViewChange} />
             </div>
@@ -1857,7 +1857,7 @@ export default function AdminRecruiterJobsPage() {
                   strokeWidth={2}
                   aria-hidden
                 />
-                Post a job
+                Create a job
               </Link>
               <JobsViewToggle value={listingView} onChange={handleListingViewChange} />
             </div>
@@ -1960,16 +1960,18 @@ export default function AdminRecruiterJobsPage() {
             <tbody>
               {loading ? (
                 <tr className="border-b border-[#E9EDF3]">
-                  <td colSpan={listColumns.length + 1} className="px-[14px] py-12 text-center text-[#64748B]">
-                    Loading jobs…
+                  <td colSpan={listColumns.length + 1} className="p-0">
+                    <p className="jobs-list-table-status">Loading jobs…</p>
                   </td>
                 </tr>
               ) : paginatedJobs.length === 0 ? (
                 <tr className="border-b border-[#E9EDF3]">
-                  <td colSpan={listColumns.length + 1} className="px-[14px] py-12 text-center text-[#64748B]">
-                    {showStarredOnly
-                      ? "No starred jobs yet. Click the star next to a job title to save it here."
-                      : "No jobs match these filters."}
+                  <td colSpan={listColumns.length + 1} className="p-0">
+                    <p className="jobs-list-table-status">
+                      {showStarredOnly
+                        ? "No starred jobs yet. Click the star next to a job title to save it here."
+                        : "No jobs match these filters."}
+                    </p>
                   </td>
                 </tr>
               ) : (

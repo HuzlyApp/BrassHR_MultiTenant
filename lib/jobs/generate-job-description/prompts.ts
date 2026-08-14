@@ -22,16 +22,21 @@ Use short paragraphs and bullet points. Do not include introductory commentary s
 Wrap each section title in <strong> tags, for example: <p><strong>About the Role</strong></p>, <p><strong>Key Responsibilities</strong></p>, <p><strong>Required Qualifications</strong></p>, <p><strong>Work Location and Schedule</strong></p>, and <p><strong>Benefits</strong></p> when those sections are included. Do not bold the body text under each section.
 
 MSP source rules (only when sourceType is "MSP"):
-- Write "About the Role" in the same polished, helpful style used for internal jobs: 2–3 flowing sentences that introduce the opportunity to a candidate.
-- Ground that paragraph in the filled MSP source details (sourceJobTitle, sourceJobDetails, mspClient, facility, profession, specialty, employment type, location type, duration, specialRequirements, requiredCredentials when relevant).
+- Write "About the Role" as 2–3 candidate-facing sentences. Tailor the opening to placementType:
+  - Recruit_and_Release / R&R: this is a contract assignment for the MSP client. The candidate works at the client/facility for the assignment period. Do not describe the tenant as the employer.
+  - Recruit_and_EOR: the recruiting employer (tenant) hires the worker (W2 or 1099 when supplied) and assigns them to the MSP client/facility.
+- Ground that paragraph in filled MSP details (sourceJobTitle, sourceJobDetails, mspClient, facility, profession, specialty, employment type, location type, duration, specialRequirements, requiredCredentials when relevant).
 - Prefer sourceJobTitle as the role name. Never use requisition IDs, job codes, or opaque labels (for example "RN - 100") as the role name when a real title, profession, or specialty is available.
-- Weave details naturally (for example “part-time W2 home health assignment with [client] in [facility/location]”). Do not dump fields as a dry list of facts.
-- Put duration and target start date primarily under Work Location and Schedule when those fields are supplied; mention duration briefly in About the Role only if it helps describe the assignment.
+- Weave details naturally. Do not dump fields as a dry list of facts.
+- Put duration and target start date primarily under Work Location and Schedule when those fields are supplied.
+- HTML structure is required: after each list-section title, use a real <ul> with one <li> per item. Never put bullet characters (•) inside a single paragraph or on the same line as another item. Each responsibility, qualification, schedule fact, and benefit must be its own <li>.
+- Example list markup: <p><strong>Key Responsibilities</strong></p><ul><li>Provide personal care.</li><li>Record vital signs.</li></ul>
+- Work Location and Schedule: one <li> each for Location, Schedule, Duration, and Target start date when supplied.
 - Do not invent MSP client, facility, duration, credential, or assignment details that were not supplied.
-- Other sections may still use shared job fields (profession, specialty, employment type, location type, benefits) when provided.
 
 Internal source rules (when sourceType is "Internal" or omitted):
 - Write "About the Role" from the standard job fields (title, profession, specialty, location, employment type, experience, and company/facility when supplied), as usual. Do not change this behavior.
+- Keep the existing Internal HTML style. Do not apply MSP placement-type language.
 
 Return valid JSON only with:
 
@@ -81,6 +86,7 @@ export function buildJobRequisitionJson(
   put("sourceJobTitle", input.sourceJobTitle);
   put("sourceJobDetails", input.sourceJobDetails);
   put("targetStartDate", input.targetStartDate);
+  put("placementType", input.placementType);
 
   return payload;
 }
@@ -122,16 +128,34 @@ export function buildJobDescriptionUserPrompt(
   const requisitionJson = JSON.stringify(payload, null, 2);
   const isMsp = input.sourceType === "MSP";
 
+  const placement = String(input.placementType ?? "").trim();
+  const isRnr =
+    /recruit_and_release/i.test(placement) ||
+    /^r\s*&\s*r$/i.test(placement) ||
+    /recruit\s*&\s*release/i.test(placement);
+  const isEor =
+    /recruit_and_eor/i.test(placement) ||
+    /recruit\s*&\s*eor/i.test(placement) ||
+    /eor/i.test(placement);
+
   const mspAboutRoleGuidance = isMsp
     ? `
-MSP About the Role guidance (required):
-- sourceType is MSP.
-- Write a helpful, candidate-facing "About the Role" (2–3 sentences), similar in quality to a strong internal job post.
+MSP About the Role and HTML structure (required):
+- sourceType is MSP. placementType is ${placement || "MSP assignment"}.
+${
+  isEor && !isRnr
+    ? "- Recruit & EOR: the recruiting employer hires the worker (W2 or 1099 when supplied) and assigns them to the MSP client/facility. Write About the Role from that relationship."
+    : "- Recruit & Release (R&R): this is a contract assignment for the MSP client. The candidate works at the client/facility for the assignment. Do not describe the tenant as the employer."
+}
+- Write a helpful, candidate-facing "About the Role" (2–3 sentences).
 - Open with the preferredRoleTitle (or sourceJobTitle / profession), not an ID or code.
 - Naturally include what is supplied: assignment type (sourceJobDetails), client (mspClient), setting/facility, city/location, employment type, and work arrangement.
-- Example tone (do not copy verbatim): "[Client] is seeking a [role] for a [assignment type] in [location]. This [employment type], [schedule/arrangement] opportunity supports [setting] care over a [duration] assignment."
-- Do NOT write a dry field dump such as "[title] is a W2, part-time ... The assignment is scheduled for 8 weeks and has a target start date of ..."
+- Do NOT write a dry field dump.
 - Place start date and fuller schedule/duration detail under Work Location and Schedule when available.
+- HTML lists are mandatory for Key Responsibilities, Required Qualifications, Preferred Qualifications, Work Location and Schedule, and Benefits:
+  use <ul><li>Item</li><li>Next item</li></ul>. Never join items with "•" on one line. Each point must be its own <li> on its own row.
+- Work Location and Schedule example:
+  <ul><li>Location: Dallas, TX</li><li>Schedule: Days</li><li>Duration: 8 weeks</li></ul>
 - Do not invent missing MSP source details.
 `
     : `
@@ -139,6 +163,7 @@ Internal About the Role guidance:
 - sourceType is Internal (or not MSP).
 - Keep the existing Internal behavior: write "About the Role" from the standard job fields already supplied.
 - Do not require or invent MSP source fields.
+- Do not change the Internal description structure.
 `;
 
   return `Create a suggested job description from the following job information:
@@ -153,5 +178,5 @@ Important requirements:
 - Do not add licensing or certification requirements unless supplied or clearly mandatory for the stated profession.
 - Mention the employment type and work arrangement naturally.
 - Make section titles bold with <strong> (About the Role, Key Responsibilities, Required Qualifications, Work Location and Schedule, Benefits, etc.).
-- Return valid JSON only.`;
+${isMsp ? "- For MSP jobs, every bullet must be a separate <li>. Do not put multiple points in one <p> separated by •.\n" : ""}- Return valid JSON only.`;
 }

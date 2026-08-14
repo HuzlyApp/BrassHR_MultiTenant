@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildJobRequisitionJson } from "@/lib/jobs/generate-job-description/prompts";
+import { buildJobRequisitionJson, buildJobDescriptionUserPrompt } from "@/lib/jobs/generate-job-description/prompts";
 import { generateJobDescriptionRequestSchema } from "@/lib/jobs/generate-job-description/schema";
 import {
   boldJobDescriptionSectionTitles,
@@ -91,6 +91,15 @@ describe("buildJobRequisitionJson", () => {
     expect(json.specialRequirements).toBe("BLS required");
   });
 
+  it("includes MSP placementType when provided", () => {
+    const parsed = generateJobDescriptionRequestSchema.parse({
+      jobTitle: "CNA",
+      sourceType: "MSP",
+      placementType: "Recruit_and_Release",
+    });
+    expect(buildJobRequisitionJson(parsed).placementType).toBe("Recruit_and_Release");
+  });
+
   it("keeps Internal payloads free of MSP-only empty fields", () => {
     const parsed = generateJobDescriptionRequestSchema.parse({
       jobTitle: "CNA",
@@ -103,6 +112,9 @@ describe("buildJobRequisitionJson", () => {
       profession: "Allied Health",
       sourceType: "Internal",
     });
+    const prompt = buildJobDescriptionUserPrompt(parsed);
+    expect(prompt).toContain("Keep the existing Internal behavior");
+    expect(prompt).not.toContain("HTML lists are mandatory");
   });
 });
 
@@ -143,5 +155,30 @@ describe("resolvePreferredJobTitle", () => {
       profession: "Allied Health",
     });
     expect(resolvePreferredJobTitle(parsed)).toBe("Certified Nursing Assistant");
+  });
+});
+
+describe("ensureJobDescriptionBulletLists", () => {
+  it("splits inline bullet characters into list items", async () => {
+    const { ensureJobDescriptionBulletLists } = await import(
+      "@/lib/jobs/job-description-html"
+    );
+    const html =
+      "<p><strong>Key Responsibilities</strong></p><p>Provide personal care. • Support daily living. • Record vital signs.</p>";
+    const next = ensureJobDescriptionBulletLists(html);
+    expect(next).toContain("<ul>");
+    expect(next).toContain("<li>Provide personal care.</li>");
+    expect(next).toContain("<li>Support daily living.</li>");
+    expect(next).toContain("<li>Record vital signs.</li>");
+    expect(next).not.toContain("•");
+  });
+
+  it("leaves existing Internal-style ul lists unchanged", async () => {
+    const { ensureJobDescriptionBulletLists } = await import(
+      "@/lib/jobs/job-description-html"
+    );
+    const html =
+      "<p><strong>Key Responsibilities</strong></p><ul><li>Assist patients</li><li>Document care</li></ul>";
+    expect(ensureJobDescriptionBulletLists(html)).toBe(html);
   });
 });

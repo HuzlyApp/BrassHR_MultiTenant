@@ -333,15 +333,6 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
       if (!current.sourceJobTitle?.trim()) {
         errors.sourceJobTitle = "Source Job Title is required.";
       }
-      if (!current.mspClient?.trim()) {
-        errors.mspClient = "MSP Name is required.";
-      }
-      if (!current.mspName?.trim()) {
-        errors.mspName = "Contract Group / Client is required.";
-      }
-      if (!current.externalRequisitionId?.trim()) {
-        errors.externalRequisitionId = "Internal Reference / Source Job ID is required.";
-      }
       if (isMspEor) {
         if (!current.professionId) {
           errors.professionId = "Profession is required.";
@@ -393,9 +384,6 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
           stepErrors.location ||
           stepErrors.shiftType ||
           stepErrors.sourceJobTitle ||
-          stepErrors.mspClient ||
-          stepErrors.mspName ||
-          stepErrors.externalRequisitionId ||
           stepErrors.publicTitle ||
           stepErrors.professionId ||
           stepErrors.employmentType

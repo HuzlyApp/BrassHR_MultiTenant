@@ -178,8 +178,18 @@
 }
 
 .jobs-list-table-viewport {
+  container-type: inline-size;
   scrollbar-width: none;
   -ms-overflow-style: none;
+}
+
+.jobs-list-table-status {
+  position: sticky;
+  left: 0;
+  width: 100cqw;
+  padding: 3rem 14px;
+  text-align: center;
+  color: #64748b;
 }
 
 .jobs-list-table-viewport::-webkit-scrollbar {

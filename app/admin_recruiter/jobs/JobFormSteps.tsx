@@ -770,7 +770,6 @@ export function JobFormStepMspDetails({
       <div>
         <label className={JOB_FORM_LABEL_CLASS} htmlFor="source-job-id">
           Internal Reference / Source Job ID
-          <JobFormRequiredMark />
         </label>
         <div className="relative">
           <input
@@ -795,7 +794,6 @@ export function JobFormStepMspDetails({
       <div>
         <label className={JOB_FORM_LABEL_CLASS} htmlFor="msp-client-name">
           MSP Name
-          <JobFormRequiredMark />
         </label>
         <input
           id="msp-client-name"
@@ -810,7 +808,6 @@ export function JobFormStepMspDetails({
       <div>
         <label className={JOB_FORM_LABEL_CLASS} htmlFor="msp-contract-group">
           Contract Group / Client
-          <JobFormRequiredMark />
         </label>
         <input
           id="msp-contract-group"
@@ -1663,6 +1660,7 @@ export function JobFormStepDescription({
             sourceJobTitle: job.sourceType === "MSP" ? job.sourceJobTitle : null,
             sourceJobDetails: job.sourceType === "MSP" ? job.sourceJobDetails : null,
             targetStartDate: job.sourceType === "MSP" ? job.targetStartDate : null,
+            placementType: job.sourceType === "MSP" ? job.placementType : null,
           };
         }}
       />

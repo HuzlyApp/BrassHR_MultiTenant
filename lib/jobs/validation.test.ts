@@ -109,7 +109,7 @@ describe("job requisition validation", () => {
     expect(errors.commissionFixedAmount).toBeDefined();
   });
 
-  it("requires MSP fields for a published MSP job", () => {
+  it("does not require MSP name, contract group, or source job ID", () => {
     const errors = validatePublishableJob(
       {
         ...validJob,
@@ -120,14 +120,13 @@ describe("job requisition validation", () => {
         externalRequisitionId: "",
         shiftType: "Full-time",
         employmentType: "Contract",
+        commissionPercent: 10,
       },
       null
     );
-    expect(errors.mspClient).toBe("MSP Name is required.");
-    expect(errors.mspName).toBe("Contract Group / Client is required.");
-    expect(errors.externalRequisitionId).toBe(
-      "Internal Reference / Source Job ID is required."
-    );
+    expect(errors.mspClient).toBeUndefined();
+    expect(errors.mspName).toBeUndefined();
+    expect(errors.externalRequisitionId).toBeUndefined();
   });
 
   it("rejects uncontrolled enum variations", () => {
