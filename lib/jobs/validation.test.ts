@@ -42,7 +42,7 @@ describe("job requisition validation", () => {
     });
   });
 
-  it("does not require workflow or profession for MSP Recruit & Release publish", () => {
+  it("requires workflow but not profession for MSP Recruit & Release publish", () => {
     const errors = validatePublishableJob(
       {
         ...validJob,
@@ -61,7 +61,7 @@ describe("job requisition validation", () => {
       },
       null
     );
-    expect(errors.workflowId).toBeUndefined();
+    expect(errors.workflowId).toBeDefined();
     expect(errors.professionId).toBeUndefined();
     expect(errors.commissionPercent).toBeUndefined();
     expect(errors.location).toBeUndefined();

@@ -341,11 +341,6 @@ async function resolveJobWorkflowAssignment(
     return { match, assignmentMode: "manual", assignmentError: null };
   }
 
-  /** MSP Recruit & Release jobs publish without an onboarding workflow assignment. */
-  if (input.sourceType === "MSP" && input.placementType !== "Recruit_and_EOR") {
-    return { match: null, assignmentMode: "automatic", assignmentError: null };
-  }
-
   const match = await resolveWorkflowMatch(supabase, tenantId, {
     professionId: input.professionId,
     specialtyId: input.specialtyId,

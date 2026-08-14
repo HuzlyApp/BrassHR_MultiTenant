@@ -58,14 +58,18 @@ async function assertResumeBelongsToApplication(
 ): Promise<void> {
   const { data, error } = await supabase
     .from("worker_resumes")
-    .select("id")
+    .select("id, job_application_id")
     .eq("id", resumeId)
     .eq("worker_id", context.workerId)
-    .eq("job_application_id", context.applicationId)
     .is("deleted_at", null)
     .maybeSingle();
   if (error) throw error;
   if (!data?.id) throw new Error("Resume not found for this application.");
+  const boundApplicationId =
+    typeof data.job_application_id === "string" ? data.job_application_id.trim() : "";
+  if (boundApplicationId && boundApplicationId !== context.applicationId) {
+    throw new Error("Resume not found for this application.");
+  }
 }
 
 export async function getAdminJobApplicationResumeViewUrl(

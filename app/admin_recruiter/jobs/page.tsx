@@ -13,7 +13,7 @@ import {
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
-import { Plus, Download, ChevronDown } from "lucide-react";
+import { Plus, ChevronDown } from "lucide-react";
 import { ColumnsEditorModal } from "@/app/admin_recruiter/components/ColumnsEditorModal";
 import { BulkDeleteConfirmModal } from "@/app/admin_recruiter/components/BulkDeleteConfirmModal";
 import { BulkDeleteToolbarButton } from "@/app/admin_recruiter/components/BulkDeleteToolbarButton";
@@ -97,9 +97,6 @@ const JOBS_TOOLBAR_BUTTON_CLASS = `${JOBS_FORM_SURFACE_CLASS} inline-flex h-8 it
 
 const JOBS_POST_JOB_BUTTON_CLASS =
   "inline-flex h-8 items-center gap-1.5 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm font-normal leading-5 text-[#525252] transition hover:bg-zinc-50";
-
-const JOBS_BULK_PRIMARY_BUTTON_CLASS =
-  "inline-flex h-9 items-center gap-2 rounded-lg px-4 text-sm font-medium text-white transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-50";
 
 const JOBS_STAR_FILLED_SRC = "/icons/jobs-icons/Star-filled.svg";
 const JOBS_STAR_DEFAULT_SRC = "/icons/jobs-icons/Star-default.svg";
@@ -1678,17 +1675,6 @@ export default function AdminRecruiterJobsPage() {
             onExportXls={handleExportXls}
             disabled={exportJobs.length === 0}
           />
-          <button
-            type="button"
-            disabled
-            className={JOBS_BULK_PRIMARY_BUTTON_CLASS}
-            style={{ backgroundColor: branding.primaryHex }}
-            aria-label="Import from MSP (coming soon)"
-            title="Coming soon"
-          >
-            <Download className="h-4 w-4 shrink-0" aria-hidden />
-            Import from MSP
-          </button>
         </div>
       </div>
 

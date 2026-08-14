@@ -52,6 +52,61 @@ function resolveFileIconType(fileName: string, fileType: string | null | undefin
   return "pdf";
 }
 
+export type ResumeHistorySourceRow = {
+  id: string;
+  original_file_name: string | null;
+  file_name: string | null;
+  file_type: string | null;
+  uploaded_at: string;
+  uploaded_by_user_id: string | null;
+  storage_path?: string | null;
+  file_url?: string | null;
+  job_application_id?: string | null;
+};
+
+function resumeStoragePath(row: ResumeHistorySourceRow): string {
+  return (row.storage_path ?? row.file_url ?? "").trim();
+}
+
+function sortByUploadedAt(a: ResumeHistorySourceRow, b: ResumeHistorySourceRow): number {
+  return new Date(a.uploaded_at).getTime() - new Date(b.uploaded_at).getTime();
+}
+
+/**
+ * Job-scoped uploads first. If the candidate applied with a résumé that was
+ * never tagged to this application (common for public apply), include the
+ * currently displayed worker/profile file so history matches the preview.
+ */
+export function selectResumesForJobHistory(
+  rows: ResumeHistorySourceRow[],
+  applicationId: string,
+  currentResumePaths: string[]
+): ResumeHistorySourceRow[] {
+  const appId = applicationId.trim();
+  const paths = new Set(
+    currentResumePaths.map((path) => path.trim()).filter(Boolean)
+  );
+  const scoped = rows.filter((row) => String(row.job_application_id ?? "").trim() === appId);
+  const unscoped = rows.filter((row) => !String(row.job_application_id ?? "").trim());
+
+  if (scoped.length > 0) {
+    const scopedPaths = new Set(scoped.map(resumeStoragePath).filter(Boolean));
+    const extras = unscoped.filter((row) => {
+      const path = resumeStoragePath(row);
+      return Boolean(path) && paths.has(path) && !scopedPaths.has(path);
+    });
+    return [...scoped, ...extras].sort(sortByUploadedAt);
+  }
+
+  if (paths.size > 0) {
+    const matching = unscoped.filter((row) => paths.has(resumeStoragePath(row)));
+    if (matching.length > 0) return matching.sort(sortByUploadedAt);
+  }
+
+  if (unscoped.length === 1) return unscoped;
+  return [];
+}
+
 export async function loadAdminJobApplicationResumeHistory(
   supabase: SupabaseClient,
   tenantId: string,
@@ -60,7 +115,7 @@ export async function loadAdminJobApplicationResumeHistory(
   const { data: application, error: appError } = await supabase
     .from("job_applications")
     .select(
-      "id, worker_id, job_requisitions(public_title, source_job_title, source_type, employment_type, location)"
+      "id, worker_id, applicant_profile_id, job_requisitions(public_title, source_job_title, source_type, employment_type, location)"
     )
     .eq("tenant_id", tenantId)
     .eq("id", applicationId)
@@ -69,14 +124,36 @@ export async function loadAdminJobApplicationResumeHistory(
   if (appError) throw appError;
   if (!application?.id) return null;
 
-  const workerId =
+  let workerId =
     typeof application.worker_id === "string" && application.worker_id.trim()
       ? application.worker_id.trim()
+      : null;
+  const profileId =
+    typeof application.applicant_profile_id === "string" &&
+    application.applicant_profile_id.trim()
+      ? application.applicant_profile_id.trim()
       : null;
 
   const jobRaw = application.job_requisitions;
   const job = (Array.isArray(jobRaw) ? jobRaw[0] : jobRaw) as JobRequisitionJoin | undefined;
   const jobTitle = job ? publicJobDisplayTitle(job).trim() || "Job" : "Job";
+
+  const currentResumePaths: string[] = [];
+  if (profileId) {
+    const { data: profile, error: profileError } = await supabase
+      .from("applicant_profiles")
+      .select("worker_id, resume_path")
+      .eq("tenant_id", tenantId)
+      .eq("id", profileId)
+      .maybeSingle();
+    if (profileError) throw profileError;
+    if (!workerId && typeof profile?.worker_id === "string" && profile.worker_id.trim()) {
+      workerId = profile.worker_id.trim();
+    }
+    const profileResumePath =
+      typeof profile?.resume_path === "string" ? profile.resume_path.trim() : "";
+    if (profileResumePath) currentResumePaths.push(profileResumePath);
+  }
 
   if (!workerId) {
     return {
@@ -108,21 +185,46 @@ export async function loadAdminJobApplicationResumeHistory(
     worker?.profile_photo
   );
 
-  const { data: resumeRows, error: resumeError } = await supabase
+  const { data: requirementRows, error: requirementError } = await supabase
+    .from("worker_requirements")
+    .select("resume_path")
+    .or(
+      workerUserId
+        ? `worker_id.eq.${workerId},worker_id.eq.${workerUserId}`
+        : `worker_id.eq.${workerId}`
+    )
+    .order("updated_at", { ascending: false })
+    .limit(1);
+  if (requirementError) throw requirementError;
+  const requirementResumePath =
+    typeof requirementRows?.[0]?.resume_path === "string"
+      ? requirementRows[0].resume_path.trim()
+      : "";
+  if (requirementResumePath) currentResumePaths.push(requirementResumePath);
+
+  let resumeQuery = supabase
     .from("worker_resumes")
     .select(
-      "id, original_file_name, file_name, file_type, uploaded_at, uploaded_by_user_id"
+      "id, original_file_name, file_name, file_type, uploaded_at, uploaded_by_user_id, storage_path, file_url, job_application_id"
     )
-    .eq("worker_id", workerId)
-    .eq("job_application_id", applicationId)
     .is("deleted_at", null)
     .order("uploaded_at", { ascending: true });
+  resumeQuery = workerUserId
+    ? resumeQuery.or(`worker_id.eq.${workerId},worker_id.eq.${workerUserId}`)
+    : resumeQuery.eq("worker_id", workerId);
 
+  const { data: resumeRows, error: resumeError } = await resumeQuery;
   if (resumeError) throw resumeError;
+
+  const selectedResumeRows = selectResumesForJobHistory(
+    (resumeRows ?? []) as ResumeHistorySourceRow[],
+    applicationId,
+    currentResumePaths
+  );
 
   const uploaderIds = [
     ...new Set(
-      ((resumeRows ?? []) as { uploaded_by_user_id?: string | null }[])
+      selectedResumeRows
         .map((row) => row.uploaded_by_user_id)
         .filter((id): id is string => Boolean(id))
     ),
@@ -154,14 +256,7 @@ export async function loadAdminJobApplicationResumeHistory(
     );
   }
 
-  const resumes = ((resumeRows ?? []) as {
-    id: string;
-    original_file_name: string | null;
-    file_name: string | null;
-    file_type: string | null;
-    uploaded_at: string;
-    uploaded_by_user_id: string | null;
-  }[]).map((row) => {
+  const resumes = selectedResumeRows.map((row) => {
     const uploaderId = row.uploaded_by_user_id?.trim() || null;
     let uploadedByType: AdminJobApplicationResumeHistoryItem["uploadedByType"] = "unknown";
     let uploadedByName = "Unknown";

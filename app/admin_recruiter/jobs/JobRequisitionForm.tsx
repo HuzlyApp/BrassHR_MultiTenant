@@ -16,7 +16,6 @@ import type { JobRequisitionInput, PlacementType, SourceType } from "@/lib/jobs/
 import type { JobScreeningQuestionInput } from "@/lib/jobs/screening-questions";
 import {
   jobRequiresWorkflow,
-  isMspRecruitAndEor,
   isMspRecruitAndRelease,
   resolvePlacementTypeForSource,
 } from "@/lib/jobs/placement";
@@ -217,13 +216,6 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
         mappingCriteria: "Manual override",
         source: "manual",
       });
-      setWorkflowWarning("");
-      return;
-    }
-
-    /** MSP Recruit & Release jobs do not require an assigned onboarding workflow. */
-    if (job.sourceType === "MSP" && !isMspRecruitAndEor(job)) {
-      setWorkflow(null);
       setWorkflowWarning("");
       return;
     }
@@ -715,27 +707,25 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
                   onJobChange={updateJob}
                   onUiChange={updateUi}
                 />
-                {isMspRecruitAndEor(job) ? (
-                  <JobFormWorkflowBanner
-                    workflowName={workflow?.workflowName}
-                    workflowWarning={workflowWarning}
-                    mappingCriteria={workflow?.mappingCriteria}
-                    mappingLink={mappingLink}
-                    canManageWorkflows={Boolean(options?.canManageWorkflows)}
-                    fieldError={fieldErrors.workflowId}
-                    assignmentMode={assignmentMode}
-                    publishedWorkflows={options?.workflows ?? []}
-                    overrideWorkflowId={overrideWorkflowId}
-                    onOverrideWorkflow={(workflowId) => {
-                      setAssignmentMode("manual");
-                      setOverrideWorkflowId(workflowId);
-                    }}
-                    onResetToAutomatic={() => {
-                      setAssignmentMode("automatic");
-                      setOverrideWorkflowId(null);
-                    }}
-                  />
-                ) : null}
+                <JobFormWorkflowBanner
+                  workflowName={workflow?.workflowName}
+                  workflowWarning={workflowWarning}
+                  mappingCriteria={workflow?.mappingCriteria}
+                  mappingLink={mappingLink}
+                  canManageWorkflows={Boolean(options?.canManageWorkflows)}
+                  fieldError={fieldErrors.workflowId}
+                  assignmentMode={assignmentMode}
+                  publishedWorkflows={options?.workflows ?? []}
+                  overrideWorkflowId={overrideWorkflowId}
+                  onOverrideWorkflow={(workflowId) => {
+                    setAssignmentMode("manual");
+                    setOverrideWorkflowId(workflowId);
+                  }}
+                  onResetToAutomatic={() => {
+                    setAssignmentMode("automatic");
+                    setOverrideWorkflowId(null);
+                  }}
+                />
               </>
             ) : null}
 

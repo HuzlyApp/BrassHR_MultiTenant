@@ -125,6 +125,9 @@ export function validatePublishableJob(
   }
 
   if (isMspRnr) {
+    if (requiresWorkflow && !workflowId) {
+      errors.workflowId = "A matching published workflow is required.";
+    }
     const hasCommission =
       (input.commissionPercent != null && input.commissionPercent > 0) ||
       (input.commissionFixedAmount != null && input.commissionFixedAmount > 0);

@@ -80,6 +80,7 @@ async function persistWorkerResumeByWorkerId(
     extractedText?: string | null;
     fileType?: string | null;
     fileSizeBytes?: number | null;
+    jobApplicationId?: string | null;
   }
 ): Promise<void> {
   const now = new Date().toISOString();
@@ -103,6 +104,7 @@ async function persistWorkerResumeByWorkerId(
     parse_completed_at: now,
     parse_error: null,
     parsed_json: opts.parsedData ?? null,
+    job_application_id: opts.jobApplicationId?.trim() || null,
   };
 
   const { data: existing } = await supabase
@@ -263,6 +265,7 @@ export async function adminAddCandidateFromResume(
       extractedText,
       fileType: resumeFileType === "unknown" ? "txt" : resumeFileType,
       fileSizeBytes: resumeBytes.byteLength,
+      jobApplicationId: String(result.application?.id ?? "") || null,
     });
   }
 
