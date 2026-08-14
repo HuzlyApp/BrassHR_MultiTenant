@@ -52,6 +52,8 @@ import {
   type JobSortField,
 } from "./job-columns";
 import { exportJobsCsv, exportJobsXls } from "./export-jobs";
+import { JobsGridView } from "./JobsGridView";
+import { JobsViewToggle, type JobsListingView } from "./JobsViewToggle";
 import {
   jobContractGroup,
   jobListDisplayTitle,
@@ -102,6 +104,7 @@ const JOBS_BULK_PRIMARY_BUTTON_CLASS =
 const JOBS_STAR_FILLED_SRC = "/icons/jobs-icons/Star-filled.svg";
 const JOBS_STAR_DEFAULT_SRC = "/icons/jobs-icons/Star-default.svg";
 const JOBS_STARRED_STORAGE_KEY = "adminRecruiterJobsStarredIds";
+const JOBS_VIEW_STORAGE_KEY = "adminRecruiterJobsView";
 const JOB_SORT_ICON_SRC = "/sort-icon.svg";
 
 function loadStarredJobIds(): Set<string> {
@@ -114,6 +117,24 @@ function loadStarredJobIds(): Set<string> {
     return new Set(parsed.filter((id): id is string => typeof id === "string" && id.trim().length > 0));
   } catch {
     return new Set();
+  }
+}
+
+function loadJobsListingView(): JobsListingView {
+  if (typeof window === "undefined") return "list";
+  try {
+    const raw = localStorage.getItem(JOBS_VIEW_STORAGE_KEY);
+    return raw === "grid" ? "grid" : "list";
+  } catch {
+    return "list";
+  }
+}
+
+function saveJobsListingView(view: JobsListingView) {
+  try {
+    localStorage.setItem(JOBS_VIEW_STORAGE_KEY, view);
+  } catch {
+    /* ignore */
   }
 }
 
@@ -1110,6 +1131,7 @@ export default function AdminRecruiterJobsPage() {
   const [editFiltersOpen, setEditFiltersOpen] = useState(false);
   const [sortField, setSortField] = useState<JobSortField | null>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
+  const [listingView, setListingView] = useState<JobsListingView>("list");
 
   const handleToggleSort = useCallback((field: JobSortField) => {
     setSortField((current) => {
@@ -1121,6 +1143,11 @@ export default function AdminRecruiterJobsPage() {
       return field;
     });
     setPage(1);
+  }, []);
+
+  const handleListingViewChange = useCallback((next: JobsListingView) => {
+    setListingView(next);
+    saveJobsListingView(next);
   }, []);
 
   const load = useCallback(async () => {
@@ -1150,6 +1177,7 @@ export default function AdminRecruiterJobsPage() {
   useEffect(() => {
     setListColumnOrder(loadJobColumnOrder());
     setStarredIds(loadStarredJobIds());
+    setListingView(loadJobsListingView());
   }, []);
 
   useEffect(() => {
@@ -1757,6 +1785,7 @@ export default function AdminRecruiterJobsPage() {
                 <span className="hidden min-[480px]:inline">Post a job</span>
                 <span className="min-[480px]:hidden">Post</span>
               </Link>
+              <JobsViewToggle value={listingView} onChange={handleListingViewChange} />
             </div>
           </div>
           {showFilterRows ? (
@@ -1820,15 +1849,18 @@ export default function AdminRecruiterJobsPage() {
               />
             </div>
 
-            <Link href="/admin_recruiter/jobs/new" className={JOBS_POST_JOB_BUTTON_CLASS}>
-              <Plus
-                className="h-5 w-5 shrink-0"
-                style={{ color: branding.secondaryHex }}
-                strokeWidth={2}
-                aria-hidden
-              />
-              Post a job
-            </Link>
+            <div className="flex shrink-0 items-center gap-2">
+              <Link href="/admin_recruiter/jobs/new" className={JOBS_POST_JOB_BUTTON_CLASS}>
+                <Plus
+                  className="h-5 w-5 shrink-0"
+                  style={{ color: branding.secondaryHex }}
+                  strokeWidth={2}
+                  aria-hidden
+                />
+                Post a job
+              </Link>
+              <JobsViewToggle value={listingView} onChange={handleListingViewChange} />
+            </div>
           </div>
 
           <div className="border-b border-[#E5E7EB]" aria-hidden />
@@ -1862,6 +1894,26 @@ export default function AdminRecruiterJobsPage() {
           </div>
         ) : null}
 
+        {listingView === "grid" ? (
+          <JobsGridView
+            jobs={paginatedJobs}
+            loading={loading}
+            emptyMessage={
+              showStarredOnly
+                ? "No starred jobs yet. Click the star next to a job title to save it here."
+                : "No jobs match these filters."
+            }
+            tenantSlug={tenantSlug}
+            onDelete={(jobId) => {
+              setSelectedIds(new Set([jobId]));
+              setDeleteError(null);
+              setDeleteConfirmOpen(true);
+            }}
+            onDuplicate={() => {
+              toast("Duplicate job will be available in a later update.");
+            }}
+          />
+        ) : (
         <JobsListScrollArea>
           <table className="w-max min-w-full border-collapse text-left text-sm">
             <thead className="border-b border-[#E5E7EB] bg-[#F8FAFC] text-xs font-medium uppercase tracking-wide text-black">
@@ -1950,6 +2002,7 @@ export default function AdminRecruiterJobsPage() {
             </tbody>
           </table>
         </JobsListScrollArea>
+        )}
 
         <div className="flex flex-col gap-3 rounded-b-[12px] border-t border-[#E5E7EB] bg-white px-3 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-4">
           <p className="text-sm text-[#64748B]">

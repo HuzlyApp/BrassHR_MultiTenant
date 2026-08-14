@@ -395,7 +395,7 @@ export type JobListCellContext = {
   onPublishToggle: (job: JobListRow) => void
 }
 
-function publicJobPathFor(job: JobListRow, tenantSlug: string | null): string | null {
+export function publicJobPathFor(job: JobListRow, tenantSlug: string | null): string | null {
   if (normalizeJobRequisitionStatus(String(job.status ?? "")) !== "published") return null
   const token = typeof job.public_job_token === "string" ? job.public_job_token.trim() : ""
   const slug = tenantSlug?.trim().toLowerCase() ?? ""

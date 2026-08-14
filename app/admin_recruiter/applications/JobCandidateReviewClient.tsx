@@ -237,7 +237,7 @@ export default function JobCandidateReviewClient() {
   const [statusChangeNote, setStatusChangeNote] = useState("");
   const [statusHistory, setStatusHistory] = useState<StatusHistoryItem[]>([]);
   const [statusHistoryLoading, setStatusHistoryLoading] = useState(false);
-  const [workspaceTab, setWorkspaceTab] = useState<"overview" | "activity">("overview");
+  const [workspaceTab, setWorkspaceTab] = useState<"overview" | "activity" | "resume">("overview");
   const [removingFromJob, setRemovingFromJob] = useState(false);
 
   const selected = useMemo(
@@ -1391,46 +1391,39 @@ export default function JobCandidateReviewClient() {
                   ) : null}
                 </div>
 
-                <div className="flex gap-2 border-b border-[#E5E7EB] px-5 pt-3">
-                  <button
-                    type="button"
-                    onClick={() => setWorkspaceTab("overview")}
-                    className={`border-b-2 px-2 pb-2 text-sm font-semibold ${
-                      workspaceTab === "overview"
-                        ? "border-[color:var(--brand-primary,#bc8b41)] text-[#0F172A]"
-                        : "border-transparent text-[#64748B]"
-                    }`}
-                  >
-                    Overview
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setWorkspaceTab("activity")}
-                    className={`border-b-2 px-2 pb-2 text-sm font-semibold ${
-                      workspaceTab === "activity"
-                        ? "border-[color:var(--brand-primary,#bc8b41)] text-[#0F172A]"
-                        : "border-transparent text-[#64748B]"
-                    }`}
-                  >
-                    Activity
-                  </button>
+                <div
+                  className="flex gap-2 border-b border-[#E5E7EB] px-5 pt-3"
+                  role="tablist"
+                  aria-label="Applicant details"
+                >
+                  {(
+                    [
+                      ["overview", "Overview"],
+                      ["activity", "Activity"],
+                      ["resume", "Resume"],
+                    ] as const
+                  ).map(([id, label]) => (
+                    <button
+                      key={id}
+                      type="button"
+                      role="tab"
+                      aria-selected={workspaceTab === id}
+                      onClick={() => setWorkspaceTab(id)}
+                      className={`border-b-2 px-2 pb-2 text-sm font-semibold ${
+                        workspaceTab === id
+                          ? "border-[color:var(--brand-primary,#bc8b41)] text-[#0F172A]"
+                          : "border-transparent text-[#64748B]"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
                 </div>
 
                 {workspaceTab === "activity" ? (
                   <CandidateActivityTimeline applicationId={selected.id} reloadToken={matchReloadToken} />
-                ) : (
+                ) : workspaceTab === "resume" ? (
                   <>
-                <div className="border-b border-[#E5E7EB] px-5 pt-5">
-                  <CandidateAnalysisWorkspace
-                    applicationId={selected.id}
-                    workerId={workerId}
-                    candidateName={displayName}
-                    profile={profile?.worker ?? null}
-                    reloadToken={matchReloadToken}
-                    onAnalyzed={() => setMatchReloadToken((value) => value + 1)}
-                  />
-                </div>
-
                 <div className="border-b border-[#E5E7EB] px-5 pt-5">
                   <h3
                     className="text-lg font-semibold leading-7 sm:text-[20px]"
@@ -1542,6 +1535,17 @@ export default function JobCandidateReviewClient() {
                   )}
                 </div>
                   </>
+                ) : (
+                  <div className="border-b border-[#E5E7EB] px-5 pt-5">
+                    <CandidateAnalysisWorkspace
+                      applicationId={selected.id}
+                      workerId={workerId}
+                      candidateName={displayName}
+                      profile={profile?.worker ?? null}
+                      reloadToken={matchReloadToken}
+                      onAnalyzed={() => setMatchReloadToken((value) => value + 1)}
+                    />
+                  </div>
                 )}
               </>
             )}
