@@ -75,6 +75,7 @@ export type WorkflowBuilderProps = {
   onSaveAsTemplate?: (state: WorkflowState) => void;
   onPreview?: (state: WorkflowState) => void;
   onPublish?: (state: WorkflowState) => void;
+  publishLabel?: string;
   /** Renders inside admin settings (no full-viewport shell / duplicate chrome). */
   embedded?: boolean;
   publishStatusLabel?: string;
@@ -132,6 +133,7 @@ function WorkflowBuilderInner({
   onSaveAsTemplate,
   onPreview,
   onPublish,
+  publishLabel = "Publish to All",
   embedded = false,
   publishStatusLabel,
   toolbarData,
@@ -822,7 +824,7 @@ function WorkflowBuilderInner({
                 style={{ background: BRAND_CTA_GRADIENT }}
               >
                 {savingPublish ? <Loader2 className={`${FOOTER_ICON} animate-spin`} /> : null}
-                <span className="max-[999px]:hidden">{savingPublish ? "Publishing…" : "Publish to All"}</span>
+                <span className="max-[999px]:hidden">{savingPublish ? "Publishing…" : publishLabel}</span>
                 <span className="hidden max-[999px]:inline">{savingPublish ? "…" : "Publish"}</span>
               </button>
               ) : null}

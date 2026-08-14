@@ -22,6 +22,7 @@ const bodySchema = z.object({
     EMAIL_TEMPLATE_TYPE.DECLINED,
     EMAIL_TEMPLATE_TYPE.APPLICATION_STATUS,
     EMAIL_TEMPLATE_TYPE.APPROVED,
+    EMAIL_TEMPLATE_TYPE.PLACEMENT_ACCEPTED,
   ]),
   reason: z.string().trim().max(2000).optional(),
   clientOrigin: z.string().trim().optional(),

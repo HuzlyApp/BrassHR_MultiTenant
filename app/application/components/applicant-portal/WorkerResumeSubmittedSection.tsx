@@ -15,6 +15,10 @@ import {
   WORKER_DOCUMENTS_PAGE_SECTION_TITLE_CLASS,
   WORKER_DOCUMENTS_PAGE_SECTION_TITLE_STYLE,
 } from "./worker-schedule-typography";
+import {
+  MAX_RESUME_UPLOADS_PER_ROLE,
+  resumeUploadLimitMessage,
+} from "@/lib/resume/resume-upload-limit";
 
 type WorkerAppliedJob = {
   applicationId: string;
@@ -44,6 +48,13 @@ type WorkerResumeItem = {
   uploadedByPhotoUrl?: string | null;
   uploadedByRoleLabel?: "Admin" | "Worker" | "";
 };
+
+function workerUploadCountForJob(resumes: WorkerResumeItem[], jobApplicationId: string): number {
+  return resumes.filter(
+    (resume) =>
+      resume.jobApplicationId === jobApplicationId && resume.uploadedByRoleLabel !== "Admin"
+  ).length;
+}
 
 function ResumeUploaderCell({ resume }: { resume: WorkerResumeItem }) {
   return (
@@ -176,6 +187,7 @@ function ResumeRow({
 function UploadResumeModal({
   open,
   appliedJobs,
+  resumes,
   uploading,
   error,
   onClose,
@@ -183,6 +195,7 @@ function UploadResumeModal({
 }: {
   open: boolean;
   appliedJobs: WorkerAppliedJob[];
+  resumes: WorkerResumeItem[];
   uploading: boolean;
   error: string | null;
   onClose: () => void;
@@ -216,9 +229,17 @@ function UploadResumeModal({
 
   if (!open) return null;
 
+  const selectedJobUploadCount = selectedJobId
+    ? workerUploadCountForJob(resumes, selectedJobId)
+    : 0;
+  const selectedJobAtLimit = selectedJobUploadCount >= MAX_RESUME_UPLOADS_PER_ROLE;
+
   function handleSubmit() {
     const nextErrors: { job?: string; file?: string } = {};
     if (!selectedJobId) nextErrors.job = "Select a job.";
+    if (selectedJobId && workerUploadCountForJob(resumes, selectedJobId) >= MAX_RESUME_UPLOADS_PER_ROLE) {
+      nextErrors.job = resumeUploadLimitMessage("worker");
+    }
     if (!selectedFile) nextErrors.file = "Choose a resume file.";
     if (Object.keys(nextErrors).length > 0) {
       setFieldErrors(nextErrors);
@@ -249,8 +270,8 @@ function UploadResumeModal({
               Upload Resume
             </h2>
             <p className="mt-2 text-sm leading-6 text-[#64748B]">
-              Select the job this resume is for, then choose your file. Each job can have its own
-              resume on file.
+              Select the job this resume is for, then choose your file. You can upload up to{" "}
+              {MAX_RESUME_UPLOADS_PER_ROLE} resumes per job.
             </p>
           </div>
           <button
@@ -304,6 +325,13 @@ function UploadResumeModal({
                 </select>
                 {fieldErrors.job ? (
                   <p className="mt-1 text-xs text-red-600">{fieldErrors.job}</p>
+                ) : selectedJobAtLimit ? (
+                  <p className="mt-1 text-xs text-red-600">{resumeUploadLimitMessage("worker")}</p>
+                ) : selectedJobId ? (
+                  <p className="mt-1 text-xs text-[#64748B]">
+                    {selectedJobUploadCount} of {MAX_RESUME_UPLOADS_PER_ROLE} worker uploads used
+                    for this job.
+                  </p>
                 ) : null}
               </div>
 
@@ -331,7 +359,7 @@ function UploadResumeModal({
           </button>
           <button
             type="button"
-            disabled={uploading || appliedJobs.length === 0}
+            disabled={uploading || appliedJobs.length === 0 || selectedJobAtLimit}
             onClick={handleSubmit}
             className={WORKER_BTN_PRIMARY}
           >
@@ -500,7 +528,8 @@ export function WorkerResumeSubmittedSection() {
               Resume Submitted
             </h2>
             <p className="mt-1 text-sm text-[#64748B]">
-              Upload a resume for each job you applied to. Previous uploads stay in your history.
+              Upload up to {MAX_RESUME_UPLOADS_PER_ROLE} resumes per job. Previous uploads stay in
+              your history.
             </p>
           </div>
           <button
@@ -549,6 +578,7 @@ export function WorkerResumeSubmittedSection() {
       <UploadResumeModal
         open={uploadModalOpen}
         appliedJobs={appliedJobs}
+        resumes={resumes}
         uploading={uploading}
         error={uploadModalError}
         onClose={() => {

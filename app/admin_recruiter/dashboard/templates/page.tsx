@@ -26,6 +26,7 @@ type TemplateItem = {
   description?: string | null;
   isPreset?: boolean;
   isEditable?: boolean;
+  status?: "draft" | "published" | "unpublished";
   employmentType?: "W2" | "1099" | null;
   preHireStepCount?: number;
   postHireStepCount?: number;
@@ -143,6 +144,9 @@ function TemplateCard({
             {displayName}
           </h3>
           <div className="mt-1.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11px] leading-4 text-[#667085]">
+            {item.status ? (
+              <span className="capitalize">{item.status === "unpublished" ? "Draft" : item.status}</span>
+            ) : null}
             {item.employmentType ? <span>Employment Type: {item.employmentType}</span> : null}
             {typeof item.preHireStepCount === "number" ? (
               <span>Pre-Hire: {item.preHireStepCount}</span>
@@ -333,7 +337,7 @@ export default function AdminRecruiterTemplatesPage() {
         },
         body: JSON.stringify({
           name: payload.name,
-          folder: payload.folder,
+          folder: "saved-templates",
           flowName: payload.name.replace(/\.tpl$/i, ""),
           builderDraft: { nodes: [], edges: [] },
         }),
@@ -357,7 +361,6 @@ export default function AdminRecruiterTemplatesPage() {
   };
 
   const folderOptions = [
-    { id: "presets" as const, label: "Presets", count: presets.length },
     { id: "saved-templates" as const, label: "Saved Templates", count: savedTemplates.length },
   ];
 

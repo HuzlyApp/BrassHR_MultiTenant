@@ -21,6 +21,11 @@ import { persistFarthestReachedStepIndex } from "@/lib/onboarding/persist-farthe
 import { resolveOnboardingProgressStep } from "@/lib/onboarding/resolve-onboarding-progress-step";
 import { resolveJobApplicationIdForApplicant } from "@/lib/onboarding/resolve-job-application-id";
 import type { OnboardingStepStatus, TenantOnboardingConfig } from "@/lib/onboarding/types";
+import { resolveApplicationWorkflowPhase } from "@/lib/onboarding/resolve-application-workflow-phase";
+import {
+  applicantMayActOnStep,
+  readStepLifecyclePhase,
+} from "@/lib/onboarding/workflow-phase";
 
 export const runtime = "nodejs";
 
@@ -141,6 +146,30 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Step not found" }, { status: 400 });
     }
     stepRow = persistStep ?? stepRow;
+
+    const phaseRecord = await resolveApplicationWorkflowPhase(supabase, {
+      tenantId: ctx.tenantId,
+      workerId: ctx.workerId,
+      applicationId: applicationId || null,
+      jobToken,
+    });
+    const activePhase = phaseRecord?.phase ?? "pre_hire";
+    if (
+      stepRow &&
+      (status === "completed" || status === "skipped" || status === "in_progress" || status === "failed") &&
+      !applicantMayActOnStep({
+        activePhase,
+        stepPhase: readStepLifecyclePhase(stepRow),
+      })
+    ) {
+      return NextResponse.json(
+        {
+          error: "This step is not part of your current application phase.",
+          code: "PHASE_FORBIDDEN",
+        },
+        { status: 403 }
+      );
+    }
 
     const completed_at = status === "completed" ? new Date().toISOString() : null;
 

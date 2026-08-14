@@ -14,6 +14,7 @@ import {
 } from "@/lib/onboarding/persist-worker-resume-record";
 import { syncWorkerPrimaryResumePath } from "@/lib/onboarding/sync-worker-primary-resume-path";
 import { runResumeParseJob } from "@/lib/resume/run-resume-parse-job";
+import { assertResumeUploadWithinLimit } from "@/lib/resume/assert-resume-upload-limit";
 import {
   resolveResumeFileType,
   ResumeUploadValidationError,
@@ -230,6 +231,13 @@ async function storeResumeFromFile(
       applicant.tenant_id,
       jobApplicationId
     );
+    await assertResumeUploadWithinLimit(supabase, {
+      workerId: applicant.id,
+      workerUserId: applicant.user_id,
+      jobApplicationId,
+      uploadedByUserId: userId,
+      role: "worker",
+    });
   }
 
   const buffer = Buffer.from(await file.arrayBuffer());
@@ -258,6 +266,7 @@ async function storeResumeFromFile(
       extractedText: text,
       jobApplicationId: options?.jobApplicationId ?? null,
       uploadedByUserId: userId,
+      uploaderRole: "worker",
     },
     mode === "update"
       ? { mode: "update", resumeId: options?.resumeId }

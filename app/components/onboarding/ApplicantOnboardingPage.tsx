@@ -190,6 +190,11 @@ export default function ApplicantOnboardingPage({
   return (
     <div className="mx-auto max-w-3xl space-y-8 p-6">
       <ApplicantProgressTracker workflow={workflow} currentStepId={currentStepId} />
+      <h1 className="text-xl font-semibold text-slate-900">
+        {workflow.workflowPhase === "post_hire" || workflow.workflowPhase === "completed"
+          ? "Your Onboarding"
+          : "Your Application"}
+      </h1>
 
       {allComplete ? (
         <button

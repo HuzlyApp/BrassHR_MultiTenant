@@ -7,6 +7,7 @@ import {
 } from "@/lib/jobs/application-statuses";
 import { isApplicationPipelineStatus } from "@/lib/jobs/application-status";
 import { resolveStaffTenantId } from "@/lib/jobs/tenant";
+import { resolveApplicantEmailAppOrigin } from "@/lib/resolve-app-origin";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 
 /**
@@ -48,6 +49,7 @@ export async function PATCH(
     const statusId = typeof body?.statusId === "string" ? body.statusId.trim() : "";
     const legacyStatus =
       typeof body?.status === "string" ? body.status.trim().toLowerCase() : "";
+    const origin = resolveApplicantEmailAppOrigin(req);
 
     let result;
     if (statusId) {
@@ -57,6 +59,7 @@ export async function PATCH(
         statusId,
         changedByUserId: auth.userId,
         note,
+        origin,
       });
     } else if (isApplicationPipelineStatus(legacyStatus)) {
       result = await changeApplicationStatusBySystemKey(supabase, {
@@ -65,6 +68,7 @@ export async function PATCH(
         systemKey: legacyStatus,
         changedByUserId: auth.userId,
         note,
+        origin,
       });
     } else {
       return NextResponse.json(
@@ -93,6 +97,7 @@ export async function PATCH(
             changedAt: result.history.changedAt,
           }
         : null,
+      postHire: result.postHire,
     });
   } catch (error) {
     if (error instanceof ApplicationStatusError) {

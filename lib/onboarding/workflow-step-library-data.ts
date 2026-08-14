@@ -6,6 +6,8 @@ export type WorkflowStepLibraryItem = {
   iconKey: string;
   description?: string;
   stepType: OnboardingStepType;
+  keywords?: string[];
+  defaultPhase?: "pre_hire" | "transition" | "post_hire";
 };
 
 export type WorkflowStepLibraryCategory = {

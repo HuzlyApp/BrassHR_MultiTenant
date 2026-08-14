@@ -20,6 +20,7 @@ export const APPLICATION_ROUTES = {
   referenceReview: "/application/reference-review",
   applicationSummary: "/application/application-summary",
   applicationStatus: "/application/application-status",
+  jobScreening: "/application/job-screening",
   customStep: (stepKey: string) => `/application/custom-step/${encodeURIComponent(stepKey)}`,
 } as const;
 

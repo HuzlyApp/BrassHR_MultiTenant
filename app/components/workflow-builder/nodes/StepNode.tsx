@@ -18,9 +18,7 @@ export default function StepNode(props: NodeProps<StepNodeType>) {
   const phaseLabel =
     data.settings.phase === "post_hire"
       ? "Post-Hire"
-      : data.settings.phase === "transition"
-        ? "Approval"
-        : "Pre-Hire";
+      : "Pre-Hire";
 
   useEffect(() => {
     const host = iconHostRef.current;
@@ -41,6 +39,29 @@ export default function StepNode(props: NodeProps<StepNodeType>) {
 
   return (
     <div className="relative">
+      {data.phaseBanner === "pre_hire" ? (
+        <div className="absolute -top-12 left-0 w-[232px] text-center">
+          <div className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1.5">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+              Pre-Hire
+            </p>
+            <p className="text-[11px] font-medium text-slate-700">Candidate Qualification</p>
+          </div>
+        </div>
+      ) : null}
+      {data.phaseBanner === "placement_gate" ? (
+        <div className="absolute -top-[4.75rem] left-0 w-[232px] text-center">
+          <div className="rounded-md border border-amber-200 bg-amber-50 px-2 py-1.5">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-800">
+              Candidate Accepted / Placement Activated
+            </p>
+            <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+              Post-Hire
+            </p>
+            <p className="text-[11px] font-medium text-slate-700">Employee / Contractor Onboarding</p>
+          </div>
+        </div>
+      ) : null}
       <div
         className="h-[70px] w-[232px] min-h-[46px] min-w-[100px] overflow-hidden rounded-md bg-white transition"
         style={{

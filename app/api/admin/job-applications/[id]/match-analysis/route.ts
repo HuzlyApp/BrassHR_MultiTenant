@@ -8,6 +8,7 @@ import {
   runMatchAnalysisForApplication,
 } from "@/lib/jobs/match-analysis";
 import { resolveStaffTenantId } from "@/lib/jobs/tenant";
+import { loadMatchAnalysisWorkspace } from "@/lib/jobs/match-analysis/load-workspace";
 import { enforceRateLimit } from "@/lib/security/rate-limit";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 
@@ -40,35 +41,18 @@ export async function GET(_req: NextRequest, context: RouteContext) {
     return NextResponse.json({ error: "Application id required" }, { status: 400 });
   }
 
-  const { data: application, error } = await supabase
-    .from("job_applications")
-    .select(
-      "id, job_requisition_id, worker_id, ai_match_status, ai_match_score, ai_match_category, ai_match_action, ai_match_readiness, ai_match_display_category, ai_analysis, ai_analyzed_at, ai_analysis_error, ai_analysis_progress"
-    )
-    .eq("id", id)
-    .eq("tenant_id", tenantId)
-    .maybeSingle();
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  try {
+    const workspace = await loadMatchAnalysisWorkspace(supabase, tenantId, id);
+    if (!workspace) {
+      return NextResponse.json({ error: "Application not found" }, { status: 404 });
+    }
+    return NextResponse.json(workspace);
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Failed to load match analysis" },
+      { status: 500 }
+    );
   }
-  if (!application) {
-    return NextResponse.json({ error: "Application not found" }, { status: 404 });
-  }
-
-  const { data: requirements } = await supabase
-    .from("job_application_match_requirements")
-    .select(
-      "id, requirement_text, requirement_type, status, requirement_outcome, candidate_evidence, evidence_source, impact, verification_required, confidence, sort_order, recruiter_verified, recruiter_note, recruiter_verified_at"
-    )
-    .eq("job_application_id", id)
-    .eq("tenant_id", tenantId)
-    .order("sort_order", { ascending: true });
-
-  return NextResponse.json({
-    application,
-    requirements: requirements ?? [],
-  });
 }
 
 export async function POST(req: NextRequest, context: RouteContext) {
@@ -133,6 +117,7 @@ export async function POST(req: NextRequest, context: RouteContext) {
       jobApplicationId: id,
       recruiterNotes,
       verifiedRecruiterInfo,
+      analyzedByUserId: auth.devBypass ? null : auth.userId,
     });
 
     void writeActivityLog({

@@ -31,6 +31,8 @@ import {
 } from "./JobDescriptionEditor";
 import { JobDescriptionViewModal } from "./JobDescriptionViewModal";
 import { JobDescriptionWithAiSuggest } from "./JobDescriptionWithAiSuggest";
+import { JobScreeningQuestionsEditor } from "./JobScreeningQuestionsEditor";
+import type { JobScreeningQuestionInput } from "@/lib/jobs/screening-questions";
 import type { ReviewEditFieldId } from "./JobReviewEditModal";
 import { JobTypeChipSelect } from "./JobTypeChipSelect";
 import { BenefitsChipSelect } from "./BenefitsChipSelect";
@@ -1598,6 +1600,8 @@ export function JobFormStepDescription({
   specialtyName = "",
   companyName = "",
   brandStyle,
+  screeningQuestions,
+  onScreeningQuestionsChange,
 }: {
   job: JobRequisitionInput;
   ui: JobFormUiState;
@@ -1607,6 +1611,8 @@ export function JobFormStepDescription({
   specialtyName?: string;
   companyName?: string;
   brandStyle?: CSSProperties;
+  screeningQuestions?: JobScreeningQuestionInput[];
+  onScreeningQuestionsChange?: (questions: JobScreeningQuestionInput[]) => void;
 }) {
   return (
     <section className="space-y-4">
@@ -1660,6 +1666,12 @@ export function JobFormStepDescription({
           };
         }}
       />
+      {screeningQuestions && onScreeningQuestionsChange ? (
+        <JobScreeningQuestionsEditor
+          questions={screeningQuestions}
+          onChange={onScreeningQuestionsChange}
+        />
+      ) : null}
     </section>
   );
 }

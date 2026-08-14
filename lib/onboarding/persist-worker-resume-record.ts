@@ -1,5 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { resolveWorkerByApplicantId } from "@/lib/onboarding/resolve-worker-context";
+import { assertResumeUploadWithinLimit } from "@/lib/resume/assert-resume-upload-limit";
+import type { ResumeUploaderRole } from "@/lib/resume/resume-upload-limit";
 
 export type WorkerResumeParsingStatus = "pending" | "processing" | "completed" | "failed";
 
@@ -17,6 +19,7 @@ export type PersistWorkerResumeRecordOpts = {
   tenantId?: string | null;
   jobApplicationId?: string | null;
   uploadedByUserId?: string | null;
+  uploaderRole?: ResumeUploaderRole;
 };
 
 export type PersistWorkerResumeRecordMode = "insert" | "update";
@@ -149,6 +152,16 @@ export async function persistWorkerResumeRecord(
 
   const mode = recordOptions?.mode ?? "insert";
   const attempts = buildResumeRowAttempts(worker.workerId, worker.tenantId, opts);
+
+  if (mode === "insert") {
+    await assertResumeUploadWithinLimit(supabase, {
+      workerId: worker.workerId,
+      workerUserId: worker.userId,
+      jobApplicationId: opts.jobApplicationId,
+      uploadedByUserId: opts.uploadedByUserId,
+      role: opts.uploaderRole,
+    });
+  }
 
   if (mode === "update") {
     const resumeId = recordOptions?.resumeId?.trim();

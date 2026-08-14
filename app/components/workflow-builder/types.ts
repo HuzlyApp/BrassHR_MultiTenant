@@ -28,6 +28,19 @@ export type StepDefinition = {
   icon: React.ReactNode;
   // color: StepColorKey;
   description?: string;
+  keywords?: string[];
+  defaultPhase?: StepSettings["phase"];
+};
+
+export type WorkflowInsertionPoint = {
+  previousNodeId: string | null;
+  nextNodeId: string | null;
+};
+
+export type WorkflowStepDragPayload = {
+  stepDefinitionId: string;
+  stepKey: string;
+  name: string;
 };
 
 export type StepCategory = {
@@ -66,12 +79,15 @@ export type WorkflowNodeData = {
   required: boolean;
   settings: StepSettings;
   onDelete?: (id: string) => void;
+  phaseBanner?: "pre_hire" | "placement_gate" | null;
   [key: string]: unknown;
 };
 
 /** Canvas-only placeholder; not saved to workflow config. */
 export type DropZoneNodeData = {
   kind: "dropZone";
+  highlighted?: boolean;
+  libraryDragActive?: boolean;
   [key: string]: unknown;
 };
 

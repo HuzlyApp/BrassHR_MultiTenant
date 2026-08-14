@@ -33,6 +33,12 @@ import { normalizeJobRequisitionStatus } from "@/lib/jobs/job-status";
 import { resolveWorkflowMatch } from "@/lib/workflow-mappings/service";
 import { ensureAdminCandidateWorker } from "@/lib/jobs/ensure-admin-candidate-worker";
 import { getOnboardingFlowById } from "@/lib/onboarding/onboarding-flows";
+import {
+  jobScreeningQuestionToInput,
+  loadJobScreeningQuestions,
+  syncJobScreeningQuestions,
+  type JobScreeningQuestionInput,
+} from "@/lib/jobs/screening-questions";
 
 type DbClient = SupabaseClient;
 
@@ -477,6 +483,7 @@ export async function saveJobRequisition(
     jobId?: string;
     publish: boolean;
     confirmRoutingChange?: boolean;
+    screeningQuestions?: JobScreeningQuestionInput[];
   } & JobWorkflowAssignmentOptions
 ) {
   if (options.jobId) {
@@ -587,7 +594,21 @@ export async function saveJobRequisition(
       }
     }
     if (error) throw error;
-    return { job: data, workflow: match };
+    const savedJobId = String(data.id);
+    const screeningQuestions =
+      options.screeningQuestions !== undefined
+        ? await syncJobScreeningQuestions(supabase, {
+            tenantId,
+            jobId: savedJobId,
+            actorUserId,
+            questions: options.screeningQuestions,
+          })
+        : await loadJobScreeningQuestions(supabase, tenantId, savedJobId);
+    return {
+      job: data,
+      workflow: match,
+      screeningQuestions: screeningQuestions.map(jobScreeningQuestionToInput),
+    };
   }
 
   let { data, error } = await supabase
@@ -631,7 +652,21 @@ export async function saveJobRequisition(
     }
   }
   if (error) throw error;
-  return { job: data, workflow: match };
+  const savedJobId = String(data.id);
+  const screeningQuestions =
+    options.screeningQuestions !== undefined
+      ? await syncJobScreeningQuestions(supabase, {
+          tenantId,
+          jobId: savedJobId,
+          actorUserId,
+          questions: options.screeningQuestions,
+        })
+      : [];
+  return {
+    job: data,
+    workflow: match,
+    screeningQuestions: screeningQuestions.map(jobScreeningQuestionToInput),
+  };
 }
 
 export async function transitionJobStatus(

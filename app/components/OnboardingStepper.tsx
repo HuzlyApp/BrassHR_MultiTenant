@@ -21,6 +21,8 @@ import { useOnboardingTenant } from "@/lib/tenant/use-onboarding-tenant"
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext"
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding"
 import { formatApplicantStepperLabel } from "@/lib/onboarding/format-applicant-stepper-label"
+import { applicantPortalCopy } from "@/lib/onboarding/workflow-phase"
+import ApplicantPhaseWelcome from "@/app/components/onboarding/ApplicantPhaseWelcome"
 
 interface Props {
   /** Optional override; otherwise derived from pathname + tenant steps. */
@@ -160,15 +162,33 @@ export default function OnboardingStepper({
   }
 
   const furthestStep = furthestProgressStepIndex(stepStates, currentStep)
+  const phaseCopy = applicantPortalCopy(onboarding?.workflowPhase ?? "pre_hire")
+  const heading = title ?? phaseCopy.header
+  const completedCount = stepStates.filter((state) => state === "completed" || state === "skipped").length
 
   return (
     <>
       <div className="min-w-0 w-full border-b border-slate-200 pb-4 sm:pb-6" style={brandingToCssVars(branding)}>
+        <ApplicantPhaseWelcome
+          phase={onboarding?.workflowPhase ?? "pre_hire"}
+          applicationId={onboarding?.applicationId}
+        />
+        <div className="mb-3 flex items-end justify-between gap-3">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+              {phaseCopy.progressLabel}
+            </p>
+            <h1 className="text-lg font-semibold text-slate-800 sm:text-xl">{heading}</h1>
+          </div>
+          <p className="text-sm font-medium text-slate-600">
+            {completedCount} / {enabledSteps.length}
+          </p>
+        </div>
         <div className="relative mx-auto mt-2 min-w-0 w-full">
           <div
             className="min-w-0 overflow-x-auto overscroll-x-contain pb-1 [scrollbar-width:thin] sm:[&::-webkit-scrollbar]:block [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-300 [&::-webkit-scrollbar-track]:bg-transparent max-sm:scrollbar-hide"
             role="region"
-            aria-label="Onboarding steps"
+            aria-label={phaseCopy.progressLabel}
             tabIndex={0}
           >
             <div className="flex w-max min-w-full">

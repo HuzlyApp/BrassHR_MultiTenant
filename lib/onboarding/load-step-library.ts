@@ -1,5 +1,5 @@
 import type { OnboardingDbClient } from "@/lib/onboarding/load-tenant-config";
-import type { WorkflowStepLibraryCategory } from "@/lib/onboarding/workflow-step-library-data";
+import type { WorkflowStepLibraryCategory, WorkflowStepLibraryItem } from "@/lib/onboarding/workflow-step-library-data";
 
 export type OnboardingStepLibraryRow = {
   id: string;
@@ -48,12 +48,18 @@ export async function loadOnboardingStepLibrary(
     }
 
     const existingIndex = category.steps.findIndex((s) => s.id === row.step_key);
+    const rawPhase = row.default_settings?.phase;
+    const defaultPhase: WorkflowStepLibraryItem["defaultPhase"] =
+      rawPhase === "pre_hire" || rawPhase === "transition" || rawPhase === "post_hire"
+        ? rawPhase
+        : undefined;
     const item = {
       id: row.step_key,
       label: row.title,
       iconKey: row.icon_key,
       description: row.description ?? undefined,
       stepType: row.step_type as WorkflowStepLibraryCategory["steps"][number]["stepType"],
+      defaultPhase,
     };
 
     if (existingIndex >= 0) {

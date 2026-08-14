@@ -35,6 +35,8 @@ export type BuildApplicantContextParams = {
   recipientEmailOverride?: string | null;
   /** Stored on applicant_continuation_links.metadata for auditing/dedup. */
   continuationMetadata?: Record<string, unknown>;
+  applicationId?: string | null;
+  jobToken?: string | null;
 };
 
 function formatApplicantName(first: string | null, last: string | null): string {
@@ -107,6 +109,8 @@ export async function buildApplicantEmailContext(
     reason: params.continuationReason ?? "onboarding_reminder",
     markSent: params.markContinuationSent !== false,
     metadata: params.continuationMetadata,
+    applicationId: params.applicationId,
+    jobToken: params.jobToken,
   });
 
   return {

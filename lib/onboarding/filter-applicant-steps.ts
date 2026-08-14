@@ -1,5 +1,9 @@
 import type { TenantOnboardingConfig, TenantOnboardingStep } from "@/lib/onboarding/types";
 import { isWorkerVisibleStep } from "@/lib/onboarding/workflow-settings";
+import {
+  applyApplicantPhaseToConfig,
+  type ApplicantLifecyclePhase,
+} from "@/lib/onboarding/workflow-phase";
 
 export function filterApplicantVisibleSteps(
   steps: TenantOnboardingStep[]
@@ -8,13 +12,14 @@ export function filterApplicantVisibleSteps(
 }
 
 export function applyApplicantConfigFilters(
-  config: TenantOnboardingConfig
+  config: TenantOnboardingConfig,
+  options?: { activePhase?: ApplicantLifecyclePhase | null }
 ): TenantOnboardingConfig {
   const visibleStepIds = new Set(
     filterApplicantVisibleSteps(config.steps).map((s) => s.id)
   );
 
-  return {
+  const workerVisible: TenantOnboardingConfig = {
     ...config,
     steps: config.steps
       .filter((s) => visibleStepIds.has(s.id))
@@ -26,4 +31,7 @@ export function applyApplicantConfigFilters(
       visibleStepIds.has(a.onboarding_step_id)
     ),
   };
+
+  if (!options?.activePhase) return workerVisible;
+  return applyApplicantPhaseToConfig(workerVisible, options.activePhase);
 }

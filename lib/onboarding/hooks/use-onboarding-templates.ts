@@ -2,12 +2,16 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { staffFetchInit } from "@/lib/staff-auth-headers";
+import { useEffectiveAdminTenantId } from "@/lib/onboarding/hooks/use-effective-admin-tenant";
+
+export const TEMPLATES_QUERY_KEY = ["onboarding-templates"] as const;
 
 export type OnboardingTemplateListItem = {
   id: string;
   name: string;
   folder: "presets" | "saved-templates";
   isPreset: boolean;
+  status?: "draft" | "published" | "unpublished";
   flowName: string | null;
   updatedAt: string;
 };
@@ -16,8 +20,6 @@ type TemplatesResponse = {
   presets: OnboardingTemplateListItem[];
   savedTemplates: OnboardingTemplateListItem[];
 };
-
-const TEMPLATES_QUERY_KEY = ["onboarding-templates"] as const;
 
 async function fetchTemplates(): Promise<TemplatesResponse> {
   const res = await fetch("/api/admin/workflow-templates", await staffFetchInit());
@@ -30,10 +32,12 @@ async function fetchTemplates(): Promise<TemplatesResponse> {
 }
 
 export function useOnboardingTemplates() {
+  const { tenantId } = useEffectiveAdminTenantId();
   const query = useQuery({
-    queryKey: TEMPLATES_QUERY_KEY,
+    queryKey: [...TEMPLATES_QUERY_KEY, tenantId ?? "none"],
     queryFn: fetchTemplates,
     staleTime: 30_000,
+    enabled: Boolean(tenantId),
   });
 
   const allTemplates = [...(query.data?.presets ?? []), ...(query.data?.savedTemplates ?? [])];

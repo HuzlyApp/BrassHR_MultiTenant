@@ -7,5 +7,6 @@ export type {
   StepSettings,
   WorkflowNodeData,
   WorkflowState,
+  WorkflowInsertionPoint,
 } from "./types";
 export { DEFAULT_STEP_SETTINGS } from "./types";

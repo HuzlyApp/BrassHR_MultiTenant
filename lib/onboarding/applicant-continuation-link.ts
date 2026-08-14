@@ -19,7 +19,8 @@ export type ContinuationReason =
   | "application_status"
   | "resume_continuation"
   | "welcome"
-  | "manual_notification";
+  | "manual_notification"
+  | "placement_accepted";
 
 type WorkerContinuationRow = {
   id: string;
@@ -61,13 +62,60 @@ function pickTenantSlug(row: TenantSlugRow | null, fallback?: string | null): st
   });
 }
 
+function withApplicationQuery(
+  path: string,
+  params: { applicationId?: string | null; jobToken?: string | null }
+): string {
+  const [pathname, existing] = path.split("?");
+  const search = new URLSearchParams(existing ?? "");
+  if (params.applicationId) search.set("applicationId", params.applicationId);
+  if (params.jobToken) search.set("job_token", params.jobToken);
+  const qs = search.toString();
+  return qs ? `${pathname}?${qs}` : pathname;
+}
+
 export async function resolveApplicantContinuationTarget(
   supabase: SupabaseClient,
-  params: { workerId: string; tenantId: string; tenantSlug?: string | null }
+  params: {
+    workerId: string;
+    tenantId: string;
+    tenantSlug?: string | null;
+    applicationId?: string | null;
+    jobToken?: string | null;
+  }
 ): Promise<ApplicantContinuationTarget> {
-  const config = await loadTenantOnboardingConfig(supabase, params.tenantId, {
+  const { resolveApplicationWorkflowPhase } = await import(
+    "@/lib/onboarding/resolve-application-workflow-phase"
+  );
+  const { applyApplicantConfigFilters } = await import("@/lib/onboarding/filter-applicant-steps");
+  const { loadApplicantConfigForJobToken } = await import(
+    "@/lib/onboarding/load-config-for-job-workflow"
+  );
+
+  const phaseRecord = await resolveApplicationWorkflowPhase(supabase, {
+    tenantId: params.tenantId,
+    workerId: params.workerId,
+    applicationId: params.applicationId,
+    jobToken: params.jobToken,
+  });
+  const activePhase = phaseRecord?.phase ?? "pre_hire";
+
+  let config = await loadTenantOnboardingConfig(supabase, params.tenantId, {
     workerFacing: true,
   });
+  if (params.jobToken) {
+    try {
+      const jobConfig = await loadApplicantConfigForJobToken(
+        supabase,
+        params.tenantSlug ?? null,
+        params.jobToken
+      );
+      config = jobConfig.config;
+    } catch {
+      // Keep tenant published config when the job token is stale.
+    }
+  }
+  config = config ? applyApplicantConfigFilters(config, { activePhase }) : config;
   const enabled = getEnabledTenantSteps(config);
   const progress = await ensureWorkerOnboardingProgress(supabase, params.workerId, params.tenantId);
   const byStep = new Map(progress.steps.map((step) => [step.onboarding_step_id, step]));
@@ -92,16 +140,28 @@ export async function resolveApplicantContinuationTarget(
     enabled[0] ??
     null;
 
+  const applicationQuery = {
+    applicationId: params.applicationId ?? phaseRecord?.applicationId ?? null,
+    jobToken: params.jobToken ?? null,
+  };
+
   if (!target) {
+    const fallbackPath =
+      activePhase === "post_hire" || activePhase === "completed"
+        ? "/application/onboarding"
+        : "/application/add-resume";
     return {
-      path: withTenant("/application/add-resume", params.tenantSlug),
+      path: withApplicationQuery(withTenant(fallbackPath, params.tenantSlug), applicationQuery),
       stepKey: null,
       stepType: null,
     };
   }
 
   return {
-    path: withTenant(routeForOnboardingStep(target.step_key, target.step_type), params.tenantSlug),
+    path: withApplicationQuery(
+      withTenant(routeForOnboardingStep(target.step_key, target.step_type), params.tenantSlug),
+      applicationQuery
+    ),
     stepKey: target.step_key,
     stepType: target.step_type,
   };
@@ -117,6 +177,8 @@ export async function createApplicantContinuationLink(
     markSent?: boolean;
     tenantSlug?: string | null;
     metadata?: Record<string, unknown>;
+    applicationId?: string | null;
+    jobToken?: string | null;
   }
 ): Promise<ApplicantContinuationLinkResult | null> {
   const { data: worker, error: workerError } = await supabase
@@ -137,10 +199,16 @@ export async function createApplicantContinuationLink(
 
   if (tenantError) throw tenantError;
   const tenantSlug = pickTenantSlug((tenant as TenantSlugRow | null) ?? null, params.tenantSlug);
+  const applicationId =
+    params.applicationId?.trim() ||
+    (typeof params.metadata?.applicationId === "string" ? params.metadata.applicationId.trim() : "") ||
+    null;
   const target = await resolveApplicantContinuationTarget(supabase, {
     workerId: params.workerId,
     tenantId: params.tenantId,
     tenantSlug,
+    applicationId,
+    jobToken: params.jobToken,
   });
 
   const token = randomBytes(TOKEN_BYTES).toString("base64url");
@@ -154,6 +222,7 @@ export async function createApplicantContinuationLink(
       tenant_id: params.tenantId,
       worker_id: params.workerId,
       applicant_user_id: workerRow.user_id,
+      ...(applicationId ? { application_id: applicationId } : {}),
       token_hash: tokenHash,
       target_path: target.path,
       target_step_key: target.stepKey,
@@ -161,7 +230,10 @@ export async function createApplicantContinuationLink(
       reason: params.reason ?? "onboarding_reminder",
       sent_at: params.markSent ? now.toISOString() : null,
       expires_at: expiresAt,
-      metadata: params.metadata ?? {},
+      metadata: {
+        ...(params.metadata ?? {}),
+        ...(applicationId ? { applicationId } : {}),
+      },
     })
     .select("id")
     .single();

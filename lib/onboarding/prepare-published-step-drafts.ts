@@ -6,6 +6,7 @@ import {
   isSerializableWorkflowState,
   type SerializableWorkflowState,
 } from "@/lib/onboarding/workflow-builder-serialization";
+import { assertWorkflowPhasesPublishable } from "@/lib/onboarding/validate-workflow-phases";
 import { workflowStateToStepDrafts } from "@/lib/onboarding/workflow-to-drafts";
 
 export const PUBLISH_SUCCESS_MESSAGE =
@@ -33,6 +34,7 @@ export function preparePublishedStepDrafts(
 
   const existingDrafts = enabledPublishedStepDrafts(existingConfig);
   const normalizedDraft = enforceUploadResumeFirstInWorkflowState(builderDraft, existingDrafts);
+  assertWorkflowPhasesPublishable(normalizedDraft);
   const steps = workflowStateToStepDrafts(normalizedDraft, existingDrafts);
 
   if (!steps.filter((s) => s.is_enabled !== false).length) {

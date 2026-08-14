@@ -117,6 +117,8 @@ function hydrateStep(step: WorkflowStepLibraryItem) {
     id: step.id,
     label: step.label,
     description: step.description,
+    keywords: step.keywords,
+    defaultPhase: step.defaultPhase,
     icon: ICONS[step.iconKey] ?? <CustomStepIcon />,
   };
 }

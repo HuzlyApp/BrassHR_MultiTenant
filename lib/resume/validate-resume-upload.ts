@@ -52,7 +52,8 @@ export function isResumeUploadValidationError(error: unknown): boolean {
     message.includes("only pdf") ||
     message.includes("another document") ||
     message.includes("select a job") ||
-    message.includes("select a valid job")
+    message.includes("select a valid job") ||
+    message.includes("up to 5 times")
   );
 }
 

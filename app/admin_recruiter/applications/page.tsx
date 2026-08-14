@@ -25,6 +25,10 @@ import { ListTableCheckbox } from "@/app/admin_recruiter/components/ListTableChe
 import AddCallLogModal from "@/app/admin_recruiter/components/AddCallLogModal";
 import CandidateCommunicationDialog from "@/app/admin_recruiter/components/CandidateCommunicationDialog";
 import { ScheduleInterviewModal } from "@/app/admin_recruiter/calendar/components/ScheduleInterviewModal";
+import {
+  invitationSuccessMessage,
+  type ScheduleInterviewPayload,
+} from "@/lib/interviews/schedule-payload";
 import SuccessModal from "@/app/components/SuccessModal";
 import ErrorModal from "@/app/components/ErrorModal";
 import { validateResumeUploadFile } from "@/lib/resume/validate-resume-upload";
@@ -1206,12 +1210,7 @@ export default function JobApplicationsPage() {
     }
   }
 
-  async function handleScheduleInterview(payload: {
-    workerId: string;
-    startsAt: string;
-    endsAt: string;
-    meetingType: "online";
-  }) {
+  async function handleScheduleInterview(payload: ScheduleInterviewPayload) {
     const row = actionRow();
     if (!row) return;
     setInterviewSubmitting(true);
@@ -1230,8 +1229,12 @@ export default function JobApplicationsPage() {
       const data = (await response.json().catch(() => ({}))) as {
         error?: string;
         statusUpdated?: boolean;
-        emailSent?: boolean;
-        emailSkipped?: boolean;
+        invitation?: {
+          sentCount: number;
+          failedCount: number;
+          skippedCount: number;
+          invitationStatus: "sent" | "partial" | "failed" | "pending";
+        };
       };
       if (!response.ok) throw new Error(data.error || "Failed to schedule interview");
       if (data.statusUpdated) {
@@ -1245,22 +1248,9 @@ export default function JobApplicationsPage() {
       setInterviewError(null);
       setActionTargetRowId(null);
       const candidateLabel = applicantName(row);
-      if (data.emailSent) {
-        toast.success(`${candidateLabel}: interview scheduled — invitation sent`, {
-          duration: ACTION_TOAST_DURATION_MS,
-        });
-      } else if (data.emailSkipped) {
-        toast.success(`${candidateLabel}: interview scheduled`, {
-          duration: ACTION_TOAST_DURATION_MS,
-        });
-        toast("No email sent — candidate email is missing or mail is not configured.", {
-          icon: "ℹ️",
-        });
-      } else {
-        toast.success(`${candidateLabel}: interview scheduled`, {
-          duration: ACTION_TOAST_DURATION_MS,
-        });
-      }
+      toast.success(`${candidateLabel}: ${invitationSuccessMessage(data.invitation)}`, {
+        duration: ACTION_TOAST_DURATION_MS,
+      });
     } catch (scheduleError) {
       const message =
         scheduleError instanceof Error ? scheduleError.message : "Failed to schedule interview";

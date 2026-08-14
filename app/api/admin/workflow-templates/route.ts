@@ -4,9 +4,9 @@ import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { resolveEffectiveAdminTenantId } from "@/lib/email-templates/resolve-effective-tenant";
 import type { OnboardingDbClient } from "@/lib/onboarding/load-tenant-config";
 import {
+  applyPublishedTemplateToEmploymentFlow,
   createWorkflowTemplate,
   listWorkflowTemplates,
-  type WorkflowTemplateFolder,
 } from "@/lib/onboarding/workflow-templates";
 import {
   isSerializableWorkflowState,
@@ -58,9 +58,12 @@ export async function GET() {
 
 type CreateBody = {
   name?: string;
-  folder?: WorkflowTemplateFolder;
+  folder?: "presets" | "saved-templates";
   builderDraft?: SerializableWorkflowState;
   flowName?: string;
+  status?: "draft" | "published" | "unpublished";
+  publish?: boolean;
+  employmentType?: "W2" | "1099" | null;
 };
 
 export async function POST(req: NextRequest) {
@@ -95,15 +98,37 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const publish = body.publish === true || body.status === "published";
+    if (publish && !builderDraft.nodes.length) {
+      return NextResponse.json({ error: "Cannot publish an empty template" }, { status: 400 });
+    }
+
     const template = await createWorkflowTemplate(supabase as OnboardingDbClient, tenantId, {
       name: body.name?.trim() || body.flowName?.trim() || "New Template",
-      folder: body.folder ?? "saved-templates",
+      folder: "saved-templates",
       builderDraft,
       flowName: body.flowName,
       createdBy: auth.userId,
+      status: publish ? "published" : "draft",
+      employmentType: body.employmentType,
     });
 
-    return NextResponse.json({ template });
+    let appliedFlowId: string | null = null;
+    if (template.status === "published") {
+      const applied = await applyPublishedTemplateToEmploymentFlow(
+        supabase as OnboardingDbClient,
+        tenantId,
+        {
+          templateId: template.id,
+          employmentType: template.employmentType,
+          builderDraft,
+          updatedBy: auth.userId,
+        }
+      );
+      appliedFlowId = applied?.flowId ?? null;
+    }
+
+    return NextResponse.json({ template, appliedFlowId });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : "Failed to create template";
     return NextResponse.json({ error: msg }, { status: 500 });

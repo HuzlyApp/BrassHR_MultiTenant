@@ -13,6 +13,7 @@ import {
 } from "@/app/admin_recruiter/candidates/candidates-typography";
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
 import type { JobRequisitionInput, PlacementType, SourceType } from "@/lib/jobs/types";
+import type { JobScreeningQuestionInput } from "@/lib/jobs/screening-questions";
 import {
   jobRequiresWorkflow,
   isMspRecruitAndEor,
@@ -96,6 +97,7 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
   const [originalStatus, setOriginalStatus] = useState<"draft" | "published">("draft");
   const [confirmRoutingChange, setConfirmRoutingChange] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
+  const [screeningQuestions, setScreeningQuestions] = useState<JobScreeningQuestionInput[]>([]);
 
   useEffect(() => {
     void fetch("/api/admin/job-options", { cache: "no-store" })
@@ -154,6 +156,11 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
           });
         }
         setStep(loadedJob.sourceType === "MSP" ? "msp-details" : "requisition");
+        setScreeningQuestions(
+          Array.isArray(payload.screeningQuestions)
+            ? (payload.screeningQuestions as JobScreeningQuestionInput[])
+            : []
+        );
       })
       .catch((error) => setMessage(error instanceof Error ? error.message : "Failed to load job"));
   }, [jobId]);
@@ -408,6 +415,7 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
           action,
           job: payloadJob,
           jobId,
+          screeningQuestions,
           confirmRoutingChange: forceRoutingChange || confirmRoutingChange,
           resetToAutomatic: assignmentMode === "automatic",
           overrideWorkflowId: assignmentMode === "manual" ? overrideWorkflowId : undefined,
@@ -763,6 +771,8 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
                 specialtyName={specialtyLabel}
                 companyName={branding.companyName}
                 brandStyle={brandStyle}
+                screeningQuestions={screeningQuestions}
+                onScreeningQuestionsChange={setScreeningQuestions}
               />
             ) : null}
 
