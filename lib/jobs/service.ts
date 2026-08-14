@@ -18,6 +18,7 @@ import {
   workflowNoMatchMessage,
 } from "@/lib/jobs/validation";
 import { isStrongAiMatchScore } from "@/lib/jobs/match-analysis/display";
+import { normalizeApplicationStatus } from "@/lib/jobs/application-status";
 import {
   formatDateOnlyUtc,
   isJobRequisitionOpen,
@@ -919,6 +920,7 @@ export async function listInternalJobs(
     analyzedCount: number;
     strongCount: number;
     readyCount: number;
+    hiredCount: number;
   };
   const metricsByJob = new Map<string, JobListMetricCounts>();
   for (const row of applicationRows ?? []) {
@@ -929,9 +931,11 @@ export async function listInternalJobs(
       analyzedCount: 0,
       strongCount: 0,
       readyCount: 0,
+      hiredCount: 0,
     };
     const status = String(row.status ?? "").toLowerCase();
     if (status === "new" || status === "submitted") current.newCount += 1;
+    if (normalizeApplicationStatus(status) === "hired") current.hiredCount += 1;
 
     const matchStatus = String(row.ai_match_status ?? "");
     const score = Number(row.ai_match_score);
@@ -956,6 +960,7 @@ export async function listInternalJobs(
       analyzed_application_count: metrics?.analyzedCount ?? 0,
       strong_match_count: metrics?.strongCount ?? 0,
       ready_to_submit_count: metrics?.readyCount ?? 0,
+      hired_application_count: metrics?.hiredCount ?? 0,
     };
   });
 }

@@ -67,7 +67,7 @@ describe("job requisition validation", () => {
     expect(errors.location).toBeUndefined();
   });
 
-  it("requires workflow and profession for MSP Recruit & EOR publish", () => {
+  it("requires workflow but not profession for MSP Recruit & EOR publish", () => {
     const errors = validatePublishableJob(
       {
         ...validJob,
@@ -84,7 +84,7 @@ describe("job requisition validation", () => {
       null
     );
     expect(errors.workflowId).toBeDefined();
-    expect(errors.professionId).toBeDefined();
+    expect(errors.professionId).toBeUndefined();
   });
 
   it("requires commission fees for MSP Recruit & Release publish", () => {

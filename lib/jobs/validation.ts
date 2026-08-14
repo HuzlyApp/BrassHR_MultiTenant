@@ -147,7 +147,6 @@ export function validatePublishableJob(
   }
 
   if (isMspEor) {
-    if (!input.professionId) errors.professionId = "Profession is required.";
     if (input.employmentType !== "W2" && input.employmentType !== "1099") {
       errors.employmentType = "Select W2 or 1099 for EOR placements.";
     }
