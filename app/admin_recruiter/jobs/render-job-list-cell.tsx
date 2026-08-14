@@ -48,7 +48,7 @@ function JobCandidateMetric({
       />
       <span className="text-xs font-normal text-[#475569]">{label}</span>
       {href ? (
-        <Link href={href} className="inline-flex transition hover:opacity-80">
+        <Link href={href} className="inline-flex cursor-pointer transition hover:opacity-80">
           {counter}
         </Link>
       ) : (
@@ -95,6 +95,12 @@ export type JobListRow = {
   job_applications: { count?: number }[] | null
   /** Candidates with status new/submitted — from listInternalJobs. */
   new_application_count?: number
+  /** Applications with completed AI match analysis. */
+  analyzed_application_count?: number
+  /** Applications whose AI match score is 90% or higher. */
+  strong_match_count?: number
+  /** Analyzed applications ready to submit. */
+  ready_to_submit_count?: number
 }
 
 const JOB_FORM_SURFACE_CLASS = "rounded-lg border border-[#CBD5E1] bg-white"
@@ -178,6 +184,22 @@ export function applicantCount(job: JobListRow): number {
 
 export function newApplicantCount(job: JobListRow): number {
   return job.new_application_count ?? 0
+}
+
+export function analyzedApplicantCount(job: JobListRow): number {
+  return job.analyzed_application_count ?? 0
+}
+
+export function strongMatchCount(job: JobListRow): number {
+  return job.strong_match_count ?? 0
+}
+
+export function readyToSubmitCount(job: JobListRow): number {
+  return job.ready_to_submit_count ?? 0
+}
+
+export function jobCandidatesHref(jobId: string): string {
+  return `/admin_recruiter/applications?jobId=${encodeURIComponent(jobId)}`
 }
 
 export function jobLocation(job: JobListRow): string {
@@ -483,15 +505,20 @@ export function renderJobListCell(
             iconSrc={JOB_CANDIDATE_ICONS.all}
             label="All"
             count={totalCandidates}
-            href={`/admin_recruiter/applications?jobId=${encodeURIComponent(job.id)}`}
+            href={jobCandidatesHref(job.id)}
           />
           <JobCandidateMetric
             iconSrc={JOB_CANDIDATE_ICONS.new}
             label="New"
             count={newApplicantCount(job)}
-            href={`/admin_recruiter/applications?jobId=${encodeURIComponent(job.id)}&tab=new`}
+            href={`${jobCandidatesHref(job.id)}&tab=new`}
           />
-          <JobCandidateMetric iconSrc={JOB_CANDIDATE_ICONS.matches} label="Matches" count={0} />
+          <JobCandidateMetric
+            iconSrc={JOB_CANDIDATE_ICONS.matches}
+            label="Matches"
+            count={analyzedApplicantCount(job)}
+            href={jobCandidatesHref(job.id)}
+          />
         </div>
       )
     case "datePosted":

@@ -1,3 +1,4 @@
+import { STRONG_MATCH_MIN_SCORE } from "./display";
 import {
   MATCH_CATEGORY_LABELS,
   type MatchAnalysisResponse,
@@ -100,7 +101,7 @@ export function applyFairnessOutcomes(items: RequirementItem[]): RequirementItem
 }
 
 function categoryFromScore(score: number): MatchCategory {
-  if (score >= 90) return "STRONG_MATCH";
+  if (score >= STRONG_MATCH_MIN_SCORE) return "STRONG_MATCH";
   if (score >= 75) return "GOOD_MATCH";
   if (score >= 60) return "POSSIBLE_MATCH";
   if (score >= 40) return "WEAK_MATCH";

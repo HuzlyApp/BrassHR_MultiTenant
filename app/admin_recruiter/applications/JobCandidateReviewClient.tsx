@@ -644,62 +644,83 @@ export default function JobCandidateReviewClient() {
         );
       }
 
-      if (workerIdForUpload) {
-        await reloadWorkerProfile(workerIdForUpload);
-      }
-      setResumePreviewKey((value) => value + 1);
-      setResumePreviewError(null);
-
-      // Recalculate match % / explanation against the new résumé.
-      try {
-        const matchResponse = await fetch(
-          `/api/admin/job-applications/${encodeURIComponent(applicationIdForUpload)}/match-analysis`,
-          {
-            method: "POST",
-            credentials: "include",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({}),
-          }
-        );
-        const matchPayload = await matchResponse.json().catch(() => ({}));
-        if (!matchResponse.ok) {
-          throw new Error(
-            typeof matchPayload.error === "string"
-              ? matchPayload.error
-              : "Resume updated, but match analysis failed"
-          );
-        }
-        setRows((current) =>
-          current.map((row) =>
-            row.id === applicationIdForUpload
-              ? {
-                  ...row,
-                  ai_match_status: matchPayload.status ?? "ANALYZED",
-                  ai_match_score: matchPayload.score ?? row.ai_match_score,
-                  ai_match_category: matchPayload.category ?? row.ai_match_category,
-                  ai_match_action: matchPayload.action ?? row.ai_match_action,
-                  ai_match_readiness: matchPayload.readiness ?? row.ai_match_readiness,
-                  ai_match_display_category:
-                    matchPayload.displayCategory ?? row.ai_match_display_category,
-                }
-              : row
-          )
-        );
-      } catch (matchError) {
-        toast.error(
-          matchError instanceof Error
-            ? matchError.message
-            : "Resume updated, but match analysis failed"
-        );
-      } finally {
-        setMatchReloadToken((value) => value + 1);
-      }
-
       setPendingResumeFile(null);
       toast.success("Resume updated successfully.");
+      if (workerIdForUpload) {
+        void reloadWorkerProfile(workerIdForUpload).then(() => {
+          setResumePreviewKey((value) => value + 1);
+          setResumePreviewError(null);
+        });
+      } else {
+        setResumePreviewKey((value) => value + 1);
+        setResumePreviewError(null);
+      }
       if (resumeHistoryOpen) {
         void loadResumeHistory(applicationIdForUpload);
       }
+
+      setRows((current) =>
+        current.map((row) =>
+          row.id === applicationIdForUpload
+            ? {
+                ...row,
+                ai_match_status: "ANALYZING",
+                ai_match_score: null,
+                ai_match_category: null,
+                ai_match_action: null,
+                ai_match_readiness: null,
+                ai_match_display_category: null,
+              }
+            : row
+        )
+      );
+      setMatchReloadToken((value) => value + 1);
+
+      void (async () => {
+        try {
+          const matchResponse = await fetch(
+            `/api/admin/job-applications/${encodeURIComponent(applicationIdForUpload)}/match-analysis`,
+            {
+              method: "POST",
+              credentials: "include",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({}),
+            }
+          );
+          const matchPayload = await matchResponse.json().catch(() => ({}));
+          if (!matchResponse.ok) {
+            throw new Error(
+              typeof matchPayload.error === "string"
+                ? matchPayload.error
+                : "Resume updated, but match analysis failed"
+            );
+          }
+          setRows((current) =>
+            current.map((row) =>
+              row.id === applicationIdForUpload
+                ? {
+                    ...row,
+                    ai_match_status: matchPayload.status ?? "ANALYZED",
+                    ai_match_score: matchPayload.score ?? row.ai_match_score,
+                    ai_match_category: matchPayload.category ?? row.ai_match_category,
+                    ai_match_action: matchPayload.action ?? row.ai_match_action,
+                    ai_match_readiness: matchPayload.readiness ?? row.ai_match_readiness,
+                    ai_match_display_category:
+                      matchPayload.displayCategory ?? row.ai_match_display_category,
+                  }
+                : row
+            )
+          );
+        } catch (matchError) {
+          toast.error(
+            matchError instanceof Error
+              ? matchError.message
+              : "Resume updated, but match analysis failed"
+          );
+        } finally {
+          setMatchReloadToken((value) => value + 1);
+        }
+      })();
     } catch (uploadError) {
       toast.error(
         uploadError instanceof Error ? uploadError.message : "Failed to upload resume"

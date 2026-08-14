@@ -5,11 +5,15 @@ import { Copy, ExternalLink, Pencil, Trash2 } from "lucide-react";
 import { isJobRequisitionOpen } from "@/lib/jobs/public-application-routing";
 import { normalizeJobRequisitionStatus } from "@/lib/jobs/job-status";
 import {
+  analyzedApplicantCount,
   applicantCount,
+  jobCandidatesHref,
   jobDisplayId,
   jobListDisplayTitle,
   jobLocation,
   publicJobPathFor,
+  readyToSubmitCount,
+  strongMatchCount,
   type JobListRow,
 } from "./render-job-list-cell";
 
@@ -51,11 +55,18 @@ function JobGridCard({
   const title = jobListDisplayTitle(job);
   const location = jobLocation(job);
   const publicHref = publicJobPathFor(job, tenantSlug);
+  const candidateCount = applicantCount(job);
+  const candidatesHref = jobCandidatesHref(job.id);
   const metrics = [
-    { label: "CAND", value: applicantCount(job) },
-    { label: "ANALYSIS", value: 0 },
-    { label: "STRONG", value: 0 },
-    { label: "READY", value: 0 },
+    {
+      label: "CAND",
+      value: candidateCount,
+      href: candidatesHref,
+      ariaLabel: `View ${candidateCount} candidate${candidateCount === 1 ? "" : "s"} for ${title}`,
+    },
+    { label: "ANALYSIS", value: analyzedApplicantCount(job) },
+    { label: "STRONG", value: strongMatchCount(job) },
+    { label: "READY", value: readyToSubmitCount(job) },
   ];
 
   return (
@@ -76,17 +87,36 @@ function JobGridCard({
       </div>
 
       <div className="mt-3 flex items-stretch gap-2">
-        {metrics.map((metric) => (
-          <div
-            key={metric.label}
-            className="flex min-h-[42px] min-w-0 flex-1 flex-col items-center justify-center rounded-lg bg-[#F8F8F8] px-1 py-1.5"
-          >
-            <p className="text-base font-semibold leading-5 text-[#0F172A]">{metric.value}</p>
-            <p className="mt-0.5 text-[9px] font-medium uppercase tracking-[0.08em] text-[#94A3B8]">
-              {metric.label}
-            </p>
-          </div>
-        ))}
+        {metrics.map((metric) => {
+          const metricClassName =
+            "flex min-h-[42px] min-w-0 flex-1 flex-col items-center justify-center rounded-lg bg-[#F8F8F8] px-1 py-1.5";
+          const body = (
+            <>
+              <p className="text-base font-semibold leading-5 text-[#0F172A]">{metric.value}</p>
+              <p className="mt-0.5 text-[9px] font-medium uppercase tracking-[0.08em] text-[#94A3B8]">
+                {metric.label}
+              </p>
+            </>
+          );
+          if ("href" in metric && metric.href) {
+            return (
+              <Link
+                key={metric.label}
+                href={metric.href}
+                aria-label={metric.ariaLabel}
+                title={metric.ariaLabel}
+                className={`${metricClassName} cursor-pointer transition hover:bg-[#F1F5F9] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563EB]`}
+              >
+                {body}
+              </Link>
+            );
+          }
+          return (
+            <div key={metric.label} className={metricClassName}>
+              {body}
+            </div>
+          );
+        })}
       </div>
 
       <div className="mt-3 flex items-center justify-between gap-2 border-t border-[#E5E7EB] pt-3">

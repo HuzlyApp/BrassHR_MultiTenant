@@ -1031,42 +1031,20 @@ export default function JobApplicationsPage() {
         );
       }
 
-      let nextMatch: Partial<ApplicationRow> = {
-        ai_match_status: "READY",
-        ai_match_score: null,
-        ai_match_category: null,
-        ai_match_action: null,
-        ai_match_readiness: null,
-        ai_match_display_category: null,
-      };
-
-      try {
-        const matchResponse = await fetch(
-          `/api/admin/job-applications/${encodeURIComponent(applicationId)}/match-analysis`,
-          {
-            method: "POST",
-            credentials: "include",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({}),
-          }
-        );
-        const matchPayload = await matchResponse.json().catch(() => ({}));
-        if (matchResponse.ok) {
-          nextMatch = {
-            ai_match_status: matchPayload.status ?? "ANALYZED",
-            ai_match_score: matchPayload.score ?? null,
-            ai_match_category: matchPayload.category ?? null,
-            ai_match_action: matchPayload.action ?? null,
-            ai_match_readiness: matchPayload.readiness ?? null,
-            ai_match_display_category: matchPayload.displayCategory ?? null,
-          };
-        }
-      } catch {
-        /* keep READY reset; upload already succeeded */
-      }
-
       setRows((current) =>
-        current.map((row) => (row.id === applicationId ? { ...row, ...nextMatch } : row))
+        current.map((row) =>
+          row.id === applicationId
+            ? {
+                ...row,
+                ai_match_status: "ANALYZING",
+                ai_match_score: null,
+                ai_match_category: null,
+                ai_match_action: null,
+                ai_match_readiness: null,
+                ai_match_display_category: null,
+              }
+            : row
+        )
       );
       setPendingResumeFile(null);
       setPendingResumeApplicationId(null);
@@ -1077,6 +1055,39 @@ export default function JobApplicationsPage() {
         duration: ACTION_TOAST_DURATION_MS,
       });
       setResumeSuccessOpen(true);
+
+      void (async () => {
+        try {
+          const matchResponse = await fetch(
+            `/api/admin/job-applications/${encodeURIComponent(applicationId)}/match-analysis`,
+            {
+              method: "POST",
+              credentials: "include",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({}),
+            }
+          );
+          const matchPayload = await matchResponse.json().catch(() => ({}));
+          if (!matchResponse.ok) return;
+          setRows((current) =>
+            current.map((row) =>
+              row.id === applicationId
+                ? {
+                    ...row,
+                    ai_match_status: matchPayload.status ?? "ANALYZED",
+                    ai_match_score: matchPayload.score ?? null,
+                    ai_match_category: matchPayload.category ?? null,
+                    ai_match_action: matchPayload.action ?? null,
+                    ai_match_readiness: matchPayload.readiness ?? null,
+                    ai_match_display_category: matchPayload.displayCategory ?? null,
+                  }
+                : row
+            )
+          );
+        } catch {
+          /* upload already succeeded */
+        }
+      })();
     } catch (uploadError) {
       setResumeErrorMessage(
         uploadError instanceof Error ? uploadError.message : "Failed to upload resume"
