@@ -469,14 +469,12 @@ export function applyUiToJob(job: JobRequisitionInput, ui: JobFormUiState): JobR
       job.sourceType === "MSP"
         ? job.facility?.trim() || job.location?.trim() || null
         : job.location,
-    professionId:
-      job.sourceType === "MSP" && isMspRecruitAndRelease(job)
+    professionId: isMspRecruitAndEor(job)
+      ? null
+      : job.sourceType === "MSP" && isMspRecruitAndRelease(job)
         ? job.professionId || null
         : job.professionId,
-    specialtyId:
-      job.sourceType === "Internal" || isMspRecruitAndEor(job)
-        ? job.specialtyId
-        : null,
+    specialtyId: job.sourceType === "Internal" ? job.specialtyId : null,
     compensationType: isMspRecruitAndRelease(job) ? null : compensationType,
     currency: isMspRecruitAndRelease(job) ? "USD" : ui.currency.trim() || "USD",
     showPayBy: isMspRecruitAndRelease(job) ? null : showPayBy,

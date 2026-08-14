@@ -557,9 +557,19 @@ export default function JobApplicationsPage() {
   }, [jobId]);
 
   useEffect(() => {
-    const tabParam = searchParams.get("tab")?.trim();
-    setActiveTab(tabParam || "all");
-  }, [searchParams]);
+    const tabParam = searchParams.get("tab")?.trim() || "all";
+    if (tabParam === "all") {
+      setActiveTab("all");
+      return;
+    }
+    const byId = statusOptions.find((option) => option.id === tabParam);
+    if (byId) {
+      setActiveTab(byId.id);
+      return;
+    }
+    const byKey = statusOptions.find((option) => option.systemKey === tabParam);
+    setActiveTab(byKey?.id ?? tabParam);
+  }, [searchParams, statusOptions]);
 
   useEffect(() => {
     void (async () => {

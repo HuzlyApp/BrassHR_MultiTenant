@@ -634,16 +634,12 @@ export function JobFormStepMspDetails({
   job,
   ui,
   fieldErrors,
-  professions,
-  specialties,
   onJobChange,
   onUiChange,
 }: {
   job: JobRequisitionInput;
   ui: JobFormUiState;
   fieldErrors: Record<string, string>;
-  professions: JobFormOption[];
-  specialties: JobFormSpecialtyOption[];
   onJobChange: <K extends keyof JobRequisitionInput>(key: K, value: JobRequisitionInput[K]) => void;
   onUiChange: (patch: Partial<JobFormUiState>) => void;
 }) {
@@ -668,58 +664,6 @@ export function JobFormStepMspDetails({
   return (
     <div className={JOB_FORM_FIELDS_CLASS}>
       <JobFormMspPlacementBanner placementType={mspPlacementKey} />
-
-      {isMspEor ? (
-        <div className="grid gap-4 min-[700px]:grid-cols-2">
-          <div>
-            <label className={JOB_FORM_LABEL_CLASS} htmlFor="msp-profession">
-              Profession
-              <JobFormRequiredMark />
-            </label>
-            <select
-              id="msp-profession"
-              className={`${JOB_FORM_SELECT_CLASS} ${job.professionId ? "text-[#334155]" : "text-[#94A3B8]"}`}
-              style={{ backgroundImage: JOB_FORM_SELECT_CHEVRON }}
-              value={job.professionId ?? ""}
-              onChange={(event) => {
-                onJobChange("professionId", event.target.value);
-                onJobChange("specialtyId", null);
-              }}
-            >
-              <option value="">Select Profession</option>
-              {professions.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.name}
-                </option>
-              ))}
-            </select>
-            <FieldError error={fieldErrors.professionId} />
-          </div>
-
-          <div>
-            <label className={JOB_FORM_LABEL_CLASS} htmlFor="msp-specialty">
-              Specialty
-            </label>
-            <select
-              id="msp-specialty"
-              className={`${JOB_FORM_SELECT_CLASS} ${job.specialtyId ? "text-[#334155]" : "text-[#94A3B8]"}`}
-              style={{ backgroundImage: JOB_FORM_SELECT_CHEVRON }}
-              value={job.specialtyId ?? ""}
-              onChange={(event) =>
-                onJobChange("specialtyId", event.target.value ? event.target.value : null)
-              }
-              disabled={!job.professionId}
-            >
-              <option value="">{specialtySelectPlaceholder(job.professionId, specialties.length)}</option>
-              {specialties.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.name}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-      ) : null}
 
       {isMspEor ? (
         <div>
@@ -2015,12 +1959,6 @@ export function JobFormStepReview({
             }
             readOnly
           />
-          {isMspRecruitAndEor(job) ? (
-            <>
-              <ReviewRow label="Profession" value={professionName} readOnly />
-              <ReviewRow label="Specialty" value={specialtyName} readOnly />
-            </>
-          ) : null}
           <ReviewRow
             label="Source Job Title"
             value={job.sourceJobTitle ?? ""}
@@ -2283,6 +2221,9 @@ export function JobFormWorkflowBanner({
   overrideWorkflowId = null,
   onOverrideWorkflow,
   onResetToAutomatic,
+  hideUnmappedDetails = false,
+  showMappingLink = true,
+  workflowBuilderHref = "/admin_recruiter/dashboard/onboarding-builder",
 }: {
   workflowName?: string;
   workflowWarning: string;
@@ -2295,6 +2236,9 @@ export function JobFormWorkflowBanner({
   overrideWorkflowId?: string | null;
   onOverrideWorkflow?: (workflowId: string) => void;
   onResetToAutomatic?: () => void;
+  hideUnmappedDetails?: boolean;
+  showMappingLink?: boolean;
+  workflowBuilderHref?: string;
 }) {
   const hasWorkflow = Boolean(workflowName);
   const isManual = assignmentMode === "manual";
@@ -2355,7 +2299,7 @@ export function JobFormWorkflowBanner({
                   </p>
                 )}
               </>
-            ) : (
+            ) : hideUnmappedDetails ? null : (
               <p className="mt-2 whitespace-pre-line text-sm leading-6 text-amber-900/90">
                 {workflowWarning ||
                   "Select employment type (and optional attributes) to resolve a workflow."}
@@ -2370,10 +2314,15 @@ export function JobFormWorkflowBanner({
                 <select
                   id="workflow-override"
                   className={`${JOB_FORM_SELECT_CLASS} ${
-                    isManual && overrideWorkflowId ? "text-[#334155]" : "text-[#94A3B8]"
+                    fieldError
+                      ? "border-rose-400 text-[#334155]"
+                      : isManual && overrideWorkflowId
+                        ? "text-[#334155]"
+                        : "text-[#94A3B8]"
                   }`}
                   style={{ backgroundImage: JOB_FORM_SELECT_CHEVRON }}
                   value={isManual ? (overrideWorkflowId ?? "") : ""}
+                  aria-invalid={Boolean(fieldError)}
                   onChange={(event) => {
                     const value = event.target.value;
                     if (!value) {
@@ -2399,6 +2348,23 @@ export function JobFormWorkflowBanner({
                     Reset to automatic mapping
                   </button>
                 ) : null}
+                {publishedWorkflows.length === 0 ? (
+                  <p className="text-sm leading-6 text-[#475569]">
+                    No published workflows are available yet. Create a workflow and publish it.
+                    Published workflows will appear in this list.
+                    {canManageWorkflows ? (
+                      <>
+                        {" "}
+                        <Link
+                          href={workflowBuilderHref}
+                          className="font-semibold text-[color:var(--brand-primary)] hover:underline"
+                        >
+                          Create and publish a workflow
+                        </Link>
+                      </>
+                    ) : null}
+                  </p>
+                ) : null}
               </div>
             ) : null}
 
@@ -2406,7 +2372,7 @@ export function JobFormWorkflowBanner({
           </div>
         </div>
 
-        {canManageWorkflows ? (
+        {canManageWorkflows && showMappingLink ? (
           <Link
             href={mappingLink}
             className={`inline-flex h-10 w-full shrink-0 items-center justify-center gap-1.5 rounded-lg px-4 text-sm font-medium whitespace-nowrap transition min-[700px]:h-9 min-[700px]:w-auto min-[700px]:self-start ${

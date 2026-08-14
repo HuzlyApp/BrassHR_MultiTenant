@@ -217,6 +217,12 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
         source: "manual",
       });
       setWorkflowWarning("");
+      setFieldErrors((current) => {
+        if (!current.workflowId) return current;
+        const next = { ...current };
+        delete next.workflowId;
+        return next;
+      });
       return;
     }
 
@@ -250,6 +256,12 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
               source: payload.match.source,
             });
             setWorkflowWarning("");
+            setFieldErrors((current) => {
+              if (!current.workflowId) return current;
+              const next = { ...current };
+              delete next.workflowId;
+              return next;
+            });
           } else {
             setWorkflow(null);
             setWorkflowWarning(payload.warning || payload.error || "No workflow is configured.");
@@ -326,9 +338,6 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
         errors.sourceJobTitle = "Source Job Title is required.";
       }
       if (isMspEor) {
-        if (!current.professionId) {
-          errors.professionId = "Profession is required.";
-        }
         if (current.employmentType !== "W2" && current.employmentType !== "1099") {
           errors.employmentType = "Select W2 or 1099 for EOR placements.";
         }
@@ -348,6 +357,23 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
     return errors;
   }
 
+  function assignedWorkflowId(): string | null {
+    if (assignmentMode === "manual" && overrideWorkflowId?.trim()) {
+      return overrideWorkflowId.trim();
+    }
+    return workflow?.workflowId?.trim() || null;
+  }
+
+  function validateWorkflowAssignment(): Record<string, string> {
+    if (!jobRequiresWorkflow(buildPayloadJob())) return {};
+    if (assignedWorkflowId()) return {};
+    return {
+      workflowId:
+        (options?.workflows?.length ?? 0) === 0
+          ? "Create and publish a workflow, then assign it to this job."
+          : "Assign a published workflow before continuing.",
+    };
+  }
   function validateDescriptionStep(current: JobRequisitionInput): Record<string, string> {
     const errors: Record<string, string> = {};
     if (!jobDescriptionPlainText(current.publicDescription ?? "").trim()) {
@@ -366,6 +392,7 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
       const stepErrors = {
         ...validateRequisitionStep(payloadJob),
         ...validateDescriptionStep(payloadJob),
+        ...validateWorkflowAssignment(),
       };
       if (Object.keys(stepErrors).length > 0) {
         setFieldErrors(stepErrors);
@@ -378,7 +405,8 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
           stepErrors.sourceJobTitle ||
           stepErrors.publicTitle ||
           stepErrors.professionId ||
-          stepErrors.employmentType
+          stepErrors.employmentType ||
+          stepErrors.workflowId
         ) {
           setStep(payloadJob.sourceType === "MSP" ? "msp-details" : "requisition");
         }
@@ -516,7 +544,10 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
 
   function handleNext() {
     if (step === "requisition") {
-      const errors = validateRequisitionStep(job);
+      const errors = {
+        ...validateRequisitionStep(job),
+        ...validateWorkflowAssignment(),
+      };
       if (Object.keys(errors).length > 0) {
         setFieldErrors((current) => ({ ...current, ...errors }));
         return;
@@ -525,7 +556,10 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
       return;
     }
     if (step === "msp-details") {
-      const errors = validateRequisitionStep(buildPayloadJob());
+      const errors = {
+        ...validateRequisitionStep(buildPayloadJob()),
+        ...validateWorkflowAssignment(),
+      };
       if (Object.keys(errors).length > 0) {
         setFieldErrors((current) => ({ ...current, ...errors }));
         return;
@@ -684,9 +718,16 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
                   assignmentMode={assignmentMode}
                   publishedWorkflows={options?.workflows ?? []}
                   overrideWorkflowId={overrideWorkflowId}
+                  hideUnmappedDetails={job.sourceType === "MSP"}
+                  showMappingLink={job.sourceType !== "MSP"}
                   onOverrideWorkflow={(workflowId) => {
                     setAssignmentMode("manual");
                     setOverrideWorkflowId(workflowId);
+                    setFieldErrors((current) => {
+                      const next = { ...current };
+                      delete next.workflowId;
+                      return next;
+                    });
                   }}
                   onResetToAutomatic={() => {
                     setAssignmentMode("automatic");
@@ -702,8 +743,6 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
                   job={job}
                   ui={ui}
                   fieldErrors={fieldErrors}
-                  professions={options?.professions ?? []}
-                  specialties={specialties}
                   onJobChange={updateJob}
                   onUiChange={updateUi}
                 />
@@ -717,9 +756,16 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
                   assignmentMode={assignmentMode}
                   publishedWorkflows={options?.workflows ?? []}
                   overrideWorkflowId={overrideWorkflowId}
+                  hideUnmappedDetails
+                  showMappingLink={false}
                   onOverrideWorkflow={(workflowId) => {
                     setAssignmentMode("manual");
                     setOverrideWorkflowId(workflowId);
+                    setFieldErrors((current) => {
+                      const next = { ...current };
+                      delete next.workflowId;
+                      return next;
+                    });
                   }}
                   onResetToAutomatic={() => {
                     setAssignmentMode("automatic");
