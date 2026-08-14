@@ -575,6 +575,31 @@ export default function JobCandidateReviewClient() {
     }
   }
 
+  async function parseResumeFromHistory(resumeId: string) {
+    if (!selected?.id) return;
+    setResumeHistoryBusyId(resumeId);
+    try {
+      const response = await fetch(
+        `/api/admin/job-applications/${encodeURIComponent(selected.id)}/resumes/${encodeURIComponent(resumeId)}/parse`,
+        { method: "POST" }
+      );
+      const payload = (await response.json().catch(() => ({}))) as {
+        error?: string;
+        resumes?: ResumeHistoryItem[];
+      };
+      if (!response.ok) {
+        throw new Error(payload.error || "Could not parse resume.");
+      }
+      if (payload.resumes) setResumeHistoryItems(payload.resumes);
+      else await loadResumeHistory(selected.id);
+      toast.success("Resume parsed.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not parse resume.");
+    } finally {
+      setResumeHistoryBusyId(null);
+    }
+  }
+
   async function deleteResumeFromHistory(resumeId: string, fileName: string) {
     if (!selected?.id) return;
     if (!window.confirm(`Delete ${fileName}? This cannot be undone.`)) return;
@@ -1845,6 +1870,7 @@ export default function JobCandidateReviewClient() {
         onReupload={beginReuploadResume}
         onView={viewResumeFromHistory}
         onDelete={deleteResumeFromHistory}
+        onParse={parseResumeFromHistory}
       />
     </div>
   );

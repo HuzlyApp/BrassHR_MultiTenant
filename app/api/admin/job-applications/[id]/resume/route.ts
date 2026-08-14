@@ -183,7 +183,7 @@ export async function POST(
         originalFileName: safeName,
         fileType,
         fileSizeBytes: file.size,
-        parsingStatus: extractedText.trim() ? "completed" : "pending",
+        parsingStatus: "pending",
         textLength: extractedText.trim().length,
         extractedText,
         parsedData: { text: extractedText },

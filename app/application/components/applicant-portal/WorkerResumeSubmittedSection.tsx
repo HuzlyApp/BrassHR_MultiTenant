@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Check, Upload, X } from "lucide-react";
+import { Upload, X } from "lucide-react";
 import BrandedFileTypeIcon from "@/app/admin_recruiter/components/BrandedFileTypeIcon";
 import { useApplicantPortal } from "./ApplicantPortalProvider";
 import { WorkerFilePicker } from "./WorkerFilePicker";
@@ -71,28 +71,6 @@ function ResumeUploaderCell({ resume }: { resume: WorkerResumeItem }) {
   );
 }
 
-function ResumeParseBadge({
-  status,
-  label,
-}: {
-  status: WorkerResumeItem["parsingStatus"];
-  label: string;
-}) {
-  const isParsed = status === "completed";
-  const tone = isParsed
-    ? "border-transparent bg-[color:var(--brand-secondary)] text-white"
-    : status === "failed"
-      ? "border-red-200 bg-red-50 text-red-700"
-      : "border-[#E5E7EB] bg-[#F8FAFC] text-[#64748B]";
-
-  return (
-    <span className={`inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-[10px] font-semibold ${tone}`}>
-      {isParsed ? <Check className="h-3 w-3" aria-hidden /> : null}
-      {label}
-    </span>
-  );
-}
-
 function ResumeRow({
   resume,
   index,
@@ -111,7 +89,7 @@ function ResumeRow({
   const inputRef = useRef<HTMLInputElement>(null);
 
   return (
-    <div className="grid gap-3 border-b border-[#E5E7EB] px-4 py-4 last:border-b-0 min-[900px]:grid-cols-[minmax(0,1.15fr)_minmax(0,0.95fr)_minmax(0,7.5rem)_auto_auto] min-[900px]:items-center">
+    <div className="grid gap-3 border-b border-[#E5E7EB] px-4 py-4 last:border-b-0 min-[900px]:grid-cols-[minmax(0,1.15fr)_minmax(0,0.95fr)_minmax(0,7.5rem)_auto] min-[900px]:items-center">
       <div className="flex min-w-0 items-start gap-3">
         <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[color:color-mix(in_srgb,var(--brand-primary)_14%,white)] text-xs font-semibold text-[color:var(--brand-primary)]">
           {index}
@@ -145,10 +123,6 @@ function ResumeRow({
       <div className="hidden min-w-0 min-[900px]:block">
         <p className="mb-1 text-xs font-medium text-[#64748B] min-[900px]:text-right">Uploaded by</p>
         <ResumeUploaderCell resume={resume} />
-      </div>
-
-      <div className="flex items-center pl-10 min-[900px]:justify-center min-[900px]:pl-0">
-        <ResumeParseBadge status={resume.parsingStatus} label={resume.parsingStatusLabel} />
       </div>
 
       <div className="flex shrink-0 flex-wrap items-center gap-2 pl-10 min-[900px]:justify-end min-[900px]:pl-0">
@@ -412,19 +386,6 @@ export function WorkerResumeSubmittedSection() {
       alive = false;
     };
   }, [loadResumes, sessionReady]);
-
-  useEffect(() => {
-    if (!sessionReady) return;
-    const hasProcessing = resumes.some(
-      (resume) => resume.parsingStatus === "processing" || resume.parsingStatus === "pending"
-    );
-    if (!hasProcessing) return;
-
-    const timer = window.setInterval(() => {
-      void loadResumes().catch(() => undefined);
-    }, 4000);
-    return () => window.clearInterval(timer);
-  }, [loadResumes, resumes, sessionReady]);
 
   async function openResume(resumeId: string) {
     setError(null);

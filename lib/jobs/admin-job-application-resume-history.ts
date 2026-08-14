@@ -14,6 +14,7 @@ export type AdminJobApplicationResumeHistoryItem = {
   uploadedByName: string;
   uploadedByPhotoUrl: string | null;
   uploadedByType: "worker" | "staff" | "unknown";
+  parsingStatus: "pending" | "processing" | "completed" | "failed";
 };
 export type AdminJobApplicationResumeHistoryResult = {
   jobTitle: string;
@@ -62,7 +63,17 @@ export type ResumeHistorySourceRow = {
   storage_path?: string | null;
   file_url?: string | null;
   job_application_id?: string | null;
+  parsing_status?: string | null;
+  parse_status?: string | null;
 };
+
+function resolveHistoryParsingStatus(
+  row: ResumeHistorySourceRow
+): AdminJobApplicationResumeHistoryItem["parsingStatus"] {
+  const raw = (row.parse_status || row.parsing_status || "pending").trim().toLowerCase();
+  if (raw === "completed" || raw === "processing" || raw === "failed") return raw;
+  return "pending";
+}
 
 function resumeStoragePath(row: ResumeHistorySourceRow): string {
   return (row.storage_path ?? row.file_url ?? "").trim();
@@ -205,7 +216,7 @@ export async function loadAdminJobApplicationResumeHistory(
   let resumeQuery = supabase
     .from("worker_resumes")
     .select(
-      "id, original_file_name, file_name, file_type, uploaded_at, uploaded_by_user_id, storage_path, file_url, job_application_id"
+      "id, original_file_name, file_name, file_type, uploaded_at, uploaded_by_user_id, storage_path, file_url, job_application_id, parsing_status, parse_status"
     )
     .is("deleted_at", null)
     .order("uploaded_at", { ascending: true });
@@ -289,6 +300,7 @@ export async function loadAdminJobApplicationResumeHistory(
       uploadedByName,
       uploadedByPhotoUrl,
       uploadedByType,
+      parsingStatus: resolveHistoryParsingStatus(row),
     };
   });
 
