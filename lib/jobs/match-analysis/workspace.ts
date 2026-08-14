@@ -97,7 +97,10 @@ export function qualificationDisplayStatus(
 }
 
 export function isBlockingRequirement(
-  req: Pick<QualificationRequirement, "requirement_text" | "requirement_outcome" | "status">,
+  req: Pick<
+    QualificationRequirement,
+    "requirement_text" | "requirement_outcome" | "status" | "verification_required" | "recruiter_verified"
+  >,
   blockingTexts: string[]
 ): boolean {
   const display = qualificationDisplayStatus(req, blockingTexts);

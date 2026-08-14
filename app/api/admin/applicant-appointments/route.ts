@@ -287,21 +287,21 @@ export async function GET(req: NextRequest) {
 
 function parseInterviewers(raw: unknown): InterviewAttendeeInput[] {
   if (!Array.isArray(raw)) return [];
-  return raw
-    .map((item) => {
-      if (!item || typeof item !== "object") return null;
-      const record = item as Record<string, unknown>;
-      const email = String(record.email ?? "").trim().toLowerCase();
-      const name = String(record.name ?? email).trim();
-      if (!email) return null;
-      return {
-        userId: typeof record.userId === "string" ? record.userId : null,
-        email,
-        name,
-        attendeeType: "interviewer" as const,
-      };
-    })
-    .filter((item): item is InterviewAttendeeInput => Boolean(item));
+  const interviewers: InterviewAttendeeInput[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== "object") continue;
+    const record = item as Record<string, unknown>;
+    const email = String(record.email ?? "").trim().toLowerCase();
+    const name = String(record.name ?? email).trim();
+    if (!email) continue;
+    interviewers.push({
+      userId: typeof record.userId === "string" ? record.userId : null,
+      email,
+      name,
+      attendeeType: "interviewer",
+    });
+  }
+  return interviewers;
 }
 
 function parseMeetingType(raw: unknown): InterviewMeetingType {

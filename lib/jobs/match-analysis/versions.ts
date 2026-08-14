@@ -73,7 +73,19 @@ export async function loadAnalysisHistory(
     .eq("application_id", applicationId)
     .order("version", { ascending: false });
   if (error) throw error;
-  return (data ?? []).map((row) => ({
+  const rows = (data ?? []) as unknown as Array<{
+    id: string | number;
+    version: string | number;
+    score: string | number | null;
+    category: string | null;
+    recommended_action: string | null;
+    display_category: string | null;
+    model: string | null;
+    analyzed_by: string | null;
+    analyzed_at: string;
+    analysis?: MatchAnalysisResponse | null;
+  }>;
+  return rows.map((row) => ({
     id: String(row.id),
     version: Number(row.version),
     score: row.score == null ? null : Number(row.score),
@@ -83,6 +95,6 @@ export async function loadAnalysisHistory(
     model: row.model ? String(row.model) : null,
     analyzed_by: row.analyzed_by ? String(row.analyzed_by) : null,
     analyzed_at: String(row.analyzed_at),
-    analysis: includeAnalysis ? ((row as { analysis?: MatchAnalysisResponse }).analysis ?? null) : undefined,
+    analysis: includeAnalysis ? (row.analysis ?? null) : undefined,
   }));
 }

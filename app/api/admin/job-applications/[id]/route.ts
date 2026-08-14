@@ -10,18 +10,6 @@ import {
   type ApplicationPipelineStatus,
 } from "@/lib/jobs/application-status";
 import { resolveStaffTenantId } from "@/lib/jobs/tenant";
-import { NextRequest, NextResponse } from "next/server";
-import { requireStaffApiSession } from "@/lib/auth/api-session";
-import {
-  ApplicationStatusError,
-  changeApplicationStatus,
-  changeApplicationStatusBySystemKey,
-} from "@/lib/jobs/application-statuses";
-import {
-  isApplicationPipelineStatus,
-  type ApplicationPipelineStatus,
-} from "@/lib/jobs/application-status";
-import { resolveStaffTenantId } from "@/lib/jobs/tenant";
 import { JOB_APPLICATION_APPLICANT_EMBED } from "@/lib/jobs/application-applicant-display";
 import { resolveApplicantEmailAppOrigin } from "@/lib/resolve-app-origin";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
