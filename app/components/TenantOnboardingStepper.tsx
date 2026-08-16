@@ -79,12 +79,14 @@ function StepIcon({ state }: { state: TenantStepIndicatorState }) {
   if (state === "skipped") {
     return (
       <span
-        className="relative z-10 shrink-0 rounded-full border-[2px] border-amber-500 bg-amber-50 text-amber-600"
+        className="relative z-10 inline-flex shrink-0 items-center justify-center rounded-full border-[2px] border-amber-500 bg-amber-50 text-amber-600 leading-none"
         style={{ width: ICON_SIZE, height: ICON_SIZE }}
       >
         <AlertCircle
-          className="absolute left-1/2 top-1/2 h-[10px] w-[10px] -translate-x-1/2 -translate-y-1/2"
+          size={10}
           strokeWidth={2.5}
+          className="block shrink-0"
+          aria-hidden
         />
       </span>
     );
@@ -96,7 +98,9 @@ function StepIcon({ state }: { state: TenantStepIndicatorState }) {
 
   return (
     <span
-      className="relative z-10 flex items-center justify-center rounded-full border bg-white"
+      className={`relative z-10 inline-flex items-center justify-center rounded-full border bg-white leading-none${
+        isCompleted || isCurrent ? " to-on-brand" : ""
+      }`}
       style={{
         width: ICON_SIZE,
         height: ICON_SIZE,
@@ -105,10 +109,21 @@ function StepIcon({ state }: { state: TenantStepIndicatorState }) {
         color: "#ffffff",
       }}
     >
-      {isCompleted ? <Check className="h-[10px] w-[10px]" strokeWidth={2.5} /> : null}
-      {isCurrent ? <span className="h-[6px] w-[6px] rounded-full bg-white" /> : null}
+      {isCompleted ? (
+        <Check
+          size={10}
+          strokeWidth={3}
+          className="block shrink-0 text-white"
+          color="#ffffff"
+          aria-hidden
+        />
+      ) : null}
+      {isCurrent ? <span className="block h-[6px] w-[6px] shrink-0 rounded-full bg-white" /> : null}
       {isPending ? (
-        <span className="h-[5px] w-[5px] rounded-full" style={{ backgroundColor: TRACK_LINE }} />
+        <span
+          className="block h-[5px] w-[5px] shrink-0 rounded-full"
+          style={{ backgroundColor: TRACK_LINE }}
+        />
       ) : null}
     </span>
   );

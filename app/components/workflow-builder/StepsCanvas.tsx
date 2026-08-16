@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, type RefObject } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import {
   Background,
   BackgroundVariant,
@@ -21,6 +21,7 @@ import {
 import "@xyflow/react/dist/style.css";
 import "./workflow-builder-canvas.css";
 
+import AddStepPicker from "./AddStepPicker";
 import type { ConnectorMenuAction } from "./ConnectorActionMenu";
 import WorkflowConnectorEdge from "./edges/WorkflowConnectorEdge";
 import DropZoneNode from "./nodes/DropZoneNode";
@@ -30,30 +31,38 @@ import {
   WORKFLOW_CONNECTOR_STROKE_WIDTH,
   WORKFLOW_EDGE_TYPE,
   createWorkflowEdge,
-  DRAG_DATA_TYPE,
   GOLD,
-  NODE_VERTICAL_SPACING,
   TEXT_MUTED,
 } from "./constants";
-import type { StepCategory, StepDefinition, WorkflowNodeData } from "./types";
+import type {
+  StepCategory,
+  StepDefinition,
+  WorkflowInsertionPoint,
+} from "./types";
 import {
   isDropZoneNode,
   isStepNode,
   type WorkflowCanvasNodeData,
 } from "./types";
 import {
+  insertionPointKey,
+  insertWorkflowStep,
+} from "./insert-workflow-step";
+import {
   buildDropZoneNode,
-  createDropZoneId,
-  dropZonePositionBelow,
-  findDropZoneAtPosition,
   countDropZoneChildren,
-  parallelDropPositions,
+  createDropZoneId,
+  findInsertionPointAtPosition,
   onlyStepNodes,
+  parallelDropPositions,
 } from "./workflow-canvas-utils";
-import { normalizeWorkflowNodeSettings } from "@/lib/onboarding/normalize-workflow-settings";
 import {
   isUploadResumeWorkflowStepId,
 } from "@/lib/onboarding/enforce-upload-resume-first";
+import {
+  isWorkflowStepDrag,
+  readWorkflowStepDragPayload,
+} from "./workflow-step-drag";
 
 type StepsCanvasProps = {
   nodes: Node<WorkflowCanvasNodeData>[];
@@ -223,41 +232,10 @@ function MobileTouchPan({
 const nodeTypes = { step: StepNode, dropZone: DropZoneNode };
 const edgeTypes = { [WORKFLOW_EDGE_TYPE]: WorkflowConnectorEdge };
 
-function buildStepNode(
-  id: string,
-  def: StepDefinition,
-  position: { x: number; y: number },
-  day: number
-): Node<WorkflowNodeData> {
-  return {
-    id,
-    type: "step",
-    position,
-    data: {
-      stepId: def.id,
-      label: def.label,
-      description: def.description ?? null,
-      icon: def.icon,
-      day,
-      required: true,
-      settings: normalizeWorkflowNodeSettings(undefined, {
-        required: true,
-        day,
-      }),
-    },
-  };
-}
-
-function dayAfterSource(
-  nodes: Node<WorkflowCanvasNodeData>[],
-  sourceId: string
-): number {
-  const source = nodes.find((n) => n.id === sourceId);
-  if (source && isStepNode(source)) return source.data.day + 1;
-  const steps = onlyStepNodes(nodes) as Node<WorkflowNodeData>[];
-  if (!steps.length) return 1;
-  return Math.max(...steps.map((n) => n.data.day)) + 1;
-}
+const EMPTY_INSERTION: WorkflowInsertionPoint = {
+  previousNodeId: null,
+  nextNodeId: null,
+};
 
 export default function StepsCanvas({
   nodes,
@@ -284,12 +262,92 @@ export default function StepsCanvas({
     Edge
   >();
   const dragHistoryRecorded = useRef(false);
+  const nodesRef = useRef(nodes);
+  const edgesRef = useRef(edges);
+  const insertInFlight = useRef(false);
+  const pendingInsertionRef = useRef<WorkflowInsertionPoint | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [libraryDragActive, setLibraryDragActive] = useState(false);
+  const [hoveredInsertion, setHoveredInsertion] = useState<WorkflowInsertionPoint | null>(null);
+  const hoveredInsertionRef = useRef<WorkflowInsertionPoint | null>(null);
+
+  useEffect(() => {
+    nodesRef.current = nodes;
+    edgesRef.current = edges;
+  }, [nodes, edges]);
 
   const stepById = useMemo(() => {
     const map = new Map<string, StepDefinition>();
     categories.forEach((c) => c.steps.forEach((s) => map.set(s.id, s)));
     return map;
   }, [categories]);
+
+  const closePicker = useCallback(() => {
+    pendingInsertionRef.current = null;
+    setPickerOpen(false);
+  }, []);
+
+  const openPickerAt = useCallback(
+    (insertion: WorkflowInsertionPoint) => {
+      if (readOnly) return;
+      pendingInsertionRef.current = insertion;
+      setPickerOpen(true);
+    },
+    [readOnly]
+  );
+
+  const commitInsert = useCallback(
+    (def: StepDefinition, insertion: WorkflowInsertionPoint) => {
+      if (readOnly || insertInFlight.current) return;
+      const currentNodes = nodesRef.current;
+      const currentEdges = edgesRef.current;
+
+      if (isUploadResumeWorkflowStepId(def.id)) {
+        const hasResume = onlyStepNodes(currentNodes).some(
+          (n) => isStepNode(n) && isUploadResumeWorkflowStepId(n.data.stepId)
+        );
+        if (hasResume) return;
+      }
+
+      insertInFlight.current = true;
+      onBeforeChange?.();
+      const result = insertWorkflowStep({
+        nodes: currentNodes,
+        edges: currentEdges,
+        stepDefinition: def,
+        insertionPoint: insertion,
+      });
+      nodesRef.current = result.nodes;
+      edgesRef.current = result.edges;
+      setNodes(result.nodes);
+      setEdges(result.edges);
+      onSelectNode(result.newNodeId);
+      closePicker();
+      queueMicrotask(() => {
+        insertInFlight.current = false;
+      });
+    },
+    [closePicker, onBeforeChange, onSelectNode, readOnly, setEdges, setNodes]
+  );
+
+  const handlePickerSelect = useCallback(
+    (def: StepDefinition) => {
+      const insertion = pendingInsertionRef.current;
+      if (!insertion) return;
+      commitInsert(def, insertion);
+    },
+    [commitInsert]
+  );
+
+  useEffect(() => {
+    const onDragEnd = () => {
+      setLibraryDragActive(false);
+      hoveredInsertionRef.current = null;
+      setHoveredInsertion(null);
+    };
+    window.addEventListener("dragend", onDragEnd);
+    return () => window.removeEventListener("dragend", onDragEnd);
+  }, []);
 
   const handleDeleteNode = useCallback(
     (id: string) => {
@@ -347,110 +405,14 @@ export default function StepsCanvas({
     [nodes, edges, setNodes, setEdges, selectedNodeId, onSelectNode, onBeforeChange, readOnly]
   );
 
-  const replaceDropZoneWithStep = useCallback(
-    (
-      dropZoneId: string,
-      def: StepDefinition,
-      day: number
-    ) => {
-      const dropZone = nodes.find((n) => n.id === dropZoneId);
-      if (!dropZone || !isDropZoneNode(dropZone)) return;
-      if (readOnly) return;
-      if (isUploadResumeWorkflowStepId(def.id)) {
-        const hasResume = onlyStepNodes(nodes).some(
-          (n) => isStepNode(n) && isUploadResumeWorkflowStepId(n.data.stepId)
-        );
-        if (hasResume) return;
-      }
-
-      onBeforeChange?.();
-
-      const incoming = edges.find((e) => e.target === dropZoneId);
-      const sourceId = incoming?.source;
-      const stepId = `node-${Date.now()}`;
-      const stepNode = buildStepNode(stepId, def, dropZone.position, day);
-      const nextDropId = createDropZoneId();
-      const nextDrop = buildDropZoneNode(
-        nextDropId,
-        dropZonePositionBelow(stepNode)
-      );
-
-      setNodes((prev) => [
-        ...prev.filter((n) => n.id !== dropZoneId),
-        stepNode,
-        nextDrop,
-      ]);
-
-      setEdges((prev) => {
-        const without = prev.filter((e) => e.target !== dropZoneId);
-        const next = [...without, createWorkflowEdge(stepId, nextDropId)];
-        if (sourceId) {
-          return [
-            ...next.filter((e) => !(e.source === sourceId && e.target === stepId)),
-            createWorkflowEdge(sourceId, stepId),
-          ];
-        }
-        return next;
+  const handleAddStepAtEdge = useCallback(
+    (_edgeId: string, sourceId: string, targetId: string) => {
+      openPickerAt({
+        previousNodeId: sourceId,
+        nextNodeId: targetId,
       });
-
-      onSelectNode(stepId);
     },
-    [nodes, edges, setNodes, setEdges, onSelectNode, onBeforeChange, readOnly]
-  );
-
-  const handleInsertBetween = useCallback(
-    (sourceId: string, targetId: string) => {
-      const source = nodes.find((n) => n.id === sourceId);
-      const target = nodes.find((n) => n.id === targetId);
-      if (!source || !target || !isStepNode(source)) return;
-
-      if (isDropZoneNode(target)) {
-        return;
-      }
-
-      const def = stepById.get(source.data.stepId);
-      if (!def) return;
-
-      onBeforeChange?.();
-
-      const id = `node-${Date.now()}`;
-      const insertY = target.position.y;
-
-      setNodes((prev) => {
-        const shifted = prev.map((n) => {
-          if (n.position.y >= insertY) {
-            return {
-              ...n,
-              position: { ...n.position, y: n.position.y + NODE_VERTICAL_SPACING },
-            };
-          }
-          return n;
-        });
-        return [
-          ...shifted,
-          buildStepNode(
-            id,
-            def,
-            { x: source.position.x, y: insertY },
-            source.data.day + 1
-          ),
-        ];
-      });
-
-      setEdges((prev) => {
-        const without = prev.filter(
-          (e) => !(e.source === sourceId && e.target === targetId)
-        );
-        return [
-          ...without,
-          createWorkflowEdge(sourceId, id),
-          createWorkflowEdge(id, targetId),
-        ];
-      });
-
-      onSelectNode(id);
-    },
-    [nodes, stepById, setNodes, setEdges, onSelectNode, onBeforeChange]
+    [openPickerAt]
   );
 
   const handleAddParallelFlow = useCallback(
@@ -543,7 +505,7 @@ export default function StepsCanvas({
           handleAddParallelFlow(edgeId);
           break;
         case "addStep":
-          handleInsertBetween(sourceId, targetId);
+          handleAddStepAtEdge(edgeId, sourceId, targetId);
           break;
         case "removeConnector":
           handleRemoveConnector(edgeId);
@@ -557,7 +519,7 @@ export default function StepsCanvas({
     },
     [
       handleAddParallelFlow,
-      handleInsertBetween,
+      handleAddStepAtEdge,
       handleRemoveConnector,
       handleAddTitle,
     ]
@@ -576,90 +538,53 @@ export default function StepsCanvas({
     [setEdges, nodes, onBeforeChange]
   );
 
-  const onDragOver = useCallback((e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = "move";
+  const onDragOver = useCallback(
+    (e: React.DragEvent<HTMLDivElement>) => {
+      e.preventDefault();
+      if (!isWorkflowStepDrag(e.dataTransfer)) return;
+      e.dataTransfer.dropEffect = "copy";
+      setLibraryDragActive(true);
+      const flowPosition = screenToFlowPosition({ x: e.clientX, y: e.clientY });
+      const hit = findInsertionPointAtPosition(
+        nodesRef.current,
+        edgesRef.current,
+        flowPosition
+      );
+      hoveredInsertionRef.current = hit;
+      setHoveredInsertion(hit);
+    },
+    [screenToFlowPosition]
+  );
+
+  const onDragLeave = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    const next = e.relatedTarget;
+    if (next instanceof Node && e.currentTarget.contains(next)) return;
+    setLibraryDragActive(false);
+    hoveredInsertionRef.current = null;
+    setHoveredInsertion(null);
   }, []);
 
   const onDrop = useCallback(
     (e: React.DragEvent<HTMLDivElement>) => {
       e.preventDefault();
-      const stepId = e.dataTransfer.getData(DRAG_DATA_TYPE);
-      if (!stepId) return;
-
-      const def = stepById.get(stepId);
-      if (!def) return;
-      if (isUploadResumeWorkflowStepId(def.id)) {
-        const hasResume = onlyStepNodes(nodes).some(
-          (n) => isStepNode(n) && isUploadResumeWorkflowStepId(n.data.stepId)
+      setLibraryDragActive(false);
+      const payload = readWorkflowStepDragPayload(e.dataTransfer);
+      const insertion =
+        hoveredInsertionRef.current ??
+        findInsertionPointAtPosition(
+          nodesRef.current,
+          edgesRef.current,
+          screenToFlowPosition({ x: e.clientX, y: e.clientY })
         );
-        if (hasResume) return;
-      }
+      hoveredInsertionRef.current = null;
+      setHoveredInsertion(null);
+      if (!payload) return;
 
-      const flowPosition = screenToFlowPosition({ x: e.clientX, y: e.clientY });
-      const hitDropZone = findDropZoneAtPosition(nodes, flowPosition);
-
-      if (hitDropZone) {
-        const incoming = edges.find((ed) => ed.target === hitDropZone.id);
-        const day = incoming
-          ? dayAfterSource(nodes, incoming.source)
-          : 1;
-        replaceDropZoneWithStep(hitDropZone.id, def, day);
-        return;
-      }
-
-      onBeforeChange?.();
-
-      const stepOnly = onlyStepNodes(nodes);
-      const isFirstNode = stepOnly.length === 0;
-      const id = `node-${Date.now()}`;
-
-      let position: { x: number; y: number };
-      let day = 1;
-      let lastNodeId: string | null = null;
-
-      if (isFirstNode) {
-        position = flowPosition;
-      } else {
-        const sortedByY = [...stepOnly].sort(
-          (a, b) => b.position.y - a.position.y
-        );
-        const lastNode = sortedByY[0] as Node<WorkflowNodeData>;
-        position = {
-          x: lastNode.position.x,
-          y: lastNode.position.y + NODE_VERTICAL_SPACING,
-        };
-        day = lastNode.data.day + 1;
-        lastNodeId = lastNode.id;
-      }
-
-      const newNode = buildStepNode(id, def, position, day);
-      const dropId = createDropZoneId();
-      const dropNode = buildDropZoneNode(dropId, dropZonePositionBelow(newNode));
-
-      setNodes((prev) => [...prev, newNode, dropNode]);
-
-      setEdges((prev) => {
-        const next = [...prev, createWorkflowEdge(id, dropId)];
-        if (lastNodeId) {
-          return [...next, createWorkflowEdge(lastNodeId, id)];
-        }
-        return next;
-      });
-
-      onSelectNode(id);
+      const def = stepById.get(payload.stepDefinitionId);
+      if (!def || !insertion) return;
+      commitInsert(def, insertion);
     },
-    [
-      screenToFlowPosition,
-      stepById,
-      nodes,
-      edges,
-      setNodes,
-      setEdges,
-      onSelectNode,
-      replaceDropZoneWithStep,
-      onBeforeChange,
-    ]
+    [commitInsert, screenToFlowPosition, stepById]
   );
 
   const handleNodeDragStart = useCallback(() => {
@@ -676,12 +601,16 @@ export default function StepsCanvas({
     useCallback(
       (_e, node) => {
         if (isDropZoneNode(node)) {
-          onSelectNode(null);
+          const incoming = edgesRef.current.find((e) => e.target === node.id);
+          openPickerAt({
+            previousNodeId: incoming?.source ?? null,
+            nextNodeId: node.id,
+          });
           return;
         }
         onSelectNode(node.id);
       },
-      [onSelectNode]
+      [onSelectNode, openPickerAt]
     );
 
   const handlePaneClick = useCallback(() => {
@@ -689,37 +618,68 @@ export default function StepsCanvas({
   }, [onSelectNode]);
 
   const enhancedNodes = useMemo(
-    () =>
-      nodes.map((n) => {
+    () => {
+      const stepNodes = nodes.filter(isStepNode).slice().sort((a, b) => a.position.y - b.position.y);
+      const firstPreHireId = stepNodes.find((n) => n.data.settings.phase !== "post_hire")?.id ?? null;
+      const firstPostHireId = stepNodes.find((n) => n.data.settings.phase === "post_hire")?.id ?? null;
+
+      return nodes.map((n): Node<WorkflowCanvasNodeData> => {
         if (isDropZoneNode(n)) {
-          return { ...n, selected: false, draggable: false };
+          const incoming = edges.find((e) => e.target === n.id);
+          const insertionKey = `${incoming?.source ?? "start"}->${n.id}`;
+          const hoveredKey = hoveredInsertion
+            ? insertionPointKey(hoveredInsertion)
+            : null;
+          return {
+            ...n,
+            selected: false,
+            draggable: false,
+            data: {
+              ...n.data,
+              libraryDragActive,
+              highlighted: libraryDragActive && hoveredKey === insertionKey,
+            },
+          };
         }
+        if (!isStepNode(n)) return n;
+
+        const phaseBanner =
+          n.id === firstPostHireId
+            ? "placement_gate"
+            : n.id === firstPreHireId
+              ? "pre_hire"
+              : null;
         return {
           ...n,
           selected: n.id === selectedNodeId,
           data: {
             ...n.data,
+            phaseBanner,
             onDelete:
               readOnly ||
-              !isStepNode(n) ||
               n.data.lockedFirstStep === true ||
               isUploadResumeWorkflowStepId(n.data.stepId)
                 ? undefined
                 : handleDeleteNode,
           },
         };
-      }),
-    [nodes, selectedNodeId, handleDeleteNode, readOnly]
+      });
+    },
+    [nodes, edges, selectedNodeId, handleDeleteNode, readOnly, libraryDragActive, hoveredInsertion]
   );
 
   const enhancedEdges = useMemo(
-    () =>
-      edges.map((e) => {
+    () => {
+      const hoveredKey = hoveredInsertion
+        ? insertionPointKey(hoveredInsertion)
+        : null;
+      return edges.map((e) => {
         const targetNode = nodes.find((n) => n.id === e.target);
         const targetIsDropZone = targetNode ? isDropZoneNode(targetNode) : false;
         const showParallelFlow =
           targetIsDropZone &&
           countDropZoneChildren(e.source, nodes, edges) === 1;
+        const edgeInsertionKey = `${e.source}->${e.target}`;
 
         return {
           ...e,
@@ -732,11 +692,23 @@ export default function StepsCanvas({
             ...(typeof e.data === "object" ? e.data : {}),
             targetIsDropZone,
             showParallelFlow: readOnly ? false : showParallelFlow,
+            libraryDragActive,
+            dropHighlighted: libraryDragActive && hoveredKey === edgeInsertionKey,
+            onAddStep: readOnly ? undefined : handleAddStepAtEdge,
             onConnectorAction: readOnly ? undefined : handleConnectorAction,
           },
         };
-      }),
-    [edges, nodes, handleConnectorAction, readOnly]
+      });
+    },
+    [
+      edges,
+      nodes,
+      handleAddStepAtEdge,
+      handleConnectorAction,
+      readOnly,
+      libraryDragActive,
+      hoveredInsertion,
+    ]
   );
 
   const handleTouchTapSelect = useCallback(
@@ -757,6 +729,7 @@ export default function StepsCanvas({
       style={{ backgroundColor: "transparent" }}
       onDrop={readOnly ? undefined : onDrop}
       onDragOver={readOnly ? undefined : onDragOver}
+      onDragLeave={readOnly ? undefined : onDragLeave}
     >
       <ReactFlow
         nodes={enhancedNodes}
@@ -814,27 +787,41 @@ export default function StepsCanvas({
       </ReactFlow>
 
       {!hasStepNodes ? (
-        <div className="absolute inset-0 flex items-center justify-center">
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
           <div
-            className="flex flex-col items-center gap-3 rounded-xl border-2 border-dashed bg-white/60 px-8 py-10 text-center"
-            style={{ borderColor: GOLD }}
+            className="flex flex-col items-center gap-3 rounded-xl border-2 border-dashed bg-white/80 px-8 py-10 text-center"
+            style={{
+              borderColor: GOLD,
+              boxShadow: libraryDragActive ? "0 0 0 6px rgba(188, 139, 65, 0.16)" : undefined,
+              backgroundColor: libraryDragActive ? "#faf6ef" : undefined,
+            }}
           >
             <span
               className="text-sm font-semibold leading-5"
               style={{ color: "#101828" }}
             >
-              Drag steps here
+              {libraryDragActive ? "Drop here" : "Start your workflow"}
             </span>
             <span className="text-xs" style={{ color: TEXT_MUTED }}>
-              Drop a step from the library to start building your flow
+              Drag a step here
             </span>
+            {!readOnly ? (
+              <button
+                type="button"
+                onClick={() => openPickerAt(EMPTY_INSERTION)}
+                className="pointer-events-auto mt-1 flex h-11 items-center gap-2 rounded-lg px-5 text-sm font-semibold text-white transition hover:brightness-[0.97]"
+                style={{ background: "var(--brand-primary)" }}
+              >
+                + Add first step
+              </button>
+            ) : null}
             {!readOnly && canPasteWorkflow ? (
               <button
                 type="button"
                 onClick={onPasteWorkflow}
                 disabled={pastingWorkflow}
-                className="pointer-events-auto mt-2 flex h-11 items-center gap-2 rounded-lg px-5 text-sm font-semibold text-white transition hover:brightness-[0.97] disabled:cursor-not-allowed disabled:opacity-60"
-                style={{ background: "var(--brand-primary)" }}
+                className="pointer-events-auto flex h-11 items-center gap-2 rounded-lg border bg-white px-5 text-sm font-semibold transition hover:bg-[#fafafa] disabled:cursor-not-allowed disabled:opacity-60"
+                style={{ borderColor: GOLD, color: "var(--brand-primary)" }}
               >
                 {pastingWorkflow ? "Pasting…" : "Paste workflow"}
               </button>
@@ -842,6 +829,13 @@ export default function StepsCanvas({
           </div>
         </div>
       ) : null}
+
+      <AddStepPicker
+        open={pickerOpen}
+        categories={categories}
+        onSelect={handlePickerSelect}
+        onClose={closePicker}
+      />
     </div>
   );
 }

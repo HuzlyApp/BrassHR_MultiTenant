@@ -55,8 +55,28 @@ body {
   color: #0f172a;
 }
 
+/* Gradient / dark filled controls — keep label and icon strokes white */
+.tenant-onboarding-light .to-on-brand,
+.tenant-onboarding-light .to-on-brand span,
+.tenant-onboarding-light button.to-on-brand,
+.tenant-onboarding-light a.to-on-brand {
+  color: #ffffff !important;
+}
+
+.tenant-onboarding-light .to-on-brand svg {
+  color: #ffffff !important;
+  stroke: currentColor;
+}
+
 .tenant-onboarding-light .text-muted {
   color: #475569;
+}
+
+.tenant-onboarding-light .to-field-error,
+.tenant-onboarding-light p.to-field-error,
+.tenant-onboarding-light span.to-field-error,
+.tenant-onboarding-light div.to-field-error {
+  color: #dc2626 !important;
 }
 
 .tenant-onboarding-input,
@@ -101,8 +121,27 @@ body {
     color: #0f172a !important;
   }
 
+  .tenant-onboarding-light .to-on-brand,
+  .tenant-onboarding-light .to-on-brand span,
+  .tenant-onboarding-light button.to-on-brand,
+  .tenant-onboarding-light a.to-on-brand {
+    color: #ffffff !important;
+  }
+
+  .tenant-onboarding-light .to-on-brand svg {
+    color: #ffffff !important;
+    stroke: currentColor;
+  }
+
   .tenant-onboarding-light .text-muted {
     color: #475569 !important;
+  }
+
+  .tenant-onboarding-light .to-field-error,
+  .tenant-onboarding-light p.to-field-error,
+  .tenant-onboarding-light span.to-field-error,
+  .tenant-onboarding-light div.to-field-error {
+    color: #dc2626 !important;
   }
 
   .tenant-onboarding-input,
@@ -202,4 +241,82 @@ a[href] {
 
 .react-flow__controls-button:disabled {
   opacity: 0.4 !important;
+}
+
+/* Job create form — radio option spacing (web 40px, mobile 24px) */
+.job-form-radio-options {
+  column-gap: 24px;
+  row-gap: 12px;
+}
+
+@media (min-width: 700px) {
+  .job-form-radio-options {
+    column-gap: 40px;
+  }
+}
+
+/* Figma: Create Job Requisition — MSP source question field */
+.job-form-setup-msp-field {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  border-radius: 8px;
+  background-color: #F1F5F9;
+  padding: 20px;
+}
+
+.job-form-setup-msp-field .job-form-radio-options {
+  column-gap: 40px;
+  row-gap: 12px;
+}
+
+/* Job create form — field group vertical spacing (Figma 30px) */
+.job-form-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 30px;
+}
+
+.job-form-fields--location-cluster {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Tenant typography — inherit brand fonts/colors within branded surfaces */
+.tenant-branded-surface {
+  font-family: var(--brand-font-body);
+  color: var(--brand-text);
+}
+
+.tenant-branded-surface h1,
+.tenant-branded-surface h2,
+.tenant-branded-surface h3,
+.tenant-branded-surface h4,
+.tenant-branded-surface h5,
+.tenant-branded-surface h6 {
+  font-family: var(--brand-font-heading);
+  color: var(--brand-heading);
+}
+
+.tenant-branded-surface .admin-recruiter-shell,
+.tenant-branded-surface .applicant-portal-shell,
+.tenant-branded-surface .applicant-portal-main-wrap,
+.tenant-branded-surface .tenant-onboarding-light {
+  font-family: var(--brand-font-body);
+  color: var(--brand-text);
+}
+
+/* Override hardcoded Inter utility classes within tenant-branded app shells */
+.tenant-branded-surface .font-\[Inter\,sans-serif\] {
+  font-family: var(--brand-font-body) !important;
+}
+
+.tenant-branded-surface h1.font-\[Inter\,sans-serif\],
+.tenant-branded-surface h2.font-\[Inter\,sans-serif\],
+.tenant-branded-surface h3.font-\[Inter\,sans-serif\],
+.tenant-branded-surface h4.font-\[Inter\,sans-serif\],
+.tenant-branded-surface h5.font-\[Inter\,sans-serif\],
+.tenant-branded-surface h6.font-\[Inter\,sans-serif\] {
+  font-family: var(--brand-font-heading) !important;
 }

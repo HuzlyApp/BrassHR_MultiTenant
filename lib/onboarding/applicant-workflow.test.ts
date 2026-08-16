@@ -41,7 +41,7 @@ describe("getApplicantWorkflowSteps", () => {
     expect(steps.map((step) => step.title)).not.toContain("Add References");
   });
 
-  it("returns Reference Verification only when configured in the published workflow", () => {
+  it("hides internal Reference Verification from the applicant workflow", () => {
     const workflowWithReferences = {
       ...publishedWorkflow,
       steps: [
@@ -50,13 +50,15 @@ describe("getApplicantWorkflowSteps", () => {
           id: "step_reference_verification",
           type: "reference_verification",
           title: "Reference Verification",
-          description: "Add professional references.",
+          description: "Recruiter verifies submitted references.",
           required: true,
           day: 4,
           order: 4,
           settings: {
             minReferences: 2,
             maxReferences: 3,
+            completionOwner: "recruiter_or_hr",
+            workflowStepId: "reference-verification",
           },
         },
       ],
@@ -64,8 +66,7 @@ describe("getApplicantWorkflowSteps", () => {
 
     const steps = getApplicantWorkflowSteps(workflowWithReferences);
 
-    expect(steps.map((step) => step.type)).toContain("reference_verification");
-    expect(steps.map((step) => step.title)).toContain("Reference Verification");
+    expect(steps.map((step) => step.title)).not.toContain("Reference Verification");
   });
 });
 

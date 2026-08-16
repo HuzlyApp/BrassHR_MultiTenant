@@ -163,7 +163,7 @@ export default function Upload19FormPage() {
 
   return (
     <OnboardingLayout
-      cardClassName="md:grid-cols-[660px_400px]"
+      cardClassName="min-[700px]:grid-cols-[minmax(0,2fr)_minmax(180px,1fr)] min-[1200px]:grid-cols-[minmax(0,1.65fr)_minmax(220px,1fr)]"
       rightPanelImageClassName="object-cover object-center grayscale opacity-60"
       rightPanelOverlayClassName="bg-white/65"
       rightPanelContentClassName="p-5"

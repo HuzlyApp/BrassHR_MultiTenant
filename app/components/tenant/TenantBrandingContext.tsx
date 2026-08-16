@@ -45,11 +45,20 @@ export function TenantBrandingProvider({
     safe.primaryHex,
     safe.secondaryHex,
     safe.accentHex,
+    safe.primaryFontId,
+    safe.headingFontId,
+    safe.bodyFontId,
+    safe.fontColor,
+    safe.headingColor,
+    safe.mutedTextColor,
+    safe.faviconUrl,
+    safe.headline,
+    safe.subtitle,
   ]);
 
   return (
     <TenantBrandingContext.Provider value={safe}>
-      <div className="min-h-0" style={vars}>
+      <div className="tenant-branded-surface min-h-0" style={vars}>
         {children}
       </div>
     </TenantBrandingContext.Provider>

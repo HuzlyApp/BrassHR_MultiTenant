@@ -9,6 +9,7 @@ import {
   MIN_COMPLETE_REFERENCES,
   type ReferenceRow,
 } from "@/lib/referencesValidation"
+import { markTenantStepCompletedByType } from "@/lib/onboarding/mark-tenant-step-completed"
 
 export const runtime = "nodejs"
 
@@ -147,6 +148,17 @@ export async function POST(req: NextRequest) {
       console.error("[onboarding/worker-references] insert", insErr)
       const msg = [insErr.message, insErr.details].filter(Boolean).join(" — ")
       return NextResponse.json({ error: msg || "Failed to save references" }, { status: 500 })
+    }
+
+    try {
+      await markTenantStepCompletedByType(supabase, {
+        workerId,
+        tenantId,
+        stepType: "references",
+        stepKey: "references",
+      })
+    } catch (markErr) {
+      console.error("[onboarding/worker-references] mark step completed", markErr)
     }
 
     return NextResponse.json({ ok: true, count: rows.length })

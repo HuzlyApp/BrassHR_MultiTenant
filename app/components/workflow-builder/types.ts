@@ -28,6 +28,19 @@ export type StepDefinition = {
   icon: React.ReactNode;
   // color: StepColorKey;
   description?: string;
+  keywords?: string[];
+  defaultPhase?: StepSettings["phase"];
+};
+
+export type WorkflowInsertionPoint = {
+  previousNodeId: string | null;
+  nextNodeId: string | null;
+};
+
+export type WorkflowStepDragPayload = {
+  stepDefinitionId: string;
+  stepKey: string;
+  name: string;
 };
 
 export type StepCategory = {
@@ -37,7 +50,13 @@ export type StepCategory = {
 };
 
 export type StepSettings = {
+  phase: "pre_hire" | "transition" | "post_hire";
+  phaseOrder: number;
+  stepOrder: number;
   required: boolean;
+  isConditional: boolean;
+  unlockCondition: string;
+  completionOwner: string;
   clientPerforms: boolean;
   useBraasPartner: boolean;
   notifyHrOnFail: boolean;
@@ -60,12 +79,15 @@ export type WorkflowNodeData = {
   required: boolean;
   settings: StepSettings;
   onDelete?: (id: string) => void;
+  phaseBanner?: "pre_hire" | "placement_gate" | null;
   [key: string]: unknown;
 };
 
 /** Canvas-only placeholder; not saved to workflow config. */
 export type DropZoneNodeData = {
   kind: "dropZone";
+  highlighted?: boolean;
+  libraryDragActive?: boolean;
   [key: string]: unknown;
 };
 
@@ -89,7 +111,13 @@ export type WorkflowState = {
 };
 
 export const DEFAULT_STEP_SETTINGS: StepSettings = {
+  phase: "pre_hire",
+  phaseOrder: 1,
+  stepOrder: 1,
   required: true,
+  isConditional: false,
+  unlockCondition: "",
+  completionOwner: "applicant",
   clientPerforms: true,
   useBraasPartner: true,
   notifyHrOnFail: true,

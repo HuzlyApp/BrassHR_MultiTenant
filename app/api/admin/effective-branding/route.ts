@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import type { TenantBrandingRow } from "@/lib/tenant/tenant-branding";
 import { brandingFromTenantRow, defaultTenantBranding } from "@/lib/tenant/tenant-branding";
+import { TENANT_BRANDING_SELECT } from "@/lib/tenant/branding-fields";
 import { getCachedStaffApiSession } from "@/lib/auth/cached-staff-auth";
 import { resolveEffectiveAdminTenantIdCached } from "@/lib/auth/resolve-effective-admin-tenant-cached";
 import { buildCacheKey, CACHE_TTL_SECONDS, getCache, getOrSetCache, setCache } from "@/lib/cache";
@@ -18,9 +19,7 @@ async function loadTenant(id: string): Promise<TenantBrandingRow | null> {
       if (!sb) return null;
       const { data } = await sb
         .from("tenants")
-        .select(
-          "id, name, slug, logo_url, favicon_url, primary_color, secondary_color, accent_color, welcome_headline, welcome_subtitle, auth_background_image_url"
-        )
+        .select(TENANT_BRANDING_SELECT)
         .eq("id", id)
         .maybeSingle<TenantBrandingRow>();
       return data ?? null;

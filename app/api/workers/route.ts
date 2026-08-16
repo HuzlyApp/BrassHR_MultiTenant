@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { attachWorkerProfilePhotoUrls } from "@/lib/applicant-portal/worker-profile-photo";
 import { requireStaffApiSession } from "@/lib/auth/api-session";
 import { resolveStaffTenantScope } from "@/lib/auth/staff-tenant-scope";
+import { getApplicationStatusSummariesForWorkers } from "@/lib/jobs/application-statuses/attach-worker-application-status";
 import { getSupabaseAnonKey, getSupabaseUrl } from "@/lib/supabase-env";
 import { applyWorkerTenantEq } from "@/lib/workers/tenant-query";
 import {
@@ -363,12 +364,50 @@ export async function GET(req: Request) {
                     ? row.profile_photo
                     : null,
               }));
+
+        let workersOut: Record<string, unknown>[] = headOnly
+          ? []
+          : (withPhotos as Record<string, unknown>[]);
+
+        if (!headOnly && workersOut.length > 0) {
+          try {
+            const tenantIdForApps =
+              tenantScope.mode === "scoped"
+                ? tenantScope.tenantId
+                : typeof workersOut[0]?.tenant_id === "string"
+                  ? workersOut[0].tenant_id
+                  : null;
+            const workerIds = workersOut
+              .map((row) => (typeof row.id === "string" ? row.id : ""))
+              .filter(Boolean);
+            const summaries = await getApplicationStatusSummariesForWorkers(supabase, {
+              tenantId: tenantIdForApps,
+              workerIds,
+            });
+            workersOut = workersOut.map((row) => {
+              const id = typeof row.id === "string" ? row.id : "";
+              const summary = id ? summaries.get(id) : undefined;
+              if (!summary) return row;
+              return {
+                ...row,
+                application_id: summary.applicationId,
+                application_status_id: summary.statusId,
+                application_status_name: summary.statusName,
+                application_status_key: summary.systemKey,
+                application_status_ambiguous: summary.ambiguous,
+              };
+            });
+          } catch (attachErr) {
+            console.warn("[api/workers] failed to attach application statuses", attachErr);
+          }
+        }
+
         return Response.json({
           total,
           limit,
           offset,
           hasMore,
-          workers: headOnly ? [] : withPhotos,
+          workers: workersOut,
         });
       }
 

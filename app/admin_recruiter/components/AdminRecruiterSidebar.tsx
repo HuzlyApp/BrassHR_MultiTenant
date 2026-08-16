@@ -19,6 +19,7 @@ import {
   type SidebarSection,
 } from "@/app/admin_recruiter/components/sidebar-config";
 import SidebarNavIcon from "@/app/admin_recruiter/components/SidebarNavIcon";
+import { StaffProfileAvatar } from "@/app/admin_recruiter/components/StaffProfileAvatar";
 import {
   formatRoleLabel,
   getAccountDisplayName,
@@ -449,22 +450,15 @@ export function AdminRecruiterSidebar({
           }`}
         >
           {!isCollapsed || isMobileRail ? (
-            profilePhoto ? (
-              <img
-                src={profilePhoto}
-                alt={profileName}
-                className="h-[30px] w-[30px] shrink-0 rounded-full object-cover"
-                width={30}
-                height={30}
-              />
-            ) : (
-              <span
-                className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-full bg-[#E2E8F0] text-[11px] font-semibold text-[#64748B]"
-                aria-hidden
-              >
-                {profileName.charAt(0).toUpperCase()}
-              </span>
-            )
+            <Link
+              href="/admin_recruiter/account/personal"
+              onClick={handleNavClick}
+              title="Profile"
+              aria-label="Open profile"
+              className="shrink-0 rounded-full transition hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--brand-primary)]"
+            >
+              <StaffProfileAvatar name={profileName} photoUrl={profilePhoto} size="sm" />
+            </Link>
           ) : null}
           {!isCollapsed ? (
             <div className="min-w-0 flex-1">

@@ -443,29 +443,60 @@ type FirmaWorkspaceListResponse = {
  * Resolve the live api_key for a workspace.
  * Firma returns scoped keys on GET /workspaces (list). GET /workspaces/{id} often
  * returns 403 for non-own keys, so branding sync must use the list endpoint.
+ *
+ * Cache hits and misses: listing every workspace on each applicant status poll
+ * was taking 10s+ and then failing for workspaces the company key cannot see.
  */
-export async function resolveFirmaWorkspaceApiKey(workspaceId: string): Promise<string> {
-  const target = workspaceId.trim();
-  if (!target) {
-    throw new FirmaError("VALIDATION_ERROR", "Firma workspace id is required", 400);
-  }
+const WORKSPACE_API_KEY_CACHE_TTL_MS = 5 * 60 * 1000;
+const WORKSPACE_API_KEY_MAX_PAGES = 8;
+const workspaceApiKeyCache = new Map<string, { value: string | null; expiresAt: number }>();
 
+export function clearFirmaWorkspaceApiKeyCache(): void {
+  workspaceApiKeyCache.clear();
+}
+
+function readCachedWorkspaceApiKey(workspaceId: string): string | null | undefined {
+  const hit = workspaceApiKeyCache.get(workspaceId);
+  if (!hit) return undefined;
+  if (Date.now() > hit.expiresAt) {
+    workspaceApiKeyCache.delete(workspaceId);
+    return undefined;
+  }
+  return hit.value;
+}
+
+function writeCachedWorkspaceApiKey(workspaceId: string, value: string | null): void {
+  workspaceApiKeyCache.set(workspaceId, {
+    value,
+    expiresAt: Date.now() + WORKSPACE_API_KEY_CACHE_TTL_MS,
+  });
+}
+
+async function fetchFirmaWorkspaceListPage(
+  page: number
+): Promise<FirmaWorkspaceListResponse | FirmaWorkspaceDetail[]> {
+  const path = page === 1 ? "/workspaces" : `/workspaces?page=${page}`;
+  return firmaRequest<FirmaWorkspaceListResponse | FirmaWorkspaceDetail[]>(path, {
+    includeWorkspaceScope: false,
+    retries: 1,
+  });
+}
+
+function rowsFromWorkspaceList(
+  result: FirmaWorkspaceListResponse | FirmaWorkspaceDetail[]
+): FirmaWorkspaceDetail[] {
+  return Array.isArray(result) ? result : result.results ?? [];
+}
+
+/** Company-wide workspace list (no workspace_id query param). Does not persist API keys. */
+export async function listFirmaWorkspaces(): Promise<FirmaWorkspaceDetail[]> {
+  const workspaces: FirmaWorkspaceDetail[] = [];
   let page = 1;
   let totalPages = 1;
 
-  while (page <= totalPages) {
-    const path =
-      page === 1 ? "/workspaces" : `/workspaces?page=${page}`;
-    const result = await firmaRequest<FirmaWorkspaceListResponse | FirmaWorkspaceDetail[]>(path, {
-      includeWorkspaceScope: false,
-      retries: 1,
-    });
-
-    const rows = Array.isArray(result) ? result : result.results ?? [];
-    const match = rows.find((row) => row.id?.trim() === target);
-    const apiKey = match?.api_key?.trim();
-    if (apiKey) return apiKey;
-
+  while (page <= totalPages && page <= WORKSPACE_API_KEY_MAX_PAGES) {
+    const result = await fetchFirmaWorkspaceListPage(page);
+    workspaces.push(...rowsFromWorkspaceList(result));
     if (!Array.isArray(result) && result.pagination) {
       totalPages = Math.max(1, Number(result.pagination.total_pages) || 1);
     } else {
@@ -474,6 +505,41 @@ export async function resolveFirmaWorkspaceApiKey(workspaceId: string): Promise<
     page += 1;
   }
 
+  return workspaces;
+}
+
+export async function firmaWorkspaceExistsInCompany(workspaceId: string): Promise<boolean> {
+  const target = workspaceId.trim();
+  if (!target) return false;
+  const workspaces = await listFirmaWorkspaces();
+  return workspaces.some((row) => row.id?.trim() === target);
+}
+
+export async function resolveFirmaWorkspaceApiKey(workspaceId: string): Promise<string> {
+  const target = workspaceId.trim();
+  if (!target) {
+    throw new FirmaError("VALIDATION_ERROR", "Firma workspace id is required", 400);
+  }
+
+  const cached = readCachedWorkspaceApiKey(target);
+  if (cached) return cached;
+  if (cached === null) {
+    throw new FirmaError(
+      "AUTH_ERROR",
+      `Firma workspace api_key was not found for workspace ${target}; cannot update appearance settings`,
+      403
+    );
+  }
+
+  const workspaces = await listFirmaWorkspaces();
+  const match = workspaces.find((row) => row.id?.trim() === target);
+  const apiKey = match?.api_key?.trim();
+  if (apiKey) {
+    writeCachedWorkspaceApiKey(target, apiKey);
+    return apiKey;
+  }
+
+  writeCachedWorkspaceApiKey(target, null);
   throw new FirmaError(
     "AUTH_ERROR",
     `Firma workspace api_key was not found for workspace ${target}; cannot update appearance settings`,
@@ -507,6 +573,22 @@ export async function createFirmaWorkspace(input: {
 }
 
 /**
+ * Sync company-wide appearance defaults (app.firma.dev → Settings → Appearance).
+ * Workspace settings override these per workspace; company primary must be BrassHR gold
+ * so embedded editors inherit gold CTAs when workspace inherits from company.
+ */
+export async function updateFirmaCompanyAppearanceSettings(
+  settings: FirmaWorkspaceAppearanceSettings
+): Promise<FirmaWorkspaceAppearanceSettings> {
+  return firmaRequest<FirmaWorkspaceAppearanceSettings>("/company/settings", {
+    method: "PUT",
+    body: settings,
+    includeWorkspaceScope: false,
+    retries: 1,
+  });
+}
+
+/**
  * Sync workspace appearance (embedded editor + signing chrome).
  * Must authenticate with the target workspace's own api_key — company/other-workspace
  * keys return 403 for appearance settings even when template/signing ops work via workspace_id.
@@ -529,6 +611,48 @@ export async function updateFirmaWorkspaceSettings(
     apiKey: workspaceApiKey,
     retries: 1,
   });
+}
+
+export type FirmaWorkspaceLogoUploadResult = {
+  icon_url?: string | null;
+};
+
+/**
+ * Upload workspace logo (POST /workspaces/{id}/logo).
+ * Firma accepts PNG or JPEG up to 2MB; use the workspace api_key for auth.
+ */
+export async function uploadFirmaWorkspaceLogo(
+  workspaceId: string,
+  file: Buffer | Blob,
+  filename: string,
+  contentType: string
+): Promise<FirmaWorkspaceLogoUploadResult> {
+  const id = workspaceId.trim();
+  if (!id) {
+    throw new FirmaError("VALIDATION_ERROR", "Firma workspace id is required", 400);
+  }
+
+  const workspaceApiKey = await resolveFirmaWorkspaceApiKey(id);
+  const url = buildUrl(`/workspaces/${id}/logo`, undefined, false);
+  const mime = contentType.trim().toLowerCase();
+  const blob =
+    file instanceof Blob
+      ? file
+      : new Blob([new Uint8Array(file)], { type: mime });
+
+  const form = new FormData();
+  form.append("file", blob, filename);
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: workspaceApiKey,
+    },
+    body: form,
+    cache: "no-store",
+  });
+
+  return parseFirmaResponse<FirmaWorkspaceLogoUploadResult>(res);
 }
 
 export function resolveFirmaRecipientSigningUrl(

@@ -21,7 +21,17 @@ import {
   resolveTenantFirmaWorkspaceId,
   FirmaWorkspaceConfigError,
 } from "@/lib/firma/resolve-tenant-workspace";
-import { syncTenantBrandingToFirmaWorkspace, logFirmaWorkspaceBrandingSyncFailure } from "@/lib/firma/sync-workspace-branding";
+import {
+  loadTenantBrandingRow,
+  syncTenantBrandingToFirmaWorkspace,
+  logFirmaWorkspaceBrandingSyncFailure,
+} from "@/lib/firma/sync-workspace-branding";
+import {
+  buildBrassHrFirmaEmbedColorPalette,
+  firmaAppearanceSettingsToEmbedPalette,
+  tenantBrandingToFirmaEmbedColorPalette,
+} from "@/lib/firma/embed-color-palette";
+import { brandingFromTenantRow } from "@/lib/tenant/tenant-branding";
 import { RECRUITER_TEMPLATE_DOCUMENT_BUCKET } from "@/lib/recruiter-templates/constants";
 import { RecruiterTemplateError } from "@/lib/recruiter-templates/errors";
 import type {
@@ -602,6 +612,25 @@ export async function createRecruiterTemplateBuilderSession(
   ): Promise<RecruiterTemplateBuilderSession> {
     const editorAppUrl = getFirmaEditorAppUrl();
 
+    // Always resolve palette from tenant DB first (same as signing). Workspace PUT is
+    // best-effort — if it fails (e.g. missing workspace api_key), keep tenant colors
+    // instead of falling back to BrassHR gold defaults.
+    let embedColorPalette = buildBrassHrFirmaEmbedColorPalette();
+    try {
+      const brandingRow = await loadTenantBrandingRow(supabase, tenantId);
+      if (brandingRow) {
+        embedColorPalette = tenantBrandingToFirmaEmbedColorPalette(
+          brandingFromTenantRow(brandingRow)
+        );
+      }
+    } catch (paletteErr) {
+      logFirmaWorkspaceBrandingSyncFailure(
+        "template builder session tenant palette load failed",
+        { tenantId, workspaceId, templateId },
+        paletteErr
+      );
+    }
+
     try {
       const brandingSync = await syncTenantBrandingToFirmaWorkspace(
         supabase,
@@ -609,6 +638,7 @@ export async function createRecruiterTemplateBuilderSession(
         workspaceId
       );
       if (brandingSync.synced) {
+        embedColorPalette = firmaAppearanceSettingsToEmbedPalette(brandingSync.colors);
         console.info("[firma-template-builder] workspace branding synced", {
           tenantId,
           workspaceId,
@@ -619,7 +649,12 @@ export async function createRecruiterTemplateBuilderSession(
     } catch (brandingErr) {
       logFirmaWorkspaceBrandingSyncFailure(
         "template builder session branding sync failed",
-        { tenantId, workspaceId, templateId },
+        {
+          tenantId,
+          workspaceId,
+          templateId,
+          embed_primary: embedColorPalette.primary,
+        },
         brandingErr
       );
     }
@@ -655,6 +690,7 @@ export async function createRecruiterTemplateBuilderSession(
       editor_app_url: editorAppUrl,
       embed_script_url: getFirmaEmbedScriptUrl(),
       expires_at: jwt.expires_at,
+      embed_color_palette: embedColorPalette,
     };
   }
 

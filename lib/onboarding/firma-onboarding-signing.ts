@@ -38,6 +38,7 @@ import {
   resolveDraftPreviewFirmaSignerEmail,
 } from "@/lib/onboarding/is-draft-preview";
 import { isDeliverableApplicantEmail } from "@/lib/onboardingStep1Validation";
+import { resolveApplicationContextForWorker } from "@/lib/jobs/resolve-application-context";
 import type { OnboardingStepStatus, TenantOnboardingStep } from "@/lib/onboarding/types";
 
 export type WorkerFirmaSigningSessionRow = {
@@ -45,6 +46,7 @@ export type WorkerFirmaSigningSessionRow = {
   tenant_id: string;
   worker_id: string;
   onboarding_step_id: string;
+  application_id?: string | null;
   recruiter_template_id: string | null;
   firma_template_id: string | null;
   firma_workspace_id: string | null;
@@ -76,6 +78,8 @@ export type EnsureFirmaSigningSessionInput = {
   applicantFirstName: string;
   applicantLastName?: string | null;
   step: TenantOnboardingStep;
+  /** Optional explicit job application id (multi-app tenants). */
+  applicationId?: string | null;
 };
 
 export type SyncFirmaSigningSessionStatusInput = EnsureFirmaSigningSessionInput & {
@@ -111,6 +115,41 @@ function isFirmaWorkspaceMismatchMessage(message: string): boolean {
   );
 }
 
+function readUnknownErrorMessage(err: unknown): string {
+  if (err instanceof Error && err.message.trim()) return err.message;
+  if (err && typeof err === "object" && "message" in err) {
+    const message = (err as { message?: unknown }).message;
+    if (typeof message === "string" && message.trim()) return message;
+  }
+  return "Failed to create Firma signing request";
+}
+
+function readUnknownErrorCode(err: unknown): string | null {
+  if (err && typeof err === "object" && "code" in err) {
+    const code = (err as { code?: unknown }).code;
+    if (typeof code === "string" && code.trim()) return code.trim();
+  }
+  return null;
+}
+
+function isMissingOnConflictTargetError(err: unknown): boolean {
+  const code = readUnknownErrorCode(err);
+  const message = readUnknownErrorMessage(err).toLowerCase();
+  return (
+    code === "42P10" ||
+    message.includes("no unique or exclusion constraint matching the on conflict specification")
+  );
+}
+
+function isMissingApplicationIdColumnError(err: unknown): boolean {
+  const code = readUnknownErrorCode(err);
+  const message = readUnknownErrorMessage(err).toLowerCase();
+  return (
+    code === "42703" ||
+    (message.includes("application_id") && message.includes("does not exist"))
+  );
+}
+
 export function mapFirmaSigningCreateError(err: unknown): FirmaOnboardingSigningError {
   if (err instanceof FirmaOnboardingSigningError) return err;
   if (err instanceof FirmaWorkspaceConfigError) {
@@ -140,7 +179,7 @@ export function mapFirmaSigningCreateError(err: unknown): FirmaOnboardingSigning
     }
     return new FirmaOnboardingSigningError(err.message, "CREATE_FAILED", err.status);
   }
-  const message = err instanceof Error ? err.message : "Failed to create Firma signing request";
+  const message = readUnknownErrorMessage(err);
   if (isFirmaWorkspaceMismatchMessage(message)) {
     return new FirmaOnboardingSigningError(
       "The attached Firma template is not available in this organization's Firma workspace. Open Template Builder, re-open the template (or use force recreate), publish again, then retry onboarding.",
@@ -232,16 +271,26 @@ async function loadRecruiterTemplate(
 async function loadExistingSession(
   supabase: SupabaseClient,
   workerId: string,
-  onboardingStepId: string
+  onboardingStepId: string,
+  applicationId?: string | null
 ): Promise<WorkerFirmaSigningSessionRow | null> {
-  const { data, error } = await supabase
-    .from("worker_firma_signing_sessions")
-    .select("*")
-    .eq("worker_id", workerId)
-    .eq("onboarding_step_id", onboardingStepId)
-    .maybeSingle();
+  let query = supabase.from("worker_firma_signing_sessions").select("*");
 
-  if (error) throw error;
+  if (applicationId) {
+    query = query.eq("application_id", applicationId).eq("onboarding_step_id", onboardingStepId);
+  } else {
+    query = query.eq("worker_id", workerId).eq("onboarding_step_id", onboardingStepId);
+  }
+
+  const { data, error } = await query.maybeSingle();
+
+  if (error) {
+    // Production may not have application_id yet — fall back to worker-scoped lookup.
+    if (applicationId && isMissingApplicationIdColumnError(error)) {
+      return loadExistingSession(supabase, workerId, onboardingStepId, null);
+    }
+    throw error;
+  }
   return (data as WorkerFirmaSigningSessionRow | null) ?? null;
 }
 
@@ -250,20 +299,30 @@ async function clearSigningSession(supabase: SupabaseClient, sessionId: string):
   if (error) throw error;
 }
 
-async function upsertSession(
+type UpsertSigningSessionRow = Omit<
+  WorkerFirmaSigningSessionRow,
+  "created_at" | "updated_at" | "id"
+> & { id?: string; application_id?: string | null };
+
+async function upsertSessionWithConflict(
   supabase: SupabaseClient,
-  row: Omit<WorkerFirmaSigningSessionRow, "created_at" | "updated_at" | "id"> & { id?: string }
+  row: UpsertSigningSessionRow,
+  onConflict: "application_id,onboarding_step_id" | "worker_id,onboarding_step_id"
 ): Promise<WorkerFirmaSigningSessionRow> {
   const now = new Date().toISOString();
+  const payload: Record<string, unknown> = {
+    ...row,
+    updated_at: now,
+  };
+
+  if (onConflict === "worker_id,onboarding_step_id") {
+    // Older schemas (and worker-scoped uniqueness) should not require application_id.
+    delete payload.application_id;
+  }
+
   const { data, error } = await supabase
     .from("worker_firma_signing_sessions")
-    .upsert(
-      {
-        ...row,
-        updated_at: now,
-      },
-      { onConflict: "worker_id,onboarding_step_id" }
-    )
+    .upsert(payload, { onConflict })
     .select("*")
     .maybeSingle();
 
@@ -272,6 +331,139 @@ async function upsertSession(
     throw new FirmaOnboardingSigningError("Failed to save signing session", "CREATE_FAILED", 500);
   }
   return data as WorkerFirmaSigningSessionRow;
+}
+
+/** Last-resort save when ON CONFLICT targets are missing (partial unique indexes / mid-migration). */
+async function saveSessionWithoutConflict(
+  supabase: SupabaseClient,
+  row: UpsertSigningSessionRow
+): Promise<WorkerFirmaSigningSessionRow> {
+  const now = new Date().toISOString();
+  const applicationId = row.application_id?.trim() || null;
+
+  if (row.id) {
+    const { data, error } = await supabase
+      .from("worker_firma_signing_sessions")
+      .update({ ...row, updated_at: now })
+      .eq("id", row.id)
+      .select("*")
+      .maybeSingle();
+    if (error) throw error;
+    if (data) return data as WorkerFirmaSigningSessionRow;
+  }
+
+  const existing = await loadExistingSession(
+    supabase,
+    row.worker_id,
+    row.onboarding_step_id,
+    applicationId
+  );
+  if (existing?.id) {
+    const { data, error } = await supabase
+      .from("worker_firma_signing_sessions")
+      .update({ ...row, id: existing.id, updated_at: now })
+      .eq("id", existing.id)
+      .select("*")
+      .maybeSingle();
+    if (error) throw error;
+    if (data) return data as WorkerFirmaSigningSessionRow;
+  }
+
+  const insertPayload: Record<string, unknown> = {
+    ...row,
+    updated_at: now,
+  };
+  if (!applicationId) delete insertPayload.application_id;
+
+  const { data, error } = await supabase
+    .from("worker_firma_signing_sessions")
+    .insert(insertPayload)
+    .select("*")
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) {
+    throw new FirmaOnboardingSigningError("Failed to save signing session", "CREATE_FAILED", 500);
+  }
+  return data as WorkerFirmaSigningSessionRow;
+}
+
+async function upsertSession(
+  supabase: SupabaseClient,
+  row: UpsertSigningSessionRow
+): Promise<WorkerFirmaSigningSessionRow> {
+  const applicationId = row.application_id?.trim() || null;
+  const preferApplicationScope = Boolean(applicationId);
+
+  try {
+    return await upsertSessionWithConflict(
+      supabase,
+      preferApplicationScope ? { ...row, application_id: applicationId } : row,
+      preferApplicationScope
+        ? "application_id,onboarding_step_id"
+        : "worker_id,onboarding_step_id"
+    );
+  } catch (err) {
+    if (
+      preferApplicationScope &&
+      (isMissingOnConflictTargetError(err) || isMissingApplicationIdColumnError(err))
+    ) {
+      try {
+        return await upsertSessionWithConflict(supabase, row, "worker_id,onboarding_step_id");
+      } catch (fallbackErr) {
+        if (isMissingOnConflictTargetError(fallbackErr)) {
+          return saveSessionWithoutConflict(supabase, {
+            ...row,
+            application_id: applicationId,
+          });
+        }
+        throw fallbackErr;
+      }
+    }
+    if (!preferApplicationScope && isMissingOnConflictTargetError(err)) {
+      if (applicationId) {
+        try {
+          return await upsertSessionWithConflict(
+            supabase,
+            { ...row, application_id: applicationId },
+            "application_id,onboarding_step_id"
+          );
+        } catch (appErr) {
+          if (isMissingOnConflictTargetError(appErr) || isMissingApplicationIdColumnError(appErr)) {
+            return saveSessionWithoutConflict(supabase, row);
+          }
+          throw appErr;
+        }
+      }
+      return saveSessionWithoutConflict(supabase, row);
+    }
+    throw err;
+  }
+}
+
+async function resolveSigningApplicationId(
+  supabase: SupabaseClient,
+  tenantId: string,
+  workerId: string,
+  applicationId?: string | null
+): Promise<string | null> {
+  try {
+    const resolved = await resolveApplicationContextForWorker({
+      supabase,
+      tenantId,
+      workerId,
+      applicationId,
+    });
+    return resolved.applicationId;
+  } catch (err) {
+    // Non-fatal: signing can still proceed worker-scoped on older schemas.
+    if (isMissingApplicationIdColumnError(err)) return null;
+    console.warn("[firma-onboarding-signing] application resolve failed", {
+      tenantId,
+      workerId,
+      message: readUnknownErrorMessage(err),
+    });
+    return null;
+  }
 }
 
 function sessionPayloadFromFirma(
@@ -464,7 +656,7 @@ export async function ensureFirmaDraftPreviewSigningSession(
     workspaceId
   );
 
-  await syncSigningWorkspaceBranding(input.supabase, input.tenantId, workspaceId);
+  void syncSigningWorkspaceBranding(input.supabase, input.tenantId, workspaceId);
 
   const primaryEmail = input.applicantEmail?.trim() || DRAFT_PREVIEW_APPLICANT_EMAIL;
   const fallbackEmail = getDraftPreviewFirmaSignerEmailFallback();
@@ -591,6 +783,7 @@ async function refreshSessionFromFirma(
     tenant_id: session.tenant_id,
     worker_id: session.worker_id,
     onboarding_step_id: session.onboarding_step_id,
+    application_id: session.application_id ?? null,
     recruiter_template_id: session.recruiter_template_id,
     firma_template_id: session.firma_template_id,
     firma_workspace_id: workspaceId,
@@ -629,6 +822,7 @@ async function pullSigningSessionStatusFromFirma(
     tenant_id: session.tenant_id,
     worker_id: session.worker_id,
     onboarding_step_id: session.onboarding_step_id,
+    application_id: session.application_id ?? null,
     recruiter_template_id: session.recruiter_template_id,
     firma_template_id: session.firma_template_id,
     firma_workspace_id: workspaceId,
@@ -645,7 +839,8 @@ async function createSessionFromTemplate(
   recruiterTemplateId: string,
   firmaTemplateId: string,
   templateName: string,
-  workspaceId: string
+  workspaceId: string,
+  applicationId: string | null
 ): Promise<WorkerFirmaSigningSessionRow> {
   const created = await createFirmaSigningSessionFromTemplate(
     input,
@@ -658,6 +853,7 @@ async function createSessionFromTemplate(
     tenant_id: input.tenantId,
     worker_id: input.workerId,
     onboarding_step_id: input.step.id,
+    application_id: applicationId,
     recruiter_template_id: recruiterTemplateId,
     firma_template_id: firmaTemplateId,
     firma_workspace_id: workspaceId,
@@ -690,6 +886,12 @@ export async function ensureFirmaSigningSession(
 ): Promise<FirmaSigningSessionPayload> {
   assertValidApplicantEmailForSigning(input.applicantEmail);
   const workspaceId = await resolveWorkspaceForSigning(input.supabase, input.tenantId);
+  const applicationId = await resolveSigningApplicationId(
+    input.supabase,
+    input.tenantId,
+    input.workerId,
+    input.applicationId
+  );
   const { recruiterTemplateId, recruiterTemplate } = await resolveRecruiterTemplateForStep(
     input.supabase,
     input.tenantId,
@@ -698,9 +900,16 @@ export async function ensureFirmaSigningSession(
   );
   const firmaTemplateId = String(recruiterTemplate.firma_template_id);
 
-  await syncSigningWorkspaceBranding(input.supabase, input.tenantId, workspaceId);
+  // Appearance sync is best-effort and can take many seconds when the workspace
+  // api_key is missing. Do not block creating the signing session.
+  void syncSigningWorkspaceBranding(input.supabase, input.tenantId, workspaceId);
 
-  const existing = await loadExistingSession(input.supabase, input.workerId, input.step.id);
+  const existing = await loadExistingSession(
+    input.supabase,
+    input.workerId,
+    input.step.id,
+    applicationId
+  );
   if (existing?.signing_request_id) {
     if (shouldDiscardExistingSession(existing, workspaceId, recruiterTemplateId, firmaTemplateId)) {
       await clearSigningSession(input.supabase, existing.id);
@@ -741,7 +950,8 @@ export async function ensureFirmaSigningSession(
       recruiterTemplateId,
       firmaTemplateId,
       recruiterTemplate.name ?? input.step.title,
-      workspaceId
+      workspaceId,
+      applicationId
     );
     return sessionPayload(input.step, created);
   } catch (err) {
@@ -754,7 +964,18 @@ export async function syncFirmaSigningSessionStatus(
 ): Promise<FirmaSigningSessionPayload> {
   assertValidApplicantEmailForSigning(input.applicantEmail);
   const workspaceId = await resolveWorkspaceForSigning(input.supabase, input.tenantId);
-  const existing = await loadExistingSession(input.supabase, input.workerId, input.step.id);
+  const applicationId = await resolveSigningApplicationId(
+    input.supabase,
+    input.tenantId,
+    input.workerId,
+    input.applicationId
+  );
+  const existing = await loadExistingSession(
+    input.supabase,
+    input.workerId,
+    input.step.id,
+    applicationId
+  );
   if (!existing?.signing_request_id) {
     throw new FirmaOnboardingSigningError("Signing session not found", "INVALID_SESSION", 404);
   }

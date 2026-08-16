@@ -20,7 +20,25 @@ function iconTypeForFile(file: File): "pdf" | "jpeg" {
   const name = file.name.toLowerCase();
   const type = file.type.toLowerCase();
   if (name.endsWith(".pdf") || type === "application/pdf") return "pdf";
-  return "jpeg";
+  if (
+    name.endsWith(".doc") ||
+    name.endsWith(".docx") ||
+    type === "application/msword" ||
+    type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+  ) {
+    return "pdf";
+  }
+  if (
+    type.startsWith("image/") ||
+    name.endsWith(".jpg") ||
+    name.endsWith(".jpeg") ||
+    name.endsWith(".png") ||
+    name.endsWith(".gif") ||
+    name.endsWith(".webp")
+  ) {
+    return "jpeg";
+  }
+  return "pdf";
 }
 
 export function WorkerFilePicker({
@@ -45,12 +63,12 @@ export function WorkerFilePicker({
   return (
     <div>
       <div
-        className={`rounded-lg border border-dashed bg-[#F8FAFC] px-3 py-2 ${
+        className={`rounded-lg border border-dashed bg-[#F8FAFC] p-3 ${
           error ? "border-red-300" : "border-[#D1D5DB]"
         }`}
       >
         {file ? (
-          <div className="flex min-h-10 items-center gap-2">
+          <div className="flex min-h-11 items-center gap-3">
             <BrandedFileTypeIcon type={iconTypeForFile(file)} className="h-8 w-8 shrink-0" />
             <p className="min-w-0 flex-1 truncate text-sm font-medium text-[#334155]" title={file.name}>
               {file.name}
@@ -66,7 +84,7 @@ export function WorkerFilePicker({
             </button>
           </div>
         ) : (
-          <div className="flex min-h-10 flex-col gap-2 sm:flex-row sm:items-center">
+          <div className="flex min-h-11 flex-col gap-3 sm:flex-row sm:items-center">
             <button
               type="button"
               disabled={disabled}

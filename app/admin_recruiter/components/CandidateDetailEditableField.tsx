@@ -118,11 +118,11 @@ export default function CandidateDetailEditableField({
     <>
       <div
         id={anchorId}
-        className={`border-b border-r border-[#E5E7EB] px-5 py-3 text-[14px] font-normal leading-5 text-[#374151] ${anchorId ? "scroll-mt-24" : ""}`}
+        className={`border-b border-[#E5E7EB] px-3 py-3 text-[14px] font-normal leading-5 text-[#374151] sm:border-r sm:px-5 ${anchorId ? "scroll-mt-24" : ""}`}
       >
         {label}
       </div>
-      <div className="border-b border-[#E5E7EB] px-5 py-3 text-[14px] font-normal leading-5 break-all text-[#111827]">
+      <div className="border-b border-[#E5E7EB] px-3 py-3 text-[14px] font-normal leading-5 break-all text-[#111827] sm:px-5">
         {!editable ? (
           <span className={highlightValue ? "text-[var(--brand-primary)]" : ""}>{displayValue}</span>
         ) : editing ? (
@@ -180,7 +180,7 @@ export default function CandidateDetailEditableField({
               type="button"
               onClick={openEditor}
               aria-label={`Edit ${label}`}
-              className="mt-0.5 shrink-0 cursor-pointer opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100"
+              className="mt-0.5 shrink-0 cursor-pointer opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100 focus:opacity-100"
             >
               <BrandedEditIcon className="h-4 w-4" />
             </button>

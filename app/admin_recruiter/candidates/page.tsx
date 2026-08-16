@@ -18,6 +18,7 @@ import type { CandidateRow } from "./types";
 import AdvancedSearchModal from "../components/AdvancedSearchModal";
 import CandidateCommunicationDialog from "../components/CandidateCommunicationDialog";
 import { CandidatesListShell } from "../components/CandidatesListShell";
+import { ListTableCheckbox } from "../components/ListTableCheckbox";
 import { useCandidatesFilterRowsDefault } from "../hooks/useCandidatesFilterRowsDefault";
 import { exportCandidatesCsv, exportCandidatesXls } from "./export-candidates";
 import { formatCandidateStatusLabel } from "./candidate-status-badge";
@@ -451,14 +452,10 @@ export default function CandidatesPage() {
               <div className="overflow-hidden rounded-md border border-[#E5E7EB]">
                 <div className="overflow-auto">
                   <table className="min-w-[820px] w-full border-collapse">
-                    <thead className="bg-[#F8FAFC]">
+                    <thead className="bg-[#F8FAFC] text-black">
                       <tr className="border-b border-[#E5E7EB]">
                         <th className="w-12 border-r border-[#E5E7EB] bg-[#E5E7EB] px-3 py-3 text-center">
-                          <input
-                            type="checkbox"
-                            aria-label="Select all candidates"
-                            className="h-5 w-5 rounded-[5px] border-2 border-[#C8D1DA] accent-[color:var(--brand-primary)]"
-                          />
+                          <ListTableCheckbox size="md" aria-label="Select all candidates" />
                         </th>
                         {cols.map((colId) => (
                           <th
@@ -476,10 +473,9 @@ export default function CandidatesPage() {
                       {paginated.map((c) => (
                         <tr key={c.id} className="border-b border-[#E9EDF3] hover:bg-[#F9FBFB]">
                           <td className="w-12 border-r border-[#EEF2F7] px-3 py-4 text-center align-middle">
-                            <input
-                              type="checkbox"
+                            <ListTableCheckbox
+                              size="md"
                               aria-label={`Select ${c.name || "candidate"}`}
-                              className="h-5 w-5 rounded-[5px] border-2 border-[#C8D1DA] accent-[color:var(--brand-primary)]"
                             />
                           </td>
                           {cols.map((colId) => (

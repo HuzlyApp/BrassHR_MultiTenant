@@ -252,12 +252,17 @@ export default function ReferencesPage() {
     localStorage.setItem("step5Completed", "true")
 
     if (referencesStep?.step_key && nav.updateStepStatus && !isPreview) {
-      await persistStepProgress(
-        nav.updateStepStatus,
-        referencesStep.step_key,
-        "completed",
-        completingRef
-      )
+      try {
+        await persistStepProgress(
+          nav.updateStepStatus,
+          referencesStep.step_key,
+          "completed",
+          completingRef
+        )
+      } catch (persistErr) {
+        console.error("[add-references] mark completed", persistErr)
+        // References are already saved; continue — summary heal will sync the stepper.
+      }
     }
 
     if (nav.nextRoute) {
@@ -274,7 +279,7 @@ export default function ReferencesPage() {
 
   return (
     <OnboardingLayout
-      cardClassName="md:h-auto md:min-h-[700px]"
+      cardClassName="min-[700px]:h-auto min-[700px]:min-h-[540px] min-[1200px]:min-h-[700px]"
       rightPanelImageClassName="opacity-60 object-top"
       rightPanelOverlayClassName="bg-white/65"
     >

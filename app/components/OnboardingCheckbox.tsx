@@ -1,6 +1,7 @@
 "use client"
 
 import type { CSSProperties, ReactNode } from "react"
+import { cn } from "@/lib/utils"
 
 const box =
   "flex h-5 w-5 shrink-0 items-center justify-center rounded-[5px] border-2 transition-colors"
@@ -33,7 +34,7 @@ export default function OnboardingCheckbox({
 
   if (native && id) {
     return (
-      <div className={className ?? "flex items-start gap-3"}>
+      <div className={cn("flex items-center gap-3", className)}>
         <input
           id={id}
           type="checkbox"
@@ -41,7 +42,7 @@ export default function OnboardingCheckbox({
           disabled={disabled}
           onChange={(e) => onChange(e.target.checked)}
           style={checkboxStyle}
-          className="mt-0.5 h-5 w-5 shrink-0 cursor-pointer rounded-[5px] border-2 border-slate-300 focus:ring-2 focus:ring-[color:var(--brand-secondary)]/30 disabled:cursor-not-allowed disabled:opacity-50"
+          className="h-5 w-5 shrink-0 cursor-pointer rounded-[5px] border-2 border-slate-300 focus:ring-2 focus:ring-[color:var(--brand-secondary)]/30 disabled:cursor-not-allowed disabled:opacity-50"
         />
         {children}
       </div>
@@ -54,7 +55,11 @@ export default function OnboardingCheckbox({
       disabled={disabled}
       onClick={() => onChange(!checked)}
       aria-pressed={checked}
-      className={`flex items-start gap-3 text-left ${className ?? ""} ${disabled ? "cursor-not-allowed opacity-50" : ""}`}
+      className={cn(
+        "flex items-center gap-3 text-left",
+        disabled && "cursor-not-allowed opacity-50",
+        className
+      )}
     >
       <span
         className={`${box} ${checked ? "text-white" : "border-slate-300 bg-white"}`}
@@ -73,7 +78,9 @@ export default function OnboardingCheckbox({
           </svg>
         ) : null}
       </span>
-      {children ? <span className="min-w-0 flex-1">{children}</span> : null}
+      {children ? (
+        <span className="flex min-w-0 flex-1 items-center leading-none">{children}</span>
+      ) : null}
     </button>
   )
 }

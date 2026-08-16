@@ -13,13 +13,18 @@ function makeChain(result: QueryResult) {
   builder.limit = vi.fn(self);
   builder.eq = vi.fn(self);
   builder.maybeSingle = vi.fn(async () => result);
+  // Supabase query builders are thenable when awaited without maybeSingle.
+  builder.then = (
+    onFulfilled?: (value: QueryResult) => unknown,
+    onRejected?: (reason: unknown) => unknown
+  ) => Promise.resolve(result).then(onFulfilled, onRejected);
   return builder;
 }
 
 describe("resolveWorkerByEmail", () => {
   it("finds worker by legacy @nexusmedpro.com when querying new @brasshr.com address", async () => {
     const workerChain = makeChain({
-      data: { id: "w1", tenant_id: "t1", email: "john@nexusmedpro.com" },
+      data: [{ id: "w1", tenant_id: "t1", email: "john@nexusmedpro.com" }],
       error: null,
     });
     const supabase = {
@@ -39,9 +44,9 @@ describe("resolveWorkerByEmail", () => {
   });
 
   it("falls back to linked worker via users.email variants", async () => {
-    const workerMiss = makeChain({ data: null, error: null });
+    const workerMiss = makeChain({ data: [], error: null });
     const workerHit = makeChain({
-      data: { id: "w2", tenant_id: "t1", email: null },
+      data: [{ id: "w2", tenant_id: "t1", email: null }],
       error: null,
     });
 
@@ -67,8 +72,27 @@ describe("resolveWorkerByEmail", () => {
     expect(match?.id).toBe("w2");
   });
 
+  it("returns null when multiple tenant workers match without tenant scope", async () => {
+    const workerChain = makeChain({
+      data: [
+        { id: "w1", tenant_id: "t1", email: "a@brasshr.com" },
+        { id: "w2", tenant_id: "t2", email: "a@brasshr.com" },
+      ],
+      error: null,
+    });
+    const supabase = {
+      from: vi.fn((table: string) => {
+        if (table === "worker") return workerChain;
+        throw new Error(`unexpected table ${table}`);
+      }),
+    };
+
+    const match = await resolveWorkerByEmail(supabase as never, "a@brasshr.com");
+    expect(match).toBeNull();
+  });
+
   it("returns null for unrelated external domains", async () => {
-    const workerMiss = makeChain({ data: null, error: null });
+    const workerMiss = makeChain({ data: [], error: null });
     const usersMiss = makeChain({ data: [], error: null });
 
     const supabase = {

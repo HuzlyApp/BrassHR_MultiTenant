@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { computeMaxAllowedStepIndexFromProgress } from "@/lib/onboarding/compute-max-allowed-from-progress";
+import {
+  buildProgressStatusMaps,
+  computeMaxAllowedStepIndexFromProgress,
+} from "@/lib/onboarding/compute-max-allowed-from-progress";
 import { createDefaultOnboardingStepDrafts } from "@/lib/onboarding/default-onboarding-steps";
 import type { TenantOnboardingStep, WorkerOnboardingProgressPayload } from "@/lib/onboarding/types";
 import { resolveApplicantStepFromPath } from "@/lib/onboarding/find-applicant-step";
@@ -22,6 +25,33 @@ describe("resolveApplicantStepFromPath", () => {
   it("returns null for unknown routes instead of defaulting to the first step", () => {
     const steps = legacySteps();
     expect(resolveApplicantStepFromPath("/application/not-in-flow", "", steps)).toBeNull();
+  });
+});
+
+describe("buildProgressStatusMaps", () => {
+  it("resolves completed status by step_key when progress id differs from config id", () => {
+    const steps = legacySteps().map((step) =>
+      step.step_key === "professional_license"
+        ? { ...step, id: "preview-professional_license" }
+        : step
+    );
+    const license = steps.find((s) => s.step_key === "professional_license")!;
+    const progress: WorkerOnboardingProgressPayload = {
+      progressId: "p1",
+      status: "in_progress",
+      steps: [
+        {
+          onboarding_step_id: "published-uuid-license",
+          step_key: "professional_license",
+          status: "completed",
+          completed_at: "2026-01-01",
+          data: {},
+        },
+      ],
+    };
+
+    const map = buildProgressStatusMaps(steps, progress);
+    expect(map.get(license.id)).toBe("completed");
   });
 });
 

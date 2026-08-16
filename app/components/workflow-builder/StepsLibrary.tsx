@@ -2,8 +2,10 @@
 
 import { useMemo, useState } from "react";
 import { ChevronDown, MoreHorizontal, PanelLeftClose, Plus, Search } from "lucide-react";
-import { CARD_BORDER, DRAG_DATA_TYPE, TEXT_PRIMARY, TEXT_SECONDARY } from "./constants";
+import { CARD_BORDER, TEXT_PRIMARY, TEXT_SECONDARY } from "./constants";
+import { filterStepLibrary } from "./filter-step-library";
 import type { StepCategory, StepDefinition } from "./types";
+import { writeWorkflowStepDragData } from "./workflow-step-drag";
 
 type StepsLibraryProps = {
   categories: StepCategory[];
@@ -30,16 +32,10 @@ export default function StepsLibrary({
 
   const effectiveSearch = searchTerm || localSearch;
 
-  const filtered = useMemo(() => {
-    const q = effectiveSearch.trim().toLowerCase();
-    if (!q) return categories;
-    return categories
-      .map((cat) => ({
-        ...cat,
-        steps: cat.steps.filter((s) => s.label.toLowerCase().includes(q)),
-      }))
-      .filter((cat) => cat.steps.length > 0);
-  }, [effectiveSearch, categories]);
+  const filtered = useMemo(
+    () => filterStepLibrary(categories, effectiveSearch),
+    [effectiveSearch, categories]
+  );
 
   if (!compactMode && !panelOpen) {
     return null;
@@ -98,7 +94,7 @@ export default function StepsLibrary({
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-3 py-3">
         {filtered.length === 0 ? (
           <p className="px-2 py-8 text-center text-xs" style={{ color: TEXT_SECONDARY }}>
-            No steps found
+            No steps found{effectiveSearch.trim() ? ` for "${effectiveSearch.trim()}"` : ""}
           </p>
         ) : (
           filtered.map((cat) => {
@@ -149,15 +145,12 @@ export default function StepsLibrary({
 }
 
 function StepLibraryItem({ step, readOnly = false }: { step: StepDefinition; readOnly?: boolean }) {
-  // const color = STEP_COLORS[step.color];
-
   const handleDragStart = (e: React.DragEvent<HTMLDivElement>) => {
     if (readOnly) {
       e.preventDefault();
       return;
     }
-    e.dataTransfer.setData(DRAG_DATA_TYPE, step.id);
-    e.dataTransfer.effectAllowed = "move";
+    writeWorkflowStepDragData(e.dataTransfer, step);
   };
 
   return (
@@ -169,10 +162,7 @@ function StepLibraryItem({ step, readOnly = false }: { step: StepDefinition; rea
       }`}
       style={{ borderColor: CARD_BORDER }}
     >
-      <span
-        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-white"
-        // style={{ backgroundColor: color.header }}
-      >
+      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-white">
         {step.icon}
       </span>
       <span

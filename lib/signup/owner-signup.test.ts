@@ -11,14 +11,14 @@ import {
 
 describe("validateOwnerSignupPassword", () => {
   it("requires at least one number", () => {
-    expect(validateOwnerSignupPassword("Password!")).toMatch(/number/i);
-    expect(validateOwnerSignupPassword("Password1")).toBeNull();
+    expect(validateOwnerSignupPassword("PasswordOnly")).toMatch(/number/i);
+    expect(validateOwnerSignupPassword("Password1234")).toBeNull();
   });
 
   it("still requires length and letter casing", () => {
-    expect(validateOwnerSignupPassword("Pass1")).toMatch(/8 characters/i);
-    expect(validateOwnerSignupPassword("password1")).toMatch(/uppercase/i);
-    expect(validateOwnerSignupPassword("PASSWORD1")).toMatch(/lowercase/i);
+    expect(validateOwnerSignupPassword("Pass1")).toMatch(/12 characters/i);
+    expect(validateOwnerSignupPassword("password1234")).toMatch(/uppercase/i);
+    expect(validateOwnerSignupPassword("PASSWORD1234")).toMatch(/lowercase/i);
   });
 });
 

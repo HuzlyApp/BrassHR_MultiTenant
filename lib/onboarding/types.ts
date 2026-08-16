@@ -62,6 +62,14 @@ export type TenantSkillQuestion = {
   points: number;
 };
 
+export type CandidateEngineOrderEntry = {
+  id: string;
+  step_key: string;
+  sort_order: number;
+  required: boolean;
+  candidateVisible: boolean;
+};
+
 export type TenantOnboardingConfig = {
   configId: string;
   tenantId: string;
@@ -69,10 +77,14 @@ export type TenantOnboardingConfig = {
   steps: TenantOnboardingStep[];
   requiredDocuments: TenantRequiredDocument[];
   skillAssessments: TenantSkillAssessment[];
+  /** Opaque engine order for applicant gating. Never includes internal titles or notes. */
+  candidateEngineOrder?: CandidateEngineOrderEntry[];
 };
 
 export type StepProgressRow = {
   onboarding_step_id: string;
+  /** Present when progress was loaded from tenant steps; used to match job-workflow step ids. */
+  step_key?: string | null;
   status: OnboardingStepStatus;
   completed_at: string | null;
   data: Record<string, unknown>;
@@ -88,4 +100,6 @@ export type WorkerOnboardingProgressPayload = {
   submittedWithIncompleteSteps?: boolean;
   incompleteStepKeys?: string[];
   applicationStatus?: string | null;
+  applicationId?: string | null;
+  workflowPhase?: "pre_hire" | "post_hire" | "completed" | null;
 };

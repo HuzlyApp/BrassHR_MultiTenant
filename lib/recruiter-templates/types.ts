@@ -102,6 +102,20 @@ export type RecruiterTemplateBuilderSession = {
   editor_app_url: string;
   embed_script_url: string;
   expires_at: string;
+  /** Tenant workspace palette for FirmaTemplateEditor.applyPalette fallback. */
+  embed_color_palette: {
+    primary: string;
+    primary_fg: string;
+    background: string;
+    foreground: string;
+    card: string;
+    border: string;
+    accent: string;
+    accent_fg: string;
+    canvas: string;
+    muted: string;
+    muted_fg: string;
+  };
 };
 
 export type RecruiterTemplateSyncInput = {

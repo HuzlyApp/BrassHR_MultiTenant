@@ -175,6 +175,36 @@ function SettingsBody({ node, onUpdate, onSaveStep, onCloneWorkflow, readOnly = 
           value={node.data.required}
           onChange={(v) => onUpdate(node.id, { required: v })}
         />
+        <SelectField
+          label="Phase"
+          value={settings.phase === "transition" ? "pre_hire" : settings.phase}
+          options={["pre_hire", "post_hire"]}
+          optionLabels={{ pre_hire: "Pre-Hire", post_hire: "Post-Hire" }}
+          hint="Approval is a step type. Pre-Hire is candidate evaluation; Post-Hire is onboarding after acceptance."
+          onChange={(v) =>
+            patchSettings({
+              phase: (v as StepSettings["phase"]) ?? "pre_hire",
+              phaseOrder: v === "post_hire" ? 3 : 1,
+            })
+          }
+        />
+        <TextField
+          label="Completion owner"
+          value={settings.completionOwner ?? ""}
+          onChange={(v) => patchSettings({ completionOwner: v }, { skipHistory: true })}
+          onCommit={(v) => patchSettings({ completionOwner: v })}
+        />
+        <ToggleRow
+          label="Conditional step"
+          value={settings.isConditional === true}
+          onChange={(v) => patchSettings({ isConditional: v })}
+        />
+        <TextField
+          label="Unlock condition"
+          value={settings.unlockCondition ?? ""}
+          onChange={(v) => patchSettings({ unlockCondition: v }, { skipHistory: true })}
+          onCommit={(v) => patchSettings({ unlockCondition: v })}
+        />
         <ToggleRow
           label="Client performs"
           value={settings.clientPerforms}
@@ -329,6 +359,7 @@ function SelectField({
   label,
   value,
   options,
+  optionLabels,
   onChange,
   disabled,
   hint,
@@ -336,6 +367,7 @@ function SelectField({
   label: string;
   value: string;
   options: string[];
+  optionLabels?: Record<string, string>;
   onChange: (v: string) => void;
   disabled?: boolean;
   hint?: string;
@@ -358,7 +390,7 @@ function SelectField({
         >
           {options.map((opt) => (
             <option key={opt} value={opt}>
-              {opt}
+              {optionLabels?.[opt] ?? opt}
             </option>
           ))}
         </select>

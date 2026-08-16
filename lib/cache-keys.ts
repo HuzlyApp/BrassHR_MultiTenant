@@ -7,7 +7,30 @@ export const CACHE_TTL_SECONDS = {
   staticReference: 3600,
 } as const;
 
-const CACHE_PREFIX = "supabase";
+/**
+ * Include Supabase project ref so staging/production (and local env switches)
+ * do not share Redis entries for the same logical key (e.g. tenant slug "remote").
+ */
+export function cacheProjectSegment(): string {
+  const url =
+    process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() ||
+    process.env.EXPO_PUBLIC_SUPABASE_URL?.trim() ||
+    process.env.SUPABASE_URL?.trim() ||
+    "";
+  if (!url) return "local";
+  try {
+    const host = new URL(url).hostname;
+    const ref = host.split(".")[0]?.trim();
+    return ref || "local";
+  } catch {
+    return "local";
+  }
+}
+
+/** Shared Redis/memory key prefix (`supabase:{projectRef}`). Export for invalidation patterns. */
+export function cachePrefix(): string {
+  return `supabase:${cacheProjectSegment()}`;
+}
 
 function stableStringify(value: unknown): string {
   if (value === null || typeof value !== "object") return JSON.stringify(value);
@@ -45,23 +68,23 @@ export function buildCacheKey(
   scope: string | string[],
   params?: unknown
 ): string {
-  const parts = [CACHE_PREFIX, table, ...scopeToParts(scope)];
+  const parts = [cachePrefix(), table, ...scopeToParts(scope)];
   if (params !== undefined) parts.push(hashQueryParams(params));
   return parts.join(":");
 }
 
 export function tablePattern(table: string): string {
-  return `${CACHE_PREFIX}:${table}:*`;
+  return `${cachePrefix()}:${table}:*`;
 }
 
 export function tenantPattern(table: string, tenantId: string): string {
-  return `${CACHE_PREFIX}:${table}:tenant:${tenantId}:*`;
+  return `${cachePrefix()}:${table}:tenant:${tenantId}:*`;
 }
 
 export function userPattern(table: string, userId: string): string {
-  return `${CACHE_PREFIX}:${table}:user:${userId}:*`;
+  return `${cachePrefix()}:${table}:user:${userId}:*`;
 }
 
 export function resourcePattern(table: string, resourceId: string): string {
-  return `${CACHE_PREFIX}:${table}:resource:${resourceId}:*`;
+  return `${cachePrefix()}:${table}:resource:${resourceId}:*`;
 }

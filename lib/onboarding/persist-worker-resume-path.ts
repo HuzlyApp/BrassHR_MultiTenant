@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
+import { resolveWorkerByApplicantId } from "@/lib/onboarding/resolve-worker-context"
 
 /**
  * Saves the resume storage object path (within worker-resumes bucket) to worker_requirements.
@@ -7,26 +8,20 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 export async function persistWorkerResumePath(
   supabase: SupabaseClient,
   applicantId: string,
-  resumePath: string
+  resumePath: string,
+  tenantId?: string | null
 ): Promise<void> {
   const trimmed = resumePath.trim()
   if (!trimmed) return
 
-  const { data: worker, error: wErr } = await supabase
-    .from("worker")
-    .select("id, tenant_id")
-    .eq("user_id", applicantId)
-    .maybeSingle()
-
-  if (wErr) throw wErr
-  if (!worker?.id || worker.tenant_id == null) return
-
-  const tenantId = String(worker.tenant_id)
+  const workerCtx = await resolveWorkerByApplicantId(supabase, applicantId, tenantId)
+  if (!workerCtx?.workerId || !workerCtx.tenantId) return
 
   const { data: existingRows, error: selErr } = await supabase
     .from("worker_requirements")
     .select("id")
-    .or(`worker_id.eq.${worker.id},worker_id.eq.${applicantId}`)
+    .or(`worker_id.eq.${workerCtx.workerId},worker_id.eq.${applicantId}`)
+    .order("updated_at", { ascending: false })
     .limit(1)
 
   if (selErr) throw selErr
@@ -44,8 +39,8 @@ export async function persistWorkerResumePath(
   }
 
   const { error: insErr } = await supabase.from("worker_requirements").insert({
-    tenant_id: tenantId,
-    worker_id: worker.id,
+    tenant_id: workerCtx.tenantId,
+    worker_id: workerCtx.workerId,
     resume_path: trimmed,
     updated_at,
   })

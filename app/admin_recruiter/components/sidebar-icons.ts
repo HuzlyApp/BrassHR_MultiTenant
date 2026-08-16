@@ -15,6 +15,7 @@ export type SidebarIconType =
   | "Applicant"
   | "Clients"
   | "Organization"
+  | "Jobs"
   | "My Profile"
   | "Notifications"
   | "Help & Support"

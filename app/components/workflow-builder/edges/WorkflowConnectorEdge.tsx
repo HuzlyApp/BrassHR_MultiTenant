@@ -14,6 +14,7 @@ import ConnectorActionMenu, {
 } from "../ConnectorActionMenu";
 import ConnectorMenuPortal from "../ConnectorMenuPortal";
 import {
+  GOLD,
   WORKFLOW_CONNECTOR_COLOR,
   WORKFLOW_CONNECTOR_STROKE_WIDTH,
 } from "../constants";
@@ -22,6 +23,9 @@ export type WorkflowConnectorEdgeData = {
   title?: string;
   targetIsDropZone?: boolean;
   showParallelFlow?: boolean;
+  libraryDragActive?: boolean;
+  dropHighlighted?: boolean;
+  onAddStep?: (edgeId: string, sourceId: string, targetId: string) => void;
   onConnectorAction?: (
     edgeId: string,
     action: ConnectorMenuAction,
@@ -59,6 +63,10 @@ export default function WorkflowConnectorEdge({
   });
 
   const handleAction = (action: ConnectorMenuAction) => {
+    if (action === "addStep" && edgeData.onAddStep) {
+      edgeData.onAddStep(id, source, target);
+      return;
+    }
     edgeData.onConnectorAction?.(id, action, source, target);
   };
 
@@ -93,7 +101,7 @@ export default function WorkflowConnectorEdge({
           </div>
         </EdgeLabelRenderer>
       ) : null}
-      {edgeData.onConnectorAction ? (
+      {edgeData.onAddStep || edgeData.onConnectorAction ? (
         <>
           <EdgeLabelRenderer>
             <div
@@ -110,15 +118,34 @@ export default function WorkflowConnectorEdge({
                 onClick={(e) => {
                   e.stopPropagation();
                   e.preventDefault();
+                  if (edgeData.onAddStep) {
+                    edgeData.onAddStep(id, source, target);
+                    return;
+                  }
                   setMenuOpen((v) => !v);
                 }}
+                onContextMenu={(e) => {
+                  e.stopPropagation();
+                  e.preventDefault();
+                  if (edgeData.onConnectorAction) setMenuOpen(true);
+                }}
                 className={CENTER_BUTTON_CLASS}
-                style={{ backgroundColor: WORKFLOW_CONNECTOR_COLOR }}
-                aria-label="Connector actions"
+                style={{
+                  backgroundColor: edgeData.dropHighlighted ? GOLD : WORKFLOW_CONNECTOR_COLOR,
+                  width: edgeData.libraryDragActive || edgeData.dropHighlighted ? 40 : 24,
+                  height: edgeData.libraryDragActive || edgeData.dropHighlighted ? 40 : 24,
+                  boxShadow: edgeData.dropHighlighted
+                    ? "0 0 0 6px rgba(188, 139, 65, 0.2)"
+                    : undefined,
+                }}
+                aria-label="Add workflow step"
                 aria-expanded={menuOpen}
-                title="Add or change flow"
+                title={edgeData.libraryDragActive ? "Drop here" : "Add step"}
               >
-                <Plus size={12} strokeWidth={2.5} />
+                <Plus
+                  size={edgeData.libraryDragActive || edgeData.dropHighlighted ? 16 : 12}
+                  strokeWidth={2.5}
+                />
               </button>
             </div>
           </EdgeLabelRenderer>
@@ -127,7 +154,7 @@ export default function WorkflowConnectorEdge({
               open={menuOpen}
               onClose={() => setMenuOpen(false)}
               onSelect={handleAction}
-              anchorEl={buttonRef.current}
+              anchorRef={buttonRef}
               showParallelFlow={
                 edgeData.showParallelFlow !== false &&
                 edgeData.targetIsDropZone === true

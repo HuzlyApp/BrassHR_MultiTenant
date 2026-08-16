@@ -12,6 +12,7 @@ import {
   isStepIndicatorAccessible,
   type StepIndicatorState,
 } from "@/lib/onboarding/step-indicator-status"
+import { buildProgressStatusMaps } from "@/lib/onboarding/compute-max-allowed-from-progress"
 import {
   resolveApplicantEnabledSteps,
   stepIndexFromPathname,
@@ -20,7 +21,8 @@ import { useOnboardingTenant } from "@/lib/tenant/use-onboarding-tenant"
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext"
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding"
 import { formatApplicantStepperLabel } from "@/lib/onboarding/format-applicant-stepper-label"
-import type { OnboardingStepStatus } from "@/lib/onboarding/types"
+import { applicantPortalCopy } from "@/lib/onboarding/workflow-phase"
+import ApplicantPhaseWelcome from "@/app/components/onboarding/ApplicantPhaseWelcome"
 
 interface Props {
   /** Optional override; otherwise derived from pathname + tenant steps. */
@@ -132,25 +134,22 @@ export default function OnboardingStepper({
 
   const maxAllowedStep = onboarding?.maxAllowedStepIndex ?? currentStep
 
-  const progressByStepId = useMemo(() => {
-    const m = new Map<string, OnboardingStepStatus>()
-    for (const p of onboarding?.progress?.steps ?? []) {
-      m.set(p.onboarding_step_id, p.status)
-    }
-    return m
-  }, [onboarding?.progress?.steps])
+  const statusByStepId = useMemo(
+    () => buildProgressStatusMaps(enabledSteps ?? [], onboarding?.progress ?? null),
+    [enabledSteps, onboarding?.progress]
+  )
 
   const stepStates = useMemo(() => {
     if (!enabledSteps?.length) return [] as StepIndicatorState[]
     return enabledSteps.map((configStep, index) =>
       deriveStepIndicatorState({
-        dbStatus: progressByStepId.get(configStep.id) ?? "pending",
+        dbStatus: statusByStepId.get(configStep.id) ?? "pending",
         stepNumber: index + 1,
         currentStepNumber: currentStep,
         isRequired: configStep.is_required !== false,
       })
     )
-  }, [enabledSteps, progressByStepId, currentStep])
+  }, [enabledSteps, statusByStepId, currentStep])
 
   if (!enabledSteps?.length) {
     return onboarding?.loading ? (
@@ -163,16 +162,42 @@ export default function OnboardingStepper({
   }
 
   const furthestStep = furthestProgressStepIndex(stepStates, currentStep)
+  const phaseCopy = applicantPortalCopy(onboarding?.workflowPhase ?? "pre_hire")
+  const heading = title ?? phaseCopy.header
+  const completedCount = stepStates.filter((state) => state === "completed" || state === "skipped").length
 
   return (
     <>
       <div className="min-w-0 w-full border-b border-slate-200 pb-4 sm:pb-6" style={brandingToCssVars(branding)}>
-        <div className="relative mx-auto mt-2 min-w-0 w-full max-w-3xl px-1 sm:px-2">
-          <div className="scrollbar-hide -mx-1 min-w-0 overflow-x-auto px-1 pb-1 sm:mx-0 sm:px-2">
-            <div
-              className="grid w-full min-w-[680px] max-[399px]:min-w-[520px] sm:min-w-0"
-              style={{ gridTemplateColumns: `repeat(${stepLabels.length}, minmax(0, 1fr))` }}
-            >
+        <ApplicantPhaseWelcome
+          phase={onboarding?.workflowPhase ?? "pre_hire"}
+          applicationId={onboarding?.applicationId}
+        />
+        {onboarding?.waitingOnInternal ? (
+          <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+            Your documents have been submitted. No action is required from you right now. We will
+            email you when the next step is ready.
+          </div>
+        ) : null}
+        <div className="mb-3 flex items-end justify-between gap-3">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+              {phaseCopy.progressLabel}
+            </p>
+            <h1 className="text-lg font-semibold text-slate-800 sm:text-xl">{heading}</h1>
+          </div>
+          <p className="text-sm font-medium text-slate-600">
+            {completedCount} / {enabledSteps.length}
+          </p>
+        </div>
+        <div className="relative mx-auto mt-2 min-w-0 w-full">
+          <div
+            className="min-w-0 overflow-x-auto overscroll-x-contain pb-1 [scrollbar-width:thin] sm:[&::-webkit-scrollbar]:block [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-300 [&::-webkit-scrollbar-track]:bg-transparent max-sm:scrollbar-hide"
+            role="region"
+            aria-label={phaseCopy.progressLabel}
+            tabIndex={0}
+          >
+            <div className="flex w-max min-w-full">
             {stepLabels.map((step, index) => {
               const stepNumber = index + 1
               const configStep = enabledSteps[index]!
@@ -181,7 +206,7 @@ export default function OnboardingStepper({
               const connectorFilled = furthestStep > index + 1
 
               return (
-                <div key={`${configStep.id}-${step}`} className="relative flex min-w-0 flex-col items-center">
+                <div key={`${configStep.id}-${step}`} className="relative flex flex-[1_0_6.5rem] flex-col items-center max-[399px]:flex-[1_0_5.5rem]">
                   {index < stepLabels.length - 1 ? (
                     <ConnectorSegment filled={connectorFilled} />
                   ) : null}
@@ -193,7 +218,7 @@ export default function OnboardingStepper({
                       push(stepRoutes[index])
                     }}
                     disabled={!isClickable}
-                    className={`group relative z-10 flex w-full max-w-[5.75rem] flex-col items-center rounded-lg px-1 py-1 text-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)]/40 max-[399px]:max-w-[4.5rem] max-[399px]:px-0.5 min-[750px]:max-w-[4.5rem] min-[1200px]:max-w-28 sm:px-1.5 ${
+                    className={`group relative z-10 flex w-full flex-col items-center rounded-lg px-1.5 py-1 text-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)]/40 max-[399px]:px-1 ${
                       isClickable ? "cursor-pointer" : "cursor-not-allowed"
                     }`}
                     aria-label={`${isClickable ? "Go to" : "Locked"} ${configStep.title}${

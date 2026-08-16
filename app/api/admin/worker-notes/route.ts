@@ -66,6 +66,7 @@ async function resolveWorkerAccess(workerIdRaw: string) {
 export async function GET(req: NextRequest) {
   try {
     const workerIdRaw = req.nextUrl.searchParams.get("workerId")?.trim() || "";
+    const applicationId = req.nextUrl.searchParams.get("applicationId")?.trim() || null;
     if (!workerIdRaw) {
       return NextResponse.json({ error: "Missing workerId" }, { status: 400 });
     }
@@ -74,7 +75,9 @@ export async function GET(req: NextRequest) {
     if ("error" in resolved && resolved.error) return resolved.error;
 
     const { supabase, workerId } = resolved;
-    const notes = await loadWorkerNotesForWorkerId(supabase, workerId);
+    const notes = await loadWorkerNotesForWorkerId(supabase, workerId, {
+      applicationId,
+    });
     return NextResponse.json({ notes });
   } catch (err) {
     console.error("[admin/worker-notes GET]", err);
@@ -85,9 +88,14 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const body = (await req.json()) as { workerId?: string; body?: string };
+    const body = (await req.json()) as {
+      workerId?: string;
+      body?: string;
+      applicationId?: string;
+    };
     const workerIdRaw = body.workerId?.trim() || "";
     const noteBody = body.body?.trim() || "";
+    const applicationIdRaw = body.applicationId?.trim() || null;
 
     if (!workerIdRaw) {
       return NextResponse.json({ error: "Missing workerId" }, { status: 400 });
@@ -100,6 +108,26 @@ export async function POST(req: NextRequest) {
     if ("error" in resolved && resolved.error) return resolved.error;
 
     const { supabase, workerId, tenantId, userId } = resolved;
+
+    const { resolveApplicationContextForWorker } = await import(
+      "@/lib/jobs/resolve-application-context"
+    );
+    const ctx = await resolveApplicationContextForWorker({
+      supabase,
+      tenantId,
+      workerId,
+      applicationId: applicationIdRaw,
+    });
+    if (applicationIdRaw && !ctx.applicationId) {
+      return NextResponse.json({ error: "Application not found for this worker" }, { status: 404 });
+    }
+    if (ctx.ambiguous && !ctx.applicationId) {
+      return NextResponse.json(
+        { error: "applicationId is required when the worker has multiple applications" },
+        { status: 400 }
+      );
+    }
+
     const { data, error } = await supabase
       .from("worker_notes")
       .insert({
@@ -107,6 +135,7 @@ export async function POST(req: NextRequest) {
         tenant_id: tenantId,
         created_by_user_id: userId,
         body: noteBody,
+        application_id: ctx.applicationId,
       })
       .select("id, worker_id, tenant_id, body, created_at, updated_at, created_by_user_id")
       .single();
@@ -114,7 +143,9 @@ export async function POST(req: NextRequest) {
     if (error) throw error;
 
     const row = data as NoteRow;
-    const notes = await loadWorkerNotesForWorkerId(supabase, workerId);
+    const notes = await loadWorkerNotesForWorkerId(supabase, workerId, {
+      applicationId: ctx.applicationId,
+    });
     const saved = notes.find((note) => note.id === row.id);
 
     return NextResponse.json({

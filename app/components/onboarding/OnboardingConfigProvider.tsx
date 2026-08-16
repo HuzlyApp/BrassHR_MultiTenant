@@ -19,11 +19,21 @@ import { resolveClientOnboardingTenantSlug } from "@/lib/tenant/client-onboardin
 import { usePathname, useSearchParams } from "next/navigation";
 import { applyApplicantConfigFilters } from "@/lib/onboarding/filter-applicant-steps";
 import { readOnboardingPreview } from "@/lib/onboarding/onboarding-preview-storage";
-import { computeMaxAllowedStepIndex } from "@/lib/onboarding/tenant-step-navigation";
+import { computeMaxAllowedStepIndex, getEnabledTenantSteps } from "@/lib/onboarding/tenant-step-navigation";
+import { computeCandidateOnboardingFrontier } from "@/lib/onboarding/candidate-onboarding-projection";
 import { safeFetchJson } from "@/lib/api/safe-fetch-json";
 import { useApplicantSession } from "@/lib/onboarding/applicant-session-context";
+import { normalizeJobToken } from "@/lib/jobs/public-application-routing";
+import { currentApplicationJobToken } from "@/lib/tenant/with-tenant";
+import type { ApplicantLifecyclePhase } from "@/lib/onboarding/workflow-phase";
 
-export type OnboardingConfigSource = "published" | "draft-preview" | "draft-api" | null;
+export type OnboardingConfigSource =
+  | "published"
+  | "job-workflow"
+  | "worker-onboarding"
+  | "draft-preview"
+  | "draft-api"
+  | null;
 
 type Ctx = {
   config: TenantOnboardingConfig | null;
@@ -36,6 +46,8 @@ type Ctx = {
   source: OnboardingConfigSource;
   isDraftPreview: boolean;
   applicantId: string | null;
+  applicationId: string | null;
+  workflowPhase: ApplicantLifecyclePhase;
   refresh: () => Promise<void>;
   updateStepStatus: (
     stepKey: string,
@@ -43,6 +55,7 @@ type Ctx = {
     data?: Record<string, unknown>
   ) => Promise<void>;
   maxAllowedStepIndex: number;
+  waitingOnInternal: boolean;
 };
 
 const OnboardingConfigContext = createContext<Ctx | null>(null);
@@ -101,12 +114,23 @@ type ConfigPayload = {
   detail?: string;
   code?: string;
   source?: string;
+  workflowPhase?: ApplicantLifecyclePhase;
+  applicationId?: string | null;
+  postHireActivatedAt?: string | null;
 };
 
 export default function OnboardingConfigProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const tenantFromUrl = searchParams.get("tenant");
+  const jobTokenFromUrl = normalizeJobToken(searchParams.get("job_token"));
+  const applicationIdFromUrl = searchParams.get("applicationId")?.trim() || "";
+  /** Direct Start Application lands on add-resume without job_token — ignore stale localStorage. */
+  const isDirectOnboardingEntry =
+    !jobTokenFromUrl && Boolean(pathname?.includes("/application/add-resume"));
+  const resolvedJobToken = isDirectOnboardingEntry
+    ? null
+    : jobTokenFromUrl || currentApplicationJobToken();
   const isDraftPreview = searchParams.get("preview") === "draft";
   const { sessionReady, sessionLoading } = useApplicantSession();
 
@@ -118,6 +142,8 @@ export default function OnboardingConfigProvider({ children }: { children: React
   const [error, setError] = useState<string | null>(null);
   const [source, setSource] = useState<OnboardingConfigSource>(null);
   const [applicantId, setApplicantId] = useState<string | null>(null);
+  const [applicationId, setApplicationId] = useState<string | null>(null);
+  const [workflowPhase, setWorkflowPhase] = useState<ApplicantLifecyclePhase>("pre_hire");
 
   const progressFetchSeq = useRef(0);
   const configFetchSeq = useRef(0);
@@ -198,8 +224,15 @@ export default function OnboardingConfigProvider({ children }: { children: React
         return;
       }
 
+      const jobToken = resolvedJobToken;
+      const aid = readApplicantId();
+      const configQuery = new URLSearchParams({ slug });
+      if (jobToken) configQuery.set("job_token", jobToken);
+      if (aid) configQuery.set("applicantId", aid);
+      if (applicationIdFromUrl) configQuery.set("applicationId", applicationIdFromUrl);
+
       const configRes = await safeFetchJson<ConfigPayload>(
-        `/api/onboarding/config?slug=${encodeURIComponent(slug)}`,
+        `/api/onboarding/config?${configQuery}`,
         { cache: "no-store" }
       );
 
@@ -219,7 +252,15 @@ export default function OnboardingConfigProvider({ children }: { children: React
 
       if (configRes.data.config) {
         setConfig(applyApplicantConfigFilters(configRes.data.config));
-        setSource("published");
+        setWorkflowPhase(configRes.data.workflowPhase ?? "pre_hire");
+        setApplicationId(configRes.data.applicationId ?? (applicationIdFromUrl || null));
+        setSource(
+          configRes.data.source === "job-workflow"
+            ? "job-workflow"
+            : configRes.data.source === "worker-onboarding"
+              ? "worker-onboarding"
+              : "published"
+        );
       } else {
         setConfig(null);
         setSource(null);
@@ -230,7 +271,7 @@ export default function OnboardingConfigProvider({ children }: { children: React
         setLoadingConfig(false);
       }
     }
-  }, [isDraftPreview]);
+  }, [isDraftPreview, resolvedJobToken, applicationIdFromUrl]);
 
   const refreshProgressOnly = useCallback(async () => {
     const aid = readApplicantId();
@@ -266,11 +307,11 @@ export default function OnboardingConfigProvider({ children }: { children: React
 
   useEffect(() => {
     void refreshConfig();
-  }, [refreshConfig, tenantFromUrl]);
+  }, [refreshConfig, tenantFromUrl, resolvedJobToken]);
 
   useEffect(() => {
     void refreshProgressOnly();
-  }, [refreshProgressOnly, tenantFromUrl, sessionReady, sessionLoading]);
+  }, [refreshProgressOnly, tenantFromUrl, resolvedJobToken, sessionReady, sessionLoading]);
 
   const updateStepStatus = useCallback(
     async (stepKey: string, status: OnboardingStepStatus, data?: Record<string, unknown>) => {
@@ -282,12 +323,15 @@ export default function OnboardingConfigProvider({ children }: { children: React
       const matchedStep =
         config?.steps.find((s) => s.step_key === stepKey) ??
         config?.steps.find((s) => s.step_key.replace(/_\d+$/, "") === stepKey.replace(/_\d+$/, ""));
+      const jobToken = resolvedJobToken;
       const res = await fetch("/api/onboarding/progress/step", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           applicantId: aid,
           tenantSlug: slug,
+          jobToken: jobToken || undefined,
+          applicationId: applicationIdFromUrl || applicationId || undefined,
           stepKey,
           stepId: matchedStep?.id,
           status,
@@ -308,14 +352,23 @@ export default function OnboardingConfigProvider({ children }: { children: React
         return;
       }
 
-      const step = config?.steps.find((s) => s.step_key === stepKey);
+      const step =
+        config?.steps.find((s) => s.step_key === stepKey) ??
+        config?.steps.find(
+          (s) => s.step_key.replace(/_\d+$/, "") === stepKey.replace(/_\d+$/, "")
+        );
       if (step) {
         setProgress((prev) => {
           if (!prev) return prev;
           const rows = prev.steps.slice();
-          const idx = rows.findIndex((row) => row.onboarding_step_id === step.id);
+          const idx = rows.findIndex(
+            (row) =>
+              row.onboarding_step_id === step.id ||
+              (row.step_key && row.step_key === step.step_key)
+          );
           const nextRow = {
             onboarding_step_id: step.id,
+            step_key: step.step_key,
             status,
             completed_at: status === "completed" ? new Date().toISOString() : null,
             data: data ?? rows[idx]?.data ?? {},
@@ -327,13 +380,23 @@ export default function OnboardingConfigProvider({ children }: { children: React
         setProgressHydrated(true);
       }
     },
-    [isDraftPreview, config?.steps]
+    [isDraftPreview, config?.steps, resolvedJobToken, applicationIdFromUrl, applicationId]
   );
 
   const maxAllowedStepIndex = useMemo(
     () => computeMaxAllowedStepIndex(config, progress, pathname),
     [config, progress, pathname]
   );
+
+  const waitingOnInternal = useMemo(() => {
+    if (!config) return false;
+    const candidateSteps = getEnabledTenantSteps(config);
+    return computeCandidateOnboardingFrontier({
+      engineOrder: config.candidateEngineOrder,
+      candidateSteps,
+      progress,
+    }).waitingOnInternal;
+  }, [config, progress]);
 
   const loading = loadingConfig || loadingProgress || sessionLoading || !sessionReady;
 
@@ -349,9 +412,12 @@ export default function OnboardingConfigProvider({ children }: { children: React
       source,
       isDraftPreview,
       applicantId,
+      applicationId,
+      workflowPhase,
       refresh,
       updateStepStatus,
       maxAllowedStepIndex,
+      waitingOnInternal,
     }),
     [
       config,
@@ -364,9 +430,12 @@ export default function OnboardingConfigProvider({ children }: { children: React
       source,
       isDraftPreview,
       applicantId,
+      applicationId,
+      workflowPhase,
       refresh,
       updateStepStatus,
       maxAllowedStepIndex,
+      waitingOnInternal,
     ]
   );
 

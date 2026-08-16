@@ -62,6 +62,35 @@ describe("GET /api/applications/:applicationId/onboarding-workflow", () => {
       "reference_verification"
     );
   });
+
+  it("returns only Pre-Hire steps before placement acceptance", async () => {
+    await seedWorkflow({
+      ...publishedWorkflow,
+      steps: [
+        ...publishedWorkflow.steps,
+        {
+          id: "step_w9",
+          type: "document_upload",
+          title: "W-9 Tax Form",
+          description: "",
+          required: true,
+          day: 4,
+          order: 4,
+          settings: { phase: "post_hire" },
+        },
+      ],
+    });
+
+    const req = new NextRequest(
+      "http://localhost/api/applications/app_123/onboarding-workflow?tenant=subdomaintest"
+    );
+    const response = await getOnboardingWorkflow(req, {
+      params: Promise.resolve({ applicationId: "app_123" }),
+    });
+    const body = await response.json();
+    expect(body.workflowPhase).toBe("pre_hire");
+    expect(body.steps.map((step: { title: string }) => step.title)).not.toContain("W-9 Tax Form");
+  });
 });
 
 describe("applicant workflow versioning", () => {

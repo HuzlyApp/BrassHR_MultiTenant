@@ -225,7 +225,7 @@ export function useWorkflowBuilderHeaderChrome() {
         <DraftPublishToggle
           isDraft={config.isDraft}
           savingPublish={config.savingPublish}
-          disabled={config.savingTemplate || config.templateReadOnly || config.viewOnly}
+          disabled={config.savingTemplate || config.viewOnly}
           onPublish={() => ctx.onPublish?.()}
         />
       </div>

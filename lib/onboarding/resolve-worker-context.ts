@@ -34,11 +34,24 @@ async function loadWorkerContext(
 
   if (tenantId) {
     query = query.eq("tenant_id", tenantId);
+    const { data: worker, error } = await query.maybeSingle();
+    if (error) throw error;
+    if (!worker?.id || worker.tenant_id == null) return null;
+    return {
+      workerId: String(worker.id),
+      tenantId: String(worker.tenant_id),
+      userId: String(worker.user_id ?? value),
+    };
   }
 
-  const { data: worker, error } = await query.maybeSingle();
-
+  // Same auth user can have one worker row per tenant — never use maybeSingle unscoped.
+  // Prefer callers pass tenantId. Unscoped returns the most recently updated worker only
+  // for backward compatibility (legacy single-tenant sessions).
+  const { data: rows, error } = await query
+    .order("updated_at", { ascending: false })
+    .limit(1);
   if (error) throw error;
+  const worker = rows?.[0];
   if (!worker?.id || worker.tenant_id == null) return null;
 
   return {
@@ -70,6 +83,30 @@ export async function resolveWorkerByApplicantId(
   if (!isUuidLike(applicantId)) return null;
 
   return loadWorkerContext(supabase, "id", applicantId);
+}
+
+/** List all tenant-scoped worker rows for an auth user (cross-tenant). */
+export async function listWorkersForAuthUser(
+  supabase: SupabaseClient,
+  authUserId: string
+): Promise<WorkerContext[]> {
+  if (isDraftPreviewApplicantId(authUserId)) return [];
+
+  const { data: rows, error } = await supabase
+    .from("worker")
+    .select("id, tenant_id, user_id")
+    .eq("user_id", authUserId)
+    .order("updated_at", { ascending: false });
+
+  if (error) throw error;
+
+  return (rows ?? [])
+    .filter((row) => row?.id && row.tenant_id != null)
+    .map((row) => ({
+      workerId: String(row.id),
+      tenantId: String(row.tenant_id),
+      userId: String(row.user_id ?? authUserId),
+    }));
 }
 
 /** Ensures a worker row exists for onboarding APIs when only the auth applicant id is known. */

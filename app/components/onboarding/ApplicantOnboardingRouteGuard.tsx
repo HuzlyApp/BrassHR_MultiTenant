@@ -5,6 +5,8 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { useOnboardingConfigOptional } from "@/app/components/onboarding/OnboardingConfigProvider";
 import { useApplicantSession } from "@/lib/onboarding/applicant-session-context";
 import { resolveApplicantOnboardingRoute } from "@/lib/onboarding/resolve-applicant-onboarding-route";
+import { resolveApplicantEnabledSteps } from "@/lib/onboarding/tenant-step-navigation";
+import { useAutoSkipNonNavigableApplicantSteps } from "@/lib/onboarding/use-auto-skip-non-navigable-steps";
 import { resolveClientOnboardingTenantSlug } from "@/lib/tenant/client-onboarding-slug";
 import { useOnboardingTenant } from "@/lib/tenant/use-onboarding-tenant";
 
@@ -30,6 +32,17 @@ function OnboardingRouteGuardInner({ children }: { children: React.ReactNode }) 
   const isApplicantDashboard =
     pathname.startsWith("/application/applicant-dashboard") ||
     pathname.startsWith("/application/home");
+
+  const enabledSteps = useMemo(
+    () => resolveApplicantEnabledSteps(onboarding?.config ?? null, onboarding?.loadingConfig ?? true),
+    [onboarding?.config, onboarding?.loadingConfig]
+  );
+
+  useAutoSkipNonNavigableApplicantSteps(
+    enabledSteps,
+    onboarding?.progress ?? null,
+    onboarding?.updateStepStatus
+  );
 
   const decision = useMemo(() => {
     if (isApplicantDashboard || !onboarding) {
@@ -83,7 +96,9 @@ function OnboardingRouteGuardInner({ children }: { children: React.ReactNode }) 
         <div className="text-center">
           <div className="mx-auto h-10 w-10 animate-spin rounded-full border-2 border-slate-200 border-t-slate-700" />
           <p className="mt-5 text-lg font-medium text-slate-700">
-            Loading the Application Steps....
+            {onboarding?.workflowPhase === "post_hire"
+              ? "Loading your onboarding…"
+              : "Loading the Application Steps...."}
           </p>
         </div>
       </div>

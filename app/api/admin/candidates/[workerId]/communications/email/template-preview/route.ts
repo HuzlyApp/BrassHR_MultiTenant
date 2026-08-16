@@ -3,7 +3,7 @@ import { requireStaffApiSession } from "@/lib/auth/api-session";
 import { canAccessWorkerRecord } from "@/lib/auth/worker-record-access";
 import { previewCandidateEmailTemplate } from "@/lib/communication/preview-candidate-email-template";
 import { resolveWorkerContact } from "@/lib/communication/resolve-worker";
-import { resolveAppOrigin } from "@/lib/resolve-app-origin";
+import { resolveApplicantEmailAppOrigin } from "@/lib/resolve-app-origin";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { parseRequiredUuid } from "@/lib/validation/uuid";
 
@@ -30,7 +30,7 @@ export async function GET(req: NextRequest, context: RouteContext) {
   }
 
   const clientOrigin = url.searchParams.get("origin")?.trim() || undefined;
-  const origin = resolveAppOrigin(req, clientOrigin);
+  const origin = resolveApplicantEmailAppOrigin(req, clientOrigin);
   if (!origin) {
     return NextResponse.json({ error: "Could not resolve app origin" }, { status: 400 });
   }

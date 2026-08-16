@@ -194,7 +194,7 @@
 
 /* Worker sidebar scrollbar — thumb hidden until sidebar hover (Figma) */
 .worker-sidebar-nav {
-  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--brand-font-body);
   scrollbar-width: thin;
   scrollbar-color: transparent transparent;
   scrollbar-gutter: stable;

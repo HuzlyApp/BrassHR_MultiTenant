@@ -15,6 +15,7 @@ import {
   isSerializableWorkflowState,
   type SerializableWorkflowState,
 } from "@/lib/onboarding/workflow-builder-serialization";
+import { requireWorkflowAdmin } from "@/lib/auth/workflow-admin";
 
 export const runtime = "nodejs";
 
@@ -35,6 +36,8 @@ async function resolveTenantId(
 export async function GET(_req: NextRequest, context: RouteContext) {
   const auth = await requireStaffApiSession();
   if (auth instanceof NextResponse) return auth;
+  const forbidden = requireWorkflowAdmin(auth);
+  if (forbidden) return forbidden;
 
   const supabase = createServiceRoleClient();
   if (!supabase) {
@@ -77,6 +80,8 @@ type PatchBody = {
 export async function PATCH(req: NextRequest, context: RouteContext) {
   const auth = await requireStaffApiSession();
   if (auth instanceof NextResponse) return auth;
+  const forbidden = requireWorkflowAdmin(auth);
+  if (forbidden) return forbidden;
 
   const supabase = createServiceRoleClient();
   if (!supabase) {
@@ -109,9 +114,8 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
     let status = body.status;
     if (body.publish === true) {
       status = "published";
-    } else if (body.publish === false && status === undefined) {
-      status = "draft";
     }
+    // Do not demote to draft when the client omits publish or sends publish:false on autosave.
 
     const flow = await updateOnboardingFlow(supabase as OnboardingDbClient, tenantId, id, {
       name: body.name,
@@ -160,6 +164,8 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
 export async function DELETE(_req: NextRequest, context: RouteContext) {
   const auth = await requireStaffApiSession();
   if (auth instanceof NextResponse) return auth;
+  const forbidden = requireWorkflowAdmin(auth);
+  if (forbidden) return forbidden;
 
   const supabase = createServiceRoleClient();
   if (!supabase) {

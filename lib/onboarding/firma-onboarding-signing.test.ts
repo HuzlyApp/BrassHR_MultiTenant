@@ -1007,6 +1007,15 @@ describe("ensureFirmaSigningSession", () => {
     expect(workspace.message).toContain("Template Builder");
   });
 
+  it("preserves Postgrest-style error messages that are not Error instances", () => {
+    const mapped = mapFirmaSigningCreateError({
+      code: "42P10",
+      message: "there is no unique or exclusion constraint matching the ON CONFLICT specification",
+    });
+    expect(mapped.code).toBe("CREATE_FAILED");
+    expect(mapped.message).toContain("ON CONFLICT");
+  });
+
   it("uses tenant-specific workspace instead of global fallback", async () => {
     const tenantWorkspace = "workspace_tenant_specific";
     process.env.FIRMA_WORKSPACE_ID = "workspace_global";

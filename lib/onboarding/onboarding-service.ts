@@ -16,6 +16,9 @@ export {
   updateOnboardingFlow,
   deleteOnboardingFlow,
   saveOnboardingFlowAsTemplate,
+  ensureWorkerOnboardingFlow,
+  resolvePublishedWorkerOnboardingFlow,
+  DEFAULT_ONBOARDING_FLOW_NAME,
   type OnboardingFlowRow,
   type OnboardingFlowListItem,
 } from "@/lib/onboarding/onboarding-flows";

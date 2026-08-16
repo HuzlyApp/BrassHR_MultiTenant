@@ -19,7 +19,7 @@ function BrandedColumnCheckbox({
         type="checkbox"
         checked={checked}
         onChange={onChange}
-        className="peer h-5 w-5 shrink-0 cursor-pointer appearance-none rounded-[5px] border-2 border-slate-300 bg-white transition-colors checked:border-[color:var(--brand-checkbox,var(--brand-primary))] checked:bg-[color:var(--brand-checkbox,var(--brand-primary))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--brand-primary)_30%,transparent)]"
+        className="peer h-5 w-5 shrink-0 cursor-pointer appearance-none rounded-[5px] border-2 border-slate-300 bg-white transition-colors checked:border-[color:var(--brand-secondary)] checked:bg-[color:var(--brand-secondary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--brand-secondary)_30%,transparent)]"
       />
       <Check
         className="pointer-events-none absolute inset-0 m-auto hidden h-3 w-3 text-white peer-checked:block"
@@ -128,28 +128,30 @@ export function ColumnsEditorModal<TId extends string>({
         <Dialog.Overlay className="fixed inset-0 z-[100] bg-black/40 data-[state=open]:animate-in fade-in" />
         <Dialog.Content
           style={brandVars}
-          className="fixed inset-x-0 bottom-0 top-auto z-[101] flex max-h-[94dvh] w-full max-w-full translate-x-0 translate-y-0 flex-col rounded-t-[16px] bg-white shadow-2xl outline-none sm:inset-auto sm:left-1/2 sm:top-1/2 sm:h-[min(688px,calc(100vh-2rem))] sm:max-h-none sm:w-[min(1024px,calc(100vw-2rem))] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-[20px] sm:border sm:border-zinc-200"
+          className="fixed inset-x-0 bottom-0 top-auto z-[101] flex h-[94dvh] max-h-[94dvh] w-full max-w-full translate-x-0 translate-y-0 flex-col overflow-hidden rounded-t-[16px] bg-white shadow-2xl outline-none sm:inset-auto sm:left-1/2 sm:top-1/2 sm:h-[min(688px,calc(100vh-2rem))] sm:max-h-[calc(100vh-2rem)] sm:w-[min(1024px,calc(100vw-2rem))] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-[20px] sm:border sm:border-zinc-200"
+          onOpenAutoFocus={(event) => event.preventDefault()}
         >
           <div className="mx-auto mt-2 h-1 w-10 shrink-0 rounded-full bg-zinc-300 sm:hidden" aria-hidden />
 
-          <div className="flex shrink-0 items-center justify-between border-b border-zinc-200 px-3 py-3 sm:px-6 sm:py-4">
+          <div className="flex shrink-0 items-center justify-between border-b border-zinc-200 px-4 py-3 sm:px-6 sm:py-4">
             <div className="min-w-0 pr-3">
-              <Dialog.Title className="truncate text-base font-semibold leading-6 text-gray-800 sm:text-2xl sm:leading-8">
+              <Dialog.Title className="truncate text-lg font-semibold leading-6 text-gray-800 sm:text-2xl sm:leading-8">
                 {title}
               </Dialog.Title>
               <Dialog.Description className="sr-only">{description}</Dialog.Description>
             </div>
             <Dialog.Close
-              className="flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-full bg-black text-white hover:opacity-90 sm:h-8 sm:w-8 sm:p-1.5"
+              className="flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full bg-black text-white hover:opacity-90 sm:h-8 sm:w-8 sm:p-1.5"
               aria-label="Close"
             >
-              <X className="h-5 w-5 sm:h-4 sm:w-4" />
+              <X className="h-4 w-4 sm:h-4 sm:w-4" />
             </Dialog.Close>
           </div>
 
-          <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-3 py-3 sm:grid sm:grid-cols-1 sm:gap-6 sm:overflow-hidden sm:p-6 md:grid-cols-2">
+          <div className="min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-y-contain px-4 py-4 [-webkit-overflow-scrolling:touch] md:overflow-hidden md:px-6 md:py-6">
+            <div className="flex flex-col gap-6 md:grid md:h-full md:min-h-0 md:grid-cols-2 md:gap-6">
             {/* Left: choose columns */}
-            <section className="flex min-h-0 flex-col border-b border-zinc-200 pb-4 md:flex-1 md:border-b-0 md:pb-0">
+            <section className="flex flex-col md:min-h-0 md:flex-1">
               <div className="shrink-0 text-base font-semibold text-slate-800 sm:text-[20px]">
                 Choose display columns
               </div>
@@ -166,17 +168,17 @@ export function ColumnsEditorModal<TId extends string>({
                 </span>
               </div>
               <div className="mt-2 w-full shrink-0 sm:mt-3">
-                <label className="flex h-12 w-full items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3">
-                  <Search className="h-5 w-5 shrink-0 text-slate-500" />
+                <label className="flex h-11 w-full items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 sm:h-12">
+                  <Search className="h-4 w-4 shrink-0 text-slate-500 sm:h-5 sm:w-5" />
                   <input
                     value={fieldSearch}
                     onChange={(e) => setFieldSearch(e.target.value)}
                     placeholder="Search fields"
-                    className="min-w-0 flex-1 bg-transparent text-base leading-6 text-slate-700 outline-none placeholder:text-slate-500 sm:text-sm"
+                    className="min-w-0 flex-1 bg-transparent text-sm leading-6 text-slate-700 outline-none placeholder:text-slate-500 sm:text-base"
                   />
                 </label>
               </div>
-              <div className="mt-2 min-h-0 flex-1 overflow-y-auto overscroll-contain rounded-lg border border-zinc-200 bg-white p-2 pr-1 max-sm:max-h-[36dvh] sm:mt-3 md:max-h-none">
+              <div className="mt-2 rounded-lg border border-zinc-200 bg-white p-2 pr-1 sm:mt-3 md:min-h-0 md:flex-1 md:overflow-y-auto md:overscroll-contain">
                 {filteredOptions.map((col) => {
                   const checked = selectedSet.has(col.id)
                   return (
@@ -193,11 +195,11 @@ export function ColumnsEditorModal<TId extends string>({
             </section>
 
             {/* Right: reorder */}
-            <section className="flex min-h-0 flex-col pt-4 md:flex-1 md:pt-0">
+            <section className="flex flex-col md:min-h-0 md:flex-1">
               <div className="shrink-0 text-base font-semibold text-slate-800 sm:text-[20px]">
                 Reorder the columns
               </div>
-              <div className="mt-2 min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain rounded-lg border border-zinc-200 bg-white p-2 pr-1 max-sm:max-h-[32dvh] sm:mt-3 md:max-h-none">
+              <div className="mt-2 space-y-2 rounded-lg border border-zinc-200 bg-white p-2 pr-1 sm:mt-3 md:min-h-0 md:flex-1 md:overflow-y-auto md:overscroll-contain">
                 {draftOrder.length === 0 ? (
                   <div className="rounded-2xl border border-dashed border-zinc-200 py-8 text-center text-sm text-gray-600 sm:py-12">
                     No columns selected. Check fields on the left.
@@ -228,9 +230,10 @@ export function ColumnsEditorModal<TId extends string>({
                 )}
               </div>
             </section>
+            </div>
           </div>
 
-          <div className="flex shrink-0 gap-2 border-t border-zinc-200 px-3 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:justify-end sm:gap-3 sm:px-6 sm:py-4">
+          <div className="flex shrink-0 gap-2 border-t border-zinc-200 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:justify-end sm:gap-3 sm:px-6 sm:py-4">
             <Dialog.Close asChild>
               <button
                 type="button"

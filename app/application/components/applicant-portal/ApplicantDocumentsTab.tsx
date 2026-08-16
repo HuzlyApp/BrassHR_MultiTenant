@@ -5,6 +5,7 @@ import { Eye, Upload } from "lucide-react";
 import BrandedFileTypeIcon from "@/app/admin_recruiter/components/BrandedFileTypeIcon";
 import { documentStatusLabel } from "@/lib/applicant-portal/documents";
 import { useApplicantPortal } from "./ApplicantPortalProvider";
+import { WorkerResumeSubmittedSection } from "./WorkerResumeSubmittedSection";
 import { WorkerFilePicker } from "./WorkerFilePicker";
 import {
   WORKER_BTN_GHOST_ICON,
@@ -14,8 +15,8 @@ import {
 import {
   WORKER_PORTAL_PAGE_PAD_CLASS,
   WORKER_SCHEDULE_CARD_CLASS,
-  WORKER_SECTION_TITLE_CLASS,
-  WORKER_SECTION_TITLE_STYLE,
+  WORKER_DOCUMENTS_PAGE_SECTION_TITLE_CLASS,
+  WORKER_DOCUMENTS_PAGE_SECTION_TITLE_STYLE,
 } from "./worker-schedule-typography";
 
 type DocumentItem = {
@@ -410,9 +411,14 @@ export function ApplicantDocumentsTab({ embedded = false }: { embedded?: boolean
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{pageError}</div>
       ) : null}
 
+      <WorkerResumeSubmittedSection />
+
       <div className={`${WORKER_SCHEDULE_CARD_CLASS} overflow-hidden`}>
         <div className="border-b border-[#E5E7EB] px-4 py-3">
-          <h2 className={WORKER_SECTION_TITLE_CLASS} style={WORKER_SECTION_TITLE_STYLE}>
+          <h2
+            className={WORKER_DOCUMENTS_PAGE_SECTION_TITLE_CLASS}
+            style={WORKER_DOCUMENTS_PAGE_SECTION_TITLE_STYLE}
+          >
             Documents
           </h2>
           <p className="mt-1 text-sm text-[#64748B]">
@@ -451,7 +457,10 @@ export function ApplicantDocumentsTab({ embedded = false }: { embedded?: boolean
 
       <div className={`${WORKER_SCHEDULE_CARD_CLASS} overflow-hidden`}>
         <div className="border-b border-[#E5E7EB] px-4 py-3">
-          <h2 className={WORKER_SECTION_TITLE_CLASS} style={WORKER_SECTION_TITLE_STYLE}>
+          <h2
+            className={WORKER_DOCUMENTS_PAGE_SECTION_TITLE_CLASS}
+            style={WORKER_DOCUMENTS_PAGE_SECTION_TITLE_STYLE}
+          >
             Add another file
           </h2>
           <p className="mt-1 text-sm text-[#64748B]">Optional documents for your recruiter.</p>
@@ -541,7 +550,10 @@ export function ApplicantDocumentsTab({ embedded = false }: { embedded?: boolean
       {otherDocuments.length > 0 ? (
         <div className={`${WORKER_SCHEDULE_CARD_CLASS} overflow-hidden`}>
           <div className="border-b border-[#E5E7EB] px-4 py-3">
-            <h2 className={WORKER_SECTION_TITLE_CLASS} style={WORKER_SECTION_TITLE_STYLE}>
+            <h2
+              className={WORKER_DOCUMENTS_PAGE_SECTION_TITLE_CLASS}
+              style={WORKER_DOCUMENTS_PAGE_SECTION_TITLE_STYLE}
+            >
               Your other files
             </h2>
           </div>

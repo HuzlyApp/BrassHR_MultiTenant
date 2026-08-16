@@ -1,7 +1,12 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { createFirmaWorkspace, isFirmaConfigured } from "@/lib/firma/client";
+import {
+  createFirmaWorkspace,
+  firmaWorkspaceExistsInCompany,
+  isFirmaConfigured,
+} from "@/lib/firma/client";
 import { FirmaError } from "@/lib/firma/errors";
+import { syncTenantBrandingToFirmaWorkspace } from "@/lib/firma/sync-workspace-branding";
 
 export type FirmaWorkspaceProvisioningMode = "manual" | "api" | "disabled";
 
@@ -85,9 +90,16 @@ export async function provisionFirmaWorkspaceForTenant(input: {
   tenantId: string;
   tenantName: string;
   tenantSlug?: string | null;
+  /** When provided, skip an extra Firma list call (used by backfill). */
+  knownExistingWorkspaceIds?: ReadonlySet<string>;
 }): Promise<FirmaWorkspaceProvisioningResult> {
+  console.info("[firma-provision] workspace provisioning started", {
+    tenantId: input.tenantId,
+  });
+
   const tenant = await loadTenantProvisioningRow(input.supabase, input.tenantId);
   if (!tenant) {
+    console.error("[firma-provision] tenant not found", { tenantId: input.tenantId });
     return {
       status: "failed",
       workspaceId: null,
@@ -97,10 +109,23 @@ export async function provisionFirmaWorkspaceForTenant(input: {
 
   const existingWorkspace = tenant.firma_workspace_id?.trim();
   if (existingWorkspace) {
-    return {
-      status: "already_configured",
+    const exists =
+      input.knownExistingWorkspaceIds?.has(existingWorkspace) ??
+      (await firmaWorkspaceExistsInCompany(existingWorkspace));
+    if (exists) {
+      console.info("[firma-provision] already_configured", {
+        tenantId: input.tenantId,
+        workspaceId: existingWorkspace,
+      });
+      return {
+        status: "already_configured",
+        workspaceId: existingWorkspace,
+      };
+    }
+    console.warn("[firma-provision] stale workspace id, recreating", {
+      tenantId: input.tenantId,
       workspaceId: existingWorkspace,
-    };
+    });
   }
 
   const mode = getFirmaWorkspaceProvisioningMode();
@@ -147,7 +172,20 @@ export async function provisionFirmaWorkspaceForTenant(input: {
   );
 
   try {
+    console.info("[firma-provision] workspace insert attempted", {
+      tenantId: input.tenantId,
+      workspaceName,
+    });
     const created = await createFirmaWorkspace({ name: workspaceName });
+    const visible = await firmaWorkspaceExistsInCompany(created.id);
+    if (!visible) {
+      throw new FirmaError(
+        "API_ERROR",
+        `Firma returned workspace ${created.id} but it is not visible on GET /workspaces`,
+        502
+      );
+    }
+
     const provisionedAt = new Date().toISOString();
 
     await persistProvisioningStatus(input.supabase, input.tenantId, {
@@ -156,6 +194,21 @@ export async function provisionFirmaWorkspaceForTenant(input: {
       firma_workspace_provisioning_error: null,
       firma_workspace_provisioned_at: provisionedAt,
     });
+
+    console.info("[firma-provision] workspace created", {
+      tenantId: input.tenantId,
+      workspaceId: created.id,
+    });
+
+    try {
+      await syncTenantBrandingToFirmaWorkspace(input.supabase, input.tenantId, created.id);
+    } catch (brandingErr) {
+      console.error("[firma-provision] workspace branding sync failed", {
+        tenantId: input.tenantId,
+        workspaceId: created.id,
+        error: brandingErr instanceof Error ? brandingErr.message : brandingErr,
+      });
+    }
 
     return {
       status: "created",
@@ -170,7 +223,10 @@ export async function provisionFirmaWorkspaceForTenant(input: {
           : "Firma workspace provisioning failed"
     );
 
-    console.error("[firma-provision] tenant", input.tenantId, message);
+    console.error("[firma-provision] workspace provisioning failed", {
+      tenantId: input.tenantId,
+      error: message,
+    });
 
     await persistProvisioningStatus(input.supabase, input.tenantId, {
       firma_workspace_provisioning_status: "failed",

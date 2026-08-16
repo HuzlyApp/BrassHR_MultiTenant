@@ -6,7 +6,6 @@ import { applicationPath } from "@/lib/tenant/with-tenant"
 import type { HTMLAttributes, ReactNode } from "react"
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { supabaseBrowser as supabase } from "@/lib/supabase-browser"
 import Image from "next/image"
 import { AlertTriangle, ChevronDown, Pencil, Search, X, XCircle } from "lucide-react"
 import BrandedSvgIcon from "@/app/components/BrandedSvgIcon"
@@ -37,6 +36,7 @@ import type { AddressValidationResult } from "@/lib/mapbox/address-validation-ty
 import AutosaveStatus from "@/app/components/AutosaveStatus"
 import { resolveClientOnboardingTenantSlug } from "@/lib/tenant/client-onboarding-slug"
 import { getClientOnboardingTenantIdFallback } from "@/lib/tenant/client-onboarding-tenant-fallback"
+import { getScopedApplicantId } from "@/lib/tenant/scoped-storage"
 import { useOnboardingStepNav } from "@/lib/onboarding/use-onboarding-step-nav"
 import { useOnboardingConfigOptional } from "@/app/components/onboarding/OnboardingConfigProvider"
 import { persistStepProgress } from "@/lib/onboarding/use-mark-step-in-progress-if-pending"
@@ -45,7 +45,13 @@ import {
   hasLocalResumeUpload,
   markResumeUploadStepComplete,
 } from "@/lib/onboarding/mark-resume-upload-step-complete"
-import { adjacentStepRoute } from "@/lib/onboarding/tenant-step-navigation"
+import {
+  adjacentStepRoute,
+  getEnabledTenantSteps,
+} from "@/lib/onboarding/tenant-step-navigation"
+import { skipNonNavigableApplicantSteps } from "@/lib/onboarding/skip-non-navigable-applicant-steps"
+import { findNavigableStepIndex } from "@/lib/onboarding/applicant-step-navigability"
+import { routeForApplicantStep } from "@/lib/onboarding/resolve-applicant-step-route"
 import { useResumeParsePoll } from "@/lib/resume/use-resume-parse-poll"
 import { RESUME_PARSE_FAILED_USER_MESSAGE } from "@/lib/resumeParseQuality"
 
@@ -311,6 +317,8 @@ function Step1ReviewContent() {
 
   const [loading, setLoading] = useState(false)
   const [autosaveState, setAutosaveState] = useState<"idle" | "saving" | "saved">("idle")
+  /** Avoid hammering save-worker when a hard email conflict is already known. */
+  const autosaveEmailBlockedRef = useRef(false)
   /** Duplicate contact conflict: banner + field highlight (matches design mock). */
   const [fieldConflict, setFieldConflict] = useState<{
     kind: ContactConflictKind
@@ -443,7 +451,10 @@ function Step1ReviewContent() {
 
   const handleChange = (key: string, value: string | boolean) => {
     setGenericError(null)
-    if (key === "email" && fieldConflict?.kind === "email") setFieldConflict(null)
+    if (key === "email" && fieldConflict?.kind === "email") {
+      autosaveEmailBlockedRef.current = false
+      setFieldConflict(null)
+    }
     if (key === "phone" && fieldConflict?.kind === "phone") setFieldConflict(null)
     if (
       key === "address1" ||
@@ -500,7 +511,8 @@ function Step1ReviewContent() {
   }, [addressValidation.validationResult])
 
   const persistResumeDraft = useCallback(async (): Promise<boolean> => {
-    const applicantId = localStorage.getItem("applicantId")?.trim() || ""
+    if (autosaveEmailBlockedRef.current) return false
+    const applicantId = getScopedApplicantId() || ""
     if (!applicantId) return false
     if (
       validateStep1Form(form, {
@@ -511,6 +523,13 @@ function Step1ReviewContent() {
     }
 
     const verified = addressValidationPayload()
+    const tenantSlug =
+      typeof window !== "undefined"
+        ? resolveClientOnboardingTenantSlug(window.location.search)
+        : null
+    // Never save against the platform default tenant — that causes false DUPLICATE_EMAIL 409s.
+    if (!tenantSlug) return false
+
     const payload = {
       applicantId,
       firstName: form.firstName,
@@ -523,6 +542,7 @@ function Step1ReviewContent() {
       phone: form.phone,
       email: form.email,
       jobRole: form.jobRole,
+      tenantSlug,
       ...(verified
         ? {
             addressOriginal: verified.originalAddress,
@@ -539,8 +559,23 @@ function Step1ReviewContent() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     })
+    if (saveRes.status === 409) {
+      let code = ""
+      try {
+        const json = (await saveRes.json()) as { code?: string }
+        code = String(json.code ?? "")
+      } catch {
+        /* ignore */
+      }
+      if (code === "DUPLICATE_EMAIL") {
+        autosaveEmailBlockedRef.current = true
+        setFieldConflict({ kind: "email", bannerVisible: true })
+      }
+      return false
+    }
     if (!saveRes.ok) return false
 
+    autosaveEmailBlockedRef.current = false
     const verifiedForStorage = addressValidationPayload()
     localStorage.setItem(
       "parsedResume",
@@ -583,11 +618,13 @@ function Step1ReviewContent() {
 
   useEffect(() => {
     if (loading) return
+    if (autosaveEmailBlockedRef.current) return
     const t = window.setTimeout(() => {
       void (async () => {
-        const applicantId = localStorage.getItem("applicantId")?.trim() || ""
+        const applicantId = getScopedApplicantId() || ""
         if (
           !applicantId ||
+          autosaveEmailBlockedRef.current ||
           validateStep1Form(form, {
             addressVerified: !needsAddressVerification || addressValidation.isAddressVerified,
           })
@@ -625,6 +662,7 @@ function Step1ReviewContent() {
   }
 
   const handleSaveAndContinue = async () => {
+    autosaveEmailBlockedRef.current = false
     setFieldConflict(null)
     setGenericError(null)
     setSubmitAttempted(true)
@@ -639,36 +677,16 @@ function Step1ReviewContent() {
 
     try {
       const verified = addressValidationPayload()
-      const applicantId = localStorage.getItem("applicantId") || ""
+      const applicantId = getScopedApplicantId() || ""
       if (!applicantId) throw new Error("Missing applicant ID")
-
-      const { error: upsertBrowserError } = await supabase
-        .from("worker")
-        .upsert({
-          applicant_id: applicantId,
-          first_name: form.firstName.trim(),
-          last_name: form.lastName.trim(),
-          address1: form.address1.trim(),
-          address2: resolveStep1Address2(form),
-          city: form.city.trim(),
-          state: form.state.trim(),
-          zip_code: form.zipCode.trim(),
-          phone: form.phone.trim(),
-          email: form.email.trim(),
-          job_role: form.jobRole.trim(),
-          updated_at: new Date().toISOString(),
-        }, { onConflict: "applicant_id" })
-      if (upsertBrowserError) console.warn("[step-1-review] worker upsert", upsertBrowserError)
-      // Create a new worker record on each save by generating a fresh applicantId.
-      // This prevents overwriting the previous worker row keyed by user_id.
-      // const applicantId = globalThis.crypto?.randomUUID?.()
-      // if (!applicantId) throw new Error("Could not generate applicant ID")
-      // localStorage.setItem("applicantId", applicantId)
 
       const tenantSlug =
         typeof window !== "undefined"
           ? resolveClientOnboardingTenantSlug(window.location.search)
           : null
+      if (!tenantSlug) {
+        throw new Error("Company not found. Check the link and try again.")
+      }
 
       const payload = {
         applicantId,
@@ -682,7 +700,7 @@ function Step1ReviewContent() {
         phone: form.phone,
         email: form.email,
         jobRole: form.jobRole,
-        ...(tenantSlug ? { tenantSlug } : {}),
+        tenantSlug,
         ...(verified
           ? {
               addressOriginal: verified.originalAddress,
@@ -731,6 +749,7 @@ function Step1ReviewContent() {
       }
 
       if (saveRes.status === 409 && saveJson.code === "DUPLICATE_EMAIL") {
+        autosaveEmailBlockedRef.current = true
         setFieldConflict({ kind: "email", bannerVisible: true })
         return
       }
@@ -765,29 +784,34 @@ function Step1ReviewContent() {
           return
         }
 
-        const { supabaseBrowser: supabase } = await import("@/lib/supabase-browser")
-        // Avoid upsert(..., onConflict: "user_id") in the browser — it requires a UNIQUE constraint on worker.user_id.
-        // If the DB isn't migrated, upsert will either error or insert duplicates.
-        const { data: existing, error: selErr } = await supabase
-          .from("worker")
-          .select("id")
-          .eq("user_id", applicantId)
-          .maybeSingle()
+        const { supabaseBrowser: browserClient } = await import("@/lib/supabase-browser")
+        // Prefer tenant-scoped lookup; same user_id can exist on multiple tenants.
+        let existingQuery = browserClient.from("worker").select("id").eq("user_id", applicantId)
+        if (clientTenantId) {
+          existingQuery = existingQuery.eq("tenant_id", clientTenantId)
+        }
+        const { data: existingRows, error: selErr } = await existingQuery
+          .order("updated_at", { ascending: false })
+          .limit(1)
         if (selErr) {
           throw new Error(
             `${describeSaveError(selErr)} To save from the server instead, add SUPABASE_SERVICE_ROLE_KEY to .env.local (Supabase → Project Settings → API → service_role secret).`
           )
         }
+        const existing = existingRows?.[0]
         if (existing?.id) {
           const { user_id: _u, ...updatePayload } = workerRow as Record<string, unknown>
-          const { error: upErr } = await supabase.from("worker").update(updatePayload).eq("id", existing.id)
+          const { error: upErr } = await browserClient
+            .from("worker")
+            .update(updatePayload)
+            .eq("id", existing.id)
           if (upErr) {
             throw new Error(
               `${describeSaveError(upErr)} To save from the server instead, add SUPABASE_SERVICE_ROLE_KEY to .env.local (Supabase → Project Settings → API → service_role secret).`
             )
           }
         } else {
-          const { error: insErr } = await supabase.from("worker").insert(workerRow)
+          const { error: insErr } = await browserClient.from("worker").insert(workerRow)
           if (insErr) {
             throw new Error(
               `${describeSaveError(insErr)} To save from the server instead, add SUPABASE_SERVICE_ROLE_KEY to .env.local (Supabase → Project Settings → API → service_role secret).`
@@ -829,6 +853,7 @@ function Step1ReviewContent() {
             body: JSON.stringify({
               applicantId,
               resume_path: resumeStoragePath.trim(),
+              ...(tenantSlug ? { tenantSlug } : {}),
             }),
           })
           if (!reqRes.ok) {
@@ -905,9 +930,26 @@ function Step1ReviewContent() {
         /* progress is best-effort; step 2 should still open */
       }
 
+      const enabled = getEnabledTenantSteps(nav.config)
+      const resumeIdx = resumeStep
+        ? enabled.findIndex((s) => s.id === resumeStep.id || s.step_key === resumeStep.step_key)
+        : -1
+      const nextIdx =
+        resumeIdx >= 0 ? findNavigableStepIndex(enabled, resumeIdx, 1) : null
+
+      await skipNonNavigableApplicantSteps({
+        enabledSteps: enabled,
+        progress: onboarding?.progress ?? null,
+        updateStepStatus: onboarding?.updateStepStatus,
+        afterIndex: resumeIdx,
+        beforeIndex: nextIdx ?? resumeIdx,
+      })
+
       const next =
-        adjacentStepRoute(nav.config, resumeStep, 1, nav.slug) ??
-        applicationPath(APPLICATION_ROUTES.professionalLicense)
+        nextIdx !== null
+          ? routeForApplicantStep(enabled[nextIdx]!, nav.slug)
+          : adjacentStepRoute(nav.config, resumeStep, 1, nav.slug) ??
+            applicationPath(APPLICATION_ROUTES.professionalLicense)
       router.push(next)
 
     } catch (err: unknown) {
@@ -970,10 +1012,10 @@ function Step1ReviewContent() {
       style={shellStyle}
     >
       <div
-        className="bg-white rounded-xl sm:rounded-2xl shadow-2xl overflow-hidden flex flex-col min-[1200px]:flex-row relative mx-auto w-full max-w-[1060px] min-[1200px]:min-h-[640px] min-h-0"
+        className="bg-white rounded-xl sm:rounded-2xl shadow-2xl overflow-hidden flex flex-col min-[700px]:flex-row relative mx-auto w-full max-w-[1060px] min-[700px]:min-h-[640px] min-h-0"
       >
         {/* LEFT - Form */}
-        <div className="w-full min-[1200px]:w-[65%] p-4 sm:p-6 min-[1200px]:p-10 flex flex-col justify-between min-w-0">
+        <div className="w-full min-[700px]:w-[65%] p-4 sm:p-6 min-[700px]:p-8 min-[1200px]:p-10 flex flex-col justify-between min-w-0">
           <div className="min-w-0">
             <OnboardingStepper />
 
@@ -1076,16 +1118,8 @@ function Step1ReviewContent() {
                 </div>
               </div>
 
-              {/* City, State */}
+              {/* State, City */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
-                <SearchableSelect
-                  label="City"
-                  required
-                  value={form.city}
-                  placeholder="Select City"
-                  options={POPULAR_CITIES}
-                  onChange={(value) => handleChange("city", value)}
-                />
                 <SearchableSelect
                   label="State"
                   required
@@ -1093,6 +1127,14 @@ function Step1ReviewContent() {
                   placeholder="Select State"
                   options={US_STATES}
                   onChange={(value) => handleChange("state", value)}
+                />
+                <SearchableSelect
+                  label="City"
+                  required
+                  value={form.city}
+                  placeholder="Select City"
+                  options={POPULAR_CITIES}
+                  onChange={(value) => handleChange("city", value)}
                 />
               </div>
 
@@ -1277,7 +1319,7 @@ function Step1ReviewContent() {
         </div>
 
         {/* RIGHT - Branding and Image */}
-        <div className="relative hidden min-h-[320px] shrink-0 bg-gray-50 min-[1200px]:block min-[1200px]:min-h-0 min-[1200px]:w-[35%]">
+        <div className="relative hidden min-h-[320px] shrink-0 bg-gray-50 min-[700px]:block min-[700px]:min-h-0 min-[700px]:w-[35%]">
           <div className="absolute inset-0 z-0">
             {panelUseNativeImg ? (
               <img
@@ -1290,7 +1332,7 @@ function Step1ReviewContent() {
                 src={panelSrc}
                 alt=""
                 fill
-                sizes="(max-width: 1199px) 0px, 35vw"
+                sizes="(max-width: 699px) 0px, 35vw"
                 className="object-cover object-top opacity-60 grayscale"
                 priority
               />
@@ -1299,12 +1341,12 @@ function Step1ReviewContent() {
           </div>
 
           <div
-            className={`absolute inset-0 z-10 flex flex-col items-center justify-center ${BRANDING_RIGHT_PANEL_STACK_GAP_CLASS} px-10`}
+            className={`absolute inset-0 z-10 flex flex-col items-center justify-center ${BRANDING_RIGHT_PANEL_STACK_GAP_CLASS} px-5 min-[900px]:px-10`}
           >
             <BrandingRightPanelLogo
               src={logoSrc}
               alt={branding.companyName}
-              widthClassName="w-full max-w-[204px]"
+              widthClassName="w-full max-w-[180px] min-[900px]:max-w-[204px]"
             />
 
             <div className="flex w-full max-w-[280px] items-center justify-center gap-4">
@@ -1316,7 +1358,7 @@ function Step1ReviewContent() {
               />
               <div className="h-px flex-1 bg-slate-300/80" />
             </div>
-            <p className="max-w-[280px] text-center text-[16px] font-normal leading-6 text-[#1e293b]">
+            <p className="max-w-[280px] text-center text-[14px] font-normal leading-5 text-[#1e293b] min-[900px]:text-[16px] min-[900px]:leading-6">
               {branding.tagline}
             </p>
           </div>

@@ -45,6 +45,7 @@ import {
 } from "@/lib/tenant/tenant-branding";
 import { withTenant } from "@/lib/tenant/with-tenant";
 import SearchableSelectField from "@/app/tenant-onboarding/SearchableSelectField";
+import BrandingColorField from "@/app/tenant-onboarding/BrandingColorField";
 
 const inputTypographyStyle = {
   fontFamily: "Inter, Arial, sans-serif",
@@ -68,7 +69,7 @@ function FieldError({ message }: { message?: string | null }) {
   if (!message) return null;
   return (
     <p
-      className="mt-[6px] text-[13px] font-medium leading-[18px]"
+      className="to-field-error mt-[6px] text-[13px] font-medium leading-[18px] text-[#DC2626]"
       style={{ ...interStyle, color: VALIDATION_ERROR_RED }}
     >
       {message}
@@ -102,7 +103,7 @@ function FieldLabel({ children, required = true }: { children: string; required?
 function ErrorBanner({ message }: { message: string }) {
   return (
     <div
-      className="mb-6 rounded-[8px] border border-[#FECACA] bg-[#FEF2F2] px-[14px] py-[12px] text-[14px] font-medium leading-[20px]"
+      className="to-field-error mb-6 rounded-[8px] border border-[#FECACA] bg-[#FEF2F2] px-[14px] py-[12px] text-[14px] font-medium leading-[20px] text-[#DC2626]"
       style={{ ...interStyle, color: VALIDATION_ERROR_RED }}
     >
       {message}
@@ -129,7 +130,9 @@ function ContinueButton({
       type={type}
       disabled={disabled}
       onClick={onClick}
-      className={`flex h-[54px] w-full items-center justify-center rounded-[12px] text-[16px] font-semibold leading-[22px] tracking-normal transition disabled:cursor-not-allowed disabled:bg-[#dddddd] disabled:text-[#c5c5c5] enabled:text-white enabled:hover:brightness-95 ${className}`.trim()}
+      className={`flex h-[54px] w-full items-center justify-center rounded-[12px] text-[16px] font-semibold leading-[22px] tracking-normal transition disabled:cursor-not-allowed disabled:bg-[#dddddd] disabled:text-[#c5c5c5] enabled:cursor-pointer enabled:hover:brightness-95 ${
+        enabled ? "to-on-brand text-white" : ""
+      } ${className}`.trim()}
       style={primaryButtonStyle(enabled)}
     >
       {label}
@@ -323,7 +326,7 @@ function SelectField({
           disabled={disabled}
           onChange={(e) => onChange(e.target.value)}
           style={inputTypographyStyle}
-          className={`h-[56px] w-full appearance-none rounded-[8px] border bg-white px-[14px] pr-10 ${inputTextClass} outline-none transition disabled:cursor-not-allowed disabled:bg-[#f7f8fa] disabled:text-[#94a3b8] ${
+          className={`h-[56px] w-full cursor-pointer appearance-none rounded-[8px] border bg-white px-[14px] pr-10 ${inputTextClass} outline-none transition disabled:cursor-not-allowed disabled:bg-[#f7f8fa] disabled:text-[#94a3b8] ${
             error
               ? inputErrorClass
               : `border-[#cbd5e1] ${inputFocusClass} ${value ? "text-[#0f172a]" : "text-[#94a3b8]"}`
@@ -385,10 +388,14 @@ function GoalCard({ id, label, icon, selected, onToggle }: GoalCardProps) {
       </span>
       <span
         className={`flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-[8px] border sm:h-[24px] sm:w-[24px] ${
-          selected ? "border-[color:var(--brand-primary)] bg-[color:var(--brand-primary)]" : "border-[#cbd5e1] bg-white"
+          selected
+            ? "to-on-brand border-[color:var(--brand-primary)] bg-[color:var(--brand-primary)]"
+            : "border-[#cbd5e1] bg-white"
         }`}
       >
-        {selected ? <Check className="h-[14px] w-[14px] text-white" strokeWidth={3} /> : null}
+        {selected ? (
+          <Check className="h-[14px] w-[14px] text-white" strokeWidth={3} color="#ffffff" />
+        ) : null}
       </span>
     </button>
   );
@@ -481,7 +488,12 @@ export function BusinessStep({
 
   const selectedStateCode = useMemo(() => {
     const fromRows = stateRows.find((row) => row.name === businessInfo.state)?.code;
-    return fromRows ?? getStateCodeFromName(businessInfo.state) ?? "";
+    if (fromRows) return fromRows;
+    const fromName = getStateCodeFromName(businessInfo.state);
+    if (fromName) return fromName;
+    const trimmed = businessInfo.state.trim().toUpperCase();
+    if (trimmed.length === 2 && getStateNameFromCode(trimmed)) return trimmed;
+    return "";
   }, [businessInfo.state, stateRows]);
 
   useEffect(() => {
@@ -534,18 +546,63 @@ export function BusinessStep({
     }
     return [...cityOptions, city].sort((a, b) => a.localeCompare(b));
   }, [businessInfo.city, cityOptions]);
+
+  const effectiveStateOptions = useMemo(() => {
+    const state = businessInfo.state.trim();
+    if (!state) return stateOptions;
+
+    if (stateOptions.includes(state)) return stateOptions;
+
+    // Address autocomplete / saved data may store a 2-letter code — resolve to name.
+    const fromCode = getStateNameFromCode(state);
+    if (fromCode && stateOptions.includes(fromCode)) return stateOptions;
+
+    return [...stateOptions, fromCode || state].sort((a, b) => a.localeCompare(b));
+  }, [businessInfo.state, stateOptions]);
+
+  const displayStateValue = useMemo(() => {
+    const raw = businessInfo.state.trim();
+    if (!raw) return "";
+    if (stateOptions.includes(raw) || effectiveStateOptions.includes(raw)) return raw;
+    const fromCode = getStateNameFromCode(raw);
+    if (fromCode && (stateOptions.includes(fromCode) || effectiveStateOptions.includes(fromCode))) {
+      return fromCode;
+    }
+    return raw;
+  }, [businessInfo.state, effectiveStateOptions, stateOptions]);
+
+  // Normalize a stored state code (e.g. "AZ") to the full name once options load.
+  useEffect(() => {
+    const raw = businessInfo.state.trim();
+    if (!raw || stateOptions.length === 0) return;
+    if (stateOptions.includes(raw)) return;
+    const fromCode = getStateNameFromCode(raw);
+    if (fromCode && stateOptions.includes(fromCode) && fromCode !== raw) {
+      onBusinessInfoChange({ state: fromCode });
+    }
+    // Parent passes an inline setter; only re-run when the stored value/options change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- avoid re-running on unstable callback identity
+  }, [businessInfo.state, stateOptions]);
+
   const stateOptionsUnavailable = !locationLoading && stateOptions.length === 0;
   const cityOptionsUnavailable = Boolean(businessInfo.state) && !citiesLoading && effectiveCityOptions.length === 0;
 
   const validationContext = useMemo(
     () => ({
       stateCode: selectedStateCode || undefined,
-      stateName: businessInfo.state || undefined,
-      allowedStateNames: stateOptions,
+      stateName: displayStateValue || businessInfo.state || undefined,
+      allowedStateNames: effectiveStateOptions.length > 0 ? effectiveStateOptions : stateOptions,
       allowedCityNames: effectiveCityOptions.length > 0 ? effectiveCityOptions : undefined,
       requireEin: true,
     }),
-    [businessInfo.state, effectiveCityOptions, selectedStateCode, stateOptions]
+    [
+      businessInfo.state,
+      displayStateValue,
+      effectiveCityOptions,
+      effectiveStateOptions,
+      selectedStateCode,
+      stateOptions,
+    ]
   );
 
   const formInput = useMemo(
@@ -736,16 +793,25 @@ export function BusinessStep({
         </div>
 
         <div className="grid grid-cols-1 gap-[14px] min-[600px]:grid-cols-2 sm:gap-[24px]">
-          <SelectField
+          <SearchableSelectField
             label="State"
             required
-            value={businessInfo.state}
-            onChange={(value) => handleBusinessFieldChange({ state: value, city: "" })}
-            placeholder={locationLoading ? "Loading…" : stateOptionsUnavailable ? "No states found" : "Select state"}
-            options={stateOptions}
+            loading={locationLoading}
             disabled={locationLoading || stateOptionsUnavailable}
+            value={displayStateValue}
+            onChange={(value) => handleBusinessFieldChange({ state: value, city: "" })}
+            onBlur={() => handleFieldBlur("state")}
+            placeholder={
+              locationLoading
+                ? "Loading…"
+                : stateOptionsUnavailable
+                  ? "No states found"
+                  : "Search state"
+            }
+            searchPlaceholder="Type to search states"
+            options={effectiveStateOptions}
             error={showFieldError("state")}
-            emptyMessage="No states found"
+            emptyMessage="No states found. Try another search."
           />
           <SearchableSelectField
             label="City"
@@ -1016,12 +1082,25 @@ export function CompanyLogoStep({
     handleFile(event.dataTransfer.files?.[0] ?? null);
   };
 
+  const onFaviconDrop = (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    handleFaviconFile(event.dataTransfer.files?.[0] ?? null);
+  };
+
   const onFileInput = (event: ChangeEvent<HTMLInputElement>) => {
     handleFile(event.target.files?.[0] ?? null);
   };
 
+  const onFaviconFileInput = (event: ChangeEvent<HTMLInputElement>) => {
+    handleFaviconFile(event.target.files?.[0] ?? null);
+  };
+
   const openFilePicker = () => {
     inputRef.current?.click();
+  };
+
+  const openFaviconFilePicker = () => {
+    faviconInputRef.current?.click();
   };
 
   const handleRemoveLogo = (event: React.MouseEvent) => {
@@ -1033,7 +1112,8 @@ export function CompanyLogoStep({
     if (inputRef.current) inputRef.current.value = "";
   };
 
-  const handleRemoveFavicon = () => {
+  const handleRemoveFavicon = (event: React.MouseEvent) => {
+    event.stopPropagation();
     setFaviconError(null);
     onFaviconFileChange(null);
     if (faviconInputRef.current) faviconInputRef.current.value = "";
@@ -1100,7 +1180,7 @@ export function CompanyLogoStep({
               <span
                 className={`relative mt-[2px] flex h-[20px] w-[20px] shrink-0 items-center justify-center rounded-[6px] border ${
                   transparentBackground
-                    ? "border-[color:var(--brand-primary)] bg-[color:var(--brand-primary)]"
+                    ? "to-on-brand border-[color:var(--brand-primary)] bg-[color:var(--brand-primary)]"
                     : "border-[#cbd5e1] bg-white"
                 }`}
               >
@@ -1112,7 +1192,7 @@ export function CompanyLogoStep({
                   aria-label="Make the white background on my logo transparent"
                 />
                 {transparentBackground ? (
-                  <Check className="h-[14px] w-[14px] text-white" strokeWidth={3} />
+                  <Check className="h-[14px] w-[14px] text-white" strokeWidth={3} color="#ffffff" />
                 ) : null}
               </span>
               <span
@@ -1198,7 +1278,7 @@ export function CompanyLogoStep({
 
             {uploadError ? (
               <p
-                className="mt-[8px] text-[13px] font-medium leading-[18px]"
+                className="to-field-error mt-[8px] text-[13px] font-medium leading-[18px] text-[#DC2626]"
                 style={{ ...interStyle, color: VALIDATION_ERROR_RED }}
               >
                 {uploadError}
@@ -1219,71 +1299,127 @@ export function CompanyLogoStep({
           onChange={onFileInput}
         />
 
-        <section className="rounded-[14px] border border-[#e8edf4] bg-[#fafafa] px-[16px] py-[18px]">
-          <FieldLabel required={false}>Favicon</FieldLabel>
-          <p className="mb-3 text-[12px] leading-[18px] text-[#64748b]" style={interStyle}>
-            Small icon for the browser tab, sidebar, and header. Square image works best. Falls back
-            to company logo if skipped. PNG, JPG, WEBP, SVG, or ICO. Max 2 MB.
-          </p>
+        <div>
+          <h3
+            className="text-[16px] font-semibold leading-[24px] text-[#0f172a]"
+            style={interStyle}
+          >
+            Upload your favicon icon
+          </h3>
+
           {faviconFile && faviconPreviewSrc ? (
-            <div className="flex items-center gap-[14px] rounded-[12px] border border-[color:var(--brand-primary)] bg-white px-[14px] py-[12px]">
+            <div className="mt-[16px] flex items-center gap-[14px] rounded-[12px] border border-[color:var(--brand-primary)] bg-[#F4F4F4] px-[16px] py-[14px]">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={faviconPreviewSrc}
                 alt=""
-                className="h-[48px] w-[48px] shrink-0 rounded-[10px] border border-[#e2e8f0] bg-white object-contain p-1"
+                className="h-[56px] w-[56px] shrink-0 rounded-[10px] border border-[#e2e8f0] bg-white object-contain p-1"
               />
-              <div className="min-w-0 flex-1">
+              <div className="min-w-0 flex-1 text-left">
                 <p
-                  className="truncate text-[14px] font-semibold leading-[20px] text-[#0f172a]"
+                  className="truncate text-[16px] font-semibold leading-[22px] text-[#374151]"
                   style={interStyle}
                 >
                   {faviconFile.name}
                 </p>
-                <p className="text-[12px] text-[#64748b]" style={interStyle}>
+                <p
+                  className="truncate text-[14px] font-normal leading-[20px] text-[#94a3b8]"
+                  style={interStyle}
+                >
                   Uploaded favicon
                 </p>
               </div>
               <button
                 type="button"
                 onClick={handleRemoveFavicon}
-                className="flex h-[40px] w-[40px] shrink-0 items-center justify-center rounded-[8px] text-[color:var(--brand-primary)] transition hover:bg-[#f1f5f9]"
+                className="flex h-[40px] w-[40px] shrink-0 items-center justify-center rounded-[8px] text-[color:var(--brand-primary)] transition hover:bg-white/80"
                 aria-label="Remove favicon"
               >
                 <Trash2 className="h-[20px] w-[20px]" strokeWidth={2} />
               </button>
             </div>
           ) : (
-            <div className="flex flex-wrap items-center gap-3">
-              <input
-                ref={faviconInputRef}
-                type="file"
-                accept={FAVICON_ACCEPT}
-                className="hidden"
-                onChange={(event) => handleFaviconFile(event.target.files?.[0] ?? null)}
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={openFaviconFilePicker}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") openFaviconFilePicker();
+              }}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={onFaviconDrop}
+              className="mt-[16px] flex cursor-pointer flex-col items-center justify-center rounded-[10px] border-2 border-dashed border-[#94a3b8] bg-white px-4 py-[24px] transition hover:border-[#64748b] hover:bg-[#fafafa] sm:px-6 sm:py-[28px]"
+            >
+              <Image
+                src="/icons/braas-HR/tenant-onboarding/upload.svg"
+                alt=""
+                width={36}
+                height={36}
+                className="h-[30px] w-[30px] sm:h-[36px] sm:w-[36px]"
               />
+
+              <p
+                className="mt-[12px] text-center text-[14px] font-medium leading-[20px] text-[#104b83] sm:mt-[16px] sm:text-[16px] sm:leading-[24px]"
+                style={interStyle}
+              >
+                Drag your file(s) to start uploading
+              </p>
+
+              <div className="my-[16px] flex w-full max-w-[320px] items-center gap-3">
+                <div className="h-px flex-1 bg-[#cbd5e1]" aria-hidden />
+                <span
+                  className="text-[14px] font-medium leading-[20px] text-[#64748b]"
+                  style={interStyle}
+                >
+                  OR
+                </span>
+                <div className="h-px flex-1 bg-[#cbd5e1]" aria-hidden />
+              </div>
+
               <button
                 type="button"
-                onClick={() => faviconInputRef.current?.click()}
-                className="inline-flex h-[40px] items-center justify-center rounded-lg bg-[#012352] px-4 text-[14px] font-medium text-white transition hover:brightness-110"
-                style={{ ...interStyle, color: "#ffffff" }}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  openFaviconFilePicker();
+                }}
+                className="flex h-[44px] min-w-[160px] items-center justify-center rounded-[8px] border border-[#104b83] bg-white px-6 text-[14px] font-semibold leading-[20px] text-[#104b83] transition hover:bg-[#f8fafc]"
+                style={interStyle}
               >
-                Choose file
+                Browse files
               </button>
-              <span className="text-[13px] text-[#64748b]" style={interStyle}>
-                No file chosen
-              </span>
+
+              <p
+                className="mt-[12px] text-[13px] leading-[18px] text-[#94a3b8]"
+                style={interStyle}
+              >
+                Max 2 MB files are allowed
+              </p>
             </div>
           )}
+
           {faviconError ? (
             <p
-              className="mt-2 text-[12px] font-medium"
+              className="to-field-error mt-[8px] text-[13px] font-medium leading-[18px] text-[#DC2626]"
               style={{ ...interStyle, color: VALIDATION_ERROR_RED }}
             >
               {faviconError}
             </p>
           ) : null}
-        </section>
+
+          {!faviconFile ? (
+            <p className="mt-[12px] text-[13px] leading-[18px] text-[#94a3b8]" style={interStyle}>
+              PNG, JPG, WEBP, SVG, or ICO. Max 2 MB.
+            </p>
+          ) : null}
+        </div>
+
+        <input
+          ref={faviconInputRef}
+          type="file"
+          accept={FAVICON_ACCEPT}
+          className="hidden"
+          onChange={onFaviconFileInput}
+        />
       </div>
 
       <StepActions
@@ -1297,15 +1433,48 @@ export function CompanyLogoStep({
   );
 }
 
-function SplitCircle({ left, right }: { left: string; right: string }) {
+function SplitCircle({
+  left,
+  right,
+  selected = false,
+}: {
+  left: string;
+  right: string;
+  selected?: boolean;
+}) {
   return (
     <div
-      className="mx-auto flex h-[88px] w-[88px] shrink-0 overflow-hidden rounded-full border border-black/10 shadow-sm"
+      className={`mx-auto flex h-[88px] w-[88px] shrink-0 overflow-hidden rounded-full shadow-sm ${
+        selected ? "border-2 border-[#012352]" : "border border-black/10"
+      }`}
       aria-hidden
     >
       <div className="h-full w-1/2" style={{ backgroundColor: left }} />
       <div className="h-full w-1/2" style={{ backgroundColor: right }} />
     </div>
+  );
+}
+
+function ThemeSelectedCheck() {
+  return (
+    <span
+      className="to-on-brand relative inline-grid h-[18px] w-[18px] shrink-0 place-items-center overflow-hidden rounded-full bg-[#012352] leading-none"
+      aria-hidden
+    >
+      <Check
+        aria-hidden
+        className="pointer-events-none block h-[10px] w-[10px] text-white"
+        strokeWidth={2.75}
+        color="#ffffff"
+        absoluteStrokeWidth
+        style={{
+          display: "block",
+          margin: 0,
+          // Lucide Check path is optically top-heavy; nudge keeps it centered at 100–110% zoom.
+          transform: "translateY(0.5px)",
+        }}
+      />
+    </span>
   );
 }
 
@@ -1423,61 +1592,68 @@ export function BrandingStep({
             <button
               type="button"
               onClick={() => onThemeModeChange("system")}
-              className={`flex flex-col items-center rounded-[14px] border-2 bg-[#f8fafc] px-[16px] py-[20px] transition ${
+              className={`flex cursor-pointer flex-col items-center rounded-[14px] border-2 bg-[#f8fafc] px-[16px] py-[20px] transition ${
                 themeMode === "system"
-                  ? "border-[color:var(--brand-primary)] ring-1 ring-[color:color-mix(in_srgb,var(--brand-primary)_35%,transparent)]"
+                  ? "border-[#012352]"
                   : "border-transparent hover:border-[#e2e8f0]"
               }`}
             >
-              <SplitCircle left={platformColors.primary} right={platformColors.accent} />
-              <div className="mt-[14px] flex items-center gap-1.5">
-                {themeMode === "system" ? (
-                  <Check className="h-[16px] w-[16px] text-[color:var(--brand-secondary)]" strokeWidth={2.5} />
-                ) : null}
+              <SplitCircle
+                left={platformColors.primary}
+                right={platformColors.accent}
+                selected={themeMode === "system"}
+              />
+              <div className="mt-[14px] flex items-center justify-center gap-2">
                 <span className="text-[14px] font-medium text-[#0f172a]" style={interStyle}>
                   System Default
                 </span>
+                {themeMode === "system" ? <ThemeSelectedCheck /> : null}
               </div>
             </button>
 
             <button
               type="button"
               onClick={() => onThemeModeChange("custom")}
-              className={`flex flex-col items-center rounded-[14px] border-2 bg-white px-[16px] py-[20px] transition ${
+              className={`flex cursor-pointer flex-col items-center rounded-[14px] border-2 bg-white px-[16px] py-[20px] transition ${
                 themeMode === "custom"
-                  ? "border-[color:var(--brand-primary)] ring-1 ring-[color:color-mix(in_srgb,var(--brand-primary)_35%,transparent)]"
+                  ? "border-[#012352]"
                   : "border-[#e8edf4] hover:border-[#cbd5e1]"
               }`}
             >
-              <SplitCircle left={customSwatchLeft} right={customSwatchRight} />
-              <span className="mt-[14px] text-[14px] font-medium text-[#0f172a]" style={interStyle}>
-                Custom Color
-              </span>
+              <SplitCircle
+                left={customSwatchLeft}
+                right={customSwatchRight}
+                selected={themeMode === "custom"}
+              />
+              <div className="mt-[14px] flex items-center justify-center gap-2">
+                {themeMode === "custom" ? <ThemeSelectedCheck /> : null}
+                <span className="text-[14px] font-medium text-[#0f172a]" style={interStyle}>
+                  Custom Color
+                </span>
+              </div>
             </button>
           </div>
 
           {themeMode === "custom" ? (
             <div className="mt-[20px] grid gap-[16px] sm:grid-cols-3">
-              {[
-                { label: "Primary", value: primaryHex, onChange: onPrimaryChange },
-                { label: "Secondary", value: secondaryHex, onChange: onSecondaryChange },
-                { label: "Accent", value: accentHex, onChange: onAccentChange },
-              ].map((color) => (
-                <label key={color.label} className="block">
-                  <span className="mb-[8px] block text-[13px] font-medium text-[#475569]" style={interStyle}>
-                    {color.label}
-                  </span>
-                  <div className="flex items-center gap-3 rounded-[10px] border border-[#e2e8f0] bg-white p-3">
-                    <input
-                      type="color"
-                      value={color.value}
-                      onChange={(e) => color.onChange(e.target.value)}
-                      className="h-10 w-10 cursor-pointer rounded border-0 bg-transparent p-0"
-                    />
-                    <span className="font-mono text-[12px] text-[#64748b]">{color.value}</span>
-                  </div>
-                </label>
-              ))}
+              <BrandingColorField
+                label="Primary"
+                value={primaryHex}
+                defaultValue={platformColors.primary}
+                onChange={onPrimaryChange}
+              />
+              <BrandingColorField
+                label="Secondary"
+                value={secondaryHex}
+                defaultValue={platformColors.secondary}
+                onChange={onSecondaryChange}
+              />
+              <BrandingColorField
+                label="Accent"
+                value={accentHex}
+                defaultValue={platformColors.accent}
+                onChange={onAccentChange}
+              />
             </div>
           ) : null}
         </section>
@@ -1595,7 +1771,7 @@ export function BrandingStep({
                   <button
                     type="button"
                     onClick={() => backgroundInputRef.current?.click()}
-                    className="inline-flex h-[40px] items-center justify-center rounded-lg bg-[#012352] px-4 text-[14px] font-medium text-white transition hover:brightness-110"
+                    className="to-on-brand inline-flex h-[40px] cursor-pointer items-center justify-center rounded-lg bg-[#012352] px-4 text-[14px] font-medium text-white transition hover:brightness-110"
                     style={{ ...interStyle, color: "#ffffff" }}
                   >
                     Choose file
@@ -1797,7 +1973,7 @@ export function PreviewCard({ b }: { b: TenantBranding }) {
             </p>
             <button
               type="button"
-              className="mt-6 w-full max-w-[196px] rounded-xl px-5 py-2.5 text-[18px] font-semibold leading-[22px] text-white"
+              className="to-on-brand mt-6 w-full max-w-[196px] rounded-xl px-5 py-2.5 text-[18px] font-semibold leading-[22px] text-white"
               style={{ backgroundColor: "var(--brand-primary)", color: "#ffffff" }}
             >
               {APPLICANT_PORTAL_CTA_START_APPLICATION}
@@ -2077,7 +2253,7 @@ export function DoneStep({
       <div className="mt-[32px] flex flex-wrap justify-center gap-3">
         <Link
           href={dashboardHref}
-          className="inline-flex h-[52px] min-w-[200px] items-center justify-center rounded-[12px] px-8 text-[15px] font-semibold text-white"
+          className="to-on-brand inline-flex h-[52px] min-w-[200px] cursor-pointer items-center justify-center rounded-[12px] px-8 text-[15px] font-semibold text-white"
           style={primaryButtonStyle(true)}
         >
           Go to recruiter dashboard

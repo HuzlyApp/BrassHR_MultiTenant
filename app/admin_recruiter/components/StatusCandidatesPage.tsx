@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CandidatesListShell } from "./CandidatesListShell";
+import { ListTableCheckbox } from "./ListTableCheckbox";
 import AdvancedSearchModal from "./AdvancedSearchModal";
 import { useCandidatesFilterRowsDefault } from "../hooks/useCandidatesFilterRowsDefault";
 import { exportCandidatesCsv, exportCandidatesXls } from "../candidates/export-candidates";
@@ -39,6 +40,7 @@ type WorkerProfile = {
   zip?: string | null;
   created_at: string | null;
   status?: string | null;
+  application_status_name?: string | null;
   profile_photo?: string | null;
   profile_photo_url?: string | null;
 };
@@ -196,7 +198,8 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
         zip: item.zip ?? "",
         address1: item.address1 ?? "",
         address2: item.address2 ?? "",
-        status: formatCandidateStatusLabel(item.status ?? statusLabel),
+        status: item.application_status_name?.trim()
+          || formatCandidateStatusLabel(item.status ?? statusLabel),
         createdAt: item.created_at,
         reference: item.id.slice(0, 7).toUpperCase(),
         dateOfBirth: null,
@@ -326,14 +329,10 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
               <div className="overflow-hidden rounded-md border border-[#E5E7EB]">
                 <div className="overflow-auto">
                   <table className="min-w-[820px] w-full border-collapse">
-                    <thead className="bg-[#F8FAFC]">
+                    <thead className="bg-[#F8FAFC] text-black">
                       <tr className="border-b border-[#E5E7EB]">
                         <th className="w-12 border-r border-[#E5E7EB] bg-[#E5E7EB] px-3 py-3 text-center">
-                          <input
-                            type="checkbox"
-                            aria-label="Select all candidates"
-                            className="h-5 w-5 rounded-[5px] border-2 border-[#C8D1DA] accent-[color:var(--brand-primary)]"
-                          />
+                          <ListTableCheckbox size="md" aria-label="Select all candidates" />
                         </th>
                         {cols.map((colId) => (
                           <th
@@ -349,10 +348,9 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
                       {paginated.map((c) => (
                         <tr key={c.id} className="border-b border-[#E9EDF3] hover:bg-[#F9FBFB]">
                           <td className="w-12 border-r border-[#EEF2F7] px-3 py-4 text-center align-middle">
-                            <input
-                              type="checkbox"
+                            <ListTableCheckbox
+                              size="md"
                               aria-label={`Select ${c.name || "candidate"}`}
-                              className="h-5 w-5 rounded-[5px] border-2 border-[#C8D1DA] accent-[color:var(--brand-primary)]"
                             />
                           </td>
                           {cols.map((colId) => (

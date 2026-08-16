@@ -68,7 +68,7 @@ export default function AccountReadyModal({
               fontFamily: "var(--font-geist-sans), Inter, Arial, sans-serif",
             }}
           >
-            Exit
+            Back to BrassHR
           </button>
 
           {onResend ? (

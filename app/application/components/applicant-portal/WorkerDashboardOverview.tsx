@@ -4,6 +4,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { Clock, MapPin, Megaphone, Shield } from "lucide-react";
 import { Cell, Pie, PieChart, ResponsiveContainer } from "recharts";
+import AnalyticsChartFrame from "@/app/components/charts/AnalyticsChartFrame";
 import type {
   ApplicantNote,
   Appointment,
@@ -158,13 +159,17 @@ function StatusBadge({ status }: { status: "confirmed" | "requested" | "reschedu
 }
 
 function AttendanceDonut({ pct }: { pct: number }) {
-  const data = [
-    { key: "progress", value: pct },
-    { key: "remaining", value: Math.max(0, 100 - pct) },
-  ];
+  const safePct = Math.min(100, Math.max(0, pct));
+  const isEmpty = safePct === 0;
+  const data = isEmpty
+    ? [{ key: "empty", value: 1 }]
+    : [
+        { key: "progress", value: safePct },
+        { key: "remaining", value: Math.max(0, 100 - safePct) },
+      ];
 
   return (
-    <div className="pointer-events-none relative flex h-[106px] w-full min-w-0 select-none items-center justify-center outline-none min-[600px]:h-[132px] sm:h-[154px] xl:h-[165px] [&_.recharts-responsive-container]:outline-none [&_.recharts-wrapper]:outline-none [&_.recharts-surface]:outline-none [&_*:focus]:outline-none">
+    <AnalyticsChartFrame className="relative flex h-[106px] w-full min-w-0 items-center justify-center min-[600px]:h-[132px] sm:h-[154px] xl:h-[165px]">
       <ResponsiveContainer width="100%" height="100%">
         <PieChart margin={{ top: 4, right: 4, bottom: 4, left: 4 }}>
           <Pie
@@ -179,20 +184,26 @@ function AttendanceDonut({ pct }: { pct: number }) {
             stroke="#FFFFFF"
             strokeWidth={2}
           >
-            <Cell fill={WORKER_CHART_BLUE} />
-            <Cell fill="#E5E7EB" />
+            {isEmpty ? (
+              <Cell fill="#E5E7EB" />
+            ) : (
+              <>
+                <Cell fill={WORKER_CHART_BLUE} />
+                <Cell fill="#E5E7EB" />
+              </>
+            )}
           </Pie>
         </PieChart>
       </ResponsiveContainer>
       <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
         <span className="font-[Inter,sans-serif] text-[20px] font-semibold leading-6 text-[#111827] min-[600px]:text-[26px] min-[600px]:leading-8">
-          {pct}%
+          {safePct}%
         </span>
         <span className="font-[Inter,sans-serif] text-[10px] leading-3 text-[#6B7280] min-[600px]:text-[12px] min-[600px]:leading-4">
           of 40hrs
         </span>
       </div>
-    </div>
+    </AnalyticsChartFrame>
   );
 }
 

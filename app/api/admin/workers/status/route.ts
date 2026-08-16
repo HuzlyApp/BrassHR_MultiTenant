@@ -4,7 +4,7 @@ import { canAccessWorkerRecord } from "@/lib/auth/worker-record-access";
 import { sendOnboardingApplicantEmail } from "@/lib/email/send-templated-email";
 import { SendEmailError } from "@/lib/email/errors";
 import { EMAIL_TEMPLATE_TYPE } from "@/lib/email-templates/template-keys";
-import { resolveAppOrigin } from "@/lib/resolve-app-origin";
+import { resolveApplicantEmailAppOrigin } from "@/lib/resolve-app-origin";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { parseRequiredUuid } from "@/lib/validation/uuid";
 
@@ -76,7 +76,7 @@ export async function PATCH(req: NextRequest) {
 
     if (status === "approved") {
       try {
-        const origin = resolveAppOrigin(req);
+        const origin = resolveApplicantEmailAppOrigin(req);
         if (!origin) {
           approvalEmail = {
             sent: false,

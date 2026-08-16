@@ -1,19 +1,27 @@
 import { describe, expect, it } from "vitest";
 import {
+  ACCOUNT_READY_MODAL_PENDING_KEY,
   ACCOUNT_READY_MODAL_SEEN_KEY,
   buildYourTrialPath,
+  clearAccountReadyModalPending,
+  clearAccountReadyModalSeen,
+  markAccountReadyModalPending,
   markAccountReadyModalSeen,
+  readAccountReadyModalPending,
   readAccountReadyModalSeen,
   shouldShowAccountReadyModal,
   stripAccountReadySearchParam,
 } from "@/lib/auth/account-ready-modal";
 
-function createMemoryStorage() {
-  const store = new Map<string, string>();
+function createMemoryStorage(initial: Record<string, string> = {}) {
+  const store = new Map<string, string>(Object.entries(initial));
   return {
     getItem: (key: string) => store.get(key) ?? null,
     setItem: (key: string, value: string) => {
       store.set(key, value);
+    },
+    removeItem: (key: string) => {
+      store.delete(key);
     },
   };
 }
@@ -39,6 +47,22 @@ describe("account-ready-modal", () => {
     markAccountReadyModalSeen(storage);
     expect(storage.getItem(ACCOUNT_READY_MODAL_SEEN_KEY)).toBe("true");
     expect(readAccountReadyModalSeen(storage)).toBe(true);
+  });
+
+  it("marks a pending modal from signup and clears previous seen state", () => {
+    const storage = createMemoryStorage({ [ACCOUNT_READY_MODAL_SEEN_KEY]: "true" });
+    markAccountReadyModalPending(storage);
+    expect(readAccountReadyModalSeen(storage)).toBe(false);
+    expect(readAccountReadyModalPending(storage)).toBe(true);
+    expect(storage.getItem(ACCOUNT_READY_MODAL_PENDING_KEY)).toBe("true");
+    clearAccountReadyModalPending(storage);
+    expect(readAccountReadyModalPending(storage)).toBe(false);
+  });
+
+  it("clears the modal-seen flag", () => {
+    const storage = createMemoryStorage({ [ACCOUNT_READY_MODAL_SEEN_KEY]: "true" });
+    clearAccountReadyModalSeen(storage);
+    expect(readAccountReadyModalSeen(storage)).toBe(false);
   });
 
   it("keeps the modal closed after Exit when account-ready was in the URL", () => {

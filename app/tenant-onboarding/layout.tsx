@@ -1,5 +1,7 @@
+import type { Metadata } from "next";
 import { Inter, Poppins, Roboto, Ubuntu } from "next/font/google";
 import type { ReactNode } from "react";
+import { buildTenantOnboardingDocumentMetadata } from "@/lib/tenant/tenant-document-metadata";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -27,6 +29,8 @@ const ubuntu = Ubuntu({
   variable: "--font-tenant-branding-ubuntu",
   display: "swap",
 });
+
+export const metadata: Metadata = buildTenantOnboardingDocumentMetadata();
 
 export default function TenantOnboardingLayout({ children }: { children: ReactNode }) {
   return (

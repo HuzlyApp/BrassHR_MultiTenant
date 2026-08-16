@@ -27,6 +27,7 @@ import {
   TEXT_PRIMARY,
   TEXT_SECONDARY,
 } from "../constants";
+import ConfigureMappingModal from "@/app/components/workflow-mappings/ConfigureMappingModal";
 
 type OnboardingFlow = OnboardingFlowListItem;
 
@@ -740,6 +741,11 @@ function OnboardingFlowsPageContent({
 
   const [activeTab, setActiveTab] = useState<FilterTab>("published");
   const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [mappingSetup, setMappingSetup] = useState<{
+    workflowId: string;
+    workflowName: string;
+    suggestedEmploymentType?: "W2" | "1099" | null;
+  } | null>(null);
 
   const { libraries, isLoading: librariesLoading, error: librariesError } = useOnboardingLibraries();
   const { templateOptions, isLoading: templatesLoading } = useOnboardingTemplates();
@@ -805,6 +811,20 @@ function OnboardingFlowsPageContent({
         setCreateModalOpen(false);
         if (created.status === "published") {
           setActiveTab("published");
+          const templateEmployment = draft.templateId
+            ? templateOptions.find((item) => item.id === draft.templateId)?.label
+            : null;
+          const suggestedEmploymentType =
+            templateEmployment?.includes("1099") || templateEmployment?.toLowerCase().includes("contractor")
+              ? "1099"
+              : templateEmployment?.toLowerCase().includes("w2")
+                ? "W2"
+                : null;
+          setMappingSetup({
+            workflowId: created.id,
+            workflowName: created.name,
+            suggestedEmploymentType,
+          });
         } else {
           setActiveTab("unpublished");
         }
@@ -815,7 +835,7 @@ function OnboardingFlowsPageContent({
         throw e;
       }
     },
-    [createFlow, effectiveLibraryId, refetch, router, builderBase]
+    [createFlow, effectiveLibraryId, refetch, router, builderBase, templateOptions]
   );
 
   const sectionTitle = activeTab === "published" ? "Published Flows" : "Unpublished Flows";
@@ -987,6 +1007,24 @@ function OnboardingFlowsPageContent({
         folderOptions={folderOptions}
         defaultFolderId={defaultFolderId}
         saving={isCreating || templatesLoading}
+      />
+
+      <ConfigureMappingModal
+        open={mappingSetup !== null}
+        workflowId={mappingSetup?.workflowId ?? ""}
+        workflowName={mappingSetup?.workflowName ?? ""}
+        suggestedEmploymentType={mappingSetup?.suggestedEmploymentType}
+        onClose={() => {
+          setMappingSetup(null);
+          if (mappingSetup?.workflowId) {
+            router.push(`${builderBase}?flow=${mappingSetup.workflowId}`);
+          }
+        }}
+        onSaved={() => {
+          const flowId = mappingSetup?.workflowId;
+          setMappingSetup(null);
+          if (flowId) router.push(`${builderBase}?flow=${flowId}`);
+        }}
       />
     </div>
   );

@@ -33,7 +33,7 @@ import {
   uploadRequiredOnboardingFile,
 } from "@/lib/onboarding/upload-required-file-client";
 import { useOnboardingStepNav } from "@/lib/onboarding/use-onboarding-step-nav";
-import { useMarkStepInProgressIfPending } from "@/lib/onboarding/use-mark-step-in-progress-if-pending";
+import { useMarkStepInProgressIfPending, persistStepProgress } from "@/lib/onboarding/use-mark-step-in-progress-if-pending";
 import { skipOnboardingStep } from "@/lib/onboarding/skip-onboarding-step";
 import { resolveClientOnboardingTenantSlug } from "@/lib/tenant/client-onboarding-slug";
 import type { Step2FileType } from "@/lib/onboardingSummaryData";
@@ -548,7 +548,12 @@ export default function Step2License() {
       }
 
       if (licenseStep?.step_key) {
-        await onboarding?.updateStepStatus?.(licenseStep.step_key, "completed");
+        await persistStepProgress(
+          onboarding?.updateStepStatus,
+          licenseStep.step_key,
+          "completed",
+          completingRef
+        );
       }
       const nextRoute =
         nextStepRouteAfter(onboarding?.config, licenseStep, tenantSlug) ??
@@ -565,8 +570,8 @@ export default function Step2License() {
 
   return (
     <OnboardingLayout
-      cardClassName="md:min-w-0 md:max-w-[950px] md:w-full md:grid-cols-[2fr_1fr] md:h-auto md:min-h-[0]"
-      rightPanelContentClassName="p-5"
+      cardClassName="min-[700px]:min-w-0 min-[700px]:max-w-[1060px] min-[700px]:w-full min-[700px]:grid-cols-[minmax(0,2fr)_minmax(180px,1fr)] min-[1200px]:grid-cols-[minmax(0,2.2fr)_minmax(220px,1fr)] min-[700px]:h-auto min-[700px]:min-h-0"
+      rightPanelContentClassName="p-4 min-[900px]:p-5"
       rightPanelImageClassName="opacity-90 object-top"
       rightPanelOverlayClassName="bg-white/70"
     >

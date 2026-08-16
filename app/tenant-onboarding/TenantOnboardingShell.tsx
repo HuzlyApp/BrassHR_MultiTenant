@@ -119,7 +119,7 @@ export default function TenantOnboardingShell({
             </div>
 
             <h1
-              className="mt-[18px] text-[34px] font-semibold leading-[40px] tracking-normal max-[399px]:mt-[14px] max-[399px]:text-[26px] max-[399px]:leading-[32px]"
+              className="mt-[18px] text-[34px] font-semibold leading-[40px] tracking-normal max-[549px]:mt-[14px] max-[549px]:text-[26px] max-[549px]:leading-[32px]"
               style={{ ...interStyle, color: "var(--brand-primary)" }}
             >
               Welcome to Brass HR!

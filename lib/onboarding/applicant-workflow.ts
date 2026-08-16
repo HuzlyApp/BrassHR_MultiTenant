@@ -4,6 +4,7 @@ import type {
   PublishedWorkflowStep,
   WorkflowStepType,
 } from "@/lib/onboarding/applicant-workflow-types";
+import { isWorkerVisibleStep } from "@/lib/onboarding/workflow-settings";
 
 const WORKFLOW_TYPE_TO_LIBRARY_ID: Record<string, string> = {
   skill_qualification_assessment: "skill-qualification-assessment",
@@ -34,28 +35,14 @@ export function normalizeWorkflowSteps(
   return steps.slice().sort((a, b) => a.order - b.order);
 }
 
-function isClientPerformedBackgroundCheck(step: PublishedWorkflowStep): boolean {
-  if (step.type !== "background_check") return true;
-  return step.settings.clientPerforms !== false;
-}
-
-/** Applicant-visible steps from a published workflow (excludes admin-only background checks). */
-export function getApplicantWorkflowSteps(
-  workflow: PublishedWorkflow
-): PublishedWorkflowStep[] {
-  return normalizeWorkflowSteps(workflow.steps).filter((step) => {
-    if (step.type === "background_check" && step.settings.clientPerforms === true) {
-      return true;
-    }
-    return isClientPerformedBackgroundCheck(step);
-  });
-}
-
 function workflowSettingsToMetadata(settings: PublishedWorkflowStep["settings"]) {
   const useIntegrationPartner = settings.useIntegrationPartner === true;
   return {
     workflow_settings: {
       required: settings.required ?? true,
+      completionOwner:
+        typeof settings.completionOwner === "string" ? settings.completionOwner : "",
+      phase: typeof settings.phase === "string" ? settings.phase : undefined,
       clientPerforms: settings.clientPerforms !== false,
       useBraasPartner: useIntegrationPartner,
       notifyHrOnFail: settings.notifyHrOnFail === true,
@@ -91,11 +78,23 @@ export function workflowStepToTenantStep(
     is_required: step.required,
     is_enabled: true,
     metadata: {
-      workflow_step_id: libraryId,
+      workflow_step_id:
+        typeof step.settings.workflowStepId === "string" && step.settings.workflowStepId.trim()
+          ? String(step.settings.workflowStepId).trim()
+          : libraryId,
       workflow_day: step.day,
       ...workflowSettingsToMetadata(step.settings),
     },
   };
+}
+
+/** Applicant-visible steps from a published workflow (excludes internal HR/manager/system work). */
+export function getApplicantWorkflowSteps(
+  workflow: PublishedWorkflow
+): PublishedWorkflowStep[] {
+  return normalizeWorkflowSteps(workflow.steps).filter((step, index) =>
+    isWorkerVisibleStep(workflowStepToTenantStep(step, index))
+  );
 }
 
 export function publishedWorkflowToTenantConfig(
@@ -148,6 +147,7 @@ export function tenantStepToWorkflowStep(step: TenantOnboardingStep): PublishedW
     order: Math.ceil(step.sort_order / 10),
     settings: {
       ...rawSettings,
+      workflowStepId: libraryId,
       useIntegrationPartner: rawSettings.useBraasPartner === true,
       provider:
         rawSettings.provider === "Checker (connected)"
@@ -169,7 +169,7 @@ export function tenantConfigToPublishedWorkflow(
     version: config.version,
     status,
     steps: config.steps
-      .filter((s) => s.is_enabled)
+      .filter((s) => s.is_enabled && isWorkerVisibleStep(s))
       .slice()
       .sort((a, b) => a.sort_order - b.sort_order)
       .map(tenantStepToWorkflowStep),

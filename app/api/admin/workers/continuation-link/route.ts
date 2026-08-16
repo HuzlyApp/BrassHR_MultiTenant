@@ -4,7 +4,7 @@ import { requireStaffApiSession } from "@/lib/auth/api-session";
 import { resolveStaffTenantScope } from "@/lib/auth/staff-tenant-scope";
 import { canAccessWorkerRecord } from "@/lib/auth/worker-record-access";
 import { createApplicantContinuationLink } from "@/lib/onboarding/applicant-continuation-link";
-import { resolveAppOrigin } from "@/lib/resolve-app-origin";
+import { resolveApplicantEmailAppOrigin } from "@/lib/resolve-app-origin";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { parseRequiredUuid } from "@/lib/validation/uuid";
 
@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const origin = resolveAppOrigin(req, body.clientOrigin);
+    const origin = resolveApplicantEmailAppOrigin(req, body.clientOrigin);
     if (!origin) {
       return NextResponse.json({ error: "Could not resolve app origin" }, { status: 400 });
     }

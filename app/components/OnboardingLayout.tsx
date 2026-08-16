@@ -62,21 +62,22 @@ export default function OnboardingLayout({
   return (
     <div
       style={shellStyle}
-      className="flex min-h-screen items-center justify-center p-4 sm:p-6 lg:p-8"
+      className="flex min-h-screen w-full min-w-0 items-center justify-center overflow-x-hidden p-4 sm:p-6 lg:p-8"
     >
       <div
         className={cn(
-          "h-full w-full overflow-hidden rounded-2xl bg-white shadow-[0_24px_70px_rgba(0,0,0,0.18)] min-[1200px]:grid min-[1200px]:min-h-[650px] min-[1200px]:min-w-[1060px] min-[1200px]:max-w-[1060px] min-[1200px]:grid-cols-[730px_330px]",
+          // Fluid columns so the right panel never clips when card max-width < 730+330.
+          "h-full w-full min-w-0 max-w-[1060px] overflow-hidden rounded-2xl bg-white shadow-[0_24px_70px_rgba(0,0,0,0.18)] min-[700px]:grid min-[700px]:min-h-[540px] min-[700px]:grid-cols-[minmax(0,2fr)_minmax(180px,1fr)] min-[1200px]:min-h-[650px] min-[1200px]:grid-cols-[minmax(0,2.2fr)_minmax(220px,1fr)]",
           cardClassName
         )}
       >
-        <div className="flex min-h-0 min-w-0 flex-col overflow-y-auto border-b border-slate-200 min-[1200px]:border-b-0 min-[1200px]:border-r min-[1200px]:border-slate-200">
+        <div className="flex min-h-0 min-w-0 flex-col overflow-y-auto border-b border-slate-200 min-[700px]:border-b-0 min-[700px]:border-r min-[700px]:border-slate-200">
           {children}
         </div>
 
         <div
           className={cn(
-            "relative hidden min-h-0 overflow-hidden rounded-b-2xl min-[1200px]:block min-[1200px]:rounded-b-none min-[1200px]:rounded-r-2xl",
+            "relative hidden min-h-0 min-w-0 overflow-hidden rounded-b-2xl min-[700px]:block min-[700px]:rounded-b-none min-[700px]:rounded-r-2xl",
             rightPanelClassName
           )}
         >
@@ -94,7 +95,7 @@ export default function OnboardingLayout({
               src={panelSrc}
               alt={rightPanelImageAlt ?? "Applicant onboarding"}
               fill
-              sizes="(max-width: 1199px) 0px, 330px"
+              sizes="(max-width: 699px) 0px, 33vw"
               className={cn("object-cover grayscale opacity-60", rightPanelImageClassName)}
               priority
             />
@@ -108,13 +109,13 @@ export default function OnboardingLayout({
 
           <div
             className={cn(
-              "absolute inset-0 flex items-center justify-center overflow-hidden p-8 pt-[calc(2rem+12%)]",
+              "absolute inset-0 flex items-center justify-center overflow-hidden p-4 pt-[calc(1.5rem+10%)] min-[900px]:p-6 min-[900px]:pt-[calc(2rem+12%)] min-[1200px]:p-8",
               rightPanelContentClassName
             )}
           >
             <div
               className={cn(
-                "flex w-full max-w-[270px] flex-col items-center text-center",
+                "flex w-full max-w-[270px] min-w-0 flex-col items-center text-center",
                 BRANDING_RIGHT_PANEL_STACK_GAP_CLASS,
                 rightPanelInnerClassName
               )}
@@ -126,19 +127,19 @@ export default function OnboardingLayout({
                 className={logoClassName}
               />
 
-              <div className="flex w-full items-center justify-center gap-4">
-                <div className="h-px flex-1 bg-slate-400/55" />
+              <div className="flex w-full min-w-0 items-center justify-center gap-4">
+                <div className="h-px min-w-0 flex-1 bg-slate-400/55" />
                 <BrandedSvgIcon
                   src="/icons/circle-star-icon.svg"
                   className="h-6 w-6 flex-none"
                   color={branding.primaryHex}
                 />
-                <div className="h-px flex-1 bg-slate-400/55" />
+                <div className="h-px min-w-0 flex-1 bg-slate-400/55" />
               </div>
 
               <p
                 className={cn(
-                  "text-center text-[16px] font-normal leading-6 tracking-normal text-black",
+                  "w-full break-words text-center text-[14px] font-normal leading-5 tracking-normal text-black min-[900px]:text-[16px] min-[900px]:leading-6",
                   taglineClassName
                 )}
               >

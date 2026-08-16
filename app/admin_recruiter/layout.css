@@ -172,6 +172,53 @@
   background-color: #e5e7eb;
 }
 
+/* Jobs list table — custom horizontal scrollbar (pointer cursor on hover) */
+.jobs-list-table-scroll {
+  width: 100%;
+}
+
+.jobs-list-table-viewport {
+  container-type: inline-size;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.jobs-list-table-status {
+  position: sticky;
+  left: 0;
+  width: 100cqw;
+  padding: 3rem 14px;
+  text-align: center;
+  color: #64748b;
+}
+
+.jobs-list-table-viewport::-webkit-scrollbar {
+  display: none;
+  height: 0;
+}
+
+.jobs-list-table-scrollbar-track {
+  position: relative;
+  height: 8px;
+  margin: 1px 0;
+  cursor: pointer;
+  background: transparent;
+}
+
+.jobs-list-table-scrollbar-thumb {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 8px;
+  border-radius: 999px;
+  background-color: #cbd5e1;
+  cursor: pointer;
+}
+
+.jobs-list-table-scrollbar-thumb:hover {
+  background-color: #94a3b8;
+}
+
 /* Schedule / calendar week view — thin 4px scrollbar */
 .schedule-calendar-scroll {
   scrollbar-width: thin;
@@ -430,6 +477,13 @@
   padding: 1.25rem 1rem;
 }
 
+@media (max-width: 499px) {
+  .admin-recruiter-page-pad {
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+  }
+}
+
 @media (min-width: 1000px) {
   .admin-recruiter-page-pad {
     padding-left: 2rem;
@@ -504,4 +558,61 @@
     padding-top: 0;
     padding-bottom: 0;
   }
+}
+
+/* Status tab count pill — centered at fractional browser zoom (e.g. 80%) */
+.admin-recruiter-tab-count {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  background-color: #cfcac2;
+  color: #2b3d51;
+  font-size: 11px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  text-align: center;
+}
+
+/* Candidate review action / zoom chips — keep label+icon centered at 90% zoom */
+.admin-recruiter-action-chip {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  line-height: 1;
+  vertical-align: middle;
+}
+
+.admin-recruiter-action-chip > span,
+.admin-recruiter-action-chip > svg {
+  flex-shrink: 0;
+  display: block;
+}
+
+.admin-recruiter-zoom-pct {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  height: 2rem;
+  min-height: 2rem;
+  min-width: 3.5rem;
+  padding: 0 0.625rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.5rem;
+  background-color: #f8fafc;
+  color: #334155;
+  font-size: 0.875rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  text-align: center;
 }

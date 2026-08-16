@@ -8,7 +8,7 @@ import {
   resolveTenantIdBySlug,
   resolveWorkerByApplicantId,
 } from "@/lib/onboarding/resolve-worker-context";
-import { resolveAppOrigin } from "@/lib/resolve-app-origin";
+import { resolveApplicantEmailAppOrigin } from "@/lib/resolve-app-origin";
 import { getSupabaseUrl } from "@/lib/supabase-env";
 
 export const runtime = "nodejs";
@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Supabase not configured" }, { status: 503 });
     }
 
-    const origin = resolveAppOrigin(req, parsed.clientOrigin);
+    const origin = resolveApplicantEmailAppOrigin(req, parsed.clientOrigin);
     if (!origin) {
       return NextResponse.json({ error: "Could not resolve app origin" }, { status: 400 });
     }

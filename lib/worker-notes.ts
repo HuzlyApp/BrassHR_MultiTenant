@@ -30,13 +30,20 @@ function recruiterAuthorName(user: UserNameRow | undefined, fallback = "Recruite
 export async function loadWorkerNotesForWorkerId(
   supabase: SupabaseClient,
   workerId: string,
-  options?: { authorFallback?: string }
+  options?: { authorFallback?: string; applicationId?: string | null }
 ): Promise<WorkerNoteDto[]> {
-  const { data, error } = await supabase
+  let query = supabase
     .from("worker_notes")
     .select("id, body, created_at, updated_at, created_by_user_id")
     .eq("worker_id", workerId)
     .order("created_at", { ascending: false });
+
+  const applicationId = options?.applicationId?.trim();
+  if (applicationId) {
+    query = query.eq("application_id", applicationId);
+  }
+
+  const { data, error } = await query;
 
   if (error) throw error;
 

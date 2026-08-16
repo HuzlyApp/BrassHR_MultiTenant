@@ -47,7 +47,6 @@ export function ApplicantPortalHeader({
   const [loggingOut, setLoggingOut] = useState(false);
   const profileAreaRef = useRef<HTMLDivElement>(null);
   const actionsAreaRef = useRef<HTMLDivElement>(null);
-  const firstName = applicantName.split(" ")[0] || "Worker";
 
   const loadNotifications = useCallback(async () => {
     const headers = await authHeaders();
@@ -236,11 +235,18 @@ export function ApplicantPortalHeader({
                 setNotificationsOpen(false);
                 setProfileOpen((prev) => !prev);
               }}
-              className="flex max-w-full items-center gap-1 rounded-xl border border-[#E5E7EB] px-1.5 py-1 max-[319px]:gap-0.5 max-[319px]:px-1 sm:gap-2 sm:px-2.5 sm:py-1.5"
+              className="flex max-w-full items-center gap-1 rounded-xl border border-[#E5E7EB] bg-white px-1.5 py-1 transition hover:bg-[#F8FAFC] max-[319px]:gap-0.5 max-[319px]:px-1 sm:gap-2 sm:px-2.5 sm:py-1.5"
+              aria-label="Open profile menu"
+              aria-expanded={profileOpen}
             >
               <WorkerPortalUserAvatar name={applicantName} photoUrl={profilePhotoUrl} size={30} />
-              <span className="hidden text-[14px] font-semibold text-black sm:inline">{firstName}.</span>
-              <ChevronDown className="h-4 w-4 text-[#94A3B8]" />
+              <div className="hidden min-w-0 leading-tight text-left sm:block">
+                <p className="max-w-[88px] truncate text-sm font-semibold text-[#0F172A] md:max-w-[140px]">
+                  {applicantName}
+                </p>
+                <p className="max-w-[88px] truncate text-[11px] text-[#64748B] md:max-w-[140px]">Worker</p>
+              </div>
+              <ChevronDown className="h-4 w-4 shrink-0 text-[#94A3B8]" aria-hidden />
             </button>
             {profileOpen ? (
               <div className="absolute right-0 top-full z-50 mt-1 w-52 rounded-lg border border-[#E2E8F0] bg-white p-2 shadow-lg">

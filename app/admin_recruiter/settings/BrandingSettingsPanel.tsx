@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { ChevronDownIcon, ImageIcon, Palette, RefreshCw, Type } from "lucide-react";
 import {
@@ -8,6 +8,7 @@ import {
   AccountLoadingSkeleton,
 } from "@/app/admin_recruiter/account/components/AccountFormStatus";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
+import BrandingColorField from "@/app/tenant-onboarding/BrandingColorField";
 import {
   BRAND_COLOR_PRESETS,
   TENANT_BRANDING_FONT_OPTIONS,
@@ -18,8 +19,10 @@ import {
   patchEffectiveBrandingCache,
 } from "@/lib/admin/hooks/use-effective-branding";
 import { notifyBrandingUpdated } from "@/lib/tenant/branding-events";
-import { isValidBrandingHex } from "@/lib/tenant/branding-validation";
 import {
+  BRAAS_ACCENT,
+  BRAAS_PRIMARY,
+  BRAAS_SECONDARY,
   brandingFontFamily,
   type TenantBranding,
 } from "@/lib/tenant/tenant-branding";
@@ -101,60 +104,9 @@ function FieldBlock({
   );
 }
 
-function ColorField({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  onChange: (hex: string) => void;
-}) {
-  const [text, setText] = useState(value);
-
-  useEffect(() => {
-    setText(value);
-  }, [value]);
-
-  const commit = (raw: string) => {
-    const trimmed = raw.trim();
-    if (isValidBrandingHex(trimmed)) {
-      onChange(trimmed);
-      setText(trimmed);
-    } else {
-      setText(value);
-    }
-  };
-
-  return (
-    <FieldBlock label={label}>
-      <div className="flex items-center gap-3 rounded-lg border border-[#CBD5E1] bg-white p-3">
-        <input
-          type="color"
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
-          className="h-11 w-11 cursor-pointer rounded border-0 bg-transparent p-0"
-          aria-label={`${label} picker`}
-        />
-        <input
-          type="text"
-          value={text}
-          onChange={(event) => setText(event.target.value)}
-          onBlur={() => commit(text)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") {
-              event.preventDefault();
-              commit(text);
-            }
-          }}
-          placeholder="#BC8B41"
-          className="min-w-0 flex-1 font-mono text-sm text-[#475569] outline-none"
-          aria-label={`${label} hex`}
-        />
-      </div>
-    </FieldBlock>
-  );
-}
+const DEFAULT_FONT_COLOR = "#0F172A";
+const DEFAULT_HEADING_COLOR = "#0F172A";
+const DEFAULT_MUTED_COLOR = "#64748B";
 
 function FontSelect({
   label,
@@ -198,17 +150,38 @@ function FontSelect({
   );
 }
 
+function fileNameFromUrl(url: string): string | null {
+  const trimmed = url.trim();
+  if (!trimmed || trimmed.startsWith("blob:")) return null;
+
+  try {
+    const pathname = new URL(trimmed, window.location.origin).pathname;
+    const segment = pathname.split("/").filter(Boolean).pop();
+    return segment ? decodeURIComponent(segment) : null;
+  } catch {
+    const segment = trimmed.split("/").filter(Boolean).pop();
+    if (!segment) return null;
+    return decodeURIComponent(segment.split("?")[0] ?? segment);
+  }
+}
+
 function LogoUploadBlock({
   label,
   hint,
   previewSrc,
+  selectedFile,
   onFileChange,
 }: {
   label: string;
   hint: string;
   previewSrc: string;
+  selectedFile: File | null;
   onFileChange: (file: File | null) => void;
 }) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const uploadedFileName = useMemo(() => fileNameFromUrl(previewSrc), [previewSrc]);
+  const displayFileName = selectedFile?.name ?? uploadedFileName ?? "No file chosen";
+
   return (
     <div className="space-y-3 rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] p-4">
       <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center">
@@ -223,11 +196,27 @@ function LogoUploadBlock({
           <p className="text-xs text-[#64748B]">{hint}</p>
         </div>
       </div>
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          onClick={() => inputRef.current?.click()}
+          className="inline-flex h-10 cursor-pointer items-center justify-center rounded-lg bg-[#012352] px-4 text-sm font-medium text-white transition hover:brightness-110"
+        >
+          Choose file
+        </button>
+        <span
+          className="min-w-0 flex-1 truncate text-sm text-[#475569]"
+          title={displayFileName}
+        >
+          {displayFileName}
+        </span>
+      </div>
       <input
+        ref={inputRef}
         type="file"
-        accept="image/png,image/jpeg,image/webp,image/svg+xml"
+        accept="image/png,image/jpeg,image/webp,image/svg+xml,image/x-icon,.png,.jpg,.jpeg,.webp,.svg,.ico"
         onChange={(event) => onFileChange(event.target.files?.[0] ?? null)}
-        className="block w-full cursor-pointer text-sm text-[#475569] file:mr-4 file:cursor-pointer file:rounded-lg file:border-0 file:bg-[#012352] file:px-4 file:py-2 file:text-sm file:font-medium file:text-white"
+        className="sr-only"
       />
     </div>
   );
@@ -657,9 +646,24 @@ export default function BrandingSettingsPanel() {
                 </div>
               </div>
               <div className="grid gap-4 md:grid-cols-3">
-                <ColorField label="Main color" value={primaryHex} onChange={setPrimaryHex} />
-                <ColorField label="Second color" value={secondaryHex} onChange={setSecondaryHex} />
-                <ColorField label="Accent color" value={accentHex} onChange={setAccentHex} />
+                <BrandingColorField
+                  label="Main color"
+                  value={primaryHex}
+                  defaultValue={BRAAS_PRIMARY}
+                  onChange={setPrimaryHex}
+                />
+                <BrandingColorField
+                  label="Second color"
+                  value={secondaryHex}
+                  defaultValue={BRAAS_SECONDARY}
+                  onChange={setSecondaryHex}
+                />
+                <BrandingColorField
+                  label="Accent color"
+                  value={accentHex}
+                  defaultValue={BRAAS_ACCENT}
+                  onChange={setAccentHex}
+                />
               </div>
             </div>
           </SectionCard>
@@ -674,24 +678,28 @@ export default function BrandingSettingsPanel() {
                 label="Company logo"
                 hint="Used in the app shell and as a fallback. PNG, JPG, WEBP, or SVG. Max 2 MB."
                 previewSrc={logoPreview || logoUrl}
+                selectedFile={logoFile}
                 onFileChange={setLogoFile}
               />
               <LogoUploadBlock
                 label="Login page logo"
                 hint="Shown on worker and recruiter sign-in. Falls back to company logo."
                 previewSrc={loginLogoPreview || loginLogoUrl || logoPreview || logoUrl}
+                selectedFile={loginLogoFile}
                 onFileChange={setLoginLogoFile}
               />
               <LogoUploadBlock
                 label="Signup page logo"
                 hint="Shown on tenant signup. Falls back to company logo."
                 previewSrc={signupLogoPreview || signupLogoUrl || logoPreview || logoUrl}
+                selectedFile={signupLogoFile}
                 onFileChange={setSignupLogoFile}
               />
               <LogoUploadBlock
                 label="Favicon"
                 hint="Small icon shown in the browser tab, sidebar, header, and applicant portal. Square image works best. Falls back to company logo."
                 previewSrc={faviconPreview || faviconUrl || logoPreview || logoUrl}
+                selectedFile={faviconFile}
                 onFileChange={setFaviconFile}
               />
             </div>
@@ -768,7 +776,12 @@ export default function BrandingSettingsPanel() {
                     className="h-11 w-full rounded-lg border border-[#CBD5E1] px-4 text-sm text-[#0F172A] outline-none focus:border-[color:var(--brand-primary)]"
                   />
                 </FieldBlock>
-                <ColorField label="Button color" value={buttonColor} onChange={setButtonColor} />
+                <BrandingColorField
+                  label="Button color"
+                  value={buttonColor}
+                  defaultValue={primaryHex}
+                  onChange={setButtonColor}
+                />
               </div>
             </div>
           </SectionCard>
@@ -784,9 +797,24 @@ export default function BrandingSettingsPanel() {
               <FontSelect label="Body font" value={bodyFontId} onChange={setBodyFontId} />
             </div>
             <div className="mt-4 grid gap-4 md:grid-cols-3">
-              <ColorField label="Body text color" value={fontColor} onChange={setFontColor} />
-              <ColorField label="Heading color" value={headingColor} onChange={setHeadingColor} />
-              <ColorField label="Muted text color" value={mutedTextColor} onChange={setMutedTextColor} />
+              <BrandingColorField
+                label="Body text color"
+                value={fontColor}
+                defaultValue={DEFAULT_FONT_COLOR}
+                onChange={setFontColor}
+              />
+              <BrandingColorField
+                label="Heading color"
+                value={headingColor}
+                defaultValue={DEFAULT_HEADING_COLOR}
+                onChange={setHeadingColor}
+              />
+              <BrandingColorField
+                label="Muted text color"
+                value={mutedTextColor}
+                defaultValue={DEFAULT_MUTED_COLOR}
+                onChange={setMutedTextColor}
+              />
             </div>
           </SectionCard>
         </div>

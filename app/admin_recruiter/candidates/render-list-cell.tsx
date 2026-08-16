@@ -2,12 +2,15 @@ import type { ReactNode } from "react"
 import Link from "next/link"
 import BrandedSvgIcon from "@/app/components/BrandedSvgIcon"
 import { CandidateListAvatar } from "@/app/admin_recruiter/components/CandidateListAvatar"
+import { CandidateAiFinalApprovalLink } from "./CandidateAiFinalApprovalLink"
 import { candidateMailHref, candidateProfileHref } from "./candidate-links"
 import type { CandidateColumnId } from "./column-config"
 import type { CandidateRow } from "./types"
 import { candidateStatusBadgeClassName } from "./candidate-status-badge"
 
 const BRAND_ICON = "var(--brand-primary)"
+/** Figma: Text/text-link — fixed email color under applicant name */
+const TEXT_LINK_COLOR = "#64748B"
 const LINK_CLASS =
   "truncate text-left transition hover:text-[color:var(--brand-primary)] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)]"
 
@@ -19,31 +22,45 @@ export function renderListCell(
   switch (col) {
     case "name":
       return (
-        <div className="flex items-center gap-3 min-w-0 w-full">
+        <div className="flex w-full min-w-0 items-center gap-3">
           <CandidateListAvatar name={c.name || "NA"} photoUrl={c.profilePhotoUrl} />
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             {c.name?.trim() ? (
-              <Link href={candidateProfileHref(c.id)} className={`block text-sm font-medium text-black ${LINK_CLASS}`}>
+              <Link
+                href={candidateProfileHref(c.id)}
+                className={`block text-sm font-medium ${LINK_CLASS}`}
+                style={{ color: "var(--brand-secondary)" }}
+              >
                 {c.name}
               </Link>
             ) : (
-              <div className="text-sm font-medium text-black truncate">—</div>
+              <div className="truncate text-sm font-medium" style={{ color: "var(--brand-secondary)" }}>
+                —
+              </div>
             )}
             {c.email?.trim() ? (
               <Link
                 href={candidateMailHref(c.id)}
                 target="_blank"
                 rel="noopener noreferrer"
-                className={`block text-xs text-[#4B5563] ${LINK_CLASS}`}
+                className={`block text-xs ${LINK_CLASS}`}
+                style={{ color: TEXT_LINK_COLOR }}
               >
                 {c.email}
               </Link>
             ) : (
-              <div className="text-xs text-[#4B5563] truncate">—</div>
+              <div className="truncate text-xs" style={{ color: TEXT_LINK_COLOR }}>
+                —
+              </div>
             )}
           </div>
-          
+
           <div className="ml-auto flex shrink-0 items-center gap-1.5">
+            <CandidateAiFinalApprovalLink
+              workerId={c.id}
+              status={c.status}
+              candidateName={c.name}
+            />
             <Link
               href={`/admin_recruiter/new/attachments/${c.id}`}
               className="inline-flex h-7 w-7 items-center justify-center rounded-md transition hover:bg-[color-mix(in_srgb,var(--brand-primary)_8%,white)]"

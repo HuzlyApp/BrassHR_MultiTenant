@@ -18,6 +18,7 @@ import {
   normalizeTenantEmail,
   TENANT_EMAIL_TAKEN_MESSAGE,
 } from "@/lib/tenant/tenant-email-uniqueness";
+import { normalizeBrandingFontId } from "@/lib/tenant/tenant-branding";
 
 type Body = {
   organizationName?: string;
@@ -29,6 +30,12 @@ type Body = {
   welcomeHeadline?: string | null;
   welcomeSubtitle?: string | null;
   authBackgroundImageUrl?: string | null;
+  primaryFont?: string | null;
+  headingFont?: string | null;
+  bodyFont?: string | null;
+  fontColor?: string | null;
+  headingColor?: string | null;
+  mutedTextColor?: string | null;
   adminEmail?: string;
   adminPassword?: string;
   industry?: string;
@@ -185,6 +192,16 @@ export async function POST(req: Request) {
   const tenantDisplayName =
     businessInputForValidation.companyName.trim() || resolvedCompanyName;
 
+  const primaryFont = body.primaryFont?.trim()
+    ? normalizeBrandingFontId(body.primaryFont)
+    : null;
+  const headingFont = body.headingFont?.trim()
+    ? normalizeBrandingFontId(body.headingFont)
+    : primaryFont;
+  const bodyFont = body.bodyFont?.trim()
+    ? normalizeBrandingFontId(body.bodyFont)
+    : primaryFont;
+
   const brandingRow = {
     name: tenantDisplayName,
     slug: slugFinal,
@@ -197,6 +214,12 @@ export async function POST(req: Request) {
     welcome_headline: body.welcomeHeadline?.trim() || `Welcome to ${tenantDisplayName}`,
     welcome_subtitle: body.welcomeSubtitle?.trim() || "Your applicant experience starts here.",
     auth_background_image_url: body.authBackgroundImageUrl?.trim() || null,
+    primary_font: primaryFont,
+    heading_font: headingFont,
+    body_font: bodyFont,
+    font_color: body.fontColor?.trim() || null,
+    heading_color: body.headingColor?.trim() || null,
+    muted_text_color: body.mutedTextColor?.trim() || null,
     industry: businessInputForValidation.industry,
     company_size: businessInputForValidation.companySize,
     city: businessInputForValidation.city,
@@ -395,6 +418,10 @@ export async function POST(req: Request) {
 
   if (tenantId) {
     try {
+      console.info("[tenant-onboarding] Firma workspace provisioning starting", {
+        tenantId,
+        createdNewTenant,
+      });
       const result = await provisionFirmaWorkspaceForTenant({
         supabase: svc,
         tenantId,
@@ -409,7 +436,7 @@ export async function POST(req: Request) {
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Firma workspace provisioning failed unexpectedly";
-      console.error("[tenant-onboarding] Firma provisioning", message);
+      console.error("[tenant-onboarding] Firma provisioning", { tenantId, error: message });
       firmaProvisioning = {
         status: "failed",
         workspaceId: null,

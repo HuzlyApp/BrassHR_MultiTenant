@@ -16,6 +16,13 @@ export type OnboardingFlowStepRow = {
   parent_step_id: string | null;
   day: number;
   is_required: boolean;
+  // Phase/conditional columns are optional for backwards compatibility.
+  phase?: "pre_hire" | "transition" | "post_hire" | null;
+  phase_order?: number | null;
+  step_order?: number | null;
+  is_conditional?: boolean | null;
+  unlock_condition?: string | null;
+  completion_owner?: string | null;
   settings: Record<string, unknown>;
   metadata: Record<string, unknown>;
   canvas_node_id: string | null;
@@ -212,10 +219,40 @@ function stepsToBuilderDraft(
       position: { x: 120, y: 40 + index * 130 },
       day: step.day,
       required: step.is_required,
-      settings: normalizeWorkflowNodeSettings(step.settings, {
-        required: step.is_required,
-        day: step.day,
-      }),
+      settings: normalizeWorkflowNodeSettings(
+        {
+          ...(step.settings ?? {}),
+          phase:
+            (step.settings as Record<string, unknown> | undefined)?.phase === "transition" ||
+            (step.settings as Record<string, unknown> | undefined)?.phase === "post_hire"
+              ? ((step.settings as Record<string, unknown>).phase as "transition" | "post_hire")
+              : "pre_hire",
+          phaseOrder:
+            typeof (step.settings as Record<string, unknown> | undefined)?.phaseOrder === "number"
+              ? Number((step.settings as Record<string, unknown>).phaseOrder)
+              : undefined,
+          stepOrder:
+            typeof (step.settings as Record<string, unknown> | undefined)?.stepOrder === "number"
+              ? Number((step.settings as Record<string, unknown>).stepOrder)
+              : step.position,
+          isConditional:
+            (step.settings as Record<string, unknown> | undefined)?.isConditional === true,
+          unlockCondition:
+            typeof (step.settings as Record<string, unknown> | undefined)?.unlockCondition ===
+            "string"
+              ? String((step.settings as Record<string, unknown>).unlockCondition)
+              : "",
+          completionOwner:
+            typeof (step.settings as Record<string, unknown> | undefined)?.completionOwner ===
+            "string"
+              ? String((step.settings as Record<string, unknown>).completionOwner)
+              : "",
+        },
+        {
+          required: step.is_required,
+          day: step.day,
+        }
+      ),
     };
   });
 

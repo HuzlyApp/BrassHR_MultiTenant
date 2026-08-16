@@ -186,8 +186,8 @@ export default function AddressAutocompleteField({
 
       {error ? (
         <p
-          className={`${variant === "signup" ? "mt-[8px] text-[14px] leading-[20px]" : "mt-[8px] text-[14px] leading-[20px]"} font-normal text-[#f01846]`}
-          style={interStyle}
+          className={`to-field-error ${variant === "signup" ? "mt-[8px] text-[14px] leading-[20px]" : "mt-[6px] text-[13px] leading-[18px]"} font-medium text-[#DC2626]`}
+          style={{ ...interStyle, color: "#DC2626" }}
           role="alert"
         >
           {error}

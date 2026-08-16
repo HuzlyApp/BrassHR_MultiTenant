@@ -6,8 +6,12 @@ import ApplicantOnboardingPage from "@/app/components/onboarding/ApplicantOnboar
 
 function OnboardingPageInner() {
   const searchParams = useSearchParams();
-  const tenant = searchParams.get("tenant")?.trim() || "subdomaintest";
-  const applicationId = searchParams.get("applicationId")?.trim() || "app_123";
+  const tenant = searchParams.get("tenant")?.trim() || "";
+  const applicationId = searchParams.get("applicationId")?.trim() || "";
+
+  if (!tenant || !applicationId) {
+    return <p role="alert">This onboarding link is missing a tenant or application.</p>;
+  }
 
   return <ApplicantOnboardingPage tenant={tenant} applicationId={applicationId} />;
 }

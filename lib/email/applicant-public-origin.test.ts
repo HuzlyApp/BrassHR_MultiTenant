@@ -31,4 +31,18 @@ describe("resolveApplicantEmailOrigin", () => {
       "http://localhost:3000"
     );
   });
+
+  it("keeps Vercel devmode / preview app hosts", () => {
+    process.env.ROOT_DOMAIN = "brasshr.com";
+    expect(resolveApplicantEmailOrigin("https://brasshr-devmode.vercel.app", "remote")).toBe(
+      "https://brasshr-devmode.vercel.app"
+    );
+  });
+
+  it("uses tenant vanity host when already on production tenant subdomain", () => {
+    process.env.ROOT_DOMAIN = "brasshr.com";
+    expect(resolveApplicantEmailOrigin("https://remote.brasshr.com", "remote")).toBe(
+      "https://remote.brasshr.com"
+    );
+  });
 });

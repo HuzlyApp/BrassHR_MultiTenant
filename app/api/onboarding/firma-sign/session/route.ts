@@ -17,6 +17,7 @@ export async function GET(req: NextRequest) {
     const stepKey = req.nextUrl.searchParams.get("stepKey")?.trim() || "";
     const stepId = req.nextUrl.searchParams.get("stepId")?.trim() || "";
     const tenantSlug = req.nextUrl.searchParams.get("tenantSlug")?.trim() || "";
+    const applicationId = req.nextUrl.searchParams.get("applicationId")?.trim() || "";
     const preferDraftConfig = req.nextUrl.searchParams.get("preview") === "draft";
     if (!applicantId || !stepKey) {
       return NextResponse.json({ error: "Missing applicantId or stepKey" }, { status: 400 });
@@ -77,6 +78,7 @@ export async function GET(req: NextRequest) {
       applicantFirstName: profile.firstName,
       applicantLastName: profile.lastName,
       step: resolved.step,
+      applicationId: applicationId || null,
     });
 
     return NextResponse.json({ session });

@@ -87,8 +87,8 @@ export default function SearchableSelectField({
     ? "mb-[6px] block text-[13px] font-medium leading-[18px] text-[#0f172a] min-[1440px]:mb-[8px] min-[1440px]:text-[14px] min-[1440px]:leading-[20px]"
     : "mb-[8px] block text-[14px] font-medium leading-[20px] text-[#0f172a]"
   const triggerClass = compact
-    ? "flex h-[48px] w-full items-center justify-between rounded-[6px] border bg-white px-[12px] pr-10 text-left text-[14px] leading-[22px] outline-none transition min-[1440px]:h-[56px] min-[1440px]:rounded-[8px] min-[1440px]:px-[14px] min-[1440px]:text-[16px] min-[1440px]:leading-[24px]"
-    : "flex h-[56px] w-full items-center justify-between rounded-[8px] border bg-white px-[14px] pr-10 text-left outline-none transition"
+    ? "flex h-[48px] w-full cursor-pointer items-center justify-between rounded-[6px] border bg-white px-[12px] pr-10 text-left text-[14px] leading-[22px] outline-none transition min-[1440px]:h-[56px] min-[1440px]:rounded-[8px] min-[1440px]:px-[14px] min-[1440px]:text-[16px] min-[1440px]:leading-[24px]"
+    : "flex h-[56px] w-full cursor-pointer items-center justify-between rounded-[8px] border bg-white px-[14px] pr-10 text-left outline-none transition"
 
   return (
     <div ref={wrapperRef}>
@@ -150,7 +150,7 @@ export default function SearchableSelectField({
                       setQuery("")
                       onBlur?.()
                     }}
-                    className={`w-full px-[14px] py-2.5 text-left text-[16px] leading-[24px] text-[#0f172a] hover:bg-[#f1f5f9] ${
+                    className={`w-full cursor-pointer px-[14px] py-2.5 text-left text-[16px] leading-[24px] text-[#0f172a] hover:bg-[#f1f5f9] ${
                       opt === value ? "bg-[#eff6ff] font-medium" : ""
                     }`}
                   >
@@ -165,7 +165,9 @@ export default function SearchableSelectField({
         ) : null}
       </div>
       {error ? (
-        <p className="mt-[6px] text-[12px] font-normal leading-[16px] text-[#DC2626]">{error}</p>
+        <p className="to-field-error mt-[6px] text-[12px] font-normal leading-[16px] text-[#DC2626]">
+          {error}
+        </p>
       ) : null}
     </div>
   )

@@ -7,7 +7,15 @@ import {
   applicantDisplayName,
   interviewOrdinalTitle,
 } from "@/lib/interviews/format";
+import { markApplicationInterviewing } from "@/lib/interviews/mark-application-interviewing";
+import { buildInterviewCalendarUid } from "@/lib/interviews/ics";
+import {
+  sendInterviewInvitations,
+  type InterviewAttendeeInput,
+  type InterviewScheduleRecord,
+} from "@/lib/interviews/send-interview-invitations";
 import { isoToScheduleFields, scheduleRowToIso } from "@/lib/interviews/schedule-fields";
+import type { InterviewMeetingType } from "@/lib/interviews/schedule-payload";
 import { parseRequiredUuid } from "@/lib/validation/uuid";
 
 export const runtime = "nodejs";
@@ -168,19 +176,27 @@ export async function GET(req: NextRequest) {
     }
 
     const tab = parseTab(req.nextUrl.searchParams.get("tab"));
+    const workerIdFilter = req.nextUrl.searchParams.get("workerId")?.trim() ?? "";
+    const applicationIdFilter = req.nextUrl.searchParams.get("applicationId")?.trim() ?? "";
     const nowMs = Date.now();
+
+    let scheduleQuery = supabase
+      .from("interview_schedules")
+      .select(
+        "id, tenant_id, applicant_id, worker_id, application_id, title, description, scheduled_date, start_time, end_time, timezone, status, meeting_link, location, meeting_type, notes, created_at, updated_at"
+      )
+      .eq("tenant_id", scope.tenantId)
+      .order("scheduled_date", { ascending: tab === "upcoming" })
+      .order("start_time", { ascending: tab === "upcoming" })
+      .limit(200);
+
+    if (applicationIdFilter) {
+      scheduleQuery = scheduleQuery.eq("application_id", applicationIdFilter);
+    }
 
     const [{ data: scheduleData, error: scheduleError }, { data: workerData, error: workerError }] =
       await Promise.all([
-        supabase
-          .from("interview_schedules")
-          .select(
-            "id, tenant_id, applicant_id, worker_id, title, description, scheduled_date, start_time, end_time, timezone, status, meeting_link, notes, created_at, updated_at"
-          )
-          .eq("tenant_id", scope.tenantId)
-          .order("scheduled_date", { ascending: tab === "upcoming" })
-          .order("start_time", { ascending: tab === "upcoming" })
-          .limit(200),
+        scheduleQuery,
         supabase
           .from("worker")
           .select("id, first_name, last_name, status")
@@ -194,9 +210,11 @@ export async function GET(req: NextRequest) {
     if (workerError) throw workerError;
 
     const allSchedules = (scheduleData as InterviewScheduleRow[] | null) ?? [];
-    const schedules = allSchedules.filter((row) =>
-      tab === "upcoming" ? isUpcomingRow(row, nowMs) : isRecentRow(row, nowMs)
-    );
+    const schedules = allSchedules
+      .filter((row) =>
+        tab === "upcoming" ? isUpcomingRow(row, nowMs) : isRecentRow(row, nowMs)
+      )
+      .filter((row) => !workerIdFilter || row.worker_id === workerIdFilter);
 
     const workers = (workerData as WorkerRow[] | null) ?? [];
     const workersById = new Map(workers.map((w) => [w.id, w]));
@@ -267,6 +285,31 @@ export async function GET(req: NextRequest) {
   }
 }
 
+function parseInterviewers(raw: unknown): InterviewAttendeeInput[] {
+  if (!Array.isArray(raw)) return [];
+  const interviewers: InterviewAttendeeInput[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== "object") continue;
+    const record = item as Record<string, unknown>;
+    const email = String(record.email ?? "").trim().toLowerCase();
+    const name = String(record.name ?? email).trim();
+    if (!email) continue;
+    interviewers.push({
+      userId: typeof record.userId === "string" ? record.userId : null,
+      email,
+      name,
+      attendeeType: "interviewer",
+    });
+  }
+  return interviewers;
+}
+
+function parseMeetingType(raw: unknown): InterviewMeetingType {
+  const value = String(raw ?? "online").trim().toLowerCase();
+  if (value === "phone" || value === "in_person") return value;
+  return "online";
+}
+
 export async function POST(req: NextRequest) {
   try {
     const auth = await requireStaffApiSession();
@@ -279,11 +322,18 @@ export async function POST(req: NextRequest) {
 
     const body = (await req.json().catch(() => ({}))) as {
       workerId?: string;
+      applicationId?: string | null;
+      jobId?: string | null;
       startsAt?: string;
       endsAt?: string | null;
+      timezone?: string;
+      title?: string;
       meetingType?: string;
       meetingLink?: string | null;
+      location?: string | null;
       notes?: string | null;
+      candidateNotes?: string | null;
+      interviewers?: unknown;
     };
 
     const workerIdCheck = parseRequiredUuid(body.workerId?.trim() ?? "", "workerId");
@@ -304,9 +354,13 @@ export async function POST(req: NextRequest) {
     }
 
     const timezone =
-      typeof Intl !== "undefined"
-        ? Intl.DateTimeFormat().resolvedOptions().timeZone
-        : "Asia/Manila";
+      typeof body.timezone === "string" && body.timezone.trim()
+        ? body.timezone.trim()
+        : typeof Intl !== "undefined"
+          ? Intl.DateTimeFormat().resolvedOptions().timeZone
+          : "Asia/Manila";
+
+    const meetingType = parseMeetingType(body.meetingType);
 
     const supabase = createServiceRoleClient();
     if (!supabase) {
@@ -323,33 +377,75 @@ export async function POST(req: NextRequest) {
     if (workerError) throw workerError;
     if (!worker?.id) return NextResponse.json({ error: "Applicant not found." }, { status: 404 });
 
-    const applicantId = await ensureApplicantForWorker(supabase, scope.tenantId, worker);
+    const { resolveApplicationContextForWorker } = await import(
+      "@/lib/jobs/resolve-application-context"
+    );
+    const appCtx = await resolveApplicationContextForWorker({
+      supabase,
+      tenantId: scope.tenantId,
+      workerId: worker.id,
+      applicationId: body.applicationId ?? null,
+    });
+    if (body.applicationId?.trim() && !appCtx.applicationId) {
+      return NextResponse.json({ error: "Application not found for this worker." }, { status: 404 });
+    }
+    if (appCtx.ambiguous && !appCtx.applicationId) {
+      return NextResponse.json(
+        { error: "applicationId is required when the worker has multiple applications." },
+        { status: 400 }
+      );
+    }
+
+    const applicantId = await ensureApplicantForWorker(
+      supabase,
+      scope.tenantId,
+      worker,
+      appCtx.applicationId
+    );
 
     const scheduleFields = isoToScheduleFields(startsAt, endsAt, timezone);
 
     const sequenceByScheduleId = await loadSequenceMap(supabase, scope.tenantId, [applicantId]);
     const sequence = (sequenceByScheduleId.size || 0) + 1;
-    const title = interviewOrdinalTitle(sequence);
+    const candidateName = applicantDisplayName(worker.first_name, worker.last_name);
+    const title =
+      typeof body.title === "string" && body.title.trim()
+        ? body.title.trim()
+        : interviewOrdinalTitle(sequence);
+
+    const applicationId = appCtx.applicationId;
+    const jobId = body.jobId?.trim() || null;
+
+    const interviewId = crypto.randomUUID();
+    const calendarUid = buildInterviewCalendarUid(interviewId);
 
     const { data: schedule, error: scheduleError } = await supabase
       .from("interview_schedules")
       .insert({
+        id: interviewId,
         tenant_id: scope.tenantId,
         applicant_id: applicantId,
         worker_id: worker.id,
+        application_id: applicationId,
+        job_id: jobId,
         title,
-        description: `${title} schedule with ${applicantDisplayName(worker.first_name, worker.last_name)}`,
+        description: `${title} with ${candidateName}`,
         scheduled_date: scheduleFields.scheduled_date,
         start_time: scheduleFields.start_time,
         end_time: scheduleFields.end_time,
         timezone: scheduleFields.timezone,
         status: "upcoming",
+        meeting_type: meetingType,
         meeting_link: body.meetingLink?.trim() || null,
+        location: body.location?.trim() || null,
         notes: body.notes?.trim() || null,
+        calendar_uid: calendarUid,
+        calendar_sequence: 0,
+        invitation_status: "pending",
         created_by: auth.devBypass ? null : auth.userId,
       })
       .select(
-        "id, tenant_id, applicant_id, worker_id, title, description, scheduled_date, start_time, end_time, timezone, status, meeting_link, notes, created_at, updated_at"
+        "id, tenant_id, applicant_id, worker_id, application_id, job_id, title, description, scheduled_date, start_time, end_time, timezone, status, meeting_link, location, meeting_type, notes, calendar_uid, calendar_sequence, organizer_email, created_at, updated_at"
       )
       .single();
 
@@ -379,7 +475,46 @@ export async function POST(req: NextRequest) {
       updatedSequence
     );
 
-    return NextResponse.json({ ok: true, interview });
+    const applicationIdForStatus = applicationId;
+    const statusResult = await markApplicationInterviewing({
+      supabase,
+      tenantId: scope.tenantId,
+      workerId: worker.id,
+      applicationId: applicationIdForStatus,
+      jobId,
+    });
+
+    let jobTitle: string | null = null;
+    if (jobId) {
+      const { data: jobRow } = await supabase
+        .from("job_requisitions")
+        .select("public_title")
+        .eq("id", jobId)
+        .eq("tenant_id", scope.tenantId)
+        .maybeSingle();
+      jobTitle = jobRow?.public_title?.trim() || null;
+    }
+
+    const invitation = await sendInterviewInvitations({
+      supabase,
+      tenantId: scope.tenantId,
+      interview: schedule as InterviewScheduleRecord,
+      schedulerUserId: auth.devBypass ? null : auth.userId,
+      candidateName,
+      jobTitle,
+      interviewers: parseInterviewers(body.interviewers),
+      deliveryType: "request",
+      candidateFacingNotes:
+        typeof body.candidateNotes === "string" ? body.candidateNotes : null,
+    });
+
+    return NextResponse.json({
+      ok: true,
+      interview,
+      statusUpdated: statusResult.updated,
+      applicationId: statusResult.applicationId,
+      invitation,
+    });
   } catch (err) {
     console.error("[admin/applicant-appointments:post]", err);
     const message = err instanceof Error ? err.message : "Unexpected error";

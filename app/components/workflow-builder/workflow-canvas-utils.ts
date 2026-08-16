@@ -6,10 +6,15 @@ import {
   NODE_VERTICAL_SPACING,
   PARALLEL_BRANCH_OFFSET,
   STEP_NODE_HEIGHT,
+  STEP_NODE_WIDTH,
 } from "./constants";
 import { WORKFLOW_EDGE_TYPE } from "./constants";
-import type { DropZoneNodeData, WorkflowCanvasNodeData } from "./types";
-import { isDropZoneNode } from "./types";
+import type {
+  DropZoneNodeData,
+  WorkflowCanvasNodeData,
+  WorkflowInsertionPoint,
+} from "./types";
+import { isDropZoneNode, isStepNode } from "./types";
 
 export function createDropZoneId(): string {
   return `drop-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -55,6 +60,128 @@ export function findDropZoneAtPosition(
     );
   });
   return hit && isDropZoneNode(hit) ? hit : null;
+}
+
+const INSERTION_HIT_PAD_X = 48;
+const INSERTION_HIT_PAD_Y = 40;
+
+export type WorkflowInsertionTarget = {
+  insertion: WorkflowInsertionPoint;
+  key: string;
+  bounds: { x: number; y: number; width: number; height: number };
+};
+
+function pointInBounds(
+  position: { x: number; y: number },
+  bounds: WorkflowInsertionTarget["bounds"]
+): boolean {
+  return (
+    position.x >= bounds.x &&
+    position.x <= bounds.x + bounds.width &&
+    position.y >= bounds.y &&
+    position.y <= bounds.y + bounds.height
+  );
+}
+
+function boundsCenter(bounds: WorkflowInsertionTarget["bounds"]): { x: number; y: number } {
+  return {
+    x: bounds.x + bounds.width / 2,
+    y: bounds.y + bounds.height / 2,
+  };
+}
+
+export function listInsertionTargets(
+  nodes: Node<WorkflowCanvasNodeData>[],
+  edges: Edge[]
+): WorkflowInsertionTarget[] {
+  const stepNodes = onlyStepNodes(nodes);
+  if (!stepNodes.length) {
+    const insertion: WorkflowInsertionPoint = {
+      previousNodeId: null,
+      nextNodeId: null,
+    };
+    return [
+      {
+        insertion,
+        key: `${insertion.previousNodeId ?? "start"}->${insertion.nextNodeId ?? "end"}`,
+        bounds: {
+          x: -400,
+          y: -400,
+          width: 1200,
+          height: 1200,
+        },
+      },
+    ];
+  }
+
+  const targets: WorkflowInsertionTarget[] = [];
+
+  for (const edge of edges) {
+    const source = nodes.find((n) => n.id === edge.source);
+    const target = nodes.find((n) => n.id === edge.target);
+    if (!source || !isStepNode(source) || !target) continue;
+
+    const insertion: WorkflowInsertionPoint = {
+      previousNodeId: source.id,
+      nextNodeId: target.id,
+    };
+
+    if (isDropZoneNode(target)) {
+      targets.push({
+        insertion,
+        key: `${insertion.previousNodeId ?? "start"}->${insertion.nextNodeId ?? "end"}`,
+        bounds: {
+          x: target.position.x - INSERTION_HIT_PAD_X,
+          y: target.position.y - INSERTION_HIT_PAD_Y,
+          width: DROP_ZONE_WIDTH + INSERTION_HIT_PAD_X * 2,
+          height: DROP_ZONE_HEIGHT + INSERTION_HIT_PAD_Y * 2,
+        },
+      });
+      continue;
+    }
+
+    if (!isStepNode(target)) continue;
+
+    const gapTop = source.position.y + STEP_NODE_HEIGHT;
+    const gapBottom = target.position.y;
+    const gapHeight = Math.max(gapBottom - gapTop, 56);
+
+    targets.push({
+      insertion,
+      key: `${insertion.previousNodeId ?? "start"}->${insertion.nextNodeId ?? "end"}`,
+      bounds: {
+        x: Math.min(source.position.x, target.position.x) - INSERTION_HIT_PAD_X,
+        y: gapTop - INSERTION_HIT_PAD_Y / 2,
+        width: STEP_NODE_WIDTH + INSERTION_HIT_PAD_X * 2,
+        height: gapHeight + INSERTION_HIT_PAD_Y,
+      },
+    });
+  }
+
+  return targets;
+}
+
+export function findInsertionPointAtPosition(
+  nodes: Node<WorkflowCanvasNodeData>[],
+  edges: Edge[],
+  position: { x: number; y: number }
+): WorkflowInsertionPoint | null {
+  const hits = listInsertionTargets(nodes, edges).filter((target) =>
+    pointInBounds(position, target.bounds)
+  );
+  if (!hits.length) return null;
+
+  let closest = hits[0];
+  let closestDist = Number.POSITIVE_INFINITY;
+  for (const hit of hits) {
+    const center = boundsCenter(hit.bounds);
+    const dist = (center.x - position.x) ** 2 + (center.y - position.y) ** 2;
+    if (dist < closestDist) {
+      closest = hit;
+      closestDist = dist;
+    }
+  }
+  return closest.insertion;
 }
 
 export function countDropZoneChildren(

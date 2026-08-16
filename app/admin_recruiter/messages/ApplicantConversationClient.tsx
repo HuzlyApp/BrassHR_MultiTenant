@@ -19,6 +19,12 @@ import ChatImagePreviewModal from "@/app/components/ChatImagePreviewModal";
 const CHAT_ATTACH_ICON = "/icons/chat-icons/attach_file.svg";
 const CHAT_SEND_ICON = "/icons/chat-icons/send.svg";
 
+const CONVERSATION_STARTERS = [
+  "Thanks for your interest. We've decided to focus on other candidates for now.",
+  "I've reviewed your resume and have some questions for you.",
+  "I wanted to follow up and see if you're still interested in this role.",
+] as const;
+
 function ChatAvatar({
   label,
   variant,
@@ -51,11 +57,16 @@ export default function ApplicantConversationClient({
   compact = false,
   applicantName = "Applicant",
   showHeader = true,
+  popupMode = false,
+  appliedOnLabel = null,
 }: {
   workerId: string;
   compact?: boolean;
   applicantName?: string;
   showHeader?: boolean;
+  /** Denser's popup UI: starters, primary sent bubbles, compact composer */
+  popupMode?: boolean;
+  appliedOnLabel?: string | null;
 }) {
   const branding = useTenantBranding();
   const recruiterLabel = branding.companyName?.trim() || "Recruiter";
@@ -239,19 +250,32 @@ export default function ApplicantConversationClient({
 
       <div
         ref={scrollRef}
-        className="flex min-h-[280px] flex-1 flex-col gap-5 overflow-y-auto px-5 py-5"
+        className={
+          popupMode
+            ? "flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-3 py-3"
+            : "flex min-h-[280px] flex-1 flex-col gap-5 overflow-y-auto px-5 py-5"
+        }
         style={{ backgroundColor: "#FFFFFF" }}
       >
         {loading ? (
           <CandidateDetailLoader label="Loading messages..." className="min-h-0 flex-1 bg-transparent py-8" />
         ) : null}
-        {!loading && messages.length === 0 ? (
+        {!loading && messages.length === 0 && !popupMode ? (
           <p
             className="rounded-2xl px-4 py-3 text-sm text-[#64748B]"
             style={{ backgroundColor: "color-mix(in srgb, var(--brand-accent) 18%, white)" }}
           >
             No applicant messages yet.
           </p>
+        ) : null}
+        {!loading && messages.length === 0 && popupMode ? (
+          <div className="flex flex-1 flex-col">
+            {appliedOnLabel ? (
+              <p className="py-6 text-center text-xs text-[#94A3B8]">{appliedOnLabel}</p>
+            ) : (
+              <p className="py-6 text-center text-xs text-[#94A3B8]">No messages yet</p>
+            )}
+          </div>
         ) : null}
         {!loading
           ? messages.map((message) => {
@@ -273,11 +297,16 @@ export default function ApplicantConversationClient({
                 }`}
                 style={
                   isRecruiter
-                    ? {
-                        background:
-                          "linear-gradient(135deg, var(--brand-gradient-from) 0%, var(--brand-gradient-to) 100%)",
-                        color: "#ffffff",
-                      }
+                    ? popupMode
+                      ? {
+                          background: "var(--brand-primary)",
+                          color: "#ffffff",
+                        }
+                      : {
+                          background:
+                            "linear-gradient(135deg, var(--brand-gradient-from) 0%, var(--brand-gradient-to) 100%)",
+                          color: "#ffffff",
+                        }
                     : {
                         backgroundColor: "#ECF1F9",
                         color: "#1E293B",
@@ -377,12 +406,20 @@ export default function ApplicantConversationClient({
                 ) : null}
               </div>
               <div className={`mt-2 flex items-center gap-2 ${isRecruiter ? "flex-row-reverse" : ""}`}>
-                <ChatAvatar label={senderName} variant={isRecruiter ? "primary" : "accent"} />
-                <p className="text-xs text-[#64748B]">
-                  <span className="font-medium text-[#334155]">{senderName}</span>
-                  {" · "}
-                  {formatChatTime(message.created_at)}
-                </p>
+                {popupMode && isRecruiter ? (
+                  <p className="text-xs text-[#94A3B8]">
+                    Sent {formatChatTime(message.created_at)}
+                  </p>
+                ) : (
+                  <>
+                    <ChatAvatar label={senderName} variant={isRecruiter ? "primary" : "accent"} />
+                    <p className="text-xs text-[#64748B]">
+                      <span className="font-medium text-[#334155]">{senderName}</span>
+                      {" · "}
+                      {formatChatTime(message.created_at)}
+                    </p>
+                  </>
+                )}
               </div>
             </div>
           );
@@ -390,7 +427,41 @@ export default function ApplicantConversationClient({
           : null}
       </div>
 
-      <form onSubmit={handleSend} className="border-t border-[#E8EDF2] bg-white px-5 py-4">
+      {popupMode && !loading ? (
+        <div className="shrink-0 border-t border-[#E8EDF2] bg-[#F8FAFC] px-3 py-3">
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <p className="text-sm font-medium text-[#334155]">Start a conversation</p>
+            <div className="flex items-center gap-1 text-[#94A3B8]" aria-hidden>
+              <span className="text-lg leading-none">‹</span>
+              <span className="text-lg leading-none">›</span>
+            </div>
+          </div>
+          <div className="flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:thin]">
+            {CONVERSATION_STARTERS.map((starter) => (
+              <button
+                key={starter}
+                type="button"
+                onClick={() => {
+                  setBody(starter);
+                  if (error) setError(null);
+                }}
+                className="w-[160px] shrink-0 rounded-lg border border-[#E2E8F0] bg-white px-3 py-2.5 text-left text-xs leading-4 text-[#334155] transition hover:border-[color:var(--brand-primary)] hover:bg-white"
+              >
+                <span className="line-clamp-3">{starter}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      <form
+        onSubmit={handleSend}
+        className={
+          popupMode
+            ? "shrink-0 border-t border-[#E8EDF2] bg-white px-3 py-3"
+            : "border-t border-[#E8EDF2] bg-white px-5 py-4"
+        }
+      >
         {error ? (
           <div className="mb-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
             {error}
@@ -408,60 +479,123 @@ export default function ApplicantConversationClient({
             }}
           />
         ) : null}
-        <div className="flex w-full min-h-[60px] items-center gap-2 rounded-lg bg-[#F8FAFC] px-3 py-2">
-          <textarea
-            value={body}
-            onChange={(event) => {
-              setBody(event.target.value);
-              if (error) setError(null);
-            }}
-            placeholder="Write a message"
-            rows={1}
-            className="h-[54px] min-h-[54px] flex-1 resize-none border-0 bg-transparent py-[4px] text-sm leading-5 text-[#0F172A] outline-none placeholder:text-[#94A3B8]"
-          />
-          <div className="flex shrink-0 items-center gap-2 self-center">
-            <button
-              type="button"
-              aria-label="Attach file"
-              className="inline-flex h-7 w-7 items-center justify-center transition hover:opacity-80"
-              onClick={() => fileInputRef.current?.click()}
-            >
-              <Image
-                src={CHAT_ATTACH_ICON}
-                alt=""
-                width={24}
-                height={24}
-                className="block h-6 w-6 shrink-0"
-                aria-hidden
-              />
-            </button>
-            <ChatEmojiPicker
-              onSelect={(emoji) => {
-                setBody((current) => current + emoji);
+        {popupMode ? (
+          <>
+            <textarea
+              value={body}
+              onChange={(event) => {
+                setBody(event.target.value);
                 if (error) setError(null);
               }}
+              placeholder="Write your message"
+              rows={3}
+              className="mb-2 min-h-[72px] w-full resize-none rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm leading-5 text-[#0F172A] outline-none placeholder:text-[#94A3B8] focus:border-[color:var(--brand-secondary)]"
             />
-            <button
-              type="submit"
-              disabled={sending || (!body.trim() && !selectedFile)}
-              aria-label="Send message"
-              className="inline-flex h-7 w-7 items-center justify-center rounded-full text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
-              style={{
-                background:
-                  "linear-gradient(135deg, var(--brand-gradient-from) 0%, var(--brand-gradient-to) 100%)",
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  aria-label="Attach file"
+                  className="inline-flex h-8 w-8 items-center justify-center transition hover:opacity-80"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <Image
+                    src={CHAT_ATTACH_ICON}
+                    alt=""
+                    width={22}
+                    height={22}
+                    className="block h-[22px] w-[22px] shrink-0"
+                    aria-hidden
+                  />
+                </button>
+                <ChatEmojiPicker
+                  onSelect={(emoji) => {
+                    setBody((current) => current + emoji);
+                    if (error) setError(null);
+                  }}
+                />
+                <button
+                  type="submit"
+                  disabled={sending || (!body.trim() && !selectedFile)}
+                  aria-label="Send message"
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-full text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
+                  style={{ background: "var(--brand-secondary)" }}
+                >
+                  <Image
+                    src={CHAT_SEND_ICON}
+                    alt=""
+                    width={14}
+                    height={14}
+                    className="h-3.5 w-3.5 shrink-0"
+                    aria-hidden
+                  />
+                </button>
+              </div>
+              <button
+                type="submit"
+                disabled={sending || (!body.trim() && !selectedFile)}
+                className="inline-flex h-9 items-center justify-center rounded-lg border border-[#CBD5E1] bg-[#F8FAFC] px-4 text-sm font-medium text-[#64748B] transition hover:bg-[#F1F5F9] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {sending ? "Sending…" : "Send"}
+              </button>
+            </div>
+          </>
+        ) : (
+          <div className="flex w-full min-h-[60px] items-center gap-2 rounded-lg bg-[#F8FAFC] px-3 py-2">
+            <textarea
+              value={body}
+              onChange={(event) => {
+                setBody(event.target.value);
+                if (error) setError(null);
               }}
-            >
-              <Image
-                src={CHAT_SEND_ICON}
-                alt=""
-                width={16}
-                height={16}
-                className="h-4 w-4 shrink-0"
-                aria-hidden
+              placeholder="Write a message"
+              rows={1}
+              className="h-[54px] min-h-[54px] flex-1 resize-none border-0 bg-transparent py-[4px] text-sm leading-5 text-[#0F172A] outline-none placeholder:text-[#94A3B8]"
+            />
+            <div className="flex shrink-0 items-center gap-2 self-center">
+              <button
+                type="button"
+                aria-label="Attach file"
+                className="inline-flex h-7 w-7 items-center justify-center transition hover:opacity-80"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <Image
+                  src={CHAT_ATTACH_ICON}
+                  alt=""
+                  width={24}
+                  height={24}
+                  className="block h-6 w-6 shrink-0"
+                  aria-hidden
+                />
+              </button>
+              <ChatEmojiPicker
+                onSelect={(emoji) => {
+                  setBody((current) => current + emoji);
+                  if (error) setError(null);
+                }}
               />
-            </button>
+              <button
+                type="submit"
+                disabled={sending || (!body.trim() && !selectedFile)}
+                aria-label="Send message"
+                className="inline-flex h-7 w-7 items-center justify-center rounded-full text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
+                style={{
+                  background:
+                    "linear-gradient(135deg, var(--brand-gradient-from) 0%, var(--brand-gradient-to) 100%)",
+                }}
+              >
+                <Image
+                  src={CHAT_SEND_ICON}
+                  alt=""
+                  width={16}
+                  height={16}
+                  className="h-4 w-4 shrink-0"
+                  aria-hidden
+                />
+              </button>
+            </div>
           </div>
-        </div>
+        )}
         <input
           ref={fileInputRef}
           type="file"

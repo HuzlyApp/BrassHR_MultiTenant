@@ -1,6 +1,10 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import {
+  patchFirmaTemplateEditorBranding,
+  type FirmaTemplateEditorWithPalette,
+} from "@/lib/firma/embed-color-palette";
 
 type FirmaTemplateEditorEmbedProps = {
   templateId: string;
@@ -11,9 +15,7 @@ type FirmaTemplateEditorEmbedProps = {
   onError?: (message: string) => void;
 };
 
-type FirmaTemplateEditorInstance = {
-  destroy?: () => void;
-};
+type FirmaTemplateEditorInstance = FirmaTemplateEditorWithPalette;
 
 type FirmaTemplateEditorGlobal = new (options: Record<string, unknown>) => FirmaTemplateEditorInstance;
 
@@ -68,12 +70,16 @@ export default function FirmaTemplateEditorEmbed({
           readOnly,
           height: "720px",
           width: "100%",
-          onLoad,
+          onLoad: () => {
+            patchFirmaTemplateEditorBranding(editorRef.current);
+            onLoad?.();
+          },
           onError: (err: unknown) => {
             const message = err instanceof Error ? err.message : "Firma editor error";
             onError?.(message);
           },
         });
+        patchFirmaTemplateEditorBranding(editorRef.current);
       } catch (err) {
         onError?.(err instanceof Error ? err.message : "Failed to initialize Firma editor");
       }

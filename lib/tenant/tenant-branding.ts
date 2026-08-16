@@ -59,6 +59,12 @@ export type TenantBranding = {
 
 export const PLATFORM_DEFAULT_TENANT_SLUG = "braas-hr";
 
+export const APPLICANT_PORTAL_CTA_START_APPLICATION = "Start Application";
+export const APPLICANT_PORTAL_CTA_VIEW_OPEN_POSITIONS = "View positions";
+
+/** CTA on Braas HR platform pages that onboard a new tenant (not a job application). */
+export const PLATFORM_ONBOARDING_CTA_GET_STARTED = "Get Started";
+
 /** Brass HR platform favicon and default tenant icon. */
 export const BRAAS_PLATFORM_FAVICON = "/brassHR favicon 2.svg";
 
@@ -107,12 +113,6 @@ export function usesBraasFigmaLoginUi(_tenantQuery?: string | null): boolean {
   return true;
 }
 
-/** CTA on marketing / welcome landings for tenant-owned applicant portals. */
-export const APPLICANT_PORTAL_CTA_START_APPLICATION = "Start application";
-
-/** CTA on Braas HR platform pages that onboard a new tenant (not a job application). */
-export const PLATFORM_ONBOARDING_CTA_GET_STARTED = "Get Started";
-
 /**
  * True when `slug` identifies a real tenant applicant portal (subdomain or ?tenant=).
  * Platform marketing (`braas-hr`) and missing slug are not applicant portals.
@@ -123,10 +123,17 @@ export function isTenantApplicantPortalSlug(slug: string | null | undefined): bo
   return key !== PLATFORM_DEFAULT_TENANT_SLUG;
 }
 
-export function applicantLandingCtaLabel(slug: string | null | undefined): string {
-  return isTenantApplicantPortalSlug(slug)
-    ? APPLICANT_PORTAL_CTA_START_APPLICATION
-    : PLATFORM_ONBOARDING_CTA_GET_STARTED;
+export function applicantLandingCtaLabel(
+  slug: string | null | undefined,
+  opts?: { hasOpenJobs?: boolean }
+): string {
+  if (!isTenantApplicantPortalSlug(slug)) {
+    return PLATFORM_ONBOARDING_CTA_GET_STARTED;
+  }
+  if (opts?.hasOpenJobs === true) {
+    return APPLICANT_PORTAL_CTA_VIEW_OPEN_POSITIONS;
+  }
+  return APPLICANT_PORTAL_CTA_START_APPLICATION;
 }
 
 /** Braas HR platform owner UI (login, signup, tenant-onboarding shell). */
@@ -173,6 +180,19 @@ export function normalizeBrandingFontId(value: string | null | undefined): Tenan
 
 export function brandingFontFamily(fontId: TenantBrandingFontId): string {
   return FONT_FAMILY_BY_ID[fontId] ?? FONT_FAMILY_BY_ID.inter;
+}
+
+/** Apply a single onboarding font choice to all typography slots. */
+export function applyPrimaryFontToBranding(
+  branding: TenantBranding,
+  fontId: TenantBrandingFontId
+): TenantBranding {
+  return {
+    ...branding,
+    primaryFontId: fontId,
+    headingFontId: fontId,
+    bodyFontId: fontId,
+  };
 }
 
 function brandingTypographyDefaults(primaryHex: string) {
@@ -355,7 +375,8 @@ export function brandingToCssVars(b: TenantBranding): Record<string, string> {
     // not a primary→secondary (navy) split.
     "--brand-gradient-from": lightenForGradient(b.primaryHex),
     "--brand-gradient-to": b.primaryHex,
-    "--brand-font-family": brandingFontFamily(b.bodyFontId),
+    "--brand-font-family": brandingFontFamily(b.primaryFontId),
+    "--brand-font-primary": brandingFontFamily(b.primaryFontId),
     "--brand-font-heading": brandingFontFamily(b.headingFontId),
     "--brand-font-body": brandingFontFamily(b.bodyFontId),
     "--brand-text": b.fontColor,

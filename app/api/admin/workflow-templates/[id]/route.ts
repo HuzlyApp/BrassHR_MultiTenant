@@ -6,6 +6,7 @@ import type { OnboardingDbClient } from "@/lib/onboarding/load-tenant-config";
 import {
   deleteWorkflowTemplate,
   getWorkflowTemplateById,
+  publishWorkflowTemplate,
   updateWorkflowTemplate,
   workflowTemplateDraft,
   type WorkflowTemplateFolder,
@@ -14,6 +15,7 @@ import {
   isSerializableWorkflowState,
   type SerializableWorkflowState,
 } from "@/lib/onboarding/workflow-builder-serialization";
+import { requireWorkflowAdmin } from "@/lib/auth/workflow-admin";
 
 export const runtime = "nodejs";
 
@@ -22,6 +24,8 @@ type RouteContext = { params: Promise<{ id: string }> };
 export async function GET(_req: NextRequest, context: RouteContext) {
   const auth = await requireStaffApiSession();
   if (auth instanceof NextResponse) return auth;
+  const forbidden = requireWorkflowAdmin(auth);
+  if (forbidden) return forbidden;
 
   const supabase = createServiceRoleClient();
   if (!supabase) {
@@ -60,6 +64,8 @@ export async function GET(_req: NextRequest, context: RouteContext) {
         isPreset: row.type === "preset",
         tenantId: row.tenant_id,
         isReadOnly: row.type === "preset" && row.tenant_id === null,
+        status: row.status === "published" || row.status === "unpublished" ? row.status : "draft",
+        employmentType: row.employment_type ?? null,
         flowName: row.flow_name,
         builderDraft,
         updatedAt: row.updated_at,
@@ -75,11 +81,15 @@ type PatchBody = {
   name?: string;
   flowName?: string;
   builderDraft?: SerializableWorkflowState;
+  status?: "draft" | "published" | "unpublished";
+  publish?: boolean;
 };
 
 export async function PATCH(req: NextRequest, context: RouteContext) {
   const auth = await requireStaffApiSession();
   if (auth instanceof NextResponse) return auth;
+  const forbidden = requireWorkflowAdmin(auth);
+  if (forbidden) return forbidden;
 
   const supabase = createServiceRoleClient();
   if (!supabase) {
@@ -116,17 +126,34 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
       );
     }
 
+    const publish = body.publish === true || body.status === "published";
+    if (publish) {
+      const result = await publishWorkflowTemplate(supabase as OnboardingDbClient, tenantId, id, {
+        builderDraft: body.builderDraft,
+        updatedBy: auth.userId,
+      });
+      return NextResponse.json({
+        template: result.template,
+        appliedFlowId: result.appliedFlowId,
+      });
+    }
+
     const template = await updateWorkflowTemplate(supabase as OnboardingDbClient, tenantId, id, {
       name: body.name,
       flowName: body.flowName,
       builderDraft: body.builderDraft,
+      status: body.status ?? "draft",
       updatedBy: auth.userId,
     });
 
     return NextResponse.json({ template });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : "Failed to update template";
-    const status = /not found/i.test(msg) ? 404 : 500;
+    const status = /empty template/i.test(msg)
+      ? 400
+      : /not found|cannot modify/i.test(msg)
+        ? 404
+        : 500;
     return NextResponse.json({ error: msg }, { status });
   }
 }
@@ -134,6 +161,8 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
 export async function DELETE(_req: NextRequest, context: RouteContext) {
   const auth = await requireStaffApiSession();
   if (auth instanceof NextResponse) return auth;
+  const forbidden = requireWorkflowAdmin(auth);
+  if (forbidden) return forbidden;
 
   const supabase = createServiceRoleClient();
   if (!supabase) {

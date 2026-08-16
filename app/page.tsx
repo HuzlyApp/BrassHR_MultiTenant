@@ -71,8 +71,39 @@ export default function Home() {
   const [brandLoaded, setBrandLoaded] = useState(false);
   const [activeTenantSlug, setActiveTenantSlug] = useState<string | null>(null);
   const [tenantNotFound, setTenantNotFound] = useState(false);
-  const [applicationEntryUrl, setApplicationEntryUrl] = useState<string | null>(null);
   const [startingApplication, setStartingApplication] = useState(false);
+  const [hasOpenJobs, setHasOpenJobs] = useState<boolean | null>(null);
+  const [entryCtaLabel, setEntryCtaLabel] = useState<string | null>(null);
+
+  async function startTenantApplication(slug: string) {
+    persistOnboardingSlugCookie(slug);
+    setStartingApplication(true);
+    try {
+      const res = await fetch(`/api/public/application-entry?tenant=${encodeURIComponent(slug)}`, {
+        cache: "no-store",
+      });
+      const payload = (await res.json().catch(() => ({}))) as {
+        path?: string;
+        kind?: string;
+        ctaLabel?: string;
+        message?: string;
+      };
+      if (res.ok && payload.path) {
+        if (payload.kind === "onboarding" && typeof window !== "undefined") {
+          localStorage.removeItem("applicationJobToken");
+        }
+        if (payload.ctaLabel) setEntryCtaLabel(payload.ctaLabel);
+        setHasOpenJobs(payload.kind === "jobs" || payload.kind === "apply");
+        router.push(payload.path);
+        return;
+      }
+      router.push(`/jobs?tenant=${encodeURIComponent(slug)}`);
+    } catch {
+      router.push(`/jobs?tenant=${encodeURIComponent(slug)}`);
+    } finally {
+      setStartingApplication(false);
+    }
+  }
 
   useEffect(() => {
     if (typeof window !== "undefined" && window.location.hash.includes("error=")) {
@@ -101,8 +132,26 @@ export default function Home() {
       if (applicantPortalSlug) {
         persistOnboardingSlugCookie(applicantPortalSlug);
         if (alive) setActiveTenantSlug(applicantPortalSlug);
+        try {
+          const entryRes = await fetch(
+            `/api/public/application-entry?tenant=${encodeURIComponent(applicantPortalSlug)}`,
+            { cache: "no-store", signal: AbortSignal.timeout(12_000) }
+          );
+          const entry = (await entryRes.json().catch(() => ({}))) as {
+            kind?: string;
+            ctaLabel?: string;
+          };
+          if (alive && entryRes.ok) {
+            setHasOpenJobs(entry.kind === "jobs" || entry.kind === "apply");
+            if (entry.ctaLabel) setEntryCtaLabel(entry.ctaLabel);
+          }
+        } catch {
+          /* keep default Start Application until click */
+        }
       } else if (alive) {
         setActiveTenantSlug(null);
+        setHasOpenJobs(null);
+        setEntryCtaLabel(null);
       }
 
       const brandingSlug = applicantPortalSlug ?? PLATFORM_DEFAULT_TENANT_SLUG;
@@ -137,35 +186,6 @@ export default function Home() {
     };
   }, []);
 
-  useEffect(() => {
-    if (!activeTenantSlug || !isTenantApplicantPortalSlug(activeTenantSlug)) {
-      setApplicationEntryUrl(null);
-      return;
-    }
-
-    let alive = true;
-    void (async () => {
-      try {
-        const res = await fetch(
-          `/api/worker-onboarding/entry?tenant=${encodeURIComponent(activeTenantSlug)}`,
-          { cache: "no-store" }
-        );
-        const payload = (await res.json().catch(() => ({}))) as { url?: string };
-        if (alive && res.ok && payload.url) {
-          setApplicationEntryUrl(payload.url);
-        } else if (alive) {
-          setApplicationEntryUrl(null);
-        }
-      } catch {
-        if (alive) setApplicationEntryUrl(null);
-      }
-    })();
-
-    return () => {
-      alive = false;
-    };
-  }, [activeTenantSlug]);
-
   if (!brandLoaded) {
     return (
       <TenantBrandingProvider branding={brand}>
@@ -195,7 +215,11 @@ export default function Home() {
     tenant: resolvedPortalSlug,
   });
 
-  const primaryCtaLabel = applicantLandingCtaLabel(resolvedPortalSlug);
+  const primaryCtaLabel =
+    entryCtaLabel ??
+    applicantLandingCtaLabel(resolvedPortalSlug, {
+      hasOpenJobs: hasOpenJobs === true,
+    });
   const backgroundSrc = normalizeBrandingImageSrc(brand.loginBackgroundSrc, "/images/handshake.jpg");
   const logoSrc = normalizeBrandingImageSrc(
     tenantApplicantPanelLogoUrl(brand),
@@ -280,12 +304,12 @@ export default function Home() {
               widthClassName="w-full max-w-[220px]"
               className="origin-center scale-[1.15]"
             />
-            <div className="mt-6 flex w-full flex-col items-center gap-5">
-            <div className="space-y-3">
-              <h1 className="whitespace-nowrap text-[38px] font-semibold leading-[44px] tracking-normal text-slate-800 max-[399px]:text-[22px] max-[399px]:leading-[28px] min-[400px]:max-[549px]:text-[32px] min-[400px]:max-[549px]:leading-[37px] min-[550px]:max-[1023px]:text-[34px] min-[550px]:max-[1023px]:leading-[40px]">
+            <div className="mt-6 flex w-full min-w-0 flex-col items-center gap-5">
+            <div className="w-full max-w-full space-y-3">
+              <h1 className="text-balance text-[38px] font-semibold leading-[1.15] tracking-normal text-slate-800 max-[399px]:text-[22px] max-[399px]:leading-[1.25] min-[400px]:max-[549px]:text-[32px] min-[550px]:max-[1023px]:text-[34px]">
                 {brand.headline}
               </h1>
-              <p className="text-[16px] font-normal leading-6 tracking-normal text-slate-500">{brand.subtitle}</p>
+              <p className="text-pretty text-[16px] font-normal leading-6 tracking-normal text-slate-500">{brand.subtitle}</p>
             </div>
 
             <button
@@ -293,32 +317,7 @@ export default function Home() {
               disabled={startingApplication}
               onClick={() => {
                 if (resolvedPortalSlug) {
-                  persistOnboardingSlugCookie(resolvedPortalSlug);
-                  void (async () => {
-                    if (applicationEntryUrl) {
-                      router.push(applicationEntryUrl);
-                      return;
-                    }
-                    setStartingApplication(true);
-                    try {
-                      const res = await fetch(
-                        `/api/worker-onboarding/entry?tenant=${encodeURIComponent(resolvedPortalSlug)}`,
-                        { cache: "no-store" }
-                      );
-                      const payload = (await res.json().catch(() => ({}))) as { url?: string };
-                      if (res.ok && payload.url) {
-                        router.push(payload.url);
-                        return;
-                      }
-                    } catch {
-                      /* fall through */
-                    } finally {
-                      setStartingApplication(false);
-                    }
-                    router.push(
-                      `/worker-onboarding?tenant=${encodeURIComponent(resolvedPortalSlug)}`
-                    );
-                  })();
+                  void startTenantApplication(resolvedPortalSlug);
                   return;
                 }
                 router.push("/signup");
@@ -348,12 +347,12 @@ export default function Home() {
 
         {/* Desktop/tablet split layout */}
         <section className="relative z-10 hidden h-[calc(100dvh-3rem)] max-h-[760px] w-full max-w-[1160px] grid-cols-1 overflow-hidden rounded-2xl bg-white shadow-[0_24px_70px_rgba(0,0,0,0.18)] min-[1024px]:grid min-[1024px]:grid-cols-[minmax(0,17fr)_minmax(300px,12fr)]">
-          <div className="flex flex-col items-center justify-center gap-5 px-10 py-10 text-center">
-            <div className="space-y-3">
-              <h1 className="whitespace-nowrap text-[42px] font-semibold leading-[50px] tracking-normal text-slate-800 max-[1079px]:text-[38px] max-[1079px]:leading-[45px] min-[1200px]:text-[48px] min-[1200px]:leading-[60px]">
+          <div className="flex min-w-0 w-full flex-col items-center justify-center gap-5 px-6 py-10 text-center sm:px-8 lg:px-10">
+            <div className="w-full max-w-[520px] space-y-3">
+              <h1 className="text-balance text-[42px] font-semibold leading-[1.15] tracking-normal text-slate-800 max-[1079px]:text-[38px] min-[1200px]:text-[48px]">
                 {brand.headline}
               </h1>
-              <p className="text-[16px] font-normal leading-6 tracking-normal text-slate-500">{brand.subtitle}</p>
+              <p className="text-pretty text-[16px] font-normal leading-6 tracking-normal text-slate-500">{brand.subtitle}</p>
             </div>
 
             <button
@@ -361,32 +360,7 @@ export default function Home() {
               disabled={startingApplication}
               onClick={() => {
                 if (resolvedPortalSlug) {
-                  persistOnboardingSlugCookie(resolvedPortalSlug);
-                  void (async () => {
-                    if (applicationEntryUrl) {
-                      router.push(applicationEntryUrl);
-                      return;
-                    }
-                    setStartingApplication(true);
-                    try {
-                      const res = await fetch(
-                        `/api/worker-onboarding/entry?tenant=${encodeURIComponent(resolvedPortalSlug)}`,
-                        { cache: "no-store" }
-                      );
-                      const payload = (await res.json().catch(() => ({}))) as { url?: string };
-                      if (res.ok && payload.url) {
-                        router.push(payload.url);
-                        return;
-                      }
-                    } catch {
-                      /* fall through */
-                    } finally {
-                      setStartingApplication(false);
-                    }
-                    router.push(
-                      `/worker-onboarding?tenant=${encodeURIComponent(resolvedPortalSlug)}`
-                    );
-                  })();
+                  void startTenantApplication(resolvedPortalSlug);
                   return;
                 }
                 router.push("/signup");
@@ -424,20 +398,20 @@ export default function Home() {
             */}
           </div>
 
-          <div className="relative flex w-[480px] items-center justify-center overflow-hidden border-l border-slate-200">
+          <div className="relative flex w-full min-w-0 items-center justify-center overflow-hidden border-l border-slate-200">
             <BrandingFillImage
               src={backgroundSrc}
               sizes="480px"
-              className="object-cover object-center grayscale"
+              className="object-cover object-center opacity-60 grayscale"
               priority
             />
-            <div className="absolute inset-0 bg-white/45" />
+            <div className="absolute inset-0 bg-white/65" />
             <div
               className={`relative z-10 flex h-full w-full max-w-[340px] flex-col items-center justify-center ${BRANDING_RIGHT_PANEL_STACK_GAP_CLASS} px-6 pt-[12%] text-center`}
             >
               <BrandingRightPanelLogo src={logoSrc} alt={`${brand.companyName} logo`} />
               <div className="flex w-full items-center justify-center gap-3">
-                <span className="h-px flex-1 bg-slate-400/40" />
+                <span className="h-px flex-1 bg-slate-400/55" />
                 <span className="inline-flex h-7 w-7 items-center justify-center">
                   <BrandedSvgIcon
                     src="/icons/circle-star-icon.svg"
@@ -445,10 +419,10 @@ export default function Home() {
                     color={brand.primaryHex}
                   />
                 </span>
-                <span className="h-px flex-1 bg-slate-400/40" />
+                <span className="h-px flex-1 bg-slate-400/55" />
               </div>
-              <p className="text-[16px] font-normal leading-6 tracking-normal text-slate-700">
-                {brand.subtitle}
+              <p className="text-[16px] font-normal leading-6 tracking-normal text-black">
+                {brand.tagline}
               </p>
             </div>
           </div>

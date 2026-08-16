@@ -17,6 +17,7 @@ import OnboardingStepper from "@/app/components/OnboardingStepper"
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext"
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding"
 import OnboardingSuccessPopup from "@/app/components/OnboardingSuccessPopup"
+import { buildProgressStatusMaps } from "@/lib/onboarding/compute-max-allowed-from-progress"
 import { countCompleteReferencesFromStorage } from "@/lib/referencesValidation"
 import type { SummaryDisplayStatus } from "@/lib/onboarding/applicant-summary-sections"
 import {
@@ -292,6 +293,39 @@ export default function SummaryPage() {
     void loadSnapshot()
   }, [loadSnapshot, onboarding?.progressHydrated, onboarding?.progress])
 
+  /** If references were saved but progress still shows pending/skipped, mark completed for the stepper. */
+  useEffect(() => {
+    if (!onboarding?.progressHydrated || !onboarding.updateStepStatus || nav.configLoading) return
+    const enabled = nav.enabledSteps ?? []
+    const refsStep =
+      enabled.find((s) => s.step_type === "references") ??
+      enabled.find((s) => s.step_key === "references" || s.step_key.startsWith("references_"))
+    if (!refsStep?.step_key) return
+
+    const minRaw = refsStep.metadata?.min_count
+    const min =
+      typeof minRaw === "number" && minRaw > 0
+        ? Math.floor(minRaw)
+        : Number.isFinite(Number(minRaw)) && Number(minRaw) > 0
+          ? Math.floor(Number(minRaw))
+          : 1
+    if (snapshot.referencesCount < min) return
+
+    const status = buildProgressStatusMaps(enabled, onboarding.progress ?? null).get(refsStep.id)
+    if (status === "completed") return
+
+    void onboarding.updateStepStatus(refsStep.step_key, "completed").catch(() => {
+      /* non-blocking heal */
+    })
+  }, [
+    onboarding?.progressHydrated,
+    onboarding?.updateStepStatus,
+    onboarding?.progress,
+    nav.configLoading,
+    nav.enabledSteps,
+    snapshot.referencesCount,
+  ])
+
   const summarySnapshot = useMemo(
     () => ({ ...snapshot, clientStorageReady }),
     [snapshot, clientStorageReady]
@@ -336,10 +370,12 @@ export default function SummaryPage() {
 
     setLoading(true)
     try {
+      const jobApplicationId =
+        localStorage.getItem("jobApplicationId")?.trim() || undefined
       const res = await fetch("/api/onboarding/submit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ applicantId, tenantSlug }),
+        body: JSON.stringify({ applicantId, tenantSlug, jobApplicationId }),
       })
       const json = (await res.json().catch(() => ({}))) as { error?: string }
       if (!res.ok) {
@@ -370,7 +406,7 @@ export default function SummaryPage() {
   return (
     <>
     <OnboardingLayout
-      cardClassName="md:h-auto md:min-h-[700px]"
+      cardClassName="min-[700px]:h-auto min-[700px]:min-h-[540px] min-[1200px]:min-h-[700px]"
       rightPanelImageClassName="opacity-60 object-top"
       rightPanelOverlayClassName="bg-white/65"
     >

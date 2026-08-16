@@ -37,6 +37,14 @@ function createSupabase(workers: Array<{ id: string; user_id: string; tenant_id:
                 return { data: row ?? null, error: null };
               },
             }),
+            order: () => ({
+              limit: async () => {
+                const rows = workers.filter((w) =>
+                  column === "user_id" ? w.user_id === value : w.id === value
+                );
+                return { data: rows.slice(0, 1), error: null };
+              },
+            }),
             maybeSingle: async () => {
               const row = workers.find((w) =>
                 column === "user_id" ? w.user_id === value : w.id === value

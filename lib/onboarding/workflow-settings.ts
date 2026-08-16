@@ -24,6 +24,55 @@ export function getWorkflowSettings(step: TenantOnboardingStep): ParsedWorkflowS
   };
 }
 
+const APPLICANT_COMPLETION_OWNERS = new Set([
+  "applicant",
+  "contractor",
+  "worker",
+  "applicant_or_hr",
+]);
+
+const SCREENING_LIBRARY_STEP_IDS = new Set([
+  "background-check",
+  "drug-test-screening",
+  "oig-exclusion-check",
+]);
+
+/** Library steps that are organizational work, even if completionOwner defaulted to applicant. */
+const INTERNAL_LIBRARY_STEP_IDS = new Set([
+  "manager-facility-approval",
+  "hr-final-approval",
+  "completion-milestone",
+  "reference-verification",
+  "oig-exclusion-check",
+  "drug-test-screening",
+  "welcome-email",
+  "status-update-notification",
+  "manager-welcome-call",
+  "final-onboarding-call",
+  "payroll-profile-creation",
+  "pay-rate-hire-date",
+  "schedule-assignment",
+  "badge-equipment-issuance",
+  "facility-access-setup",
+  "buddy-mentor-assignment",
+  "benefits-confirmation",
+  "adverse-action-process",
+  "conditional-branch-decision",
+  "parameterized-job-application",
+]);
+
+export function readWorkflowLibraryStepId(step: TenantOnboardingStep): string {
+  const id = step.metadata?.workflow_step_id;
+  return typeof id === "string" ? id.trim() : "";
+}
+
+/** True when HR/recruiter/system owns completion — not the applicant. */
+export function isApplicantCompletionOwner(owner: string | null | undefined): boolean {
+  const value = String(owner ?? "").trim().toLowerCase();
+  if (!value) return true;
+  return APPLICANT_COMPLETION_OWNERS.has(value);
+}
+
 /** Integration-backed steps use the configured provider when partner mode is on. */
 export function isIntegrationPartnerStep(step: TenantOnboardingStep): boolean {
   const settings = getWorkflowSettings(step);
@@ -37,10 +86,42 @@ export function integrationProviderLabel(step: TenantOnboardingStep): string | n
   return label || null;
 }
 
+/**
+ * Checker/partner turnaround copy is only for actual screening library steps.
+ * Default builder settings otherwise paint Checker onto every custom step.
+ */
+export function showsApplicantPartnerScreeningNotice(step: TenantOnboardingStep): boolean {
+  return (
+    SCREENING_LIBRARY_STEP_IDS.has(readWorkflowLibraryStepId(step)) && isIntegrationPartnerStep(step)
+  );
+}
+
+export function isInternalLibraryOnboardingStep(step: TenantOnboardingStep): boolean {
+  const libraryId = readWorkflowLibraryStepId(step);
+  if (libraryId === "completion-milestone") {
+    return step.step_type !== "review_submit";
+  }
+  return INTERNAL_LIBRARY_STEP_IDS.has(libraryId);
+}
+
+/**
+ * Conversion / internal gates (Pre-Hire Approval, HR review, manager approval)
+ * are not applicant tasks. Completing them in the portal does not hire the candidate.
+ */
+export function isApplicantWaitingGateStep(step: TenantOnboardingStep): boolean {
+  const settings = getWorkflowSettings(step);
+  if (settings.phase === "transition") return true;
+  if (isInternalLibraryOnboardingStep(step)) return true;
+  return !isApplicantCompletionOwner(settings.completionOwner);
+}
+
 /** Worker-facing steps must be performed by the applicant when clientPerforms is true (default). */
 export function isWorkerPerformableStep(step: TenantOnboardingStep): boolean {
   const settings = getWorkflowSettings(step);
   if (settings.clientPerforms === false) {
+    return false;
+  }
+  if (isApplicantWaitingGateStep(step)) {
     return false;
   }
   return true;

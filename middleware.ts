@@ -29,6 +29,23 @@ import {
   shouldBlockTenantOnboardingAccess,
 } from "@/lib/auth/owner-onboarding-status";
 
+function resolveRequestTenantSlug(request: NextRequest, hostTenantLabel: string | null): string | null {
+  const fromQuery = request.nextUrl.searchParams.get("tenant")?.trim().toLowerCase();
+  if (fromQuery && fromQuery.length >= 2) return fromQuery;
+
+  const fromCookie = request.cookies.get(ONBOARDING_TENANT_SLUG_COOKIE)?.value?.trim().toLowerCase();
+  if (fromCookie && fromCookie.length >= 2) return fromCookie;
+
+  if (hostTenantLabel && hostTenantLabel.length >= 2) return hostTenantLabel;
+  return null;
+}
+
+function withTenantSlugHeader(request: NextRequest, tenantSlug: string | null): Headers {
+  const requestHeaders = new Headers(request.headers);
+  if (tenantSlug) requestHeaders.set("x-tenant-slug", tenantSlug);
+  return requestHeaders;
+}
+
 async function redirectAuthenticatedUser(
   request: NextRequest,
   user: User,
@@ -193,7 +210,10 @@ export async function middleware(request: NextRequest) {
     if (!rewriteUrl.searchParams.get("role")) {
       rewriteUrl.searchParams.set("role", "admin_recruiter");
     }
-    const rewriteResponse = NextResponse.rewrite(rewriteUrl);
+    const tenantSlug = resolveRequestTenantSlug(request, tenantLabel);
+    const rewriteResponse = NextResponse.rewrite(rewriteUrl, {
+      request: { headers: withTenantSlugHeader(request, tenantSlug) },
+    });
     response.cookies.getAll().forEach((cookie) => {
       rewriteResponse.cookies.set(cookie.name, cookie.value, cookie);
     });
@@ -207,11 +227,17 @@ export async function middleware(request: NextRequest) {
       const role = parseAppRole((user.app_metadata as { role?: unknown } | undefined)?.role);
       if (isGodAdminUser(user) || (role && isStaffRole(role))) {
         const onboardingStatus = await fetchOwnerOnboardingStatus(supabase, user);
-        const destination = resolvePostAuthRedirect(
-          onboardingStatus,
-          request.nextUrl.searchParams.get("next")
-        );
-        return redirectAuthenticatedUser(request, user, destination);
+        // Incomplete owners may open BrassHR marketing home while waiting for the
+        // setup email. Keep them signed in so the email continuation link can open
+        // /tenant-onboarding directly. Only redirect completed / god-admin users.
+        if (onboardingStatus.godAdmin || onboardingStatus.tenantOnboardingCompleted) {
+          const destination = resolvePostAuthRedirect(
+            onboardingStatus,
+            request.nextUrl.searchParams.get("next")
+          );
+          return redirectAuthenticatedUser(request, user, destination);
+        }
+        return response;
       }
 
       const tenant =
@@ -396,6 +422,16 @@ export async function middleware(request: NextRequest) {
   }
 
   if (isPublicUiPath(pathname)) {
+    const tenantSlug = resolveRequestTenantSlug(request, tenantLabel);
+    if (tenantSlug) {
+      const outgoing = NextResponse.next({
+        request: { headers: withTenantSlugHeader(request, tenantSlug) },
+      });
+      response.cookies.getAll().forEach((cookie) => {
+        outgoing.cookies.set(cookie.name, cookie.value, cookie);
+      });
+      return outgoing;
+    }
     return response;
   }
 
@@ -450,6 +486,17 @@ export async function middleware(request: NextRequest) {
         }
       }
     }
+
+    const tenantSlug = resolveRequestTenantSlug(request, tenantLabel);
+    if (tenantSlug) {
+      const outgoing = NextResponse.next({
+        request: { headers: withTenantSlugHeader(request, tenantSlug) },
+      });
+      response.cookies.getAll().forEach((cookie) => {
+        outgoing.cookies.set(cookie.name, cookie.value, cookie);
+      });
+      return outgoing;
+    }
   }
 
   /**
@@ -457,24 +504,12 @@ export async function middleware(request: NextRequest) {
    * Do not apply recruiter platform/auth gates here — that sent applicants to /login.
    */
   if (pathname.startsWith("/application") || pathname === "/worker-onboarding") {
-    const tenantFromQuery = request.nextUrl.searchParams.get("tenant")?.trim().toLowerCase();
-    const tenantFromCookie = request.cookies
-      .get(ONBOARDING_TENANT_SLUG_COOKIE)
-      ?.value?.trim()
-      .toLowerCase();
-    const tenantSlug =
-      tenantFromQuery && tenantFromQuery.length >= 2
-        ? tenantFromQuery
-        : tenantFromCookie && tenantFromCookie.length >= 2
-          ? tenantFromCookie
-          : null;
+    const tenantSlug = resolveRequestTenantSlug(request, tenantLabel);
 
     let outgoing = response;
     if (tenantSlug) {
-      const requestHeaders = new Headers(request.headers);
-      requestHeaders.set("x-tenant-slug", tenantSlug);
       outgoing = NextResponse.next({
-        request: { headers: requestHeaders },
+        request: { headers: withTenantSlugHeader(request, tenantSlug) },
       });
       response.cookies.getAll().forEach((cookie) => {
         outgoing.cookies.set(cookie.name, cookie.value, cookie);
@@ -482,6 +517,22 @@ export async function middleware(request: NextRequest) {
     }
 
     return ensureApplicationTenantQuery(request, outgoing, tenantLabel);
+  }
+
+  if (
+    pathname === "/worker-signin" ||
+    pathname.startsWith("/worker-signin/")
+  ) {
+    const tenantSlug = resolveRequestTenantSlug(request, tenantLabel);
+    if (tenantSlug) {
+      const outgoing = NextResponse.next({
+        request: { headers: withTenantSlugHeader(request, tenantSlug) },
+      });
+      response.cookies.getAll().forEach((cookie) => {
+        outgoing.cookies.set(cookie.name, cookie.value, cookie);
+      });
+      return outgoing;
+    }
   }
 
   return response;
