@@ -222,9 +222,6 @@ $$;
 REVOKE ALL ON FUNCTION public.ensure_default_application_statuses(uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.ensure_default_application_statuses(uuid) TO service_role;
 
-REVOKE ALL ON FUNCTION public.change_job_application_status(uuid, uuid, uuid, uuid, text) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.change_job_application_status(uuid, uuid, uuid, uuid, text) TO service_role;
-
 DO $$
 DECLARE
   t record;
