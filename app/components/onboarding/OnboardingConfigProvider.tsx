@@ -152,8 +152,12 @@ export default function OnboardingConfigProvider({ children }: { children: React
     const requestId = ++progressFetchSeq.current;
     setLoadingProgress(true);
     try {
+      const params = new URLSearchParams({ applicantId: aid, tenant: slug });
+      if (resolvedJobToken) params.set("job_token", resolvedJobToken);
+      const scopedApplicationId = applicationIdFromUrl || applicationId;
+      if (scopedApplicationId) params.set("applicationId", scopedApplicationId);
       const progRes = await safeFetchJson<{ progress?: WorkerOnboardingProgressPayload | null }>(
-        `/api/onboarding/progress?applicantId=${encodeURIComponent(aid)}&tenant=${encodeURIComponent(slug)}`,
+        `/api/onboarding/progress?${params}`,
         { cache: "no-store" }
       );
       if (requestId !== progressFetchSeq.current) return;
@@ -171,7 +175,7 @@ export default function OnboardingConfigProvider({ children }: { children: React
         setLoadingProgress(false);
       }
     }
-  }, []);
+  }, [resolvedJobToken, applicationIdFromUrl, applicationId]);
 
   const refreshConfig = useCallback(async () => {
     const requestId = ++configFetchSeq.current;
