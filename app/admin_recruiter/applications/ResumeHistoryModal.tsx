@@ -95,9 +95,15 @@ function ResumeHistoryRow({
       <BrandedFileTypeIcon type={fileIconType} className={`${ICON_COL_CLASS} h-[1.8rem] w-[1.8rem]`} />
 
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-semibold text-[color:var(--brand-primary)]">
+        <button
+          type="button"
+          disabled={busy}
+          onClick={onView}
+          className="block max-w-full truncate text-left text-sm font-semibold text-[color:var(--brand-primary)] hover:underline disabled:opacity-50"
+          title={`View ${resume.fileName}`}
+        >
           {resume.fileName}
-        </p>
+        </button>
         <p className="mt-1 text-xs text-[#64748B]">{resume.uploadedAtLabel}</p>
       </div>
 

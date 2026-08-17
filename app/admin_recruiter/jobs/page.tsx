@@ -54,6 +54,7 @@ import {
 import { exportJobsCsv, exportJobsXls } from "./export-jobs";
 import { JobsGridView } from "./JobsGridView";
 import { JobsViewToggle, type JobsListingView } from "./JobsViewToggle";
+import AddCandidateModal from "@/app/admin_recruiter/applications/AddCandidateModal";
 import {
   jobContractGroup,
   jobListDisplayTitle,
@@ -1111,6 +1112,7 @@ export default function AdminRecruiterJobsPage() {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [addCandidateJob, setAddCandidateJob] = useState<{ id: string; title: string } | null>(null);
 
   const [professionFilter, setProfessionFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
@@ -1890,13 +1892,20 @@ export default function AdminRecruiterJobsPage() {
                 : "No jobs match these filters."
             }
             tenantSlug={tenantSlug}
+            hotJobIds={starredIds}
+            onAddCandidate={(job) => {
+              setAddCandidateJob({ id: job.id, title: jobListDisplayTitle(job) });
+            }}
             onDelete={(jobId) => {
               setSelectedIds(new Set([jobId]));
               setDeleteError(null);
               setDeleteConfirmOpen(true);
             }}
-            onDuplicate={() => {
-              toast("Duplicate job will be available in a later update.");
+            onArchive={(jobId) => {
+              void transition(jobId, "archive");
+            }}
+            onUnarchive={(jobId) => {
+              void transition(jobId, "unarchive");
             }}
           />
         ) : (
@@ -1962,7 +1971,7 @@ export default function AdminRecruiterJobsPage() {
                 </tr>
               ) : (
                 paginatedJobs.map((job) => (
-                  <tr key={job.id} className="border-b border-[#E9EDF3] align-middle hover:bg-[#FAFBFC]">
+                  <tr key={job.id} className="group border-b border-[#E9EDF3] align-middle hover:bg-[#FAFBFC]">
                     <td className="border-r border-[#E5E7EB] px-[14px] py-2.5 align-middle">
                       <ListTableCheckbox
                         checked={selectedIds.has(job.id)}
@@ -1973,12 +1982,14 @@ export default function AdminRecruiterJobsPage() {
                     {listColumns.map((colId) => (
                       <td
                         key={colId}
-                        className={`border-r border-[#E5E7EB] align-middle last:border-r-0 ${jobListColumnClassName(colId)} ${
-                          colId === "candidates"
-                            ? "px-0 py-0"
-                            : colId === "actions"
-                              ? "px-0 py-0"
-                              : "px-[14px] py-4"
+                        className={`border-r border-[#E5E7EB] last:border-r-0 ${jobListColumnClassName(colId)} ${
+                          colId === "candidates" && job.status === "draft"
+                            ? "bg-[#FEF2F2] px-0 py-0 align-middle group-hover:bg-[#FEF2F2]"
+                            : colId === "candidates"
+                              ? "px-0 py-0 align-middle"
+                              : colId === "actions"
+                                ? "px-0 py-0 align-middle"
+                                : "px-[14px] py-4 align-middle"
                         }`}
                       >
                         {renderJobListCell(colId, job, jobListCellContext)}
@@ -2054,6 +2065,16 @@ export default function AdminRecruiterJobsPage() {
           workflows: workflowOptions,
         }}
         onSave={handleSaveEditFilters}
+      />
+
+      <AddCandidateModal
+        open={Boolean(addCandidateJob)}
+        onClose={() => setAddCandidateJob(null)}
+        jobId={addCandidateJob?.id ?? ""}
+        jobTitle={addCandidateJob?.title}
+        onSuccess={() => {
+          void load();
+        }}
       />
 
       <BulkDeleteConfirmModal

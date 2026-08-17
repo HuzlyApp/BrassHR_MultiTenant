@@ -515,6 +515,28 @@ export function renderJobListCell(
       return <span className="text-sm text-[#475569]">{group || "—"}</span>
     }
     case "candidates":
+      if (job.status === "draft") {
+        return (
+          <div className="box-border flex h-full min-h-full w-full min-w-0 items-center gap-2 bg-[#FEF2F2] px-3 py-4">
+            <span
+              className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#EF4444] text-[11px] font-bold leading-none text-white"
+              aria-hidden
+            >
+              i
+            </span>
+            <span className="min-w-0 flex-1 truncate text-left text-sm text-[#334155]">
+              Your job post is incomplete
+            </span>
+            <Link
+              href={`/admin_recruiter/jobs/${job.id}/edit`}
+              onClick={(event) => event.stopPropagation()}
+              className="inline-flex h-8 shrink-0 items-center justify-center rounded-full bg-[color:var(--brand-primary)] px-3 text-xs font-semibold text-white transition hover:brightness-95"
+            >
+              Finish posting
+            </Link>
+          </div>
+        )
+      }
       return (
         <div className="box-border flex h-[58px] w-[350px] max-w-full items-center justify-between px-[14px]">
           <JobCandidateMetric

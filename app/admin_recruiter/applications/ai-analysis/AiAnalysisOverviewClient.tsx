@@ -251,6 +251,9 @@ export function AiAnalysisOverviewClient({
     extractedDraft,
     setExtractedDraft,
     savingText,
+    resumes,
+    openingResumeId,
+    viewResume,
     runAnalyze,
     saveScreeningAnswers,
     recordDecision,
@@ -809,12 +812,38 @@ export function AiAnalysisOverviewClient({
 
           <section className={CARD}>
             <SidebarSectionHeader title="Resume" />
-            <div className="mt-4 flex items-center gap-3 rounded-lg border border-[#E5E7EB] px-3 py-3">
-              <BrandedFileTypeIcon type="pdf" className="h-7 w-7" />
-              <span className="truncate text-sm font-medium text-[#344054]">
-                {data?.extractedResume?.fileName || "Resume"}
-              </span>
-            </div>
+            {resumes.length > 0 ? (
+              <div className="mt-4 flex flex-col gap-2">
+                {resumes.map((resume) => (
+                    <div
+                      key={resume.id}
+                      className="flex items-center gap-3 rounded-lg border border-[#E5E7EB] px-3 py-3"
+                    >
+                      <BrandedFileTypeIcon
+                        type={resume.fileIconType ?? "pdf"}
+                        className="h-7 w-7 shrink-0"
+                      />
+                      <button
+                        type="button"
+                        disabled={openingResumeId === resume.id}
+                        onClick={() => void viewResume(resume.id)}
+                        className="min-w-0 truncate text-left text-sm font-semibold text-[color:var(--brand-primary)] hover:underline disabled:opacity-60"
+                        title={`View ${resume.fileName}`}
+                        aria-label={`View ${resume.fileName}`}
+                      >
+                        {resume.fileName}
+                      </button>
+                    </div>
+                ))}
+              </div>
+            ) : (
+              <div className="mt-4 flex items-center gap-3 rounded-lg border border-[#E5E7EB] px-3 py-3">
+                <BrandedFileTypeIcon type="pdf" className="h-7 w-7 shrink-0" />
+                <span className="truncate text-sm font-medium text-[#344054]">
+                  {data?.extractedResume?.fileName || "No resume uploaded"}
+                </span>
+              </div>
+            )}
           </section>
 
           <section className={CARD}>

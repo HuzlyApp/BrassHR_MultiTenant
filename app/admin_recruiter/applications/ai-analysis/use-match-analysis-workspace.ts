@@ -80,6 +80,12 @@ export type WorkerProfileSummary = {
 
 export type TeamMember = { id: string; name: string; email: string };
 
+export type UploadedResumeItem = {
+  id: string;
+  fileName: string;
+  fileIconType?: "pdf" | "jpeg";
+};
+
 export type CandidateInfoState = {
   firstName: string;
   lastName: string;
@@ -150,6 +156,8 @@ export function useMatchAnalysisWorkspace(applicationId: string, reloadToken = 0
   const [savingInfo, setSavingInfo] = useState(false);
   const [extractedDraft, setExtractedDraft] = useState("");
   const [savingText, setSavingText] = useState(false);
+  const [resumes, setResumes] = useState<UploadedResumeItem[]>([]);
+  const [openingResumeId, setOpeningResumeId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -215,6 +223,29 @@ export function useMatchAnalysisWorkspace(applicationId: string, reloadToken = 0
       cancelled = true;
     };
   }, [workerId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetch(`/api/admin/job-applications/${encodeURIComponent(applicationId)}/resume-history`, {
+      cache: "no-store",
+      credentials: "include",
+    })
+      .then(async (res) => {
+        const json = (await res.json().catch(() => ({}))) as {
+          resumes?: UploadedResumeItem[];
+          error?: string;
+        };
+        if (cancelled) return;
+        if (!res.ok) throw new Error(json.error || "Failed to load resumes");
+        setResumes(json.resumes ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setResumes([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [applicationId]);
 
   useEffect(() => {
     if (!profile) return;
@@ -430,6 +461,29 @@ export function useMatchAnalysisWorkspace(applicationId: string, reloadToken = 0
     }
   }
 
+  async function viewResume(resumeId: string) {
+    setOpeningResumeId(resumeId);
+    try {
+      const response = await fetch(
+        `/api/admin/job-applications/${encodeURIComponent(applicationId)}/resumes/${encodeURIComponent(resumeId)}`,
+        { cache: "no-store", credentials: "include" }
+      );
+      const payload = (await response.json().catch(() => ({}))) as {
+        url?: string;
+        error?: string;
+      };
+      const url = payload.url?.trim() ?? "";
+      if (!response.ok || !url) {
+        throw new Error(payload.error || "Could not open resume.");
+      }
+      window.open(url, "_blank", "noopener,noreferrer");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not open resume.");
+    } finally {
+      setOpeningResumeId(null);
+    }
+  }
+
   async function saveExtractedText() {
     setSavingText(true);
     try {
@@ -488,6 +542,9 @@ export function useMatchAnalysisWorkspace(applicationId: string, reloadToken = 0
     extractedDraft,
     setExtractedDraft,
     savingText,
+    resumes,
+    openingResumeId,
+    viewResume,
     load,
     runAnalyze,
     toggleVerified,
