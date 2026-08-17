@@ -50,10 +50,12 @@ import {
   JOB_FORM_LOCATION_CLUSTER_CLASS,
   JOB_FORM_JOB_TYPES,
   JOB_FORM_LOCATION_TYPES,
+  JOB_FORM_ACCEPTABLE_MATCH_RATES,
   JOB_FORM_MSP_JOB_DETAIL_OPTIONS,
   JOB_FORM_NUMBER_OF_POSITION_OPTIONS,
   JOB_FORM_OUTLINE_BUTTON_CLASS,
   JOB_FORM_PAY_PERIODS,
+  JOB_FORM_RATE_OPTIONS,
   JOB_FORM_PRIMARY_BUTTON_CLASS,
   JOB_FORM_RADIO_OPTIONS_CLASS,
   JOB_FORM_SECTION_TITLE_CLASS,
@@ -73,6 +75,9 @@ import {
   formatCommissionFeeTypeLabel,
   formatCommissionPercentValue,
   formatCommissionFixedValue,
+  formatCommissionEstimateFromPayRate,
+  formatExpectedHoursValue,
+  formatPayRatePeriodLabel,
   type JobFormOption,
   type JobFormSpecialtyOption,
   type JobFormStep,
@@ -228,6 +233,74 @@ function PublicField({
       {children}
       <FieldError error={error} />
     </label>
+  );
+}
+
+function AcceptableMatchRateField({
+  id,
+  value,
+  onChange,
+}: {
+  id: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div>
+      <label className={JOB_FORM_LABEL_CLASS} htmlFor={id}>
+        Acceptable Match Rate
+      </label>
+      <select
+        id={id}
+        className={`${JOB_FORM_SELECT_CLASS} ${value ? "text-[#334155]" : "text-[#94A3B8]"}`}
+        style={{ backgroundImage: JOB_FORM_SELECT_CHEVRON }}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+      >
+        <option value="">Select Acceptable Match Rate</option>
+        {JOB_FORM_ACCEPTABLE_MATCH_RATES.map((rate) => (
+          <option key={rate} value={rate}>
+            {rate}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+function WorkLocationTypeField({
+  id,
+  value,
+  onChange,
+}: {
+  id: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div>
+      <label className={JOB_FORM_LABEL_CLASS} htmlFor={id}>
+        Work Location Type
+      </label>
+      <select
+        id={id}
+        className={`${JOB_FORM_SELECT_CLASS} ${value ? "text-[#334155]" : "text-[#94A3B8]"}`}
+        style={{ backgroundImage: JOB_FORM_SELECT_CHEVRON }}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+      >
+        <option value="">Select work location type</option>
+        {JOB_FORM_LOCATION_TYPES.map((item) => (
+          <option key={item} value={item}>
+            {item}
+          </option>
+        ))}
+        {value &&
+        !JOB_FORM_LOCATION_TYPES.includes(value as (typeof JOB_FORM_LOCATION_TYPES)[number]) ? (
+          <option value={value}>{value}</option>
+        ) : null}
+      </select>
+    </div>
   );
 }
 
@@ -437,24 +510,31 @@ export function JobFormStepRequisition({
             : null}
         </div>
 
-        <div>
-          <label className={JOB_FORM_LABEL_CLASS} htmlFor="job-location-type">
-            Placement type
-          </label>
-          <select
-            id="job-location-type"
-            className={`${JOB_FORM_SELECT_CLASS} ${ui.jobLocationType ? "text-[#334155]" : "text-[#94A3B8]"}`}
-            style={{ backgroundImage: JOB_FORM_SELECT_CHEVRON }}
-            value={ui.jobLocationType}
-            onChange={(event) => onUiChange({ jobLocationType: event.target.value })}
-          >
-            <option value="">Select Placement type</option>
-            {JOB_FORM_LOCATION_TYPES.map((value) => (
-              <option key={value} value={value}>
-                {value}
-              </option>
-            ))}
-          </select>
+        <div className="grid gap-4 min-[700px]:grid-cols-2">
+          <AcceptableMatchRateField
+            id="job-acceptable-match-rate"
+            value={job.acceptableMatchRate ?? ""}
+            onChange={(next) => onJobChange("acceptableMatchRate", next || null)}
+          />
+          <div>
+            <label className={JOB_FORM_LABEL_CLASS} htmlFor="job-location-type">
+              Placement type
+            </label>
+            <select
+              id="job-location-type"
+              className={`${JOB_FORM_SELECT_CLASS} ${ui.jobLocationType ? "text-[#334155]" : "text-[#94A3B8]"}`}
+              style={{ backgroundImage: JOB_FORM_SELECT_CHEVRON }}
+              value={ui.jobLocationType}
+              onChange={(event) => onUiChange({ jobLocationType: event.target.value })}
+            >
+              <option value="">Select Placement type</option>
+              {JOB_FORM_LOCATION_TYPES.map((value) => (
+                <option key={value} value={value}>
+                  {value}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
 
         <div className="grid gap-4 min-[700px]:grid-cols-2">
@@ -871,33 +951,18 @@ export function JobFormStepMspDetails({
           </select>
           <FieldError error={fieldErrors.shiftType} />
         </div>
-
-        <div>
-          <label className={JOB_FORM_LABEL_CLASS} htmlFor="msp-work-location-type">
-            Work Location Type
-          </label>
-          <select
-            id="msp-work-location-type"
-            className={`${JOB_FORM_SELECT_CLASS} ${ui.jobLocationType ? "text-[#334155]" : "text-[#94A3B8]"}`}
-            style={{ backgroundImage: JOB_FORM_SELECT_CHEVRON }}
-            value={ui.jobLocationType}
-            onChange={(event) => onUiChange({ jobLocationType: event.target.value })}
-          >
-            <option value="">Select work location type</option>
-            {JOB_FORM_LOCATION_TYPES.map((value) => (
-              <option key={value} value={value}>
-                {value}
-              </option>
-            ))}
-            {ui.jobLocationType &&
-            !JOB_FORM_LOCATION_TYPES.includes(
-              ui.jobLocationType as (typeof JOB_FORM_LOCATION_TYPES)[number]
-            ) ? (
-              <option value={ui.jobLocationType}>{ui.jobLocationType}</option>
-            ) : null}
-          </select>
-        </div>
+        <WorkLocationTypeField
+          id="msp-work-location-type"
+          value={ui.jobLocationType}
+          onChange={(next) => onUiChange({ jobLocationType: next })}
+        />
       </div>
+
+      <AcceptableMatchRateField
+        id="msp-acceptable-match-rate"
+        value={job.acceptableMatchRate ?? ""}
+        onChange={(next) => onJobChange("acceptableMatchRate", next || null)}
+      />
 
       {/* Required Credentials / Certifications & Special Requirement / Restrictions hidden for now
       <div>
@@ -1042,108 +1107,138 @@ export function JobFormStepCompensation({
   }
 
   if (isMspRnr) {
+    const commissionEstimate = formatCommissionEstimateFromPayRate(job, ui);
+    const rnrShowPayBy = ui.showPayBy || "Range";
+    const rnrRatePeriod = ui.payRatePeriod || "Hourly";
+
     return (
       <div className="space-y-8">
         <section className={JOB_FORM_FIELDS_CLASS}>
-          <div className="grid gap-4 min-[700px]:grid-cols-2">
-            <div>
-              <label className={JOB_FORM_LABEL_CLASS} htmlFor="commission-fee-type">
-                Please select commission fees
-              </label>
+          <div
+            className={`grid gap-4 min-[700px]:items-end ${
+              rnrShowPayBy === "Range"
+                ? "min-[700px]:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)_auto_minmax(0,1fr)_minmax(0,1.1fr)]"
+                : "min-[700px]:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1.1fr)]"
+            }`}
+          >
+            <div className="min-w-0">
+              <label className={JOB_FORM_LABEL_CLASS}>Show pay by</label>
               <select
-                id="commission-fee-type"
-                className={JOB_FORM_SELECT_CLASS}
+                className={`${JOB_FORM_SELECT_CLASS} text-[#334155]`}
                 style={{ backgroundImage: JOB_FORM_SELECT_CHEVRON }}
-                value={ui.commissionFeeType}
-                onChange={(event) =>
-                  handleCommissionFeeTypeChange(event.target.value as CommissionFeeType)
-                }
+                value={rnrShowPayBy}
+                onChange={(event) => {
+                  const next = event.target.value;
+                  onUiChange({ showPayBy: next });
+                  if (next !== "Range") {
+                    onJobChange("payRateMax", null);
+                  }
+                }}
               >
-                <option value="">Please select commission fees</option>
-                {JOB_FORM_COMMISSION_FEE_TYPES.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
+                {JOB_FORM_SHOW_PAY_BY.map((value) => (
+                  <option key={value} value={value}>
+                    {value}
                   </option>
                 ))}
               </select>
-              {!ui.commissionFeeType && fieldErrors.commissionPercent ? (
-                <FieldError error={fieldErrors.commissionPercent} />
-              ) : null}
             </div>
 
-            {ui.commissionFeeType === "percentage" ? (
-              <div>
-                <label className={JOB_FORM_LABEL_CLASS} htmlFor="commission-percent">
-                  Commission Percentage
-                </label>
-                <div className="relative">
-                  <input
-                    id="commission-percent"
-                    type="number"
-                    min="0"
-                    max="100"
-                    step="0.01"
-                    className={`${JOB_FORM_INPUT_CLASS} pr-10`}
-                    value={job.commissionPercent ?? ""}
-                    onChange={(event) =>
-                      onJobChange(
-                        "commissionPercent",
-                        event.target.value ? Number(event.target.value) : null
-                      )
-                    }
-                    placeholder="e.g. 15"
-                  />
-                  <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-[#94A3B8]">
-                    %
-                  </span>
+            {rnrShowPayBy === "Range" ? (
+              <>
+                <div className="min-w-0">
+                  <label className={JOB_FORM_LABEL_CLASS}>Minimum</label>
+                  <div className="relative">
+                    <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[#94A3B8]">
+                      $
+                    </span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      className={`${JOB_FORM_INPUT_CLASS} pl-7`}
+                      value={job.payRateMin ?? ""}
+                      onChange={(event) =>
+                        onJobChange(
+                          "payRateMin",
+                          event.target.value ? Number(event.target.value) : null
+                        )
+                      }
+                    />
+                  </div>
                 </div>
-                <FieldError error={fieldErrors.commissionPercent} />
-              </div>
-            ) : null}
-
-            {ui.commissionFeeType === "fixed_amount" ? (
-              <div>
-                <label className={JOB_FORM_LABEL_CLASS} htmlFor="commission-fixed-amount">
-                  Fixed Commission Amount
+                <span className="hidden pb-2 text-sm text-[#64748B] min-[700px]:block">to</span>
+                <div className="min-w-0">
+                  <label className={JOB_FORM_LABEL_CLASS}>Maximum</label>
+                  <div className="relative">
+                    <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[#94A3B8]">
+                      $
+                    </span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      className={`${JOB_FORM_INPUT_CLASS} pl-7`}
+                      value={job.payRateMax ?? ""}
+                      onChange={(event) =>
+                        onJobChange(
+                          "payRateMax",
+                          event.target.value ? Number(event.target.value) : null
+                        )
+                      }
+                    />
+                  </div>
+                  <FieldError error={fieldErrors.payRateMax} />
+                </div>
+              </>
+            ) : (
+              <div className="min-w-0">
+                <label className={JOB_FORM_LABEL_CLASS}>
+                  {rnrShowPayBy === "Starting amount" ? "Starting amount" : "Exact amount"}
                 </label>
                 <div className="relative">
                   <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[#94A3B8]">
                     $
                   </span>
                   <input
-                    id="commission-fixed-amount"
                     type="number"
                     min="0"
                     step="0.01"
-                    className={`${JOB_FORM_INPUT_CLASS} pl-7 pr-14`}
-                    value={job.commissionFixedAmount ?? ""}
+                    className={`${JOB_FORM_INPUT_CLASS} pl-7`}
+                    value={job.payRateMin ?? ""}
                     onChange={(event) =>
                       onJobChange(
-                        "commissionFixedAmount",
+                        "payRateMin",
                         event.target.value ? Number(event.target.value) : null
                       )
                     }
-                    placeholder="e.g. 2500"
                   />
-                  <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-medium text-[#94A3B8]">
-                    USD
-                  </span>
                 </div>
-                <FieldError error={fieldErrors.commissionFixedAmount} />
               </div>
-            ) : null}
+            )}
+
+            <div className="min-w-0">
+              <label className={JOB_FORM_LABEL_CLASS}>Rate</label>
+              <select
+                className={`${JOB_FORM_SELECT_CLASS} text-[#334155]`}
+                style={{ backgroundImage: JOB_FORM_SELECT_CHEVRON }}
+                value={rnrRatePeriod}
+                onChange={(event) =>
+                  onUiChange({
+                    payRatePeriod: event.target.value,
+                    compensationType: event.target.value,
+                  })
+                }
+              >
+                {JOB_FORM_RATE_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
-          <p className="text-xs text-[#64748B]">
-            Select a commission fee type and enter the amount. Required before publishing.
-          </p>
-        </section>
-
-        <hr className="border-[#E5E7EB]" />
-
-        <section className={JOB_FORM_FIELDS_CLASS}>
-          <h3 className={JOB_FORM_SECTION_TITLE_CLASS}>Contract Terms</h3>
-          <div className="grid gap-4 min-[700px]:grid-cols-2">
+          <div className="mt-4 grid gap-4 min-[700px]:grid-cols-2">
             <div>
               <label className={JOB_FORM_LABEL_CLASS} htmlFor="rnr-job-duration">
                 Duration
@@ -1185,6 +1280,171 @@ export function JobFormStepCompensation({
                 />
               </div>
             </div>
+          </div>
+        </section>
+
+        <hr className="border-[#E5E7EB]" />
+
+        <section className="flex flex-col gap-[15px]">
+          <h3 className={JOB_FORM_SECTION_TITLE_CLASS}>Expected hours</h3>
+          <div
+            className={`grid gap-4 min-[700px]:items-end ${
+              showFixedHours
+                ? "min-[700px]:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_auto]"
+                : "min-[700px]:grid-cols-[minmax(0,1.2fr)]"
+            }`}
+          >
+            <div className="min-w-0">
+              <label className={JOB_FORM_LABEL_CLASS}>Show by</label>
+              <select
+                className={`${JOB_FORM_SELECT_CLASS} text-[#334155]`}
+                style={{ backgroundImage: JOB_FORM_SELECT_CHEVRON }}
+                value={hoursShowBy}
+                onChange={(event) => {
+                  const next = event.target.value;
+                  onUiChange({ hoursShowBy: next });
+                  onJobChange("shiftDetails", next || null);
+                }}
+              >
+                {JOB_FORM_HOURS_SHOW_BY.map((value) => (
+                  <option key={value} value={value}>
+                    {value}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {showFixedHours ? (
+              <>
+                <div className="min-w-0">
+                  <label className={JOB_FORM_LABEL_CLASS} htmlFor="rnr-hours-per-week">
+                    Fixed at
+                  </label>
+                  <input
+                    id="rnr-hours-per-week"
+                    type="number"
+                    min="0"
+                    step="1"
+                    className={JOB_FORM_INPUT_CLASS}
+                    value={job.hoursPerWeek ?? ""}
+                    onChange={(event) =>
+                      onJobChange(
+                        "hoursPerWeek",
+                        event.target.value ? Number(event.target.value) : null
+                      )
+                    }
+                  />
+                </div>
+                <span className="hidden pb-2 text-sm text-[#64748B] min-[700px]:block">
+                  Hours per week
+                </span>
+              </>
+            ) : null}
+          </div>
+        </section>
+
+        <hr className="border-[#E5E7EB]" />
+
+        <section className="flex flex-col gap-[15px]">
+          <h3 className={JOB_FORM_SECTION_TITLE_CLASS}>Commission fees</h3>
+          <div className="grid gap-4 min-[700px]:grid-cols-2">
+            <div>
+              <label className={JOB_FORM_LABEL_CLASS} htmlFor="commission-fee-type">
+                Please select commission fees
+              </label>
+              <select
+                id="commission-fee-type"
+                className={JOB_FORM_SELECT_CLASS}
+                style={{ backgroundImage: JOB_FORM_SELECT_CHEVRON }}
+                value={ui.commissionFeeType}
+                onChange={(event) =>
+                  handleCommissionFeeTypeChange(event.target.value as CommissionFeeType)
+                }
+              >
+                <option value="">Please select commission fees</option>
+                {JOB_FORM_COMMISSION_FEE_TYPES.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.value === "percentage" && commissionEstimate
+                      ? `${option.label} (${commissionEstimate})`
+                      : option.label}
+                  </option>
+                ))}
+              </select>
+              {!ui.commissionFeeType && fieldErrors.commissionPercent ? (
+                <FieldError error={fieldErrors.commissionPercent} />
+              ) : null}
+            </div>
+
+            {ui.commissionFeeType === "percentage" ? (
+              <div>
+                <label className={JOB_FORM_LABEL_CLASS} htmlFor="commission-percent">
+                  Commission Percentage
+                </label>
+                <div className="relative">
+                  <input
+                    id="commission-percent"
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.01"
+                    className={`${JOB_FORM_INPUT_CLASS} pr-10`}
+                    value={job.commissionPercent ?? ""}
+                    onChange={(event) =>
+                      onJobChange(
+                        "commissionPercent",
+                        event.target.value ? Number(event.target.value) : null
+                      )
+                    }
+                    placeholder="e.g. 15"
+                  />
+                  <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-[#94A3B8]">
+                    %
+                  </span>
+                </div>
+                {commissionEstimate ? (
+                  <p className="mt-1.5 text-xs text-[#64748B]">
+                    Estimated commission from pay rate: {commissionEstimate}
+                  </p>
+                ) : (
+                  <p className="mt-1.5 text-xs text-[#64748B]">
+                    Enter a percentage to calculate commission from the pay rate above.
+                  </p>
+                )}
+                <FieldError error={fieldErrors.commissionPercent} />
+              </div>
+            ) : null}
+
+            {ui.commissionFeeType === "fixed_amount" ? (
+              <div>
+                <label className={JOB_FORM_LABEL_CLASS} htmlFor="commission-fixed-amount">
+                  Fixed Commission Amount
+                </label>
+                <div className="relative">
+                  <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[#94A3B8]">
+                    $
+                  </span>
+                  <input
+                    id="commission-fixed-amount"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    className={`${JOB_FORM_INPUT_CLASS} pl-7 pr-14`}
+                    value={job.commissionFixedAmount ?? ""}
+                    onChange={(event) =>
+                      onJobChange(
+                        "commissionFixedAmount",
+                        event.target.value ? Number(event.target.value) : null
+                      )
+                    }
+                    placeholder="e.g. 2500"
+                  />
+                  <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-medium text-[#94A3B8]">
+                    USD
+                  </span>
+                </div>
+                <FieldError error={fieldErrors.commissionFixedAmount} />
+              </div>
+            ) : null}
           </div>
         </section>
       </div>
@@ -1845,6 +2105,9 @@ export function JobFormStepReview({
   const commissionFeeTypeLabel = formatCommissionFeeTypeLabel(ui.commissionFeeType);
   const commissionPercentValue = formatCommissionPercentValue(job);
   const commissionFixedValue = formatCommissionFixedValue(job);
+  const commissionEstimate = formatCommissionEstimateFromPayRate(job, ui);
+  const expectedHoursValue = formatExpectedHoursValue(job, ui);
+  const ratePeriodLabel = formatPayRatePeriodLabel(ui.payRatePeriod || ui.compensationType);
 
   return (
     <section className="space-y-1">
@@ -1889,6 +2152,12 @@ export function JobFormStepReview({
             value={additionalLocationsValue}
             addLabel="optional job information"
             onEdit={() => onEditField("additionalLocation")}
+          />
+          <ReviewRow
+            label="Acceptable Match Rate"
+            value={job.acceptableMatchRate ?? ""}
+            addLabel="acceptable match rate"
+            onEdit={() => onEditField("acceptableMatchRate")}
           />
           <ReviewRow
             label="Placement type"
@@ -2012,6 +2281,12 @@ export function JobFormStepReview({
             onEdit={() => onEditField("jobType")}
           />
           <ReviewRow
+            label="Acceptable Match Rate"
+            value={job.acceptableMatchRate ?? ""}
+            addLabel="acceptable match rate"
+            onEdit={() => onEditField("acceptableMatchRate")}
+          />
+          <ReviewRow
             label="Work Location Type"
             value={ui.jobLocationType}
             addLabel="work location type"
@@ -2026,27 +2301,23 @@ export function JobFormStepReview({
           {isMspRnr ? (
             <>
               <ReviewRow
-                label="Commission Fee Type"
-                value={commissionFeeTypeLabel}
-                addLabel="commission fee type"
+                label="Show Pay By"
+                value={ui.showPayBy}
+                addLabel="show pay by"
                 onEdit={() => onEditField("compensation")}
               />
-              {ui.commissionFeeType === "percentage" ? (
-                <ReviewRow
-                  label="Commission Percentage"
-                  value={commissionPercentValue}
-                  addLabel="commission percentage"
-                  onEdit={() => onEditField("compensation")}
-                />
-              ) : null}
-              {ui.commissionFeeType === "fixed_amount" ? (
-                <ReviewRow
-                  label="Fixed Commission Amount"
-                  value={commissionFixedValue}
-                  addLabel="fixed commission amount"
-                  onEdit={() => onEditField("compensation")}
-                />
-              ) : null}
+              <ReviewRow
+                label="Pay Rate"
+                value={mspPayRateValue !== "—" ? mspPayRateValue : ""}
+                addLabel="pay rate"
+                onEdit={() => onEditField("compensation")}
+              />
+              <ReviewRow
+                label="Rate"
+                value={ratePeriodLabel}
+                addLabel="rate"
+                onEdit={() => onEditField("compensation")}
+              />
             </>
           ) : (
             <>
@@ -2082,26 +2353,51 @@ export function JobFormStepReview({
             addLabel="start date"
             onEdit={() => onEditField("startDate")}
           />
-          {!isMspRnr ? (
-            <ReviewRow
-              label="Expected Hours"
-              value={
-                ui.hoursShowBy === "Fixed Hours" && job.hoursPerWeek != null
-                  ? `${job.hoursPerWeek} hrs/week`
-                  : ui.hoursShowBy || ""
-              }
-              addLabel="expected hours"
-              onEdit={() => onEditField("expectedHours")}
-            />
-          ) : null}
-          {!isMspRnr ? (
+          <ReviewRow
+            label="Expected Hours"
+            value={expectedHoursValue}
+            addLabel="expected hours"
+            onEdit={() => onEditField("expectedHours")}
+          />
+          {isMspRnr ? (
+            <>
+              <ReviewRow
+                label="Commission Fee Type"
+                value={
+                  ui.commissionFeeType === "percentage" && commissionEstimate
+                    ? `${commissionFeeTypeLabel} (${commissionEstimate})`
+                    : commissionFeeTypeLabel
+                }
+                addLabel="commission fee type"
+                onEdit={() => onEditField("compensation")}
+              />
+              {ui.commissionFeeType === "percentage" ? (
+                <ReviewRow
+                  label="Commission Percentage"
+                  value={
+                    [commissionPercentValue, commissionEstimate].filter(Boolean).join(" · ")
+                  }
+                  addLabel="commission percentage"
+                  onEdit={() => onEditField("compensation")}
+                />
+              ) : null}
+              {ui.commissionFeeType === "fixed_amount" ? (
+                <ReviewRow
+                  label="Fixed Commission Amount"
+                  value={commissionFixedValue}
+                  addLabel="fixed commission amount"
+                  onEdit={() => onEditField("compensation")}
+                />
+              ) : null}
+            </>
+          ) : (
             <ReviewRow
               label="Benefits"
               value={ui.selectedBenefits.join(", ")}
               addLabel="benefits"
               onEdit={() => onEditField("benefits")}
             />
-          ) : null}
+          )}
         </>
       ) : null}
       {job.sourceType !== "MSP" ? (

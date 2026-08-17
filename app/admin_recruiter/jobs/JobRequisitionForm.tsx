@@ -16,7 +16,7 @@ import type { JobRequisitionInput, PlacementType, SourceType } from "@/lib/jobs/
 import type { JobScreeningQuestionInput } from "@/lib/jobs/screening-questions";
 import {
   jobRequiresWorkflow,
-  isMspRecruitAndRelease,
+  placementTypeFromApiRow,
   resolvePlacementTypeForSource,
 } from "@/lib/jobs/placement";
 import { JobPostPreviewModal } from "./JobPostPreviewModal";
@@ -531,7 +531,16 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
               : ("Contract" as JobRequisitionInput["employmentType"])
             : ("" as JobRequisitionInput["employmentType"]),
         }));
-        setUi(defaultJobFormUiState());
+        setUi(
+          nextPlacementType === "Recruit_and_Release"
+            ? {
+                ...defaultJobFormUiState(),
+                showPayBy: "Range",
+                payRatePeriod: "Hourly",
+                hoursShowBy: "Fixed Hours",
+              }
+            : defaultJobFormUiState()
+        );
       }
 
       setStep(mspSourcedByClient ? "msp-details" : "requisition");
@@ -589,11 +598,9 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
         : step === "description"
           ? "Describe the job"
           : step === "compensation"
-            ? isMspRecruitAndRelease(job)
-              ? "Commission Fees"
-              : job.sourceType === "MSP"
-                ? "Rates & Contract"
-                : "Compensation"
+            ? job.sourceType === "MSP"
+              ? "Rates & Contract"
+              : "Compensation"
             : jobId
               ? "Edit job post"
               : "Create a job post";
@@ -605,9 +612,7 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
         : step === "description"
           ? "Add job description"
           : step === "compensation"
-            ? isMspRecruitAndRelease(job)
-              ? "Set the tenant commission fee for this Recruit & Release placement."
-              : "Review the pay we estimated for your job and adjust as needed. Check your local minimum wage."
+            ? "Review the pay we estimated for your job and adjust as needed. Check your local minimum wage."
             : step === "msp-details"
               ? "Job Source Details"
               : "Job Requisition";
@@ -686,6 +691,20 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
                     const next = { ...current };
                     delete next.mspPlacementType;
                     return next;
+                  });
+                  setReferenceJobId((current) => {
+                    if (!current) return null;
+                    const selected = referenceJobOptions.find((row) => row.id === current);
+                    if (!selected) return null;
+                    const isMsp =
+                      String(selected.source_type ?? "").trim().toLowerCase() === "msp";
+                    if (!isMsp) return null;
+                    const selectedPlacement = placementTypeFromApiRow(
+                      "MSP",
+                      selected.placement_type,
+                      selected.employment_type
+                    );
+                    return selectedPlacement === value ? current : null;
                   });
                 }}
                 jobs={referenceJobOptions}

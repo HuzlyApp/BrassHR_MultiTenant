@@ -3,6 +3,8 @@
 import { Check } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
+import { placementTypeFromApiRow } from "@/lib/jobs/placement";
+import type { PlacementType } from "@/lib/jobs/types";
 
 export type ExistingJobPickerOption = {
   id: string;
@@ -13,6 +15,8 @@ export type ExistingJobPickerOption = {
   facility_name: string | null;
   status?: string;
   source_type?: string | null;
+  placement_type?: string | null;
+  employment_type?: string | null;
   internal_requisition_number?: string | null;
   created_at?: string | null;
   published_at?: string | null;
@@ -23,6 +27,14 @@ export type ExistingJobSourceTypeFilter = "Internal" | "MSP";
 function jobPickerSourceType(option: ExistingJobPickerOption): ExistingJobSourceTypeFilter {
   const raw = String(option.source_type ?? "").trim().toLowerCase();
   return raw === "msp" ? "MSP" : "Internal";
+}
+
+function jobPickerPlacementType(option: ExistingJobPickerOption): PlacementType {
+  return placementTypeFromApiRow(
+    jobPickerSourceType(option),
+    option.placement_type,
+    option.employment_type
+  );
 }
 
 function JobSourceTypeToggle({
@@ -99,6 +111,7 @@ type ExistingJobPickerPanelProps = {
   onSelectJob: (jobId: string | null) => void;
   sourceTypeFilter: ExistingJobSourceTypeFilter;
   onSourceTypeFilterChange: (value: ExistingJobSourceTypeFilter) => void;
+  placementTypeFilter?: PlacementType | null;
 };
 
 export function ExistingJobPickerPanel({
@@ -108,6 +121,7 @@ export function ExistingJobPickerPanel({
   onSelectJob,
   sourceTypeFilter,
   onSourceTypeFilterChange,
+  placementTypeFilter = null,
 }: ExistingJobPickerPanelProps) {
   const branding = useTenantBranding();
   const [search, setSearch] = useState("");
@@ -117,11 +131,23 @@ export function ExistingJobPickerPanel({
 
   useEffect(() => {
     setLocationFilter("");
-  }, [sourceTypeFilter]);
+  }, [sourceTypeFilter, placementTypeFilter]);
 
   const sourceFilteredJobs = useMemo(
-    () => jobs.filter((option) => jobPickerSourceType(option) === sourceTypeFilter),
-    [jobs, sourceTypeFilter]
+    () =>
+      jobs.filter((option) => {
+        if (jobPickerSourceType(option) !== sourceTypeFilter) return false;
+        if (
+          sourceTypeFilter === "MSP" &&
+          (placementTypeFilter === "Recruit_and_Release" ||
+            placementTypeFilter === "Recruit_and_EOR") &&
+          jobPickerPlacementType(option) !== placementTypeFilter
+        ) {
+          return false;
+        }
+        return true;
+      }),
+    [jobs, sourceTypeFilter, placementTypeFilter]
   );
 
   const locationOptions = useMemo(() => {

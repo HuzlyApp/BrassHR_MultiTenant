@@ -87,8 +87,22 @@ export const JOB_FORM_COMPENSATION_TYPES = ["Hourly", "Weekly", "Monthly", "Annu
 export const JOB_FORM_CURRENCIES = ["United States Dollar $"] as const;
 export const JOB_FORM_SHOW_PAY_BY = ["Range", "Starting amount", "Exact amount"] as const;
 export const JOB_FORM_PAY_PERIODS = ["Hourly", "Weekly", "Monthly", "Annually"] as const;
+export const JOB_FORM_RATE_OPTIONS = [
+  { value: "Hourly", label: "Per hour" },
+  { value: "Weekly", label: "Per week" },
+  { value: "Monthly", label: "Per month" },
+  { value: "Annually", label: "Per year" },
+] as const;
 export const JOB_FORM_HOURS_SHOW_BY = ["Fixed Hours", "Flexible Hours"] as const;
 export const JOB_FORM_LOCATION_TYPES = ["Remote", "Hybrid", "On-site", "Remote, Hybrid"] as const;
+export const JOB_FORM_ACCEPTABLE_MATCH_RATES = [
+  "100%",
+  "> 90%",
+  "> 75%",
+  "> 50%",
+  "> 25%",
+] as const;
+export type JobFormAcceptableMatchRate = (typeof JOB_FORM_ACCEPTABLE_MATCH_RATES)[number];
 export const JOB_FORM_YEARS_OF_EXPERIENCE = [
   "1 yr",
   "2 yrs",
@@ -284,6 +298,15 @@ export function jobFormUiFromJob(job: JobRequisitionInput): JobFormUiState {
     }
   }
   if (isMspRecruitAndRelease(job)) {
+    if (!job.showPayBy?.trim() && job.payRateMin == null && job.payRateMax == null) {
+      ui.showPayBy = "Range";
+    }
+    if (!ui.payRatePeriod) {
+      ui.payRatePeriod = "Hourly";
+    }
+    if (!ui.hoursShowBy) {
+      ui.hoursShowBy = "Fixed Hours";
+    }
     if (job.commissionPercent != null && job.commissionPercent > 0) {
       ui.commissionFeeType = "percentage";
     } else if (job.commissionFixedAmount != null && job.commissionFixedAmount > 0) {
@@ -361,6 +384,7 @@ export function jobRequisitionInputFromApiRow(row: Record<string, unknown>): Job
       : row.schedule
         ? String(row.schedule)
         : null,
+    acceptableMatchRate: row.acceptable_match_rate ? String(row.acceptable_match_rate) : null,
     isEmployerOnRecord:
       typeof row.is_employer_on_record === "boolean" ? row.is_employer_on_record : true,
     compensationType: row.compensation_type ? String(row.compensation_type) : null,
@@ -475,15 +499,15 @@ export function applyUiToJob(job: JobRequisitionInput, ui: JobFormUiState): JobR
         ? job.professionId || null
         : job.professionId,
     specialtyId: job.sourceType === "Internal" ? job.specialtyId : null,
-    compensationType: isMspRecruitAndRelease(job) ? null : compensationType,
+    compensationType: isMspRecruitAndRelease(job)
+      ? ui.payRatePeriod || compensationType || null
+      : compensationType,
     currency: isMspRecruitAndRelease(job) ? "USD" : ui.currency.trim() || "USD",
-    showPayBy: isMspRecruitAndRelease(job) ? null : showPayBy,
-    payRatePeriod: isMspRecruitAndRelease(job) ? null : ui.payRatePeriod || ui.compensationType,
-    payRateMin: isMspRecruitAndRelease(job) ? null : job.payRateMin,
-    payRateMax: isMspRecruitAndRelease(job) ? null : isRange ? job.payRateMax : null,
-    suggestedPayRate: isMspRecruitAndRelease(job)
-      ? null
-      : job.payRateMin ?? job.suggestedPayRate ?? null,
+    showPayBy,
+    payRatePeriod: ui.payRatePeriod || ui.compensationType || null,
+    payRateMin: job.payRateMin,
+    payRateMax: isRange ? job.payRateMax : null,
+    suggestedPayRate: job.payRateMin ?? job.suggestedPayRate ?? null,
     commissionPercent: isMspRecruitAndRelease(job)
       ? ui.commissionFeeType === "fixed_amount"
         ? null
@@ -494,10 +518,8 @@ export function applyUiToJob(job: JobRequisitionInput, ui: JobFormUiState): JobR
         ? null
         : job.commissionFixedAmount ?? null
       : null,
-    hoursPerWeek: isMspRecruitAndRelease(job) ? null : job.hoursPerWeek ?? null,
-    shiftDetails: isMspRecruitAndRelease(job)
-      ? null
-      : ui.hoursShowBy.trim() || job.shiftDetails || null,
+    hoursPerWeek: job.hoursPerWeek ?? null,
+    shiftDetails: ui.hoursShowBy.trim() || job.shiftDetails || null,
     benefits: isMspRecruitAndRelease(job) ? null : ui.selectedBenefits.join(", "),
     publicTitle:
       job.sourceType === "MSP"
@@ -546,13 +568,47 @@ export function formatCommissionFixedValue(job: JobRequisitionInput): string {
   return `$${amount} USD`;
 }
 
+export function formatPayRatePeriodLabel(period: string | null | undefined): string {
+  const raw = String(period ?? "").trim().toLowerCase();
+  if (raw.includes("hour")) return "Per hour";
+  if (raw.includes("week")) return "Per week";
+  if (raw.includes("month")) return "Per month";
+  if (raw.includes("year") || raw.includes("annual")) return "Per year";
+  return String(period ?? "").trim();
+}
+
+export function formatCommissionEstimateFromPayRate(
+  job: JobRequisitionInput,
+  ui: JobFormUiState
+): string {
+  if (ui.commissionFeeType !== "percentage" || job.commissionPercent == null || job.commissionPercent <= 0) {
+    return "";
+  }
+  const pct = job.commissionPercent / 100;
+  const min = job.payRateMin;
+  const max = job.payRateMax;
+  const periodLabel = formatPayRatePeriodLabel(ui.payRatePeriod || "Hourly");
+  const formatAmount = (value: number) => {
+    const product = value * pct;
+    const text = Number.isInteger(product) ? String(product) : product.toFixed(2).replace(/\.?0+$/, "");
+    return `$${text}`;
+  };
+  const showPayBy = normalizeShowPayBy(ui.showPayBy || job.showPayBy);
+  if (showPayBy === "Range" && min != null && max != null && min !== max) {
+    return `${formatAmount(min)} to ${formatAmount(max)} ${periodLabel}`;
+  }
+  const amount = min ?? max;
+  if (amount == null) return "";
+  return `${formatAmount(amount)} ${periodLabel}`;
+}
+
 export function formatPaySummary(
   job: JobRequisitionInput,
   ui: JobFormUiState
 ): string {
   const min = job.payRateMin;
   const max = job.payRateMax;
-  const period = (ui.payRatePeriod || ui.compensationType).trim().toLowerCase();
+  const period = formatPayRatePeriodLabel(ui.payRatePeriod || ui.compensationType);
   const showPayBy = normalizeShowPayBy(ui.showPayBy || job.showPayBy);
 
   if (showPayBy === "Range") {
@@ -569,6 +625,17 @@ export function formatPaySummary(
   const amount = min ?? max;
   if (amount == null) return "—";
   return period ? `$${amount} ${period}` : `$${amount}`;
+}
+
+export function formatExpectedHoursValue(
+  job: JobRequisitionInput,
+  ui: JobFormUiState
+): string {
+  const hoursShowBy = ui.hoursShowBy || (job.hoursPerWeek != null ? "Fixed Hours" : "");
+  if (hoursShowBy === "Fixed Hours" && job.hoursPerWeek != null) {
+    return `${job.hoursPerWeek} hrs/week`;
+  }
+  return hoursShowBy;
 }
 
 export function primaryButtonStyle(brandStyle: CSSProperties): CSSProperties {

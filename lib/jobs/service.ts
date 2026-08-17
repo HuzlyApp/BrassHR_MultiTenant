@@ -118,8 +118,8 @@ function toJobRow(input: JobRequisitionInput) {
     department: clean(input.department),
     facility,
     bill_rate: input.billRate ?? null,
-    pay_rate_min: isMspRecruitAndRelease(input) ? null : input.payRateMin ?? null,
-    pay_rate_max: isMspRecruitAndRelease(input) ? null : input.payRateMax ?? null,
+    pay_rate_min: input.payRateMin ?? null,
+    pay_rate_max: input.payRateMax ?? null,
     commission_percent: input.commissionPercent ?? null,
     commission_fixed_amount: input.commissionFixedAmount ?? null,
     target_start_date: clean(input.targetStartDate),
@@ -143,6 +143,7 @@ function toJobRow(input: JobRequisitionInput) {
     additional_locations: additionalLocations,
     show_in_multiple_areas: Boolean(input.showInMultipleAreas),
     location_type: jobLocationType,
+    acceptable_match_rate: clean(input.acceptableMatchRate),
     is_employer_on_record:
       typeof input.isEmployerOnRecord === "boolean" ? input.isEmployerOnRecord : true,
     compensation_type: compensationType,
@@ -172,7 +173,7 @@ function toJobRow(input: JobRequisitionInput) {
     facility_name: facility,
     job_duration: duration,
     benefits_summary: benefits,
-    pay_rate: isMspRecruitAndRelease(input) ? null : suggestedPayRate,
+    pay_rate: suggestedPayRate,
   };
 }
 
@@ -806,6 +807,7 @@ function jobRowToInput(row: Record<string, unknown>): JobRequisitionInput {
       : row.schedule
         ? String(row.schedule)
         : null,
+    acceptableMatchRate: row.acceptable_match_rate ? String(row.acceptable_match_rate) : null,
     isEmployerOnRecord:
       typeof row.is_employer_on_record === "boolean" ? row.is_employer_on_record : true,
     compensationType: row.compensation_type ? String(row.compensation_type) : null,

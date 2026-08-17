@@ -144,6 +144,7 @@ export function JobFormStepSetup({
           onSelectJob={onSelectReferenceJob}
           sourceTypeFilter={sourceTypeFilter}
           onSourceTypeFilterChange={handleSourceTypeFilterChange}
+          placementTypeFilter={mspSourcedByClient === true ? mspPlacementType : null}
         />
         <p className="text-xs text-[#64748B]">
           Optional — select an existing job to pre-fill details as a reference for this new posting.

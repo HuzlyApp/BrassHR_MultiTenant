@@ -22,16 +22,19 @@ import {
   JOB_FORM_JOB_TYPES,
   JOB_FORM_LABEL_CLASS,
   JOB_FORM_LOCATION_TYPES,
+  JOB_FORM_ACCEPTABLE_MATCH_RATES,
   JOB_FORM_MSP_JOB_DETAIL_OPTIONS,
   JOB_FORM_NUMBER_OF_POSITION_OPTIONS,
   JOB_FORM_OUTLINE_BUTTON_CLASS,
   JOB_FORM_PAY_PERIODS,
+  JOB_FORM_RATE_OPTIONS,
   JOB_FORM_PRIMARY_BUTTON_CLASS,
   JOB_FORM_SELECT_CHEVRON,
   JOB_FORM_SELECT_CLASS,
   JOB_FORM_SHOW_PAY_BY,
   JOB_FORM_TEXTAREA_CLASS,
   JOB_FORM_YEARS_OF_EXPERIENCE,
+  formatCommissionEstimateFromPayRate,
   specialtySelectPlaceholder,
   type JobFormOption,
   type JobFormSpecialtyOption,
@@ -48,6 +51,7 @@ export type ReviewEditFieldId =
   | "jobLocation"
   | "additionalLocation"
   | "jobLocationType"
+  | "acceptableMatchRate"
   | "numberOfPositions"
   | "yearsOfExperience"
   | "employmentType"
@@ -184,6 +188,9 @@ export function JobReviewEditModal({
   const employmentLabels = employmentTypes.map((type) => employmentTypeLabel(type));
   const isMsp = draft.job.sourceType === "MSP";
   const isMspRnr = isMspRecruitAndRelease(draft.job);
+  const rnrShowPayBy = draft.ui.showPayBy || "Range";
+  const rnrRatePeriod = draft.ui.payRatePeriod || "Hourly";
+  const commissionEstimate = formatCommissionEstimateFromPayRate(draft.job, draft.ui);
 
   function patchJob<K extends keyof JobRequisitionInput>(key: K, value: JobRequisitionInput[K]) {
     setDraft((current) => ({ ...current, job: { ...current.job, [key]: value } }));
@@ -215,7 +222,11 @@ export function JobReviewEditModal({
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-[200] bg-black/40" />
         <Dialog.Content
-          className={`fixed left-1/2 top-1/2 z-[201] flex w-[min(560px,calc(100vw-24px))] -translate-x-1/2 -translate-y-1/2 flex-col rounded-2xl border border-[#E5E7EB] bg-white shadow-xl outline-none [&_input]:border-[#CBD5E1] [&_input]:outline-none [&_input]:focus:border-[color:var(--brand-primary)] [&_input]:focus:ring-2 [&_input]:focus:ring-[color:color-mix(in_srgb,var(--brand-primary)_20%,transparent)] [&_select]:border-[#CBD5E1] [&_select]:outline-none [&_select]:focus:border-[color:var(--brand-primary)] [&_select]:focus:ring-2 [&_select]:focus:ring-[color:color-mix(in_srgb,var(--brand-primary)_20%,transparent)] [&_textarea]:border-[#CBD5E1] [&_textarea]:outline-none [&_textarea]:focus:border-[color:var(--brand-primary)] [&_textarea]:focus:ring-2 [&_textarea]:focus:ring-[color:color-mix(in_srgb,var(--brand-primary)_20%,transparent)] ${
+          className={`fixed left-1/2 top-1/2 z-[201] flex ${
+            field === "compensation" && isMspRnr
+              ? "w-[min(720px,calc(100vw-24px))]"
+              : "w-[min(560px,calc(100vw-24px))]"
+          } -translate-x-1/2 -translate-y-1/2 flex-col rounded-2xl border border-[#E5E7EB] bg-white shadow-xl outline-none [&_input]:border-[#CBD5E1] [&_input]:outline-none [&_input]:focus:border-[color:var(--brand-primary)] [&_input]:focus:ring-2 [&_input]:focus:ring-[color:color-mix(in_srgb,var(--brand-primary)_20%,transparent)] [&_select]:border-[#CBD5E1] [&_select]:outline-none [&_select]:focus:border-[color:var(--brand-primary)] [&_select]:focus:ring-2 [&_select]:focus:ring-[color:color-mix(in_srgb,var(--brand-primary)_20%,transparent)] [&_textarea]:border-[#CBD5E1] [&_textarea]:outline-none [&_textarea]:focus:border-[color:var(--brand-primary)] [&_textarea]:focus:ring-2 [&_textarea]:focus:ring-[color:color-mix(in_srgb,var(--brand-primary)_20%,transparent)] ${
             isLocationField
               ? "min-h-[min(480px,85dvh)] max-h-[92dvh] overflow-visible"
               : "max-h-[92dvh] overflow-hidden"
@@ -393,6 +404,28 @@ export function JobReviewEditModal({
                   <Plus className="h-4 w-4" />
                   Add another location
                 </button>
+              </div>
+            ) : null}
+
+            {field === "acceptableMatchRate" ? (
+              <div>
+                <label className={JOB_FORM_LABEL_CLASS} htmlFor="review-edit-match-rate">
+                  Acceptable Match Rate
+                </label>
+                <select
+                  id="review-edit-match-rate"
+                  className={JOB_FORM_SELECT_CLASS}
+                  style={{ backgroundImage: JOB_FORM_SELECT_CHEVRON }}
+                  value={draft.job.acceptableMatchRate ?? ""}
+                  onChange={(event) => patchJob("acceptableMatchRate", event.target.value || null)}
+                >
+                  <option value="">Select Acceptable Match Rate</option>
+                  {JOB_FORM_ACCEPTABLE_MATCH_RATES.map((rate) => (
+                    <option key={rate} value={rate}>
+                      {rate}
+                    </option>
+                  ))}
+                </select>
               </div>
             ) : null}
 
@@ -971,10 +1004,130 @@ export function JobReviewEditModal({
 
             {field === "compensation" ? (
               isMspRnr ? (
-                <div className="space-y-4">
-                  <p className="text-sm text-[#64748B]">
-                    Commission fees for Recruit &amp; Release (USD only).
-                  </p>
+                <div className="space-y-6">
+                  <div
+                    className={`grid gap-4 min-[700px]:items-end ${
+                      rnrShowPayBy === "Range"
+                        ? "min-[700px]:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)_auto_minmax(0,1fr)_minmax(0,1.1fr)]"
+                        : "min-[700px]:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1.1fr)]"
+                    }`}
+                  >
+                    <div className="min-w-0">
+                      <label className={JOB_FORM_LABEL_CLASS}>Show pay by</label>
+                      <select
+                        className={`${JOB_FORM_SELECT_CLASS} text-[#334155]`}
+                        style={{ backgroundImage: JOB_FORM_SELECT_CHEVRON }}
+                        value={rnrShowPayBy}
+                        onChange={(event) => {
+                          const next = event.target.value;
+                          patchUi({ showPayBy: next });
+                          if (next !== "Range") {
+                            patchJob("payRateMax", null);
+                          }
+                        }}
+                      >
+                        {JOB_FORM_SHOW_PAY_BY.map((value) => (
+                          <option key={value} value={value}>
+                            {value}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {rnrShowPayBy === "Range" ? (
+                      <>
+                        <div className="min-w-0">
+                          <label className={JOB_FORM_LABEL_CLASS}>Minimum</label>
+                          <div className="relative">
+                            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[#94A3B8]">
+                              $
+                            </span>
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              className={`${JOB_FORM_INPUT_CLASS} pl-7`}
+                              value={draft.job.payRateMin ?? ""}
+                              onChange={(event) =>
+                                patchJob(
+                                  "payRateMin",
+                                  event.target.value ? Number(event.target.value) : null
+                                )
+                              }
+                            />
+                          </div>
+                        </div>
+                        <span className="hidden pb-2 text-sm text-[#64748B] min-[700px]:block">to</span>
+                        <div className="min-w-0">
+                          <label className={JOB_FORM_LABEL_CLASS}>Maximum</label>
+                          <div className="relative">
+                            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[#94A3B8]">
+                              $
+                            </span>
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              className={`${JOB_FORM_INPUT_CLASS} pl-7`}
+                              value={draft.job.payRateMax ?? ""}
+                              onChange={(event) =>
+                                patchJob(
+                                  "payRateMax",
+                                  event.target.value ? Number(event.target.value) : null
+                                )
+                              }
+                            />
+                          </div>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="min-w-0">
+                        <label className={JOB_FORM_LABEL_CLASS}>
+                          {rnrShowPayBy === "Starting amount" ? "Starting amount" : "Exact amount"}
+                        </label>
+                        <div className="relative">
+                          <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[#94A3B8]">
+                            $
+                          </span>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            className={`${JOB_FORM_INPUT_CLASS} pl-7`}
+                            value={draft.job.payRateMin ?? ""}
+                            onChange={(event) =>
+                              patchJob(
+                                "payRateMin",
+                                event.target.value ? Number(event.target.value) : null
+                              )
+                            }
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="min-w-0">
+                      <label className={JOB_FORM_LABEL_CLASS}>Rate</label>
+                      <select
+                        className={`${JOB_FORM_SELECT_CLASS} text-[#334155]`}
+                        style={{ backgroundImage: JOB_FORM_SELECT_CHEVRON }}
+                        value={rnrRatePeriod}
+                        onChange={(event) =>
+                          patchUi({
+                            payRatePeriod: event.target.value,
+                            compensationType: event.target.value,
+                          })
+                        }
+                      >
+                        {JOB_FORM_RATE_OPTIONS.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div>
                       <label className={JOB_FORM_LABEL_CLASS} htmlFor="review-commission-fee-type">
@@ -1001,7 +1154,9 @@ export function JobReviewEditModal({
                         <option value="">Please select commission fees</option>
                         {JOB_FORM_COMMISSION_FEE_TYPES.map((option) => (
                           <option key={option.value} value={option.value}>
-                            {option.label}
+                            {option.value === "percentage" && commissionEstimate
+                              ? `${option.label} (${commissionEstimate})`
+                              : option.label}
                           </option>
                         ))}
                       </select>
@@ -1032,6 +1187,15 @@ export function JobReviewEditModal({
                             %
                           </span>
                         </div>
+                        {commissionEstimate ? (
+                          <p className="mt-1.5 text-xs text-[#64748B]">
+                            Estimated commission from pay rate: {commissionEstimate}
+                          </p>
+                        ) : (
+                          <p className="mt-1.5 text-xs text-[#64748B]">
+                            Enter a percentage to calculate commission from the pay rate above.
+                          </p>
+                        )}
                       </div>
                     ) : null}
 

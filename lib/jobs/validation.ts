@@ -73,6 +73,7 @@ export const jobRequisitionInputSchema = z.object({
     .union([z.boolean(), z.null(), z.undefined()])
     .transform((value) => (typeof value === "boolean" ? value : null)),
   jobLocationType: optionalText,
+  acceptableMatchRate: optionalText,
   isEmployerOnRecord: z
     .union([z.boolean(), z.null(), z.undefined()])
     .transform((value) => (typeof value === "boolean" ? value : null)),
