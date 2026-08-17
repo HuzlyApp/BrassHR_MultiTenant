@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   useCallback,
   useEffect,
@@ -89,6 +89,11 @@ const JOB_TABS: Array<{ id: JobTab; label: string }> = [
   { id: "archived", label: "Archived" },
   { id: "hot", label: "Hot Jobs" },
 ];
+
+function parseJobTab(value: string | null): JobTab {
+  if (value && JOB_TABS.some((tab) => tab.id === value)) return value as JobTab;
+  return "all";
+}
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50];
 
@@ -755,12 +760,14 @@ function JobActionsMenuPortal({
 export default function AdminRecruiterJobsPage() {
   const branding = useTenantBranding();
   const brandStyle = brandingToCssVars(branding);
+  const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const showListing = searchParams.get("view") === "all";
 
   const [jobs, setJobs] = useState<JobListRow[]>([]);
   const [tenantSlug, setTenantSlug] = useState<string | null>(null);
-  const [jobTab, setJobTab] = useState<JobTab>("all");
+  const [jobTab, setJobTab] = useState<JobTab>(() => parseJobTab(searchParams.get("tab")));
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [page, setPage] = useState(1);
@@ -815,6 +822,24 @@ export default function AdminRecruiterJobsPage() {
     setListingView(next);
     saveJobsListingView(next);
   }, []);
+
+  const selectJobTab = useCallback(
+    (next: JobTab) => {
+      setJobTab(next);
+      if (searchParams.get("view") !== "all") return;
+      const params = new URLSearchParams(searchParams.toString());
+      if (next === "all") params.delete("tab");
+      else params.set("tab", next);
+      const qs = params.toString();
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    },
+    [pathname, router, searchParams]
+  );
+
+  useEffect(() => {
+    const next = parseJobTab(searchParams.get("tab"));
+    setJobTab((current) => (current === next ? current : next));
+  }, [searchParams]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -891,10 +916,10 @@ export default function AdminRecruiterJobsPage() {
       setError("");
       if (action === "archive") {
         toast.success(`${jobTitle} archived successfully`, { duration: 4000 });
-        setJobTab("archived");
+        selectJobTab("archived");
       } else if (action === "unarchive") {
         toast.success(`${jobTitle} restored from archive`, { duration: 4000 });
-        setJobTab("draft");
+        selectJobTab("draft");
       } else if (action === "close") {
         toast.success(`${jobTitle} closed`, { duration: 4000 });
       } else if (action === "publish") {
@@ -1407,7 +1432,7 @@ export default function AdminRecruiterJobsPage() {
                   <button
                     key={tab.id}
                     type="button"
-                    onClick={() => setJobTab(tab.id)}
+                    onClick={() => selectJobTab(tab.id)}
                     className={`relative inline-flex h-[34px] shrink-0 items-center gap-2 px-2 pb-2.5 pt-1 text-sm font-normal leading-5 whitespace-nowrap transition-colors ${
                       active
                         ? "border-b-[1.5px] border-[color:var(--brand-primary)] text-[color:var(--brand-primary)]"

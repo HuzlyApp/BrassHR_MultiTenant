@@ -46,12 +46,6 @@ export async function GET(req: NextRequest) {
 
     const jobId = req.nextUrl.searchParams.get("jobId")?.trim();
     const workerId = req.nextUrl.searchParams.get("workerId")?.trim();
-    if (!jobId && !workerId) {
-      return NextResponse.json(
-        { error: "jobId or workerId is required", applications: [] },
-        { status: 400 }
-      );
-    }
 
     const sortBy = req.nextUrl.searchParams.get("sortBy")?.trim();
     const ascending = req.nextUrl.searchParams.get("sortDir") === "asc";

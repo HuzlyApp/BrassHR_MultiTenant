@@ -4,6 +4,7 @@ import { requireWorkflowAdmin } from "@/lib/auth/workflow-admin";
 import {
   ApplicationStatusError,
   createApplicationStatus,
+  countApplicationsByStatus,
   listApplicationStatuses,
 } from "@/lib/jobs/application-statuses";
 import { resolveStaffTenantId } from "@/lib/jobs/tenant";
@@ -35,9 +36,20 @@ export async function GET(req: NextRequest) {
     if (!tenantId) return NextResponse.json({ error: "No tenant selected" }, { status: 400 });
 
     const activeOnly = req.nextUrl.searchParams.get("activeOnly") === "1";
+    const includeCounts = req.nextUrl.searchParams.get("includeCounts") === "1";
     const statuses = await listApplicationStatuses(supabase, tenantId, { activeOnly });
     const canManage = auth.role === "admin" || auth.godAdmin;
-    return NextResponse.json({ statuses, canManage });
+    if (!includeCounts) {
+      return NextResponse.json({ statuses, canManage });
+    }
+    const counts = await countApplicationsByStatus(supabase, tenantId, statuses);
+    return NextResponse.json({
+      statuses: statuses.map((status) => ({
+        ...status,
+        applicationCount: counts[status.id] ?? 0,
+      })),
+      canManage,
+    });
   } catch (error) {
     return handleError(error);
   }

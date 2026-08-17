@@ -451,7 +451,7 @@ export default function JobApplicationsPage() {
   const [jobStatusFilter, setJobStatusFilter] = useState("");
   const [jobLocationFilter, setJobLocationFilter] = useState("");
   const [jobSortBy, setJobSortBy] = useState<"newest" | "oldest">("newest");
-  const [loading, setLoading] = useState(Boolean(jobId));
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [activeTab, setActiveTab] = useState<ApplicationTab>(() => {
     return searchParams.get("tab")?.trim() || "all";
@@ -545,16 +545,13 @@ export default function JobApplicationsPage() {
     setPendingStatusChange(null);
     setStatusChangeNote("");
     setHistoryDialog(null);
+    setRows([]);
+    setLoading(true);
     if (!jobId) {
       setJob(null);
-      setRows([]);
-      setLoading(false);
       setError("");
       return;
     }
-    // Drop previous job’s rows immediately so they never flash under a new job title.
-    setRows([]);
-    setLoading(true);
     setJob((current) => (current?.id === jobId ? current : null));
   }, [jobId]);
 
@@ -643,18 +640,29 @@ export default function JobApplicationsPage() {
       });
       setRows([]);
       setSelectedIds(new Set());
-      setActiveTab("all");
       setLocationFilter("");
       setJobMenuOpen(false);
       setLoading(true);
 
       const params = new URLSearchParams(searchParams.toString());
       params.set("jobId", nextJob.id);
-      params.delete("tab");
       router.replace(`${pathname}?${params.toString()}`);
     },
     [pathname, router, searchParams]
   );
+
+  const selectAllJobs = useCallback(() => {
+    setJob(null);
+    setRows([]);
+    setSelectedIds(new Set());
+    setLocationFilter("");
+    setJobMenuOpen(false);
+    setLoading(true);
+
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("jobId");
+    router.replace(params.toString() ? `${pathname}?${params.toString()}` : pathname);
+  }, [pathname, router, searchParams]);
 
   const clearJobDropdownFilters = useCallback(() => {
     setJobSearch("");
@@ -666,14 +674,9 @@ export default function JobApplicationsPage() {
   useEffect(() => {
     let cancelled = false;
     async function run() {
-      if (!jobId) {
-        setRows([]);
-        setLoading(false);
-        setError("");
-        return;
-      }
       const requestJobId = jobId;
-      const params = new URLSearchParams({ jobId: requestJobId });
+      const params = new URLSearchParams();
+      if (requestJobId) params.set("jobId", requestJobId);
       setLoading(true);
       try {
         const response = await fetch(`/api/admin/job-applications?${params}`, { cache: "no-store" });
@@ -681,7 +684,11 @@ export default function JobApplicationsPage() {
         if (cancelled) return;
         if (!response.ok) throw new Error(payload.error || "Failed to load applications");
         const applications = (payload.applications ?? []) as ApplicationRow[];
-        setRows(applications.filter((row) => row.job_requisition_id === requestJobId));
+        setRows(
+          requestJobId
+            ? applications.filter((row) => row.job_requisition_id === requestJobId)
+            : applications
+        );
         setError("");
       } catch (loadError) {
         if (cancelled) return;
@@ -807,7 +814,7 @@ export default function JobApplicationsPage() {
   const jobTitle =
     job?.public_title?.trim() ||
     selectedJobOption?.public_title?.trim() ||
-    (jobId ? "Job" : "Select a job");
+    (jobId ? "Job" : "All jobs");
   const jobLocation = formatJobLocation(job ?? selectedJobOption);
 
   const statusTabs = useMemo(() => {
@@ -1431,10 +1438,7 @@ export default function JobApplicationsPage() {
         const name = applicantName(row);
         const email = applicantEmail(row);
         const workerId = resolveApplicationWorkerId(row);
-        const detailHref =
-          jobId
-            ? `/admin_recruiter/applications/review?jobId=${encodeURIComponent(jobId)}&applicationId=${encodeURIComponent(row.id)}`
-            : `/admin_recruiter/applications/review?applicationId=${encodeURIComponent(row.id)}`;
+        const detailHref = `/admin_recruiter/applications/review?jobId=${encodeURIComponent(row.job_requisition_id)}&applicationId=${encodeURIComponent(row.id)}`;
         return (
           <div className="flex w-full min-w-0 items-center gap-3">
             <CandidateListAvatar name={name || "NA"} />
@@ -1452,6 +1456,11 @@ export default function JobApplicationsPage() {
               >
                 {email || "—"}
               </p>
+              {!jobId ? (
+                <p className="mt-0.5 truncate text-[11px] leading-4 text-[#64748B]">
+                  {String(one(row.job_requisitions).public_title ?? "").trim() || "Untitled job"}
+                </p>
+              ) : null}
             </div>
             <div className="ml-auto flex shrink-0 items-center">
               <CandidateAiFinalApprovalLink
@@ -1755,6 +1764,32 @@ export default function JobApplicationsPage() {
                   </div>
 
                   <div className="min-h-0 flex-1 overflow-y-auto">
+                    <button
+                      type="button"
+                      role="option"
+                      aria-selected={!jobId}
+                      onClick={selectAllJobs}
+                      className="flex w-full items-center gap-3 border-b border-[#E5E7EB] px-3 py-3.5 text-left transition hover:bg-[#F8FAFC] sm:px-4"
+                    >
+                      <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center">
+                        {!jobId ? (
+                          <Check
+                            className="h-5 w-5"
+                            style={{ color: branding.primaryHex }}
+                            strokeWidth={2.75}
+                            aria-label="Selected all jobs"
+                          />
+                        ) : null}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-sm font-semibold leading-5 text-[#1E293B]">
+                          All jobs
+                        </span>
+                        <span className="mt-0.5 block text-xs leading-4 text-[#64748B]">
+                          Candidates across every job
+                        </span>
+                      </span>
+                    </button>
                     {jobsLoading ? (
                       <p className="px-4 py-6 text-sm text-[#64748B]">Loading jobs…</p>
                     ) : filteredJobOptions.length === 0 ? (
@@ -1800,10 +1835,12 @@ export default function JobApplicationsPage() {
               ) : null}
             </div>
 
+            {jobId ? (
             <p className="inline-flex min-w-0 items-center gap-1.5 text-sm leading-5 text-[#64748B]">
               <MapPin className="h-3.5 w-3.5 shrink-0 text-[#94A3B8]" aria-hidden />
               <span className="break-words">{jobLocation}</span>
             </p>
+            ) : null}
           </div>
         </div>
 
@@ -2173,7 +2210,7 @@ export default function JobApplicationsPage() {
                   >
                     {jobId
                       ? "No candidates match these filters."
-                      : "Select a job from the jobs list to view candidates."}
+                      : "No candidates in this status yet."}
                   </td>
                 </tr>
               ) : (

@@ -1,6 +1,7 @@
 export {
   ensureDefaultApplicationStatuses,
   listApplicationStatuses,
+  countApplicationsByStatus,
   getStatusBySystemKey,
   createApplicationStatus,
   updateApplicationStatus,
