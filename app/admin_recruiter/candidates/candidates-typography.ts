@@ -12,7 +12,7 @@ export const CANDIDATES_PAGE_TITLE_STYLE: CSSProperties = {
   ...BRAND_FONT_HEADING_STYLE,
 };
 
-/** Figma: Candidates page subtitle — "Manage applicants in one place" */
+/** Figma: Candidates page subtitle — "Manage candidates in one place" */
 export const CANDIDATES_PAGE_SUBTITLE_CLASS =
   "m-0 mt-0.5 text-sm font-normal leading-5 tracking-normal text-[#6f7683] sm:mt-1 sm:text-[16px] sm:leading-6";
 

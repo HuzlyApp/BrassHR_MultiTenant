@@ -50,9 +50,9 @@ const PRIMARY_BTN =
 const OUTLINE_BTN =
   "inline-flex items-center justify-center rounded-lg border-2 border-[color:var(--brand-secondary)] bg-white px-4 py-2.5 text-sm font-semibold text-[color:var(--brand-secondary)] transition hover:bg-[color:color-mix(in_srgb,var(--brand-secondary)_6%,white)]";
 const HEADER_OUTLINE_BTN =
-  "inline-flex items-center justify-center rounded-xl border-2 border-[color:var(--brand-secondary)] bg-white px-3 py-2 text-sm font-semibold text-[color:var(--brand-secondary)] transition hover:bg-[color:color-mix(in_srgb,var(--brand-secondary)_6%,white)]";
+  "inline-flex h-8 items-center justify-center rounded-lg border border-[color:var(--brand-secondary)] bg-white px-3 text-xs font-semibold leading-4 text-[color:var(--brand-secondary)] transition hover:bg-[color:color-mix(in_srgb,var(--brand-secondary)_6%,white)]";
 const HEADER_PRIMARY_BTN =
-  "inline-flex items-center justify-center rounded-xl bg-[color:var(--brand-primary)] px-3 py-2 text-sm font-semibold text-white transition hover:brightness-95 disabled:opacity-60";
+  "inline-flex h-8 items-center justify-center rounded-lg bg-[color:var(--brand-primary)] px-3 text-xs font-semibold leading-4 text-white transition hover:brightness-95 disabled:opacity-60";
 const SIDEBAR_SAVE_BTN =
   "inline-flex h-10 shrink-0 items-center justify-center whitespace-nowrap rounded-lg bg-[color:var(--brand-primary)] px-3 text-sm font-semibold text-white transition hover:brightness-95 disabled:opacity-60";
 const SIDEBAR_REEXTRACT_BTN =
@@ -121,6 +121,7 @@ function copyText(value: string, success: string) {
 }
 
 function MatchRing({ percent, label, strokeColor }: { percent: number; label: string; strokeColor: string }) {
+  const outer = 139;
   const size = 121;
   const stroke = 10;
   const radius = (size - stroke) / 2;
@@ -128,8 +129,14 @@ function MatchRing({ percent, label, strokeColor }: { percent: number; label: st
   const offset = circumference - (Math.min(100, Math.max(0, percent)) / 100) * circumference;
 
   return (
-    <div className="relative shrink-0" style={{ width: size, height: size }}>
-      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden>
+    <div className="relative shrink-0" style={{ width: outer, height: outer }}>
+      <svg
+        width={size}
+        height={size}
+        viewBox={`0 0 ${size} ${size}`}
+        className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
+        aria-hidden
+      >
         <circle
           cx={size / 2}
           cy={size / 2}
@@ -153,8 +160,8 @@ function MatchRing({ percent, label, strokeColor }: { percent: number; label: st
       </svg>
       <div className="absolute inset-0 flex items-center justify-center">
         <div className="flex w-[79px] flex-col items-center text-center">
-          <span className="h-[34px] text-[28px] font-bold leading-[34px] text-[#101828]">{percent}%</span>
-          <span className="text-xs font-normal leading-4 text-[#667085]">{label}</span>
+          <span className="h-9 text-[30px] font-semibold leading-9 text-black">{percent}%</span>
+          <span className="text-xs font-normal leading-4 text-black/50">{label}</span>
         </div>
       </div>
     </div>
@@ -207,10 +214,17 @@ function statusBadgeClass(status: QualificationDisplayStatus) {
 function ringStrokeColor(score: number | null | undefined): string {
   if (score == null || !Number.isFinite(Number(score))) return "#E5E7EB";
   const n = Number(score);
-  if (n >= 75) return "#22C55E";
+  if (n >= 75) return "#00B546";
   if (n >= 50) return "#3B82F6";
   if (n >= 25) return "#F59E0B";
   return "#EF4444";
+}
+
+function overviewMatchTagClass(category: string | null | undefined): string {
+  if (category === "STRONG_MATCH" || category === "GOOD_MATCH") {
+    return "bg-[#00B135] text-white";
+  }
+  return matchCategoryBadgeClassName(category);
 }
 
 export function AiAnalysisOverviewClient({
@@ -348,32 +362,36 @@ export function AiAnalysisOverviewClient({
         AI Analysis Overview
       </h1>
 
-      <div className="mt-6 grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
+      <div className="mt-6 grid items-start gap-[30px] xl:grid-cols-[minmax(0,1fr)_350px]">
         <div className="min-w-0 space-y-5">
-          <section className="rounded-[12px] border border-[#E5E7EB] bg-white shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
-            <div className="flex items-center gap-5 px-5 py-2.5">
-              <MatchRing
-                percent={Math.round(Number(matchScore) || 0)}
-                label={matchLabel}
-                strokeColor={ringStrokeColor(matchScore)}
-              />
-              <div className="min-w-0 flex-1">
-                <h2 className="text-[22px] font-semibold leading-7 text-[#101828]">{candidateName}</h2>
-                <p className="mt-1 text-sm leading-5 text-[#667085]">For: {jobTitle}</p>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <span
-                    className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${matchCategoryBadgeClassName(app?.ai_match_category)}`}
-                  >
-                    {matchLabel}
-                  </span>
-                  {confidencePercent != null ? (
-                    <span className="inline-flex rounded-full bg-[#012352] px-2.5 py-1 text-xs font-semibold text-white">
-                      Confidence {confidencePercent}%
+          <section className="overflow-hidden rounded-[12px] border border-[#E5E7EB] bg-white">
+            <div className="flex flex-wrap items-center justify-between gap-5 border-b border-[#E5E7EB] px-5 py-2.5">
+              <div className="flex min-w-0 items-center gap-5">
+                <MatchRing
+                  percent={Math.round(Number(matchScore) || 0)}
+                  label={matchLabel}
+                  strokeColor={ringStrokeColor(matchScore)}
+                />
+                <div className="min-w-0">
+                  <h2 className="text-2xl font-semibold leading-8 text-[#374151]">{candidateName}</h2>
+                  <p className="mt-0.5 text-sm leading-5 text-[#6B7280]">For: {jobTitle}</p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <span
+                      className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-normal leading-[15px] ${overviewMatchTagClass(app?.ai_match_category)}`}
+                    >
+                      {matchLabel}
                     </span>
-                  ) : null}
-                  <span className="inline-flex rounded-full bg-[#E4E7EC] px-2.5 py-1 text-xs font-semibold text-[#344054]">
-                    {recommendation}
-                  </span>
+                    {confidencePercent != null ? (
+                      <span className="inline-flex rounded-full bg-[#001A46] px-2.5 py-1 text-[10px] font-normal leading-[15px] text-white">
+                        Confidence {confidencePercent}%
+                      </span>
+                    ) : null}
+                    {recommendation ? (
+                      <span className="inline-flex rounded-full bg-[#ECF1F9] px-2.5 py-1 text-[10px] font-normal leading-[15px] text-[#012352]">
+                        {recommendation}
+                      </span>
+                    ) : null}
+                  </div>
                 </div>
               </div>
               <div className="flex shrink-0 items-center gap-3">
@@ -391,12 +409,12 @@ export function AiAnalysisOverviewClient({
               </div>
             </div>
             {app?.ai_analysis_error ? (
-              <p className="px-5 pt-2 text-sm text-[#B91C1C]">{app.ai_analysis_error}</p>
+              <p className="border-b border-[#E5E7EB] px-5 py-5 text-xs leading-4 text-[#B91C1C]">{app.ai_analysis_error}</p>
             ) : null}
             {summary ? (
-              <p className="px-5 pb-2.5 pt-2 text-sm leading-6 text-[#344054]">{summary}</p>
+              <p className="px-5 py-5 text-xs leading-4 text-[#4B5563]">{summary}</p>
             ) : !isAnalyzed ? (
-              <p className="px-5 pb-2.5 pt-2 text-sm leading-6 text-[#667085]">
+              <p className="px-5 py-5 text-xs leading-4 text-[#6B7280]">
                 This candidate has not been analyzed yet. Run analysis to populate match results.
               </p>
             ) : null}

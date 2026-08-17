@@ -15,3 +15,8 @@ export function candidateMailHref(workerId: string) {
 export function candidateFinalApprovalHref(workerId: string) {
   return `/admin_recruiter/new/final-approval/${encodeURIComponent(workerId)}`;
 }
+
+/** AI Analysis Overview for a worker's latest job application. */
+export function candidateAiAnalysisHref(workerId: string) {
+  return `/admin_recruiter/candidates/ai-analysis/${encodeURIComponent(workerId)}`;
+}

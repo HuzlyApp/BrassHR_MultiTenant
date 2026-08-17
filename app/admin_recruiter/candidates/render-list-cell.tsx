@@ -2,7 +2,7 @@ import type { ReactNode } from "react"
 import Link from "next/link"
 import BrandedSvgIcon from "@/app/components/BrandedSvgIcon"
 import { CandidateListAvatar } from "@/app/admin_recruiter/components/CandidateListAvatar"
-import { CandidateAiFinalApprovalLink } from "./CandidateAiFinalApprovalLink"
+import { CandidateAiAnalysisLink } from "./CandidateAiAnalysisLink"
 import { candidateMailHref, candidateProfileHref } from "./candidate-links"
 import type { CandidateColumnId } from "./column-config"
 import type { CandidateRow } from "./types"
@@ -56,9 +56,8 @@ export function renderListCell(
           </div>
 
           <div className="ml-auto flex shrink-0 items-center gap-1.5">
-            <CandidateAiFinalApprovalLink
+            <CandidateAiAnalysisLink
               workerId={c.id}
-              status={c.status}
               candidateName={c.name}
             />
             <Link

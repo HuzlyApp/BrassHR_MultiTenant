@@ -45,9 +45,10 @@ export async function GET(req: NextRequest) {
     if (!tenantId) return NextResponse.json({ error: "No tenant selected" }, { status: 400 });
 
     const jobId = req.nextUrl.searchParams.get("jobId")?.trim();
-    if (!jobId) {
+    const workerId = req.nextUrl.searchParams.get("workerId")?.trim();
+    if (!jobId && !workerId) {
       return NextResponse.json(
-        { error: "jobId is required", applications: [] },
+        { error: "jobId or workerId is required", applications: [] },
         { status: 400 }
       );
     }
@@ -60,8 +61,13 @@ export async function GET(req: NextRequest) {
       .select(
         `id, status, status_id, workflow_phase, post_hire_activated_at, created_at, submitted_at, updated_at, job_requisition_id, workflow_id, applicant_workflow_instance_id, worker_id, ai_match_status, ai_match_score, ai_match_category, ai_match_action, ai_match_readiness, ai_match_display_category, ai_analyzed_at, ai_analysis_error, ai_analysis_progress, application_statuses(id, name, system_key, color), job_requisitions(public_title, profession_id, employment_type, location, facility, facility_name, professions(name)), onboarding_flows(name), ${JOB_APPLICATION_APPLICANT_EMBED}`
       )
-      .eq("tenant_id", tenantId)
-      .eq("job_requisition_id", jobId);
+      .eq("tenant_id", tenantId);
+
+    if (jobId) {
+      query = query.eq("job_requisition_id", jobId);
+    } else if (workerId) {
+      query = query.eq("worker_id", workerId).not("status", "in", '("rejected","withdrawn")');
+    }
 
     if (sortBy === "ai_match_score") {
       query = query.order("ai_match_score", {
