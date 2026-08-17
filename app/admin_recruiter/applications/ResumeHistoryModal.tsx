@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect } from "react";
-import { Check, Eye, Loader2, ScanText, Trash2, Upload, X } from "lucide-react";
+import { Check, Loader2, ScanText, Upload, X } from "lucide-react";
+import BrandedDeleteIcon from "@/app/admin_recruiter/components/BrandedDeleteIcon";
 import BrandedFileTypeIcon from "@/app/admin_recruiter/components/BrandedFileTypeIcon";
+import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
 import { MAX_RESUME_UPLOADS_PER_ROLE, resumeUploadLimitMessage } from "@/lib/resume/resume-upload-limit";
 
 export type ResumeHistoryItem = {
@@ -33,7 +35,10 @@ type ResumeHistoryModalProps = {
   onParse: (resumeId: string) => void;
 };
 
+const BRAND_PRIMARY = "var(--brand-primary)";
 const INDEX_COL_CLASS = "w-8 shrink-0";
+const ICON_ACTION_BTN =
+  "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition hover:bg-[color-mix(in_srgb,var(--brand-primary)_8%,white)] disabled:opacity-50";
 const ICON_COL_CLASS = "w-[1.8rem] shrink-0";
 const ACTIONS_COL_CLASS = "flex w-[7.25rem] shrink-0 items-center justify-center gap-1";
 const UPLOADER_COL_CLASS = "w-[7.5rem] shrink-0 min-w-0 text-right sm:w-[8.5rem]";
@@ -107,14 +112,14 @@ function ResumeHistoryRow({
             type="button"
             disabled={busy || parsing}
             onClick={onParse}
-            className="inline-flex h-9 items-center justify-center gap-1 rounded-lg border border-[#E5E7EB] bg-white px-2 text-[11px] font-semibold text-[#334155] transition hover:bg-[#F8FAFC] disabled:opacity-50"
+            className="inline-flex h-9 items-center justify-center gap-1 rounded-lg border-2 border-[color:var(--brand-primary)] bg-white px-2 text-[11px] font-semibold text-[color:var(--brand-primary)] transition hover:bg-[color-mix(in_srgb,var(--brand-primary)_6%,white)] disabled:opacity-50"
             aria-label={`Parse ${resume.fileName}`}
             title="Parse resume"
           >
             {busy || parsing ? (
-              <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+              <Loader2 className="h-4 w-4 animate-spin text-[color:var(--brand-primary)]" aria-hidden />
             ) : (
-              <ScanText className="h-4 w-4" aria-hidden />
+              <ScanText className="h-4 w-4 text-[color:var(--brand-primary)]" aria-hidden />
             )}
             <span>{parsing ? "Parsing…" : "Parse"}</span>
           </button>
@@ -123,25 +128,25 @@ function ResumeHistoryRow({
           type="button"
           disabled={busy}
           onClick={onView}
-          className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-[#E5E7EB] bg-white text-[#475569] transition hover:bg-[#F8FAFC] disabled:opacity-50"
+          className={ICON_ACTION_BTN}
           aria-label={`View ${resume.fileName}`}
           title="View resume"
         >
           {busy ? (
-            <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+            <Loader2 className="h-4 w-4 animate-spin text-[color:var(--brand-primary)]" aria-hidden />
           ) : (
-            <Eye className="h-4 w-4" aria-hidden />
+            <BrandedSvgIcon src="/icons/admin-recruiter/eye.svg" className="h-4 w-4" color={BRAND_PRIMARY} />
           )}
         </button>
         <button
           type="button"
           disabled={busy}
           onClick={onDelete}
-          className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-[#FECACA] bg-white text-[#DC2626] transition hover:bg-[#FEF2F2] disabled:opacity-50"
+          className={ICON_ACTION_BTN}
           aria-label={`Delete ${resume.fileName}`}
           title="Delete resume"
         >
-          <Trash2 className="h-4 w-4" aria-hidden />
+          <BrandedDeleteIcon className="h-4 w-4" />
         </button>
       </div>
 

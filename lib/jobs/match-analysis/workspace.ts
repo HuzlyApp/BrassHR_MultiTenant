@@ -59,6 +59,7 @@ export type QualificationRequirement = {
   status: string;
   requirement_outcome: string;
   candidate_evidence: string;
+  evidence_source?: string | null;
   impact?: string | null;
   verification_required: boolean;
   confidence: number;

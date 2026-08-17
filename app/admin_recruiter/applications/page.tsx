@@ -56,14 +56,16 @@ import {
 import toast from "react-hot-toast";
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
 import {
-  APPLICATION_COLUMN_OPTIONS,
+  APPLICATION_EDITABLE_COLUMNS,
   DEFAULT_APPLICATION_COLUMNS,
   applicationColumnLabel,
   applicationListColumnClassName,
+  ensureActionsLast,
   loadApplicationColumnOrder,
   saveApplicationColumnOrder,
   type ApplicationColumnId,
 } from "./application-columns";
+import { CandidateAiAnalysisButton } from "./CandidateAiAnalysisButton";
 import {
   ApplicationStatusChangeModal,
   ApplicationStatusHistoryDialog,
@@ -887,7 +889,9 @@ export default function JobApplicationsPage() {
   const pageEnd = Math.min(currentPage * pageSize, filteredRows.length);
   const paginatedRows = filteredRows.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
-  const listColumns = listColumnOrder.length ? listColumnOrder : DEFAULT_APPLICATION_COLUMNS;
+  const listColumns = ensureActionsLast(
+    listColumnOrder.length ? listColumnOrder : DEFAULT_APPLICATION_COLUMNS
+  );
   const allVisibleSelected =
     paginatedRows.length > 0 && paginatedRows.every((row) => selectedIds.has(row.id));
 
@@ -1476,7 +1480,6 @@ export default function JobApplicationsPage() {
         return <p className="text-sm leading-5 text-[#475569]">{formatActivity(row)}</p>;
       case "interest": {
         const currentStatus = normalizeApplicationStatus(row.status);
-        const menuOpen = rowActionsMenu?.rowId === row.id;
         const busy = statusBusyId === row.id;
         return (
           <div className="inline-flex items-center gap-1 rounded-lg bg-[#F1F5F9] px-1.5 py-1">
@@ -1510,10 +1513,23 @@ export default function JobApplicationsPage() {
             >
               <X className="h-4 w-4" strokeWidth={2.25} />
             </button>
+          </div>
+        );
+      }
+      case "actions": {
+        const menuOpen = rowActionsMenu?.rowId === row.id;
+        const busy = statusBusyId === row.id;
+        return (
+          <div className="inline-flex items-center justify-center gap-2">
+            <CandidateAiAnalysisButton
+              applicationId={row.id}
+              jobId={jobId || undefined}
+              candidateName={applicantName(row)}
+            />
             <button
               type="button"
-              className={`inline-flex h-7 w-7 items-center justify-center rounded-md text-[#64748B] transition hover:bg-white ${
-                menuOpen ? "bg-white ring-1 ring-[#CBD5E1]" : ""
+              className={`inline-flex h-7 w-7 items-center justify-center rounded-md text-[#64748B] transition hover:bg-[#F1F5F9] ${
+                menuOpen ? "bg-[#F1F5F9] ring-1 ring-[#CBD5E1]" : ""
               }`}
               aria-label="More actions"
               title="More actions"
@@ -2214,13 +2230,14 @@ export default function JobApplicationsPage() {
         key={editColumnsOpen ? "application-cols-open" : "application-cols-closed"}
         open={editColumnsOpen}
         onOpenChange={setEditColumnsOpen}
-        options={APPLICATION_COLUMN_OPTIONS}
-        value={listColumnOrder}
+        options={APPLICATION_EDITABLE_COLUMNS}
+        value={listColumnOrder.filter((id) => id !== "actions")}
         title="Edit Columns"
         description="Choose which columns appear in the candidates list and drag to reorder them."
         onSave={(order) => {
-          setListColumnOrder(order);
-          saveApplicationColumnOrder(order);
+          const next = ensureActionsLast(order);
+          setListColumnOrder(next);
+          saveApplicationColumnOrder(next);
         }}
       />
 

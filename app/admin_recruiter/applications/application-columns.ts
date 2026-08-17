@@ -7,7 +7,8 @@ export type ApplicationColumnId =
   | "interest"
   | "email"
   | "workflow"
-  | "dateApplied";
+  | "dateApplied"
+  | "actions";
 
 export const APPLICATION_COLUMN_OPTIONS: { id: ApplicationColumnId; label: string }[] = [
   { id: "candidates", label: "Name" },
@@ -19,7 +20,13 @@ export const APPLICATION_COLUMN_OPTIONS: { id: ApplicationColumnId; label: strin
   { id: "email", label: "Email" },
   { id: "workflow", label: "Workflow" },
   { id: "dateApplied", label: "Date Applied" },
+  { id: "actions", label: "Actions" },
 ];
+
+/** Actions stays pinned on the right and is not hideable from Edit Columns. */
+export const APPLICATION_EDITABLE_COLUMNS = APPLICATION_COLUMN_OPTIONS.filter(
+  (column) => column.id !== "actions"
+);
 
 export const DEFAULT_APPLICATION_COLUMNS: ApplicationColumnId[] = [
   "candidates",
@@ -28,6 +35,7 @@ export const DEFAULT_APPLICATION_COLUMNS: ApplicationColumnId[] = [
   "activity",
   "status",
   "interest",
+  "actions",
 ];
 
 const STORAGE_KEY = "nexus-job-applications-list-columns";
@@ -55,6 +63,11 @@ function ensureLocationAfterMatches(order: ApplicationColumnId[]): ApplicationCo
   return [...order, "location"];
 }
 
+/** Keep Actions last so the AI icon + menu stay on the far right. */
+export function ensureActionsLast(order: ApplicationColumnId[]): ApplicationColumnId[] {
+  return [...order.filter((id) => id !== "actions"), "actions"];
+}
+
 export function loadApplicationColumnOrder(): ApplicationColumnId[] {
   if (typeof window === "undefined") return [...DEFAULT_APPLICATION_COLUMNS];
   try {
@@ -67,8 +80,10 @@ export function loadApplicationColumnOrder(): ApplicationColumnId[] {
       (id): id is ApplicationColumnId =>
         typeof id === "string" && allowed.has(id as ApplicationColumnId)
     );
-    return ensureLocationAfterMatches(
-      ensureStatusBeforeInterest(cleaned.length ? cleaned : [...DEFAULT_APPLICATION_COLUMNS])
+    return ensureActionsLast(
+      ensureLocationAfterMatches(
+        ensureStatusBeforeInterest(cleaned.length ? cleaned : [...DEFAULT_APPLICATION_COLUMNS])
+      )
     );
   } catch {
     return [...DEFAULT_APPLICATION_COLUMNS];
@@ -77,7 +92,7 @@ export function loadApplicationColumnOrder(): ApplicationColumnId[] {
 
 export function saveApplicationColumnOrder(order: ApplicationColumnId[]) {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(order));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(ensureActionsLast(order)));
   } catch {
     /* ignore quota */
   }
@@ -96,6 +111,7 @@ const CENTER_ALIGNED_COLUMNS = new Set<ApplicationColumnId>([
   "email",
   "workflow",
   "dateApplied",
+  "actions",
 ]);
 
 export function applicationListColumnClassName(colId: ApplicationColumnId): string {
@@ -104,10 +120,11 @@ export function applicationListColumnClassName(colId: ApplicationColumnId): stri
   if (colId === "matches") return `min-w-[120px] max-w-[160px]${center}`;
   if (colId === "location") return "min-w-[120px] whitespace-nowrap";
   if (colId === "activity") return `min-w-[180px] whitespace-nowrap${center}`;
-  if (colId === "interest") return `min-w-[160px] whitespace-nowrap${center}`;
+  if (colId === "interest") return `min-w-[132px] whitespace-nowrap${center}`;
   if (colId === "email") return `min-w-[180px]${center}`;
   if (colId === "workflow") return `min-w-[140px]${center}`;
   if (colId === "dateApplied") return `min-w-[120px] whitespace-nowrap${center}`;
   if (colId === "status") return `min-w-[140px] whitespace-nowrap${center}`;
+  if (colId === "actions") return `min-w-[100px] whitespace-nowrap${center}`;
   return center.trim();
 }
