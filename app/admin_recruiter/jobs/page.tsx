@@ -1,10 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import {
   useCallback,
   useEffect,
-  useId,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -13,14 +13,13 @@ import {
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
-import { Plus, ChevronDown } from "lucide-react";
 import { ColumnsEditorModal } from "@/app/admin_recruiter/components/ColumnsEditorModal";
 import { BulkDeleteConfirmModal } from "@/app/admin_recruiter/components/BulkDeleteConfirmModal";
 import { BulkDeleteToolbarButton } from "@/app/admin_recruiter/components/BulkDeleteToolbarButton";
 import { ListExportDropdown } from "@/app/admin_recruiter/components/ListExportDropdown";
 import { ListPaginationControls, ListPaginationShowLabel } from "@/app/admin_recruiter/components/ListPaginationControls";
 import { ListTableCheckbox } from "@/app/admin_recruiter/components/ListTableCheckbox";
-import { useCandidatesFilterRowsDefault } from "@/app/admin_recruiter/hooks/useCandidatesFilterRowsDefault";
+import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import toast from "react-hot-toast";
 import { normalizeJobRequisitionStatus } from "@/lib/jobs/job-status";
@@ -52,6 +51,7 @@ import {
   type JobSortField,
 } from "./job-columns";
 import { exportJobsCsv, exportJobsXls } from "./export-jobs";
+import { JobsDashboard } from "./JobsDashboard";
 import { JobsGridView } from "./JobsGridView";
 import { JobsViewToggle, type JobsListingView } from "./JobsViewToggle";
 import AddCandidateModal from "@/app/admin_recruiter/applications/AddCandidateModal";
@@ -63,6 +63,7 @@ import {
   jobProfession,
   jobShiftType,
   jobSortValue,
+  publicJobPathFor,
   renderJobListCell,
   type JobListCellContext,
   type JobListRow,
@@ -94,16 +95,55 @@ const PAGE_SIZE_OPTIONS = [10, 20, 50];
 /** Figma form fields: 8px radius, #CBD5E1 border, white background */
 const JOBS_FORM_SURFACE_CLASS = "rounded-lg border border-[#CBD5E1] bg-white";
 
-const JOBS_TOOLBAR_BUTTON_CLASS = `${JOBS_FORM_SURFACE_CLASS} inline-flex h-8 items-center gap-1.5 px-3 text-sm font-normal leading-6 text-[#334155] transition hover:bg-zinc-50`;
+const JOBS_TOOLBAR_BUTTON_CLASS =
+  "inline-flex h-8 items-center gap-1.5 rounded-lg border border-[#CBD5E1] bg-white px-3 text-xs font-semibold leading-4 text-[#475569] transition hover:bg-zinc-50";
 
 const JOBS_POST_JOB_BUTTON_CLASS =
-  "inline-flex h-8 items-center gap-1.5 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm font-normal leading-5 text-[#525252] transition hover:bg-zinc-50";
+  "inline-flex h-8 items-center gap-1 rounded-lg border border-[#E5E7EB] bg-white px-3 text-xs font-semibold leading-4 text-[#475569] transition hover:bg-zinc-50";
 
-const JOBS_STAR_FILLED_SRC = "/icons/jobs-icons/Star-filled.svg";
-const JOBS_STAR_DEFAULT_SRC = "/icons/jobs-icons/Star-default.svg";
+const JOBS_PRIMARY_BUTTON_CLASS =
+  "inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-lg bg-[color:var(--brand-primary)] px-3 text-xs font-semibold leading-4 text-white transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50";
+
+const JOBS_SEARCH_ICON_SRC = "/icons/jobs-icons/search.svg";
+const JOBS_UNPUBLISH_ICON_SRC = "/icons/jobs-icons/unpublish.svg";
+const JOBS_IMPORT_MSP_ICON_SRC = "/icons/jobs-icons/import-msp.svg";
+const JOBS_COLUMNS_ICON_SRC = "/icons/jobs-icons/columns.svg";
+const JOBS_CREATE_PLUS_ICON_SRC = "/icons/jobs-icons/create-plus.svg";
+const JOBS_MORE_FILTERS_ICON_SRC = "/icons/jobs-icons/more-filters.svg";
+const JOBS_CHEVRON_DOWN_ICON_SRC = "/icons/jobs-icons/chevron-down.svg";
 const JOBS_STARRED_STORAGE_KEY = "adminRecruiterJobsStarredIds";
 const JOBS_VIEW_STORAGE_KEY = "adminRecruiterJobsView";
 const JOB_SORT_ICON_SRC = "/sort-icon.svg";
+
+function JobsListingGlyph({
+  src,
+  outer,
+  leafWidth,
+  leafHeight,
+}: {
+  src: string;
+  outer: number;
+  leafWidth: number;
+  leafHeight: number;
+}) {
+  return (
+    <span
+      className="relative shrink-0 overflow-hidden"
+      style={{ width: outer, height: outer }}
+      aria-hidden
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={src}
+        alt=""
+        width={leafWidth}
+        height={leafHeight}
+        className="absolute left-1/2 top-1/2 shrink-0 -translate-x-1/2 -translate-y-1/2"
+        style={{ width: leafWidth, height: leafHeight }}
+      />
+    </span>
+  );
+}
 
 function loadStarredJobIds(): Set<string> {
   if (typeof window === "undefined") return new Set();
@@ -144,42 +184,112 @@ function saveStarredJobIds(ids: Set<string>) {
   }
 }
 
-function JobsFilterIcon({ className = "h-4 w-4 shrink-0" }: { className?: string }) {
+function JobsFilterIcon() {
   return (
-    <svg
-      width={16}
-      height={16}
-      viewBox="0 0 16 16"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      className={className}
-      aria-hidden
-    >
-      <path
-        d="M6.66667 12H9.33333V10.6667H6.66667V12ZM2 4V5.33333H14V4H2ZM4 8.66667H12V7.33333H4V8.66667Z"
-        fill="currentColor"
-      />
-    </svg>
+    <JobsListingGlyph src={JOBS_MORE_FILTERS_ICON_SRC} outer={16} leafWidth={13.5} leafHeight={13.5} />
   );
 }
 
-function JobsColumnsIcon({ className = "h-4 w-4 shrink-0" }: { className?: string }) {
+function JobsColumnsIcon() {
+  return <JobsListingGlyph src={JOBS_COLUMNS_ICON_SRC} outer={16} leafWidth={12.33} leafHeight={10} />;
+}
+
+function JobsCreatePlusIcon() {
+  return <JobsListingGlyph src={JOBS_CREATE_PLUS_ICON_SRC} outer={16} leafWidth={9.33} leafHeight={9.33} />;
+}
+
+function JobsUnpublishIcon() {
   return (
-    <svg
-      width={16}
-      height={16}
-      viewBox="0 0 16 16"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      className={className}
-      aria-hidden
-    >
-      <path
-        d="M2.66667 7C2.11334 7 1.66667 7.44667 1.66667 8C1.66667 8.55333 2.11334 9 2.66667 9C3.22 9 3.66667 8.55333 3.66667 8C3.66667 7.44667 3.22 7 2.66667 7ZM2.66667 3C2.11334 3 1.66667 3.44667 1.66667 4C1.66667 4.55333 2.11334 5 2.66667 5C3.22 5 3.66667 4.55333 3.66667 4C3.66667 3.44667 3.22 3 2.66667 3ZM2.66667 11C2.11334 11 1.66667 11.4533 1.66667 12C1.66667 12.5467 2.12001 13 2.66667 13C3.21334 13 3.66667 12.5467 3.66667 12C3.66667 11.4533 3.22 11 2.66667 11ZM4.66667 12.6667H14V11.3333H4.66667V12.6667ZM4.66667 8.66667H14V7.33333H4.66667V8.66667ZM4.66667 3.33333V4.66667H14V3.33333H4.66667Z"
-        fill="currentColor"
+    <span className="relative size-4 shrink-0 overflow-hidden" aria-hidden>
+      <BrandedSvgIcon
+        src={JOBS_UNPUBLISH_ICON_SRC}
+        className="absolute left-1/2 top-1/2 h-[9.33px] w-[14px] -translate-x-1/2 -translate-y-1/2"
+        color="#FFFFFF"
       />
-    </svg>
+    </span>
   );
+}
+
+function JobsImportMspIcon() {
+  return (
+    <span className="relative size-4 shrink-0 overflow-hidden" aria-hidden>
+      <BrandedSvgIcon
+        src={JOBS_IMPORT_MSP_ICON_SRC}
+        className="absolute left-1/2 top-1/2 h-[11.87px] w-[13.2px] -translate-x-1/2 -translate-y-1/2"
+        color="#FFFFFF"
+      />
+    </span>
+  );
+}
+
+function JobsListingSearchField({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label className="flex h-8 w-[200px] shrink-0 items-center gap-1 overflow-hidden rounded-lg border border-[#CBD5E1] bg-white px-2.5">
+      <span className="relative flex size-5 shrink-0 items-center justify-center overflow-hidden" aria-hidden>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={JOBS_SEARCH_ICON_SRC}
+          alt=""
+          width={16.67}
+          height={16.67}
+          className="size-[16.67px] shrink-0"
+        />
+      </span>
+      <input
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder="Search job"
+        aria-label="Search job"
+        className="min-w-0 flex-1 bg-transparent text-xs font-light leading-4 text-[#334155] outline-none placeholder:text-[#94A3B8]"
+      />
+    </label>
+  );
+}
+
+function JobsCompactLabeledSelect({
+  label,
+  value,
+  onChange,
+  displayValue,
+  children,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  displayValue: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="relative inline-flex h-8 shrink-0 items-center overflow-hidden rounded-lg border border-[#CBD5E1] bg-white pl-3.5 pr-2.5">
+      <span className="pointer-events-none whitespace-nowrap text-xs font-normal leading-4 text-[#374151]">
+        {label}: {displayValue}
+      </span>
+      <JobsListingGlyph src={JOBS_CHEVRON_DOWN_ICON_SRC} outer={16} leafWidth={8} leafHeight={4.8} />
+      <select
+        aria-label={label}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="absolute inset-0 cursor-pointer opacity-0"
+      >
+        <option value="">All</option>
+        {children}
+      </select>
+    </div>
+  );
+}
+
+function jobStatusFilterDisplay(value: string) {
+  if (value === "draft") return "Draft";
+  if (value === "published") return "Published";
+  if (value === "closed") return "Closed";
+  if (value === "archived") return "Archived";
+  return "All";
 }
 
 type SortDirection = "asc" | "desc";
@@ -391,479 +501,8 @@ function matchesJobTab(job: JobListRow, tab: JobTab, starredIds: Set<string>): b
   }
 }
 
-const JOBS_FILTER_SELECT_CLASS = `${JOBS_FORM_SURFACE_CLASS} h-10 w-full min-w-0 cursor-pointer appearance-none bg-[length:12px_12px] bg-[right_10px_center] bg-no-repeat px-2.5 pr-8 text-sm font-normal leading-6 text-[#334155] hover:bg-zinc-50 focus:border-[color:var(--brand-primary)] focus:outline-none focus:ring-0 sm:h-8 sm:min-w-[100px] sm:max-w-[160px] sm:w-auto`;
-
-/** Native select chevron — inset from the right edge for even padding. */
-const JOBS_FILTER_SELECT_CHEVRON = {
-  backgroundImage: `url("data:image/svg+xml,${encodeURIComponent(
-    '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M3 4.5L6 7.5L9 4.5" stroke="#94A3B8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>'
-  )}")`,
-} as const;
-
-const JOBS_FILTER_GRID_CONTROL_CLASS = `${JOBS_FORM_SURFACE_CLASS} h-10 w-full min-w-0 px-2.5 text-sm font-normal leading-6 text-[#334155] hover:bg-zinc-50 focus:border-[color:var(--brand-primary)] focus:outline-none focus:ring-0 appearance-auto cursor-pointer`;
-
-const JOBS_FILTER_GRID_SELECT_CLASS = `${JOBS_FILTER_GRID_CONTROL_CLASS} appearance-none bg-[length:12px_12px] bg-[right_10px_center] bg-no-repeat pr-8`;
-
-function CompactFilterField({
-  label,
-  children,
-  className = "",
-}: {
-  label: string;
-  children: React.ReactNode;
-  className?: string;
-}) {
-  return (
-    <label className={`flex min-w-0 flex-col gap-1 ${className}`}>
-      <span className="text-xs font-medium leading-4 text-[#475569]">{label}</span>
-      {children}
-    </label>
-  );
-}
-
-function MobileIconButton({
-  onClick,
-  label,
-  children,
-}: {
-  onClick: () => void;
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-label={label}
-      title={label}
-      className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-[#dce6e3] bg-white text-[#334155] transition hover:bg-zinc-50"
-    >
-      {children}
-    </button>
-  );
-}
-
-function JobsFiltersMenu({
-  menuId,
-  style,
-  filtersVisible,
-  onHideOrShowFilters,
-  onMoreFilters,
-  onClose,
-}: {
-  menuId: string;
-  style: CSSProperties;
-  filtersVisible: boolean;
-  onHideOrShowFilters: () => void;
-  onMoreFilters: () => void;
-  onClose: () => void;
-}) {
-  return createPortal(
-    <div
-      id={menuId}
-      role="menu"
-      style={style}
-      className="z-[200] min-w-[168px] overflow-visible rounded-md border border-[#dce6e3] bg-white py-1 shadow-lg"
-    >
-      <button
-        type="button"
-        role="menuitem"
-        onClick={() => {
-          onHideOrShowFilters();
-          onClose();
-        }}
-        className="flex w-full items-center whitespace-nowrap px-3 py-2.5 text-left text-sm font-normal leading-6 text-[#334155] transition hover:bg-zinc-50"
-        style={CANDIDATES_PAGE_SUBTITLE_STYLE}
-      >
-        {filtersVisible ? "Hide Filters" : "Show Filters"}
-      </button>
-      <button
-        type="button"
-        role="menuitem"
-        onClick={() => {
-          onMoreFilters();
-          onClose();
-        }}
-        className="flex w-full items-center whitespace-nowrap px-3 py-2.5 text-left text-sm font-normal leading-6 text-[#334155] transition hover:bg-zinc-50"
-        style={CANDIDATES_PAGE_SUBTITLE_STYLE}
-      >
-        More Filters
-      </button>
-    </div>,
-    document.body
-  );
-}
-
-function JobsFiltersDropdown({
-  filtersVisible,
-  hasActiveFilters,
-  onToggleFiltersVisibility,
-  onMoreFilters,
-  className = "",
-  showLabel = false,
-}: {
-  filtersVisible: boolean;
-  hasActiveFilters: boolean;
-  onToggleFiltersVisibility: () => void;
-  onMoreFilters: () => void;
-  className?: string;
-  showLabel?: boolean;
-}) {
-  const autoId = useId();
-  const menuId = `${autoId}-filters-menu`;
-  const rootRef = useRef<HTMLDivElement>(null);
-  const triggerRef = useRef<HTMLButtonElement>(null);
-  const [open, setOpen] = useState(false);
-  const [menuStyle, setMenuStyle] = useState<CSSProperties | null>(null);
-  const isOn = filtersVisible || hasActiveFilters || open;
-
-  const updateMenuPosition = () => {
-    const trigger = triggerRef.current;
-    if (!trigger) return;
-    const rect = trigger.getBoundingClientRect();
-    setMenuStyle({
-      position: "fixed",
-      top: rect.bottom + 4,
-      left: rect.left,
-      minWidth: Math.max(rect.width, 168),
-    });
-  };
-
-  useLayoutEffect(() => {
-    if (!open) {
-      setMenuStyle(null);
-      return;
-    }
-    updateMenuPosition();
-    window.addEventListener("resize", updateMenuPosition);
-    window.addEventListener("scroll", updateMenuPosition, true);
-    return () => {
-      window.removeEventListener("resize", updateMenuPosition);
-      window.removeEventListener("scroll", updateMenuPosition, true);
-    };
-  }, [open]);
-
-  useEffect(() => {
-    if (!open) return;
-    const handlePointerDown = (event: MouseEvent) => {
-      const target = event.target as Node;
-      if (rootRef.current?.contains(target)) return;
-      const menu = document.getElementById(menuId);
-      if (menu?.contains(target)) return;
-      setOpen(false);
-    };
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("mousedown", handlePointerDown);
-    document.addEventListener("keydown", handleEscape);
-    return () => {
-      document.removeEventListener("mousedown", handlePointerDown);
-      document.removeEventListener("keydown", handleEscape);
-    };
-  }, [open, menuId]);
-
-  return (
-    <div ref={rootRef} className={`relative ${className}`}>
-      <button
-        ref={triggerRef}
-        type="button"
-        onClick={() => setOpen((value) => !value)}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        aria-label="Filters"
-        title="Filters"
-        className={`inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-md border text-sm font-medium whitespace-nowrap transition sm:h-8 ${
-          showLabel ? "w-auto px-3" : "w-9"
-        } ${
-          isOn
-            ? "border-[color:var(--brand-primary)] bg-[color:color-mix(in_srgb,var(--brand-primary)_10%,white)] text-[color:var(--brand-primary)]"
-            : "border-[#dce6e3] bg-white text-[#334155] hover:bg-zinc-50"
-        }`}
-      >
-        <JobsFilterIcon />
-        {showLabel ? (
-          <>
-            <span>Filters</span>
-            <ChevronDown
-              className={`h-3.5 w-3.5 shrink-0 transition ${open ? "rotate-180" : ""}`}
-              aria-hidden
-            />
-          </>
-        ) : null}
-      </button>
-      {open && menuStyle && typeof document !== "undefined" ? (
-        <JobsFiltersMenu
-          menuId={menuId}
-          style={menuStyle}
-          filtersVisible={filtersVisible}
-          onHideOrShowFilters={onToggleFiltersVisibility}
-          onMoreFilters={onMoreFilters}
-          onClose={() => setOpen(false)}
-        />
-      ) : null}
-    </div>
-  );
-}
-
-function JobsFilterSelect({
-  label,
-  value,
-  onChange,
-  children,
-  variant = "inline",
-  placeholder = "All",
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  children: React.ReactNode;
-  variant?: "inline" | "grid";
-  placeholder?: string;
-}) {
-  const controlClass =
-    variant === "grid"
-      ? `${JOBS_FILTER_GRID_SELECT_CLASS} ${value ? "text-[#334155]" : "text-[#94A3B8]"}`
-      : `${JOBS_FILTER_SELECT_CLASS} ${value ? "text-[#334155]" : "text-[#94A3B8]"}`;
-
-  return (
-    <select
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      aria-label={label}
-      className={controlClass}
-      style={{ ...CANDIDATES_PAGE_SUBTITLE_STYLE, ...JOBS_FILTER_SELECT_CHEVRON }}
-    >
-      <option value="">{placeholder}</option>
-      {children}
-    </select>
-  );
-}
-
-function InlineLabeledFilter({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="flex shrink-0 items-center gap-2">
-      <span className="whitespace-nowrap text-sm font-medium text-[#475569]">{label}:</span>
-      {children}
-    </div>
-  );
-}
-
-type JobsFilterFieldsProps = {
-  variant: "grid" | "inline";
-  professionFilter: string;
-  onProfessionFilterChange: (value: string) => void;
-  statusFilter: string;
-  onStatusFilterChange: (value: string) => void;
-  placementTypeFilter: string;
-  onPlacementTypeFilterChange: (value: string) => void;
-  locationFilter: string;
-  onLocationFilterChange: (value: string) => void;
-  professionOptions: string[];
-  placementTypeOptions: string[];
-  locationOptions: string[];
-  resultsCount?: number;
-  showStarredOnly?: boolean;
-  onToggleStarredOnly?: () => void;
-};
-
-function JobsFilterFields({
-  variant,
-  professionFilter,
-  onProfessionFilterChange,
-  statusFilter,
-  onStatusFilterChange,
-  placementTypeFilter,
-  onPlacementTypeFilterChange,
-  locationFilter,
-  onLocationFilterChange,
-  professionOptions,
-  placementTypeOptions,
-  locationOptions,
-  resultsCount,
-  showStarredOnly = false,
-  onToggleStarredOnly,
-}: JobsFilterFieldsProps) {
-  const professionSelect = (
-    <JobsFilterSelect
-      label="Profession"
-      value={professionFilter}
-      onChange={onProfessionFilterChange}
-      variant={variant}
-    >
-      {professionOptions.map((profession) => (
-        <option key={profession} value={profession}>
-          {profession}
-        </option>
-      ))}
-    </JobsFilterSelect>
-  );
-
-  const statusSelect = (
-    <JobsFilterSelect
-      label="Status"
-      value={statusFilter}
-      onChange={onStatusFilterChange}
-      variant={variant}
-    >
-      <option value="draft">Draft</option>
-      <option value="published">Published</option>
-      <option value="closed">Closed</option>
-      <option value="archived">Archived</option>
-    </JobsFilterSelect>
-  );
-
-  const placementTypeSelect = (
-    <JobsFilterSelect
-      label="Employment Type"
-      value={placementTypeFilter}
-      onChange={onPlacementTypeFilterChange}
-      variant={variant}
-    >
-      {placementTypeOptions.map((placementType) => (
-        <option key={placementType} value={placementType}>
-          {placementType}
-        </option>
-      ))}
-    </JobsFilterSelect>
-  );
-
-  const locationSelect = (
-    <JobsFilterSelect
-      label="Location"
-      value={locationFilter}
-      onChange={onLocationFilterChange}
-      variant={variant}
-    >
-      {locationOptions.map((location) => (
-        <option key={location} value={location}>
-          {location}
-        </option>
-      ))}
-    </JobsFilterSelect>
-  );
-
-  if (variant === "grid") {
-    return (
-      <div className="space-y-2">
-        <div className="grid grid-cols-1 gap-5 rounded-lg border border-[#E8EEEC] bg-[#F8FAFC] p-2.5 min-[600px]:grid-cols-2 lg:grid-cols-4">
-          <CompactFilterField label="Profession">{professionSelect}</CompactFilterField>
-          <CompactFilterField label="Status">{statusSelect}</CompactFilterField>
-          <CompactFilterField label="Employment Type">{placementTypeSelect}</CompactFilterField>
-          <CompactFilterField label="Location">{locationSelect}</CompactFilterField>
-        </div>
-        {/* Hidden below 450px — shown centered in the mobile toolbar instead.
-            Centered on tablet/mobile ≥450px; desktop keeps it inline in the filters row. */}
-        {typeof resultsCount === "number" ? (
-          <div className="flex w-full shrink-0 items-center justify-center gap-5 max-[449px]:hidden">
-            <button
-              type="button"
-              onClick={onToggleStarredOnly}
-              className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[#CBD5E1] bg-white transition hover:bg-[#F8FAFC] ${
-                showStarredOnly ? "border-[#FFC800] bg-[#FFF8E6]" : ""
-              }`}
-              aria-pressed={showStarredOnly}
-              aria-label={showStarredOnly ? "Show all jobs" : "Show starred jobs only"}
-              title={showStarredOnly ? "Show all jobs" : "Show starred jobs only"}
-            >
-              {showStarredOnly ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={JOBS_STAR_FILLED_SRC}
-                  alt=""
-                  width={14}
-                  height={14}
-                  className="h-[14px] w-[14px] shrink-0"
-                  aria-hidden
-                />
-              ) : (
-                <span
-                  aria-hidden
-                  className="inline-block h-[14px] w-[14px] shrink-0 bg-[#94A3B8]"
-                  style={{
-                    maskImage: `url(${JOBS_STAR_FILLED_SRC})`,
-                    WebkitMaskImage: `url(${JOBS_STAR_FILLED_SRC})`,
-                    maskSize: "contain",
-                    WebkitMaskSize: "contain",
-                    maskRepeat: "no-repeat",
-                    WebkitMaskRepeat: "no-repeat",
-                    maskPosition: "center",
-                    WebkitMaskPosition: "center",
-                  }}
-                />
-              )}
-            </button>
-            <span className="whitespace-nowrap text-sm font-medium text-[#334155]">
-              {resultsCount} results
-            </span>
-          </div>
-        ) : null}
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex min-w-0 items-center gap-5">
-      <InlineLabeledFilter label="Profession">{professionSelect}</InlineLabeledFilter>
-      <InlineLabeledFilter label="Status">{statusSelect}</InlineLabeledFilter>
-      <InlineLabeledFilter label="Employment Type">{placementTypeSelect}</InlineLabeledFilter>
-      <InlineLabeledFilter label="Location">{locationSelect}</InlineLabeledFilter>
-      {typeof resultsCount === "number" ? (
-        <div className="flex shrink-0 items-center gap-5">
-          <button
-            type="button"
-            onClick={onToggleStarredOnly}
-            className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[#CBD5E1] bg-white transition hover:bg-[#F8FAFC] ${
-              showStarredOnly ? "border-[#FFC800] bg-[#FFF8E6]" : ""
-            }`}
-            aria-pressed={showStarredOnly}
-            aria-label={showStarredOnly ? "Show all jobs" : "Show starred jobs only"}
-            title={showStarredOnly ? "Show all jobs" : "Show starred jobs only"}
-          >
-            {showStarredOnly ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={JOBS_STAR_FILLED_SRC}
-                alt=""
-                width={14}
-                height={14}
-                className="h-[14px] w-[14px] shrink-0"
-                aria-hidden
-              />
-            ) : (
-              <span
-                aria-hidden
-                className="inline-block h-[14px] w-[14px] shrink-0 bg-[#94A3B8]"
-                style={{
-                  maskImage: `url(${JOBS_STAR_FILLED_SRC})`,
-                  WebkitMaskImage: `url(${JOBS_STAR_FILLED_SRC})`,
-                  maskSize: "contain",
-                  WebkitMaskSize: "contain",
-                  maskRepeat: "no-repeat",
-                  WebkitMaskRepeat: "no-repeat",
-                  maskPosition: "center",
-                  WebkitMaskPosition: "center",
-                }}
-              />
-            )}
-          </button>
-          <span className="whitespace-nowrap text-sm font-medium text-[#334155]">
-            {resultsCount} results
-          </span>
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-const JOB_ACTIONS_MENU_WIDTH = 140;
-const JOB_ACTIONS_MENU_ESTIMATED_HEIGHT = 240;
+const JOB_ACTIONS_MENU_WIDTH = 150;
+const JOB_ACTIONS_MENU_ESTIMATED_HEIGHT = 320;
 
 function canRepublishClosedJob(job: JobListRow): boolean {
   return isJobRequisitionOpen({ application_deadline: job.application_deadline });
@@ -872,13 +511,17 @@ function canRepublishClosedJob(job: JobListRow): boolean {
 function JobActionsMenuPortal({
   job,
   anchor,
+  tenantSlug,
   onClose,
   onTransition,
+  onImportFromMsp,
 }: {
   job: JobListRow;
   anchor: HTMLElement;
+  tenantSlug: string | null;
   onClose: () => void;
   onTransition: (jobId: string, action: "publish" | "unpublish" | "close" | "archive" | "unarchive") => void;
+  onImportFromMsp: () => void;
 }) {
   const menuRef = useRef<HTMLDivElement>(null);
   const [style, setStyle] = useState<CSSProperties>({ visibility: "hidden" });
@@ -932,14 +575,54 @@ function JobActionsMenuPortal({
   if (typeof document === "undefined") return null;
 
   const status = jobListStatus(job);
+  const publicHref = publicJobPathFor(job, tenantSlug);
+  const figmaMenuItems = (
+    <>
+      <button
+        type="button"
+        role="menuitem"
+        onClick={() => {
+          onImportFromMsp();
+          onClose();
+        }}
+        className="block w-full px-3 py-1 text-left text-[10px] font-normal leading-[15px] text-[#012352] hover:bg-[#F8FAFC]"
+      >
+        Import from MSP
+      </button>
+      {status !== "archived" ? (
+        <Link
+          href={`/admin_recruiter/jobs/${job.id}/edit`}
+          role="menuitem"
+          className="block px-3 py-1 text-[10px] font-normal leading-[15px] text-[#012352] hover:bg-[#F8FAFC]"
+          onClick={onClose}
+        >
+          Edit
+        </Link>
+      ) : null}
+      {publicHref ? (
+        <Link
+          href={publicHref}
+          target="_blank"
+          rel="noopener noreferrer"
+          role="menuitem"
+          className="block px-3 py-1 text-[10px] font-normal leading-[15px] text-[#012352] hover:bg-[#F8FAFC]"
+          onClick={onClose}
+        >
+          View Public Listing
+        </Link>
+      ) : null}
+    </>
+  );
 
   return createPortal(
     <div
       ref={menuRef}
       role="menu"
       style={style}
-      className={`z-[200] min-w-[140px] ${JOBS_FORM_SURFACE_CLASS} py-1 shadow-lg`}
+      className={`z-[200] min-w-[150px] ${JOBS_FORM_SURFACE_CLASS} py-2.5 shadow-xl`}
     >
+      {figmaMenuItems}
+      <div className="my-1 border-t border-[#E5E7EB]" aria-hidden />
       {status === "closed" ? (
         <>
           <Link
@@ -949,14 +632,6 @@ function JobActionsMenuPortal({
             onClick={onClose}
           >
             View
-          </Link>
-          <Link
-            href={`/admin_recruiter/jobs/${job.id}/edit`}
-            role="menuitem"
-            className="block px-3 py-2 text-sm text-[#334155] hover:bg-[#F8FAFC]"
-            onClick={onClose}
-          >
-            Edit
           </Link>
           {canRepublishClosedJob(job) ? (
             <button
@@ -993,16 +668,6 @@ function JobActionsMenuPortal({
           >
             View
           </Link>
-          {status !== "archived" ? (
-            <Link
-              href={`/admin_recruiter/jobs/${job.id}/edit`}
-              role="menuitem"
-              className="block px-3 py-2 text-sm text-[#334155] hover:bg-[#F8FAFC]"
-              onClick={onClose}
-            >
-              Edit
-            </Link>
-          ) : null}
           {status === "draft" ? (
             <>
               <button
@@ -1090,11 +755,12 @@ function JobActionsMenuPortal({
 export default function AdminRecruiterJobsPage() {
   const branding = useTenantBranding();
   const brandStyle = brandingToCssVars(branding);
+  const searchParams = useSearchParams();
+  const showListing = searchParams.get("view") === "all";
 
   const [jobs, setJobs] = useState<JobListRow[]>([]);
   const [tenantSlug, setTenantSlug] = useState<string | null>(null);
   const [jobTab, setJobTab] = useState<JobTab>("all");
-  const [showFilterRows, setShowFilterRows] = useCandidatesFilterRowsDefault();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [page, setPage] = useState(1);
@@ -1127,6 +793,7 @@ export default function AdminRecruiterJobsPage() {
   const [workflowFilter, setWorkflowFilter] = useState("");
   const [payRateFilter, setPayRateFilter] = useState("");
   const [datePostedFilter, setDatePostedFilter] = useState("");
+  const [titleQuery, setTitleQuery] = useState("");
   const [editFiltersOpen, setEditFiltersOpen] = useState(false);
   const [sortField, setSortField] = useState<JobSortField | null>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
@@ -1195,6 +862,7 @@ export default function AdminRecruiterJobsPage() {
     workflowFilter,
     payRateFilter,
     datePostedFilter,
+    titleQuery,
     showStarredOnly,
     pageSize,
   ]);
@@ -1291,6 +959,11 @@ export default function AdminRecruiterJobsPage() {
 
       if (showStarredOnly && !starredIds.has(job.id)) return false;
 
+      if (titleQuery.trim()) {
+        const q = titleQuery.trim().toLowerCase();
+        if (!jobListDisplayTitle(job).toLowerCase().includes(q)) return false;
+      }
+
       if (professionFilter && jobProfession(job) !== professionFilter) return false;
 
       if (statusFilter && jobListStatus(job) !== statusFilter) return false;
@@ -1339,6 +1012,7 @@ export default function AdminRecruiterJobsPage() {
     workflowFilter,
     payRateFilter,
     datePostedFilter,
+    titleQuery,
   ]);
 
   const sortedJobs = useMemo(() => {
@@ -1454,6 +1128,28 @@ export default function AdminRecruiterJobsPage() {
     }
   }
 
+  function handleImportFromMsp() {
+    toast("Import from MSP is not available yet.");
+  }
+
+  async function handleBulkUnpublish() {
+    const targets = jobs.filter(
+      (job) => selectedIds.has(job.id) && jobListStatus(job) === "published"
+    );
+    if (targets.length === 0) return;
+    for (const job of targets) {
+      await transition(job.id, "unpublish");
+    }
+  }
+
+  const selectedPublishedCount = useMemo(() => {
+    let count = 0;
+    for (const job of jobs) {
+      if (selectedIds.has(job.id) && jobListStatus(job) === "published") count += 1;
+    }
+    return count;
+  }, [jobs, selectedIds]);
+
   const professionOptions = useMemo(() => {
     const values = new Set<string>();
     for (const job of jobs) {
@@ -1550,6 +1246,7 @@ export default function AdminRecruiterJobsPage() {
       workflowFilter ||
       payRateFilter ||
       datePostedFilter ||
+      titleQuery.trim() ||
       showStarredOnly
   );
 
@@ -1601,6 +1298,7 @@ export default function AdminRecruiterJobsPage() {
 
   const handleResetFilters = useCallback(() => {
     handleSaveEditFilters(EMPTY_JOBS_EXTENDED_FILTERS);
+    setTitleQuery("");
     setShowStarredOnly(false);
   }, [handleSaveEditFilters]);
 
@@ -1627,6 +1325,58 @@ export default function AdminRecruiterJobsPage() {
     };
   }, [branding.secondaryHex, tenantSlug, starredIds, openActionsMenu?.job.id, publishBusyIds]);
 
+  if (!showListing) {
+    return (
+      <div className="box-border w-full min-w-0 max-w-full px-3 pb-8 pt-4 sm:px-5 sm:pt-5 lg:px-8" style={brandStyle}>
+        {error ? (
+          <div className="mb-4 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">{error}</div>
+        ) : null}
+        <JobsDashboard
+          jobs={jobs}
+          loading={loading}
+          tenantSlug={tenantSlug}
+          hotJobIds={starredIds}
+          onAddCandidate={(job) => {
+            setAddCandidateJob({ id: job.id, title: jobListDisplayTitle(job) });
+          }}
+          onDelete={(jobId) => {
+            setSelectedIds(new Set([jobId]));
+            setDeleteError(null);
+            setDeleteConfirmOpen(true);
+          }}
+          onArchive={(jobId) => {
+            void transition(jobId, "archive");
+          }}
+          onUnarchive={(jobId) => {
+            void transition(jobId, "unarchive");
+          }}
+        />
+        <AddCandidateModal
+          open={Boolean(addCandidateJob)}
+          onClose={() => setAddCandidateJob(null)}
+          jobId={addCandidateJob?.id ?? ""}
+          jobTitle={addCandidateJob?.title}
+          onSuccess={() => {
+            void load();
+          }}
+        />
+        <BulkDeleteConfirmModal
+          open={deleteConfirmOpen}
+          entity="job"
+          count={selectedIds.size}
+          busy={deleteBusy}
+          error={deleteError}
+          onCancel={() => {
+            if (deleteBusy) return;
+            setDeleteConfirmOpen(false);
+            setDeleteError(null);
+          }}
+          onConfirm={() => void handleConfirmDeleteJobs()}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="box-border w-full min-w-0 max-w-full px-3 pb-8 pt-4 sm:px-5 sm:pt-5 lg:px-8" style={brandStyle}>
       <div className="mb-8">
@@ -1636,244 +1386,161 @@ export default function AdminRecruiterJobsPage() {
         <p className={CANDIDATES_PAGE_SUBTITLE_CLASS} style={CANDIDATES_PAGE_SUBTITLE_STYLE}>
           Manage jobs posting in one place
         </p>
-      </div>
-
-      <div className="mb-4 flex w-full min-w-0 flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <nav className="w-full min-w-0 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden" aria-label="Jobs navigation">
-          <div className="flex w-max flex-nowrap items-center justify-start gap-5">
-            {JOB_TABS.map((tab) => {
-              const active = jobTab === tab.id;
-              return (
-                <button
-                  key={tab.id}
-                  type="button"
-                  onClick={() => setJobTab(tab.id)}
-                  className={`relative inline-flex shrink-0 flex-col items-center px-2 pb-2.5 pt-0 text-sm font-medium leading-none whitespace-nowrap transition-colors ${
-                    active
-                      ? "text-[color:var(--brand-primary)]"
-                      : "text-[#2B3D51] hover:text-[color:var(--brand-primary)]"
-                  }`}
-                  aria-current={active ? "page" : undefined}
-                >
-                  <span className="inline-flex items-center gap-2">
-                    <span>{tab.label}</span>
-                    <span className="admin-recruiter-tab-count rounded-sm">{tabCounts[tab.id]}</span>
-                  </span>
-                  <span
-                    className={`absolute inset-x-0 bottom-0 block h-0.5 rounded-full ${
-                      active ? "bg-[color:var(--brand-primary)]" : "bg-transparent"
-                    }`}
-                    aria-hidden
-                  />
-                </button>
-              );
-            })}
-          </div>
-        </nav>
-
-        <div className="flex shrink-0 flex-wrap items-center gap-2">
-          <ListExportDropdown
-            onExportCsv={handleExportCsv}
-            onExportXls={handleExportXls}
-            disabled={exportJobs.length === 0}
-          />
-        </div>
+        <Link
+          href="/admin_recruiter/jobs"
+          className="mt-2 inline-block text-xs font-normal leading-4 text-[#012352] underline"
+        >
+          Back to dashboard
+        </Link>
       </div>
 
       <div className="w-full overflow-hidden rounded-[12px] border border-[#E5E7EB] bg-white">
-        {/* Mobile / tablet toolbar */}
-        <div className="flex flex-col gap-2 border-b border-[#E5E7EB] px-3 py-2.5 xl:hidden">
-          <div className="flex w-full items-center gap-2">
-            <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
-              <JobsFiltersDropdown
-                filtersVisible={showFilterRows}
-                hasActiveFilters={hasActiveFilters}
-                onToggleFiltersVisibility={() => setShowFilterRows((value) => !value)}
-                onMoreFilters={() => setEditFiltersOpen(true)}
-                className="shrink-0"
-              />
-              <MobileIconButton onClick={() => setEditColumnsOpen(true)} label="Columns">
-                <JobsColumnsIcon />
-              </MobileIconButton>
-              {hasActiveFilters ? (
-                <button
-                  type="button"
-                  onClick={handleResetFilters}
-                  className={`${JOBS_TOOLBAR_BUTTON_CLASS} shrink-0 whitespace-nowrap`}
-                  style={CANDIDATES_PAGE_SUBTITLE_STYLE}
-                >
-                  Reset Filters
-                </button>
-              ) : null}
-              <BulkDeleteToolbarButton
-                count={selectedIds.size}
-                disabled={deleteBusy}
-                onClick={() => {
-                  setDeleteError(null);
-                  setDeleteConfirmOpen(true);
-                }}
-              />
+        <div className="flex w-full min-w-0 flex-col gap-3 px-[14px] py-5 sm:flex-row sm:items-center sm:justify-between">
+          <nav
+            className="w-full min-w-0 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+            aria-label="Jobs navigation"
+          >
+            <div className="flex w-max flex-nowrap items-center gap-5">
+              {JOB_TABS.map((tab) => {
+                const active = jobTab === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setJobTab(tab.id)}
+                    className={`relative inline-flex h-[34px] shrink-0 items-center gap-2 px-2 pb-2.5 pt-1 text-sm font-normal leading-5 whitespace-nowrap transition-colors ${
+                      active
+                        ? "border-b-[1.5px] border-[color:var(--brand-primary)] text-[color:var(--brand-primary)]"
+                        : "border-b-[1.5px] border-transparent text-[#012352] hover:text-[color:var(--brand-primary)]"
+                    }`}
+                    aria-current={active ? "page" : undefined}
+                  >
+                    <span>{tab.label}</span>
+                    <span className="inline-flex size-4 shrink-0 items-center justify-center overflow-hidden rounded-sm bg-[#EAE6E0] p-0.5 text-[10px] font-normal leading-[15px] text-[#374151]">
+                      {tabCounts[tab.id]}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
-            {/* Star + results: centered in toolbar below 450px */}
-            <div className="hidden min-w-0 flex-1 items-center justify-center max-[449px]:flex">
-              <div className="flex shrink-0 items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowStarredOnly((value) => !value)}
-                  className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[#CBD5E1] bg-white transition hover:bg-[#F8FAFC] ${
-                    showStarredOnly ? "border-[#FFC800] bg-[#FFF8E6]" : ""
-                  }`}
-                  aria-pressed={showStarredOnly}
-                  aria-label={showStarredOnly ? "Show all jobs" : "Show starred jobs only"}
-                  title={showStarredOnly ? "Show all jobs" : "Show starred jobs only"}
-                >
-                  {showStarredOnly ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={JOBS_STAR_FILLED_SRC}
-                      alt=""
-                      width={14}
-                      height={14}
-                      className="h-[14px] w-[14px] shrink-0"
-                      aria-hidden
-                    />
-                  ) : (
-                    <span
-                      aria-hidden
-                      className="inline-block h-[14px] w-[14px] shrink-0 bg-[#94A3B8]"
-                      style={{
-                        maskImage: `url(${JOBS_STAR_FILLED_SRC})`,
-                        WebkitMaskImage: `url(${JOBS_STAR_FILLED_SRC})`,
-                        maskSize: "contain",
-                        WebkitMaskSize: "contain",
-                        maskRepeat: "no-repeat",
-                        WebkitMaskRepeat: "no-repeat",
-                        maskPosition: "center",
-                        WebkitMaskPosition: "center",
-                      }}
-                    />
-                  )}
-                </button>
-                <span className="whitespace-nowrap text-sm font-medium text-[#334155]">
-                  {filteredJobs.length} results
-                </span>
-              </div>
-            </div>
-            <div className="ml-auto flex items-center gap-1.5 max-[449px]:ml-0 sm:gap-2">
-              <Link
-                href="/admin_recruiter/jobs/new"
-                className={`${JOBS_POST_JOB_BUTTON_CLASS} inline-flex h-9 items-center gap-1.5 px-2.5 sm:h-8 sm:px-3`}
-              >
-                <Plus
-                  className="h-4 w-4 shrink-0 sm:h-5 sm:w-5"
-                  style={{ color: branding.secondaryHex }}
-                  strokeWidth={2}
-                  aria-hidden
-                />
-                <span className="hidden min-[480px]:inline">Create a job</span>
-                <span className="min-[480px]:hidden">Create</span>
-              </Link>
-              <JobsViewToggle value={listingView} onChange={handleListingViewChange} />
-            </div>
-          </div>
-          {showFilterRows ? (
-            <JobsFilterFields
-              variant="grid"
-              professionFilter={professionFilter}
-              onProfessionFilterChange={setProfessionFilter}
-              statusFilter={statusFilter}
-              onStatusFilterChange={setStatusFilter}
-              placementTypeFilter={placementTypeFilter}
-              onPlacementTypeFilterChange={setPlacementTypeFilter}
-              locationFilter={locationFilter}
-              onLocationFilterChange={setLocationFilter}
-              professionOptions={professionOptions}
-              placementTypeOptions={placementTypeOptions}
-              locationOptions={locationOptions}
-              resultsCount={filteredJobs.length}
-              showStarredOnly={showStarredOnly}
-              onToggleStarredOnly={() => setShowStarredOnly((value) => !value)}
+          </nav>
+
+          <div className="flex shrink-0 flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={() => void handleBulkUnpublish()}
+              disabled={selectedPublishedCount === 0}
+              className={JOBS_PRIMARY_BUTTON_CLASS}
+            >
+              <JobsUnpublishIcon />
+              Unpublish
+            </button>
+            <ListExportDropdown
+              variant="brand"
+              onExportCsv={handleExportCsv}
+              onExportXls={handleExportXls}
+              disabled={exportJobs.length === 0}
             />
-          ) : null}
+            <button type="button" onClick={handleImportFromMsp} className={JOBS_PRIMARY_BUTTON_CLASS}>
+              <JobsImportMspIcon />
+              Import from MSP
+            </button>
+          </div>
         </div>
 
-        {/* Desktop toolbar */}
-        <div className="hidden w-full flex-col xl:flex">
-          <div className="flex w-full shrink-0 items-center justify-between gap-3 rounded-t-[12px] bg-white px-[14px] py-3">
-            <div className="flex shrink-0 items-center gap-2">
-              <JobsFiltersDropdown
-                filtersVisible={showFilterRows}
-                hasActiveFilters={hasActiveFilters}
-                onToggleFiltersVisibility={() => setShowFilterRows((value) => !value)}
-                onMoreFilters={() => setEditFiltersOpen(true)}
-                showLabel
-              />
-              <button
-                type="button"
-                onClick={() => setEditColumnsOpen(true)}
-                className={JOBS_TOOLBAR_BUTTON_CLASS}
-                style={CANDIDATES_PAGE_SUBTITLE_STYLE}
-              >
-                <JobsColumnsIcon />
-                Columns
+        <div className="flex w-full flex-wrap items-center justify-between gap-3 border-b border-[#E5E7EB] px-[14px] py-3">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setEditColumnsOpen(true)}
+              className={JOBS_TOOLBAR_BUTTON_CLASS}
+            >
+              <JobsColumnsIcon />
+              Columns
+            </button>
+            {hasActiveFilters ? (
+              <button type="button" onClick={handleResetFilters} className={JOBS_TOOLBAR_BUTTON_CLASS}>
+                Reset Filters
               </button>
-              {hasActiveFilters ? (
-                <button
-                  type="button"
-                  onClick={handleResetFilters}
-                  className={JOBS_TOOLBAR_BUTTON_CLASS}
-                  style={CANDIDATES_PAGE_SUBTITLE_STYLE}
-                >
-                  Reset Filters
-                </button>
-              ) : null}
-              <BulkDeleteToolbarButton
-                count={selectedIds.size}
-                disabled={deleteBusy}
-                onClick={() => {
-                  setDeleteError(null);
-                  setDeleteConfirmOpen(true);
-                }}
-              />
-            </div>
-
-            <div className="flex shrink-0 items-center gap-2">
-              <Link href="/admin_recruiter/jobs/new" className={JOBS_POST_JOB_BUTTON_CLASS}>
-                <Plus
-                  className="h-5 w-5 shrink-0"
-                  style={{ color: branding.secondaryHex }}
-                  strokeWidth={2}
-                  aria-hidden
-                />
-                Create a job
-              </Link>
-              <JobsViewToggle value={listingView} onChange={handleListingViewChange} />
-            </div>
+            ) : null}
+            <BulkDeleteToolbarButton
+              count={selectedIds.size}
+              disabled={deleteBusy}
+              onClick={() => {
+                setDeleteError(null);
+                setDeleteConfirmOpen(true);
+              }}
+            />
           </div>
 
-          <div className="border-b border-[#E5E7EB]" aria-hidden />
+          <div className="flex shrink-0 items-center gap-5">
+            <Link href="/admin_recruiter/jobs/new" className={JOBS_POST_JOB_BUTTON_CLASS}>
+              <JobsCreatePlusIcon />
+              Create a job
+            </Link>
+            <JobsViewToggle value={listingView} onChange={handleListingViewChange} />
+          </div>
+        </div>
 
-          {showFilterRows ? (
-            <div className="flex w-full shrink-0 items-center gap-3 overflow-x-auto border-b border-[#E5E7EB] px-[14px] py-3 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-              <JobsFilterFields
-                variant="inline"
-                professionFilter={professionFilter}
-                onProfessionFilterChange={setProfessionFilter}
-                statusFilter={statusFilter}
-                onStatusFilterChange={setStatusFilter}
-                placementTypeFilter={placementTypeFilter}
-                onPlacementTypeFilterChange={setPlacementTypeFilter}
-                locationFilter={locationFilter}
-                onLocationFilterChange={setLocationFilter}
-                professionOptions={professionOptions}
-                placementTypeOptions={placementTypeOptions}
-                locationOptions={locationOptions}
-                resultsCount={filteredJobs.length}
-                showStarredOnly={showStarredOnly}
-                onToggleStarredOnly={() => setShowStarredOnly((value) => !value)}
-              />
-            </div>
-          ) : null}
+        <div className="flex w-full flex-wrap items-center justify-between gap-3 px-[14px] py-3">
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-5">
+            <JobsListingSearchField value={titleQuery} onChange={setTitleQuery} />
+            <JobsCompactLabeledSelect
+              label="Profession"
+              value={professionFilter}
+              onChange={setProfessionFilter}
+              displayValue={professionFilter || "All"}
+            >
+              {professionOptions.map((profession) => (
+                <option key={profession} value={profession}>
+                  {profession}
+                </option>
+              ))}
+            </JobsCompactLabeledSelect>
+            <JobsCompactLabeledSelect
+              label="Status"
+              value={statusFilter}
+              onChange={setStatusFilter}
+              displayValue={jobStatusFilterDisplay(statusFilter)}
+            >
+              <option value="draft">Draft</option>
+              <option value="published">Published</option>
+              <option value="closed">Closed</option>
+              <option value="archived">Archived</option>
+            </JobsCompactLabeledSelect>
+            <JobsCompactLabeledSelect
+              label="Placement Type"
+              value={placementTypeFilter}
+              onChange={setPlacementTypeFilter}
+              displayValue={placementTypeFilter || "All"}
+            >
+              {placementTypeOptions.map((placementType) => (
+                <option key={placementType} value={placementType}>
+                  {placementType}
+                </option>
+              ))}
+            </JobsCompactLabeledSelect>
+            <JobsCompactLabeledSelect
+              label="Location"
+              value={locationFilter}
+              onChange={setLocationFilter}
+              displayValue={locationFilter || "All"}
+            >
+              {locationOptions.map((location) => (
+                <option key={location} value={location}>
+                  {location}
+                </option>
+              ))}
+            </JobsCompactLabeledSelect>
+          </div>
+          <button
+            type="button"
+            onClick={() => setEditFiltersOpen(true)}
+            className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-[#CBD5E1] bg-white px-3 text-xs font-normal leading-4 text-[#374151] transition hover:bg-zinc-50"
+          >
+            <JobsFilterIcon />
+            More Filters
+          </button>
         </div>
 
         {error ? (
@@ -2029,8 +1696,10 @@ export default function AdminRecruiterJobsPage() {
         <JobActionsMenuPortal
           job={openActionsMenu.job}
           anchor={openActionsMenu.anchor}
+          tenantSlug={tenantSlug}
           onClose={() => setOpenActionsMenu(null)}
           onTransition={(jobId, action) => void transition(jobId, action)}
+          onImportFromMsp={handleImportFromMsp}
         />
       ) : null}
 

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
-import { Archive, ExternalLink, MoreHorizontal, PlusSquare, SquarePen, Trash2 } from "lucide-react";
+import { Archive, PlusSquare, SquarePen, Trash2 } from "lucide-react";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
 import { isJobRequisitionOpen } from "@/lib/jobs/public-application-routing";
@@ -21,12 +21,16 @@ import {
   type JobListRow,
 } from "./render-job-list-cell";
 
+const JOB_OPEN_ICON_SRC = "/icons/jobs-icons/open.svg";
+const JOB_DOTS_ICON_SRC = "/icons/jobs-icons/dots.svg";
+
 type JobsGridViewProps = {
   jobs: JobListRow[];
   loading: boolean;
   emptyMessage: string;
   tenantSlug: string | null;
   hotJobIds?: Set<string>;
+  padded?: boolean;
   onAddCandidate: (job: JobListRow) => void;
   onDelete: (jobId: string) => void;
   onArchive: (jobId: string) => void;
@@ -41,16 +45,16 @@ const MENU_ICON_CLASS = "h-4 w-4 shrink-0 text-[#94A3B8]";
 
 function gridStatusLabel(job: JobListRow): string {
   const status = normalizeJobRequisitionStatus(String(job.status ?? ""));
-  if (status === "published" && isJobRequisitionOpen(job)) return "OPEN";
-  if (status === "draft") return "DRAFT";
-  if (status === "closed") return "CLOSED";
-  if (status === "archived") return "ARCHIVED";
-  return status.toUpperCase();
+  if (status === "published" && isJobRequisitionOpen(job)) return "Open";
+  if (status === "draft") return "Draft";
+  if (status === "closed") return "Closed";
+  if (status === "archived") return "Archived";
+  return status.charAt(0).toUpperCase() + status.slice(1);
 }
 
 function iconButtonClass(disabled?: boolean) {
-  return `inline-flex h-8 w-8 items-center justify-center rounded-md text-[#94A3B8] transition hover:bg-[#F8FAFC] hover:text-[#475569] ${
-    disabled ? "cursor-not-allowed opacity-40 hover:bg-transparent hover:text-[#94A3B8]" : ""
+  return `inline-flex size-[14px] items-center justify-center text-[#94A3B8] transition hover:opacity-80 ${
+    disabled ? "cursor-not-allowed opacity-40 hover:opacity-40" : ""
   }`;
 }
 
@@ -218,37 +222,43 @@ function JobGridCard({
   ];
 
   return (
-    <article className="flex flex-col rounded-[12px] border border-[#E5E7EB] bg-white p-4">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <Link
-            href={`/admin_recruiter/jobs/${job.id}`}
-            className="block truncate text-sm font-semibold leading-5 text-[#0F172A] hover:underline"
-          >
-            {title}
-          </Link>
-          <p className="mt-1 truncate text-xs leading-4 text-[#64748B]">{location}</p>
-        </div>
-        <div className="flex shrink-0 items-center gap-1.5">
-          <span className="inline-flex h-7 items-center justify-center rounded-full border-2 border-[#CBD5E1] bg-white px-3 text-[11px] font-semibold uppercase leading-none tracking-[0.04em] text-[#0F172A]">
-            {gridStatusLabel(job)}
-          </span>
-          {isHot ? (
-            <span className="inline-flex h-7 items-center justify-center rounded-full bg-[#EF4444] px-3 text-[11px] font-semibold leading-none tracking-[0.02em] text-white">
-              Hot
+    <article className="flex flex-col overflow-hidden rounded-lg border border-[#E5E7EB] bg-white">
+      <div className="flex items-start px-3 pb-1.5 pt-3">
+        <div className="flex min-h-[31px] w-full items-start justify-between gap-1">
+          <div className="min-w-0 flex-1">
+            <Link
+              href={`/admin_recruiter/jobs/${job.id}`}
+              className="block truncate font-[Inter,sans-serif] text-xs font-semibold leading-4 text-black hover:underline"
+            >
+              {title}
+            </Link>
+            <p className="truncate font-[Inter,sans-serif] text-[10px] font-light leading-[15px] text-[#6B7280]">
+              {location}
+            </p>
+          </div>
+          <div className="flex shrink-0 items-center gap-1">
+            <span className="inline-flex items-center justify-center rounded-full border border-[#94A3B8] bg-white px-2 py-0.5 font-[Inter,sans-serif] text-[10px] font-semibold leading-[15px] text-[#374151]">
+              {gridStatusLabel(job)}
             </span>
-          ) : null}
+            {isHot ? (
+              <span className="inline-flex items-center justify-center rounded-full bg-[#E11D48] px-2 py-0.5 font-[Inter,sans-serif] text-[10px] font-semibold leading-[15px] text-white">
+                Hot
+              </span>
+            ) : null}
+          </div>
         </div>
       </div>
 
-      <div className="mt-3 flex items-stretch gap-2">
+      <div className="flex items-center gap-2 border-y border-[#E5E7EB] px-3 py-2.5">
         {metrics.map((metric) => {
           const metricClassName =
-            "flex min-h-[42px] min-w-0 flex-1 flex-col items-center justify-center rounded-lg bg-[#F8F8F8] px-1 py-1.5";
+            "flex min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded bg-[#F8F8F8] px-1 py-1.5 text-center";
           const body = (
             <>
-              <p className="text-base font-semibold leading-5 text-[#0F172A]">{metric.value}</p>
-              <p className="mt-0.5 text-[9px] font-medium uppercase tracking-[0.08em] text-[#94A3B8]">
+              <p className="w-full font-[Inter,sans-serif] text-xs font-semibold leading-4 text-black">
+                {metric.value}
+              </p>
+              <p className="w-full font-[Inter,sans-serif] text-[8px] font-normal leading-none text-[#6B7280]">
                 {metric.label}
               </p>
             </>
@@ -274,11 +284,11 @@ function JobGridCard({
         })}
       </div>
 
-      <div className="mt-3 flex items-center justify-between gap-2 border-t border-[#E5E7EB] pt-3">
-        <p className="truncate text-xs text-[#64748B]">
-          Job ID: <span className="font-semibold text-[#334155]">{jobDisplayId(job)}</span>
+      <div className="flex items-center justify-between gap-2 px-3 py-2.5">
+        <p className="min-w-0 truncate font-[Inter,sans-serif] text-[10px] font-light leading-[15px] text-[#374151]">
+          Job ID: <span className="font-semibold">{jobDisplayId(job)}</span>
         </p>
-        <div className="flex shrink-0 items-center">
+        <div className="flex shrink-0 items-center gap-2">
           {publicHref ? (
             <Link
               href={publicHref}
@@ -288,16 +298,32 @@ function JobGridCard({
               aria-label={`Open public page for ${title}`}
               title="Public view"
             >
-              <ExternalLink className="h-4 w-4" aria-hidden />
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={JOB_OPEN_ICON_SRC}
+                alt=""
+                width={14}
+                height={14}
+                className="size-[14px] shrink-0"
+                aria-hidden
+              />
             </Link>
           ) : (
             <span className={iconButtonClass(true)} title="Publish this job to view the public page">
-              <ExternalLink className="h-4 w-4" aria-hidden />
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={JOB_OPEN_ICON_SRC}
+                alt=""
+                width={14}
+                height={14}
+                className="size-[14px] shrink-0"
+                aria-hidden
+              />
             </span>
           )}
           <button
             type="button"
-            className={`${iconButtonClass()} ${menuOpen ? "bg-[#F1F5F9] text-[#475569]" : ""}`}
+            className={iconButtonClass()}
             aria-label={`More actions for ${title}`}
             title="More actions"
             aria-haspopup="menu"
@@ -307,7 +333,15 @@ function JobGridCard({
               onOpenMenu(job, event.currentTarget);
             }}
           >
-            <MoreHorizontal className="h-4 w-4" strokeWidth={2} aria-hidden />
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={JOB_DOTS_ICON_SRC}
+              alt=""
+              width={14}
+              height={14}
+              className="size-[14px] shrink-0 rotate-90"
+              aria-hidden
+            />
           </button>
         </div>
       </div>
@@ -321,6 +355,7 @@ export function JobsGridView({
   emptyMessage,
   tenantSlug,
   hotJobIds,
+  padded = true,
   onAddCandidate,
   onDelete,
   onArchive,
@@ -338,7 +373,9 @@ export function JobsGridView({
 
   return (
     <>
-      <div className="grid grid-cols-1 gap-4 p-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      <div
+        className={`grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 ${padded ? "p-4" : ""}`}
+      >
         {jobs.map((job) => (
           <JobGridCard
             key={job.id}
