@@ -68,9 +68,9 @@ const HEADER_OUTLINE_BTN =
 const HEADER_PRIMARY_BTN =
   "inline-flex h-8 items-center justify-center rounded-lg bg-[color:var(--brand-primary)] px-3 text-xs font-semibold leading-4 text-white transition hover:brightness-95 disabled:opacity-60";
 const SIDEBAR_SAVE_BTN =
-  "inline-flex min-h-[52px] w-full min-w-0 items-center justify-center rounded-lg bg-[color:var(--brand-primary)] px-3 py-2.5 text-sm font-semibold leading-5 text-white transition hover:brightness-95 disabled:opacity-60";
+  "flex min-h-[60px] w-full min-w-0 flex-1 basis-0 items-center justify-center rounded-lg bg-[color:var(--brand-primary)] px-3 py-3 text-sm font-semibold leading-5 text-white transition hover:brightness-95 disabled:opacity-60";
 const SIDEBAR_REEXTRACT_BTN =
-  "inline-flex min-h-[52px] w-full min-w-0 items-center justify-center rounded-lg border-2 border-[color:var(--brand-secondary)] bg-white px-3 py-2.5 text-center text-sm font-semibold leading-5 text-[color:var(--brand-secondary)] transition hover:bg-[color:color-mix(in_srgb,var(--brand-secondary)_6%,white)]";
+  "flex min-h-[60px] w-full min-w-0 flex-1 basis-0 items-center justify-center rounded-lg border-2 border-[color:var(--brand-secondary)] bg-white px-3 py-3 text-center text-sm font-semibold leading-5 text-[color:var(--brand-secondary)] transition hover:bg-[color:color-mix(in_srgb,var(--brand-secondary)_6%,white)]";
 const SIDEBAR_TITLE_CLASS = "text-base font-semibold";
 const SECTION_HEADER_DIVIDER = "border-b border-[#E5E7EB] pb-4";
 
@@ -190,6 +190,23 @@ const FILTER_TO_QUAL: Record<FilterId, QualificationFilter> = {
   "Needs Verification": "needs_verification",
   Blocking: "blocking",
 };
+
+function AlignedIconListItem({
+  iconSrc,
+  children,
+}: {
+  iconSrc: string;
+  children: string;
+}) {
+  return (
+    <li className="flex items-start gap-3 text-sm text-[#344054]">
+      <span className="inline-flex h-6 w-[18px] shrink-0 items-center justify-center">
+        <img src={iconSrc} alt="" className="block h-[18px] w-[18px]" aria-hidden />
+      </span>
+      <span className="min-w-0 flex-1 leading-6">{children}</span>
+    </li>
+  );
+}
 
 function formatWhen(iso: string | null | undefined): string {
   if (!iso) return "";
@@ -598,19 +615,17 @@ export function AiAnalysisOverviewClient({
     try {
       const response = await fetch(
         `/api/admin/job-applications/${encodeURIComponent(applicationId)}/remove`,
-        { method: "DELETE", credentials: "include" }
+        { method: "DELETE", credentials: "include", cache: "no-store" }
       );
       const payload = (await response.json().catch(() => ({}))) as { error?: string };
       if (!response.ok) throw new Error(payload.error || "Failed to remove from job");
       setRemoveConfirmOpen(false);
       toast.success("Candidate removed from this job");
-      router.push(backHref);
-      router.refresh();
+      window.location.assign(backHref);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to remove from job";
       setRemoveError(message);
       toast.error(message);
-    } finally {
       setRemovingFromJob(false);
     }
   }
@@ -1012,17 +1027,9 @@ export function AiAnalysisOverviewClient({
               <ul className="mt-4 space-y-3">
                 {strengths.length ? (
                   strengths.map((item) => (
-                    <li key={item} className="flex gap-3 text-sm leading-6 text-[#344054]">
-                      <span className="flex h-6 shrink-0 items-center">
-                        <img
-                          src="/icon-park-solid_check-one.svg"
-                          alt=""
-                          className="h-[18px] w-[18px]"
-                          aria-hidden
-                        />
-                      </span>
-                      <span>{item}</span>
-                    </li>
+                    <AlignedIconListItem key={item} iconSrc="/icon-park-solid_check-one.svg">
+                      {item}
+                    </AlignedIconListItem>
                   ))
                 ) : (
                   <li className="text-sm text-[#667085]">No documented strengths in this analysis.</li>
@@ -1044,17 +1051,9 @@ export function AiAnalysisOverviewClient({
               <ul className="mt-4 space-y-3">
                 {verificationNeeded.length ? (
                   verificationNeeded.map((item) => (
-                    <li key={item} className="flex gap-3 text-sm leading-6 text-[#344054]">
-                      <span className="flex h-6 shrink-0 items-center">
-                        <img
-                          src="/ic_round-warning.svg"
-                          alt=""
-                          className="h-[18px] w-[18px]"
-                          aria-hidden
-                        />
-                      </span>
-                      <span>{item}</span>
-                    </li>
+                    <AlignedIconListItem key={item} iconSrc="/ic_round-warning.svg">
+                      {item}
+                    </AlignedIconListItem>
                   ))
                 ) : (
                   <li className="text-sm text-[#667085]">No additional verification items identified.</li>
@@ -1257,7 +1256,7 @@ export function AiAnalysisOverviewClient({
                 </Field>
               </div>
             </div>
-            <div className="mt-4 grid grid-cols-2 items-stretch gap-3">
+            <div className="mt-4 flex w-full items-stretch gap-3">
               <button
                 type="button"
                 className={SIDEBAR_SAVE_BTN}
@@ -1341,14 +1340,16 @@ export function AiAnalysisOverviewClient({
               rows={12}
               className={`${AREA} mt-4 max-h-[280px] font-mono text-xs leading-5`}
             />
-            <button
-              type="button"
-              className={`${PRIMARY_BTN} mt-3`}
-              disabled={savingText}
-              onClick={() => void saveExtractedText()}
-            >
-              {savingText ? "Saving…" : "Save extracted text"}
-            </button>
+            <div className="mt-3">
+              <button
+                type="button"
+                className={`${PRIMARY_BTN} w-auto`}
+                disabled={savingText}
+                onClick={() => void saveExtractedText()}
+              >
+                {savingText ? "Saving…" : "Save extracted text"}
+              </button>
+            </div>
           </section>
 
           <section className={CARD}>

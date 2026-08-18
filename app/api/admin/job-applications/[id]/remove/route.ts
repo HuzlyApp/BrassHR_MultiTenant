@@ -3,7 +3,9 @@ import { writeActivityLog } from "@/lib/audit/activity-log";
 import { requireStaffApiSession } from "@/lib/auth/api-session";
 import {
   ApplicationStatusError,
-  changeApplicationStatusBySystemKey,
+  changeApplicationStatus,
+  ensureDefaultApplicationStatuses,
+  getStatusBySystemKey,
 } from "@/lib/jobs/application-statuses";
 import { resolveStaffTenantId } from "@/lib/jobs/tenant";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
@@ -11,6 +13,60 @@ import { createServiceRoleClient } from "@/lib/supabase/service-role";
 export const runtime = "nodejs";
 
 type RouteContext = { params: Promise<{ id: string }> };
+
+async function markApplicationWithdrawn(args: {
+  supabase: NonNullable<ReturnType<typeof createServiceRoleClient>>;
+  tenantId: string;
+  applicationId: string;
+  changedByUserId: string | null;
+}) {
+  const { supabase, tenantId, applicationId, changedByUserId } = args;
+
+  const { data: withdrawnStatus, error: statusError } = await supabase
+    .from("application_statuses")
+    .select("id, is_active")
+    .eq("tenant_id", tenantId)
+    .eq("system_key", "withdrawn")
+    .maybeSingle();
+  if (statusError) throw statusError;
+
+  if (withdrawnStatus?.id && withdrawnStatus.is_active !== false) {
+    await changeApplicationStatus(supabase, {
+      tenantId,
+      applicationId,
+      statusId: withdrawnStatus.id,
+      changedByUserId,
+      note: "Removed from this job",
+    });
+    return;
+  }
+
+  try {
+    await ensureDefaultApplicationStatuses(supabase, tenantId);
+    const status = await getStatusBySystemKey(supabase, tenantId, "withdrawn");
+    if (status?.isActive) {
+      await changeApplicationStatus(supabase, {
+        tenantId,
+        applicationId,
+        statusId: status.id,
+        changedByUserId,
+        note: "Removed from this job",
+      });
+      return;
+    }
+  } catch (statusError) {
+    if (!(statusError instanceof ApplicationStatusError)) {
+      throw statusError;
+    }
+  }
+
+  const { error: fallbackError } = await supabase
+    .from("job_applications")
+    .update({ status: "withdrawn", updated_at: new Date().toISOString() })
+    .eq("id", applicationId)
+    .eq("tenant_id", tenantId);
+  if (fallbackError) throw fallbackError;
+}
 
 export async function DELETE(req: NextRequest, context: RouteContext) {
   const auth = await requireStaffApiSession();
@@ -31,29 +87,17 @@ export async function DELETE(req: NextRequest, context: RouteContext) {
   if (!application) return NextResponse.json({ error: "Application not found" }, { status: 404 });
 
   try {
-    await changeApplicationStatusBySystemKey(supabase, {
+    await markApplicationWithdrawn({
+      supabase,
       tenantId,
       applicationId: id,
-      systemKey: "withdrawn",
-      changedByUserId: auth.userId,
-      note: "Removed from this job",
+      changedByUserId: auth.devBypass ? null : auth.userId,
     });
   } catch (statusError) {
-    if (statusError instanceof ApplicationStatusError) {
-      const { error: fallbackError } = await supabase
-        .from("job_applications")
-        .update({ status: "withdrawn", updated_at: new Date().toISOString() })
-        .eq("id", id)
-        .eq("tenant_id", tenantId);
-      if (fallbackError) {
-        return NextResponse.json({ error: fallbackError.message }, { status: 500 });
-      }
-    } else {
-      return NextResponse.json(
-        { error: statusError instanceof Error ? statusError.message : "Failed to remove application" },
-        { status: 500 }
-      );
-    }
+    return NextResponse.json(
+      { error: statusError instanceof Error ? statusError.message : "Failed to remove application" },
+      { status: 500 }
+    );
   }
 
   void writeActivityLog({

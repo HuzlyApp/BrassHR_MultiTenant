@@ -58,7 +58,9 @@ export async function GET(req: NextRequest) {
       .eq("tenant_id", tenantId);
 
     if (jobId) {
-      query = query.eq("job_requisition_id", jobId);
+      query = query
+        .eq("job_requisition_id", jobId)
+        .not("status", "in", '("rejected","withdrawn")');
     } else if (workerId) {
       query = query.eq("worker_id", workerId).not("status", "in", '("rejected","withdrawn")');
     }

@@ -70,7 +70,7 @@ export function RemoveFromJobConfirmModal({
             onClick={onConfirm}
             className="rounded-lg bg-[#DC2626] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#B91C1C] disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {busy ? "Deleting…" : "Delete"}
+            {busy ? "Removing…" : "Delete"}
           </button>
         </div>
       </div>
