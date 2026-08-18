@@ -3,6 +3,7 @@
 import { useSearchParams } from "next/navigation";
 import { useApplicantPortal } from "./ApplicantPortalProvider";
 import { useWorkerAccountOverview } from "./WorkerAccountContext";
+import { WorkerAccountApplicationsTab } from "./WorkerAccountApplicationsTab";
 import { WorkerAccountEmploymentTab } from "./WorkerAccountEmploymentTab";
 import { WorkerAccountOverview } from "./WorkerAccountOverview";
 import { WorkerAccountPersonalForm } from "./WorkerAccountPersonalForm";
@@ -34,6 +35,10 @@ export function ApplicantProfileTab() {
 
   if (activeTab === "personal") {
     return <WorkerAccountPersonalForm />;
+  }
+
+  if (activeTab === "applications") {
+    return <WorkerAccountApplicationsTab />;
   }
 
   if (activeTab === "employment") {

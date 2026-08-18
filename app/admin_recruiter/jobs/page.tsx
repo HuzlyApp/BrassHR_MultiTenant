@@ -1437,8 +1437,8 @@ export default function AdminRecruiterJobsPage() {
                     onClick={() => selectJobTab(tab.id)}
                     className={`relative inline-flex h-[34px] shrink-0 items-center gap-2 px-2 pb-2.5 pt-1 text-sm font-normal leading-5 whitespace-nowrap transition-colors ${
                       active
-                        ? "border-b-[1.5px] border-[color:var(--brand-primary)] text-[color:var(--brand-primary)]"
-                        : "border-b-[1.5px] border-transparent text-[#012352] hover:text-[color:var(--brand-primary)]"
+                        ? "text-[color:var(--brand-primary)] after:absolute after:inset-x-0 after:bottom-0 after:h-[3px] after:bg-[color:var(--brand-primary)]"
+                        : "text-[#012352] hover:text-[color:var(--brand-primary)]"
                     }`}
                     aria-current={active ? "page" : undefined}
                   >
