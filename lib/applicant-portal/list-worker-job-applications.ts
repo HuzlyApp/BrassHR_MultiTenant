@@ -41,6 +41,30 @@ type TenantJoin = {
   name?: string | null;
 };
 
+type ApplicationRow = {
+  id: string;
+  status?: string | null;
+  created_at?: string | null;
+  submitted_at?: string | null;
+  application_statuses?: ApplicationStatusJoin | ApplicationStatusJoin[] | null;
+  job_requisitions?: JobRequisitionJoin | JobRequisitionJoin[] | null;
+  tenants?: TenantJoin | TenantJoin[] | null;
+};
+
+type StatusHistoryRow = {
+  application_id?: string | null;
+  note?: string | null;
+};
+
+type ResumeRow = {
+  id: string;
+  original_file_name?: string | null;
+  file_name?: string | null;
+  file_type?: string | null;
+  file_size_bytes?: number | null;
+  job_application_id?: string | null;
+};
+
 function one<T>(value: T | T[] | null | undefined): T | null {
   if (Array.isArray(value)) return value[0] ?? null;
   return value ?? null;
@@ -82,8 +106,8 @@ export async function listWorkerJobApplications(
 
   if (error) throw error;
 
-  const rows = applications ?? [];
-  const applicationIds = rows.map((row) => String((row as { id: string }).id)).filter(Boolean);
+  const rows = (applications ?? []) as unknown as ApplicationRow[];
+  const applicationIds = rows.map((row) => String(row.id)).filter(Boolean);
 
   const noteByApplication = new Map<string, string>();
   if (applicationIds.length > 0) {
@@ -94,10 +118,10 @@ export async function listWorkerJobApplications(
       .in("application_id", applicationIds)
       .order("created_at", { ascending: false });
 
-    for (const history of historyRows ?? []) {
-      const applicationId = String((history as { application_id?: string }).application_id ?? "");
+    for (const history of (historyRows ?? []) as unknown as StatusHistoryRow[]) {
+      const applicationId = String(history.application_id ?? "");
       if (!applicationId || noteByApplication.has(applicationId)) continue;
-      const note = String((history as { note?: string | null }).note ?? "").trim();
+      const note = String(history.note ?? "").trim();
       noteByApplication.set(applicationId, note);
     }
   }
@@ -113,36 +137,29 @@ export async function listWorkerJobApplications(
   const latestResumeByApplication = new Map<string, WorkerJobApplicationResume>();
   let latestResume: WorkerJobApplicationResume | null = null;
 
-  for (const resume of resumeRows ?? []) {
+  for (const resume of (resumeRows ?? []) as unknown as ResumeRow[]) {
     const item: WorkerJobApplicationResume = {
-      id: String((resume as { id: string }).id),
+      id: String(resume.id),
       fileName:
-        String((resume as { original_file_name?: string | null }).original_file_name ?? "").trim() ||
-        String((resume as { file_name?: string | null }).file_name ?? "").trim() ||
+        String(resume.original_file_name ?? "").trim() ||
+        String(resume.file_name ?? "").trim() ||
         "Resume.pdf",
-      fileSizeLabel: formatFileSize((resume as { file_size_bytes?: number | null }).file_size_bytes),
-      fileType: (resume as { file_type?: string | null }).file_type ?? null,
+      fileSizeLabel: formatFileSize(resume.file_size_bytes),
+      fileType: resume.file_type ?? null,
     };
     if (!latestResume) latestResume = item;
-    const linkedApplicationId = String(
-      (resume as { job_application_id?: string | null }).job_application_id ?? ""
-    ).trim();
+    const linkedApplicationId = String(resume.job_application_id ?? "").trim();
     if (linkedApplicationId && !latestResumeByApplication.has(linkedApplicationId)) {
       latestResumeByApplication.set(linkedApplicationId, item);
     }
   }
 
   return rows.map((row) => {
-    const applicationId = String((row as { id: string }).id);
-    const status = String((row as { status?: string | null }).status ?? "");
-    const statusJoin = one(
-      (row as { application_statuses?: ApplicationStatusJoin | ApplicationStatusJoin[] | null })
-        .application_statuses
-    );
-    const job = one(
-      (row as { job_requisitions?: JobRequisitionJoin | JobRequisitionJoin[] | null }).job_requisitions
-    );
-    const tenant = one((row as { tenants?: TenantJoin | TenantJoin[] | null }).tenants);
+    const applicationId = String(row.id);
+    const status = String(row.status ?? "");
+    const statusJoin = one(row.application_statuses);
+    const job = one(row.job_requisitions);
+    const tenant = one(row.tenants);
     const tenantName = tenant?.name?.trim() || "Company";
     const note = (noteByApplication.get(applicationId) ?? "").trim();
 
@@ -151,11 +168,7 @@ export async function listWorkerJobApplications(
       jobTitle: job ? publicJobDisplayTitle(job) || "Untitled job" : "Untitled job",
       companyName: companyNameFromJob(job, tenantName),
       workType: job?.employment_type?.trim() || "",
-      appliedAt: String(
-        (row as { submitted_at?: string | null }).submitted_at ||
-          (row as { created_at?: string }).created_at ||
-          ""
-      ),
+      appliedAt: String(row.submitted_at || row.created_at || ""),
       status,
       statusName: statusJoin?.name?.trim() || applicationStatusLabel(status),
       statusColor: statusJoin?.color?.trim() || null,
