@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { ChevronDown, PanelRightClose } from "lucide-react";
 import type { Node } from "@xyflow/react";
 import {
@@ -8,16 +9,20 @@ import {
   TEXT_PRIMARY,
   TEXT_SECONDARY,
 } from "./constants";
-import type { StepSettings, WorkflowNodeData } from "./types";
+import type { StepSettings, WorkflowNodeData, WorkflowState } from "./types";
 import {
   WORKFLOW_DATE_PRIORITY_OPTIONS,
   WORKFLOW_PROVIDER_OPTIONS,
 } from "@/lib/onboarding/normalize-workflow-settings";
 import { isFirmaAttachableWorkflowStepId } from "@/lib/onboarding/firma-step-settings";
 import { FirmaTemplateSelect } from "@/app/components/onboarding/FirmaTemplateSelect";
+import StepPreviewPanel from "./step-preview/StepPreviewPanel";
+
+type PanelTab = "settings" | "preview";
 
 type StepsSettingsPanelProps = {
   node: Node<WorkflowNodeData> | null;
+  workflowState: WorkflowState;
   onUpdate: (
     id: string,
     patch: Partial<WorkflowNodeData>,
@@ -33,6 +38,7 @@ type StepsSettingsPanelProps = {
 
 export default function StepsSettingsPanel({
   node,
+  workflowState,
   onUpdate,
   onSaveStep,
   onCloneWorkflow,
@@ -41,6 +47,8 @@ export default function StepsSettingsPanel({
   panelOpen = true,
   onPanelClose,
 }: StepsSettingsPanelProps) {
+  const [tab, setTab] = useState<PanelTab>("settings");
+
   if (!compactMode && !panelOpen) {
     return null;
   }
@@ -84,14 +92,65 @@ export default function StepsSettingsPanel({
           </p>
         </div>
       ) : (
-        <SettingsBody
-          key={node.id}
-          node={node}
-          onUpdate={onUpdate}
-          onSaveStep={onSaveStep}
-          onCloneWorkflow={onCloneWorkflow}
-          readOnly={readOnly}
-        />
+        <div className="flex min-h-0 flex-1 flex-col">
+          <div
+            className="flex shrink-0 border-b px-2"
+            style={{ borderColor: CARD_BORDER }}
+            role="tablist"
+            aria-label="Step panel"
+          >
+            {(["settings", "preview"] as const).map((id) => {
+              const selected = tab === id;
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  role="tab"
+                  id={`step-panel-tab-${id}`}
+                  aria-controls={`step-panel-${id}`}
+                  aria-selected={selected}
+                  onClick={() => setTab(id)}
+                  className="relative flex-1 px-3 py-2.5 text-sm font-semibold"
+                  style={{ color: selected ? TEXT_PRIMARY : TEXT_SECONDARY }}
+                >
+                  {id === "settings" ? "Settings" : "Preview"}
+                  {selected ? (
+                    <span
+                      className="absolute inset-x-3 bottom-0 h-0.5 rounded-full"
+                      style={{ backgroundColor: "#012352" }}
+                    />
+                  ) : null}
+                </button>
+              );
+            })}
+          </div>
+          <div
+            id="step-panel-settings"
+            role="tabpanel"
+            aria-labelledby="step-panel-tab-settings"
+            className={tab === "settings" ? "flex min-h-0 flex-1 flex-col" : "hidden"}
+            aria-hidden={tab !== "settings"}
+          >
+            <SettingsBody
+              key={node.id}
+              node={node}
+              onUpdate={onUpdate}
+              onSaveStep={onSaveStep}
+              onCloneWorkflow={onCloneWorkflow}
+              readOnly={readOnly}
+            />
+          </div>
+          {tab === "preview" ? (
+            <div
+              id="step-panel-preview"
+              role="tabpanel"
+              aria-labelledby="step-panel-tab-preview"
+              className="flex min-h-0 flex-1 flex-col"
+            >
+              <StepPreviewPanel node={node} workflowState={workflowState} />
+            </div>
+          ) : null}
+        </div>
       )}
     </aside>
   );

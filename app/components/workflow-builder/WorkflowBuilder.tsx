@@ -834,6 +834,7 @@ function WorkflowBuilderInner({
 
         <StepsSettingsPanel
           node={selectedNode}
+          workflowState={currentState}
           onUpdate={handleUpdateNode}
           readOnly={readOnly}
           compactMode={isCompactBuilder}
