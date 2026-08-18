@@ -38,10 +38,12 @@ type ResumeHistoryModalProps = {
 const BRAND_PRIMARY = "var(--brand-primary)";
 const INDEX_COL_CLASS = "w-8 shrink-0";
 const ICON_ACTION_BTN =
-  "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition hover:bg-[color-mix(in_srgb,var(--brand-primary)_8%,white)] disabled:opacity-50";
+  "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg transition hover:bg-[color-mix(in_srgb,var(--brand-primary)_8%,white)] disabled:opacity-50 sm:h-9 sm:w-9";
 const ICON_COL_CLASS = "w-[1.8rem] shrink-0";
-const ACTIONS_COL_CLASS = "flex w-[7.25rem] shrink-0 items-center justify-center gap-1";
-const UPLOADER_COL_CLASS = "w-[7.5rem] shrink-0 min-w-0 text-right sm:w-[8.5rem]";
+const ACTIONS_COL_CLASS =
+  "flex min-w-0 shrink-0 items-center gap-1 sm:w-[7.25rem] sm:justify-center";
+const UPLOADER_COL_CLASS =
+  "min-w-0 max-w-[46%] text-right sm:max-w-none sm:w-[8.5rem] sm:shrink-0";
 
 function uploaderRoleLabel(type: ResumeHistoryItem["uploadedByType"]): string {
   if (type === "staff") return "Admin";
@@ -85,74 +87,78 @@ function ResumeHistoryRow({
   const parsing = parsingStatus === "processing";
 
   return (
-    <div className="flex items-center gap-3 rounded-xl border border-[#E5E7EB] bg-white px-3 py-3 sm:gap-3 sm:px-4">
-      <span
-        className={`${INDEX_COL_CLASS} inline-flex h-8 items-center justify-center rounded-full bg-[color:color-mix(in_srgb,var(--brand-primary)_12%,white)] text-xs font-semibold text-[color:var(--brand-primary)]`}
-      >
-        {index}
-      </span>
-
-      <BrandedFileTypeIcon type={fileIconType} className={`${ICON_COL_CLASS} h-[1.8rem] w-[1.8rem]`} />
-
-      <div className="min-w-0 flex-1">
-        <button
-          type="button"
-          disabled={busy}
-          onClick={onView}
-          className="block max-w-full truncate text-left text-sm font-semibold text-[color:var(--brand-primary)] hover:underline disabled:opacity-50"
-          title={`View ${resume.fileName}`}
+    <div className="flex min-w-0 flex-col gap-3 rounded-xl border border-[#E5E7EB] bg-white p-3 sm:flex-row sm:items-center sm:gap-3 sm:px-4 sm:py-3">
+      <div className="flex min-w-0 items-center gap-3 sm:flex-1">
+        <span
+          className={`${INDEX_COL_CLASS} inline-flex h-8 items-center justify-center rounded-full bg-[color:color-mix(in_srgb,var(--brand-primary)_12%,white)] text-xs font-semibold text-[color:var(--brand-primary)]`}
         >
-          {resume.fileName}
-        </button>
-        <p className="mt-1 text-xs text-[#64748B]">{resume.uploadedAtLabel}</p>
-      </div>
+          {index}
+        </span>
 
-      <div className={ACTIONS_COL_CLASS}>
-        {parsed ? (
-          <span className="inline-flex h-9 items-center gap-1 rounded-lg bg-[color:var(--brand-secondary)] px-2 text-[10px] font-semibold text-white">
-            <Check className="h-3 w-3" aria-hidden />
-            Parsed
-          </span>
-        ) : (
+        <BrandedFileTypeIcon type={fileIconType} className={`${ICON_COL_CLASS} h-[1.8rem] w-[1.8rem]`} />
+
+        <div className="min-w-0 flex-1">
           <button
             type="button"
-            disabled={busy || parsing}
-            onClick={onParse}
-            className="inline-flex h-9 items-center justify-center gap-1 rounded-lg border-2 border-[color:var(--brand-primary)] bg-white px-2 text-[11px] font-semibold text-[color:var(--brand-primary)] transition hover:bg-[color-mix(in_srgb,var(--brand-primary)_6%,white)] disabled:opacity-50"
-            aria-label={`Parse ${resume.fileName}`}
-            title="Parse resume"
+            disabled={busy}
+            onClick={onView}
+            className="block max-w-full truncate text-left text-sm font-semibold text-[color:var(--brand-primary)] hover:underline disabled:opacity-50"
+            title={`View ${resume.fileName}`}
           >
-            {busy || parsing ? (
-              <Loader2 className="h-4 w-4 animate-spin text-[color:var(--brand-primary)]" aria-hidden />
-            ) : (
-              <ScanText className="h-4 w-4 text-[color:var(--brand-primary)]" aria-hidden />
-            )}
-            <span>{parsing ? "Parsing…" : "Parse"}</span>
+            {resume.fileName}
           </button>
-        )}
-        <button
-          type="button"
-          disabled={busy}
-          onClick={onView}
-          className={ICON_ACTION_BTN}
-          aria-label={`View ${resume.fileName}`}
-          title="View resume"
-        >
-          <BrandedSvgIcon src="/icons/admin-recruiter/eye.svg" className="h-4 w-4" color={BRAND_PRIMARY} />
-        </button>
-        <button
-          type="button"
-          disabled={busy}
-          onClick={onDelete}
-          className={ICON_ACTION_BTN}
-          aria-label={`Delete ${resume.fileName}`}
-          title="Delete resume"
-        >
-          <BrandedDeleteIcon className="h-4 w-4" />
-        </button>
+          <p className="mt-1 text-xs text-[#64748B]">{resume.uploadedAtLabel}</p>
+        </div>
       </div>
 
-      <UploaderCell resume={resume} />
+      <div className="flex min-w-0 items-center justify-between gap-2 sm:justify-end sm:gap-3">
+        <div className={ACTIONS_COL_CLASS}>
+          {parsed ? (
+            <span className="inline-flex h-9 items-center gap-1 rounded-lg bg-[color:var(--brand-secondary)] px-2 text-[10px] font-semibold text-white">
+              <Check className="h-3 w-3" aria-hidden />
+              Parsed
+            </span>
+          ) : (
+            <button
+              type="button"
+              disabled={busy || parsing}
+              onClick={onParse}
+              className="inline-flex h-9 items-center justify-center gap-1 rounded-lg border-2 border-[color:var(--brand-primary)] bg-white px-2 text-[11px] font-semibold text-[color:var(--brand-primary)] transition hover:bg-[color-mix(in_srgb,var(--brand-primary)_6%,white)] disabled:opacity-50"
+              aria-label={`Parse ${resume.fileName}`}
+              title="Parse resume"
+            >
+              {busy || parsing ? (
+                <Loader2 className="h-4 w-4 animate-spin text-[color:var(--brand-primary)]" aria-hidden />
+              ) : (
+                <ScanText className="h-4 w-4 text-[color:var(--brand-primary)]" aria-hidden />
+              )}
+              <span>{parsing ? "Parsing…" : "Parse"}</span>
+            </button>
+          )}
+          <button
+            type="button"
+            disabled={busy}
+            onClick={onView}
+            className={ICON_ACTION_BTN}
+            aria-label={`View ${resume.fileName}`}
+            title="View resume"
+          >
+            <BrandedSvgIcon src="/icons/admin-recruiter/eye.svg" className="h-4 w-4" color={BRAND_PRIMARY} />
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={onDelete}
+            className={ICON_ACTION_BTN}
+            aria-label={`Delete ${resume.fileName}`}
+            title="Delete resume"
+          >
+            <BrandedDeleteIcon className="h-4 w-4" />
+          </button>
+        </div>
+
+        <UploaderCell resume={resume} />
+      </div>
     </div>
   );
 }
@@ -198,7 +204,7 @@ export function ResumeHistoryModal({
 
   return (
     <div
-      className="fixed inset-0 z-[140] flex items-center justify-center bg-black/40 px-4 py-8"
+      className="fixed inset-0 z-[140] flex items-end justify-center bg-black/40 p-0 sm:items-center sm:p-4"
       role="presentation"
       onClick={() => {
         if (!modalBusy) onClose();
@@ -208,10 +214,10 @@ export function ResumeHistoryModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="resume-history-title"
-        className="flex max-h-[min(90vh,720px)] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-[#E5E7EB] bg-white shadow-xl"
+        className="flex max-h-[min(92dvh,720px)] w-full min-w-0 max-w-2xl flex-col overflow-hidden rounded-t-xl border border-[#E5E7EB] bg-white shadow-xl sm:rounded-xl"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="flex items-start justify-between gap-3 border-b border-[#E5E7EB] px-5 py-4">
+        <div className="flex items-start justify-between gap-3 border-b border-[#E5E7EB] px-4 py-4 sm:px-5">
           <div className="min-w-0">
             <h3 id="resume-history-title" className="text-lg font-semibold text-[#101828]">
               Resume history
@@ -222,14 +228,14 @@ export function ResumeHistoryModal({
             type="button"
             disabled={modalBusy}
             onClick={onClose}
-            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-black transition hover:bg-[#F8FAFC] disabled:opacity-50"
+            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-black transition hover:bg-[#F8FAFC] disabled:opacity-50 sm:h-9 sm:w-9"
             aria-label="Close resume history"
           >
             <X className="h-5 w-5" aria-hidden />
           </button>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto bg-[#F8FAFC] px-5 py-4">
+        <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden bg-[#F8FAFC] px-3 py-4 sm:px-5">
           {loading ? (
             <div className="flex items-center justify-center gap-2 py-12 text-sm text-[#64748B]">
               <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
@@ -244,8 +250,8 @@ export function ResumeHistoryModal({
               No resumes uploaded for this job yet.
             </p>
           ) : (
-            <div>
-              <div className="mb-3 flex items-center gap-3 px-3 sm:px-4">
+            <div className="min-w-0">
+              <div className="mb-3 hidden items-center gap-3 px-4 sm:flex">
                 <span className={`${INDEX_COL_CLASS} inline-flex h-8`} aria-hidden />
                 <span className={`${ICON_COL_CLASS} inline-flex h-[1.8rem]`} aria-hidden />
                 <p className="min-w-0 flex-1 text-sm font-semibold text-[#334155]">Resumes</p>
@@ -253,6 +259,10 @@ export function ResumeHistoryModal({
                 <p className={`${UPLOADER_COL_CLASS} text-sm font-semibold text-[#334155]`}>
                   Uploaded by
                 </p>
+              </div>
+              <div className="mb-2 flex items-center justify-between px-1 sm:hidden">
+                <p className="text-sm font-semibold text-[#334155]">Resumes</p>
+                <p className="text-sm font-semibold text-[#334155]">Uploaded by</p>
               </div>
               <div className="space-y-3">
                 {resumes.map((resume, index) => (
@@ -271,7 +281,7 @@ export function ResumeHistoryModal({
           )}
         </div>
 
-        <div className="border-t border-[#E5E7EB] bg-white px-5 py-4">
+        <div className="border-t border-[#E5E7EB] bg-white px-4 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-5 sm:pb-4">
           {limitMessage ? (
             <p className="mb-3 text-sm text-[#B91C1C]">{limitMessage}</p>
           ) : (

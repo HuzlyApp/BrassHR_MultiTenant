@@ -231,12 +231,16 @@ function JobsImportMspIcon() {
 function JobsListingSearchField({
   value,
   onChange,
+  className = "",
 }: {
   value: string;
   onChange: (value: string) => void;
+  className?: string;
 }) {
   return (
-    <label className="flex h-8 w-[200px] shrink-0 items-center gap-1 overflow-hidden rounded-lg border border-[#CBD5E1] bg-white px-2.5">
+    <label
+      className={`flex h-8 w-full min-w-0 items-center gap-1 overflow-hidden rounded-lg border border-[#CBD5E1] bg-white px-2.5 ${className}`}
+    >
       <span className="relative flex size-5 shrink-0 items-center justify-center overflow-hidden" aria-hidden>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
@@ -264,15 +268,19 @@ function JobsCompactLabeledSelect({
   onChange,
   displayValue,
   children,
+  className = "",
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   displayValue: string;
   children: ReactNode;
+  className?: string;
 }) {
   return (
-    <div className="relative inline-flex h-8 shrink-0 items-center overflow-hidden rounded-lg border border-[#CBD5E1] bg-white pl-3.5 pr-2.5">
+    <div
+      className={`relative flex h-8 w-full min-w-0 items-center overflow-hidden rounded-lg border border-[#CBD5E1] bg-white pl-3.5 pr-2.5 ${className}`}
+    >
       <span className="pointer-events-none whitespace-nowrap text-xs font-normal leading-4 text-[#374151]">
         {label}: {displayValue}
       </span>
@@ -1422,9 +1430,9 @@ export default function AdminRecruiterJobsPage() {
       </div>
 
       <div className="w-full overflow-hidden rounded-[12px] border border-[#E5E7EB] bg-white">
-        <div className="flex w-full min-w-0 flex-col gap-3 px-[14px] py-5 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex w-full min-w-0 flex-col gap-3 px-[14px] py-5 lg:flex-row lg:items-center lg:justify-between">
           <nav
-            className="w-full min-w-0 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+            className="order-2 w-full min-w-0 overflow-x-auto lg:order-1 lg:flex-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
             aria-label="Jobs navigation"
           >
             <div className="flex w-max flex-nowrap items-center gap-5">
@@ -1452,12 +1460,12 @@ export default function AdminRecruiterJobsPage() {
             </div>
           </nav>
 
-          <div className="flex shrink-0 flex-wrap items-center gap-3">
+          <div className="order-1 grid w-full grid-cols-3 gap-2 lg:order-2 lg:flex lg:w-auto lg:shrink-0 lg:gap-3">
             <button
               type="button"
               onClick={() => void handleBulkUnpublish()}
               disabled={selectedPublishedCount === 0}
-              className={JOBS_PRIMARY_BUTTON_CLASS}
+              className={`${JOBS_PRIMARY_BUTTON_CLASS} w-full min-w-0 px-2 lg:w-auto lg:px-3`}
             >
               <JobsUnpublishIcon />
               Unpublish
@@ -1468,9 +1476,11 @@ export default function AdminRecruiterJobsPage() {
               onExportXls={handleExportXls}
               disabled={exportJobs.length === 0}
             />
-            <button type="button" onClick={handleImportFromMsp} className={JOBS_PRIMARY_BUTTON_CLASS}>
+            <button type="button" onClick={handleImportFromMsp} className={`${JOBS_PRIMARY_BUTTON_CLASS} w-full min-w-0 px-2 lg:w-auto lg:px-3`}>
               <JobsImportMspIcon />
-              Import from MSP
+              <span className="whitespace-nowrap">
+                Import <span className="hidden sm:inline">from </span>MSP
+              </span>
             </button>
           </div>
         </div>
@@ -1509,25 +1519,39 @@ export default function AdminRecruiterJobsPage() {
           </div>
         </div>
 
-        <div className="flex w-full flex-wrap items-center justify-between gap-3 px-[14px] py-3">
-          {!showFilterRows ? (
+        <div className="flex w-full flex-col gap-3 border-b border-[#E5E7EB] px-[14px] py-3">
+          <div className="flex w-full items-center justify-between gap-2 xl:hidden">
             <button
               type="button"
-              onClick={() => setShowFilterRows(true)}
-              className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-[#CBD5E1] bg-white px-3 text-xs font-normal leading-4 text-[#374151] transition hover:bg-zinc-50 xl:hidden"
+              onClick={() => setShowFilterRows((value) => !value)}
+              className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-[#CBD5E1] bg-white px-3 text-xs font-normal leading-4 text-[#374151] transition hover:bg-zinc-50"
+              aria-expanded={showFilterRows}
             >
               <JobsFilterIcon />
-              Show Filters
+              {showFilterRows ? "Hide Filters" : "Show Filters"}
             </button>
-          ) : null}
+            <button
+              type="button"
+              onClick={() => setEditFiltersOpen(true)}
+              className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-[#CBD5E1] bg-white px-3 text-xs font-normal leading-4 text-[#374151] transition hover:bg-zinc-50"
+            >
+              <JobsFilterIcon />
+              More Filters
+            </button>
+          </div>
           {showFilterRows ? (
-            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-3 xl:gap-5">
-              <JobsListingSearchField value={titleQuery} onChange={setTitleQuery} />
+            <div className="grid grid-cols-2 items-center gap-2 xl:flex xl:flex-nowrap xl:gap-3">
+              <JobsListingSearchField
+                value={titleQuery}
+                onChange={setTitleQuery}
+                className="col-span-2 h-10 w-full min-w-0 xl:h-8 xl:max-w-[220px] xl:flex-1"
+              />
               <JobsCompactLabeledSelect
                 label="Profession"
                 value={professionFilter}
                 onChange={setProfessionFilter}
                 displayValue={professionFilter || "All"}
+                className="h-10 w-full min-w-0 justify-between xl:h-8 xl:w-auto"
               >
                 {professionOptions.map((profession) => (
                   <option key={profession} value={profession}>
@@ -1540,6 +1564,7 @@ export default function AdminRecruiterJobsPage() {
                 value={statusFilter}
                 onChange={setStatusFilter}
                 displayValue={jobStatusFilterDisplay(statusFilter)}
+                className="h-10 w-full min-w-0 justify-between xl:h-8 xl:w-auto"
               >
                 <option value="draft">Draft</option>
                 <option value="published">Published</option>
@@ -1551,6 +1576,7 @@ export default function AdminRecruiterJobsPage() {
                 value={placementTypeFilter}
                 onChange={setPlacementTypeFilter}
                 displayValue={placementTypeFilter || "All"}
+                className="h-10 w-full min-w-0 justify-between xl:h-8 xl:w-auto"
               >
                 {placementTypeOptions.map((placementType) => (
                   <option key={placementType} value={placementType}>
@@ -1563,6 +1589,7 @@ export default function AdminRecruiterJobsPage() {
                 value={locationFilter}
                 onChange={setLocationFilter}
                 displayValue={locationFilter || "All"}
+                className="h-10 w-full min-w-0 justify-between xl:h-8 xl:w-auto"
               >
                 {locationOptions.map((location) => (
                   <option key={location} value={location}>
@@ -1570,16 +1597,16 @@ export default function AdminRecruiterJobsPage() {
                   </option>
                 ))}
               </JobsCompactLabeledSelect>
+              <button
+                type="button"
+                onClick={() => setEditFiltersOpen(true)}
+                className="ml-auto hidden h-8 shrink-0 items-center gap-1.5 rounded-lg border border-[#CBD5E1] bg-white px-3 text-xs font-normal leading-4 text-[#374151] transition hover:bg-zinc-50 xl:inline-flex"
+              >
+                <JobsFilterIcon />
+                More Filters
+              </button>
             </div>
           ) : null}
-          <button
-            type="button"
-            onClick={() => setEditFiltersOpen(true)}
-            className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-[#CBD5E1] bg-white px-3 text-xs font-normal leading-4 text-[#374151] transition hover:bg-zinc-50"
-          >
-            <JobsFilterIcon />
-            More Filters
-          </button>
         </div>
 
         {error ? (
@@ -1714,7 +1741,7 @@ export default function AdminRecruiterJobsPage() {
             Showing {pageStart}-{pageEnd} of {filteredJobs.length} results
           </p>
 
-          <div className="flex w-full flex-wrap items-center justify-center gap-3 sm:w-auto sm:justify-end">
+          <div className="flex w-full items-center justify-between gap-3 sm:w-auto sm:flex-wrap sm:justify-end">
             <ListPaginationShowLabel
               pageSize={pageSize}
               options={PAGE_SIZE_OPTIONS}

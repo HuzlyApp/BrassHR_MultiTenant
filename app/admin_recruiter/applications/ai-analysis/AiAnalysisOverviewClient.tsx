@@ -783,8 +783,8 @@ export function AiAnalysisOverviewClient({
       <div className="mt-6 grid items-start gap-5 sm:gap-[30px] lg:grid-cols-[minmax(0,1fr)_350px]">
         <div className="min-w-0 space-y-5">
           <section className="overflow-hidden rounded-[12px] border border-[#E5E7EB] bg-white">
-            <div className="flex flex-wrap items-center justify-between gap-5 border-b border-[#E5E7EB] px-4 py-2.5 sm:px-5">
-              <div className="flex min-w-0 flex-col items-start gap-4 sm:flex-row sm:items-center sm:gap-5">
+            <div className="flex flex-col items-center gap-5 border-b border-[#E5E7EB] px-4 py-2.5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:px-5">
+              <div className="flex w-full min-w-0 flex-col items-center gap-4 text-center sm:w-auto sm:flex-row sm:items-center sm:gap-5 sm:text-left">
                 <MatchRing
                   percent={Math.round(Number(matchScore) || 0)}
                   label={matchLabel}
@@ -793,7 +793,7 @@ export function AiAnalysisOverviewClient({
                 <div className="min-w-0">
                   <h2 className="text-lg font-semibold leading-7 text-[#374151] sm:text-2xl sm:leading-8">{candidateName}</h2>
                   <p className="mt-0.5 text-sm leading-5 text-[#6B7280]">For: {jobTitle}</p>
-                  <div className="mt-3 flex flex-wrap gap-2">
+                  <div className="mt-3 flex flex-wrap justify-center gap-2 sm:justify-start">
                     <span
                       className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-normal leading-[15px] ${overviewMatchTagClass(app?.ai_match_category)}`}
                     >
@@ -812,7 +812,7 @@ export function AiAnalysisOverviewClient({
                   </div>
                 </div>
               </div>
-              <div className="flex w-full shrink-0 flex-wrap items-center gap-2 sm:w-auto sm:gap-3">
+              <div className="flex w-full shrink-0 flex-wrap items-center justify-center gap-2 sm:w-auto sm:justify-start sm:gap-3">
                 <button type="button" className={HEADER_OUTLINE_BTN}>
                   Attempted Contacted
                 </button>
@@ -853,7 +853,8 @@ export function AiAnalysisOverviewClient({
             </SectionHeaderBlock>
 
             <div className="mt-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-              <div className="flex flex-wrap gap-2">
+              <div className="min-w-0 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+                <div className="flex w-max flex-nowrap items-center gap-2">
                 {FILTERS.map((item) => {
                   const active = filter === item;
                   return (
@@ -861,7 +862,7 @@ export function AiAnalysisOverviewClient({
                       key={item}
                       type="button"
                       onClick={() => setFilter(item)}
-                      className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+                      className={`shrink-0 rounded-lg px-3 py-1.5 text-xs font-semibold whitespace-nowrap transition ${
                         active
                           ? "bg-[color:var(--brand-primary)] text-white"
                           : "bg-[#F2F4F7] hover:bg-[#E4E7EC]"
@@ -872,6 +873,7 @@ export function AiAnalysisOverviewClient({
                     </button>
                   );
                 })}
+                </div>
               </div>
               <label className="relative w-full sm:max-w-[260px]">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#98A2B3]" />

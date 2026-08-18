@@ -133,7 +133,7 @@ export function ListExportDropdown({
     variant === "icon"
       ? "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-[#dce6e3] bg-white text-[#334155] transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
       : variant === "brand"
-        ? "inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-lg bg-[color:var(--brand-primary)] px-3 text-xs font-semibold leading-4 text-white transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50"
+        ? "inline-flex h-8 w-full min-w-0 items-center justify-center gap-1.5 rounded-lg bg-[color:var(--brand-primary)] px-2 text-xs font-semibold leading-4 text-white transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50 lg:w-auto lg:shrink-0 lg:px-3"
       : variant === "muted"
         ? "inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-lg bg-[#DFDFDF] px-3 text-xs font-semibold leading-4 text-[#6B7280] transition hover:bg-[#D4D4D4] disabled:cursor-not-allowed disabled:opacity-50"
       : variant === "header"
@@ -187,7 +187,7 @@ export function ListExportDropdown({
     );
 
   return (
-    <div ref={rootRef} className="relative">
+    <div ref={rootRef} className={`relative ${variant === "brand" ? "w-full min-w-0 lg:w-auto" : ""}`}>
       <button
         ref={triggerRef}
         type="button"

@@ -80,6 +80,7 @@ import { ReplaceResumeConfirmModal } from "./ReplaceResumeConfirmModal";
 import { matchCategoryRelevanceRank } from "@/lib/jobs/match-analysis/display";
 import { JobPublicViewLink } from "@/app/admin_recruiter/jobs/JobPublicViewLink";
 import AddCandidateModal from "./AddCandidateModal";
+import JobPublishToggle from "@/app/admin_recruiter/jobs/JobPublishToggle";
 
 type ApplicationStatus = string;
 
@@ -458,6 +459,36 @@ function workflowName(row: ApplicationRow): string {
   return String(one(row.onboarding_flows).name ?? row.workflow_id);
 }
 
+function HighlightMultiJobApplicantsRow({
+  on,
+  onToggle,
+  activeColor,
+  className = "px-[14px] py-3",
+}: {
+  on: boolean;
+  onToggle: () => void;
+  activeColor?: string;
+  className?: string;
+}) {
+  return (
+    <div className={`flex w-full items-center justify-end gap-2 ${className}`}>
+      <span className="text-[10px] font-normal leading-[15px] text-[#374151]">
+        Highlight Multi-Job Applicants
+      </span>
+      <JobPublishToggle
+        checked={on}
+        onChange={onToggle}
+        activeColor={activeColor}
+        ariaLabel={
+          on
+            ? "Show all applicants"
+            : "Show only applicants who applied to multiple jobs"
+        }
+      />
+    </div>
+  );
+}
+
 export default function JobApplicationsPage() {
   const branding = useTenantBranding();
   const brandStyle = brandingToCssVars(branding) as CSSProperties;
@@ -497,6 +528,7 @@ export default function JobApplicationsPage() {
   const [candidateSearchOpen, setCandidateSearchOpen] = useState(false);
   const [candidateSearchDraft, setCandidateSearchDraft] = useState("");
   const [candidateSearchQuery, setCandidateSearchQuery] = useState("");
+  const [highlightMultiJobApplicants, setHighlightMultiJobApplicants] = useState(false);
   const [rowActionsMenu, setRowActionsMenu] = useState<{
     rowId: string;
     anchor: HTMLElement;
@@ -783,7 +815,7 @@ export default function JobApplicationsPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [activeTab, sortBy, locationFilter, pageSize, jobId, candidateSearchQuery]);
+  }, [activeTab, sortBy, locationFilter, pageSize, jobId, candidateSearchQuery, highlightMultiJobApplicants]);
 
   useEffect(() => {
     if (!candidateSearchOpen) return;
@@ -897,6 +929,9 @@ export default function JobApplicationsPage() {
         return name.includes(query) || email.includes(query);
       });
     }
+    if (highlightMultiJobApplicants) {
+      next = next.filter((row) => Number(row.appliedJobCount ?? 1) > 1);
+    }
     next = [...next].sort((a, b) => {
       if (sortBy === "matchScore" || sortBy === "matchScoreAsc") {
         const aScore = a.ai_match_score == null ? -1 : Number(a.ai_match_score);
@@ -914,7 +949,7 @@ export default function JobApplicationsPage() {
       return sortBy === "oldest" ? aTime - bTime : bTime - aTime;
     });
     return next;
-  }, [rows, activeTab, locationFilter, sortBy, candidateSearchQuery, statusOptions]);
+  }, [rows, activeTab, locationFilter, sortBy, candidateSearchQuery, statusOptions, highlightMultiJobApplicants]);
 
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / pageSize));
   const currentPage = Math.min(page, totalPages);
@@ -2076,6 +2111,12 @@ export default function JobApplicationsPage() {
               <span className="min-[480px]:hidden">Add</span>
             </button>
           </div>
+          <HighlightMultiJobApplicantsRow
+            on={highlightMultiJobApplicants}
+            onToggle={() => setHighlightMultiJobApplicants((value) => !value)}
+            activeColor={branding.secondaryHex}
+            className="px-0 py-1"
+          />
           {showFilterRows ? (
             <div className="grid grid-cols-1 gap-5 rounded-lg border border-[#E8EEEC] bg-[#F8FAFC] p-2.5 min-[450px]:grid-cols-2">
               <label className="flex min-w-0 flex-col gap-1">
@@ -2168,6 +2209,12 @@ export default function JobApplicationsPage() {
               Add candidate
             </button>
           </div>
+
+          <HighlightMultiJobApplicantsRow
+            on={highlightMultiJobApplicants}
+            onToggle={() => setHighlightMultiJobApplicants((value) => !value)}
+            activeColor={branding.secondaryHex}
+          />
 
           <div className="border-b border-[#E5E7EB]" aria-hidden />
 
@@ -2289,11 +2336,15 @@ export default function JobApplicationsPage() {
                 <tr className="border-b border-[#E9EDF3]">
                   <td
                     colSpan={listColumns.length + 1}
-                    className="px-[14px] py-12 text-center text-[#64748B]"
+                    className={`px-[14px] text-center text-[#64748B] ${
+                      highlightMultiJobApplicants ? "py-24" : "py-12"
+                    }`}
                   >
-                    {jobId
-                      ? "No candidates match these filters."
-                      : "No candidates in this status yet."}
+                    {highlightMultiJobApplicants
+                      ? "No applicants have applied to multiple jobs."
+                      : jobId
+                        ? "No candidates match these filters."
+                        : "No candidates in this status yet."}
                   </td>
                 </tr>
               ) : (
