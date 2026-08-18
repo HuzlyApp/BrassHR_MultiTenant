@@ -2,6 +2,7 @@
 
 import { Fragment, useCallback, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   CalendarClock,
   ChevronDown,
@@ -44,6 +45,8 @@ import {
 } from "@/lib/jobs/match-analysis/workspace";
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
 import { ResumeHistoryModal, type ResumeHistoryItem } from "../ResumeHistoryModal";
+import { RemoveFromJobConfirmModal } from "../RemoveFromJobConfirmModal";
+import { downloadMatchAnalysisAssessment } from "./download-match-analysis-assessment";
 import { useMatchAnalysisWorkspace } from "./use-match-analysis-workspace";
 
 const CARD =
@@ -65,9 +68,9 @@ const HEADER_OUTLINE_BTN =
 const HEADER_PRIMARY_BTN =
   "inline-flex h-8 items-center justify-center rounded-lg bg-[color:var(--brand-primary)] px-3 text-xs font-semibold leading-4 text-white transition hover:brightness-95 disabled:opacity-60";
 const SIDEBAR_SAVE_BTN =
-  "inline-flex h-10 shrink-0 items-center justify-center whitespace-nowrap rounded-lg bg-[color:var(--brand-primary)] px-3 text-sm font-semibold text-white transition hover:brightness-95 disabled:opacity-60";
+  "inline-flex min-h-[52px] w-full min-w-0 items-center justify-center rounded-lg bg-[color:var(--brand-primary)] px-3 py-2.5 text-sm font-semibold leading-5 text-white transition hover:brightness-95 disabled:opacity-60";
 const SIDEBAR_REEXTRACT_BTN =
-  "inline-flex h-10 w-[214px] shrink-0 items-center justify-center whitespace-nowrap rounded-lg border-2 border-[color:var(--brand-secondary)] bg-white px-3 text-sm font-semibold text-[color:var(--brand-secondary)] transition hover:bg-[color:color-mix(in_srgb,var(--brand-secondary)_6%,white)]";
+  "inline-flex min-h-[52px] w-full min-w-0 items-center justify-center rounded-lg border-2 border-[color:var(--brand-secondary)] bg-white px-3 py-2.5 text-center text-sm font-semibold leading-5 text-[color:var(--brand-secondary)] transition hover:bg-[color:color-mix(in_srgb,var(--brand-secondary)_6%,white)]";
 const SIDEBAR_TITLE_CLASS = "text-base font-semibold";
 const SECTION_HEADER_DIVIDER = "border-b border-[#E5E7EB] pb-4";
 
@@ -396,6 +399,7 @@ export function AiAnalysisOverviewClient({
   backHref,
   jobId,
 }: AiAnalysisOverviewClientProps) {
+  const router = useRouter();
   const branding = useTenantBranding();
   const brandStyle = brandingToCssVars(branding) as CSSProperties;
   const [workspaceReloadToken, setWorkspaceReloadToken] = useState(0);
@@ -459,6 +463,10 @@ export function AiAnalysisOverviewClient({
   const [resumeHistoryError, setResumeHistoryError] = useState<string | null>(null);
   const [resumeHistoryBusyId, setResumeHistoryBusyId] = useState<string | null>(null);
   const [resumeUploading, setResumeUploading] = useState(false);
+  const [removeConfirmOpen, setRemoveConfirmOpen] = useState(false);
+  const [removingFromJob, setRemovingFromJob] = useState(false);
+  const [removeError, setRemoveError] = useState<string | null>(null);
+  const [downloadingAssessment, setDownloadingAssessment] = useState(false);
   const resumeInputRef = useRef<HTMLInputElement>(null);
 
   const loadResumeHistory = useCallback(async () => {
@@ -572,6 +580,41 @@ export function AiAnalysisOverviewClient({
     }
   }
 
+  function openRemoveFromJobConfirm() {
+    setRemoveError(null);
+    setRemoveConfirmOpen(true);
+  }
+
+  async function handleRunAnalyze() {
+    const ok = await runAnalyze();
+    if (!ok) return;
+    setOpenReqId("");
+    router.refresh();
+  }
+
+  async function confirmRemoveFromJob() {
+    setRemovingFromJob(true);
+    setRemoveError(null);
+    try {
+      const response = await fetch(
+        `/api/admin/job-applications/${encodeURIComponent(applicationId)}/remove`,
+        { method: "DELETE", credentials: "include" }
+      );
+      const payload = (await response.json().catch(() => ({}))) as { error?: string };
+      if (!response.ok) throw new Error(payload.error || "Failed to remove from job");
+      setRemoveConfirmOpen(false);
+      toast.success("Candidate removed from this job");
+      router.push(backHref);
+      router.refresh();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to remove from job";
+      setRemoveError(message);
+      toast.error(message);
+    } finally {
+      setRemovingFromJob(false);
+    }
+  }
+
   const app = data?.application;
   const matchScore = app?.ai_match_score ?? 0;
   const matchLabel =
@@ -643,6 +686,43 @@ export function AiAnalysisOverviewClient({
     return base.filter((row) => row.requirement_text.toLowerCase().includes(q));
   }, [filter, query, data?.requirements, blocking]);
 
+  function handleDownloadAssessment() {
+    if (!isAnalyzed) {
+      toast.error("Run analysis before downloading the assessment.");
+      return;
+    }
+    setDownloadingAssessment(true);
+    try {
+      downloadMatchAnalysisAssessment({
+        candidateName,
+        jobTitle,
+        matchScore: app?.ai_match_score ?? null,
+        matchLabel,
+        recommendation,
+        summary,
+        confidencePercent,
+        analysis,
+        requirements: data?.requirements ?? [],
+        blocking,
+        strengths,
+        verificationNeeded,
+        recommendedQuestions: recommendedQuestions.map((item) => ({
+          question: item.question,
+          answer: recommendedAnswers[item.key] ?? item.answer ?? "",
+        })),
+        analysisHistory,
+        decision,
+        decisionNote,
+        analyzedAt: app?.ai_analyzed_at,
+      });
+      toast.success("Assessment downloaded.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not download assessment.");
+    } finally {
+      setDownloadingAssessment(false);
+    }
+  }
+
   if (loading) {
     return (
       <div
@@ -685,18 +765,18 @@ export function AiAnalysisOverviewClient({
         AI Analysis Overview
       </h1>
 
-      <div className="mt-6 grid items-start gap-[30px] xl:grid-cols-[minmax(0,1fr)_350px]">
+      <div className="mt-6 grid items-start gap-5 sm:gap-[30px] lg:grid-cols-[minmax(0,1fr)_350px]">
         <div className="min-w-0 space-y-5">
           <section className="overflow-hidden rounded-[12px] border border-[#E5E7EB] bg-white">
-            <div className="flex flex-wrap items-center justify-between gap-5 border-b border-[#E5E7EB] px-5 py-2.5">
-              <div className="flex min-w-0 items-center gap-5">
+            <div className="flex flex-wrap items-center justify-between gap-5 border-b border-[#E5E7EB] px-4 py-2.5 sm:px-5">
+              <div className="flex min-w-0 flex-col items-start gap-4 sm:flex-row sm:items-center sm:gap-5">
                 <MatchRing
                   percent={Math.round(Number(matchScore) || 0)}
                   label={matchLabel}
                   strokeColor={ringStrokeColor(matchScore)}
                 />
                 <div className="min-w-0">
-                  <h2 className="text-2xl font-semibold leading-8 text-[#374151]">{candidateName}</h2>
+                  <h2 className="text-lg font-semibold leading-7 text-[#374151] sm:text-2xl sm:leading-8">{candidateName}</h2>
                   <p className="mt-0.5 text-sm leading-5 text-[#6B7280]">For: {jobTitle}</p>
                   <div className="mt-3 flex flex-wrap gap-2">
                     <span
@@ -717,7 +797,7 @@ export function AiAnalysisOverviewClient({
                   </div>
                 </div>
               </div>
-              <div className="flex shrink-0 items-center gap-3">
+              <div className="flex w-full shrink-0 flex-wrap items-center gap-2 sm:w-auto sm:gap-3">
                 <button type="button" className={HEADER_OUTLINE_BTN}>
                   Attempted Contacted
                 </button>
@@ -725,7 +805,7 @@ export function AiAnalysisOverviewClient({
                   type="button"
                   className={HEADER_PRIMARY_BTN}
                   disabled={analyzing}
-                  onClick={() => void runAnalyze()}
+                  onClick={() => void handleRunAnalyze()}
                 >
                   {analyzing ? "Analyzing…" : isAnalyzed ? "Reanalyze" : "Analyze candidate"}
                 </button>
@@ -778,7 +858,7 @@ export function AiAnalysisOverviewClient({
                   );
                 })}
               </div>
-              <label className="relative w-full max-w-[260px]">
+              <label className="relative w-full sm:max-w-[260px]">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#98A2B3]" />
                 <input
                   value={query}
@@ -932,13 +1012,15 @@ export function AiAnalysisOverviewClient({
               <ul className="mt-4 space-y-3">
                 {strengths.length ? (
                   strengths.map((item) => (
-                    <li key={item} className="flex items-start gap-3 text-sm leading-6 text-[#344054]">
-                      <img
-                        src="/icon-park-solid_check-one.svg"
-                        alt=""
-                        className="h-[18px] w-[18px] shrink-0"
-                        aria-hidden
-                      />
+                    <li key={item} className="flex gap-3 text-sm leading-6 text-[#344054]">
+                      <span className="flex h-6 shrink-0 items-center">
+                        <img
+                          src="/icon-park-solid_check-one.svg"
+                          alt=""
+                          className="h-[18px] w-[18px]"
+                          aria-hidden
+                        />
+                      </span>
                       <span>{item}</span>
                     </li>
                   ))
@@ -962,13 +1044,15 @@ export function AiAnalysisOverviewClient({
               <ul className="mt-4 space-y-3">
                 {verificationNeeded.length ? (
                   verificationNeeded.map((item) => (
-                    <li key={item} className="flex items-start gap-3 text-sm leading-6 text-[#344054]">
-                      <img
-                        src="/ic_round-warning.svg"
-                        alt=""
-                        className="h-[18px] w-[18px] shrink-0"
-                        aria-hidden
-                      />
+                    <li key={item} className="flex gap-3 text-sm leading-6 text-[#344054]">
+                      <span className="flex h-6 shrink-0 items-center">
+                        <img
+                          src="/ic_round-warning.svg"
+                          alt=""
+                          className="h-[18px] w-[18px]"
+                          aria-hidden
+                        />
+                      </span>
                       <span>{item}</span>
                     </li>
                   ))
@@ -1140,7 +1224,7 @@ export function AiAnalysisOverviewClient({
                   className={FIELD}
                 />
               </Field>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 min-[400px]:grid-cols-2">
                 <Field label="Email">
                   <input
                     value={info.email}
@@ -1156,7 +1240,7 @@ export function AiAnalysisOverviewClient({
                   />
                 </Field>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 min-[400px]:grid-cols-2">
                 <Field label="Specialty">
                   <input
                     value={info.specialty}
@@ -1173,7 +1257,7 @@ export function AiAnalysisOverviewClient({
                 </Field>
               </div>
             </div>
-            <div className="mt-4 flex items-center gap-2">
+            <div className="mt-4 grid grid-cols-2 items-stretch gap-3">
               <button
                 type="button"
                 className={SIDEBAR_SAVE_BTN}
@@ -1418,7 +1502,7 @@ export function AiAnalysisOverviewClient({
             )}
           </section>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 min-[400px]:grid-cols-2">
             <button
               type="button"
               onClick={openResumeHistory}
@@ -1426,10 +1510,20 @@ export function AiAnalysisOverviewClient({
             >
               Update Resume
             </button>
-            <button type="button" className={`${OUTLINE_BTN} w-full`}>
-              Download Assessment
+            <button
+              type="button"
+              className={`${OUTLINE_BTN} w-full`}
+              disabled={downloadingAssessment || !isAnalyzed}
+              onClick={handleDownloadAssessment}
+            >
+              {downloadingAssessment ? "Downloading…" : "Download Assessment"}
             </button>
-            <button type="button" className={`${OUTLINE_BTN} col-span-2 w-full`}>
+            <button
+              type="button"
+              className={`${OUTLINE_BTN} min-[400px]:col-span-2 w-full`}
+              disabled={removingFromJob}
+              onClick={openRemoveFromJobConfirm}
+            >
               Remove from job
             </button>
           </div>
@@ -1463,6 +1557,18 @@ export function AiAnalysisOverviewClient({
         onView={viewResumeFromHistory}
         onDelete={deleteResumeFromHistory}
         onParse={parseResumeFromHistory}
+      />
+
+      <RemoveFromJobConfirmModal
+        open={removeConfirmOpen}
+        busy={removingFromJob}
+        error={removeError}
+        onCancel={() => {
+          if (removingFromJob) return;
+          setRemoveConfirmOpen(false);
+          setRemoveError(null);
+        }}
+        onConfirm={() => void confirmRemoveFromJob()}
       />
     </div>
   );

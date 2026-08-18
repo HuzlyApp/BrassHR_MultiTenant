@@ -30,6 +30,7 @@ import {
   jobMatchesPayRateFilter,
   type JobsExtendedFilterValues,
 } from "./EditJobsFiltersModal";
+import { useCandidatesFilterRowsDefault } from "@/app/admin_recruiter/hooks/useCandidatesFilterRowsDefault";
 import {
   CANDIDATES_PAGE_SUBTITLE_STYLE,
   CANDIDATES_PAGE_TITLE_CLASS,
@@ -797,6 +798,7 @@ export default function AdminRecruiterJobsPage() {
   const [contractGroupFilter, setContractGroupFilter] = useState("");
   const [w2TypeFilter, setW2TypeFilter] = useState("");
   const [sourceTypeFilter, setSourceTypeFilter] = useState("");
+  const [showFilterRows, setShowFilterRows] = useCandidatesFilterRowsDefault();
   const [workflowFilter, setWorkflowFilter] = useState("");
   const [payRateFilter, setPayRateFilter] = useState("");
   const [datePostedFilter, setDatePostedFilter] = useState("");
@@ -1498,7 +1500,7 @@ export default function AdminRecruiterJobsPage() {
             />
           </div>
 
-          <div className="flex shrink-0 items-center gap-5">
+          <div className="flex shrink-0 flex-wrap items-center gap-3">
             <Link href="/admin_recruiter/jobs/new" className={JOBS_POST_JOB_BUTTON_CLASS}>
               <JobsCreatePlusIcon />
               Create a job
@@ -1508,56 +1510,68 @@ export default function AdminRecruiterJobsPage() {
         </div>
 
         <div className="flex w-full flex-wrap items-center justify-between gap-3 px-[14px] py-3">
-          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-5">
-            <JobsListingSearchField value={titleQuery} onChange={setTitleQuery} />
-            <JobsCompactLabeledSelect
-              label="Profession"
-              value={professionFilter}
-              onChange={setProfessionFilter}
-              displayValue={professionFilter || "All"}
+          {!showFilterRows ? (
+            <button
+              type="button"
+              onClick={() => setShowFilterRows(true)}
+              className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-[#CBD5E1] bg-white px-3 text-xs font-normal leading-4 text-[#374151] transition hover:bg-zinc-50 xl:hidden"
             >
-              {professionOptions.map((profession) => (
-                <option key={profession} value={profession}>
-                  {profession}
-                </option>
-              ))}
-            </JobsCompactLabeledSelect>
-            <JobsCompactLabeledSelect
-              label="Status"
-              value={statusFilter}
-              onChange={setStatusFilter}
-              displayValue={jobStatusFilterDisplay(statusFilter)}
-            >
-              <option value="draft">Draft</option>
-              <option value="published">Published</option>
-              <option value="closed">Closed</option>
-              <option value="archived">Archived</option>
-            </JobsCompactLabeledSelect>
-            <JobsCompactLabeledSelect
-              label="Placement Type"
-              value={placementTypeFilter}
-              onChange={setPlacementTypeFilter}
-              displayValue={placementTypeFilter || "All"}
-            >
-              {placementTypeOptions.map((placementType) => (
-                <option key={placementType} value={placementType}>
-                  {placementType}
-                </option>
-              ))}
-            </JobsCompactLabeledSelect>
-            <JobsCompactLabeledSelect
-              label="Location"
-              value={locationFilter}
-              onChange={setLocationFilter}
-              displayValue={locationFilter || "All"}
-            >
-              {locationOptions.map((location) => (
-                <option key={location} value={location}>
-                  {location}
-                </option>
-              ))}
-            </JobsCompactLabeledSelect>
-          </div>
+              <JobsFilterIcon />
+              Show Filters
+            </button>
+          ) : null}
+          {showFilterRows ? (
+            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-3 xl:gap-5">
+              <JobsListingSearchField value={titleQuery} onChange={setTitleQuery} />
+              <JobsCompactLabeledSelect
+                label="Profession"
+                value={professionFilter}
+                onChange={setProfessionFilter}
+                displayValue={professionFilter || "All"}
+              >
+                {professionOptions.map((profession) => (
+                  <option key={profession} value={profession}>
+                    {profession}
+                  </option>
+                ))}
+              </JobsCompactLabeledSelect>
+              <JobsCompactLabeledSelect
+                label="Status"
+                value={statusFilter}
+                onChange={setStatusFilter}
+                displayValue={jobStatusFilterDisplay(statusFilter)}
+              >
+                <option value="draft">Draft</option>
+                <option value="published">Published</option>
+                <option value="closed">Closed</option>
+                <option value="archived">Archived</option>
+              </JobsCompactLabeledSelect>
+              <JobsCompactLabeledSelect
+                label="Placement Type"
+                value={placementTypeFilter}
+                onChange={setPlacementTypeFilter}
+                displayValue={placementTypeFilter || "All"}
+              >
+                {placementTypeOptions.map((placementType) => (
+                  <option key={placementType} value={placementType}>
+                    {placementType}
+                  </option>
+                ))}
+              </JobsCompactLabeledSelect>
+              <JobsCompactLabeledSelect
+                label="Location"
+                value={locationFilter}
+                onChange={setLocationFilter}
+                displayValue={locationFilter || "All"}
+              >
+                {locationOptions.map((location) => (
+                  <option key={location} value={location}>
+                    {location}
+                  </option>
+                ))}
+              </JobsCompactLabeledSelect>
+            </div>
+          ) : null}
           <button
             type="button"
             onClick={() => setEditFiltersOpen(true)}

@@ -162,35 +162,57 @@ export function useMatchAnalysisWorkspace(applicationId: string, reloadToken = 0
   const [resumes, setResumes] = useState<UploadedResumeItem[]>([]);
   const [openingResumeId, setOpeningResumeId] = useState<string | null>(null);
 
+  const applyWorkspacePayload = useCallback((payload: MatchAnalysisWorkspacePayload) => {
+    setData(payload);
+    setWorkerId(payload.application.worker_id ? String(payload.application.worker_id) : null);
+    setDecision((payload.application.recruiter_decision as RecruiterDecision) || "");
+    setDecisionNote(payload.application.recruiter_decision_note || "");
+    setAssignedId(payload.assignedRecruiter?.id || "");
+    const rec: Record<string, string> = {};
+    for (const item of payload.recommendedQuestions ?? []) rec[item.key] = item.answer || "";
+    setRecommendedAnswers(rec);
+    const jobs: Record<string, string> = {};
+    for (const item of payload.screeningQuestions ?? []) {
+      jobs[item.id] = item.answered ? String(item.answer ?? "") : "";
+    }
+    setJobAnswers(jobs);
+    setExtractedDraft(payload.extractedResume?.text || "");
+  }, []);
+
+  const loadResumes = useCallback(async () => {
+    const res = await fetch(
+      `/api/admin/job-applications/${encodeURIComponent(applicationId)}/resume-history`,
+      { cache: "no-store", credentials: "include" }
+    );
+    const json = (await res.json().catch(() => ({}))) as {
+      resumes?: UploadedResumeItem[];
+      error?: string;
+    };
+    if (!res.ok) throw new Error(json.error || "Failed to load resumes");
+    const rows = [...(json.resumes ?? [])].sort((a, b) => {
+      const aTime = a.uploadedAt ? new Date(a.uploadedAt).getTime() : 0;
+      const bTime = b.uploadedAt ? new Date(b.uploadedAt).getTime() : 0;
+      return aTime - bTime;
+    });
+    setResumes(rows);
+  }, [applicationId]);
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/admin/job-applications/${applicationId}/match-analysis`, {
-        credentials: "include",
-      });
+      const res = await fetch(
+        `/api/admin/job-applications/${encodeURIComponent(applicationId)}/match-analysis`,
+        { cache: "no-store", credentials: "include" }
+      );
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json.error || "Failed to load match analysis");
-      const payload = json as MatchAnalysisWorkspacePayload;
-      setData(payload);
-      setWorkerId(payload.application.worker_id ? String(payload.application.worker_id) : null);
-      setDecision((payload.application.recruiter_decision as RecruiterDecision) || "");
-      setDecisionNote(payload.application.recruiter_decision_note || "");
-      setAssignedId(payload.assignedRecruiter?.id || "");
-      const rec: Record<string, string> = {};
-      for (const item of payload.recommendedQuestions ?? []) rec[item.key] = item.answer || "";
-      setRecommendedAnswers(rec);
-      const jobs: Record<string, string> = {};
-      for (const item of payload.screeningQuestions ?? []) {
-        jobs[item.id] = item.answered ? String(item.answer ?? "") : "";
-      }
-      setJobAnswers(jobs);
-      setExtractedDraft(payload.extractedResume?.text || "");
+      applyWorkspacePayload(json as MatchAnalysisWorkspacePayload);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to load match analysis");
     } finally {
       setLoading(false);
     }
-  }, [applicationId]);
+  }, [applicationId, applyWorkspacePayload]);
 
   useEffect(() => {
     void load();
@@ -229,31 +251,13 @@ export function useMatchAnalysisWorkspace(applicationId: string, reloadToken = 0
 
   useEffect(() => {
     let cancelled = false;
-    void fetch(`/api/admin/job-applications/${encodeURIComponent(applicationId)}/resume-history`, {
-      cache: "no-store",
-      credentials: "include",
-    })
-      .then(async (res) => {
-        const json = (await res.json().catch(() => ({}))) as {
-          resumes?: UploadedResumeItem[];
-          error?: string;
-        };
-        if (cancelled) return;
-        if (!res.ok) throw new Error(json.error || "Failed to load resumes");
-        const rows = [...(json.resumes ?? [])].sort((a, b) => {
-          const aTime = a.uploadedAt ? new Date(a.uploadedAt).getTime() : 0;
-          const bTime = b.uploadedAt ? new Date(b.uploadedAt).getTime() : 0;
-          return aTime - bTime;
-        });
-        setResumes(rows);
-      })
-      .catch(() => {
-        if (!cancelled) setResumes([]);
-      });
+    void loadResumes().catch(() => {
+      if (!cancelled) setResumes([]);
+    });
     return () => {
       cancelled = true;
     };
-  }, [applicationId, reloadToken]);
+  }, [loadResumes, reloadToken]);
 
   useEffect(() => {
     if (!profile) return;
@@ -273,15 +277,19 @@ export function useMatchAnalysisWorkspace(applicationId: string, reloadToken = 0
   const status = data?.application.ai_match_status ?? "READY";
   const isAnalyzed = status === "ANALYZED";
 
-  async function runAnalyze() {
+  async function runAnalyze(): Promise<boolean> {
     setAnalyzing(true);
     try {
-      const res = await fetch(`/api/admin/job-applications/${applicationId}/match-analysis`, {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
-      });
+      const res = await fetch(
+        `/api/admin/job-applications/${encodeURIComponent(applicationId)}/match-analysis`,
+        {
+          method: "POST",
+          cache: "no-store",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({}),
+        }
+      );
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json.error || "Match analysis failed");
       toast.success(
@@ -289,9 +297,11 @@ export function useMatchAnalysisWorkspace(applicationId: string, reloadToken = 0
           ? "Needs résumé text before analysis"
           : "Match analysis complete"
       );
-      await load();
+      await Promise.all([load(), loadResumes()]);
+      return true;
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Match analysis failed");
+      return false;
     } finally {
       setAnalyzing(false);
     }
