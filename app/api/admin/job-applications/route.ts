@@ -101,6 +101,45 @@ export async function GET(req: NextRequest) {
       });
     }
 
+    const countByWorker = new Map<string, number>();
+    const workerIds = Array.from(
+      new Set(
+        applications
+          .map((row) => (row as { worker_id?: string | null }).worker_id)
+          .filter((id): id is string => Boolean(id))
+      )
+    );
+    if (workerIds.length > 0) {
+      const { data: workerApps } = await supabase
+        .from("job_applications")
+        .select("worker_id")
+        .eq("tenant_id", tenantId)
+        .in("worker_id", workerIds)
+        .not("status", "in", '("rejected","withdrawn")');
+      for (const app of workerApps ?? []) {
+        const workerIdValue = (app as { worker_id?: string | null }).worker_id;
+        if (!workerIdValue) continue;
+        countByWorker.set(workerIdValue, (countByWorker.get(workerIdValue) ?? 0) + 1);
+      }
+    }
+
+    const noteByApplication = new Map<string, string>();
+    const applicationIds = applications.map((row) => (row as { id: string }).id).filter(Boolean);
+    if (applicationIds.length > 0) {
+      const { data: historyRows } = await supabase
+        .from("application_status_history")
+        .select("application_id, note, created_at")
+        .eq("tenant_id", tenantId)
+        .in("application_id", applicationIds)
+        .order("created_at", { ascending: false });
+      for (const history of historyRows ?? []) {
+        const applicationId = (history as { application_id?: string }).application_id;
+        if (!applicationId || noteByApplication.has(applicationId)) continue;
+        const note = String((history as { note?: string | null }).note ?? "").trim();
+        noteByApplication.set(applicationId, note);
+      }
+    }
+
     return NextResponse.json({
       applications: applications.map((row) => {
         const statusJoin = Array.isArray(
@@ -108,9 +147,13 @@ export async function GET(req: NextRequest) {
         )
           ? (row as { application_statuses: Array<{ name?: string }> }).application_statuses[0]
           : (row as { application_statuses?: { name?: string } | null }).application_statuses;
+        const workerIdValue = (row as { worker_id?: string | null }).worker_id;
+        const applicationId = (row as { id: string }).id;
         return {
           ...row,
           statusName: statusJoin?.name ?? null,
+          appliedJobCount: workerIdValue ? countByWorker.get(workerIdValue) ?? 1 : 1,
+          statusNote: noteByApplication.get(applicationId) || null,
         };
       }),
     });

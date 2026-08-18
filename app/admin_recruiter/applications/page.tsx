@@ -10,8 +10,10 @@ import {
   Check,
   ChevronDown,
   HelpCircle,
+  Mail,
   MapPin,
   MoreHorizontal,
+  Phone,
   Plus,
   Search,
   X,
@@ -47,6 +49,7 @@ import {
   resolveApplicationWorkerId,
 } from "@/lib/jobs/application-applicant-display";
 import {
+  applicationCurrentStageMeta,
   applicationStatusDotClassName,
   applicationStatusLabel,
   isArchivedApplicationStatus,
@@ -87,6 +90,7 @@ type ApplicationRow = {
   status: ApplicationStatus | string;
   status_id?: string | null;
   statusName?: string | null;
+  statusNote?: string | null;
   created_at: string;
   submitted_at: string | null;
   updated_at?: string | null;
@@ -94,6 +98,8 @@ type ApplicationRow = {
   workflow_id: string;
   applicant_workflow_instance_id: string;
   worker_id?: string | null;
+  appliedJobCount?: number | null;
+  workflow_phase?: string | null;
   ai_match_status?: string | null;
   ai_match_score?: number | null;
   ai_match_category?: string | null;
@@ -130,9 +136,6 @@ type JobOption = {
 };
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50];
-
-/** Figma: Text/text-link — fixed email color under applicant name */
-const TEXT_LINK_COLOR = "#64748B";
 
 const FORM_SURFACE_CLASS = "rounded-lg border border-[#CBD5E1] bg-white";
 const TOOLBAR_BUTTON_CLASS = `${FORM_SURFACE_CLASS} inline-flex h-8 items-center gap-1.5 px-3 text-sm font-normal leading-6 text-[#334155] transition hover:bg-zinc-50`;
@@ -359,19 +362,42 @@ function matchesTab(
   return normalizeApplicationStatus(row.status) === tab;
 }
 
-function formatRelativeTime(iso: string): string {
+function formatTimeAgo(iso: string): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return "—";
-  const diffMs = Date.now() - date.getTime();
+  const diffMs = Math.max(0, Date.now() - date.getTime());
   const mins = Math.floor(diffMs / 60000);
   if (mins < 1) return "just now";
   if (mins < 60) return `${mins} min${mins === 1 ? "" : "s"} ago`;
   const hours = Math.floor(mins / 60);
   if (hours < 24) return `${hours} hour${hours === 1 ? "" : "s"} ago`;
   const days = Math.floor(hours / 24);
-  if (days === 1) return "Applied yesterday";
-  if (days < 7) return `${days} days ago`;
-  return date.toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" });
+  if (days === 1) return "1 day ago";
+  return `${days} days ago`;
+}
+
+function formatRelativeTime(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "—";
+  const days = Math.floor(Math.max(0, Date.now() - date.getTime()) / 86400000);
+  if (days >= 7) {
+    return date.toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" });
+  }
+  return formatTimeAgo(iso);
+}
+
+function formatApplicationDate(iso: string | null | undefined): { relative: string; absolute: string } {
+  if (!iso) return { relative: "—", absolute: "" };
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return { relative: "—", absolute: "" };
+  return {
+    relative: formatTimeAgo(iso),
+    absolute: date.toLocaleDateString(undefined, {
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+    }),
+  };
 }
 
 function formatActivity(row: ApplicationRow): string {
@@ -1193,6 +1219,7 @@ export default function JobApplicationsPage() {
                 status: nextStatus,
                 status_id: nextStatusId,
                 statusName: nextStatusName,
+                statusNote: note?.trim() || payload.history?.note || null,
                 application_statuses: {
                   id: nextStatusId,
                   name: nextStatusName,
@@ -1436,26 +1463,28 @@ export default function JobApplicationsPage() {
     switch (colId) {
       case "candidates": {
         const name = applicantName(row);
-        const email = applicantEmail(row);
         const workerId = resolveApplicationWorkerId(row);
         const detailHref = `/admin_recruiter/applications/review?jobId=${encodeURIComponent(row.job_requisition_id)}&applicationId=${encodeURIComponent(row.id)}`;
+        const appliedJobCount = Number(row.appliedJobCount ?? 1);
         return (
           <div className="flex w-full min-w-0 items-center gap-3">
             <CandidateListAvatar name={name || "NA"} />
             <div className="min-w-0 flex-1">
               <Link
                 href={detailHref}
-                className="block truncate text-sm font-medium leading-5 hover:underline"
+                className="block truncate text-sm font-semibold leading-5 hover:underline"
                 style={{ color: branding.secondaryHex || "#012352" }}
               >
                 {name}
               </Link>
-              <p
-                className="mt-0.5 truncate text-xs leading-4"
-                style={{ color: TEXT_LINK_COLOR }}
-              >
-                {email || "—"}
-              </p>
+              {appliedJobCount > 1 ? (
+                <span
+                  className="mt-1 inline-flex rounded-[4px] bg-[#EFF6FF] px-2 py-0.5 text-[11px] font-medium leading-4"
+                  style={{ color: branding.primaryHex || "var(--brand-primary)" }}
+                >
+                  Applied to {appliedJobCount} jobs
+                </span>
+              ) : null}
               {!jobId ? (
                 <p className="mt-0.5 truncate text-[11px] leading-4 text-[#64748B]">
                   {String(one(row.job_requisitions).public_title ?? "").trim() || "Untitled job"}
@@ -1469,6 +1498,23 @@ export default function JobApplicationsPage() {
                 candidateName={name}
               />
             </div>
+          </div>
+        );
+      }
+      case "contact": {
+        const email = applicantEmail(row);
+        const phone = applicantPhone(row);
+        const brandColor = branding.primaryHex || "var(--brand-primary)";
+        return (
+          <div className="flex min-w-0 flex-col gap-1 text-left">
+            <p className="flex min-w-0 items-center gap-1.5 text-sm leading-5" style={{ color: brandColor }}>
+              <Mail className="h-3.5 w-3.5 shrink-0" strokeWidth={2} aria-hidden />
+              <span className="truncate">{email || "—"}</span>
+            </p>
+            <p className="flex min-w-0 items-center gap-1.5 text-sm leading-5">
+              <Phone className="h-3.5 w-3.5 shrink-0" strokeWidth={2} style={{ color: brandColor }} aria-hidden />
+              <span className="truncate text-[#374151]">{phone || "—"}</span>
+            </p>
           </div>
         );
       }
@@ -1487,6 +1533,26 @@ export default function JobApplicationsPage() {
       }
       case "activity":
         return <p className="text-sm leading-5 text-[#475569]">{formatActivity(row)}</p>;
+      case "currentStage": {
+        const stage = applicationCurrentStageMeta(row.status);
+        const note = row.statusNote?.trim() || stage.subtitle;
+        return (
+          <div className="min-w-0 text-left">
+            <p className="truncate text-sm font-semibold leading-5 text-[#0F172A]">{stage.label}</p>
+            {note ? (
+              <p className="truncate text-xs leading-4 text-[#64748B]" title={note}>
+                {note}
+              </p>
+            ) : null}
+            <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-[#E5E7EB]">
+              <div
+                className="h-full rounded-full"
+                style={{ width: `${stage.progress}%`, backgroundColor: stage.barColor }}
+              />
+            </div>
+          </div>
+        );
+      }
       case "interest": {
         const currentStatus = normalizeApplicationStatus(row.status);
         const busy = statusBusyId === row.id;
@@ -1599,12 +1665,29 @@ export default function JobApplicationsPage() {
         return <span className="text-sm text-[#475569]">{applicantEmail(row) || "—"}</span>;
       case "workflow":
         return <span className="text-sm text-[#475569]">{workflowName(row)}</span>;
-      case "dateApplied":
+      case "dateApplied": {
+        const applied = formatApplicationDate(row.submitted_at || row.created_at);
         return (
-          <span className="text-sm text-[#475569]">
-            {new Date(row.submitted_at || row.created_at).toLocaleDateString()}
+          <div className="text-center">
+            <p className="text-sm font-medium leading-5 text-[#0F172A]">{applied.relative}</p>
+            {applied.absolute && applied.absolute !== applied.relative ? (
+              <p className="text-xs leading-4 text-[#64748B]">{applied.absolute}</p>
+            ) : null}
+          </div>
+        );
+      }
+      case "evaluation": {
+        const analyzed = row.ai_match_status === "ANALYZED";
+        return (
+          <span
+            className={`inline-flex items-center justify-center rounded-full px-3 py-1 text-sm font-medium ${
+              analyzed ? "bg-[#EFF6FF] text-[#2563EB]" : "bg-[#F1F5F9] text-[#64748B]"
+            }`}
+          >
+            {analyzed ? "Analyzed" : "Not Yet"}
           </span>
         );
+      }
       default:
         return null;
     }

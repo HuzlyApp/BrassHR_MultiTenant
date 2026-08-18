@@ -1,25 +1,31 @@
 export type ApplicationColumnId =
   | "candidates"
+  | "contact"
   | "matches"
   | "location"
   | "activity"
+  | "currentStage"
   | "status"
   | "interest"
   | "email"
   | "workflow"
   | "dateApplied"
+  | "evaluation"
   | "actions";
 
 export const APPLICATION_COLUMN_OPTIONS: { id: ApplicationColumnId; label: string }[] = [
-  { id: "candidates", label: "Name" },
+  { id: "candidates", label: "Candidate" },
+  { id: "contact", label: "Contact" },
   { id: "matches", label: "Match %" },
   { id: "location", label: "Location" },
   { id: "activity", label: "Activity" },
+  { id: "currentStage", label: "Current Stage" },
   { id: "status", label: "Status" },
   { id: "interest", label: "Interest" },
   { id: "email", label: "Email" },
   { id: "workflow", label: "Workflow" },
-  { id: "dateApplied", label: "Date Applied" },
+  { id: "dateApplied", label: "Application Date" },
+  { id: "evaluation", label: "Evaluation" },
   { id: "actions", label: "Actions" },
 ];
 
@@ -30,37 +36,51 @@ export const APPLICATION_EDITABLE_COLUMNS = APPLICATION_COLUMN_OPTIONS.filter(
 
 export const DEFAULT_APPLICATION_COLUMNS: ApplicationColumnId[] = [
   "candidates",
+  "contact",
   "matches",
-  "location",
-  "activity",
+  "currentStage",
+  "dateApplied",
+  "evaluation",
   "status",
-  "interest",
   "actions",
 ];
 
-const STORAGE_KEY = "nexus-job-applications-list-columns";
+const STORAGE_KEY = "nexus-job-applications-list-columns-v2";
 
-function ensureStatusBeforeInterest(order: ApplicationColumnId[]): ApplicationColumnId[] {
-  if (order.includes("status")) return order;
-  const interestIndex = order.indexOf("interest");
-  if (interestIndex >= 0) {
+function insertAfter(
+  order: ApplicationColumnId[],
+  id: ApplicationColumnId,
+  afterId: ApplicationColumnId
+): ApplicationColumnId[] {
+  if (order.includes(id)) return order;
+  const afterIndex = order.indexOf(afterId);
+  if (afterIndex >= 0) {
     const next = [...order];
-    next.splice(interestIndex, 0, "status");
+    next.splice(afterIndex + 1, 0, id);
     return next;
   }
-  return [...order, "status"];
+  const actionsIndex = order.indexOf("actions");
+  if (actionsIndex >= 0) {
+    const next = [...order];
+    next.splice(actionsIndex, 0, id);
+    return next;
+  }
+  return [...order, id];
 }
 
-/** Insert Location after Match % for saved column prefs that predate the column. */
-function ensureLocationAfterMatches(order: ApplicationColumnId[]): ApplicationColumnId[] {
-  if (order.includes("location")) return order;
-  const matchesIndex = order.indexOf("matches");
-  if (matchesIndex >= 0) {
-    const next = [...order];
-    next.splice(matchesIndex + 1, 0, "location");
-    return next;
+function ensureDefaultListingColumns(order: ApplicationColumnId[]): ApplicationColumnId[] {
+  let next = [...order];
+  next = insertAfter(next, "contact", "candidates");
+  next = insertAfter(next, "matches", "contact");
+  next = insertAfter(next, "currentStage", "matches");
+  next = insertAfter(next, "dateApplied", "currentStage");
+  next = insertAfter(next, "evaluation", "dateApplied");
+  if (!next.includes("status")) {
+    const actionsIndex = next.indexOf("actions");
+    if (actionsIndex >= 0) next.splice(actionsIndex, 0, "status");
+    else next.push("status");
   }
-  return [...order, "location"];
+  return next;
 }
 
 /** Keep Actions last so the AI icon + menu stay on the far right. */
@@ -81,9 +101,7 @@ export function loadApplicationColumnOrder(): ApplicationColumnId[] {
         typeof id === "string" && allowed.has(id as ApplicationColumnId)
     );
     return ensureActionsLast(
-      ensureLocationAfterMatches(
-        ensureStatusBeforeInterest(cleaned.length ? cleaned : [...DEFAULT_APPLICATION_COLUMNS])
-      )
+      ensureDefaultListingColumns(cleaned.length ? cleaned : [...DEFAULT_APPLICATION_COLUMNS])
     );
   } catch {
     return [...DEFAULT_APPLICATION_COLUMNS];
@@ -111,19 +129,23 @@ const CENTER_ALIGNED_COLUMNS = new Set<ApplicationColumnId>([
   "email",
   "workflow",
   "dateApplied",
+  "evaluation",
   "actions",
 ]);
 
 export function applicationListColumnClassName(colId: ApplicationColumnId): string {
   const center = CENTER_ALIGNED_COLUMNS.has(colId) ? " text-center" : "";
   if (colId === "candidates") return "min-w-[220px]";
+  if (colId === "contact") return "min-w-[200px]";
   if (colId === "matches") return `min-w-[120px] max-w-[160px]${center}`;
   if (colId === "location") return "min-w-[120px] whitespace-nowrap";
   if (colId === "activity") return `min-w-[180px] whitespace-nowrap${center}`;
+  if (colId === "currentStage") return "min-w-[170px]";
   if (colId === "interest") return `min-w-[132px] whitespace-nowrap${center}`;
   if (colId === "email") return `min-w-[180px]${center}`;
   if (colId === "workflow") return `min-w-[140px]${center}`;
-  if (colId === "dateApplied") return `min-w-[120px] whitespace-nowrap${center}`;
+  if (colId === "dateApplied") return `min-w-[140px] whitespace-nowrap${center}`;
+  if (colId === "evaluation") return `min-w-[110px] whitespace-nowrap${center}`;
   if (colId === "status") return `min-w-[140px] whitespace-nowrap${center}`;
   if (colId === "actions") return `min-w-[100px] whitespace-nowrap${center}`;
   return center.trim();
