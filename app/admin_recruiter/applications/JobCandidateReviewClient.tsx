@@ -58,6 +58,7 @@ import {
   type ScheduleInterviewPayload,
 } from "@/lib/interviews/schedule-payload";
 import { JobPublicViewLink } from "@/app/admin_recruiter/jobs/JobPublicViewLink";
+import { applicationAiAnalysisHref } from "./CandidateAiAnalysisButton";
 import { CandidateAnalysisWorkspace } from "./CandidateAnalysisWorkspace";
 import { CandidateActivityTimeline } from "./CandidateActivityTimeline";
 import { ReplaceResumeConfirmModal } from "./ReplaceResumeConfirmModal";
@@ -1353,6 +1354,24 @@ export default function JobCandidateReviewClient() {
                       <Phone className="h-4 w-4 shrink-0" aria-hidden />
                       <span>Call</span>
                     </button>
+                    <Link
+                      href={applicationAiAnalysisHref(
+                        selected.id,
+                        jobId || selected.job_requisition_id
+                      )}
+                      className="admin-recruiter-action-chip h-10 w-full rounded-lg border bg-white px-3.5 text-sm font-medium sm:h-9 sm:w-auto"
+                      style={{
+                        borderColor: branding.secondaryHex || "#012352",
+                        color: branding.secondaryHex || "#012352",
+                      }}
+                    >
+                      <BrandedSvgIcon
+                        src="/ai-icon.svg"
+                        className="h-4 w-4"
+                        color={branding.secondaryHex || "#012352"}
+                      />
+                      <span>AI Analysis Overview</span>
+                    </Link>
                   </div>
                   {statusHistory[0] ? (
                     <p className="mt-3 text-xs text-[#64748B]">

@@ -1,17 +1,23 @@
 "use client";
 
-import { Fragment, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
+import { Fragment, useCallback, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import Link from "next/link";
 import {
+  CalendarClock,
   ChevronDown,
   ChevronUp,
   Copy,
+  FileText,
+  IdCard,
   Loader2,
+  Medal,
   Search,
+  Tag,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
 import BrandedFileTypeIcon from "@/app/admin_recruiter/components/BrandedFileTypeIcon";
+import { ListTableCheckbox } from "@/app/admin_recruiter/components/ListTableCheckbox";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import {
   CANDIDATES_PAGE_TITLE_CLASS,
@@ -25,14 +31,19 @@ import {
 } from "@/lib/jobs/match-analysis/display";
 import {
   RECRUITER_DECISION_LABELS,
+  VERIFIED_INFO_CATEGORIES,
+  VERIFIED_INFO_CATEGORY_LABELS,
   filterQualificationRequirements,
+  isVerifiedInfoCategory,
   qualificationDisplayStatus,
   recruiterActionLabel,
   type QualificationDisplayStatus,
   type QualificationFilter,
   type QualificationRequirement,
+  type VerifiedInfoCategory,
 } from "@/lib/jobs/match-analysis/workspace";
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
+import { ResumeHistoryModal, type ResumeHistoryItem } from "../ResumeHistoryModal";
 import { useMatchAnalysisWorkspace } from "./use-match-analysis-workspace";
 
 const CARD =
@@ -191,6 +202,158 @@ function formatWhen(iso: string | null | undefined): string {
   });
 }
 
+function formatHistoryWhen(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleString(undefined, {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+function historyScoreBadgeClass(score: number | null | undefined): string {
+  if (score == null || !Number.isFinite(Number(score))) return "bg-[#F2F4F7] text-[#475467]";
+  const n = Number(score);
+  if (n >= 75) return "bg-[#00B135] text-white";
+  if (n >= 50) return "bg-[#2563EB] text-white";
+  if (n >= 25) return "bg-[#CA8A04] text-white";
+  return "bg-[#DC2626] text-white";
+}
+
+function AnalysisHistoryItem({
+  item,
+}: {
+  item: {
+    id: string;
+    version: number;
+    score: number | null;
+    category: string | null;
+    display_category: string | null;
+    model: string | null;
+    analyzed_at: string;
+  };
+}) {
+  const categoryLabel =
+    item.display_category || formatMatchCategory(item.category) || "Not analyzed";
+
+  return (
+    <li className="rounded-lg border border-[#E5E7EB] bg-[#F8FAFC] px-3 py-2">
+      <div className="flex flex-col gap-1">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-xs font-semibold text-[#475467]">Version {item.version}</span>
+          <span
+            className={`inline-flex rounded-md px-2 py-0.5 text-xs font-semibold ${historyScoreBadgeClass(item.score)}`}
+          >
+            {formatMatchScore(item.score)}
+          </span>
+          <span className="inline-flex rounded-md bg-[#E5E7EB] px-2 py-0.5 text-xs font-semibold text-[#344054]">
+            {categoryLabel}
+          </span>
+        </div>
+        <p className="text-xs leading-4 text-[#94A3B8]">
+          {[formatHistoryWhen(item.analyzed_at), item.model].filter(Boolean).join(" · ")}
+        </p>
+      </div>
+    </li>
+  );
+}
+
+function verifiedCategoryLabel(category: string): string {
+  if (isVerifiedInfoCategory(category)) return VERIFIED_INFO_CATEGORY_LABELS[category];
+  return category.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function verifiedCategoryBadgeClass(category: string): string {
+  const normalized = category.trim().toLowerCase();
+  if (normalized === "license") return "bg-[#DBEAFE] text-[#1D4ED8]";
+  if (normalized === "certification") return "bg-[#DCFCE7] text-[#166534]";
+  if (normalized === "availability") return "bg-[#F3E8FF] text-[#7E22CE]";
+  if (normalized === "note") return "bg-[#F2F4F7] text-[#475467]";
+  return "bg-[#FFEDD5] text-[#9A3412]";
+}
+
+function VerifiedCategoryIcon({ category }: { category: string }) {
+  const normalized = category.trim().toLowerCase();
+  const className = "h-[18px] w-[18px] text-[color:var(--brand-primary)]";
+
+  if (normalized === "license") return <IdCard className={className} aria-hidden />;
+  if (normalized === "certification") return <Medal className={className} aria-hidden />;
+  if (normalized === "availability") return <CalendarClock className={className} aria-hidden />;
+  if (normalized === "note") return <FileText className={className} aria-hidden />;
+  return <Tag className={className} aria-hidden />;
+}
+
+function VerifiedInformationItem({
+  item,
+}: {
+  item: {
+    id: string;
+    category: string;
+    title: string;
+    details: string | null;
+    verifiedAt: string;
+    verifiedByName: string;
+  };
+}) {
+  return (
+    <li className="overflow-hidden rounded-[10px] border border-[#E5E7EB] bg-white shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
+      <div className="flex">
+        <div className="w-1 shrink-0 bg-[color:var(--brand-primary)]" aria-hidden />
+        <div className="min-w-0 flex-1 px-3.5 py-3">
+          <div className="flex items-start gap-3">
+            <span
+              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full"
+              style={{
+                backgroundColor: "color-mix(in srgb, var(--brand-primary) 12%, white)",
+              }}
+            >
+              <VerifiedCategoryIcon category={item.category} />
+            </span>
+            <div className="min-w-0 flex-1">
+              <span
+                className={`inline-flex rounded-md px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide ${verifiedCategoryBadgeClass(item.category)}`}
+              >
+                {verifiedCategoryLabel(item.category)}
+              </span>
+              <p className="mt-2 text-sm font-semibold leading-5 text-[#101828]">{item.title}</p>
+              {item.details ? (
+                <p className="mt-1.5 text-sm leading-6 text-[#475467]">{item.details}</p>
+              ) : null}
+              <p className="mt-2 text-xs text-[#94A3B8]">
+                Verified by {item.verifiedByName}
+                {item.verifiedAt ? ` · ${formatWhen(item.verifiedAt)}` : ""}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </li>
+  );
+}
+
+function resolveAnalyzedResumeId(
+  resumes: Array<{ id: string; uploadedAt?: string }>,
+  analyzedAt: string | null | undefined,
+  isAnalyzed: boolean
+): string | null {
+  if (!isAnalyzed || !analyzedAt?.trim() || resumes.length === 0) return null;
+  const analyzedTime = new Date(analyzedAt).getTime();
+  if (Number.isNaN(analyzedTime)) return null;
+
+  const eligible = resumes.filter((resume) => {
+    if (!resume.uploadedAt) return false;
+    const uploadedTime = new Date(resume.uploadedAt).getTime();
+    return !Number.isNaN(uploadedTime) && uploadedTime <= analyzedTime;
+  });
+
+  if (eligible.length === 0) return null;
+  return eligible[eligible.length - 1]?.id ?? null;
+}
+
 function formatRequirementType(type: string): string {
   const normalized = type.trim().toLowerCase();
   if (normalized === "mandatory") return "Mandatory";
@@ -198,17 +361,18 @@ function formatRequirementType(type: string): string {
   return type;
 }
 
+const CHECKLIST_BADGE =
+  "inline-flex items-center justify-center rounded-md px-2.5 py-1 text-center text-xs font-semibold text-white";
+
 function typeBadgeClass(type: string) {
-  return formatRequirementType(type) === "Mandatory"
-    ? "bg-[#DCFCE7] text-[#166534]"
-    : "bg-[#E0F2FE] text-[#075985]";
+  return formatRequirementType(type) === "Mandatory" ? "bg-[#00B135]" : "bg-[#0284C7]";
 }
 
 function statusBadgeClass(status: QualificationDisplayStatus) {
-  if (status === "Confirmed") return "bg-[#DBEAFE] text-[#1D4ED8]";
-  if (status === "Blocking") return "bg-[#FEE2E2] text-[#991B1B]";
-  if (status === "Not Met") return "bg-[#FFEDD5] text-[#9A3412]";
-  return "bg-[#FEF9C3] text-[#854D0E]";
+  if (status === "Confirmed") return "bg-[#2563EB]";
+  if (status === "Blocking") return "bg-[#DC2626]";
+  if (status === "Not Met") return "bg-[#EA580C]";
+  return "bg-[#CA8A04]";
 }
 
 function ringStrokeColor(score: number | null | undefined): string {
@@ -234,7 +398,8 @@ export function AiAnalysisOverviewClient({
 }: AiAnalysisOverviewClientProps) {
   const branding = useTenantBranding();
   const brandStyle = brandingToCssVars(branding) as CSSProperties;
-  const workspace = useMatchAnalysisWorkspace(applicationId);
+  const [workspaceReloadToken, setWorkspaceReloadToken] = useState(0);
+  const workspace = useMatchAnalysisWorkspace(applicationId, workspaceReloadToken);
   const {
     loading,
     analyzing,
@@ -243,6 +408,8 @@ export function AiAnalysisOverviewClient({
     blocking,
     verifyItems,
     isAnalyzed,
+    verifyingId,
+    toggleVerified,
     recommendedAnswers,
     setRecommendedAnswers,
     savingAnswers,
@@ -255,6 +422,8 @@ export function AiAnalysisOverviewClient({
     setVerifiedTitle,
     verifiedDetails,
     setVerifiedDetails,
+    verifiedCategory,
+    setVerifiedCategory,
     savingVerified,
     teamMembers,
     assignedId,
@@ -283,6 +452,126 @@ export function AiAnalysisOverviewClient({
   const [openReqId, setOpenReqId] = useState("");
   const [dataQualityOpen, setDataQualityOpen] = useState(true);
 
+  /* ── Resume History Modal state ── */
+  const [resumeHistoryOpen, setResumeHistoryOpen] = useState(false);
+  const [resumeHistoryItems, setResumeHistoryItems] = useState<ResumeHistoryItem[]>([]);
+  const [resumeHistoryLoading, setResumeHistoryLoading] = useState(false);
+  const [resumeHistoryError, setResumeHistoryError] = useState<string | null>(null);
+  const [resumeHistoryBusyId, setResumeHistoryBusyId] = useState<string | null>(null);
+  const [resumeUploading, setResumeUploading] = useState(false);
+  const resumeInputRef = useRef<HTMLInputElement>(null);
+
+  const loadResumeHistory = useCallback(async () => {
+    setResumeHistoryLoading(true);
+    setResumeHistoryError(null);
+    try {
+      const response = await fetch(
+        `/api/admin/job-applications/${encodeURIComponent(applicationId)}/resume-history`,
+        { cache: "no-store" }
+      );
+      const payload = (await response.json()) as {
+        error?: string;
+        resumes?: ResumeHistoryItem[];
+      };
+      if (!response.ok) throw new Error(payload.error || "Could not load resume history.");
+      setResumeHistoryItems(payload.resumes ?? []);
+    } catch (err) {
+      setResumeHistoryError(err instanceof Error ? err.message : "Could not load resume history.");
+      setResumeHistoryItems([]);
+    } finally {
+      setResumeHistoryLoading(false);
+    }
+  }, [applicationId]);
+
+  function openResumeHistory() {
+    setResumeHistoryOpen(true);
+    void loadResumeHistory();
+  }
+
+  async function viewResumeFromHistory(resumeId: string) {
+    setResumeHistoryBusyId(resumeId);
+    try {
+      const response = await fetch(
+        `/api/admin/job-applications/${encodeURIComponent(applicationId)}/resumes/${encodeURIComponent(resumeId)}`,
+        { cache: "no-store" }
+      );
+      const payload = (await response.json().catch(() => ({}))) as { url?: string; error?: string };
+      const url = payload.url?.trim() ?? "";
+      if (!response.ok || !url) throw new Error(payload.error || "Could not open resume.");
+      window.open(url, "_blank", "noopener,noreferrer");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not open resume.");
+    } finally {
+      setResumeHistoryBusyId(null);
+    }
+  }
+
+  async function parseResumeFromHistory(resumeId: string) {
+    setResumeHistoryBusyId(resumeId);
+    try {
+      const response = await fetch(
+        `/api/admin/job-applications/${encodeURIComponent(applicationId)}/resumes/${encodeURIComponent(resumeId)}/parse`,
+        { method: "POST" }
+      );
+      const payload = (await response.json().catch(() => ({}))) as { error?: string; resumes?: ResumeHistoryItem[] };
+      if (!response.ok) throw new Error(payload.error || "Could not parse resume.");
+      if (payload.resumes) setResumeHistoryItems(payload.resumes);
+      else await loadResumeHistory();
+      toast.success("Resume parsed.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not parse resume.");
+    } finally {
+      setResumeHistoryBusyId(null);
+    }
+  }
+
+  async function deleteResumeFromHistory(resumeId: string, fileName: string) {
+    if (!window.confirm(`Delete ${fileName}? This cannot be undone.`)) return;
+    setResumeHistoryBusyId(resumeId);
+    try {
+      const response = await fetch(
+        `/api/admin/job-applications/${encodeURIComponent(applicationId)}/resumes/${encodeURIComponent(resumeId)}`,
+        { method: "DELETE" }
+      );
+      const payload = (await response.json().catch(() => ({}))) as { resumes?: ResumeHistoryItem[]; error?: string };
+      if (!response.ok) throw new Error(payload.error || "Could not delete resume.");
+      setResumeHistoryItems(payload.resumes ?? []);
+      setWorkspaceReloadToken((t) => t + 1);
+      toast.success("Resume deleted.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not delete resume.");
+    } finally {
+      setResumeHistoryBusyId(null);
+    }
+  }
+
+  function beginReuploadResume() {
+    resumeInputRef.current?.click();
+  }
+
+  async function handleResumeFileSelected(file: File | undefined) {
+    if (!file) return;
+    setResumeUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("resume", file);
+      const response = await fetch(
+        `/api/admin/job-applications/${encodeURIComponent(applicationId)}/resume`,
+        { method: "POST", body: formData }
+      );
+      const payload = (await response.json().catch(() => ({}))) as { error?: string; resumes?: ResumeHistoryItem[] };
+      if (!response.ok) throw new Error(payload.error || "Could not upload resume.");
+      await loadResumeHistory();
+      setWorkspaceReloadToken((t) => t + 1);
+      toast.success("Resume uploaded.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not upload resume.");
+    } finally {
+      setResumeUploading(false);
+      if (resumeInputRef.current) resumeInputRef.current.value = "";
+    }
+  }
+
   const app = data?.application;
   const matchScore = app?.ai_match_score ?? 0;
   const matchLabel =
@@ -301,13 +590,47 @@ export function AiAnalysisOverviewClient({
   const recommendedQuestions = data?.recommendedQuestions ?? [];
   const resumeCompleteness = analysis?.data_quality?.resume_completeness ?? "—";
   const jobCompleteness = analysis?.data_quality?.job_description_completeness ?? "—";
-  const latestHistory = data?.analysisHistory?.[0];
+  const analysisHistory = useMemo(() => {
+    const rows = data?.analysisHistory ?? [];
+    if (rows.length) return rows;
+    if (!app || (app.ai_match_status !== "ANALYZED" && app.ai_match_score == null)) return [];
+    return [
+      {
+        id: app.id,
+        version: Number(app.ai_analysis_version) || 1,
+        score: app.ai_match_score,
+        category: app.ai_match_category,
+        display_category: app.ai_match_display_category,
+        model: app.ai_analysis_model,
+        analyzed_at: app.ai_analyzed_at ?? "",
+      },
+    ];
+  }, [data?.analysisHistory, app]);
 
-  useEffect(() => {
-    if (!openReqId && data?.requirements?.[0]?.id) {
-      setOpenReqId(data.requirements[0].id);
-    }
-  }, [data?.requirements, openReqId]);
+  const noteFeedItems = useMemo(() => {
+    const verified = (data?.verifiedInformation ?? []).map((item) => ({
+      kind: "verified" as const,
+      id: item.id,
+      sortAt: item.verifiedAt,
+      item,
+    }));
+    const notes = (data?.notes ?? []).map((note) => ({
+      kind: "note" as const,
+      id: note.id,
+      sortAt: note.created_at,
+      note,
+    }));
+    return [...verified, ...notes].sort(
+      (a, b) => new Date(b.sortAt).getTime() - new Date(a.sortAt).getTime()
+    );
+  }, [data?.verifiedInformation, data?.notes]);
+
+  const latestResumeId =
+    resumes.length > 1 ? resumes[resumes.length - 1]?.id ?? null : null;
+  const analyzedResumeId = useMemo(
+    () => resolveAnalyzedResumeId(resumes, app?.ai_analyzed_at, isAnalyzed),
+    [resumes, app?.ai_analyzed_at, isAnalyzed]
+  );
 
   const filteredRequirements = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -470,10 +793,10 @@ export function AiAnalysisOverviewClient({
               <table className="min-w-[720px] w-full text-left">
                 <thead>
                   <tr className="border-b border-[#E5E7EB] text-[11px] font-semibold uppercase tracking-wide text-[#667085]">
-                    <th className="py-3 pr-3">Requirement</th>
-                    <th className="py-3 pr-3">Type</th>
-                    <th className="py-3 pr-3">Status</th>
-                    <th className="py-3">Action</th>
+                    <th className="py-3 pr-3 text-left">Requirement</th>
+                    <th className="py-3 pr-3 text-center">Type</th>
+                    <th className="py-3 pr-3 text-center">Status</th>
+                    <th className="py-3 text-left">Action</th>
                     <th className="w-10 py-3" />
                   </tr>
                 </thead>
@@ -484,21 +807,22 @@ export function AiAnalysisOverviewClient({
                     const actionLabel = recruiterActionLabel(row);
                     return (
                       <Fragment key={row.id}>
-                        <tr className={open ? "" : "border-b border-[#F2F4F7]"}>
+                        <tr
+                          className={`cursor-pointer hover:bg-[#F9FAFB] ${open ? "" : "border-b border-[#F2F4F7]"}`}
+                          onClick={() => setOpenReqId(open ? "" : row.id)}
+                        >
                           <td className="py-3.5 pr-3">
-                            <p className="text-sm font-medium leading-5 text-[#101828]">{row.requirement_text}</p>
+                            <p className="cursor-pointer text-sm font-medium leading-5 text-[#101828]">
+                              {row.requirement_text}
+                            </p>
                           </td>
-                          <td className="py-3.5 pr-3">
-                            <span
-                              className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${typeBadgeClass(row.requirement_type)}`}
-                            >
+                          <td className="py-3.5 pr-3 text-center">
+                            <span className={`${CHECKLIST_BADGE} ${typeBadgeClass(row.requirement_type)}`}>
                               {formatRequirementType(row.requirement_type)}
                             </span>
                           </td>
-                          <td className="py-3.5 pr-3">
-                            <span
-                              className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${statusBadgeClass(displayStatus)}`}
-                            >
+                          <td className="py-3.5 pr-3 text-center">
+                            <span className={`${CHECKLIST_BADGE} ${statusBadgeClass(displayStatus)}`}>
                               {displayStatus}
                             </span>
                           </td>
@@ -506,30 +830,66 @@ export function AiAnalysisOverviewClient({
                           <td className="py-3.5">
                             <button
                               type="button"
-                              className="inline-flex h-8 w-8 items-center justify-center rounded-md text-[#667085] hover:bg-[#F2F4F7]"
+                              className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-md text-[#667085] hover:bg-[#F2F4F7]"
                               aria-expanded={open}
-                              aria-label={open ? "Collapse requirement" : "Expand requirement"}
-                              onClick={() => setOpenReqId(open ? "" : row.id)}
-                              disabled={!row.candidate_evidence}
+                              aria-label={open ? "Collapse candidate evidence" : "Expand candidate evidence"}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                setOpenReqId(open ? "" : row.id);
+                              }}
                             >
                               {open ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                             </button>
                           </td>
                         </tr>
-                        {open && row.candidate_evidence ? (
+                        {open ? (
                           <tr className="border-b border-[#F2F4F7]">
                             <td colSpan={5} className="pb-4 pr-3">
                               <div className="rounded-lg border border-[#E5E7EB] bg-[#F8FAFC] p-3">
                                 <p className="text-[11px] font-semibold uppercase tracking-wide text-[#667085]">
                                   Candidate Evidence
                                 </p>
-                                <blockquote className="mt-2 border-l-[3px] border-[color:var(--brand-primary)] pl-3 text-sm italic leading-6 text-[#344054]">
-                                  {row.candidate_evidence}
-                                </blockquote>
+                                <div className="mt-2 flex items-start justify-between gap-4">
+                                  <div className="min-w-0 flex-1">
+                                    {row.candidate_evidence ? (
+                                      <blockquote className="border-l-[3px] border-[color:var(--brand-primary)] pl-3 text-sm italic leading-6 text-[#344054]">
+                                        {row.candidate_evidence}
+                                      </blockquote>
+                                    ) : (
+                                      <p className="text-sm leading-6 text-[#667085]">
+                                        No candidate evidence recorded.
+                                      </p>
+                                    )}
+                                    {row.impact ? (
+                                      <p className="mt-2 text-xs leading-5 text-[#667085]">
+                                        <span className="font-semibold text-[#475467]">Impact:</span> {row.impact}
+                                      </p>
+                                    ) : null}
+                                  </div>
+                                  <label
+                                    htmlFor={`recruiter-verified-${row.id}`}
+                                    className="inline-flex shrink-0 cursor-pointer items-center gap-2 whitespace-nowrap pt-0.5 text-sm font-medium text-[#344054]"
+                                    onClick={(event) => event.stopPropagation()}
+                                  >
+                                    <ListTableCheckbox
+                                      id={`recruiter-verified-${row.id}`}
+                                      size="md"
+                                      className="cursor-pointer"
+                                      checked={row.recruiter_verified}
+                                      disabled={verifyingId === row.id}
+                                      onChange={() => void toggleVerified(row)}
+                                      aria-label={`Recruiter verified: ${row.requirement_text}`}
+                                    />
+                                    Recruiter verified
+                                    {verifyingId === row.id ? (
+                                      <Loader2 className="h-3.5 w-3.5 animate-spin text-[#98A2B3]" />
+                                    ) : null}
+                                  </label>
+                                </div>
                                 <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-[#667085]">
                                   <button
                                     type="button"
-                                    className="font-medium text-[color:var(--brand-primary)] hover:underline"
+                                    className="cursor-pointer font-medium text-[color:var(--brand-primary)] hover:underline"
                                     onClick={() => setOpenReqId("")}
                                   >
                                     Show less
@@ -628,23 +988,21 @@ export function AiAnalysisOverviewClient({
                     {recommendedQuestions.length} targeted questions to confirm before submission.
                   </p>
                 </div>
-                <button
-                  type="button"
-                  className={`${OUTLINE_BTN} h-10 gap-2 px-3`}
-                  onClick={() => {
-                    if (!recommendedQuestions.length) {
-                      toast.error("No screening questions to copy.");
-                      return;
+                {recommendedQuestions.length ? (
+                  <button
+                    type="button"
+                    className={`${OUTLINE_BTN} h-10 gap-2 px-3`}
+                    onClick={() =>
+                      copyText(
+                        recommendedQuestions.map((item, index) => `${index + 1}. ${item.question}`).join("\n\n"),
+                        "Questions copied"
+                      )
                     }
-                    copyText(
-                      recommendedQuestions.map((item, index) => `${index + 1}. ${item.question}`).join("\n\n"),
-                      "Questions copied"
-                    );
-                  }}
-                >
-                  <Copy className="h-4 w-4" aria-hidden />
-                  Copy all
-                </button>
+                  >
+                    <Copy className="h-4 w-4" aria-hidden />
+                    Copy all
+                  </button>
+                ) : null}
               </div>
             </SectionHeaderBlock>
 
@@ -695,16 +1053,18 @@ export function AiAnalysisOverviewClient({
               )}
             </div>
 
-            <div className="mt-4 flex justify-end">
-              <button
-                type="button"
-                className={OUTLINE_BTN}
-                disabled={savingAnswers}
-                onClick={() => void saveScreeningAnswers()}
-              >
-                {savingAnswers ? "Saving…" : "Save screening answers"}
-              </button>
-            </div>
+            {recommendedQuestions.length ? (
+              <div className="mt-4 flex justify-end">
+                <button
+                  type="button"
+                  className={OUTLINE_BTN}
+                  disabled={savingAnswers}
+                  onClick={() => void saveScreeningAnswers()}
+                >
+                  {savingAnswers ? "Saving…" : "Save screening answers"}
+                </button>
+              </div>
+            ) : null}
           </section>
 
           <section className={CARD}>
@@ -832,27 +1192,49 @@ export function AiAnalysisOverviewClient({
             <SidebarSectionHeader title="Resume" />
             {resumes.length > 0 ? (
               <div className="mt-4 flex flex-col gap-2">
-                {resumes.map((resume) => (
+                {resumes.map((resume, index) => {
+                  const isLatest = resumes.length > 1 && index === resumes.length - 1;
+                  return (
                     <div
                       key={resume.id}
-                      className="flex items-center gap-3 rounded-lg border border-[#E5E7EB] px-3 py-3"
+                      className={`flex items-start gap-3 rounded-lg px-3 py-2.5 ${
+                        isLatest
+                          ? "border border-[#E5E7EB] bg-white"
+                          : "border border-[#E5E7EB] bg-white"
+                      }`}
                     >
                       <BrandedFileTypeIcon
                         type={resume.fileIconType ?? "pdf"}
-                        className="h-7 w-7 shrink-0"
+                        className="mt-0.5 h-7 w-7 shrink-0"
                       />
-                      <button
-                        type="button"
-                        disabled={openingResumeId === resume.id}
-                        onClick={() => void viewResume(resume.id)}
-                        className="min-w-0 truncate text-left text-sm font-semibold text-[color:var(--brand-primary)] hover:underline disabled:opacity-60"
-                        title={`View ${resume.fileName}`}
-                        aria-label={`View ${resume.fileName}`}
-                      >
-                        {resume.fileName}
-                      </button>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start justify-between gap-2">
+                          <button
+                            type="button"
+                            disabled={openingResumeId === resume.id}
+                            onClick={() => void viewResume(resume.id)}
+                            className="block max-w-full truncate text-left text-sm font-semibold text-[color:var(--brand-primary)] hover:underline disabled:opacity-60"
+                            title={`View ${resume.fileName}`}
+                            aria-label={`View ${resume.fileName}`}
+                          >
+                            {resume.fileName}
+                          </button>
+                          {isLatest ? (
+                            <span className="shrink-0 rounded-md bg-[color:var(--brand-secondary)] px-2 py-0.5 text-[11px] font-semibold text-white">
+                              Latest
+                            </span>
+                          ) : null}
+                        </div>
+                        {resume.uploadedAtLabel || resume.uploadedAt ? (
+                          <p className="mt-0.5 text-xs text-[#667085]">
+                            Uploaded{" "}
+                            {resume.uploadedAtLabel || formatWhen(resume.uploadedAt)}
+                          </p>
+                        ) : null}
+                      </div>
                     </div>
-                ))}
+                  );
+                })}
               </div>
             ) : (
               <div className="mt-4 flex items-center gap-3 rounded-lg border border-[#E5E7EB] px-3 py-3">
@@ -887,37 +1269,80 @@ export function AiAnalysisOverviewClient({
 
           <section className={CARD}>
             <SidebarSectionHeader
+              title="Notes"
+              subtitle="Recruiter notes and verified evidence for this workspace."
+            />
+            {noteFeedItems.length ? (
+              <ul className="mt-4 space-y-3">
+                {noteFeedItems.map((entry) =>
+                  entry.kind === "verified" ? (
+                    <VerifiedInformationItem key={`verified-${entry.id}`} item={entry.item} />
+                  ) : (
+                    <li
+                      key={`note-${entry.id}`}
+                      className="rounded-lg border border-[#E5E7EB] bg-[#FCFCFD] px-3 py-2.5 text-sm text-[#344054]"
+                    >
+                      <p>{entry.note.body}</p>
+                      <p className="mt-1 text-xs text-[#94A3B8]">
+                        {entry.note.author_name} · {formatWhen(entry.note.created_at)}
+                      </p>
+                    </li>
+                  )
+                )}
+              </ul>
+            ) : (
+              <p className="mt-4 text-sm text-[#667085]">No notes or verified information yet.</p>
+            )}
+          </section>
+
+          <section className={CARD}>
+            <SidebarSectionHeader
               title="Verified information"
               subtitle="Stored as recruiter-confirmed evidence."
             />
-            <div className="mt-4 space-y-3">
-              {(data?.verifiedInformation ?? []).length ? (
-                <ul className="space-y-2">
-                  {data?.verifiedInformation?.map((item) => (
-                    <li key={item.id} className="rounded-lg border border-[#E5E7EB] bg-[#F8FAFC] px-3 py-2 text-sm">
-                      <p className="font-medium text-[#101828]">{item.title}</p>
-                      {item.details ? <p className="text-[#475467]">{item.details}</p> : null}
-                    </li>
-                  ))}
-                </ul>
-              ) : null}
-              <Field label="Title">
-                <input
-                  value={verifiedTitle}
-                  onChange={(event) => setVerifiedTitle(event.target.value)}
-                  className={FIELD}
-                  placeholder="License, certification, availability…"
-                />
-              </Field>
-              <Field label="Details">
-                <textarea
-                  value={verifiedDetails}
-                  onChange={(event) => setVerifiedDetails(event.target.value)}
-                  rows={3}
-                  className={AREA}
-                  placeholder="Additional verified details…"
-                />
-              </Field>
+            <div className="mt-4 space-y-4">
+              <div>
+                <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-[#667085]">
+                  Add new
+                </p>
+                <div className="space-y-3">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-[140px_minmax(0,1fr)]">
+                    <Field label="Category">
+                      <select
+                        value={verifiedCategory}
+                        onChange={(event) =>
+                          setVerifiedCategory(event.target.value as VerifiedInfoCategory)
+                        }
+                        className={SELECT_FIELD}
+                        style={{ backgroundImage: SELECT_CHEVRON }}
+                      >
+                        {VERIFIED_INFO_CATEGORIES.map((category) => (
+                          <option key={category} value={category}>
+                            {VERIFIED_INFO_CATEGORY_LABELS[category]}
+                          </option>
+                        ))}
+                      </select>
+                    </Field>
+                    <Field label="Title">
+                      <input
+                        value={verifiedTitle}
+                        onChange={(event) => setVerifiedTitle(event.target.value)}
+                        className={FIELD}
+                        placeholder="License, certification, availability…"
+                      />
+                    </Field>
+                  </div>
+                  <Field label="Details">
+                    <textarea
+                      value={verifiedDetails}
+                      onChange={(event) => setVerifiedDetails(event.target.value)}
+                      rows={3}
+                      className={AREA}
+                      placeholder="Additional verified details…"
+                    />
+                  </Field>
+                </div>
+              </div>
             </div>
             <button
               type="button"
@@ -927,27 +1352,6 @@ export function AiAnalysisOverviewClient({
             >
               {savingVerified ? "Saving…" : "Add Verified Information"}
             </button>
-          </section>
-
-          <section className={CARD}>
-            <SidebarSectionHeader
-              title="Notes"
-              subtitle="Visible to recruiters in this workspace."
-            />
-            {(data?.notes ?? []).length ? (
-              <ul className="mt-4 space-y-2">
-                {data?.notes?.map((note) => (
-                  <li key={note.id} className="rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm text-[#344054]">
-                    <p>{note.body}</p>
-                    <p className="mt-1 text-xs text-[#94A3B8]">
-                      {note.author_name} · {formatWhen(note.created_at)}
-                    </p>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="mt-4 text-sm text-[#667085]">No notes yet.</p>
-            )}
           </section>
 
           <section className={CARD}>
@@ -1003,44 +1407,25 @@ export function AiAnalysisOverviewClient({
 
           <section className={CARD}>
             <SidebarSectionHeader title="Analysis history" />
-            {latestHistory ? (
-              <>
-                <p className="mt-4 text-xl font-semibold text-[#101828]">
-                  {formatMatchScore(latestHistory.score)} ·{" "}
-                  {latestHistory.display_category || formatMatchCategory(latestHistory.category)}
-                </p>
-                <p className="mt-1 text-sm text-[#667085]">
-                  {formatWhen(latestHistory.analyzed_at)}
-                  {latestHistory.model ? ` · ${latestHistory.model}` : ""}
-                </p>
-              </>
+            {analysisHistory.length ? (
+              <ul className="mt-4 flex flex-col gap-2">
+                {analysisHistory.map((item) => (
+                  <AnalysisHistoryItem key={item.id} item={item} />
+                ))}
+              </ul>
             ) : (
               <p className="mt-4 text-sm text-[#667085]">No previous analysis versions.</p>
             )}
-            {(data?.analysisHistory?.length ?? 0) > 1 ? (
-              <ul className="mt-4 space-y-2 border-t border-[#E5E7EB] pt-4">
-                {data?.analysisHistory?.slice(1).map((item) => (
-                  <li key={item.id} className="text-sm text-[#475467]">
-                    Version {item.version} · {formatMatchScore(item.score)} ·{" "}
-                    {item.display_category || formatMatchCategory(item.category)}
-                    <span className="mt-0.5 block text-xs text-[#94A3B8]">{formatWhen(item.analyzed_at)}</span>
-                  </li>
-                ))}
-              </ul>
-            ) : null}
           </section>
 
           <div className="grid grid-cols-2 gap-3">
-            <Link
-              href={
-                jobId
-                  ? `/admin_recruiter/applications/review?jobId=${encodeURIComponent(jobId)}&applicationId=${encodeURIComponent(applicationId)}`
-                  : `/admin_recruiter/applications/review?applicationId=${encodeURIComponent(applicationId)}`
-              }
+            <button
+              type="button"
+              onClick={openResumeHistory}
               className={`${OUTLINE_BTN} w-full text-center`}
             >
               Update Resume
-            </Link>
+            </button>
             <button type="button" className={`${OUTLINE_BTN} w-full`}>
               Download Assessment
             </button>
@@ -1050,6 +1435,35 @@ export function AiAnalysisOverviewClient({
           </div>
         </aside>
       </div>
+
+      {/* Hidden file input for resume re-upload */}
+      <input
+        ref={resumeInputRef}
+        type="file"
+        accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+        className="hidden"
+        onChange={(e) => void handleResumeFileSelected(e.target.files?.[0])}
+      />
+
+      <ResumeHistoryModal
+        open={resumeHistoryOpen}
+        jobTitle={jobTitle}
+        resumes={resumeHistoryItems}
+        loading={resumeHistoryLoading}
+        error={resumeHistoryError}
+        busyResumeId={resumeHistoryBusyId}
+        reuploadBusy={resumeUploading}
+        reuploadDisabled={false}
+        reuploadDisabledReason={null}
+        onClose={() => {
+          if (resumeUploading || resumeHistoryBusyId) return;
+          setResumeHistoryOpen(false);
+        }}
+        onReupload={beginReuploadResume}
+        onView={viewResumeFromHistory}
+        onDelete={deleteResumeFromHistory}
+        onParse={parseResumeFromHistory}
+      />
     </div>
   );
 }

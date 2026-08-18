@@ -138,11 +138,7 @@ function ResumeHistoryRow({
           aria-label={`View ${resume.fileName}`}
           title="View resume"
         >
-          {busy ? (
-            <Loader2 className="h-4 w-4 animate-spin text-[color:var(--brand-primary)]" aria-hidden />
-          ) : (
-            <BrandedSvgIcon src="/icons/admin-recruiter/eye.svg" className="h-4 w-4" color={BRAND_PRIMARY} />
-          )}
+          <BrandedSvgIcon src="/icons/admin-recruiter/eye.svg" className="h-4 w-4" color={BRAND_PRIMARY} />
         </button>
         <button
           type="button"
@@ -226,7 +222,7 @@ export function ResumeHistoryModal({
             type="button"
             disabled={modalBusy}
             onClick={onClose}
-            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-[#64748B] transition hover:bg-[#F8FAFC] disabled:opacity-50"
+            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-black transition hover:bg-[#F8FAFC] disabled:opacity-50"
             aria-label="Close resume history"
           >
             <X className="h-5 w-5" aria-hidden />

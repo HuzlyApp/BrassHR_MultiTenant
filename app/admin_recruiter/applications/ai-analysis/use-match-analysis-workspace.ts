@@ -31,6 +31,7 @@ export type MatchAnalysisWorkspacePayload = {
     ai_analysis_error: string | null;
     ai_analysis_version: number | null;
     ai_analysis_model: string | null;
+    ai_analyzed_at?: string | null;
     recruiter_decision: string | null;
     recruiter_decision_note: string | null;
     recruiter_decision_at: string | null;
@@ -84,6 +85,8 @@ export type UploadedResumeItem = {
   id: string;
   fileName: string;
   fileIconType?: "pdf" | "jpeg";
+  uploadedAt?: string;
+  uploadedAtLabel?: string;
 };
 
 export type CandidateInfoState = {
@@ -237,7 +240,12 @@ export function useMatchAnalysisWorkspace(applicationId: string, reloadToken = 0
         };
         if (cancelled) return;
         if (!res.ok) throw new Error(json.error || "Failed to load resumes");
-        setResumes(json.resumes ?? []);
+        const rows = [...(json.resumes ?? [])].sort((a, b) => {
+          const aTime = a.uploadedAt ? new Date(a.uploadedAt).getTime() : 0;
+          const bTime = b.uploadedAt ? new Date(b.uploadedAt).getTime() : 0;
+          return aTime - bTime;
+        });
+        setResumes(rows);
       })
       .catch(() => {
         if (!cancelled) setResumes([]);
@@ -245,7 +253,7 @@ export function useMatchAnalysisWorkspace(applicationId: string, reloadToken = 0
     return () => {
       cancelled = true;
     };
-  }, [applicationId]);
+  }, [applicationId, reloadToken]);
 
   useEffect(() => {
     if (!profile) return;
@@ -303,7 +311,21 @@ export function useMatchAnalysisWorkspace(applicationId: string, reloadToken = 0
       );
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json.error || "Failed to update verification");
-      await load();
+      setData((current) => {
+        if (!current) return current;
+        return {
+          ...current,
+          requirements: current.requirements.map((item) =>
+            item.id === req.id
+              ? {
+                  ...item,
+                  recruiter_verified: Boolean(json.requirement?.recruiter_verified),
+                  recruiter_note: json.requirement?.recruiter_note ?? item.recruiter_note,
+                }
+              : item
+          ),
+        };
+      });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Verification update failed");
     } finally {
