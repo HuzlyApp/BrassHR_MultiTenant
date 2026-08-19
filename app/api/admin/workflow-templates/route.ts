@@ -63,7 +63,7 @@ type CreateBody = {
   flowName?: string;
   status?: "draft" | "published" | "unpublished";
   publish?: boolean;
-  employmentType?: "W2" | "1099" | null;
+  employmentType?: "W2" | "1099" | "RNR" | null;
 };
 
 export async function POST(req: NextRequest) {

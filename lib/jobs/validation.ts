@@ -181,7 +181,7 @@ export function workflowNoMatchMessage(
   professionName: string,
   key: Pick<WorkflowMatchKey, "employmentType" | "specialtyId" | "location" | "jobLocationType" | "yearsOfExperience">
 ): string {
-  const employmentLabel = key.employmentType === "Contract" ? "R&R" : key.employmentType;
+  const employmentLabel = key.employmentType === "Contract" ? "RNR" : key.employmentType;
   const lines = [
     "No published workflow is configured for this job.",
     "",

@@ -151,7 +151,13 @@ export function resolveStepPreviewKind(
     return "job_application";
   }
   if (libraryId === "offer-acceptance") return "offer_acceptance";
-  if (libraryId === "manager-facility-approval" || libraryId === "hr-final-approval") {
+  if (
+    libraryId === "manager-facility-approval" ||
+    libraryId === "hr-final-approval" ||
+    libraryId === "client-review" ||
+    libraryId === "candidate-selection" ||
+    libraryId === "recruiter-screening"
+  ) {
     return "approval";
   }
   if (

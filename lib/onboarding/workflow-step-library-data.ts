@@ -282,6 +282,43 @@ export const WORKFLOW_STEP_LIBRARY_DATA: WorkflowStepLibraryCategory[] = [
         stepType: "custom_question",
       },
       {
+        id: "recruiter-screening",
+        label: "Recruiter Screening",
+        iconKey: "reference-verification",
+        description: "Recruiter screens the candidate before client review.",
+        stepType: "custom_question",
+      },
+      {
+        id: "interview-qualification",
+        label: "Interview / Qualification",
+        iconKey: "manager-welcome-call",
+        description: "Track interview or qualification steps for the candidate.",
+        stepType: "custom_question",
+      },
+      {
+        id: "client-review",
+        label: "Client Review",
+        iconKey: "manager-facility-approval",
+        description: "Client reviews the candidate before hire or handoff.",
+        stepType: "custom_question",
+      },
+      {
+        id: "candidate-selection",
+        label: "Candidate Approval / Selection",
+        iconKey: "hr-final-approval",
+        description: "Approve or select the candidate for client handoff.",
+        stepType: "custom_question",
+      },
+      {
+        id: "release-to-client",
+        label: "Release to Client",
+        iconKey: "completion-milestone",
+        description:
+          "Mark recruitment complete and hand the candidate off to the client for final hiring.",
+        stepType: "custom_question",
+        defaultPhase: "transition",
+      },
+      {
         id: "conditional-branch-decision",
         label: "Conditional Branch",
         iconKey: "conditional-branch-decision",

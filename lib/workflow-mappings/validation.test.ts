@@ -49,6 +49,24 @@ describe("validateWorkflowCompatibility", () => {
     ).toContain("W2");
   });
 
+  it("allows Contract job criteria to map to an RNR workflow", () => {
+    expect(
+      validateWorkflowCompatibility(
+        { employmentType: "Contract" },
+        { id: "1", tenantId: "t1", name: "RNR Flow", status: "published", employmentType: "RNR" }
+      )
+    ).toBeNull();
+  });
+
+  it("rejects mapping W2 criteria to an RNR-only workflow", () => {
+    expect(
+      validateWorkflowCompatibility(
+        { employmentType: "W2" },
+        { id: "1", tenantId: "t1", name: "RNR Flow", status: "published", employmentType: "RNR" }
+      )
+    ).toContain("RNR");
+  });
+
   it("allows compatible or untyped workflows", () => {
     expect(
       validateWorkflowCompatibility(

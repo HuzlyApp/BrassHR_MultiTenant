@@ -6,6 +6,7 @@ import { useEffect, useState, type CSSProperties } from "react";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
 import { CANDIDATES_PAGE_SUBTITLE_STYLE } from "@/app/admin_recruiter/candidates/candidates-typography";
+import { employmentTypeDisplayLabel } from "@/lib/jobs/employment-type";
 import type { JobListRow } from "./render-job-list-cell";
 
 export type JobsExtendedFilterValues = {
@@ -275,7 +276,7 @@ export function EditJobsFiltersModal({
               >
                 {options.employmentTypes.map((item) => (
                   <option key={item} value={item}>
-                    {item}
+                    {employmentTypeDisplayLabel(item)}
                   </option>
                 ))}
               </ModalFilterField>

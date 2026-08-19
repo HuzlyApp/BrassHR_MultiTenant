@@ -41,6 +41,11 @@ const SCREENING_LIBRARY_STEP_IDS = new Set([
 const INTERNAL_LIBRARY_STEP_IDS = new Set([
   "manager-facility-approval",
   "hr-final-approval",
+  "recruiter-screening",
+  "interview-qualification",
+  "client-review",
+  "candidate-selection",
+  "release-to-client",
   "completion-milestone",
   "reference-verification",
   "oig-exclusion-check",

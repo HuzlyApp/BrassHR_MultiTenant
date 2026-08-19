@@ -1,4 +1,9 @@
 import type { EmploymentType } from "@/lib/jobs/types";
+import {
+  employmentTypeDisplayLabel,
+  employmentTypesMatch,
+  isRnrEmploymentType,
+} from "@/lib/jobs/employment-type";
 import type { WorkflowMappingInput, WorkflowMappingKey } from "@/lib/workflow-mappings/types";
 
 export type PublishedWorkflowMeta = {
@@ -62,7 +67,7 @@ function attributeMatches(
 
 /** True when every configured attribute on the mapping matches the job key. */
 export function mappingMatchesJob(mapping: MappingCandidate, job: WorkflowMappingKey): boolean {
-  if (mapping.employmentType !== job.employmentType) return false;
+  if (!employmentTypesMatch(mapping.employmentType, job.employmentType)) return false;
   if (mapping.professionId && mapping.professionId !== (job.professionId ?? null)) return false;
   if (mapping.specialtyId && mapping.specialtyId !== (job.specialtyId ?? null)) return false;
   if (!attributeMatches(mapping.location, job.location, { caseInsensitive: true })) return false;
@@ -122,11 +127,14 @@ export function validateWorkflowCompatibility(
   if (criteria.employmentType === "1099" && workflowEmployment === "W2") {
     return "1099 job criteria cannot be mapped to a W2-only workflow.";
   }
-  if (criteria.employmentType === "Contract" && workflowEmployment !== "Contract") {
-    // Contract/R&R may map to Contract-tagged flows or untagged flows only.
-    if (workflowEmployment === "W2" || workflowEmployment === "1099") {
-      return "R&R job criteria cannot be mapped to a W2 or 1099-only workflow.";
-    }
+  if (isRnrEmploymentType(criteria.employmentType) && (workflowEmployment === "W2" || workflowEmployment === "1099")) {
+    return "RNR job criteria cannot be mapped to a W2 or 1099-only workflow.";
+  }
+  if (
+    (criteria.employmentType === "W2" || criteria.employmentType === "1099") &&
+    isRnrEmploymentType(workflowEmployment)
+  ) {
+    return `${criteria.employmentType} job criteria cannot be mapped to an RNR-only workflow.`;
   }
 
   return null;
@@ -141,7 +149,7 @@ export function formatRoutingCriteriaLabel(input: {
   yearsOfExperience?: string | null;
 }): string {
   const parts: string[] = [];
-  const employmentLabel = input.employmentType === "Contract" ? "R&R" : input.employmentType;
+  const employmentLabel = employmentTypeDisplayLabel(input.employmentType);
   parts.push(employmentLabel);
   if (input.professionName?.trim()) parts.push(input.professionName.trim());
   if (input.specialtyName?.trim()) parts.push(input.specialtyName.trim());
@@ -151,6 +159,4 @@ export function formatRoutingCriteriaLabel(input: {
   return parts.join(" + ");
 }
 
-export function employmentTypeDisplayLabel(type: EmploymentType): string {
-  return type === "Contract" ? "R&R" : type;
-}
+export { employmentTypeDisplayLabel };

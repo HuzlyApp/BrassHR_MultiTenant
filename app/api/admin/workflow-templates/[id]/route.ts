@@ -65,7 +65,8 @@ export async function GET(_req: NextRequest, context: RouteContext) {
         tenantId: row.tenant_id,
         isReadOnly: row.type === "preset" && row.tenant_id === null,
         status: row.status === "published" || row.status === "unpublished" ? row.status : "draft",
-        employmentType: row.employment_type ?? null,
+        employmentType:
+          row.employment_type === "Contract" ? "RNR" : row.employment_type ?? null,
         flowName: row.flow_name,
         builderDraft,
         updatedAt: row.updated_at,

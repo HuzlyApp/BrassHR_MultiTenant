@@ -193,12 +193,12 @@ export function normalizePayRatePeriod(value?: string | null): string {
 }
 
 export function employmentTypeLabel(type: EmploymentType): string {
-  if (type === "Contract") return "R&R";
+  if (type === "Contract") return "RNR";
   return type;
 }
 
 export function employmentTypeFromLabel(label: string): EmploymentType {
-  if (label === "R&R") return "Contract";
+  if (label === "RNR" || label === "R&R") return "Contract";
   if (label === "1099" || label === "W2" || label === "Contract") return label;
   return "W2";
 }

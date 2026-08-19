@@ -33,6 +33,8 @@ import {
   DEFAULT_1099_FLOW_NAME,
   DEFAULT_1099_PRESET_NAME,
   DEFAULT_ONBOARDING_FLOW_NAME,
+  DEFAULT_RNR_FLOW_NAME,
+  DEFAULT_RNR_PRESET_NAME,
   DEFAULT_W2_FLOW_NAME,
   DEFAULT_W2_PRESET_NAME,
   ensureDefaultTenantOnboardingFlows,
@@ -260,6 +262,74 @@ describe("ensureDefaultTenantOnboardingFlows", () => {
       })
     );
     expect(replaceFlowStepsFromDraft).toHaveBeenCalled();
+  });
+
+  it("seeds the RNR flow when the RNR preset exists on an empty library", async () => {
+    const supabase = createEmptyLibrarySupabase({
+      presets: {
+        [DEFAULT_W2_PRESET_NAME]: {
+          id: "preset-w2",
+          name: DEFAULT_W2_PRESET_NAME,
+          employment_type: "W2",
+        },
+        [DEFAULT_1099_PRESET_NAME]: {
+          id: "preset-1099",
+          name: DEFAULT_1099_PRESET_NAME,
+          employment_type: "1099",
+        },
+        [DEFAULT_RNR_PRESET_NAME]: {
+          id: "preset-rnr",
+          name: DEFAULT_RNR_PRESET_NAME,
+          employment_type: "RNR",
+        },
+      },
+    });
+    await ensureDefaultTenantOnboardingFlows(supabase as never, "tenant-1", "library-1", "user-1");
+
+    expect(supabase.inserts.map((row) => row.payload.name)).toEqual([
+      DEFAULT_ONBOARDING_FLOW_NAME,
+      DEFAULT_W2_FLOW_NAME,
+      DEFAULT_1099_FLOW_NAME,
+      DEFAULT_RNR_FLOW_NAME,
+    ]);
+    expect(supabase.inserts[3]?.payload).toEqual(
+      expect.objectContaining({
+        name: DEFAULT_RNR_FLOW_NAME,
+        employment_type: "RNR",
+        status: "published",
+      })
+    );
+  });
+
+  it("adds a missing RNR flow when other employment flows already exist", async () => {
+    const supabase = createEmptyLibrarySupabase({
+      existingFlowCount: 3,
+      existingFlows: [
+        { id: "flow-worker", name: DEFAULT_ONBOARDING_FLOW_NAME, status: "published" },
+        { id: "flow-w2", name: DEFAULT_W2_FLOW_NAME, status: "published" },
+        { id: "flow-1099", name: DEFAULT_1099_FLOW_NAME, status: "published" },
+      ],
+      presets: {
+        [DEFAULT_W2_PRESET_NAME]: {
+          id: "preset-w2",
+          name: DEFAULT_W2_PRESET_NAME,
+          employment_type: "W2",
+        },
+        [DEFAULT_1099_PRESET_NAME]: {
+          id: "preset-1099",
+          name: DEFAULT_1099_PRESET_NAME,
+          employment_type: "1099",
+        },
+        [DEFAULT_RNR_PRESET_NAME]: {
+          id: "preset-rnr",
+          name: DEFAULT_RNR_PRESET_NAME,
+          employment_type: "RNR",
+        },
+      },
+    });
+    await ensureDefaultTenantOnboardingFlows(supabase as never, "tenant-1", "library-1");
+
+    expect(supabase.inserts.map((row) => row.payload.name)).toEqual([DEFAULT_RNR_FLOW_NAME]);
   });
 
   it("ensures Worker Onboarding when the library already has other flows", async () => {

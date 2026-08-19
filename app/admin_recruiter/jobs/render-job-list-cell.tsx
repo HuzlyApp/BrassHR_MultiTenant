@@ -7,6 +7,7 @@ import { isJobRequisitionOpen } from "@/lib/jobs/public-application-routing"
 import { normalizeJobRequisitionStatus } from "@/lib/jobs/job-status"
 import { isMspRecruitAndRelease, placementTypeFromApiRow } from "@/lib/jobs/placement"
 import type { SourceType } from "@/lib/jobs/types"
+import { employmentTypeDisplayLabel } from "@/lib/jobs/employment-type"
 import { JobPublicViewLink } from "./JobPublicViewLink"
 
 const JOB_CANDIDATE_COUNTER_CLASS =
@@ -620,7 +621,11 @@ export function renderJobListCell(
         <span className="text-sm text-[#475569]">{jobPlacementType(job) || "—"}</span>
       )
     case "employmentType":
-      return <span className="text-sm text-[#475569]">{job.employment_type || "—"}</span>
+      return (
+        <span className="text-sm text-[#475569]">
+          {job.employment_type ? employmentTypeDisplayLabel(job.employment_type) : "—"}
+        </span>
+      )
     case "jobType":
       return <span className="text-sm text-[#475569]">{job.shift_type?.trim() || "—"}</span>
     case "profession":

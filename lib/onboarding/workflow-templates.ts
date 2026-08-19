@@ -4,6 +4,10 @@ import {
   type SerializableWorkflowState,
 } from "@/lib/onboarding/workflow-builder-serialization";
 import { loadTemplateBuilderDraft } from "@/lib/onboarding/flow-steps-sync";
+import {
+  normalizeTemplateEmploymentType,
+  type TemplateEmploymentType,
+} from "@/lib/jobs/employment-type";
 
 export type WorkflowTemplateFolder = "presets" | "saved-templates";
 
@@ -14,7 +18,7 @@ export type WorkflowTemplateRow = {
   description?: string | null;
   type: "preset" | "saved";
   status: string;
-  employment_type?: "W2" | "1099" | null;
+  employment_type?: TemplateEmploymentType | "Contract" | null;
   template_type?: string | null;
   is_system_preset?: boolean;
   is_editable?: boolean;
@@ -35,7 +39,7 @@ export type WorkflowTemplateListItem = {
   isPreset: boolean;
   isEditable: boolean;
   status: "draft" | "published" | "unpublished";
-  employmentType: "W2" | "1099" | null;
+  employmentType: TemplateEmploymentType | null;
   templateVersion: number;
   preHireStepCount: number;
   postHireStepCount: number;
@@ -52,11 +56,40 @@ function rowToFolder(type: "preset" | "saved"): WorkflowTemplateFolder {
   return type === "preset" ? "presets" : "saved-templates";
 }
 
-function inferEmploymentTypeFromName(name: string): "W2" | "1099" | null {
+const PRESET_DISPLAY_ORDER = [
+  "Default 1099 Contractor Workflow",
+  "Default W2 Employee Workflow",
+  "Default RNR Worker Workflow",
+];
+
+export function inferEmploymentTypeFromName(name: string): TemplateEmploymentType | null {
   const lower = name.toLowerCase();
   if (lower.includes("1099") || lower.includes("contractor")) return "1099";
+  if (
+    lower.includes("rnr") ||
+    lower.includes("r&r") ||
+    lower.includes("recruit and release") ||
+    lower.includes("recruit & release")
+  ) {
+    return "RNR";
+  }
   if (lower.includes("w2") || lower.includes("employee")) return "W2";
   return null;
+}
+
+function sortPresetTemplates(presets: WorkflowTemplateListItem[]): WorkflowTemplateListItem[] {
+  return [...presets].sort((a, b) => {
+    const aRank = PRESET_DISPLAY_ORDER.findIndex(
+      (name) => name.toLowerCase() === a.name.toLowerCase()
+    );
+    const bRank = PRESET_DISPLAY_ORDER.findIndex(
+      (name) => name.toLowerCase() === b.name.toLowerCase()
+    );
+    const aOrder = aRank === -1 ? PRESET_DISPLAY_ORDER.length : aRank;
+    const bOrder = bRank === -1 ? PRESET_DISPLAY_ORDER.length : bRank;
+    if (aOrder !== bOrder) return aOrder - bOrder;
+    return a.name.localeCompare(b.name);
+  });
 }
 
 function normalizeName(name: string): string {
@@ -107,7 +140,9 @@ function toListItem(row: WorkflowTemplateRow): WorkflowTemplateListItem {
     isPreset: row.type === "preset",
     isEditable: row.is_editable ?? (row.type !== "preset" && row.is_system_preset !== true),
     status: row.status === "published" || row.status === "unpublished" ? row.status : "draft",
-    employmentType: row.employment_type ?? inferEmploymentTypeFromName(row.name),
+    employmentType:
+      normalizeTemplateEmploymentType(row.employment_type) ??
+      inferEmploymentTypeFromName(row.name),
     templateVersion: Math.max(1, Number(row.version) || 1),
     preHireStepCount: counts.preHire,
     transitionStepCount: counts.transition,
@@ -171,7 +206,9 @@ export async function listWorkflowTemplates(
   if (savedError) throw savedError;
 
   return {
-    presets: (presetRows ?? []).map((row) => toListItem(row as WorkflowTemplateRow)),
+    presets: sortPresetTemplates(
+      (presetRows ?? []).map((row) => toListItem(row as WorkflowTemplateRow))
+    ),
     savedTemplates: (savedRows ?? []).map((row) => toListItem(row as WorkflowTemplateRow)),
   };
 }
@@ -207,7 +244,7 @@ export async function createWorkflowTemplate(
     flowName?: string;
     createdBy: string;
     isPreset?: boolean;
-    employmentType?: "W2" | "1099" | null;
+    employmentType?: TemplateEmploymentType | null;
     templateType?: string;
     isSystemPreset?: boolean;
     isEditable?: boolean;
@@ -221,7 +258,9 @@ export async function createWorkflowTemplate(
 
   const displayName = tenantTemplateDisplayName(input.name) || "New Template";
   const employmentType =
-    input.employmentType ?? inferEmploymentTypeFromName(input.name) ?? inferEmploymentTypeFromName(displayName);
+    normalizeTemplateEmploymentType(input.employmentType) ??
+    inferEmploymentTypeFromName(input.name) ??
+    inferEmploymentTypeFromName(displayName);
 
   const { data, error } = await supabase
     .from("onboarding_templates")
@@ -271,7 +310,7 @@ export async function updateWorkflowTemplate(
     flowName?: string;
     builderDraft?: SerializableWorkflowState;
     status?: "draft" | "published" | "unpublished";
-    employmentType?: "W2" | "1099" | null;
+    employmentType?: TemplateEmploymentType | null;
     version?: number;
     updatedBy: string;
   }
@@ -351,7 +390,7 @@ export async function duplicatePresetToTenantDraft(
     flowName: source.flow_name ?? source.name.replace(/\.tpl$/i, ""),
     createdBy,
     isPreset: false,
-    employmentType: source.employment_type,
+    employmentType: normalizeTemplateEmploymentType(source.employment_type),
     templateType: source.template_type ?? "default",
     isSystemPreset: false,
     isEditable: true,
@@ -414,7 +453,7 @@ export async function applyPublishedTemplateToEmploymentFlow(
   tenantId: string,
   input: {
     templateId: string;
-    employmentType: "W2" | "1099" | null;
+    employmentType: TemplateEmploymentType | null;
     builderDraft: SerializableWorkflowState;
     updatedBy: string;
   }
@@ -437,11 +476,22 @@ export async function applyPublishedTemplateToEmploymentFlow(
   }>;
 
   const match =
-    rows.find((row) => row.employment_type === input.employmentType) ??
+    rows.find(
+      (row) =>
+        normalizeTemplateEmploymentType(row.employment_type) === input.employmentType
+    ) ??
     rows.find((row) => {
       const name = String(row.name ?? "").toLowerCase();
       if (input.employmentType === "1099") {
         return name.includes("1099") || name.includes("contractor");
+      }
+      if (input.employmentType === "RNR") {
+        return (
+          name.includes("rnr") ||
+          name.includes("r&r") ||
+          name.includes("recruit and release") ||
+          name.includes("recruit & release")
+        );
       }
       if (input.employmentType === "W2") {
         return name.includes("w2") || name.includes("employee");
