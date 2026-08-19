@@ -472,7 +472,7 @@ function HighlightMultiJobApplicantsRow({
   className?: string;
 }) {
   return (
-    <div className={`flex w-full items-center justify-end gap-2 ${className}`}>
+    <div className={`flex items-center justify-end gap-2 ${className}`}>
       <span className="text-[10px] font-normal leading-[15px] text-[#374151]">
         Highlight Multi-Job Applicants
       </span>
@@ -2118,12 +2118,6 @@ export default function JobApplicationsPage() {
               <span className="min-[480px]:hidden">Add</span>
             </button>
           </div>
-          <HighlightMultiJobApplicantsRow
-            on={highlightMultiJobApplicants}
-            onToggle={() => setHighlightMultiJobApplicants((value) => !value)}
-            activeColor={branding.secondaryHex}
-            className="px-0 py-1"
-          />
           {showFilterRows ? (
             <div className="grid grid-cols-1 gap-5 rounded-lg border border-[#E8EEEC] bg-[#F8FAFC] p-2.5 min-[450px]:grid-cols-2">
               <label className="flex min-w-0 flex-col gap-1">
@@ -2166,6 +2160,12 @@ export default function JobApplicationsPage() {
               </label>
             </div>
           ) : null}
+          <HighlightMultiJobApplicantsRow
+            on={highlightMultiJobApplicants}
+            onToggle={() => setHighlightMultiJobApplicants((value) => !value)}
+            activeColor={branding.secondaryHex}
+            className="w-full px-0 py-1"
+          />
         </div>
 
         <div className="hidden w-full flex-col xl:flex">
@@ -2217,12 +2217,6 @@ export default function JobApplicationsPage() {
             </button>
           </div>
 
-          <HighlightMultiJobApplicantsRow
-            on={highlightMultiJobApplicants}
-            onToggle={() => setHighlightMultiJobApplicants((value) => !value)}
-            activeColor={branding.secondaryHex}
-          />
-
           <div className="border-b border-[#E5E7EB]" aria-hidden />
 
           {showFilterRows ? (
@@ -2256,8 +2250,20 @@ export default function JobApplicationsPage() {
                   </option>
                 ))}
               </select>
+              <HighlightMultiJobApplicantsRow
+                on={highlightMultiJobApplicants}
+                onToggle={() => setHighlightMultiJobApplicants((value) => !value)}
+                activeColor={branding.secondaryHex}
+                className="ml-auto shrink-0 px-0 py-0"
+              />
             </div>
-          ) : null}
+          ) : (
+            <HighlightMultiJobApplicantsRow
+              on={highlightMultiJobApplicants}
+              onToggle={() => setHighlightMultiJobApplicants((value) => !value)}
+              activeColor={branding.secondaryHex}
+            />
+          )}
         </div>
 
         {error ? (

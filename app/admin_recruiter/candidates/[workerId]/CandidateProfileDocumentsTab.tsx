@@ -22,22 +22,18 @@ const CARD_CLASS = "rounded-xl border border-[#E5E7EB] bg-white";
 const SECTION_TITLE_CLASS =
   "text-lg font-semibold leading-7 text-[color:var(--brand-secondary)]";
 const PRIMARY_BTN =
-  "inline-flex h-10 cursor-pointer items-center justify-center gap-1.5 rounded-lg bg-[color:var(--brand-primary)] px-4 text-sm font-semibold text-white transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50";
-const OUTLINE_BTN =
-  "inline-flex h-9 cursor-pointer items-center justify-center rounded-md border border-[color:var(--brand-primary)] px-3 text-xs font-semibold text-[color:var(--brand-primary)] transition hover:bg-[color-mix(in_srgb,var(--brand-primary)_8%,white)] disabled:cursor-not-allowed disabled:opacity-50";
-const VIEW_BTN =
-  "inline-flex h-9 cursor-pointer items-center justify-center rounded-md bg-[color:var(--brand-primary)] px-3 text-xs font-semibold text-white transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50";
+  "inline-flex h-11 min-h-11 w-full cursor-pointer items-center justify-center gap-1.5 rounded-lg bg-[color:var(--brand-primary)] px-4 text-sm font-semibold text-white transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50 sm:h-10 sm:w-auto";
+const TABLE_VIEW_BTN =
+  "inline-flex h-8 cursor-pointer items-center justify-center rounded-md bg-[color:var(--brand-primary)] px-2.5 text-xs font-semibold text-white transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50";
+const TABLE_OUTLINE_BTN =
+  "inline-flex h-8 cursor-pointer items-center justify-center rounded-md border border-[color:var(--brand-primary)] px-2.5 text-xs font-semibold text-[color:var(--brand-primary)] transition hover:bg-[color-mix(in_srgb,var(--brand-primary)_8%,white)] disabled:cursor-not-allowed disabled:opacity-50";
+const TABLE_DELETE_BTN =
+  "inline-flex h-8 cursor-pointer items-center justify-center rounded-md border border-[#D1D5DB] px-2.5 text-xs font-semibold text-[#475569] transition hover:bg-[#F8FAFC] disabled:cursor-not-allowed disabled:opacity-50";
 const PARSE_BTN =
-  "inline-flex h-9 cursor-pointer items-center justify-center gap-1 rounded-md border-2 border-[color:var(--brand-primary)] bg-white px-3 text-xs font-semibold text-[color:var(--brand-primary)] transition hover:bg-[color-mix(in_srgb,var(--brand-primary)_6%,white)] disabled:cursor-not-allowed disabled:opacity-50";
-const DELETE_BTN =
-  "inline-flex h-9 cursor-pointer items-center justify-center rounded-md border border-[#D1D5DB] px-3 text-xs font-semibold text-[#475569] transition hover:bg-[#F8FAFC] disabled:cursor-not-allowed disabled:opacity-50";
-const TABLE_LINE = "border border-[#E5E7EB]";
+  "inline-flex h-8 cursor-pointer items-center justify-center gap-1 rounded-md border-2 border-[color:var(--brand-primary)] bg-white px-3 text-xs font-semibold text-[color:var(--brand-primary)] transition hover:bg-[color-mix(in_srgb,var(--brand-primary)_6%,white)] disabled:cursor-not-allowed disabled:opacity-50";
 const TABLE_HEADER_CLASS =
-  `${TABLE_LINE} bg-[#F8FAFC] px-3 py-3 text-center text-xs font-semibold uppercase tracking-wide text-[#64748B]`;
-const TABLE_HEADER_RESUME_CLASS =
-  `${TABLE_LINE} bg-[#F8FAFC] px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-[#64748B]`;
-const TABLE_CELL_CLASS = `${TABLE_LINE} px-3 py-3 align-middle`;
-const TABLE_CELL_CENTER_CLASS = `${TABLE_CELL_CLASS} text-center`;
+  "bg-[#F8FAFC] px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-[#64748B]";
+const TABLE_CELL_CLASS = "px-3 py-3 align-middle";
 const SELECT_CLASS =
   "h-11 w-full cursor-pointer appearance-none rounded-lg border border-[#D1D5DB] bg-white bg-[length:12px_12px] bg-[right_12px_center] bg-no-repeat pl-3 pr-10 text-sm text-[#334155] outline-none focus:border-[color:var(--brand-primary)]";
 const SELECT_CHEVRON = {
@@ -121,7 +117,7 @@ function UploadResumeModal({
 
   return (
     <div
-      className="fixed inset-0 z-[150] flex items-center justify-center bg-black/40 px-4 py-8"
+      className="fixed inset-0 z-[150] flex items-end justify-center bg-black/40 px-3 py-0 sm:items-center sm:px-4 sm:py-8"
       role="presentation"
       onClick={() => {
         if (!uploading) onClose();
@@ -131,10 +127,10 @@ function UploadResumeModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="profile-upload-resume-title"
-        className="w-full max-w-lg rounded-xl border border-[#E5E7EB] bg-white shadow-xl"
+        className="flex max-h-[92vh] w-full max-w-lg flex-col overflow-hidden rounded-t-xl border border-[#E5E7EB] bg-white shadow-xl sm:rounded-xl"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="flex items-start justify-between gap-4 border-b border-[#E5E7EB] px-6 py-5">
+        <div className="flex items-start justify-between gap-4 border-b border-[#E5E7EB] px-4 py-4 sm:px-6 sm:py-5">
           <div className="min-w-0 pr-2">
             <h2 id="profile-upload-resume-title" className="text-lg font-semibold text-[#0F172A]">
               Upload Resume
@@ -148,14 +144,14 @@ function UploadResumeModal({
             type="button"
             onClick={onClose}
             disabled={uploading}
-            className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-[#64748B] transition hover:bg-[#F1F5F9]"
+            className="inline-flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-lg text-[#64748B] transition hover:bg-[#F1F5F9]"
             aria-label="Close"
           >
             <X className="h-5 w-5" aria-hidden />
           </button>
         </div>
 
-        <div className="space-y-5 px-6 py-5">
+        <div className="min-h-0 space-y-5 overflow-y-auto px-4 py-5 sm:px-6">
           {error ? (
             <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
               {error}
@@ -232,12 +228,12 @@ function UploadResumeModal({
           )}
         </div>
 
-        <div className="flex justify-end gap-3 border-t border-[#E5E7EB] px-6 py-5">
+        <div className="flex flex-col-reverse gap-3 border-t border-[#E5E7EB] px-4 py-4 sm:flex-row sm:justify-end sm:px-6 sm:py-5">
           <button
             type="button"
             disabled={uploading}
             onClick={onClose}
-            className="inline-flex h-10 cursor-pointer items-center justify-center rounded-lg border border-[#D1D5DB] px-4 text-sm font-medium text-[#334155] transition hover:bg-[#F8FAFC] disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex h-11 w-full cursor-pointer items-center justify-center rounded-lg border border-[#D1D5DB] px-4 text-sm font-medium text-[#334155] transition hover:bg-[#F8FAFC] disabled:cursor-not-allowed disabled:opacity-50 sm:h-10 sm:w-auto"
           >
             Cancel
           </button>
@@ -361,7 +357,7 @@ function UploadedByCell({ resume }: { resume: CandidateProfileSubmittedResume })
   const roleLabel = uploadedByRoleDisplay(resume.uploadedByRoleLabel);
   return (
     <div className="min-w-0" title={resume.uploadedByName}>
-      <p className="truncate text-sm font-medium text-[#334155]">{resume.uploadedByName || "—"}</p>
+      <p className="break-words text-sm font-medium text-[#334155]">{resume.uploadedByName || "—"}</p>
       {roleLabel ? (
         <p className="mt-0.5 text-[11px] font-medium leading-4 text-[#94A3B8]">{roleLabel}</p>
       ) : null}
@@ -381,8 +377,8 @@ function ResumeActions({
   onDelete: () => void;
 }) {
   return (
-    <div className="flex flex-nowrap items-center justify-start gap-2">
-      <button type="button" disabled={busy} onClick={onView} className={VIEW_BTN}>
+    <div className="flex flex-nowrap items-center justify-end gap-1.5">
+      <button type="button" disabled={busy} onClick={onView} className={TABLE_VIEW_BTN}>
         View
       </button>
       <button
@@ -390,11 +386,11 @@ function ResumeActions({
         disabled={busy}
         title="Replace this resume file"
         onClick={onReupload}
-        className={OUTLINE_BTN}
+        className={TABLE_OUTLINE_BTN}
       >
         Reupload
       </button>
-      <button type="button" disabled={busy} onClick={onDelete} className={DELETE_BTN}>
+      <button type="button" disabled={busy} onClick={onDelete} className={TABLE_DELETE_BTN}>
         Delete
       </button>
     </div>
@@ -412,74 +408,32 @@ type ResumeRowModel = {
   onParse: () => void;
 };
 
-function ResumeMobileCard(props: ResumeRowModel) {
-  const { resume, index, jobTitle, busy, onParse } = props;
-  return (
-    <div className="space-y-3 border-b border-[#E5E7EB] px-4 py-4 last:border-b-0">
-      <ResumeFileCell resume={resume} index={index} />
-      <div className="grid grid-cols-1 gap-3 pl-10 sm:grid-cols-2">
-        <div>
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-[#94A3B8]">Parse status</p>
-          <div className="mt-1">
-            <ParseStatusCell resume={resume} busy={busy} onParse={onParse} />
-          </div>
-        </div>
-        <div>
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-[#94A3B8]">
-            {resume.isReuploaded ? "Updated date" : "Uploaded date"}
-          </p>
-          <p className="mt-1 text-sm font-medium text-[#334155]">{resume.uploadedAtLabel}</p>
-        </div>
-        <div className="min-w-0">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-[#94A3B8]">Job name</p>
-          <p className="mt-1 truncate text-sm font-semibold text-[color:var(--brand-secondary)]" title={jobTitle}>
-            {jobTitle}
-          </p>
-        </div>
-        <div>
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-[#94A3B8]">Uploaded by</p>
-          <div className="mt-1">
-            <UploadedByCell resume={resume} />
-          </div>
-        </div>
-      </div>
-      <div className="pl-10">
-        <ResumeActions {...props} />
-      </div>
-    </div>
-  );
-}
-
 function ResumeTableRow(props: ResumeRowModel) {
   const { resume, index, jobTitle, busy, onParse } = props;
   return (
-    <tr>
+    <tr className="border-b border-[#F1F5F9] last:border-b-0">
       <td className={TABLE_CELL_CLASS}>
         <ResumeFileCell resume={resume} index={index} />
       </td>
-      <td className={`${TABLE_CELL_CENTER_CLASS} whitespace-nowrap`}>
-        <div className="flex justify-center">
-          <ParseStatusCell resume={resume} busy={busy} onParse={onParse} />
-        </div>
+      <td className={`${TABLE_CELL_CLASS} whitespace-nowrap`}>
+        <ParseStatusCell resume={resume} busy={busy} onParse={onParse} />
       </td>
-      <td className={`${TABLE_CELL_CENTER_CLASS} whitespace-nowrap`}>
+      <td className={`${TABLE_CELL_CLASS} whitespace-nowrap`}>
         <p className="text-sm font-medium leading-5 text-[#334155]">{resume.uploadedAtLabel}</p>
         {resume.isReuploaded ? (
           <p className="mt-0.5 text-[11px] font-medium text-[#94A3B8]">Updated</p>
         ) : null}
       </td>
-      <td className={TABLE_CELL_CENTER_CLASS}>
-        <p className="truncate text-sm font-semibold text-[color:var(--brand-secondary)]" title={jobTitle}>
+      <td className={TABLE_CELL_CLASS}>
+        <p className="max-w-[220px] break-words text-sm font-semibold text-[color:var(--brand-secondary)]" title={jobTitle}>
           {jobTitle}
         </p>
       </td>
-      <td className={TABLE_CELL_CENTER_CLASS}>
+      <td className={TABLE_CELL_CLASS}>
         <UploadedByCell resume={resume} />
       </td>
-      <td className={`${TABLE_CELL_CENTER_CLASS} whitespace-nowrap`}>
-        <div className="flex justify-center">
-          <ResumeActions {...props} />
-        </div>
+      <td className={TABLE_CELL_CLASS}>
+        <ResumeActions {...props} />
       </td>
     </tr>
   );
@@ -673,7 +627,7 @@ export function CandidateProfileDocumentsTab({
   return (
     <div className="mt-5 space-y-4">
       <section className={`${CARD_CLASS} overflow-hidden`}>
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#E5E7EB] px-4 py-4 sm:px-5">
+        <div className="flex flex-col items-stretch gap-3 border-b border-[#E5E7EB] px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
           <h2 className={SECTION_TITLE_CLASS}>Resume Submitted</h2>
           <button
             type="button"
@@ -695,26 +649,11 @@ export function CandidateProfileDocumentsTab({
             No resume uploaded yet. Select a job and upload the first resume.
           </p>
         ) : (
-          <div>
-            <div className="lg:hidden">
-              {resumes.map((resume, index) => {
-                const row = rowModelForResume(resume, index);
-                return <ResumeMobileCard key={resume.id} {...row} />;
-              })}
-            </div>
-            <div className="hidden overflow-x-auto lg:block">
-              <table className="w-full min-w-[1040px] table-fixed border-collapse">
-                <colgroup>
-                  <col className="w-[24%]" />
-                  <col className="w-[12%]" />
-                  <col className="w-[14%]" />
-                  <col className="w-[18%]" />
-                  <col className="w-[12%]" />
-                  <col className="w-[20%]" />
-                </colgroup>
+          <div className="min-w-0 overflow-x-auto overscroll-x-contain">
+              <table className="w-full min-w-[860px] border-collapse">
                 <thead>
-                  <tr>
-                    <th scope="col" className={TABLE_HEADER_RESUME_CLASS}>
+                  <tr className="border-b border-[#E5E7EB]">
+                    <th scope="col" className={TABLE_HEADER_CLASS}>
                       Resume
                     </th>
                     <th scope="col" className={TABLE_HEADER_CLASS}>
@@ -729,7 +668,7 @@ export function CandidateProfileDocumentsTab({
                     <th scope="col" className={TABLE_HEADER_CLASS}>
                       Uploaded by
                     </th>
-                    <th scope="col" className={TABLE_HEADER_CLASS}>
+                    <th scope="col" className={`${TABLE_HEADER_CLASS} text-right`}>
                       Actions
                     </th>
                   </tr>
@@ -741,11 +680,10 @@ export function CandidateProfileDocumentsTab({
                   })}
                 </tbody>
               </table>
-            </div>
           </div>
         )}
 
-        <p className="border-t border-[#E5E7EB] px-5 py-3 text-center text-sm text-[#64748B]">
+        <p className="border-t border-[#E5E7EB] px-4 py-3 text-center text-sm leading-6 text-[#64748B] sm:px-5">
           Note: You can upload up to {MAX_RESUME_UPLOADS_PER_ROLE} resumes for this candidate in
           total ({adminUploadsUsed} of {MAX_RESUME_UPLOADS_PER_ROLE} used). After that, reupload a
           resume to replace its file.
@@ -753,7 +691,7 @@ export function CandidateProfileDocumentsTab({
       </section>
 
       <section className={`${CARD_CLASS} overflow-hidden`}>
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#E5E7EB] px-4 py-4 sm:px-5">
+        <div className="flex flex-col items-stretch gap-3 border-b border-[#E5E7EB] px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
           <h2 className={SECTION_TITLE_CLASS}>Documents</h2>
           <Link href={`/admin_recruiter/new/attachments/${encodeURIComponent(workerId)}`} className={PRIMARY_BTN}>
             <Plus className="h-4 w-4" strokeWidth={2.5} />
@@ -769,22 +707,22 @@ export function CandidateProfileDocumentsTab({
             {otherDocuments.map((doc) => (
               <li
                 key={doc.id}
-                className="flex flex-wrap items-center justify-between gap-3 px-5 py-4"
+                className="flex flex-col items-start gap-3 px-4 py-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:px-5"
               >
-                <div className="flex min-w-0 flex-1 items-center gap-3">
+                <div className="flex min-w-0 w-full flex-1 items-center gap-3 sm:w-auto">
                   <BrandedFileTypeIcon type="pdf" className="h-8 w-8 shrink-0" />
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-[color:var(--brand-primary)]">
+                    <p className="break-all text-sm font-medium text-[color:var(--brand-primary)]">
                       {doc.fileName}
                     </p>
-                    <p className="text-xs text-[#64748B]">
+                    <p className="break-words text-xs text-[#64748B]">
                       {doc.title}
                       {doc.uploadedAtLabel ? ` · ${doc.uploadedAtLabel}` : ""}
                     </p>
                   </div>
                 </div>
-                <div className="min-w-[140px] text-right">
-                  <p className="truncate text-sm font-medium text-[#334155]">
+                <div className="min-w-0 w-full text-left sm:w-auto sm:min-w-[140px] sm:text-right">
+                  <p className="break-words text-sm font-medium text-[#334155]">
                     {doc.uploadedByName || "—"}
                   </p>
                   {uploadedByRoleDisplay(doc.uploadedByRoleLabel) ? (

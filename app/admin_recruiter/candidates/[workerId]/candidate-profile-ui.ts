@@ -5,7 +5,7 @@ import { normalizeApplicationStatus } from "@/lib/jobs/application-status";
 
 /** Figma Applicant Profile name — Desktop headline/H4 text-2xl, branding secondary (Brass navy). */
 export const CANDIDATE_PROFILE_NAME_CLASS =
-  "m-0 text-2xl font-semibold leading-8 text-[color:var(--brand-secondary)]";
+  "m-0 text-xl font-semibold leading-7 text-[color:var(--brand-secondary)] sm:text-2xl sm:leading-8";
 
 export const CANDIDATE_PROFILE_NAME_STYLE: CSSProperties = {
   fontFamily: "Inter, var(--brand-font-heading), sans-serif",
@@ -88,6 +88,27 @@ export function formatProfileActivityTime(iso: string): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return "—";
   return date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+}
+
+export function formatProfileActivityRelativeTime(iso: string, now = new Date()): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "—";
+  const diffMs = now.getTime() - date.getTime();
+  if (diffMs < 0) return formatProfileActivityTime(iso);
+  const minutes = Math.floor(diffMs / 60_000);
+  if (minutes < 1) return "Just now";
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}hr ago`;
+  const days = Math.floor(hours / 24);
+  if (days === 1) return "1day ago";
+  if (days < 7) return `${days}days ago`;
+  return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+export function profileActivityInitial(name: string): string {
+  const letter = name.trim().charAt(0);
+  return letter ? letter.toUpperCase() : "?";
 }
 
 export function formatProfileActivityDay(iso: string, now = new Date()): string {

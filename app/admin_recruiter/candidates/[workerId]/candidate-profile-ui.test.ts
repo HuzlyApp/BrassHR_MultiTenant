@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   formatProfileActivityDay,
   formatProfileActivityTime,
+  formatProfileActivityRelativeTime,
   groupProfileActivityByDay,
+  profileActivityInitial,
   profileActivityKind,
   profileActivityRangeBounds,
   filterProfileActivityByRange,
@@ -26,6 +28,18 @@ describe("candidate profile activity helpers", () => {
     );
     expect(groups.map((group) => group.day)).toEqual(["Today", "Yesterday"]);
     expect(groups[0].items).toHaveLength(2);
+  });
+
+  it("formats relative activity timestamps", () => {
+    const now = new Date("2026-08-19T18:00:00");
+    expect(formatProfileActivityRelativeTime("2026-08-19T17:12:00", now)).toBe("48m ago");
+    expect(formatProfileActivityRelativeTime("2026-08-19T17:00:00", now)).toBe("1hr ago");
+    expect(formatProfileActivityRelativeTime("2026-08-18T18:00:00", now)).toBe("1day ago");
+  });
+
+  it("uses the first letter for a missing profile photo", () => {
+    expect(profileActivityInitial("Benjamin Hayes")).toBe("B");
+    expect(profileActivityInitial("  hailey")).toBe("H");
   });
 
   it("classifies activity kinds for icons", () => {

@@ -520,7 +520,9 @@
   flex: 1;
   flex-direction: column;
   min-height: 0;
+  min-width: 0;
   width: 100%;
+  overflow-x: hidden;
   background-color: #f4f4f4;
 }
 
