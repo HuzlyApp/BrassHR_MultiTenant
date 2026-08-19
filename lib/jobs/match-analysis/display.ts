@@ -26,6 +26,19 @@ export function matchScoreBadgeClassName(score: number | null | undefined): stri
   return "bg-[#FEE2E2] text-[#991B1B]";
 }
 
+/** Candidate profile AI confidence ring: Figma Analytics/icon/green-800, orange, red. */
+export const PROFILE_MATCH_RING_GREEN = "#166534";
+export const PROFILE_MATCH_RING_ORANGE = "#F97316";
+export const PROFILE_MATCH_RING_RED = "#EF4444";
+
+export function profileMatchRingColor(score: number | null | undefined): string {
+  const n = Number(score);
+  if (!Number.isFinite(n)) return "#E5E7EB";
+  if (n > 75) return PROFILE_MATCH_RING_GREEN;
+  if (n >= 50) return PROFILE_MATCH_RING_ORANGE;
+  return PROFILE_MATCH_RING_RED;
+}
+
 /** Ranking-list tiers aligned with Figma Match Score (BEST / GOOD / WEAK). */
 export type ListMatchScoreTier = "best" | "good" | "weak";
 

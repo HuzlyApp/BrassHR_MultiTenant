@@ -11,6 +11,7 @@ export type WorkerJobApplicationResume = {
 
 export type WorkerJobApplicationListItem = {
   id: string;
+  jobRequisitionId: string;
   jobTitle: string;
   companyName: string;
   workType: string;
@@ -20,6 +21,9 @@ export type WorkerJobApplicationListItem = {
   statusColor: string | null;
   statusNote: string | null;
   resume: WorkerJobApplicationResume | null;
+  matchScore: number | null;
+  matchCategory: string | null;
+  matchStatus: string | null;
 };
 
 type JobRequisitionJoin = {
@@ -43,9 +47,13 @@ type TenantJoin = {
 
 type ApplicationRow = {
   id: string;
+  job_requisition_id?: string | null;
   status?: string | null;
   created_at?: string | null;
   submitted_at?: string | null;
+  ai_match_score?: number | null;
+  ai_match_category?: string | null;
+  ai_match_status?: string | null;
   application_statuses?: ApplicationStatusJoin | ApplicationStatusJoin[] | null;
   job_requisitions?: JobRequisitionJoin | JobRequisitionJoin[] | null;
   tenants?: TenantJoin | TenantJoin[] | null;
@@ -90,11 +98,15 @@ export async function listWorkerJobApplications(
     .select(
       [
         "id",
+        "job_requisition_id",
         "status",
         "status_id",
         "created_at",
         "submitted_at",
         "tenant_id",
+        "ai_match_score",
+        "ai_match_category",
+        "ai_match_status",
         "application_statuses(name, system_key, color)",
         "job_requisitions(public_title, source_job_title, source_type, employment_type, facility, facility_name)",
         "tenants:tenant_id(name)",
@@ -163,8 +175,14 @@ export async function listWorkerJobApplications(
     const tenantName = tenant?.name?.trim() || "Company";
     const note = (noteByApplication.get(applicationId) ?? "").trim();
 
+    const matchScore =
+      row.ai_match_score == null || !Number.isFinite(Number(row.ai_match_score))
+        ? null
+        : Number(row.ai_match_score);
+
     return {
       id: applicationId,
+      jobRequisitionId: String(row.job_requisition_id ?? "").trim(),
       jobTitle: job ? publicJobDisplayTitle(job) || "Untitled job" : "Untitled job",
       companyName: companyNameFromJob(job, tenantName),
       workType: job?.employment_type?.trim() || "",
@@ -174,6 +192,9 @@ export async function listWorkerJobApplications(
       statusColor: statusJoin?.color?.trim() || null,
       statusNote: note || null,
       resume: latestResumeByApplication.get(applicationId) ?? latestResume,
+      matchScore,
+      matchCategory: row.ai_match_category?.trim() || null,
+      matchStatus: row.ai_match_status?.trim() || null,
     };
   });
 }

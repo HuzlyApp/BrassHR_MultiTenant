@@ -244,7 +244,7 @@ export async function POST(req: NextRequest) {
       }
 
       const buffer = Buffer.from(await file.arrayBuffer())
-      const objectPath = `${tenantId}/${workerId}/admin/${directDocumentField}/${randomUUID()}-${sanitizeFileName(file.name)}`
+      const objectPath = `${tenantId}/${workerId}/admin/${auth.userId}/${directDocumentField}/${randomUUID()}-${sanitizeFileName(file.name)}`
 
       const { error: uploadError } = await supabase.storage
         .from(WORKER_REQUIRED_FILES_BUCKET)
@@ -267,6 +267,34 @@ export async function POST(req: NextRequest) {
           ? { document_name: file.name }
           : undefined
       )
+
+      const portalTitle =
+        documentTitle ||
+        (directDocumentField === "drivers_license_url"
+          ? "Driver's license"
+          : directDocumentField === "nursing_license_url"
+            ? "Nursing license"
+            : directDocumentField === "tb_test_url"
+              ? "TB test"
+              : directDocumentField === "cpr_certification_url"
+                ? "CPR certification"
+                : file.name)
+
+      const { error: portalErr } = await supabase.from("worker_portal_documents").insert({
+        worker_id: workerId,
+        tenant_id: tenantId,
+        title: portalTitle,
+        document_type: "other",
+        file_url: objectPath,
+        storage_path: objectPath,
+        original_file_name: file.name,
+        file_type: file.type || null,
+        file_size: file.size,
+        status: "under_review",
+      })
+      if (portalErr) {
+        console.warn("[admin/worker-attachment-upload] portal document", portalErr)
+      }
 
       return NextResponse.json({ ok: true, path: objectPath, bucket: WORKER_REQUIRED_FILES_BUCKET })
     }
@@ -305,7 +333,7 @@ export async function POST(req: NextRequest) {
     }
 
     const buffer = Buffer.from(await file.arrayBuffer())
-    const objectPath = `${tenantId}/${workerId}/${requiredDocumentId}/${randomUUID()}-${sanitizeFileName(file.name)}`
+    const objectPath = `${tenantId}/${workerId}/admin/${auth.userId}/${requiredDocumentId}/${randomUUID()}-${sanitizeFileName(file.name)}`
 
     const { error: uploadError } = await supabase.storage
       .from(WORKER_REQUIRED_FILES_BUCKET)

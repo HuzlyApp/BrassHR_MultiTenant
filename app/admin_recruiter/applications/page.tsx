@@ -35,6 +35,7 @@ import SuccessModal from "@/app/components/SuccessModal";
 import ErrorModal from "@/app/components/ErrorModal";
 import { validateResumeUploadFile } from "@/lib/resume/validate-resume-upload";
 import { CandidateAiFinalApprovalLink } from "@/app/admin_recruiter/candidates/CandidateAiFinalApprovalLink";
+import { CandidateProfileIconLink } from "@/app/admin_recruiter/candidates/CandidateProfileIconLink";
 import { useCandidatesFilterRowsDefault } from "@/app/admin_recruiter/hooks/useCandidatesFilterRowsDefault";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import {
@@ -1526,7 +1527,13 @@ export default function JobApplicationsPage() {
                 </p>
               ) : null}
             </div>
-            <div className="ml-auto flex shrink-0 items-center">
+            <div className="ml-auto flex shrink-0 items-center gap-1">
+              <CandidateProfileIconLink
+                workerId={workerId}
+                candidateName={name}
+                jobId={jobId || undefined}
+                from="applications"
+              />
               <CandidateAiFinalApprovalLink
                 workerId={workerId}
                 status={row.status}

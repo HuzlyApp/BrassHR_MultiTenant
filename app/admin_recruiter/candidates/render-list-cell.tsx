@@ -3,6 +3,7 @@ import Link from "next/link"
 import BrandedSvgIcon from "@/app/components/BrandedSvgIcon"
 import { CandidateListAvatar } from "@/app/admin_recruiter/components/CandidateListAvatar"
 import { CandidateAiAnalysisLink } from "./CandidateAiAnalysisLink"
+import { CandidateProfileIconLink } from "./CandidateProfileIconLink"
 import { candidateMailHref, candidateProfileHref } from "./candidate-links"
 import type { CandidateColumnId } from "./column-config"
 import type { CandidateRow } from "./types"
@@ -67,13 +68,7 @@ export function renderListCell(
             >
               <BrandedSvgIcon src="/icons/admin-recruiter/save.svg" className="h-4 w-4" color={BRAND_ICON} />
             </Link>
-            <Link
-              href={candidateProfileHref(c.id)}
-              className="inline-flex h-7 w-7 items-center justify-center rounded-md transition hover:bg-[color-mix(in_srgb,var(--brand-primary)_8%,white)]"
-              aria-label="View profile"
-            >
-              <BrandedSvgIcon src="/icons/admin-recruiter/eye.svg" className="h-4 w-4" color={BRAND_ICON} />
-            </Link>
+            <CandidateProfileIconLink workerId={c.id} candidateName={c.name} from="candidates" />
           </div>
         </div>
       )
