@@ -5,6 +5,7 @@ import {
   formatCandidateLocation,
   isActiveApplicant,
   pickBestMatch,
+  pickProfessionalSummaryText,
   resolveOverallApplicationStatus,
   summarizeApplicationStatuses,
   summarizeWorkTypes,
@@ -99,5 +100,27 @@ describe("candidate profile view", () => {
         match,
       })
     ).toContain("both employee and contractor");
+  });
+
+  it("prefers the latest completed resume text for professional summary", () => {
+    expect(
+      pickProfessionalSummaryText([
+        {
+          uploaded_at: "2026-08-19T12:00:00.000Z",
+          parse_status: "pending",
+          extracted_text: "older pending text",
+        },
+        {
+          uploaded_at: "2026-08-18T12:00:00.000Z",
+          parse_status: "completed",
+          extracted_text: "parsed summary",
+        },
+        {
+          uploaded_at: "2026-08-17T12:00:00.000Z",
+          parse_status: "completed",
+          parsed_data: { text: "stale parsed" },
+        },
+      ])
+    ).toBe("parsed summary");
   });
 });

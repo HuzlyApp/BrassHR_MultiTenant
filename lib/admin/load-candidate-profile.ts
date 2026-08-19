@@ -6,6 +6,7 @@ import {
   formatCandidateLocation,
   isActiveApplicant,
   pickBestMatch,
+  pickProfessionalSummaryText,
   resolveOverallApplicationStatus,
   summarizeApplicationStatuses,
   summarizeWorkTypes,
@@ -65,7 +66,8 @@ export async function loadCandidateProfile(
   const workerTenantId = asText(worker.tenant_id);
   if (workerTenantId && workerTenantId !== input.tenantId) return null;
 
-  const [applications, photoUrl, activityResult, resumeList, documentList] = await Promise.all([
+  const [applications, photoUrl, activityResult, resumeList, documentList, summaryResult] =
+    await Promise.all([
     listWorkerJobApplications(supabase, {
       workerId: input.workerId,
       tenantId: input.tenantId,
@@ -85,12 +87,32 @@ export async function loadCandidateProfile(
       console.warn("[candidate-profile] worker_documents", error);
       return [];
     }),
+    supabase
+      .from("worker_resumes")
+      .select("extracted_text, parsed_data, parsing_status, parse_status, uploaded_at")
+      .eq("worker_id", input.workerId)
+      .eq("tenant_id", input.tenantId)
+      .is("deleted_at", null)
+      .order("uploaded_at", { ascending: false })
+      .limit(8),
   ]);
 
   const activityRows = activityResult.error ? [] : (activityResult.data ?? []);
   if (activityResult.error) {
     console.warn("[candidate-profile] activity_logs", activityResult.error);
   }
+  if (summaryResult.error) {
+    console.warn("[candidate-profile] professional_summary", summaryResult.error);
+  }
+  const professionalSummary = pickProfessionalSummaryText(
+    (summaryResult.error ? [] : summaryResult.data ?? []) as Array<{
+      extracted_text?: string | null;
+      parsed_data?: unknown;
+      parsing_status?: string | null;
+      parse_status?: string | null;
+      uploaded_at?: string | null;
+    }>
+  );
 
   const firstName = asText(worker.first_name);
   const lastName = asText(worker.last_name);
@@ -199,6 +221,7 @@ export async function loadCandidateProfile(
       workTypes,
       match,
     }),
+    professionalSummary,
     resumes,
     documents,
     activity: activity.slice(0, 500),

@@ -105,6 +105,7 @@ export type CandidateProfilePayload = {
   workTypeSummary: ProfileSummarySlice[];
   statusSummary: ProfileSummarySlice[];
   smartInsight: string;
+  professionalSummary: string;
   resumes: CandidateProfileSubmittedResume[];
   documents: CandidateProfileDocument[];
   activity: CandidateProfileActivity[];
@@ -298,4 +299,40 @@ export function buildSmartInsight(input: {
   }
 
   return parts.join(" ");
+}
+
+export function resumeTextFromParsedRow(row: {
+  extracted_text?: string | null;
+  parsed_data?: unknown;
+}): string {
+  const extracted = typeof row.extracted_text === "string" ? row.extracted_text.trim() : "";
+  if (extracted) return extracted;
+  const parsed = row.parsed_data;
+  if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+    const text = (parsed as { text?: unknown }).text;
+    if (typeof text === "string" && text.trim()) return text.trim();
+  }
+  return "";
+}
+
+export function pickProfessionalSummaryText(
+  rows: Array<{
+    extracted_text?: string | null;
+    parsed_data?: unknown;
+    parsing_status?: string | null;
+    parse_status?: string | null;
+    uploaded_at?: string | null;
+  }>
+): string {
+  const ordered = [...rows].sort((a, b) =>
+    String(b.uploaded_at ?? "").localeCompare(String(a.uploaded_at ?? ""))
+  );
+  const withText = ordered
+    .map((row) => ({
+      text: resumeTextFromParsedRow(row),
+      completed:
+        (row.parse_status || row.parsing_status || "").trim().toLowerCase() === "completed",
+    }))
+    .filter((row) => row.text);
+  return withText.find((row) => row.completed)?.text || withText[0]?.text || "";
 }

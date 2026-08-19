@@ -1,14 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
-import { Briefcase, CalendarDays, ChevronDown, ChevronRight, Clock, Download, Eye, FileText, Info, Loader2, Sparkles, StickyNote } from "lucide-react";
+import { Briefcase, CalendarDays, ChevronDown, ChevronRight, Clock, Download, Eye, FileText, Info, Loader2, Mail, MapPin, Phone, Sparkles, StickyNote } from "lucide-react";
 import toast from "react-hot-toast";
 import BrandedFileTypeIcon from "@/app/admin_recruiter/components/BrandedFileTypeIcon";
 import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
-import { candidateProfileHref } from "@/app/admin_recruiter/candidates/candidate-links";
 import {
   CANDIDATES_PAGE_TITLE_CLASS,
   CANDIDATES_PAGE_TITLE_STYLE,
@@ -41,6 +40,7 @@ import {
   PROFILE_ACTIVITY_RANGE_PRESETS,
   filterProfileActivityByRange,
   isProfileActivityRangeId,
+  splitProfessionalSummaryBlocks,
   type CandidateProfileTabId,
   type ProfileActivityRangeId,
 } from "./candidate-profile-ui";
@@ -265,6 +265,141 @@ function ProfileActivityFeed({ items }: { items: CandidateProfileActivity[] }) {
             </section>
           ))}
         </div>
+      )}
+    </section>
+  );
+}
+
+function ProfessionalSummaryContact({
+  icon: Icon,
+  children,
+}: {
+  icon: typeof Mail;
+  children: ReactNode;
+}) {
+  return (
+    <div className="flex items-center gap-2 text-sm text-[#475569]">
+      <Icon className="h-4 w-4 shrink-0 text-[color:var(--brand-primary)]" aria-hidden />
+      {children}
+    </div>
+  );
+}
+
+function ProfessionalSummaryCard({ text }: { text: string }) {
+  const blocks = useMemo(() => splitProfessionalSummaryBlocks(text), [text]);
+
+  return (
+    <section className={`${CARD_CLASS} mt-5 overflow-hidden`}>
+      <div className="border-b border-[#E5E7EB] px-5 py-4">
+        <h2 className="text-lg font-semibold text-[color:var(--brand-secondary)]">
+          Professional Summary
+        </h2>
+      </div>
+      {text.trim() ? (
+        <div className="max-h-[36rem] overflow-y-auto px-5 py-5">
+          <div className="flex flex-col">
+            {blocks.map((block, index) => {
+              const key = `${block.kind}-${index}`;
+              if (block.kind === "name") {
+                return (
+                  <p
+                    key={key}
+                    className="text-xl font-semibold leading-7 text-[color:var(--brand-secondary)]"
+                  >
+                    {block.text}
+                  </p>
+                );
+              }
+              if (block.kind === "location") {
+                return (
+                  <div key={key} className="mt-2">
+                    <ProfessionalSummaryContact icon={MapPin}>{block.text}</ProfessionalSummaryContact>
+                  </div>
+                );
+              }
+              if (block.kind === "email") {
+                return (
+                  <div key={key} className="mt-1.5">
+                    <ProfessionalSummaryContact icon={Mail}>
+                      <a
+                        href={`mailto:${block.text}`}
+                        className="break-all text-[color:var(--brand-secondary)] underline-offset-2 hover:underline"
+                      >
+                        {block.text}
+                      </a>
+                    </ProfessionalSummaryContact>
+                  </div>
+                );
+              }
+              if (block.kind === "phone") {
+                const tel = block.text.replace(/[^\d+]/g, "");
+                return (
+                  <div key={key} className="mt-1.5">
+                    <ProfessionalSummaryContact icon={Phone}>
+                      <a
+                        href={`tel:${tel}`}
+                        className="text-[color:var(--brand-secondary)] underline-offset-2 hover:underline"
+                      >
+                        {block.text}
+                      </a>
+                    </ProfessionalSummaryContact>
+                  </div>
+                );
+              }
+              if (block.kind === "heading") {
+                return (
+                  <h3
+                    key={key}
+                    className="mt-6 border-b border-[#EEF2F7] pb-1.5 text-base font-semibold tracking-wide text-[color:var(--brand-secondary)] first:mt-0"
+                  >
+                    {block.text}
+                  </h3>
+                );
+              }
+              if (block.kind === "jobTitle") {
+                return (
+                  <p key={key} className="mt-4 text-[15px] font-semibold leading-6 text-[#0F172A]">
+                    {block.text}
+                  </p>
+                );
+              }
+              if (block.kind === "company") {
+                return (
+                  <p key={key} className="mt-0.5 text-sm font-medium text-[#334155]">
+                    {block.text}
+                  </p>
+                );
+              }
+              if (block.kind === "date") {
+                return (
+                  <div key={key} className="mt-0.5 flex items-center gap-1.5 text-xs text-[#64748B]">
+                    <CalendarDays className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                    <span>{block.text}</span>
+                  </div>
+                );
+              }
+              if (block.kind === "tag") {
+                return (
+                  <span
+                    key={key}
+                    className="mt-4 inline-flex w-fit rounded-full bg-[#F1F5F9] px-2.5 py-1 text-xs font-medium text-[#475569]"
+                  >
+                    {block.text}
+                  </span>
+                );
+              }
+              return (
+                <p key={key} className="mt-2 whitespace-pre-wrap text-sm leading-6 text-[#475569]">
+                  {block.text}
+                </p>
+              );
+            })}
+          </div>
+        </div>
+      ) : (
+        <p className="px-5 py-12 text-center text-sm text-[#64748B]">
+          No professional summary yet. Upload and parse a résumé on the Documents tab.
+        </p>
       )}
     </section>
   );
@@ -632,63 +767,7 @@ export function CandidateProfileClient({ workerId }: { workerId: string }) {
       </div>
 
       {activeTab === "overview" ? (
-        <div className="mt-5 grid gap-4 lg:grid-cols-3">
-          <section className={`${CARD_CLASS} p-5 lg:col-span-2`}>
-            <h2 className="text-base font-semibold text-[#0F172A]">Candidate overview</h2>
-            <dl className="mt-4 grid gap-4 sm:grid-cols-2">
-              <div>
-                <dt className="text-xs font-medium text-[#94A3B8]">Role</dt>
-                <dd className="mt-1 text-sm text-[#0F172A]">{candidate.role || "—"}</dd>
-              </div>
-              <div>
-                <dt className="text-xs font-medium text-[#94A3B8]">Experience</dt>
-                <dd className="mt-1 text-sm text-[#0F172A]">
-                  {candidate.yearsExperience != null ? `${candidate.yearsExperience} years` : "—"}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-xs font-medium text-[#94A3B8]">Email</dt>
-                <dd className="mt-1 text-sm text-[#0F172A]">{candidate.email || "—"}</dd>
-              </div>
-              <div>
-                <dt className="text-xs font-medium text-[#94A3B8]">Phone</dt>
-                <dd className="mt-1 text-sm text-[#0F172A]">
-                  {candidate.phone ? formatPhoneForDisplay(candidate.phone) : "—"}
-                </dd>
-              </div>
-              <div className="sm:col-span-2">
-                <dt className="text-xs font-medium text-[#94A3B8]">Location</dt>
-                <dd className="mt-1 text-sm text-[#0F172A]">{candidate.location || "—"}</dd>
-              </div>
-            </dl>
-            <Link
-              href={candidateProfileHref(candidate.id)}
-              className="mt-5 inline-flex cursor-pointer text-sm font-medium text-[color:var(--brand-primary)] hover:underline"
-            >
-              Open full candidate record
-            </Link>
-          </section>
-          <section className={`${CARD_CLASS} p-5`}>
-            <h2 className="text-base font-semibold text-[#0F172A]">Recent applications</h2>
-            {applications.length === 0 ? (
-              <p className="mt-4 text-sm text-[#64748B]">No job applications yet.</p>
-            ) : (
-              <ul className="mt-4 space-y-3">
-                {applications.slice(0, 4).map((row) => (
-                  <li key={row.id}>
-                    <Link
-                      href={applicationReviewHref(row.id, row.jobRequisitionId)}
-                      className="block cursor-pointer rounded-lg border border-[#F1F5F9] px-3 py-2 hover:bg-[#F8FAFC]"
-                    >
-                      <p className="truncate text-sm font-semibold text-[#0F172A]">{row.jobTitle}</p>
-                      <p className="truncate text-xs text-[#64748B]">{row.statusName}</p>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
-        </div>
+        <ProfessionalSummaryCard text={profile.professionalSummary ?? ""} />
       ) : null}
 
       {activeTab === "applications" ? (

@@ -253,6 +253,131 @@ export function isProfileActivityRangeId(value: string): value is ProfileActivit
   return PROFILE_ACTIVITY_RANGE_PRESETS.some((preset) => preset.id === value);
 }
 
+const PROFESSIONAL_SUMMARY_SECTIONS = new Set([
+  "additional information",
+  "awards",
+  "certifications",
+  "education",
+  "employment",
+  "employment history",
+  "experience",
+  "languages",
+  "licenses",
+  "objective",
+  "professional summary",
+  "profile",
+  "projects",
+  "references",
+  "skills",
+  "summary",
+  "volunteer",
+  "work experience",
+  "work history",
+]);
+
+const EMAIL_LINE_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i;
+const PHONE_LINE_RE = /^\+?[\d][\d\s().-]{8,}\d$/;
+const DATE_RANGE_RE =
+  /^(?:[A-Za-z]{3,9}\.?\s+\d{4}|\d{1,2}\/\d{4})\s+(?:to|-|–|—)\s+(?:present|[A-Za-z]{3,9}\.?\s+\d{4}|\d{1,2}\/\d{4})$/i;
+const LOCATION_LINE_RE = /^[A-Za-z .'-]+,\s*[A-Z]{2}(?:\s+\d{5}(?:-\d{4})?)?$/;
+const TAG_LINE_RE = /^#[A-Za-z0-9_-]+$/;
+
+function normalizeSummaryHeadingKey(line: string): string {
+  return line.trim().replace(/[:：]+$/, "").replace(/\s+/g, " ").toLowerCase();
+}
+
+export function isProfessionalSummaryEmail(line: string): boolean {
+  return EMAIL_LINE_RE.test(line.trim());
+}
+
+export function isProfessionalSummaryPhone(line: string): boolean {
+  const trimmed = line.trim();
+  if (!PHONE_LINE_RE.test(trimmed)) return false;
+  return trimmed.replace(/\D/g, "").length >= 10;
+}
+
+export function isProfessionalSummaryDate(line: string): boolean {
+  return DATE_RANGE_RE.test(line.trim().replace(/\s+/g, " "));
+}
+
+export function isProfessionalSummaryHeading(line: string): boolean {
+  const trimmed = line.trim();
+  if (trimmed.length < 4 || trimmed.length > 80) return false;
+  if (PROFESSIONAL_SUMMARY_SECTIONS.has(normalizeSummaryHeadingKey(trimmed))) return true;
+  const letters = trimmed.replace(/[^A-Za-z]/g, "");
+  if (letters.length < 3) return false;
+  const uppercase = letters.replace(/[^A-Z]/g, "").length;
+  return uppercase / letters.length >= 0.82;
+}
+
+export type ProfessionalSummaryBlockKind =
+  | "name"
+  | "location"
+  | "email"
+  | "phone"
+  | "heading"
+  | "jobTitle"
+  | "company"
+  | "date"
+  | "tag"
+  | "body";
+
+export type ProfessionalSummaryBlock = {
+  kind: ProfessionalSummaryBlockKind;
+  text: string;
+};
+
+function nextNonEmptyLines(lines: string[], from: number): [string, string] {
+  const found: string[] = [];
+  for (let index = from; index < lines.length && found.length < 2; index += 1) {
+    const value = lines[index]?.trim() ?? "";
+    if (value) found.push(value);
+  }
+  return [found[0] ?? "", found[1] ?? ""];
+}
+
+function classifyResumeLine(
+  line: string,
+  nextLine: string,
+  nextNextLine: string,
+  sawHeading: boolean
+): ProfessionalSummaryBlockKind {
+  if (isProfessionalSummaryEmail(line)) return "email";
+  if (isProfessionalSummaryPhone(line)) return "phone";
+  if (isProfessionalSummaryHeading(line)) return "heading";
+  if (TAG_LINE_RE.test(line)) return "tag";
+  if (isProfessionalSummaryDate(line)) return "date";
+  if (!sawHeading && LOCATION_LINE_RE.test(line)) return "location";
+  if (isProfessionalSummaryDate(nextNextLine)) return "jobTitle";
+  if (isProfessionalSummaryDate(nextLine)) return "company";
+  return "body";
+}
+
+export function splitProfessionalSummaryBlocks(text: string): ProfessionalSummaryBlock[] {
+  const lines = text.replace(/\r\n/g, "\n").split("\n");
+  const blocks: ProfessionalSummaryBlock[] = [];
+  let sawHeading = false;
+  let named = false;
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const textLine = lines[index]?.trim() ?? "";
+    if (!textLine) continue;
+
+    const [nextLine, nextNextLine] = nextNonEmptyLines(lines, index + 1);
+    let kind = classifyResumeLine(textLine, nextLine, nextNextLine, sawHeading);
+
+    if (!sawHeading && !named && kind === "body") {
+      kind = "name";
+      named = true;
+    }
+    if (kind === "heading") sawHeading = true;
+
+    blocks.push({ kind, text: textLine });
+  }
+
+  return blocks;
+}
+
 export function profileActivityKind(title: string): "view" | "job" | "document" | "note" | "other" {
   const value = title.toLowerCase();
   if (value.includes("view") || value.includes("profile")) return "view";
