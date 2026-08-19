@@ -34,7 +34,6 @@ import {
 import SuccessModal from "@/app/components/SuccessModal";
 import ErrorModal from "@/app/components/ErrorModal";
 import { validateResumeUploadFile } from "@/lib/resume/validate-resume-upload";
-import { CandidateAiFinalApprovalLink } from "@/app/admin_recruiter/candidates/CandidateAiFinalApprovalLink";
 import { CandidateProfileIconLink } from "@/app/admin_recruiter/candidates/CandidateProfileIconLink";
 import { useCandidatesFilterRowsDefault } from "@/app/admin_recruiter/hooks/useCandidatesFilterRowsDefault";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
@@ -1533,11 +1532,6 @@ export default function JobApplicationsPage() {
                 candidateName={name}
                 jobId={jobId || undefined}
                 from="applications"
-              />
-              <CandidateAiFinalApprovalLink
-                workerId={workerId}
-                status={row.status}
-                candidateName={name}
               />
             </div>
           </div>
