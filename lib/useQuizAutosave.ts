@@ -4,6 +4,8 @@ import type { MutableRefObject } from "react"
 import { useCallback, useEffect, useRef, useState } from "react"
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { upsertSkillAnswerRow, syncSkillAssessmentJson } from "@/lib/skill-assessment-answer-rows"
+import { isValidRatingAnswer } from "@/lib/skill-assessment/score"
+import type { SkillQuizAnswerValue, SkillQuizAnswers } from "@/lib/skill-assessment/types"
 
 const DEBOUNCE_MS = 550
 const QUEUE_KEY = "pending_skill_answer_upserts_v1"
@@ -41,14 +43,14 @@ export function useQuizAutosave(
   supabase: SupabaseClient,
   opts: {
     categorySlug: string
-    answersRef: MutableRefObject<Record<string, number>>
+    answersRef: MutableRefObject<SkillQuizAnswers>
   }
 ) {
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "offline">("idle")
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const pendingRef = useRef<{
     skillId: string
-    value: number
+    value: SkillQuizAnswerValue
     categoryId: string
   } | null>(null)
   const optsRef = useRef(opts)
@@ -65,21 +67,26 @@ export function useQuizAutosave(
 
     const { categorySlug, answersRef } = optsRef.current
 
-    const res = await upsertSkillAnswerRow(supabase, {
-      categoryId: p.categoryId,
-      skillId: p.skillId,
-      answerValue: p.value,
-    })
-
-    if (!res.ok && res.error === "no_worker_row") {
-      const q = readQueue()
-      q.push({
+    let res: { ok: boolean; error?: string } = { ok: true }
+    if (isValidRatingAnswer(p.value)) {
+      res = await upsertSkillAnswerRow(supabase, {
         categoryId: p.categoryId,
-        categorySlug,
         skillId: p.skillId,
         answerValue: p.value,
       })
-      writeQueue(q)
+    }
+
+    if (!res.ok && res.error === "no_worker_row") {
+      const q = readQueue()
+      if (isValidRatingAnswer(p.value)) {
+        q.push({
+          categoryId: p.categoryId,
+          categorySlug,
+          skillId: p.skillId,
+          answerValue: p.value,
+        })
+        writeQueue(q)
+      }
       setSaveState("offline")
       return
     }
@@ -97,7 +104,7 @@ export function useQuizAutosave(
   const flushRef = useRef(flush)
   flushRef.current = flush
 
-  const scheduleSave = useCallback((skillId: string, value: number, categoryId: string) => {
+  const scheduleSave = useCallback((skillId: string, value: SkillQuizAnswerValue, categoryId: string) => {
     pendingRef.current = { skillId, value, categoryId }
     setSaveState("saving")
     if (timerRef.current) clearTimeout(timerRef.current)

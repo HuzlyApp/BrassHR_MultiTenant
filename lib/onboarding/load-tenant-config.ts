@@ -14,6 +14,7 @@ import { enforceUploadResumeFirstInTenantSteps } from "@/lib/onboarding/enforce-
 import { mapConfigToDrafts } from "@/lib/onboarding/config-to-drafts";
 import { ensureProfessionalLicenseRequiredDocuments } from "@/lib/onboarding/ensure-professional-license-documents";
 import { enrichTenantConfigFromPublishedFlow } from "@/lib/onboarding/enrich-config-from-published-flow";
+import { attachPublishedSkillAssessmentToConfig } from "@/lib/skill-assessment/load-settings";
 
 export async function seedDefaultTenantOnboarding(
   supabase: OnboardingDbClient,
@@ -262,6 +263,10 @@ async function loadTenantOnboardingConfigUncached(
     } catch (err) {
       console.warn("[loadTenantOnboardingConfig] upload resume normalization persist failed", err);
     }
+  }
+
+  if (workerFacing) {
+    return attachPublishedSkillAssessmentToConfig(supabase, tenantId, config);
   }
 
   return config;

@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import BrandingSettingsPanel from "@/app/admin_recruiter/settings/BrandingSettingsPanel";
 import CandidateStatusesPanel from "@/app/admin_recruiter/settings/CandidateStatusesPanel";
+import AssessmentSettingsPanel from "@/app/admin_recruiter/settings/AssessmentSettingsPanel";
 
 function SettingsContent() {
   const router = useRouter();
@@ -24,7 +25,7 @@ function SettingsContent() {
           Settings
         </h1>
         <p className="mt-1.5 max-w-2xl text-sm leading-6 text-[#64748B]">
-          Set up onboarding and your company look. Branding updates apply for your whole organization,
+          Set up onboarding, assessments, and your company look. Branding updates apply for your whole organization,
           including worker sign-in.
         </p>
       </div>
@@ -34,6 +35,13 @@ function SettingsContent() {
           Branding
         </h2>
         <BrandingSettingsPanel />
+      </section>
+
+      <section aria-labelledby="assessment-heading">
+        <h2 id="assessment-heading" className="sr-only">
+          Assessment
+        </h2>
+        <AssessmentSettingsPanel />
       </section>
 
       <section aria-labelledby="candidate-statuses-heading">

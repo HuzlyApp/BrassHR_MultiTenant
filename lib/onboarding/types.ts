@@ -79,6 +79,7 @@ export type TenantOnboardingConfig = {
   skillAssessments: TenantSkillAssessment[];
   /** Opaque engine order for applicant gating. Never includes internal titles or notes. */
   candidateEngineOrder?: CandidateEngineOrderEntry[];
+  skillAssessmentSettings?: import("@/lib/skill-assessment/types").SkillAssessmentApplicantSettings;
 };
 
 export type StepProgressRow = {

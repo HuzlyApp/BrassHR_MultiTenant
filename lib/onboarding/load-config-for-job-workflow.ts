@@ -19,6 +19,7 @@ import {
 } from "@/lib/jobs/validate-job-application";
 import type { OnboardingStepDraft } from "@/lib/onboarding/default-onboarding-steps";
 import type { TenantOnboardingConfig, TenantOnboardingStep } from "@/lib/onboarding/types";
+import { attachPublishedSkillAssessmentToConfig } from "@/lib/skill-assessment/load-settings";
 
 function workflowNodeId(meta: Record<string, unknown> | undefined): string | null {
   const value = meta?.workflow_node_id;
@@ -172,8 +173,10 @@ async function loadApplicantConfigFromFlow(
     );
   }
 
+  const config = await attachPublishedSkillAssessmentToConfig(supabase, tenantId, fromFlow);
+
   return {
-    config: fromFlow,
+    config,
     workflowId: flow.id,
     workflowName: flow.name,
   };

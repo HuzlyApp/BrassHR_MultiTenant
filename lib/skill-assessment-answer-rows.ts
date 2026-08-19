@@ -159,14 +159,14 @@ export async function findSkillAssessmentRowId(
 export async function syncSkillAssessmentJson(
   supabase: SupabaseClient,
   categorySlug: string,
-  answers: Record<string, number>,
+  answers: Record<string, unknown>,
   completed: boolean
 ): Promise<void> {
   const ctx = await getWorkerSessionContext(supabase)
   const workerKey = ctx?.id ?? (await getSkillAssessmentWorkerKey(supabase))
   if (!workerKey) return
 
-  const cleanAnswers = JSON.parse(JSON.stringify(answers)) as Record<string, number>
+  const cleanAnswers = JSON.parse(JSON.stringify(answers)) as Record<string, unknown>
   const existingId = await findSkillAssessmentRowId(supabase, workerKey, categorySlug)
 
   if (existingId) {
@@ -192,7 +192,7 @@ export async function persistSkillAssessment(
   supabase: SupabaseClient,
   params: {
     categorySlug: string
-    answers: Record<string, number>
+    answers: Record<string, unknown>
     completed: boolean
   }
 ): Promise<{ ok: true } | { ok: false; error: string }> {
@@ -204,7 +204,7 @@ export async function persistSkillAssessment(
     }
   }
 
-  const cleanAnswers = JSON.parse(JSON.stringify(params.answers)) as Record<string, number>
+  const cleanAnswers = JSON.parse(JSON.stringify(params.answers)) as Record<string, unknown>
   const existingId = await findSkillAssessmentRowId(supabase, ctx.id, params.categorySlug)
 
   if (existingId) {
