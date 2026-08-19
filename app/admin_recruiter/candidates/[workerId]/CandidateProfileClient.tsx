@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
-import { ChevronDown, ChevronRight, Download, Info, Loader2, Sparkles } from "lucide-react";
+import { Briefcase, CalendarDays, ChevronDown, ChevronRight, Clock, Download, Eye, FileText, Info, Loader2, Sparkles, StickyNote } from "lucide-react";
 import toast from "react-hot-toast";
 import BrandedFileTypeIcon from "@/app/admin_recruiter/components/BrandedFileTypeIcon";
 import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
@@ -17,7 +17,7 @@ import { formatPhoneForDisplay } from "@/lib/admin/worker-profile-field-client";
 import { applicationCurrentStageMeta } from "@/lib/jobs/application-status";
 import { profileMatchRingColor } from "@/lib/jobs/match-analysis/display";
 import { workTypeLabel } from "@/lib/admin/candidate-profile-view";
-import type { CandidateProfilePayload } from "@/lib/admin/candidate-profile-view";
+import type { CandidateProfileActivity, CandidateProfilePayload } from "@/lib/admin/candidate-profile-view";
 import { exportRowsAsCsv } from "@/lib/admin/export-list-download";
 import { CandidateProfileDocumentsTab } from "./CandidateProfileDocumentsTab";
 import {
@@ -25,21 +25,29 @@ import {
   CANDIDATE_PROFILE_NAME_STYLE,
   PROFILE_TABS,
   applicationReviewHref,
+  formatProfileActivityTime,
   formatProfileApplicationDate,
+  groupProfileActivityByDay,
   isCandidateProfileTabId,
   overallStatusBadgeClass,
   AI_CONFIDENCE_SCORE_TOOLTIP,
+  profileActivityKind,
   profileAiAnalysisHref,
   profileCandidatesBackHref,
   profileStatusPillClass,
   resumeIconType,
   workTypeBadgeClass,
+  DEFAULT_PROFILE_ACTIVITY_RANGE,
+  PROFILE_ACTIVITY_RANGE_PRESETS,
+  filterProfileActivityByRange,
+  isProfileActivityRangeId,
   type CandidateProfileTabId,
+  type ProfileActivityRangeId,
 } from "./candidate-profile-ui";
 
 const CARD_CLASS = "rounded-xl border border-[#E5E7EB] bg-white";
 const FILTER_SELECT_CLASS =
-  "h-10 min-w-[148px] appearance-none rounded-lg border border-[#E5E7EB] bg-white py-2 pl-3 pr-9 text-sm font-medium text-[#374151] outline-none transition hover:bg-[#F9FAFB] focus:border-[color:var(--brand-primary)]";
+  "h-10 min-w-[148px] cursor-pointer appearance-none rounded-lg border border-[#E5E7EB] bg-white py-2 pl-3 pr-9 text-sm font-medium text-[#374151] outline-none transition hover:bg-[#F9FAFB] focus:border-[color:var(--brand-primary)]";
 
 function MatchRing({ score }: { score: number }) {
   const size = 88;
@@ -80,6 +88,185 @@ function MatchRing({ score }: { score: number }) {
         {clamped}%
       </span>
     </div>
+  );
+}
+
+function activityKindIcon(kind: ReturnType<typeof profileActivityKind>) {
+  if (kind === "view") return Eye;
+  if (kind === "job") return Briefcase;
+  if (kind === "document") return FileText;
+  if (kind === "note") return StickyNote;
+  return Clock;
+}
+
+function activityKindTone(): string {
+  return "border-[color:color-mix(in_srgb,var(--brand-primary)_28%,white)] bg-[color:color-mix(in_srgb,var(--brand-primary)_12%,white)] text-[color:var(--brand-primary)]";
+}
+
+const ACTIVITY_DATE_INPUT_CLASS =
+  "h-10 w-44 cursor-pointer rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm font-medium text-[#374151] outline-none transition hover:bg-[#F9FAFB] focus:border-[color:var(--brand-primary)] [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:rounded-sm";
+
+function ProfileActivityFeed({ items }: { items: CandidateProfileActivity[] }) {
+  const [rangeId, setRangeId] = useState<ProfileActivityRangeId>(DEFAULT_PROFILE_ACTIVITY_RANGE);
+  const [customFrom, setCustomFrom] = useState("");
+  const [customTo, setCustomTo] = useState("");
+
+  const filtered = useMemo(
+    () => filterProfileActivityByRange(items, rangeId, new Date(), customFrom, customTo),
+    [items, rangeId, customFrom, customTo]
+  );
+  const groups = useMemo(() => groupProfileActivityByDay(filtered), [filtered]);
+  const rangeLabel =
+    PROFILE_ACTIVITY_RANGE_PRESETS.find((preset) => preset.id === rangeId)?.label ?? "Last 3 days";
+  const customIncomplete = rangeId === "custom" && (!customFrom || !customTo);
+
+  return (
+    <section className={`${CARD_CLASS} mt-5 overflow-hidden`}>
+      <div className="flex flex-col gap-4 border-b border-[#E5E7EB] bg-[color:color-mix(in_srgb,var(--brand-primary)_6%,white)] px-4 py-4 sm:px-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-lg font-semibold text-[color:var(--brand-secondary)]">Activity</h2>
+            <p className="mt-1 text-sm text-[#64748B]">
+              {customIncomplete
+                ? "Choose a start and end date to view history."
+                : `${filtered.length} ${filtered.length === 1 ? "event" : "events"} in ${rangeLabel.toLowerCase()}`}
+            </p>
+          </div>
+          <label className="relative w-full cursor-pointer sm:w-auto">
+            <span className="sr-only">Filter activity by date range</span>
+            <select
+              className={`${FILTER_SELECT_CLASS} w-full min-w-[180px]`}
+              value={rangeId}
+              onChange={(event) => {
+                const next = event.target.value;
+                if (isProfileActivityRangeId(next)) setRangeId(next);
+              }}
+            >
+              {PROFILE_ACTIVITY_RANGE_PRESETS.map((preset) => (
+                <option key={preset.id} value={preset.id}>
+                  {preset.label}
+                </option>
+              ))}
+            </select>
+            <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#64748B]" />
+          </label>
+        </div>
+
+        {rangeId === "custom" ? (
+          <div className="flex flex-wrap items-end gap-3">
+            <label className="w-44 cursor-pointer">
+              <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-[#64748B]">
+                From
+              </span>
+              <input
+                type="date"
+                value={customFrom}
+                max={customTo || undefined}
+                onChange={(event) => setCustomFrom(event.target.value)}
+                className={ACTIVITY_DATE_INPUT_CLASS}
+              />
+            </label>
+            <label className="w-44 cursor-pointer">
+              <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-[#64748B]">
+                To
+              </span>
+              <input
+                type="date"
+                value={customTo}
+                min={customFrom || undefined}
+                onChange={(event) => setCustomTo(event.target.value)}
+                className={ACTIVITY_DATE_INPUT_CLASS}
+              />
+            </label>
+          </div>
+        ) : null}
+      </div>
+
+      {items.length === 0 ? (
+        <div className="px-5 py-12 text-center">
+          <Clock className="mx-auto h-8 w-8 text-[#CBD5E1]" aria-hidden />
+          <p className="mt-3 text-sm font-medium text-[#334155]">No activity yet</p>
+          <p className="mt-1 text-sm text-[#64748B]">
+            Profile views, applications, and notes will show up here.
+          </p>
+        </div>
+      ) : customIncomplete ? (
+        <div className="px-5 py-12 text-center">
+          <CalendarDays className="mx-auto h-8 w-8 text-[#CBD5E1]" aria-hidden />
+          <p className="mt-3 text-sm font-medium text-[#334155]">Pick a date range</p>
+          <p className="mt-1 text-sm text-[#64748B]">
+            Select both dates to see activity between those days.
+          </p>
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="px-5 py-12 text-center">
+          <CalendarDays className="mx-auto h-8 w-8 text-[#CBD5E1]" aria-hidden />
+          <p className="mt-3 text-sm font-medium text-[#334155]">No activity in this range</p>
+          <p className="mt-1 text-sm text-[#64748B]">
+            Try a wider window, or choose specific dates.
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-6 px-4 py-5 sm:px-5">
+          {groups.map((group) => (
+            <section key={group.day}>
+              <div className="mb-3 flex items-center gap-3">
+                <h3 className="rounded-full bg-[color:color-mix(in_srgb,var(--brand-primary)_12%,white)] px-2.5 py-1 text-xs font-semibold uppercase tracking-wide text-[color:var(--brand-primary)]">
+                  {group.day}
+                </h3>
+                <p className="text-xs font-medium text-[#64748B]">
+                  {group.items.length} {group.items.length === 1 ? "event" : "events"}
+                </p>
+                <span
+                  className="h-px min-w-0 flex-1 bg-[color:color-mix(in_srgb,var(--brand-primary)_22%,#E5E7EB)]"
+                  aria-hidden
+                />
+              </div>
+              <ol className="space-y-2">
+                {group.items.map((item) => {
+                  const kind = profileActivityKind(item.title);
+                  const Icon = activityKindIcon(kind);
+                  return (
+                    <li
+                      key={item.id}
+                      className="flex items-stretch overflow-hidden rounded-lg border border-[#E5E7EB] bg-white"
+                    >
+                      <span
+                        className="w-1 shrink-0 bg-[color:var(--brand-primary)]"
+                        aria-hidden
+                      />
+                      <div className="grid min-w-0 flex-1 grid-cols-[2.5rem_minmax(0,1fr)_auto] items-center gap-3 px-3 py-3">
+                        <span
+                          className={`inline-flex h-9 w-9 items-center justify-center rounded-full border ${activityKindTone()}`}
+                        >
+                          <Icon className="h-4 w-4" aria-hidden />
+                        </span>
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-semibold leading-5 text-[color:var(--brand-secondary)]">
+                            {item.title}
+                          </p>
+                          {item.detail ? (
+                            <p className="mt-0.5 truncate text-sm leading-5 text-[#64748B]">
+                              {item.detail}
+                            </p>
+                          ) : null}
+                        </div>
+                        <time
+                          dateTime={item.at}
+                          className="shrink-0 rounded-md bg-[color:color-mix(in_srgb,var(--brand-primary)_10%,white)] px-2.5 py-1 text-xs font-semibold tabular-nums text-[color:var(--brand-primary)]"
+                        >
+                          {formatProfileActivityTime(item.at)}
+                        </time>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ol>
+            </section>
+          ))}
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -295,7 +482,7 @@ export function CandidateProfileClient({ workerId }: { workerId: string }) {
   return (
     <div className="box-border w-full min-w-0 max-w-full px-3 pb-10 pt-4 sm:px-5 sm:pt-5 lg:px-8">
       <nav className="mb-4 flex items-center gap-2 text-sm text-[#64748B]" aria-label="Breadcrumb">
-        <Link href={backHref} className="hover:text-[color:var(--brand-primary)] hover:underline">
+        <Link href={backHref} className="cursor-pointer hover:text-[color:var(--brand-primary)] hover:underline">
           Candidates
         </Link>
         <ChevronRight className="h-3.5 w-3.5" aria-hidden />
@@ -410,7 +597,7 @@ export function CandidateProfileClient({ workerId }: { workerId: string }) {
             </div>
             <Link
               href={aiHref}
-              className="mt-4 inline-flex h-10 w-full items-center justify-center rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm font-medium text-[#334155] transition hover:bg-white/80"
+              className="mt-4 inline-flex h-10 w-full cursor-pointer items-center justify-center rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm font-medium text-[#334155] transition hover:bg-white/80"
             >
               View AI Analysis Overview
             </Link>
@@ -427,7 +614,7 @@ export function CandidateProfileClient({ workerId }: { workerId: string }) {
                 key={tab.id}
                 type="button"
                 onClick={() => setTab(tab.id)}
-                className={`relative shrink-0 px-4 py-3 text-sm font-medium transition ${
+                className={`relative shrink-0 cursor-pointer px-4 py-3 text-sm font-medium transition ${
                   selected
                     ? "text-[color:var(--brand-primary)]"
                     : "text-[#64748B] hover:text-[#0F172A]"
@@ -476,7 +663,7 @@ export function CandidateProfileClient({ workerId }: { workerId: string }) {
             </dl>
             <Link
               href={candidateProfileHref(candidate.id)}
-              className="mt-5 inline-flex text-sm font-medium text-[color:var(--brand-primary)] hover:underline"
+              className="mt-5 inline-flex cursor-pointer text-sm font-medium text-[color:var(--brand-primary)] hover:underline"
             >
               Open full candidate record
             </Link>
@@ -491,7 +678,7 @@ export function CandidateProfileClient({ workerId }: { workerId: string }) {
                   <li key={row.id}>
                     <Link
                       href={applicationReviewHref(row.id, row.jobRequisitionId)}
-                      className="block rounded-lg border border-[#F1F5F9] px-3 py-2 hover:bg-[#F8FAFC]"
+                      className="block cursor-pointer rounded-lg border border-[#F1F5F9] px-3 py-2 hover:bg-[#F8FAFC]"
                     >
                       <p className="truncate text-sm font-semibold text-[#0F172A]">{row.jobTitle}</p>
                       <p className="truncate text-xs text-[#64748B]">{row.statusName}</p>
@@ -515,7 +702,7 @@ export function CandidateProfileClient({ workerId }: { workerId: string }) {
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                <label className="relative">
+                <label className="relative cursor-pointer">
                   <span className="sr-only">Filter by work type</span>
                   <select
                     className={FILTER_SELECT_CLASS}
@@ -531,7 +718,7 @@ export function CandidateProfileClient({ workerId }: { workerId: string }) {
                   </select>
                   <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#64748B]" />
                 </label>
-                <label className="relative">
+                <label className="relative cursor-pointer">
                   <span className="sr-only">Filter by status</span>
                   <select
                     className={FILTER_SELECT_CLASS}
@@ -551,7 +738,7 @@ export function CandidateProfileClient({ workerId }: { workerId: string }) {
                   type="button"
                   onClick={exportApplications}
                   disabled={filteredApplications.length === 0}
-                  className="inline-flex h-10 items-center gap-2 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm font-medium text-[#374151] transition hover:bg-[#F9FAFB] disabled:cursor-not-allowed disabled:opacity-50"
+                  className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm font-medium text-[#374151] transition hover:bg-[#F9FAFB] disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <Download className="h-4 w-4" />
                   Export
@@ -653,7 +840,7 @@ export function CandidateProfileClient({ workerId }: { workerId: string }) {
                                 type="button"
                                 onClick={() => void openResume(row.id, row.resume!.id)}
                                 disabled={openingResumeId === row.resume.id}
-                                className="flex min-w-0 items-start gap-2 text-left"
+                                className="flex min-w-0 cursor-pointer items-start gap-2 text-left"
                               >
                                 <BrandedFileTypeIcon
                                   type={resumeIconType(row.resume.fileName, row.resume.fileType)}
@@ -675,7 +862,7 @@ export function CandidateProfileClient({ workerId }: { workerId: string }) {
                           <td className="px-5 py-4 align-top">
                             <Link
                               href={applicationReviewHref(row.id, row.jobRequisitionId)}
-                              className="inline-flex items-center gap-1 text-sm font-medium text-[color:var(--brand-primary)] hover:underline"
+                              className="inline-flex cursor-pointer items-center gap-1 text-sm font-medium text-[color:var(--brand-primary)] hover:underline"
                             >
                               View Details
                               <ChevronRight className="h-4 w-4" />
@@ -717,7 +904,7 @@ export function CandidateProfileClient({ workerId }: { workerId: string }) {
               <p className="mt-3 text-sm leading-6 text-[#57534E]">{profile.smartInsight}</p>
               <Link
                 href={aiHref}
-                className="mt-4 inline-flex h-10 items-center justify-center rounded-lg border border-[#E8D7B8] bg-transparent px-3 text-sm font-medium text-[#8B6914] transition hover:bg-white/50"
+                className="mt-4 inline-flex h-10 cursor-pointer items-center justify-center rounded-lg border border-[#E8D7B8] bg-transparent px-3 text-sm font-medium text-[#8B6914] transition hover:bg-white/50"
               >
                 View AI Analysis Overview
               </Link>
@@ -736,27 +923,7 @@ export function CandidateProfileClient({ workerId }: { workerId: string }) {
         />
       ) : null}
 
-      {activeTab === "activity" ? (
-        <section className={`${CARD_CLASS} mt-5 p-5`}>
-          <h2 className="text-lg font-semibold text-[#0F172A]">Activity</h2>
-          {profile.activity.length === 0 ? (
-            <p className="mt-6 text-sm text-[#64748B]">No activity recorded for this candidate yet.</p>
-          ) : (
-            <ol className="mt-5 space-y-4">
-              {profile.activity.map((item) => (
-                <li key={item.id} className="border-l-2 border-[#CBD5E1] pl-4">
-                  <p className="text-xs font-medium text-[#94A3B8]">
-                    {formatProfileApplicationDate(item.at).absolute ||
-                      formatProfileApplicationDate(item.at).relative}
-                  </p>
-                  <p className="mt-0.5 text-sm font-semibold text-[#0F172A]">{item.title}</p>
-                  <p className="mt-0.5 text-sm text-[#475569]">{item.detail}</p>
-                </li>
-              ))}
-            </ol>
-          )}
-        </section>
-      ) : null}
+      {activeTab === "activity" ? <ProfileActivityFeed items={profile.activity} /> : null}
     </div>
   );
 }

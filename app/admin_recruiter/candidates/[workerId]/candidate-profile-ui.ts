@@ -84,6 +84,184 @@ export function profileStatusPillClass(status: string): string {
 export const AI_CONFIDENCE_SCORE_TOOLTIP =
   "AI rating of how well this résumé matches the job.";
 
+export function formatProfileActivityTime(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "—";
+  return date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+}
+
+export function formatProfileActivityDay(iso: string, now = new Date()): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "Unknown date";
+  const startOfDay = (value: Date) => new Date(value.getFullYear(), value.getMonth(), value.getDate()).getTime();
+  const diffDays = Math.round((startOfDay(now) - startOfDay(date)) / 86_400_000);
+  if (diffDays === 0) return "Today";
+  if (diffDays === 1) return "Yesterday";
+  return date.toLocaleDateString(undefined, {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+export function groupProfileActivityByDay<T extends { at: string }>(
+  items: T[],
+  now = new Date()
+): Array<{ day: string; items: T[] }> {
+  const groups: Array<{ day: string; items: T[] }> = [];
+  const indexByDay = new Map<string, number>();
+  for (const item of items) {
+    const day = formatProfileActivityDay(item.at, now);
+    const existing = indexByDay.get(day);
+    if (existing == null) {
+      indexByDay.set(day, groups.length);
+      groups.push({ day, items: [item] });
+    } else {
+      groups[existing].items.push(item);
+    }
+  }
+  return groups;
+}
+
+export const PROFILE_ACTIVITY_RANGE_PRESETS = [
+  { id: "last_3_days", label: "Last 3 days" },
+  { id: "last_1_day", label: "Last 1 day" },
+  { id: "last_2_days", label: "Last 2 days" },
+  { id: "last_5_days", label: "Last 5 days" },
+  { id: "last_7_days", label: "Last 7 days" },
+  { id: "last_week", label: "Last week" },
+  { id: "last_month", label: "Last month" },
+  { id: "last_year", label: "Last year" },
+  { id: "custom", label: "Specific dates" },
+] as const;
+
+export type ProfileActivityRangeId = (typeof PROFILE_ACTIVITY_RANGE_PRESETS)[number]["id"];
+
+export const DEFAULT_PROFILE_ACTIVITY_RANGE: ProfileActivityRangeId = "last_3_days";
+
+function startOfLocalDay(value: Date): Date {
+  return new Date(value.getFullYear(), value.getMonth(), value.getDate());
+}
+
+function endOfLocalDay(value: Date): Date {
+  return new Date(value.getFullYear(), value.getMonth(), value.getDate(), 23, 59, 59, 999);
+}
+
+function addLocalDays(value: Date, days: number): Date {
+  const next = new Date(value);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
+function parseLocalDateInput(value: string | null | undefined): Date | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec((value ?? "").trim());
+  if (!match) return null;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const date = new Date(year, month - 1, day);
+  if (
+    date.getFullYear() !== year ||
+    date.getMonth() !== month - 1 ||
+    date.getDate() !== day
+  ) {
+    return null;
+  }
+  return date;
+}
+
+function mondayOfWeek(value: Date): Date {
+  const start = startOfLocalDay(value);
+  const weekday = start.getDay();
+  const offset = weekday === 0 ? 6 : weekday - 1;
+  return addLocalDays(start, -offset);
+}
+
+export function profileActivityRangeBounds(
+  rangeId: ProfileActivityRangeId,
+  now = new Date(),
+  customFrom?: string | null,
+  customTo?: string | null
+): { start: Date; end: Date } | null {
+  if (rangeId === "custom") {
+    const from = parseLocalDateInput(customFrom);
+    const to = parseLocalDateInput(customTo);
+    if (!from || !to) return null;
+    if (from.getTime() <= to.getTime()) {
+      return { start: startOfLocalDay(from), end: endOfLocalDay(to) };
+    }
+    return { start: startOfLocalDay(to), end: endOfLocalDay(from) };
+  }
+
+  if (rangeId === "last_week") {
+    const thisMonday = mondayOfWeek(now);
+    return {
+      start: addLocalDays(thisMonday, -7),
+      end: endOfLocalDay(addLocalDays(thisMonday, -1)),
+    };
+  }
+
+  if (rangeId === "last_month") {
+    const firstThisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    return {
+      start: new Date(now.getFullYear(), now.getMonth() - 1, 1),
+      end: endOfLocalDay(addLocalDays(firstThisMonth, -1)),
+    };
+  }
+
+  if (rangeId === "last_year") {
+    return {
+      start: new Date(now.getFullYear() - 1, 0, 1),
+      end: endOfLocalDay(new Date(now.getFullYear() - 1, 11, 31)),
+    };
+  }
+
+  const daysByRange: Record<Exclude<ProfileActivityRangeId, "custom" | "last_week" | "last_month" | "last_year">, number> = {
+    last_1_day: 1,
+    last_2_days: 2,
+    last_3_days: 3,
+    last_5_days: 5,
+    last_7_days: 7,
+  };
+
+  const days = daysByRange[rangeId];
+  return {
+    start: startOfLocalDay(addLocalDays(now, -(days - 1))),
+    end: endOfLocalDay(now),
+  };
+}
+
+export function filterProfileActivityByRange<T extends { at: string }>(
+  items: T[],
+  rangeId: ProfileActivityRangeId,
+  now = new Date(),
+  customFrom?: string | null,
+  customTo?: string | null
+): T[] {
+  const bounds = profileActivityRangeBounds(rangeId, now, customFrom, customTo);
+  if (!bounds) return [];
+  const startMs = bounds.start.getTime();
+  const endMs = bounds.end.getTime();
+  return items.filter((item) => {
+    const at = new Date(item.at).getTime();
+    return Number.isFinite(at) && at >= startMs && at <= endMs;
+  });
+}
+
+export function isProfileActivityRangeId(value: string): value is ProfileActivityRangeId {
+  return PROFILE_ACTIVITY_RANGE_PRESETS.some((preset) => preset.id === value);
+}
+
+export function profileActivityKind(title: string): "view" | "job" | "document" | "note" | "other" {
+  const value = title.toLowerCase();
+  if (value.includes("view") || value.includes("profile")) return "view";
+  if (value.includes("document") || value.includes("resume") || value.includes("upload")) return "document";
+  if (value.includes("note") || value.includes("status")) return "note";
+  if (value.includes("job") || value.includes("applied") || value.includes("application")) return "job";
+  return "other";
+}
+
 export function overallStatusBadgeClass(status: string): string {
   const value = status.trim().toLowerCase();
   if (value === "hired") return "bg-[#DCFCE7] text-[#15803D]";

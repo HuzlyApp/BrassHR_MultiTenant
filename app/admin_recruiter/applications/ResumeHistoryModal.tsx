@@ -16,6 +16,7 @@ export type ResumeHistoryItem = {
   uploadedByPhotoUrl?: string | null;
   uploadedByType: "worker" | "staff" | "unknown";
   parsingStatus?: "pending" | "processing" | "completed" | "failed";
+  isReuploaded?: boolean;
 };
 
 type ResumeHistoryModalProps = {
@@ -26,6 +27,10 @@ type ResumeHistoryModalProps = {
   error?: string | null;
   busyResumeId?: string | null;
   reuploadBusy?: boolean;
+  /** Admin uploads for this candidate across every job, which is what the quota counts. */
+  adminUploadCount?: number;
+  /** At the quota, re-uploading replaces the newest resume instead of adding one. */
+  replacesExistingResume?: boolean;
   reuploadDisabled?: boolean;
   reuploadDisabledReason?: string | null;
   onClose: () => void;
@@ -107,7 +112,14 @@ function ResumeHistoryRow({
           >
             {resume.fileName}
           </button>
-          <p className="mt-1 text-xs text-[#64748B]">{resume.uploadedAtLabel}</p>
+          <p className="mt-1 text-xs text-[#64748B]">
+            {resume.isReuploaded ? "Updated" : "Uploaded"} {resume.uploadedAtLabel}
+          </p>
+          {resume.isReuploaded ? (
+            <span className="mt-1 inline-flex items-center rounded-md bg-[#EFF6FF] px-2 py-0.5 text-[11px] font-semibold text-[#1D4ED8]">
+              Reuploaded
+            </span>
+          ) : null}
         </div>
       </div>
 
@@ -171,6 +183,8 @@ export function ResumeHistoryModal({
   error = null,
   busyResumeId = null,
   reuploadBusy = false,
+  adminUploadCount = 0,
+  replacesExistingResume = false,
   reuploadDisabled = false,
   reuploadDisabledReason = null,
   onClose,
@@ -196,11 +210,11 @@ export function ResumeHistoryModal({
 
   if (!open) return null;
 
-  const adminUploadCount = resumes.filter((resume) => resume.uploadedByType === "staff").length;
-  const adminUploadLimitReached = adminUploadCount >= MAX_RESUME_UPLOADS_PER_ROLE;
   const limitMessage =
     reuploadDisabledReason ||
-    (adminUploadLimitReached ? resumeUploadLimitMessage("admin") : null);
+    (adminUploadCount >= MAX_RESUME_UPLOADS_PER_ROLE && !replacesExistingResume
+      ? resumeUploadLimitMessage("admin")
+      : null);
 
   return (
     <div
@@ -286,12 +300,16 @@ export function ResumeHistoryModal({
             <p className="mb-3 text-sm text-[#B91C1C]">{limitMessage}</p>
           ) : (
             <p className="mb-3 text-sm text-[#64748B]">
-              {adminUploadCount} of {MAX_RESUME_UPLOADS_PER_ROLE} admin uploads used for this job.
+              {adminUploadCount} of {MAX_RESUME_UPLOADS_PER_ROLE} admin uploads used for this
+              candidate.
+              {replacesExistingResume
+                ? " Re-uploading replaces the newest resume instead of adding one."
+                : ""}
             </p>
           )}
           <button
             type="button"
-            disabled={reuploadBusy || reuploadDisabled || adminUploadLimitReached}
+            disabled={reuploadBusy || reuploadDisabled}
             onClick={onReupload}
             className="admin-recruiter-action-chip inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-transparent bg-[color:var(--brand-primary)] px-4 text-sm font-semibold text-white transition hover:brightness-95 disabled:opacity-50"
           >

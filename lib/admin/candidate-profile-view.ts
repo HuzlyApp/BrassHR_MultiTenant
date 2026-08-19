@@ -49,6 +49,7 @@ export type CandidateProfileSubmittedResume = {
   parsingStatus: "pending" | "processing" | "completed" | "failed";
   uploadedAt: string;
   uploadedAtLabel: string;
+  isReuploaded: boolean;
   jobApplicationId: string | null;
   jobTitle: string | null;
   uploadedByName: string;

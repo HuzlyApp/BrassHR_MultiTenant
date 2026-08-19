@@ -34,7 +34,12 @@ function asDetail(value: unknown): string {
   return "";
 }
 
+const GENERIC_ACTIVITY_DETAILS = new Set(["worker", "candidate", "job_application", "candidate activity"]);
+
 function humanizeAction(action: string): string {
+  const normalized = action.trim().toLowerCase().replace(/[.\s]+/g, "_");
+  if (normalized === "worker_profile_view" || normalized === "profile_view") return "Viewed profile";
+  if (normalized === "job_application_removed_from_job") return "Removed from job";
   return action
     .replace(/[._]/g, " ")
     .replace(/\s+/g, " ")
@@ -71,7 +76,7 @@ export async function loadCandidateProfile(
       .select("id, action, entity_type, details, created_at")
       .eq("entity_id", input.workerId)
       .order("created_at", { ascending: false })
-      .limit(40),
+      .limit(500),
     listWorkerResumesForApplicant(supabase, input.workerId, input.tenantId).catch((error) => {
       console.warn("[candidate-profile] worker_resumes", error);
       return [];
@@ -103,6 +108,7 @@ export async function loadCandidateProfile(
     parsingStatus: resume.parsingStatus,
     uploadedAt: resume.uploadedAt,
     uploadedAtLabel: resume.uploadedAtLabel,
+    isReuploaded: resume.isReuploaded,
     jobApplicationId: resume.jobApplicationId,
     jobTitle: resume.jobTitle,
     uploadedByName: resume.uploadedByName?.trim() || "Unknown",
@@ -121,15 +127,30 @@ export async function loadCandidateProfile(
   }));
 
   const activity: CandidateProfileActivity[] = (activityRows as Array<Record<string, unknown>>).map(
-    (row) => ({
-      id: String(row.id ?? `${row.created_at}-${row.action}`),
-      at: asText(row.created_at),
-      title: humanizeAction(asText(row.action) || "Activity"),
-      detail: asDetail(row.details) || asText(row.entity_type) || "Candidate activity",
-    })
+    (row) => {
+      const title = humanizeAction(asText(row.action) || "Activity");
+      const detail = asDetail(row.details);
+      const entityType = asText(row.entity_type);
+      const showDetail =
+        Boolean(detail) &&
+        !GENERIC_ACTIVITY_DETAILS.has(detail.toLowerCase()) &&
+        detail.toLowerCase() !== title.toLowerCase();
+      return {
+        id: String(row.id ?? `${row.created_at}-${row.action}`),
+        at: asText(row.created_at),
+        title,
+        detail: showDetail ? detail : entityType && !GENERIC_ACTIVITY_DETAILS.has(entityType.toLowerCase()) ? entityType : "",
+      };
+    }
   );
 
   for (const application of applications) {
+    activity.push({
+      id: `applied-${application.id}`,
+      at: application.appliedAt,
+      title: `Applied to ${application.jobTitle}`,
+      detail: application.companyName,
+    });
     if (!application.statusNote) continue;
     activity.push({
       id: `status-note-${application.id}`,
@@ -180,6 +201,6 @@ export async function loadCandidateProfile(
     }),
     resumes,
     documents,
-    activity: activity.slice(0, 40),
+    activity: activity.slice(0, 500),
   };
 }

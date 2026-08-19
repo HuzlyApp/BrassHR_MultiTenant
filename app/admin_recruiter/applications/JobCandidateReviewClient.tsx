@@ -230,6 +230,8 @@ export default function JobCandidateReviewClient() {
   const [resumeHistoryJobTitle, setResumeHistoryJobTitle] = useState("");
   const [resumeHistoryItems, setResumeHistoryItems] = useState<ResumeHistoryItem[]>([]);
   const [resumeHistoryBusyId, setResumeHistoryBusyId] = useState<string | null>(null);
+  /** Admin uploads for this candidate across every job, which is what the quota counts. */
+  const [adminResumeUploadCount, setAdminResumeUploadCount] = useState(0);
   const [chatOpen, setChatOpen] = useState(true);
   const [chatPreferExpanded, setChatPreferExpanded] = useState(false);
   const [publicJobPath, setPublicJobPath] = useState<string | null>(null);
@@ -256,11 +258,18 @@ export default function JobCandidateReviewClient() {
     [jobOptions, jobId]
   );
 
-  const adminResumeUploadCount = resumeHistoryItems.filter(
-    (resume) => resume.uploadedByType === "staff"
-  ).length;
   const adminResumeUploadLimitReached =
     adminResumeUploadCount >= MAX_RESUME_UPLOADS_PER_ROLE;
+
+  /**
+   * At the quota, re-uploading replaces the newest admin resume for this job
+   * instead of adding another one.
+   */
+  const resumeIdToReplace = adminResumeUploadLimitReached
+    ? [...resumeHistoryItems].reverse().find((resume) => resume.uploadedByType === "staff")?.id ??
+      resumeHistoryItems[resumeHistoryItems.length - 1]?.id ??
+      null
+    : null;
 
   const jobTitle =
     selectedJob?.public_title?.trim() ||
@@ -508,10 +517,7 @@ export default function JobCandidateReviewClient() {
       toast.error("Candidate profile is not linked yet, so resume cannot be uploaded.");
       return;
     }
-    const adminUploadCount = resumeHistoryItems.filter(
-      (resume) => resume.uploadedByType === "staff"
-    ).length;
-    if (adminUploadCount >= MAX_RESUME_UPLOADS_PER_ROLE) {
+    if (adminResumeUploadLimitReached && !resumeIdToReplace) {
       toast.error(resumeUploadLimitMessage("admin"));
       return;
     }
@@ -532,15 +538,18 @@ export default function JobCandidateReviewClient() {
         error?: string;
         jobTitle?: string;
         resumes?: ResumeHistoryItem[];
+        adminUploadCount?: number;
       };
       if (!response.ok) {
         throw new Error(payload.error || "Could not load resume history.");
       }
       setResumeHistoryJobTitle(payload.jobTitle?.trim() || jobTitle);
       setResumeHistoryItems(payload.resumes ?? []);
+      setAdminResumeUploadCount(payload.adminUploadCount ?? 0);
     } catch (err) {
       setResumeHistoryError(err instanceof Error ? err.message : "Could not load resume history.");
       setResumeHistoryItems([]);
+      setAdminResumeUploadCount(0);
     } finally {
       setResumeHistoryLoading(false);
     }
@@ -615,6 +624,7 @@ export default function JobCandidateReviewClient() {
       );
       const payload = (await response.json().catch(() => ({}))) as {
         resumes?: ResumeHistoryItem[];
+        adminUploadCount?: number;
         error?: string;
       };
       if (!response.ok) {
@@ -622,6 +632,7 @@ export default function JobCandidateReviewClient() {
       }
 
       setResumeHistoryItems(payload.resumes ?? []);
+      setAdminResumeUploadCount(payload.adminUploadCount ?? 0);
       if (workerIdForDelete) {
         await reloadWorkerProfile(workerIdForDelete);
       }
@@ -659,6 +670,7 @@ export default function JobCandidateReviewClient() {
     try {
       const form = new FormData();
       form.set("resume", pendingResumeFile);
+      if (resumeIdToReplace) form.set("resumeId", resumeIdToReplace);
       const response = await fetch(
         `/api/admin/job-applications/${encodeURIComponent(applicationIdForUpload)}/resume`,
         { method: "POST", body: form }
@@ -1878,9 +1890,13 @@ export default function JobCandidateReviewClient() {
         error={resumeHistoryError}
         busyResumeId={resumeHistoryBusyId}
         reuploadBusy={resumeUploading}
-        reuploadDisabled={!workerId || adminResumeUploadLimitReached}
+        adminUploadCount={adminResumeUploadCount}
+        replacesExistingResume={Boolean(resumeIdToReplace)}
+        reuploadDisabled={!workerId || (adminResumeUploadLimitReached && !resumeIdToReplace)}
         reuploadDisabledReason={
-          adminResumeUploadLimitReached ? resumeUploadLimitMessage("admin") : null
+          adminResumeUploadLimitReached && !resumeIdToReplace
+            ? resumeUploadLimitMessage("admin")
+            : null
         }
         onClose={() => {
           if (resumeUploading || resumeHistoryBusyId) return;

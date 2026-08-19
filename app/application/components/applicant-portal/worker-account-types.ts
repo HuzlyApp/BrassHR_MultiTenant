@@ -68,7 +68,7 @@ export const WORKER_ACCOUNT_TABS: Array<{ id: WorkerAccountTab; label: string }>
   { id: "overview", label: "Overview" },
   { id: "personal", label: "Personal Information" },
   { id: "applications", label: "Applications" },
-  { id: "employment", label: "Employment Details" },
+  // { id: "employment", label: "Employment Details" },
   { id: "documents", label: "Documents" },
   { id: "skills", label: "Skills & Certifications" },
   // { id: "emergency", label: "Emergency Contact" },

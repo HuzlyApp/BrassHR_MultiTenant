@@ -22,15 +22,15 @@ const CARD_CLASS = "rounded-xl border border-[#E5E7EB] bg-white";
 const SECTION_TITLE_CLASS =
   "text-lg font-semibold leading-7 text-[color:var(--brand-secondary)]";
 const PRIMARY_BTN =
-  "inline-flex h-10 items-center justify-center gap-1.5 rounded-lg bg-[color:var(--brand-primary)] px-4 text-sm font-semibold text-white transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50";
+  "inline-flex h-10 cursor-pointer items-center justify-center gap-1.5 rounded-lg bg-[color:var(--brand-primary)] px-4 text-sm font-semibold text-white transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50";
 const OUTLINE_BTN =
-  "inline-flex h-9 items-center justify-center rounded-md border border-[color:var(--brand-primary)] px-3 text-xs font-semibold text-[color:var(--brand-primary)] transition hover:bg-[color-mix(in_srgb,var(--brand-primary)_8%,white)] disabled:cursor-not-allowed disabled:opacity-50";
+  "inline-flex h-9 cursor-pointer items-center justify-center rounded-md border border-[color:var(--brand-primary)] px-3 text-xs font-semibold text-[color:var(--brand-primary)] transition hover:bg-[color-mix(in_srgb,var(--brand-primary)_8%,white)] disabled:cursor-not-allowed disabled:opacity-50";
 const VIEW_BTN =
-  "inline-flex h-9 items-center justify-center rounded-md bg-[color:var(--brand-primary)] px-3 text-xs font-semibold text-white transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50";
+  "inline-flex h-9 cursor-pointer items-center justify-center rounded-md bg-[color:var(--brand-primary)] px-3 text-xs font-semibold text-white transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50";
 const PARSE_BTN =
-  "inline-flex h-9 items-center justify-center gap-1 rounded-md border-2 border-[color:var(--brand-primary)] bg-white px-3 text-xs font-semibold text-[color:var(--brand-primary)] transition hover:bg-[color-mix(in_srgb,var(--brand-primary)_6%,white)] disabled:cursor-not-allowed disabled:opacity-50";
+  "inline-flex h-9 cursor-pointer items-center justify-center gap-1 rounded-md border-2 border-[color:var(--brand-primary)] bg-white px-3 text-xs font-semibold text-[color:var(--brand-primary)] transition hover:bg-[color-mix(in_srgb,var(--brand-primary)_6%,white)] disabled:cursor-not-allowed disabled:opacity-50";
 const DELETE_BTN =
-  "inline-flex h-9 items-center justify-center rounded-md border border-[#D1D5DB] px-3 text-xs font-semibold text-[#475569] transition hover:bg-[#F8FAFC] disabled:cursor-not-allowed disabled:opacity-50";
+  "inline-flex h-9 cursor-pointer items-center justify-center rounded-md border border-[#D1D5DB] px-3 text-xs font-semibold text-[#475569] transition hover:bg-[#F8FAFC] disabled:cursor-not-allowed disabled:opacity-50";
 const TABLE_LINE = "border border-[#E5E7EB]";
 const TABLE_HEADER_CLASS =
   `${TABLE_LINE} bg-[#F8FAFC] px-3 py-3 text-center text-xs font-semibold uppercase tracking-wide text-[#64748B]`;
@@ -46,14 +46,9 @@ const SELECT_CHEVRON = {
   )}")`,
 } as const;
 
-function adminUploadCountForJob(
-  resumes: CandidateProfileSubmittedResume[],
-  jobApplicationId: string
-): number {
-  return resumes.filter(
-    (resume) =>
-      resume.jobApplicationId === jobApplicationId && resume.uploadedByRoleLabel === "Admin"
-  ).length;
+/** The quota is per candidate across every job, so job name is not part of it. */
+function adminUploadCount(resumes: CandidateProfileSubmittedResume[]): number {
+  return resumes.filter((resume) => resume.uploadedByRoleLabel === "Admin").length;
 }
 
 function UploadResumeModal({
@@ -101,17 +96,12 @@ function UploadResumeModal({
 
   if (!open) return null;
 
-  const selectedJobUploadCount = selectedJobId
-    ? adminUploadCountForJob(resumes, selectedJobId)
-    : 0;
-  const selectedJobAtLimit = selectedJobUploadCount >= MAX_RESUME_UPLOADS_PER_ROLE;
+  const uploadCount = adminUploadCount(resumes);
+  const atLimit = uploadCount >= MAX_RESUME_UPLOADS_PER_ROLE;
 
   function handleSubmit() {
     const nextErrors: { job?: string; file?: string } = {};
     if (!selectedJobId) nextErrors.job = "Select a job.";
-    if (selectedJobId && adminUploadCountForJob(resumes, selectedJobId) >= MAX_RESUME_UPLOADS_PER_ROLE) {
-      nextErrors.job = resumeUploadLimitMessage("admin");
-    }
     if (!selectedFile) nextErrors.file = "Choose a resume file.";
     else {
       const validationError = validateResumeUploadFile({
@@ -151,14 +141,14 @@ function UploadResumeModal({
             </h2>
             <p className="mt-2 text-sm leading-6 text-[#64748B]">
               Select the job this resume is for, then choose the file. You can upload up to{" "}
-              {MAX_RESUME_UPLOADS_PER_ROLE} resumes per job.
+              {MAX_RESUME_UPLOADS_PER_ROLE} resumes for this candidate in total.
             </p>
           </div>
           <button
             type="button"
             onClick={onClose}
             disabled={uploading}
-            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[#64748B] transition hover:bg-[#F1F5F9]"
+            className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-[#64748B] transition hover:bg-[#F1F5F9]"
             aria-label="Close"
           >
             <X className="h-5 w-5" aria-hidden />
@@ -169,6 +159,12 @@ function UploadResumeModal({
           {error ? (
             <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
               {error}
+            </div>
+          ) : null}
+
+          {atLimit ? (
+            <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm leading-6 text-red-700">
+              {resumeUploadLimitMessage("admin")}
             </div>
           ) : null}
 
@@ -190,7 +186,7 @@ function UploadResumeModal({
                     setSelectedJobId(event.target.value);
                     if (fieldErrors.job) setFieldErrors((current) => ({ ...current, job: undefined }));
                   }}
-                  disabled={uploading}
+                  disabled={uploading || atLimit}
                   style={SELECT_CHEVRON}
                   className={`${SELECT_CLASS} ${fieldErrors.job ? "border-red-300" : ""} ${
                     !selectedJobId ? "text-[#94A3B8]" : ""
@@ -205,14 +201,11 @@ function UploadResumeModal({
                 </select>
                 {fieldErrors.job ? (
                   <p className="mt-1 text-xs text-red-600">{fieldErrors.job}</p>
-                ) : selectedJobAtLimit ? (
-                  <p className="mt-1 text-xs text-red-600">{resumeUploadLimitMessage("admin")}</p>
-                ) : selectedJobId ? (
+                ) : (
                   <p className="mt-1 text-xs text-[#64748B]">
-                    {selectedJobUploadCount} of {MAX_RESUME_UPLOADS_PER_ROLE} admin uploads used for
-                    this job.
+                    {uploadCount} of {MAX_RESUME_UPLOADS_PER_ROLE} admin uploads used.
                   </p>
-                ) : null}
+                )}
               </div>
 
               <div>
@@ -221,13 +214,13 @@ function UploadResumeModal({
                   ref={fileInputRef}
                   type="file"
                   accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                  disabled={uploading}
+                  disabled={uploading || atLimit}
                   onChange={(event) => {
                     const file = event.target.files?.[0] ?? null;
                     setSelectedFile(file);
                     if (fieldErrors.file) setFieldErrors((current) => ({ ...current, file: undefined }));
                   }}
-                  className="block w-full text-sm text-[#334155] file:mr-3 file:rounded-md file:border-0 file:bg-[color:var(--brand-primary)] file:px-3 file:py-2 file:text-sm file:font-semibold file:text-white"
+                  className="block w-full cursor-pointer text-sm text-[#334155] file:mr-3 file:cursor-pointer file:rounded-md file:border-0 file:bg-[color:var(--brand-primary)] file:px-3 file:py-2 file:text-sm file:font-semibold file:text-white"
                 />
                 {fieldErrors.file ? (
                   <p className="mt-1 text-xs text-red-600">{fieldErrors.file}</p>
@@ -244,13 +237,13 @@ function UploadResumeModal({
             type="button"
             disabled={uploading}
             onClick={onClose}
-            className="inline-flex h-10 items-center justify-center rounded-lg border border-[#D1D5DB] px-4 text-sm font-medium text-[#334155] transition hover:bg-[#F8FAFC] disabled:opacity-50"
+            className="inline-flex h-10 cursor-pointer items-center justify-center rounded-lg border border-[#D1D5DB] px-4 text-sm font-medium text-[#334155] transition hover:bg-[#F8FAFC] disabled:cursor-not-allowed disabled:opacity-50"
           >
             Cancel
           </button>
           <button
             type="button"
-            disabled={uploading || jobs.length === 0 || selectedJobAtLimit}
+            disabled={uploading || jobs.length === 0 || atLimit}
             onClick={handleSubmit}
             className={PRIMARY_BTN}
           >
@@ -320,8 +313,17 @@ function ResumeFileCell({
           {resume.fileName}
         </p>
         <p className="mt-0.5 text-xs text-[#64748B]">{resume.fileSizeLabel}</p>
+        {resume.isReuploaded ? <ReuploadedBadge /> : null}
       </div>
     </div>
+  );
+}
+
+function ReuploadedBadge() {
+  return (
+    <span className="mt-1 inline-flex items-center rounded-md bg-[#EFF6FF] px-2 py-0.5 text-[11px] font-semibold text-[#1D4ED8]">
+      Reuploaded
+    </span>
   );
 }
 
@@ -369,15 +371,11 @@ function UploadedByCell({ resume }: { resume: CandidateProfileSubmittedResume })
 
 function ResumeActions({
   busy,
-  reuploadDisabled,
-  reuploadDisabledReason,
   onView,
   onReupload,
   onDelete,
 }: {
   busy: boolean;
-  reuploadDisabled: boolean;
-  reuploadDisabledReason: string | null;
   onView: () => void;
   onReupload: () => void;
   onDelete: () => void;
@@ -389,8 +387,8 @@ function ResumeActions({
       </button>
       <button
         type="button"
-        disabled={busy || reuploadDisabled}
-        title={reuploadDisabled ? reuploadDisabledReason ?? undefined : undefined}
+        disabled={busy}
+        title="Replace this resume file"
         onClick={onReupload}
         className={OUTLINE_BTN}
       >
@@ -408,8 +406,6 @@ type ResumeRowModel = {
   index: number;
   jobTitle: string;
   busy: boolean;
-  reuploadDisabled: boolean;
-  reuploadDisabledReason: string | null;
   onView: () => void;
   onReupload: () => void;
   onDelete: () => void;
@@ -429,7 +425,9 @@ function ResumeMobileCard(props: ResumeRowModel) {
           </div>
         </div>
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-[#94A3B8]">Uploaded date</p>
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-[#94A3B8]">
+            {resume.isReuploaded ? "Updated date" : "Uploaded date"}
+          </p>
           <p className="mt-1 text-sm font-medium text-[#334155]">{resume.uploadedAtLabel}</p>
         </div>
         <div className="min-w-0">
@@ -466,6 +464,9 @@ function ResumeTableRow(props: ResumeRowModel) {
       </td>
       <td className={`${TABLE_CELL_CENTER_CLASS} whitespace-nowrap`}>
         <p className="text-sm font-medium leading-5 text-[#334155]">{resume.uploadedAtLabel}</p>
+        {resume.isReuploaded ? (
+          <p className="mt-0.5 text-[11px] font-medium text-[#94A3B8]">Updated</p>
+        ) : null}
       </td>
       <td className={TABLE_CELL_CENTER_CLASS}>
         <p className="truncate text-sm font-semibold text-[color:var(--brand-secondary)]" title={jobTitle}>
@@ -507,7 +508,8 @@ export function CandidateProfileDocumentsTab({
   const [pendingUpload, setPendingUpload] = useState<{
     applicationId: string;
     file: File;
-    replacing: boolean;
+    /** Set when replacing an existing resume, which does not consume a new slot. */
+    resumeId: string | null;
   } | null>(null);
 
   const otherDocuments = useMemo(
@@ -515,6 +517,8 @@ export function CandidateProfileDocumentsTab({
     [documents]
   );
   const fallbackApplicationId = applications[0]?.id ?? "";
+  const adminUploadsUsed = adminUploadCount(resumes);
+  const uploadLimitReached = adminUploadsUsed >= MAX_RESUME_UPLOADS_PER_ROLE;
 
   function applicationIdForResume(resume: CandidateProfileSubmittedResume): string {
     return resume.jobApplicationId?.trim() || fallbackApplicationId;
@@ -527,12 +531,13 @@ export function CandidateProfileDocumentsTab({
     return applications.find((job) => job.id === applicationId)?.jobTitle?.trim() || "—";
   }
 
-  async function uploadResume(applicationId: string, file: File) {
+  async function uploadResume(applicationId: string, file: File, resumeId?: string | null) {
     setUploading(true);
     setUploadModalError(null);
     try {
       const form = new FormData();
       form.set("resume", file);
+      if (resumeId) form.set("resumeId", resumeId);
       const response = await fetch(
         `/api/admin/job-applications/${encodeURIComponent(applicationId)}/resume`,
         { method: "POST", body: form }
@@ -541,7 +546,7 @@ export function CandidateProfileDocumentsTab({
       if (!response.ok) throw new Error(payload.error || "Failed to upload resume");
       setUploadModalOpen(false);
       setPendingUpload(null);
-      toast.success("Resume uploaded successfully.");
+      toast.success(resumeId ? "Resume reuploaded successfully." : "Resume uploaded successfully.");
       await onReload();
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to upload resume";
@@ -629,18 +634,17 @@ export function CandidateProfileDocumentsTab({
       toast.error("This resume is not linked to a job yet.");
       return;
     }
-    if (adminUploadCountForJob(resumes, applicationId) >= MAX_RESUME_UPLOADS_PER_ROLE) {
-      toast.error(resumeUploadLimitMessage("admin"));
-      return;
-    }
+    // Replacing a file never adds a resume, so it stays available at the limit.
     reuploadInputRef.current?.setAttribute("data-application-id", applicationId);
+    reuploadInputRef.current?.setAttribute("data-resume-id", resume.id);
     window.requestAnimationFrame(() => reuploadInputRef.current?.click());
   }
 
   function handleReuploadFile(file: File | undefined) {
     const applicationId = reuploadInputRef.current?.getAttribute("data-application-id") || "";
+    const resumeId = reuploadInputRef.current?.getAttribute("data-resume-id") || "";
     if (reuploadInputRef.current) reuploadInputRef.current.value = "";
-    if (!file || !applicationId) return;
+    if (!file || !applicationId || !resumeId) return;
     const validationError = validateResumeUploadFile({
       name: file.name,
       type: file.type,
@@ -650,21 +654,15 @@ export function CandidateProfileDocumentsTab({
       toast.error(validationError);
       return;
     }
-    setPendingUpload({ applicationId, file, replacing: true });
+    setPendingUpload({ applicationId, file, resumeId });
   }
 
   function rowModelForResume(resume: CandidateProfileSubmittedResume, index: number): ResumeRowModel {
-    const applicationId = applicationIdForResume(resume);
-    const atLimit =
-      Boolean(applicationId) &&
-      adminUploadCountForJob(resumes, applicationId) >= MAX_RESUME_UPLOADS_PER_ROLE;
     return {
       resume,
       index: index + 1,
       jobTitle: jobTitleForResume(resume),
       busy: uploading || busyResumeId === resume.id,
-      reuploadDisabled: atLimit,
-      reuploadDisabledReason: atLimit ? resumeUploadLimitMessage("admin") : null,
       onView: () => void viewResume(resume),
       onReupload: () => beginRowReupload(resume),
       onDelete: () => void deleteResume(resume),
@@ -679,7 +677,8 @@ export function CandidateProfileDocumentsTab({
           <h2 className={SECTION_TITLE_CLASS}>Resume Submitted</h2>
           <button
             type="button"
-            disabled={uploading}
+            disabled={uploading || uploadLimitReached}
+            title={uploadLimitReached ? resumeUploadLimitMessage("admin") : undefined}
             onClick={() => {
               setUploadModalError(null);
               setUploadModalOpen(true);
@@ -747,7 +746,9 @@ export function CandidateProfileDocumentsTab({
         )}
 
         <p className="border-t border-[#E5E7EB] px-5 py-3 text-center text-sm text-[#64748B]">
-          Note: You can upload up to {MAX_RESUME_UPLOADS_PER_ROLE} resume only.
+          Note: You can upload up to {MAX_RESUME_UPLOADS_PER_ROLE} resumes for this candidate in
+          total ({adminUploadsUsed} of {MAX_RESUME_UPLOADS_PER_ROLE} used). After that, reupload a
+          resume to replace its file.
         </p>
       </section>
 
@@ -817,7 +818,7 @@ export function CandidateProfileDocumentsTab({
         }}
         onUpload={(jobApplicationId, file) => {
           setUploadModalOpen(false);
-          setPendingUpload({ applicationId: jobApplicationId, file, replacing: false });
+          setPendingUpload({ applicationId: jobApplicationId, file, resumeId: null });
         }}
       />
 
@@ -825,16 +826,20 @@ export function CandidateProfileDocumentsTab({
         open={Boolean(pendingUpload)}
         fileName={pendingUpload?.file.name ?? ""}
         busy={uploading}
-        hasExistingResume={pendingUpload?.replacing ?? true}
+        hasExistingResume={Boolean(pendingUpload?.resumeId)}
         onCancel={() => {
           if (uploading) return;
-          const wasNewUpload = pendingUpload?.replacing === false;
+          const wasNewUpload = !pendingUpload?.resumeId;
           setPendingUpload(null);
           if (wasNewUpload) setUploadModalOpen(true);
         }}
         onConfirm={() => {
           if (!pendingUpload) return;
-          void uploadResume(pendingUpload.applicationId, pendingUpload.file);
+          void uploadResume(
+            pendingUpload.applicationId,
+            pendingUpload.file,
+            pendingUpload.resumeId
+          );
         }}
       />
     </div>

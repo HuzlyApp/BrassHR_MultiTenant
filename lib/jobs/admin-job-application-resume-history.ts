@@ -4,6 +4,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { resolveStaffProfilePhotoUrl } from "@/lib/account/staff-profile-photo";
 import { resolveWorkerProfilePhotoUrl } from "@/lib/applicant-portal/worker-profile-photo";
 import { publicJobDisplayTitle } from "@/lib/jobs/public-application-routing";
+import { isReuploadedResumePath } from "@/lib/resume/resume-reupload-path";
+import { countResumeUploadsForRole } from "@/lib/resume/resume-upload-limit";
 
 export type AdminJobApplicationResumeHistoryItem = {
   id: string;
@@ -15,11 +17,14 @@ export type AdminJobApplicationResumeHistoryItem = {
   uploadedByPhotoUrl: string | null;
   uploadedByType: "worker" | "staff" | "unknown";
   parsingStatus: "pending" | "processing" | "completed" | "failed";
+  isReuploaded: boolean;
 };
 export type AdminJobApplicationResumeHistoryResult = {
   jobTitle: string;
   applicationId: string;
   resumes: AdminJobApplicationResumeHistoryItem[];
+  /** Admin uploads for this candidate across every job, which is what the quota counts. */
+  adminUploadCount: number;
 };
 
 type JobRequisitionJoin = {
@@ -171,6 +176,7 @@ export async function loadAdminJobApplicationResumeHistory(
       jobTitle,
       applicationId: String(application.id),
       resumes: [],
+      adminUploadCount: 0,
     };
   }
 
@@ -301,6 +307,7 @@ export async function loadAdminJobApplicationResumeHistory(
       uploadedByPhotoUrl,
       uploadedByType,
       parsingStatus: resolveHistoryParsingStatus(row),
+      isReuploaded: isReuploadedResumePath(row.storage_path, row.file_url),
     };
   });
 
@@ -308,5 +315,11 @@ export async function loadAdminJobApplicationResumeHistory(
     jobTitle,
     applicationId: String(application.id),
     resumes,
+    adminUploadCount: countResumeUploadsForRole(
+      (resumeRows ?? []) as Array<{ uploaded_by_user_id?: string | null }>,
+      "admin",
+      workerUserId,
+      workerId
+    ),
   };
 }
