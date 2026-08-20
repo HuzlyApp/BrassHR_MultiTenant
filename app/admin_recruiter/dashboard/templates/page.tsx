@@ -148,7 +148,7 @@ function TemplateCard({
               <span className="capitalize">{item.status === "unpublished" ? "Draft" : item.status}</span>
             ) : null}
             {item.employmentType ? (
-              <span>Employment Type: {item.employmentType === "Contract" ? "RNR" : item.employmentType}</span>
+              <span>Employment Type: {item.employmentType}</span>
             ) : null}
             {typeof item.preHireStepCount === "number" ? (
               <span>Pre-Hire: {item.preHireStepCount}</span>
