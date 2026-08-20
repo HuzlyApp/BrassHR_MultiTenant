@@ -18,8 +18,12 @@ const LINK_CLASS =
 export function renderListCell(
   col: CandidateColumnId,
   c: CandidateRow,
-  formatDate: (iso: string | null) => string
+  formatDate: (iso: string | null) => string,
+  options?: { highlightMultiJob?: boolean }
 ): ReactNode {
+  const highlightMultiJob = options?.highlightMultiJob ?? false;
+  const appliedJobCount = Number(c.appliedJobCount ?? 1);
+
   switch (col) {
     case "name":
       return (
@@ -39,6 +43,11 @@ export function renderListCell(
                 —
               </div>
             )}
+            {highlightMultiJob && appliedJobCount > 1 ? (
+              <span className="mt-1 inline-flex rounded-[4px] bg-[#EFF6FF] px-2 py-0.5 text-[11px] font-medium leading-4 text-[color:var(--brand-primary)]">
+                Applied to {appliedJobCount} jobs
+              </span>
+            ) : null}
             {c.email?.trim() ? (
               <Link
                 href={candidateMailHref(c.id)}

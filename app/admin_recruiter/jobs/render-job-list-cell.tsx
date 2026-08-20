@@ -9,6 +9,7 @@ import { isMspRecruitAndRelease, placementTypeFromApiRow } from "@/lib/jobs/plac
 import type { SourceType } from "@/lib/jobs/types"
 import { employmentTypeDisplayLabel } from "@/lib/jobs/employment-type"
 import { JobPublicViewLink } from "./JobPublicViewLink"
+import { DraftJobIncompleteInfoIcon } from "./DraftJobIncompleteInfoIcon"
 
 const JOB_CANDIDATE_COUNTER_CLASS =
   "inline-flex h-[18px] min-w-[18px] shrink-0 items-center justify-center rounded-sm bg-[color:color-mix(in_srgb,var(--brand-primary)_14%,white)] px-1 text-[11px] font-medium leading-none text-[#475569]"
@@ -519,12 +520,7 @@ export function renderJobListCell(
       if (job.status === "draft") {
         return (
           <div className="box-border flex h-full min-h-full w-full min-w-0 items-center gap-2 bg-[#FEF2F2] px-3 py-4">
-            <span
-              className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#EF4444] text-[11px] font-bold leading-none text-white"
-              aria-hidden
-            >
-              i
-            </span>
+            <DraftJobIncompleteInfoIcon />
             <span className="min-w-0 flex-1 truncate text-left text-sm text-[#334155]">
               Your job post is incomplete
             </span>

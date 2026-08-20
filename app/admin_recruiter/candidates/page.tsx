@@ -25,6 +25,7 @@ import { formatCandidateStatusLabel } from "./candidate-status-badge";
 import { buildCandidateKpis } from "./candidate-kpis";
 import { CandidateAiAnalysisLink } from "./CandidateAiAnalysisLink";
 import { CandidateRowActionsMenu } from "../applications/CandidateRowActionsMenu";
+import { countMultiJobApplicants } from "@/lib/admin/multi-job-applicants";
 import toast from "react-hot-toast";
 
 type WorkerProfile = {
@@ -48,6 +49,7 @@ type WorkerProfile = {
   status?: string | null;
   profile_photo?: string | null;
   profile_photo_url?: string | null;
+  applied_job_count?: number | null;
 };
 
 /** Fixed `en-US` locale so SSR and browser produce identical strings (avoids hydration mismatch). */
@@ -153,6 +155,8 @@ export default function CandidatesPage() {
   const [rowActionsMenu, setRowActionsMenu] = useState<{ rowId: string; anchor: HTMLElement } | null>(
     null
   );
+  const [highlightMultiJob, setHighlightMultiJob] = useState(false);
+  const [filterMultiJobOnly, setFilterMultiJobOnly] = useState(false);
 
   const advancedSearchContext = useMemo(() => {
     if (!advancedSearchParams) {
@@ -258,6 +262,7 @@ export default function CandidatesPage() {
           reference: item.id.slice(0, 7).toUpperCase(),
           dateOfBirth: null,
           profilePhotoUrl: item.profile_photo_url ?? null,
+          appliedJobCount: Number(item.applied_job_count ?? 1),
           });
         });
 
@@ -309,6 +314,7 @@ export default function CandidatesPage() {
         reference: item.id.slice(0, 7).toUpperCase(),
         dateOfBirth: null,
         profilePhotoUrl: item.profile_photo_url ?? null,
+        appliedJobCount: 1,
         });
       });
 
@@ -389,14 +395,24 @@ export default function CandidatesPage() {
     return out;
   }, [candidates, query, jobRoleFilter, statusFilter, locationFilter, dateFilter]);
 
+  const multiJobApplicantCount = useMemo(
+    () => countMultiJobApplicants(filtered, (candidate) => Number(candidate.appliedJobCount ?? 1)),
+    [filtered]
+  );
+
+  const visibleCandidates = useMemo(() => {
+    if (!filterMultiJobOnly) return filtered;
+    return filtered.filter((candidate) => Number(candidate.appliedJobCount ?? 1) > 1);
+  }, [filtered, filterMultiJobOnly]);
+
   useEffect(() => {
     setPage(1);
-  }, [query, jobRoleFilter, statusFilter, locationFilter, dateFilter, pageSize]);
+  }, [query, jobRoleFilter, statusFilter, locationFilter, dateFilter, pageSize, filterMultiJobOnly]);
 
   const paginated = useMemo(() => {
     const start = (page - 1) * pageSize;
-    return filtered.slice(start, start + pageSize);
-  }, [filtered, page, pageSize]);
+    return visibleCandidates.slice(start, start + pageSize);
+  }, [visibleCandidates, page, pageSize]);
 
   return (
     <>
@@ -431,8 +447,8 @@ export default function CandidatesPage() {
         view={view}
         onViewChange={setView}
         onEditColumns={() => setEditColumnsOpen(true)}
-        onExportCsv={() => exportCandidatesCsv(filtered)}
-        onExportXls={() => exportCandidatesXls(filtered)}
+        onExportCsv={() => exportCandidatesCsv(visibleCandidates)}
+        onExportXls={() => exportCandidatesXls(visibleCandidates)}
         onAdvancedSearch={() => setAdvancedSearchOpen(true)}
         totalCount={totalFromApi}
         loading={loading}
@@ -443,7 +459,17 @@ export default function CandidatesPage() {
         pageSize={pageSize}
         onPageChange={setPage}
         onPageSizeChange={setPageSize}
-        totalFiltered={filtered.length}
+        totalFiltered={visibleCandidates.length}
+        highlightMultiJob={highlightMultiJob}
+        onHighlightMultiJobChange={(next) => {
+          setHighlightMultiJob(next);
+          if (!next) setFilterMultiJobOnly(false);
+        }}
+        multiJobApplicantCount={multiJobApplicantCount}
+        onViewAllMultiJobApplicants={() => {
+          setHighlightMultiJob(true);
+          setFilterMultiJobOnly(true);
+        }}
       >
         {(() => {
           const formatDate = formatDateShort;
@@ -451,10 +477,14 @@ export default function CandidatesPage() {
           if (loading) {
             return null;
           }
-          if (filtered.length === 0) {
+          if (visibleCandidates.length === 0) {
             return (
-              <div className="py-24 text-center text-gray-600">
-                <div>No candidates found.</div>
+              <div className={`text-center text-gray-600 ${filterMultiJobOnly ? "py-24" : "py-12"}`}>
+                <div>
+                  {filterMultiJobOnly
+                    ? "No applicants have applied to multiple jobs."
+                    : "No candidates found."}
+                </div>
                 {advancedSearchContext.active ? (
                   <button
                     type="button"
@@ -513,7 +543,7 @@ export default function CandidatesPage() {
                                 colId === "name" ? "text-left" : "text-center"
                               } ${candidateListColumnClassName(colId)}`}
                             >
-                              {renderListCell(colId, c, formatDate)}
+                              {renderListCell(colId, c, formatDate, { highlightMultiJob })}
                             </td>
                           ))}
                           <td className="border-r-0 px-4 py-4 align-middle last:pr-6">

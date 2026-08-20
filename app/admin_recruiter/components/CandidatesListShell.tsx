@@ -9,6 +9,7 @@ import { ListPaginationControls, ListPaginationShowLabel } from "./ListPaginatio
 import { JobsViewToggle } from "@/app/admin_recruiter/jobs/JobsViewToggle";
 import { CandidatesKpiRow } from "@/app/admin_recruiter/candidates/CandidatesKpiRow";
 import type { CandidateKpiCard } from "@/app/admin_recruiter/candidates/candidate-kpis";
+import { MultiJobApplicantsBanner } from "@/app/admin_recruiter/components/MultiJobApplicantsBanner";
 
 const CANDIDATES_ICONS = "/icons/candidates-icons";
 const JOBS_ICONS = "/icons/jobs-icons";
@@ -59,6 +60,10 @@ export type CandidatesListShellProps = {
   onPageChange: (page: number) => void;
   onPageSizeChange: (size: number) => void;
   totalFiltered: number;
+  highlightMultiJob?: boolean;
+  onHighlightMultiJobChange?: (value: boolean) => void;
+  multiJobApplicantCount?: number;
+  onViewAllMultiJobApplicants?: () => void;
   children: React.ReactNode;
 };
 
@@ -268,12 +273,18 @@ export function CandidatesListShell({
   onPageChange,
   onPageSizeChange,
   totalFiltered,
+  highlightMultiJob: highlightMultiJobProp,
+  onHighlightMultiJobChange,
+  multiJobApplicantCount = 0,
+  onViewAllMultiJobApplicants,
   children,
 }: CandidatesListShellProps) {
   const [scoreSort, setScoreSort] = useState("");
   const [jobFilter, setJobFilter] = useState("");
   const [stageFilter, setStageFilter] = useState("");
-  const [highlightMultiJob, setHighlightMultiJob] = useState(true);
+  const [highlightMultiJobInternal, setHighlightMultiJobInternal] = useState(false);
+  const highlightMultiJob = highlightMultiJobProp ?? highlightMultiJobInternal;
+  const setHighlightMultiJob = onHighlightMultiJobChange ?? setHighlightMultiJobInternal;
 
   const totalPages = Math.max(1, Math.ceil(totalFiltered / pageSize));
   const safePage = Math.min(page, totalPages);
@@ -448,7 +459,7 @@ export function CandidatesListShell({
           </div>
         ) : null}
 
-        <HighlightMultiJobToggle on={highlightMultiJob} onToggle={() => setHighlightMultiJob((value) => !value)} />
+        <HighlightMultiJobToggle on={highlightMultiJob} onToggle={() => setHighlightMultiJob(!highlightMultiJob)} />
 
         <div className="flex w-full items-center px-5 pb-2">
           <div className="text-xs leading-4 text-[#5e7371]">{totalText}</div>
@@ -480,6 +491,10 @@ export function CandidatesListShell({
           </div>
         ) : null}
       </div>
+
+      {highlightMultiJob && multiJobApplicantCount > 0 ? (
+        <MultiJobApplicantsBanner count={multiJobApplicantCount} onViewAll={onViewAllMultiJobApplicants} />
+      ) : null}
     </div>
   );
 }
