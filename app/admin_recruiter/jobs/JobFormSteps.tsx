@@ -2716,6 +2716,7 @@ export function JobFormFooter({
   const isReview = step === "review";
   const isCompensation = step === "compensation";
   const isDescription = step === "description";
+  const showStepPreview = isCompensation || isDescription;
   const outlineButtonClass = `${JOB_FORM_OUTLINE_BUTTON_CLASS} w-full min-[700px]:w-auto`;
   const primaryButtonClass = `${JOB_FORM_PRIMARY_BUTTON_CLASS} w-full min-[700px]:w-auto`;
 
@@ -2749,86 +2750,177 @@ export function JobFormFooter({
         </div>
       ) : null}
 
-      <div className="grid grid-cols-2 gap-2 min-[700px]:flex min-[700px]:items-center min-[700px]:justify-between">
-        <div className="contents min-[700px]:flex min-[700px]:items-center min-[700px]:gap-2">
-          <button
-            type="button"
-            className={outlineButtonClass}
-            onClick={onBack}
-            disabled={saving}
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Back
-          </button>
-          {isCompensation || isDescription ? (
-            <button type="button" className={outlineButtonClass} onClick={onPreview}>
-              <Eye className="h-4 w-4" />
-              Preview
-            </button>
-          ) : null}
-        </div>
+      <div className="flex flex-col gap-2">
+        {showStepPreview ? (
+          <>
+            {/* Mobile layouts */}
+            {isDescription ? (
+              <div className="flex flex-col gap-2 min-[700px]:hidden">
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    className={outlineButtonClass}
+                    onClick={onBack}
+                    disabled={saving}
+                  >
+                    <ArrowLeft className="h-4 w-4" />
+                    Back
+                  </button>
+                  <button type="button" className={outlineButtonClass} onClick={onPreview}>
+                    <Eye className="h-4 w-4" />
+                    Preview
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  className={primaryButtonClass}
+                  style={brandStyle}
+                  onClick={onNext}
+                >
+                  Continue to Review
+                  <ArrowRight className="h-4 w-4" />
+                </button>
+              </div>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  className={`${outlineButtonClass} min-[700px]:hidden`}
+                  onClick={onPreview}
+                >
+                  <Eye className="h-4 w-4" />
+                  Preview
+                </button>
+                <div className="grid grid-cols-2 gap-2 min-[700px]:hidden">
+                  <button
+                    type="button"
+                    className={outlineButtonClass}
+                    onClick={onBack}
+                    disabled={saving}
+                  >
+                    <ArrowLeft className="h-4 w-4" />
+                    Back
+                  </button>
+                  <button
+                    type="button"
+                    className={primaryButtonClass}
+                    style={brandStyle}
+                    onClick={onNext}
+                  >
+                    Next
+                    <ArrowRight className="h-4 w-4" />
+                  </button>
+                </div>
+              </>
+            )}
 
-        <div className="contents min-[700px]:flex min-[700px]:items-center min-[700px]:justify-end min-[700px]:gap-2">
-          {step === "requisition" || step === "msp-details" || isCompensation ? (
-            <button
-              type="button"
-              className={primaryButtonClass}
-              style={brandStyle}
-              onClick={onNext}
-            >
-              Next
-              <ArrowRight className="h-4 w-4" />
-            </button>
-          ) : isDescription ? (
-            <button
-              type="button"
-              className={`${primaryButtonClass} col-span-2 min-[700px]:col-span-1`}
-              style={brandStyle}
-              onClick={onNext}
-            >
-              Continue to Review
-              <ArrowRight className="h-4 w-4" />
-            </button>
-          ) : showPublishActions ? (
-            <>
+            {/* Desktop: Back + Preview | Next */}
+            <div className="hidden min-[700px]:flex min-[700px]:items-center min-[700px]:justify-between">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  className={outlineButtonClass}
+                  onClick={onBack}
+                  disabled={saving}
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                  Back
+                </button>
+                <button type="button" className={outlineButtonClass} onClick={onPreview}>
+                  <Eye className="h-4 w-4" />
+                  Preview
+                </button>
+              </div>
+              {isCompensation ? (
+                <button
+                  type="button"
+                  className={primaryButtonClass}
+                  style={brandStyle}
+                  onClick={onNext}
+                >
+                  Next
+                  <ArrowRight className="h-4 w-4" />
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className={primaryButtonClass}
+                  style={brandStyle}
+                  onClick={onNext}
+                >
+                  Continue to Review
+                  <ArrowRight className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+          </>
+        ) : (
+          <div className="grid grid-cols-2 gap-2 min-[700px]:flex min-[700px]:items-center min-[700px]:justify-between">
+            <div className="contents min-[700px]:flex min-[700px]:items-center min-[700px]:gap-2">
               <button
                 type="button"
-                className={primaryButtonClass}
-                style={brandStyle}
+                className={outlineButtonClass}
+                onClick={onBack}
                 disabled={saving}
-                onClick={onSaveDraft}
               >
-                Save
+                <ArrowLeft className="h-4 w-4" />
+                Back
               </button>
-              <button
-                type="button"
-                className={`${primaryButtonClass} col-span-2 min-[700px]:col-span-1`}
-                style={brandStyle}
-                disabled={saving || !canPublish || !termsAccepted}
-                onClick={onPublish}
-                title={
-                  !termsAccepted
-                    ? "Accept terms to publish"
-                    : !canPublish
-                      ? "Assign a published workflow before publishing"
-                      : undefined
-                }
-              >
-                Save and Publish
-              </button>
-            </>
-          ) : (
-            <button
-              type="button"
-              className={primaryButtonClass}
-              style={brandStyle}
-              disabled={saving}
-              onClick={onSaveDraft}
-            >
-              Save
-            </button>
-          )}
-        </div>
+            </div>
+
+            <div className="contents min-[700px]:flex min-[700px]:items-center min-[700px]:justify-end min-[700px]:gap-2">
+              {step === "requisition" || step === "msp-details" ? (
+                <button
+                  type="button"
+                  className={primaryButtonClass}
+                  style={brandStyle}
+                  onClick={onNext}
+                >
+                  Next
+                  <ArrowRight className="h-4 w-4" />
+                </button>
+              ) : showPublishActions ? (
+                <>
+                  <button
+                    type="button"
+                    className={primaryButtonClass}
+                    style={brandStyle}
+                    disabled={saving}
+                    onClick={onSaveDraft}
+                  >
+                    Save
+                  </button>
+                  <button
+                    type="button"
+                    className={`${primaryButtonClass} col-span-2 min-[700px]:col-span-1`}
+                    style={brandStyle}
+                    disabled={saving || !canPublish || !termsAccepted}
+                    onClick={onPublish}
+                    title={
+                      !termsAccepted
+                        ? "Accept terms to publish"
+                        : !canPublish
+                          ? "Assign a published workflow before publishing"
+                          : undefined
+                    }
+                  >
+                    Save and Publish
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  className={primaryButtonClass}
+                  style={brandStyle}
+                  disabled={saving}
+                  onClick={onSaveDraft}
+                >
+                  Save
+                </button>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

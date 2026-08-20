@@ -1,10 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import Link from "next/link";
 import { Check, Loader2, Plus, ScanText, Upload, X } from "lucide-react";
 import toast from "react-hot-toast";
 import BrandedFileTypeIcon from "@/app/admin_recruiter/components/BrandedFileTypeIcon";
+import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
+import BrandedUploadIcon from "@/app/components/BrandedUploadIcon";
+import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import { ReplaceResumeConfirmModal } from "@/app/admin_recruiter/applications/ReplaceResumeConfirmModal";
 import type {
   CandidateProfileApplication,
@@ -42,6 +45,19 @@ const SELECT_CHEVRON = {
   )}")`,
 } as const;
 
+function formatBytes(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes <= 0) return "0 B";
+  const units = ["B", "KB", "MB", "GB"];
+  let value = bytes;
+  let unitIndex = 0;
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024;
+    unitIndex += 1;
+  }
+  const rounded = value >= 10 || unitIndex === 0 ? Math.round(value) : Number(value.toFixed(1));
+  return `${rounded} ${units[unitIndex]}`;
+}
+
 /** The quota is per candidate across every job, so job name is not part of it. */
 function adminUploadCount(resumes: CandidateProfileSubmittedResume[]): number {
   return resumes.filter((resume) => resume.uploadedByRoleLabel === "Admin").length;
@@ -64,16 +80,21 @@ function UploadResumeModal({
   onClose: () => void;
   onUpload: (jobApplicationId: string, file: File) => void;
 }) {
+  const branding = useTenantBranding();
+  const primaryColor = branding.primaryHex || "#BC8B41";
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedJobId, setSelectedJobId] = useState("");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [dragActive, setDragActive] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<{ job?: string; file?: string }>({});
 
   useEffect(() => {
     if (!open) {
       setSelectedJobId("");
       setSelectedFile(null);
+      setDragActive(false);
       setFieldErrors({});
+      if (fileInputRef.current) fileInputRef.current.value = "";
     }
   }, [open]);
 
@@ -95,9 +116,49 @@ function UploadResumeModal({
   const uploadCount = adminUploadCount(resumes);
   const atLimit = uploadCount >= MAX_RESUME_UPLOADS_PER_ROLE;
 
+  function validateAndSetFile(file: File | null) {
+    if (!file) {
+      setSelectedFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
+    const validationError = validateResumeUploadFile({
+      name: file.name,
+      type: file.type,
+      size: file.size,
+    });
+    if (validationError) {
+      setSelectedFile(null);
+      setFieldErrors((current) => ({ ...current, file: validationError }));
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
+    setSelectedFile(file);
+    setFieldErrors((current) => ({ ...current, file: undefined }));
+  }
+
+  function handleDragOver(event: DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!uploading && !atLimit) setDragActive(true);
+  }
+
+  function handleDragLeave(event: DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    event.stopPropagation();
+    setDragActive(false);
+  }
+
+  function handleDrop(event: DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    event.stopPropagation();
+    setDragActive(false);
+    if (uploading || atLimit) return;
+    validateAndSetFile(event.dataTransfer.files?.[0] ?? null);
+  }
+
   function handleSubmit() {
     const nextErrors: { job?: string; file?: string } = {};
-    if (!selectedJobId) nextErrors.job = "Select a job.";
     if (!selectedFile) nextErrors.file = "Choose a resume file.";
     else {
       const validationError = validateResumeUploadFile({
@@ -107,6 +168,7 @@ function UploadResumeModal({
       });
       if (validationError) nextErrors.file = validationError;
     }
+    if (!selectedJobId) nextErrors.job = "Select a job.";
     if (Object.keys(nextErrors).length > 0) {
       setFieldErrors(nextErrors);
       return;
@@ -136,7 +198,7 @@ function UploadResumeModal({
               Upload Resume
             </h2>
             <p className="mt-2 text-sm leading-6 text-[#64748B]">
-              Select the job this resume is for, then choose the file. You can upload up to{" "}
+              Choose a resume file, then select the job it belongs to. You can upload up to{" "}
               {MAX_RESUME_UPLOADS_PER_ROLE} resumes for this candidate in total.
             </p>
           </div>
@@ -172,6 +234,95 @@ function UploadResumeModal({
           ) : (
             <>
               <div>
+                <label className="mb-2 block text-sm font-medium text-[#374151]">Resume file</label>
+                <div
+                  className={`rounded-[10px] border-2 border-dashed bg-white p-4 transition ${
+                    fieldErrors.file
+                      ? "border-[#FCA5A5]"
+                      : dragActive
+                        ? "border-[color:var(--brand-primary)] bg-[color:color-mix(in_srgb,var(--brand-primary)_6%,white)]"
+                        : "border-[color:var(--brand-primary)]"
+                  }`}
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                >
+                  {selectedFile ? (
+                    <div className="flex items-center justify-between gap-3 rounded-md border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-2">
+                      <div className="flex min-w-0 items-center gap-3">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-[#E2E8F0] bg-white">
+                          <BrandedSvgIcon
+                            src="/icons/pdf-icon.svg"
+                            className="h-5 w-5"
+                            color={primaryColor}
+                          />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-medium text-[#334155]">
+                            {selectedFile.name}
+                          </p>
+                          <p className="text-xs text-[#64748B]">{formatBytes(selectedFile.size)}</p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        className="rounded-md p-1 transition hover:bg-[color:var(--brand-primary)]/10"
+                        aria-label="Remove uploaded resume"
+                        onClick={() => validateAndSetFile(null)}
+                        disabled={uploading || atLimit}
+                      >
+                        <BrandedSvgIcon
+                          src="/icons/delete-icon.svg"
+                          className="h-6 w-6"
+                          color={primaryColor}
+                        />
+                      </button>
+                    </div>
+                  ) : (
+                    <label
+                      htmlFor="profile-resume-file"
+                      className={`flex flex-col items-center justify-center py-4 text-center ${
+                        uploading || atLimit ? "cursor-not-allowed opacity-60" : "cursor-pointer"
+                      }`}
+                    >
+                      <BrandedUploadIcon primaryHex={primaryColor} className="h-9 w-9" />
+                      <p className="mt-4 text-center text-sm font-medium leading-5 text-[#334155] sm:text-base sm:leading-6">
+                        Drag your file(s) to start uploading
+                      </p>
+                      <div className="my-4 flex w-full max-w-[320px] items-center gap-3">
+                        <div className="h-px flex-1 bg-[#CBD5E1]" aria-hidden />
+                        <span className="text-sm font-medium leading-5 text-[#64748B]">OR</span>
+                        <div className="h-px flex-1 bg-[#CBD5E1]" aria-hidden />
+                      </div>
+                      <span
+                        className="inline-flex h-8 w-fit items-center justify-center rounded-lg border bg-white px-3 text-sm font-medium leading-5 transition hover:bg-[#F8FAFC]"
+                        style={{ borderColor: primaryColor, color: primaryColor }}
+                      >
+                        Browse files
+                      </span>
+                      <p className="mt-4 text-xs leading-4 text-[#6B7280]">
+                        Max 10 MB files are allowed
+                      </p>
+                    </label>
+                  )}
+                  <input
+                    ref={fileInputRef}
+                    id="profile-resume-file"
+                    type="file"
+                    accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                    className="sr-only"
+                    disabled={uploading || atLimit}
+                    onChange={(event) => {
+                      validateAndSetFile(event.target.files?.[0] ?? null);
+                    }}
+                  />
+                </div>
+                {fieldErrors.file ? (
+                  <p className="mt-1 text-xs text-red-600">{fieldErrors.file}</p>
+                ) : null}
+              </div>
+
+              <div>
                 <label htmlFor="profile-resume-job" className="mb-2 block text-sm font-medium text-[#374151]">
                   Job
                 </label>
@@ -202,27 +353,6 @@ function UploadResumeModal({
                     {uploadCount} of {MAX_RESUME_UPLOADS_PER_ROLE} admin uploads used.
                   </p>
                 )}
-              </div>
-
-              <div>
-                <label className="mb-2 block text-sm font-medium text-[#374151]">Resume file</label>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                  disabled={uploading || atLimit}
-                  onChange={(event) => {
-                    const file = event.target.files?.[0] ?? null;
-                    setSelectedFile(file);
-                    if (fieldErrors.file) setFieldErrors((current) => ({ ...current, file: undefined }));
-                  }}
-                  className="block w-full cursor-pointer text-sm text-[#334155] file:mr-3 file:cursor-pointer file:rounded-md file:border-0 file:bg-[color:var(--brand-primary)] file:px-3 file:py-2 file:text-sm file:font-semibold file:text-white"
-                />
-                {fieldErrors.file ? (
-                  <p className="mt-1 text-xs text-red-600">{fieldErrors.file}</p>
-                ) : selectedFile ? (
-                  <p className="mt-1 truncate text-xs text-[#64748B]">{selectedFile.name}</p>
-                ) : null}
               </div>
             </>
           )}
