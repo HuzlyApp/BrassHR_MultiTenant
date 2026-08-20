@@ -53,6 +53,7 @@ import {
 } from "./job-columns";
 import { exportJobsCsv, exportJobsXls } from "./export-jobs";
 import { JobsDashboard } from "./JobsDashboard";
+import { JobsBreadcrumb } from "./JobsBreadcrumb";
 import { JobsGridView } from "./JobsGridView";
 import { JobsViewToggle, type JobsListingView } from "./JobsViewToggle";
 import AddCandidateModal from "@/app/admin_recruiter/applications/AddCandidateModal";
@@ -1415,18 +1416,13 @@ export default function AdminRecruiterJobsPage() {
   return (
     <div className="box-border w-full min-w-0 max-w-full px-3 pb-8 pt-4 sm:px-5 sm:pt-5 lg:px-8" style={brandStyle}>
       <div className="mb-8">
+        <JobsBreadcrumb page="jobs" />
         <h1 className={CANDIDATES_PAGE_TITLE_CLASS} style={CANDIDATES_PAGE_TITLE_STYLE}>
           Jobs
         </h1>
         <p className={CANDIDATES_PAGE_SUBTITLE_CLASS} style={CANDIDATES_PAGE_SUBTITLE_STYLE}>
           Manage jobs posting in one place
         </p>
-        <Link
-          href="/admin_recruiter/jobs"
-          className="mt-2 inline-block text-xs font-normal leading-4 text-[#012352] underline"
-        >
-          Back to dashboard
-        </Link>
       </div>
 
       <div className="w-full overflow-hidden rounded-[12px] border border-[#E5E7EB] bg-white">

@@ -43,6 +43,11 @@ import {
   type CandidateProfileTabId,
   type ProfileActivityRangeId,
 } from "./candidate-profile-ui";
+import {
+  CandidatesBreadcrumb,
+  JobsBreadcrumb,
+  jobCandidatesHrefForJob,
+} from "@/app/admin_recruiter/jobs/JobsBreadcrumb";
 
 const CARD_CLASS = "rounded-xl border border-[#E5E7EB] bg-white";
 const PAGE_SHELL_CLASS = "box-border w-full min-w-0 max-w-full overflow-x-hidden px-3 pb-10 pt-4 sm:px-5 sm:pt-5 lg:px-8";
@@ -469,6 +474,12 @@ export function CandidateProfileClient({ workerId }: { workerId: string }) {
   const loadedWorkerIdRef = useRef<string | null>(null);
 
   const backHref = profileCandidatesBackHref({ from, jobId });
+  const fromJobCandidates = from === "applications";
+  const profileBreadcrumb = fromJobCandidates ? (
+    <JobsBreadcrumb page="applicant" jobCandidatesHref={jobCandidatesHrefForJob(jobId)} />
+  ) : (
+    <CandidatesBreadcrumb currentLabel="Applicant" backHref={backHref} />
+  );
 
   const load = useCallback(async () => {
     const id = workerId.trim();
@@ -575,13 +586,8 @@ export function CandidateProfileClient({ workerId }: { workerId: string }) {
   if (error || !profile) {
     return (
       <div className={PAGE_SHELL_CLASS}>
-        <Link
-          href={backHref}
-          className="text-sm font-medium text-[color:var(--brand-secondary)] hover:underline"
-        >
-          Back to candidates
-        </Link>
-        <h1 className={`${CANDIDATES_PAGE_TITLE_CLASS} mt-4`} style={CANDIDATES_PAGE_TITLE_STYLE}>
+        {profileBreadcrumb}
+        <h1 className={`${CANDIDATES_PAGE_TITLE_CLASS} mt-0`} style={CANDIDATES_PAGE_TITLE_STYLE}>
           Candidate Profile
         </h1>
         <p className={`${CARD_CLASS} mt-4 px-4 py-6 text-sm text-[#667085]`}>
@@ -600,13 +606,7 @@ export function CandidateProfileClient({ workerId }: { workerId: string }) {
 
   return (
     <div className={PAGE_SHELL_CLASS}>
-      <nav className="mb-4 flex items-center gap-2 text-sm text-[#64748B]" aria-label="Breadcrumb">
-        <Link href={backHref} className="cursor-pointer hover:text-[color:var(--brand-primary)] hover:underline">
-          Candidates
-        </Link>
-        <ChevronRight className="h-3.5 w-3.5" aria-hidden />
-        <span className="font-medium text-[#0F172A]">Applicant</span>
-      </nav>
+      {profileBreadcrumb}
 
       <section className={`${CARD_CLASS} p-4 sm:p-6`}>
         <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">

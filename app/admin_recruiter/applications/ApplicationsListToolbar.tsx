@@ -106,15 +106,16 @@ export type ApplicationsListToolbarProps = {
   stageFilter: string;
   onStageFilterChange: (value: string) => void;
   stageOptions: { value: string; label: string }[];
-  showFilterRows: boolean;
-  onToggleFilterRows: () => void;
   locationFilter: string;
   onLocationFilterChange: (value: string) => void;
   locationOptions: string[];
   sortBy: "newest" | "oldest" | "matchScore" | "matchScoreAsc";
   onSortByChange: (value: "newest" | "oldest" | "matchScore" | "matchScoreAsc") => void;
+  onOpenMoreFilters: () => void;
   onClaimCandidates: () => void;
   onEditColumns: () => void;
+  showResetFilters?: boolean;
+  onResetFilters?: () => void;
   deleteButton: React.ReactNode;
   addCandidateButton: React.ReactNode;
   multiJobToggle: React.ReactNode;
@@ -135,15 +136,16 @@ export function ApplicationsListToolbar({
   stageFilter,
   onStageFilterChange,
   stageOptions,
-  showFilterRows,
-  onToggleFilterRows,
   locationFilter,
   onLocationFilterChange,
   locationOptions,
   sortBy,
   onSortByChange,
+  onOpenMoreFilters,
   onClaimCandidates,
   onEditColumns,
+  showResetFilters = false,
+  onResetFilters,
   deleteButton,
   addCandidateButton,
   multiJobToggle,
@@ -160,12 +162,17 @@ export function ApplicationsListToolbar({
             <ColumnsIcon />
             Columns
           </button>
+          {showResetFilters ? (
+            <button type="button" onClick={onResetFilters} className={OUTLINE_TOOLBAR_BUTTON_CLASS}>
+              Reset Filters
+            </button>
+          ) : null}
           {deleteButton}
         </div>
         {addCandidateButton}
       </div>
 
-      <div className="flex w-full flex-wrap items-center gap-3 border-b border-[#E5E7EB] px-3 py-3.5 sm:gap-5 sm:px-5">
+      <div className="flex w-full flex-wrap items-center gap-3 border-b border-[#E5E7EB] px-3 py-3.5 sm:gap-3 sm:px-5">
         <label className="flex h-8 w-full min-w-0 shrink-0 items-center gap-1 overflow-hidden rounded-lg border border-[#CBD5E1] bg-white px-2.5 sm:w-[252px] sm:max-w-[252px]">
           <span className="relative flex size-5 shrink-0 items-center justify-center overflow-hidden" aria-hidden>
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -187,7 +194,27 @@ export function ApplicationsListToolbar({
           />
         </label>
 
-        <div className="flex w-full flex-wrap items-center gap-3 sm:ml-auto sm:w-auto sm:justify-end sm:gap-5">
+        <CompactFilterSelect
+          ariaLabel="Location"
+          placeholder="Location"
+          value={locationFilter}
+          onChange={onLocationFilterChange}
+          options={locationOptions.map((location) => ({ value: location, label: location }))}
+        />
+        <CompactFilterSelect
+          ariaLabel="Sort by apply date"
+          placeholder="Apply date (Newest first)"
+          value={sortBy === "newest" || sortBy === "oldest" ? sortBy : ""}
+          onChange={(value) => {
+            if (value === "newest" || value === "oldest") onSortByChange(value);
+          }}
+          options={[
+            { value: "newest", label: "Apply date (Newest first)" },
+            { value: "oldest", label: "Apply date (Oldest first)" },
+          ]}
+        />
+
+        <div className="flex w-full flex-wrap items-center gap-3 sm:ml-auto sm:w-auto sm:justify-end sm:gap-3">
           <CompactFilterSelect
             ariaLabel="Score"
             placeholder="Score (high-low)"
@@ -223,8 +250,7 @@ export function ApplicationsListToolbar({
           />
           <button
             type="button"
-            onClick={onToggleFilterRows}
-            aria-expanded={showFilterRows}
+            onClick={onOpenMoreFilters}
             className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-[color:var(--brand-primary)] bg-white px-3 text-xs font-normal leading-4 text-[color:var(--brand-primary)] transition hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_6%,white)]"
           >
             <MoreFiltersIcon />
@@ -232,30 +258,6 @@ export function ApplicationsListToolbar({
           </button>
         </div>
       </div>
-
-      {showFilterRows ? (
-        <div className="flex w-full flex-wrap items-center gap-3 border-b border-[#E5E7EB] px-3 py-3.5 sm:gap-5 sm:px-5">
-          <CompactFilterSelect
-            ariaLabel="Location"
-            placeholder="Location"
-            value={locationFilter}
-            onChange={onLocationFilterChange}
-            options={locationOptions.map((location) => ({ value: location, label: location }))}
-          />
-          <CompactFilterSelect
-            ariaLabel="Sort by apply date"
-            placeholder="Apply date (Newest first)"
-            value={sortBy === "newest" || sortBy === "oldest" ? sortBy : ""}
-            onChange={(value) => {
-              if (value === "newest" || value === "oldest") onSortByChange(value);
-            }}
-            options={[
-              { value: "newest", label: "Apply date (Newest first)" },
-              { value: "oldest", label: "Apply date (Oldest first)" },
-            ]}
-          />
-        </div>
-      ) : null}
 
       <div className="flex w-full items-center justify-end border-b border-[#E5E7EB] px-3 py-3 sm:px-5">
         {multiJobToggle}

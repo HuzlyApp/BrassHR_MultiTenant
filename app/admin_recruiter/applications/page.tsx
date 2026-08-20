@@ -21,6 +21,15 @@ import {
   formatJobPostedOn,
 } from "@/app/admin_recruiter/applications/ApplicationsJobHeaderCard";
 import { ApplicationsListToolbar } from "@/app/admin_recruiter/applications/ApplicationsListToolbar";
+import {
+  applicationMatchesDateAppliedFilter,
+  applicationMatchesMatchScoreFilter,
+  EditApplicationsFiltersModal,
+  EMPTY_APPLICATIONS_EXTENDED_FILTERS,
+  hasActiveApplicationsExtendedFilters,
+  type ApplicationsExtendedFilterValues,
+} from "@/app/admin_recruiter/applications/EditApplicationsFiltersModal";
+import { JobsBreadcrumb } from "@/app/admin_recruiter/jobs/JobsBreadcrumb";
 import { CandidateListAvatar } from "@/app/admin_recruiter/components/CandidateListAvatar";
 import { ColumnsEditorModal } from "@/app/admin_recruiter/components/ColumnsEditorModal";
 import { BulkDeleteConfirmModal } from "@/app/admin_recruiter/components/BulkDeleteConfirmModal";
@@ -39,7 +48,6 @@ import SuccessModal from "@/app/components/SuccessModal";
 import ErrorModal from "@/app/components/ErrorModal";
 import { validateResumeUploadFile } from "@/lib/resume/validate-resume-upload";
 import { CandidateProfileIconLink } from "@/app/admin_recruiter/candidates/CandidateProfileIconLink";
-import { useCandidatesFilterRowsDefault } from "@/app/admin_recruiter/hooks/useCandidatesFilterRowsDefault";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import {
   CANDIDATES_PAGE_TITLE_CLASS,
@@ -530,8 +538,8 @@ export default function JobApplicationsPage() {
   const [activeTab, setActiveTab] = useState<ApplicationTab>(() => {
     return searchParams.get("tab")?.trim() || "all";
   });
-  const [showFilterRows, setShowFilterRows] = useCandidatesFilterRowsDefault();
   const [editColumnsOpen, setEditColumnsOpen] = useState(false);
+  const [editFiltersOpen, setEditFiltersOpen] = useState(false);
   const [listColumnOrder, setListColumnOrder] = useState<ApplicationColumnId[]>([
     ...DEFAULT_APPLICATION_COLUMNS,
   ]);
@@ -546,6 +554,10 @@ export default function JobApplicationsPage() {
   const [listingStatusFilter, setListingStatusFilter] = useState("");
   const [listingJobFilter, setListingJobFilter] = useState("");
   const [listingStageFilter, setListingStageFilter] = useState("");
+  const [evaluationFilter, setEvaluationFilter] = useState("");
+  const [workflowFilter, setWorkflowFilter] = useState("");
+  const [matchScoreFilter, setMatchScoreFilter] = useState("");
+  const [dateAppliedFilter, setDateAppliedFilter] = useState("");
   const [highlightMultiJobApplicants, setHighlightMultiJobApplicants] = useState(false);
   const [rowActionsMenu, setRowActionsMenu] = useState<{
     rowId: string;
@@ -615,6 +627,10 @@ export default function JobApplicationsPage() {
     setListingStatusFilter("");
     setListingJobFilter("");
     setListingStageFilter("");
+    setEvaluationFilter("");
+    setWorkflowFilter("");
+    setMatchScoreFilter("");
+    setDateAppliedFilter("");
     setRowActionsMenu(null);
     setStatusMenu(null);
     setStatusBusyId(null);
@@ -734,6 +750,22 @@ export default function JobApplicationsPage() {
     router.replace(params.toString() ? `${pathname}?${params.toString()}` : pathname);
   }, [pathname, router, searchParams]);
 
+  const handleViewAllMultiJobApplicants = useCallback(() => {
+    setHighlightMultiJobApplicants(true);
+    setActiveTab("all");
+    setJob(null);
+    setRows([]);
+    setSelectedIds(new Set());
+    setLocationFilter("");
+    setJobMenuOpen(false);
+    setLoading(true);
+
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("jobId");
+    params.delete("tab");
+    router.replace(params.toString() ? `${pathname}?${params.toString()}` : pathname);
+  }, [pathname, router, searchParams]);
+
   const clearJobDropdownFilters = useCallback(() => {
     setJobSearch("");
     setJobStatusFilter("");
@@ -817,7 +849,7 @@ export default function JobApplicationsPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [activeTab, sortBy, locationFilter, pageSize, jobId, candidateSearchQuery, highlightMultiJobApplicants, listingStatusFilter, listingJobFilter, listingStageFilter]);
+  }, [activeTab, sortBy, locationFilter, pageSize, jobId, candidateSearchQuery, highlightMultiJobApplicants, listingStatusFilter, listingJobFilter, listingStageFilter, evaluationFilter, workflowFilter, matchScoreFilter, dateAppliedFilter]);
 
   const scoreSort =
     sortBy === "matchScoreAsc" ? "low-high" : sortBy === "matchScore" ? "high-low" : "";
@@ -907,6 +939,58 @@ export default function JobApplicationsPage() {
       .map((label) => ({ value: label, label }));
   }, [rows]);
 
+  const workflowOptions = useMemo(() => {
+    const labels = new Set<string>();
+    for (const row of rows) {
+      const name = workflowName(row).trim();
+      if (name) labels.add(name);
+    }
+    return Array.from(labels).sort((a, b) => a.localeCompare(b));
+  }, [rows]);
+
+  const editFiltersValue = useMemo(
+    (): ApplicationsExtendedFilterValues => ({
+      status: listingStatusFilter,
+      stage: listingStageFilter,
+      location: locationFilter,
+      evaluation: evaluationFilter,
+      workflow: workflowFilter,
+      matchScore: matchScoreFilter,
+      dateApplied: dateAppliedFilter,
+      job: listingJobFilter,
+    }),
+    [
+      listingStatusFilter,
+      listingStageFilter,
+      locationFilter,
+      evaluationFilter,
+      workflowFilter,
+      matchScoreFilter,
+      dateAppliedFilter,
+      listingJobFilter,
+    ]
+  );
+
+  const handleSaveEditFilters = useCallback((next: ApplicationsExtendedFilterValues) => {
+    setListingStatusFilter(next.status);
+    setListingStageFilter(next.stage);
+    setLocationFilter(next.location);
+    setEvaluationFilter(next.evaluation);
+    setWorkflowFilter(next.workflow);
+    setMatchScoreFilter(next.matchScore);
+    setDateAppliedFilter(next.dateApplied);
+    setListingJobFilter(next.job);
+  }, []);
+
+  const hasActiveModalFilters = useMemo(
+    () => hasActiveApplicationsExtendedFilters(editFiltersValue),
+    [editFiltersValue]
+  );
+
+  const handleResetModalFilters = useCallback(() => {
+    handleSaveEditFilters(EMPTY_APPLICATIONS_EXTENDED_FILTERS);
+  }, [handleSaveEditFilters]);
+
   const statusTabs = useMemo(() => {
     const pipeline = statusOptions.filter((option) => option.systemKey !== "archived");
     const archivedTab = statusOptions.find((option) => option.systemKey === "archived");
@@ -972,6 +1056,24 @@ export default function JobApplicationsPage() {
         (row) => applicationCurrentStageMeta(row.status).label === listingStageFilter
       );
     }
+    if (evaluationFilter === "analyzed") {
+      next = next.filter((row) => row.ai_match_status === "ANALYZED");
+    } else if (evaluationFilter === "not_yet") {
+      next = next.filter((row) => row.ai_match_status !== "ANALYZED");
+    }
+    if (workflowFilter) {
+      next = next.filter((row) => workflowName(row) === workflowFilter);
+    }
+    if (matchScoreFilter) {
+      next = next.filter((row) =>
+        applicationMatchesMatchScoreFilter(row.ai_match_score, matchScoreFilter)
+      );
+    }
+    if (dateAppliedFilter) {
+      next = next.filter((row) =>
+        applicationMatchesDateAppliedFilter(row.submitted_at || row.created_at, dateAppliedFilter)
+      );
+    }
     next = [...next].sort((a, b) => {
       if (sortBy === "matchScore" || sortBy === "matchScoreAsc") {
         const aScore = a.ai_match_score == null ? -1 : Number(a.ai_match_score);
@@ -988,7 +1090,7 @@ export default function JobApplicationsPage() {
       return sortBy === "oldest" ? aTime - bTime : bTime - aTime;
     });
     return next;
-  }, [rows, activeTab, locationFilter, sortBy, candidateSearchQuery, statusOptions, listingStatusFilter, listingJobFilter, listingStageFilter]);
+  }, [rows, activeTab, locationFilter, sortBy, candidateSearchQuery, statusOptions, listingStatusFilter, listingJobFilter, listingStageFilter, evaluationFilter, workflowFilter, matchScoreFilter, dateAppliedFilter]);
 
   const multiJobApplicantCount = useMemo(
     () =>
@@ -1790,6 +1892,7 @@ export default function JobApplicationsPage() {
     >
       <div className="mb-9 flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
+          <JobsBreadcrumb page="job-candidates" />
           <h1 className={CANDIDATES_PAGE_TITLE_CLASS} style={CANDIDATES_PAGE_TITLE_STYLE}>
             {jobId ? "Job candidates" : "All candidates"}
           </h1>
@@ -2087,15 +2190,16 @@ export default function JobApplicationsPage() {
           stageFilter={listingStageFilter}
           onStageFilterChange={setListingStageFilter}
           stageOptions={listingStageOptions}
-          showFilterRows={showFilterRows}
-          onToggleFilterRows={() => setShowFilterRows((value) => !value)}
           locationFilter={locationFilter}
           onLocationFilterChange={setLocationFilter}
           locationOptions={locationOptions}
           sortBy={sortBy}
           onSortByChange={setSortBy}
+          onOpenMoreFilters={() => setEditFiltersOpen(true)}
           onClaimCandidates={handleClaimCandidates}
           onEditColumns={() => setEditColumnsOpen(true)}
+          showResetFilters={hasActiveModalFilters}
+          onResetFilters={handleResetModalFilters}
           deleteButton={
             <BulkDeleteToolbarButton
               count={selectedIds.size}
@@ -2275,7 +2379,7 @@ export default function JobApplicationsPage() {
       {highlightMultiJobApplicants && multiJobApplicantCount > 0 ? (
         <MultiJobApplicantsBanner
           count={multiJobApplicantCount}
-          onViewAll={() => setHighlightMultiJobApplicants(true)}
+          onViewAll={handleViewAllMultiJobApplicants}
         />
       ) : null}
 
@@ -2292,6 +2396,22 @@ export default function JobApplicationsPage() {
           setListColumnOrder(next);
           saveApplicationColumnOrder(next);
         }}
+      />
+
+      <EditApplicationsFiltersModal
+        key={editFiltersOpen ? "application-filters-open" : "application-filters-closed"}
+        open={editFiltersOpen}
+        onOpenChange={setEditFiltersOpen}
+        value={editFiltersValue}
+        options={{
+          statuses: listingStatusOptions,
+          stages: listingStageOptions,
+          locations: locationOptions,
+          workflows: workflowOptions,
+          jobs: listingJobOptions,
+          showJobFilter: !jobId,
+        }}
+        onSave={handleSaveEditFilters}
       />
 
       {rowActionsMenu ? (

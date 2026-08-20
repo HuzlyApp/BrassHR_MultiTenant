@@ -1,7 +1,6 @@
 "use client";
 
 import { Fragment, useCallback, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   CalendarClock,
@@ -24,6 +23,11 @@ import {
   CANDIDATES_PAGE_TITLE_CLASS,
   CANDIDATES_PAGE_TITLE_STYLE,
 } from "@/app/admin_recruiter/candidates/candidates-typography";
+import {
+  CandidatesBreadcrumb,
+  JobsBreadcrumb,
+  jobCandidatesHrefForJob,
+} from "@/app/admin_recruiter/jobs/JobsBreadcrumb";
 import {
   formatMatchCategory,
   formatMatchScore,
@@ -758,25 +762,16 @@ export function AiAnalysisOverviewClient({
       style={brandStyle}
       data-application-id={applicationId}
     >
-      <Link
-        href={backHref}
-        className="inline-flex items-center gap-1 text-sm font-medium hover:underline"
-        style={{ color: branding.secondaryHex }}
-      >
-        <span
-          aria-hidden
-          className="inline-block h-[14px] w-[14px] shrink-0 bg-current"
-          style={{
-            maskImage: "url(/eva_arrow-back-fill.svg)",
-            WebkitMaskImage: "url(/eva_arrow-back-fill.svg)",
-            maskSize: "contain",
-            WebkitMaskSize: "contain",
-          }}
+      {backHref.includes("/admin_recruiter/applications") ? (
+        <JobsBreadcrumb
+          page="ai-analysis"
+          jobCandidatesHref={jobCandidatesHrefForJob(jobId) || backHref}
         />
-        Back to candidates
-      </Link>
+      ) : (
+        <CandidatesBreadcrumb currentLabel="AI Analysis" backHref={backHref} />
+      )}
 
-      <h1 className={`${CANDIDATES_PAGE_TITLE_CLASS} mt-4`} style={CANDIDATES_PAGE_TITLE_STYLE}>
+      <h1 className={CANDIDATES_PAGE_TITLE_CLASS} style={CANDIDATES_PAGE_TITLE_STYLE}>
         AI Analysis Overview
       </h1>
 

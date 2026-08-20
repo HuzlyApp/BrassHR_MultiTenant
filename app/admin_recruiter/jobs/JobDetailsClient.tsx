@@ -20,6 +20,7 @@ import {
 } from "@/lib/jobs/job-description-html";
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
 import type { JobStatus } from "@/lib/jobs/types";
+import { JobsBreadcrumb } from "./JobsBreadcrumb";
 import {
   JOB_FORM_PAGE_CARD_CLASS,
   JOB_FORM_PRIMARY_BUTTON_CLASS,
@@ -276,23 +277,15 @@ export default function JobDetailsClient({ jobId }: Props) {
       className="box-border w-full min-w-0 max-w-full px-3 pb-8 pt-4 sm:px-5 sm:pt-5 lg:px-8"
       style={brandVars}
     >
+      <JobsBreadcrumb page="job-details" className="mb-4" />
       <div className={`${JOB_FORM_PAGE_CARD_CLASS} p-4 sm:p-6 lg:p-8`}>
-        <Link
-          href="/admin_recruiter/jobs"
-          className="inline-flex items-center gap-1 text-[10px] font-semibold leading-[15px] transition hover:opacity-80"
-          style={{ color: branding.secondaryHex || "#012352" }}
-        >
-          <BrandBackIcon />
-          Back to jobs
-        </Link>
-
         {loading ? (
           <p className="mt-8 text-sm text-[#64748B]">Loading job details…</p>
         ) : error && !job ? (
           <p className="mt-8 text-sm text-red-600">{error}</p>
         ) : job ? (
           <>
-            <div className="mt-5 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div className="min-w-0 w-full lg:w-auto">
                 <div className="flex min-w-0 items-start gap-2">
                   <h1 className="min-w-0 text-[20px] font-semibold leading-7 text-black">
