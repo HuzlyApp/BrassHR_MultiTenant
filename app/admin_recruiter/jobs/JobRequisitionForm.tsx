@@ -620,34 +620,37 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
   const requiresWorkflow = jobRequiresWorkflow(buildPayloadJob());
 
   return (
-    <main className="w-full px-2 py-3 min-[700px]:px-4 min-[700px]:py-4 lg:px-5">
+    <main className="w-full min-w-0 overflow-x-hidden px-2 py-3 min-[700px]:px-4 min-[700px]:py-4 lg:px-5">
       <div className={JOB_FORM_PAGE_CARD_CLASS} style={brandVars}>
         <div className={JOB_FORM_CENTER_COLUMN_CLASS}>
-          <div className="mb-5 flex items-start justify-between gap-3 min-[700px]:mb-6 min-[700px]:gap-4">
-            <div className="min-w-0 flex-1">
-              <h1 className={CANDIDATES_PAGE_TITLE_CLASS} style={CANDIDATES_PAGE_TITLE_STYLE}>
+          <div className="mb-5 flex flex-col gap-2 min-[700px]:mb-6 min-[700px]:gap-1">
+            <div className="flex items-start justify-between gap-3 min-[700px]:gap-4">
+              <h1 className={`min-w-0 flex-1 ${CANDIDATES_PAGE_TITLE_CLASS}`} style={CANDIDATES_PAGE_TITLE_STYLE}>
                 {pageTitle}
               </h1>
-              {pageSubtitle ? (
-                <p className={CANDIDATES_PAGE_SUBTITLE_CLASS} style={CANDIDATES_PAGE_SUBTITLE_STYLE}>
-                  {pageSubtitle}
-                </p>
-              ) : null}
+              <Link
+                href="/admin_recruiter/jobs"
+                className={`mt-1 inline-flex shrink-0 items-center gap-1 self-start whitespace-nowrap text-sm font-medium no-underline transition hover:opacity-80 min-[700px]:mt-0 ${
+                  step === "setup" ? "hidden" : ""
+                }`}
+                style={{ color: branding.secondaryHex || "#012352" }}
+              >
+                <BrandedSvgIcon
+                  src="/eva_arrow-back-fill.svg"
+                  className="h-[14px] w-[14px]"
+                  color={branding.secondaryHex || "#012352"}
+                />
+                Back to jobs
+              </Link>
             </div>
-            <Link
-              href="/admin_recruiter/jobs"
-              className={`mt-1 inline-flex shrink-0 items-center gap-1 self-start whitespace-nowrap text-sm font-medium no-underline transition hover:opacity-80 min-[700px]:mt-0 ${
-                step === "setup" ? "hidden" : ""
-              }`}
-              style={{ color: branding.secondaryHex || "#012352" }}
-            >
-              <BrandedSvgIcon
-                src="/eva_arrow-back-fill.svg"
-                className="h-[14px] w-[14px]"
-                color={branding.secondaryHex || "#012352"}
-              />
-              Back to jobs
-            </Link>
+            {pageSubtitle ? (
+              <p
+                className={`w-full max-w-none ${CANDIDATES_PAGE_SUBTITLE_CLASS}`}
+                style={CANDIDATES_PAGE_SUBTITLE_STYLE}
+              >
+                {pageSubtitle}
+              </p>
+            ) : null}
           </div>
 
           {message ? (
@@ -832,16 +835,16 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
           </div>
 
           {step === "setup" ? (
-            <div className="mt-8 flex flex-col-reverse gap-2 border-t border-[#E5E7EB] pt-5 min-[700px]:flex-row min-[700px]:items-center min-[700px]:justify-between">
+            <div className="mt-8 flex flex-col-reverse gap-2 border-t border-[#E5E7EB] pt-5 min-[350px]:flex-row min-[350px]:items-center min-[700px]:justify-between">
               <Link
                 href="/admin_recruiter/jobs"
-                className={`${JOB_FORM_OUTLINE_BUTTON_CLASS} w-full min-[700px]:w-auto text-center no-underline`}
+                className={`${JOB_FORM_OUTLINE_BUTTON_CLASS} w-full min-[350px]:w-auto min-[350px]:flex-1 min-[700px]:flex-none text-center no-underline`}
               >
                 Cancel
               </Link>
               <button
                 type="button"
-                className={`${JOB_FORM_PRIMARY_BUTTON_CLASS} w-full min-[700px]:w-auto`}
+                className={`${JOB_FORM_PRIMARY_BUTTON_CLASS} w-full min-[350px]:w-auto min-[350px]:flex-1 min-[700px]:flex-none`}
                 style={brandStyle}
                 disabled={setupBusy}
                 onClick={() => void handleSetupContinue()}

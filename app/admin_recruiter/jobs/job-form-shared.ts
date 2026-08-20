@@ -136,10 +136,10 @@ export const JOB_FORM_SURFACE_CLASS =
 
 /** Centered field column inside the full-bleed white create-job card (Figma). */
 export const JOB_FORM_CENTER_COLUMN_CLASS =
-  "mx-auto flex w-full max-w-[720px] flex-1 flex-col px-4 py-5 min-[700px]:max-w-[760px] min-[700px]:px-10 min-[700px]:py-8 lg:px-12";
+  "mx-auto flex w-full min-w-0 max-w-[720px] flex-1 flex-col px-3 py-4 sm:px-4 sm:py-5 min-[700px]:max-w-[760px] min-[700px]:px-10 min-[700px]:py-8 lg:px-12";
 
 export const JOB_FORM_PAGE_CARD_CLASS =
-  "flex min-h-[calc(100dvh-6.5rem)] w-full flex-col rounded-lg border border-[#E5E7EB] bg-white shadow-sm";
+  "flex min-h-[calc(100dvh-6.5rem)] w-full min-w-0 flex-col overflow-x-hidden rounded-lg border border-[#E5E7EB] bg-white shadow-sm";
 
 export const JOB_FORM_INPUT_CLASS = `${JOB_FORM_SURFACE_CLASS} h-10 w-full cursor-pointer px-3 outline-none transition focus:border-[color:var(--brand-primary)] focus:ring-2 focus:ring-[color:color-mix(in_srgb,var(--brand-primary)_12%,transparent)] [&::-webkit-calendar-picker-indicator]:cursor-pointer`;
 

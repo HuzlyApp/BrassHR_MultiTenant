@@ -2753,24 +2753,36 @@ export function JobFormFooter({
       <div className="flex flex-col gap-2">
         {showStepPreview ? (
           <>
-            {/* Mobile layouts */}
-            {isDescription ? (
-              <div className="flex flex-col gap-2 min-[700px]:hidden">
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    className={outlineButtonClass}
-                    onClick={onBack}
-                    disabled={saving}
-                  >
-                    <ArrowLeft className="h-4 w-4" />
-                    Back
-                  </button>
-                  <button type="button" className={outlineButtonClass} onClick={onPreview}>
-                    <Eye className="h-4 w-4" />
-                    Preview
-                  </button>
-                </div>
+            {/* Mobile: Preview alone, then Back | Next */}
+            <button
+              type="button"
+              className={`${outlineButtonClass} min-[700px]:hidden`}
+              onClick={onPreview}
+            >
+              <Eye className="h-4 w-4" />
+              Preview
+            </button>
+            <div className="grid grid-cols-2 gap-2 min-[700px]:hidden">
+              <button
+                type="button"
+                className={outlineButtonClass}
+                onClick={onBack}
+                disabled={saving}
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Back
+              </button>
+              {isCompensation ? (
+                <button
+                  type="button"
+                  className={primaryButtonClass}
+                  style={brandStyle}
+                  onClick={onNext}
+                >
+                  Next
+                  <ArrowRight className="h-4 w-4" />
+                </button>
+              ) : (
                 <button
                   type="button"
                   className={primaryButtonClass}
@@ -2780,39 +2792,8 @@ export function JobFormFooter({
                   Continue to Review
                   <ArrowRight className="h-4 w-4" />
                 </button>
-              </div>
-            ) : (
-              <>
-                <button
-                  type="button"
-                  className={`${outlineButtonClass} min-[700px]:hidden`}
-                  onClick={onPreview}
-                >
-                  <Eye className="h-4 w-4" />
-                  Preview
-                </button>
-                <div className="grid grid-cols-2 gap-2 min-[700px]:hidden">
-                  <button
-                    type="button"
-                    className={outlineButtonClass}
-                    onClick={onBack}
-                    disabled={saving}
-                  >
-                    <ArrowLeft className="h-4 w-4" />
-                    Back
-                  </button>
-                  <button
-                    type="button"
-                    className={primaryButtonClass}
-                    style={brandStyle}
-                    onClick={onNext}
-                  >
-                    Next
-                    <ArrowRight className="h-4 w-4" />
-                  </button>
-                </div>
-              </>
-            )}
+              )}
+            </div>
 
             {/* Desktop: Back + Preview | Next */}
             <div className="hidden min-[700px]:flex min-[700px]:items-center min-[700px]:justify-between">

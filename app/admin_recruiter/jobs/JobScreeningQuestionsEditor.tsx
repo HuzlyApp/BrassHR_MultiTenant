@@ -92,10 +92,10 @@ export function JobScreeningQuestionsEditor({ questions, onChange }: Props) {
   }
 
   return (
-    <section className={`${JOB_FORM_SURFACE_CLASS} space-y-3 p-4`}>
-      <div>
+    <section className={`${JOB_FORM_SURFACE_CLASS} space-y-3 p-3 sm:p-4`}>
+      <div className="min-w-0">
         <h3 className={JOB_FORM_SECTION_TITLE_CLASS}>Screening Questions</h3>
-        <p className={JOB_FORM_SECTION_SUBTITLE_CLASS}>
+        <p className={`${JOB_FORM_SECTION_SUBTITLE_CLASS} w-full max-w-none`}>
           Use screening questions to collect job-specific information from applicants.
         </p>
       </div>
@@ -111,7 +111,7 @@ export function JobScreeningQuestionsEditor({ questions, onChange }: Props) {
             return (
               <li
                 key={item.id ?? `new-${index}`}
-                className="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-3"
+                className="min-w-0 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-3"
               >
                 <div className="mb-2 flex items-center gap-2">
                   <GripVertical className="h-4 w-4 shrink-0 text-[#94A3B8]" aria-hidden />
@@ -128,7 +128,7 @@ export function JobScreeningQuestionsEditor({ questions, onChange }: Props) {
                   </button>
                 </div>
 
-                <div className="space-y-2.5">
+                <div className="min-w-0 space-y-2.5">
                   <textarea
                     value={item.question}
                     onChange={(event) =>
@@ -139,8 +139,8 @@ export function JobScreeningQuestionsEditor({ questions, onChange }: Props) {
                     placeholder="Do you have at least 2 years of outpatient experience?"
                   />
 
-                  <div className="flex items-end justify-between gap-4">
-                    <label className="block w-full max-w-[240px] min-w-[180px] space-y-1">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
+                    <label className="block w-full min-w-0 space-y-1 sm:max-w-[240px]">
                       <span className={JOB_FORM_LABEL_CLASS}>Type</span>
                       <select
                         value={item.questionType}
@@ -157,7 +157,7 @@ export function JobScreeningQuestionsEditor({ questions, onChange }: Props) {
                                 : null,
                           });
                         }}
-                        className={JOB_FORM_SELECT_CLASS}
+                        className={`${JOB_FORM_SELECT_CLASS} w-full`}
                         style={{ backgroundImage: JOB_FORM_SELECT_CHEVRON }}
                       >
                         {JOB_SCREENING_QUESTION_TYPES.map((type) => (
@@ -168,7 +168,7 @@ export function JobScreeningQuestionsEditor({ questions, onChange }: Props) {
                       </select>
                     </label>
 
-                    <label className="ml-auto inline-flex shrink-0 cursor-pointer items-center gap-2.5 pb-2 text-sm text-[#334155]">
+                    <label className="inline-flex w-full shrink-0 cursor-pointer items-center gap-2.5 whitespace-nowrap text-sm text-[#334155] sm:ml-auto sm:w-auto sm:pb-2">
                       <span className="relative inline-flex h-5 w-5 shrink-0">
                         <input
                           type="checkbox"
@@ -189,10 +189,10 @@ export function JobScreeningQuestionsEditor({ questions, onChange }: Props) {
                   </div>
 
                   {showOptions ? (
-                    <div className="space-y-2">
+                    <div className="min-w-0 space-y-2">
                       <p className={JOB_FORM_LABEL_CLASS}>Options</p>
                       {(item.options ?? []).map((option, optionIndex) => (
-                        <div key={`${index}-${optionIndex}`} className="flex items-center gap-2">
+                        <div key={`${index}-${optionIndex}`} className="flex min-w-0 items-center gap-2">
                           <input
                             value={option.label}
                             onChange={(event) =>
@@ -203,7 +203,7 @@ export function JobScreeningQuestionsEditor({ questions, onChange }: Props) {
                                   event.target.value.toLowerCase().replace(/\s+/g, "_"),
                               })
                             }
-                            className={JOB_FORM_INPUT_CLASS}
+                            className={`${JOB_FORM_INPUT_CLASS} min-w-0 flex-1`}
                             placeholder={`Option ${optionIndex + 1}`}
                           />
                           <button
@@ -235,7 +235,7 @@ export function JobScreeningQuestionsEditor({ questions, onChange }: Props) {
       <button
         type="button"
         onClick={addQuestion}
-        className="inline-flex items-center gap-1.5 rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm font-medium text-[#0F172A] hover:bg-[#F8FAFC]"
+        className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm font-medium text-[#0F172A] hover:bg-[#F8FAFC] sm:w-auto sm:justify-start"
       >
         <Plus className="h-4 w-4" />
         Add question
