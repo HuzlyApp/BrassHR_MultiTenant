@@ -129,11 +129,7 @@ export default function JobScreeningPage() {
   }
 
   if (loading) {
-    return (
-      <main className="flex min-h-screen items-center justify-center" style={shellStyle}>
-        <OnboardingLoader label="Loading screening questions…" />
-      </main>
-    );
+    return <OnboardingLoader label="Loading screening questions…" />;
   }
 
   return (

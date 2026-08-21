@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import { MapPin, Search, X } from "lucide-react";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import {
@@ -247,18 +246,12 @@ function JobMobileListCard({
 
 function JobGridCard({
   row,
-  tenantSlug,
   onApply,
 }: {
   row: WorkerJobRow;
-  tenantSlug: string;
   onApply: (row: WorkerJobRow) => void;
 }) {
   const status = workerFacingJobStatus(row.application);
-  const detailsHref =
-    row.token && tenantSlug
-      ? `/jobs/${encodeURIComponent(row.token)}?tenant=${encodeURIComponent(tenantSlug)}`
-      : null;
 
   return (
     <article className="flex min-w-0 flex-col rounded-xl border border-[#E5E7EB] bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
@@ -306,16 +299,6 @@ function JobGridCard({
             Apply
           </button>
         )}
-        {detailsHref ? (
-          <Link
-            href={detailsHref}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-sm font-semibold text-[color:var(--brand-primary)] hover:underline"
-          >
-            View details
-          </Link>
-        ) : null}
       </div>
     </article>
   );
@@ -682,7 +665,6 @@ export function WorkerJobsTab() {
               <JobGridCard
                 key={row.token}
                 row={row}
-                tenantSlug={tenantSlug}
                 onApply={(next) => void openApplyModal(next)}
               />
             ))}
