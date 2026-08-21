@@ -4,6 +4,8 @@ import type { AttendanceColumnId } from "./column-config";
 
 type AttendanceStatus = "clocked_in" | "clocked_out";
 
+type BreakInterval = { started_at: string; ended_at: string };
+
 export type AttendanceRow = {
   id: string;
   applicant_name: string;
@@ -14,6 +16,9 @@ export type AttendanceRow = {
   clock_in_at: string;
   clock_out_at: string | null;
   total_seconds: number | null;
+  break_started_at?: string | null;
+  break_seconds?: number | null;
+  break_intervals?: BreakInterval[] | null;
   clock_in_ip: string;
   clock_out_ip: string | null;
   clock_in_address: string | null;
@@ -45,12 +50,20 @@ function formatDuration(seconds: number | null | undefined) {
   return `${hours}h ${minutes}m`;
 }
 
-function statusLabel(status: AttendanceStatus) {
-  return status === "clocked_in" ? "Clocked in" : "Clocked out";
+function isOnBreak(log: AttendanceRow) {
+  return log.status === "clocked_in" && Boolean(log.break_started_at);
 }
 
-function attendanceStatusBadgeClass(status: AttendanceStatus): string {
-  if (status === "clocked_in") {
+function statusLabel(log: AttendanceRow) {
+  if (isOnBreak(log)) return "On break";
+  return log.status === "clocked_in" ? "Clocked in" : "Clocked out";
+}
+
+function attendanceStatusBadgeClass(log: AttendanceRow): string {
+  if (isOnBreak(log)) {
+    return "border border-[#0062FF] bg-[#0062FF] text-white";
+  }
+  if (log.status === "clocked_in") {
     return "border border-[#22C55E] bg-[#22C55E] text-white";
   }
   return "border border-[#64748B] bg-[#64748B] text-white";
@@ -64,6 +77,53 @@ function locationText(
   if (address?.trim()) return address;
   if (lat == null || lng == null) return "—";
   return `${lat}, ${lng}`;
+}
+
+function parseBreakIntervals(log: AttendanceRow): BreakInterval[] {
+  if (!Array.isArray(log.break_intervals)) return [];
+  return log.break_intervals.filter(
+    (item): item is BreakInterval =>
+      Boolean(item) &&
+      typeof item.started_at === "string" &&
+      typeof item.ended_at === "string"
+  );
+}
+
+function renderBreakTimeCell(log: AttendanceRow): ReactNode {
+  const intervals = parseBreakIntervals(log);
+  const rows: Array<{ inAt: string; outAt: string | null }> = intervals.map((item) => ({
+    inAt: item.started_at,
+    outAt: item.ended_at,
+  }));
+
+  if (log.break_started_at) {
+    rows.push({ inAt: log.break_started_at, outAt: null });
+  }
+
+  if (rows.length === 0) {
+    return <span className="text-sm text-[#94A3B8]">—</span>;
+  }
+
+  return (
+    <div className="flex min-w-[200px] flex-col gap-2">
+      {rows.map((row, index) => (
+        <div key={`${row.inAt}-${index}`} className="text-sm leading-5 text-[#374151]">
+          {rows.length > 1 ? (
+            <div className="mb-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#94A3B8]">
+              Break {index + 1}
+            </div>
+          ) : null}
+          <div>
+            <span className="font-semibold text-[#64748B]">In:</span> {formatDateTime(row.inAt)}
+          </div>
+          <div>
+            <span className="font-semibold text-[#64748B]">Out:</span>{" "}
+            {row.outAt ? formatDateTime(row.outAt) : "—"}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 export function renderAttendanceListCell(col: AttendanceColumnId, log: AttendanceRow): ReactNode {
@@ -89,6 +149,8 @@ export function renderAttendanceListCell(col: AttendanceColumnId, log: Attendanc
       return <span className="text-sm text-[#374151]">{formatDateTime(log.clock_in_at)}</span>;
     case "clockOut":
       return <span className="text-sm text-[#374151]">{formatDateTime(log.clock_out_at)}</span>;
+    case "breakTime":
+      return renderBreakTimeCell(log);
     case "totalHours":
       return <span className="text-sm text-[#374151]">{formatDuration(log.total_seconds)}</span>;
     case "clockInIp":
@@ -110,9 +172,9 @@ export function renderAttendanceListCell(col: AttendanceColumnId, log: Attendanc
     case "status":
       return (
         <span
-          className={`inline-flex items-center whitespace-nowrap rounded-sm px-2 py-0.5 text-[10px] font-semibold ${attendanceStatusBadgeClass(log.status)}`}
+          className={`inline-flex items-center whitespace-nowrap rounded-sm px-2 py-0.5 text-[10px] font-semibold ${attendanceStatusBadgeClass(log)}`}
         >
-          {statusLabel(log.status)}
+          {statusLabel(log)}
         </span>
       );
     default:

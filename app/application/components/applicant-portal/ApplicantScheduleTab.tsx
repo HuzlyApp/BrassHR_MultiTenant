@@ -46,7 +46,7 @@ type Props = {
   onShowRescheduleReasonChange: (value: boolean) => void;
   onRequestSchedule: (event: FormEvent<HTMLFormElement>) => void;
   onRequestReschedule: (event: FormEvent<HTMLFormElement>) => void;
-  onAttendanceAction: (action: "clock_in" | "clock_out") => void;
+  onAttendanceAction: (action: "clock_in" | "clock_out" | "break_start" | "break_end") => void;
   scheduleView?: "calendar" | "attendance";
 };
 
@@ -123,6 +123,7 @@ export function ApplicantScheduleTab({
   const isCalendarView = scheduleView === "calendar";
   const currentSession = activeAttendance ?? todayAttendance;
   const isClockedIn = activeAttendance?.status === "clocked_in";
+  const isOnBreak = Boolean(isClockedIn && activeAttendance?.break_started_at);
   const isCompleted = !isClockedIn && todayAttendance?.status === "clocked_out";
 
   useEffect(() => {
@@ -136,12 +137,23 @@ export function ApplicantScheduleTab({
     if (isCompleted && currentSession.total_seconds != null) return currentSession.total_seconds;
     if (isClockedIn) {
       const start = new Date(currentSession.clock_in_at).getTime();
-      return Math.max(0, Math.floor((now - start) / 1000));
+      const elapsed = Math.max(0, Math.floor((now - start) / 1000));
+      const completedBreak = Math.max(0, Number(currentSession.break_seconds ?? 0) || 0);
+      const openBreak = currentSession.break_started_at
+        ? Math.max(0, Math.floor((now - new Date(currentSession.break_started_at).getTime()) / 1000))
+        : 0;
+      return Math.max(0, elapsed - completedBreak - openBreak);
     }
     return 0;
   }, [currentSession, isClockedIn, isCompleted, now]);
 
-  const timerStatusLabel = isCompleted ? "COMPLETED" : isClockedIn ? "IN PROGRESS" : "UPCOMING";
+  const timerStatusLabel = isCompleted
+    ? "COMPLETED"
+    : isOnBreak
+      ? "ON BREAK"
+      : isClockedIn
+        ? "IN PROGRESS"
+        : "UPCOMING";
   const recentLog = recentAttendance[0] ?? currentSession;
   const scheduleDate = appointment?.confirmed_starts_at ?? selectedSlot?.starts_at ?? null;
   const scheduleEnd = appointment?.confirmed_ends_at ?? selectedSlot?.ends_at ?? null;
@@ -189,14 +201,26 @@ export function ApplicantScheduleTab({
                 {formatTimer(timerSeconds)}
               </p>
               <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
-                <button
-                  type="button"
-                  disabled
-                  className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-[#E8EDF5] px-4 text-[12px] font-semibold text-[#475569] opacity-80"
-                >
-                  <Pause className="h-4 w-4" />
-                  Break
-                </button>
+                {isClockedIn ? (
+                  <button
+                    type="button"
+                    disabled={attendanceSubmitting}
+                    onClick={() => onAttendanceAction(isOnBreak ? "break_end" : "break_start")}
+                    className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-[#E8EDF5] px-4 text-[12px] font-semibold text-[#475569] transition hover:bg-[#DCE3EE] disabled:opacity-60"
+                  >
+                    {isOnBreak ? <Play className="h-4 w-4" /> : <Pause className="h-4 w-4" />}
+                    {attendanceSubmitting ? "Saving..." : isOnBreak ? "Resume" : "Break"}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    disabled
+                    className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-[#E8EDF5] px-4 text-[12px] font-semibold text-[#475569] opacity-80"
+                  >
+                    <Pause className="h-4 w-4" />
+                    Break
+                  </button>
+                )}
                 {isClockedIn ? (
                   <button
                     type="button"
@@ -273,7 +297,11 @@ export function ApplicantScheduleTab({
                 </div>
                 <div>
                   <span className="inline-flex rounded-md border border-[#E5E7EB] bg-[#F8FAFC] px-2.5 py-1 text-[12px] font-semibold text-[#374151]">
-                    {recentLog.status === "clocked_in" ? "Clocked in" : "Clocked out"}
+                    {recentLog.status === "clocked_out"
+                      ? "Clocked out"
+                      : recentLog.break_started_at
+                        ? "On break"
+                        : "Clocked in"}
                   </span>
                 </div>
                 <DurationValue seconds={recentLog.total_seconds} />

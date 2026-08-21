@@ -29,7 +29,7 @@ import {
 function columnHeaderClass(colId: AttendanceColumnId): string {
   const base =
     "bg-[#E5E7EB] px-4 py-3 text-left text-sm font-medium uppercase tracking-[0.08em] text-black";
-  if (colId === "clockInLocation" || colId === "clockOutLocation") {
+  if (colId === "clockInLocation" || colId === "clockOutLocation" || colId === "breakTime") {
     return `${base} min-w-[200px]`;
   }
   if (colId === "clockIn" || colId === "clockOut") {

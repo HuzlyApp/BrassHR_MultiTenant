@@ -70,6 +70,9 @@ export type AttendanceLog = {
   clock_in_at: string;
   clock_out_at: string | null;
   total_seconds: number | null;
+  break_started_at?: string | null;
+  break_seconds?: number | null;
+  break_intervals?: Array<{ started_at: string; ended_at: string }> | null;
   clock_in_ip: string;
   clock_out_ip: string | null;
   clock_in_address: string | null;

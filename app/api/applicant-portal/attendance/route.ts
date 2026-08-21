@@ -16,6 +16,10 @@ type LocationPayload = {
   permissionStatus?: string;
 };
 
+type AttendanceAction = "clock_in" | "clock_out" | "break_start" | "break_end";
+
+type BreakInterval = { started_at: string; ended_at: string };
+
 type AttendanceLog = {
   id: string;
   status: "clocked_in" | "clocked_out";
@@ -23,6 +27,9 @@ type AttendanceLog = {
   clock_in_at: string;
   clock_out_at: string | null;
   total_seconds: number | null;
+  break_started_at: string | null;
+  break_seconds: number | null;
+  break_intervals: BreakInterval[] | null;
   clock_in_ip: string;
   clock_out_ip: string | null;
   clock_in_address: string | null;
@@ -99,7 +106,43 @@ async function reverseGeocodeAddress(latitude: number, longitude: number): Promi
 
 function statusLabel(log: AttendanceLog | null | undefined) {
   if (!log) return "Not clocked in";
+  if (log.status === "clocked_in" && log.break_started_at) return "On break";
   return log.status === "clocked_in" ? "Clocked in" : "Clocked out";
+}
+
+function accumulatedBreakSeconds(log: AttendanceLog, at: Date = new Date()): number {
+  const completed = Math.max(0, Number(log.break_seconds ?? 0) || 0);
+  if (!log.break_started_at) return completed;
+  const started = new Date(log.break_started_at).getTime();
+  if (Number.isNaN(started)) return completed;
+  return completed + Math.max(0, Math.round((at.getTime() - started) / 1000));
+}
+
+function parseBreakIntervals(value: AttendanceLog["break_intervals"]): BreakInterval[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter(
+    (item): item is BreakInterval =>
+      Boolean(item) &&
+      typeof item.started_at === "string" &&
+      typeof item.ended_at === "string"
+  );
+}
+
+function withClosedBreak(log: AttendanceLog, endedAt: Date): {
+  break_intervals: BreakInterval[];
+  break_seconds: number;
+} {
+  const intervals = parseBreakIntervals(log.break_intervals);
+  if (log.break_started_at) {
+    intervals.push({
+      started_at: log.break_started_at,
+      ended_at: endedAt.toISOString(),
+    });
+  }
+  return {
+    break_intervals: intervals,
+    break_seconds: accumulatedBreakSeconds(log, endedAt),
+  };
 }
 
 async function resolveApplicant(req: NextRequest) {
@@ -162,7 +205,7 @@ async function attendancePayload(
     today: todayEntry,
     active,
     recent: (recentLogs as AttendanceLog[] | null) ?? [],
-    currentStatus: active ? "Clocked in" : statusLabel(todayEntry),
+    currentStatus: active ? statusLabel(active) : statusLabel(todayEntry),
   };
 }
 
@@ -184,17 +227,13 @@ export async function POST(req: NextRequest) {
     const resolved = await resolveApplicant(req);
     if (!resolved) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    const ip = requestIp(req);
-    if (!ip) return NextResponse.json({ error: VERIFY_FAILED_MESSAGE }, { status: 400 });
-
     const body = (await req.json().catch(() => ({}))) as {
-      action?: "clock_in" | "clock_out";
+      action?: AttendanceAction;
       location?: LocationPayload;
     };
-    const location = validLocation(body.location);
-    if (!location) return NextResponse.json({ error: LOCATION_REQUIRED_MESSAGE }, { status: 400 });
+    const action = body.action;
 
-    const activeQuery = resolved.supabase
+    const { data: activeLog, error: activeError } = await resolved.supabase
       .from("applicant_attendance_logs")
       .select("*")
       .eq("worker_id", resolved.workerId)
@@ -202,53 +241,105 @@ export async function POST(req: NextRequest) {
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
-
-    const { data: activeLog, error: activeError } = await activeQuery;
     if (activeError) throw activeError;
     const active = (activeLog as AttendanceLog | null) ?? null;
 
-    if (body.action === "clock_in") {
-      if (active) return NextResponse.json({ error: "You are already clocked in." }, { status: 409 });
-      const address = await reverseGeocodeAddress(location.latitude, location.longitude);
-
-      const { error } = await resolved.supabase.from("applicant_attendance_logs").insert({
-        tenant_id: resolved.tenantId,
-        worker_id: resolved.workerId,
-        status: "clocked_in",
-        clock_in_ip: ip,
-        clock_in_address: address,
-        clock_in_latitude: location.latitude,
-        clock_in_longitude: location.longitude,
-        clock_in_location_timestamp: location.timestamp,
-        clock_in_location_permission_status: "granted",
-      });
-      if (error) throw error;
-    } else if (body.action === "clock_out") {
+    if (action === "break_start") {
       if (!active) {
-        return NextResponse.json({ error: "You must clock in before clocking out." }, { status: 409 });
+        return NextResponse.json({ error: "You must clock in before taking a break." }, { status: 409 });
       }
-
-      const clockOutAt = new Date();
-      const clockInAt = new Date(active.clock_in_at);
-      const totalSeconds = Math.max(0, Math.round((clockOutAt.getTime() - clockInAt.getTime()) / 1000));
-      const address = await reverseGeocodeAddress(location.latitude, location.longitude);
+      if (active.break_started_at) {
+        return NextResponse.json({ error: "You are already on break." }, { status: 409 });
+      }
+      const nowIso = new Date().toISOString();
       const { error } = await resolved.supabase
         .from("applicant_attendance_logs")
         .update({
-          status: "clocked_out",
-          clock_out_at: clockOutAt.toISOString(),
-          total_seconds: totalSeconds,
-          clock_out_ip: ip,
-          clock_out_address: address,
-          clock_out_latitude: location.latitude,
-          clock_out_longitude: location.longitude,
-          clock_out_location_timestamp: location.timestamp,
-          clock_out_location_permission_status: "granted",
-          updated_at: clockOutAt.toISOString(),
+          break_started_at: nowIso,
+          updated_at: nowIso,
+        })
+        .eq("id", active.id)
+        .eq("status", "clocked_in")
+        .is("break_started_at", null);
+      if (error) throw error;
+    } else if (action === "break_end") {
+      if (!active) {
+        return NextResponse.json({ error: "You must clock in before ending a break." }, { status: 409 });
+      }
+      if (!active.break_started_at) {
+        return NextResponse.json({ error: "You are not on break." }, { status: 409 });
+      }
+      const now = new Date();
+      const closed = withClosedBreak(active, now);
+      const { error } = await resolved.supabase
+        .from("applicant_attendance_logs")
+        .update({
+          break_started_at: null,
+          break_seconds: closed.break_seconds,
+          break_intervals: closed.break_intervals,
+          updated_at: now.toISOString(),
         })
         .eq("id", active.id)
         .eq("status", "clocked_in");
       if (error) throw error;
+    } else if (action === "clock_in" || action === "clock_out") {
+      const ip = requestIp(req);
+      if (!ip) return NextResponse.json({ error: VERIFY_FAILED_MESSAGE }, { status: 400 });
+
+      const location = validLocation(body.location);
+      if (!location) return NextResponse.json({ error: LOCATION_REQUIRED_MESSAGE }, { status: 400 });
+
+      if (action === "clock_in") {
+        if (active) return NextResponse.json({ error: "You are already clocked in." }, { status: 409 });
+        const address = await reverseGeocodeAddress(location.latitude, location.longitude);
+
+        const { error } = await resolved.supabase.from("applicant_attendance_logs").insert({
+          tenant_id: resolved.tenantId,
+          worker_id: resolved.workerId,
+          status: "clocked_in",
+          clock_in_ip: ip,
+          clock_in_address: address,
+          clock_in_latitude: location.latitude,
+          clock_in_longitude: location.longitude,
+          clock_in_location_timestamp: location.timestamp,
+          clock_in_location_permission_status: "granted",
+          break_started_at: null,
+          break_seconds: 0,
+          break_intervals: [],
+        });
+        if (error) throw error;
+      } else {
+        if (!active) {
+          return NextResponse.json({ error: "You must clock in before clocking out." }, { status: 409 });
+        }
+
+        const clockOutAt = new Date();
+        const clockInAt = new Date(active.clock_in_at);
+        const closed = withClosedBreak(active, clockOutAt);
+        const elapsed = Math.max(0, Math.round((clockOutAt.getTime() - clockInAt.getTime()) / 1000));
+        const totalSeconds = Math.max(0, elapsed - closed.break_seconds);
+        const address = await reverseGeocodeAddress(location.latitude, location.longitude);
+        const { error } = await resolved.supabase
+          .from("applicant_attendance_logs")
+          .update({
+            status: "clocked_out",
+            clock_out_at: clockOutAt.toISOString(),
+            total_seconds: totalSeconds,
+            break_started_at: null,
+            break_seconds: closed.break_seconds,
+            break_intervals: closed.break_intervals,
+            clock_out_ip: ip,
+            clock_out_address: address,
+            clock_out_latitude: location.latitude,
+            clock_out_longitude: location.longitude,
+            clock_out_location_timestamp: location.timestamp,
+            clock_out_location_permission_status: "granted",
+            updated_at: clockOutAt.toISOString(),
+          })
+          .eq("id", active.id)
+          .eq("status", "clocked_in");
+        if (error) throw error;
+      }
     } else {
       return NextResponse.json({ error: "Invalid attendance action." }, { status: 400 });
     }
@@ -260,4 +351,3 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
-

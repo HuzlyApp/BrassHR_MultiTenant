@@ -262,13 +262,17 @@ function ApplicantSchedulePageContent() {
     });
   }
 
-  async function handleAttendanceAction(action: "clock_in" | "clock_out") {
+  async function handleAttendanceAction(
+    action: "clock_in" | "clock_out" | "break_start" | "break_end"
+  ) {
     setAttendanceSubmitting(true);
     setError(null);
     try {
       const headers = await authHeaders();
       if (!headers) throw new Error("You need to sign in again.");
-      const location = await getVerifiedLocation();
+
+      const needsLocation = action === "clock_in" || action === "clock_out";
+      const location = needsLocation ? await getVerifiedLocation() : undefined;
 
       const res = await fetch("/api/applicant-portal/attendance", {
         method: "POST",

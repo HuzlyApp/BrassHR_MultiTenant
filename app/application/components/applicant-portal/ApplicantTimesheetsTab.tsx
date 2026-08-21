@@ -30,18 +30,161 @@ type Props = {
   recentAttendance: AttendanceLog[];
 };
 
+const BREAK_COLOR = "#0062FF";
 const LEGEND_STATIC = [
-  { label: "Break", color: "#0062FF" },
+  { label: "Break", color: BREAK_COLOR },
   { label: "Overtime", color: "#F59E0B" },
   { label: "Late", color: "#E11D48" },
 ];
 
-const TIMELINE_MARKS = ["9:00", "11:00", "13:00", "15:00", "16:00", "17:00"];
+type TimelineSegment = {
+  kind: "work" | "break";
+  leftPct: number;
+  widthPct: number;
+};
+
+type BreakInterval = { started_at: string; ended_at: string };
 
 function formatDateRangeLabel(start: Date, end: Date) {
   const fmt = (date: Date) =>
     date.toLocaleDateString(undefined, { month: "short", day: "2-digit" });
   return `${fmt(start)} - ${fmt(end)}`;
+}
+
+function formatHourMark(date: Date) {
+  return date.toLocaleTimeString(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: false,
+  });
+}
+
+function parseBreakIntervals(log: AttendanceLog | undefined): BreakInterval[] {
+  if (!log?.break_intervals || !Array.isArray(log.break_intervals)) return [];
+  return log.break_intervals.filter(
+    (item): item is BreakInterval =>
+      Boolean(item) &&
+      typeof item.started_at === "string" &&
+      typeof item.ended_at === "string"
+  );
+}
+
+function sessionEndMs(log: AttendanceLog, nowMs: number) {
+  if (log.clock_out_at) return new Date(log.clock_out_at).getTime();
+  if (log.status === "clocked_in") return nowMs;
+  return new Date(log.clock_in_at).getTime();
+}
+
+function buildTimelineWindow(log: AttendanceLog, nowMs: number) {
+  const clockIn = new Date(log.clock_in_at);
+  const defaultStart = new Date(clockIn);
+  defaultStart.setHours(9, 0, 0, 0);
+  const defaultEnd = new Date(clockIn);
+  defaultEnd.setHours(17, 0, 0, 0);
+
+  const sessionStart = clockIn.getTime();
+  const sessionEnd = sessionEndMs(log, nowMs);
+  const padMs = 30 * 60 * 1000;
+
+  let startMs = Math.min(defaultStart.getTime(), sessionStart - padMs);
+  let endMs = Math.max(defaultEnd.getTime(), sessionEnd + padMs);
+
+  // Keep a usable span for very short sessions.
+  if (endMs - startMs < 2 * 60 * 60 * 1000) {
+    endMs = startMs + 2 * 60 * 60 * 1000;
+  }
+
+  return { startMs, endMs };
+}
+
+function buildTimelineMarks(startMs: number, endMs: number) {
+  const span = endMs - startMs;
+  const count = 6;
+  return Array.from({ length: count }, (_, index) => {
+    const at = startMs + (span * index) / (count - 1);
+    return formatHourMark(new Date(at));
+  });
+}
+
+function toPct(ms: number, startMs: number, endMs: number) {
+  const span = endMs - startMs;
+  if (span <= 0) return 0;
+  return Math.max(0, Math.min(100, ((ms - startMs) / span) * 100));
+}
+
+function buildTimelineSegments(
+  log: AttendanceLog,
+  startMs: number,
+  endMs: number,
+  nowMs: number
+): TimelineSegment[] {
+  const sessionStart = new Date(log.clock_in_at).getTime();
+  const sessionEnd = sessionEndMs(log, nowMs);
+  const intervals = parseBreakIntervals(log)
+    .map((item) => ({
+      start: new Date(item.started_at).getTime(),
+      end: new Date(item.ended_at).getTime(),
+    }))
+    .filter((item) => !Number.isNaN(item.start) && !Number.isNaN(item.end) && item.end > item.start)
+    .sort((a, b) => a.start - b.start);
+
+  if (log.break_started_at) {
+    const openStart = new Date(log.break_started_at).getTime();
+    if (!Number.isNaN(openStart) && sessionEnd > openStart) {
+      intervals.push({ start: openStart, end: sessionEnd });
+    }
+  }
+
+  // Fallback when only total break seconds exist (no interval history yet).
+  if (
+    intervals.length === 0 &&
+    !log.break_started_at &&
+    Number(log.break_seconds ?? 0) > 0 &&
+    sessionEnd > sessionStart
+  ) {
+    const breakMs = Math.min(
+      Number(log.break_seconds) * 1000,
+      Math.max(0, sessionEnd - sessionStart)
+    );
+    if (breakMs > 0) {
+      intervals.push({ start: sessionEnd - breakMs, end: sessionEnd });
+    }
+  }
+
+  const segments: TimelineSegment[] = [];
+  let cursor = sessionStart;
+
+  const pushSegment = (kind: "work" | "break", from: number, to: number) => {
+    const left = toPct(from, startMs, endMs);
+    const right = toPct(to, startMs, endMs);
+    const width = right - left;
+    if (width <= 0.15) return;
+    segments.push({ kind, leftPct: left, widthPct: width });
+  };
+
+  for (const interval of intervals) {
+    const breakStart = Math.max(interval.start, sessionStart);
+    const breakEnd = Math.min(interval.end, sessionEnd);
+    if (breakEnd <= breakStart) continue;
+    if (breakStart > cursor) pushSegment("work", cursor, breakStart);
+    pushSegment("break", breakStart, breakEnd);
+    cursor = Math.max(cursor, breakEnd);
+  }
+
+  if (sessionEnd > cursor) pushSegment("work", cursor, sessionEnd);
+  return segments;
+}
+
+function workedSeconds(log: AttendanceLog, nowMs: number) {
+  if (log.total_seconds != null) return log.total_seconds;
+  const start = new Date(log.clock_in_at).getTime();
+  const end = sessionEndMs(log, nowMs);
+  const elapsed = Math.max(0, Math.floor((end - start) / 1000));
+  const completedBreak = Math.max(0, Number(log.break_seconds ?? 0) || 0);
+  const openBreak = log.break_started_at
+    ? Math.max(0, Math.floor((nowMs - new Date(log.break_started_at).getTime()) / 1000))
+    : 0;
+  return Math.max(0, elapsed - completedBreak - openBreak);
 }
 
 function TimesheetSectionHeader() {
@@ -170,21 +313,23 @@ function TimesheetRow({
   isPlaceholder?: boolean;
   showDivider?: boolean;
 }) {
+  const nowMs = Date.now();
   const clockIn = isPlaceholder ? { time: "---", meridiem: "" } : formatTimeParts(log?.clock_in_at);
   const clockOut = isPlaceholder ? { time: "---", meridiem: "" } : formatTimeParts(log?.clock_out_at);
 
   const durationLabel = isPlaceholder
     ? "0h"
-    : log!.total_seconds != null
-      ? formatDurationCompact(log!.total_seconds)
-      : log!.status === "clocked_in"
-        ? formatDurationCompact(
-            Math.max(0, Math.floor((Date.now() - new Date(log!.clock_in_at).getTime()) / 1000))
-          )
-        : "0h";
+    : formatDurationCompact(workedSeconds(log!, nowMs));
 
-  const barWidth = isPlaceholder || !log ? 0 : computeBarWidth(log);
   const day = isPlaceholder || !log ? "Today" : dayLabel(log.attendance_date);
+  const window = !isPlaceholder && log ? buildTimelineWindow(log, nowMs) : null;
+  const marks = window
+    ? buildTimelineMarks(window.startMs, window.endMs)
+    : ["9:00", "11:00", "13:00", "15:00", "16:00", "17:00"];
+  const segments =
+    !isPlaceholder && log && window
+      ? buildTimelineSegments(log, window.startMs, window.endMs, nowMs)
+      : [];
 
   const clockInDisplay =
     clockIn.time === "—" || clockIn.time === "---"
@@ -226,17 +371,23 @@ function TimesheetRow({
             className={`mb-2 flex justify-between ${WORKER_TIMESHEET_META_CLASS}`}
             style={WORKER_TIMESHEET_FONT_STYLE}
           >
-            {TIMELINE_MARKS.map((mark) => (
-              <span key={mark}>{mark}</span>
+            {marks.map((mark, index) => (
+              <span key={`${mark}-${index}`}>{mark}</span>
             ))}
           </div>
-          <div className="relative h-[15px] rounded bg-[#ECF1F9]">
-            {barWidth > 0 ? (
+          <div className="relative h-[15px] overflow-hidden rounded bg-[#ECF1F9]">
+            {segments.map((segment, index) => (
               <div
-                className="absolute inset-y-0 left-0 rounded"
-                style={{ width: `${barWidth}%`, backgroundColor: workBarColor }}
+                key={`${segment.kind}-${index}`}
+                className="absolute inset-y-0 rounded-sm"
+                title={segment.kind === "break" ? "Break" : "Work time"}
+                style={{
+                  left: `${segment.leftPct}%`,
+                  width: `${segment.widthPct}%`,
+                  backgroundColor: segment.kind === "break" ? BREAK_COLOR : workBarColor,
+                }}
               />
-            ) : null}
+            ))}
           </div>
         </div>
 
@@ -251,23 +402,4 @@ function TimesheetRow({
       </div>
     </div>
   );
-}
-
-function computeBarWidth(log: AttendanceLog) {
-  if (!log.clock_in_at) return 0;
-  const dayStart = new Date(log.clock_in_at);
-  dayStart.setHours(9, 0, 0, 0);
-  const dayEnd = new Date(log.clock_in_at);
-  dayEnd.setHours(17, 0, 0, 0);
-  const totalMs = dayEnd.getTime() - dayStart.getTime();
-  if (totalMs <= 0) return 0;
-
-  const endMs = log.clock_out_at
-    ? new Date(log.clock_out_at).getTime()
-    : log.status === "clocked_in"
-      ? Date.now()
-      : new Date(log.clock_in_at).getTime();
-  const startMs = new Date(log.clock_in_at).getTime();
-  const workedMs = Math.max(0, Math.min(endMs, dayEnd.getTime()) - Math.max(startMs, dayStart.getTime()));
-  return Math.min(100, Math.round((workedMs / totalMs) * 100));
 }

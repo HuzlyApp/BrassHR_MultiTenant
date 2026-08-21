@@ -4,6 +4,7 @@ export type AttendanceColumnId =
   | "date"
   | "clockIn"
   | "clockOut"
+  | "breakTime"
   | "totalHours"
   | "clockInIp"
   | "clockOutIp"
@@ -17,6 +18,7 @@ export const ATTENDANCE_COLUMN_OPTIONS: { id: AttendanceColumnId; label: string 
   { id: "date", label: "Date" },
   { id: "clockIn", label: "Clock In" },
   { id: "clockOut", label: "Clock Out" },
+  { id: "breakTime", label: "Break Time" },
   { id: "totalHours", label: "Total Hours" },
   { id: "clockInIp", label: "Clock-in IP" },
   { id: "clockOutIp", label: "Clock-out IP" },
@@ -25,12 +27,13 @@ export const ATTENDANCE_COLUMN_OPTIONS: { id: AttendanceColumnId; label: string 
   { id: "status", label: "Status" },
 ];
 
-/** Default visible columns: five fields plus status. */
+/** Default visible columns: five fields plus break time and status. */
 export const DEFAULT_ATTENDANCE_COLUMNS: AttendanceColumnId[] = [
   "applicant",
   "date",
   "clockIn",
   "clockOut",
+  "breakTime",
   "totalHours",
   "status",
 ];
@@ -48,7 +51,14 @@ export function loadAttendanceColumnOrder(): AttendanceColumnId[] {
     const cleaned = parsed.filter(
       (id): id is AttendanceColumnId => typeof id === "string" && allowed.has(id as AttendanceColumnId)
     );
-    return cleaned.length ? cleaned : [...DEFAULT_ATTENDANCE_COLUMNS];
+    if (!cleaned.length) return [...DEFAULT_ATTENDANCE_COLUMNS];
+    // Ensure Break Time is visible for existing saved column prefs.
+    if (!cleaned.includes("breakTime")) {
+      const statusIdx = cleaned.indexOf("status");
+      if (statusIdx >= 0) cleaned.splice(statusIdx, 0, "breakTime");
+      else cleaned.push("breakTime");
+    }
+    return cleaned;
   } catch {
     return [...DEFAULT_ATTENDANCE_COLUMNS];
   }
