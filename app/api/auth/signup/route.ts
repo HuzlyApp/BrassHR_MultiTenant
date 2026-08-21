@@ -20,6 +20,16 @@ import { getStateCodeFromName } from "@/lib/us-state-names";
  * Creates the Braas HR owner account (auth + public.users) after the signup UI.
  */
 export async function POST(req: Request) {
+  try {
+    return await createOwnerSignup(req);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Could not create account.";
+    console.error("[signup]", message);
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
+
+async function createOwnerSignup(req: Request) {
   const svc = createServiceRoleClient();
   if (!svc) {
     return NextResponse.json({ error: "Server not configured" }, { status: 503 });
