@@ -90,8 +90,11 @@ async function checkOwnerSignupEmailAvailable(email: string): Promise<boolean> {
   const res = await fetch(`/api/auth/signup/check-email?email=${encodeURIComponent(email)}`, {
     cache: "no-store",
   });
+  if (!res.ok) {
+    throw new Error("Could not validate email");
+  }
   const payload = (await res.json()) as { available?: boolean };
-  return payload.available !== false;
+  return payload.available === true;
 }
 
 function getPasswordRules(password: string): PasswordRule[] {
@@ -417,7 +420,11 @@ export default function SignupPage() {
           const res = await fetch(`/api/auth/signup/check-email?email=${encodeURIComponent(email)}`);
           const payload = (await res.json()) as { available?: boolean };
           if (emailCheckRequestId.current !== requestId) return;
-          setEmailCheckStatus(payload.available === false ? "taken" : "available");
+          if (!res.ok) {
+            setEmailCheckStatus("idle");
+            return;
+          }
+          setEmailCheckStatus(payload.available === false ? "taken" : payload.available === true ? "available" : "idle");
         } catch {
           if (emailCheckRequestId.current === requestId) setEmailCheckStatus("idle");
         }

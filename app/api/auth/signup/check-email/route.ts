@@ -39,7 +39,16 @@ export async function GET(req: Request) {
       reason: availability.reason === "resume" ? ("resume" as const) : ("new" as const),
     });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Could not validate email";
+    const message =
+      err instanceof Error
+        ? err.message
+        : typeof err === "object" &&
+            err !== null &&
+            "message" in err &&
+            typeof err.message === "string"
+          ? err.message
+          : "Could not validate email";
+    console.error("[signup/check-email]", message);
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
