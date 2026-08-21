@@ -1089,17 +1089,45 @@ export async function startOrResumeJobApplication(
   const workflowName = String(assignedFlow.name ?? "Assigned Workflow");
 
   const normalizedEmail = input.email ? normalizeApplicantEmail(input.email) : null;
-  let profileQuery = supabase
-    .from("applicant_profiles")
-    .select("id")
-    .eq("tenant_id", input.tenantId);
-  profileQuery = normalizedEmail
-    ? profileQuery.eq("normalized_email", normalizedEmail)
-    : profileQuery.eq("auth_user_id", input.applicantAuthUserId);
-  const { data: existingProfile, error: profileLookupError } = await profileQuery.maybeSingle();
-  if (profileLookupError) throw profileLookupError;
 
-  let profileId = existingProfile?.id ? String(existingProfile.id) : null;
+  // Resolve existing applicant_profiles by worker_id, auth_user_id, then email.
+  // Looking up by email alone can miss an existing auth_user_id row and cause
+  // applicant_profiles_tenant_auth_uidx on insert when applying to another job.
+  let profileId: string | null = null;
+
+  if (input.workerId) {
+    const { data: byWorker, error: byWorkerError } = await supabase
+      .from("applicant_profiles")
+      .select("id")
+      .eq("tenant_id", input.tenantId)
+      .eq("worker_id", input.workerId)
+      .maybeSingle();
+    if (byWorkerError) throw byWorkerError;
+    if (byWorker?.id) profileId = String(byWorker.id);
+  }
+
+  if (!profileId) {
+    const { data: byAuth, error: byAuthError } = await supabase
+      .from("applicant_profiles")
+      .select("id")
+      .eq("tenant_id", input.tenantId)
+      .eq("auth_user_id", input.applicantAuthUserId)
+      .maybeSingle();
+    if (byAuthError) throw byAuthError;
+    if (byAuth?.id) profileId = String(byAuth.id);
+  }
+
+  if (!profileId && normalizedEmail) {
+    const { data: byEmail, error: byEmailError } = await supabase
+      .from("applicant_profiles")
+      .select("id")
+      .eq("tenant_id", input.tenantId)
+      .eq("normalized_email", normalizedEmail)
+      .maybeSingle();
+    if (byEmailError) throw byEmailError;
+    if (byEmail?.id) profileId = String(byEmail.id);
+  }
+
   if (!profileId) {
     const { data: profile, error: profileError } = await supabase
       .from("applicant_profiles")
@@ -1112,9 +1140,48 @@ export async function startOrResumeJobApplication(
       })
       .select("id")
       .single();
-    if (profileError) throw profileError;
-    profileId = String(profile.id);
-  } else {
+
+    if (profileError) {
+      const isDuplicate =
+        profileError.code === "23505" ||
+        /duplicate key|unique constraint/i.test(String(profileError.message ?? ""));
+      if (!isDuplicate) throw profileError;
+
+      const { data: racedByAuth } = await supabase
+        .from("applicant_profiles")
+        .select("id")
+        .eq("tenant_id", input.tenantId)
+        .eq("auth_user_id", input.applicantAuthUserId)
+        .maybeSingle();
+      if (racedByAuth?.id) {
+        profileId = String(racedByAuth.id);
+      } else if (input.workerId) {
+        const { data: racedByWorker } = await supabase
+          .from("applicant_profiles")
+          .select("id")
+          .eq("tenant_id", input.tenantId)
+          .eq("worker_id", input.workerId)
+          .maybeSingle();
+        if (racedByWorker?.id) profileId = String(racedByWorker.id);
+      }
+
+      if (!profileId && normalizedEmail) {
+        const { data: racedByEmail } = await supabase
+          .from("applicant_profiles")
+          .select("id")
+          .eq("tenant_id", input.tenantId)
+          .eq("normalized_email", normalizedEmail)
+          .maybeSingle();
+        if (racedByEmail?.id) profileId = String(racedByEmail.id);
+      }
+
+      if (!profileId) throw profileError;
+    } else {
+      profileId = String(profile.id);
+    }
+  }
+
+  if (profileId) {
     const { error: profileUpdateError } = await supabase
       .from("applicant_profiles")
       .update({
@@ -1126,6 +1193,10 @@ export async function startOrResumeJobApplication(
       .eq("id", profileId)
       .eq("tenant_id", input.tenantId);
     if (profileUpdateError) throw profileUpdateError;
+  }
+
+  if (!profileId) {
+    throw new JobValidationError("Could not resolve applicant profile.", {}, "PROFILE_REQUIRED");
   }
 
   const { data: existingApplication, error: existingError } = await supabase
