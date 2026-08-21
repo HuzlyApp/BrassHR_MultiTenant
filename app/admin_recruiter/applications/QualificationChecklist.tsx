@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { ListTableCheckbox } from "@/app/admin_recruiter/components/ListTableCheckbox";
 import type { QualificationFilter, QualificationRequirement } from "@/lib/jobs/match-analysis/workspace";
 import {
   filterQualificationRequirements,
@@ -95,13 +96,17 @@ export function QualificationChecklist(props: {
                     {open && req.impact ? (
                       <p className="mt-1 text-xs text-[#64748B]">Impact: {req.impact}</p>
                     ) : null}
-                    <label className="mt-2 inline-flex items-center gap-1.5 text-xs text-[#475569]">
-                      <input
-                        type="checkbox"
-                        className="h-3.5 w-3.5 rounded border-[#CBD5E1]"
+                    <label
+                      htmlFor={`recruiter-verified-${req.id}`}
+                      className="mt-2 inline-flex cursor-pointer items-center gap-2 text-xs font-medium text-[#475569]"
+                    >
+                      <ListTableCheckbox
+                        id={`recruiter-verified-${req.id}`}
+                        size="md"
                         checked={req.recruiter_verified}
                         disabled={props.verifyingId === req.id}
                         onChange={() => props.onToggleVerified(req)}
+                        aria-label={`Recruiter verified: ${req.requirement_text}`}
                       />
                       Recruiter verified
                     </label>

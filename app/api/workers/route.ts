@@ -13,6 +13,7 @@ import {
 } from "@/lib/workers/candidate-conversion-filter";
 import { ACTIVE_CANDIDATE_PIPELINE_STATUSES } from "@/lib/workers/candidate-status-label";
 import type { WorkerStatus } from "@/lib/workers/workers-status-types";
+import { getAppliedJobCountsByWorker } from "@/lib/workers/applied-job-count";
 import { parseWorkersListParams, statusOrFilter } from "@/lib/workers/workers-status-filter";
 
 type SbErr = { message: string; code?: string };
@@ -380,21 +381,29 @@ export async function GET(req: Request) {
             const workerIds = workersOut
               .map((row) => (typeof row.id === "string" ? row.id : ""))
               .filter(Boolean);
-            const summaries = await getApplicationStatusSummariesForWorkers(supabase, {
-              tenantId: tenantIdForApps,
-              workerIds,
-            });
+            const [summaries, appliedJobCounts] = await Promise.all([
+              getApplicationStatusSummariesForWorkers(supabase, {
+                tenantId: tenantIdForApps,
+                workerIds,
+              }),
+              getAppliedJobCountsByWorker(supabase, tenantIdForApps, workerIds),
+            ]);
             workersOut = workersOut.map((row) => {
               const id = typeof row.id === "string" ? row.id : "";
               const summary = id ? summaries.get(id) : undefined;
-              if (!summary) return row;
+              const appliedJobCount = id ? appliedJobCounts.get(id) ?? 1 : 1;
               return {
                 ...row,
-                application_id: summary.applicationId,
-                application_status_id: summary.statusId,
-                application_status_name: summary.statusName,
-                application_status_key: summary.systemKey,
-                application_status_ambiguous: summary.ambiguous,
+                applied_job_count: appliedJobCount,
+                ...(summary
+                  ? {
+                      application_id: summary.applicationId,
+                      application_status_id: summary.statusId,
+                      application_status_name: summary.statusName,
+                      application_status_key: summary.systemKey,
+                      application_status_ambiguous: summary.ambiguous,
+                    }
+                  : {}),
               };
             });
           } catch (attachErr) {

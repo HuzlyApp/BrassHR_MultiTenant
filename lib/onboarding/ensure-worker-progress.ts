@@ -4,6 +4,38 @@ import { loadTenantOnboardingConfig } from "@/lib/onboarding/load-tenant-config"
 import { backfillFarthestReachedStepIndex } from "@/lib/onboarding/persist-farthest-reached-step";
 import { getEnabledTenantSteps } from "@/lib/onboarding/tenant-step-navigation";
 
+function normalizeApplicationId(value?: string | null): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+const PROGRESS_SELECT =
+  "id, status, submitted_at, submitted_with_incomplete_steps, incomplete_step_keys, farthest_reached_step_index, application_id, updated_at, started_at";
+
+async function loadScopedWorkerProgress(
+  supabase: SupabaseClient,
+  workerId: string,
+  configId: string,
+  applicationId: string | null
+) {
+  let query = supabase
+    .from("worker_onboarding_progress")
+    .select(PROGRESS_SELECT)
+    .eq("worker_id", workerId)
+    .eq("onboarding_config_id", configId);
+
+  // Multi-job: when scoped, require that application_id. When unscoped, use the
+  // legacy null row — never "latest of any job" (that leaks completions across applies).
+  if (applicationId) {
+    const { data, error } = await query.eq("application_id", applicationId).limit(1).maybeSingle();
+    if (error) throw error;
+    return data ?? null;
+  }
+
+  const { data, error } = await query.is("application_id", null).limit(1).maybeSingle();
+  if (error) throw error;
+  return data ?? null;
+}
+
 export type EnsureWorkerOnboardingProgressOptions = {
   /** When set, load/create progress for this job application (multi-app). */
   applicationId?: string | null;
@@ -24,35 +56,31 @@ type ProgressRow = {
  * With `applicationId`, progress is scoped per job application so a new apply
  * starts with pending steps instead of inheriting another job's completions.
  * Without it, uses the legacy worker-scoped row (`application_id IS NULL`).
+ *
+ * Accepts either `{ applicationId }` or a bare application id string (staging callers).
  */
 export async function ensureWorkerOnboardingProgress(
   supabase: SupabaseClient,
   workerId: string,
   tenantId: string,
-  options?: EnsureWorkerOnboardingProgressOptions
+  options?: EnsureWorkerOnboardingProgressOptions | string | null
 ): Promise<WorkerOnboardingProgressPayload> {
-  const applicationId = options?.applicationId?.trim() || null;
+  const applicationId =
+    typeof options === "string"
+      ? normalizeApplicationId(options) || null
+      : options?.applicationId?.trim() || null;
+
   const config = await loadTenantOnboardingConfig(supabase, tenantId, { workerFacing: true });
   if (!config) {
     throw new Error("No active onboarding configuration for tenant");
   }
 
-  let existingQuery = supabase
-    .from("worker_onboarding_progress")
-    .select(
-      "id, status, submitted_at, submitted_with_incomplete_steps, incomplete_step_keys, farthest_reached_step_index, application_id"
-    )
-    .eq("worker_id", workerId)
-    .eq("onboarding_config_id", config.configId);
-
-  if (applicationId) {
-    existingQuery = existingQuery.eq("application_id", applicationId);
-  } else {
-    existingQuery = existingQuery.is("application_id", null);
-  }
-
-  const { data: found, error: exErr } = await existingQuery.maybeSingle();
-  if (exErr) throw exErr;
+  const found = await loadScopedWorkerProgress(
+    supabase,
+    workerId,
+    config.configId,
+    applicationId
+  );
 
   let existing: ProgressRow | null = found
     ? {
@@ -145,9 +173,25 @@ export async function ensureWorkerOnboardingProgress(
       .select("id, status")
       .single();
 
-    if (insErr) throw insErr;
-    progressId = String(inserted.id);
-    status = String(inserted.status);
+    if (insErr) {
+      // Concurrent create for the same worker/config/application — re-read the winner.
+      if (insErr.code === "23505") {
+        const raced = await loadScopedWorkerProgress(
+          supabase,
+          workerId,
+          config.configId,
+          applicationId
+        );
+        if (!raced?.id) throw insErr;
+        progressId = String(raced.id);
+        status = String(raced.status ?? "in_progress");
+      } else {
+        throw insErr;
+      }
+    } else {
+      progressId = String(inserted.id);
+      status = String(inserted.status);
+    }
   }
 
   const enabledSteps = getEnabledTenantSteps(config);

@@ -21,6 +21,7 @@ import { persistFarthestReachedStepIndex } from "@/lib/onboarding/persist-farthe
 import { resolveOnboardingProgressStep } from "@/lib/onboarding/resolve-onboarding-progress-step";
 import { resolveJobApplicationIdForApplicant } from "@/lib/onboarding/resolve-job-application-id";
 import type { OnboardingStepStatus, TenantOnboardingConfig } from "@/lib/onboarding/types";
+import { formatApiError } from "@/lib/api/format-api-error";
 import { resolveApplicationWorkflowPhase } from "@/lib/onboarding/resolve-application-workflow-phase";
 import {
   applicantMayActOnStep,
@@ -75,15 +76,29 @@ export async function POST(req: NextRequest) {
     const jobToken = normalizeJobToken(
       typeof body.jobToken === "string" ? body.jobToken : null
     );
-    const applicationId = await resolveJobApplicationIdForApplicant(supabase, {
+    let applicationId =
+      (await resolveJobApplicationIdForApplicant(supabase, {
+        tenantId: ctx.tenantId,
+        applicantAuthUserId: applicantId,
+        workerId: ctx.workerId,
+        jobToken,
+        applicationId: typeof body.applicationId === "string" ? body.applicationId : null,
+      })) ?? "";
+
+    const phaseRecord = await resolveApplicationWorkflowPhase(supabase, {
       tenantId: ctx.tenantId,
-      applicantAuthUserId: applicantId,
       workerId: ctx.workerId,
+      applicationId: applicationId || null,
       jobToken,
-      applicationId: typeof body.applicationId === "string" ? body.applicationId : null,
     });
+    if (!applicationId && phaseRecord?.applicationId) {
+      applicationId = phaseRecord.applicationId;
+    }
+
     const ensureProgress = () =>
-      ensureWorkerOnboardingProgress(supabase, ctx.workerId, ctx.tenantId, { applicationId });
+      ensureWorkerOnboardingProgress(supabase, ctx.workerId, ctx.tenantId, {
+        applicationId: applicationId || null,
+      });
 
     const payload = await ensureProgress();
 
@@ -147,12 +162,6 @@ export async function POST(req: NextRequest) {
     }
     stepRow = persistStep ?? stepRow;
 
-    const phaseRecord = await resolveApplicationWorkflowPhase(supabase, {
-      tenantId: ctx.tenantId,
-      workerId: ctx.workerId,
-      applicationId: applicationId || null,
-      jobToken,
-    });
     const activePhase = phaseRecord?.phase ?? "pre_hire";
     if (
       stepRow &&
@@ -203,11 +212,20 @@ export async function POST(req: NextRequest) {
         .from("worker_resumes")
         .select("file_url")
         .eq("worker_id", ctx.workerId)
+        .is("deleted_at", null)
+        .order("uploaded_at", { ascending: false })
+        .limit(1)
         .maybeSingle();
-      const { data: requirements } = await supabase
+      let requirementsQuery = supabase
         .from("worker_requirements")
         .select("resume_path")
-        .or(`worker_id.eq.${ctx.workerId},worker_id.eq.${applicantId}`)
+        .or(`worker_id.eq.${ctx.workerId},worker_id.eq.${applicantId}`);
+      if (applicationId) {
+        requirementsQuery = requirementsQuery.eq("application_id", applicationId);
+      }
+      const { data: requirements } = await requirementsQuery
+        .order("updated_at", { ascending: false })
+        .limit(1)
         .maybeSingle();
       const resumePath = String(requirements?.resume_path ?? "").trim();
       if (!resume?.file_url && !resumePath) {
@@ -332,7 +350,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ progress });
   } catch (err: unknown) {
     console.error("[onboarding/progress/step]", err);
-    const msg = err instanceof Error ? err.message : "Unexpected error";
-    return NextResponse.json({ error: msg }, { status: 500 });
+    return NextResponse.json({ error: formatApiError(err) }, { status: 500 });
   }
 }

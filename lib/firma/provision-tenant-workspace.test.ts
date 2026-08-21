@@ -2,10 +2,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { FirmaError } from "@/lib/firma/errors";
 
 const createFirmaWorkspace = vi.fn();
+const firmaWorkspaceExistsInCompany = vi.fn();
 
 vi.mock("@/lib/firma/client", () => ({
   createFirmaWorkspace: (...args: unknown[]) => createFirmaWorkspace(...args),
   isFirmaConfigured: vi.fn(() => true),
+  firmaWorkspaceExistsInCompany: (...args: unknown[]) => firmaWorkspaceExistsInCompany(...args),
+}));
+
+vi.mock("@/lib/firma/sync-workspace-branding", () => ({
+  syncTenantBrandingToFirmaWorkspace: vi.fn(async () => undefined),
 }));
 
 describe("provisionFirmaWorkspaceForTenant", () => {
@@ -16,6 +22,8 @@ describe("provisionFirmaWorkspaceForTenant", () => {
     process.env.FIRMA_API_KEY = "firma_test_key";
     process.env.FIRMA_WORKSPACE_PROVISIONING_MODE = "api";
     createFirmaWorkspace.mockReset();
+    firmaWorkspaceExistsInCompany.mockReset();
+    firmaWorkspaceExistsInCompany.mockResolvedValue(true);
   });
 
   afterEach(() => {
@@ -72,6 +80,153 @@ describe("provisionFirmaWorkspaceForTenant", () => {
       workspaceId: "workspace_existing",
     });
     expect(createFirmaWorkspace).not.toHaveBeenCalled();
+  });
+
+  it("recreates a workspace when the stored id is missing from Firma", async () => {
+    firmaWorkspaceExistsInCompany
+      .mockResolvedValueOnce(false)
+      .mockResolvedValueOnce(true);
+    createFirmaWorkspace.mockResolvedValue({
+      id: "workspace_repaired",
+      name: "BrassHR - Acme (acme)",
+    });
+
+    const { provisionFirmaWorkspaceForTenant } = await import(
+      "@/lib/firma/provision-tenant-workspace"
+    );
+    const { client, updates } = mockSupabase({
+      firma_workspace_id: "workspace_stale",
+      name: "Acme",
+      subdomain: "acme",
+      slug: "acme",
+    });
+
+    const result = await provisionFirmaWorkspaceForTenant({
+      supabase: client as never,
+      tenantId: "tenant-1",
+      tenantName: "Acme",
+      tenantSlug: "acme",
+    });
+
+    expect(result).toEqual({
+      status: "created",
+      workspaceId: "workspace_repaired",
+    });
+    expect(createFirmaWorkspace).toHaveBeenCalledTimes(1);
+    expect(updates[0]).toMatchObject({
+      firma_workspace_id: "workspace_repaired",
+      firma_workspace_provisioning_status: "created",
+    });
+  });
+
+  it("does not create a duplicate when provisioning is retried", async () => {
+    const { provisionFirmaWorkspaceForTenant } = await import(
+      "@/lib/firma/provision-tenant-workspace"
+    );
+    const { client } = mockSupabase({
+      firma_workspace_id: "workspace_existing",
+      name: "Acme",
+      subdomain: "acme",
+      slug: "acme",
+    });
+
+    const first = await provisionFirmaWorkspaceForTenant({
+      supabase: client as never,
+      tenantId: "tenant-1",
+      tenantName: "Acme",
+      tenantSlug: "acme",
+    });
+    const second = await provisionFirmaWorkspaceForTenant({
+      supabase: client as never,
+      tenantId: "tenant-1",
+      tenantName: "Acme",
+      tenantSlug: "acme",
+    });
+
+    expect(first.status).toBe("already_configured");
+    expect(second.status).toBe("already_configured");
+    expect(first.workspaceId).toBe("workspace_existing");
+    expect(second.workspaceId).toBe("workspace_existing");
+    expect(createFirmaWorkspace).not.toHaveBeenCalled();
+  });
+
+  it("creates separate workspaces for tenant A and tenant B", async () => {
+    createFirmaWorkspace
+      .mockResolvedValueOnce({ id: "workspace_a", name: "BrassHR - A (a)" })
+      .mockResolvedValueOnce({ id: "workspace_b", name: "BrassHR - B (b)" });
+
+    const { provisionFirmaWorkspaceForTenant } = await import(
+      "@/lib/firma/provision-tenant-workspace"
+    );
+
+    const tenantA = mockSupabase({
+      firma_workspace_id: null,
+      name: "A",
+      subdomain: "a",
+      slug: "a",
+    });
+    const tenantB = mockSupabase({
+      firma_workspace_id: null,
+      name: "B",
+      subdomain: "b",
+      slug: "b",
+    });
+
+    const resultA = await provisionFirmaWorkspaceForTenant({
+      supabase: tenantA.client as never,
+      tenantId: "tenant-a",
+      tenantName: "A",
+      tenantSlug: "a",
+    });
+    const resultB = await provisionFirmaWorkspaceForTenant({
+      supabase: tenantB.client as never,
+      tenantId: "tenant-b",
+      tenantName: "B",
+      tenantSlug: "b",
+    });
+
+    expect(resultA.workspaceId).toBe("workspace_a");
+    expect(resultB.workspaceId).toBe("workspace_b");
+    expect(resultA.workspaceId).not.toBe(resultB.workspaceId);
+    expect(tenantA.updates[0]).toMatchObject({ firma_workspace_id: "workspace_a" });
+    expect(tenantB.updates[0]).toMatchObject({ firma_workspace_id: "workspace_b" });
+  });
+
+  it("creates distinct workspaces for Alpha, Beta, and Gamma", async () => {
+    createFirmaWorkspace
+      .mockResolvedValueOnce({ id: "workspace_alpha", name: "BrassHR - Alpha (verify-alpha)" })
+      .mockResolvedValueOnce({ id: "workspace_beta", name: "BrassHR - Beta (verify-beta)" })
+      .mockResolvedValueOnce({ id: "workspace_gamma", name: "BrassHR - Gamma (verify-gamma)" });
+
+    const { provisionFirmaWorkspaceForTenant } = await import(
+      "@/lib/firma/provision-tenant-workspace"
+    );
+
+    const results = [];
+    for (const t of [
+      { id: "tenant-alpha", name: "Alpha", slug: "verify-alpha" },
+      { id: "tenant-beta", name: "Beta", slug: "verify-beta" },
+      { id: "tenant-gamma", name: "Gamma", slug: "verify-gamma" },
+    ]) {
+      const mock = mockSupabase({
+        firma_workspace_id: null,
+        name: t.name,
+        subdomain: t.slug,
+        slug: t.slug,
+      });
+      results.push(
+        await provisionFirmaWorkspaceForTenant({
+          supabase: mock.client as never,
+          tenantId: t.id,
+          tenantName: t.name,
+          tenantSlug: t.slug,
+        })
+      );
+    }
+
+    const ids = results.map((row) => row.workspaceId);
+    expect(ids).toEqual(["workspace_alpha", "workspace_beta", "workspace_gamma"]);
+    expect(new Set(ids).size).toBe(3);
   });
 
   it("creates workspace by default (api mode) and persists only workspace id", async () => {

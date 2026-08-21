@@ -30,6 +30,8 @@ type DocumentItem = {
   reviewNotes: string | null;
   uploadedAt: string;
   requiredDocumentId?: string;
+  uploadedByName?: string;
+  uploadedByRoleLabel?: string;
 };
 
 type MissingRequired = {
@@ -572,6 +574,15 @@ export function ApplicantDocumentsTab({ embedded = false }: { embedded?: boolean
                     <p className="mt-0.5 text-xs text-[#64748B]">
                       {doc.title} · {new Date(doc.uploadedAt).toLocaleDateString()}
                     </p>
+                    {doc.uploadedByName ? (
+                      <p className="mt-1 text-xs text-[#64748B]">
+                        Uploaded by{" "}
+                        <span className="font-medium text-[#334155]">{doc.uploadedByName}</span>
+                        {doc.uploadedByRoleLabel ? (
+                          <span className="text-[#94A3B8]"> · {doc.uploadedByRoleLabel}</span>
+                        ) : null}
+                      </p>
+                    ) : null}
                     {doc.reviewNotes ? (
                       <p className="mt-1 text-xs text-amber-800">{doc.reviewNotes}</p>
                     ) : null}

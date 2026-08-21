@@ -14,6 +14,10 @@ import {
 import { syncWorkerPrimaryResumePath } from "@/lib/onboarding/sync-worker-primary-resume-path";
 import { assertResumeUploadWithinLimit } from "@/lib/resume/assert-resume-upload-limit";
 import {
+  isReuploadedResumePath,
+  resumeUploadFolder,
+} from "@/lib/resume/resume-reupload-path";
+import {
   resolveResumeFileType,
   ResumeUploadValidationError,
   validateExtractedResumeText,
@@ -39,6 +43,7 @@ export type WorkerResumeListItem = {
   parsingStatusLabel: string;
   uploadedAt: string;
   uploadedAtLabel: string;
+  isReuploaded: boolean;
   jobApplicationId: string | null;
   jobTitle: string | null;
   uploadedByName: string;
@@ -137,6 +142,7 @@ export function serializeWorkerResume(row: WorkerResumeRow): WorkerResumeListIte
     parsingStatusLabel: parsingStatusLabel(parsingStatus),
     uploadedAt: row.uploaded_at,
     uploadedAtLabel: formatUploadedAt(row.uploaded_at),
+    isReuploaded: isReuploadedResumePath(row.storage_path, row.file_url),
     jobApplicationId: row.job_application_id,
     jobTitle: jobTitleFromResumeRow(row),
     uploadedByName: "Unknown",
@@ -232,7 +238,6 @@ async function storeResumeFromFile(
     await assertResumeUploadWithinLimit(supabase, {
       workerId: applicant.id,
       workerUserId: applicant.user_id,
-      jobApplicationId,
       uploadedByUserId: userId,
       role: "worker",
     });
@@ -244,7 +249,8 @@ async function storeResumeFromFile(
   if (contentError) throw new ResumeUploadValidationError(contentError);
 
   const fileType = resolveResumeFileType(file);
-  const folder = userId.trim() || applicant.id;
+  const baseFolder = userId.trim() || applicant.id;
+  const folder = resumeUploadFolder(baseFolder, mode === "update");
   const objectPath = await uploadResumeBuffer(supabase, folder, file, buffer);
   const textLength = text.trim().length;
 

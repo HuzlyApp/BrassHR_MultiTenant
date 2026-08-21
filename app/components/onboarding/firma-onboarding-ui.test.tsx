@@ -73,6 +73,27 @@ describe("FirmaSigningIframe", () => {
     expect(iframe.getAttribute("allow")).toContain("camera");
   });
 
+  it("closes via onComplete when Firma posts signing.completed", async () => {
+    const onComplete = vi.fn();
+    render(
+      <FirmaSigningIframe
+        iframeUrl="https://app.firma.dev/signing/recipient-1"
+        onComplete={onComplete}
+      />
+    );
+
+    window.dispatchEvent(
+      new MessageEvent("message", {
+        origin: window.location.origin,
+        data: { type: "signing.completed" },
+      })
+    );
+
+    await waitFor(() => {
+      expect(onComplete).toHaveBeenCalledTimes(1);
+    });
+  });
+
   it("shows an inline missing-URL state instead of redirecting away", () => {
     render(<FirmaSigningIframe iframeUrl={null} />);
     expect(screen.getByTestId("firma-signing-iframe-missing")).toBeInTheDocument();

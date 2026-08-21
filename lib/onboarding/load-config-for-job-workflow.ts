@@ -4,7 +4,7 @@ import {
   getOnboardingFlowById,
   resolvePublishedWorkerOnboardingFlow,
 } from "@/lib/onboarding/onboarding-flows";
-import { applyApplicantConfigFilters } from "@/lib/onboarding/filter-applicant-steps";
+import { projectCandidateOnboardingConfig } from "@/lib/onboarding/candidate-onboarding-projection";
 import { workflowStateToStepDrafts } from "@/lib/onboarding/workflow-to-drafts";
 import { enforceUploadResumeFirstInWorkflowState } from "@/lib/onboarding/normalize-builder-workflow";
 import {
@@ -19,6 +19,7 @@ import {
 } from "@/lib/jobs/validate-job-application";
 import type { OnboardingStepDraft } from "@/lib/onboarding/default-onboarding-steps";
 import type { TenantOnboardingConfig, TenantOnboardingStep } from "@/lib/onboarding/types";
+import { attachPublishedSkillAssessmentToConfig } from "@/lib/skill-assessment/load-settings";
 
 function workflowNodeId(meta: Record<string, unknown> | undefined): string | null {
   const value = meta?.workflow_node_id;
@@ -164,13 +165,15 @@ async function loadApplicantConfigFromFlow(
   }
 
   const fromFlow = configFromJobWorkflowDraft(published, flow.builderDraft);
-  const config = applyApplicantConfigFilters(fromFlow);
-  if (!config.steps.length) {
+  const candidatePreview = projectCandidateOnboardingConfig(fromFlow);
+  if (!candidatePreview.steps.length) {
     throw new JobApplicationGateError(
       "This workflow has no applicant steps.",
       "WORKFLOW_EMPTY"
     );
   }
+
+  const config = await attachPublishedSkillAssessmentToConfig(supabase, tenantId, fromFlow);
 
   return {
     config,

@@ -6,9 +6,12 @@ import { useEffect, useState, type CSSProperties } from "react";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
 import { CANDIDATES_PAGE_SUBTITLE_STYLE } from "@/app/admin_recruiter/candidates/candidates-typography";
+import { employmentTypeDisplayLabel } from "@/lib/jobs/employment-type";
 import type { JobListRow } from "./render-job-list-cell";
 
 export type JobsExtendedFilterValues = {
+  /** Job title search (also used as the main listing search). */
+  search: string;
   profession: string;
   status: string;
   /** Employment Type (shift_type / job type chips). */
@@ -29,6 +32,7 @@ export type JobsExtendedFilterValues = {
 };
 
 export const EMPTY_JOBS_EXTENDED_FILTERS: JobsExtendedFilterValues = {
+  search: "",
   profession: "",
   status: "",
   employmentType: "",
@@ -245,6 +249,21 @@ export function EditJobsFiltersModal({
 
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-4 py-4 [-webkit-overflow-scrolling:touch] sm:px-6 sm:py-6">
             <div className="grid grid-cols-1 gap-4 min-[520px]:grid-cols-2 sm:gap-5">
+              <label className="flex min-w-0 flex-col gap-1.5 min-[520px]:col-span-2">
+                <span className="text-sm font-medium text-[#475569]">Search job</span>
+                <input
+                  type="search"
+                  value={draft.search}
+                  onChange={(e) => setField("search", e.target.value)}
+                  placeholder="Search by job title"
+                  aria-label="Search job"
+                  className={`rounded-lg border border-[#CBD5E1] bg-white h-10 w-full min-w-0 px-3 text-sm font-normal leading-6 hover:bg-zinc-50 focus:border-[color:var(--brand-primary)] focus:outline-none focus:ring-0 ${
+                    draft.search ? "text-[#334155]" : "text-[#94A3B8]"
+                  }`}
+                  style={CANDIDATES_PAGE_SUBTITLE_STYLE}
+                />
+              </label>
+
               <ModalFilterField
                 label="Profession"
                 value={draft.profession}
@@ -275,7 +294,7 @@ export function EditJobsFiltersModal({
               >
                 {options.employmentTypes.map((item) => (
                   <option key={item} value={item}>
-                    {item}
+                    {employmentTypeDisplayLabel(item)}
                   </option>
                 ))}
               </ModalFilterField>

@@ -93,6 +93,26 @@ export async function listApplicationStatuses(
   return ((data ?? []) as StatusRow[]).map(mapStatus);
 }
 
+/** Exact application counts keyed by status id (tenant-scoped). */
+export async function countApplicationsByStatus(
+  supabase: SupabaseClient,
+  tenantId: string,
+  statuses: ApplicationStatusRecord[]
+): Promise<Record<string, number>> {
+  const entries = await Promise.all(
+    statuses.map(async (status) => {
+      const { count, error } = await supabase
+        .from("job_applications")
+        .select("id", { count: "exact", head: true })
+        .eq("tenant_id", tenantId)
+        .eq("status_id", status.id);
+      if (error) throw error;
+      return [status.id, count ?? 0] as const;
+    })
+  );
+  return Object.fromEntries(entries);
+}
+
 export async function getStatusBySystemKey(
   supabase: SupabaseClient,
   tenantId: string,

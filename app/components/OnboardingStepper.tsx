@@ -173,6 +173,12 @@ export default function OnboardingStepper({
           phase={onboarding?.workflowPhase ?? "pre_hire"}
           applicationId={onboarding?.applicationId}
         />
+        {onboarding?.waitingOnInternal ? (
+          <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+            Your documents have been submitted. No action is required from you right now. We will
+            email you when the next step is ready.
+          </div>
+        ) : null}
         <div className="mb-3 flex items-end justify-between gap-3">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">

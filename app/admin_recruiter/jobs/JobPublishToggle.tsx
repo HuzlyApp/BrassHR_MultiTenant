@@ -9,6 +9,7 @@ type JobPublishToggleProps = {
   onChange: () => void;
   /** Tenant secondary brand color when published (active). */
   activeColor?: string;
+  ariaLabel?: string;
 };
 
 /** Figma publish/unpublish toggle — active uses tenant secondary color. */
@@ -18,6 +19,7 @@ export default function JobPublishToggle({
   busy = false,
   onChange,
   activeColor = "var(--brand-secondary)",
+  ariaLabel,
 }: JobPublishToggleProps) {
   const isDisabled = disabled || busy;
 
@@ -36,7 +38,7 @@ export default function JobPublishToggle({
         checked ? "" : "bg-[#E2E8F0]"
       }`}
       style={checked ? { backgroundColor: activeColor } : undefined}
-      aria-label={checked ? "Unpublish job" : "Publish job"}
+      aria-label={ariaLabel ?? (checked ? "Unpublish job" : "Publish job")}
     >
       <span
         className={`inline-flex h-5 w-5 items-center justify-center rounded-full bg-white shadow-sm transition-transform ${

@@ -7,12 +7,16 @@ import {
   type ResumeUploaderRole,
 } from "@/lib/resume/resume-upload-limit";
 
+/**
+ * Guards a *new* resume record. The quota is per candidate per role across all
+ * jobs, so applying to more jobs never widens it. Reuploads replace an existing
+ * record and must not call this.
+ */
 export async function assertResumeUploadWithinLimit(
   supabase: SupabaseClient,
   params: {
     workerId: string;
     workerUserId?: string | null;
-    jobApplicationId?: string | null;
     uploadedByUserId?: string | null;
     role?: ResumeUploaderRole;
   }
@@ -24,18 +28,11 @@ export async function assertResumeUploadWithinLimit(
     params.role ??
     classifyResumeUploaderRole(params.uploadedByUserId, params.workerUserId, workerId);
 
-  let query = supabase
+  const { data, error } = await supabase
     .from("worker_resumes")
     .select("uploaded_by_user_id")
     .eq("worker_id", workerId)
     .is("deleted_at", null);
-
-  const jobApplicationId = params.jobApplicationId?.trim();
-  if (jobApplicationId) {
-    query = query.eq("job_application_id", jobApplicationId);
-  }
-
-  const { data, error } = await query;
   if (error) throw error;
 
   const used = countResumeUploadsForRole(

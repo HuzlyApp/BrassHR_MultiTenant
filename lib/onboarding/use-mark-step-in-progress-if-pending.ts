@@ -50,7 +50,9 @@ export function useMarkStepInProgressIfPending({
       return;
     }
 
-    void mark(step.step_key, "in_progress");
+    void mark(step.step_key, "in_progress").catch(() => {
+      // Mount-time mark must not surface as an unhandledRejection.
+    });
   }, [disabled, loading, step?.step_key, step?.id, progressSteps, mark, completingRef]);
 }
 

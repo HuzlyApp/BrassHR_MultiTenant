@@ -74,7 +74,7 @@ type WorkflowTemplateListItem = {
   folder: "presets" | "saved-templates";
   isPreset: boolean;
   status?: "draft" | "published" | "unpublished";
-  employmentType?: "W2" | "1099" | null;
+  employmentType?: "W2" | "1099" | "RNR" | null;
   flowName: string | null;
   updatedAt: string;
 };
@@ -86,7 +86,7 @@ type EditingTemplate = {
   isReadOnly: boolean;
   isViewOnly?: boolean;
   status?: "draft" | "published" | "unpublished";
-  employmentType?: "W2" | "1099" | null;
+  employmentType?: "W2" | "1099" | "RNR" | null;
   updatedAt: string | null;
 };
 
@@ -442,7 +442,7 @@ export default function TenantOnboardingWorkflowBuilder({
             folder: "presets" | "saved-templates";
             isReadOnly?: boolean;
             status?: "draft" | "published" | "unpublished";
-            employmentType?: "W2" | "1099" | null;
+            employmentType?: "W2" | "1099" | "RNR" | null;
             flowName: string | null;
             builderDraft: unknown;
             updatedAt?: string;

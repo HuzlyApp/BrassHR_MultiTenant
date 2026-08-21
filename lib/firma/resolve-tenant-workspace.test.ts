@@ -17,18 +17,23 @@ describe("resolveTenantFirmaWorkspaceId", () => {
     const supabase = {
       from: vi.fn(() => ({
         select: () => ({
-          eq: () => ({
-            maybeSingle: async () => ({
-              data: { firma_workspace_id: "ws-tenant-a" },
-              error: null,
-            }),
-          }),
+          eq: (col: string, tenantId: string) => {
+            expect(col).toBe("id");
+            expect(tenantId).toBe("tenant-a");
+            return {
+              maybeSingle: async () => ({
+                data: { firma_workspace_id: "ws-tenant-a" },
+                error: null,
+              }),
+            };
+          },
         }),
       })),
     };
 
     const workspaceId = await resolveTenantFirmaWorkspaceId(supabase as never, "tenant-a");
     expect(workspaceId).toBe("ws-tenant-a");
+    expect(workspaceId).not.toBe("ws-tenant-b");
   });
 
   it("falls back to FIRMA_WORKSPACE_ID when tenant value is null", async () => {

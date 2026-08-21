@@ -1,12 +1,49 @@
 "use client"
 
 import * as Dialog from "@radix-ui/react-dialog"
-import { Check, GripVertical, Search, X } from "lucide-react"
 import { useCallback, useMemo, useState, type CSSProperties } from "react"
+import BrandedSvgIcon from "@/app/components/BrandedSvgIcon"
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext"
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding"
 
-function BrandedColumnCheckbox({
+const COLUMNS_ICONS = "/icons/jobs-icons"
+const SEARCH_ICON_SRC = `${COLUMNS_ICONS}/search.svg`
+const CHECK_ICON_SRC = `${COLUMNS_ICONS}/columns-check.svg`
+const CLOSE_X_SRC = `${COLUMNS_ICONS}/columns-close-x.svg`
+const REMOVE_X_SRC = `${COLUMNS_ICONS}/columns-remove-x.svg`
+const DRAG_ICON_SRC = `${COLUMNS_ICONS}/columns-drag.svg`
+
+function ColumnsGlyph({
+  src,
+  outer,
+  leafWidth,
+  leafHeight,
+}: {
+  src: string
+  outer: number
+  leafWidth: number
+  leafHeight: number
+}) {
+  return (
+    <span
+      className="relative shrink-0 overflow-hidden"
+      style={{ width: outer, height: outer }}
+      aria-hidden
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={src}
+        alt=""
+        width={leafWidth}
+        height={leafHeight}
+        className="absolute left-1/2 top-1/2 shrink-0 -translate-x-1/2 -translate-y-1/2"
+        style={{ width: leafWidth, height: leafHeight }}
+      />
+    </span>
+  )
+}
+
+function ColumnCheckbox({
   checked,
   onChange,
 }: {
@@ -14,18 +51,32 @@ function BrandedColumnCheckbox({
   onChange: () => void
 }) {
   return (
-    <span className="relative inline-flex h-5 w-5 shrink-0">
+    <span className="relative inline-flex size-5 shrink-0 items-center justify-center">
       <input
         type="checkbox"
         checked={checked}
         onChange={onChange}
-        className="peer h-5 w-5 shrink-0 cursor-pointer appearance-none rounded-[5px] border-2 border-slate-300 bg-white transition-colors checked:border-[color:var(--brand-secondary)] checked:bg-[color:var(--brand-secondary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--brand-secondary)_30%,transparent)]"
+        className="absolute inset-0 z-10 cursor-pointer appearance-none"
       />
-      <Check
-        className="pointer-events-none absolute inset-0 m-auto hidden h-3 w-3 text-white peer-checked:block"
-        strokeWidth={3}
+      <span
+        className={`pointer-events-none relative size-4 overflow-hidden rounded-[4px] border ${
+          checked
+            ? "border-[color:var(--brand-checkbox,var(--brand-secondary))] bg-[color:var(--brand-checkbox,var(--brand-secondary))]"
+            : "border-[#CBD5E1] bg-white"
+        }`}
         aria-hidden
-      />
+      >
+        {checked ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={CHECK_ICON_SRC}
+            alt=""
+            width={12}
+            height={12}
+            className="absolute left-px top-px size-3"
+          />
+        ) : null}
+      </span>
     </span>
   )
 }
@@ -128,80 +179,84 @@ export function ColumnsEditorModal<TId extends string>({
         <Dialog.Overlay className="fixed inset-0 z-[100] bg-black/40 data-[state=open]:animate-in fade-in" />
         <Dialog.Content
           style={brandVars}
-          className="fixed inset-x-0 bottom-0 top-auto z-[101] flex h-[94dvh] max-h-[94dvh] w-full max-w-full translate-x-0 translate-y-0 flex-col overflow-hidden rounded-t-[16px] bg-white shadow-2xl outline-none sm:inset-auto sm:left-1/2 sm:top-1/2 sm:h-[min(688px,calc(100vh-2rem))] sm:max-h-[calc(100vh-2rem)] sm:w-[min(1024px,calc(100vw-2rem))] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-[20px] sm:border sm:border-zinc-200"
+          className="fixed inset-x-0 bottom-0 top-auto z-[101] flex h-[94dvh] max-h-[94dvh] w-full max-w-full translate-x-0 translate-y-0 flex-col overflow-hidden rounded-t-[16px] border border-[#E5E7EB] bg-white shadow-[0px_20px_12.5px_rgba(0,0,0,0.1),0px_10px_5px_rgba(0,0,0,0.04)] outline-none sm:inset-auto sm:left-1/2 sm:top-1/2 sm:h-[min(772px,calc(100vh-2rem))] sm:max-h-[calc(100vh-2rem)] sm:w-[min(1024px,calc(100vw-2rem))] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-[20px]"
           onOpenAutoFocus={(event) => event.preventDefault()}
         >
           <div className="mx-auto mt-2 h-1 w-10 shrink-0 rounded-full bg-zinc-300 sm:hidden" aria-hidden />
 
-          <div className="flex shrink-0 items-center justify-between border-b border-zinc-200 px-4 py-3 sm:px-6 sm:py-4">
+          <div className="flex shrink-0 items-center justify-between pb-2 pl-[30px] pr-5 pt-5">
             <div className="min-w-0 pr-3">
-              <Dialog.Title className="truncate text-lg font-semibold leading-6 text-gray-800 sm:text-2xl sm:leading-8">
+              <Dialog.Title className="truncate text-2xl font-semibold leading-8 text-[#1F2937]">
                 {title}
               </Dialog.Title>
               <Dialog.Description className="sr-only">{description}</Dialog.Description>
             </div>
             <Dialog.Close
-              className="flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full bg-black text-white hover:opacity-90 sm:h-8 sm:w-8 sm:p-1.5"
+              className="flex size-[30px] shrink-0 cursor-pointer items-center justify-center rounded-full bg-black p-1.5 hover:opacity-90"
               aria-label="Close"
             >
-              <X className="h-4 w-4 sm:h-4 sm:w-4" />
+              <ColumnsGlyph src={CLOSE_X_SRC} outer={18} leafWidth={11} leafHeight={11} />
             </Dialog.Close>
           </div>
 
-          <div className="min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-y-contain px-4 py-4 [-webkit-overflow-scrolling:touch] md:overflow-hidden md:px-6 md:py-6">
-            <div className="flex flex-col gap-6 md:grid md:h-full md:min-h-0 md:grid-cols-2 md:gap-6">
-            {/* Left: choose columns */}
-            <section className="flex flex-col md:min-h-0 md:flex-1">
-              <div className="shrink-0 text-base font-semibold text-slate-800 sm:text-[20px]">
-                Choose display columns
-              </div>
-              <div className="mt-2 flex shrink-0 items-center justify-between text-sm sm:mt-3">
+          <div className="shrink-0 px-0 py-2" aria-hidden>
+            <div className="h-px w-full bg-[#E5E7EB]" />
+          </div>
+
+          <div className="flex min-h-0 flex-1 touch-pan-y flex-col gap-[30px] overflow-y-auto overscroll-y-contain border-b border-[#E5E7EB] px-[30px] pb-5 pt-3 md:flex-row md:overflow-hidden">
+            <section className="flex min-h-0 w-full flex-col gap-5 md:flex-1">
+              <h3 className="shrink-0 text-sm font-semibold leading-5 text-black">Choose display columns</h3>
+              <div className="flex shrink-0 items-center justify-between text-xs font-normal leading-4">
                 <button
                   type="button"
                   onClick={unselectAll}
-                  className="font-medium text-[color:var(--brand-primary)] hover:text-[color:var(--brand-secondary)] hover:underline"
+                  className="text-[color:var(--brand-primary)] hover:opacity-80"
                 >
                   Unselect All
                 </button>
-                <span className="text-slate-500">
+                <span className="text-[#6B7280]">
                   ({selectedCount} of {totalFields})
                 </span>
               </div>
-              <div className="mt-2 w-full shrink-0 sm:mt-3">
-                <label className="flex h-11 w-full items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 sm:h-12">
-                  <Search className="h-4 w-4 shrink-0 text-slate-500 sm:h-5 sm:w-5" />
-                  <input
-                    value={fieldSearch}
-                    onChange={(e) => setFieldSearch(e.target.value)}
-                    placeholder="Search fields"
-                    className="min-w-0 flex-1 bg-transparent text-sm leading-6 text-slate-700 outline-none placeholder:text-slate-500 sm:text-base"
+              <label className="flex h-9 w-full shrink-0 items-center gap-1 overflow-hidden rounded-lg border border-[#CBD5E1] bg-white px-2.5">
+                <span className="relative flex size-5 shrink-0 items-center justify-center overflow-hidden" aria-hidden>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={SEARCH_ICON_SRC}
+                    alt=""
+                    width={16.67}
+                    height={16.67}
+                    className="size-[16.67px] shrink-0"
                   />
-                </label>
-              </div>
-              <div className="mt-2 rounded-lg border border-zinc-200 bg-white p-2 pr-1 sm:mt-3 md:min-h-0 md:flex-1 md:overflow-y-auto md:overscroll-contain">
+                </span>
+                <input
+                  value={fieldSearch}
+                  onChange={(e) => setFieldSearch(e.target.value)}
+                  placeholder="Search fields"
+                  className="min-w-0 flex-1 bg-transparent text-sm font-normal leading-5 text-[#334155] outline-none placeholder:text-[#94A3B8]"
+                />
+              </label>
+              <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1">
                 {filteredOptions.map((col) => {
                   const checked = selectedSet.has(col.id)
                   return (
                     <label
                       key={col.id}
-                      className="flex cursor-pointer items-center gap-3 rounded-md px-2 py-2.5 hover:bg-zinc-50 sm:py-2"
+                      className="flex cursor-pointer items-center gap-2 rounded-lg px-3.5 py-2 hover:bg-[#F8FAFC]"
                     >
-                      <BrandedColumnCheckbox checked={checked} onChange={() => toggle(col.id)} />
-                      <span className="text-sm text-slate-700">{col.label}</span>
+                      <ColumnCheckbox checked={checked} onChange={() => toggle(col.id)} />
+                      <span className="text-xs font-normal leading-4 text-[#374151]">{col.label}</span>
                     </label>
                   )
                 })}
               </div>
             </section>
 
-            {/* Right: reorder */}
-            <section className="flex flex-col md:min-h-0 md:flex-1">
-              <div className="shrink-0 text-base font-semibold text-slate-800 sm:text-[20px]">
-                Reorder the columns
-              </div>
-              <div className="mt-2 space-y-2 rounded-lg border border-zinc-200 bg-white p-2 pr-1 sm:mt-3 md:min-h-0 md:flex-1 md:overflow-y-auto md:overscroll-contain">
+            <section className="flex min-h-0 w-full flex-col gap-5 md:flex-1">
+              <h3 className="shrink-0 text-sm font-semibold leading-5 text-black">Reorder the columns</h3>
+              <div className="flex min-h-0 flex-1 flex-col gap-3.5 overflow-y-auto overscroll-contain pr-1">
                 {draftOrder.length === 0 ? (
-                  <div className="rounded-2xl border border-dashed border-zinc-200 py-8 text-center text-sm text-gray-600 sm:py-12">
+                  <div className="rounded-lg border border-dashed border-[#E5E7EB] py-8 text-center text-xs text-[#6B7280]">
                     No columns selected. Check fields on the left.
                   </div>
                 ) : (
@@ -213,31 +268,40 @@ export function ColumnsEditorModal<TId extends string>({
                       onDragOver={onDragOver}
                       onDrop={(e) => onDropOn(e, id)}
                       onDragEnd={onDragEnd}
-                      className="flex cursor-grab items-center gap-2 rounded-md border border-zinc-300 bg-white px-3 py-3 text-sm text-slate-700 active:cursor-grabbing sm:py-2.5"
+                      className="flex cursor-grab items-center justify-between rounded-lg border border-[#E5E7EB] bg-white px-3.5 py-3 active:cursor-grabbing"
                     >
-                      <GripVertical className="h-5 w-5 shrink-0 cursor-grab text-gray-600 sm:h-4 sm:w-4" aria-hidden />
-                      <span className="min-w-0 flex-1 truncate">{labelFor(id)}</span>
+                      <div className="flex min-w-0 items-center gap-2">
+                        <span className="relative size-[18px] shrink-0 overflow-hidden" aria-hidden>
+                          <BrandedSvgIcon
+                            src={DRAG_ICON_SRC}
+                            className="absolute left-1/2 top-1/2 h-[12px] w-[7.5px] -translate-x-1/2 -translate-y-1/2"
+                            color={branding.primaryHex}
+                          />
+                        </span>
+                        <span className="min-w-0 truncate text-xs font-normal leading-4 text-[#374151]">
+                          {labelFor(id)}
+                        </span>
+                      </div>
                       <button
                         type="button"
                         onClick={() => removeFromOrder(id)}
-                        className="cursor-pointer rounded p-2 text-gray-600 hover:bg-zinc-100 hover:text-gray-600 sm:p-1.5"
+                        className="cursor-pointer rounded p-0.5 hover:bg-[#F8FAFC]"
                         aria-label={`Remove ${labelFor(id)}`}
                       >
-                        <X className="h-4 w-4" />
+                        <ColumnsGlyph src={REMOVE_X_SRC} outer={18} leafWidth={11} leafHeight={11} />
                       </button>
                     </div>
                   ))
                 )}
               </div>
             </section>
-            </div>
           </div>
 
-          <div className="flex shrink-0 gap-2 border-t border-zinc-200 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:justify-end sm:gap-3 sm:px-6 sm:py-4">
+          <div className="flex shrink-0 items-center justify-end gap-2 px-5 py-3.5 pb-[max(0.875rem,env(safe-area-inset-bottom))]">
             <Dialog.Close asChild>
               <button
                 type="button"
-                className="h-12 flex-1 rounded-lg border border-zinc-300 px-4 text-sm font-medium text-gray-700 hover:bg-zinc-50 sm:h-auto sm:flex-none sm:px-5 sm:py-2"
+                className="inline-flex h-9 items-center justify-center rounded-lg border border-[color:var(--brand-primary)] px-4 text-sm font-semibold leading-5 text-[color:var(--brand-primary)] hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_6%,white)]"
               >
                 Cancel
               </button>
@@ -248,7 +312,7 @@ export function ColumnsEditorModal<TId extends string>({
                 onSave(draftOrder)
                 onOpenChange(false)
               }}
-              className="h-12 flex-1 rounded-lg bg-[color:var(--brand-primary)] px-4 text-sm font-medium text-white transition hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--brand-primary)_35%,transparent)] sm:h-auto sm:flex-none sm:px-5 sm:py-2"
+              className="inline-flex h-9 items-center justify-center rounded-lg border border-[color:var(--brand-primary)] bg-[color:var(--brand-primary)] px-4 text-sm font-semibold leading-5 text-white transition hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--brand-primary)_35%,transparent)]"
             >
               Save
             </button>

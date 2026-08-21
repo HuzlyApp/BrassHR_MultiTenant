@@ -11,12 +11,13 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { ChevronDown, Download } from "lucide-react";
+import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
 import { CANDIDATES_PAGE_SUBTITLE_STYLE } from "../candidates/candidates-typography";
 
 type ListExportDropdownProps = {
   onExportCsv: () => void;
   onExportXls: () => void;
-  variant?: "toolbar" | "icon";
+  variant?: "toolbar" | "icon" | "muted" | "brand" | "header";
   disabled?: boolean;
 };
 
@@ -131,11 +132,52 @@ export function ListExportDropdown({
   const triggerClass =
     variant === "icon"
       ? "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-[#dce6e3] bg-white text-[#334155] transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
+      : variant === "brand"
+        ? "inline-flex h-8 w-full min-w-0 items-center justify-center gap-1.5 rounded-lg bg-[color:var(--brand-primary)] px-2 text-xs font-semibold leading-4 text-white transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50 lg:w-auto lg:shrink-0 lg:px-3"
+      : variant === "muted"
+        ? "inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-lg bg-[#DFDFDF] px-3 text-xs font-semibold leading-4 text-[#6B7280] transition hover:bg-[#D4D4D4] disabled:cursor-not-allowed disabled:opacity-50"
+      : variant === "header"
+        ? "inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-lg border border-[#CBD5E1] bg-white px-3.5 text-sm font-semibold leading-5 text-[#374151] transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
       : "inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-md border border-[#dce6e3] bg-white px-3 text-sm font-normal leading-6 text-[#334155] transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50";
+
+  const headerExportIcon = (
+    <span className="relative size-5 shrink-0 overflow-hidden" aria-hidden>
+      <span className="absolute inset-[16.67%] -rotate-90">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/icons/candidates-icons/export-download.svg"
+          alt=""
+          width={14.83}
+          height={14.83}
+          className="size-full"
+        />
+      </span>
+    </span>
+  );
+
+  const exportIcon = (
+    <span className="relative size-4 shrink-0 overflow-hidden" aria-hidden>
+      <BrandedSvgIcon
+        src="/icons/jobs-icons/export.svg"
+        className="absolute left-1/2 top-1/2 h-[14.67px] w-[10.67px] -translate-x-1/2 -translate-y-1/2"
+        color={variant === "brand" ? "#FFFFFF" : "#6B7280"}
+      />
+    </span>
+  );
 
   const triggerContent: ReactNode =
     variant === "icon" ? (
       <Download className="h-4 w-4" />
+    ) : variant === "header" ? (
+      <>
+        {headerExportIcon}
+        Export
+      </>
+    ) : variant === "muted" || variant === "brand" ? (
+      <>
+        {exportIcon}
+        Export
+      </>
     ) : (
       <>
         <Download className="h-4 w-4 shrink-0" />
@@ -145,7 +187,7 @@ export function ListExportDropdown({
     );
 
   return (
-    <div ref={rootRef} className="relative">
+    <div ref={rootRef} className={`relative ${variant === "brand" ? "w-full min-w-0 lg:w-auto" : ""}`}>
       <button
         ref={triggerRef}
         type="button"

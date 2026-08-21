@@ -2,7 +2,8 @@ import type { ReactNode } from "react"
 import Link from "next/link"
 import BrandedSvgIcon from "@/app/components/BrandedSvgIcon"
 import { CandidateListAvatar } from "@/app/admin_recruiter/components/CandidateListAvatar"
-import { CandidateAiFinalApprovalLink } from "./CandidateAiFinalApprovalLink"
+import { CandidateAiAnalysisLink } from "./CandidateAiAnalysisLink"
+import { CandidateProfileIconLink } from "./CandidateProfileIconLink"
 import { candidateMailHref, candidateProfileHref } from "./candidate-links"
 import type { CandidateColumnId } from "./column-config"
 import type { CandidateRow } from "./types"
@@ -17,8 +18,12 @@ const LINK_CLASS =
 export function renderListCell(
   col: CandidateColumnId,
   c: CandidateRow,
-  formatDate: (iso: string | null) => string
+  formatDate: (iso: string | null) => string,
+  options?: { highlightMultiJob?: boolean }
 ): ReactNode {
+  const highlightMultiJob = options?.highlightMultiJob ?? false;
+  const appliedJobCount = Number(c.appliedJobCount ?? 1);
+
   switch (col) {
     case "name":
       return (
@@ -38,6 +43,11 @@ export function renderListCell(
                 —
               </div>
             )}
+            {highlightMultiJob && appliedJobCount > 1 ? (
+              <span className="mt-1 inline-flex rounded-[4px] bg-[#EFF6FF] px-2 py-0.5 text-[11px] font-medium leading-4 text-[color:var(--brand-primary)]">
+                Applied to {appliedJobCount} jobs
+              </span>
+            ) : null}
             {c.email?.trim() ? (
               <Link
                 href={candidateMailHref(c.id)}
@@ -56,9 +66,8 @@ export function renderListCell(
           </div>
 
           <div className="ml-auto flex shrink-0 items-center gap-1.5">
-            <CandidateAiFinalApprovalLink
+            <CandidateAiAnalysisLink
               workerId={c.id}
-              status={c.status}
               candidateName={c.name}
             />
             <Link
@@ -68,13 +77,7 @@ export function renderListCell(
             >
               <BrandedSvgIcon src="/icons/admin-recruiter/save.svg" className="h-4 w-4" color={BRAND_ICON} />
             </Link>
-            <Link
-              href={candidateProfileHref(c.id)}
-              className="inline-flex h-7 w-7 items-center justify-center rounded-md transition hover:bg-[color-mix(in_srgb,var(--brand-primary)_8%,white)]"
-              aria-label="View profile"
-            >
-              <BrandedSvgIcon src="/icons/admin-recruiter/eye.svg" className="h-4 w-4" color={BRAND_ICON} />
-            </Link>
+            <CandidateProfileIconLink workerId={c.id} candidateName={c.name} from="candidates" />
           </div>
         </div>
       )

@@ -21,7 +21,7 @@ function BrandedRadio({
   onChange: () => void;
 }) {
   return (
-    <label className="inline-flex cursor-pointer items-center gap-2 text-sm font-normal text-[#64748B]">
+    <label className="inline-flex min-w-0 cursor-pointer items-center gap-2 text-sm font-normal text-[#64748B]">
       <span className="relative inline-flex h-5 w-5 shrink-0 items-center justify-center">
         <input
           type="radio"
@@ -47,7 +47,7 @@ function BrandedRadio({
           <circle cx="10" cy="10" r="4" fill="white" />
         </svg>
       </span>
-      <span>{label}</span>
+      <span className="min-w-0">{label}</span>
     </label>
   );
 }
@@ -88,7 +88,7 @@ export function JobFormStepSetup({
   }
 
   return (
-    <div className="flex flex-1 flex-col gap-6">
+    <div className="flex min-w-0 flex-1 flex-col gap-6">
       <div className={JOB_FORM_SETUP_MSP_FIELD_CLASS}>
         <p className="text-sm font-normal leading-5 text-[#64748B]">
           Is this job being source by client (MSP)?
@@ -135,7 +135,7 @@ export function JobFormStepSetup({
         </div>
       ) : null}
 
-      <div className="flex min-h-0 flex-1 flex-col gap-3">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
         <h2 className="text-base font-semibold text-[#1E293B]">New job or existing job?</h2>
         <ExistingJobPickerPanel
           jobs={jobs}
@@ -144,6 +144,7 @@ export function JobFormStepSetup({
           onSelectJob={onSelectReferenceJob}
           sourceTypeFilter={sourceTypeFilter}
           onSourceTypeFilterChange={handleSourceTypeFilterChange}
+          placementTypeFilter={mspSourcedByClient === true ? mspPlacementType : null}
         />
         <p className="text-xs text-[#64748B]">
           Optional — select an existing job to pre-fill details as a reference for this new posting.

@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { getSupabaseUrl } from "@/lib/supabase-env";
+import { formatApiError } from "@/lib/api/format-api-error";
 import { normalizeJobToken } from "@/lib/jobs/public-application-routing";
 import { ensureWorkerOnboardingProgress } from "@/lib/onboarding/ensure-worker-progress";
 import { resolveJobApplicationIdForApplicant } from "@/lib/onboarding/resolve-job-application-id";
+import { resolveApplicationWorkflowPhase } from "@/lib/onboarding/resolve-application-workflow-phase";
 import { resolveOnboardingWorker, readOnboardingTenantSlugFromRequest } from "@/lib/onboarding/resolve-onboarding-worker";
 
 export const runtime = "nodejs";
@@ -33,13 +35,25 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ progress: null });
     }
 
-    const applicationId = await resolveJobApplicationIdForApplicant(supabase, {
+    // Multi-job: resolve application from explicit id or public job token.
+    let applicationId = await resolveJobApplicationIdForApplicant(supabase, {
       tenantId: ctx.tenantId,
       applicantAuthUserId: applicantId,
       workerId: ctx.workerId,
       jobToken,
       applicationId: applicationIdParam,
     });
+
+    // Staging workflow-phase fallback when token/id resolution has not produced an id yet.
+    if (!applicationId) {
+      const phaseRecord = await resolveApplicationWorkflowPhase(supabase, {
+        tenantId: ctx.tenantId,
+        workerId: ctx.workerId,
+        applicationId: applicationIdParam,
+        jobToken: jobToken || null,
+      });
+      applicationId = phaseRecord?.applicationId ?? null;
+    }
 
     const progress = await ensureWorkerOnboardingProgress(supabase, ctx.workerId, ctx.tenantId, {
       applicationId,
@@ -52,7 +66,6 @@ export async function GET(req: NextRequest) {
     });
   } catch (err: unknown) {
     console.error("[onboarding/progress]", err);
-    const msg = err instanceof Error ? err.message : "Unexpected error";
-    return NextResponse.json({ error: msg }, { status: 500 });
+    return NextResponse.json({ error: formatApiError(err) }, { status: 500 });
   }
 }

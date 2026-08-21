@@ -349,6 +349,7 @@ export async function POST(req: Request) {
         jobApplicationId: jobApplication?.application.id ?? null,
         uploadedByUserId: applicantId,
         uploaderRole: "worker",
+        enforceUploadLimit: false,
       }),
       RESUME_DB_TIMEOUT_MS,
       "Resume record persistence",

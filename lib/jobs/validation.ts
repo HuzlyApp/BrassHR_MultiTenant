@@ -73,6 +73,7 @@ export const jobRequisitionInputSchema = z.object({
     .union([z.boolean(), z.null(), z.undefined()])
     .transform((value) => (typeof value === "boolean" ? value : null)),
   jobLocationType: optionalText,
+  acceptableMatchRate: optionalText,
   isEmployerOnRecord: z
     .union([z.boolean(), z.null(), z.undefined()])
     .transform((value) => (typeof value === "boolean" ? value : null)),
@@ -180,7 +181,7 @@ export function workflowNoMatchMessage(
   professionName: string,
   key: Pick<WorkflowMatchKey, "employmentType" | "specialtyId" | "location" | "jobLocationType" | "yearsOfExperience">
 ): string {
-  const employmentLabel = key.employmentType === "Contract" ? "R&R" : key.employmentType;
+  const employmentLabel = key.employmentType === "Contract" ? "RNR" : key.employmentType;
   const lines = [
     "No published workflow is configured for this job.",
     "",

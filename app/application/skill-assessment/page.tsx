@@ -3,10 +3,7 @@
 import { APPLICATION_ROUTES } from "@/lib/onboarding/application-routes"
 import { applicationPath } from "@/lib/tenant/with-tenant"
 import { useCallback, useEffect, useRef, useState } from "react"
-import Link from "next/link"
 import { useRouter } from "next/navigation"
-import Image from "next/image"
-import { Check, ChevronRight } from "lucide-react"
 import { getApplicantSupabaseClient } from "@/lib/supabase-applicant-browser"
 import { ensureApplicantWorker } from "@/lib/onboarding/ensure-applicant-worker"
 import OnboardingStepper from "@/app/components/OnboardingStepper"
@@ -19,61 +16,25 @@ import {
 import OnboardingLayout from "@/app/components/OnboardingLayout"
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext"
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding"
-
-type Category = {
-  id: string
-  title: string
-  description: string | null
-  order_number: number | null
-  slug: string | null
-}
-
-function localCompletedCategories(): Set<string> {
-  if (typeof window === "undefined") return new Set()
-  const done = new Set<string>()
-  if (localStorage.getItem("basic_care_done") === "true") done.add("basic-care")
-  if (localStorage.getItem("mobility_done") === "true") done.add("mobility")
-  if (localStorage.getItem("clinical_done") === "true") done.add("clinical")
-  if (localStorage.getItem("monitoring_done") === "true") done.add("monitoring")
-  if (localStorage.getItem("documentation_done") === "true") done.add("documentation")
-  return done
-}
-
-/** If `slug` is null, map legacy `order_number` to existing static quiz routes. */
-const LEGACY_ORDER_TO_SLUG: Record<number, string> = {
-  1: "basic-care",
-  2: "mobility",
-  3: "clinical",
-  4: "monitoring",
-  5: "documentation",
-}
-
-/** Same slug as `skill_assessments.category` and the `/skill-quiz/[slug]` route */
-function categoryQuizSlug(cat: Category): string | null {
-  const s = cat.slug?.trim()
-  if (s) return s
-  if (cat.order_number != null && LEGACY_ORDER_TO_SLUG[cat.order_number]) {
-    return LEGACY_ORDER_TO_SLUG[cat.order_number]
-  }
-  return null
-}
-
-function quizHref(cat: Category): string | null {
-  const slug = categoryQuizSlug(cat)
-  if (!slug) return null
-  return applicationPath(APPLICATION_ROUTES.skillQuiz(slug))
-}
-
-function recordCompletedCategories(rows: { category: string }[]): Set<string> {
-  const set = new Set<string>()
-  for (const r of rows) {
-    set.add(r.category)
-    if (r.category === "basic_care") set.add("basic-care")
-  }
-  return set
-}
+import { resolveClientOnboardingTenantSlug } from "@/lib/tenant/client-onboarding-slug"
+import { activeSkillCategories, normalizeSkillAssessmentCatalog } from "@/lib/skill-assessment/catalog"
+import { createDefaultSkillAssessmentCatalog } from "@/lib/skill-assessment/defaults"
+import type { SkillAssessmentCatalog, SkillCategoryDraft } from "@/lib/skill-assessment/types"
+import SkillAssessmentCategoryList from "@/app/application/components/SkillAssessmentCategoryList"
+import { isCategoryComplete, scoreSkillAssessment } from "@/lib/skill-assessment/score"
+import type { SkillQuizAnswers } from "@/lib/skill-assessment/types"
 
 const supabase = getApplicantSupabaseClient()
+
+function localCompletedCategories(slugs: string[]): Set<string> {
+  if (typeof window === "undefined") return new Set()
+  const done = new Set<string>()
+  for (const slug of slugs) {
+    if (localStorage.getItem(`${slug}_done`) === "true") done.add(slug)
+    if (slug === "basic-care" && localStorage.getItem("basic_care_done") === "true") done.add(slug)
+  }
+  return done
+}
 
 export default function AssessmentPage() {
   const branding = useTenantBranding()
@@ -81,58 +42,80 @@ export default function AssessmentPage() {
   const nav = useOnboardingStepNav()
   const onboarding = useOnboardingConfigOptional()
   const completingRef = useRef(false)
-  const [categories, setCategories] = useState<Category[]>([])
+  const [catalog, setCatalog] = useState<SkillAssessmentCatalog | null>(null)
   const [completedSlugs, setCompletedSlugs] = useState<Set<string>>(() => new Set())
+  const [answersByCategory, setAnswersByCategory] = useState<Record<string, SkillQuizAnswers>>({})
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
+  const allowSkip = onboarding?.config?.skillAssessmentSettings?.allowSkip !== false
 
   const loadCategories = useCallback(async () => {
     setLoadError(null)
     setLoading(true)
-    const { data, error } = await supabase
-      .from("skill_categories")
-      .select("id, title, description, order_number, slug")
-      .order("order_number", { ascending: true, nullsFirst: false })
+    try {
+      const search = typeof window !== "undefined" ? window.location.search : ""
+      const tenantSlug = resolveClientOnboardingTenantSlug(search)
+      const query = new URLSearchParams()
+      if (tenantSlug) query.set("slug", tenantSlug)
+      const res = await fetch(`/api/onboarding/skill-assessment-catalog?${query.toString()}`, {
+        cache: "no-store",
+      })
+      const payload = (await res.json().catch(() => null)) as {
+        catalog?: unknown
+        enabled?: boolean
+        error?: string
+      } | null
+      if (!res.ok) throw new Error(payload?.error || "Failed to load skill assessment")
+      if (payload?.enabled === false) {
+        if (nav.nextRoute) router.replace(nav.nextRoute)
+        return
+      }
+      const nextCatalog = payload?.catalog
+        ? normalizeSkillAssessmentCatalog(payload.catalog)
+        : createDefaultSkillAssessmentCatalog()
+      setCatalog(nextCatalog)
+      const slugs = activeSkillCategories(nextCatalog).map((c) => c.slug)
+      const localDone = localCompletedCategories(slugs)
 
-    if (error) {
-      console.error("[step-3-assessment] skill_categories", error)
-      setLoadError(error.message)
-      setCategories([])
-      setCompletedSlugs(new Set())
-    } else {
-      setCategories((data ?? []) as Category[])
       const { data: userData } = await supabase.auth.getUser()
       const user = userData?.user
-      const localDone = localCompletedCategories()
       if (!user) {
         setCompletedSlugs(localDone)
-      } else {
-        const { data: worker } = await supabase
-          .from("worker")
-          .select("id")
-          .eq("user_id", user.id)
-          .maybeSingle()
-        const workerId = worker?.id ? String(worker.id) : user.id
+        return
+      }
+      const { data: worker } = await supabase
+        .from("worker")
+        .select("id")
+        .eq("user_id", user.id)
+        .maybeSingle()
+      const workerId = worker?.id ? String(worker.id) : user.id
+      const { data: doneRows } = await supabase
+        .from("skill_assessments")
+        .select("category, answers, completed")
+        .in("worker_id", [workerId, user.id])
 
-        const { data: doneRows, error: aErr } = await supabase
-          .from("skill_assessments")
-          .select("category")
-          // Support both legacy rows (worker_id=user.id) and current rows (worker_id=worker.id)
-          .in("worker_id", [workerId, user.id])
-          .eq("completed", true)
-
-        if (aErr) {
-          console.error("[step-3-assessment] skill_assessments", aErr)
-          setCompletedSlugs(localDone)
-        } else {
-          const combined = recordCompletedCategories(doneRows ?? [])
-          for (const slug of localDone) combined.add(slug)
-          setCompletedSlugs(combined)
+      const combined = new Set(localDone)
+      const collected: Record<string, SkillQuizAnswers> = {}
+      for (const row of doneRows ?? []) {
+        const slug = String(row.category ?? "")
+        if (!slug) continue
+        collected[slug] = (row.answers ?? {}) as SkillQuizAnswers
+        if (row.completed) combined.add(slug)
+        const category = activeSkillCategories(nextCatalog).find((c) => c.slug === slug)
+        if (category && isCategoryComplete(category, (row.answers ?? {}) as SkillQuizAnswers)) {
+          combined.add(slug)
         }
       }
+      setAnswersByCategory(collected)
+      setCompletedSlugs(combined)
+    } catch (error) {
+      console.error("[skill-assessment]", error)
+      setLoadError(error instanceof Error ? error.message : "Could not load skill categories")
+      setCatalog(createDefaultSkillAssessmentCatalog())
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
-  }, [])
+  }, [nav.nextRoute, router])
 
   useEffect(() => {
     void loadCategories()
@@ -156,19 +139,20 @@ export default function AssessmentPage() {
     completingRef,
   })
 
+  const categories = catalog ? activeSkillCategories(catalog) : []
   const allCategoriesComplete =
-    categories.length > 0 &&
-    categories.every((cat) => {
-      const slug = categoryQuizSlug(cat)
-      return slug != null && completedSlugs.has(slug)
-    })
+    categories.length > 0 && categories.every((cat) => completedSlugs.has(cat.slug))
+  const score =
+    catalog && catalog.scoring.showResultsToApplicant && allCategoriesComplete
+      ? scoreSkillAssessment(catalog, answersByCategory)
+      : null
 
-  const goToCategory = (cat: Category) => {
-    const href = quizHref(cat)
-    if (href) router.push(href)
+  const goToCategory = (cat: SkillCategoryDraft) => {
+    router.push(applicationPath(APPLICATION_ROUTES.skillQuiz(cat.slug)))
   }
 
   const skipSkillAssessment = async () => {
+    if (!allowSkip) return
     if (skillStep?.step_key) {
       try {
         await persistStepProgress(
@@ -200,7 +184,7 @@ export default function AssessmentPage() {
     if (nav.nextRoute) router.push(nav.nextRoute)
   }
 
-  if (loading) {
+  if (loading || !catalog) {
     return (
       <OnboardingLayout
         cardClassName="min-[700px]:h-auto min-[700px]:min-h-[540px] min-[1200px]:min-h-[700px]"
@@ -222,91 +206,39 @@ export default function AssessmentPage() {
     >
       <div className="flex h-full flex-col px-4 pb-8 pt-6 sm:px-10 sm:pb-10 sm:pt-8" style={brandingToCssVars(branding)}>
         <OnboardingStepper />
-
-        <div className="flex flex-1 flex-col pt-6 sm:pt-8">
-          {/* Header */}
-          <div className="mb-1 flex items-center justify-between gap-3">
-            <h2 className="min-w-0 text-lg font-semibold leading-7 text-slate-800 sm:text-[24px] sm:leading-8">
-              Skill Assessment Quiz
-            </h2>
-            <button
-              type="button"
-              onClick={() => void skipSkillAssessment()}
-              className="shrink-0 cursor-pointer text-[12px] font-medium leading-5 text-[color:var(--brand-primary)]"
-            >
-              Skip for Now →
-            </button>
+        {loadError ? (
+          <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[13px] text-amber-900">
+            {loadError}
           </div>
-          <p className="mb-5 text-xs text-slate-500 sm:mb-6 sm:text-[13px]">Identify Strengths. Verify Readiness.</p>
-
-          {loadError ? (
-            <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[13px] text-amber-900">
-              Could not load skill categories: {loadError}
-            </div>
-          ) : null}
-          {!loadError && categories.length === 0 ? (
-            <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[13px] text-slate-700">
-              No skill categories returned from the server. Confirm your Supabase URL and anon key match
-              the project where <code className="rounded bg-white/70 px-1">skill_categories</code> rows
-              exist, RLS policies allow <code className="rounded bg-white/70 px-1">anon</code> SELECT, then
-              refresh.
-            </div>
-          ) : null}
-
-          {/* Category list */}
-          <div className="space-y-2 sm:space-y-3">
-            {categories.map((cat, index) => {
-              const slug = categoryQuizSlug(cat)
-              const isCompleted = Boolean(slug && completedSlugs.has(slug))
-              return (
-                <div
-                  key={cat.id}
-                  onClick={() => goToCategory(cat)}
-                  className={`flex cursor-pointer items-center justify-between gap-2 rounded-xl border border-[color:var(--brand-primary)] px-3 py-3 transition max-[399px]:gap-2 max-[399px]:px-3 max-[399px]:py-3 sm:gap-3 sm:px-4 sm:py-4 ${
-                    isCompleted
-                      ? "bg-[color:var(--brand-primary)]/10"
-                      : "bg-white hover:bg-[color:var(--brand-primary)]/5"
-                  }`}
-                >
-                  <div className="flex min-w-0 items-center gap-3 sm:gap-4">
-                    <div
-                      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[color:var(--brand-primary)] text-[13px] font-semibold max-[399px]:h-7 max-[399px]:w-7 max-[399px]:text-[12px] ${
-                        isCompleted
-                          ? "bg-[color:var(--brand-primary)] text-white"
-                          : "text-[color:var(--brand-primary)]"
-                      }`}
-                    >
-                      {isCompleted ? <Check className="h-4 w-4" /> : index + 1}
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-[14px] font-semibold text-slate-800 max-[399px]:text-[13px]">{cat.title}</p>
-                      <p className="text-[12px] text-slate-500 max-[399px]:text-[11px]">{cat.description}</p>
-                    </div>
-                  </div>
-                  <ChevronRight className="h-4 w-4 shrink-0 text-[color:var(--brand-primary)]" />
-                </div>
-              )
-            })}
+        ) : null}
+        {score ? (
+          <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-[13px] text-emerald-900">
+            {catalog?.scoring.showOverallScore ? (
+              <p>
+                Overall score: <span className="font-semibold">{score.percent}%</span>
+                {score.passed ? " · Passed" : " · Below passing score"}
+              </p>
+            ) : null}
+            {catalog?.scoring.scoreByCategory ? (
+              <ul className="mt-1 space-y-0.5 text-[12px]">
+                {score.byCategory.map((row) => (
+                  <li key={row.categoryId}>
+                    {row.name}: {row.percent}%
+                  </li>
+                ))}
+              </ul>
+            ) : null}
           </div>
-
-          {/* Buttons */}
-          <div className="mt-auto grid grid-cols-2 gap-2 pt-6 max-[399px]:gap-2 sm:flex sm:items-center sm:justify-end sm:gap-3 sm:pt-8">
-            <button
-              type="button"
-              onClick={() => router.back()}
-              className="w-full cursor-pointer rounded-md border border-[color:var(--brand-primary)] bg-white px-3 py-2.5 text-[11px] font-medium leading-5 text-[color:var(--brand-primary)] transition hover:bg-[color:var(--brand-primary)]/5 max-[399px]:px-3 max-[399px]:text-[11px] sm:w-auto sm:px-5 sm:py-2 sm:text-[12px]"
-            >
-              Back
-            </button>
-            <button
-              type="button"
-              onClick={() => void continueSkillAssessment()}
-              className="w-full cursor-pointer rounded-md bg-[color:var(--brand-primary)] px-3 py-2.5 text-[11px] font-medium leading-5 text-white transition hover:brightness-90 max-[399px]:px-3 max-[399px]:text-[11px] sm:w-auto sm:px-6 sm:py-2 sm:text-[12px]"
-            >
-              Save &amp; continue
-            </button>
-          </div>
-        </div>
+        ) : null}
+        <SkillAssessmentCategoryList
+          catalog={catalog}
+          completedSlugs={completedSlugs}
+          onSelectCategory={goToCategory}
+          allowSkip={allowSkip}
+          onSkip={() => void skipSkillAssessment()}
+          onBack={() => router.back()}
+          onContinue={() => void continueSkillAssessment()}
+        />
       </div>
     </OnboardingLayout>
   )

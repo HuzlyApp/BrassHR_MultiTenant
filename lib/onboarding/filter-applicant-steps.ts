@@ -1,9 +1,11 @@
 import type { TenantOnboardingConfig, TenantOnboardingStep } from "@/lib/onboarding/types";
+import { projectCandidateOnboardingConfig } from "@/lib/onboarding/candidate-onboarding-projection";
 import { isWorkerVisibleStep } from "@/lib/onboarding/workflow-settings";
 import {
   applyApplicantPhaseToConfig,
   type ApplicantLifecyclePhase,
 } from "@/lib/onboarding/workflow-phase";
+import { applyPublishedSkillAssessmentToConfig } from "@/lib/skill-assessment/apply-to-config";
 
 export function filterApplicantVisibleSteps(
   steps: TenantOnboardingStep[]
@@ -15,23 +17,11 @@ export function applyApplicantConfigFilters(
   config: TenantOnboardingConfig,
   options?: { activePhase?: ApplicantLifecyclePhase | null }
 ): TenantOnboardingConfig {
-  const visibleStepIds = new Set(
-    filterApplicantVisibleSteps(config.steps).map((s) => s.id)
-  );
-
-  const workerVisible: TenantOnboardingConfig = {
-    ...config,
-    steps: config.steps
-      .filter((s) => visibleStepIds.has(s.id))
-      .map((s) => ({ ...s, is_enabled: true })),
-    requiredDocuments: config.requiredDocuments.filter((d) =>
-      visibleStepIds.has(d.onboarding_step_id)
-    ),
-    skillAssessments: config.skillAssessments.filter((a) =>
-      visibleStepIds.has(a.onboarding_step_id)
-    ),
-  };
-
-  if (!options?.activePhase) return workerVisible;
-  return applyApplicantPhaseToConfig(workerVisible, options.activePhase);
+  const gated = config.skillAssessmentSettings
+    ? applyPublishedSkillAssessmentToConfig(config, config.skillAssessmentSettings)
+    : config;
+  const phased = options?.activePhase
+    ? applyApplicantPhaseToConfig(gated, options.activePhase)
+    : gated;
+  return projectCandidateOnboardingConfig(phased);
 }

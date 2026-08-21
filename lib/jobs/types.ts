@@ -57,6 +57,7 @@ export type JobRequisitionInput = {
   additionalLocations?: string[] | null;
   showInMultipleAreas?: boolean | null;
   jobLocationType?: string | null;
+  acceptableMatchRate?: string | null;
   isEmployerOnRecord?: boolean | null;
   compensationType?: string | null;
   currency?: string | null;

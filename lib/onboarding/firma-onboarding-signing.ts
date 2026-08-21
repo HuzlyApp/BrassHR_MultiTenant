@@ -656,7 +656,7 @@ export async function ensureFirmaDraftPreviewSigningSession(
     workspaceId
   );
 
-  await syncSigningWorkspaceBranding(input.supabase, input.tenantId, workspaceId);
+  void syncSigningWorkspaceBranding(input.supabase, input.tenantId, workspaceId);
 
   const primaryEmail = input.applicantEmail?.trim() || DRAFT_PREVIEW_APPLICANT_EMAIL;
   const fallbackEmail = getDraftPreviewFirmaSignerEmailFallback();
@@ -900,7 +900,9 @@ export async function ensureFirmaSigningSession(
   );
   const firmaTemplateId = String(recruiterTemplate.firma_template_id);
 
-  await syncSigningWorkspaceBranding(input.supabase, input.tenantId, workspaceId);
+  // Appearance sync is best-effort and can take many seconds when the workspace
+  // api_key is missing. Do not block creating the signing session.
+  void syncSigningWorkspaceBranding(input.supabase, input.tenantId, workspaceId);
 
   const existing = await loadExistingSession(
     input.supabase,
@@ -962,7 +964,6 @@ export async function syncFirmaSigningSessionStatus(
 ): Promise<FirmaSigningSessionPayload> {
   assertValidApplicantEmailForSigning(input.applicantEmail);
   const workspaceId = await resolveWorkspaceForSigning(input.supabase, input.tenantId);
-  await syncSigningWorkspaceBranding(input.supabase, input.tenantId, workspaceId);
   const applicationId = await resolveSigningApplicationId(
     input.supabase,
     input.tenantId,

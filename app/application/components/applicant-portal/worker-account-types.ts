@@ -2,6 +2,7 @@ export type WorkerAccountTab =
   | "overview"
   | "applications"
   | "personal"
+  | "applications"
   | "employment"
   | "documents"
   | "skills"
@@ -68,7 +69,8 @@ export const WORKER_ACCOUNT_TABS: Array<{ id: WorkerAccountTab; label: string }>
   { id: "overview", label: "Overview" },
   { id: "applications", label: "Applications" },
   { id: "personal", label: "Personal Information" },
-  { id: "employment", label: "Employment Details" },
+  { id: "applications", label: "Applications" },
+  // { id: "employment", label: "Employment Details" },
   { id: "documents", label: "Documents" },
   { id: "skills", label: "Skills & Certifications" },
   // { id: "emergency", label: "Emergency Contact" },

@@ -16,6 +16,7 @@ import {
   validateWorkflowCompatibility,
   type MappingCandidate,
 } from "@/lib/workflow-mappings/validation";
+import { isRnrEmploymentType } from "@/lib/jobs/employment-type";
 
 type DbClient = SupabaseClient;
 
@@ -107,16 +108,21 @@ async function loadActiveMappingCandidates(
   tenantId: string,
   employmentType: string
 ): Promise<MappingCandidate[]> {
-  const { data, error } = await supabase
+  let query = supabase
     .from("workflow_mappings")
     .select(
       "id, workflow_id, priority, created_at, employment_type, profession_id, specialty_id, location, location_type, years_of_experience, onboarding_flows!inner(id, name, status, tenant_id)"
     )
     .eq("tenant_id", tenantId)
-    .eq("employment_type", employmentType)
     .eq("is_active", true)
     .eq("onboarding_flows.status", "published")
     .eq("onboarding_flows.tenant_id", tenantId);
+
+  query = isRnrEmploymentType(employmentType)
+    ? query.in("employment_type", ["Contract", "RNR"])
+    : query.eq("employment_type", employmentType);
+
+  const { data, error } = await query;
 
   if (error) throw error;
   return (data ?? [])
@@ -411,15 +417,21 @@ export async function listPublishedWorkflowOptions(
     if (!filters?.employmentType) return true;
     const workflowEmployment = (row as { employment_type?: string | null }).employment_type ?? null;
     if (!workflowEmployment) return true;
-    if (filters.employmentType === "W2") return workflowEmployment !== "1099";
-    if (filters.employmentType === "1099") return workflowEmployment !== "W2";
-    if (filters.employmentType === "Contract") return workflowEmployment === "Contract";
+    if (filters.employmentType === "W2") {
+      return workflowEmployment !== "1099" && !isRnrEmploymentType(workflowEmployment);
+    }
+    if (filters.employmentType === "1099") {
+      return workflowEmployment !== "W2" && !isRnrEmploymentType(workflowEmployment);
+    }
+    if (isRnrEmploymentType(filters.employmentType)) {
+      return isRnrEmploymentType(workflowEmployment);
+    }
     return workflowEmployment === filters.employmentType;
   });
 }
 
 /**
- * Ensure employment-type default mappings exist for W2 / 1099 / Contract (R&R)
+ * Ensure employment-type default mappings exist for W2 / 1099 / Contract (RNR)
  * pointing at the tenant's default published flows when present.
  */
 export async function ensureEmploymentTypeDefaultMappings(
@@ -427,10 +439,13 @@ export async function ensureEmploymentTypeDefaultMappings(
   tenantId: string,
   actorUserId?: string | null
 ): Promise<void> {
-  const defaults: Array<{ employmentType: "W2" | "1099" | "Contract"; flowName: string }> = [
-    { employmentType: "W2", flowName: "W2 Employee Workflow" },
-    { employmentType: "1099", flowName: "1099 Contractor Workflow" },
-    { employmentType: "Contract", flowName: "R&R Workflow" },
+  const defaults: Array<{
+    employmentType: "W2" | "1099" | "Contract";
+    flowNames: string[];
+  }> = [
+    { employmentType: "W2", flowNames: ["W2 Employee Workflow"] },
+    { employmentType: "1099", flowNames: ["1099 Contractor Workflow"] },
+    { employmentType: "Contract", flowNames: ["RNR Worker Workflow", "R&R Workflow"] },
   ];
 
   const { data: flows, error: flowsError } = await supabase
@@ -445,23 +460,36 @@ export async function ensureEmploymentTypeDefaultMappings(
   );
 
   for (const item of defaults) {
-    const workflowId = byName.get(item.flowName.toLowerCase());
+    const workflowId = item.flowNames
+      .map((name) => byName.get(name.toLowerCase()))
+      .find((id): id is string => Boolean(id));
     if (!workflowId) continue;
 
-    const { data: existing, error: existingError } = await supabase
-      .from("workflow_mappings")
-      .select("id")
-      .eq("tenant_id", tenantId)
-      .eq("employment_type", item.employmentType)
-      .is("profession_id", null)
-      .is("specialty_id", null)
-      .is("location", null)
-      .is("location_type", null)
-      .is("years_of_experience", null)
-      .eq("is_active", true)
-      .maybeSingle();
-    if (existingError) throw existingError;
-    if (existing?.id) continue;
+    const employmentTypesToCheck = isRnrEmploymentType(item.employmentType)
+      ? (["Contract", "RNR"] as const)
+      : ([item.employmentType] as const);
+
+    let existingId: string | null = null;
+    for (const employmentType of employmentTypesToCheck) {
+      const { data: existing, error: existingError } = await supabase
+        .from("workflow_mappings")
+        .select("id")
+        .eq("tenant_id", tenantId)
+        .eq("employment_type", employmentType)
+        .is("profession_id", null)
+        .is("specialty_id", null)
+        .is("location", null)
+        .is("location_type", null)
+        .is("years_of_experience", null)
+        .eq("is_active", true)
+        .maybeSingle();
+      if (existingError) throw existingError;
+      if (existing?.id) {
+        existingId = String(existing.id);
+        break;
+      }
+    }
+    if (existingId) continue;
 
     const { error: insertError } = await supabase.from("workflow_mappings").insert({
       tenant_id: tenantId,

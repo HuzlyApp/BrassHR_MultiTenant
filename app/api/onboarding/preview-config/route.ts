@@ -7,6 +7,7 @@ import { resolveTenantIdBySlug } from "@/lib/onboarding/resolve-worker-context";
 import { configFromWorkflowDraft } from "@/lib/onboarding/config-from-builder-draft";
 import { applyApplicantConfigFilters } from "@/lib/onboarding/filter-applicant-steps";
 import { getEnabledTenantSteps } from "@/lib/onboarding/tenant-step-navigation";
+import { attachPublishedSkillAssessmentToConfig } from "@/lib/skill-assessment/load-settings";
 
 export const runtime = "nodejs";
 
@@ -54,7 +55,8 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Could not build draft preview config" }, { status: 500 });
     }
 
-    const config = applyApplicantConfigFilters(draftConfig);
+    const gatedDraft = await attachPublishedSkillAssessmentToConfig(supabase, tenantId, draftConfig);
+    const config = applyApplicantConfigFilters(gatedDraft);
     if (!getEnabledTenantSteps(config).length) {
       return NextResponse.json(
         {

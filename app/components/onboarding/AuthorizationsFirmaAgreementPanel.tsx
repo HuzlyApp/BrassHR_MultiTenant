@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { FileText } from "lucide-react";
 import { FirmaSigningIframe } from "@/app/components/onboarding/FirmaSigningIframe";
 import {
@@ -68,6 +68,7 @@ export function AuthorizationsFirmaAgreementPanel({
   const [signingRequestId, setSigningRequestId] = useState<string | null>(null);
   const [firmaStatus, setFirmaStatus] = useState("draft");
   const [showSigningModal, setShowSigningModal] = useState(false);
+  const statusRequestInFlight = useRef(false);
 
   const stepKey = step?.step_key ?? "";
   const stepId = step?.id ?? "";
@@ -134,6 +135,8 @@ export function AuthorizationsFirmaAgreementPanel({
 
   const refreshStatus = useCallback(async () => {
     if (!applicantId || !stepKey || !signingRequestId) return;
+    if (statusRequestInFlight.current) return;
+    statusRequestInFlight.current = true;
     const activeApplicantId = applicantId;
     const activeStepKey = stepKey;
     try {
@@ -156,7 +159,7 @@ export function AuthorizationsFirmaAgreementPanel({
       if (data.session?.signing_request_id) {
         setSigningRequestId(data.session.signing_request_id);
       }
-      if (data.completed) {
+      if (data.completed || isFirmaSigningComplete(status)) {
         setShowSigningModal(false);
         if (typeof window !== "undefined") {
           localStorage.setItem("signingStatus", "completed");
@@ -164,6 +167,8 @@ export function AuthorizationsFirmaAgreementPanel({
       }
     } catch {
       /* ignore polling errors */
+    } finally {
+      statusRequestInFlight.current = false;
     }
   }, [applicantId, stepKey, stepId, tenantSlug, signingRequestId, firmaStatus]);
 
@@ -171,9 +176,9 @@ export function AuthorizationsFirmaAgreementPanel({
     if (!signingRequestId || !applicantId || !stepKey) return;
     const interval = window.setInterval(() => {
       void refreshStatus();
-    }, 8000);
+    }, showSigningModal ? 2000 : 8000);
     return () => window.clearInterval(interval);
-  }, [signingRequestId, applicantId, stepKey, refreshStatus]);
+  }, [signingRequestId, applicantId, stepKey, refreshStatus, showSigningModal]);
 
   const startFirmaSigning = useCallback(async () => {
     if (!agreed) {
@@ -369,6 +374,14 @@ export function AuthorizationsFirmaAgreementPanel({
               title="Sign Agreement"
               variant="modal"
               onClose={() => setShowSigningModal(false)}
+              onComplete={() => {
+                setShowSigningModal(false);
+                setFirmaStatus("completed");
+                if (typeof window !== "undefined") {
+                  localStorage.setItem("signingStatus", "completed");
+                }
+                void refreshStatus();
+              }}
             />
           </div>
         </div>

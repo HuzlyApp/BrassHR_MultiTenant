@@ -7,7 +7,11 @@ import {
   FIRMA_NATIVE_EMBED_MAX_WIDTH,
   resolveFirmaEmbedDimensions,
 } from "@/lib/firma/firma-signing-embed-scale";
-import { resolveFirmaSigningEmbedUrl } from "@/lib/firma/signing-branding-proxy";
+import {
+  isFirmaSigningCompletePath,
+  parseFirmaSigningEmbedMessage,
+} from "@/lib/firma/signing-embed-events";
+import { getFirmaSigningAppUrl, resolveFirmaSigningEmbedUrl } from "@/lib/firma/signing-branding-proxy";
 
 type FirmaSigningIframeProps = {
   iframeUrl: string | null;
@@ -17,6 +21,8 @@ type FirmaSigningIframeProps = {
   variant?: "default" | "modal";
   /** Escape closes the modal; no visible close control (avoids blocking Firma signature UI). */
   onClose?: () => void;
+  /** Fired when Firma reports the document is signed (postMessage or /complete route). */
+  onComplete?: () => void;
 };
 
 type FirmaEmbedLayout = {
@@ -90,10 +96,20 @@ export function FirmaSigningIframe({
   testId = "firma-signing-iframe",
   variant = "default",
   onClose,
+  onComplete,
 }: FirmaSigningIframeProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const completedRef = useRef(false);
+  const onCompleteRef = useRef(onComplete);
   const [layout, setLayout] = useState<FirmaEmbedLayout | null>(null);
+  onCompleteRef.current = onComplete;
+
+  const notifyComplete = () => {
+    if (completedRef.current) return;
+    completedRef.current = true;
+    onCompleteRef.current?.();
+  };
 
   useEffect(() => {
     if (variant !== "modal" || !containerRef.current) return;
@@ -131,6 +147,42 @@ export function FirmaSigningIframe({
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [variant, onClose]);
+
+  useEffect(() => {
+    completedRef.current = false;
+  }, [iframeUrl]);
+
+  useEffect(() => {
+    const onMessage = (event: MessageEvent) => {
+      const parsed = parseFirmaSigningEmbedMessage(event, {
+        pageOrigin: window.location.origin,
+        firmaAppOrigin: getFirmaSigningAppUrl(),
+      });
+      if (parsed === "completed") {
+        notifyComplete();
+      }
+    };
+
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, []);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      const frame = iframeRef.current;
+      if (!frame) return;
+      try {
+        const pathname = frame.contentWindow?.location.pathname ?? "";
+        if (pathname && isFirmaSigningCompletePath(pathname)) {
+          notifyComplete();
+        }
+      } catch {
+        /* cross-origin iframe; postMessage / proxy inject handle completion */
+      }
+    }, 400);
+
+    return () => window.clearInterval(interval);
+  }, [iframeUrl]);
 
   const embedUrl = resolveFirmaSigningEmbedUrl(iframeUrl);
 

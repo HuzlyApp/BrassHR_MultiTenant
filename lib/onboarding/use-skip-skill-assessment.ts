@@ -18,7 +18,8 @@ export function useSkipSkillAssessment() {
       (s) => s.step_type === "skill_assessment" || s.step_key === "skill_assessment"
     ) ?? null;
 
-  const skipSkillAssessment = () =>
+  const skipSkillAssessment = () => {
+    if (onboarding?.config?.skillAssessmentSettings?.allowSkip === false) return;
     void skipOnboardingStep({
       step: skillStep,
       updateStepStatus: onboarding?.updateStepStatus,
@@ -27,6 +28,7 @@ export function useSkipSkillAssessment() {
         if (nav.nextRoute) router.push(nav.nextRoute);
       },
     });
+  };
 
   return { skipSkillAssessment };
 }

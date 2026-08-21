@@ -74,5 +74,7 @@ describe("buildFirmaSigningBrandingInjectScript", () => {
     expect(script).toContain("#bc8b41");
     expect(script).toContain("window.Worker");
     expect(script).toContain('ASSET_PREFIX="/firma-signing-assets"');
+    expect(script).toContain("signing.completed");
+    expect(script).toContain("/complete");
   });
 });

@@ -20,6 +20,7 @@ import {
   applyPublishedTemplateToEmploymentFlow,
   createWorkflowTemplate,
   getWorkflowTemplateById,
+  inferEmploymentTypeFromName,
   listWorkflowTemplates,
   publishWorkflowTemplate,
   tenantTemplateDisplayName,
@@ -80,7 +81,7 @@ type TemplateRow = {
   description: string | null;
   type: "preset" | "saved";
   status: string;
-  employment_type: "W2" | "1099" | null;
+  employment_type: "W2" | "1099" | "RNR" | "Contract" | null;
   template_type: string | null;
   is_system_preset: boolean;
   is_editable: boolean;
@@ -181,7 +182,7 @@ function createDb() {
           description: (payload.description as string | null) ?? null,
           type: payload.type as "preset" | "saved",
           status: String(payload.status ?? "draft"),
-          employment_type: (payload.employment_type as "W2" | "1099" | null) ?? null,
+          employment_type: (payload.employment_type as TemplateRow["employment_type"]) ?? null,
           template_type: (payload.template_type as string | null) ?? null,
           is_system_preset: Boolean(payload.is_system_preset),
           is_editable: payload.is_editable !== false,
@@ -289,6 +290,15 @@ function createDb() {
   };
 }
 
+describe("inferEmploymentTypeFromName", () => {
+  it("detects 1099, W2, and RNR names", () => {
+    expect(inferEmploymentTypeFromName("Default 1099 Contractor Workflow")).toBe("1099");
+    expect(inferEmploymentTypeFromName("Default W2 Employee Workflow")).toBe("W2");
+    expect(inferEmploymentTypeFromName("Default RNR Worker Workflow")).toBe("RNR");
+    expect(inferEmploymentTypeFromName("Default R&R Workflow")).toBe("RNR");
+  });
+});
+
 describe("tenantTemplateDisplayName", () => {
   it("strips Default prefix and .tpl suffix from presets", () => {
     expect(tenantTemplateDisplayName("Default 1099 Contractor Workflow")).toBe(
@@ -347,6 +357,18 @@ describe("createWorkflowTemplate", () => {
       })
     ).rejects.toThrow(/system presets/i);
     expect(db.templates.filter((t) => t.type === "preset")).toHaveLength(1);
+  });
+
+  it("infers RNR employment type when copying the RNR preset", async () => {
+    const created = await createWorkflowTemplate(db.client, TENANT_A, {
+      name: "Default RNR Worker Workflow",
+      folder: "presets",
+      builderDraft: sampleDraft,
+      createdBy: "admin-a",
+    });
+
+    expect(created.employmentType).toBe("RNR");
+    expect(created.name).toBe("RNR Worker Workflow.tpl");
   });
 });
 

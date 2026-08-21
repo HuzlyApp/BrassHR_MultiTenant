@@ -19,7 +19,8 @@ import { resolveClientOnboardingTenantSlug } from "@/lib/tenant/client-onboardin
 import { usePathname, useSearchParams } from "next/navigation";
 import { applyApplicantConfigFilters } from "@/lib/onboarding/filter-applicant-steps";
 import { readOnboardingPreview } from "@/lib/onboarding/onboarding-preview-storage";
-import { computeMaxAllowedStepIndex } from "@/lib/onboarding/tenant-step-navigation";
+import { computeMaxAllowedStepIndex, getEnabledTenantSteps } from "@/lib/onboarding/tenant-step-navigation";
+import { computeCandidateOnboardingFrontier } from "@/lib/onboarding/candidate-onboarding-projection";
 import { safeFetchJson } from "@/lib/api/safe-fetch-json";
 import { useApplicantSession } from "@/lib/onboarding/applicant-session-context";
 import { normalizeJobToken } from "@/lib/jobs/public-application-routing";
@@ -55,6 +56,7 @@ type Ctx = {
     data?: Record<string, unknown>
   ) => Promise<void>;
   maxAllowedStepIndex: number;
+  waitingOnInternal: boolean;
 };
 
 const OnboardingConfigContext = createContext<Ctx | null>(null);
@@ -151,15 +153,17 @@ export default function OnboardingConfigProvider({ children }: { children: React
     const requestId = ++progressFetchSeq.current;
     setLoadingProgress(true);
     try {
-      const progressQuery = new URLSearchParams({
+      const params = new URLSearchParams({
         applicantId: aid,
         tenant: slug,
       });
-      const token = normalizeJobToken(jobToken);
-      if (token) progressQuery.set("job_token", token);
+      const token = normalizeJobToken(jobToken) || resolvedJobToken;
+      if (token) params.set("job_token", token);
+      const scopedApplicationId = applicationIdFromUrl || applicationId;
+      if (scopedApplicationId) params.set("applicationId", scopedApplicationId);
 
       const progRes = await safeFetchJson<{ progress?: WorkerOnboardingProgressPayload | null }>(
-        `/api/onboarding/progress?${progressQuery}`,
+        `/api/onboarding/progress?${params}`,
         { cache: "no-store" }
       );
       if (requestId !== progressFetchSeq.current) return;
@@ -179,7 +183,7 @@ export default function OnboardingConfigProvider({ children }: { children: React
         setLoadingProgress(false);
       }
     }
-  }, []);
+  }, [resolvedJobToken, applicationIdFromUrl, applicationId]);
 
   const refreshConfig = useCallback(async () => {
     const requestId = ++configFetchSeq.current;
@@ -413,6 +417,16 @@ export default function OnboardingConfigProvider({ children }: { children: React
     [config, progress, pathname]
   );
 
+  const waitingOnInternal = useMemo(() => {
+    if (!config) return false;
+    const candidateSteps = getEnabledTenantSteps(config);
+    return computeCandidateOnboardingFrontier({
+      engineOrder: config.candidateEngineOrder,
+      candidateSteps,
+      progress,
+    }).waitingOnInternal;
+  }, [config, progress]);
+
   const loading = loadingConfig || loadingProgress || sessionLoading || !sessionReady;
 
   const value = useMemo(
@@ -432,6 +446,7 @@ export default function OnboardingConfigProvider({ children }: { children: React
       refresh,
       updateStepStatus,
       maxAllowedStepIndex,
+      waitingOnInternal,
     }),
     [
       config,
@@ -449,6 +464,7 @@ export default function OnboardingConfigProvider({ children }: { children: React
       refresh,
       updateStepStatus,
       maxAllowedStepIndex,
+      waitingOnInternal,
     ]
   );
 
