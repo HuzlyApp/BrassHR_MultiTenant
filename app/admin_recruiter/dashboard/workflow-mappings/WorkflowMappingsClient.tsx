@@ -64,7 +64,7 @@ const modalInputClass =
   "w-full rounded-lg border border-[color-mix(in_srgb,var(--brand-primary)_40%,#D1D5DB)] bg-white px-3 py-2.5 text-sm text-[#111827] outline-none transition focus:border-[color:var(--brand-primary)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--brand-primary)_15%,transparent)]";
 
 function employmentLabel(type: EmploymentType): string {
-  return type === "Contract" ? "R&R" : type;
+  return type === "Contract" ? "RNR" : type;
 }
 
 function criteriaSummary(mapping: MappingItem): string {

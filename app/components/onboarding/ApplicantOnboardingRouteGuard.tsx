@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
+import OnboardingLoader from "@/app/components/OnboardingLoader";
 import { useOnboardingConfigOptional } from "@/app/components/onboarding/OnboardingConfigProvider";
 import { useApplicantSession } from "@/lib/onboarding/applicant-session-context";
 import { resolveApplicantOnboardingRoute } from "@/lib/onboarding/resolve-applicant-onboarding-route";
@@ -92,16 +93,13 @@ function OnboardingRouteGuardInner({ children }: { children: React.ReactNode }) 
 
   if (showLoading) {
     return (
-      <div className="flex min-h-screen w-full items-center justify-center px-6">
-        <div className="text-center">
-          <div className="mx-auto h-10 w-10 animate-spin rounded-full border-2 border-slate-200 border-t-slate-700" />
-          <p className="mt-5 text-lg font-medium text-slate-700">
-            {onboarding?.workflowPhase === "post_hire"
-              ? "Loading your onboarding…"
-              : "Loading the Application Steps...."}
-          </p>
-        </div>
-      </div>
+      <OnboardingLoader
+        label={
+          onboarding?.workflowPhase === "post_hire"
+            ? "Loading your onboarding…"
+            : "Loading the Application Steps...."
+        }
+      />
     );
   }
 

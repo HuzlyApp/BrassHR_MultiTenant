@@ -20,6 +20,7 @@ import { getEnabledTenantSteps } from "@/lib/onboarding/tenant-step-navigation";
 import { persistFarthestReachedStepIndex } from "@/lib/onboarding/persist-farthest-reached-step";
 import { resolveOnboardingProgressStep } from "@/lib/onboarding/resolve-onboarding-progress-step";
 import type { OnboardingStepStatus, TenantOnboardingConfig } from "@/lib/onboarding/types";
+import { formatApiError } from "@/lib/api/format-api-error";
 import { resolveApplicationWorkflowPhase } from "@/lib/onboarding/resolve-application-workflow-phase";
 import {
   applicantMayActOnStep,
@@ -71,13 +72,28 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Worker not found" }, { status: 404 });
     }
 
-    const payload = await ensureWorkerOnboardingProgress(supabase, ctx.workerId, ctx.tenantId);
-
     const jobToken = normalizeJobToken(
       typeof body.jobToken === "string" ? body.jobToken : null
     );
-    const applicationId =
+    let applicationId =
       typeof body.applicationId === "string" ? body.applicationId.trim() : "";
+
+    const phaseRecord = await resolveApplicationWorkflowPhase(supabase, {
+      tenantId: ctx.tenantId,
+      workerId: ctx.workerId,
+      applicationId: applicationId || null,
+      jobToken,
+    });
+    if (!applicationId && phaseRecord?.applicationId) {
+      applicationId = phaseRecord.applicationId;
+    }
+
+    const payload = await ensureWorkerOnboardingProgress(
+      supabase,
+      ctx.workerId,
+      ctx.tenantId,
+      applicationId || null
+    );
 
     let tenantConfig = await loadTenantOnboardingConfig(supabase, ctx.tenantId, {
       workerFacing: true,
@@ -119,7 +135,8 @@ export async function POST(req: NextRequest) {
         progressPayload = await ensureWorkerOnboardingProgress(
           supabase,
           ctx.workerId,
-          ctx.tenantId
+          ctx.tenantId,
+          applicationId || null
         );
       }
     }
@@ -143,12 +160,6 @@ export async function POST(req: NextRequest) {
     }
     stepRow = persistStep ?? stepRow;
 
-    const phaseRecord = await resolveApplicationWorkflowPhase(supabase, {
-      tenantId: ctx.tenantId,
-      workerId: ctx.workerId,
-      applicationId: applicationId || null,
-      jobToken,
-    });
     const activePhase = phaseRecord?.phase ?? "pre_hire";
     if (
       stepRow &&
@@ -199,11 +210,20 @@ export async function POST(req: NextRequest) {
         .from("worker_resumes")
         .select("file_url")
         .eq("worker_id", ctx.workerId)
+        .is("deleted_at", null)
+        .order("uploaded_at", { ascending: false })
+        .limit(1)
         .maybeSingle();
-      const { data: requirements } = await supabase
+      let requirementsQuery = supabase
         .from("worker_requirements")
         .select("resume_path")
-        .or(`worker_id.eq.${ctx.workerId},worker_id.eq.${applicantId}`)
+        .or(`worker_id.eq.${ctx.workerId},worker_id.eq.${applicantId}`);
+      if (applicationId) {
+        requirementsQuery = requirementsQuery.eq("application_id", applicationId);
+      }
+      const { data: requirements } = await requirementsQuery
+        .order("updated_at", { ascending: false })
+        .limit(1)
         .maybeSingle();
       const resumePath = String(requirements?.resume_path ?? "").trim();
       if (!resume?.file_url && !resumePath) {
@@ -229,7 +249,12 @@ export async function POST(req: NextRequest) {
       terminalStatuses.includes(existingStatus) &&
       downgradeStatuses.includes(status)
     ) {
-      const progress = await ensureWorkerOnboardingProgress(supabase, ctx.workerId, ctx.tenantId);
+      const progress = await ensureWorkerOnboardingProgress(
+        supabase,
+        ctx.workerId,
+        ctx.tenantId,
+        applicationId || null
+      );
       return NextResponse.json({ progress, noop: true });
     }
 
@@ -294,6 +319,7 @@ export async function POST(req: NextRequest) {
           tenant_id: ctx.tenantId,
           onboarding_step_id: stepId,
           status: "pending",
+          ...(applicationId ? { application_id: applicationId } : {}),
         });
       if (insertMissingErr && insertMissingErr.code !== "23505") throw insertMissingErr;
     }
@@ -323,11 +349,15 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const progress = await ensureWorkerOnboardingProgress(supabase, ctx.workerId, ctx.tenantId);
+    const progress = await ensureWorkerOnboardingProgress(
+      supabase,
+      ctx.workerId,
+      ctx.tenantId,
+      applicationId || null
+    );
     return NextResponse.json({ progress });
   } catch (err: unknown) {
     console.error("[onboarding/progress/step]", err);
-    const msg = err instanceof Error ? err.message : "Unexpected error";
-    return NextResponse.json({ error: msg }, { status: 500 });
+    return NextResponse.json({ error: formatApiError(err) }, { status: 500 });
   }
 }

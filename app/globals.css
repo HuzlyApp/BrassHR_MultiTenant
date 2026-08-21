@@ -259,15 +259,30 @@ a[href] {
 .job-form-setup-msp-field {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   border-radius: 8px;
   background-color: #F1F5F9;
-  padding: 20px;
+  padding: 14px;
 }
 
 .job-form-setup-msp-field .job-form-radio-options {
-  column-gap: 40px;
+  column-gap: 24px;
   row-gap: 12px;
+}
+
+@media (min-width: 700px) {
+  .job-form-setup-msp-field {
+    gap: 16px;
+    padding: 20px;
+  }
+
+  .job-form-setup-msp-field .job-form-radio-options {
+    column-gap: 40px;
+  }
 }
 
 /* Job create form — field group vertical spacing (Figma 30px) */

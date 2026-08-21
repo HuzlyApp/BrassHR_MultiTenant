@@ -90,6 +90,7 @@ export async function DELETE(_req: NextRequest, context: RouteContext) {
     return NextResponse.json({
       ok: true,
       resumes: history?.resumes ?? [],
+      adminUploadCount: history?.adminUploadCount ?? 0,
     });
   } catch (error) {
     console.error("[admin/job-applications/resumes:delete]", error);

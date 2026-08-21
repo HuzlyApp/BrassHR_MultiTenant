@@ -22,6 +22,11 @@ import { ListTableCheckbox } from "../components/ListTableCheckbox";
 import { useCandidatesFilterRowsDefault } from "../hooks/useCandidatesFilterRowsDefault";
 import { exportCandidatesCsv, exportCandidatesXls } from "./export-candidates";
 import { formatCandidateStatusLabel } from "./candidate-status-badge";
+import { buildCandidateKpis } from "./candidate-kpis";
+import { CandidateAiAnalysisLink } from "./CandidateAiAnalysisLink";
+import { CandidateRowActionsMenu } from "../applications/CandidateRowActionsMenu";
+import { countMultiJobApplicants } from "@/lib/admin/multi-job-applicants";
+import toast from "react-hot-toast";
 
 type WorkerProfile = {
   id: string;
@@ -44,6 +49,7 @@ type WorkerProfile = {
   status?: string | null;
   profile_photo?: string | null;
   profile_photo_url?: string | null;
+  applied_job_count?: number | null;
 };
 
 /** Fixed `en-US` locale so SSR and browser produce identical strings (avoids hydration mismatch). */
@@ -136,6 +142,7 @@ export default function CandidatesPage() {
   const [jobRoleFilter, setJobRoleFilter] = useState("");
   const [locationFilter, setLocationFilter] = useState("");
   const [dateFilter, setDateFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
   const [showFilterRows, setShowFilterRows] = useCandidatesFilterRowsDefault();
   const [view, setView] = useState<"card" | "list">("list");
   const [listColumnOrder, setListColumnOrder] = useState<CandidateColumnId[]>(DEFAULT_CANDIDATE_COLUMNS);
@@ -145,6 +152,11 @@ export default function CandidatesPage() {
   const [advancedSearchOpen, setAdvancedSearchOpen] = useState(false);
   const [advancedSearchParams, setAdvancedSearchParams] = useState<AdvancedSearchParams | null>(null);
   const [commTarget, setCommTarget] = useState<CandidateRow | null>(null);
+  const [rowActionsMenu, setRowActionsMenu] = useState<{ rowId: string; anchor: HTMLElement } | null>(
+    null
+  );
+  const [highlightMultiJob, setHighlightMultiJob] = useState(false);
+  const [filterMultiJobOnly, setFilterMultiJobOnly] = useState(false);
 
   const advancedSearchContext = useMemo(() => {
     if (!advancedSearchParams) {
@@ -250,6 +262,7 @@ export default function CandidatesPage() {
           reference: item.id.slice(0, 7).toUpperCase(),
           dateOfBirth: null,
           profilePhotoUrl: item.profile_photo_url ?? null,
+          appliedJobCount: Number(item.applied_job_count ?? 1),
           });
         });
 
@@ -301,6 +314,7 @@ export default function CandidatesPage() {
         reference: item.id.slice(0, 7).toUpperCase(),
         dateOfBirth: null,
         profilePhotoUrl: item.profile_photo_url ?? null,
+        appliedJobCount: 1,
         });
       });
 
@@ -336,6 +350,16 @@ export default function CandidatesPage() {
     return Array.from(s).sort((a, b) => a.localeCompare(b));
   }, [candidates]);
 
+  const statusOptions = useMemo(() => {
+    const s = new Set<string>();
+    for (const c of candidates) {
+      if (c.status) s.add(c.status);
+    }
+    return Array.from(s).sort((a, b) => a.localeCompare(b));
+  }, [candidates]);
+
+  const kpiCards = useMemo(() => buildCandidateKpis(candidates), [candidates]);
+
   const filtered = useMemo(() => {
     let out = candidates;
     const q = query.trim().toLowerCase();
@@ -355,6 +379,7 @@ export default function CandidatesPage() {
       });
     }
     if (jobRoleFilter) out = out.filter((c) => c.role === jobRoleFilter);
+    if (statusFilter) out = out.filter((c) => c.status === statusFilter);
     if (locationFilter) {
       out = out.filter((c) => [c.city, c.state].filter(Boolean).join(", ") === locationFilter);
     }
@@ -368,16 +393,26 @@ export default function CandidatesPage() {
       });
     }
     return out;
-  }, [candidates, query, jobRoleFilter, locationFilter, dateFilter]);
+  }, [candidates, query, jobRoleFilter, statusFilter, locationFilter, dateFilter]);
+
+  const multiJobApplicantCount = useMemo(
+    () => countMultiJobApplicants(filtered, (candidate) => Number(candidate.appliedJobCount ?? 1)),
+    [filtered]
+  );
+
+  const visibleCandidates = useMemo(() => {
+    if (!filterMultiJobOnly) return filtered;
+    return filtered.filter((candidate) => Number(candidate.appliedJobCount ?? 1) > 1);
+  }, [filtered, filterMultiJobOnly]);
 
   useEffect(() => {
     setPage(1);
-  }, [query, jobRoleFilter, locationFilter, dateFilter, pageSize]);
+  }, [query, jobRoleFilter, statusFilter, locationFilter, dateFilter, pageSize, filterMultiJobOnly]);
 
   const paginated = useMemo(() => {
     const start = (page - 1) * pageSize;
-    return filtered.slice(start, start + pageSize);
-  }, [filtered, page, pageSize]);
+    return visibleCandidates.slice(start, start + pageSize);
+  }, [visibleCandidates, page, pageSize]);
 
   return (
     <>
@@ -401,13 +436,19 @@ export default function CandidatesPage() {
         onLocationFilterChange={setLocationFilter}
         dateFilter={dateFilter}
         onDateFilterChange={setDateFilter}
+        statusFilter={statusFilter}
+        onStatusFilterChange={setStatusFilter}
+        statusOptions={statusOptions}
         jobRoleOptions={jobRoleOptions}
         locationOptions={locationOptions}
+        kpiCards={kpiCards}
+        onAddCandidate={() => toast("Open a job posting to add a candidate.")}
+        onClaimCandidates={() => toast("Select candidates, then claim them from this list.")}
         view={view}
         onViewChange={setView}
         onEditColumns={() => setEditColumnsOpen(true)}
-        onExportCsv={() => exportCandidatesCsv(filtered)}
-        onExportXls={() => exportCandidatesXls(filtered)}
+        onExportCsv={() => exportCandidatesCsv(visibleCandidates)}
+        onExportXls={() => exportCandidatesXls(visibleCandidates)}
         onAdvancedSearch={() => setAdvancedSearchOpen(true)}
         totalCount={totalFromApi}
         loading={loading}
@@ -418,7 +459,17 @@ export default function CandidatesPage() {
         pageSize={pageSize}
         onPageChange={setPage}
         onPageSizeChange={setPageSize}
-        totalFiltered={filtered.length}
+        totalFiltered={visibleCandidates.length}
+        highlightMultiJob={highlightMultiJob}
+        onHighlightMultiJobChange={(next) => {
+          setHighlightMultiJob(next);
+          if (!next) setFilterMultiJobOnly(false);
+        }}
+        multiJobApplicantCount={multiJobApplicantCount}
+        onViewAllMultiJobApplicants={() => {
+          setHighlightMultiJob(true);
+          setFilterMultiJobOnly(true);
+        }}
       >
         {(() => {
           const formatDate = formatDateShort;
@@ -426,10 +477,14 @@ export default function CandidatesPage() {
           if (loading) {
             return null;
           }
-          if (filtered.length === 0) {
+          if (visibleCandidates.length === 0) {
             return (
-              <div className="py-24 text-center text-gray-600">
-                <div>No candidates found.</div>
+              <div className={`text-center text-gray-600 ${filterMultiJobOnly ? "py-24" : "py-12"}`}>
+                <div>
+                  {filterMultiJobOnly
+                    ? "No applicants have applied to multiple jobs."
+                    : "No candidates found."}
+                </div>
                 {advancedSearchContext.active ? (
                   <button
                     type="button"
@@ -460,13 +515,16 @@ export default function CandidatesPage() {
                         {cols.map((colId) => (
                           <th
                             key={colId}
-                            className={`border-r border-[#E5E7EB] bg-[#E5E7EB] px-4 py-3 text-sm font-medium uppercase tracking-[0.08em] text-black last:border-r-0 first:pl-6 last:pr-6 ${
+                            className={`border-r border-[#E5E7EB] bg-[#E5E7EB] px-4 py-3 text-sm font-medium uppercase tracking-[0.08em] text-black first:pl-6 ${
                               colId === "name" ? "text-left" : "text-center"
                             } ${candidateListColumnClassName(colId)}`}
                           >
                             {columnLabel(colId)}
                           </th>
                         ))}
+                        <th className="whitespace-nowrap border-r-0 bg-[#E5E7EB] px-4 py-3 text-center text-sm font-medium uppercase tracking-[0.08em] text-black last:pr-6">
+                          Actions
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
@@ -481,13 +539,42 @@ export default function CandidatesPage() {
                           {cols.map((colId) => (
                             <td
                               key={colId}
-                              className={`border-r border-[#EEF2F7] px-4 py-4 align-middle last:border-r-0 first:pl-6 last:pr-6 ${
+                              className={`border-r border-[#EEF2F7] px-4 py-4 align-middle first:pl-6 ${
                                 colId === "name" ? "text-left" : "text-center"
                               } ${candidateListColumnClassName(colId)}`}
                             >
-                              {renderListCell(colId, c, formatDate)}
+                              {renderListCell(colId, c, formatDate, { highlightMultiJob })}
                             </td>
                           ))}
+                          <td className="border-r-0 px-4 py-4 align-middle last:pr-6">
+                            <div className="flex items-center justify-center gap-2">
+                              <CandidateAiAnalysisLink
+                                workerId={c.id}
+                                candidateName={c.name}
+                              />
+                              <button
+                                type="button"
+                                aria-label={`Actions for ${c.name || "candidate"}`}
+                                aria-expanded={rowActionsMenu?.rowId === c.id}
+                                onClick={(event) => {
+                                  const anchor = event.currentTarget;
+                                  setRowActionsMenu((current) =>
+                                    current?.rowId === c.id ? null : { rowId: c.id, anchor }
+                                  );
+                                }}
+                                className="inline-flex size-[18px] items-center justify-center overflow-hidden"
+                              >
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
+                                  src="/icons/admin-recruiter/candidates/three-dot.svg"
+                                  alt=""
+                                  width={16}
+                                  height={16}
+                                  className="size-4"
+                                />
+                              </button>
+                            </div>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -548,6 +635,37 @@ export default function CandidatesPage() {
           setAdvancedSearchOpen(false);
         }}
       />
+
+      {rowActionsMenu ? (
+        <CandidateRowActionsMenu
+          anchor={rowActionsMenu.anchor}
+          hired={(() => {
+            const status = candidates.find((item) => item.id === rowActionsMenu.rowId)?.status ?? "";
+            const normalized = status.trim().toLowerCase().replace(/\s+/g, "_");
+            return normalized === "hired" || normalized === "converted";
+          })()}
+          onClose={() => setRowActionsMenu(null)}
+          onReanalyze={() => toast("Reanalyze is available from the candidate application.")}
+          onUpdateResume={() => toast("Update resume from the candidate profile.")}
+          onArchive={() => toast("Archive is available from the candidate application.")}
+          onUnarchive={() => toast("Unarchive is available from the candidate application.")}
+          onMessage={() => {
+            const row = candidates.find((item) => item.id === rowActionsMenu.rowId);
+            if (row) setCommTarget(row);
+          }}
+          onCall={() => {
+            const row = candidates.find((item) => item.id === rowActionsMenu.rowId);
+            if (row?.phone) {
+              window.location.href = `tel:${row.phone}`;
+              return;
+            }
+            toast("No phone number on file for this candidate.");
+          }}
+          onSetupInterview={() => toast("Set up interview from the candidate application.")}
+          onDeleteCandidate={() => toast("Delete candidate from the candidate application.")}
+          onMarkAsHired={() => toast("Mark as hired from the candidate application.")}
+        />
+      ) : null}
 
       {commTarget ? (
         <CandidateCommunicationDialog

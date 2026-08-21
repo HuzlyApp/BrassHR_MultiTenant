@@ -3,7 +3,8 @@
 import { useSearchParams } from "next/navigation";
 import { useApplicantPortal } from "./ApplicantPortalProvider";
 import { useWorkerAccountOverview } from "./WorkerAccountContext";
-import { WorkerAccountEmploymentTab } from "./WorkerAccountEmploymentTab";
+import { WorkerAccountApplicationsTab } from "./WorkerAccountApplicationsTab";
+// import { WorkerAccountEmploymentTab } from "./WorkerAccountEmploymentTab";
 import { WorkerAccountOverview } from "./WorkerAccountOverview";
 import { WorkerAccountPersonalForm } from "./WorkerAccountPersonalForm";
 import { WorkerAccountPlaceholderTab } from "./WorkerAccountPlaceholderTab";
@@ -36,10 +37,15 @@ export function ApplicantProfileTab() {
     return <WorkerAccountPersonalForm />;
   }
 
-  if (activeTab === "employment") {
-    if (!overview) return null;
-    return <WorkerAccountEmploymentTab profile={overview.profile} />;
+  if (activeTab === "applications") {
+    return <WorkerAccountApplicationsTab />;
   }
+
+  // Employment Details tab is hidden for now.
+  // if (activeTab === "employment") {
+  //   if (!overview) return null;
+  //   return <WorkerAccountEmploymentTab profile={overview.profile} />;
+  // }
 
   if (activeTab === "emergency") {
     return (

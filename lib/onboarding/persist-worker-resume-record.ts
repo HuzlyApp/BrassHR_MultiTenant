@@ -18,6 +18,11 @@ export type PersistWorkerResumeRecordOpts = {
   jobApplicationId?: string | null;
   uploadedByUserId?: string | null;
   uploaderRole?: ResumeUploaderRole;
+  /**
+   * Applying to a job always has to succeed, so the job-application resume step
+   * opts out of the quota. Uploads started from a Resume Submitted screen do not.
+   */
+  enforceUploadLimit?: boolean;
 };
 
 export type PersistWorkerResumeRecordMode = "insert" | "update";
@@ -105,11 +110,10 @@ export async function persistWorkerResumeRecord(
   const mode = recordOptions?.mode ?? "insert";
   const row = buildResumeRow(worker.workerId, worker.tenantId, opts);
 
-  if (mode === "insert") {
+  if (mode === "insert" && opts.enforceUploadLimit !== false) {
     await assertResumeUploadWithinLimit(supabase, {
       workerId: worker.workerId,
       workerUserId: worker.userId,
-      jobApplicationId: opts.jobApplicationId,
       uploadedByUserId: opts.uploadedByUserId,
       role: opts.uploaderRole,
     });

@@ -20,6 +20,8 @@ import { renderListCell } from "../candidates/render-list-cell";
 import { CandidateGridCard } from "../candidates/CandidateGridCard";
 import type { CandidateRow } from "../candidates/types";
 import { formatCandidateStatusLabel } from "../candidates/candidate-status-badge";
+import { buildCandidateKpis } from "../candidates/candidate-kpis";
+import toast from "react-hot-toast";
 
 type WorkerProfile = {
   id: string;
@@ -139,6 +141,7 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
   const [jobRoleFilter, setJobRoleFilter] = useState("");
   const [locationFilter, setLocationFilter] = useState("");
   const [dateFilter, setDateFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
   const [showFilterRows, setShowFilterRows] = useCandidatesFilterRowsDefault();
   const [view, setView] = useState<"card" | "list">("list");
   const [listColumnOrder, setListColumnOrder] = useState<CandidateColumnId[]>(DEFAULT_CANDIDATE_COLUMNS);
@@ -239,6 +242,16 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
     return Array.from(s).sort((a, b) => a.localeCompare(b));
   }, [candidates]);
 
+  const statusOptions = useMemo(() => {
+    const s = new Set<string>();
+    for (const c of candidates) {
+      if (c.status) s.add(c.status);
+    }
+    return Array.from(s).sort((a, b) => a.localeCompare(b));
+  }, [candidates]);
+
+  const kpiCards = useMemo(() => buildCandidateKpis(candidates), [candidates]);
+
   const filtered = useMemo(() => {
     let out = candidates;
     const q = query.trim().toLowerCase();
@@ -258,6 +271,7 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
       });
     }
     if (jobRoleFilter) out = out.filter((c) => c.role === jobRoleFilter);
+    if (statusFilter) out = out.filter((c) => c.status === statusFilter);
     if (locationFilter) {
       out = out.filter((c) => [c.city, c.state].filter(Boolean).join(", ") === locationFilter);
     }
@@ -271,11 +285,11 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
       });
     }
     return out;
-  }, [candidates, query, jobRoleFilter, locationFilter, dateFilter]);
+  }, [candidates, query, jobRoleFilter, statusFilter, locationFilter, dateFilter]);
 
   useEffect(() => {
     setPage(1);
-  }, [query, jobRoleFilter, locationFilter, dateFilter, pageSize]);
+  }, [query, jobRoleFilter, statusFilter, locationFilter, dateFilter, pageSize]);
 
   const paginated = useMemo(() => {
     const start = (page - 1) * pageSize;
@@ -296,8 +310,14 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
         onLocationFilterChange={setLocationFilter}
         dateFilter={dateFilter}
         onDateFilterChange={setDateFilter}
+        statusFilter={statusFilter}
+        onStatusFilterChange={setStatusFilter}
+        statusOptions={statusOptions}
         jobRoleOptions={jobRoleOptions}
         locationOptions={locationOptions}
+        kpiCards={kpiCards}
+        onAddCandidate={() => toast("Open a job posting to add a candidate.")}
+        onClaimCandidates={() => toast("Select candidates, then claim them from this list.")}
         view={view}
         onViewChange={setView}
         onEditColumns={() => setEditColumnsOpen(true)}

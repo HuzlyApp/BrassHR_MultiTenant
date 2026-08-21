@@ -30,8 +30,8 @@ export default function OnboardingLoader({
     <div
       className={
         overlay
-          ? "fixed inset-0 z-[120] flex items-center justify-center p-6"
-          : `flex min-h-screen items-center justify-center p-6 ${backgroundClassName ?? ""}`
+          ? "fixed inset-0 z-[120] flex w-full items-center justify-center p-6"
+          : `flex min-h-screen w-full items-center justify-center p-6 ${backgroundClassName ?? ""}`
       }
       style={overlay ? undefined : shellStyle}
     >

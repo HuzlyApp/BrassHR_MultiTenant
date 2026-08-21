@@ -744,7 +744,7 @@ function OnboardingFlowsPageContent({
   const [mappingSetup, setMappingSetup] = useState<{
     workflowId: string;
     workflowName: string;
-    suggestedEmploymentType?: "W2" | "1099" | null;
+    suggestedEmploymentType?: "W2" | "1099" | "Contract" | null;
   } | null>(null);
 
   const { libraries, isLoading: librariesLoading, error: librariesError } = useOnboardingLibraries();
@@ -814,12 +814,15 @@ function OnboardingFlowsPageContent({
           const templateEmployment = draft.templateId
             ? templateOptions.find((item) => item.id === draft.templateId)?.label
             : null;
+          const label = templateEmployment?.toLowerCase() ?? "";
           const suggestedEmploymentType =
-            templateEmployment?.includes("1099") || templateEmployment?.toLowerCase().includes("contractor")
+            label.includes("1099") || label.includes("contractor")
               ? "1099"
-              : templateEmployment?.toLowerCase().includes("w2")
-                ? "W2"
-                : null;
+              : label.includes("rnr") || label.includes("r&r") || label.includes("recruit and release")
+                ? "Contract"
+                : label.includes("w2")
+                  ? "W2"
+                  : null;
           setMappingSetup({
             workflowId: created.id,
             workflowName: created.name,

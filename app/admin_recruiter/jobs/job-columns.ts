@@ -157,7 +157,7 @@ export function jobListColumnClassName(colId: JobColumnId): string {
     case "contractGroup":
       return `min-w-[150px]${nowrap}${center}`
     case "candidates":
-      return `w-[350px] min-w-[350px]${nowrap}${center}`
+      return `w-[390px] min-w-[390px]${nowrap}${center}`
     case "datePosted":
     case "createdDate":
       return `min-w-[140px]${nowrap}${center}`

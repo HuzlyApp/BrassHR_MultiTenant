@@ -5,8 +5,8 @@ import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext
 
 export type JobsListingView = "list" | "grid";
 
-const LIST_ICON = "/list-view-icon.svg";
-const GRID_ICON = "/grid-view-icon.svg";
+const LIST_ICON = "/icons/jobs-icons/list-view.svg";
+const GRID_ICON = "/icons/jobs-icons/grid-view.svg";
 
 type JobsViewToggleProps = {
   value: JobsListingView;
@@ -31,16 +31,18 @@ export function JobsViewToggle({ value, onChange }: JobsViewToggleProps) {
             aria-pressed={active}
             aria-label={option.label}
             onClick={() => onChange(option.id)}
-            className={`inline-flex h-8 w-8 items-center justify-center rounded-lg border transition ${
+            className={`inline-flex h-8 w-9 items-center justify-center rounded-lg border transition ${
               active ? "border-transparent" : "border-[#CBD5E1] bg-white hover:bg-[#F8FAFC]"
             }`}
             style={active ? { backgroundColor: branding.primaryHex } : undefined}
           >
-            <BrandedSvgIcon
-              src={option.src}
-              className="h-6 w-6"
-              color={active ? "#FFFFFF" : "#94A3B8"}
-            />
+            <span className="relative size-6 overflow-hidden" aria-hidden>
+              <BrandedSvgIcon
+                src={option.src}
+                className={option.id === "list" ? "absolute left-[12.5%] top-[29.17%] h-[10px] w-[18px]" : "size-6"}
+                color={active ? "#FFFFFF" : "#475569"}
+              />
+            </span>
           </button>
         );
       })}

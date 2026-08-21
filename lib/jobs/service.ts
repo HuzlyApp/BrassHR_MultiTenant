@@ -118,8 +118,8 @@ function toJobRow(input: JobRequisitionInput) {
     department: clean(input.department),
     facility,
     bill_rate: input.billRate ?? null,
-    pay_rate_min: isMspRecruitAndRelease(input) ? null : input.payRateMin ?? null,
-    pay_rate_max: isMspRecruitAndRelease(input) ? null : input.payRateMax ?? null,
+    pay_rate_min: input.payRateMin ?? null,
+    pay_rate_max: input.payRateMax ?? null,
     commission_percent: input.commissionPercent ?? null,
     commission_fixed_amount: input.commissionFixedAmount ?? null,
     target_start_date: clean(input.targetStartDate),
@@ -143,6 +143,7 @@ function toJobRow(input: JobRequisitionInput) {
     additional_locations: additionalLocations,
     show_in_multiple_areas: Boolean(input.showInMultipleAreas),
     location_type: jobLocationType,
+    acceptable_match_rate: clean(input.acceptableMatchRate),
     is_employer_on_record:
       typeof input.isEmployerOnRecord === "boolean" ? input.isEmployerOnRecord : true,
     compensation_type: compensationType,
@@ -172,7 +173,7 @@ function toJobRow(input: JobRequisitionInput) {
     facility_name: facility,
     job_duration: duration,
     benefits_summary: benefits,
-    pay_rate: isMspRecruitAndRelease(input) ? null : suggestedPayRate,
+    pay_rate: suggestedPayRate,
   };
 }
 
@@ -806,6 +807,7 @@ function jobRowToInput(row: Record<string, unknown>): JobRequisitionInput {
       : row.schedule
         ? String(row.schedule)
         : null,
+    acceptableMatchRate: row.acceptable_match_rate ? String(row.acceptable_match_rate) : null,
     isEmployerOnRecord:
       typeof row.is_employer_on_record === "boolean" ? row.is_employer_on_record : true,
     compensationType: row.compensation_type ? String(row.compensation_type) : null,
@@ -1087,17 +1089,45 @@ export async function startOrResumeJobApplication(
   const workflowName = String(assignedFlow.name ?? "Assigned Workflow");
 
   const normalizedEmail = input.email ? normalizeApplicantEmail(input.email) : null;
-  let profileQuery = supabase
-    .from("applicant_profiles")
-    .select("id")
-    .eq("tenant_id", input.tenantId);
-  profileQuery = normalizedEmail
-    ? profileQuery.eq("normalized_email", normalizedEmail)
-    : profileQuery.eq("auth_user_id", input.applicantAuthUserId);
-  const { data: existingProfile, error: profileLookupError } = await profileQuery.maybeSingle();
-  if (profileLookupError) throw profileLookupError;
 
-  let profileId = existingProfile?.id ? String(existingProfile.id) : null;
+  // Resolve existing applicant_profiles by worker_id, auth_user_id, then email.
+  // Looking up by email alone can miss an existing auth_user_id row and cause
+  // applicant_profiles_tenant_auth_uidx on insert when applying to another job.
+  let profileId: string | null = null;
+
+  if (input.workerId) {
+    const { data: byWorker, error: byWorkerError } = await supabase
+      .from("applicant_profiles")
+      .select("id")
+      .eq("tenant_id", input.tenantId)
+      .eq("worker_id", input.workerId)
+      .maybeSingle();
+    if (byWorkerError) throw byWorkerError;
+    if (byWorker?.id) profileId = String(byWorker.id);
+  }
+
+  if (!profileId) {
+    const { data: byAuth, error: byAuthError } = await supabase
+      .from("applicant_profiles")
+      .select("id")
+      .eq("tenant_id", input.tenantId)
+      .eq("auth_user_id", input.applicantAuthUserId)
+      .maybeSingle();
+    if (byAuthError) throw byAuthError;
+    if (byAuth?.id) profileId = String(byAuth.id);
+  }
+
+  if (!profileId && normalizedEmail) {
+    const { data: byEmail, error: byEmailError } = await supabase
+      .from("applicant_profiles")
+      .select("id")
+      .eq("tenant_id", input.tenantId)
+      .eq("normalized_email", normalizedEmail)
+      .maybeSingle();
+    if (byEmailError) throw byEmailError;
+    if (byEmail?.id) profileId = String(byEmail.id);
+  }
+
   if (!profileId) {
     const { data: profile, error: profileError } = await supabase
       .from("applicant_profiles")
@@ -1110,9 +1140,48 @@ export async function startOrResumeJobApplication(
       })
       .select("id")
       .single();
-    if (profileError) throw profileError;
-    profileId = String(profile.id);
-  } else {
+
+    if (profileError) {
+      const isDuplicate =
+        profileError.code === "23505" ||
+        /duplicate key|unique constraint/i.test(String(profileError.message ?? ""));
+      if (!isDuplicate) throw profileError;
+
+      const { data: racedByAuth } = await supabase
+        .from("applicant_profiles")
+        .select("id")
+        .eq("tenant_id", input.tenantId)
+        .eq("auth_user_id", input.applicantAuthUserId)
+        .maybeSingle();
+      if (racedByAuth?.id) {
+        profileId = String(racedByAuth.id);
+      } else if (input.workerId) {
+        const { data: racedByWorker } = await supabase
+          .from("applicant_profiles")
+          .select("id")
+          .eq("tenant_id", input.tenantId)
+          .eq("worker_id", input.workerId)
+          .maybeSingle();
+        if (racedByWorker?.id) profileId = String(racedByWorker.id);
+      }
+
+      if (!profileId && normalizedEmail) {
+        const { data: racedByEmail } = await supabase
+          .from("applicant_profiles")
+          .select("id")
+          .eq("tenant_id", input.tenantId)
+          .eq("normalized_email", normalizedEmail)
+          .maybeSingle();
+        if (racedByEmail?.id) profileId = String(racedByEmail.id);
+      }
+
+      if (!profileId) throw profileError;
+    } else {
+      profileId = String(profile.id);
+    }
+  }
+
+  if (profileId) {
     const { error: profileUpdateError } = await supabase
       .from("applicant_profiles")
       .update({
@@ -1124,6 +1193,10 @@ export async function startOrResumeJobApplication(
       .eq("id", profileId)
       .eq("tenant_id", input.tenantId);
     if (profileUpdateError) throw profileUpdateError;
+  }
+
+  if (!profileId) {
+    throw new JobValidationError("Could not resolve applicant profile.", {}, "PROFILE_REQUIRED");
   }
 
   const { data: existingApplication, error: existingError } = await supabase

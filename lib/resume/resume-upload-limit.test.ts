@@ -6,6 +6,10 @@ import {
   resumeUploadLimitMessage,
 } from "@/lib/resume/resume-upload-limit";
 import { assertResumeUploadWithinLimit } from "@/lib/resume/assert-resume-upload-limit";
+import {
+  isReuploadedResumePath,
+  resumeUploadFolder,
+} from "@/lib/resume/resume-reupload-path";
 
 describe("classifyResumeUploaderRole", () => {
   it("treats missing uploader as worker", () => {
@@ -65,14 +69,13 @@ describe("assertResumeUploadWithinLimit", () => {
       assertResumeUploadWithinLimit(supabase as never, {
         workerId: "worker-1",
         workerUserId: "user-worker",
-        jobApplicationId: "app-1",
         uploadedByUserId: "user-worker",
         role: "worker",
       })
     ).resolves.toBeUndefined();
   });
 
-  it("blocks a 6th worker upload for the same job", async () => {
+  it("blocks a 6th worker upload even when the resumes span different jobs", async () => {
     const supabase = mockSupabase(
       Array.from({ length: MAX_RESUME_UPLOADS_PER_ROLE }, () => ({
         uploaded_by_user_id: "user-worker",
@@ -82,11 +85,10 @@ describe("assertResumeUploadWithinLimit", () => {
       assertResumeUploadWithinLimit(supabase as never, {
         workerId: "worker-1",
         workerUserId: "user-worker",
-        jobApplicationId: "app-1",
         uploadedByUserId: "user-worker",
         role: "worker",
       })
-    ).rejects.toThrow(/up to 5 times/i);
+    ).rejects.toThrow(resumeUploadLimitMessage("worker"));
   });
 
   it("blocks a 6th admin upload using history rows", async () => {
@@ -100,7 +102,6 @@ describe("assertResumeUploadWithinLimit", () => {
       assertResumeUploadWithinLimit(supabase as never, {
         workerId: "worker-1",
         workerUserId: "user-worker",
-        jobApplicationId: "app-1",
         uploadedByUserId: "user-staff",
         role: "admin",
       })
@@ -117,10 +118,30 @@ describe("assertResumeUploadWithinLimit", () => {
       assertResumeUploadWithinLimit(supabase as never, {
         workerId: "worker-1",
         workerUserId: "user-worker",
-        jobApplicationId: "app-1",
         uploadedByUserId: "user-staff",
         role: "admin",
       })
     ).resolves.toBeUndefined();
+  });
+});
+
+describe("resume reupload storage paths", () => {
+  it("keeps the owner folder first so bucket policies still match", () => {
+    expect(resumeUploadFolder("user-worker", true)).toBe("user-worker/reuploads");
+    expect(resumeUploadFolder("user-worker", false)).toBe("user-worker");
+  });
+
+  it("flags reuploaded files and leaves first uploads alone", () => {
+    expect(isReuploadedResumePath("user-worker/reuploads/abc-Resume.pdf")).toBe(true);
+    expect(isReuploadedResumePath("user-worker/abc-Resume.pdf")).toBe(false);
+  });
+
+  it("falls back to file_url when storage_path is empty", () => {
+    expect(isReuploadedResumePath(null, "worker-1/reuploads/abc-Resume.pdf")).toBe(true);
+    expect(isReuploadedResumePath(null, null)).toBe(false);
+  });
+
+  it("does not flag a file whose name merely contains the folder word", () => {
+    expect(isReuploadedResumePath("user-worker/abc-reuploads-Resume.pdf")).toBe(false);
   });
 });

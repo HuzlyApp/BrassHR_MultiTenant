@@ -18,13 +18,10 @@ import {
   ChevronRight,
   HelpCircle,
   Loader2,
-  History,
   MapPin,
   MoreVertical,
   Phone,
   X,
-  ZoomIn,
-  ZoomOut,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import AddCallLogModal from "@/app/admin_recruiter/components/AddCallLogModal";
@@ -58,10 +55,19 @@ import {
   type ScheduleInterviewPayload,
 } from "@/lib/interviews/schedule-payload";
 import { JobPublicViewLink } from "@/app/admin_recruiter/jobs/JobPublicViewLink";
-import { CandidateAnalysisWorkspace } from "./CandidateAnalysisWorkspace";
+import { applicationAiAnalysisHref } from "./CandidateAiAnalysisButton";
+// Overview match/screening/candidate form lives on AI Analysis Overview.
+// import { CandidateAnalysisWorkspace } from "./CandidateAnalysisWorkspace";
 import { CandidateActivityTimeline } from "./CandidateActivityTimeline";
 import { ReplaceResumeConfirmModal } from "./ReplaceResumeConfirmModal";
 import { ResumeHistoryModal, type ResumeHistoryItem } from "./ResumeHistoryModal";
+import { candidateApplicantProfileHref } from "@/app/admin_recruiter/candidates/candidate-links";
+import { workTypeLabel, type CandidateProfileApplication } from "@/lib/admin/candidate-profile-view";
+import {
+  applicationReviewHref,
+  formatProfileApplicationDate,
+  workTypeBadgeClass,
+} from "@/app/admin_recruiter/candidates/[workerId]/candidate-profile-ui";
 
 type ApplicationRow = {
   id: string;
@@ -229,6 +235,8 @@ export default function JobCandidateReviewClient() {
   const [resumeHistoryJobTitle, setResumeHistoryJobTitle] = useState("");
   const [resumeHistoryItems, setResumeHistoryItems] = useState<ResumeHistoryItem[]>([]);
   const [resumeHistoryBusyId, setResumeHistoryBusyId] = useState<string | null>(null);
+  /** Admin uploads for this candidate across every job, which is what the quota counts. */
+  const [adminResumeUploadCount, setAdminResumeUploadCount] = useState(0);
   const [chatOpen, setChatOpen] = useState(true);
   const [chatPreferExpanded, setChatPreferExpanded] = useState(false);
   const [publicJobPath, setPublicJobPath] = useState<string | null>(null);
@@ -237,7 +245,9 @@ export default function JobCandidateReviewClient() {
   const [statusChangeNote, setStatusChangeNote] = useState("");
   const [statusHistory, setStatusHistory] = useState<StatusHistoryItem[]>([]);
   const [statusHistoryLoading, setStatusHistoryLoading] = useState(false);
-  const [workspaceTab, setWorkspaceTab] = useState<"overview" | "activity" | "resume">("overview");
+  const [workspaceTab, setWorkspaceTab] = useState<"resume" | "activity" | "application">("resume");
+  const [workerApplications, setWorkerApplications] = useState<CandidateProfileApplication[]>([]);
+  const [workerApplicationsLoading, setWorkerApplicationsLoading] = useState(false);
   const [removingFromJob, setRemovingFromJob] = useState(false);
 
   const selected = useMemo(
@@ -255,11 +265,18 @@ export default function JobCandidateReviewClient() {
     [jobOptions, jobId]
   );
 
-  const adminResumeUploadCount = resumeHistoryItems.filter(
-    (resume) => resume.uploadedByType === "staff"
-  ).length;
   const adminResumeUploadLimitReached =
     adminResumeUploadCount >= MAX_RESUME_UPLOADS_PER_ROLE;
+
+  /**
+   * At the quota, re-uploading replaces the newest admin resume for this job
+   * instead of adding another one.
+   */
+  const resumeIdToReplace = adminResumeUploadLimitReached
+    ? [...resumeHistoryItems].reverse().find((resume) => resume.uploadedByType === "staff")?.id ??
+      resumeHistoryItems[resumeHistoryItems.length - 1]?.id ??
+      null
+    : null;
 
   const jobTitle =
     selectedJob?.public_title?.trim() ||
@@ -487,6 +504,38 @@ export default function JobCandidateReviewClient() {
   }, [workerId]);
 
   useEffect(() => {
+    if (!workerId) {
+      setWorkerApplications([]);
+      setWorkerApplicationsLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setWorkerApplicationsLoading(true);
+    void (async () => {
+      try {
+        const response = await fetch(
+          `/api/admin/candidates/${encodeURIComponent(workerId)}/profile`,
+          { cache: "no-store" }
+        );
+        const payload = (await response.json().catch(() => ({}))) as {
+          applications?: CandidateProfileApplication[];
+          error?: string;
+        };
+        if (cancelled) return;
+        if (!response.ok) throw new Error(payload.error || "Failed to load applications");
+        setWorkerApplications(payload.applications ?? []);
+      } catch {
+        if (!cancelled) setWorkerApplications([]);
+      } finally {
+        if (!cancelled) setWorkerApplicationsLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [workerId]);
+
+  useEffect(() => {
     setResumePreviewError(null);
     setZoom(100);
   }, [workerId, resumeUrl, resumePreviewKey]);
@@ -507,10 +556,7 @@ export default function JobCandidateReviewClient() {
       toast.error("Candidate profile is not linked yet, so resume cannot be uploaded.");
       return;
     }
-    const adminUploadCount = resumeHistoryItems.filter(
-      (resume) => resume.uploadedByType === "staff"
-    ).length;
-    if (adminUploadCount >= MAX_RESUME_UPLOADS_PER_ROLE) {
+    if (adminResumeUploadLimitReached && !resumeIdToReplace) {
       toast.error(resumeUploadLimitMessage("admin"));
       return;
     }
@@ -531,15 +577,18 @@ export default function JobCandidateReviewClient() {
         error?: string;
         jobTitle?: string;
         resumes?: ResumeHistoryItem[];
+        adminUploadCount?: number;
       };
       if (!response.ok) {
         throw new Error(payload.error || "Could not load resume history.");
       }
       setResumeHistoryJobTitle(payload.jobTitle?.trim() || jobTitle);
       setResumeHistoryItems(payload.resumes ?? []);
+      setAdminResumeUploadCount(payload.adminUploadCount ?? 0);
     } catch (err) {
       setResumeHistoryError(err instanceof Error ? err.message : "Could not load resume history.");
       setResumeHistoryItems([]);
+      setAdminResumeUploadCount(0);
     } finally {
       setResumeHistoryLoading(false);
     }
@@ -614,6 +663,7 @@ export default function JobCandidateReviewClient() {
       );
       const payload = (await response.json().catch(() => ({}))) as {
         resumes?: ResumeHistoryItem[];
+        adminUploadCount?: number;
         error?: string;
       };
       if (!response.ok) {
@@ -621,6 +671,7 @@ export default function JobCandidateReviewClient() {
       }
 
       setResumeHistoryItems(payload.resumes ?? []);
+      setAdminResumeUploadCount(payload.adminUploadCount ?? 0);
       if (workerIdForDelete) {
         await reloadWorkerProfile(workerIdForDelete);
       }
@@ -658,6 +709,7 @@ export default function JobCandidateReviewClient() {
     try {
       const form = new FormData();
       form.set("resume", pendingResumeFile);
+      if (resumeIdToReplace) form.set("resumeId", resumeIdToReplace);
       const response = await fetch(
         `/api/admin/job-applications/${encodeURIComponent(applicationIdForUpload)}/resume`,
         { method: "POST", body: form }
@@ -1306,7 +1358,7 @@ export default function JobCandidateReviewClient() {
                       </button>
                     </div>
                   </div>
-                  <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+                  <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
                     <button
                       type="button"
                       disabled={!workerId}
@@ -1323,6 +1375,7 @@ export default function JobCandidateReviewClient() {
                         {upcomingInterview ? "Schedule another interview" : "Setup Interview"}
                       </span>
                     </button>
+                    <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
                     <button
                       type="button"
                       disabled={!workerId || (!displayEmail && !displayPhone)}
@@ -1353,6 +1406,52 @@ export default function JobCandidateReviewClient() {
                       <Phone className="h-4 w-4 shrink-0" aria-hidden />
                       <span>Call</span>
                     </button>
+                    {workerId ? (
+                      <Link
+                        href={candidateApplicantProfileHref(workerId, {
+                          from: "applications",
+                          jobId: jobId || selected.job_requisition_id,
+                        })}
+                        className="admin-recruiter-action-chip h-10 w-full rounded-lg border bg-white px-3.5 text-sm font-medium sm:h-9 sm:w-auto"
+                        style={{
+                          borderColor: branding.secondaryHex || "#012352",
+                          color: branding.secondaryHex || "#012352",
+                        }}
+                      >
+                        <span>View Profile</span>
+                      </Link>
+                    ) : (
+                      <button
+                        type="button"
+                        disabled
+                        className="admin-recruiter-action-chip h-10 w-full rounded-lg border bg-white px-3.5 text-sm font-medium opacity-50 sm:h-9 sm:w-auto"
+                        style={{
+                          borderColor: branding.secondaryHex || "#012352",
+                          color: branding.secondaryHex || "#012352",
+                        }}
+                      >
+                        View Profile
+                      </button>
+                    )}
+                    <Link
+                      href={applicationAiAnalysisHref(
+                        selected.id,
+                        jobId || selected.job_requisition_id
+                      )}
+                      className="admin-recruiter-action-chip h-10 w-full rounded-lg border bg-white px-3.5 text-sm font-medium sm:h-9 sm:w-auto"
+                      style={{
+                        borderColor: branding.secondaryHex || "#012352",
+                        color: branding.secondaryHex || "#012352",
+                      }}
+                    >
+                      <BrandedSvgIcon
+                        src="/ai-icon.svg"
+                        className="h-4 w-4"
+                        color={branding.secondaryHex || "#012352"}
+                      />
+                      <span>AI Analysis Overview</span>
+                    </Link>
+                    </div>
                   </div>
                   {statusHistory[0] ? (
                     <p className="mt-3 text-xs text-[#64748B]">
@@ -1438,15 +1537,15 @@ export default function JobCandidateReviewClient() {
                 </div>
 
                 <div
-                  className="flex gap-2 border-b border-[#E5E7EB] px-5 pt-3"
+                  className="flex gap-2 px-5 pt-3"
                   role="tablist"
                   aria-label="Applicant details"
                 >
                   {(
                     [
-                      ["overview", "Overview"],
-                      ["activity", "Activity"],
                       ["resume", "Resume"],
+                      ["activity", "Activity"],
+                      ["application", "Application"],
                     ] as const
                   ).map(([id, label]) => (
                     <button
@@ -1468,8 +1567,83 @@ export default function JobCandidateReviewClient() {
 
                 {workspaceTab === "activity" ? (
                   <CandidateActivityTimeline applicationId={selected.id} reloadToken={matchReloadToken} />
-                ) : workspaceTab === "resume" ? (
+                ) : workspaceTab === "application" ? (
+                  <div className="overflow-x-auto overscroll-x-contain">
+                    {workerApplicationsLoading ? (
+                      <p className="px-5 py-12 text-center text-sm text-[#64748B]">Loading applications…</p>
+                    ) : workerApplications.length === 0 ? (
+                      <p className="px-5 py-12 text-center text-sm text-[#64748B]">
+                        This candidate has not applied to any jobs yet.
+                      </p>
+                    ) : (
+                      <table className="min-w-[720px] w-full text-left">
+                        <thead>
+                          <tr className="border-b border-[#E5E7EB] text-sm font-medium text-[#64748B]">
+                            <th className="px-5 py-3 font-medium">Job Title</th>
+                            <th className="px-4 py-3 text-center font-medium">Work Type</th>
+                            <th className="px-4 py-3 text-center font-medium">Applied Date</th>
+                            <th className="px-5 py-3 text-right font-medium">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {workerApplications.map((row) => {
+                            const applied = formatProfileApplicationDate(row.appliedAt);
+                            return (
+                              <tr key={row.id} className="border-b border-[#F1F5F9] last:border-b-0">
+                                <td className="px-5 py-4 align-top">
+                                  <Link
+                                    href={applicationReviewHref(row.id, row.jobRequisitionId)}
+                                    className="block text-sm font-semibold leading-5 text-[color:var(--brand-primary)] hover:underline"
+                                  >
+                                    {row.jobTitle}
+                                  </Link>
+                                  {row.companyName ? (
+                                    <p className="mt-0.5 text-xs leading-4 text-[#64748B]">
+                                      {row.companyName}
+                                    </p>
+                                  ) : null}
+                                </td>
+                                <td className="px-4 py-4 text-center align-top">
+                                  {row.workType ? (
+                                    <span
+                                      className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${workTypeBadgeClass(row.workType)}`}
+                                    >
+                                      {workTypeLabel(row.workType)}
+                                    </span>
+                                  ) : (
+                                    <span className="text-sm text-[#94A3B8]">—</span>
+                                  )}
+                                </td>
+                                <td className="px-4 py-4 text-center align-top">
+                                  <p className="text-sm font-medium leading-5 text-[#0F172A]">
+                                    {applied.relative}
+                                  </p>
+                                  {applied.absolute && applied.absolute !== applied.relative ? (
+                                    <p className="mt-0.5 text-xs leading-4 text-[#64748B]">
+                                      {applied.absolute}
+                                    </p>
+                                  ) : null}
+                                </td>
+                                <td className="px-5 py-4 text-right align-top">
+                                  <Link
+                                    href={applicationReviewHref(row.id, row.jobRequisitionId)}
+                                    className="inline-flex items-center gap-1 text-sm font-medium text-[color:var(--brand-primary)] hover:underline"
+                                  >
+                                    View Details
+                                    <ChevronRight className="h-4 w-4" />
+                                  </Link>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    )}
+                  </div>
+                ) : (
                   <>
+                {/* Resume heading + toolbar live on candidate profile. */}
+                {/*
                 <div className="border-b border-[#E5E7EB] px-5 pt-5">
                   <h3
                     className="text-lg font-semibold leading-7 sm:text-[20px]"
@@ -1534,6 +1708,7 @@ export default function JobCandidateReviewClient() {
                     </div>
                   </div>
                 </div>
+                */}
 
                 <div className="overflow-auto bg-[#F8FAFC] p-5">
                   {profileLoading ? (
@@ -1581,18 +1756,18 @@ export default function JobCandidateReviewClient() {
                   )}
                 </div>
                   </>
-                ) : (
-                  <div className="border-b border-[#E5E7EB] px-5 pt-5">
-                    <CandidateAnalysisWorkspace
-                      applicationId={selected.id}
-                      workerId={workerId}
-                      candidateName={displayName}
-                      profile={profile?.worker ?? null}
-                      reloadToken={matchReloadToken}
-                      onAnalyzed={() => setMatchReloadToken((value) => value + 1)}
-                    />
-                  </div>
                 )}
+                {/*
+                Overview tab content — use AI Analysis Overview instead.
+                <CandidateAnalysisWorkspace
+                  applicationId={selected.id}
+                  workerId={workerId}
+                  candidateName={displayName}
+                  profile={profile?.worker ?? null}
+                  reloadToken={matchReloadToken}
+                  onAnalyzed={() => setMatchReloadToken((value) => value + 1)}
+                />
+                */}
               </>
             )}
           </section>
@@ -1859,9 +2034,13 @@ export default function JobCandidateReviewClient() {
         error={resumeHistoryError}
         busyResumeId={resumeHistoryBusyId}
         reuploadBusy={resumeUploading}
-        reuploadDisabled={!workerId || adminResumeUploadLimitReached}
+        adminUploadCount={adminResumeUploadCount}
+        replacesExistingResume={Boolean(resumeIdToReplace)}
+        reuploadDisabled={!workerId || (adminResumeUploadLimitReached && !resumeIdToReplace)}
         reuploadDisabledReason={
-          adminResumeUploadLimitReached ? resumeUploadLimitMessage("admin") : null
+          adminResumeUploadLimitReached && !resumeIdToReplace
+            ? resumeUploadLimitMessage("admin")
+            : null
         }
         onClose={() => {
           if (resumeUploading || resumeHistoryBusyId) return;

@@ -28,7 +28,7 @@ export function ListTableCheckbox({
   const checkClass = CHECK_CLASS[size];
 
   return (
-    <span className={`relative inline-flex shrink-0 ${boxClass} ${className ?? ""}`}>
+    <span className={`relative inline-flex shrink-0 cursor-pointer ${boxClass} ${className ?? ""}`}>
       <input
         type="checkbox"
         className={`peer ${boxClass} shrink-0 cursor-pointer appearance-none border border-[#CBD5E1] bg-white transition-colors checked:border-[color:var(--brand-secondary)] checked:bg-[color:var(--brand-secondary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--brand-secondary)_30%,transparent)] disabled:cursor-not-allowed disabled:opacity-50`}

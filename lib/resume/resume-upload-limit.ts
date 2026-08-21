@@ -1,5 +1,9 @@
 import { ResumeUploadValidationError } from "@/lib/resume/validate-resume-upload";
 
+/**
+ * Total resumes a role may add for one candidate, counted across every job.
+ * Reuploads replace an existing file, so they never consume a slot.
+ */
 export const MAX_RESUME_UPLOADS_PER_ROLE = 5;
 
 export type ResumeUploaderRole = "worker" | "admin";
@@ -24,9 +28,9 @@ export function resumeUploadLimitMessage(
   max = MAX_RESUME_UPLOADS_PER_ROLE
 ): string {
   if (role === "admin") {
-    return `Admins can upload a resume up to ${max} times for this job. Delete one from history to upload another.`;
+    return `This candidate already has ${max} admin-uploaded resumes. Reupload one of them to replace its file, or delete one to add a new resume.`;
   }
-  return `You can upload a resume up to ${max} times for this job. Delete one or reupload an existing file.`;
+  return `You can upload up to ${max} resumes in total. Reupload one of them to replace its file, or delete one to add a new resume.`;
 }
 
 export function classifyResumeUploaderRole(

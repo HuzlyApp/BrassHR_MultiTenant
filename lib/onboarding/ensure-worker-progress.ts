@@ -3,45 +3,95 @@ import type { StepProgressRow, WorkerOnboardingProgressPayload } from "@/lib/onb
 import { loadTenantOnboardingConfig } from "@/lib/onboarding/load-tenant-config";
 import { backfillFarthestReachedStepIndex } from "@/lib/onboarding/persist-farthest-reached-step";
 
+function normalizeApplicationId(value?: string | null): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+const PROGRESS_SELECT =
+  "id, status, submitted_at, submitted_with_incomplete_steps, incomplete_step_keys, farthest_reached_step_index, application_id, updated_at, started_at";
+
+async function loadLatestWorkerProgress(
+  supabase: SupabaseClient,
+  workerId: string,
+  configId: string,
+  applicationId: string
+) {
+  // This table has started_at / updated_at, not created_at.
+  let query = supabase
+    .from("worker_onboarding_progress")
+    .select(PROGRESS_SELECT)
+    .eq("worker_id", workerId)
+    .eq("onboarding_config_id", configId);
+
+  if (applicationId) {
+    const { data, error } = await query.eq("application_id", applicationId).limit(1).maybeSingle();
+    if (error) throw error;
+    return data ?? null;
+  }
+
+  const { data, error } = await query
+    .order("updated_at", { ascending: false })
+    .order("started_at", { ascending: false })
+    .limit(1);
+  if (error) throw error;
+  return data?.[0] ?? null;
+}
+
 export async function ensureWorkerOnboardingProgress(
   supabase: SupabaseClient,
   workerId: string,
-  tenantId: string
+  tenantId: string,
+  applicationId?: string | null
 ): Promise<WorkerOnboardingProgressPayload> {
   const config = await loadTenantOnboardingConfig(supabase, tenantId, { workerFacing: true });
   if (!config) {
     throw new Error("No active onboarding configuration for tenant");
   }
 
-  const { data: existing, error: exErr } = await supabase
-    .from("worker_onboarding_progress")
-    .select(
-      "id, status, submitted_at, submitted_with_incomplete_steps, incomplete_step_keys, farthest_reached_step_index"
-    )
-    .eq("worker_id", workerId)
-    .eq("onboarding_config_id", config.configId)
-    .maybeSingle();
-
-  if (exErr) throw exErr;
+  const scopedApplicationId = normalizeApplicationId(applicationId);
+  const existing = await loadLatestWorkerProgress(
+    supabase,
+    workerId,
+    config.configId,
+    scopedApplicationId
+  );
 
   let progressId = existing?.id ? String(existing.id) : null;
   let status = existing?.status ? String(existing.status) : "in_progress";
 
   if (!progressId) {
+    const insertPayload: Record<string, unknown> = {
+      worker_id: workerId,
+      tenant_id: tenantId,
+      onboarding_config_id: config.configId,
+      status: "in_progress",
+    };
+    if (scopedApplicationId) insertPayload.application_id = scopedApplicationId;
+
     const { data: inserted, error: insErr } = await supabase
       .from("worker_onboarding_progress")
-      .insert({
-        worker_id: workerId,
-        tenant_id: tenantId,
-        onboarding_config_id: config.configId,
-        status: "in_progress",
-      })
+      .insert(insertPayload)
       .select("id, status")
       .single();
 
-    if (insErr) throw insErr;
-    progressId = String(inserted.id);
-    status = String(inserted.status);
+    if (insErr) {
+      if (insErr.code === "23505") {
+        const raced = await loadLatestWorkerProgress(
+          supabase,
+          workerId,
+          config.configId,
+          scopedApplicationId
+        );
+        if (!raced?.id) throw insErr;
+        progressId = String(raced.id);
+        status = String(raced.status ?? "in_progress");
+      } else {
+        throw insErr;
+      }
+    } else {
+      progressId = String(inserted.id);
+      status = String(inserted.status);
+    }
   }
 
   const enabledSteps = config.steps.filter((s) => s.is_enabled);
@@ -66,6 +116,7 @@ export async function ensureWorkerOnboardingProgress(
         tenant_id: tenantId,
         onboarding_step_id: s.id,
         status: "pending",
+        ...(scopedApplicationId ? { application_id: scopedApplicationId } : {}),
       }))
     );
     if (bulkErr) throw bulkErr;

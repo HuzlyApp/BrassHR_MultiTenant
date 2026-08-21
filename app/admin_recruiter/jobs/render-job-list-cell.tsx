@@ -7,7 +7,9 @@ import { isJobRequisitionOpen } from "@/lib/jobs/public-application-routing"
 import { normalizeJobRequisitionStatus } from "@/lib/jobs/job-status"
 import { isMspRecruitAndRelease, placementTypeFromApiRow } from "@/lib/jobs/placement"
 import type { SourceType } from "@/lib/jobs/types"
+import { employmentTypeDisplayLabel } from "@/lib/jobs/employment-type"
 import { JobPublicViewLink } from "./JobPublicViewLink"
+import { DraftJobIncompleteInfoIcon } from "./DraftJobIncompleteInfoIcon"
 
 const JOB_CANDIDATE_COUNTER_CLASS =
   "inline-flex h-[18px] min-w-[18px] shrink-0 items-center justify-center rounded-sm bg-[color:color-mix(in_srgb,var(--brand-primary)_14%,white)] px-1 text-[11px] font-medium leading-none text-[#475569]"
@@ -515,6 +517,23 @@ export function renderJobListCell(
       return <span className="text-sm text-[#475569]">{group || "—"}</span>
     }
     case "candidates":
+      if (job.status === "draft") {
+        return (
+          <div className="box-border flex h-full min-h-full w-full min-w-0 items-center gap-2 bg-[#FEF2F2] px-3 py-4">
+            <DraftJobIncompleteInfoIcon />
+            <span className="min-w-0 flex-1 truncate text-left text-sm text-[#334155]">
+              Your job post is incomplete
+            </span>
+            <Link
+              href={`/admin_recruiter/jobs/${job.id}/edit`}
+              onClick={(event) => event.stopPropagation()}
+              className="inline-flex h-8 shrink-0 items-center justify-center rounded-full bg-[color:var(--brand-primary)] px-3 text-xs font-semibold text-white transition hover:brightness-95"
+            >
+              Finish posting
+            </Link>
+          </div>
+        )
+      }
       return (
         <div className="box-border flex h-[58px] w-[350px] max-w-full items-center justify-between px-[14px]">
           <JobCandidateMetric
@@ -598,7 +617,11 @@ export function renderJobListCell(
         <span className="text-sm text-[#475569]">{jobPlacementType(job) || "—"}</span>
       )
     case "employmentType":
-      return <span className="text-sm text-[#475569]">{job.employment_type || "—"}</span>
+      return (
+        <span className="text-sm text-[#475569]">
+          {job.employment_type ? employmentTypeDisplayLabel(job.employment_type) : "—"}
+        </span>
+      )
     case "jobType":
       return <span className="text-sm text-[#475569]">{job.shift_type?.trim() || "—"}</span>
     case "profession":

@@ -3,6 +3,8 @@
 import { Check } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
+import { placementTypeFromApiRow } from "@/lib/jobs/placement";
+import type { PlacementType } from "@/lib/jobs/types";
 
 export type ExistingJobPickerOption = {
   id: string;
@@ -13,6 +15,8 @@ export type ExistingJobPickerOption = {
   facility_name: string | null;
   status?: string;
   source_type?: string | null;
+  placement_type?: string | null;
+  employment_type?: string | null;
   internal_requisition_number?: string | null;
   created_at?: string | null;
   published_at?: string | null;
@@ -25,6 +29,14 @@ function jobPickerSourceType(option: ExistingJobPickerOption): ExistingJobSource
   return raw === "msp" ? "MSP" : "Internal";
 }
 
+function jobPickerPlacementType(option: ExistingJobPickerOption): PlacementType {
+  return placementTypeFromApiRow(
+    jobPickerSourceType(option),
+    option.placement_type,
+    option.employment_type
+  );
+}
+
 function JobSourceTypeToggle({
   value,
   onChange,
@@ -34,7 +46,7 @@ function JobSourceTypeToggle({
 }) {
   return (
     <div
-      className="inline-flex h-10 shrink-0 rounded-lg border border-[#CBD5E1] bg-[#F8FAFC] p-0.5"
+      className="flex h-10 w-full rounded-lg border border-[#CBD5E1] bg-[#F8FAFC] p-0.5 lg:inline-flex lg:w-auto lg:shrink-0"
       role="group"
       aria-label="Job source type"
     >
@@ -46,7 +58,7 @@ function JobSourceTypeToggle({
             type="button"
             aria-pressed={selected}
             onClick={() => onChange(option)}
-            className={`min-w-[76px] rounded-md px-3 text-sm font-medium transition ${
+            className={`min-w-0 flex-1 rounded-md px-3 text-sm font-medium transition lg:min-w-[76px] lg:flex-none ${
               selected
                 ? "bg-[color:var(--brand-primary)] text-white shadow-sm"
                 : "text-[#64748B] hover:text-[#334155]"
@@ -99,6 +111,7 @@ type ExistingJobPickerPanelProps = {
   onSelectJob: (jobId: string | null) => void;
   sourceTypeFilter: ExistingJobSourceTypeFilter;
   onSourceTypeFilterChange: (value: ExistingJobSourceTypeFilter) => void;
+  placementTypeFilter?: PlacementType | null;
 };
 
 export function ExistingJobPickerPanel({
@@ -108,6 +121,7 @@ export function ExistingJobPickerPanel({
   onSelectJob,
   sourceTypeFilter,
   onSourceTypeFilterChange,
+  placementTypeFilter = null,
 }: ExistingJobPickerPanelProps) {
   const branding = useTenantBranding();
   const [search, setSearch] = useState("");
@@ -117,11 +131,23 @@ export function ExistingJobPickerPanel({
 
   useEffect(() => {
     setLocationFilter("");
-  }, [sourceTypeFilter]);
+  }, [sourceTypeFilter, placementTypeFilter]);
 
   const sourceFilteredJobs = useMemo(
-    () => jobs.filter((option) => jobPickerSourceType(option) === sourceTypeFilter),
-    [jobs, sourceTypeFilter]
+    () =>
+      jobs.filter((option) => {
+        if (jobPickerSourceType(option) !== sourceTypeFilter) return false;
+        if (
+          sourceTypeFilter === "MSP" &&
+          (placementTypeFilter === "Recruit_and_Release" ||
+            placementTypeFilter === "Recruit_and_EOR") &&
+          jobPickerPlacementType(option) !== placementTypeFilter
+        ) {
+          return false;
+        }
+        return true;
+      }),
+    [jobs, sourceTypeFilter, placementTypeFilter]
   );
 
   const locationOptions = useMemo(() => {
@@ -167,8 +193,8 @@ export function ExistingJobPickerPanel({
   return (
     <div className="rounded-xl border border-[#E5E7EB] bg-white">
       <div className="space-y-3 border-b border-[#E5E7EB] p-3 sm:p-4">
-        <div className="flex flex-col gap-3 min-[640px]:flex-row min-[640px]:items-center">
-          <label className="relative block min-w-0 flex-1">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+          <label className="relative block min-w-0 w-full flex-1">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src="/search-candidate-jobs.svg"
@@ -189,12 +215,12 @@ export function ExistingJobPickerPanel({
           <JobSourceTypeToggle value={sourceTypeFilter} onChange={onSourceTypeFilterChange} />
         </div>
 
-        <div className="flex items-center gap-2 sm:gap-3">
-          <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
+        <div className="flex flex-col gap-2.5 lg:flex-row lg:items-center lg:gap-3">
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 sm:gap-3">
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className={`${FILTER_SELECT_CLASS} shrink-0`}
+              className={`${FILTER_SELECT_CLASS} min-w-0 flex-1 basis-[calc(50%-0.25rem)] sm:flex-none sm:basis-auto`}
               style={FILTER_SELECT_CHEVRON}
               aria-label="Filter by status"
             >
@@ -208,7 +234,7 @@ export function ExistingJobPickerPanel({
             <select
               value={locationFilter}
               onChange={(e) => setLocationFilter(e.target.value)}
-              className={`${FILTER_SELECT_CLASS} min-w-0 max-w-[140px] flex-1 sm:max-w-[180px] sm:flex-none`}
+              className={`${FILTER_SELECT_CLASS} min-w-0 flex-1 basis-[calc(50%-0.25rem)] sm:max-w-[180px] sm:flex-none sm:basis-auto`}
               style={FILTER_SELECT_CHEVRON}
               aria-label="Filter by location"
             >
@@ -229,11 +255,11 @@ export function ExistingJobPickerPanel({
             </button>
           </div>
 
-          <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+          <div className="flex min-w-0 flex-wrap items-center justify-between gap-2 sm:gap-3 lg:shrink-0 lg:justify-end">
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as "newest" | "oldest" | "")}
-              className={`${FILTER_SELECT_CLASS} shrink-0`}
+              className={`${FILTER_SELECT_CLASS} min-w-0 shrink-0`}
               style={FILTER_SELECT_CHEVRON}
               aria-label="Sort jobs"
             >
@@ -241,7 +267,7 @@ export function ExistingJobPickerPanel({
               <option value="newest">Newest</option>
               <option value="oldest">Oldest</option>
             </select>
-            <p className="inline-flex shrink-0 items-center gap-1.5 text-sm whitespace-nowrap text-[#64748B]">
+            <p className="inline-flex min-w-0 items-center gap-1.5 text-sm text-[#64748B]">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src="/jobs-count-icon.svg"
@@ -251,7 +277,9 @@ export function ExistingJobPickerPanel({
                 className="h-3.5 w-3.5 shrink-0"
                 aria-hidden
               />
-              <span>{filteredJobs.length} of {sourceFilteredJobs.length} jobs</span>
+              <span className="min-w-0 break-words">
+                {filteredJobs.length} of {sourceFilteredJobs.length} jobs
+              </span>
             </p>
           </div>
         </div>
@@ -288,9 +316,11 @@ export function ExistingJobPickerPanel({
                     />
                   ) : null}
                 </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block text-sm font-semibold leading-5 text-[#1E293B]">{title}</span>
-                  <span className="mt-0.5 block text-xs leading-4 text-[#64748B]">
+                <span className="min-w-0 flex-1 overflow-hidden">
+                  <span className="block truncate text-sm font-semibold leading-5 text-[#1E293B]">
+                    {title}
+                  </span>
+                  <span className="mt-0.5 block truncate text-xs leading-4 text-[#64748B]">
                     {location !== "—" ? location : jobReference(option)}
                   </span>
                 </span>

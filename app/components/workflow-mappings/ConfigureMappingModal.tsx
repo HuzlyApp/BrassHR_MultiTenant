@@ -105,7 +105,7 @@ export default function ConfigureMappingModal({
             >
               <option value="W2">W2</option>
               <option value="1099">1099</option>
-              <option value="Contract">R&R</option>
+              <option value="Contract">RNR</option>
             </select>
           </label>
         </div>

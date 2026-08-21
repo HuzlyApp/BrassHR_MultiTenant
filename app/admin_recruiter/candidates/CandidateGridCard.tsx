@@ -8,8 +8,9 @@ import { candidateStatusBadgeClassName } from "./candidate-status-badge";
 import { CANDIDATE_CARD_SURFACE_CLASS } from "./candidate-card-surface";
 import type { CandidateRow } from "./types";
 
-import { CandidateAiFinalApprovalLink } from "./CandidateAiFinalApprovalLink";
-import { candidateMailHref, candidateProfileHref } from "./candidate-links";
+import { CandidateAiAnalysisLink } from "./CandidateAiAnalysisLink";
+import { CandidateProfileIconLink } from "./CandidateProfileIconLink";
+import { candidateApplicantProfileHref, candidateMailHref } from "./candidate-links";
 
 const BRAND_ICON = "var(--brand-primary)";
 
@@ -26,7 +27,10 @@ export function CandidateGridCard({
   onMessage,
   statusBadgeRounded = "xl",
 }: CandidateGridCardProps) {
-  const profileHref = candidateProfileHref(c.id);
+  const profileHref = candidateApplicantProfileHref(c.id, {
+    from: "candidates",
+    tab: "applications",
+  });
   const statusRoundClass = statusBadgeRounded === "sm" ? "rounded-sm" : "rounded-xl";
 
   return (
@@ -47,12 +51,10 @@ export function CandidateGridCard({
           </div>
 
           <div className="pointer-events-auto flex shrink-0 items-center gap-1.5">
-            <CandidateAiFinalApprovalLink
+            <CandidateAiAnalysisLink
               workerId={c.id}
-              status={c.status}
               candidateName={c.name}
               className="flex h-6 w-6 items-center justify-center rounded-md transition hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_8%,white)]"
-              iconClassName="h-3.5 w-3.5 text-[color:var(--brand-primary)]"
             />
             {onMessage ? (
               <button
@@ -72,13 +74,12 @@ export function CandidateGridCard({
             >
               <BrandedSvgIcon src="/icons/admin-recruiter/save.svg" className="h-4 w-4" color={BRAND_ICON} />
             </Link>
-            <Link
-              href={profileHref}
-              className="flex h-6 w-6 items-center justify-center rounded-md text-[#4e6462] transition hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_8%,white)]"
-              aria-label="View profile"
-            >
-              <BrandedSvgIcon src="/icons/admin-recruiter/eye.svg" className="h-4 w-4" color={BRAND_ICON} />
-            </Link>
+            <CandidateProfileIconLink
+              workerId={c.id}
+              candidateName={c.name}
+              from="candidates"
+              className="flex h-6 w-6 items-center justify-center rounded-md transition hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_8%,white)]"
+            />
           </div>
         </div>
 

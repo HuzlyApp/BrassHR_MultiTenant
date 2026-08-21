@@ -1,15 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Upload, X } from "lucide-react";
+import { Check, Upload, X } from "lucide-react";
 import BrandedFileTypeIcon from "@/app/admin_recruiter/components/BrandedFileTypeIcon";
 import { useApplicantPortal } from "./ApplicantPortalProvider";
 import { WorkerFilePicker } from "./WorkerFilePicker";
-import {
-  WORKER_BTN_OUTLINE,
-  WORKER_BTN_OUTLINE_BRAND,
-  WORKER_BTN_PRIMARY,
-} from "./worker-portal-buttons";
+import { WORKER_BTN_OUTLINE, WORKER_BTN_PRIMARY } from "./worker-portal-buttons";
 import {
   WORKER_SCHEDULE_CARD_CLASS,
   WORKER_DOCUMENTS_PAGE_SECTION_TITLE_CLASS,
@@ -33,6 +29,18 @@ const UPLOAD_MODAL_SELECT_CHEVRON = {
   )}")`,
 } as const;
 
+const TABLE_LINE = "border border-[#E5E7EB]";
+const TABLE_HEADER_CLASS = `${TABLE_LINE} bg-[#F8FAFC] px-3 py-3 text-center text-xs font-semibold uppercase tracking-wide text-[#64748B]`;
+const TABLE_HEADER_RESUME_CLASS = `${TABLE_LINE} bg-[#F8FAFC] px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-[#64748B]`;
+const TABLE_CELL_CLASS = `${TABLE_LINE} px-3 py-3 align-middle`;
+const TABLE_CELL_CENTER_CLASS = `${TABLE_CELL_CLASS} text-center`;
+const VIEW_BTN =
+  "inline-flex h-9 items-center justify-center rounded-md bg-[color:var(--brand-primary)] px-3 text-xs font-semibold text-white transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50";
+const REUPLOAD_BTN =
+  "inline-flex h-9 items-center justify-center rounded-md border border-[color:var(--brand-primary)] px-3 text-xs font-semibold text-[color:var(--brand-primary)] transition hover:bg-[color-mix(in_srgb,var(--brand-primary)_8%,white)] disabled:cursor-not-allowed disabled:opacity-50";
+const DELETE_BTN =
+  "inline-flex h-9 items-center justify-center rounded-md border border-[#D1D5DB] px-3 text-xs font-semibold text-[#475569] transition hover:bg-[#F8FAFC] disabled:cursor-not-allowed disabled:opacity-50";
+
 type WorkerResumeItem = {
   id: string;
   originalFileName: string;
@@ -42,6 +50,7 @@ type WorkerResumeItem = {
   parsingStatusLabel: string;
   uploadedAt: string;
   uploadedAtLabel: string;
+  isReuploaded?: boolean;
   jobApplicationId: string | null;
   jobTitle: string | null;
   uploadedByName: string;
@@ -49,38 +58,99 @@ type WorkerResumeItem = {
   uploadedByRoleLabel?: "Admin" | "Worker" | "";
 };
 
-function workerUploadCountForJob(resumes: WorkerResumeItem[], jobApplicationId: string): number {
-  return resumes.filter(
-    (resume) =>
-      resume.jobApplicationId === jobApplicationId && resume.uploadedByRoleLabel !== "Admin"
-  ).length;
+/** The quota is per candidate across every job, so job applied is not part of it. */
+function workerUploadCount(resumes: WorkerResumeItem[]): number {
+  return resumes.filter((resume) => resume.uploadedByRoleLabel !== "Admin").length;
 }
 
-function ResumeUploaderCell({ resume }: { resume: WorkerResumeItem }) {
+function resumeIconType(fileName: string, fileType: string | null | undefined): "pdf" | "jpeg" {
+  const lower = `${fileName} ${fileType ?? ""}`.toLowerCase();
+  if (lower.includes("jpeg") || lower.includes("jpg") || lower.includes("png")) return "jpeg";
+  return "pdf";
+}
+
+function ReuploadedBadge() {
   return (
-    <div className="min-w-0 text-left min-[900px]:text-right" title={resume.uploadedByName}>
-      <p className="truncate text-sm font-medium leading-5 text-[#334155]">
-        {resume.uploadedByName}
-      </p>
+    <span className="mt-1 inline-flex items-center rounded-md bg-[#EFF6FF] px-2 py-0.5 text-[11px] font-semibold text-[#1D4ED8]">
+      Reuploaded
+    </span>
+  );
+}
+
+/** Read-only in the worker portal: parsing is a recruiter-side action. */
+function ParseStatusBadge({ status }: { status: WorkerResumeItem["parsingStatus"] }) {
+  if (status === "completed") {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-md bg-[color:var(--brand-secondary)] px-2.5 py-1 text-[11px] font-semibold text-white">
+        <Check className="h-3 w-3" aria-hidden />
+        Parsed
+      </span>
+    );
+  }
+  if (status === "processing") {
+    return (
+      <span className="inline-flex items-center rounded-md bg-[#EEF2FF] px-2.5 py-1 text-[11px] font-semibold text-[#4338CA]">
+        Parsing…
+      </span>
+    );
+  }
+  if (status === "failed") {
+    return (
+      <span className="inline-flex items-center rounded-md bg-[#FEF2F2] px-2.5 py-1 text-[11px] font-semibold text-[#B91C1C]">
+        Parse failed
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center rounded-md bg-[#F1F5F9] px-2.5 py-1 text-[11px] font-semibold text-[#64748B]">
+      Not parsed
+    </span>
+  );
+}
+
+function ResumeFileCell({ resume, index }: { resume: WorkerResumeItem; index: number }) {
+  return (
+    <div className="flex min-w-0 items-center gap-3">
+      <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[color:color-mix(in_srgb,var(--brand-primary)_14%,white)] text-xs font-semibold text-[color:var(--brand-primary)]">
+        {index}
+      </span>
+      <BrandedFileTypeIcon
+        type={resumeIconType(resume.originalFileName, resume.fileType)}
+        className="h-8 w-8 shrink-0"
+      />
+      <div className="min-w-0">
+        <p
+          className="break-words text-sm font-semibold leading-5 text-[color:var(--brand-primary)]"
+          title={resume.originalFileName}
+        >
+          {resume.originalFileName}
+        </p>
+        <p className="mt-0.5 text-xs text-[#64748B]">{resume.fileSizeLabel}</p>
+        {resume.isReuploaded ? <ReuploadedBadge /> : null}
+      </div>
+    </div>
+  );
+}
+
+function UploadedByCell({ resume }: { resume: WorkerResumeItem }) {
+  return (
+    <div className="min-w-0" title={resume.uploadedByName}>
+      <p className="truncate text-sm font-medium text-[#334155]">{resume.uploadedByName || "—"}</p>
       {resume.uploadedByRoleLabel ? (
         <p className="mt-0.5 text-[11px] font-medium leading-4 text-[#94A3B8]">
-          {resume.uploadedByRoleLabel}
+          {resume.uploadedByRoleLabel === "Admin" ? "Admin Recruiter" : "Worker"}
         </p>
       ) : null}
     </div>
   );
 }
 
-function ResumeRow({
-  resume,
-  index,
+function ResumeActions({
   busy,
   onView,
   onReupload,
   onDelete,
 }: {
-  resume: WorkerResumeItem;
-  index: number;
   busy: boolean;
   onView: () => void;
   onReupload: (file: File) => void;
@@ -89,72 +159,130 @@ function ResumeRow({
   const inputRef = useRef<HTMLInputElement>(null);
 
   return (
-    <div className="grid gap-3 border-b border-[#E5E7EB] px-4 py-4 last:border-b-0 min-[900px]:grid-cols-[minmax(0,1.15fr)_minmax(0,0.95fr)_minmax(0,7.5rem)_auto] min-[900px]:items-center">
-      <div className="flex min-w-0 items-start gap-3">
-        <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[color:color-mix(in_srgb,var(--brand-primary)_14%,white)] text-xs font-semibold text-[color:var(--brand-primary)]">
-          {index}
-        </span>
-        <BrandedFileTypeIcon type="pdf" className="mt-0.5 h-8 w-8 shrink-0" />
+    <div className="flex flex-nowrap items-center justify-start gap-2">
+      <button type="button" disabled={busy} onClick={onView} className={VIEW_BTN}>
+        View
+      </button>
+      <button
+        type="button"
+        disabled={busy}
+        title="Replace this resume file"
+        onClick={() => inputRef.current?.click()}
+        className={REUPLOAD_BTN}
+      >
+        Reupload
+      </button>
+      <input
+        ref={inputRef}
+        type="file"
+        accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        className="hidden"
+        disabled={busy}
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          if (!file) return;
+          onReupload(file);
+          event.target.value = "";
+        }}
+      />
+      <button type="button" disabled={busy} onClick={onDelete} className={DELETE_BTN}>
+        Delete
+      </button>
+    </div>
+  );
+}
+
+type ResumeRowModel = {
+  resume: WorkerResumeItem;
+  index: number;
+  busy: boolean;
+  onView: () => void;
+  onReupload: (file: File) => void;
+  onDelete: () => void;
+};
+
+function ResumeMobileCard(props: ResumeRowModel) {
+  const { resume, index } = props;
+  const jobTitle = resume.jobTitle || "—";
+  return (
+    <div className="space-y-3 border-b border-[#E5E7EB] px-4 py-4 last:border-b-0">
+      <ResumeFileCell resume={resume} index={index} />
+      <div className="grid grid-cols-1 gap-3 pl-10 sm:grid-cols-2">
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-[#94A3B8]">
+            Parse status
+          </p>
+          <div className="mt-1">
+            <ParseStatusBadge status={resume.parsingStatus} />
+          </div>
+        </div>
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-[#94A3B8]">
+            {resume.isReuploaded ? "Updated date" : "Uploaded date"}
+          </p>
+          <p className="mt-1 text-sm font-medium text-[#334155]">{resume.uploadedAtLabel}</p>
+        </div>
         <div className="min-w-0">
-          <p className="truncate text-sm font-semibold text-[color:var(--brand-primary)]">
-            {resume.originalFileName}
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-[#94A3B8]">Job name</p>
+          <p
+            className="mt-1 truncate text-sm font-semibold text-[color:var(--brand-secondary)]"
+            title={jobTitle}
+          >
+            {jobTitle}
           </p>
-          <p className="mt-0.5 text-xs text-[#64748B]">{resume.fileSizeLabel}</p>
-          <p className="mt-0.5 text-xs text-[#94A3B8] min-[900px]:hidden">
-            {resume.jobTitle || "General application"}
+        </div>
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-[#94A3B8]">
+            Uploaded by
           </p>
-          <p className="mt-0.5 text-xs text-[#94A3B8]">Uploaded {resume.uploadedAtLabel}</p>
-          <div className="mt-2 min-[900px]:hidden">
-            <p className="text-xs font-medium text-[#64748B]">Uploaded by</p>
-            <div className="mt-1">
-              <ResumeUploaderCell resume={resume} />
-            </div>
+          <div className="mt-1">
+            <UploadedByCell resume={resume} />
           </div>
         </div>
       </div>
-
-      <div className="min-w-0 pl-10 min-[900px]:pl-0">
-        <p className="truncate text-sm font-semibold text-[#0F172A]">
-          {resume.jobTitle || "—"}
-        </p>
-        <p className="mt-0.5 text-xs text-[#64748B]">Job applied</p>
-      </div>
-
-      <div className="hidden min-w-0 min-[900px]:block">
-        <p className="mb-1 text-xs font-medium text-[#64748B] min-[900px]:text-right">Uploaded by</p>
-        <ResumeUploaderCell resume={resume} />
-      </div>
-
-      <div className="flex shrink-0 flex-wrap items-center gap-2 pl-10 min-[900px]:justify-end min-[900px]:pl-0">
-        <button type="button" disabled={busy} onClick={onView} className={WORKER_BTN_OUTLINE_BRAND}>
-          View
-        </button>
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => inputRef.current?.click()}
-          className={WORKER_BTN_OUTLINE_BRAND}
-        >
-          Reupload
-        </button>
-        <input
-          ref={inputRef}
-          type="file"
-          accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-          className="hidden"
-          disabled={busy}
-          onChange={(event) => {
-            const file = event.target.files?.[0];
-            if (!file) return;
-            onReupload(file);
-            event.target.value = "";
-          }}
-        />
-        <button type="button" disabled={busy} onClick={onDelete} className={WORKER_BTN_OUTLINE_BRAND}>
-          Delete
-        </button>
+      <div className="pl-10">
+        <ResumeActions {...props} />
       </div>
     </div>
+  );
+}
+
+function ResumeTableRow(props: ResumeRowModel) {
+  const { resume, index } = props;
+  const jobTitle = resume.jobTitle || "—";
+  return (
+    <tr>
+      <td className={TABLE_CELL_CLASS}>
+        <ResumeFileCell resume={resume} index={index} />
+      </td>
+      <td className={`${TABLE_CELL_CENTER_CLASS} whitespace-nowrap`}>
+        <div className="flex justify-center">
+          <ParseStatusBadge status={resume.parsingStatus} />
+        </div>
+      </td>
+      <td className={`${TABLE_CELL_CENTER_CLASS} whitespace-nowrap`}>
+        <p className="text-sm font-medium leading-5 text-[#334155]">{resume.uploadedAtLabel}</p>
+        {resume.isReuploaded ? (
+          <p className="mt-0.5 text-[11px] font-medium text-[#94A3B8]">Updated</p>
+        ) : null}
+      </td>
+      <td className={TABLE_CELL_CENTER_CLASS}>
+        <p
+          className="truncate text-sm font-semibold text-[color:var(--brand-secondary)]"
+          title={jobTitle}
+        >
+          {jobTitle}
+        </p>
+      </td>
+      <td className={TABLE_CELL_CENTER_CLASS}>
+        <UploadedByCell resume={resume} />
+      </td>
+      <td className={`${TABLE_CELL_CENTER_CLASS} whitespace-nowrap`}>
+        <div className="flex justify-center">
+          <ResumeActions {...props} />
+        </div>
+      </td>
+    </tr>
   );
 }
 
@@ -203,17 +331,12 @@ function UploadResumeModal({
 
   if (!open) return null;
 
-  const selectedJobUploadCount = selectedJobId
-    ? workerUploadCountForJob(resumes, selectedJobId)
-    : 0;
-  const selectedJobAtLimit = selectedJobUploadCount >= MAX_RESUME_UPLOADS_PER_ROLE;
+  const uploadCount = workerUploadCount(resumes);
+  const atLimit = uploadCount >= MAX_RESUME_UPLOADS_PER_ROLE;
 
   function handleSubmit() {
     const nextErrors: { job?: string; file?: string } = {};
     if (!selectedJobId) nextErrors.job = "Select a job.";
-    if (selectedJobId && workerUploadCountForJob(resumes, selectedJobId) >= MAX_RESUME_UPLOADS_PER_ROLE) {
-      nextErrors.job = resumeUploadLimitMessage("worker");
-    }
     if (!selectedFile) nextErrors.file = "Choose a resume file.";
     if (Object.keys(nextErrors).length > 0) {
       setFieldErrors(nextErrors);
@@ -245,7 +368,7 @@ function UploadResumeModal({
             </h2>
             <p className="mt-2 text-sm leading-6 text-[#64748B]">
               Select the job this resume is for, then choose your file. You can upload up to{" "}
-              {MAX_RESUME_UPLOADS_PER_ROLE} resumes per job.
+              {MAX_RESUME_UPLOADS_PER_ROLE} resumes in total.
             </p>
           </div>
           <button
@@ -263,6 +386,12 @@ function UploadResumeModal({
           {error ? (
             <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
               {error}
+            </div>
+          ) : null}
+
+          {atLimit ? (
+            <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm leading-6 text-red-700">
+              {resumeUploadLimitMessage("worker")}
             </div>
           ) : null}
 
@@ -284,7 +413,7 @@ function UploadResumeModal({
                     setSelectedJobId(event.target.value);
                     if (fieldErrors.job) setFieldErrors((current) => ({ ...current, job: undefined }));
                   }}
-                  disabled={uploading}
+                  disabled={uploading || atLimit}
                   style={UPLOAD_MODAL_SELECT_CHEVRON}
                   className={`h-11 w-full cursor-pointer appearance-none rounded-lg border bg-white bg-[length:12px_12px] bg-[right_12px_center] bg-no-repeat pl-3 pr-10 text-sm text-[#334155] outline-none focus:border-[color:var(--brand-primary)] focus:ring-0 ${
                     fieldErrors.job ? "border-red-300" : "border-[#D1D5DB]"
@@ -299,14 +428,11 @@ function UploadResumeModal({
                 </select>
                 {fieldErrors.job ? (
                   <p className="mt-1 text-xs text-red-600">{fieldErrors.job}</p>
-                ) : selectedJobAtLimit ? (
-                  <p className="mt-1 text-xs text-red-600">{resumeUploadLimitMessage("worker")}</p>
-                ) : selectedJobId ? (
+                ) : (
                   <p className="mt-1 text-xs text-[#64748B]">
-                    {selectedJobUploadCount} of {MAX_RESUME_UPLOADS_PER_ROLE} worker uploads used
-                    for this job.
+                    {uploadCount} of {MAX_RESUME_UPLOADS_PER_ROLE} resumes used.
                   </p>
-                ) : null}
+                )}
               </div>
 
               <div>
@@ -318,7 +444,7 @@ function UploadResumeModal({
                     setSelectedFile(file);
                     if (fieldErrors.file) setFieldErrors((current) => ({ ...current, file: undefined }));
                   }}
-                  disabled={uploading}
+                  disabled={uploading || atLimit}
                   error={fieldErrors.file}
                   accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                 />
@@ -333,7 +459,7 @@ function UploadResumeModal({
           </button>
           <button
             type="button"
-            disabled={uploading || appliedJobs.length === 0 || selectedJobAtLimit}
+            disabled={uploading || appliedJobs.length === 0 || atLimit}
             onClick={handleSubmit}
             className={WORKER_BTN_PRIMARY}
           >
@@ -476,6 +602,19 @@ export function WorkerResumeSubmittedSection() {
   }
 
   const sectionBusy = uploading || busyResumeId != null;
+  const uploadsUsed = workerUploadCount(resumes);
+  const atLimit = uploadsUsed >= MAX_RESUME_UPLOADS_PER_ROLE;
+
+  function rowModelForResume(resume: WorkerResumeItem, index: number): ResumeRowModel {
+    return {
+      resume,
+      index: index + 1,
+      busy: uploading || busyResumeId === resume.id,
+      onView: () => void openResume(resume.id),
+      onReupload: (file) => void uploadResume(resume.jobApplicationId ?? "", file, resume.id),
+      onDelete: () => void deleteResume(resume.id),
+    };
+  }
 
   return (
     <>
@@ -488,14 +627,11 @@ export function WorkerResumeSubmittedSection() {
             >
               Resume Submitted
             </h2>
-            <p className="mt-1 text-sm text-[#64748B]">
-              Upload up to {MAX_RESUME_UPLOADS_PER_ROLE} resumes per job. Previous uploads stay in
-              your history.
-            </p>
           </div>
           <button
             type="button"
-            disabled={sectionBusy}
+            disabled={sectionBusy || atLimit}
+            title={atLimit ? resumeUploadLimitMessage("worker") : undefined}
             onClick={() => {
               setUploadModalError(null);
               setUploadModalOpen(true);
@@ -521,19 +657,57 @@ export function WorkerResumeSubmittedSection() {
           </p>
         ) : (
           <div>
-            {resumes.map((resume, index) => (
-              <ResumeRow
-                key={resume.id}
-                resume={resume}
-                index={index + 1}
-                busy={sectionBusy && (uploading || busyResumeId === resume.id)}
-                onView={() => void openResume(resume.id)}
-                onReupload={(file) => void uploadResume(resume.jobApplicationId ?? "", file, resume.id)}
-                onDelete={() => void deleteResume(resume.id)}
-              />
-            ))}
+            <div className="lg:hidden">
+              {resumes.map((resume, index) => (
+                <ResumeMobileCard key={resume.id} {...rowModelForResume(resume, index)} />
+              ))}
+            </div>
+            <div className="hidden overflow-x-auto lg:block">
+              <table className="w-full min-w-[1040px] table-fixed border-collapse">
+                <colgroup>
+                  <col className="w-[24%]" />
+                  <col className="w-[12%]" />
+                  <col className="w-[14%]" />
+                  <col className="w-[18%]" />
+                  <col className="w-[12%]" />
+                  <col className="w-[20%]" />
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th scope="col" className={TABLE_HEADER_RESUME_CLASS}>
+                      Resume
+                    </th>
+                    <th scope="col" className={TABLE_HEADER_CLASS}>
+                      Parse status
+                    </th>
+                    <th scope="col" className={TABLE_HEADER_CLASS}>
+                      Uploaded date
+                    </th>
+                    <th scope="col" className={TABLE_HEADER_CLASS}>
+                      Job name
+                    </th>
+                    <th scope="col" className={TABLE_HEADER_CLASS}>
+                      Uploaded by
+                    </th>
+                    <th scope="col" className={TABLE_HEADER_CLASS}>
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {resumes.map((resume, index) => (
+                    <ResumeTableRow key={resume.id} {...rowModelForResume(resume, index)} />
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
+
+        <p className="border-t border-[#E5E7EB] px-5 py-3 text-center text-sm text-[#64748B]">
+          Note: You can upload up to {MAX_RESUME_UPLOADS_PER_ROLE} resumes in total ({uploadsUsed} of{" "}
+          {MAX_RESUME_UPLOADS_PER_ROLE} used). After that, reupload a resume to replace its file.
+        </p>
       </div>
 
       <UploadResumeModal

@@ -6,6 +6,7 @@ import { extractResumeTextFromUpload } from "@/lib/jobs/match-analysis/extract-r
 import { persistWorkerResumeRecord } from "@/lib/onboarding/persist-worker-resume-record";
 import { syncWorkerPrimaryResumePath } from "@/lib/onboarding/sync-worker-primary-resume-path";
 import { assertResumeUploadWithinLimit } from "@/lib/resume/assert-resume-upload-limit";
+import { resumeUploadFolder } from "@/lib/resume/resume-reupload-path";
 import {
   isResumeUploadValidationError,
   resolveResumeFileType,
@@ -33,9 +34,9 @@ function formatApiError(error: unknown, fallback: string): string {
 }
 
 /**
- * POST — reupload résumé for a job application (candidates listing Update Resume).
+ * POST — add or replace a résumé for a job application.
  * Same format + content gates as applicant /api/upload-resume.
- * multipart/form-data: resume=<file>
+ * multipart/form-data: resume=<file>, resumeId=<id> (replace instead of add).
  */
 export async function POST(
   req: NextRequest,
@@ -61,6 +62,9 @@ export async function POST(
     if (!(file instanceof File) || file.size <= 0) {
       return NextResponse.json({ error: "Please select a resume file to upload." }, { status: 400 });
     }
+
+    // Present when replacing an existing resume rather than adding a new one.
+    const replacedResumeId = String(form.get("resumeId") ?? "").trim();
 
     const formatError = validateResumeUploadFile({
       name: file.name,
@@ -150,18 +154,19 @@ export async function POST(
           : null;
       resumeOwnerId = workerUserId || workerId;
 
-      await assertResumeUploadWithinLimit(supabase, {
-        workerId,
-        workerUserId,
-        jobApplicationId: applicationId,
-        uploadedByUserId: auth.userId,
-        role: "admin",
-      });
+      if (!replacedResumeId) {
+        await assertResumeUploadWithinLimit(supabase, {
+          workerId,
+          workerUserId,
+          uploadedByUserId: auth.userId,
+          role: "admin",
+        });
+      }
     }
 
     const safeName = sanitizeFileName(file.name || "resume.pdf");
     const objectPath = workerId
-      ? `${workerId}/${randomUUID()}-${safeName}`
+      ? `${resumeUploadFolder(workerId, Boolean(replacedResumeId))}/${randomUUID()}-${safeName}`
       : `admin-candidates/${tenantId}/${randomUUID()}/${safeName}`;
 
     const { error: uploadError } = await supabase.storage
@@ -178,19 +183,26 @@ export async function POST(
     }
 
     if (workerId && resumeOwnerId) {
-      await persistWorkerResumeRecord(supabase, resumeOwnerId, {
-        fileUrl: objectPath,
-        originalFileName: safeName,
-        fileType,
-        fileSizeBytes: file.size,
-        parsingStatus: "pending",
-        textLength: extractedText.trim().length,
-        extractedText,
-        parsedData: { text: extractedText },
-        jobApplicationId: applicationId,
-        uploadedByUserId: auth.userId,
-        uploaderRole: "admin",
-      });
+      await persistWorkerResumeRecord(
+        supabase,
+        resumeOwnerId,
+        {
+          fileUrl: objectPath,
+          originalFileName: safeName,
+          fileType,
+          fileSizeBytes: file.size,
+          parsingStatus: "pending",
+          textLength: extractedText.trim().length,
+          extractedText,
+          parsedData: { text: extractedText },
+          jobApplicationId: applicationId,
+          uploadedByUserId: auth.userId,
+          uploaderRole: "admin",
+        },
+        replacedResumeId
+          ? { mode: "update", resumeId: replacedResumeId }
+          : { mode: "insert" }
+      );
       await syncWorkerPrimaryResumePath(supabase, workerId, resumeOwnerId);
     }
 

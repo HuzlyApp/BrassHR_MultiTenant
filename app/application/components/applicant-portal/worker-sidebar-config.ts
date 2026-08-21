@@ -33,6 +33,7 @@ const ICON = {
   taskboard: "Taskboard",
   teams: "Teams",
   organization: "Organization",
+  jobs: "Jobs",
   profile: "My Profile",
   notifications: "Notifications",
   help: "Help & Support",
@@ -44,6 +45,7 @@ const PORTAL_HOME = "/application/applicant-dashboard";
 const WORKER_HOME = "/application/home";
 const SCHEDULE_HOME = `${PORTAL_HOME}/schedule`;
 const TIMESHEETS_HOME = `${SCHEDULE_HOME}/timesheets`;
+const JOBS_HOME = `${PORTAL_HOME}/jobs`;
 const SCHEDULE_ACTIVE_PREFIXES = [SCHEDULE_HOME, TIMESHEETS_HOME];
 
 const MY_SHIFTS_CHILDREN: WorkerSidebarLink[] = [
@@ -176,6 +178,13 @@ export const WORKER_SIDEBAR_SECTIONS: WorkerSidebarSection[] = [
     iconType: ICON.organization,
     matchPrefixes: [LOCATIONS_HOME],
     children: ORGANIZATION_CHILDREN,
+  },
+  {
+    label: "Jobs",
+    href: JOBS_HOME,
+    iconType: ICON.jobs,
+    matchPrefixes: [JOBS_HOME],
+    matchExact: true,
   },
   {
     label: "Mail",

@@ -27,7 +27,7 @@ type TemplateItem = {
   isPreset?: boolean;
   isEditable?: boolean;
   status?: "draft" | "published" | "unpublished";
-  employmentType?: "W2" | "1099" | null;
+  employmentType?: "W2" | "1099" | "RNR" | null;
   preHireStepCount?: number;
   postHireStepCount?: number;
   transitionStepCount?: number;
@@ -147,7 +147,9 @@ function TemplateCard({
             {item.status ? (
               <span className="capitalize">{item.status === "unpublished" ? "Draft" : item.status}</span>
             ) : null}
-            {item.employmentType ? <span>Employment Type: {item.employmentType}</span> : null}
+            {item.employmentType ? (
+              <span>Employment Type: {item.employmentType}</span>
+            ) : null}
             {typeof item.preHireStepCount === "number" ? (
               <span>Pre-Hire: {item.preHireStepCount}</span>
             ) : null}

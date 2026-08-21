@@ -35,6 +35,7 @@ export default function SkillAssessmentIntro() {
     })
 
     const skipSkillAssessment = async () => {
+      if (onboarding?.config?.skillAssessmentSettings?.allowSkip === false) return
       if (skillStep?.step_key) {
         try {
           await persistStepProgress(onboarding?.updateStepStatus, skillStep.step_key, "skipped")
@@ -86,6 +87,7 @@ export default function SkillAssessmentIntro() {
                         <h2 className="min-w-0 text-lg font-semibold leading-7 text-slate-800 sm:text-[24px] sm:leading-8">
                             Skill Assessment Quiz
                         </h2>
+                        {onboarding?.config?.skillAssessmentSettings?.allowSkip === false ? null : (
                         <button
                             type="button"
                             onClick={() => void skipSkillAssessment()}
@@ -93,6 +95,7 @@ export default function SkillAssessmentIntro() {
                         >
                             Skip for Now →
                         </button>
+                        )}
                     </div>
 
                     {/* Description */}

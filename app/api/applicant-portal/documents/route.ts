@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { documentStatusLabel } from "@/lib/applicant-portal/documents";
 import { requireApprovedApplicant } from "@/lib/applicant-portal/request";
 import { createSignedPortalFileUrl, uploadApplicantPortalFile } from "@/lib/applicant-portal/upload";
+import {
+  documentUploaderRoleDisplay,
+  listWorkerDocumentsForApplicant,
+} from "@/lib/applicant-portal/worker-document-service";
 
 export const runtime = "nodejs";
 
@@ -72,46 +76,25 @@ export async function GET(req: NextRequest) {
     const auth = await requireApprovedApplicant(req);
     if (auth instanceof NextResponse) return auth;
 
-    const [portalRes, submittedRes, requiredRes] = await Promise.all([
-      auth.supabase
-        .from("worker_portal_documents")
-        .select(
-          "id, title, document_type, original_file_name, file_type, file_size, status, review_notes, uploaded_at, storage_path"
-        )
-        .eq("worker_id", auth.applicant.id)
-        .order("uploaded_at", { ascending: false }),
-      auth.supabase
-        .from("worker_submitted_documents")
-        .select(
-          "id, required_document_id, original_file_name, file_type, file_size, status, review_notes, uploaded_at, file_url"
-        )
-        .eq("worker_id", auth.applicant.id)
-        .order("uploaded_at", { ascending: false }),
+    const [documents, requiredRes, submittedRes] = await Promise.all([
+      listWorkerDocumentsForApplicant(auth.supabase, auth.applicant.id, auth.applicant.tenant_id),
       auth.supabase
         .from("tenant_required_documents")
         .select("id, title, description, is_required")
         .eq("tenant_id", auth.applicant.tenant_id),
+      auth.supabase
+        .from("worker_submitted_documents")
+        .select("required_document_id")
+        .eq("worker_id", auth.applicant.id),
     ]);
-    if (portalRes.error) throw portalRes.error;
-    if (submittedRes.error) throw submittedRes.error;
     if (requiredRes.error) throw requiredRes.error;
-
-    const requiredMap = new Map(
-      (requiredRes.data ?? []).map((row) => [
-        String(row.id),
-        { title: row.title as string, description: row.description as string | null },
-      ])
-    );
-
-    const portalDocuments = ((portalRes.data ?? []) as PortalDocumentRow[]).map(serializePortalDocument);
-    const requiredDocuments = ((submittedRes.data ?? []) as SubmittedDocumentRow[]).map((row) => {
-      const meta = requiredMap.get(row.required_document_id);
-      return serializeSubmittedDocument(row, meta?.title ?? null, meta?.description ?? null);
-    });
+    if (submittedRes.error) throw submittedRes.error;
 
     const missingRequired = (requiredRes.data ?? [])
       .filter((row) => row.is_required)
-      .filter((row) => !(submittedRes.data ?? []).some((doc) => doc.required_document_id === row.id))
+      .filter(
+        (row) => !(submittedRes.data ?? []).some((doc) => doc.required_document_id === row.id)
+      )
       .map((row) => ({
         id: String(row.id),
         title: row.title as string,
@@ -119,9 +102,24 @@ export async function GET(req: NextRequest) {
         isRequired: true,
       }));
 
+    const serialize = (doc: (typeof documents)[number]) => ({
+      id: doc.id,
+      source: doc.source === "required" ? ("required" as const) : ("portal" as const),
+      title: doc.title,
+      documentType: doc.source,
+      originalFileName: doc.fileName,
+      fileType: doc.fileType,
+      status: doc.status,
+      statusLabel: doc.statusLabel,
+      reviewNotes: null as string | null,
+      uploadedAt: doc.uploadedAt,
+      uploadedByName: doc.uploadedByName,
+      uploadedByRoleLabel: documentUploaderRoleDisplay(doc.uploadedByRoleLabel),
+    });
+
     return NextResponse.json({
-      portalDocuments,
-      requiredDocuments,
+      portalDocuments: documents.filter((doc) => doc.source === "portal").map(serialize),
+      requiredDocuments: documents.filter((doc) => doc.source === "required").map(serialize),
       missingRequired,
     });
   } catch (err) {

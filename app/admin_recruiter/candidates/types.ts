@@ -18,4 +18,5 @@ export type CandidateRow = {
   reference: string
   dateOfBirth: string | null
   profilePhotoUrl?: string | null
+  appliedJobCount?: number
 }
