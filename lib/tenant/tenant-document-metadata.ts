@@ -32,10 +32,40 @@ export function resolveTenantDocumentFaviconHref(
   return BRAAS_PLATFORM_FAVICON;
 }
 
+/** Cache-bust token from the stored favicon/logo URL (upload flow adds ?v=timestamp). */
+export function resolveTenantFaviconCacheBuster(
+  branding: Pick<TenantBranding, "faviconUrl" | "logoUrl" | "slug">
+): string {
+  const icon = branding.faviconUrl?.trim() || branding.logoUrl?.trim() || "";
+  if (icon && !icon.startsWith("blob:")) {
+    try {
+      const version = new URL(icon).searchParams.get("v");
+      if (version) return version;
+    } catch {
+      // Relative or invalid URL — fall through to hash.
+    }
+    let hash = 0;
+    for (let i = 0; i < icon.length; i++) {
+      hash = (Math.imul(31, hash) + icon.charCodeAt(i)) >>> 0;
+    }
+    return hash.toString(36);
+  }
+  return branding.slug?.trim() || "default";
+}
+
+export function withTenantFaviconCacheBuster(
+  href: string,
+  branding: Pick<TenantBranding, "faviconUrl" | "logoUrl" | "slug">
+): string {
+  if (href.startsWith("blob:") || href.startsWith("data:")) return href;
+  const bust = resolveTenantFaviconCacheBuster(branding);
+  return `${href}${href.includes("?") ? "&" : "?"}v=${encodeURIComponent(bust)}`;
+}
+
 /** Next.js Metadata for tenant-branded surfaces (login, admin, worker, applicant). */
 export function buildTenantDocumentMetadata(branding: TenantBranding): Metadata {
   const title = resolveTenantDocumentTitle(branding);
-  const favicon = resolveTenantDocumentFaviconHref(branding);
+  const favicon = withTenantFaviconCacheBuster(resolveTenantDocumentFaviconHref(branding), branding);
   return {
     title: { absolute: title },
     icons: {

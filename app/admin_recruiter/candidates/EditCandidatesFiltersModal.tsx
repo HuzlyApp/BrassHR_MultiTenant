@@ -70,7 +70,7 @@ function ModalFilterField({
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
-  children: React.ReactNode;
+  children?: React.ReactNode;
 }) {
   return (
     <label className="flex min-w-0 flex-col gap-1.5">

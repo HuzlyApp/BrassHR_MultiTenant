@@ -25,7 +25,7 @@ export const JOB_COLUMN_OPTIONS: { id: JobColumnId; label: string }[] = [
   { id: "contractGroup", label: "Contract Group" },
   { id: "candidates", label: "# Applicants" },
   { id: "datePosted", label: "Date Posted" },
-  { id: "assignee", label: "Assignee" },
+  { id: "assignee", label: "Created by" },
   { id: "jobStatus", label: "Job Status" },
   { id: "payRate", label: "Pay Rate" },
   { id: "commissionFee", label: "Commission Fee" },

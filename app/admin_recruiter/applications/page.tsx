@@ -120,6 +120,8 @@ type ApplicationRow = {
   ai_match_action?: string | null;
   ai_match_readiness?: string | null;
   ai_match_display_category?: string | null;
+  assigned_recruiter_user_id?: string | null;
+  assignedRecruiter?: { id: string; name: string; profilePhotoUrl?: string | null } | null;
   application_statuses?:
     | { id?: string; name?: string; system_key?: string | null; color?: string | null }
     | { id?: string; name?: string; system_key?: string | null; color?: string | null }[]
@@ -1878,6 +1880,22 @@ export default function JobApplicationsPage() {
           >
             {analyzed ? "Analyzed" : "Not Yet"}
           </span>
+        );
+      }
+      case "assignee": {
+        const name = row.assignedRecruiter?.name?.trim();
+        if (!name) return <span className="text-sm text-[#94A3B8]">—</span>;
+        return (
+          <div className="flex items-center justify-center gap-2">
+            <CandidateListAvatar
+              name={name}
+              photoUrl={row.assignedRecruiter?.profilePhotoUrl}
+              size="sm"
+            />
+            <span className="max-w-[120px] truncate text-sm text-[#475569]" title={name}>
+              {name}
+            </span>
+          </div>
         );
       }
       default:
