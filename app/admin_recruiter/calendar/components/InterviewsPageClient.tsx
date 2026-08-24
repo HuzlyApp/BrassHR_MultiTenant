@@ -18,6 +18,7 @@ type ViewMode = "list" | "calendar";
 type ApplicantOption = {
   id: string;
   name: string;
+  detail?: string;
   status: string;
 };
 

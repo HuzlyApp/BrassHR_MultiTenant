@@ -14,6 +14,8 @@ import type {
 type ApplicantOption = {
   id: string;
   name: string;
+  /** Email or job title that separates applicants who share a name. */
+  detail?: string;
   status: string;
 };
 
@@ -342,7 +344,7 @@ export function ScheduleInterviewModal({
                   <option value="">Select applicant</option>
                   {applicants.map((a) => (
                     <option key={a.id} value={a.id}>
-                      {a.name} ({a.status})
+                      {`${a.detail ? `${a.name} · ${a.detail}` : a.name} (${a.status})`}
                     </option>
                   ))}
                 </select>

@@ -7,6 +7,7 @@ import {
   applicantDisplayName,
   interviewOrdinalTitle,
 } from "@/lib/interviews/format";
+import { listInterviewApplicants } from "@/lib/interviews/list-interview-applicants";
 import { markApplicationInterviewing } from "@/lib/interviews/mark-application-interviewing";
 import { buildInterviewCalendarUid } from "@/lib/interviews/ics";
 import {
@@ -46,12 +47,6 @@ type WorkerRow = {
   last_name: string | null;
   status: string | null;
   email?: string | null;
-};
-
-type ApplicantOption = {
-  id: string;
-  name: string;
-  status: string;
 };
 
 export type AdminInterviewItem = {
@@ -194,20 +189,12 @@ export async function GET(req: NextRequest) {
       scheduleQuery = scheduleQuery.eq("application_id", applicationIdFilter);
     }
 
-    const [{ data: scheduleData, error: scheduleError }, { data: workerData, error: workerError }] =
-      await Promise.all([
-        scheduleQuery,
-        supabase
-          .from("worker")
-          .select("id, first_name, last_name, status")
-          .eq("tenant_id", scope.tenantId)
-          .in("status", ["new", "pending", "approved", "Active"])
-          .order("first_name", { ascending: true })
-          .limit(500),
-      ]);
+    const [{ data: scheduleData, error: scheduleError }, applicants] = await Promise.all([
+      scheduleQuery,
+      listInterviewApplicants(supabase, scope.tenantId),
+    ]);
 
     if (scheduleError) throw scheduleError;
-    if (workerError) throw workerError;
 
     const allSchedules = (scheduleData as InterviewScheduleRow[] | null) ?? [];
     const schedules = allSchedules
@@ -216,8 +203,7 @@ export async function GET(req: NextRequest) {
       )
       .filter((row) => !workerIdFilter || row.worker_id === workerIdFilter);
 
-    const workers = (workerData as WorkerRow[] | null) ?? [];
-    const workersById = new Map(workers.map((w) => [w.id, w]));
+    const workersById = new Map<string, WorkerRow>();
 
     const applicantIds = Array.from(new Set(schedules.map((s) => s.applicant_id)));
     const { data: applicantRows, error: applicantError } = applicantIds.length
@@ -262,12 +248,6 @@ export async function GET(req: NextRequest) {
       applicantsById,
       sequenceByScheduleId
     );
-
-    const applicants: ApplicantOption[] = workers.map((w) => ({
-      id: w.id,
-      name: applicantDisplayName(w.first_name, w.last_name),
-      status: (w.status ?? "new").toLowerCase(),
-    }));
 
     const upcomingCount = allSchedules.filter((row) => isUpcomingRow(row, nowMs)).length;
     const recentCount = allSchedules.filter((row) => isRecentRow(row, nowMs)).length;
