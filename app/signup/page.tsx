@@ -925,6 +925,43 @@ export default function SignupPage() {
               </div>
             </div>
 
+            <div className="mt-[24px] space-y-[22px] min-[1440px]:mt-[30px] min-[1440px]:space-y-[26px]">
+              <AddressAutocompleteField
+                label="Address 1"
+                required
+                value={form.address1}
+                onChange={(value) => {
+                  addressAutocomplete.resetVerification();
+                  update("address1", value);
+                }}
+                onBlur={() => setTouchedAddress1(true)}
+                onFocus={addressAutocomplete.openSuggestions}
+                onCloseSuggestions={addressAutocomplete.closeSuggestions}
+                error={address1Error}
+                searchError={
+                  touchedAddress1 || detailsSubmitAttempted
+                    ? addressAutocomplete.searchError
+                    : null
+                }
+                suggestions={addressAutocomplete.suggestions}
+                isLoading={addressAutocomplete.isLoading}
+                isOpen={addressAutocomplete.isOpen}
+                isVerified={addressAutocomplete.isAddressVerified}
+                onSelectSuggestion={handleSelectAddressSuggestion}
+                variant="signup"
+              />
+
+              <div onBlur={() => setTouchedAddress2(true)}>
+                <TextField
+                  label="Address 2"
+                  value={form.address2}
+                  onChange={(value) => update("address2", value)}
+                  placeholder="Apt, Suite, Unit, etc."
+                  error={address2Error}
+                />
+              </div>
+            </div>
+
             <div className="signup-field-grid signup-field-grid--location mt-[18px] grid grid-cols-1 gap-y-[18px] min-[600px]:grid-cols-2 min-[600px]:gap-x-[14px] sm:mt-[26px] sm:gap-x-[20px] sm:gap-y-[24px] lg:grid-cols-3 min-[1440px]:mt-[30px] min-[1440px]:gap-x-[26px]">
               <div className="min-w-0">
                 <SearchableSelectField
@@ -982,43 +1019,6 @@ export default function SignupPage() {
                   onChange={(value) => update("zipCode", value.replace(/\D/g, "").slice(0, 5))}
                   placeholder="Code"
                   error={zipError}
-                />
-              </div>
-            </div>
-
-            <div className="mt-[24px] space-y-[22px] min-[1440px]:mt-[30px] min-[1440px]:space-y-[26px]">
-              <AddressAutocompleteField
-                label="Address 1"
-                required
-                value={form.address1}
-                onChange={(value) => {
-                  addressAutocomplete.resetVerification();
-                  update("address1", value);
-                }}
-                onBlur={() => setTouchedAddress1(true)}
-                onFocus={addressAutocomplete.openSuggestions}
-                onCloseSuggestions={addressAutocomplete.closeSuggestions}
-                error={address1Error}
-                searchError={
-                  touchedAddress1 || detailsSubmitAttempted
-                    ? addressAutocomplete.searchError
-                    : null
-                }
-                suggestions={addressAutocomplete.suggestions}
-                isLoading={addressAutocomplete.isLoading}
-                isOpen={addressAutocomplete.isOpen}
-                isVerified={addressAutocomplete.isAddressVerified}
-                onSelectSuggestion={handleSelectAddressSuggestion}
-                variant="signup"
-              />
-
-              <div onBlur={() => setTouchedAddress2(true)}>
-                <TextField
-                  label="Address 2"
-                  value={form.address2}
-                  onChange={(value) => update("address2", value)}
-                  placeholder="Apt, Suite, Unit, etc."
-                  error={address2Error}
                 />
               </div>
             </div>

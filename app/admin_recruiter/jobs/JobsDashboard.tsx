@@ -35,8 +35,15 @@ type KpiCard = {
 };
 
 const JOBS_LISTING_HREF = "/admin_recruiter/jobs?view=all";
+const JOBS_NEW_HREF = "/admin_recruiter/jobs/new";
 const JOBS_OPEN_HREF = `${JOBS_LISTING_HREF}&tab=open`;
 const APPLICATIONS_HREF = "/admin_recruiter/applications";
+
+const JOBS_VIEW_ALL_BUTTON_CLASS =
+  "inline-flex h-8 shrink-0 items-center justify-center rounded-lg border border-[color:var(--brand-secondary)] bg-white px-3 font-[Inter,sans-serif] text-xs font-semibold leading-4 text-[color:var(--brand-secondary)] no-underline transition hover:bg-[color:color-mix(in_srgb,var(--brand-secondary)_6%,white)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--brand-secondary)_30%,transparent)]";
+
+const JOBS_CREATE_BUTTON_CLASS =
+  "inline-flex h-8 shrink-0 items-center justify-center rounded-lg bg-[color:var(--brand-primary)] px-3 font-[Inter,sans-serif] text-xs font-semibold leading-4 text-white no-underline transition hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--brand-primary)_35%,transparent)]";
 
 const STATUS_KPI_ICONS: Record<string, KpiIcon> = {
   new: { src: `${JOBS_ICONS}/kpi-bi-people.svg`, bg: "#DFFFD3", leafWidth: 30, leafHeight: 30 },
@@ -291,7 +298,7 @@ export function JobsDashboard({
       <section className="flex w-full min-w-0 flex-col gap-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="font-[Inter,sans-serif] text-lg font-semibold leading-7 text-black">Job Workspace</h2>
-          <div className="flex items-center gap-5">
+          <div className="flex flex-wrap items-center gap-3">
             <label className="flex h-8 w-full items-center gap-1 overflow-hidden rounded-lg border border-[#CBD5E1] bg-white px-2.5 sm:w-[274px]">
               <span className="relative flex size-5 shrink-0 items-center justify-center overflow-hidden">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -314,11 +321,11 @@ export function JobsDashboard({
                 className="min-w-0 flex-1 bg-transparent font-[Inter,sans-serif] text-xs font-light leading-4 text-[#334155] outline-none placeholder:text-[#94A3B8]"
               />
             </label>
-            <Link
-              href="/admin_recruiter/jobs?view=all"
-              className="shrink-0 font-[Inter,sans-serif] text-xs font-normal leading-4 text-[#012352] underline"
-            >
+            <Link href={JOBS_LISTING_HREF} className={JOBS_VIEW_ALL_BUTTON_CLASS}>
               View All
+            </Link>
+            <Link href={JOBS_NEW_HREF} className={JOBS_CREATE_BUTTON_CLASS}>
+              Create a job
             </Link>
           </div>
         </div>
