@@ -999,7 +999,7 @@ export async function listPublicJobs(
   let query = supabase
     .from("job_requisitions")
     .select(
-      "id, public_job_token, public_title, source_job_title, source_type, public_description, location, schedule, employment_type, pay_rate_min, pay_rate_max, qualifications, responsibilities, benefits, application_deadline, published_at, profession_id, specialty_id, professions(name), specialties(name)",
+      "id, public_job_token, public_title, source_job_title, source_type, public_description, location, schedule, employment_type, pay_rate_min, pay_rate_max, pay_rate, pay_rate_period, rate_unit, show_pay_by, compensation_type, qualifications, responsibilities, benefits, application_deadline, published_at, profession_id, specialty_id, professions(name), specialties(name)",
       { count: "exact" }
     )
     .eq("tenant_id", tenantId)
@@ -1036,7 +1036,7 @@ export async function getPublishedJobByToken(
   const { data, error } = await supabase
     .from("job_requisitions")
     .select(
-      "id, tenant_id, public_job_token, public_title, source_job_title, source_type, public_description, location, schedule, employment_type, pay_rate_min, pay_rate_max, qualifications, responsibilities, benefits, application_deadline, published_at, profession_id, specialty_id, workflow_id, professions(name), specialties(name)"
+      "id, tenant_id, public_job_token, public_title, source_job_title, source_type, public_description, location, schedule, employment_type, pay_rate_min, pay_rate_max, pay_rate, pay_rate_period, rate_unit, show_pay_by, compensation_type, qualifications, responsibilities, benefits, application_deadline, published_at, profession_id, specialty_id, workflow_id, professions(name), specialties(name)"
     )
     .eq("tenant_id", tenantId)
     .eq("public_job_token", token)

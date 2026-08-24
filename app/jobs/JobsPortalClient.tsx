@@ -10,6 +10,7 @@ import {
   normalizeJobToken,
   publicJobDisplayTitle,
 } from "@/lib/jobs/public-application-routing";
+import { formatPublicJobPayRate } from "@/lib/jobs/format-public-job-pay-rate";
 import { jobDescriptionPlainText } from "@/lib/jobs/job-description-html";
 import { resolveTenantSlugForClient } from "@/lib/tenant/resolve-tenant-context";
 
@@ -23,6 +24,13 @@ type Job = {
   schedule: string | null;
   employment_type: string;
   published_at: string;
+  pay_rate_min?: number | null;
+  pay_rate_max?: number | null;
+  pay_rate?: number | null;
+  pay_rate_period?: string | null;
+  rate_unit?: string | null;
+  compensation_type?: string | null;
+  show_pay_by?: string | null;
   professions: { name?: string } | { name?: string }[] | null;
   specialties: { name?: string } | { name?: string }[] | null;
 };
@@ -161,6 +169,7 @@ export default function JobsPortalClient() {
               const displayTitle = publicJobDisplayTitle(job);
               const jobToken = normalizeJobToken(job.public_job_token);
               const applyHref = jobToken ? buildApplyPath(tenant, jobToken) : null;
+              const payRate = formatPublicJobPayRate(job);
               return (
                 <article key={job.public_job_token || displayTitle} className="flex flex-col rounded-xl border border-slate-200 bg-white p-5 text-slate-900 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
                   <div className="flex items-start justify-between gap-3">
@@ -172,6 +181,12 @@ export default function JobsPortalClient() {
                   {profession ? <p className="mt-2 text-sm font-medium text-slate-700">{profession}</p> : null}
                   {specialty ? <p className="mt-1 text-sm text-slate-600">{specialty}</p> : null}
                   <p className="mt-2 text-sm font-medium text-slate-600">{job.location}</p>
+                  {payRate ? (
+                    <p className="mt-2 text-sm text-slate-700">
+                      <span className="font-medium text-slate-500">Pay Rate :</span>{" "}
+                      <span className="font-semibold text-slate-900">{payRate}</span>
+                    </p>
+                  ) : null}
                   <p className="mt-4 line-clamp-3 flex-1 text-sm leading-6 text-slate-600">
                     {jobDescriptionPlainText(job.public_description || "")}
                   </p>
