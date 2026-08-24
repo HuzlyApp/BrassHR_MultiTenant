@@ -8,6 +8,8 @@ export type ScheduleInterviewInterviewer = {
 
 export type ScheduleInterviewPayload = {
   workerId: string;
+  applicationId?: string | null;
+  jobId?: string | null;
   startsAt: string;
   endsAt: string;
   timezone: string;

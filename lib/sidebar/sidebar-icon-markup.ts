@@ -37,16 +37,21 @@ function tintedCacheKey(src: string, primaryHex: string): string {
   return `${src}::${primaryHex}`;
 }
 
+/** Icons are decorative: a failed request (offline, dev restart, aborted navigation) renders the placeholder. */
 async function loadSvgText(src: string): Promise<string> {
   const cached = svgTextCache.get(src);
   if (cached) return cached;
 
-  const res = await fetch(src);
-  if (!res.ok) return "";
+  try {
+    const res = await fetch(src);
+    if (!res.ok) return "";
 
-  const text = await res.text();
-  if (text) svgTextCache.set(src, text);
-  return text;
+    const text = await res.text();
+    if (text) svgTextCache.set(src, text);
+    return text;
+  } catch {
+    return "";
+  }
 }
 
 function tintSvgMarkup(text: string, primaryHex: string): string {

@@ -61,6 +61,21 @@ export type Appointment = {
   updated_at: string;
 };
 
+export type WorkerInterviewStatus = "upcoming" | "completed" | "cancelled" | "rescheduled";
+
+export type WorkerInterview = {
+  id: string;
+  title: string;
+  jobTitle: string;
+  startsAt: string;
+  endsAt: string | null;
+  status: WorkerInterviewStatus;
+  meetingType: MeetingType | null;
+  meetingLink: string | null;
+  location: string | null;
+  notes: string | null;
+};
+
 export type AttendanceStatus = "clocked_in" | "clocked_out";
 
 export type AttendanceLog = {

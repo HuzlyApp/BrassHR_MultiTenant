@@ -46,10 +46,14 @@ export default function SidebarNavIcon({ iconType, active }: SidebarNavIconProps
     let cancelled = false;
     setMarkup(null);
 
-    void ensureTintedSidebarIconMarkup(src, tintHex).then((next) => {
-      if (cancelled) return;
-      setMarkup(next);
-    });
+    void ensureTintedSidebarIconMarkup(src, tintHex)
+      .then((next) => {
+        if (cancelled) return;
+        setMarkup(next);
+      })
+      .catch(() => {
+        if (!cancelled) setMarkup(null);
+      });
 
     return () => {
       cancelled = true;

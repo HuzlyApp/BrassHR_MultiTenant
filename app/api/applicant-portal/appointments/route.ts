@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { findApplicantByUserId } from "@/lib/applicant-portal";
+import { listWorkerInterviews } from "@/lib/applicant-portal/list-worker-interviews";
 import { parseRequiredUuid } from "@/lib/validation/uuid";
 
 export const runtime = "nodejs";
@@ -61,26 +62,30 @@ async function getAppointmentPayload(
   tenantId: string
 ) {
   const now = new Date().toISOString();
-  const [{ data: slots, error: slotsError }, { data: appointment, error: appointmentError }] =
-    await Promise.all([
-      supabase
-        .from("applicant_appointment_slots")
-        .select("id, starts_at, ends_at, meeting_type, meeting_link, location, notes")
-        .eq("tenant_id", tenantId)
-        .eq("is_available", true)
-        .gte("starts_at", now)
-        .order("starts_at", { ascending: true })
-        .limit(25),
-      supabase
-        .from("applicant_appointments")
-        .select(
-          "id, slot_id, status, meeting_type, confirmed_starts_at, confirmed_ends_at, meeting_link, location, reschedule_reason, requested_at, updated_at"
-        )
-        .eq("worker_id", workerId)
-        .order("updated_at", { ascending: false })
-        .limit(1)
-        .maybeSingle(),
-    ]);
+  const [
+    { data: slots, error: slotsError },
+    { data: appointment, error: appointmentError },
+    interviews,
+  ] = await Promise.all([
+    supabase
+      .from("applicant_appointment_slots")
+      .select("id, starts_at, ends_at, meeting_type, meeting_link, location, notes")
+      .eq("tenant_id", tenantId)
+      .eq("is_available", true)
+      .gte("starts_at", now)
+      .order("starts_at", { ascending: true })
+      .limit(25),
+    supabase
+      .from("applicant_appointments")
+      .select(
+        "id, slot_id, status, meeting_type, confirmed_starts_at, confirmed_ends_at, meeting_link, location, reschedule_reason, requested_at, updated_at"
+      )
+      .eq("worker_id", workerId)
+      .order("updated_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    listWorkerInterviews(supabase, { workerId, tenantId }),
+  ]);
 
   if (slotsError) throw slotsError;
   if (appointmentError) throw appointmentError;
@@ -101,6 +106,7 @@ async function getAppointmentPayload(
     availableSlots: (slots as AppointmentSlot[] | null) ?? [],
     appointment: appointmentRow,
     selectedSlot,
+    interviews,
   };
 }
 

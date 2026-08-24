@@ -1,4 +1,9 @@
-import type { AppointmentStatus, AttendanceLog, MeetingType } from "./types";
+import type {
+  AppointmentStatus,
+  AttendanceLog,
+  MeetingType,
+  WorkerInterviewStatus,
+} from "./types";
 
 export function meetingTypeLabel(type: MeetingType | null | undefined) {
   if (type === "online") return "Online";
@@ -13,6 +18,13 @@ export function scheduleStatusLabel(status: AppointmentStatus | null | undefined
   if (status === "rescheduled") return "Rescheduled";
   if (status === "cancelled") return "Cancelled";
   return "Pending";
+}
+
+export function interviewStatusLabel(status: WorkerInterviewStatus | null | undefined) {
+  if (status === "completed") return "Completed";
+  if (status === "cancelled") return "Cancelled";
+  if (status === "rescheduled") return "Rescheduled";
+  return "Upcoming";
 }
 
 export function formatScheduleDate(iso: string | null | undefined) {

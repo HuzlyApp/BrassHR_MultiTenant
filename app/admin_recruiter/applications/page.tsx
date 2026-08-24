@@ -2683,6 +2683,7 @@ export default function JobApplicationsPage() {
               onSubmit={(payload) => void handleScheduleInterview(payload)}
               fixedWorkerId={workerId}
               fixedApplicantName={name}
+              fixedApplicationId={target.id}
             />
           </>
         );

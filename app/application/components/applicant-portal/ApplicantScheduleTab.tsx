@@ -11,11 +11,17 @@ import {
   formatTimeParts,
   formatTimeRange,
   formatTimer,
+  interviewStatusLabel,
   locationDisplay,
   meetingTypeLabel,
   scheduleStatusLabel,
 } from "./format";
-import type { Appointment, AppointmentSlot, AttendanceLog } from "./types";
+import type {
+  Appointment,
+  AppointmentSlot,
+  AttendanceLog,
+  WorkerInterview,
+} from "./types";
 import {
   WORKER_PORTAL_PAGE_PAD_CLASS,
   WORKER_SCHEDULE_CARD_CLASS,
@@ -35,6 +41,7 @@ type Props = {
   appointment: Appointment | null;
   selectedSlot: AppointmentSlot | null;
   availableSlots: AppointmentSlot[];
+  interviews?: WorkerInterview[];
   selectedSlotId: string;
   rescheduleReason: string;
   showRescheduleReason: boolean;
@@ -105,6 +112,7 @@ export function ApplicantScheduleTab({
   appointment,
   selectedSlot,
   availableSlots,
+  interviews = [],
   selectedSlotId,
   rescheduleReason,
   showRescheduleReason,
@@ -158,7 +166,6 @@ export function ApplicantScheduleTab({
   const scheduleDate = appointment?.confirmed_starts_at ?? selectedSlot?.starts_at ?? null;
   const scheduleEnd = appointment?.confirmed_ends_at ?? selectedSlot?.ends_at ?? null;
   const scheduleMeetingType = appointment?.meeting_type ?? selectedSlot?.meeting_type ?? null;
-  const scheduleMeetingLink = appointment?.meeting_link ?? selectedSlot?.meeting_link ?? null;
   const scheduleLocation = appointment?.location ?? selectedSlot?.location ?? null;
 
   const upcomingAppointments = useMemo(() => {
@@ -168,7 +175,20 @@ export function ApplicantScheduleTab({
 
   const hasTodaySchedule = Boolean(appointment && scheduleDate);
   const hasUpcomingSchedules = upcomingAppointments.length > 0;
-  const hasUpcomingAppointment = Boolean(appointment);
+
+  const upcomingInterviews = useMemo(
+    () =>
+      interviews.filter((item) => {
+        if (item.status === "cancelled" || item.status === "completed") return false;
+        const end = item.endsAt ?? item.startsAt;
+        return new Date(end).getTime() >= Date.now();
+      }),
+    [interviews]
+  );
+  const pastInterviews = useMemo(
+    () => interviews.filter((item) => !upcomingInterviews.includes(item)),
+    [interviews, upcomingInterviews]
+  );
 
   return (
     <div className={`${WORKER_PORTAL_PAGE_PAD_CLASS} pb-8`}>
@@ -428,42 +448,22 @@ export function ApplicantScheduleTab({
         <div className={`${WORKER_SCHEDULE_CARD_CLASS} mt-5`}>
           <SectionHeader icon={<WorkerBrandedIcon src={WORKER_ICONS.timer} />} title="Appointments / Interviews" />
 
-          <ScheduleTableSection
+          <InterviewTableSection
             title="Upcoming"
-            hasData={hasUpcomingAppointment}
+            interviews={upcomingInterviews}
             emptyMessage={EMPTY_SCHEDULE_MESSAGE}
-          >
-            {hasUpcomingAppointment ? (
-              <div className="grid grid-cols-[120px_120px_1fr_1fr_150px_100px] gap-2 px-3 py-2.5 text-[12px] text-[#374151]">
-                <span>{formatDateOnly(scheduleDate)}</span>
-                <span>{formatTimeRange(scheduleDate, scheduleEnd)}</span>
-                <span>{scheduleLocation ?? meetingTypeLabel(scheduleMeetingType)}</span>
-                <span className="inline-flex items-center gap-1 truncate">
-                  {scheduleMeetingLink ? (
-                    <>
-                      <Link2 className="h-3.5 w-3.5 shrink-0 text-[color:var(--brand-primary)]" />
-                      <a
-                        href={scheduleMeetingLink}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="truncate text-[color:var(--brand-primary)] underline-offset-2 hover:underline"
-                      >
-                        {scheduleMeetingLink}
-                      </a>
-                    </>
-                  ) : (
-                    "—"
-                  )}
-                </span>
-                <span>HR Manager</span>
-                <span className="text-right">
-                  <span className="inline-flex rounded-lg border border-[#E2E8F0] px-2 py-1 text-[10px] font-semibold text-[#475569]">
-                    Details
-                  </span>
-                </span>
-              </div>
-            ) : null}
-          </ScheduleTableSection>
+          />
+
+          {pastInterviews.length > 0 ? (
+            <>
+              <div className="mx-4 border-t border-[#E5E7EB]" />
+              <InterviewTableSection
+                title="Past"
+                interviews={pastInterviews}
+                emptyMessage={EMPTY_SCHEDULE_MESSAGE}
+              />
+            </>
+          ) : null}
         </div>
       </div>
     </div>
@@ -551,6 +551,89 @@ function ScheduleTableSection({
               <span />
             </div>
             {children}
+          </div>
+        </div>
+      ) : (
+        <p className="px-3 py-4 text-center text-[13px] text-[#64748B]">{emptyMessage}</p>
+      )}
+    </div>
+  );
+}
+
+const INTERVIEW_GRID_CLASS = "grid grid-cols-[130px_140px_minmax(160px,1fr)_minmax(160px,1fr)_130px] gap-2";
+
+function interviewLocationLabel(interview: WorkerInterview): string {
+  if (interview.location) return interview.location;
+  if (interview.meetingType) return meetingTypeLabel(interview.meetingType);
+  return "—";
+}
+
+function InterviewTableSection({
+  title,
+  interviews,
+  emptyMessage,
+}: {
+  title: string;
+  interviews: WorkerInterview[];
+  emptyMessage: string;
+}) {
+  return (
+    <div className="px-4 py-2.5">
+      <p className="px-3 py-2 text-[14px] font-semibold text-black">{title}</p>
+      {interviews.length > 0 ? (
+        <div className="overflow-x-auto">
+          <div className="min-w-[760px]">
+            <div
+              className={`${INTERVIEW_GRID_CLASS} px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-[#94A3B8]`}
+            >
+              <span>Date</span>
+              <span>Time</span>
+              <span>Job</span>
+              <span>Location</span>
+              <span>Status</span>
+            </div>
+            {interviews.map((interview) => (
+              <div
+                key={interview.id}
+                className={`${INTERVIEW_GRID_CLASS} border-t border-[#F1F5F9] px-3 py-2.5 text-[12px] text-[#374151]`}
+              >
+                <span>{formatDateOnly(interview.startsAt)}</span>
+                <span>{formatTimeRange(interview.startsAt, interview.endsAt)}</span>
+                <span className="min-w-0">
+                  <span className="block truncate font-medium text-[#012352]">
+                    {interview.jobTitle || interview.title}
+                  </span>
+                  {interview.jobTitle ? (
+                    <span className="block truncate text-[11px] text-[#6B7280]">
+                      {interview.title}
+                    </span>
+                  ) : null}
+                </span>
+                <span className="min-w-0">
+                  <span className="block truncate text-[#4B5563]">
+                    {interviewLocationLabel(interview)}
+                  </span>
+                  {interview.meetingLink ? (
+                    <span className="mt-0.5 inline-flex min-w-0 items-center gap-1">
+                      <Link2 className="h-3.5 w-3.5 shrink-0 text-[color:var(--brand-primary)]" />
+                      <a
+                        href={interview.meetingLink}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="truncate text-[11px] text-[color:var(--brand-primary)] underline-offset-2 hover:underline"
+                      >
+                        Join meeting
+                      </a>
+                    </span>
+                  ) : null}
+                </span>
+                <span>
+                  <span className="inline-flex rounded-lg border border-[#E2E8F0] px-2 py-1 text-[10px] font-semibold text-[#475569]">
+                    {interviewStatusLabel(interview.status)}
+                  </span>
+                </span>
+              </div>
+            ))}
           </div>
         </div>
       ) : (

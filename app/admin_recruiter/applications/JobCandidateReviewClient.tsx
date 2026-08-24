@@ -1948,6 +1948,7 @@ export default function JobCandidateReviewClient() {
             fixedWorkerId={workerId}
             fixedApplicantName={displayName}
             fixedJobTitle={jobTitle}
+            fixedApplicationId={selected?.id}
             defaultTitle={
               upcomingInterview?.title ??
               (displayName ? `Interview with ${displayName}` : undefined)

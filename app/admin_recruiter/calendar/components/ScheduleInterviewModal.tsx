@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDownIcon, ChevronLeft, ChevronRight, X } from "lucide-react";
 import { formatSlotLabel } from "@/lib/interviews/format";
 import { COMMON_INTERVIEW_TIMEZONES } from "@/lib/interviews/ics";
+import type { InterviewApplicationOption } from "@/app/api/admin/applicant-appointments/applications/route";
 import type {
   InterviewMeetingType,
   ScheduleInterviewInterviewer,
@@ -32,6 +33,8 @@ type ScheduleInterviewModalProps = {
   fixedWorkerId?: string;
   fixedApplicantName?: string;
   fixedJobTitle?: string;
+  /** Set when the caller already knows which application the interview belongs to. */
+  fixedApplicationId?: string;
   defaultTitle?: string;
 };
 
@@ -92,9 +95,14 @@ export function ScheduleInterviewModal({
   fixedWorkerId,
   fixedApplicantName,
   fixedJobTitle,
+  fixedApplicationId,
   defaultTitle,
 }: ScheduleInterviewModalProps) {
   const [workerId, setWorkerId] = useState("");
+  const [applications, setApplications] = useState<InterviewApplicationOption[]>([]);
+  const [applicationsLoading, setApplicationsLoading] = useState(false);
+  const [applicationId, setApplicationId] = useState("");
+  const [jobOpen, setJobOpen] = useState(false);
   const [weekAnchor, setWeekAnchor] = useState(() => startOfDay(new Date()));
   const [selectedDay, setSelectedDay] = useState(() => startOfDay(new Date()));
   const [pendingSlot, setPendingSlot] = useState<{ startsAt: Date; endsAt: Date } | null>(null);
@@ -111,6 +119,11 @@ export function ScheduleInterviewModal({
   const [teamMembers, setTeamMembers] = useState<TeamMemberOption[]>([]);
   const [teamLoading, setTeamLoading] = useState(false);
   const [selectedInterviewerIds, setSelectedInterviewerIds] = useState<string[]>([]);
+  const [titleEdited, setTitleEdited] = useState(false);
+  /** Guards the reset below so it runs once per open, never on later field changes. */
+  const initializedRef = useRef(false);
+  /** Once the recruiter picks an applicant, never auto-select for them again. */
+  const applicantTouchedRef = useRef(false);
 
   const resolvedWorkerId = fixedWorkerId ?? workerId;
   const resolvedApplicantName =
@@ -119,14 +132,23 @@ export function ScheduleInterviewModal({
     "Applicant";
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      initializedRef.current = false;
+      applicantTouchedRef.current = false;
+      return;
+    }
+    if (initializedRef.current) return;
+    initializedRef.current = true;
+
     const today = startOfDay(new Date());
     setWeekAnchor(today);
     setSelectedDay(today);
     setPendingSlot(null);
     setApplicantOpen(false);
+    setJobOpen(false);
     setWorkerId(fixedWorkerId ?? applicants[0]?.id ?? "");
-    setTitle(defaultTitle ?? defaultInterviewTitle(resolvedApplicantName));
+    setTitle(defaultTitle ?? "");
+    setTitleEdited(Boolean(defaultTitle));
     setMeetingType("online");
     setTimezone(
       typeof Intl !== "undefined" ? Intl.DateTimeFormat().resolvedOptions().timeZone : "UTC"
@@ -136,7 +158,51 @@ export function ScheduleInterviewModal({
     setNotes("");
     setCandidateNotes("");
     setSelectedInterviewerIds([]);
-  }, [open, applicants, fixedWorkerId, defaultTitle, resolvedApplicantName]);
+  }, [open, applicants, fixedWorkerId, defaultTitle]);
+
+  /** Applicants can load after the modal opens; only fill an untouched, empty selection. */
+  useEffect(() => {
+    if (!open || fixedWorkerId || workerId || applicantTouchedRef.current) return;
+    const firstApplicantId = applicants[0]?.id;
+    if (firstApplicantId) setWorkerId(firstApplicantId);
+  }, [open, applicants, fixedWorkerId, workerId]);
+
+  /** Load the applicant's open applications so the recruiter can pick the job to interview for. */
+  useEffect(() => {
+    if (!open || fixedApplicationId) return;
+    setApplications([]);
+    setApplicationId("");
+    if (!resolvedWorkerId) return;
+
+    let cancelled = false;
+    setApplicationsLoading(true);
+    void fetch(
+      `/api/admin/applicant-appointments/applications?workerId=${encodeURIComponent(resolvedWorkerId)}`,
+      { credentials: "include" }
+    )
+      .then(async (res) => {
+        const data = (await res.json().catch(() => ({}))) as {
+          applications?: InterviewApplicationOption[];
+        };
+        if (cancelled || !res.ok) return;
+        const list = data.applications ?? [];
+        setApplications(list);
+        setApplicationId(list.length === 1 ? list[0].id : "");
+      })
+      .finally(() => {
+        if (!cancelled) setApplicationsLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open, resolvedWorkerId, fixedApplicationId]);
+
+  /** Keep the title following the chosen applicant until the recruiter types their own. */
+  useEffect(() => {
+    if (!open || titleEdited) return;
+    setTitle(defaultInterviewTitle(resolvedApplicantName));
+  }, [open, titleEdited, resolvedApplicantName]);
 
   useEffect(() => {
     if (!open) return;
@@ -196,10 +262,17 @@ export function ScheduleInterviewModal({
     );
   }
 
+  const showJobPicker = !fixedApplicationId;
+  const selectedApplication = applications.find((item) => item.id === applicationId) ?? null;
+  const jobSelectionMissing = showJobPicker && applications.length > 1 && !applicationId;
+  const canSubmit = Boolean(resolvedWorkerId) && !jobSelectionMissing && !applicationsLoading;
+
   function handleConfirmSlot() {
-    if (!pendingSlot || !resolvedWorkerId) return;
+    if (!pendingSlot || !canSubmit) return;
     onSubmit({
       workerId: resolvedWorkerId,
+      applicationId: fixedApplicationId || applicationId || null,
+      jobId: selectedApplication?.jobId ?? null,
       startsAt: pendingSlot.startsAt.toISOString(),
       endsAt: pendingSlot.endsAt.toISOString(),
       timezone,
@@ -260,6 +333,7 @@ export function ScheduleInterviewModal({
                   onFocus={() => setApplicantOpen(true)}
                   onBlur={() => setApplicantOpen(false)}
                   onChange={(e) => {
+                    applicantTouchedRef.current = true;
                     setWorkerId(e.target.value);
                     setApplicantOpen(false);
                   }}
@@ -281,13 +355,66 @@ export function ScheduleInterviewModal({
             </label>
           )}
 
+          {showJobPicker ? (
+            <div className="mb-4">
+              <span className="mb-1.5 block text-sm font-semibold text-[#1F2937]">Job</span>
+              {applicationsLoading ? (
+                <p className="text-sm text-[#64748B]">Loading applied jobs…</p>
+              ) : !resolvedWorkerId ? (
+                <p className="text-sm text-[#64748B]">Select an applicant to load their applied jobs.</p>
+              ) : applications.length === 0 ? (
+                <p className="text-sm text-[#64748B]">
+                  This applicant has no open job applications. The interview will be scheduled without a job.
+                </p>
+              ) : (
+                <>
+                  <div className="relative">
+                    <select
+                      value={applicationId}
+                      onMouseDown={() => setJobOpen(true)}
+                      onFocus={() => setJobOpen(true)}
+                      onBlur={() => setJobOpen(false)}
+                      onChange={(e) => {
+                        setApplicationId(e.target.value);
+                        setJobOpen(false);
+                      }}
+                      className="h-11 w-full cursor-pointer appearance-none rounded-lg border border-[#CBD5E1] bg-white px-3 pr-11 text-sm text-[#1F2937] outline-none focus:border-[color:var(--brand-primary,#bc8b41)]"
+                    >
+                      {applications.length > 1 ? <option value="">Select job</option> : null}
+                      {applications.map((application) => (
+                        <option key={application.id} value={application.id}>
+                          {application.status
+                            ? `${application.jobTitle} (${application.status})`
+                            : application.jobTitle}
+                        </option>
+                      ))}
+                    </select>
+                    <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2" aria-hidden>
+                      <ChevronDownIcon
+                        className={`size-4 text-[#64748B] transition-transform duration-200 ${jobOpen ? "rotate-180" : ""}`}
+                      />
+                    </span>
+                  </div>
+                  {jobSelectionMissing ? (
+                    <p className="mt-1.5 text-xs text-[#B45309]">
+                      This applicant applied to {applications.length} jobs. Select the job this interview is for.
+                    </p>
+                  ) : null}
+                </>
+              )}
+            </div>
+          ) : null}
+
           <div className="mb-4 grid gap-4 min-[500px]:grid-cols-2">
             <label className="block min-[500px]:col-span-2">
               <span className="mb-1.5 block text-sm font-semibold text-[#1F2937]">Interview title</span>
               <input
                 type="text"
                 value={title}
-                onChange={(e) => setTitle(e.target.value)}
+                onChange={(e) => {
+                  setTitle(e.target.value);
+                  setTitleEdited(true);
+                }}
                 className="h-11 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm text-[#1F2937] outline-none focus:border-[color:var(--brand-primary,#bc8b41)]"
                 placeholder={defaultInterviewTitle(resolvedApplicantName)}
               />
@@ -481,7 +608,7 @@ export function ScheduleInterviewModal({
                       </div>
                       <button
                         type="button"
-                        disabled={submitting || !resolvedWorkerId}
+                        disabled={submitting || !canSubmit}
                         onClick={handleConfirmSlot}
                         className="flex w-full cursor-pointer items-center justify-center rounded-lg px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60 min-[500px]:flex-1"
                         style={{ backgroundColor: "var(--brand-primary, #bc8b41)" }}

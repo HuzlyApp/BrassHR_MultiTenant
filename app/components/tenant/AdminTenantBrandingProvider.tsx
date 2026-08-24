@@ -15,7 +15,7 @@ export function AdminTenantBrandingProvider({ children }: { children: ReactNode 
 
   useEffect(() => {
     if (branding?.primaryHex) {
-      void prefetchSidebarIconMarkups(branding.primaryHex);
+      void prefetchSidebarIconMarkups(branding.primaryHex).catch(() => {});
     }
   }, [branding?.primaryHex]);
 

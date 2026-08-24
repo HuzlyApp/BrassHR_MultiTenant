@@ -13,12 +13,14 @@ import type {
   Appointment,
   AppointmentSlot,
   AttendanceLog,
+  WorkerInterview,
 } from "@/app/application/components/applicant-portal/types";
 
 type AppointmentPayload = {
   availableSlots?: AppointmentSlot[];
   appointment?: Appointment | null;
   selectedSlot?: AppointmentSlot | null;
+  interviews?: WorkerInterview[];
   error?: string;
 };
 
@@ -62,6 +64,7 @@ function ApplicantSchedulePageContent() {
   );
   const scheduleView = parseScheduleView(searchParams.get("view"));
   const [availableSlots, setAvailableSlots] = useState<AppointmentSlot[]>([]);
+  const [interviews, setInterviews] = useState<WorkerInterview[]>([]);
   const [appointment, setAppointment] = useState<Appointment | null>(null);
   const [selectedSlot, setSelectedSlot] = useState<AppointmentSlot | null>(null);
   const [todayAttendance, setTodayAttendance] = useState<AttendanceLog | null>(null);
@@ -110,6 +113,7 @@ function ApplicantSchedulePageContent() {
     setAvailableSlots(payload.availableSlots ?? []);
     setAppointment(payload.appointment ?? null);
     setSelectedSlot(payload.selectedSlot ?? null);
+    setInterviews(payload.interviews ?? []);
   }
 
   async function loadNotes(headers: { Authorization: string }) {
@@ -322,6 +326,7 @@ function ApplicantSchedulePageContent() {
           appointment={appointment}
           selectedSlot={selectedSlot}
           availableSlots={availableSlots}
+          interviews={interviews}
           selectedSlotId={selectedSlotId}
           rescheduleReason={rescheduleReason}
           showRescheduleReason={showRescheduleReason}
