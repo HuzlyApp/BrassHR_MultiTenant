@@ -82,6 +82,12 @@ function ApplicantSchedulePageContent() {
     setActiveTab(parseTab(searchParams.get("tab")));
   }, [searchParams]);
 
+  /** Keep the page title and tabs in view whenever the schedule tab/view changes. */
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }, [activeTab, scheduleView]);
+
   function handleTabChange(tab: ApplicantPortalTab) {
     setActiveTab(tab);
     const params = new URLSearchParams(searchParams.toString());

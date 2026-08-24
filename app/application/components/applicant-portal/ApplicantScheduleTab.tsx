@@ -170,12 +170,6 @@ export function ApplicantScheduleTab({
   const hasUpcomingSchedules = upcomingAppointments.length > 0;
   const hasUpcomingAppointment = Boolean(appointment);
 
-  useEffect(() => {
-    if (!isCalendarView) return;
-    const calendarSection = document.getElementById("worker-schedule-calendar");
-    calendarSection?.scrollIntoView({ behavior: "smooth", block: "start" });
-  }, [isCalendarView]);
-
   return (
     <div className={`${WORKER_PORTAL_PAGE_PAD_CLASS} pb-8`}>
       <div className={`${WORKER_SCHEDULE_CARD_CLASS} p-5`}>

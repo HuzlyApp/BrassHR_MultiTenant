@@ -8,6 +8,8 @@ export type WorkerSidebarLink = {
   disabled?: boolean;
   /** When set on schedule routes, only active for that view (?view=calendar vs attendance default). */
   scheduleView?: "calendar" | "attendance";
+  /** When set, only active for that schedule page tab (?tab=timesheets). */
+  scheduleTab?: "schedule" | "timesheets" | "notes";
 };
 
 export type WorkerSidebarSection = {
@@ -61,11 +63,12 @@ const MY_SHIFTS_CHILDREN: WorkerSidebarLink[] = [
 
 const MY_SCHEDULE_CHILDREN: WorkerSidebarLink[] = [
   {
-    label: "Calendar",
+    label: "Schedule",
     href: `${SCHEDULE_HOME}?view=calendar`,
     matchPrefixes: [SCHEDULE_HOME],
     matchExact: true,
     scheduleView: "calendar",
+    scheduleTab: "schedule",
   },
   {
     label: "Attendance",
@@ -75,9 +78,9 @@ const MY_SCHEDULE_CHILDREN: WorkerSidebarLink[] = [
   },
   {
     label: "Time Tracking",
-    href: "#",
-    matchPrefixes: [],
-    disabled: true,
+    href: `${SCHEDULE_HOME}?view=calendar&tab=timesheets`,
+    matchPrefixes: SCHEDULE_ACTIVE_PREFIXES,
+    scheduleTab: "timesheets",
   },
 ];
 

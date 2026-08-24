@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   ChevronDown,
   ChevronLeft,
@@ -80,6 +80,96 @@ function initials(name: string): string {
   if (parts.length === 0) return "?";
   if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
   return `${parts[0][0] ?? ""}${parts[1][0] ?? ""}`.toUpperCase();
+}
+
+function formatWeekdayDate(isoDate: string): string {
+  const date = new Date(`${isoDate}T12:00:00`);
+  if (Number.isNaN(date.getTime())) return isoDate;
+  return date.toLocaleDateString("en-US", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+}
+
+function buildDateOptions(anchorIso: string, range = 14): { iso: string; label: string }[] {
+  const options: { iso: string; label: string }[] = [];
+  for (let offset = -range; offset <= range; offset += 1) {
+    const iso = addDaysIso(anchorIso, offset);
+    options.push({ iso, label: formatWeekdayDate(iso) });
+  }
+  return options;
+}
+
+function DashboardDateDropdown({
+  selectedDate,
+  onSelectDate,
+}: {
+  selectedDate: string;
+  onSelectDate: (iso: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const dateOptions = useMemo(() => buildDateOptions(selectedDate), [selectedDate]);
+  const selectedDateLabel = formatWeekdayDate(selectedDate);
+
+  useEffect(() => {
+    if (!open) return;
+    const handlePointerDown = (event: MouseEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handlePointerDown);
+    return () => document.removeEventListener("mousedown", handlePointerDown);
+  }, [open]);
+
+  return (
+    <div ref={rootRef} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((current) => !current)}
+        className="inline-flex items-center gap-1 rounded-md border border-[#E5E7EB] bg-white px-2.5 py-1.5 text-sm font-medium text-[#374151] transition hover:bg-[#F9FAFB]"
+        aria-label="Select date"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+      >
+        {selectedDateLabel}
+        <ChevronDown className={`h-4 w-4 transition ${open ? "rotate-180" : ""}`} aria-hidden />
+      </button>
+      {open ? (
+        <div
+          role="listbox"
+          aria-label="Date options"
+          className="absolute right-0 top-full z-50 mt-1 max-h-64 w-[min(320px,calc(100vw-2rem))] overflow-y-auto rounded-lg border border-[#E5E7EB] bg-white py-1 shadow-lg"
+        >
+          {dateOptions.map((option) => {
+            const active = option.iso === selectedDate;
+            return (
+              <button
+                key={option.iso}
+                type="button"
+                role="option"
+                aria-selected={active}
+                onClick={() => {
+                  onSelectDate(option.iso);
+                  setOpen(false);
+                }}
+                className={`block w-full px-3 py-2 text-left text-sm transition ${
+                  active
+                    ? "bg-[color:color-mix(in_srgb,var(--brand-primary)_10%,white)] font-semibold text-[color:var(--brand-primary)]"
+                    : "text-[#374151] hover:bg-[#F9FAFB]"
+                }`}
+              >
+                {option.label}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 function CardShell({
@@ -348,14 +438,7 @@ export default function DashboardOverviewClient() {
           <CardShell
             title="Active Facilities Workers"
             action={
-              <button
-                type="button"
-                className="inline-flex items-center gap-1 text-sm font-medium text-[#374151]"
-                aria-label="Selected date"
-              >
-                {data?.selectedDateLabel ?? "Today"}
-                <ChevronDown className="h-4 w-4" aria-hidden />
-              </button>
+              <DashboardDateDropdown selectedDate={selectedDate} onSelectDate={setSelectedDate} />
             }
           >
             {loading ? null : !data?.facilityWorkers.length ? (

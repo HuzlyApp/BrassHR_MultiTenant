@@ -113,6 +113,7 @@ export function ApplicantPortalSidebar({
   const searchParams = useSearchParams();
   const tenantQuery = searchParams?.get("tenant");
   const scheduleViewParam = searchParams?.get("view");
+  const scheduleTabParam = searchParams?.get("tab");
   const [logoSrc, setLogoSrc] = useState(
     normalizeBrandingImageSrc(branding.faviconUrl || branding.logoUrl, DEFAULT_LOGO, {
       allowBlob: true,
@@ -145,10 +146,19 @@ export function ApplicantPortalSidebar({
     if (!pathMatches) return false;
 
     if (link.scheduleView === "calendar") {
-      return scheduleViewParam === "calendar";
+      if (scheduleViewParam !== "calendar") return false;
     }
     if (link.scheduleView === "attendance") {
-      return scheduleViewParam !== "calendar";
+      if (scheduleViewParam === "calendar") return false;
+    }
+    if (link.scheduleTab === "timesheets") {
+      return scheduleTabParam === "timesheets";
+    }
+    if (link.scheduleTab === "notes") {
+      return scheduleTabParam === "notes";
+    }
+    if (link.scheduleTab === "schedule") {
+      return scheduleTabParam !== "timesheets" && scheduleTabParam !== "notes";
     }
 
     return true;
@@ -188,7 +198,7 @@ export function ApplicantPortalSidebar({
             })) ?? [],
         };
       }),
-    [pathname, scheduleViewParam]
+    [pathname, scheduleViewParam, scheduleTabParam]
   );
 
   useEffect(() => {
@@ -198,7 +208,7 @@ export function ApplicantPortalSidebar({
     ).map((section) => section.label);
     if (activeParents.length === 0) return;
     setOpenSectionLabels((prev) => Array.from(new Set([...prev, ...activeParents])));
-  }, [pathname, scheduleViewParam]);
+  }, [pathname, scheduleViewParam, scheduleTabParam]);
 
   useEffect(() => {
     const nav = navRef.current;

@@ -38,6 +38,12 @@ export function ApplicantPortalShell({ session, children }: Props) {
     setMobileNavOpen(false);
   }, [pathname]);
 
+  /** Always open pages from the top so the page title and tabs stay visible. */
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }, [pathname]);
+
   useEffect(() => {
     try {
       const stored = localStorage.getItem(WORKER_SIDEBAR_COLLAPSED_STORAGE_KEY);
