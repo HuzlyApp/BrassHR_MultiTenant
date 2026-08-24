@@ -16,13 +16,17 @@ vi.mock("mammoth", () => ({ default: { extractRawText: mammothExtractRawTextMock
 vi.mock("@/lib/resume/run-resume-parse-job", () => ({
   runResumeParseJob: (...args: unknown[]) => runResumeParseJobMock(...args),
 }))
-vi.mock("@/lib/onboarding/resolve-worker-context", () => ({
-  resolveWorkerByApplicantId: vi.fn(async () => null),
-  resolveOrEnsureWorkerForApplicant: vi.fn(async () => ({
+const resolveOrEnsureWorkerForApplicantMock = vi.hoisted(() =>
+  vi.fn(async () => ({
     workerId: "worker-1",
     tenantId: "tenant-1",
     userId: "applicant-1",
-  })),
+  }))
+)
+vi.mock("@/lib/onboarding/resolve-worker-context", () => ({
+  resolveWorkerByApplicantId: vi.fn(async () => null),
+  resolveOrEnsureWorkerForApplicant: (...args: unknown[]) =>
+    resolveOrEnsureWorkerForApplicantMock(...args),
 }))
 vi.mock("@/lib/onboarding/persist-worker-resume-path", () => ({
   persistWorkerResumePath: vi.fn(async () => undefined),
@@ -62,6 +66,7 @@ vi.mock("@supabase/supabase-js", () => ({
 }))
 
 import { POST } from "@/app/api/upload-resume/route"
+import { DRAFT_PREVIEW_APPLICANT_ID } from "@/lib/onboarding/is-draft-preview"
 
 function makePdfFile() {
   return new File([new Uint8Array([1, 2, 3])], "resume.pdf", { type: "application/pdf" })
@@ -183,5 +188,39 @@ describe("POST /api/upload-resume", () => {
     expect(res.status).toBe(500)
     const json = await res.json()
     expect(json.error).toContain("resume database record was not created")
+  })
+
+  it("supports Test workflow / draft preview without creating a production worker", async () => {
+    const fd = new FormData()
+    fd.append("file", makePdfFile())
+    fd.append("applicantId", DRAFT_PREVIEW_APPLICANT_ID)
+    fd.append("tenantSlug", "zipstaff")
+    fd.append("jobToken", "should-be-ignored")
+
+    const res = await POST(new Request("http://localhost/api/upload-resume", { method: "POST", body: fd }))
+
+    expect(res.status).toBe(200)
+    const json = await res.json()
+    expect(json.workflowTest).toBe(true)
+    expect(json.draftPreview).toBe(true)
+    expect(json.resumeId).toMatch(/^draft-preview-/)
+    expect(json.applicationId).toBeNull()
+    expect(json.storagePath).toBeNull()
+    expect(resolveOrEnsureWorkerForApplicantMock).not.toHaveBeenCalled()
+    expect(persistRecordMock).not.toHaveBeenCalled()
+    expect(storageUploadMock).not.toHaveBeenCalled()
+    expect(afterMock).not.toHaveBeenCalled()
+  })
+
+  it("still validates file type for Test workflow uploads", async () => {
+    const fd = new FormData()
+    fd.append("file", new File([new Uint8Array([1])], "resume.txt", { type: "text/plain" }))
+    fd.append("applicantId", DRAFT_PREVIEW_APPLICANT_ID)
+
+    const res = await POST(new Request("http://localhost/api/upload-resume", { method: "POST", body: fd }))
+
+    expect(res.status).toBe(400)
+    const json = await res.json()
+    expect(json.error).toContain("PDF, DOC, and DOCX")
   })
 })

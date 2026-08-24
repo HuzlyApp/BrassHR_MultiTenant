@@ -158,8 +158,10 @@ export function computeMaxAllowedStepIndex(
   if (!steps.length) return 1;
 
   if (typeof window !== "undefined") {
-    const preview = new URLSearchParams(window.location.search).get("preview");
-    if (preview === "draft") {
+    const params = new URLSearchParams(window.location.search);
+    const preview = params.get("preview");
+    const mode = params.get("mode")?.trim().toLowerCase();
+    if (preview === "draft" || mode === "test") {
       const idx = stepIndexFromPathname(pathname ?? "", steps, window.location.search);
       return Math.max(idx, steps.length);
     }

@@ -15,6 +15,10 @@ describe("isOnboardingDraftPreview", () => {
     expect(isOnboardingDraftPreview("tenant=acme&preview=published")).toBe(false);
     expect(isOnboardingDraftPreview("")).toBe(false);
   });
+
+  it("detects mode=test as an equivalent Test workflow session", () => {
+    expect(isOnboardingDraftPreview("?tenant=zipstaff&mode=test")).toBe(true);
+  });
 });
 
 describe("isDraftPreviewApplicantId", () => {

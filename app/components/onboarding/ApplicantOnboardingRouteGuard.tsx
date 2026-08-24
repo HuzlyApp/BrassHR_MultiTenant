@@ -29,7 +29,9 @@ function OnboardingRouteGuardInner({ children }: { children: React.ReactNode }) 
     return null;
   }, [searchParams]);
 
-  const isDraftPreview = searchParams.get("preview") === "draft";
+  const isDraftPreview =
+    searchParams.get("preview") === "draft" ||
+    searchParams.get("mode")?.trim().toLowerCase() === "test";
   const isApplicantDashboard =
     pathname.startsWith("/application/applicant-dashboard") ||
     pathname.startsWith("/application/home");

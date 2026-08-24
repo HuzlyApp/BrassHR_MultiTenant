@@ -35,12 +35,23 @@ export function isDraftPreviewApplicantId(applicantId: string | null | undefined
   return applicantId?.trim() === DRAFT_PREVIEW_APPLICANT_ID;
 }
 
-/** Admin builder draft preview (`?preview=draft`) — no applicant anonymous session needed. */
+/**
+ * Admin builder Test workflow / draft preview (`?preview=draft` or `?mode=test`).
+ * No live applicant anonymous session or production worker is required.
+ */
 export function isOnboardingDraftPreview(search?: string | null): boolean {
   if (typeof search !== "string" || !search.trim()) {
     if (typeof window === "undefined") return false;
-    return new URLSearchParams(window.location.search).get("preview") === "draft";
+    const params = new URLSearchParams(window.location.search);
+    return (
+      params.get("preview") === "draft" ||
+      params.get("mode")?.trim().toLowerCase() === "test"
+    );
   }
   const query = search.startsWith("?") ? search.slice(1) : search;
-  return new URLSearchParams(query).get("preview") === "draft";
+  const params = new URLSearchParams(query);
+  return (
+    params.get("preview") === "draft" ||
+    params.get("mode")?.trim().toLowerCase() === "test"
+  );
 }

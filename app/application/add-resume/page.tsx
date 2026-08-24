@@ -133,20 +133,32 @@ export default function Step1Upload() {
   const [fileRequiredError, setFileRequiredError] = useState<string | null>(null)
   const [savedResumeName, setSavedResumeName] = useState("")
   const [savedResumeSizeBytes, setSavedResumeSizeBytes] = useState<number | null>(null)
-  const jobToken =
-    searchParams.get("job_token")?.trim() ||
-    (typeof window !== "undefined" ? localStorage.getItem("applicationJobToken")?.trim() : "") ||
-    ""
+  const isWorkflowTest =
+    searchParams.get("preview") === "draft" ||
+    searchParams.get("mode")?.trim().toLowerCase() === "test"
+  const jobToken = isWorkflowTest
+    ? ""
+    : searchParams.get("job_token")?.trim() ||
+      (typeof window !== "undefined" ? localStorage.getItem("applicationJobToken")?.trim() : "") ||
+      ""
 
   useEffect(() => {
     if (typeof window === "undefined") return
+    const isWorkflowTest =
+      searchParams.get("preview") === "draft" ||
+      searchParams.get("mode")?.trim().toLowerCase() === "test"
+    if (isWorkflowTest) {
+      // Test workflow must not reuse a prior live job application token.
+      localStorage.removeItem("applicationJobToken")
+      return
+    }
     if (jobToken) {
       localStorage.setItem("applicationJobToken", jobToken)
       return
     }
     // Direct Start Application (no job): clear any stale token so config stays job-free.
     localStorage.removeItem("applicationJobToken")
-  }, [jobToken])
+  }, [jobToken, searchParams])
 
   useEffect(() => {
     if (typeof window === "undefined") return
@@ -415,8 +427,11 @@ export default function Step1Upload() {
         const fd = new FormData()
         fd.append("file", file)
         fd.append("applicantId", session.applicantId)
-        const tenantSlug =
-          new URLSearchParams(window.location.search).get("tenant")?.trim().toLowerCase() || ""
+        const search = new URLSearchParams(window.location.search)
+        const isWorkflowTest =
+          search.get("preview") === "draft" ||
+          search.get("mode")?.trim().toLowerCase() === "test"
+        const tenantSlug = search.get("tenant")?.trim().toLowerCase() || ""
         if (tenantSlug) {
           fd.append("tenantSlug", tenantSlug)
         }
@@ -426,17 +441,25 @@ export default function Step1Upload() {
         if (workerResult.tenantId) {
           fd.append("tenantId", workerResult.tenantId)
         }
-        const urlJobToken =
-          new URLSearchParams(window.location.search).get("job_token")?.trim() || ""
-        const activeJobToken =
-          urlJobToken ||
-          jobToken ||
-          (typeof window !== "undefined" ? localStorage.getItem("applicationJobToken")?.trim() : "") ||
-          ""
-        if (activeJobToken) {
-          fd.append("jobToken", activeJobToken)
+        // Live job applications only — Test workflow must not attach a production job_token.
+        if (!isWorkflowTest) {
+          const urlJobToken = search.get("job_token")?.trim() || ""
+          const activeJobToken =
+            urlJobToken ||
+            jobToken ||
+            (typeof window !== "undefined" ? localStorage.getItem("applicationJobToken")?.trim() : "") ||
+            ""
+          if (activeJobToken) {
+            fd.append("jobToken", activeJobToken)
+            try {
+              localStorage.setItem("applicationJobToken", activeJobToken)
+            } catch {
+              /* ignore */
+            }
+          }
+        } else {
           try {
-            localStorage.setItem("applicationJobToken", activeJobToken)
+            localStorage.removeItem("applicationJobToken")
           } catch {
             /* ignore */
           }
