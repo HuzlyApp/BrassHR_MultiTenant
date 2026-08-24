@@ -600,7 +600,7 @@ function JobActionsMenuPortal({
           onImportFromMsp();
           onClose();
         }}
-        className="block w-full px-3 py-1 text-left text-[10px] font-normal leading-[15px] text-[#012352] hover:bg-[#F8FAFC]"
+        className="block w-full px-3 py-2 text-left text-sm text-[#012352] hover:bg-[#F8FAFC]"
       >
         Import from MSP
       </button>
@@ -608,7 +608,7 @@ function JobActionsMenuPortal({
         <Link
           href={`/admin_recruiter/jobs/${job.id}/edit`}
           role="menuitem"
-          className="block px-3 py-1 text-[10px] font-normal leading-[15px] text-[#012352] hover:bg-[#F8FAFC]"
+          className="block px-3 py-2 text-sm text-[#012352] hover:bg-[#F8FAFC]"
           onClick={onClose}
         >
           Edit
@@ -620,7 +620,7 @@ function JobActionsMenuPortal({
           target="_blank"
           rel="noopener noreferrer"
           role="menuitem"
-          className="block px-3 py-1 text-[10px] font-normal leading-[15px] text-[#012352] hover:bg-[#F8FAFC]"
+          className="block px-3 py-2 text-sm text-[#012352] hover:bg-[#F8FAFC]"
           onClick={onClose}
         >
           View Public Listing
