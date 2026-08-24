@@ -5,6 +5,7 @@ export type ApplicationColumnId =
   | "location"
   | "activity"
   | "currentStage"
+  | "assignee"
   | "status"
   | "interest"
   | "email"
@@ -20,6 +21,7 @@ export const APPLICATION_COLUMN_OPTIONS: { id: ApplicationColumnId; label: strin
   { id: "location", label: "Location" },
   { id: "activity", label: "Activity" },
   { id: "currentStage", label: "Current Stage" },
+  { id: "assignee", label: "Assignee" },
   { id: "status", label: "Status" },
   { id: "interest", label: "Interest" },
   { id: "email", label: "Email" },
@@ -41,11 +43,12 @@ export const DEFAULT_APPLICATION_COLUMNS: ApplicationColumnId[] = [
   "currentStage",
   "dateApplied",
   "evaluation",
+  "assignee",
   "status",
   "actions",
 ];
 
-const STORAGE_KEY = "nexus-job-applications-list-columns-v2";
+const STORAGE_KEY = "nexus-job-applications-list-columns-v3";
 
 function insertAfter(
   order: ApplicationColumnId[],
@@ -75,6 +78,7 @@ function ensureDefaultListingColumns(order: ApplicationColumnId[]): ApplicationC
   next = insertAfter(next, "currentStage", "matches");
   next = insertAfter(next, "dateApplied", "currentStage");
   next = insertAfter(next, "evaluation", "dateApplied");
+  next = insertAfter(next, "assignee", "evaluation");
   if (!next.includes("status")) {
     const actionsIndex = next.indexOf("actions");
     if (actionsIndex >= 0) next.splice(actionsIndex, 0, "status");
@@ -125,6 +129,7 @@ const CENTER_ALIGNED_COLUMNS = new Set<ApplicationColumnId>([
   "matches",
   "activity",
   "interest",
+  "assignee",
   "status",
   "email",
   "workflow",
@@ -146,6 +151,7 @@ export function applicationListColumnClassName(colId: ApplicationColumnId): stri
   if (colId === "workflow") return `min-w-[140px]${center}`;
   if (colId === "dateApplied") return `min-w-[140px] whitespace-nowrap${center}`;
   if (colId === "evaluation") return `min-w-[110px] whitespace-nowrap${center}`;
+  if (colId === "assignee") return `min-w-[160px] whitespace-nowrap${center}`;
   if (colId === "status") return `min-w-[140px] whitespace-nowrap${center}`;
   if (colId === "actions") return `min-w-[100px] whitespace-nowrap${center}`;
   return center.trim();

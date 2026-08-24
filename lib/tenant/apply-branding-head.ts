@@ -2,6 +2,7 @@ import type { TenantBranding } from "@/lib/tenant/tenant-branding";
 import {
   resolveTenantDocumentFaviconHref,
   resolveTenantDocumentTitle,
+  withTenantFaviconCacheBuster,
 } from "@/lib/tenant/tenant-document-metadata";
 
 const FAVICON_REL_VALUES = ["icon", "shortcut icon", "apple-touch-icon"] as const;
@@ -70,8 +71,7 @@ export function desiredDocumentTitle(branding: TenantBranding): string {
 
 export function desiredFaviconHref(branding: TenantBranding): string {
   const iconSrc = resolveFaviconHref(branding);
-  const withCache = `${iconSrc}${iconSrc.includes("?") ? "&" : "?"}v=${encodeURIComponent(branding.slug ?? "default")}`;
-  return encodeHref(withCache);
+  return encodeHref(withTenantFaviconCacheBuster(iconSrc, branding));
 }
 
 export function applyBrandingHead(branding: TenantBranding) {
@@ -89,8 +89,5 @@ export function documentHeadMatchesBranding(branding: TenantBranding): boolean {
   const desired = desiredFaviconHref(branding);
   const links = Array.from(document.querySelectorAll("link[rel]")).filter(isFaviconLink);
   if (!links.length) return false;
-  return links.every((link) => {
-    const href = link.getAttribute("href") ?? "";
-    return href === desired || href.includes(`slug=${encodeURIComponent(branding.slug ?? "")}`);
-  });
+  return links.every((link) => (link.getAttribute("href") ?? "") === desired);
 }

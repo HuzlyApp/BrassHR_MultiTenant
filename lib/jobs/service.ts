@@ -41,6 +41,7 @@ import {
   syncJobScreeningQuestions,
   type JobScreeningQuestionInput,
 } from "@/lib/jobs/screening-questions";
+import { loadStaffUsersByIds } from "@/lib/account/resolve-staff-users";
 
 type DbClient = SupabaseClient;
 
@@ -953,8 +954,14 @@ export async function listInternalJobs(
     metricsByJob.set(id, current);
   }
 
+  const creatorIds = jobs
+    .map((job) => (job as { created_by?: string | null }).created_by)
+    .filter((id): id is string => Boolean(id));
+  const creatorsById = await loadStaffUsersByIds(supabase, tenantId, creatorIds);
+
   return jobs.map((job) => {
     const metrics = metricsByJob.get(String(job.id));
+    const createdByUserId = (job as { created_by?: string | null }).created_by;
     return {
       ...job,
       status: normalizeJobRequisitionStatus(String(job.status ?? "")),
@@ -963,6 +970,9 @@ export async function listInternalJobs(
       strong_match_count: metrics?.strongCount ?? 0,
       ready_to_submit_count: metrics?.readyCount ?? 0,
       hired_application_count: metrics?.hiredCount ?? 0,
+      createdBy: createdByUserId
+        ? creatorsById.get(String(createdByUserId)) ?? null
+        : null,
     };
   });
 }

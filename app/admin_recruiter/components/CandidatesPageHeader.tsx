@@ -23,7 +23,7 @@ export function CandidatesPageHeader({
 }: CandidatesPageHeaderProps) {
   const wrapperClass =
     variant === "page"
-      ? "flex flex-wrap items-center justify-between gap-3 py-2"
+      ? "flex flex-wrap items-center justify-between gap-3 py-2 max-lg:flex-col max-lg:items-stretch"
       : "px-3 pb-3 pt-3 sm:px-[14px] sm:pb-4 sm:pt-5";
 
   return (
@@ -36,7 +36,11 @@ export function CandidatesPageHeader({
           {subtitle}
         </p>
       </div>
-      {actions ? <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div> : null}
+      {actions ? (
+        <div className="flex shrink-0 flex-wrap items-center gap-2 max-lg:w-full max-lg:flex-col">
+          {actions}
+        </div>
+      ) : null}
     </div>
   );
 }

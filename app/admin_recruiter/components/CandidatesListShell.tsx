@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Search } from "lucide-react";
 import { CandidatesSubTabs } from "./CandidatesSubTabs";
 import { CandidatesPageHeader } from "./CandidatesPageHeader";
@@ -10,12 +10,18 @@ import { JobsViewToggle } from "@/app/admin_recruiter/jobs/JobsViewToggle";
 import { CandidatesKpiRow } from "@/app/admin_recruiter/candidates/CandidatesKpiRow";
 import type { CandidateKpiCard } from "@/app/admin_recruiter/candidates/candidate-kpis";
 import { MultiJobApplicantsBanner } from "@/app/admin_recruiter/components/MultiJobApplicantsBanner";
+import {
+  countActiveCandidatesFilters,
+  EditCandidatesFiltersModal,
+  EMPTY_CANDIDATES_FILTERS,
+  type CandidatesFilterValues,
+} from "@/app/admin_recruiter/candidates/EditCandidatesFiltersModal";
 
 const CANDIDATES_ICONS = "/icons/candidates-icons";
 const JOBS_ICONS = "/icons/jobs-icons";
 
 const PRIMARY_HEADER_BUTTON_CLASS =
-  "inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-lg bg-[color:var(--brand-primary)] px-3.5 text-sm font-semibold leading-5 text-white transition hover:brightness-95";
+  "inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-lg bg-[color:var(--brand-primary)] px-3.5 text-sm font-semibold leading-5 text-white transition hover:brightness-95 max-lg:w-full";
 
 const PRIMARY_TOOLBAR_BUTTON_CLASS =
   "inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-lg bg-[color:var(--brand-primary)] px-3 text-xs font-semibold leading-4 text-white transition hover:brightness-95";
@@ -212,8 +218,10 @@ function HighlightMultiJobToggle({
   onToggle: () => void;
 }) {
   return (
-    <div className="flex items-center justify-end gap-2 px-5 pb-2 pt-5">
-      <span className="text-[10px] font-normal leading-[15px] text-[#374151]">Highlight Multi-Job Applicants</span>
+    <div className="flex items-center justify-end gap-2 px-3 pb-2 pt-4 sm:px-5 sm:pt-5">
+      <span className="text-[10px] font-normal leading-[15px] text-[#374151] sm:text-xs">
+        Highlight Multi-Job Applicants
+      </span>
       <button
         type="button"
         role="switch"
@@ -282,9 +290,39 @@ export function CandidatesListShell({
   const [scoreSort, setScoreSort] = useState("");
   const [jobFilter, setJobFilter] = useState("");
   const [stageFilter, setStageFilter] = useState("");
+  const [filtersModalOpen, setFiltersModalOpen] = useState(false);
   const [highlightMultiJobInternal, setHighlightMultiJobInternal] = useState(false);
   const highlightMultiJob = highlightMultiJobProp ?? highlightMultiJobInternal;
   const setHighlightMultiJob = onHighlightMultiJobChange ?? setHighlightMultiJobInternal;
+
+  const filterValues = useMemo<CandidatesFilterValues>(
+    () => ({
+      scoreSort,
+      jobRoleFilter,
+      statusFilter,
+      jobFilter,
+      stageFilter,
+      locationFilter,
+      dateFilter,
+    }),
+    [scoreSort, jobRoleFilter, statusFilter, jobFilter, stageFilter, locationFilter, dateFilter]
+  );
+
+  const activeFilterCount = countActiveCandidatesFilters(filterValues);
+
+  function applyFilterValues(next: CandidatesFilterValues) {
+    setScoreSort(next.scoreSort);
+    onJobRoleFilterChange(next.jobRoleFilter);
+    onStatusFilterChange?.(next.statusFilter);
+    setJobFilter(next.jobFilter);
+    setStageFilter(next.stageFilter);
+    onLocationFilterChange(next.locationFilter);
+    onDateFilterChange(next.dateFilter);
+  }
+
+  function clearAllFilters() {
+    applyFilterValues({ ...EMPTY_CANDIDATES_FILTERS });
+  }
 
   const totalPages = Math.max(1, Math.ceil(totalFiltered / pageSize));
   const safePage = Math.min(page, totalPages);
@@ -323,28 +361,69 @@ export function CandidatesListShell({
               <AddPlusIcon />
               Add Candidate
             </button>
-            <ListExportDropdown variant="header" onExportCsv={onExportCsv} onExportXls={onExportXls} />
+            <div className="max-lg:w-full max-lg:[&_button]:w-full">
+              <ListExportDropdown variant="header" onExportCsv={onExportCsv} onExportXls={onExportXls} />
+            </div>
           </>
         }
       />
 
       {kpiCards && kpiCards.length > 0 ? (
-        <div className="mt-5">
+        <div className="mt-4 sm:mt-5">
           <CandidatesKpiRow cards={kpiCards} />
         </div>
       ) : null}
 
-      <div className="mt-5 w-full overflow-hidden rounded-[12px] border border-[#E5E7EB] bg-white">
-        <div className="flex w-full flex-wrap items-center justify-between gap-3 border-b border-[#E5E7EB] px-5 py-3.5">
-          <div className="flex flex-wrap items-center gap-3">
-            <button type="button" onClick={onClaimCandidates} className={PRIMARY_TOOLBAR_BUTTON_CLASS}>
+      <div className="mt-4 w-full overflow-hidden rounded-[12px] border border-[#E5E7EB] bg-white sm:mt-5">
+        <div className="flex w-full flex-col gap-2 border-b border-[#E5E7EB] px-3 py-3.5 lg:flex-row lg:items-center lg:justify-between lg:gap-3 sm:px-5">
+          <div className="flex w-full items-center gap-2 lg:min-w-0 lg:flex-1 lg:gap-3">
+            <button
+              type="button"
+              onClick={onClaimCandidates}
+              className={`${PRIMARY_TOOLBAR_BUTTON_CLASS} min-w-0 flex-1 lg:flex-none`}
+            >
               <ClaimClipboardIcon />
-              Claim Candidates
+              <span className="max-[380px]:hidden">Claim Candidates</span>
+              <span className="hidden max-[380px]:inline">Claim</span>
             </button>
-            <button type="button" onClick={onEditColumns} className={OUTLINE_TOOLBAR_BUTTON_CLASS}>
+            <button
+              type="button"
+              onClick={onEditColumns}
+              className={`${OUTLINE_TOOLBAR_BUTTON_CLASS} min-w-0 flex-1 lg:flex-none`}
+            >
               <ColumnsIcon />
               Columns
             </button>
+            <button
+              type="button"
+              onClick={onRefresh}
+              className="hidden size-8 shrink-0 items-center justify-center rounded-lg border border-[#CBD5E1] bg-white text-[#475569] transition hover:bg-zinc-50 lg:inline-flex"
+              aria-label={refreshLabel}
+              title={refreshLabel}
+            >
+              <ListingGlyph src="/icons/admin-recruiter/candidates/refresh.svg" outer={16} leafWidth={16} leafHeight={16} />
+            </button>
+            {activeFilterCount > 0 ? (
+              <button
+                type="button"
+                onClick={clearAllFilters}
+                className={`${OUTLINE_TOOLBAR_BUTTON_CLASS} hidden lg:inline-flex`}
+              >
+                Reset
+              </button>
+            ) : null}
+          </div>
+
+          <div className="flex w-full items-center justify-end gap-2 lg:hidden">
+            {activeFilterCount > 0 ? (
+              <button
+                type="button"
+                onClick={clearAllFilters}
+                className={OUTLINE_TOOLBAR_BUTTON_CLASS}
+              >
+                Reset
+              </button>
+            ) : null}
             <button
               type="button"
               onClick={onRefresh}
@@ -354,12 +433,16 @@ export function CandidatesListShell({
             >
               <ListingGlyph src="/icons/admin-recruiter/candidates/refresh.svg" outer={16} leafWidth={16} leafHeight={16} />
             </button>
+            <CandidatesViewToggle view={view} onViewChange={onViewChange} />
           </div>
-          <CandidatesViewToggle view={view} onViewChange={onViewChange} />
+
+          <div className="hidden shrink-0 lg:block">
+            <CandidatesViewToggle view={view} onViewChange={onViewChange} />
+          </div>
         </div>
 
-        <div className="flex w-full flex-wrap items-center gap-5 border-b border-[#E5E7EB] px-5 py-3.5">
-          <label className="flex h-8 min-w-[200px] flex-1 items-center gap-1 overflow-hidden rounded-lg border border-[#CBD5E1] bg-white px-2.5">
+        <div className="flex w-full flex-wrap items-center gap-5 border-b border-[#E5E7EB] px-3 py-3.5 sm:px-5">
+          <label className="flex h-8 min-w-[200px] flex-1 items-center gap-1 overflow-hidden rounded-lg border border-[#CBD5E1] bg-white px-2.5 max-lg:min-w-0">
             <span className="relative flex size-5 shrink-0 items-center justify-center overflow-hidden" aria-hidden>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
@@ -380,57 +463,73 @@ export function CandidatesListShell({
             />
           </label>
 
-          <CompactFilterSelect
-            ariaLabel="Score"
-            placeholder="Score (high-low)"
-            value={scoreSort}
-            onChange={setScoreSort}
-            options={[
-              { value: "high-low", label: "Score (high-low)" },
-              { value: "low-high", label: "Score (low-high)" },
-            ]}
-          />
-          <CompactFilterSelect
-            ariaLabel="Work types"
-            placeholder="All Work Types"
-            value={jobRoleFilter}
-            onChange={onJobRoleFilterChange}
-            options={jobRoleOptions.map((role) => ({ value: role, label: role }))}
-          />
-          <CompactFilterSelect
-            ariaLabel="Status"
-            placeholder="All Status"
-            value={statusFilter}
-            onChange={(value) => onStatusFilterChange?.(value)}
-            options={statusOptions.map((status) => ({ value: status, label: status }))}
-          />
-          <CompactFilterSelect
-            ariaLabel="Jobs"
-            placeholder="All Jobs"
-            value={jobFilter}
-            onChange={setJobFilter}
-            options={[]}
-          />
-          <CompactFilterSelect
-            ariaLabel="Stages"
-            placeholder="Stages"
-            value={stageFilter}
-            onChange={setStageFilter}
-            options={[]}
-          />
           <button
             type="button"
-            onClick={onToggleFilterRows}
-            aria-expanded={showFilterRows}
-            className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-[color:var(--brand-primary)] bg-white px-3 text-xs font-normal leading-4 text-[color:var(--brand-primary)] transition hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_6%,white)]"
+            onClick={() => setFiltersModalOpen(true)}
+            className="inline-flex h-8 w-full shrink-0 items-center justify-center gap-1.5 rounded-lg border border-[color:var(--brand-primary)] bg-white px-3 text-xs font-normal leading-4 text-[color:var(--brand-primary)] transition hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_6%,white)] lg:hidden"
           >
             <MoreFiltersIcon />
-            More Filters
+            Filters
+            {activeFilterCount > 0 ? (
+              <span className="inline-flex min-w-[18px] items-center justify-center rounded-full bg-[color:var(--brand-primary)] px-1.5 text-[10px] font-semibold leading-4 text-white">
+                {activeFilterCount}
+              </span>
+            ) : null}
           </button>
+
+          <div className="hidden lg:contents">
+            <CompactFilterSelect
+              ariaLabel="Score"
+              placeholder="Score (high-low)"
+              value={scoreSort}
+              onChange={setScoreSort}
+              options={[
+                { value: "high-low", label: "Score (high-low)" },
+                { value: "low-high", label: "Score (low-high)" },
+              ]}
+            />
+            <CompactFilterSelect
+              ariaLabel="Work types"
+              placeholder="All Work Types"
+              value={jobRoleFilter}
+              onChange={onJobRoleFilterChange}
+              options={jobRoleOptions.map((role) => ({ value: role, label: role }))}
+            />
+            <CompactFilterSelect
+              ariaLabel="Status"
+              placeholder="All Status"
+              value={statusFilter}
+              onChange={(value) => onStatusFilterChange?.(value)}
+              options={statusOptions.map((status) => ({ value: status, label: status }))}
+            />
+            <CompactFilterSelect
+              ariaLabel="Jobs"
+              placeholder="All Jobs"
+              value={jobFilter}
+              onChange={setJobFilter}
+              options={[]}
+            />
+            <CompactFilterSelect
+              ariaLabel="Stages"
+              placeholder="Stages"
+              value={stageFilter}
+              onChange={setStageFilter}
+              options={[]}
+            />
+            <button
+              type="button"
+              onClick={onToggleFilterRows}
+              aria-expanded={showFilterRows}
+              className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-[color:var(--brand-primary)] bg-white px-3 text-xs font-normal leading-4 text-[color:var(--brand-primary)] transition hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_6%,white)]"
+            >
+              <MoreFiltersIcon />
+              More Filters
+            </button>
+          </div>
         </div>
 
         {showFilterRows ? (
-          <div className="flex w-full flex-wrap items-center gap-5 border-b border-[#E5E7EB] px-5 py-3.5">
+          <div className="flex w-full flex-wrap items-center gap-5 border-b border-[#E5E7EB] px-5 py-3.5 max-lg:hidden">
             <CompactFilterSelect
               ariaLabel="Location"
               placeholder="Location"
@@ -461,18 +560,18 @@ export function CandidatesListShell({
 
         <HighlightMultiJobToggle on={highlightMultiJob} onToggle={() => setHighlightMultiJob(!highlightMultiJob)} />
 
-        <div className="flex w-full items-center px-5 pb-2">
+        <div className="flex w-full items-center px-3 pb-2 sm:px-5">
           <div className="text-xs leading-4 text-[#5e7371]">{totalText}</div>
         </div>
 
-        <div className="bg-white px-5 pb-5">{children}</div>
+        <div className="bg-white px-3 pb-5 sm:px-5">{children}</div>
 
         {totalFiltered > 0 ? (
-          <div className="flex flex-col gap-3 border-t border-[#E5E7EB] bg-white px-5 py-4 xl:flex-row xl:flex-wrap xl:items-center xl:justify-between xl:gap-4">
+          <div className="flex flex-col gap-3 border-t border-[#E5E7EB] bg-white px-3 py-4 sm:px-5 xl:flex-row xl:flex-wrap xl:items-center xl:justify-between xl:gap-4">
             <p className="text-sm text-[#64748B]">
               Showing {rangeStart}-{rangeEnd} of {totalFiltered} results
             </p>
-            <div className="flex w-full flex-wrap items-center justify-end gap-3 xl:w-auto">
+            <div className="flex w-full flex-col gap-3 xl:w-auto xl:flex-row xl:items-center xl:gap-3">
               <ListPaginationShowLabel
                 pageSize={pageSize}
                 options={[10, 20, 30]}
@@ -482,6 +581,7 @@ export function CandidatesListShell({
                 currentPage={safePage}
                 totalPages={totalPages}
                 onPageChange={onPageChange}
+                className="self-end xl:self-auto"
                 activeStyle={{
                   backgroundColor: "var(--brand-secondary)",
                   borderColor: "var(--brand-secondary)",
@@ -495,6 +595,20 @@ export function CandidatesListShell({
       {highlightMultiJob && multiJobApplicantCount > 0 ? (
         <MultiJobApplicantsBanner count={multiJobApplicantCount} onViewAll={onViewAllMultiJobApplicants} />
       ) : null}
+
+      <EditCandidatesFiltersModal
+        key={filtersModalOpen ? "candidate-filters-open" : "candidate-filters-closed"}
+        open={filtersModalOpen}
+        onOpenChange={setFiltersModalOpen}
+        value={filterValues}
+        options={{
+          jobRoleOptions,
+          statusOptions,
+          locationOptions,
+        }}
+        onSave={applyFilterValues}
+        onAdvancedSearch={onAdvancedSearch}
+      />
     </div>
   );
 }

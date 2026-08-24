@@ -10,6 +10,7 @@ import type { SourceType } from "@/lib/jobs/types"
 import { employmentTypeDisplayLabel } from "@/lib/jobs/employment-type"
 import { JobPublicViewLink } from "./JobPublicViewLink"
 import { DraftJobIncompleteInfoIcon } from "./DraftJobIncompleteInfoIcon"
+import { StaffProfileAvatar } from "@/app/admin_recruiter/components/StaffProfileAvatar"
 
 const JOB_CANDIDATE_COUNTER_CLASS =
   "inline-flex h-[18px] min-w-[18px] shrink-0 items-center justify-center rounded-sm bg-[color:color-mix(in_srgb,var(--brand-primary)_14%,white)] px-1 text-[11px] font-medium leading-none text-[#475569]"
@@ -111,6 +112,8 @@ export type JobListRow = {
   ready_to_submit_count?: number
   /** Applications with hired status. */
   hired_application_count?: number
+  created_by?: string | null
+  createdBy?: { id: string; name: string; profilePhotoUrl: string | null } | null
 }
 
 const JOB_FORM_SURFACE_CLASS = "rounded-lg border border-[#CBD5E1] bg-white"
@@ -333,7 +336,7 @@ export function jobSortValue(job: JobListRow, field: JobSortField): string | num
     case "datePosted":
       return new Date(job.published_at || job.created_at || 0).getTime() || 0
     case "assignee":
-      return "hr manager"
+      return (job.createdBy?.name?.trim() ?? "").toLowerCase()
     case "jobStatus":
       return jobStatusSortLabel(job.status).toLowerCase()
     case "payRate":
@@ -563,18 +566,19 @@ export function renderJobListCell(
           <div className="mt-0.5 text-xs text-[#94A3B8]">{posted.absolute}</div>
         </div>
       )
-    case "assignee":
+    case "assignee": {
+      const creator = job.createdBy;
+      const name = creator?.name?.trim();
+      if (!name) return <span className="text-sm text-[#94A3B8]">—</span>;
       return (
         <div className="flex items-center justify-center gap-2">
-          <span
-            className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold text-white"
-            style={{ backgroundColor: ctx.brandingSecondaryHex }}
-          >
-            HR
+          <StaffProfileAvatar name={name} photoUrl={creator?.profilePhotoUrl} size="sm" />
+          <span className="max-w-[120px] truncate text-sm text-[#475569]" title={name}>
+            {name}
           </span>
-          <span className="text-sm text-[#475569]">HR Manager</span>
         </div>
-      )
+      );
+    }
     case "jobStatus":
       return (
         <div className="flex justify-center">

@@ -6,6 +6,7 @@ import { JobValidationError } from "@/lib/jobs/types";
 import { resolveStaffTenantId } from "@/lib/jobs/tenant";
 import { JOB_APPLICATION_APPLICANT_EMBED } from "@/lib/jobs/application-applicant-display";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
+import { loadStaffUsersByIds } from "@/lib/account/resolve-staff-users";
 import { WORKER_RESUMES_BUCKET } from "@/lib/supabase-storage-buckets";
 
 export const runtime = "nodejs";
@@ -53,7 +54,7 @@ export async function GET(req: NextRequest) {
     let query = supabase
       .from("job_applications")
       .select(
-        `id, status, status_id, workflow_phase, post_hire_activated_at, created_at, submitted_at, updated_at, job_requisition_id, workflow_id, applicant_workflow_instance_id, worker_id, ai_match_status, ai_match_score, ai_match_category, ai_match_action, ai_match_readiness, ai_match_display_category, ai_analyzed_at, ai_analysis_error, ai_analysis_progress, application_statuses(id, name, system_key, color), job_requisitions(public_title, profession_id, employment_type, location, facility, facility_name, professions(name)), onboarding_flows(name), ${JOB_APPLICATION_APPLICANT_EMBED}`
+        `id, status, status_id, workflow_phase, post_hire_activated_at, created_at, submitted_at, updated_at, job_requisition_id, workflow_id, applicant_workflow_instance_id, worker_id, assigned_recruiter_user_id, ai_match_status, ai_match_score, ai_match_category, ai_match_action, ai_match_readiness, ai_match_display_category, ai_analyzed_at, ai_analysis_error, ai_analysis_progress, application_statuses(id, name, system_key, color), job_requisitions(public_title, profession_id, employment_type, location, facility, facility_name, professions(name)), onboarding_flows(name), ${JOB_APPLICATION_APPLICANT_EMBED}`
       )
       .eq("tenant_id", tenantId);
 
@@ -140,6 +141,15 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    const recruiterIds = Array.from(
+      new Set(
+        applications
+          .map((row) => (row as { assigned_recruiter_user_id?: string | null }).assigned_recruiter_user_id)
+          .filter((id): id is string => Boolean(id))
+      )
+    );
+    const recruitersById = await loadStaffUsersByIds(supabase, tenantId, recruiterIds);
+
     return NextResponse.json({
       applications: applications.map((row) => {
         const statusJoin = Array.isArray(
@@ -149,11 +159,20 @@ export async function GET(req: NextRequest) {
           : (row as { application_statuses?: { name?: string } | null }).application_statuses;
         const workerIdValue = (row as { worker_id?: string | null }).worker_id;
         const applicationId = (row as { id: string }).id;
+        const assignedRecruiterUserId = (row as { assigned_recruiter_user_id?: string | null })
+          .assigned_recruiter_user_id;
         return {
           ...row,
           statusName: statusJoin?.name ?? null,
           appliedJobCount: workerIdValue ? countByWorker.get(workerIdValue) ?? 1 : 1,
           statusNote: noteByApplication.get(applicationId) || null,
+          assignedRecruiter: assignedRecruiterUserId
+            ? recruitersById.get(String(assignedRecruiterUserId)) ?? {
+                id: String(assignedRecruiterUserId),
+                name: "Team member",
+                profilePhotoUrl: null,
+              }
+            : null,
         };
       }),
     });

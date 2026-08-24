@@ -19,7 +19,7 @@ const TENANT_BRANDING_SELECT =
 
 const DEFAULT_FAVICON = BRAAS_PLATFORM_FAVICON;
 
-const CACHE_CONTROL = "public, max-age=86400, stale-while-revalidate=604800";
+const CACHE_CONTROL = "public, max-age=3600, stale-while-revalidate=86400, must-revalidate";
 
 function contentTypeFromPath(iconPath: string): string {
   const lower = iconPath.split("?")[0]?.toLowerCase() ?? "";
@@ -47,7 +47,7 @@ async function readPublicAsset(iconSrc: string): Promise<Buffer | null> {
 async function fetchRemoteAsset(url: string): Promise<{ body: ArrayBuffer; contentType: string } | null> {
   try {
     const res = await fetch(url, {
-      cache: "force-cache",
+      cache: "no-store",
       signal: AbortSignal.timeout(8_000),
     });
     if (!res.ok) return null;

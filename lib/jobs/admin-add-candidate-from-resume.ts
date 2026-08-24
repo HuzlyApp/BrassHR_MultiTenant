@@ -27,6 +27,8 @@ export type AdminAddCandidateFromResumeInput = {
   resumeFile?: File | null;
   resumeText?: string | null;
   resumeTitle?: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
 };
 
 export type AdminAddCandidateFromResumeResult = {
@@ -209,7 +211,9 @@ export async function adminAddCandidateFromResume(
 
   const parsed = quality.normalized;
   const parsedJson = normalizedResumeToStoredJson(parsed);
-  const fullName = formatFullName(parsed.first_name, parsed.last_name);
+  const resolvedFirstName = input.firstName?.trim() || parsed.first_name.trim();
+  const resolvedLastName = input.lastName?.trim() || parsed.last_name.trim();
+  const fullName = formatFullName(resolvedFirstName, resolvedLastName);
   const email = parsed.email.trim();
   const phone = parsed.phone.trim();
 

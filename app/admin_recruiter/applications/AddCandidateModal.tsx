@@ -95,6 +95,8 @@ export default function AddCandidateModal({
 
   const [activeTab, setActiveTab] = useState<ResumeTab>("files");
   const [resumeFile, setResumeFile] = useState<File | null>(null);
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [resumeTitle, setResumeTitle] = useState("");
   const [resumeText, setResumeText] = useState("");
   const [fileError, setFileError] = useState<string | null>(null);
@@ -111,6 +113,8 @@ export default function AddCandidateModal({
   const resetForm = useCallback(() => {
     setActiveTab("files");
     setResumeFile(null);
+    setFirstName("");
+    setLastName("");
     setResumeTitle("");
     setResumeText("");
     setFileError(null);
@@ -234,6 +238,8 @@ export default function AddCandidateModal({
         form.set("resumeText", resumeText.trim());
         if (resumeTitle.trim()) form.set("resumeTitle", resumeTitle.trim());
       }
+      if (firstName.trim()) form.set("firstName", firstName.trim());
+      if (lastName.trim()) form.set("lastName", lastName.trim());
 
       const response = await fetch("/api/admin/add-candidate-from-resume", {
         method: "POST",
@@ -310,6 +316,37 @@ export default function AddCandidateModal({
                   <span className="font-medium text-[#334155]">{jobTitle}</span>
                 </p>
               ) : null}
+
+              <div className="mb-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div>
+                  <label className={FIELD_LABEL_CLASS} htmlFor="add-candidate-first-name">
+                    First name
+                  </label>
+                  <input
+                    id="add-candidate-first-name"
+                    className={`${FIELD_INPUT_CLASS} h-10`}
+                    placeholder="First name"
+                    value={firstName}
+                    onChange={(event) => setFirstName(event.target.value)}
+                    disabled={uploading}
+                    autoComplete="given-name"
+                  />
+                </div>
+                <div>
+                  <label className={FIELD_LABEL_CLASS} htmlFor="add-candidate-last-name">
+                    Last name
+                  </label>
+                  <input
+                    id="add-candidate-last-name"
+                    className={`${FIELD_INPUT_CLASS} h-10`}
+                    placeholder="Last name"
+                    value={lastName}
+                    onChange={(event) => setLastName(event.target.value)}
+                    disabled={uploading}
+                    autoComplete="family-name"
+                  />
+                </div>
+              </div>
 
               <ResumeTabBar
                 activeTab={activeTab}

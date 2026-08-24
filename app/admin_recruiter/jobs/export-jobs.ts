@@ -49,7 +49,10 @@ const JOB_EXPORT_COLUMN_BUILDERS: Partial<
     header: "Date Posted",
     value: (row) => formatExportDate(row.published_at || row.created_at),
   },
-  assignee: { header: "Assignee", value: () => "HR Manager" },
+  assignee: {
+    header: "Created by",
+    value: (row) => row.createdBy?.name?.trim() || "—",
+  },
   jobStatus: {
     header: "Job Status",
     value: (row) => jobStatusSortLabel(row.status),
