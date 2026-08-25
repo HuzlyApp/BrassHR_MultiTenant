@@ -310,7 +310,7 @@ function AgreementBody({ model, previewState }: { model: StepPreviewModel; previ
         <p className="text-sm font-semibold text-slate-800">{model.step.title || "Agreement"}</p>
         <div className="mt-3 max-h-40 overflow-y-auto rounded-lg bg-slate-50 p-3 text-xs leading-5 text-slate-600">
           This is a sample agreement body. In production, the candidate reviews the configured
-          document or Firma template, then signs. No legal terms are submitted from this preview.
+          document or signature template, then signs. No legal terms are submitted from this preview.
         </div>
         <div className="mt-4">
           <OnboardingCheckbox checked={acknowledged} onChange={() => undefined} disabled>

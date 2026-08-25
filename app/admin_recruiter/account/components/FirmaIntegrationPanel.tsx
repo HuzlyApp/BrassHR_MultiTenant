@@ -9,6 +9,12 @@ import {
   AccountSaveButton,
   AccountSuccessBanner,
 } from "./AccountFormStatus";
+import {
+  E_SIGNATURE_SETTINGS_LABEL,
+  E_SIGNATURE_USER_ERRORS,
+  E_SIGNATURE_WORKSPACE_LABEL,
+  sanitizeESignatureUserMessage,
+} from "@/lib/e-signature/user-facing";
 
 type FirmaSettingsResponse = {
   firma_workspace_id: string | null;
@@ -49,7 +55,12 @@ export default function FirmaIntegrationPanel() {
           error?: string;
         };
         if (!res.ok) {
-          throw new Error(payload.error || "Failed to load Firma settings");
+          throw new Error(
+            sanitizeESignatureUserMessage(
+              payload.error,
+              `Failed to load ${E_SIGNATURE_SETTINGS_LABEL}`
+            )
+          );
         }
         if (cancelled) return;
         setFirmaWorkspaceId(payload.firma_workspace_id ?? "");
@@ -57,10 +68,19 @@ export default function FirmaIntegrationPanel() {
         setEnvFallbackId(payload.env_fallback_workspace_id);
         setSource(payload.source);
         setProvisioningStatus(payload.firma_workspace_provisioning_status ?? null);
-        setProvisioningError(payload.firma_workspace_provisioning_error ?? null);
+        setProvisioningError(
+          payload.firma_workspace_provisioning_error
+            ? sanitizeESignatureUserMessage(payload.firma_workspace_provisioning_error)
+            : null
+        );
       } catch (err) {
         if (!cancelled) {
-          setSaveError(err instanceof Error ? err.message : "Failed to load Firma settings");
+          setSaveError(
+            sanitizeESignatureUserMessage(
+              err instanceof Error ? err.message : null,
+              `Failed to load ${E_SIGNATURE_SETTINGS_LABEL}`
+            )
+          );
         }
       } finally {
         if (!cancelled) setSettingsLoading(false);
@@ -93,7 +113,9 @@ export default function FirmaIntegrationPanel() {
         };
       };
       if (!res.ok) {
-        throw new Error(payload.error || "Failed to create Firma workspace");
+        throw new Error(
+          sanitizeESignatureUserMessage(payload.error, E_SIGNATURE_USER_ERRORS.workspaceUnavailable)
+        );
       }
 
       const result = payload.firmaProvisioning;
@@ -103,19 +125,28 @@ export default function FirmaIntegrationPanel() {
         setSource("tenant");
         setProvisioningStatus("created");
         setProvisioningError(null);
-        setSaveSuccess("Firma workspace created successfully.");
+        setSaveSuccess(`${E_SIGNATURE_WORKSPACE_LABEL} created successfully.`);
       } else if (result?.status === "already_configured" && result.workspaceId) {
         setFirmaWorkspaceId(result.workspaceId);
         setEffectiveWorkspaceId(result.workspaceId);
         setSource("tenant");
-        setSaveSuccess("Firma workspace is already configured.");
+        setSaveSuccess(`${E_SIGNATURE_WORKSPACE_LABEL} is already configured.`);
       } else {
+        const message = sanitizeESignatureUserMessage(
+          result?.message,
+          E_SIGNATURE_USER_ERRORS.workspaceUnavailable
+        );
         setProvisioningStatus("failed");
-        setProvisioningError(result?.message ?? "Firma workspace creation failed.");
-        setSaveError(result?.message ?? "Firma workspace creation failed.");
+        setProvisioningError(message);
+        setSaveError(message);
       }
     } catch (err) {
-      setSaveError(err instanceof Error ? err.message : "Failed to create Firma workspace");
+      setSaveError(
+        sanitizeESignatureUserMessage(
+          err instanceof Error ? err.message : null,
+          E_SIGNATURE_USER_ERRORS.workspaceUnavailable
+        )
+      );
     } finally {
       setProvisioning(false);
     }
@@ -145,15 +176,22 @@ export default function FirmaIntegrationPanel() {
         error?: string;
       };
       if (!res.ok) {
-        throw new Error(payload.error || "Failed to save Firma settings");
+        throw new Error(
+          sanitizeESignatureUserMessage(payload.error, `Failed to save ${E_SIGNATURE_SETTINGS_LABEL}`)
+        );
       }
 
       setFirmaWorkspaceId(payload.firma_workspace_id ?? "");
       setEffectiveWorkspaceId(payload.effective_workspace_id);
       setSource(payload.source);
-      setSaveSuccess("Firma workspace settings saved.");
+      setSaveSuccess(`${E_SIGNATURE_WORKSPACE_LABEL} settings saved.`);
     } catch (err) {
-      setSaveError(err instanceof Error ? err.message : "Failed to save Firma settings");
+      setSaveError(
+        sanitizeESignatureUserMessage(
+          err instanceof Error ? err.message : null,
+          `Failed to save ${E_SIGNATURE_SETTINGS_LABEL}`
+        )
+      );
     } finally {
       setSaving(false);
     }
@@ -170,11 +208,11 @@ export default function FirmaIntegrationPanel() {
   return (
     <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
       <div className="mb-4">
-        <h2 className="text-lg font-semibold text-slate-900">Firma E-Signature</h2>
+        <h2 className="text-lg font-semibold text-slate-900">{E_SIGNATURE_SETTINGS_LABEL}</h2>
         <p className="mt-1 text-sm text-slate-600">
-          Assign a Firma.dev workspace for this organization. Templates and applicant signing requests
-          are created in this workspace. Leave blank to use the server&apos;s global{" "}
-          <code className="text-xs">FIRMA_WORKSPACE_ID</code> fallback.
+          Assign an e-signature workspace for this organization. Signature templates and applicant
+          signing requests are created in this workspace. Leave blank to use the server&apos;s
+          global workspace fallback when configured by your platform administrator.
         </p>
       </div>
 
@@ -186,22 +224,24 @@ export default function FirmaIntegrationPanel() {
           className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"
           role="status"
         >
-          No Firma workspace is configured for this organization. Set a workspace ID below or ask
-          your platform administrator to configure the server{" "}
-          <code className="text-xs">FIRMA_WORKSPACE_ID</code> fallback. Template publishing and
-          applicant signing will fail until a workspace is available.
+          {E_SIGNATURE_USER_ERRORS.workspaceNotConfigured} Template publishing and applicant signing
+          will fail until a workspace is available.
         </div>
       ) : null}
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <FieldLabel htmlFor="firma-workspace-id">Firma workspace ID</FieldLabel>
+          <FieldLabel htmlFor="e-signature-workspace-id">Workspace ID</FieldLabel>
           <input
-            id="firma-workspace-id"
+            id="e-signature-workspace-id"
             className={FIELD}
             value={firmaWorkspaceId}
             onChange={(event) => setFirmaWorkspaceId(event.target.value)}
-            placeholder={envFallbackId ? `Uses server fallback (${envFallbackId})` : "Enter Firma workspace ID"}
+            placeholder={
+              envFallbackId
+                ? `Uses server fallback (${envFallbackId})`
+                : "Enter workspace ID"
+            }
             autoComplete="off"
           />
         </div>
@@ -228,7 +268,9 @@ export default function FirmaIntegrationPanel() {
             disabled={provisioning || saving}
             className="inline-flex h-10 items-center justify-center rounded-lg bg-teal-700 px-4 text-sm font-semibold text-white hover:bg-teal-800 disabled:opacity-60"
           >
-            {provisioning ? "Creating Firma workspace…" : "Create Firma workspace"}
+            {provisioning
+              ? `Creating ${E_SIGNATURE_WORKSPACE_LABEL}…`
+              : `Create ${E_SIGNATURE_WORKSPACE_LABEL}`}
           </button>
         ) : null}
 
@@ -236,7 +278,7 @@ export default function FirmaIntegrationPanel() {
           <p className="text-sm text-amber-800">{provisioningError}</p>
         ) : null}
 
-        <AccountSaveButton saving={saving} label="Save Firma settings" />
+        <AccountSaveButton saving={saving} label={`Save ${E_SIGNATURE_SETTINGS_LABEL}`} />
       </form>
     </section>
   );

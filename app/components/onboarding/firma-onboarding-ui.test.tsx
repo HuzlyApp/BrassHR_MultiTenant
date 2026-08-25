@@ -181,7 +181,10 @@ describe("FirmaSignPage", () => {
   it("shows an error when signing request creation fails", async () => {
     global.fetch = vi.fn(async () =>
       new Response(
-        JSON.stringify({ error: "Failed to create Firma signing request", code: "CREATE_FAILED" }),
+        JSON.stringify({
+          error: "Failed to create Firma signing request",
+          code: "CREATE_FAILED",
+        }),
         { status: 500 }
       )
     ) as typeof fetch;
@@ -190,9 +193,10 @@ describe("FirmaSignPage", () => {
 
     await waitFor(() => {
       expect(screen.getByTestId("firma-signing-error")).toHaveTextContent(
-        "Failed to create Firma signing request"
+        /e-signature|Unable to send|signing session could not be opened/i
       );
     });
+    expect(screen.getByTestId("firma-signing-error").textContent).not.toMatch(/firma/i);
     expect(screen.getByTestId("firma-signing-iframe-missing")).toBeInTheDocument();
   });
 
@@ -210,8 +214,9 @@ describe("FirmaSignPage", () => {
     render(<FirmaSignPage />);
 
     await waitFor(() => {
-      expect(screen.getByTestId("firma-signing-error")).toHaveTextContent("no longer valid");
+      expect(screen.getByTestId("firma-signing-error")).toHaveTextContent(/no longer valid/i);
     });
+    expect(screen.getByTestId("firma-signing-error").textContent).not.toMatch(/firma/i);
   });
 });
 
@@ -223,7 +228,7 @@ describe("FirmaTemplateSelect", () => {
     vi.restoreAllMocks();
   });
 
-  it("loads published Firma templates for onboarding builder attachment", async () => {
+  it("loads published signature templates for onboarding builder attachment", async () => {
     global.fetch = vi.fn(async () =>
       new Response(
         JSON.stringify({

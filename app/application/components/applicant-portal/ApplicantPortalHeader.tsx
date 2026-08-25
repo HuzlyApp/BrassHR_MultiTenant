@@ -17,6 +17,7 @@ type WorkerNotification = {
   title: string | null;
   body: string | null;
   type: string | null;
+  link: string | null;
   is_read: boolean | null;
   sent_at: string | null;
 };
@@ -29,6 +30,18 @@ type Props = {
   sidebarCollapsed?: boolean;
   onOpenMessages?: () => void;
 };
+
+function formatNotificationTime(value: string | null | undefined): string {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
 
 export function ApplicantPortalHeader({
   applicantName,
@@ -45,8 +58,10 @@ export function ApplicantPortalHeader({
   const [notifications, setNotifications] = useState<WorkerNotification[]>([]);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [markingAllRead, setMarkingAllRead] = useState(false);
   const profileAreaRef = useRef<HTMLDivElement>(null);
   const actionsAreaRef = useRef<HTMLDivElement>(null);
+  const notificationsButtonRef = useRef<HTMLButtonElement>(null);
 
   const loadNotifications = useCallback(async () => {
     const headers = await authHeaders();
@@ -63,32 +78,73 @@ export function ApplicantPortalHeader({
     if (!res.ok) return;
 
     setNotifications(payload.notifications ?? []);
-    setUnreadNotifications(payload.unreadNotifications ?? 0);
+    setUnreadNotifications(Math.max(0, payload.unreadNotifications ?? 0));
   }, [authHeaders]);
 
-  const markNotificationsRead = useCallback(async () => {
-    const headers = await authHeaders();
-    if (!headers) return;
+  const markNotificationRead = useCallback(
+    async (notificationId: string) => {
+      const previousNotifications = notifications;
+      const previousUnread = unreadNotifications;
+      const target = notifications.find((item) => item.id === notificationId);
+      const wasUnread = target ? !target.is_read : false;
 
-    const res = await fetch("/api/applicant-portal/notifications", {
-      method: "PATCH",
-      headers: { ...headers, "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "mark_notifications_read" }),
-    });
-    if (!res.ok) return;
+      setNotifications((current) =>
+        current.map((item) => (item.id === notificationId ? { ...item, is_read: true } : item))
+      );
+      if (wasUnread) {
+        setUnreadNotifications((current) => Math.max(0, current - 1));
+      }
+
+      try {
+        const headers = await authHeaders();
+        if (!headers) throw new Error("auth");
+        const res = await fetch("/api/applicant-portal/notifications", {
+          method: "PATCH",
+          headers: { ...headers, "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "mark_notification_read", notificationId }),
+        });
+        if (!res.ok) throw new Error("mark failed");
+      } catch {
+        setNotifications(previousNotifications);
+        setUnreadNotifications(previousUnread);
+      }
+    },
+    [authHeaders, notifications, unreadNotifications]
+  );
+
+  const markAllNotificationsRead = useCallback(async () => {
+    if (markingAllRead || unreadNotifications <= 0) return;
+    setMarkingAllRead(true);
+    const previousNotifications = notifications;
+    const previousUnread = unreadNotifications;
 
     setUnreadNotifications(0);
     setNotifications((current) => current.map((item) => ({ ...item, is_read: true })));
-  }, [authHeaders]);
+
+    try {
+      const headers = await authHeaders();
+      if (!headers) throw new Error("auth");
+      const res = await fetch("/api/applicant-portal/notifications", {
+        method: "PATCH",
+        headers: { ...headers, "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "mark_notifications_read" }),
+      });
+      if (!res.ok) throw new Error("mark failed");
+    } catch {
+      setNotifications(previousNotifications);
+      setUnreadNotifications(previousUnread);
+    } finally {
+      setMarkingAllRead(false);
+    }
+  }, [authHeaders, markingAllRead, notifications, unreadNotifications]);
 
   useEffect(() => {
     void loadNotifications();
+    const timer = window.setInterval(() => {
+      void loadNotifications();
+    }, 30_000);
+    return () => window.clearInterval(timer);
   }, [loadNotifications]);
-
-  useEffect(() => {
-    if (!notificationsOpen) return;
-    void markNotificationsRead();
-  }, [notificationsOpen, markNotificationsRead]);
 
   useEffect(() => {
     if (!profileOpen && !notificationsOpen) return;
@@ -99,12 +155,28 @@ export function ApplicantPortalHeader({
         setProfileOpen(false);
       }
       if (actionsAreaRef.current && !actionsAreaRef.current.contains(target)) {
-        setNotificationsOpen(false);
+        if (notificationsOpen) {
+          setNotificationsOpen(false);
+          notificationsButtonRef.current?.focus();
+        }
       }
     };
 
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      if (notificationsOpen) {
+        setNotificationsOpen(false);
+        notificationsButtonRef.current?.focus();
+      }
+      if (profileOpen) setProfileOpen(false);
+    };
+
     document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleEscape);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleEscape);
+    };
   }, [profileOpen, notificationsOpen]);
 
   async function handleLogout() {
@@ -181,38 +253,76 @@ export function ApplicantPortalHeader({
                 setNotificationsOpen(false);
                 onOpenMessages?.();
               }}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-md transition hover:bg-[#F8FAFC]"
+              className="inline-flex h-11 w-11 items-center justify-center rounded-md transition hover:bg-[#F8FAFC]"
               aria-label="Open messages"
             >
               <SidebarNavIcon iconType="Chat" active={false} />
             </button>
             <button
+              ref={notificationsButtonRef}
               type="button"
               onClick={() => {
                 setProfileOpen(false);
                 setNotificationsOpen((prev) => !prev);
               }}
-              className="relative inline-flex h-8 w-8 items-center justify-center rounded-md transition hover:bg-[#F8FAFC]"
-              aria-label={`Open notifications${unreadNotifications > 0 ? `, ${unreadNotifications} unread` : ""}`}
+              className="relative inline-flex h-11 w-11 items-center justify-center rounded-md transition hover:bg-[#F8FAFC]"
+              aria-label={
+                unreadNotifications > 0
+                  ? `Notifications, ${unreadNotifications} unread`
+                  : "Notifications"
+              }
               aria-expanded={notificationsOpen}
+              title={
+                unreadNotifications > 0
+                  ? `Notifications, ${unreadNotifications} unread`
+                  : "Notifications"
+              }
             >
-              <SidebarNavIcon iconType="Notifications" active={false} />
+              <SidebarNavIcon
+                iconType="Notifications"
+                active={false}
+                colorHex={unreadNotifications > 0 ? "#EF4444" : undefined}
+              />
               <HeaderIconCountBadge count={unreadNotifications} />
             </button>
 
             {notificationsOpen ? (
-              <div className="absolute right-0 top-10 z-[120] w-[320px] overflow-hidden rounded-lg border border-[#d7e4e1] bg-white shadow-xl max-[499px]:fixed max-[499px]:left-[calc(50%+28px)] max-[499px]:right-auto max-[499px]:top-[68px] max-[499px]:w-[calc(100vw-88px)] max-[499px]:max-w-[360px] max-[499px]:-translate-x-1/2 max-[429px]:left-[calc(50%+24px)] max-[429px]:w-[calc(100vw-64px)] max-[319px]:left-[calc(50%+20px)] max-[319px]:w-[calc(100vw-48px)]">
-                <div className="border-b border-[#E2E8F0] px-4 py-3">
+              <div
+                role="dialog"
+                aria-label="Notifications"
+                className="absolute right-0 top-10 z-[120] w-[320px] overflow-hidden rounded-lg border border-[#d7e4e1] bg-white shadow-xl max-[499px]:fixed max-[499px]:left-[calc(50%+28px)] max-[499px]:right-auto max-[499px]:top-[68px] max-[499px]:w-[calc(100vw-88px)] max-[499px]:max-w-[360px] max-[499px]:-translate-x-1/2 max-[429px]:left-[calc(50%+24px)] max-[429px]:w-[calc(100vw-64px)] max-[319px]:left-[calc(50%+20px)] max-[319px]:w-[calc(100vw-48px)]"
+              >
+                <div className="flex items-center justify-between gap-2 border-b border-[#E2E8F0] px-4 py-3">
                   <p className="text-sm font-semibold text-[#0F172A]">Notifications</p>
+                  {unreadNotifications > 0 ? (
+                    <button
+                      type="button"
+                      onClick={() => void markAllNotificationsRead()}
+                      disabled={markingAllRead}
+                      className="text-xs font-semibold text-[#0EA5A4] hover:underline disabled:opacity-60"
+                    >
+                      Mark all as read
+                    </button>
+                  ) : null}
                 </div>
                 <div className="max-h-[320px] overflow-y-auto">
                   {notifications.length === 0 ? (
                     <p className="px-4 py-4 text-sm text-[#64748B]">No notifications yet.</p>
                   ) : (
                     notifications.map((notification) => (
-                      <div
+                      <button
                         key={notification.id}
-                        className={`border-b border-[#F1F5F9] px-4 py-3 ${notification.is_read ? "opacity-70" : "bg-[#F8FAFC]"}`}
+                        type="button"
+                        onClick={() => {
+                          void markNotificationRead(notification.id);
+                          setNotificationsOpen(false);
+                          if (notification.link) {
+                            router.push(notification.link);
+                          }
+                        }}
+                        className={`block w-full border-b border-[#F1F5F9] px-4 py-3 text-left transition hover:bg-[#F8FAFC] ${
+                          notification.is_read ? "opacity-70" : "bg-[#F8FAFC]"
+                        }`}
                       >
                         <p className="text-sm font-semibold text-[#0F172A]">
                           {notification.title?.trim() || "Notification"}
@@ -220,7 +330,12 @@ export function ApplicantPortalHeader({
                         {notification.body ? (
                           <p className="mt-1 text-sm text-[#64748B]">{notification.body}</p>
                         ) : null}
-                      </div>
+                        {notification.sent_at ? (
+                          <p className="mt-1 text-[11px] text-[#94A3B8]">
+                            {formatNotificationTime(notification.sent_at)}
+                          </p>
+                        ) : null}
+                      </button>
                     ))
                   )}
                 </div>
@@ -248,6 +363,7 @@ export function ApplicantPortalHeader({
               </div>
               <ChevronDown className="h-4 w-4 shrink-0 text-[#94A3B8]" aria-hidden />
             </button>
+
             {profileOpen ? (
               <div className="absolute right-0 top-full z-50 mt-1 w-52 rounded-lg border border-[#E2E8F0] bg-white p-2 shadow-lg">
                 <p className="px-2 py-1 text-[12px] font-semibold text-[#012352]">{applicantName}</p>

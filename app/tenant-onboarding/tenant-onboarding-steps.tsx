@@ -34,6 +34,7 @@ import {
   type BusinessInfoFieldKey,
 } from "@/lib/tenant/business-info-validation";
 import { APPLICATION_ROUTES } from "@/lib/onboarding/application-routes";
+import { sanitizeESignatureUserMessage } from "@/lib/e-signature/user-facing";
 import { formatPhoneNumber } from "@/lib/phone";
 import type { OnboardingStepDraft } from "@/lib/onboarding/default-onboarding-steps";
 import { subdomainFieldErrorMessage } from "@/lib/tenant/subdomain-validation";
@@ -2179,9 +2180,9 @@ export function DoneStep({
   const headline = (() => {
     switch (firmaProvisioning?.status) {
       case "created":
-        return "Tenant ready! Firma workspace created successfully.";
+        return "Tenant ready! E-Signature Workspace created successfully.";
       case "already_configured":
-        return "Tenant ready! Firma workspace is already configured.";
+        return "Tenant ready! E-Signature Workspace is already configured.";
       case "failed":
         return "Tenant ready!";
       default:
@@ -2192,9 +2193,9 @@ export function DoneStep({
   const firmaMessage = (() => {
     switch (firmaProvisioning?.status) {
       case "failed":
-        return (
-          firmaProvisioning.message ??
-          "Tenant ready, but Firma workspace creation failed. You can retry in Account Settings."
+        return sanitizeESignatureUserMessage(
+          firmaProvisioning.message,
+          "Tenant ready, but e-signature workspace creation failed. You can retry in Account Settings."
         );
       default:
         return null;
@@ -2234,7 +2235,7 @@ export function DoneStep({
       {firmaProvisioning?.workspaceId &&
       (firmaProvisioning.status === "created" || firmaProvisioning.status === "already_configured") ? (
         <p className="mx-auto mt-[12px] max-w-lg text-[14px] leading-[22px] text-[#64748b]" style={interStyle}>
-          Firma workspace ID:{" "}
+          Workspace ID:{" "}
           <span className="font-mono text-[#0f172a]">{firmaProvisioning.workspaceId}</span>
         </p>
       ) : null}

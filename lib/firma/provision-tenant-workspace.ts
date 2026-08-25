@@ -20,7 +20,7 @@ export type FirmaWorkspaceProvisioningResult = {
 
 const API_KEY_PATTERN = /firma_(live|test)_[A-Za-z0-9_-]+/gi;
 const FAILED_MESSAGE =
-  "Tenant was created, but Firma workspace creation failed. You can retry in Account Settings.";
+  "Tenant was created, but e-signature workspace creation failed. You can retry in Account Settings.";
 
 function sanitizeProvisioningError(message: string): string {
   return message.replace(API_KEY_PATTERN, "firma_[REDACTED]").trim();
@@ -103,7 +103,7 @@ export async function provisionFirmaWorkspaceForTenant(input: {
     return {
       status: "failed",
       workspaceId: null,
-      message: "Tenant not found for Firma workspace provisioning",
+      message: "Tenant not found for e-signature workspace provisioning",
     };
   }
 
@@ -132,7 +132,7 @@ export async function provisionFirmaWorkspaceForTenant(input: {
   if (mode === "disabled") {
     await persistProvisioningStatus(input.supabase, input.tenantId, {
       firma_workspace_provisioning_status: "failed",
-      firma_workspace_provisioning_error: "Firma workspace provisioning is disabled on this server",
+      firma_workspace_provisioning_error: "E-signature workspace provisioning is disabled on this server",
     });
     return {
       status: "failed",
@@ -144,7 +144,7 @@ export async function provisionFirmaWorkspaceForTenant(input: {
   if (mode === "manual") {
     await persistProvisioningStatus(input.supabase, input.tenantId, {
       firma_workspace_provisioning_status: "failed",
-      firma_workspace_provisioning_error: "Automatic Firma workspace provisioning is disabled (manual mode)",
+      firma_workspace_provisioning_error: "Automatic e-signature workspace provisioning is disabled (manual mode)",
     });
     return {
       status: "failed",
@@ -154,7 +154,7 @@ export async function provisionFirmaWorkspaceForTenant(input: {
   }
 
   if (!isFirmaConfigured()) {
-    const error = "Firma API is not configured (missing FIRMA_API_KEY)";
+    const error = "E-signature service is not configured";
     await persistProvisioningStatus(input.supabase, input.tenantId, {
       firma_workspace_provisioning_status: "failed",
       firma_workspace_provisioning_error: error,
@@ -220,7 +220,7 @@ export async function provisionFirmaWorkspaceForTenant(input: {
         ? err.message
         : err instanceof Error
           ? err.message
-          : "Firma workspace provisioning failed"
+          : "E-signature workspace provisioning failed"
     );
 
     console.error("[firma-provision] workspace provisioning failed", {

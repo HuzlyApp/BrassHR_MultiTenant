@@ -187,7 +187,7 @@ export default function EmployeeAgreementPage() {
               ) : (
                 <ActionFileRow
                   fileName="Employee Agreement W2.pdf"
-                  actionLabel="Click and Sign"
+                  actionLabel="Sign Document"
                   onAction={handleSignW2}
                   primaryHex={branding.primaryHex}
                 />

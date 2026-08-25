@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import Image from "next/image";
-import { Pin, Search, UserPlus } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Pin, Plus, Search, UserPlus } from "lucide-react";
 import CandidateDetailLoader from "@/app/admin_recruiter/components/CandidateDetailLoader";
 import ApplicantChatProfilePanel from "@/app/admin_recruiter/messages/ApplicantChatProfilePanel";
 import ApplicantConversationClient from "@/app/admin_recruiter/messages/ApplicantConversationClient";
@@ -11,6 +12,7 @@ import CreateGroupModal from "@/app/admin_recruiter/messages/CreateGroupModal";
 import GroupChatProfilePanel from "@/app/admin_recruiter/messages/GroupChatProfilePanel";
 import GroupConversationClient from "@/app/admin_recruiter/messages/GroupConversationClient";
 import GroupStackedAvatars from "@/app/admin_recruiter/messages/GroupStackedAvatars";
+import { StaffCreateSupportTicketModal } from "@/app/admin_recruiter/tickets/support/StaffCreateSupportTicketModal";
 import { formatChatTime, nameInitials } from "@/app/admin_recruiter/messages/chat-ui";
 import type { StaffGroupConversation } from "@/lib/messaging/group-conversations";
 import type { StaffConversation } from "@/lib/messaging/staff-conversations";
@@ -18,7 +20,11 @@ import { useStaffConversations } from "@/lib/messaging/hooks/use-staff-conversat
 import { useMarkConversationRead } from "@/lib/messaging/hooks/use-mark-conversation-read";
 import { useApplicantConversationsRealtime } from "@/lib/messaging/useApplicantConversationsRealtime";
 import { safeFetchJson } from "@/lib/api/safe-fetch-json";
-import type { SupportTicketConversationItem, SupportTicketStatus } from "@/lib/support-tickets/types";
+import type {
+  SupportTicketConversationItem,
+  SupportTicketListItem,
+  SupportTicketStatus,
+} from "@/lib/support-tickets/types";
 
 type ChatTab = "worker" | "group" | "support";
 
@@ -105,6 +111,8 @@ export default function AdminRecruiterMessagesClient({
 }: {
   initialWorkerId?: string | null;
 }) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState<ChatTab>("worker");
   const {
     conversations,
@@ -121,6 +129,7 @@ export default function AdminRecruiterMessagesClient({
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [showCreateGroup, setShowCreateGroup] = useState(false);
+  const [showCreateTicket, setShowCreateTicket] = useState(false);
   const [pinnedWorkerIds, setPinnedWorkerIds] = useState<string[]>([]);
   const [supportTickets, setSupportTickets] = useState<SupportTicketConversationItem[]>([]);
   const [selectedSupportTicketId, setSelectedSupportTicketId] = useState<string | null>(null);
@@ -186,6 +195,19 @@ export default function AdminRecruiterMessagesClient({
   }, [initialWorkerId]);
 
   useEffect(() => {
+    const tab = searchParams.get("tab")?.trim().toLowerCase();
+    const ticketId = searchParams.get("ticket")?.trim();
+    if (tab === "support" || ticketId) {
+      setActiveTab("support");
+    }
+    if (ticketId) {
+      setSelectedSupportTicketId(ticketId);
+      setSelectedWorkerId(null);
+      setSelectedGroupId(null);
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
     if (conversationsLoading) return;
     setSelectedWorkerId((current) => current ?? conversations[0]?.workerId ?? null);
     setLoading(false);
@@ -208,6 +230,26 @@ export default function AdminRecruiterMessagesClient({
         setError(err instanceof Error ? err.message : "Could not load support tickets.");
       });
   }, [activeTab, loadSupportTickets]);
+
+  function handleTicketCreated(ticket: SupportTicketListItem) {
+    const conversationItem: SupportTicketConversationItem = {
+      ...ticket,
+      lastMessagePreview: ticket.description?.trim() || ticket.subject || "Support request",
+      lastMessageAt: ticket.updated_at || ticket.created_at,
+    };
+    setSupportTickets((current) => [
+      conversationItem,
+      ...current.filter((item) => item.id !== ticket.id),
+    ]);
+    setActiveTab("support");
+    setSelectedSupportTicketId(ticket.id);
+    setSelectedWorkerId(null);
+    setSelectedGroupId(null);
+    setShowCreateTicket(false);
+    router.replace(
+      `/admin_recruiter/messages?tab=support&ticket=${encodeURIComponent(ticket.id)}`
+    );
+  }
 
   const selectedConversation = conversations.find((item) => item.workerId === selectedWorkerId) ?? null;
   const selectedGroup = groups.find((item) => item.id === selectedGroupId) ?? null;
@@ -415,15 +457,47 @@ export default function AdminRecruiterMessagesClient({
 
             {activeTab === "support" ? (
               <>
+                <div className="flex items-center justify-between gap-2 border-b border-[#F1F5F9] px-4 py-3">
+                  <p className="text-sm font-semibold text-[#0F172A]">Support tickets</p>
+                  <button
+                    type="button"
+                    onClick={() => setShowCreateTicket(true)}
+                    className="inline-flex min-h-11 items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold text-white"
+                    style={{
+                      background:
+                        "linear-gradient(135deg, var(--brand-gradient-from) 0%, var(--brand-gradient-to) 100%)",
+                    }}
+                  >
+                    <Plus className="h-3.5 w-3.5" aria-hidden />
+                    Create ticket
+                  </button>
+                </div>
                 {supportLoading ? (
                   <CandidateDetailLoader label="Loading support tickets..." className="min-h-[240px] py-10" />
                 ) : null}
                 {!supportLoading && filteredSupportTickets.length === 0 ? (
-                  <p className="px-4 py-6 text-sm text-[#64748B]">
-                    {searchQuery.trim()
-                      ? "No support tickets match your search."
-                      : "No worker support tickets yet."}
-                  </p>
+                  <div className="px-4 py-8 text-center">
+                    <p className="text-sm font-medium text-[#0F172A]">No support tickets yet</p>
+                    <p className="mt-2 text-sm text-[#64748B]">
+                      {searchQuery.trim()
+                        ? "No support tickets match your search."
+                        : "Create a ticket for a worker or wait for applicants to open one."}
+                    </p>
+                    {!searchQuery.trim() ? (
+                      <button
+                        type="button"
+                        onClick={() => setShowCreateTicket(true)}
+                        className="mt-4 inline-flex min-h-11 items-center gap-1.5 rounded-lg px-4 py-2.5 text-sm font-semibold text-white"
+                        style={{
+                          background:
+                            "linear-gradient(135deg, var(--brand-gradient-from) 0%, var(--brand-gradient-to) 100%)",
+                        }}
+                      >
+                        <Plus className="h-4 w-4" aria-hidden />
+                        Create ticket
+                      </button>
+                    ) : null}
+                  </div>
                 ) : null}
                 {!supportLoading && filteredSupportTickets.length > 0 ? (
                   <div className="px-3 py-3">
@@ -437,6 +511,9 @@ export default function AdminRecruiterMessagesClient({
                           setSelectedSupportTicketId(ticket.id);
                           setSelectedWorkerId(null);
                           setSelectedGroupId(null);
+                          router.replace(
+                            `/admin_recruiter/messages?tab=support&ticket=${encodeURIComponent(ticket.id)}`
+                          );
                         }}
                       />
                     ))}
@@ -558,6 +635,13 @@ export default function AdminRecruiterMessagesClient({
             setSelectedWorkerId(null);
           });
         }}
+      />
+
+      <StaffCreateSupportTicketModal
+        open={showCreateTicket}
+        onClose={() => setShowCreateTicket(false)}
+        onSuccess={handleTicketCreated}
+        defaultApplicantId={selectedSupportTicket?.applicant_id ?? selectedWorkerId}
       />
     </main>
   );

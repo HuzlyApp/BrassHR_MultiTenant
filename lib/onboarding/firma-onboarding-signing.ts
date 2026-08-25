@@ -121,7 +121,7 @@ function readUnknownErrorMessage(err: unknown): string {
     const message = (err as { message?: unknown }).message;
     if (typeof message === "string" && message.trim()) return message;
   }
-  return "Failed to create Firma signing request";
+  return "Unable to send this document for signature.";
 }
 
 function readUnknownErrorCode(err: unknown): string | null {
@@ -158,14 +158,14 @@ export function mapFirmaSigningCreateError(err: unknown): FirmaOnboardingSigning
   if (err instanceof FirmaError) {
     if (err.code === "NOT_FOUND" || isFirmaWorkspaceMismatchMessage(err.message)) {
       return new FirmaOnboardingSigningError(
-        "The attached Firma template is not available in this organization's Firma workspace. Open Template Builder, re-open the template (or use force recreate), publish again, then retry onboarding.",
+        "The attached signature template is not available in this organization's e-signature workspace. Open Template Builder, re-open the template (or use force recreate), publish again, then retry onboarding.",
         "TEMPLATE_WORKSPACE_MISMATCH",
         409
       );
     }
     if (err.code === "AUTH_ERROR") {
       return new FirmaOnboardingSigningError(
-        "Firma API credentials do not have access to this organization's workspace. Verify the Firma API key and workspace ID configuration.",
+        "E-signature service credentials do not have access to this organization's workspace. Verify the API key and workspace ID configuration.",
         "FIRMA_AUTH_MISMATCH",
         err.status
       );
@@ -182,7 +182,7 @@ export function mapFirmaSigningCreateError(err: unknown): FirmaOnboardingSigning
   const message = readUnknownErrorMessage(err);
   if (isFirmaWorkspaceMismatchMessage(message)) {
     return new FirmaOnboardingSigningError(
-      "The attached Firma template is not available in this organization's Firma workspace. Open Template Builder, re-open the template (or use force recreate), publish again, then retry onboarding.",
+      "The attached signature template is not available in this organization's e-signature workspace. Open Template Builder, re-open the template (or use force recreate), publish again, then retry onboarding.",
       "TEMPLATE_WORKSPACE_MISMATCH",
       409
     );
@@ -499,23 +499,23 @@ async function resolveRecruiterTemplateForStep(
   const recruiterTemplateId = getFirmaRecruiterTemplateId(step);
   if (!recruiterTemplateId) {
     throw new FirmaOnboardingSigningError(
-      "This onboarding step does not have a Firma template attached",
+      "This onboarding step does not have a signature template attached",
       "MISSING_TEMPLATE",
       400
     );
   }
 
   if (!isFirmaConfigured()) {
-    throw new FirmaOnboardingSigningError("Firma API is not configured", "FIRMA_NOT_CONFIGURED", 503);
+    throw new FirmaOnboardingSigningError("The e-signature service is not configured", "FIRMA_NOT_CONFIGURED", 503);
   }
 
   let recruiterTemplate = await loadRecruiterTemplate(supabase, tenantId, recruiterTemplateId);
   if (!recruiterTemplate?.id) {
-    throw new FirmaOnboardingSigningError("Firma template not found", "MISSING_TEMPLATE", 404);
+    throw new FirmaOnboardingSigningError("Signature template not found", "MISSING_TEMPLATE", 404);
   }
   if (recruiterTemplate.status !== "active" || !recruiterTemplate.firma_template_id) {
     throw new FirmaOnboardingSigningError(
-      "Publish the Firma template before applicants can sign",
+      "Publish the signature template before applicants can sign",
       "TEMPLATE_NOT_PUBLISHED",
       400
     );
@@ -551,7 +551,7 @@ async function resolveRecruiterTemplateForStep(
       recruiterTemplate = await loadRecruiterTemplate(supabase, tenantId, recruiterTemplateId);
       if (!recruiterTemplate?.firma_template_id) {
         throw new FirmaOnboardingSigningError(
-          "Publish the Firma template before applicants can sign",
+          "Publish the signature template before applicants can sign",
           "TEMPLATE_NOT_PUBLISHED",
           400
         );
@@ -571,7 +571,7 @@ function assertSigningRequestIsEmbeddable(firmaStatus: string): void {
   const status = normalizeFirmaSigningStatus(firmaStatus);
   if (status === "draft") {
     throw new FirmaOnboardingSigningError(
-      "The Firma signing request has not been sent yet. A new signing request will be created.",
+      "The signing request has not been sent yet. A new signing request will be created.",
       "SIGNING_REQUEST_DRAFT",
       409
     );
@@ -628,7 +628,7 @@ async function createFirmaSigningSessionFromTemplate(
   const iframeUrl = resolveFirmaSigningIframeUrl(recipient);
   if (!iframeUrl) {
     throw new FirmaOnboardingSigningError(
-      "Firma did not return a signing URL for this applicant. The signing request may not have been sent successfully.",
+      "The e-signature service did not return a signing URL for this applicant. The signing request may not have been sent successfully.",
       "IFRAME_UNAVAILABLE",
       502
     );
@@ -764,7 +764,7 @@ async function refreshSessionFromFirma(
   // Completed/signed sessions are "stale" for re-opening the iframe, but still valid for status sync.
   if (staleReason && !isFirmaSigningComplete(firmaStatus)) {
     throw new FirmaOnboardingSigningError(
-      "The stored Firma signing session is no longer valid",
+      "The stored signing session is no longer valid",
       "INVALID_SESSION",
       410
     );
@@ -772,7 +772,7 @@ async function refreshSessionFromFirma(
 
   if (!iframeUrl && !isFirmaSigningComplete(firmaStatus)) {
     throw new FirmaOnboardingSigningError(
-      "Firma did not return a signing URL for this applicant",
+      "The e-signature service did not return a signing URL for this applicant",
       "IFRAME_UNAVAILABLE",
       502
     );
@@ -982,7 +982,7 @@ export async function syncFirmaSigningSessionStatus(
 
   if (isStoredFirmaWorkspaceMismatch(existing.firma_workspace_id, workspaceId)) {
     throw new FirmaOnboardingSigningError(
-      "This signing session belongs to a different Firma workspace",
+      "This signing session belongs to a different e-signature workspace",
       "SESSION_WORKSPACE_MISMATCH",
       409
     );
@@ -1004,7 +1004,7 @@ export async function syncFirmaSigningSessionStatus(
   } catch (err) {
     if (err instanceof FirmaError && err.code === "NOT_FOUND") {
       throw new FirmaOnboardingSigningError(
-        "The Firma signing request is no longer valid",
+        "The signing request is no longer valid",
         "INVALID_SESSION",
         410
       );
@@ -1029,7 +1029,7 @@ export async function syncFirmaSigningStatusByRequestId(input: {
   workspaceId?: string;
 }): Promise<FirmaSigningSessionPayload> {
   if (!isFirmaConfigured()) {
-    throw new FirmaOnboardingSigningError("Firma API is not configured", "FIRMA_NOT_CONFIGURED", 503);
+    throw new FirmaOnboardingSigningError("The e-signature service is not configured", "FIRMA_NOT_CONFIGURED", 503);
   }
 
   const workspaceId =
@@ -1059,7 +1059,7 @@ export async function syncFirmaSigningStatusByRequestId(input: {
   } catch (err) {
     if (err instanceof FirmaError && err.code === "NOT_FOUND") {
       throw new FirmaOnboardingSigningError(
-        "The Firma signing request is no longer valid",
+        "The signing request is no longer valid",
         "INVALID_SESSION",
         410
       );

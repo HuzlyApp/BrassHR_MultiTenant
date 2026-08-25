@@ -8,7 +8,6 @@ import {
   getOrSetCache,
   invalidateUserCache,
 } from "@/lib/cache";
-import { invalidateStaffAuthCaches } from "@/lib/auth/invalidate-staff-auth-cache";
 import { requireStaffApiSession } from "@/lib/auth/api-session";
 
 type HeaderNotification = {
@@ -16,6 +15,7 @@ type HeaderNotification = {
   title: string | null;
   body: string | null;
   type: string | null;
+  link: string | null;
   is_read: boolean | null;
   sent_at: string | null;
 };
@@ -40,7 +40,7 @@ export async function GET() {
   const scope = await getCachedStaffTenantScope(auth.authUser);
   const scopeKey = scope.mode === "scoped" ? scope.tenantId : "all";
   const cacheKey = buildCacheKey("admin_header_data", ["user", userId, "tenant", scopeKey], {
-    v: 2,
+    v: 3,
   });
   try {
     const data = await getOrSetCache(
@@ -48,10 +48,10 @@ export async function GET() {
       async () => {
         const notificationsRes = await supabase
           .from("notifications")
-          .select("id, title, body, type, is_read, sent_at")
+          .select("id, title, body, type, link, is_read, sent_at")
           .eq("user_id", userId)
           .order("sent_at", { ascending: false })
-          .limit(8);
+          .limit(20);
 
         if (notificationsRes.error) {
           throw new Error("Failed to fetch header data");
@@ -72,10 +72,10 @@ export async function GET() {
         return {
           userId,
           notifications,
-          unreadNotifications: unreadCountRes.count ?? 0,
+          unreadNotifications: Math.max(0, unreadCountRes.count ?? 0),
         };
       },
-      CACHE_TTL_SECONDS.userScoped
+      Math.min(CACHE_TTL_SECONDS.userScoped, 15)
     );
 
     return NextResponse.json(data);
@@ -96,23 +96,50 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "Supabase service role not configured" }, { status: 503 });
   }
 
-  const body = (await request.json().catch(() => ({}))) as { action?: string };
-  if (body.action !== "mark_notifications_read") {
-    return NextResponse.json({ error: "Unsupported action" }, { status: 400 });
+  const body = (await request.json().catch(() => ({}))) as {
+    action?: string;
+    notificationId?: string;
+  };
+
+  if (body.action === "mark_notification_read") {
+    const notificationId = body.notificationId?.trim();
+    if (!notificationId) {
+      return NextResponse.json({ error: "notificationId is required." }, { status: 400 });
+    }
+
+    const { data, error } = await supabase
+      .from("notifications")
+      .update({ is_read: true })
+      .eq("id", notificationId)
+      .eq("user_id", auth.userId)
+      .eq("is_read", false)
+      .select("id")
+      .maybeSingle();
+
+    if (error) {
+      return NextResponse.json({ error: "Failed to update notification" }, { status: 500 });
+    }
+
+    await invalidateUserCache("admin_header_data", auth.userId);
+    await invalidateUserCache("notifications", auth.userId);
+    return NextResponse.json({ ok: true, updated: Boolean(data) });
   }
 
-  const { error } = await supabase
-    .from("notifications")
-    .update({ is_read: true })
-    .eq("user_id", auth.userId)
-    .eq("is_read", false);
+  if (body.action === "mark_notifications_read") {
+    const { error } = await supabase
+      .from("notifications")
+      .update({ is_read: true })
+      .eq("user_id", auth.userId)
+      .eq("is_read", false);
 
-  if (error) {
-    return NextResponse.json({ error: "Failed to update notifications", details: error }, { status: 500 });
+    if (error) {
+      return NextResponse.json({ error: "Failed to update notifications" }, { status: 500 });
+    }
+
+    await invalidateUserCache("admin_header_data", auth.userId);
+    await invalidateUserCache("notifications", auth.userId);
+    return NextResponse.json({ ok: true });
   }
 
-  await invalidateUserCache("admin_header_data", auth.userId);
-  await invalidateUserCache("notifications", auth.userId);
-
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ error: "Unsupported action" }, { status: 400 });
 }

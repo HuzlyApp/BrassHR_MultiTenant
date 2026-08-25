@@ -229,7 +229,7 @@ export default function RecruiterTemplatesList() {
             Template Builder
           </h1>
           <p className="mt-0.5 text-[12px] leading-4 text-[#667085] min-[700px]:mt-1 min-[700px]:text-sm min-[700px]:leading-5">
-            Create and manage Firma.dev e-signature templates for recruiting workflows.
+            Create and manage e-signature templates for recruiting workflows.
           </p>
         </div>
         <Link

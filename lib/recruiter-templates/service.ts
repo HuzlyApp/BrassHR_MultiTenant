@@ -55,7 +55,7 @@ function assertTemplateFirmaWorkspace(
   if (isStoredFirmaWorkspaceMismatch(template.firma_workspace_id, workspaceId)) {
     throw new RecruiterTemplateError(
       "FIRMA_WORKSPACE_MISMATCH",
-      "This template belongs to a different Firma workspace. Re-publish the template in Template Builder to use your organization's current workspace.",
+      "This template belongs to a different e-signature workspace. Re-publish the template in Template Builder to use your organization's current workspace.",
       409
     );
   }
@@ -441,7 +441,7 @@ async function ensureFirmaTemplateForBuilder(
     if (!template.document_storage_path) {
       throw new RecruiterTemplateError(
         "PUBLISH_BLOCKED",
-        "Upload a PDF or DOCX before opening the Firma template builder",
+        "Upload a PDF or DOCX before opening the signature template builder",
         400
       );
     }
@@ -485,7 +485,7 @@ async function ensureFirmaTemplateForBuilder(
       .eq("tenant_id", tenantId);
 
     if (error) {
-      throw new RecruiterTemplateError("INTERNAL_ERROR", "Failed to save Firma template", 500, {
+      throw new RecruiterTemplateError("INTERNAL_ERROR", "Failed to save signature template", 500, {
         detail: error.message,
       });
     }
@@ -703,7 +703,7 @@ export async function createRecruiterTemplateBuilderSession(
   );
   let firmaTemplateId = template.firma_template_id;
   if (!firmaTemplateId) {
-    throw new RecruiterTemplateError("FIRMA_ERROR", "Firma template was not created", 502);
+    throw new RecruiterTemplateError("FIRMA_ERROR", "Signature template was not created", 502);
   }
 
   const workspaceId = await resolveFirmaWorkspace(supabase, tenantId);
@@ -718,7 +718,7 @@ export async function createRecruiterTemplateBuilderSession(
       });
       firmaTemplateId = template.firma_template_id;
       if (!firmaTemplateId) {
-        throw new RecruiterTemplateError("FIRMA_ERROR", "Firma template was not created", 502);
+        throw new RecruiterTemplateError("FIRMA_ERROR", "Signature template was not created", 502);
       }
       return await openSession(template, firmaTemplateId, workspaceId);
     }
@@ -741,7 +741,7 @@ export async function syncRecruiterTemplateFromFirma(
   const firmaTemplateId = input.firma_template_id ?? template.firma_template_id;
 
   if (input.firma_template_id && template.firma_template_id !== input.firma_template_id) {
-    throw new RecruiterTemplateError("TENANT_MISMATCH", "Firma template mismatch", 403);
+    throw new RecruiterTemplateError("TENANT_MISMATCH", "Signature template mismatch", 403);
   }
 
   const status = input.event === "editor.published" || input.draft === false ? "active" : template.status;
@@ -765,7 +765,7 @@ export async function syncRecruiterTemplateFromFirma(
     .eq("tenant_id", tenantId);
 
   if (error) {
-    throw new RecruiterTemplateError("INTERNAL_ERROR", "Failed to sync Firma template", 500, {
+    throw new RecruiterTemplateError("INTERNAL_ERROR", "Failed to sync signature template", 500, {
       detail: error.message,
     });
   }
@@ -807,7 +807,7 @@ export async function publishRecruiterTemplate(
     template = await ensureFirmaTemplateForBuilder(supabase, tenantId, templateId, userId);
     const firmaTemplateId = template.firma_template_id;
     if (!firmaTemplateId) {
-      throw new RecruiterTemplateError("FIRMA_ERROR", "Firma template was not created", 502);
+      throw new RecruiterTemplateError("FIRMA_ERROR", "Signature template was not created", 502);
     }
 
     const { error: updateError } = await supabase
@@ -939,7 +939,7 @@ export async function deleteRecruiterTemplateHard(
       if (!(err instanceof FirmaError && err.code === "NOT_FOUND")) {
         throw new RecruiterTemplateError(
           "FIRMA_ERROR",
-          err instanceof FirmaError ? err.message : "Failed to delete Firma template",
+          err instanceof FirmaError ? err.message : "Failed to delete signature template",
           err instanceof FirmaError ? err.status : 502
         );
       }

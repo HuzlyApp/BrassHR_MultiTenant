@@ -89,7 +89,7 @@ function extractUpdatedAt(data: unknown): string | undefined {
 
 function logFirmaBuilderPhase(phase: string, detail?: Record<string, unknown>) {
   if (!IS_DEV) return;
-  console.info("[firma-template-builder]", phase, detail ?? {});
+  console.info("[e-signature-template-builder]", phase, detail ?? {});
 }
 
 function installFirmaRefreshDebugLogger() {
@@ -112,7 +112,7 @@ function installFirmaRefreshDebugLogger() {
     const startedAt = performance.now();
     const requestId = Math.random().toString(36).slice(2, 8);
     const pendingTimer = window.setTimeout(() => {
-      console.warn("[firma-template-builder] Firma document refresh still pending", {
+      console.warn("[e-signature-template-builder] Document refresh still pending", {
         requestId,
         elapsedMs: Math.round(performance.now() - startedAt),
         method: init?.method ?? "GET",
@@ -120,7 +120,7 @@ function installFirmaRefreshDebugLogger() {
       });
     }, 10000);
 
-    console.info("[firma-template-builder] Firma document refresh started", {
+    console.info("[e-signature-template-builder] Document refresh started", {
       requestId,
       method: init?.method ?? "GET",
       url: new URL(url).origin + new URL(url).pathname,
@@ -130,7 +130,7 @@ function installFirmaRefreshDebugLogger() {
     try {
       const response = await originalFetch(input, init);
       window.clearTimeout(pendingTimer);
-      console.info("[firma-template-builder] Firma document refresh completed", {
+      console.info("[e-signature-template-builder] Document refresh completed", {
         requestId,
         status: response.status,
         ok: response.ok,
@@ -140,7 +140,7 @@ function installFirmaRefreshDebugLogger() {
       return response;
     } catch (error) {
       window.clearTimeout(pendingTimer);
-      console.error("[firma-template-builder] Firma document refresh failed", {
+      console.error("[e-signature-template-builder] Document refresh failed", {
         requestId,
         elapsedMs: Math.round(performance.now() - startedAt),
         message: error instanceof Error ? error.message : "Unknown refresh error",
@@ -190,7 +190,7 @@ function waitForFirmaTemplateEditor(timeoutMs: number): Promise<FirmaTemplateEdi
       }
       if (Date.now() - startedAt >= timeoutMs) {
         window.clearInterval(interval);
-        reject(new Error("Firma editor script loaded, but did not expose FirmaTemplateEditor"));
+        reject(new Error("Signature template editor script loaded, but the editor global was not available"));
       }
     }, 100);
   });
@@ -210,7 +210,7 @@ async function injectFirmaTemplateEditorScript(src: string): Promise<FirmaTempla
     const script = document.createElement("script");
     const timeout = window.setTimeout(() => {
       script.remove();
-      reject(new Error("Timed out loading Firma template editor script"));
+      reject(new Error("Timed out loading signature template editor script"));
     }, FIRMA_SCRIPT_TIMEOUT_MS);
 
     script.src = src;
@@ -222,7 +222,7 @@ async function injectFirmaTemplateEditorScript(src: string): Promise<FirmaTempla
     script.onerror = () => {
       window.clearTimeout(timeout);
       script.remove();
-      reject(new Error("Failed to load Firma template editor script"));
+      reject(new Error("Failed to load signature template editor script"));
     };
     document.body.appendChild(script);
   });
@@ -286,13 +286,13 @@ export default function FirmaTemplateBuilderFrame({
         );
         const body = (await res.json()) as SyncResponse;
         if (!res.ok || !body.template) {
-          throw new Error(body.error ?? "Failed to sync Firma template");
+          throw new Error(body.error ?? "Failed to sync signature template");
         }
         onTemplateSyncedRef.current?.(body.template);
-        if (input.event === "editor.saved") toast.success("Firma template saved");
-        if (input.event === "editor.published") toast.success("Firma template published");
+        if (input.event === "editor.saved") toast.success("Signature template saved");
+        if (input.event === "editor.published") toast.success("Signature template published");
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Failed to sync Firma template");
+        toast.error(err instanceof Error ? err.message : "Failed to sync signature template");
       } finally {
         setSyncing(false);
       }
@@ -319,10 +319,10 @@ export default function FirmaTemplateBuilderFrame({
       );
       const body = (await res.json()) as BuilderSessionResponse;
       if (!res.ok || !body.session) {
-        throw new Error(body.error ?? "Failed to start Firma builder session");
+        throw new Error(body.error ?? "Failed to start signature template builder session");
       }
       if (!body.session.jwt) {
-        throw new Error("Firma builder session did not include an editor token");
+        throw new Error("Signature template builder session did not include an editor token");
       }
       if (!options.forceRecreate) {
         pdfRepairAttemptedRef.current = false;
@@ -338,7 +338,7 @@ export default function FirmaTemplateBuilderFrame({
       onTemplateSyncedRef.current?.(body.session.template);
     } catch (err) {
       setSession(null);
-      setError(err instanceof Error ? err.message : "Failed to start Firma builder session");
+      setError(err instanceof Error ? err.message : "Failed to start signature template builder session");
     } finally {
       setLoading(false);
     }
@@ -380,14 +380,14 @@ export default function FirmaTemplateBuilderFrame({
       : () => undefined;
 
     async function mountEditor() {
-      setEditorPhase("Loading Firma editor...");
+      setEditorPhase("Loading signature template editor...");
       setError(null);
       clearFirmaEditorTimer(initTimeoutRef);
       initTimeoutRef.current = window.setTimeout(() => {
         if (cancelled) return;
         setEditorPhase(null);
         setError(
-          "Firma editor did not finish loading. Try Refresh session to regenerate document access."
+          "Signature template editor did not finish loading. Try Refresh session to regenerate document access."
         );
         logFirmaBuilderPhase("editor-init-timeout", {
           templateId,
@@ -404,7 +404,7 @@ export default function FirmaTemplateBuilderFrame({
         );
         if (cancelled) return;
 
-        setEditorPhase("Initializing Firma editor...");
+        setEditorPhase("Initializing signature template editor...");
         editorRef.current?.destroy?.();
         const host = createFirmaEditorHost(activeWrapper);
         containerRef.current = host;
@@ -428,13 +428,13 @@ export default function FirmaTemplateBuilderFrame({
             void syncTemplateRef.current({ event: "editor.closed" });
           },
           onError: (err) => {
-            const message = err instanceof Error ? err.message : "Firma editor error";
+            const message = err instanceof Error ? err.message : "Signature template editor error";
             setError(message);
             setEditorPhase(null);
             clearFirmaEditorTimer(initTimeoutRef);
             if (isPdfLoadError(message) && !pdfRepairAttemptedRef.current) {
               pdfRepairAttemptedRef.current = true;
-              toast("Refreshing Firma document and reopening the editor...");
+              toast("Refreshing e-signature document and reopening the editor...");
               void refreshSessionRef.current({ refreshDocument: true });
             }
           },
@@ -466,7 +466,7 @@ export default function FirmaTemplateBuilderFrame({
           firmaTemplateId: activeSession.firma_template_id,
         });
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to initialize Firma editor");
+        setError(err instanceof Error ? err.message : "Failed to initialize signature template editor");
         setEditorPhase(null);
         clearFirmaEditorTimer(initTimeoutRef);
       }
@@ -523,7 +523,7 @@ export default function FirmaTemplateBuilderFrame({
   if (loading) {
     return (
       <div className="flex min-h-[620px] items-center justify-center border border-[#EAECF0] bg-white text-sm text-[#667085]">
-        Starting Firma builder...
+        Starting signature template builder...
       </div>
     );
   }
@@ -532,7 +532,7 @@ export default function FirmaTemplateBuilderFrame({
     return (
       <div className="flex min-h-[360px] flex-col items-center justify-center gap-4 border border-[#FECACA] bg-[#FEF2F2] p-8 text-center">
         <div>
-          <h2 className="text-sm font-semibold text-[#991B1B]">Firma builder unavailable</h2>
+          <h2 className="text-sm font-semibold text-[#991B1B]">Signature template builder unavailable</h2>
           <p className="mt-1 max-w-xl text-sm text-[#7F1D1D]">{error}</p>
         </div>
         <button
@@ -549,7 +549,7 @@ export default function FirmaTemplateBuilderFrame({
           className="inline-flex items-center gap-2 rounded-lg border border-[#FCA5A5] bg-white px-3 py-2 text-sm font-medium text-[#991B1B]"
         >
           <RefreshCw className="h-4 w-4" />
-          Reset Firma template
+          Reset signature template
         </button>
       </div>
     );
@@ -563,7 +563,7 @@ export default function FirmaTemplateBuilderFrame({
             ? "Session expired"
             : session
               ? `Session expires ${new Date(session.expires_at).toLocaleString()}`
-              : "Firma session"}
+              : "E-signature session"}
         </div>
         <button
           type="button"
@@ -600,7 +600,7 @@ export default function FirmaTemplateBuilderFrame({
               className="inline-flex items-center gap-2 rounded-lg border border-[#FCA5A5] bg-white px-3 py-2 text-sm font-medium text-[#991B1B]"
             >
               <RefreshCw className="h-4 w-4" />
-              Reset Firma template
+              Reset signature template
             </button>
           </div>
         </div>

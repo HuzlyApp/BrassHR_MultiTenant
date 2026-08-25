@@ -14,6 +14,9 @@ export const APPLICATION_ROUTES = {
   skillQuiz: (slug: string) =>
     `/application/skill-quiz/${encodeURIComponent(slug)}`,
   authorizationsDocuments: "/application/authorizations-documents",
+  /** Preferred applicant signing route (provider-neutral). */
+  eSignature: "/application/e-signature",
+  /** @deprecated Prefer `eSignature`; kept for bookmarks and older links. */
   firmaSign: "/application/firma-sign",
   identityVerification: "/application/identity-verification",
   addReferences: "/application/add-references",
@@ -95,7 +98,7 @@ export const APPLICATION_ROUTE_STEP_MARKERS: {
   },
   {
     stepType: "authorizations",
-    pathIncludes: [APPLICATION_ROUTES.firmaSign],
+    pathIncludes: [APPLICATION_ROUTES.eSignature, APPLICATION_ROUTES.firmaSign],
   },
   {
     stepType: "authorizations",
@@ -143,4 +146,5 @@ export const LEGACY_APPLICATION_ROUTE_REDIRECTS: { source: string; destination: 
   { source: "/onboarding/add-resume", destination: APPLICATION_ROUTES.addResume },
   { source: "/onboarding/onboarding-steps", destination: APPLICATION_ROUTES.skillsIntro },
   { source: "/onboarding/profile-review", destination: APPLICATION_ROUTES.profileReview },
+  { source: "/application/firma-sign", destination: APPLICATION_ROUTES.eSignature },
 ];

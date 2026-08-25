@@ -1,10 +1,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { notifySupportTicketCreated } from "@/lib/notifications/create-notification";
 import { insertTicketMessage } from "@/lib/support-tickets/support-ticket-messages";
 import { descriptionPreview } from "@/lib/support-tickets/support-ticket-display";
 import type {
   CreateSupportTicketInput,
   SupportTicketListItem,
   SupportTicketRow,
+  SupportTicketSenderRole,
 } from "@/lib/support-tickets/types";
 
 export function summarizeTicketSubject(description: string, subject?: string): string {
@@ -18,10 +20,18 @@ export async function insertSupportTicket(
   supabase: SupabaseClient,
   params: {
     tenantId: string;
+    /** Auth user who owns/requests the ticket (usually the worker). */
     userId: string;
     applicantId: string;
     input: CreateSupportTicketInput;
     files?: File[];
+    /** Staff user creating on behalf of the worker (auditing via recruiter_id). */
+    createdByStaffUserId?: string | null;
+    /** Who authored the initial message. */
+    initialSenderRole?: SupportTicketSenderRole;
+    /** Skip staff fan-out when staff opens a ticket for a worker. */
+    notifyStaff?: boolean;
+    notifyApplicant?: boolean;
   }
 ): Promise<{ ticket: SupportTicketRow } | { error: string }> {
   const description = params.input.description.trim();
@@ -34,12 +44,16 @@ export async function insertSupportTicket(
     return { error: "Subject is required." };
   }
 
+  const initialSenderRole = params.initialSenderRole ?? "applicant";
+  const createdByStaffUserId = params.createdByStaffUserId?.trim() || null;
+
   const { data, error } = await supabase
     .from("support_tickets")
     .insert({
       user_id: params.userId,
       tenant_id: params.tenantId,
       applicant_id: params.applicantId,
+      recruiter_id: createdByStaffUserId,
       subject,
       description,
       category: params.input.category?.trim() || "general",
@@ -61,14 +75,28 @@ export async function insertSupportTicket(
   const messageResult = await insertTicketMessage(supabase, {
     tenantId: params.tenantId,
     ticketId: ticket.id,
-    senderId: params.userId,
-    senderRole: "applicant",
+    senderId: createdByStaffUserId ?? params.userId,
+    senderRole: initialSenderRole,
     message: description,
     files: params.files,
   });
 
   if ("error" in messageResult) {
     console.error("[support-tickets:initial-message]", messageResult.error);
+  }
+
+  try {
+    await notifySupportTicketCreated(supabase, {
+      tenantId: params.tenantId,
+      ticketId: ticket.id,
+      subject,
+      createdByUserId: createdByStaffUserId ?? params.userId,
+      notifyStaff: params.notifyStaff !== false && !createdByStaffUserId,
+      notifyApplicantUserId:
+        params.notifyApplicant && createdByStaffUserId ? params.userId : null,
+    });
+  } catch (notifyError) {
+    console.error("[support-tickets:notify-created]", notifyError);
   }
 
   return { ticket };
@@ -191,6 +219,60 @@ export async function closeSupportTicket(
   if (error || !data) {
     console.error("[support-tickets:close]", error);
     return { error: "Could not close support ticket." };
+  }
+
+  return { ticket: data as SupportTicketRow };
+}
+
+/** Archive maps to Resolved in the existing Open/Closed/Archived UI filters. */
+export async function archiveSupportTicket(
+  supabase: SupabaseClient,
+  params: { ticketId: string }
+): Promise<{ ticket: SupportTicketRow } | { error: string }> {
+  const now = new Date().toISOString();
+  const { data, error } = await supabase
+    .from("support_tickets")
+    .update({
+      status: "Resolved",
+      resolved_at: now,
+      closed_at: null,
+      closed_by: null,
+    })
+    .eq("id", params.ticketId)
+    .select(
+      "id, tenant_id, user_id, applicant_id, recruiter_id, subject, description, status, category, source, priority, created_at, updated_at, resolved_at, closed_at, closed_by"
+    )
+    .maybeSingle();
+
+  if (error || !data) {
+    console.error("[support-tickets:archive]", error);
+    return { error: "Could not archive support ticket." };
+  }
+
+  return { ticket: data as SupportTicketRow };
+}
+
+export async function reopenSupportTicket(
+  supabase: SupabaseClient,
+  params: { ticketId: string }
+): Promise<{ ticket: SupportTicketRow } | { error: string }> {
+  const { data, error } = await supabase
+    .from("support_tickets")
+    .update({
+      status: "Open",
+      resolved_at: null,
+      closed_at: null,
+      closed_by: null,
+    })
+    .eq("id", params.ticketId)
+    .select(
+      "id, tenant_id, user_id, applicant_id, recruiter_id, subject, description, status, category, source, priority, created_at, updated_at, resolved_at, closed_at, closed_by"
+    )
+    .maybeSingle();
+
+  if (error || !data) {
+    console.error("[support-tickets:reopen]", error);
+    return { error: "Could not reopen support ticket." };
   }
 
   return { ticket: data as SupportTicketRow };

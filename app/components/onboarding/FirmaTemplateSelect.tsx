@@ -2,6 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { CARD_BORDER, TEXT_PRIMARY, TEXT_SECONDARY } from "@/app/components/workflow-builder/constants";
+import {
+  E_SIGNATURE_TEMPLATE_LABEL,
+  sanitizeESignatureUserMessage,
+} from "@/lib/e-signature/user-facing";
 
 export type FirmaTemplateOption = {
   id: string;
@@ -37,12 +41,24 @@ export function FirmaTemplateSelect({
           cache: "no-store",
         });
         const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "Could not load Firma templates");
+        if (!res.ok) {
+          throw new Error(
+            sanitizeESignatureUserMessage(
+              data.error,
+              "Could not load signature templates"
+            )
+          );
+        }
         if (cancelled) return;
         setOptions(Array.isArray(data.templates) ? data.templates : []);
       } catch (err: unknown) {
         if (cancelled) return;
-        setError(err instanceof Error ? err.message : "Could not load Firma templates");
+        setError(
+          sanitizeESignatureUserMessage(
+            err instanceof Error ? err.message : null,
+            "Could not load signature templates"
+          )
+        );
         setOptions([]);
       } finally {
         if (!cancelled) setLoading(false);
@@ -61,7 +77,7 @@ export function FirmaTemplateSelect({
         className="mb-1.5 block text-xs font-medium leading-4"
         style={{ color: TEXT_SECONDARY }}
       >
-        Firma template
+        {E_SIGNATURE_TEMPLATE_LABEL}
       </label>
       <select
         data-testid="firma-template-select-input"
@@ -74,8 +90,11 @@ export function FirmaTemplateSelect({
         }}
         className="h-10 w-full appearance-none rounded-lg border bg-white px-3 text-sm outline-none transition focus:border-[#BC8B41] focus:ring-2 focus:ring-[#BC8B41]/25 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400"
         style={{ borderColor: CARD_BORDER, color: TEXT_PRIMARY }}
+        aria-label={E_SIGNATURE_TEMPLATE_LABEL}
       >
-        <option value="">{loading ? "Loading templates..." : "Select a published Firma template"}</option>
+        <option value="">
+          {loading ? "Loading templates..." : "Select a published signature template"}
+        </option>
         {value && templateName && !options.some((option) => option.id === value) ? (
           <option value={value}>{templateName}</option>
         ) : null}
@@ -91,7 +110,7 @@ export function FirmaTemplateSelect({
         </p>
       ) : !loading && options.length === 0 ? (
         <p className="mt-1.5 text-[11px] leading-4" style={{ color: TEXT_SECONDARY }}>
-          No published Firma templates yet.{" "}
+          No published signature templates yet.{" "}
           <a
             href="/admin_recruiter/template-builder/new"
             className="font-medium underline underline-offset-2"
@@ -103,7 +122,7 @@ export function FirmaTemplateSelect({
         </p>
       ) : (
         <p className="mt-1.5 text-[11px] leading-4" style={{ color: TEXT_SECONDARY }}>
-          Applicants will sign this template inside onboarding using Firma embedded signing.
+          Applicants will sign this template inside onboarding using embedded e-signature.
         </p>
       )}
     </div>

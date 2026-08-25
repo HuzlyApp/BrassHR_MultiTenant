@@ -3,8 +3,10 @@ import { createClient } from "@supabase/supabase-js";
 import { requireStaffApiSession } from "@/lib/auth/api-session";
 import { resolveStaffTenantScope } from "@/lib/auth/staff-tenant-scope";
 import { isStaffRole } from "@/lib/auth/app-role";
-import { notifySupportTicketClosed } from "@/lib/notifications/create-notification";
-import { closeSupportTicket, getSupportTicketById } from "@/lib/support-tickets/support-ticket-service";
+import {
+  getSupportTicketById,
+  reopenSupportTicket,
+} from "@/lib/support-tickets/support-ticket-service";
 import { getSupabaseUrl } from "@/lib/supabase-env";
 
 export const runtime = "nodejs";
@@ -35,7 +37,7 @@ export async function PATCH(_req: Request, context: RouteContext) {
   try {
     existing = await getSupportTicketById(supabase, id);
   } catch (err) {
-    console.error("[support-tickets/:id/close:get]", err);
+    console.error("[support-tickets/:id/reopen:get]", err);
     return NextResponse.json({ error: "Could not load support ticket." }, { status: 500 });
   }
 
@@ -48,29 +50,13 @@ export async function PATCH(_req: Request, context: RouteContext) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  if (existing.status === "Closed") {
+  if (existing.status === "Open" || existing.status === "In Progress" || existing.status === "Pending") {
     return NextResponse.json({ ticket: existing });
   }
 
-  const result = await closeSupportTicket(supabase, {
-    ticketId: id,
-    closedByUserId: auth.userId,
-  });
-
+  const result = await reopenSupportTicket(supabase, { ticketId: id });
   if ("error" in result) {
     return NextResponse.json({ error: result.error }, { status: 500 });
-  }
-
-  try {
-    await notifySupportTicketClosed(supabase, {
-      tenantId: existing.tenant_id,
-      ticketId: id,
-      subject: existing.subject,
-      applicantUserId: existing.user_id,
-      closedByUserId: auth.userId,
-    });
-  } catch (notifyError) {
-    console.error("[support-tickets/:id/close:notify]", notifyError);
   }
 
   const ticket = await getSupportTicketById(supabase, id);

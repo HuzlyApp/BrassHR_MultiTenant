@@ -95,7 +95,7 @@ export async function resolveFirmaOnboardingContext(
     if (!stepUsesFirmaSigning(step)) {
       return {
         ok: false,
-        error: "This step is not configured for Firma signing",
+        error: "This step is not configured for e-signature",
         code: "STEP_NOT_FIRMA",
         status: 400,
       };
@@ -161,7 +161,7 @@ export async function resolveFirmaOnboardingContext(
   if (!stepUsesFirmaSigning(step)) {
     return {
       ok: false,
-      error: "This step is not configured for Firma signing",
+      error: "This step is not configured for e-signature",
       code: "STEP_NOT_FIRMA",
       status: 400,
     };
@@ -171,7 +171,7 @@ export async function resolveFirmaOnboardingContext(
     return {
       ok: false,
       error:
-        "This Firma signing step is only in your builder draft. Publish the workflow from Onboarding Builder to enable signing.",
+        "This e-signature step is only in your builder draft. Publish the workflow from Onboarding Builder to enable signing.",
       code: "STEP_NOT_PUBLISHED",
       status: 409,
     };

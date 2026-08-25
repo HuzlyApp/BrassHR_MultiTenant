@@ -15,7 +15,7 @@ export async function POST() {
   if (auth instanceof NextResponse) return auth;
 
   if (!canManageFirmaSettings(auth)) {
-    return NextResponse.json({ error: "Not authorized to provision Firma workspace" }, { status: 403 });
+    return NextResponse.json({ error: "Not authorized to provision E-Signature Workspace" }, { status: 403 });
   }
 
   const svc = createServiceRoleClient();

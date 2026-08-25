@@ -210,11 +210,11 @@ function SettingsBody({ node, onUpdate, onSaveStep, onCloneWorkflow, readOnly = 
             data-testid="firma-esign-settings"
           >
             <p className="mb-1 text-xs font-semibold" style={{ color: TEXT_PRIMARY }}>
-              Firma e-sign (Click and Sign)
+              E-Signature (Sign Document)
             </p>
             <p className="mb-3 text-[11px] leading-4" style={{ color: TEXT_SECONDARY }}>
-              Attach a published template so applicants see Click and Sign on Authorizations &amp;
-              Documents.
+              Attach a published signature template so applicants see Sign Document on Authorizations
+              &amp; Documents.
             </p>
             <FirmaTemplateSelect
               value={settings.firmaRecruiterTemplateId ?? ""}

@@ -179,7 +179,7 @@ export default function RecruiterTemplateBuilderForm({
     const id = saved?.id ?? currentTemplateId;
     if (!id) return;
     if (!saved?.document_storage_path && !documentStoragePath && !saved?.firma_template_id) {
-      toast.error("Upload a PDF or DOCX before opening Firma builder");
+      toast.error("Upload a PDF or DOCX before opening the signature template builder");
       return;
     }
     setCurrentTemplateId(id);
@@ -269,7 +269,7 @@ export default function RecruiterTemplateBuilderForm({
               {isNew && !currentTemplateId ? "New recruiting template" : name || "Template builder"}
             </h1>
             <p className="mt-1 text-[13px] leading-5 text-[#667085] min-[700px]:text-sm">
-              Firma.dev powers document field placement and role assignment.
+              Secure e-signature field placement and role assignment for recruiting documents.
             </p>
           </div>
         </div>
@@ -359,7 +359,7 @@ export default function RecruiterTemplateBuilderForm({
                 <dd className="font-medium capitalize text-[#101828]">{status}</dd>
               </div>
               <div className="flex justify-between gap-3">
-                <dt className="shrink-0 text-[#667085]">Firma</dt>
+                <dt className="shrink-0 text-[#667085]">E-Signature</dt>
                 <dd className="truncate font-medium text-[#101828]">{firmaTemplateId ?? "-"}</dd>
               </div>
               <div className="flex justify-between gap-3">
@@ -403,7 +403,7 @@ export default function RecruiterTemplateBuilderForm({
             className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[color:var(--brand-secondary)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50 min-[480px]:w-auto"
           >
             <ExternalLink className="h-4 w-4" />
-            Open Firma builder
+            Open signature template builder
           </button>
         </div>
       </section>

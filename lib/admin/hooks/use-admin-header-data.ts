@@ -8,6 +8,7 @@ export type HeaderNotification = {
   title: string | null;
   body: string | null;
   type: string | null;
+  link: string | null;
   is_read: boolean | null;
   sent_at: string | null;
 };
@@ -31,8 +32,11 @@ async function fetchAdminHeaderData(): Promise<AdminHeaderDataPayload> {
   }
   return {
     userId: payload.userId,
-    notifications: payload.notifications ?? [],
-    unreadNotifications: payload.unreadNotifications ?? 0,
+    notifications: (payload.notifications ?? []).map((item) => ({
+      ...item,
+      link: item.link ?? null,
+    })),
+    unreadNotifications: Math.max(0, payload.unreadNotifications ?? 0),
   };
 }
 
@@ -40,7 +44,8 @@ export function useAdminHeaderData() {
   const query = useQuery({
     queryKey: ADMIN_HEADER_DATA_QUERY_KEY,
     queryFn: fetchAdminHeaderData,
-    staleTime: 30_000,
+    staleTime: 15_000,
+    refetchInterval: 30_000,
   });
 
   return {

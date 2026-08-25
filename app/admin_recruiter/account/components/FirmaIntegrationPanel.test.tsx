@@ -41,7 +41,7 @@ describe("FirmaIntegrationPanel", () => {
 
     expect(screen.getByText("workspace_global_test")).toBeInTheDocument();
     expect(screen.getByText(/Server environment fallback/)).toBeInTheDocument();
-    expect(screen.queryByText(/No Firma workspace is configured/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/No e-signature workspace is configured/i)).not.toBeInTheDocument();
   });
 
   it("warns when neither tenant workspace nor env fallback is configured", async () => {
@@ -57,7 +57,7 @@ describe("FirmaIntegrationPanel", () => {
     render(<FirmaIntegrationPanel />);
 
     await waitFor(() => {
-      expect(screen.getByText(/No Firma workspace is configured/)).toBeInTheDocument();
+      expect(screen.getByText(/No e-signature workspace is configured/i)).toBeInTheDocument();
     });
 
     expect(screen.getByText(/Not configured/)).toBeInTheDocument();

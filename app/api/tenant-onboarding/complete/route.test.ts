@@ -184,7 +184,7 @@ describe("tenant-onboarding complete route", () => {
     provisionMock.mockResolvedValue({
       status: "failed",
       workspaceId: null,
-      message: "Tenant was created, but Firma workspace creation failed. You can retry in Account Settings.",
+      message: "Tenant was created, but e-signature workspace creation failed. You can retry in Account Settings.",
     });
 
     const response = await completeTenant();

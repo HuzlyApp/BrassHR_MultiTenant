@@ -5,6 +5,12 @@ import { useRouter, useSearchParams } from "next/navigation";
 import OnboardingLayout from "@/app/components/OnboardingLayout";
 import OnboardingStepper from "@/app/components/OnboardingStepper";
 import { FirmaSigningIframe } from "@/app/components/onboarding/FirmaSigningIframe";
+import {
+  E_SIGNATURE_LABEL,
+  E_SIGNATURE_USER_ERRORS,
+  eSignatureStatusLabel,
+  sanitizeESignatureUserMessage,
+} from "@/lib/e-signature/user-facing";
 import { useOnboardingStepNav } from "@/lib/onboarding/use-onboarding-step-nav";
 import { useOnboardingConfigOptional } from "@/app/components/onboarding/OnboardingConfigProvider";
 import { useMarkStepInProgressIfPending } from "@/lib/onboarding/use-mark-step-in-progress-if-pending";
@@ -215,7 +221,9 @@ export default function FirmaSignPage() {
         });
         const data = (await res.json()) as FirmaSessionResponse & { code?: string };
         if (!res.ok) {
-          const err = new Error(data.error || "Could not start Firma signing") as Error & {
+          const err = new Error(
+            sanitizeESignatureUserMessage(data.error, E_SIGNATURE_USER_ERRORS.sessionOpenFailed)
+          ) as Error & {
             code?: string;
           };
           err.code = data.code;
@@ -227,7 +235,12 @@ export default function FirmaSignPage() {
         setFirmaStatus(data.session?.firma_status ?? "draft");
       } catch (err: unknown) {
         if (cancelled) return;
-        setError(err instanceof Error ? err.message : "Could not start Firma signing");
+        setError(
+          sanitizeESignatureUserMessage(
+            err instanceof Error ? err.message : null,
+            E_SIGNATURE_USER_ERRORS.sessionOpenFailed
+          )
+        );
         setErrorCode((err as Error & { code?: string }).code ?? null);
         setIframeUrl(null);
       } finally {
@@ -351,7 +364,7 @@ export default function FirmaSignPage() {
   const stepTitle =
     nav.currentStep?.title ??
     nav.enabledSteps?.find((step) => step.step_key === stepKey)?.title ??
-    "Document Signing";
+    E_SIGNATURE_LABEL;
 
   return (
     <OnboardingLayout>
@@ -368,7 +381,9 @@ export default function FirmaSignPage() {
             </p>
           ) : null}
           {!loading ? (
-            <p className="mt-1 text-xs font-medium text-[#475467]">Status: {firmaStatus}</p>
+            <p className="mt-1 text-xs font-medium text-[#475467]">
+              Status: {eSignatureStatusLabel(firmaStatus)}
+            </p>
           ) : null}
         </div>
 
