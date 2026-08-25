@@ -42,3 +42,68 @@ export function isImageFile(file: File | null, fileName?: string): boolean {
   const n = pathOrUrlForExtension(fileName ?? file?.name ?? "")
   return /\.(png|jpe?g|jpeg|webp|gif)$/i.test(n)
 }
+
+const MIME_ALIASES: Record<string, string> = {
+  "image/jpg": "image/jpeg",
+  "image/pjpeg": "image/jpeg",
+  "image/x-png": "image/png",
+}
+
+const EXT_TO_MIME: Record<string, string> = {
+  pdf: "application/pdf",
+  png: "image/png",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  webp: "image/webp",
+}
+
+export function normalizeDocumentMime(mime: string): string {
+  const m = mime.trim().toLowerCase()
+  return MIME_ALIASES[m] ?? m
+}
+
+function mimeFromFileName(fileName: string): string | null {
+  const n = pathOrUrlForExtension(fileName)
+  const ext = n.split(".").pop()?.toLowerCase() ?? ""
+  return EXT_TO_MIME[ext] ?? null
+}
+
+function normalizeAcceptedType(raw: string): string | null {
+  const v = raw.trim().toLowerCase()
+  if (!v) return null
+  if (v.startsWith(".")) return EXT_TO_MIME[v.slice(1)] ?? v
+  if (EXT_TO_MIME[v]) return EXT_TO_MIME[v]
+  return normalizeDocumentMime(v)
+}
+
+/**
+ * Match a file against tenant `accepted_file_types`.
+ * Treats jpg/jpeg aliases, file extensions (`pdf`, `.png`), and empty browser MIME as allowed
+ * when the name matches. When any image type is listed, JPG/PNG/WebP are accepted.
+ */
+export function isAcceptedDocumentFileType(
+  file: { type?: string; name?: string },
+  accepted: string[] | null | undefined
+): boolean {
+  if (!accepted?.length) return true
+
+  const allowed = new Set(
+    accepted.map(normalizeAcceptedType).filter((t): t is string => Boolean(t))
+  )
+  if (allowed.size === 0) return true
+
+  const fileMime =
+    normalizeDocumentMime(file.type || "") || mimeFromFileName(file.name || "") || ""
+  if (!fileMime) return true
+  if (allowed.has(fileMime)) return true
+
+  const acceptsImages = [...allowed].some((m) => m.startsWith("image/"))
+  if (
+    acceptsImages &&
+    (fileMime === "image/jpeg" || fileMime === "image/png" || fileMime === "image/webp")
+  ) {
+    return true
+  }
+
+  return false
+}

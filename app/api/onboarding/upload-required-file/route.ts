@@ -2,12 +2,13 @@ import { randomUUID } from "node:crypto"
 import { NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { getSupabaseUrl } from "@/lib/supabase-env"
+import { isAcceptedDocumentFileType } from "@/lib/document-upload-helpers"
 import { WORKER_REQUIRED_FILES_BUCKET } from "@/lib/supabase-storage-buckets"
 import { enforceRateLimit, getClientIp } from "@/lib/security/rate-limit"
 
 export const runtime = "nodejs"
 const MAX_UPLOAD_BYTES = Number(process.env.MAX_REQUIRED_FILE_UPLOAD_BYTES ?? 10 * 1024 * 1024)
-const ALLOWED_UPLOAD_MIME = new Set(["application/pdf", "image/jpeg", "image/png"])
+const ALLOWED_UPLOAD_TYPES = ["application/pdf", "image/jpeg", "image/png", "image/webp"]
 
 function sanitizeFileName(name: string): string {
   return name.replace(/[/\\?%*:|"<>]/g, "_").slice(0, 200)
@@ -44,9 +45,11 @@ export async function POST(req: Request) {
     if (file.size > MAX_UPLOAD_BYTES) {
       return NextResponse.json({ error: "File is too large" }, { status: 400 })
     }
-    const mime = (file.type || "").toLowerCase()
-    if (mime && !ALLOWED_UPLOAD_MIME.has(mime)) {
-      return NextResponse.json({ error: "File type not allowed" }, { status: 400 })
+    if (!isAcceptedDocumentFileType(file, ALLOWED_UPLOAD_TYPES)) {
+      return NextResponse.json(
+        { error: "File type not allowed. Upload a PNG, JPG, WebP, or PDF." },
+        { status: 400 }
+      )
     }
 
     const allowedFolder = /^(ssn|license|tb|cpr|other)$/
@@ -98,9 +101,10 @@ export async function POST(req: Request) {
       )
     }
 
-    const { data: urlData } = supabase.storage
+    const { data: signed } = await supabase.storage
       .from(WORKER_REQUIRED_FILES_BUCKET)
-      .getPublicUrl(path)
+      .createSignedUrl(path, 60 * 60)
+    const accessibleUrl = signed?.signedUrl || path
     console.info("[debug-doc-upload] upload-required-file:success", {
       route: "/api/onboarding/upload-required-file",
       fileName: file.name,
@@ -108,12 +112,12 @@ export async function POST(req: Request) {
       applicantId,
       bucket: WORKER_REQUIRED_FILES_BUCKET,
       uploadedPath: path,
-      generatedUrl: urlData.publicUrl,
+      generatedUrl: accessibleUrl,
     })
 
     return NextResponse.json({
       path,
-      publicUrl: urlData.publicUrl,
+      publicUrl: accessibleUrl,
       fileName: file.name,
     })
   } catch (err: unknown) {

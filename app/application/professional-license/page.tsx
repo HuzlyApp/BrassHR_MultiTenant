@@ -332,10 +332,12 @@ export default function Step2License() {
         throw new Error("Missing applicant session — complete Step 1 (resume) first.");
       }
 
-      const { publicUrl } = await uploadRequiredOnboardingFile(file, FOLDER_BY_TYPE[type], applicantId);
+      const { publicUrl, path } = await uploadRequiredOnboardingFile(file, FOLDER_BY_TYPE[type], applicantId);
 
       const docBody: Record<string, string> = { applicantId };
-      docBody[DOC_URL_KEY[type]] = publicUrl;
+      docBody[DOC_URL_KEY[type]] = path || publicUrl;
+
+      const storedRef = path || publicUrl;
 
       const docRes = await fetch("/api/onboarding/worker-documents", {
         method: "POST",
@@ -352,7 +354,7 @@ export default function Step2License() {
         [type]: {
           name: file.name,
           size: `${(file.size / 1024 / 1024).toFixed(1)} MB`,
-          url: publicUrl,
+          url: storedRef,
         },
       }));
     } catch (e) {

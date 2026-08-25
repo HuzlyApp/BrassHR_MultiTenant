@@ -6,6 +6,7 @@ import {
   readOnboardingTenantSlugFromRequest,
   resolveOnboardingWorker,
 } from "@/lib/onboarding/resolve-onboarding-worker";
+import { isAcceptedDocumentFileType } from "@/lib/document-upload-helpers";
 import { WORKER_REQUIRED_FILES_BUCKET } from "@/lib/supabase-storage-buckets";
 import { enforceRateLimit, getClientIp } from "@/lib/security/rate-limit";
 
@@ -85,8 +86,11 @@ export async function POST(req: NextRequest) {
     const accepted = Array.isArray(reqDoc.accepted_file_types)
       ? (reqDoc.accepted_file_types as string[])
       : [];
-    if (accepted.length && file.type && !accepted.includes(file.type)) {
-      return NextResponse.json({ error: "File type not allowed" }, { status: 400 });
+    if (!isAcceptedDocumentFileType(file, accepted)) {
+      return NextResponse.json(
+        { error: "File type not allowed. Upload a PNG, JPG, WebP, or PDF." },
+        { status: 400 }
+      );
     }
 
     const buffer = Buffer.from(await file.arrayBuffer());

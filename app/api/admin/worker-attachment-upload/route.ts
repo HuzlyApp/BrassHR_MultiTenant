@@ -12,6 +12,7 @@ import {
 } from "@/lib/supabase-storage-buckets"
 import { enforceRateLimit, getClientIp } from "@/lib/security/rate-limit"
 import { parseRequiredUuid } from "@/lib/validation/uuid"
+import { isAcceptedDocumentFileType } from "@/lib/document-upload-helpers"
 
 export const runtime = "nodejs"
 
@@ -21,7 +22,7 @@ const ALLOWED_RESUME_MIME = new Set([
   "application/pdf",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 ])
-const ALLOWED_DOC_MIME = new Set(["application/pdf", "image/jpeg", "image/png", "image/jpg"])
+const ALLOWED_DOC_TYPES = ["application/pdf", "image/jpeg", "image/png", "image/webp"]
 
 function sanitizeFileName(name: string): string {
   return name.replace(/[/\\?%*:|"<>]/g, "_").slice(0, 200)
@@ -235,12 +236,14 @@ export async function POST(req: NextRequest) {
         )
       }
 
-      const mime = (file.type || "").toLowerCase()
       if (file.size > MAX_DOC_BYTES) {
         return NextResponse.json({ error: "File is too large" }, { status: 400 })
       }
-      if (mime && !ALLOWED_DOC_MIME.has(mime)) {
-        return NextResponse.json({ error: "File type not allowed" }, { status: 400 })
+      if (!isAcceptedDocumentFileType(file, ALLOWED_DOC_TYPES)) {
+        return NextResponse.json(
+          { error: "File type not allowed. Upload a PNG, JPG, WebP, or PDF." },
+          { status: 400 }
+        )
       }
 
       const buffer = Buffer.from(await file.arrayBuffer())
@@ -299,12 +302,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, path: objectPath, bucket: WORKER_REQUIRED_FILES_BUCKET })
     }
 
-    const mime = (file.type || "").toLowerCase()
     if (file.size > MAX_DOC_BYTES) {
       return NextResponse.json({ error: "File is too large" }, { status: 400 })
     }
-    if (mime && !ALLOWED_DOC_MIME.has(mime)) {
-      return NextResponse.json({ error: "File type not allowed" }, { status: 400 })
+    if (!isAcceptedDocumentFileType(file, ALLOWED_DOC_TYPES)) {
+      return NextResponse.json(
+        { error: "File type not allowed. Upload a PNG, JPG, WebP, or PDF." },
+        { status: 400 }
+      )
     }
 
     const { data: reqDoc, error: docErr } = await supabase
@@ -328,8 +333,11 @@ export async function POST(req: NextRequest) {
     const accepted = Array.isArray(reqDoc.accepted_file_types)
       ? (reqDoc.accepted_file_types as string[])
       : []
-    if (accepted.length && file.type && !accepted.includes(file.type)) {
-      return NextResponse.json({ error: "File type not allowed for this requirement" }, { status: 400 })
+    if (!isAcceptedDocumentFileType(file, accepted)) {
+      return NextResponse.json(
+        { error: "File type not allowed for this requirement. Upload a PNG, JPG, WebP, or PDF." },
+        { status: 400 }
+      )
     }
 
     const buffer = Buffer.from(await file.arrayBuffer())

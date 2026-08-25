@@ -6,8 +6,9 @@ import {
   type AgreementSectionId,
 } from "@/lib/admin/document-review";
 import { WORKER_REQUIRED_FILES_BUCKET } from "@/lib/supabase-storage-buckets";
+import { isAcceptedDocumentFileType } from "@/lib/document-upload-helpers";
 
-const ALLOWED_DOC_MIME = new Set(["application/pdf", "image/jpeg", "image/png", "image/jpg"]);
+const ALLOWED_DOC_TYPES = ["application/pdf", "image/jpeg", "image/png", "image/webp"];
 const MAX_DOC_BYTES = Number(process.env.MAX_REQUIRED_FILE_UPLOAD_BYTES ?? 10 * 1024 * 1024);
 
 function sanitizeFileName(name: string): string {
@@ -73,12 +74,11 @@ export async function uploadAgreementSectionFile(
   }
 ): Promise<{ path: string; bucket: string }> {
   const { workerId, tenantId, section, file, requiredDocumentId } = input;
-  const mime = (file.type || "").toLowerCase();
   if (file.size > MAX_DOC_BYTES) {
     throw new Error("File is too large");
   }
-  if (mime && !ALLOWED_DOC_MIME.has(mime)) {
-    throw new Error("File type not allowed");
+  if (!isAcceptedDocumentFileType(file, ALLOWED_DOC_TYPES)) {
+    throw new Error("File type not allowed. Upload a PNG, JPG, WebP, or PDF.");
   }
 
   const buffer = Buffer.from(await file.arrayBuffer());
@@ -107,8 +107,8 @@ export async function uploadAgreementSectionFile(
     const accepted = Array.isArray(reqDoc.accepted_file_types)
       ? (reqDoc.accepted_file_types as string[])
       : [];
-    if (accepted.length && file.type && !accepted.includes(file.type)) {
-      throw new Error("File type not allowed for this requirement");
+    if (!isAcceptedDocumentFileType(file, accepted)) {
+      throw new Error("File type not allowed for this requirement. Upload a PNG, JPG, WebP, or PDF.");
     }
 
     const objectPath = `${tenantId}/${workerId}/${requiredDocumentId}/${randomUUID()}-${sanitizeFileName(file.name)}`;

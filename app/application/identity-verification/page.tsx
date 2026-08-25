@@ -68,7 +68,7 @@ export default function Step4Identity() {
     file: File,
     folder: string,
     applicantId: string
-  ): Promise<string> => {
+  ): Promise<{ previewUrl: string; storedPath: string }> => {
     const fd = new FormData()
     fd.append("file", file)
     fd.append("folder", folder)
@@ -82,16 +82,19 @@ export default function Step4Identity() {
     const json = (await res.json().catch(() => ({}))) as {
       error?: string
       publicUrl?: string
+      path?: string
     }
 
     if (!res.ok) {
       throw new Error(json.error || "File upload failed")
     }
-    if (!json.publicUrl) {
-      throw new Error("Could not generate public URL")
+    const storedPath = json.path?.trim() || ""
+    const publicUrl = json.publicUrl?.trim() || storedPath
+    if (!publicUrl && !storedPath) {
+      throw new Error("Could not save uploaded file")
     }
 
-    return json.publicUrl
+    return { previewUrl: publicUrl, storedPath: storedPath || publicUrl }
   }
 
   const handleNext = async () => {
@@ -117,8 +120,8 @@ export default function Step4Identity() {
       }
       localStorage.setItem("applicantId", applicantId)
 
-      const ssnUrl = await uploadFile(ssnFile.file, "ssn", applicantId)
-      const licenseUrl = await uploadFile(licenseFile.file, "license", applicantId)
+      const ssnUploaded = await uploadFile(ssnFile.file, "ssn", applicantId)
+      const licenseUploaded = await uploadFile(licenseFile.file, "license", applicantId)
 
       const docRes = await fetch("/api/onboarding/worker-documents", {
         method: "POST",
@@ -126,8 +129,8 @@ export default function Step4Identity() {
         body: JSON.stringify({
           applicantId,
           ...(tenantSlug ? { tenant: tenantSlug } : {}),
-          ssn_url: ssnUrl,
-          drivers_license_url: licenseUrl,
+          ssn_url: ssnUploaded.storedPath,
+          drivers_license_url: licenseUploaded.storedPath,
         }),
       })
       const docJson = (await docRes.json().catch(() => ({}))) as { error?: string }
@@ -138,8 +141,8 @@ export default function Step4Identity() {
       localStorage.setItem(
         "identityDocuments",
         JSON.stringify({
-          ssn: { name: ssnFile.file.name, url: ssnUrl },
-          license: { name: licenseFile.file.name, url: licenseUrl },
+          ssn: { name: ssnFile.file.name, url: ssnUploaded.previewUrl },
+          license: { name: licenseFile.file.name, url: licenseUploaded.previewUrl },
           uploadedAt: new Date().toISOString(),
         })
       )
