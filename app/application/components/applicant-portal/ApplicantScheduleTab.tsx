@@ -298,27 +298,33 @@ export function ApplicantScheduleTab({
         <div className={`${WORKER_SCHEDULE_CARD_CLASS} mt-5`}>
           {recentLog ? (
             <>
-              <div className="grid grid-cols-3 gap-2 border-b border-[#E5E7EB] px-4 py-3 text-[10px] font-semibold uppercase tracking-wide text-[#94A3B8]">
+              <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-x-3 border-b border-[#E5E7EB] px-4 py-3 text-[10px] font-semibold uppercase tracking-wide text-[#94A3B8]">
                 <span>Date/time</span>
                 <span>Status</span>
-                <span>Total</span>
+                <span className="text-right">Total</span>
               </div>
-              <div className="grid grid-cols-3 gap-2 px-4 py-3 text-[12px] text-[#374151]">
-                <div className="flex items-center gap-1">
-                  <span>{formatDateOnly(recentLog.clock_out_at ?? recentLog.clock_in_at)}</span>
-                  <span>•</span>
-                  <TimeValue iso={recentLog.clock_out_at ?? recentLog.clock_in_at} />
-                </div>
-                <div>
-                  <span className="inline-flex rounded-md border border-[#E5E7EB] bg-[#F8FAFC] px-2.5 py-1 text-[12px] font-semibold text-[#374151]">
-                    {recentLog.status === "clocked_out"
-                      ? "Clocked out"
-                      : recentLog.break_started_at
-                        ? "On break"
-                        : "Clocked in"}
+              <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-x-3 px-4 py-3 text-[12px] text-[#374151]">
+                <div className="min-w-0">
+                  <span className="block truncate sm:inline">
+                    {formatDateOnly(recentLog.clock_out_at ?? recentLog.clock_in_at)}
+                  </span>
+                  <span className="mx-1 hidden sm:inline" aria-hidden>
+                    •
+                  </span>
+                  <span className="block text-[#64748B] sm:inline sm:text-inherit">
+                    <TimeValue iso={recentLog.clock_out_at ?? recentLog.clock_in_at} />
                   </span>
                 </div>
-                <DurationValue seconds={recentLog.total_seconds} />
+                <span className="inline-flex shrink-0 whitespace-nowrap rounded-md border border-[#E5E7EB] bg-[#F8FAFC] px-2 py-1 text-[11px] font-semibold text-[#374151] sm:px-2.5 sm:text-[12px]">
+                  {recentLog.status === "clocked_out"
+                    ? "Clocked out"
+                    : recentLog.break_started_at
+                      ? "On break"
+                      : "Clocked in"}
+                </span>
+                <div className="justify-self-end whitespace-nowrap">
+                  <DurationValue seconds={recentLog.total_seconds} />
+                </div>
               </div>
             </>
           ) : (

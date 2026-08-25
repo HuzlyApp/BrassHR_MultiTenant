@@ -322,12 +322,12 @@ function ApplyConfirmModal({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[120] flex items-end justify-center bg-black/40 p-0 sm:items-center sm:p-4">
+    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/40 p-4">
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="worker-apply-job-title"
-        className="max-h-[92vh] w-full max-w-md overflow-y-auto rounded-t-2xl border border-[#E5E7EB] bg-white shadow-xl sm:rounded-xl"
+        className="max-h-[92vh] w-full max-w-md overflow-y-auto rounded-xl border border-[#E5E7EB] bg-white shadow-xl"
       >
         <div className="flex items-start justify-between gap-3 border-b border-[#E5E7EB] px-4 py-4 sm:px-5">
           <div className="min-w-0">
@@ -588,8 +588,8 @@ export function WorkerJobsTab() {
           </p>
         ) : view === "list" ? (
           <>
-            {/* Mobile / tablet: stacked cards */}
-            <div className="md:hidden">
+            {/* Mobile / tablet / small laptop: stacked cards (table needs ~xl width with sidebar) */}
+            <div className="xl:hidden">
               {rows.map((row) => (
                 <JobMobileListCard
                   key={row.token}
@@ -599,17 +599,25 @@ export function WorkerJobsTab() {
               ))}
             </div>
 
-            {/* Desktop: table */}
-            <div className="hidden overflow-x-auto md:block">
-              <table className="min-w-full text-left">
+            {/* Wide desktop: table */}
+            <div className="hidden overflow-x-auto xl:block">
+              <table className="w-full min-w-[880px] table-fixed border-collapse text-left">
+                <colgroup>
+                  <col className="w-[28%]" />
+                  <col className="w-[22%]" />
+                  <col className="w-[12%]" />
+                  <col className="w-[14%]" />
+                  <col className="w-[12%]" />
+                  <col className="w-[12%]" />
+                </colgroup>
                 <thead>
                   <tr className="border-b border-[#E5E7EB] text-sm font-medium text-[#64748B]">
-                    <th className="px-4 py-3 font-medium">Job title</th>
-                    <th className="px-4 py-3 font-medium">Location</th>
-                    <th className="px-4 py-3 font-medium">Work type</th>
-                    <th className="px-4 py-3 font-medium">Status</th>
-                    <th className="px-4 py-3 font-medium">Applied date</th>
-                    <th className="px-4 py-3 font-medium">Action</th>
+                    <th className="px-3 py-3 font-medium xl:px-4">Job title</th>
+                    <th className="px-3 py-3 font-medium xl:px-4">Location</th>
+                    <th className="px-3 py-3 font-medium xl:px-4">Work type</th>
+                    <th className="px-3 py-3 font-medium xl:px-4">Status</th>
+                    <th className="px-3 py-3 font-medium xl:px-4">Applied date</th>
+                    <th className="px-3 py-3 font-medium xl:px-4">Action</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -617,22 +625,26 @@ export function WorkerJobsTab() {
                     const status = workerFacingJobStatus(row.application);
                     return (
                       <tr key={row.token} className="border-b border-[#F1F5F9] last:border-b-0">
-                        <td className="px-4 py-4 align-top">
-                          <p className="text-sm font-semibold text-[#0F172A]">{row.title}</p>
+                        <td className="min-w-0 px-3 py-3.5 align-top xl:px-4 xl:py-4">
+                          <p className="break-words text-sm font-semibold leading-5 text-[#0F172A]">
+                            {row.title}
+                          </p>
                           {row.profession ? (
-                            <p className="mt-0.5 text-xs text-[#64748B]">
+                            <p className="mt-0.5 break-words text-xs leading-4 text-[#64748B]">
                               {row.profession}
                               {row.specialty ? ` · ${row.specialty}` : ""}
                             </p>
                           ) : null}
                         </td>
-                        <td className="max-w-[220px] px-4 py-4 align-top text-sm text-[#334155]">
-                          <span className="line-clamp-2">{row.location}</span>
+                        <td className="min-w-0 px-3 py-3.5 align-top text-sm leading-5 text-[#334155] xl:px-4 xl:py-4">
+                          <span className="break-words" title={row.location}>
+                            {row.location}
+                          </span>
                         </td>
-                        <td className="px-4 py-4 align-top">
+                        <td className="px-3 py-3.5 align-top xl:px-4 xl:py-4">
                           {row.employmentType ? (
                             <span
-                              className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${workTypeBadgeClass(row.employmentType)}`}
+                              className={`inline-flex max-w-full items-center truncate rounded-full px-2.5 py-1 text-xs font-medium ${workTypeBadgeClass(row.employmentType)}`}
                             >
                               {row.employmentType}
                             </span>
@@ -640,13 +652,13 @@ export function WorkerJobsTab() {
                             <span className="text-sm text-[#94A3B8]">—</span>
                           )}
                         </td>
-                        <td className="px-4 py-4 align-top">
+                        <td className="px-3 py-3.5 align-top xl:px-4 xl:py-4">
                           <StatusBadge status={status} />
                         </td>
-                        <td className="whitespace-nowrap px-4 py-4 align-top text-sm text-[#334155]">
+                        <td className="whitespace-nowrap px-3 py-3.5 align-top text-sm text-[#334155] xl:px-4 xl:py-4">
                           {row.applied ? formatAppliedDate(row.application?.appliedAt) : "—"}
                         </td>
-                        <td className="px-4 py-4 align-top">
+                        <td className="px-3 py-3.5 align-top xl:px-4 xl:py-4">
                           <JobApplyAction
                             row={row}
                             onApply={(next) => void openApplyModal(next)}
@@ -660,7 +672,7 @@ export function WorkerJobsTab() {
             </div>
           </>
         ) : (
-          <div className="grid grid-cols-1 gap-4 p-3 sm:p-4 md:grid-cols-2 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 p-3 sm:p-4 md:grid-cols-2 lg:grid-cols-2">
             {rows.map((row) => (
               <JobGridCard
                 key={row.token}
