@@ -4,10 +4,13 @@ import {
   requireRecruiterTemplateAdminContext,
 } from "@/lib/recruiter-templates/api-helpers";
 import { createRecruiterTemplateBuilderSession } from "@/lib/recruiter-templates/service";
+import { writeActivityLog } from "@/lib/audit/activity-log";
+import { randomUUID } from "crypto";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
 export async function POST(req: Request, context: RouteContext) {
+  const correlationId = randomUUID();
   try {
     const ctx = await requireRecruiterTemplateAdminContext();
     if (ctx instanceof NextResponse) return ctx;
@@ -35,8 +38,36 @@ export async function POST(req: Request, context: RouteContext) {
       { forceRecreate, refreshDocument }
     );
 
-    return NextResponse.json({ session });
+    if (forceRecreate) {
+      await writeActivityLog({
+        actorUserId: ctx.auth.userId,
+        action: "recruiter_template.reset_signature_template",
+        entityType: "recruiter_template",
+        entityId: id,
+        tenantId: ctx.tenantId,
+        metadata: {
+          correlationId,
+          refreshDocument,
+          firma_template_id: session.firma_template_id,
+        },
+        request: req,
+      });
+    }
+
+    return NextResponse.json({
+      session,
+      correlationId,
+      status: forceRecreate ? "reset" : refreshDocument ? "rebuilt" : "ready",
+      expires_at: session.expires_at,
+      document_id: session.firma_template_id,
+    });
   } catch (e) {
-    return handleRecruiterTemplateRouteError(e);
+    const response = handleRecruiterTemplateRouteError(e);
+    try {
+      const payload = await response.clone().json();
+      return NextResponse.json({ ...payload, correlationId }, { status: response.status });
+    } catch {
+      return response;
+    }
   }
 }

@@ -55,6 +55,7 @@ export function AdminRecruiterHeader({
   const {
     notifications,
     unreadNotifications,
+    displayName: headerDisplayName,
     isLoading: headerDataLoading,
     isError: headerDataError,
     error: headerDataErrorObj,
@@ -200,10 +201,14 @@ export function AdminRecruiterHeader({
     setTenantLogoSrc(branding.faviconUrl?.trim() || branding.logoUrl?.trim() || DEFAULT_TENANT_LOGO);
   }, [branding.faviconUrl, branding.logoUrl]);
 
-  const displayName = getAccountDisplayName(profile, user);
+  const accountName = getAccountDisplayName(profile, user);
+  const displayName = accountLoading
+    ? headerDisplayName?.trim() || null
+    : accountName;
   const displayRole = formatRoleLabel(profile?.role);
   const profilePhoto = profile?.avatar_url ?? null;
-  const headerLoading = headerDataLoading || conversationsLoading || accountLoading;
+  /** Profile label should not stay on Loading… when only notifications fail. */
+  const profileNameLoading = accountLoading && !displayName;
   const showBackButton = isCandidateDetailPage(pathname ?? "");
 
   const handleBackClick = useCallback(() => {
@@ -460,7 +465,7 @@ export function AdminRecruiterHeader({
             <StaffProfileAvatar name={displayName} photoUrl={profilePhoto} size="sm" />
             <div className="hidden min-w-0 leading-tight text-left sm:block">
               <p className="max-w-[88px] truncate text-sm font-semibold text-[#0F172A] md:max-w-[140px]">
-                {headerLoading ? "Loading..." : displayName}
+                {profileNameLoading ? "Loading..." : displayName ?? "Account"}
               </p>
               <p className="max-w-[88px] truncate text-[11px] text-[#64748B] md:max-w-[140px]">{displayRole}</p>
             </div>

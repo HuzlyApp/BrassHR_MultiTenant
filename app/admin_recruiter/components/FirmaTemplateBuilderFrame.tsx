@@ -10,10 +10,20 @@ import {
   type FirmaTemplateEditorWithPalette,
 } from "@/lib/firma/embed-color-palette";
 import { prepareFirmaPdfWorker } from "@/lib/firma/pdf-worker-patch";
+import {
+  applyEditorInitTimeout,
+  isAllowedTemplateBuilderMessageOrigin,
+  isBuilderSessionExpired,
+  msUntilSessionExpiry,
+  TEMPLATE_BUILDER_ERRORS,
+  TEMPLATE_BUILDER_INIT_TIMEOUT_MS,
+  templateBuilderUserMessage,
+} from "@/lib/recruiter-templates/builder-frame-lifecycle";
 import type {
   RecruiterTemplateBuilderSession,
   RecruiterTemplateDetail,
 } from "@/lib/recruiter-templates/types";
+import { sanitizeESignatureUserMessage } from "@/lib/e-signature/user-facing";
 
 type BuilderFrameProps = {
   templateId: string;
@@ -23,6 +33,8 @@ type BuilderFrameProps = {
 type BuilderSessionResponse = {
   session?: RecruiterTemplateBuilderSession;
   error?: string;
+  correlationId?: string;
+  code?: string;
 };
 
 type SyncResponse = {
@@ -66,9 +78,7 @@ type FirmaTemplateEditorGlobal =
 const FIRMA_EDITOR_EVENTS = new Set(["editor.saved", "editor.published", "editor.closed"]);
 const FIRMA_SCRIPT_TIMEOUT_MS = 20000;
 const FIRMA_GLOBAL_TIMEOUT_MS = 5000;
-const FIRMA_INIT_TIMEOUT_MS = 45000;
 const IS_DEV = process.env.NODE_ENV !== "production";
-let firmaRefreshDebugLoggerInstalled = false;
 
 function getFirmaTemplateEditor(): FirmaTemplateEditorGlobal | undefined {
   return (window as unknown as { FirmaTemplateEditor?: FirmaTemplateEditorGlobal })
@@ -87,69 +97,9 @@ function extractUpdatedAt(data: unknown): string | undefined {
   return typeof value === "string" ? value : undefined;
 }
 
-function logFirmaBuilderPhase(phase: string, detail?: Record<string, unknown>) {
+function logBuilderPhase(phase: string, detail?: Record<string, unknown>) {
   if (!IS_DEV) return;
   console.info("[e-signature-template-builder]", phase, detail ?? {});
-}
-
-function installFirmaRefreshDebugLogger() {
-  if (!IS_DEV || firmaRefreshDebugLoggerInstalled || typeof window === "undefined") return;
-
-  const originalFetch = window.fetch.bind(window);
-  window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
-    const url =
-      typeof input === "string"
-        ? input
-        : input instanceof URL
-          ? input.toString()
-          : input.url;
-    const isFirmaRefresh = url.includes("refresh-embedded-template-document-url");
-
-    if (!isFirmaRefresh) {
-      return originalFetch(input, init);
-    }
-
-    const startedAt = performance.now();
-    const requestId = Math.random().toString(36).slice(2, 8);
-    const pendingTimer = window.setTimeout(() => {
-      console.warn("[e-signature-template-builder] Document refresh still pending", {
-        requestId,
-        elapsedMs: Math.round(performance.now() - startedAt),
-        method: init?.method ?? "GET",
-        url: new URL(url).origin + new URL(url).pathname,
-      });
-    }, 10000);
-
-    console.info("[e-signature-template-builder] Document refresh started", {
-      requestId,
-      method: init?.method ?? "GET",
-      url: new URL(url).origin + new URL(url).pathname,
-      hasAuthorization: Boolean(init?.headers && "Authorization" in Object(init.headers)),
-    });
-
-    try {
-      const response = await originalFetch(input, init);
-      window.clearTimeout(pendingTimer);
-      console.info("[e-signature-template-builder] Document refresh completed", {
-        requestId,
-        status: response.status,
-        ok: response.ok,
-        elapsedMs: Math.round(performance.now() - startedAt),
-        contentType: response.headers.get("content-type"),
-      });
-      return response;
-    } catch (error) {
-      window.clearTimeout(pendingTimer);
-      console.error("[e-signature-template-builder] Document refresh failed", {
-        requestId,
-        elapsedMs: Math.round(performance.now() - startedAt),
-        message: error instanceof Error ? error.message : "Unknown refresh error",
-      });
-      throw error;
-    }
-  };
-
-  firmaRefreshDebugLoggerInstalled = true;
 }
 
 function clearFirmaEditorTimer(initTimeoutRef: MutableRefObject<number | null>) {
@@ -190,44 +140,57 @@ function waitForFirmaTemplateEditor(timeoutMs: number): Promise<FirmaTemplateEdi
       }
       if (Date.now() - startedAt >= timeoutMs) {
         window.clearInterval(interval);
-        reject(new Error("Signature template editor script loaded, but the editor global was not available"));
+        reject(
+          new Error(
+            "Signature template editor script loaded, but the editor global was not available"
+          )
+        );
       }
     }, 100);
   });
 }
 
+let scriptLoadPromise: Promise<FirmaTemplateEditorGlobal> | null = null;
+
 async function injectFirmaTemplateEditorScript(src: string): Promise<FirmaTemplateEditorGlobal> {
   const existing = getFirmaTemplateEditor();
   if (existing) return existing;
 
-  await prepareFirmaPdfWorker(src);
+  if (scriptLoadPromise) return scriptLoadPromise;
 
-  document.querySelectorAll<HTMLScriptElement>(`script[src="${src}"]`).forEach((script) => {
-    if (!getFirmaTemplateEditor()) script.remove();
+  scriptLoadPromise = (async () => {
+    await prepareFirmaPdfWorker(src);
+
+    const alreadyPresent = getFirmaTemplateEditor();
+    if (alreadyPresent) return alreadyPresent;
+
+    await new Promise<void>((resolve, reject) => {
+      const script = document.createElement("script");
+      const timeout = window.setTimeout(() => {
+        script.remove();
+        reject(new Error("Timed out loading signature template editor script"));
+      }, FIRMA_SCRIPT_TIMEOUT_MS);
+
+      script.src = src;
+      script.async = true;
+      script.onload = () => {
+        window.clearTimeout(timeout);
+        resolve();
+      };
+      script.onerror = () => {
+        window.clearTimeout(timeout);
+        script.remove();
+        reject(new Error("Failed to load signature template editor script"));
+      };
+      document.body.appendChild(script);
+    });
+
+    return waitForFirmaTemplateEditor(FIRMA_GLOBAL_TIMEOUT_MS);
+  })().finally(() => {
+    scriptLoadPromise = null;
   });
 
-  await new Promise<void>((resolve, reject) => {
-    const script = document.createElement("script");
-    const timeout = window.setTimeout(() => {
-      script.remove();
-      reject(new Error("Timed out loading signature template editor script"));
-    }, FIRMA_SCRIPT_TIMEOUT_MS);
-
-    script.src = src;
-    script.async = true;
-    script.onload = () => {
-      window.clearTimeout(timeout);
-      resolve();
-    };
-    script.onerror = () => {
-      window.clearTimeout(timeout);
-      script.remove();
-      reject(new Error("Failed to load signature template editor script"));
-    };
-    document.body.appendChild(script);
-  });
-
-  return waitForFirmaTemplateEditor(FIRMA_GLOBAL_TIMEOUT_MS);
+  return scriptLoadPromise;
 }
 
 export default function FirmaTemplateBuilderFrame({
@@ -238,14 +201,24 @@ export default function FirmaTemplateBuilderFrame({
   const containerRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<FirmaTemplateEditorInstance | null>(null);
   const initTimeoutRef = useRef<number | null>(null);
+  const mountGenerationRef = useRef(0);
+  const editorReadyRef = useRef(false);
   const pdfRepairAttemptedRef = useRef(false);
+  const refreshInFlightRef = useRef<Promise<boolean> | null>(null);
   const onTemplateSyncedRef = useRef(onTemplateSynced);
   const [session, setSession] = useState<RecruiterTemplateBuilderSession | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [sessionLoading, setSessionLoading] = useState(true);
+  const [actionBusy, setActionBusy] = useState<"retry" | "refresh" | "rebuild" | "reset" | null>(
+    null
+  );
   const [editorPhase, setEditorPhase] = useState<string | null>(null);
+  const [editorReady, setEditorReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [expired, setExpired] = useState(false);
+  const [confirmReset, setConfirmReset] = useState(false);
+  const [confirmRebuild, setConfirmRebuild] = useState(false);
+  const [remountNonce, setRemountNonce] = useState(0);
 
   const expectedOrigin = useMemo(() => {
     if (!session?.editor_app_url) return null;
@@ -258,8 +231,8 @@ export default function FirmaTemplateBuilderFrame({
 
   const editorSessionKey = useMemo(() => {
     if (!session) return null;
-    return `${session.firma_template_id}:${session.jwt}:${session.expires_at}`;
-  }, [session]);
+    return `${session.firma_template_id}:${session.jwt}:${session.expires_at}:${remountNonce}`;
+  }, [session, remountNonce]);
 
   useEffect(() => {
     onTemplateSyncedRef.current = onTemplateSynced;
@@ -292,7 +265,11 @@ export default function FirmaTemplateBuilderFrame({
         if (input.event === "editor.saved") toast.success("Signature template saved");
         if (input.event === "editor.published") toast.success("Signature template published");
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Failed to sync signature template");
+        toast.error(
+          sanitizeESignatureUserMessage(
+            err instanceof Error ? err.message : "Failed to sync signature template"
+          )
+        );
       } finally {
         setSyncing(false);
       }
@@ -300,56 +277,91 @@ export default function FirmaTemplateBuilderFrame({
     [session?.firma_template_id, templateId]
   );
 
-  const refreshSession = useCallback(async (options: { forceRecreate?: boolean; refreshDocument?: boolean } = {}) => {
-    setLoading(true);
-    setError(null);
-    setEditorPhase(null);
-    try {
-      logFirmaBuilderPhase("requesting-builder-session", { templateId });
-      const res = await recruiterTemplateFetch(
-        `/api/admin/recruiter-templates/${templateId}/builder-session`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            force_recreate_firma_template: options.forceRecreate === true,
-            refresh_firma_document: options.refreshDocument === true,
-          }),
-        }
-      );
-      const body = (await res.json()) as BuilderSessionResponse;
-      if (!res.ok || !body.session) {
-        throw new Error(body.error ?? "Failed to start signature template builder session");
+  const requestBuilderSession = useCallback(
+    async (options: {
+      forceRecreate?: boolean;
+      refreshDocument?: boolean;
+      preserveOnFailure?: boolean;
+    } = {}): Promise<boolean> => {
+      if (refreshInFlightRef.current) {
+        return refreshInFlightRef.current;
       }
-      if (!body.session.jwt) {
-        throw new Error("Signature template builder session did not include an editor token");
-      }
-      if (!options.forceRecreate) {
-        pdfRepairAttemptedRef.current = false;
-      }
-      setExpired(false);
-      setSession(body.session);
-      logFirmaBuilderPhase("builder-session-received", {
-        templateId,
-        firmaTemplateId: body.session.firma_template_id,
-        editorOrigin: new URL(body.session.editor_app_url).origin,
-        expiresAt: body.session.expires_at,
-      });
-      onTemplateSyncedRef.current?.(body.session.template);
-    } catch (err) {
-      setSession(null);
-      setError(err instanceof Error ? err.message : "Failed to start signature template builder session");
-    } finally {
-      setLoading(false);
-    }
-  }, [templateId]);
 
-  const refreshSessionRef = useRef(refreshSession);
-  refreshSessionRef.current = refreshSession;
+      const run = (async (): Promise<boolean> => {
+        setSessionLoading(true);
+        setError(null);
+        setEditorPhase(null);
+        setEditorReady(false);
+        editorReadyRef.current = false;
+        try {
+          logBuilderPhase("requesting-builder-session", { templateId, options });
+          const res = await recruiterTemplateFetch(
+            `/api/admin/recruiter-templates/${templateId}/builder-session`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                force_recreate_firma_template: options.forceRecreate === true,
+                refresh_firma_document: options.refreshDocument === true,
+              }),
+            }
+          );
+          const body = (await res.json()) as BuilderSessionResponse;
+          if (!res.ok || !body.session) {
+            throw new Error(
+              templateBuilderUserMessage(body.error, res.status, body.correlationId)
+            );
+          }
+          if (!body.session.jwt) {
+            throw new Error("Signature template builder session did not include an editor token");
+          }
+          if (!options.forceRecreate) {
+            pdfRepairAttemptedRef.current = false;
+          }
+          setExpired(isBuilderSessionExpired(body.session.expires_at));
+          setSession(body.session);
+          logBuilderPhase("builder-session-received", {
+            templateId,
+            firmaTemplateId: body.session.firma_template_id,
+            editorOrigin: new URL(body.session.editor_app_url).origin,
+            expiresAt: body.session.expires_at,
+          });
+          onTemplateSyncedRef.current?.(body.session.template);
+          return true;
+        } catch (err) {
+          if (!options.preserveOnFailure) {
+            setSession(null);
+          }
+          setError(
+            templateBuilderUserMessage(
+              err instanceof Error
+                ? err.message
+                : "Failed to start signature template builder session"
+            )
+          );
+          return false;
+        } finally {
+          setSessionLoading(false);
+        }
+      })();
+
+      refreshInFlightRef.current = run;
+      try {
+        return await run;
+      } finally {
+        if (refreshInFlightRef.current === run) {
+          refreshInFlightRef.current = null;
+        }
+      }
+    },
+    [templateId]
+  );
+
+  const refreshSessionRef = useRef(requestBuilderSession);
+  refreshSessionRef.current = requestBuilderSession;
 
   useEffect(() => {
-    installFirmaRefreshDebugLogger();
-    void prepareFirmaPdfWorker();
+    void prepareFirmaPdfWorker().catch(() => undefined);
   }, []);
 
   useEffect(() => {
@@ -358,7 +370,7 @@ export default function FirmaTemplateBuilderFrame({
 
   useEffect(() => {
     if (!session?.expires_at) return;
-    const delay = new Date(session.expires_at).getTime() - Date.now();
+    const delay = msUntilSessionExpiry(session.expires_at);
     if (delay <= 0) {
       setExpired(true);
       return;
@@ -371,49 +383,88 @@ export default function FirmaTemplateBuilderFrame({
   syncTemplateRef.current = syncTemplate;
 
   useEffect(() => {
-    if (!session || !editorSessionKey || !wrapperRef.current) return;
+    if (!session || !editorSessionKey) return;
+    if (sessionLoading) return;
+
     const activeSession = session;
-    const activeWrapper = wrapperRef.current;
+    const generation = ++mountGenerationRef.current;
     let cancelled = false;
+    editorReadyRef.current = false;
+    setEditorReady(false);
+
     const restoreFetch = activeSession.embed_color_palette
       ? installFirmaEmbeddedTemplateDataPalettePatch(activeSession.embed_color_palette)
       : () => undefined;
 
     async function mountEditor() {
+      // Wait one frame so wrapperRef is attached after sessionLoading flips false.
+      await new Promise<void>((resolve) => {
+        window.requestAnimationFrame(() => resolve());
+      });
+      if (cancelled || mountGenerationRef.current !== generation) return;
+
+      const activeWrapper = wrapperRef.current;
+      if (!activeWrapper) {
+        setError(TEMPLATE_BUILDER_ERRORS.ready_timeout);
+        return;
+      }
+
       setEditorPhase("Loading signature template editor...");
       setError(null);
-      clearFirmaEditorTimer(initTimeoutRef);
-      initTimeoutRef.current = window.setTimeout(() => {
-        if (cancelled) return;
-        setEditorPhase(null);
-        setError(
-          "Signature template editor did not finish loading. Try Refresh session to regenerate document access."
-        );
-        logFirmaBuilderPhase("editor-init-timeout", {
-          templateId,
-          firmaTemplateId: activeSession.firma_template_id,
-        });
-      }, FIRMA_INIT_TIMEOUT_MS);
 
       try {
-        logFirmaBuilderPhase("loading-editor-script", {
+        logBuilderPhase("loading-editor-script", {
           scriptOrigin: new URL(activeSession.embed_script_url).origin,
         });
         const FirmaTemplateEditor = await injectFirmaTemplateEditorScript(
           activeSession.embed_script_url
         );
-        if (cancelled) return;
+        if (cancelled || mountGenerationRef.current !== generation) return;
 
         setEditorPhase("Initializing signature template editor...");
         editorRef.current?.destroy?.();
         const host = createFirmaEditorHost(activeWrapper);
         containerRef.current = host;
 
+        clearFirmaEditorTimer(initTimeoutRef);
+        initTimeoutRef.current = window.setTimeout(() => {
+          const decision = applyEditorInitTimeout({
+            generation,
+            activeGeneration: mountGenerationRef.current,
+            ready: editorReadyRef.current,
+            cancelled,
+          });
+          if (!decision.shouldSetError) return;
+          setEditorPhase(null);
+          setError(TEMPLATE_BUILDER_ERRORS.ready_timeout);
+          logBuilderPhase("editor-init-timeout", {
+            templateId,
+            firmaTemplateId: activeSession.firma_template_id,
+          });
+        }, TEMPLATE_BUILDER_INIT_TIMEOUT_MS);
+
+        const markReady = () => {
+          if (cancelled || mountGenerationRef.current !== generation) return;
+          editorReadyRef.current = true;
+          setEditorReady(true);
+          setEditorPhase(null);
+          setError(null);
+          clearFirmaEditorTimer(initTimeoutRef);
+          patchFirmaTemplateEditorBranding(
+            editorRef.current,
+            activeSession.embed_color_palette
+          );
+          logBuilderPhase("editor-ready", {
+            templateId,
+            firmaTemplateId: activeSession.firma_template_id,
+          });
+        };
+
         const options: FirmaTemplateEditorOptions = {
           container: host,
           jwt: activeSession.jwt,
           templateId: activeSession.firma_template_id,
-          theme: "dark",
+          theme: "light",
           readOnly: false,
           width: "100%",
           height: "calc(100vh - 220px)",
@@ -428,28 +479,19 @@ export default function FirmaTemplateBuilderFrame({
             void syncTemplateRef.current({ event: "editor.closed" });
           },
           onError: (err) => {
-            const message = err instanceof Error ? err.message : "Signature template editor error";
-            setError(message);
+            if (cancelled || mountGenerationRef.current !== generation) return;
+            const message =
+              err instanceof Error ? err.message : "Signature template editor error";
+            setError(templateBuilderUserMessage(message));
             setEditorPhase(null);
             clearFirmaEditorTimer(initTimeoutRef);
             if (isPdfLoadError(message) && !pdfRepairAttemptedRef.current) {
               pdfRepairAttemptedRef.current = true;
               toast("Refreshing e-signature document and reopening the editor...");
-              void refreshSessionRef.current({ refreshDocument: true });
+              void refreshSessionRef.current({ refreshDocument: true, preserveOnFailure: true });
             }
           },
-          onLoad: () => {
-            patchFirmaTemplateEditorBranding(
-              editorRef.current,
-              activeSession.embed_color_palette
-            );
-            setEditorPhase(null);
-            clearFirmaEditorTimer(initTimeoutRef);
-            logFirmaBuilderPhase("editor-onload", {
-              templateId,
-              firmaTemplateId: activeSession.firma_template_id,
-            });
-          },
+          onLoad: markReady,
         };
 
         if (hasFirmaInit(FirmaTemplateEditor)) {
@@ -461,12 +503,17 @@ export default function FirmaTemplateBuilderFrame({
           editorRef.current,
           activeSession.embed_color_palette
         );
-        logFirmaBuilderPhase("editor-mounted", {
+        logBuilderPhase("editor-mounted", {
           templateId,
           firmaTemplateId: activeSession.firma_template_id,
         });
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to initialize signature template editor");
+        if (cancelled || mountGenerationRef.current !== generation) return;
+        setError(
+          templateBuilderUserMessage(
+            err instanceof Error ? err.message : "Failed to initialize signature template editor"
+          )
+        );
         setEditorPhase(null);
         clearFirmaEditorTimer(initTimeoutRef);
       }
@@ -480,28 +527,20 @@ export default function FirmaTemplateBuilderFrame({
       clearFirmaEditorTimer(initTimeoutRef);
       editorRef.current?.destroy?.();
       editorRef.current = null;
-      if (containerRef.current) {
-        activeWrapper.replaceChildren();
+      if (containerRef.current && wrapperRef.current) {
+        wrapperRef.current.replaceChildren();
       }
       containerRef.current = null;
     };
-  }, [editorSessionKey, session, templateId]);
+  }, [editorSessionKey, session, sessionLoading, templateId]);
 
   useEffect(() => {
     function handleMessage(event: MessageEvent) {
-      logFirmaBuilderPhase("postmessage-received", {
+      logBuilderPhase("postmessage-received", {
         origin: event.origin,
-        validOrigin: Boolean(expectedOrigin && event.origin === expectedOrigin),
-        type:
-          event.data && typeof event.data === "object"
-            ? (event.data as { type?: unknown }).type
-            : typeof event.data,
-        event:
-          event.data && typeof event.data === "object"
-            ? (event.data as { event?: unknown }).event
-            : undefined,
+        validOrigin: isAllowedTemplateBuilderMessageOrigin(event.origin, expectedOrigin),
       });
-      if (!expectedOrigin || event.origin !== expectedOrigin) return;
+      if (!isAllowedTemplateBuilderMessageOrigin(event.origin, expectedOrigin)) return;
       const data = event.data as FirmaEditorMessage;
       if (!data || data.type !== "editor.event") return;
 
@@ -520,97 +559,243 @@ export default function FirmaTemplateBuilderFrame({
     return () => window.removeEventListener("message", handleMessage);
   }, [expectedOrigin, syncTemplate]);
 
-  if (loading) {
-    return (
-      <div className="flex min-h-[620px] items-center justify-center border border-[#EAECF0] bg-white text-sm text-[#667085]">
-        Starting signature template builder...
-      </div>
-    );
-  }
+  const runRetry = async () => {
+    if (actionBusy) return;
+    setActionBusy("retry");
+    try {
+      setError(null);
+      if (session && !isBuilderSessionExpired(session.expires_at)) {
+        setEditorReady(false);
+        editorReadyRef.current = false;
+        setRemountNonce((value) => value + 1);
+        return;
+      }
+      await requestBuilderSession({ preserveOnFailure: true });
+    } finally {
+      setActionBusy(null);
+    }
+  };
 
-  if (error && !session) {
-    return (
-      <div className="flex min-h-[360px] flex-col items-center justify-center gap-4 border border-[#FECACA] bg-[#FEF2F2] p-8 text-center">
-        <div>
-          <h2 className="text-sm font-semibold text-[#991B1B]">Signature template builder unavailable</h2>
-          <p className="mt-1 max-w-xl text-sm text-[#7F1D1D]">{error}</p>
-        </div>
-        <button
-          type="button"
-          onClick={() => void refreshSession()}
-          className="inline-flex items-center gap-2 rounded-lg border border-[#FCA5A5] bg-white px-3 py-2 text-sm font-medium text-[#991B1B]"
-        >
-          <RefreshCw className="h-4 w-4" />
-          Retry
-        </button>
-        <button
-          type="button"
-          onClick={() => void refreshSession({ forceRecreate: true })}
-          className="inline-flex items-center gap-2 rounded-lg border border-[#FCA5A5] bg-white px-3 py-2 text-sm font-medium text-[#991B1B]"
-        >
-          <RefreshCw className="h-4 w-4" />
-          Reset signature template
-        </button>
-      </div>
-    );
-  }
+  const runRefreshSession = async () => {
+    if (actionBusy) return;
+    setActionBusy("refresh");
+    try {
+      const ok = await requestBuilderSession({ preserveOnFailure: true });
+      if (ok) toast.success("Signing session refreshed");
+    } finally {
+      setActionBusy(null);
+    }
+  };
+
+  const runRebuildDocument = async () => {
+    if (actionBusy) return;
+    setConfirmRebuild(false);
+    setActionBusy("rebuild");
+    try {
+      const ok = await requestBuilderSession({ refreshDocument: true, preserveOnFailure: true });
+      if (ok) toast.success("Document rebuilt for the template builder");
+    } finally {
+      setActionBusy(null);
+    }
+  };
+
+  const runResetTemplate = async () => {
+    if (actionBusy) return;
+    setConfirmReset(false);
+    setActionBusy("reset");
+    try {
+      const ok = await requestBuilderSession({ forceRecreate: true });
+      if (ok) toast.success("Signature template reset");
+    } finally {
+      setActionBusy(null);
+    }
+  };
+
+  const openBuilderWindow = () => {
+    if (!session?.editor_url || isBuilderSessionExpired(session.expires_at)) {
+      setError(TEMPLATE_BUILDER_ERRORS.session_expired);
+      toast.error(TEMPLATE_BUILDER_ERRORS.session_expired);
+      return;
+    }
+    const popup = window.open(session.editor_url, "_blank", "noopener,noreferrer");
+    if (!popup) {
+      toast.error(
+        "The browser blocked the new window. Allow popups for this site, or use the embedded editor."
+      );
+    }
+  };
+
+  const busy = Boolean(actionBusy) || sessionLoading || syncing;
 
   return (
     <div className="flex min-h-[720px] flex-col border border-[#EAECF0] bg-white">
-      <div className="flex items-center justify-between border-b border-[#EAECF0] px-4 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#EAECF0] px-4 py-3">
         <div className="text-sm text-[#667085]">
-          {expired
-            ? "Session expired"
-            : session
-              ? `Session expires ${new Date(session.expires_at).toLocaleString()}`
-              : "E-signature session"}
+          {sessionLoading
+            ? "Starting signature template builder..."
+            : expired
+              ? "Session expired"
+              : session
+                ? `Session expires ${new Date(session.expires_at).toLocaleString()}`
+                : "E-signature session"}
         </div>
-        <button
-          type="button"
-          onClick={() => void refreshSession()}
-          className="inline-flex items-center gap-2 rounded-lg border border-[#D0D5DD] px-3 py-2 text-sm font-medium text-[#344054]"
-        >
-          <RefreshCw className="h-4 w-4" />
-          {syncing ? "Syncing" : "Refresh session"}
-        </button>
-        <button
-          type="button"
-          onClick={() => void refreshSession({ refreshDocument: true })}
-          className="inline-flex items-center gap-2 rounded-lg border border-[#D0D5DD] px-3 py-2 text-sm font-medium text-[#344054]"
-        >
-          <RefreshCw className="h-4 w-4" />
-          Rebuild document
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void runRefreshSession()}
+            className="inline-flex items-center gap-2 rounded-lg border border-[#D0D5DD] px-3 py-2 text-sm font-medium text-[#344054] disabled:opacity-50"
+          >
+            <RefreshCw className="h-4 w-4" />
+            {actionBusy === "refresh" ? "Refreshing..." : "Refresh session"}
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => setConfirmRebuild(true)}
+            className="inline-flex items-center gap-2 rounded-lg border border-[#D0D5DD] px-3 py-2 text-sm font-medium text-[#344054] disabled:opacity-50"
+          >
+            <RefreshCw className="h-4 w-4" />
+            Rebuild document
+          </button>
+          <button
+            type="button"
+            disabled={busy || !session || expired}
+            onClick={openBuilderWindow}
+            className="inline-flex items-center gap-2 rounded-lg border border-[#D0D5DD] px-3 py-2 text-sm font-medium text-[#344054] disabled:opacity-50"
+          >
+            Open signature template builder
+          </button>
+        </div>
       </div>
+
       {error ? (
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#FECACA] bg-[#FEF2F2] px-4 py-3 text-sm text-[#991B1B]">
           <span>{error}</span>
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
-              onClick={() => void refreshSession()}
-              className="inline-flex items-center gap-2 rounded-lg border border-[#FCA5A5] bg-white px-3 py-2 text-sm font-medium text-[#991B1B]"
+              disabled={busy}
+              onClick={() => void runRetry()}
+              className="inline-flex items-center gap-2 rounded-lg border border-[#FCA5A5] bg-white px-3 py-2 text-sm font-medium text-[#991B1B] disabled:opacity-50"
             >
               <RefreshCw className="h-4 w-4" />
-              Retry
+              {actionBusy === "retry" ? "Retrying..." : "Retry"}
             </button>
             <button
               type="button"
-              onClick={() => void refreshSession({ forceRecreate: true })}
-              className="inline-flex items-center gap-2 rounded-lg border border-[#FCA5A5] bg-white px-3 py-2 text-sm font-medium text-[#991B1B]"
+              disabled={busy}
+              onClick={() => void runRefreshSession()}
+              className="inline-flex items-center gap-2 rounded-lg border border-[#FCA5A5] bg-white px-3 py-2 text-sm font-medium text-[#991B1B] disabled:opacity-50"
             >
-              <RefreshCw className="h-4 w-4" />
+              Refresh session
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => setConfirmReset(true)}
+              className="inline-flex items-center gap-2 rounded-lg border border-[#FCA5A5] bg-white px-3 py-2 text-sm font-medium text-[#991B1B] disabled:opacity-50"
+            >
               Reset signature template
             </button>
           </div>
         </div>
       ) : null}
-      {editorPhase ? (
+
+      {editorPhase && !editorReady ? (
         <div className="border-b border-[#EAECF0] px-4 py-3 text-sm text-[#667085]">
           {editorPhase}
         </div>
       ) : null}
-      <div ref={wrapperRef} className="min-h-[680px] flex-1" />
+
+      <div ref={wrapperRef} className="relative min-h-[680px] flex-1">
+        {sessionLoading ? (
+          <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/90 text-sm text-[#667085]">
+            Starting signature template builder...
+          </div>
+        ) : null}
+        {!session && !sessionLoading ? (
+          <div className="flex min-h-[360px] flex-col items-center justify-center gap-4 p-8 text-center">
+            <div>
+              <h2 className="text-sm font-semibold text-[#991B1B]">
+                Signature template builder unavailable
+              </h2>
+              <p className="mt-1 max-w-xl text-sm text-[#7F1D1D]">
+                {error ?? TEMPLATE_BUILDER_ERRORS.unknown}
+              </p>
+            </div>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void runRetry()}
+              className="inline-flex items-center gap-2 rounded-lg border border-[#FCA5A5] bg-white px-3 py-2 text-sm font-medium text-[#991B1B] disabled:opacity-50"
+            >
+              <RefreshCw className="h-4 w-4" />
+              Retry
+            </button>
+          </div>
+        ) : null}
+      </div>
+
+      {confirmRebuild ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-md rounded-xl bg-white p-5 shadow-xl">
+            <h3 className="text-sm font-semibold text-[#101828]">Rebuild document?</h3>
+            <p className="mt-2 text-sm text-[#667085]">
+              This re-uploads the source document to the e-signature service when the provider
+              document is missing or incompatible. Placed signature fields may be affected. Your
+              local source file is preserved.
+            </p>
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setConfirmRebuild(false)}
+                className="rounded-lg border border-[#D0D5DD] px-3 py-2 text-sm font-medium text-[#344054]"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void runRebuildDocument()}
+                className="rounded-lg bg-[#B42318] px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"
+              >
+                Rebuild document
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {confirmReset ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-md rounded-xl bg-white p-5 shadow-xl">
+            <h3 className="text-sm font-semibold text-[#101828]">Reset signature template?</h3>
+            <p className="mt-2 text-sm text-[#667085]">
+              This recreates the provider-side signature template. Placed signature fields will be
+              removed. The local source document and template metadata are preserved. Use only after
+              Retry and Refresh session fail.
+            </p>
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setConfirmReset(false)}
+                className="rounded-lg border border-[#D0D5DD] px-3 py-2 text-sm font-medium text-[#344054]"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void runResetTemplate()}
+                className="rounded-lg bg-[#B42318] px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"
+              >
+                Reset signature template
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
