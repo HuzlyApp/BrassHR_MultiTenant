@@ -462,7 +462,7 @@ export function AdminRecruiterHeader({
               aria-label="Open profile menu"
               aria-expanded={showProfileMenu}
             >
-            <StaffProfileAvatar name={displayName} photoUrl={profilePhoto} size="sm" />
+            <StaffProfileAvatar name={displayName ?? "Account"} photoUrl={profilePhoto} size="sm" />
             <div className="hidden min-w-0 leading-tight text-left sm:block">
               <p className="max-w-[88px] truncate text-sm font-semibold text-[#0F172A] md:max-w-[140px]">
                 {profileNameLoading ? "Loading..." : displayName ?? "Account"}
