@@ -65,25 +65,31 @@ async function loadNotifications(
     .order("sent_at", { ascending: false })
     .limit(20);
 
-  let notificationsRes = withLink;
+  let rows: Array<Record<string, unknown>> | null = null;
+  let notificationsError = withLink.error;
+
   if (withLink.error && isMissingColumnError(withLink.error)) {
     console.warn("[admin/header-data] notifications.link unavailable; falling back", {
       correlationId,
       code: withLink.error.code,
     });
-    notificationsRes = await supabase
+    const withoutLink = await supabase
       .from("notifications")
       .select("id, title, body, type, is_read, sent_at")
       .eq("user_id", userId)
       .order("sent_at", { ascending: false })
       .limit(20);
+    rows = (withoutLink.data ?? null) as Array<Record<string, unknown>> | null;
+    notificationsError = withoutLink.error;
+  } else if (!withLink.error) {
+    rows = (withLink.data ?? null) as Array<Record<string, unknown>> | null;
   }
 
-  if (notificationsRes.error) {
+  if (notificationsError) {
     console.error("[admin/header-data] notifications query failed", {
       correlationId,
-      code: notificationsRes.error.code,
-      message: notificationsRes.error.message,
+      code: notificationsError.code,
+      message: notificationsError.message,
     });
     return { notifications: [], unreadNotifications: 0 };
   }
@@ -102,17 +108,15 @@ async function loadNotifications(
     });
   }
 
-  const notifications = ((notificationsRes.data ?? []) as Array<Record<string, unknown>>).map(
-    (item) => ({
-      id: String(item.id),
-      title: (item.title as string | null) ?? null,
-      body: (item.body as string | null) ?? null,
-      type: (item.type as string | null) ?? null,
-      link: (item.link as string | null) ?? null,
-      is_read: (item.is_read as boolean | null) ?? null,
-      sent_at: (item.sent_at as string | null) ?? null,
-    })
-  );
+  const notifications = (rows ?? []).map((item) => ({
+    id: String(item.id),
+    title: (item.title as string | null) ?? null,
+    body: (item.body as string | null) ?? null,
+    type: (item.type as string | null) ?? null,
+    link: (item.link as string | null) ?? null,
+    is_read: (item.is_read as boolean | null) ?? null,
+    sent_at: (item.sent_at as string | null) ?? null,
+  }));
 
   return {
     notifications,
