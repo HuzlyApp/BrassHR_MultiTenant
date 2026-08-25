@@ -327,11 +327,13 @@ a[href] {
   font-family: var(--brand-font-body) !important;
 }
 
-.tenant-branded-surface h1.font-\[Inter\,sans-serif\],
-.tenant-branded-surface h2.font-\[Inter\,sans-serif\],
-.tenant-branded-surface h3.font-\[Inter\,sans-serif\],
-.tenant-branded-surface h4.font-\[Inter\,sans-serif\],
-.tenant-branded-surface h5.font-\[Inter\,sans-serif\],
-.tenant-branded-surface h6.font-\[Inter\,sans-serif\] {
-  font-family: var(--brand-font-heading) !important;
+.jobs-board-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .jobs-board-scroll {
+    scroll-behavior: auto;
+  }
 }

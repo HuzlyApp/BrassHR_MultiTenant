@@ -986,6 +986,7 @@ export async function listPublicJobs(
     specialtyId?: string;
     location?: string;
     employmentType?: string;
+    locationType?: string;
     page?: number;
     pageSize?: number;
   } = {}
@@ -999,7 +1000,7 @@ export async function listPublicJobs(
   let query = supabase
     .from("job_requisitions")
     .select(
-      "id, public_job_token, public_title, source_job_title, source_type, public_description, location, schedule, employment_type, pay_rate_min, pay_rate_max, qualifications, responsibilities, benefits, application_deadline, published_at, profession_id, specialty_id, professions(name), specialties(name)",
+      "id, public_job_token, public_title, source_job_title, source_type, public_description, location, location_type, schedule, employment_type, pay_rate_min, pay_rate_max, pay_rate_period, compensation_type, currency, show_pay_by, qualifications, responsibilities, benefits, application_deadline, published_at, updated_at, profession_id, specialty_id, workflow_id, professions(name), specialties(name)",
       { count: "exact" }
     )
     .eq("tenant_id", tenantId)
@@ -1019,6 +1020,7 @@ export async function listPublicJobs(
   if (filters.specialtyId) query = query.eq("specialty_id", filters.specialtyId);
   if (filters.location?.trim()) query = query.ilike("location", `%${filters.location.trim()}%`);
   if (filters.employmentType) query = query.eq("employment_type", filters.employmentType);
+  if (filters.locationType?.trim()) query = query.eq("location_type", filters.locationType.trim());
 
   const { data, error, count } = await query;
   if (error) throw error;

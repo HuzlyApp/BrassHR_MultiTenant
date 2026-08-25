@@ -4,6 +4,7 @@ import {
   getReferencesSaveError,
   isReferenceComplete,
   MIN_COMPLETE_REFERENCES,
+  sanitizeYearsKnownInput,
 } from "@/lib/referencesValidation"
 
 describe("referencesValidation", () => {
@@ -45,5 +46,29 @@ describe("referencesValidation", () => {
         },
       ])
     ).toMatch(/email|phone|Complete/i)
+  })
+
+  it("rejects years known that look like a calendar year", () => {
+    expect(
+      getReferencesSaveError([
+        {
+          ...emptyReferenceRow(),
+          first: "Jane",
+          last: "Doe",
+          phone: "2015550198",
+          email: "jane@example.com",
+          relationship: "Peer",
+          company: "Acme",
+          jobTitle: "Nurse",
+          yearsKnown: "2010",
+        },
+      ])
+    ).toMatch(/0–80/)
+  })
+
+  it("stops years-known input at two integer digits", () => {
+    expect(sanitizeYearsKnownInput("2010")).toBe("20")
+    expect(sanitizeYearsKnownInput("5.25")).toBe("5.2")
+    expect(sanitizeYearsKnownInput("80")).toBe("80")
   })
 })
