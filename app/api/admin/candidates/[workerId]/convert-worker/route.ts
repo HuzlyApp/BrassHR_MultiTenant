@@ -1,144 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
-import type { SupabaseClient } from "@supabase/supabase-js";
 import {
-  buildEmploymentWorkerRow,
   isCandidateAlreadyConverted,
-  normalizeCandidateStatus,
   parseConvertWorkerType,
-  type CandidateConversionSnapshot,
-  type ConvertWorkerType,
 } from "@/lib/admin/convert-candidate-to-worker";
+import { convertCandidateToWorker } from "@/lib/admin/convert-candidate-to-worker.server";
 import { writeActivityLog } from "@/lib/audit/activity-log";
 import { requireStaffApiSession } from "@/lib/auth/api-session";
 import { canAccessWorkerRecord } from "@/lib/auth/worker-record-access";
+import { resolveStaffTenantId } from "@/lib/jobs/tenant";
+import { resolveApplicantEmailAppOrigin } from "@/lib/resolve-app-origin";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { parseRequiredUuid } from "@/lib/validation/uuid";
 
 export const runtime = "nodejs";
 
 type RouteContext = { params: Promise<{ workerId: string }> };
-
-type ConvertResult =
-  | {
-      ok: true;
-      workerRecordId: string;
-      candidateId: string;
-      workerType: ConvertWorkerType;
-      created: boolean;
-      profilePath: string;
-    }
-  | { ok: false; error: string; status: number };
-
-async function loadCandidate(
-  supabase: SupabaseClient,
-  candidateId: string
-): Promise<CandidateConversionSnapshot | null> {
-  const { data, error } = await supabase
-    .from("worker")
-    .select(
-      "id, tenant_id, first_name, last_name, email, phone, job_role, city, state, status, converted_worker_type, converted_at"
-    )
-    .eq("id", candidateId)
-    .maybeSingle();
-
-  if (error) throw error;
-  if (!data?.id || !data.tenant_id) return null;
-
-  return {
-    id: String(data.id),
-    tenant_id: String(data.tenant_id),
-    first_name: data.first_name ?? null,
-    last_name: data.last_name ?? null,
-    email: data.email ?? null,
-    phone: data.phone ?? null,
-    job_role: data.job_role ?? null,
-    city: data.city ?? null,
-    state: data.state ?? null,
-    status: data.status ?? null,
-    converted_worker_type: data.converted_worker_type ?? null,
-    converted_at: data.converted_at ?? null,
-  };
-}
-
-export async function convertCandidateToWorker(
-  supabase: SupabaseClient,
-  candidateId: string,
-  workerType: ConvertWorkerType
-): Promise<ConvertResult> {
-  const candidate = await loadCandidate(supabase, candidateId);
-  if (!candidate) {
-    return { ok: false, error: "Candidate not found", status: 404 };
-  }
-
-  if (isCandidateAlreadyConverted(candidate)) {
-    return {
-      ok: false,
-      error: "This candidate has already been converted.",
-      status: 409,
-    };
-  }
-
-  const candidateStatus = normalizeCandidateStatus(candidate.status);
-  if (candidateStatus !== "approved") {
-    return {
-      ok: false,
-      error: "Only approved candidates can be converted to workers.",
-      status: 400,
-    };
-  }
-
-  const { data: existing, error: existingErr } = await supabase
-    .from("workers")
-    .select("id")
-    .eq("candidate_id", candidateId)
-    .maybeSingle();
-
-  if (existingErr) throw existingErr;
-  if (existing?.id) {
-    return {
-      ok: false,
-      error: "This candidate has already been converted.",
-      status: 409,
-    };
-  }
-
-  const convertedAt = new Date().toISOString();
-  const employmentRow = buildEmploymentWorkerRow(candidate, workerType, convertedAt);
-
-  const { data: inserted, error: insertErr } = await supabase
-    .from("workers")
-    .insert(employmentRow)
-    .select("id")
-    .maybeSingle();
-
-  if (insertErr) throw insertErr;
-  if (!inserted?.id) {
-    return { ok: false, error: "Failed to create worker record", status: 500 };
-  }
-
-  const workerRecordId = String(inserted.id);
-
-  const { error: candidateUpdateErr } = await supabase
-    .from("worker")
-    .update({
-      status: "converted",
-      converted_worker_type: workerType,
-      converted_at: convertedAt,
-      updated_at: convertedAt,
-    })
-    .eq("id", candidateId);
-
-  if (candidateUpdateErr) throw candidateUpdateErr;
-
-  return {
-    ok: true,
-    workerRecordId,
-    candidateId,
-    workerType,
-    created: true,
-    profilePath: `/admin_recruiter/workers/${candidateId}/profile`,
-  };
-}
 
 export async function POST(req: NextRequest, context: RouteContext) {
   try {
@@ -151,7 +27,10 @@ export async function POST(req: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: idCheck.error }, { status: 400 });
     }
 
-    const body = (await req.json().catch(() => ({}))) as { workerType?: string };
+    const body = (await req.json().catch(() => ({}))) as {
+      workerType?: string;
+      sourceJobApplicationId?: string | null;
+    };
     const workerType = parseConvertWorkerType(body.workerType);
     if (!workerType) {
       return NextResponse.json(
@@ -160,46 +39,85 @@ export async function POST(req: NextRequest, context: RouteContext) {
       );
     }
 
+    const sourceJobApplicationId =
+      typeof body.sourceJobApplicationId === "string" && body.sourceJobApplicationId.trim()
+        ? body.sourceJobApplicationId.trim()
+        : null;
+
     const supabase = createServiceRoleClient();
     if (!supabase) {
       return NextResponse.json({ error: "Supabase service role not configured" }, { status: 503 });
+    }
+
+    const tenantId = await resolveStaffTenantId(supabase, auth).catch(() => null);
+    if (!tenantId) {
+      return NextResponse.json({ error: "No tenant selected" }, { status: 400 });
     }
 
     const { data: candidateAccess, error: accessErr } = await supabase
       .from("worker")
       .select("id, user_id, tenant_id, status, converted_worker_type")
       .eq("id", idCheck.value)
+      .eq("tenant_id", tenantId)
       .maybeSingle();
 
     if (accessErr) throw accessErr;
     if (!candidateAccess?.id) {
       return NextResponse.json({ error: "Candidate not found" }, { status: 404 });
     }
-    if (isCandidateAlreadyConverted(candidateAccess)) {
-      return NextResponse.json(
-        { error: "This candidate has already been converted." },
-        { status: 409 }
-      );
-    }
     if (!canAccessWorkerRecord(auth, { id: String(candidateAccess.id), user_id: candidateAccess.user_id })) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const result = await convertCandidateToWorker(supabase, idCheck.value, workerType);
+    // Already fully converted: return existing employment worker idempotently.
+    if (isCandidateAlreadyConverted(candidateAccess)) {
+      const { data: existing } = await supabase
+        .from("workers")
+        .select("id, worker_type")
+        .eq("candidate_id", idCheck.value)
+        .maybeSingle();
+      if (existing?.id) {
+        return NextResponse.json({
+          ok: true,
+          workerRecordId: String(existing.id),
+          candidateId: idCheck.value,
+          workerType: existing.worker_type ?? workerType,
+          created: false,
+          profilePath: `/admin_recruiter/workers/${idCheck.value}/profile`,
+          postHire: null,
+        });
+      }
+    }
+
+    const origin = resolveApplicantEmailAppOrigin(req);
+    const result = await convertCandidateToWorker(supabase, {
+      candidateId: idCheck.value,
+      workerType,
+      actorUserId: auth.devBypass ? null : auth.userId,
+      origin,
+      sourceJobApplicationId,
+    });
+
     if (!result.ok) {
-      return NextResponse.json({ error: result.error }, { status: result.status });
+      return NextResponse.json(
+        { error: result.error, code: result.code ?? null },
+        { status: result.status }
+      );
     }
 
     void writeActivityLog({
-      actorUserId: auth.userId,
+      actorUserId: auth.devBypass ? null : auth.userId,
       action: "candidate_converted_to_worker",
       entityType: "workers",
       entityId: result.workerRecordId,
-      tenantId: candidateAccess.tenant_id != null ? String(candidateAccess.tenant_id) : null,
+      tenantId,
       metadata: {
         candidate_id: result.candidateId,
         worker_type: result.workerType,
         created: result.created,
+        source_job_application_id: result.sourceJobApplicationId,
+        post_hire_activated: result.postHire.activated,
+        post_hire_warning: result.postHire.warning,
       },
       request: req,
     });
@@ -211,6 +129,10 @@ export async function POST(req: NextRequest, context: RouteContext) {
       workerType: result.workerType,
       created: result.created,
       profilePath: result.profilePath,
+      sourceJobApplicationId: result.sourceJobApplicationId,
+      postHire: result.postHire,
+      message:
+        "Worker created successfully. This person has been moved from Candidates to Workforce.",
     });
   } catch (err: unknown) {
     console.error("[admin/candidates/convert-worker]", err);

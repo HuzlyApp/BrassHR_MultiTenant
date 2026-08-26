@@ -1,6 +1,11 @@
 "use client";
 
 import {
+  JOB_POSTING_BADGE_CLASS,
+  JOB_POSTING_CARD_TITLE_CLASS,
+  JOB_POSTING_METADATA_CLASS,
+} from "@/app/admin_recruiter/jobs/job-posting-typography";
+import {
   formatJobLocationLine,
   formatPostedDate,
   formatPublicJobPay,
@@ -54,19 +59,19 @@ export function JobResultCard({
         ) : null}
         <div className="flex items-start justify-between gap-3 pl-2">
           <div className="min-w-0">
-            <p className="line-clamp-2 text-[15px] font-semibold leading-snug text-slate-900">{title}</p>
+            <p className={`line-clamp-2 ${JOB_POSTING_CARD_TITLE_CLASS}`}>{title}</p>
             {companyName ? (
-              <p className="mt-0.5 truncate text-[13px] text-slate-600">{companyName}</p>
+              <p className={`mt-0.5 truncate ${JOB_POSTING_METADATA_CLASS}`}>{companyName}</p>
             ) : null}
           </div>
           {job.employment_type ? (
-            <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600">
+            <span className={`shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-slate-600 ${JOB_POSTING_BADGE_CLASS}`}>
               {job.employment_type}
             </span>
           ) : null}
         </div>
-        <p className="mt-1 truncate pl-2 text-[13px] text-slate-600">{locationLine}</p>
-        {meta ? <p className="mt-1 truncate pl-2 text-[12px] text-slate-500">{meta}</p> : null}
+        <p className={`mt-1 truncate pl-2 ${JOB_POSTING_METADATA_CLASS}`}>{locationLine}</p>
+        {meta ? <p className={`mt-1 truncate pl-2 ${JOB_POSTING_METADATA_CLASS}`}>{meta}</p> : null}
       </button>
     </article>
   );

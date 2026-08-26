@@ -240,12 +240,23 @@ function SettingsBody({ node, onUpdate, onSaveStep, onCloneWorkflow, readOnly = 
           options={["pre_hire", "post_hire"]}
           optionLabels={{ pre_hire: "Pre-Hire", post_hire: "Post-Hire" }}
           hint="Approval is a step type. Pre-Hire is candidate evaluation; Post-Hire is onboarding after acceptance."
-          onChange={(v) =>
+          onChange={(v) => {
+            const next = (v as StepSettings["phase"]) ?? "pre_hire";
+            const current = settings.phase === "transition" ? "pre_hire" : settings.phase;
+            if (
+              current !== next &&
+              typeof window !== "undefined" &&
+              !window.confirm(
+                "Moving this step between Pre-Hire and Post-Hire can affect existing candidate progress and document associations. Continue?"
+              )
+            ) {
+              return;
+            }
             patchSettings({
-              phase: (v as StepSettings["phase"]) ?? "pre_hire",
-              phaseOrder: v === "post_hire" ? 3 : 1,
-            })
-          }
+              phase: next,
+              phaseOrder: next === "post_hire" ? 3 : 1,
+            });
+          }}
         />
         <TextField
           label="Completion owner"

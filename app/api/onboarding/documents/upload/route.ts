@@ -9,6 +9,12 @@ import {
 import { isAcceptedDocumentFileType } from "@/lib/document-upload-helpers";
 import { WORKER_REQUIRED_FILES_BUCKET } from "@/lib/supabase-storage-buckets";
 import { enforceRateLimit, getClientIp } from "@/lib/security/rate-limit";
+import { hireGateFromApplications } from "@/lib/onboarding/lock-post-hire";
+import {
+  applicantMayActOnStep,
+  readStepLifecyclePhase,
+} from "@/lib/onboarding/workflow-phase";
+import type { TenantOnboardingStep } from "@/lib/onboarding/types";
 
 export const runtime = "nodejs";
 
@@ -75,6 +81,37 @@ export async function POST(req: NextRequest) {
         },
         { status: 404 }
       );
+    }
+
+    const { data: stepRow } = await supabase
+      .from("tenant_onboarding_steps")
+      .select("id, title, step_key, step_type, is_required, is_enabled, sort_order, description, metadata")
+      .eq("id", reqDoc.onboarding_step_id)
+      .maybeSingle();
+    if (stepRow) {
+      const { data: applications } = await supabase
+        .from("job_applications")
+        .select("status, workflow_phase, post_hire_suspended_at")
+        .eq("tenant_id", ctx.tenantId)
+        .eq("worker_id", ctx.workerId)
+        .order("created_at", { ascending: false });
+      const gate = hireGateFromApplications(applications ?? []);
+      if (
+        !applicantMayActOnStep({
+          activePhase: gate.activePhase,
+          stepPhase: readStepLifecyclePhase(stepRow as TenantOnboardingStep),
+          isHired: gate.isHired,
+          postHireSuspended: gate.postHireSuspended,
+        })
+      ) {
+        return NextResponse.json(
+          {
+            error: "Post-Hire documents are available after this applicant is marked as Hired.",
+            code: "PHASE_FORBIDDEN",
+          },
+          { status: 403 }
+        );
+      }
     }
 
     const maxMb = Number(reqDoc.max_file_size_mb) || 10;

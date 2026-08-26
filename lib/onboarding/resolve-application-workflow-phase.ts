@@ -14,6 +14,8 @@ export type ApplicationWorkflowPhaseRecord = {
   phase: ApplicantLifecyclePhase;
   postHireActivatedAt: string | null;
   postHireActivationEmailSentAt: string | null;
+  hiredAt: string | null;
+  postHireSuspendedAt: string | null;
 };
 
 type ApplicationPhaseRow = {
@@ -25,10 +27,12 @@ type ApplicationPhaseRow = {
   workflow_phase?: string | null;
   post_hire_activated_at?: string | null;
   post_hire_activation_email_sent_at?: string | null;
+  hired_at?: string | null;
+  post_hire_suspended_at?: string | null;
 };
 
 const PHASE_SELECT =
-  "id, tenant_id, worker_id, job_requisition_id, status, workflow_phase, post_hire_activated_at, post_hire_activation_email_sent_at";
+  "id, tenant_id, worker_id, job_requisition_id, status, workflow_phase, post_hire_activated_at, post_hire_activation_email_sent_at, hired_at, post_hire_suspended_at";
 const FALLBACK_SELECT = "id, tenant_id, worker_id, job_requisition_id, status";
 
 function toRecord(row: ApplicationPhaseRow): ApplicationWorkflowPhaseRecord {
@@ -41,12 +45,14 @@ function toRecord(row: ApplicationPhaseRow): ApplicationWorkflowPhaseRecord {
     phase: parseApplicantLifecyclePhase(row.workflow_phase),
     postHireActivatedAt: row.post_hire_activated_at ?? null,
     postHireActivationEmailSentAt: row.post_hire_activation_email_sent_at ?? null,
+    hiredAt: row.hired_at ?? null,
+    postHireSuspendedAt: row.post_hire_suspended_at ?? null,
   };
 }
 
 function isMissingColumnError(error: { message?: string; code?: string } | null): boolean {
   const message = String(error?.message ?? "");
-  return error?.code === "42703" || /workflow_phase|post_hire_activated_at|does not exist/i.test(message);
+  return error?.code === "42703" || /workflow_phase|post_hire_activated_at|hired_at|post_hire_suspended_at|does not exist/i.test(message);
 }
 
 async function maybeSingleApplication(

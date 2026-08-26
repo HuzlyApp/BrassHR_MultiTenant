@@ -58,6 +58,14 @@ export function isCandidateAlreadyConverted(candidate: {
   return normalizeCandidateStatus(candidate.status) === "converted";
 }
 
+/** Pipeline statuses allowed to start employment conversion. */
+export function isCandidateEligibleForConversion(candidate: {
+  status?: string | null;
+}): boolean {
+  const status = normalizeCandidateStatus(candidate.status);
+  return status === "approved" || status === "for_approval";
+}
+
 export function formatConversionDate(iso: string | null | undefined): string | null {
   if (!iso?.trim()) return null;
   const date = new Date(iso);

@@ -26,13 +26,17 @@ import {
   Users,
 } from "lucide-react";
 import toast from "react-hot-toast";
-import SuccessModal from "@/app/components/SuccessModal";
 import CandidateCommunicationDialog from "@/app/admin_recruiter/components/CandidateCommunicationDialog";
+import ConvertWorkerSuccessModal, {
+  type ConvertWorkerSuccessData,
+} from "@/app/admin_recruiter/components/ConvertWorkerSuccessModal";
 import type {
   FinalApprovalMetric,
   FinalApprovalMetricTheme,
   FinalApprovalViewModel,
 } from "@/lib/admin/final-approval";
+import type { ConvertWorkerType } from "@/lib/admin/convert-candidate-to-worker";
+import { workerConversionLabel } from "@/lib/admin/convert-candidate-to-worker";
 
 type Props = {
   workerId: string;
@@ -194,13 +198,14 @@ function SectionHeader({
 export default function FinalApprovalPanel({ workerId, data, onRefresh }: Props) {
   const router = useRouter();
   const [confirmed, setConfirmed] = useState(false);
+  const [workerType, setWorkerType] = useState<ConvertWorkerType>("w2");
   const [approving, setApproving] = useState(false);
   const [requestingChanges, setRequestingChanges] = useState(false);
   const [rejecting, setRejecting] = useState(false);
   const [communicationOpen, setCommunicationOpen] = useState(false);
-  const [showApprovalSuccess, setShowApprovalSuccess] = useState(false);
+  const [conversionSuccess, setConversionSuccess] = useState<ConvertWorkerSuccessData | null>(null);
 
-  async function patchStatus(status: "approved" | "pending" | "disapproved") {
+  async function patchStatus(status: "pending" | "disapproved") {
     const res = await fetch("/api/admin/workers/status", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -208,7 +213,6 @@ export default function FinalApprovalPanel({ workerId, data, onRefresh }: Props)
     });
     const json = (await res.json().catch(() => ({}))) as {
       error?: string;
-      approvalEmail?: { sent?: boolean; skipped?: boolean; error?: string };
     };
     if (!res.ok) throw new Error(json.error || "Action failed");
     return json;
@@ -221,11 +225,37 @@ export default function FinalApprovalPanel({ workerId, data, onRefresh }: Props)
     }
     setApproving(true);
     try {
-      await patchStatus("approved");
-      setShowApprovalSuccess(true);
+      const res = await fetch(`/api/admin/candidates/${encodeURIComponent(workerId)}/convert-worker`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ workerType }),
+      });
+      const payload = (await res.json().catch(() => ({}))) as {
+        ok?: boolean;
+        error?: string;
+        profilePath?: string;
+        workerRecordId?: string;
+        workerType?: ConvertWorkerType;
+        postHire?: { warning?: string | null } | null;
+        message?: string;
+      };
+      if (!res.ok || !payload.ok) {
+        throw new Error(payload.error || `Conversion failed (${res.status})`);
+      }
+
+      if (payload.postHire?.warning) {
+        toast(payload.postHire.warning, { icon: "⚠️" });
+      }
+
+      setConversionSuccess({
+        workerType: payload.workerType ?? workerType,
+        workerRecordId: payload.workerRecordId ?? workerId,
+        profilePath: payload.profilePath ?? `/admin_recruiter/workers/${workerId}/profile`,
+        candidateName: data.candidateName,
+      });
       onRefresh?.();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not approve candidate.");
+      toast.error(error instanceof Error ? error.message : "Could not approve candidate as worker.");
     } finally {
       setApproving(false);
     }
@@ -637,10 +667,49 @@ export default function FinalApprovalPanel({ workerId, data, onRefresh }: Props)
                       {confirmed ? <Check className="h-4 w-4 text-white" strokeWidth={3} /> : null}
                     </span>
                     <span className="text-sm font-semibold leading-6 text-[#111827]">
-                      I confirm that I have reviewed all information and approve this candidate for
-                      onboarding.
+                      I confirm that I have reviewed all information and approve this candidate as a
+                      worker. They will move from Candidates to Workforce.
                     </span>
                   </label>
+
+                  <fieldset className="rounded-lg border border-[#E5E7EB] bg-[#F8FAFC] p-4">
+                    <legend className="px-1 text-sm font-semibold text-[#111827]">
+                      Employment type
+                    </legend>
+                    <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+                      {([
+                        { value: "w2" as const, hint: "Taxes withheld · payroll enabled" },
+                        { value: "1099" as const, hint: "Contractor payments · no tax withholding" },
+                      ]).map((option) => (
+                        <label
+                          key={option.value}
+                          className={`flex flex-1 cursor-pointer flex-col rounded-lg border px-3 py-2.5 ${
+                            workerType === option.value
+                              ? "border-[color:var(--brand-primary)] bg-white shadow-sm"
+                              : "border-[#E5E7EB] bg-white"
+                          }`}
+                        >
+                          <span className="flex items-center gap-2 text-sm font-semibold text-[#111827]">
+                            <input
+                              type="radio"
+                              name="final-approval-worker-type"
+                              value={option.value}
+                              checked={workerType === option.value}
+                              onChange={() => setWorkerType(option.value)}
+                              className="accent-[color:var(--brand-primary)]"
+                            />
+                            {workerConversionLabel(option.value)}
+                          </span>
+                          <span className="mt-1 pl-6 text-xs text-[#6B7280]">{option.hint}</span>
+                        </label>
+                      ))}
+                    </div>
+                    <p className="mt-3 text-xs leading-5 text-[#64748B]">
+                      Role: <span className="font-semibold text-[#334155]">{data.candidateRole || "—"}</span>
+                      . Post-Hire onboarding will unlock after conversion when a hired application
+                      workflow is available.
+                    </p>
+                  </fieldset>
 
                   <div className="flex flex-col gap-3">
                     <button
@@ -649,7 +718,7 @@ export default function FinalApprovalPanel({ workerId, data, onRefresh }: Props)
                       disabled={approving || !confirmed}
                       className="inline-flex h-12 w-full items-center justify-center rounded-lg bg-[color:var(--brand-primary)] px-4 text-sm font-bold text-white transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                      {approving ? "Approving..." : "Approved & Move to Onboarding"}
+                      {approving ? "Creating worker…" : "Approve as Worker"}
                     </button>
                     <button
                       type="button"
@@ -694,26 +763,12 @@ export default function FinalApprovalPanel({ workerId, data, onRefresh }: Props)
         onSent={() => setCommunicationOpen(false)}
       />
 
-      <SuccessModal
-        open={showApprovalSuccess}
+      <ConvertWorkerSuccessModal
+        open={conversionSuccess != null}
+        data={conversionSuccess}
         onClose={() => {
-          setShowApprovalSuccess(false);
+          setConversionSuccess(null);
           onRefresh?.();
-        }}
-        size="large"
-        title="Success!"
-        message={
-          <>
-            <p>Applicant onboarding has been approved.</p>
-            <p>
-              <span className="font-semibold text-[#111827]">{data.candidateName}</span> will receive
-              an email for onboarding.
-            </p>
-          </>
-        }
-        actionLabel="Go to Onboarding"
-        onAction={() => {
-          router.push(`/admin_recruiter/new/onboard-applicant/${workerId}`);
           router.refresh();
         }}
       />

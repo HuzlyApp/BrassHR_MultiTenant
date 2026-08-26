@@ -15,6 +15,13 @@ import {
   JOB_FORM_PRIMARY_BUTTON_CLASS,
   type JobFormUiState,
 } from "./job-form-shared";
+import {
+  JOB_POSTING_DESCRIPTION_CSS,
+  JOB_POSTING_FIELD_LABEL_CLASS,
+  JOB_POSTING_FIELD_VALUE_CLASS,
+  JOB_POSTING_METADATA_CLASS,
+  JOB_POSTING_PAGE_TITLE_CLASS,
+} from "./job-posting-typography";
 import { JobDescriptionHtml } from "./JobDescriptionEditor";
 
 const JOB_POST_PREVIEW_ICON_SRC = "/job-post-preview-icon.svg";
@@ -106,17 +113,17 @@ export function JobPostPreviewModal({
             <div className="rounded-xl border border-[#E5E7EB] bg-white p-3 min-[700px]:p-5">
               <div className="flex items-start justify-between gap-3 border-b border-[#E5E7EB] pb-4">
                 <div className="min-w-0 flex-1">
-                  <h3 className="text-lg font-semibold leading-snug text-[#1D2739] min-[700px]:text-xl">
+                  <h3 className={JOB_POSTING_PAGE_TITLE_CLASS}>
                     {title}
                   </h3>
                   {companyName ? (
-                    <p className="mt-1 text-sm font-medium text-[#334155]">{companyName}</p>
+                    <p className={`mt-1 ${JOB_POSTING_FIELD_VALUE_CLASS}`}>{companyName}</p>
                   ) : null}
-                  <p className="mt-0.5 text-sm text-[#64748B]">{locationLine}</p>
+                  <p className={`mt-0.5 ${JOB_POSTING_METADATA_CLASS}`}>{locationLine}</p>
                 </div>
                 <button
                   type="button"
-                  className={`${JOB_FORM_PRIMARY_BUTTON_CLASS} h-9 shrink-0 px-3 text-xs min-[700px]:h-10 min-[700px]:px-5 min-[700px]:text-sm`}
+                  className={`${JOB_FORM_PRIMARY_BUTTON_CLASS} h-9 shrink-0 px-3 min-[700px]:h-10 min-[700px]:px-5`}
                   style={brandStyle}
                 >
                   Apply Now
@@ -127,8 +134,8 @@ export function JobPostPreviewModal({
                 <div className="mt-4 grid gap-3 border-b border-[#E5E7EB] pb-4 min-[700px]:grid-cols-2 min-[700px]:gap-4">
                   {job.billRate != null ? (
                     <div>
-                      <p className="text-sm font-medium text-[#64748B]">Bill Rate</p>
-                      <p className="mt-1 text-sm text-[#1D2739]">${job.billRate}</p>
+                      <p className={JOB_POSTING_FIELD_LABEL_CLASS}>Bill Rate</p>
+                      <p className={`mt-1 ${JOB_POSTING_FIELD_VALUE_CLASS}`}>${job.billRate}</p>
                     </div>
                   ) : null}
                   {mspPay ? (
@@ -139,8 +146,8 @@ export function JobPostPreviewModal({
                           : ""
                       }
                     >
-                      <p className="text-sm font-medium text-[#64748B]">Pay Rate</p>
-                      <p className="mt-1 text-sm text-[#1D2739]">{mspPay}</p>
+                      <p className={JOB_POSTING_FIELD_LABEL_CLASS}>Pay Rate</p>
+                      <p className={`mt-1 ${JOB_POSTING_FIELD_VALUE_CLASS}`}>{mspPay}</p>
                     </div>
                   ) : null}
                 </div>
@@ -149,16 +156,16 @@ export function JobPostPreviewModal({
               {!isMsp && showCompensation ? (
                 <div className="mt-4 grid gap-3 border-b border-[#E5E7EB] pb-4 min-[700px]:grid-cols-2 min-[700px]:gap-4">
                   <div>
-                    <p className="text-sm font-medium text-[#64748B]">Compensation</p>
-                    <p className="mt-1 text-sm text-[#1D2739]">
+                    <p className={JOB_POSTING_FIELD_LABEL_CLASS}>Compensation</p>
+                    <p className={`mt-1 ${JOB_POSTING_FIELD_VALUE_CLASS}`}>
                       {compensationLabel || "—"}
                     </p>
                   </div>
                   <div className="min-[700px]:border-l min-[700px]:border-[#E5E7EB] min-[700px]:pl-4">
-                    <p className="text-sm font-medium text-[#64748B]">
+                    <p className={JOB_POSTING_FIELD_LABEL_CLASS}>
                       {ui.showPayBy?.trim() || "Exact amount"}:
                     </p>
-                    <p className="mt-1 text-sm text-[#1D2739]">
+                    <p className={`mt-1 ${JOB_POSTING_FIELD_VALUE_CLASS}`}>
                       {paySummary !== "—" ? paySummary : "—"}
                     </p>
                   </div>
@@ -166,84 +173,7 @@ export function JobPostPreviewModal({
               ) : null}
 
               <div className="mt-4 max-h-[min(280px,40dvh)] overflow-y-auto pr-1 min-[700px]:max-h-[280px]">
-                <style>{`
-                  .job-preview-description.job-description-html > :first-child {
-                    margin-top: 0 !important;
-                  }
-                  .job-preview-description.job-description-html h2,
-                  .job-preview-description.job-description-html h3,
-                  .job-preview-description.job-description-html h4 {
-                    margin-top: 1.5rem;
-                    margin-bottom: 0.5rem;
-                    font-size: 0.875rem;
-                    line-height: 1.5rem;
-                    font-weight: 600;
-                    color: #1D2739;
-                  }
-                  .job-preview-description.job-description-html h2 strong,
-                  .job-preview-description.job-description-html h2 b,
-                  .job-preview-description.job-description-html h3 strong,
-                  .job-preview-description.job-description-html h3 b,
-                  .job-preview-description.job-description-html h4 strong,
-                  .job-preview-description.job-description-html h4 b {
-                    font-weight: 600;
-                  }
-                  .job-preview-description.job-description-html p,
-                  .job-preview-description.job-description-html ul,
-                  .job-preview-description.job-description-html ol {
-                    margin-top: 0;
-                    margin-bottom: 0;
-                    color: #667085;
-                    font-size: 0.875rem;
-                    line-height: 1.5rem;
-                  }
-                  .job-preview-description.job-description-html ul {
-                    list-style-type: disc;
-                    list-style-position: outside;
-                    padding-left: 1.25rem;
-                    margin-top: 0.25rem;
-                  }
-                  .job-preview-description.job-description-html ol {
-                    list-style-type: decimal;
-                    list-style-position: outside;
-                    padding-left: 1.25rem;
-                    margin-top: 0.25rem;
-                  }
-                  .job-preview-description.job-description-html li {
-                    display: list-item;
-                    margin-top: 0.25rem;
-                    margin-bottom: 0.25rem;
-                    color: #667085;
-                  }
-                  .job-preview-description.job-description-html p + h2,
-                  .job-preview-description.job-description-html p + h3,
-                  .job-preview-description.job-description-html p + h4,
-                  .job-preview-description.job-description-html ul + h2,
-                  .job-preview-description.job-description-html ul + h3,
-                  .job-preview-description.job-description-html ul + h4,
-                  .job-preview-description.job-description-html ol + h2,
-                  .job-preview-description.job-description-html ol + h3,
-                  .job-preview-description.job-description-html ol + h4 {
-                    margin-top: 1.5rem;
-                  }
-                  .job-preview-description.job-description-html p:has(> strong:only-child),
-                  .job-preview-description.job-description-html p:has(> b:only-child) {
-                    margin-top: 1.5rem;
-                    margin-bottom: 0.5rem;
-                    font-size: 0.875rem;
-                    line-height: 1.5rem;
-                    font-weight: 600;
-                    color: #1D2739;
-                  }
-                  .job-preview-description.job-description-html p:has(> strong:only-child) > strong,
-                  .job-preview-description.job-description-html p:has(> b:only-child) > b {
-                    font-weight: 600;
-                  }
-                  .job-preview-description.job-description-html > p:has(> strong:only-child):first-child,
-                  .job-preview-description.job-description-html > p:has(> b:only-child):first-child {
-                    margin-top: 0;
-                  }
-                `}</style>
+                <style>{JOB_POSTING_DESCRIPTION_CSS.replaceAll(".job-posting-description", ".job-preview-description")}</style>
                 <JobDescriptionHtml
                   html={descriptionHtml}
                   className="job-preview-description mt-0"

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildEmploymentWorkerRow,
   isCandidateAlreadyConverted,
+  isCandidateEligibleForConversion,
   parseConvertWorkerType,
   resolveCandidateConversionState,
   resolveConvertedWorkerTypeLabel,
@@ -95,6 +96,9 @@ describe("convert-candidate-to-worker", () => {
     ).toBe(false);
 
     expect(isCandidateAlreadyConverted({ status: "converted" })).toBe(true);
+    expect(isCandidateEligibleForConversion({ status: "approved" })).toBe(true);
+    expect(isCandidateEligibleForConversion({ status: "for_approval" })).toBe(true);
+    expect(isCandidateEligibleForConversion({ status: "pending" })).toBe(false);
     expect(resolveConvertedWorkerTypeLabel("w2")).toBe("W-2 Employee");
     expect(resolveConvertedWorkerTypeLabel("1099")).toBe("1099 Contractor");
     expect(workerConversionActiveLabel("w2")).toBe("W-2 Active Worker");

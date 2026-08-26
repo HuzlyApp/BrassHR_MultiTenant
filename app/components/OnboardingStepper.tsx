@@ -1,8 +1,8 @@
 "use client"
 
 import Image from "next/image"
-import { AlertCircle, Check, Minus } from "lucide-react"
-import { useMemo } from "react"
+import { AlertCircle, Check, Lock, Minus } from "lucide-react"
+import { useMemo, useState } from "react"
 import { usePathname, useSearchParams } from "next/navigation"
 import { useOnboardingConfigOptional } from "@/app/components/onboarding/OnboardingConfigProvider"
 import { routeForApplicantStep } from "@/lib/onboarding/resolve-applicant-step-route"
@@ -21,7 +21,14 @@ import { useOnboardingTenant } from "@/lib/tenant/use-onboarding-tenant"
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext"
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding"
 import { formatApplicantStepperLabel } from "@/lib/onboarding/format-applicant-stepper-label"
-import { applicantPortalCopy } from "@/lib/onboarding/workflow-phase"
+import { applicantPortalCopy, readStepLifecyclePhase } from "@/lib/onboarding/workflow-phase"
+import {
+  formatPhaseProgressShort,
+  groupTenantStepsByPhase,
+  lifecyclePhaseLabel,
+  POST_HIRE_LOCKED_MESSAGE,
+  type EmploymentLifecyclePhase,
+} from "@/lib/onboarding/workflow-phase-groups"
 import ApplicantPhaseWelcome from "@/app/components/onboarding/ApplicantPhaseWelcome"
 
 interface Props {
@@ -116,11 +123,6 @@ export default function OnboardingStepper({
     [onboarding?.config, onboarding?.loading]
   )
 
-  const stepLabels = useMemo(
-    () => (enabledSteps ?? []).map((s) => formatApplicantStepperLabel(s.title)),
-    [enabledSteps]
-  )
-
   const stepRoutes = useMemo(
     () => (enabledSteps ?? []).map((s) => routeForApplicantStep(s, slug)),
     [enabledSteps, slug]
@@ -151,6 +153,12 @@ export default function OnboardingStepper({
     )
   }, [enabledSteps, statusByStepId, currentStep])
 
+  const livePhase: EmploymentLifecyclePhase =
+    onboarding?.workflowPhase === "post_hire" || onboarding?.workflowPhase === "completed"
+      ? "post_hire"
+      : "pre_hire"
+  const [previewPhase, setPreviewPhase] = useState<EmploymentLifecyclePhase>("pre_hire")
+
   if (!enabledSteps?.length) {
     return onboarding?.loading ? (
       <div className="h-16 w-full animate-pulse rounded-lg bg-slate-100" />
@@ -162,9 +170,27 @@ export default function OnboardingStepper({
   }
 
   const furthestStep = furthestProgressStepIndex(stepStates, currentStep)
-  const phaseCopy = applicantPortalCopy(onboarding?.workflowPhase ?? "pre_hire")
+  const grouped = groupTenantStepsByPhase(enabledSteps)
+  const hasBothPhases = grouped.preHire.length > 0 && grouped.postHire.length > 0
+  const isDraftPreview = onboarding?.isDraftPreview === true
+  const selectedPhase = isDraftPreview && hasBothPhases ? previewPhase : livePhase
+  const displaySteps =
+    isDraftPreview && hasBothPhases
+      ? selectedPhase === "post_hire"
+        ? grouped.postHire
+        : grouped.preHire
+      : enabledSteps
+  const phaseCopy = applicantPortalCopy(selectedPhase)
   const heading = title ?? phaseCopy.header
-  const completedCount = stepStates.filter((state) => state === "completed" || state === "skipped").length
+  const completedCount = displaySteps.filter((step, index) => {
+    const state = stepStates[enabledSteps.findIndex((s) => s.id === step.id)] ?? "not_started"
+    return state === "completed" || state === "skipped"
+  }).length
+  const progressLabel = formatPhaseProgressShort(
+    completedCount,
+    displaySteps.length,
+    selectedPhase
+  )
 
   return (
     <>
@@ -186,10 +212,53 @@ export default function OnboardingStepper({
             </p>
             <h1 className="text-lg font-semibold text-slate-800 sm:text-xl">{heading}</h1>
           </div>
-          <p className="text-sm font-medium text-slate-600">
-            {completedCount} / {enabledSteps.length}
+          <p className="text-sm font-medium text-slate-600" data-testid="onboarding-phase-progress">
+            {progressLabel}
           </p>
         </div>
+        {hasBothPhases ? (
+          <div
+            className="mb-3 grid grid-cols-2 rounded-lg border border-slate-200 bg-slate-50 p-0.5"
+            role="tablist"
+            aria-label="Workflow phase"
+          >
+            {(["pre_hire", "post_hire"] as const).map((value) => {
+              const count = value === "post_hire" ? grouped.postHire.length : grouped.preHire.length
+              const selected = selectedPhase === value
+              const locked = value === "post_hire" && !isDraftPreview && livePhase !== "post_hire"
+              return (
+                <button
+                  key={value}
+                  type="button"
+                  role="tab"
+                  aria-selected={selected}
+                  disabled={locked}
+                  title={locked ? POST_HIRE_LOCKED_MESSAGE : undefined}
+                  onClick={() => {
+                    if (locked) return
+                    if (isDraftPreview) setPreviewPhase(value)
+                  }}
+                  className={`inline-flex items-center justify-center gap-1 rounded-md px-2 py-1.5 text-[11px] font-semibold ${
+                    selected ? "bg-white text-slate-900 shadow-sm" : "text-slate-500"
+                  } ${locked ? "cursor-not-allowed opacity-60" : ""}`}
+                >
+                  {value === "post_hire" ? <Lock className="h-3 w-3" aria-hidden /> : null}
+                  {lifecyclePhaseLabel(value)}
+                  <span className="font-medium text-slate-400">({count})</span>
+                </button>
+              )
+            })}
+          </div>
+        ) : (
+          <p className="mb-3 text-xs font-medium text-slate-500">
+            {lifecyclePhaseLabel(selectedPhase)} workflow
+          </p>
+        )}
+        {isDraftPreview && selectedPhase === "post_hire" ? (
+          <p className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+            {POST_HIRE_LOCKED_MESSAGE}
+          </p>
+        ) : null}
         <div className="relative mx-auto mt-2 min-w-0 w-full">
           <div
             className="min-w-0 overflow-x-auto overscroll-x-contain pb-1 [scrollbar-width:thin] sm:[&::-webkit-scrollbar]:block [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-300 [&::-webkit-scrollbar-track]:bg-transparent max-sm:scrollbar-hide"
@@ -198,16 +267,17 @@ export default function OnboardingStepper({
             tabIndex={0}
           >
             <div className="flex w-max min-w-full">
-            {stepLabels.map((step, index) => {
-              const stepNumber = index + 1
-              const configStep = enabledSteps[index]!
-              const state = stepStates[index] ?? "not_started"
+            {displaySteps.map((configStep, index) => {
+              const globalIndex = enabledSteps.findIndex((s) => s.id === configStep.id)
+              const stepNumber = globalIndex + 1
+              const state = stepStates[globalIndex] ?? "not_started"
               const isClickable = isStepIndicatorAccessible(state, stepNumber, maxAllowedStep)
-              const connectorFilled = furthestStep > index + 1
+              const connectorFilled = furthestStep > stepNumber
+              const step = formatApplicantStepperLabel(configStep.title)
 
               return (
                 <div key={`${configStep.id}-${step}`} className="relative flex flex-[1_0_6.5rem] flex-col items-center max-[399px]:flex-[1_0_5.5rem]">
-                  {index < stepLabels.length - 1 ? (
+                  {index < displaySteps.length - 1 ? (
                     <ConnectorSegment filled={connectorFilled} />
                   ) : null}
 
@@ -215,7 +285,7 @@ export default function OnboardingStepper({
                     type="button"
                     onClick={() => {
                       if (!isClickable) return
-                      push(stepRoutes[index])
+                      push(stepRoutes[globalIndex])
                     }}
                     disabled={!isClickable}
                     className={`group relative z-10 flex w-full flex-col items-center rounded-lg px-1.5 py-1 text-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)]/40 max-[399px]:px-1 ${
@@ -236,6 +306,9 @@ export default function OnboardingStepper({
                       }`}
                     >
                       {step}
+                    </span>
+                    <span className="mt-1 rounded-full bg-slate-100 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-slate-600">
+                      {lifecyclePhaseLabel(readStepLifecyclePhase(configStep))}
                     </span>
                   </button>
                 </div>

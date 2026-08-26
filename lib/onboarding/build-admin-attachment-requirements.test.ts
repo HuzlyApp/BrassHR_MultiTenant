@@ -90,6 +90,7 @@ describe("buildAdminAttachmentRequirements", () => {
     expect(rows).toHaveLength(1);
     expect(rows[0]?.title).toBe("Add Resume");
     expect(rows[0]?.id).toBe("step-resume_upload");
+    expect(rows[0]?.phase).toBe("pre_hire");
   });
 
   it("assigns unique ids when multiple resume upload steps are enabled", () => {
@@ -197,6 +198,7 @@ describe("buildAdminAttachmentRequirements", () => {
 
     expect(rows.map((r) => r.title)).toEqual(["Resume", "TB Test"]);
     expect(rows[1]?.url).toBe("https://signed/tb.pdf");
+    expect(rows[1]?.phase).toBe("pre_hire");
     expect(rows.some((r) => r.title === "Nursing License")).toBe(false);
   });
 

@@ -1,6 +1,14 @@
 "use client";
 
 import Link from "next/link";
+import {
+  JOB_POSTING_BODY_CLASS,
+  JOB_POSTING_COMPANY_CLASS,
+  JOB_POSTING_DESCRIPTION_CSS,
+  JOB_POSTING_METADATA_CLASS,
+  JOB_POSTING_PAGE_TITLE_CLASS,
+  JOB_POSTING_SECTION_HEADING_CLASS,
+} from "@/app/admin_recruiter/jobs/job-posting-typography";
 import { JobDescriptionHtml } from "@/lib/jobs/job-description-html";
 import {
   benefitItems,
@@ -17,59 +25,8 @@ import {
 } from "@/lib/jobs/public-jobs-board";
 
 const DESCRIPTION_STYLES = `
-  .public-jobs-board-description.job-description-html {
-    max-width: 42rem;
-  }
-  .public-jobs-board-description.job-description-html > :first-child { margin-top: 0 !important; }
-  .public-jobs-board-description.job-description-html h2,
-  .public-jobs-board-description.job-description-html h3,
-  .public-jobs-board-description.job-description-html h4 {
-    margin-top: 1.35rem;
-    margin-bottom: 0.4rem;
-    font-size: 0.95rem;
-    line-height: 1.4rem;
-    font-weight: 600;
-    color: #0f172a;
-  }
-  .public-jobs-board-description.job-description-html p,
-  .public-jobs-board-description.job-description-html ul,
-  .public-jobs-board-description.job-description-html ol {
-    margin-top: 0;
-    margin-bottom: 0.65rem;
-    color: #334155;
-    font-size: 0.9375rem;
-    line-height: 1.7rem;
-    font-weight: 400;
-  }
-  .public-jobs-board-description.job-description-html ul {
-    list-style-type: disc;
-    list-style-position: outside;
-    padding-left: 1.2rem;
-  }
-  .public-jobs-board-description.job-description-html ol {
-    list-style-type: decimal;
-    list-style-position: outside;
-    padding-left: 1.2rem;
-  }
-  .public-jobs-board-description.job-description-html li {
-    display: list-item;
-    margin-top: 0.2rem;
-    margin-bottom: 0.2rem;
-    font-weight: 400;
-  }
-  .public-jobs-board-description.job-description-html li strong,
-  .public-jobs-board-description.job-description-html li b {
-    font-weight: 600;
-  }
-  .public-jobs-board-description.job-description-html p:has(> strong:only-child),
-  .public-jobs-board-description.job-description-html p:has(> b:only-child) {
-    margin-top: 1.35rem;
-    margin-bottom: 0.35rem;
-    font-size: 0.95rem;
-    line-height: 1.4rem;
-    font-weight: 600;
-    color: #0f172a;
-  }
+  .public-jobs-board-description.job-description-html { max-width: 42rem; }
+  ${JOB_POSTING_DESCRIPTION_CSS.replaceAll(".job-posting-description", ".public-jobs-board-description")}
 `;
 
 function ApplyControl({
@@ -168,15 +125,15 @@ export function JobDetailPanel({
             ← Back to jobs
           </button>
         ) : null}
-        <p className="text-xs font-semibold uppercase tracking-wide text-[color:var(--brand-primary)]">
+        <p className={JOB_POSTING_COMPANY_CLASS}>
           {companyName}
         </p>
-        <h2 id="jobs-detail-title" className="mt-1 text-xl font-semibold leading-snug text-slate-900">
+        <h2 id="jobs-detail-title" className={`mt-1 ${JOB_POSTING_PAGE_TITLE_CLASS}`}>
           {title}
         </h2>
-        <p className="mt-1.5 text-sm text-slate-600">{locationLine}</p>
-        {facts.length ? <p className="mt-1 text-sm text-slate-500">{facts.join(" · ")}</p> : null}
-        <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-sm text-slate-500">
+        <p className={`mt-1.5 ${JOB_POSTING_METADATA_CLASS}`}>{locationLine}</p>
+        {facts.length ? <p className={`mt-1 ${JOB_POSTING_METADATA_CLASS}`}>{facts.join(" · ")}</p> : null}
+        <div className={`mt-2 flex flex-wrap gap-x-3 gap-y-1 ${JOB_POSTING_METADATA_CLASS}`}>
           {pay ? <span>{pay}</span> : null}
           {posted ? <span>{posted}</span> : null}
         </div>
@@ -193,20 +150,20 @@ export function JobDetailPanel({
         </section>
         {showResponsibilities ? (
           <section className="mt-6 max-w-2xl">
-            <h3 className="text-[0.95rem] font-semibold text-slate-900">Responsibilities</h3>
-            <p className="mt-2 whitespace-pre-wrap text-sm font-normal leading-7 text-slate-600">{job.responsibilities}</p>
+            <h3 className={JOB_POSTING_SECTION_HEADING_CLASS}>Responsibilities</h3>
+            <p className={`mt-2 whitespace-pre-wrap ${JOB_POSTING_BODY_CLASS}`}>{job.responsibilities}</p>
           </section>
         ) : null}
         {showQualifications ? (
           <section className="mt-6 max-w-2xl">
-            <h3 className="text-[0.95rem] font-semibold text-slate-900">Qualifications</h3>
-            <p className="mt-2 whitespace-pre-wrap text-sm font-normal leading-7 text-slate-600">{job.qualifications}</p>
+            <h3 className={JOB_POSTING_SECTION_HEADING_CLASS}>Qualifications</h3>
+            <p className={`mt-2 whitespace-pre-wrap ${JOB_POSTING_BODY_CLASS}`}>{job.qualifications}</p>
           </section>
         ) : null}
         {showBenefits ? (
           <section className="mt-6 max-w-2xl">
-            <h3 className="text-[0.95rem] font-semibold text-slate-900">Benefits</h3>
-            <ul className="mt-2 list-outside list-disc space-y-1 pl-5 text-sm font-normal leading-7 text-slate-600">
+            <h3 className={JOB_POSTING_SECTION_HEADING_CLASS}>Benefits</h3>
+            <ul className={`mt-2 list-outside list-disc space-y-1 pl-5 ${JOB_POSTING_BODY_CLASS}`}>
               {benefits.map((benefit) => (
                 <li key={benefit}>{benefit}</li>
               ))}
@@ -216,8 +173,8 @@ export function JobDetailPanel({
         {(job.schedule || job.employment_type || workplace) &&
         !descriptionHasSection(descriptionHtml, "Employment details") ? (
           <section className="mt-6 max-w-2xl">
-            <h3 className="text-[0.95rem] font-semibold text-slate-900">Employment details</h3>
-            <ul className="mt-2 space-y-1 text-sm font-normal leading-7 text-slate-600">
+            <h3 className={JOB_POSTING_SECTION_HEADING_CLASS}>Employment details</h3>
+            <ul className={`mt-2 space-y-1 ${JOB_POSTING_BODY_CLASS}`}>
               {job.employment_type ? <li>Employment type: {job.employment_type}</li> : null}
               {workplace ? <li>Workplace: {workplace}</li> : null}
               {job.schedule ? <li>Schedule: {job.schedule}</li> : null}

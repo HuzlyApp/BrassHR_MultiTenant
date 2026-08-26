@@ -17,7 +17,13 @@ import { serializeWorkflowState } from "@/lib/onboarding/workflow-builder-serial
 import { workflowStateToStepDrafts } from "@/lib/onboarding/workflow-to-drafts";
 import type { OnboardingStepDraft } from "@/lib/onboarding/default-onboarding-steps";
 import type { TenantOnboardingStep } from "@/lib/onboarding/types";
-import { applicantPortalCopy, parseWorkflowTemplatePhase } from "@/lib/onboarding/workflow-phase";
+import { applicantPortalCopy, parseWorkflowTemplatePhase, readStepLifecyclePhase } from "@/lib/onboarding/workflow-phase";
+import {
+  formatPhaseProgressShort,
+  groupTenantStepsByPhase,
+  lifecyclePhaseLabel,
+  type EmploymentLifecyclePhase,
+} from "@/lib/onboarding/workflow-phase-groups";
 import { stepUsesFirmaSigning } from "@/lib/onboarding/firma-step-settings";
 
 export const STEP_PREVIEW_SAMPLE = {
@@ -68,6 +74,9 @@ export type StepPreviewStepperItem = {
   id: string;
   title: string;
   current: boolean;
+  phase: EmploymentLifecyclePhase;
+  required: boolean;
+  stepType: string;
 };
 
 export type StepPreviewDocument = {
@@ -88,9 +97,14 @@ export type StepPreviewModel = {
   requiredDocuments: StepPreviewDocument[];
   firmaTemplateName: string | null;
   stepperSteps: StepPreviewStepperItem[];
+  preHireSteps: StepPreviewStepperItem[];
+  postHireSteps: StepPreviewStepperItem[];
+  selectedPhase: EmploymentLifecyclePhase;
   prompt: string | null;
   header: string;
   progressLabel: string;
+  preHireProgressLabel: string;
+  postHireProgressLabel: string;
 };
 
 const NOTIFICATION_LIBRARY_IDS = new Set([
@@ -297,6 +311,19 @@ export function buildStepPreviewModel(
   const copy = applicantPortalCopy(lifecycle === "post_hire" ? "post_hire" : "pre_hire");
   const visibleSteps = steps.filter((step) => isWorkerVisibleStep(step));
   const stepperSource = visibleSteps.length ? visibleSteps : [selectedStep];
+  const stepperSteps: StepPreviewStepperItem[] = stepperSource.map((step) => ({
+    id: step.id,
+    title: step.title,
+    current: step.id === selectedStep.id || step.step_key === selectedStep.step_key,
+    phase: readStepLifecyclePhase(step),
+    required: step.is_required !== false,
+    stepType: step.step_type,
+  }));
+  const grouped = groupTenantStepsByPhase(stepperSource);
+  const preHireSteps = stepperSteps.filter((step) => step.phase === "pre_hire");
+  const postHireSteps = stepperSteps.filter((step) => step.phase === "post_hire");
+  const selectedPhase: EmploymentLifecyclePhase =
+    lifecycle === "post_hire" ? "post_hire" : "pre_hire";
 
   return {
     step: selectedStep,
@@ -311,14 +338,15 @@ export function buildStepPreviewModel(
     firmaTemplateName: stepUsesFirmaSigning(selectedStep)
       ? settings.firmaRecruiterTemplateName?.trim() || "Attached e-sign template"
       : settings.firmaRecruiterTemplateName?.trim() || null,
-    stepperSteps: stepperSource.map((step) => ({
-      id: step.id,
-      title: step.title,
-      current: step.id === selectedStep.id || step.step_key === selectedStep.step_key,
-    })),
+    stepperSteps,
+    preHireSteps,
+    postHireSteps,
+    selectedPhase,
     prompt: readPrompt(selectedStep),
     header: copy.header,
     progressLabel: copy.progressLabel,
+    preHireProgressLabel: formatPhaseProgressShort(0, grouped.preHire.length, "pre_hire"),
+    postHireProgressLabel: formatPhaseProgressShort(0, grouped.postHire.length, "post_hire"),
   };
 }
 

@@ -4,6 +4,9 @@ import {
   activatePostHire,
   shouldActivatePostHireAfterStatusChange,
 } from "@/lib/onboarding/activate-post-hire";
+import { writeActivityLog } from "@/lib/audit/activity-log";
+import { shouldSuspendPostHireAfterStatusChange } from "@/lib/onboarding/lock-post-hire";
+import { isPlacementAcceptedStatus } from "@/lib/onboarding/workflow-phase";
 import {
   ApplicationStatusError,
   type ApplicationStatusHistoryRecord,
@@ -381,6 +384,39 @@ export async function changeApplicationStatus(
     } catch (activationError) {
       console.error("[changeApplicationStatus] activatePostHire", activationError);
     }
+  }
+
+  if (
+    shouldSuspendPostHireAfterStatusChange({
+      previousStatus: result.history?.fromStatus.name,
+      nextStatus: result.application.status,
+      unchanged: result.unchanged,
+    })
+  ) {
+    await writeActivityLog({
+      actorUserId: input.changedByUserId ?? null,
+      action: "post_hire.suspended",
+      entityType: "job_application",
+      entityId: input.applicationId,
+      tenantId: input.tenantId,
+      metadata: { status: result.application.status },
+    });
+  }
+
+  if (!result.unchanged) {
+    await writeActivityLog({
+      actorUserId: input.changedByUserId ?? null,
+      action: isPlacementAcceptedStatus(result.application.status)
+        ? "application.hired"
+        : "application.status_changed",
+      entityType: "job_application",
+      entityId: input.applicationId,
+      tenantId: input.tenantId,
+      metadata: {
+        status: result.application.status,
+        postHire: result.postHire,
+      },
+    });
   }
 
   return result;

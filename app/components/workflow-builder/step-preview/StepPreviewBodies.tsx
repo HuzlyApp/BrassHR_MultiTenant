@@ -596,6 +596,8 @@ function WaitingOrScreeningBody({
 
 function SummaryBody({ model, previewState }: { model: StepPreviewModel; previewState: StepPreviewState }) {
   const complete = previewState === "completed";
+  const phaseSteps =
+    model.selectedPhase === "post_hire" ? model.postHireSteps : model.preHireSteps;
   return (
     <>
       <PreviewPageHeader
@@ -603,7 +605,7 @@ function SummaryBody({ model, previewState }: { model: StepPreviewModel; preview
         description={model.step.description || "Review and submit your application."}
       />
       <div className="mt-4 space-y-2">
-        {model.stepperSteps.map((step) => (
+        {phaseSteps.map((step) => (
           <div
             key={step.id}
             className={`flex items-center gap-3 rounded-xl border px-4 py-3 ${

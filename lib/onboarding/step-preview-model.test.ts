@@ -178,6 +178,24 @@ describe("buildStepPreviewModel", () => {
     expect(model?.step.title).toBe("Parallel group");
     expect(model?.settings.completionOwner).toBe("hr_admin");
   });
+
+  it("splits Pre-Hire and Post-Hire steps into independent preview counts", () => {
+    const pre = stepNode("n-pre", "resume-basic-profile", {
+      label: "Resume",
+      settings: { ...DEFAULT_STEP_SETTINGS, phase: "pre_hire", completionOwner: "applicant" },
+    });
+    const post = stepNode("n-post", "tax-forms", {
+      label: "W-9",
+      settings: { ...DEFAULT_STEP_SETTINGS, phase: "post_hire", completionOwner: "applicant" },
+    });
+    const model = buildStepPreviewModel(stateFor([pre, post]), pre);
+    expect(model?.preHireSteps).toHaveLength(1);
+    expect(model?.postHireSteps).toHaveLength(1);
+    expect(model?.preHireProgressLabel).toBe("0 / 1 Pre-Hire");
+    expect(model?.postHireProgressLabel).toBe("0 / 1 Post-Hire");
+    expect(model?.preHireProgressLabel).not.toMatch(/\/ 2 /);
+    expect(model?.postHireProgressLabel).not.toMatch(/\/ 2 /);
+  });
 });
 
 describe("coercePreviewState", () => {
