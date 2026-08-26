@@ -160,6 +160,7 @@ function buildInvitationEmailBody(args: {
   companyName: string;
   isInterviewer: boolean;
   isCancellation: boolean;
+  isUpdate: boolean;
 }): { subject: string; body: string } {
   const timezoneLabel = formatTimezoneLabel(args.timezone);
   const jobLine = args.jobTitle?.trim() ? args.jobTitle.trim() : "Open role";
@@ -187,6 +188,33 @@ ${args.dateLabel}
 ${args.timeLabel}
 ${timezoneLabel}
 ${interviewerBlock}${notesBlock}
+
+Regards,
+${args.companyName} Recruiting Team`;
+    return { subject, body };
+  }
+
+  if (args.isUpdate) {
+    const subject = `Interview rescheduled — ${args.dateLabel}`;
+    const intro = args.isInterviewer
+      ? `The interview with ${args.candidateName} for ${jobLine} has been rescheduled.`
+      : `Your interview for ${jobLine} has been rescheduled. Please review the updated details below.`;
+
+    const body = `Hi ${args.recipientName},
+
+${intro}
+
+${args.interviewTitle}
+
+Updated date
+${args.dateLabel}
+
+Updated time
+${args.timeLabel}
+${timezoneLabel}
+${interviewerBlock}${meetingBlock}${notesBlock}
+
+An updated calendar invitation is attached. Please replace any previous invite on your calendar.
 
 Regards,
 ${args.companyName} Recruiting Team`;
@@ -393,6 +421,7 @@ export async function sendInterviewInvitations(args: {
       companyName,
       isInterviewer,
       isCancellation: deliveryType === "cancel",
+      isUpdate: deliveryType === "update",
     });
 
     const { data: deliveryRow, error: deliveryInsertError } = await args.supabase

@@ -28,6 +28,8 @@ type InterviewScheduleRow = {
   tenant_id: string;
   applicant_id: string;
   worker_id: string | null;
+  application_id: string | null;
+  job_id: string | null;
   title: string;
   description: string | null;
   scheduled_date: string;
@@ -36,6 +38,8 @@ type InterviewScheduleRow = {
   timezone: string;
   status: InterviewScheduleStatus;
   meeting_link: string | null;
+  location: string | null;
+  meeting_type: string | null;
   notes: string | null;
   created_at: string;
   updated_at: string;
@@ -49,18 +53,31 @@ type WorkerRow = {
   email?: string | null;
 };
 
+export type AdminInterviewInterviewer = {
+  userId: string | null;
+  email: string;
+  name: string;
+};
+
 export type AdminInterviewItem = {
   id: string;
   workerId: string;
   applicantName: string;
+  applicantEmail: string | null;
   title: string;
   description: string;
   startsAt: string;
   endsAt: string | null;
+  timezone: string;
   status: InterviewScheduleStatus;
-  meetingType: "online" | null;
+  meetingType: InterviewMeetingType;
   meetingLink: string | null;
   location: string | null;
+  notes: string | null;
+  applicationId: string | null;
+  jobId: string | null;
+  jobTitle: string | null;
+  interviewers: AdminInterviewInterviewer[];
 };
 
 function parseTab(value: string | null): "upcoming" | "recent" {
@@ -117,11 +134,19 @@ async function loadSequenceMap(
   return sequenceByScheduleId;
 }
 
+function parseMeetingTypeValue(raw: string | null | undefined): InterviewMeetingType {
+  const value = String(raw ?? "online").trim().toLowerCase();
+  if (value === "phone" || value === "in_person") return value;
+  return "online";
+}
+
 function buildInterviewItems(
   schedules: InterviewScheduleRow[],
   workersById: Map<string, WorkerRow>,
   applicantsById: Map<string, { full_name: string | null; worker_id: string | null }>,
-  sequenceByScheduleId: Map<string, number>
+  sequenceByScheduleId: Map<string, number>,
+  jobsById: Map<string, string>,
+  interviewersByInterviewId: Map<string, AdminInterviewInterviewer[]>
 ): AdminInterviewItem[] {
   return schedules.map((row) => {
     const workerId = row.worker_id ?? applicantsById.get(row.applicant_id)?.worker_id ?? "";
@@ -138,19 +163,27 @@ function buildInterviewItems(
       row.start_time,
       row.end_time
     );
+    const jobId = row.job_id?.trim() || null;
 
     return {
       id: row.id,
       workerId: workerId || row.applicant_id,
       applicantName,
+      applicantEmail: worker?.email?.trim() || null,
       title,
       description: row.description?.trim() || `${title} schedule with ${applicantName}`,
       startsAt,
       endsAt,
+      timezone: row.timezone || "UTC",
       status: row.status,
-      meetingType: "online",
+      meetingType: parseMeetingTypeValue(row.meeting_type),
       meetingLink: row.meeting_link,
-      location: null,
+      location: row.location,
+      notes: row.notes,
+      applicationId: row.application_id?.trim() || null,
+      jobId,
+      jobTitle: jobId ? jobsById.get(jobId) ?? null : null,
+      interviewers: interviewersByInterviewId.get(row.id) ?? [],
     };
   });
 }
@@ -235,10 +268,49 @@ export async function GET(req: NextRequest) {
     if (missingWorkerIds.length > 0) {
       const { data: extraWorkers, error: extraError } = await supabase
         .from("worker")
-        .select("id, first_name, last_name, status")
+        .select("id, first_name, last_name, status, email")
         .in("id", missingWorkerIds);
       if (extraError) throw extraError;
       (extraWorkers as WorkerRow[] | null)?.forEach((w) => workersById.set(w.id, w));
+    }
+
+    const jobIds = Array.from(
+      new Set(schedules.map((s) => s.job_id).filter((id): id is string => Boolean(id)))
+    );
+    const jobsById = new Map<string, string>();
+    if (jobIds.length > 0) {
+      const { data: jobRows, error: jobError } = await supabase
+        .from("job_requisitions")
+        .select("id, public_title")
+        .eq("tenant_id", scope.tenantId)
+        .in("id", jobIds);
+      if (jobError) throw jobError;
+      for (const job of jobRows ?? []) {
+        const title = String(job.public_title ?? "").trim();
+        if (title) jobsById.set(String(job.id), title);
+      }
+    }
+
+    const interviewIds = schedules.map((s) => s.id);
+    const interviewersByInterviewId = new Map<string, AdminInterviewInterviewer[]>();
+    if (interviewIds.length > 0) {
+      const { data: attendeeRows, error: attendeeError } = await supabase
+        .from("interview_attendees")
+        .select("interview_id, user_id, email, name, attendee_type")
+        .eq("tenant_id", scope.tenantId)
+        .in("interview_id", interviewIds)
+        .eq("attendee_type", "interviewer");
+      if (attendeeError) throw attendeeError;
+      for (const row of attendeeRows ?? []) {
+        const interviewId = String(row.interview_id);
+        const list = interviewersByInterviewId.get(interviewId) ?? [];
+        list.push({
+          userId: row.user_id ? String(row.user_id) : null,
+          email: String(row.email ?? "").trim().toLowerCase(),
+          name: String(row.name ?? row.email ?? "").trim() || String(row.email ?? ""),
+        });
+        interviewersByInterviewId.set(interviewId, list);
+      }
     }
 
     const sequenceByScheduleId = await loadSequenceMap(supabase, scope.tenantId, applicantIds);
@@ -246,7 +318,9 @@ export async function GET(req: NextRequest) {
       schedules,
       workersById,
       applicantsById,
-      sequenceByScheduleId
+      sequenceByScheduleId,
+      jobsById,
+      interviewersByInterviewId
     );
 
     const upcomingCount = allSchedules.filter((row) => isUpcomingRow(row, nowMs)).length;
@@ -439,6 +513,7 @@ export async function POST(req: NextRequest) {
           first_name: worker.first_name,
           last_name: worker.last_name,
           status: worker.status,
+          email: (worker as { email?: string | null }).email ?? null,
         },
       ],
     ]);
@@ -447,12 +522,26 @@ export async function POST(req: NextRequest) {
       [applicantId, { full_name: applicantDisplayName(worker.first_name, worker.last_name), worker_id: worker.id }],
     ]);
 
+    const jobsById = new Map<string, string>();
+    if (jobId) {
+      const { data: jobRow } = await supabase
+        .from("job_requisitions")
+        .select("public_title")
+        .eq("id", jobId)
+        .eq("tenant_id", scope.tenantId)
+        .maybeSingle();
+      const title = jobRow?.public_title?.trim();
+      if (title) jobsById.set(jobId, title);
+    }
+
     const updatedSequence = await loadSequenceMap(supabase, scope.tenantId, [applicantId]);
     const [interview] = buildInterviewItems(
       [schedule as InterviewScheduleRow],
       workersById,
       applicantsById,
-      updatedSequence
+      updatedSequence,
+      jobsById,
+      new Map()
     );
 
     const applicationIdForStatus = applicationId;

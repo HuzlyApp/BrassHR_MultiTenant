@@ -422,7 +422,7 @@ export async function loadWorkerAccountOverview(
     (employmentWorkerRes.data as Record<string, unknown> | null) ?? null
   );
   const profilePhotoUrl = await resolveProfilePhotoUrl(supabase, worker.profile_photo);
-  const hiredJobs = mapHiredJobs((hiredAppsRes.data ?? []) as HiredApplicationRow[]);
+  const hiredJobs = mapHiredJobs((hiredAppsRes.data ?? []) as unknown as HiredApplicationRow[]);
 
   const requiredRes = await supabase
     .from("tenant_required_documents")

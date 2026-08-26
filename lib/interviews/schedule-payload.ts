@@ -45,3 +45,22 @@ export function invitationSuccessMessage(summary: InterviewInvitationSummary | n
   }
   return "Interview scheduled.";
 }
+
+export function invitationRescheduleMessage(
+  summary: InterviewInvitationSummary | null | undefined
+): string {
+  if (!summary) return "Interview rescheduled.";
+  if (summary.invitationStatus === "sent") {
+    return "Interview rescheduled and update emails sent to the applicant and interviewers.";
+  }
+  if (summary.invitationStatus === "partial") {
+    return "Interview rescheduled, but one or more update emails could not be delivered.";
+  }
+  if (summary.invitationStatus === "failed") {
+    return "Interview rescheduled, but update emails could not be delivered.";
+  }
+  if (summary.skippedCount > 0 && summary.sentCount === 0) {
+    return "Interview rescheduled. No valid recipient emails were found.";
+  }
+  return "Interview rescheduled.";
+}
