@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { CandidatesListShell } from "./CandidatesListShell";
 import { ListTableCheckbox } from "./ListTableCheckbox";
 import AdvancedSearchModal from "./AdvancedSearchModal";
-import { useCandidatesFilterRowsDefault } from "../hooks/useCandidatesFilterRowsDefault";
 import { exportCandidatesCsv, exportCandidatesXls } from "../candidates/export-candidates";
 import { EditColumnsModal } from "../candidates/EditColumnsModal";
 import {
@@ -142,7 +141,6 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
   const [locationFilter, setLocationFilter] = useState("");
   const [dateFilter, setDateFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
-  const [showFilterRows, setShowFilterRows] = useCandidatesFilterRowsDefault();
   const [view, setView] = useState<"card" | "list">("list");
   const [listColumnOrder, setListColumnOrder] = useState<CandidateColumnId[]>(DEFAULT_CANDIDATE_COLUMNS);
   const [editColumnsOpen, setEditColumnsOpen] = useState(false);
@@ -302,8 +300,6 @@ export function StatusCandidatesPage({ fetchUrl, statusLabel, emptyMessage }: St
         query={query}
         onQueryChange={setQuery}
         onRefresh={() => void loadCandidates()}
-        showFilterRows={showFilterRows}
-        onToggleFilterRows={() => setShowFilterRows((v) => !v)}
         jobRoleFilter={jobRoleFilter}
         onJobRoleFilterChange={setJobRoleFilter}
         locationFilter={locationFilter}

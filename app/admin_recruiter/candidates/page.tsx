@@ -18,8 +18,9 @@ import type { CandidateRow } from "./types";
 import AdvancedSearchModal from "../components/AdvancedSearchModal";
 import CandidateCommunicationDialog from "../components/CandidateCommunicationDialog";
 import { CandidatesListShell } from "../components/CandidatesListShell";
+import { BulkDeleteConfirmModal } from "../components/BulkDeleteConfirmModal";
+import { BulkDeleteToolbarButton } from "../components/BulkDeleteToolbarButton";
 import { ListTableCheckbox } from "../components/ListTableCheckbox";
-import { useCandidatesFilterRowsDefault } from "../hooks/useCandidatesFilterRowsDefault";
 import { exportCandidatesCsv, exportCandidatesXls } from "./export-candidates";
 import { formatCandidateStatusLabel } from "./candidate-status-badge";
 import { buildCandidateKpis } from "./candidate-kpis";
@@ -27,6 +28,8 @@ import { CandidateAiAnalysisLink } from "./CandidateAiAnalysisLink";
 import { CandidateRowActionsMenu } from "../applications/CandidateRowActionsMenu";
 import { countMultiJobApplicants } from "@/lib/admin/multi-job-applicants";
 import toast from "react-hot-toast";
+
+const ACTION_TOAST_DURATION_MS = 3500;
 
 type WorkerProfile = {
   id: string;
@@ -143,7 +146,6 @@ export default function CandidatesPage() {
   const [locationFilter, setLocationFilter] = useState("");
   const [dateFilter, setDateFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
-  const [showFilterRows, setShowFilterRows] = useCandidatesFilterRowsDefault();
   const [view, setView] = useState<"card" | "list">("list");
   const [listColumnOrder, setListColumnOrder] = useState<CandidateColumnId[]>(DEFAULT_CANDIDATE_COLUMNS);
   const [editColumnsOpen, setEditColumnsOpen] = useState(false);
@@ -157,6 +159,10 @@ export default function CandidatesPage() {
   );
   const [highlightMultiJob, setHighlightMultiJob] = useState(false);
   const [filterMultiJobOnly, setFilterMultiJobOnly] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const advancedSearchContext = useMemo(() => {
     if (!advancedSearchParams) {
@@ -267,6 +273,7 @@ export default function CandidatesPage() {
         });
 
         setCandidates(mapped);
+        setSelectedIds(new Set());
         setPage(1);
         return;
       }
@@ -281,6 +288,7 @@ export default function CandidatesPage() {
       if (authError) {
         setCandidates([]);
         setTotalFromApi(0);
+        setSelectedIds(new Set());
         setPage(1);
         return;
       }
@@ -319,11 +327,13 @@ export default function CandidatesPage() {
       });
 
       setCandidates(mapped);
+      setSelectedIds(new Set());
       setPage(1);
     } catch (err) {
       console.error("Failed to fetch workers:", err);
       setCandidates([]);
       setTotalFromApi(null);
+      setSelectedIds(new Set());
     } finally {
       setLoading(false);
     }
@@ -414,6 +424,77 @@ export default function CandidatesPage() {
     return visibleCandidates.slice(start, start + pageSize);
   }, [visibleCandidates, page, pageSize]);
 
+  const allVisibleSelected =
+    paginated.length > 0 && paginated.every((row) => selectedIds.has(row.id));
+  const someVisibleSelected =
+    paginated.some((row) => selectedIds.has(row.id)) && !allVisibleSelected;
+
+  function toggleSelectAllVisible() {
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      if (allVisibleSelected) {
+        for (const row of paginated) next.delete(row.id);
+      } else {
+        for (const row of paginated) next.add(row.id);
+      }
+      return next;
+    });
+  }
+
+  function toggleSelect(id: string) {
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  async function handleConfirmDeleteCandidates() {
+    const idsToDelete = [...selectedIds];
+    if (deleteBusy || idsToDelete.length === 0) return;
+    setDeleteBusy(true);
+    setDeleteError(null);
+    try {
+      const response = await fetch("/api/admin/workers", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: idsToDelete }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(
+          typeof payload.error === "string" ? payload.error : "Failed to delete candidates"
+        );
+      }
+      const deletedIds = new Set<string>(
+        Array.isArray(payload.deletedIds) ? payload.deletedIds.map(String) : idsToDelete
+      );
+      setCandidates((current) => current.filter((row) => !deletedIds.has(row.id)));
+      setTotalFromApi((current) =>
+        typeof current === "number" ? Math.max(0, current - deletedIds.size) : current
+      );
+      setSelectedIds((current) => {
+        const next = new Set(current);
+        for (const id of deletedIds) next.delete(id);
+        return next;
+      });
+      setDeleteConfirmOpen(false);
+      const deletedCount =
+        typeof payload.count === "number" ? payload.count : deletedIds.size;
+      toast.success(`Deleted ${deletedCount} candidate${deletedCount === 1 ? "" : "s"}`, {
+        duration: ACTION_TOAST_DURATION_MS,
+      });
+    } catch (deleteErr) {
+      const message =
+        deleteErr instanceof Error ? deleteErr.message : "Failed to delete candidates";
+      setDeleteError(message);
+      toast.error(message);
+    } finally {
+      setDeleteBusy(false);
+    }
+  }
+
   return (
     <>
       <CandidatesListShell
@@ -428,8 +509,6 @@ export default function CandidatesPage() {
           void loadCandidates();
         }}
         refreshLabel={advancedSearchContext.active ? "Reset Search" : "Refresh"}
-        showFilterRows={showFilterRows}
-        onToggleFilterRows={() => setShowFilterRows((v) => !v)}
         jobRoleFilter={jobRoleFilter}
         onJobRoleFilterChange={setJobRoleFilter}
         locationFilter={locationFilter}
@@ -443,7 +522,25 @@ export default function CandidatesPage() {
         locationOptions={locationOptions}
         kpiCards={kpiCards}
         onAddCandidate={() => toast("Open a job posting to add a candidate.")}
-        onClaimCandidates={() => toast("Select candidates, then claim them from this list.")}
+        onClaimCandidates={() => {
+          if (selectedIds.size === 0) {
+            toast("Select candidates, then claim them from this list.");
+            return;
+          }
+          toast(
+            `Claim ${selectedIds.size} candidate${selectedIds.size === 1 ? "" : "s"} from this list.`
+          );
+        }}
+        deleteButton={
+          <BulkDeleteToolbarButton
+            count={selectedIds.size}
+            disabled={deleteBusy}
+            onClick={() => {
+              setDeleteError(null);
+              setDeleteConfirmOpen(true);
+            }}
+          />
+        }
         view={view}
         onViewChange={setView}
         onEditColumns={() => setEditColumnsOpen(true)}
@@ -510,7 +607,15 @@ export default function CandidatesPage() {
                     <thead className="bg-[#F8FAFC] text-black">
                       <tr className="border-b border-[#E5E7EB]">
                         <th className="w-12 border-r border-[#E5E7EB] bg-[#E5E7EB] px-3 py-3 text-center">
-                          <ListTableCheckbox size="md" aria-label="Select all candidates" />
+                          <ListTableCheckbox
+                            size="md"
+                            checked={allVisibleSelected}
+                            ref={(el) => {
+                              if (el) el.indeterminate = someVisibleSelected;
+                            }}
+                            onChange={toggleSelectAllVisible}
+                            aria-label="Select all candidates"
+                          />
                         </th>
                         {cols.map((colId) => (
                           <th
@@ -533,6 +638,8 @@ export default function CandidatesPage() {
                           <td className="w-12 border-r border-[#EEF2F7] px-3 py-4 text-center align-middle">
                             <ListTableCheckbox
                               size="md"
+                              checked={selectedIds.has(c.id)}
+                              onChange={() => toggleSelect(c.id)}
                               aria-label={`Select ${c.name || "candidate"}`}
                             />
                           </td>
@@ -608,6 +715,19 @@ export default function CandidatesPage() {
           setListColumnOrder(order);
           saveColumnOrder(order);
         }}
+      />
+      <BulkDeleteConfirmModal
+        open={deleteConfirmOpen}
+        entity="candidate"
+        count={selectedIds.size}
+        busy={deleteBusy}
+        error={deleteError}
+        onCancel={() => {
+          if (deleteBusy) return;
+          setDeleteConfirmOpen(false);
+          setDeleteError(null);
+        }}
+        onConfirm={() => void handleConfirmDeleteCandidates()}
       />
       <AdvancedSearchModal
         open={advancedSearchOpen}

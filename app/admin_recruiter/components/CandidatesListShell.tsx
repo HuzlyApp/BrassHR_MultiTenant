@@ -34,8 +34,6 @@ export type CandidatesListShellProps = {
   onQueryChange: (value: string) => void;
   onRefresh: () => void;
   refreshLabel?: string;
-  showFilterRows: boolean;
-  onToggleFilterRows: () => void;
   jobRoleFilter: string;
   onJobRoleFilterChange: (value: string) => void;
   locationFilter: string;
@@ -55,6 +53,8 @@ export type CandidatesListShellProps = {
   onAdvancedSearch?: () => void;
   onAddCandidate?: () => void;
   onClaimCandidates?: () => void;
+  /** Shown when rows are selected (bulk delete). */
+  deleteButton?: React.ReactNode;
   kpiCards?: CandidateKpiCard[];
   totalCount: number | null;
   loading: boolean;
@@ -249,8 +249,6 @@ export function CandidatesListShell({
   onQueryChange,
   onRefresh,
   refreshLabel = "Refresh",
-  showFilterRows,
-  onToggleFilterRows,
   jobRoleFilter,
   onJobRoleFilterChange,
   locationFilter,
@@ -270,6 +268,7 @@ export function CandidatesListShell({
   onAdvancedSearch,
   onAddCandidate,
   onClaimCandidates,
+  deleteButton,
   kpiCards,
   totalCount,
   loading,
@@ -394,6 +393,7 @@ export function CandidatesListShell({
               <ColumnsIcon />
               Columns
             </button>
+            {deleteButton ? <div className="shrink-0">{deleteButton}</div> : null}
             <button
               type="button"
               onClick={onRefresh}
@@ -518,45 +518,19 @@ export function CandidatesListShell({
             />
             <button
               type="button"
-              onClick={onToggleFilterRows}
-              aria-expanded={showFilterRows}
+              onClick={() => setFiltersModalOpen(true)}
               className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-[color:var(--brand-primary)] bg-white px-3 text-xs font-normal leading-4 text-[color:var(--brand-primary)] transition hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_6%,white)]"
             >
               <MoreFiltersIcon />
               More Filters
+              {activeFilterCount > 0 ? (
+                <span className="inline-flex min-w-[18px] items-center justify-center rounded-full bg-[color:var(--brand-primary)] px-1.5 text-[10px] font-semibold leading-4 text-white">
+                  {activeFilterCount}
+                </span>
+              ) : null}
             </button>
           </div>
         </div>
-
-        {showFilterRows ? (
-          <div className="flex w-full flex-wrap items-center gap-5 border-b border-[#E5E7EB] px-5 py-3.5 max-lg:hidden">
-            <CompactFilterSelect
-              ariaLabel="Location"
-              placeholder="Location"
-              value={locationFilter}
-              onChange={onLocationFilterChange}
-              options={locationOptions.map((location) => ({ value: location, label: location }))}
-            />
-            <div className="relative inline-flex h-8 w-[150px] shrink-0 items-center overflow-hidden rounded-lg border border-[#CBD5E1] bg-white pl-3.5 pr-2">
-              <input
-                type="date"
-                value={dateFilter}
-                onChange={(event) => onDateFilterChange(event.target.value)}
-                aria-label="Date applied"
-                className="min-w-0 flex-1 bg-transparent text-xs font-normal leading-4 text-[#374151] outline-none scheme-light"
-              />
-            </div>
-            {onAdvancedSearch ? (
-              <button
-                type="button"
-                onClick={onAdvancedSearch}
-                className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-[#CBD5E1] bg-white px-3 text-xs font-normal leading-4 text-[#374151] transition hover:bg-zinc-50"
-              >
-                Advanced Search
-              </button>
-            ) : null}
-          </div>
-        ) : null}
 
         <HighlightMultiJobToggle on={highlightMultiJob} onToggle={() => setHighlightMultiJob(!highlightMultiJob)} />
 
