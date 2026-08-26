@@ -1,11 +1,12 @@
 "use client";
 
 import { Check } from "lucide-react";
-import type { InputHTMLAttributes } from "react";
+import { useEffect, useRef, type InputHTMLAttributes, type MouseEvent } from "react";
 
 type ListTableCheckboxProps = Omit<InputHTMLAttributes<HTMLInputElement>, "type" | "size"> & {
   /** sm = 16px (applications table), md = 20px (candidates table) */
   size?: "sm" | "md";
+  indeterminate?: boolean;
 };
 
 const BOX_CLASS = {
@@ -22,23 +23,51 @@ const CHECK_CLASS = {
 export function ListTableCheckbox({
   className,
   size = "sm",
+  indeterminate = false,
+  onClick,
+  checked,
+  disabled,
   ...props
 }: ListTableCheckboxProps) {
   const boxClass = BOX_CLASS[size];
   const checkClass = CHECK_CLASS[size];
+  const inputRef = useRef<HTMLInputElement>(null);
+  const showIndeterminate = Boolean(indeterminate) && !checked;
+
+  useEffect(() => {
+    if (inputRef.current) {
+      inputRef.current.indeterminate = showIndeterminate;
+    }
+  }, [showIndeterminate]);
 
   return (
-    <span className={`relative inline-flex shrink-0 cursor-pointer ${boxClass} ${className ?? ""}`}>
+    <span
+      className={`relative inline-flex shrink-0 ${disabled ? "cursor-not-allowed" : "cursor-pointer"} ${boxClass} ${className ?? ""}`}
+    >
       <input
+        ref={inputRef}
         type="checkbox"
-        className={`peer ${boxClass} shrink-0 cursor-pointer appearance-none border border-[#CBD5E1] bg-white transition-colors checked:border-[color:var(--brand-secondary)] checked:bg-[color:var(--brand-secondary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--brand-secondary)_30%,transparent)] disabled:cursor-not-allowed disabled:opacity-50`}
+        checked={checked}
+        disabled={disabled}
+        className={`peer ${boxClass} shrink-0 appearance-none border border-[#CBD5E1] bg-white transition-colors checked:border-[color:var(--brand-secondary)] checked:bg-[color:var(--brand-secondary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--brand-secondary)_30%,transparent)] disabled:cursor-not-allowed disabled:opacity-50 ${disabled ? "" : "cursor-pointer"} ${showIndeterminate ? "border-[color:var(--brand-secondary)] bg-[color:var(--brand-secondary)]" : ""}`}
+        onClick={(event: MouseEvent<HTMLInputElement>) => {
+          event.stopPropagation();
+          onClick?.(event);
+        }}
         {...props}
       />
-      <Check
-        className={`pointer-events-none absolute inset-0 m-auto hidden ${checkClass} text-white peer-checked:block`}
-        strokeWidth={3}
-        aria-hidden
-      />
+      {showIndeterminate ? (
+        <span
+          className="pointer-events-none absolute inset-0 m-auto h-0.5 w-2.5 rounded-full bg-white"
+          aria-hidden
+        />
+      ) : (
+        <Check
+          className={`pointer-events-none absolute inset-0 m-auto hidden ${checkClass} text-white peer-checked:block`}
+          strokeWidth={3}
+          aria-hidden
+        />
+      )}
     </span>
   );
 }
