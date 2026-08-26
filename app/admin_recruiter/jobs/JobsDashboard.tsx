@@ -298,7 +298,7 @@ export function JobsDashboard({
       <section className="flex w-full min-w-0 flex-col gap-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="font-[Inter,sans-serif] text-lg font-semibold leading-7 text-black">Job Workspace</h2>
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center">
             <label className="flex h-8 w-full items-center gap-1 overflow-hidden rounded-lg border border-[#CBD5E1] bg-white px-2.5 sm:w-[274px]">
               <span className="relative flex size-5 shrink-0 items-center justify-center overflow-hidden">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -321,12 +321,14 @@ export function JobsDashboard({
                 className="min-w-0 flex-1 bg-transparent font-[Inter,sans-serif] text-xs font-light leading-4 text-[#334155] outline-none placeholder:text-[#94A3B8]"
               />
             </label>
-            <Link href={JOBS_LISTING_HREF} className={JOBS_VIEW_ALL_BUTTON_CLASS}>
-              View All
-            </Link>
-            <Link href={JOBS_NEW_HREF} className={JOBS_CREATE_BUTTON_CLASS}>
-              Create a job
-            </Link>
+            <div className="flex flex-wrap items-center justify-end gap-3">
+              <Link href={JOBS_LISTING_HREF} className={JOBS_VIEW_ALL_BUTTON_CLASS}>
+                View All
+              </Link>
+              <Link href={JOBS_NEW_HREF} className={JOBS_CREATE_BUTTON_CLASS}>
+                Create a job
+              </Link>
+            </div>
           </div>
         </div>
 

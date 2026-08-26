@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { MapPin, Search, X } from "lucide-react";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import {
@@ -392,12 +393,14 @@ function ApplyConfirmModal({
 export function WorkerJobsTab() {
   const { sessionReady, authHeaders } = useApplicantPortal();
   const branding = useTenantBranding();
+  const searchParams = useSearchParams();
   const tenantSlug =
     branding.slug?.trim().toLowerCase() || resolveApplicantPortalTenantSlug() || "";
+  const initialQuery = (searchParams?.get("q") ?? "").trim();
 
   const [jobsTab, setJobsTab] = useState<"active" | "applied">("active");
   const [view, setView] = useState<JobsListingView>("list");
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(initialQuery);
   const [employmentType, setEmploymentType] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -407,6 +410,11 @@ export function WorkerJobsTab() {
   const [applyJob, setApplyJob] = useState<WorkerJobRow | null>(null);
   const [applying, setApplying] = useState(false);
   const [applyError, setApplyError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const next = (searchParams?.get("q") ?? "").trim();
+    setQuery(next);
+  }, [searchParams]);
 
   const load = useCallback(async () => {
     if (!sessionReady) return;

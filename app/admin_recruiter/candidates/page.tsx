@@ -610,9 +610,7 @@ export default function CandidatesPage() {
                           <ListTableCheckbox
                             size="md"
                             checked={allVisibleSelected}
-                            ref={(el) => {
-                              if (el) el.indeterminate = someVisibleSelected;
-                            }}
+                            indeterminate={someVisibleSelected}
                             onChange={toggleSelectAllVisible}
                             aria-label="Select all candidates"
                           />
