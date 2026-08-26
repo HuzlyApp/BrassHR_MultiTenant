@@ -17,9 +17,9 @@ export function WorkerAccountEmploymentTab({
   readOnly = false,
 }: WorkerAccountEmploymentTabProps) {
   const rows = [
-    ["Employee ID", profile.employeeId],
+    // ["Employee ID", profile.employeeId],
     ["Hire Date", profile.hireDateLabel],
-    ["Employment Type", profile.employmentType],
+    ["Work type", profile.employmentType],
     ["Department", profile.department],
     ["Job Role", profile.jobRole || "—"],
     ["Hourly Rate", profile.hourlyRate ? `$${profile.hourlyRate} / hr` : "—"],
@@ -27,7 +27,7 @@ export function WorkerAccountEmploymentTab({
       "Experience",
       profile.yearsExperience != null ? `${profile.yearsExperience} years` : "—",
     ],
-    ["Supervisor", profile.supervisorName ?? "—"],
+    // ["Supervisor", profile.supervisorName ?? "—"],
   ];
 
   return (

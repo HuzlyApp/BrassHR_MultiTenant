@@ -10,6 +10,8 @@ export type WorkerSidebarLink = {
   scheduleView?: "calendar" | "attendance";
   /** When set, only active for that schedule page tab (?tab=timesheets). */
   scheduleTab?: "schedule" | "timesheets" | "notes";
+  /** When set on profile routes, only active for that account tab (?tab=personal|applications). */
+  accountTab?: "personal" | "applications";
 };
 
 export type WorkerSidebarSection = {
@@ -108,9 +110,17 @@ const ORGANIZATION_CHILDREN: WorkerSidebarLink[] = [
 const PROFILE_CHILDREN: WorkerSidebarLink[] = [
   {
     label: "Personal Information",
-    href: "/application/applicant-dashboard/profile",
+    href: "/application/applicant-dashboard/profile?tab=personal",
     matchPrefixes: ["/application/applicant-dashboard/profile"],
     matchExact: true,
+    accountTab: "personal",
+  },
+  {
+    label: "Applications",
+    href: "/application/applicant-dashboard/profile?tab=applications",
+    matchPrefixes: ["/application/applicant-dashboard/profile"],
+    matchExact: true,
+    accountTab: "applications",
   },
   {
     label: "Documents",

@@ -161,6 +161,13 @@ export function ApplicantPortalSidebar({
       return scheduleTabParam !== "timesheets" && scheduleTabParam !== "notes";
     }
 
+    if (link.accountTab === "personal") {
+      return scheduleTabParam === "personal";
+    }
+    if (link.accountTab === "applications") {
+      return scheduleTabParam === "applications";
+    }
+
     return true;
   };
 

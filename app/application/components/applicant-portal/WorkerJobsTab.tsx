@@ -24,8 +24,8 @@ import {
   WORKER_SCHEDULE_SUBTITLE_STYLE,
   WORKER_SCHEDULE_TITLE_CLASS,
   WORKER_SCHEDULE_TITLE_STYLE,
-  WORKER_SECTION_TITLE_CLASS,
-  WORKER_SECTION_TITLE_STYLE,
+  WORKER_DOCUMENTS_PAGE_SECTION_TITLE_CLASS,
+  WORKER_DOCUMENTS_PAGE_SECTION_TITLE_STYLE,
 } from "./worker-schedule-typography";
 
 type WorkerFacingStatus = "Open" | "Under Review" | "Hired" | "Rejected";
@@ -197,23 +197,30 @@ function JobApplyAction({
 
 function JobMobileListCard({
   row,
+  index,
   onApply,
 }: {
   row: WorkerJobRow;
+  index: number;
   onApply: (row: WorkerJobRow) => void;
 }) {
   const status = workerFacingJobStatus(row.application);
   return (
     <article className="border-b border-[#F1F5F9] px-3 py-4 last:border-b-0 sm:px-4">
       <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <p className="break-words text-sm font-semibold leading-5 text-[#0F172A]">{row.title}</p>
-          {row.profession ? (
-            <p className="mt-0.5 text-xs text-[#64748B]">
-              {row.profession}
-              {row.specialty ? ` · ${row.specialty}` : ""}
-            </p>
-          ) : null}
+        <div className="flex min-w-0 flex-1 items-start gap-2">
+          <span className="shrink-0 text-sm font-semibold leading-5 text-[color:var(--brand-primary)]">
+            {index}.
+          </span>
+          <div className="min-w-0">
+            <p className="break-words text-sm font-semibold leading-5 text-[#0F172A]">{row.title}</p>
+            {row.profession ? (
+              <p className="mt-0.5 text-xs text-[#64748B]">
+                {row.profession}
+                {row.specialty ? ` · ${row.specialty}` : ""}
+              </p>
+            ) : null}
+          </div>
         </div>
         <StatusBadge status={status} />
       </div>
@@ -246,9 +253,11 @@ function JobMobileListCard({
 
 function JobGridCard({
   row,
+  index,
   onApply,
 }: {
   row: WorkerJobRow;
+  index: number;
   onApply: (row: WorkerJobRow) => void;
 }) {
   const status = workerFacingJobStatus(row.application);
@@ -256,8 +265,9 @@ function JobGridCard({
   return (
     <article className="flex min-w-0 flex-col rounded-xl border border-[#E5E7EB] bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
       <div className="flex items-start justify-between gap-3">
-        <h3 className="min-w-0 break-words text-lg font-semibold leading-6 text-[#0F172A]">
-          {row.title}
+        <h3 className="flex min-w-0 items-start gap-2 break-words text-lg font-semibold leading-6 text-[#0F172A]">
+          <span className="shrink-0 text-[color:var(--brand-primary)]">{index}.</span>
+          <span className="min-w-0">{row.title}</span>
         </h3>
         {row.employmentType ? (
           <span className="shrink-0 rounded-full bg-[color:color-mix(in_srgb,var(--brand-primary)_14%,white)] px-2.5 py-1 text-xs font-semibold text-[color:var(--brand-primary)]">
@@ -385,6 +395,7 @@ export function WorkerJobsTab() {
   const tenantSlug =
     branding.slug?.trim().toLowerCase() || resolveApplicantPortalTenantSlug() || "";
 
+  const [jobsTab, setJobsTab] = useState<"active" | "applied">("active");
   const [view, setView] = useState<JobsListingView>("list");
   const [query, setQuery] = useState("");
   const [employmentType, setEmploymentType] = useState("");
@@ -489,6 +500,78 @@ export function WorkerJobsTab() {
       .filter((row) => Boolean(row.token));
   }, [applicationByJobId, jobs]);
 
+  const appliedRows = useMemo<WorkerJobRow[]>(() => {
+    // Source of truth = applications API (keeps closed/unpublished/removed-from-board jobs).
+    const activeByJobId = new Map(
+      rows
+        .map((row) => [String(row.job.id ?? "").trim(), row] as const)
+        .filter(([id]) => Boolean(id))
+    );
+    const q = query.trim().toLowerCase();
+
+    return applications
+      .map((app) => {
+        const active = activeByJobId.get(app.jobRequisitionId.trim());
+        // Prefer live active-job details when still published; otherwise use application snapshot.
+        if (active) {
+          return {
+            ...active,
+            application: app,
+            applied: true,
+            title: app.jobTitle || active.title,
+            employmentType: app.workType?.trim() || active.employmentType,
+            location: active.location !== "—" ? active.location : app.location?.trim() || "—",
+          } satisfies WorkerJobRow;
+        }
+
+        return {
+          job: {
+            id: app.jobRequisitionId,
+            public_job_token: app.jobRequisitionId,
+            public_title: app.jobTitle,
+            public_description: null,
+            location: app.location || null,
+            schedule: null,
+            employment_type: app.workType || null,
+            published_at: null,
+            professions: null,
+            specialties: null,
+          },
+          token: app.jobRequisitionId || app.id,
+          title: app.jobTitle || "Untitled job",
+          location: app.location?.trim() || "—",
+          employmentType: app.workType?.trim() || "",
+          profession: "",
+          specialty: "",
+          description: "",
+          publishedAt: null,
+          application: app,
+          applied: true,
+        } satisfies WorkerJobRow;
+      })
+      .filter((row) => {
+        if (q) {
+          const haystack = `${row.title} ${row.profession} ${row.specialty} ${row.location}`.toLowerCase();
+          if (!haystack.includes(q)) return false;
+        }
+        if (employmentType && row.employmentType !== employmentType) return false;
+        return true;
+      });
+  }, [applications, employmentType, query, rows]);
+
+  const displayRows = jobsTab === "active" ? rows : appliedRows;
+  const listTitle = jobsTab === "active" ? "Active jobs" : "Applied jobs";
+  const listCountLabel =
+    jobsTab === "active"
+      ? `${displayRows.length} open ${displayRows.length === 1 ? "position" : "positions"}`
+      : `${displayRows.length} applied ${displayRows.length === 1 ? "job" : "jobs"}`;
+  const emptyMessage =
+    jobsTab === "active"
+      ? "There are no active jobs right now."
+      : "You have not applied to any jobs yet.";
+  const loadingMessage =
+    jobsTab === "active" ? "Loading active jobs…" : "Loading applied jobs…";
+
   function openApplyModal(row: WorkerJobRow) {
     if (row.applied) return;
     setApplyJob(row);
@@ -520,26 +603,21 @@ export function WorkerJobsTab() {
 
   return (
     <div className={`${WORKER_PORTAL_PAGE_PAD_CLASS} max-w-full overflow-x-hidden pb-8`}>
-      <div className="mb-4 flex flex-col gap-3 sm:mb-5 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
-        <div className="min-w-0">
-          <h1 className={WORKER_SCHEDULE_TITLE_CLASS} style={WORKER_SCHEDULE_TITLE_STYLE}>
-            Jobs
-          </h1>
-          <p
-            className={`${WORKER_SCHEDULE_SUBTITLE_CLASS} text-[14px] sm:text-[16px]`}
-            style={WORKER_SCHEDULE_SUBTITLE_STYLE}
-          >
-            Browse active openings and apply with a resume from your Documents.
-          </p>
-        </div>
-        <div className="shrink-0 self-start sm:self-auto">
-          <JobsViewToggle value={view} onChange={setView} />
-        </div>
+      <div className="mb-4 min-w-0 sm:mb-5">
+        <h1 className={WORKER_SCHEDULE_TITLE_CLASS} style={WORKER_SCHEDULE_TITLE_STYLE}>
+          Jobs
+        </h1>
+        <p
+          className={`${WORKER_SCHEDULE_SUBTITLE_CLASS} text-[14px] sm:text-[16px]`}
+          style={WORKER_SCHEDULE_SUBTITLE_STYLE}
+        >
+          Browse active openings and apply with a resume from your Documents.
+        </p>
       </div>
 
       <section className={`${WORKER_SCHEDULE_CARD_CLASS} mb-4 p-3 sm:mb-5 sm:p-4`}>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-[1fr_180px]">
-          <label className="relative block min-w-0 sm:col-span-2 md:col-span-1">
+        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+          <label className="relative block w-full min-w-0 sm:w-[280px] sm:max-w-[320px] sm:shrink-0">
             <span className="sr-only">Search jobs</span>
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94A3B8]" />
             <input
@@ -549,51 +627,82 @@ export function WorkerJobsTab() {
               className={`${FILTER_INPUT_CLASS} pl-9`}
             />
           </label>
-          <label className="block min-w-0">
-            <span className="sr-only">Employment type</span>
+          <label className="block w-full min-w-0 sm:w-[180px] sm:shrink-0">
+            <span className="sr-only">Work type</span>
             <select
               value={employmentType}
               onChange={(event) => setEmploymentType(event.target.value)}
               style={SELECT_CHEVRON}
               className={`${FILTER_INPUT_CLASS} cursor-pointer appearance-none bg-[length:12px_12px] bg-[right_12px_center] bg-no-repeat pr-9`}
             >
-              <option value="">All employment types</option>
+              <option value="">Work type</option>
               <option value="W2">W2</option>
               <option value="1099">1099</option>
               <option value="Contract">Contract</option>
             </select>
           </label>
+          <div className="shrink-0 self-end sm:ml-auto sm:self-center">
+            <JobsViewToggle value={view} onChange={setView} />
+          </div>
         </div>
       </section>
+
+      <nav className="mb-4 min-w-0 sm:mb-5" aria-label="Jobs sections">
+        <div className="flex flex-wrap items-end gap-4 px-1 sm:gap-5">
+          {(
+            [
+              { id: "active", label: "Active all jobs" },
+              { id: "applied", label: "Applied jobs" },
+            ] as const
+          ).map((tab) => {
+            const active = jobsTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setJobsTab(tab.id)}
+                className={`inline-flex shrink-0 flex-col items-center whitespace-nowrap border-b-2 px-1 pb-3 text-[13px] leading-5 transition sm:text-[14px] ${
+                  active
+                    ? "border-[color:var(--brand-primary)] font-medium text-[color:var(--brand-primary)]"
+                    : "border-transparent font-normal text-[#012352] hover:border-[color:color-mix(in_srgb,var(--brand-primary)_25%,transparent)] hover:text-[color:var(--brand-primary)]"
+                }`}
+                style={WORKER_SCHEDULE_SUBTITLE_STYLE}
+              >
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+      </nav>
 
       <section className={`${WORKER_SCHEDULE_CARD_CLASS} min-w-0`}>
         <div className="flex items-center justify-between gap-3 border-b border-[#E5E7EB] px-3 py-3 sm:px-4 sm:py-4">
           <div className="min-w-0">
-            <h2 className={WORKER_SECTION_TITLE_CLASS} style={WORKER_SECTION_TITLE_STYLE}>
-              Active jobs
+            <h2
+              className={WORKER_DOCUMENTS_PAGE_SECTION_TITLE_CLASS}
+              style={WORKER_DOCUMENTS_PAGE_SECTION_TITLE_STYLE}
+            >
+              {listTitle}
             </h2>
-            <p className="mt-1 text-sm text-[#64748B]">
-              {rows.length} open {rows.length === 1 ? "position" : "positions"}
-            </p>
+            <p className="mt-1 text-sm text-[#64748B]">{listCountLabel}</p>
           </div>
         </div>
 
         {loading ? (
-          <p className="px-3 py-8 text-sm text-[#64748B] sm:px-4 sm:py-10">Loading active jobs…</p>
+          <p className="px-3 py-8 text-sm text-[#64748B] sm:px-4 sm:py-10">{loadingMessage}</p>
         ) : error ? (
           <p className="px-3 py-8 text-sm text-[#B91C1C] sm:px-4 sm:py-10">{error}</p>
-        ) : rows.length === 0 ? (
-          <p className="px-3 py-8 text-sm text-[#64748B] sm:px-4 sm:py-10">
-            There are no active jobs right now.
-          </p>
+        ) : displayRows.length === 0 ? (
+          <p className="px-3 py-8 text-sm text-[#64748B] sm:px-4 sm:py-10">{emptyMessage}</p>
         ) : view === "list" ? (
           <>
             {/* Mobile / tablet / small laptop: stacked cards (table needs ~xl width with sidebar) */}
             <div className="xl:hidden">
-              {rows.map((row) => (
+              {displayRows.map((row, index) => (
                 <JobMobileListCard
-                  key={row.token}
+                  key={`${jobsTab}-${row.token}-${row.application?.id ?? "open"}`}
                   row={row}
+                  index={index + 1}
                   onApply={(next) => void openApplyModal(next)}
                 />
               ))}
@@ -614,55 +723,71 @@ export function WorkerJobsTab() {
                   <tr className="border-b border-[#E5E7EB] text-sm font-medium text-[#64748B]">
                     <th className="px-3 py-3 font-medium xl:px-4">Job title</th>
                     <th className="px-3 py-3 font-medium xl:px-4">Location</th>
-                    <th className="px-3 py-3 font-medium xl:px-4">Work type</th>
-                    <th className="px-3 py-3 font-medium xl:px-4">Status</th>
+                    <th className="px-3 py-3 text-center font-medium xl:px-4">Work type</th>
+                    <th className="px-3 py-3 text-center font-medium xl:px-4">Status</th>
                     <th className="px-3 py-3 font-medium xl:px-4">Applied date</th>
-                    <th className="px-3 py-3 font-medium xl:px-4">Action</th>
+                    <th className="px-3 py-3 text-center font-medium xl:px-4">Action</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((row) => {
+                  {displayRows.map((row, index) => {
                     const status = workerFacingJobStatus(row.application);
                     return (
-                      <tr key={row.token} className="border-b border-[#F1F5F9] last:border-b-0">
+                      <tr
+                        key={`${jobsTab}-${row.token}-${row.application?.id ?? "open"}`}
+                        className="border-b border-[#F1F5F9] last:border-b-0"
+                      >
                         <td className="min-w-0 px-3 py-3.5 align-top xl:px-4 xl:py-4">
-                          <p className="break-words text-sm font-semibold leading-5 text-[#0F172A]">
-                            {row.title}
-                          </p>
-                          {row.profession ? (
-                            <p className="mt-0.5 break-words text-xs leading-4 text-[#64748B]">
-                              {row.profession}
-                              {row.specialty ? ` · ${row.specialty}` : ""}
-                            </p>
-                          ) : null}
+                          <div className="flex min-w-0 items-start gap-2">
+                            <span className="shrink-0 text-sm font-semibold leading-5 text-[color:var(--brand-primary)]">
+                              {index + 1}.
+                            </span>
+                            <div className="min-w-0">
+                              <p className="break-words text-sm font-semibold leading-5 text-[#0F172A]">
+                                {row.title}
+                              </p>
+                              {row.profession ? (
+                                <p className="mt-0.5 break-words text-xs leading-4 text-[#64748B]">
+                                  {row.profession}
+                                  {row.specialty ? ` · ${row.specialty}` : ""}
+                                </p>
+                              ) : null}
+                            </div>
+                          </div>
                         </td>
                         <td className="min-w-0 px-3 py-3.5 align-top text-sm leading-5 text-[#334155] xl:px-4 xl:py-4">
                           <span className="break-words" title={row.location}>
                             {row.location}
                           </span>
                         </td>
-                        <td className="px-3 py-3.5 align-top xl:px-4 xl:py-4">
-                          {row.employmentType ? (
-                            <span
-                              className={`inline-flex max-w-full items-center truncate rounded-full px-2.5 py-1 text-xs font-medium ${workTypeBadgeClass(row.employmentType)}`}
-                            >
-                              {row.employmentType}
-                            </span>
-                          ) : (
-                            <span className="text-sm text-[#94A3B8]">—</span>
-                          )}
+                        <td className="px-3 py-3.5 text-center align-middle xl:px-4 xl:py-4">
+                          <div className="flex justify-center">
+                            {row.employmentType ? (
+                              <span
+                                className={`inline-flex max-w-full items-center truncate rounded-full px-2.5 py-1 text-xs font-medium ${workTypeBadgeClass(row.employmentType)}`}
+                              >
+                                {row.employmentType}
+                              </span>
+                            ) : (
+                              <span className="text-sm text-[#94A3B8]">—</span>
+                            )}
+                          </div>
                         </td>
-                        <td className="px-3 py-3.5 align-top xl:px-4 xl:py-4">
-                          <StatusBadge status={status} />
+                        <td className="px-3 py-3.5 text-center align-middle xl:px-4 xl:py-4">
+                          <div className="flex justify-center">
+                            <StatusBadge status={status} />
+                          </div>
                         </td>
                         <td className="whitespace-nowrap px-3 py-3.5 align-top text-sm text-[#334155] xl:px-4 xl:py-4">
                           {row.applied ? formatAppliedDate(row.application?.appliedAt) : "—"}
                         </td>
-                        <td className="px-3 py-3.5 align-top xl:px-4 xl:py-4">
-                          <JobApplyAction
-                            row={row}
-                            onApply={(next) => void openApplyModal(next)}
-                          />
+                        <td className="px-3 py-3.5 text-center align-middle xl:px-4 xl:py-4">
+                          <div className="flex justify-center">
+                            <JobApplyAction
+                              row={row}
+                              onApply={(next) => void openApplyModal(next)}
+                            />
+                          </div>
                         </td>
                       </tr>
                     );
@@ -673,10 +798,11 @@ export function WorkerJobsTab() {
           </>
         ) : (
           <div className="grid grid-cols-1 gap-4 p-3 sm:p-4 md:grid-cols-2 lg:grid-cols-2">
-            {rows.map((row) => (
+            {displayRows.map((row, index) => (
               <JobGridCard
-                key={row.token}
+                key={`${jobsTab}-${row.token}-${row.application?.id ?? "open"}`}
                 row={row}
+                index={index + 1}
                 onApply={(next) => void openApplyModal(next)}
               />
             ))}
