@@ -36,6 +36,15 @@ describe("validateStep1Form address verification", () => {
     expect(validateStep1Form(completeForm)).toBeNull()
   })
 
+  it("allows empty address2 (optional field)", () => {
+    expect(
+      validateStep1Form(
+        { ...completeForm, address2: "", sameAsAddress1: false },
+        { addressVerified: true }
+      )
+    ).toBeNull()
+  })
+
   it("allows empty address2 when sameAsAddress1 is checked", () => {
     expect(
       validateStep1Form(
@@ -43,14 +52,6 @@ describe("validateStep1Form address verification", () => {
         { addressVerified: true }
       )
     ).toBeNull()
-  })
-
-  it("still requires address2 when not same as address1", () => {
-    const issue = validateStep1Form(
-      { ...completeForm, address2: "", sameAsAddress1: false },
-      { addressVerified: true }
-    )
-    expect(issue?.code).toBe("INCOMPLETE")
   })
 })
 

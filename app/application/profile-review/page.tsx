@@ -29,7 +29,7 @@ import {
   validateStep1Form,
 } from "@/lib/onboardingStep1Validation"
 import ValidatedAddressField from "@/app/components/onboarding/ValidatedAddressField"
-import OnboardingCheckbox from "@/app/components/OnboardingCheckbox"
+// import OnboardingCheckbox from "@/app/components/OnboardingCheckbox"
 import { buildAddressQuery, shouldValidateAddressQuery } from "@/lib/mapbox/address-validation"
 import { useAddressValidation } from "@/lib/mapbox/use-address-validation"
 import type { AddressValidationResult } from "@/lib/mapbox/address-validation-types"
@@ -1087,13 +1087,13 @@ function Step1ReviewContent() {
                 placeholder="1234 Main St, Apt 4B"
               />
 
-              {/* Address 2 */}
+              {/* Address 2 (optional) */}
               <div>
                 <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
                   <label className="block text-[13px] font-medium text-gray-600">
                     Address 2
-                    {!form.sameAsAddress1 ? <span className="text-red-500 ml-0.5">*</span> : null}
                   </label>
+                  {/* Same as address 1 — hidden for now
                   <OnboardingCheckbox
                     checked={form.sameAsAddress1}
                     onChange={(checked) => handleChange("sameAsAddress1", checked)}
@@ -1101,19 +1101,17 @@ function Step1ReviewContent() {
                   >
                     <span className="text-[13px] font-medium text-gray-600">Same as address 1</span>
                   </OnboardingCheckbox>
+                  */}
                 </div>
                 <span className="mb-1.5 block text-[11px] text-gray-400">
                   Apt, Suite, Building, Floor, etc...
                 </span>
                 <div className="group relative">
                   <input
-                    value={form.sameAsAddress1 ? form.address1 : form.address2}
+                    value={form.address2}
                     onChange={(e) => handleChange("address2", e.target.value)}
-                    disabled={form.sameAsAddress1}
-                    className={`w-full px-4 h-[56px] border border-gray-200 rounded-md focus:border-[color:var(--brand-primary)] focus:outline-none text-[#1e293b] text-sm pr-10 ${
-                      form.sameAsAddress1 ? "bg-gray-50 text-gray-500" : "bg-white"
-                    }`}
-                    placeholder={form.sameAsAddress1 ? "Same as address 1" : "Apt, Suite, Unit, etc."}
+                    className={`w-full px-4 h-[56px] border border-gray-200 rounded-md focus:border-[color:var(--brand-primary)] focus:outline-none text-[#1e293b] text-sm bg-white pr-10`}
+                    placeholder="Apt, Suite, Unit, etc."
                   />
                 </div>
               </div>

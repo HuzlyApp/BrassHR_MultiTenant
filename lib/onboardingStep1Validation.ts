@@ -61,12 +61,10 @@ export function isValidStep1Zip5(zip: string): boolean {
 }
 
 function allRequiredTrimmedNonEmpty(b: Step1FormFields): boolean {
-  const address2Ok = Boolean(b.sameAsAddress1) || b.address2.trim().length > 0
   return (
     b.firstName.trim().length > 0 &&
     b.lastName.trim().length > 0 &&
     b.address1.trim().length > 0 &&
-    address2Ok &&
     b.city.trim().length > 0 &&
     b.state.trim().length > 0 &&
     b.zipCode.trim().length > 0 &&
