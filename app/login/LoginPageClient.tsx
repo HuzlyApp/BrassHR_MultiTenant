@@ -246,27 +246,28 @@ function LoginPageContent() {
     if (useBraasUi) {
       document.documentElement.style.backgroundColor = "#ffffff";
       document.body.style.backgroundColor = "#ffffff";
+    } else if (brand?.primaryHex) {
+      document.documentElement.style.backgroundColor = brand.primaryHex;
+      document.body.style.backgroundColor = brand.primaryHex;
     } else {
       document.documentElement.style.backgroundColor = "";
       document.body.style.backgroundColor = "";
     }
 
-    if (useBraasUi) {
-      try {
-        const savedEmail = readHostnameScopedItem("braasLoginEmail");
-        if (savedEmail) {
-          setForm((prev) => ({ ...prev, email: savedEmail, rememberMe: true }));
-        }
-      } catch {
-        /* ignore storage errors */
+    try {
+      const savedEmail = readHostnameScopedItem("braasLoginEmail");
+      if (savedEmail) {
+        setForm((prev) => ({ ...prev, email: savedEmail, rememberMe: true }));
       }
+    } catch {
+      /* ignore storage errors */
     }
 
     return () => {
       document.documentElement.style.backgroundColor = previousHtmlBg;
       document.body.style.backgroundColor = previousBodyBg;
     };
-  }, [useBraasUi]);
+  }, [useBraasUi, brand?.primaryHex]);
 
   useEffect(() => {
     if (typeof window !== "undefined" && window.location.hash.includes("error=")) {
@@ -622,7 +623,7 @@ function LoginPageContent() {
     void submitCredentialsForOtp({
       email: form.email.trim().toLowerCase(),
       password: form.password,
-      rememberMe: false,
+      rememberMe: form.rememberMe,
     });
   };
 

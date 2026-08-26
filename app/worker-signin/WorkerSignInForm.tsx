@@ -9,7 +9,6 @@ import { useApplicantSignIn } from "@/lib/applicant-portal/use-applicant-sign-in
 import { buildForgotPasswordHref } from "@/lib/auth/password-reset-return";
 import { recruiterSignInHref } from "@/lib/auth/recruiter-sign-in";
 import type { TenantBranding } from "@/lib/tenant/tenant-branding";
-import { brandingAuthButtonStyle } from "@/lib/tenant/tenant-branding";
 import type { CSSProperties, ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { Check } from "lucide-react";
@@ -22,8 +21,19 @@ const checkboxActiveClass =
 const workerFieldLabelClass =
   "mb-2 block text-[13px] font-normal leading-[18px] tracking-normal text-[#374151] sm:mb-[8px] sm:text-[14px] sm:leading-[20px]";
 
-function primaryButtonStyle(enabled: boolean): CSSProperties | undefined {
-  return brandingAuthButtonStyle(enabled);
+function primaryButtonStyle(enabled: boolean, primaryHex: string): CSSProperties {
+  if (!enabled) {
+    return {
+      backgroundColor: "#dddddd",
+      backgroundImage: "none",
+      color: "#94a3b8",
+    };
+  }
+  return {
+    backgroundColor: primaryHex,
+    backgroundImage: "none",
+    color: "#ffffff",
+  };
 }
 
 function FieldLabel({ children }: { children: string }) {
@@ -273,7 +283,7 @@ export default function WorkerSignInForm({ tenantSlug, brand }: Props) {
             type="submit"
             disabled={!canSubmitEmail || loading}
             className={loginPrimaryButtonClass}
-            style={primaryButtonStyle(canSubmitEmail && !loading)}
+            style={primaryButtonStyle(canSubmitEmail && !loading, brand.primaryHex)}
           >
             {loading ? "Checking..." : "Continue"}
           </button>
@@ -360,7 +370,7 @@ export default function WorkerSignInForm({ tenantSlug, brand }: Props) {
             type="submit"
             disabled={!canSubmitSetup || loading}
             className={loginPrimaryButtonClass}
-            style={primaryButtonStyle(canSubmitSetup && !loading)}
+            style={primaryButtonStyle(canSubmitSetup && !loading, brand.primaryHex)}
           >
             {loading ? "Saving..." : "Create password and continue"}
           </button>
@@ -431,7 +441,7 @@ export default function WorkerSignInForm({ tenantSlug, brand }: Props) {
             type="submit"
             disabled={!canSubmitPassword || loading}
             className={loginPrimaryButtonClass}
-            style={primaryButtonStyle(canSubmitPassword && !loading)}
+            style={primaryButtonStyle(canSubmitPassword && !loading, brand.primaryHex)}
           >
             {loading ? "Signing in..." : "Log In"}
           </button>

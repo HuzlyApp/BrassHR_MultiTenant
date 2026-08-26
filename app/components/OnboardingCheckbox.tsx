@@ -4,7 +4,7 @@ import type { CSSProperties, ReactNode } from "react"
 import { cn } from "@/lib/utils"
 
 const box =
-  "flex h-5 w-5 shrink-0 items-center justify-center rounded-[5px] border-2 transition-colors"
+  "relative inline-grid h-5 w-5 shrink-0 place-items-center overflow-hidden rounded-[5px] border-2 box-border transition-colors leading-none"
 
 type Props = {
   checked: boolean
@@ -56,7 +56,7 @@ export default function OnboardingCheckbox({
       onClick={() => onChange(!checked)}
       aria-pressed={checked}
       className={cn(
-        "flex items-center gap-3 text-left",
+        "inline-flex items-center gap-3 text-left",
         disabled && "cursor-not-allowed opacity-50",
         className
       )}
@@ -67,11 +67,16 @@ export default function OnboardingCheckbox({
         aria-hidden
       >
         {checked ? (
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden>
+          <svg
+            viewBox="0 0 12 12"
+            fill="none"
+            aria-hidden
+            className="pointer-events-none absolute left-1/2 top-1/2 h-[10px] w-[10px] -translate-x-1/2 -translate-y-1/2"
+          >
             <path
-              d="M20 6L9 17L4 12"
+              d="M2.5 6.2L4.8 8.5L9.5 3.5"
               stroke="currentColor"
-              strokeWidth="3"
+              strokeWidth="1.75"
               strokeLinecap="round"
               strokeLinejoin="round"
             />
