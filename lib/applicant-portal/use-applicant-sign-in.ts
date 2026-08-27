@@ -180,6 +180,7 @@ export function useApplicantSignIn(tenantSlug: string | null) {
     confirmPassword,
     setConfirmPassword,
     mode,
+    setMode,
     error,
     setError,
     loading,

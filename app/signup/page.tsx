@@ -6,7 +6,7 @@ import RedirectionProgressModal from "@/app/components/RedirectionProgressModal"
 import { PasswordVisibilityToggle } from "@/app/components/PasswordVisibilityToggle";
 import SignupStepper, { resolveSignupStepperPhase } from "@/app/components/SignupStepper";
 import SearchableSelectField from "@/app/tenant-onboarding/SearchableSelectField";
-import { Check, X } from "lucide-react";
+import { ArrowLeft, Check, X } from "lucide-react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent } from "react";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import type { SignupStateOption } from "@/lib/signup/owner-signup";
@@ -28,6 +28,13 @@ import {
 } from "@/lib/tenant/tenant-branding";
 import { OWNER_SIGNUP_EMAIL_TAKEN_MESSAGE } from "@/lib/tenant/tenant-email-uniqueness";
 import { markAccountReadyModalPending } from "@/lib/auth/account-ready-modal";
+import { LEGAL_ROUTES } from "@/lib/legal/routes";
+import {
+  clearTenantSignupDraft,
+  legalReturnHref,
+  readTenantSignupDraft,
+  writeTenantSignupDraft,
+} from "@/lib/signup/tenant-signup-draft";
 // Social auth icons — unused while social signup is commented out on the form.
 // import { FaApple } from "react-icons/fa";
 // import { FaXTwitter } from "react-icons/fa6";
@@ -292,6 +299,30 @@ export default function SignupPage() {
   const emailCheckRequestId = useRef(0);
   const [brand, setBrand] = useState<TenantBranding>(() => defaultTenantBranding());
   const [redirecting, setRedirecting] = useState(false);
+  const [draftHydrated, setDraftHydrated] = useState(false);
+
+  useLayoutEffect(() => {
+    const draft = readTenantSignupDraft();
+    if (draft) {
+      setForm(draft.form);
+      setStep(draft.step);
+      setPassword(draft.password);
+      setVerifyPassword(draft.verifyPassword);
+      setTermsAccepted(draft.termsAccepted);
+    }
+    setDraftHydrated(true);
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!draftHydrated || redirecting) return;
+    writeTenantSignupDraft({
+      form,
+      step,
+      password,
+      verifyPassword,
+      termsAccepted,
+    });
+  }, [draftHydrated, form, step, password, verifyPassword, termsAccepted, redirecting]);
 
   useLayoutEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: "auto" });
@@ -659,6 +690,7 @@ export default function SignupPage() {
         await fetch("/api/auth/signup/begin-trial-session", { method: "POST" }).catch(() => null);
 
         setRedirecting(true);
+        clearTenantSignupDraft();
         window.setTimeout(() => {
           markAccountReadyModalPending(sessionStorage);
           window.location.assign("/your-trial");
@@ -1063,7 +1095,18 @@ export default function SignupPage() {
               </>
             ) : (
               <>
-                <div className="mt-[32px] sm:mt-[44px] min-[1440px]:mt-[58px]">
+                <button
+                  type="button"
+                  onClick={() => setStep("details")}
+                  className="mt-[24px] inline-flex items-center gap-[8px] rounded-md px-1 py-1.5 text-[13px] font-medium transition hover:bg-slate-50 sm:mt-[28px] sm:text-[14px] min-[1440px]:mt-[32px]"
+                  style={{ ...interStyle, color: brand.secondaryHex }}
+                  aria-label="Back to organization details"
+                >
+                  <ArrowLeft className="h-4 w-4" strokeWidth={2.25} />
+                  Back
+                </button>
+
+                <div className="mt-[16px] sm:mt-[20px] min-[1440px]:mt-[24px]">
                   <h1
                     className="text-[24px] font-semibold leading-[30px] tracking-normal sm:text-[26px] sm:leading-[32px] lg:text-[28px] lg:leading-[34px] min-[1440px]:text-[30px] min-[1440px]:leading-[36px]"
                     style={{ color: "var(--brand-heading)", fontFamily: "var(--brand-font-heading)" }}
@@ -1093,32 +1136,96 @@ export default function SignupPage() {
                   />
                 </div>
 
-                <label className="mt-[24px] flex cursor-pointer items-start gap-[8px] text-[13px] font-normal leading-[19px] tracking-normal text-[#64748b] sm:mt-[26px] sm:text-[14px] sm:leading-[20px] min-[1440px]:mt-[30px]" style={interStyle}>
-                  <span
-                    className={`relative mt-px flex h-[20px] w-[20px] shrink-0 items-center justify-center rounded-[6px] border ${
-                      termsAccepted ? "border-[#BC8B41] bg-[#BC8B41]" : "border-[#d7e0ea] bg-white"
-                    }`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={termsAccepted}
-                      onChange={(event) => setTermsAccepted(event.target.checked)}
-                      className="absolute inset-0 z-10 m-0 cursor-pointer opacity-0"
-                      aria-label="Accept terms and conditions"
-                    />
-                    {termsAccepted ? <Check className="h-[14px] w-[14px] text-white" strokeWidth={3} /> : null}
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    I hereby confirm that I have read and agree with the{" "}
-                    <a href="#" className="font-semibold text-[#0f172a]">
-                      Terms &amp; Conditions
-                    </a>{" "}
-                    <span className="text-[#64748b]">and</span>{" "}
-                    <a href="#" className="font-semibold text-[#0f172a]">
+                <div
+                  className="mt-[24px] rounded-[8px] border bg-[#f8fafc] px-[12px] py-[14px] sm:mt-[26px] sm:px-[14px] sm:py-[16px] min-[1440px]:mt-[30px]"
+                  style={{
+                    ...interStyle,
+                    borderColor: `${brand.primaryHex}33`,
+                  }}
+                >
+                  <label className="flex cursor-pointer items-start gap-[8px] text-[13px] font-normal leading-[19px] tracking-normal text-[#334155] sm:text-[14px] sm:leading-[20px]">
+                    <span
+                      className="relative mt-px flex h-[20px] w-[20px] shrink-0 items-center justify-center rounded-[6px] border"
+                      style={
+                        termsAccepted
+                          ? {
+                              borderColor: brand.secondaryHex,
+                              backgroundColor: brand.secondaryHex,
+                            }
+                          : {
+                              borderColor: "#d7e0ea",
+                              backgroundColor: "#ffffff",
+                            }
+                      }
+                    >
+                      <input
+                        type="checkbox"
+                        checked={termsAccepted}
+                        onChange={(event) => setTermsAccepted(event.target.checked)}
+                        className="absolute inset-0 z-10 m-0 cursor-pointer opacity-0"
+                        aria-label="Agree to Tenant Terms of Service and Privacy Policy"
+                      />
+                      {termsAccepted ? <Check className="h-[14px] w-[14px] text-white" strokeWidth={3} /> : null}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      I agree to the{" "}
+                      <Link
+                        href={legalReturnHref(LEGAL_ROUTES.tenantTerms, "/signup")}
+                        className="font-semibold underline underline-offset-2"
+                        style={{ color: brand.secondaryHex }}
+                        onClick={(event) => event.stopPropagation()}
+                      >
+                        Tenant Terms of Service
+                      </Link>{" "}
+                      and{" "}
+                      <Link
+                        href={legalReturnHref(LEGAL_ROUTES.privacyPolicy, "/signup")}
+                        className="font-semibold underline underline-offset-2"
+                        style={{ color: brand.secondaryHex }}
+                        onClick={(event) => event.stopPropagation()}
+                      >
+                        Privacy Policy
+                      </Link>
+                      .
+                    </span>
+                  </label>
+
+                  <p className="mt-[12px] text-[12px] font-normal leading-[18px] text-[#64748b] sm:text-[13px] sm:leading-[19px]">
+                    By creating an organization account you agree to the{" "}
+                    <Link
+                      href={legalReturnHref(LEGAL_ROUTES.tenantTerms, "/signup")}
+                      className="font-medium underline underline-offset-2"
+                      style={{ color: brand.secondaryHex }}
+                    >
+                      Tenant Terms of Service
+                    </Link>{" "}
+                    and{" "}
+                    <Link
+                      href={legalReturnHref(LEGAL_ROUTES.privacyPolicy, "/signup")}
+                      className="font-medium underline underline-offset-2"
+                      style={{ color: brand.secondaryHex }}
+                    >
                       Privacy Policy
-                    </a>
-                  </span>
-                </label>
+                    </Link>
+                    . The{" "}
+                    <Link
+                      href={legalReturnHref(LEGAL_ROUTES.tenantTerms, "/signup")}
+                      className="font-medium underline underline-offset-2"
+                      style={{ color: brand.secondaryHex }}
+                    >
+                      Tenant Terms
+                    </Link>{" "}
+                    include the{" "}
+                    <Link
+                      href={legalReturnHref(LEGAL_ROUTES.dataProcessingAddendum, "/signup")}
+                      className="font-medium underline underline-offset-2"
+                      style={{ color: brand.secondaryHex }}
+                    >
+                      Data Processing Addendum
+                    </Link>
+                    .
+                  </p>
+                </div>
 
                 <button
                   type="submit"
