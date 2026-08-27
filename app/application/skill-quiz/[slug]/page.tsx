@@ -7,6 +7,7 @@ import { useParams, useRouter } from "next/navigation"
 import { getApplicantSupabaseClient } from "@/lib/supabase-applicant-browser"
 import OnboardingLayout from "@/app/components/OnboardingLayout"
 import OnboardingStepper from "@/app/components/OnboardingStepper"
+import ErrorModal from "@/app/components/ErrorModal"
 import { useOnboardingStepNav } from "@/lib/onboarding/use-onboarding-step-nav"
 import { useSkipSkillAssessment } from "@/lib/onboarding/use-skip-skill-assessment"
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext"
@@ -64,6 +65,7 @@ export default function SkillQuizBySlugPage() {
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  const [alertModal, setAlertModal] = useState<{ title: string; message: string } | null>(null)
 
   const answersRef = useRef<SkillQuizAnswers>({})
   const pageRef = useRef(page)
@@ -179,7 +181,10 @@ export default function SkillQuizBySlugPage() {
       completed,
     })
     if (!result.ok) {
-      alert(result.error)
+      setAlertModal({
+        title: "Could not save answers",
+        message: result.error || "Something went wrong. Please try again.",
+      })
       return false
     }
     if (completed && typeof window !== "undefined") localStorage.setItem(`${slug}_done`, "true")
@@ -189,7 +194,10 @@ export default function SkillQuizBySlugPage() {
   async function saveAndFinish() {
     await flushPending()
     if (category && !isCategoryComplete(category, answers)) {
-      alert("Please answer all required questions before finishing this section.")
+      setAlertModal({
+        title: "Questions incomplete",
+        message: "Please answer all required questions before finishing this skill assessment.",
+      })
       return
     }
     setSaving(true)
@@ -292,6 +300,14 @@ export default function SkillQuizBySlugPage() {
           />
         </div>
       </div>
+
+      <ErrorModal
+        open={Boolean(alertModal)}
+        onClose={() => setAlertModal(null)}
+        title={alertModal?.title ?? "Something went wrong"}
+        message={alertModal?.message ?? ""}
+        actionLabel="OK"
+      />
     </OnboardingLayout>
   )
 }

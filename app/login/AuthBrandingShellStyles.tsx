@@ -4,10 +4,20 @@ import {
   type TenantBranding,
 } from "@/lib/tenant/tenant-branding";
 
-/** Blocking shell paint for auth pages — gradient + CSS vars before React hydrates. */
-export default function AuthBrandingShellStyles({ branding }: { branding: TenantBranding }) {
+type AuthBrandingShellStylesProps = {
+  branding: TenantBranding;
+  /** Admin classic login uses solid primary; other auth pages keep the brand gradient. */
+  background?: "gradient" | "primary";
+};
+
+/** Blocking shell paint for auth pages — CSS vars (+ bg) before React hydrates. */
+export default function AuthBrandingShellStyles({
+  branding,
+  background = "gradient",
+}: AuthBrandingShellStylesProps) {
   const vars = brandingToCssVars(branding);
-  const gradient = brandingShellGradient(branding);
+  const shellBg =
+    background === "primary" ? branding.primaryHex : brandingShellGradient(branding);
   const varBlock = Object.entries(vars)
     .map(([key, value]) => `${key}:${value}`)
     .join(";");
@@ -16,7 +26,7 @@ export default function AuthBrandingShellStyles({ branding }: { branding: Tenant
     <style
       id="tenant-auth-shell-bg"
       dangerouslySetInnerHTML={{
-        __html: `:root,html,body{${varBlock};background:${gradient} !important;}`,
+        __html: `:root,html,body{${varBlock};background:${shellBg} !important;}`,
       }}
     />
   );

@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useAccountData } from "@/app/admin_recruiter/hooks/useAccountData";
 import { syncAccountChecklist } from "@/lib/account/fetch-account-data";
 import { formatPhoneNumber } from "@/lib/phone";
+import type { SignupStateOption } from "@/lib/signup/owner-signup";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import {
   isBusinessInfoValid,
@@ -13,15 +14,15 @@ import {
   type BusinessInfoFieldErrors,
   type BusinessInfoFieldKey,
 } from "@/lib/tenant/business-info-validation";
+import { getStateCodeFromName, getStateNameFromCode } from "@/lib/us-state-names";
+import SearchableSelectField from "@/app/tenant-onboarding/SearchableSelectField";
 import AccountTenantHeader from "./AccountTenantHeader";
-import { getStateCodeFromName } from "@/lib/us-state-names";
 import {
   AddressField,
   EMPLOYEE_COUNT_OPTIONS,
   INDUSTRY_OPTIONS,
   SelectField,
   TextField,
-  US_STATES,
 } from "./account-form-fields";
 import {
   AccountErrorBanner,
@@ -48,6 +49,12 @@ export default function BusinessInfoTab() {
   const [zipCode, setZipCode] = useState("");
   const [ein, setEin] = useState("");
 
+  const [stateRows, setStateRows] = useState<SignupStateOption[]>([]);
+  const [stateOptions, setStateOptions] = useState<string[]>([]);
+  const [cityOptions, setCityOptions] = useState<string[]>([]);
+  const [locationLoading, setLocationLoading] = useState(true);
+  const [citiesLoading, setCitiesLoading] = useState(false);
+
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
@@ -71,12 +78,127 @@ export default function BusinessInfoTab() {
     setEin(organization.ein ?? "");
   }, [organization]);
 
+  useEffect(() => {
+    let active = true;
+    void (async () => {
+      try {
+        const { data, error: statesError } = await supabaseBrowser
+          .from("signup_us_states")
+          .select("code, name")
+          .order("sort_order", { ascending: true })
+          .order("name", { ascending: true });
+
+        if (!active || statesError || !data?.length) return;
+
+        const states = data.map((row) => ({
+          code: String(row.code),
+          name: String(row.name),
+        }));
+        setStateRows(states);
+        setStateOptions(states.map((row) => row.name));
+      } finally {
+        if (active) setLocationLoading(false);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const selectedStateCode = useMemo(() => {
+    const fromRows = stateRows.find((row) => row.name === state)?.code;
+    if (fromRows) return fromRows;
+    const fromName = getStateCodeFromName(state);
+    if (fromName) return fromName;
+    const trimmed = state.trim().toUpperCase();
+    if (trimmed.length === 2 && getStateNameFromCode(trimmed)) return trimmed;
+    return "";
+  }, [state, stateRows]);
+
+  useEffect(() => {
+    if (!selectedStateCode || selectedStateCode.length !== 2) {
+      setCityOptions([]);
+      setCitiesLoading(false);
+      return;
+    }
+
+    let active = true;
+    setCitiesLoading(true);
+    void (async () => {
+      try {
+        const { data, error: citiesError } = await supabaseBrowser
+          .from("signup_us_cities")
+          .select("city_name")
+          .eq("state_code", selectedStateCode)
+          .order("sort_order", { ascending: true })
+          .order("city_name", { ascending: true });
+
+        if (!active) return;
+        if (citiesError) {
+          setCityOptions([]);
+          return;
+        }
+
+        setCityOptions((data ?? []).map((row) => String(row.city_name)));
+      } catch {
+        if (active) setCityOptions([]);
+      } finally {
+        if (active) setCitiesLoading(false);
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, [selectedStateCode]);
+
+  // Normalize a stored state code (e.g. "AZ") to the full name once options load.
+  useEffect(() => {
+    const raw = state.trim();
+    if (!raw || stateOptions.length === 0) return;
+    if (stateOptions.includes(raw)) return;
+    const fromCode = getStateNameFromCode(raw);
+    if (fromCode && stateOptions.includes(fromCode) && fromCode !== raw) {
+      setState(fromCode);
+    }
+  }, [state, stateOptions]);
+
+  const effectiveCityOptions = useMemo(() => {
+    const current = city.trim();
+    if (!current || cityOptions.includes(current)) return cityOptions;
+    return [...cityOptions, current].sort((a, b) => a.localeCompare(b));
+  }, [city, cityOptions]);
+
+  const effectiveStateOptions = useMemo(() => {
+    const current = state.trim();
+    if (!current) return stateOptions;
+    if (stateOptions.includes(current)) return stateOptions;
+    const fromCode = getStateNameFromCode(current);
+    if (fromCode && stateOptions.includes(fromCode)) return stateOptions;
+    return [...stateOptions, fromCode || current].sort((a, b) => a.localeCompare(b));
+  }, [state, stateOptions]);
+
+  const displayStateValue = useMemo(() => {
+    const raw = state.trim();
+    if (!raw) return "";
+    if (stateOptions.includes(raw) || effectiveStateOptions.includes(raw)) return raw;
+    const fromCode = getStateNameFromCode(raw);
+    if (fromCode && (stateOptions.includes(fromCode) || effectiveStateOptions.includes(fromCode))) {
+      return fromCode;
+    }
+    return raw;
+  }, [effectiveStateOptions, state, stateOptions]);
+
+  const stateOptionsUnavailable = !locationLoading && stateOptions.length === 0;
+  const cityOptionsUnavailable =
+    Boolean(displayStateValue) && !citiesLoading && effectiveCityOptions.length === 0;
+
   const formInput = useMemo(
     () => ({
       companyName,
       industry,
       companySize,
-      state,
+      state: displayStateValue || state,
       city,
       address,
       phone: businessPhone,
@@ -91,6 +213,7 @@ export default function BusinessInfoTab() {
       city,
       companyName,
       companySize,
+      displayStateValue,
       ein,
       industry,
       state,
@@ -100,10 +223,19 @@ export default function BusinessInfoTab() {
 
   const validationContext = useMemo(
     () => ({
-      stateCode: getStateCodeFromName(state),
-      allowedStateNames: [...US_STATES],
+      stateCode: selectedStateCode || undefined,
+      stateName: displayStateValue || state || undefined,
+      allowedStateNames: effectiveStateOptions.length > 0 ? effectiveStateOptions : stateOptions,
+      allowedCityNames: effectiveCityOptions.length > 0 ? effectiveCityOptions : undefined,
     }),
-    [state]
+    [
+      displayStateValue,
+      effectiveCityOptions,
+      effectiveStateOptions,
+      selectedStateCode,
+      state,
+      stateOptions,
+    ]
   );
 
   const revalidateField = (field: BusinessInfoFieldKey, nextInput = formInput) => {
@@ -122,6 +254,14 @@ export default function BusinessInfoTab() {
     setter(value);
     if (!submitAttempted) return;
     revalidateField(field as BusinessInfoFieldKey, { ...formInput, [field]: value });
+  };
+
+  const handleStateChange = (value: string) => {
+    setState(value);
+    setCity("");
+    if (!submitAttempted) return;
+    revalidateField("state", { ...formInput, state: value, city: "" });
+    revalidateField("city", { ...formInput, state: value, city: "" });
   };
 
   const handleSubmit = async (event: FormEvent) => {
@@ -152,7 +292,7 @@ export default function BusinessInfoTab() {
           industry,
           companySize,
           city,
-          state,
+          state: displayStateValue || state,
           address,
           phone: businessPhone,
           email: businessEmail,
@@ -274,34 +414,46 @@ export default function BusinessInfoTab() {
             <TextField label="Website" value={website} onChange={setWebsite} type="url" />
 
             <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-              <SelectField
+              <SearchableSelectField
+                label="State"
+                required
+                loading={locationLoading}
+                disabled={locationLoading || stateOptionsUnavailable}
+                value={displayStateValue}
+                onChange={handleStateChange}
+                placeholder={
+                  locationLoading
+                    ? "Loading…"
+                    : stateOptionsUnavailable
+                      ? "No states found"
+                      : "Search state"
+                }
+                searchPlaceholder="Type to search states"
+                options={effectiveStateOptions}
+                error={submitAttempted ? fieldErrors.state : null}
+                emptyMessage="No states found. Try another search."
+              />
+              <SearchableSelectField
                 label="City"
+                required
+                disabled={!displayStateValue || stateOptionsUnavailable || cityOptionsUnavailable}
+                loading={citiesLoading}
                 value={city}
                 onChange={(value) => updateField("city", value, setCity)}
-                required
+                placeholder={
+                  stateOptionsUnavailable || cityOptionsUnavailable
+                    ? "No cities found"
+                    : !displayStateValue
+                      ? "Select state first"
+                      : citiesLoading
+                        ? "Loading…"
+                        : "Search city"
+                }
+                searchPlaceholder="Type to search cities"
+                options={effectiveCityOptions}
                 error={submitAttempted ? fieldErrors.city : null}
-              >
-                <option value="">Select city</option>
-                {["Los Angeles", "San Francisco", "San Diego", "Phoenix", "Houston", "Chicago", "New York", "Miami"].map((cityOption) => (
-                  <option key={cityOption} value={cityOption}>
-                    {cityOption}
-                  </option>
-                ))}
-              </SelectField>
-              <SelectField
-                label="State"
-                value={state}
-                onChange={(value) => updateField("state", value, setState)}
-                required
-                error={submitAttempted ? fieldErrors.state : null}
-              >
-                <option value="">Select state</option>
-                {US_STATES.map((stateOption) => (
-                  <option key={stateOption} value={stateOption}>
-                    {stateOption}
-                  </option>
-                ))}
-              </SelectField>
+                emptyMessage="No cities found. Try another search."
+              />
             </div>
 
             <AddressField

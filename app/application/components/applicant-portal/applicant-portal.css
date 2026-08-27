@@ -6,12 +6,50 @@
 .worker-portal-topbar {
   position: sticky;
   top: 0;
-  z-index: 40;
   height: var(--worker-portal-header-height);
   min-height: var(--worker-portal-header-height);
   box-sizing: border-box;
   border-bottom: 1px solid var(--worker-portal-chrome-border);
   background-color: #ffffff;
+  overflow: visible;
+}
+
+/* Search results — stay inside main column on mobile (avoid sidebar clipping) */
+.worker-portal-search-results {
+  overflow: hidden;
+}
+
+@media (max-width: 999px) {
+  .worker-portal-search-results {
+    position: fixed;
+    top: calc(var(--worker-portal-header-height) + 4px);
+    left: calc(var(--worker-sidebar-collapsed-width, 80px) + 8px);
+    right: 8px;
+    width: auto;
+    max-width: none;
+    z-index: 130;
+  }
+}
+
+@media (max-width: 499px) {
+  .worker-portal-search-results {
+    left: calc(var(--worker-sidebar-collapsed-width-narrow, 64px) + 8px);
+    right: 8px;
+  }
+}
+
+@media (max-width: 429px) {
+  .worker-portal-search-results {
+    left: calc(var(--worker-sidebar-collapsed-width-mobile, 48px) + 8px);
+    right: 6px;
+  }
+}
+
+@media (max-width: 319px) {
+  .worker-portal-search-results {
+    left: 46px;
+    right: 6px;
+  }
 }
 
 .worker-portal-sidebar-brand {

@@ -8,6 +8,14 @@ export type WorkerAccountTab =
   | "emergency"
   | "account";
 
+export type WorkerAccountHiredJob = {
+  id: string;
+  jobTitle: string;
+  hireDateLabel: string;
+  employmentType: string;
+  isLatest: boolean;
+};
+
 export type WorkerAccountProfile = {
   id: string;
   tenantId: string;
@@ -34,6 +42,7 @@ export type WorkerAccountProfile = {
   yearsExperience: number | null;
   profileCompletionPercent: number;
   profilePhotoUrl: string | null;
+  hiredJobs: WorkerAccountHiredJob[];
 };
 
 export type WorkerAccountOverviewPayload = {

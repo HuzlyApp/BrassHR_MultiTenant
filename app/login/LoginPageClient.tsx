@@ -54,6 +54,8 @@ import {
   type TenantBranding,
 } from "@/lib/tenant/tenant-branding";
 import { supabaseBrowser } from "@/lib/supabase-browser";
+import { LEGAL_ROUTES } from "@/lib/legal/routes";
+import { withTenant } from "@/lib/tenant/with-tenant";
 
 const checkboxActiveClass =
   "border-[color:var(--brand-secondary)] bg-[color:var(--brand-secondary)]";
@@ -246,27 +248,28 @@ function LoginPageContent() {
     if (useBraasUi) {
       document.documentElement.style.backgroundColor = "#ffffff";
       document.body.style.backgroundColor = "#ffffff";
+    } else if (brand?.primaryHex) {
+      document.documentElement.style.backgroundColor = brand.primaryHex;
+      document.body.style.backgroundColor = brand.primaryHex;
     } else {
       document.documentElement.style.backgroundColor = "";
       document.body.style.backgroundColor = "";
     }
 
-    if (useBraasUi) {
-      try {
-        const savedEmail = readHostnameScopedItem("braasLoginEmail");
-        if (savedEmail) {
-          setForm((prev) => ({ ...prev, email: savedEmail, rememberMe: true }));
-        }
-      } catch {
-        /* ignore storage errors */
+    try {
+      const savedEmail = readHostnameScopedItem("braasLoginEmail");
+      if (savedEmail) {
+        setForm((prev) => ({ ...prev, email: savedEmail, rememberMe: true }));
       }
+    } catch {
+      /* ignore storage errors */
     }
 
     return () => {
       document.documentElement.style.backgroundColor = previousHtmlBg;
       document.body.style.backgroundColor = previousBodyBg;
     };
-  }, [useBraasUi]);
+  }, [useBraasUi, brand?.primaryHex]);
 
   useEffect(() => {
     if (typeof window !== "undefined" && window.location.hash.includes("error=")) {
@@ -622,7 +625,7 @@ function LoginPageContent() {
     void submitCredentialsForOtp({
       email: form.email.trim().toLowerCase(),
       password: form.password,
-      rememberMe: false,
+      rememberMe: form.rememberMe,
     });
   };
 
@@ -771,35 +774,80 @@ function LoginPageContent() {
                   </Link>
                 </div>
 
-                <label
-                  className="flex cursor-pointer items-start gap-2 text-[13px] font-normal leading-[18px] text-[#4b5563] sm:gap-[8px] sm:text-[14px] sm:leading-[20px]"
+                <div
+                  className="rounded-[8px] border border-[#e2e8f0] bg-[#f8fafc] px-[12px] py-[14px] sm:px-[14px] sm:py-[16px]"
                   style={interStyle}
                 >
-                  <span
-                    className={`relative mt-px flex h-[20px] w-[20px] shrink-0 items-center justify-center rounded-[6px] border ${
-                      form.agree ? checkboxActiveClass : "border-[#e2e8f0] bg-white"
-                    }`}
+                  <label className="flex cursor-pointer items-start gap-2 text-[13px] font-normal leading-[18px] text-[#334155] sm:gap-[8px] sm:text-[14px] sm:leading-[20px]">
+                    <span
+                      className={`relative mt-px flex h-[20px] w-[20px] shrink-0 items-center justify-center rounded-[6px] border ${
+                        form.agree ? checkboxActiveClass : "border-[#e2e8f0] bg-white"
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={form.agree}
+                        onChange={(event) => setForm((prev) => ({ ...prev, agree: event.target.checked }))}
+                        className="absolute inset-0 z-10 m-0 cursor-pointer opacity-0"
+                        aria-label="Agree to Applicant Terms and Privacy Policy"
+                      />
+                      {form.agree ? <Check className="h-[14px] w-[14px] text-white" strokeWidth={3} /> : null}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      I agree to the{" "}
+                      <Link
+                        href={withTenant(
+                          LEGAL_ROUTES.applicantTerms,
+                          tenantQuery?.trim().toLowerCase() || brand.slug
+                        )}
+                        className="font-semibold underline underline-offset-2"
+                        style={{ color: "var(--brand-secondary)" }}
+                        onClick={(event) => event.stopPropagation()}
+                      >
+                        Applicant Terms
+                      </Link>{" "}
+                      and{" "}
+                      <Link
+                        href={withTenant(
+                          LEGAL_ROUTES.privacyPolicy,
+                          tenantQuery?.trim().toLowerCase() || brand.slug
+                        )}
+                        className="font-semibold underline underline-offset-2"
+                        style={{ color: "var(--brand-secondary)" }}
+                        onClick={(event) => event.stopPropagation()}
+                      >
+                        Privacy Policy
+                      </Link>
+                      .
+                    </span>
+                  </label>
+                </div>
+
+                <p className="text-[12px] font-normal leading-[18px] text-[#64748b] sm:text-[13px] sm:leading-[19px]" style={interStyle}>
+                  By creating an account you agree to the{" "}
+                  <Link
+                    href={withTenant(
+                      LEGAL_ROUTES.applicantTerms,
+                      tenantQuery?.trim().toLowerCase() || brand.slug
+                    )}
+                    className="font-medium underline underline-offset-2"
+                    style={{ color: "var(--brand-secondary)" }}
                   >
-                    <input
-                      type="checkbox"
-                      checked={form.agree}
-                      onChange={(event) => setForm((prev) => ({ ...prev, agree: event.target.checked }))}
-                      className="absolute inset-0 z-10 m-0 cursor-pointer opacity-0"
-                      aria-label="Accept terms and conditions"
-                    />
-                    {form.agree ? <Check className="h-[14px] w-[14px] text-white" strokeWidth={3} /> : null}
-                  </span>
-                  <span>
-                    I hereby confirm that I have read and agree with the{" "}
-                    <a href="#" className="font-semibold text-black">
-                      Terms &amp; Conditions
-                    </a>{" "}
-                    and{" "}
-                    <a href="#" className="font-semibold text-black">
-                      Privacy Policy
-                    </a>
-                  </span>
-                </label>
+                    Applicant Terms
+                  </Link>{" "}
+                  and{" "}
+                  <Link
+                    href={withTenant(
+                      LEGAL_ROUTES.privacyPolicy,
+                      tenantQuery?.trim().toLowerCase() || brand.slug
+                    )}
+                    className="font-medium underline underline-offset-2"
+                    style={{ color: "var(--brand-secondary)" }}
+                  >
+                    Privacy Policy
+                  </Link>
+                  . BrassHR is a product of ZipStaff Inc.
+                </p>
               </div>
 
               {authError ? <LoginFormError message={authError.error} code={authError.code} /> : null}

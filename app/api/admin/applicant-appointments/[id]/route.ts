@@ -128,7 +128,7 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
           : existing.meeting_type,
       notes: typeof body.notes === "string" ? body.notes.trim() || null : existing.notes,
       calendar_sequence: nextSequence,
-      status: "upcoming" as const,
+      status: "rescheduled" as const,
     };
 
     const { data: updated, error: updateError } = await supabase

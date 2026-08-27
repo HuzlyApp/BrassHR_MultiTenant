@@ -1,16 +1,16 @@
 "use client";
 
 import { FormEvent, useEffect, useRef, useState } from "react";
-import { AlertTriangle, Upload } from "lucide-react";
+import { AlertTriangle, ChevronDown, Upload } from "lucide-react";
 import { LICENSE_TYPES, LICENSE_TYPE_LABELS } from "@/lib/applicant-portal/documents";
 import { useApplicantPortal } from "./ApplicantPortalProvider";
 import { WorkerFilePicker } from "./WorkerFilePicker";
 import { WORKER_BTN_OUTLINE, WORKER_BTN_PRIMARY } from "./worker-portal-buttons";
 import {
+  WORKER_DOCUMENTS_PAGE_SECTION_TITLE_CLASS,
+  WORKER_DOCUMENTS_PAGE_SECTION_TITLE_STYLE,
   WORKER_PORTAL_PAGE_PAD_CLASS,
   WORKER_SCHEDULE_CARD_CLASS,
-  WORKER_SECTION_TITLE_CLASS,
-  WORKER_SECTION_TITLE_STYLE,
 } from "./worker-schedule-typography";
 
 type LicenseItem = {
@@ -165,7 +165,10 @@ export function ApplicantLicensesTab({ embedded = false }: { embedded?: boolean 
 
       <div className={`${WORKER_SCHEDULE_CARD_CLASS} overflow-hidden`}>
         <div className="border-b border-[#E5E7EB] px-4 py-3">
-          <h2 className={WORKER_SECTION_TITLE_CLASS} style={WORKER_SECTION_TITLE_STYLE}>
+          <h2
+            className={WORKER_DOCUMENTS_PAGE_SECTION_TITLE_CLASS}
+            style={WORKER_DOCUMENTS_PAGE_SECTION_TITLE_STYLE}
+          >
             Upload renewed license
           </h2>
           <p className="mt-1 text-sm text-[#64748B]">
@@ -179,17 +182,23 @@ export function ApplicantLicensesTab({ embedded = false }: { embedded?: boolean 
           <div className="grid gap-4 md:grid-cols-2">
             <div>
               <label className="mb-1.5 block text-[13px] font-medium text-[#374151]">License type</label>
-              <select
-                value={licenseType}
-                onChange={(event) => setLicenseType(event.target.value)}
-                className="h-10 w-full rounded-lg border border-[#D1D5DB] px-3 text-sm outline-none focus:border-[color:var(--brand-primary)]"
-              >
-                {LICENSE_TYPES.map((type) => (
-                  <option key={type} value={type}>
-                    {LICENSE_TYPE_LABELS[type]}
-                  </option>
-                ))}
-              </select>
+              <div className="relative">
+                <select
+                  value={licenseType}
+                  onChange={(event) => setLicenseType(event.target.value)}
+                  className="h-10 w-full cursor-pointer appearance-none rounded-lg border border-[#D1D5DB] bg-white py-2 pl-3 pr-10 text-sm text-[#334155] outline-none focus:border-[color:var(--brand-primary)]"
+                >
+                  {LICENSE_TYPES.map((type) => (
+                    <option key={type} value={type}>
+                      {LICENSE_TYPE_LABELS[type]}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown
+                  className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#64748B]"
+                  aria-hidden
+                />
+              </div>
             </div>
             <div>
               <label className="mb-1.5 block text-[13px] font-medium text-[#374151]">
@@ -232,7 +241,10 @@ export function ApplicantLicensesTab({ embedded = false }: { embedded?: boolean 
 
       <div className={`${WORKER_SCHEDULE_CARD_CLASS} overflow-hidden`}>
         <div className="border-b border-[#E5E7EB] px-4 py-3">
-          <h2 className={WORKER_SECTION_TITLE_CLASS} style={WORKER_SECTION_TITLE_STYLE}>
+          <h2
+            className={WORKER_DOCUMENTS_PAGE_SECTION_TITLE_CLASS}
+            style={WORKER_DOCUMENTS_PAGE_SECTION_TITLE_STYLE}
+          >
             Your licenses
           </h2>
         </div>

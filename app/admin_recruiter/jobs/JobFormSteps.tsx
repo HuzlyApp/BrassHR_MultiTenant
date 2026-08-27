@@ -2483,9 +2483,13 @@ function WorkflowAutomationIcon() {
     }
 
     let cancelled = false;
-    void ensureTintedSidebarIconMarkup(WORKFLOW_AUTOMATION_ICON_SRC, "#FFFFFF").then((next) => {
-      if (!cancelled) setMarkup(next);
-    });
+    void ensureTintedSidebarIconMarkup(WORKFLOW_AUTOMATION_ICON_SRC, "#FFFFFF")
+      .then((next) => {
+        if (!cancelled) setMarkup(next);
+      })
+      .catch(() => {
+        if (!cancelled) setMarkup(null);
+      });
 
     return () => {
       cancelled = true;

@@ -7,9 +7,15 @@ type InterviewSuccessModalProps = {
   open: boolean;
   onClose: () => void;
   onGoToCalendar: () => void;
+  message?: string;
 };
 
-export function InterviewSuccessModal({ open, onClose, onGoToCalendar }: InterviewSuccessModalProps) {
+export function InterviewSuccessModal({
+  open,
+  onClose,
+  onGoToCalendar,
+  message = "You have scheduled a new interview",
+}: InterviewSuccessModalProps) {
   useEffect(() => {
     if (!open) return;
     const onKeyDown = (e: KeyboardEvent) => {
@@ -57,7 +63,7 @@ export function InterviewSuccessModal({ open, onClose, onGoToCalendar }: Intervi
           <h2 id="interview-success-title" className="text-2xl font-semibold text-black">
             Success!
           </h2>
-          <p className="mt-2 text-base text-[#4B5563]">You have scheduled a new interview</p>
+          <p className="mt-2 text-base text-[#4B5563]">{message}</p>
           <button
             type="button"
             onClick={onGoToCalendar}

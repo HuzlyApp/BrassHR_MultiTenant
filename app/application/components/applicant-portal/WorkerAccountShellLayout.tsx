@@ -60,6 +60,7 @@ export function WorkerAccountShellLayout({
       yearsExperience: null,
       profileCompletionPercent: 0,
       profilePhotoUrl: null,
+      hiredJobs: [],
     } satisfies WorkerAccountOverviewPayload["profile"]);
 
   return (
@@ -80,7 +81,7 @@ export function WorkerAccountShellLayout({
       </div>
 
       {hideTabs ? null : (
-        <div className="sticky top-[var(--worker-portal-header-height,64px)] z-20 border-b border-[#E5E7EB] bg-[#F4F4F4]">
+        <div className="sticky top-[var(--worker-portal-header-height,64px)] z-20 bg-[#F4F4F4]">
           <WorkerAccountTabNav activeTab={activeTab} />
         </div>
       )}

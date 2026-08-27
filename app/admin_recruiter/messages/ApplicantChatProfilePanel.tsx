@@ -179,11 +179,8 @@ export default function ApplicantChatProfilePanel({
       <div className="border-t border-[#E8EDF2] px-5 py-5">
         <Link
           href={`/admin_recruiter/workers/${workerId}/profile`}
-          className="flex h-11 w-full items-center justify-center rounded-xl border text-sm font-semibold transition hover:brightness-95"
-          style={{
-            borderColor: "color-mix(in srgb, var(--brand-primary) 35%, #E2E8F0)",
-            color: "var(--brand-secondary)",
-          }}
+          className="flex h-11 w-full items-center justify-center rounded-[6px] text-sm font-semibold text-white transition hover:brightness-95"
+          style={{ backgroundColor: "var(--brand-primary)" }}
         >
           View profile
         </Link>

@@ -3,8 +3,14 @@ import { applicantDisplayName } from "@/lib/applicant-portal";
 import { documentStatusLabel } from "@/lib/applicant-portal/documents";
 import { createSignedPortalFileUrl } from "@/lib/applicant-portal/upload";
 import { computeWorkerProfileCompletionPercent } from "@/lib/applicant-portal/worker-profile-completion";
+import { normalizeApplicationStatus } from "@/lib/jobs/application-status";
+import { publicJobDisplayTitle } from "@/lib/jobs/public-application-routing";
+import { isPlacementAcceptedStatus } from "@/lib/onboarding/workflow-phase";
 import { loadWorkerProfileSkills } from "@/lib/worker-profile-skills";
-import type { WorkerAccountOverviewPayload } from "@/app/application/components/applicant-portal/worker-account-types";
+import type {
+  WorkerAccountHiredJob,
+  WorkerAccountOverviewPayload,
+} from "@/app/application/components/applicant-portal/worker-account-types";
 
 type WorkerRow = {
   id: string;
@@ -104,6 +110,103 @@ function formatHireDate(iso: string | null): string {
   return date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 }
 
+function oneJoin<T>(value: T | T[] | null | undefined): T | null {
+  if (Array.isArray(value)) return value[0] ?? null;
+  return value ?? null;
+}
+
+type HiredApplicationRow = {
+  id: string;
+  status?: string | null;
+  created_at?: string | null;
+  submitted_at?: string | null;
+  updated_at?: string | null;
+  post_hire_activated_at?: string | null;
+  workflow_phase?: string | null;
+  application_statuses?:
+    | { system_key?: string | null; name?: string | null }
+    | Array<{ system_key?: string | null; name?: string | null }>
+    | null;
+  job_requisitions?:
+    | {
+        public_title?: string | null;
+        source_job_title?: string | null;
+        source_type?: string | null;
+        employment_type?: string | null;
+      }
+    | Array<{
+        public_title?: string | null;
+        source_job_title?: string | null;
+        source_type?: string | null;
+        employment_type?: string | null;
+      }>
+    | null;
+};
+
+function applicationStatusParts(row: HiredApplicationRow): {
+  systemKey: string;
+  statusName: string;
+  status: string;
+  pipeline: string;
+} {
+  const statusJoin = oneJoin(row.application_statuses);
+  const systemKey = (statusJoin?.system_key || "").trim().toLowerCase();
+  const statusName = (statusJoin?.name || "").trim().toLowerCase();
+  const status = (row.status || "").trim().toLowerCase();
+  const pipeline = normalizeApplicationStatus(systemKey || statusName || status);
+  return { systemKey, statusName, status, pipeline };
+}
+
+/**
+ * Hired job name only — shortlisted / interviewing / other pipeline stages are excluded.
+ */
+function isHiredApplication(row: HiredApplicationRow): boolean {
+  const { systemKey, statusName, status, pipeline } = applicationStatusParts(row);
+  const phase = (row.workflow_phase || "").trim().toLowerCase();
+
+  // Explicit hired pipeline / placement-accepted key
+  if (pipeline === "hired") return true;
+  if (isPlacementAcceptedStatus(systemKey) || isPlacementAcceptedStatus(status)) return true;
+
+  // Status label must be hire-related, not shortlisted / approved screening labels
+  if (statusName === "hired" || statusName.includes("hired")) return true;
+
+  // Post-hire activation is only set after placement accepted
+  if (phase === "post_hire" || phase === "completed") return true;
+  if (row.post_hire_activated_at) return true;
+
+  return false;
+}
+
+function hiredJobSortTime(row: HiredApplicationRow): number {
+  const iso =
+    row.post_hire_activated_at || row.updated_at || row.submitted_at || row.created_at || "";
+  const time = new Date(iso).getTime();
+  return Number.isNaN(time) ? 0 : time;
+}
+
+function mapHiredJobs(rows: HiredApplicationRow[]): WorkerAccountHiredJob[] {
+  const hired = rows
+    .filter(isHiredApplication)
+    .sort((a, b) => hiredJobSortTime(a) - hiredJobSortTime(b));
+  if (hired.length === 0) return [];
+
+  const latestId = hired[hired.length - 1]?.id;
+
+  return hired.map((row) => {
+    const job = oneJoin(row.job_requisitions);
+    const hireIso =
+      row.post_hire_activated_at || row.updated_at || row.submitted_at || row.created_at || null;
+    return {
+      id: row.id,
+      jobTitle: job ? publicJobDisplayTitle(job) : "Untitled job",
+      hireDateLabel: formatHireDate(hireIso),
+      employmentType: formatEmploymentTypeLabel(job?.employment_type),
+      isLatest: row.id === latestId && hired.length > 1,
+    };
+  });
+}
+
 function formatUploadedLabel(iso: string): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return "Uploaded recently";
@@ -126,7 +229,8 @@ function serializeProfile(
   worker: WorkerRow,
   employmentWorker: EmploymentWorkerRow | null,
   profilePhotoUrl: string | null,
-  profileCompletionPercent: number
+  profileCompletionPercent: number,
+  hiredJobs: WorkerAccountHiredJob[]
 ): WorkerAccountOverviewPayload["profile"] {
   const positions = toStringArray(worker.positions);
   const yearsExperience = worker.years_experience ?? worker.experience_years ?? null;
@@ -166,6 +270,7 @@ function serializeProfile(
     yearsExperience,
     profileCompletionPercent,
     profilePhotoUrl,
+    hiredJobs,
   };
 }
 
@@ -244,6 +349,7 @@ export async function loadWorkerAccountOverview(
     attendanceRes,
     assessmentsRes,
     profileSkills,
+    hiredAppsRes,
   ] = await Promise.all([
     supabase.from("worker").select("*").eq("id", workerId).maybeSingle(),
     supabase
@@ -286,10 +392,29 @@ export async function loadWorkerAccountOverview(
       .limit(200),
     supabase.from("skill_assessments").select("category, completed, answers").eq("worker_id", workerId),
     loadWorkerProfileSkills(supabase, workerId),
+    supabase
+      .from("job_applications")
+      .select(
+        [
+          "id",
+          "status",
+          "created_at",
+          "submitted_at",
+          "updated_at",
+          "post_hire_activated_at",
+          "workflow_phase",
+          "application_statuses(system_key, name)",
+          "job_requisitions(public_title, source_job_title, source_type, employment_type)",
+        ].join(", ")
+      )
+      .eq("worker_id", workerId)
+      .eq("tenant_id", tenantId)
+      .order("created_at", { ascending: true }),
   ]);
 
   if (workerRes.error) throw workerRes.error;
   if (employmentWorkerRes.error) throw employmentWorkerRes.error;
+  if (hiredAppsRes.error) throw hiredAppsRes.error;
   if (!workerRes.data) return null;
 
   const worker = normalizeWorkerRow(workerRes.data as Record<string, unknown>);
@@ -297,6 +422,7 @@ export async function loadWorkerAccountOverview(
     (employmentWorkerRes.data as Record<string, unknown> | null) ?? null
   );
   const profilePhotoUrl = await resolveProfilePhotoUrl(supabase, worker.profile_photo);
+  const hiredJobs = mapHiredJobs((hiredAppsRes.data ?? []) as unknown as HiredApplicationRow[]);
 
   const requiredRes = await supabase
     .from("tenant_required_documents")
@@ -328,7 +454,13 @@ export async function loadWorkerAccountOverview(
     profileSkillCount: profileSkills.length,
   });
 
-  const profile = serializeProfile(worker, employmentWorker, profilePhotoUrl, profileCompletionPercent);
+  const profile = serializeProfile(
+    worker,
+    employmentWorker,
+    profilePhotoUrl,
+    profileCompletionPercent,
+    hiredJobs
+  );
 
   const requiredMap = new Map(
     (requiredRes.data ?? []).map((row) => [String(row.id), String(row.title ?? "Document")])

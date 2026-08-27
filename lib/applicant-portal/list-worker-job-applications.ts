@@ -15,6 +15,8 @@ export type WorkerJobApplicationListItem = {
   jobTitle: string;
   companyName: string;
   workType: string;
+  location: string;
+  jobStatus: string | null;
   appliedAt: string;
   status: string;
   statusName: string;
@@ -33,6 +35,8 @@ type JobRequisitionJoin = {
   employment_type?: string | null;
   facility?: string | null;
   facility_name?: string | null;
+  location?: string | null;
+  status?: string | null;
 };
 
 type ApplicationStatusJoin = {
@@ -108,7 +112,7 @@ export async function listWorkerJobApplications(
         "ai_match_category",
         "ai_match_status",
         "application_statuses(name, system_key, color)",
-        "job_requisitions(public_title, source_job_title, source_type, employment_type, facility, facility_name)",
+        "job_requisitions(public_title, source_job_title, source_type, employment_type, facility, facility_name, location, status)",
         "tenants:tenant_id(name)",
       ].join(", ")
     )
@@ -186,6 +190,8 @@ export async function listWorkerJobApplications(
       jobTitle: job ? publicJobDisplayTitle(job) || "Untitled job" : "Untitled job",
       companyName: companyNameFromJob(job, tenantName),
       workType: job?.employment_type?.trim() || "",
+      location: job?.location?.trim() || "",
+      jobStatus: job?.status?.trim() || null,
       appliedAt: String(row.submitted_at || row.created_at || ""),
       status,
       statusName: statusJoin?.name?.trim() || applicationStatusLabel(status),

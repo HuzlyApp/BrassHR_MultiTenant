@@ -5,11 +5,12 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { extractResumeTextFromUpload } from "@/lib/jobs/match-analysis/extract-resume-text";
 import { createAdminJobApplication } from "@/lib/jobs/service";
 import { JobValidationError } from "@/lib/jobs/types";
-import { grokParseResume } from "@/lib/resume/grok-parse-resume";
+import { grokParseResumeCached } from "@/lib/resume/grok-parse-resume-cached";
 import {
   evaluateResumeParseQuality,
   normalizedResumeToStoredJson,
   RESUME_PARSE_FAILED_USER_MESSAGE,
+  type NormalizedParsedResume,
 } from "@/lib/resumeParseQuality";
 import {
   resolveResumeFileType,
@@ -125,15 +126,26 @@ async function persistWorkerResumeByWorkerId(
   if (error) throw error;
 }
 
-export async function adminAddCandidateFromResume(
-  supabase: SupabaseClient,
-  input: AdminAddCandidateFromResumeInput
-): Promise<AdminAddCandidateFromResumeResult> {
-  const jobRequisitionId = input.jobRequisitionId.trim();
-  if (!jobRequisitionId) {
-    throw new JobValidationError("jobId is required.", {}, "JOB_REQUIRED");
-  }
+export type PreparedResumeCandidate = {
+  extractedText: string;
+  resumeBytes: Buffer;
+  resumeFileName: string;
+  resumeContentType: string;
+  resumeFileType: ReturnType<typeof resolveResumeFileType>;
+  parsed: NormalizedParsedResume;
+  parsedJson: Record<string, string>;
+};
 
+/**
+ * Validate, extract, and AI-parse a resume upload (or pasted text).
+ * Shared by the parse preview endpoint and the candidate create flow; the Grok call is
+ * cached by text, so previewing then submitting the same resume parses only once.
+ */
+export async function prepareResumeCandidate(input: {
+  resumeFile?: File | null;
+  resumeText?: string | null;
+  resumeTitle?: string | null;
+}): Promise<PreparedResumeCandidate> {
   let extractedText = "";
   let resumeBytes: Buffer | null = null;
   let resumeFileName = "resume.txt";
@@ -199,8 +211,8 @@ export async function adminAddCandidateFromResume(
     throw new JobValidationError(contentError, {}, "INVALID_RESUME_CONTENT");
   }
 
-  const grok = await grokParseResume(extractedText);
-  const quality = evaluateResumeParseQuality(grok.normalized);
+  const normalized = await grokParseResumeCached(extractedText);
+  const quality = evaluateResumeParseQuality(normalized);
   if (!quality.ok) {
     throw new JobValidationError(
       quality.message ?? RESUME_PARSE_FAILED_USER_MESSAGE,
@@ -209,8 +221,44 @@ export async function adminAddCandidateFromResume(
     );
   }
 
-  const parsed = quality.normalized;
-  const parsedJson = normalizedResumeToStoredJson(parsed);
+  if (!resumeBytes) {
+    throw new JobValidationError("Resume content is missing.", {}, "RESUME_REQUIRED");
+  }
+
+  return {
+    extractedText,
+    resumeBytes,
+    resumeFileName,
+    resumeContentType,
+    resumeFileType,
+    parsed: quality.normalized,
+    parsedJson: normalizedResumeToStoredJson(quality.normalized),
+  };
+}
+
+export async function adminAddCandidateFromResume(
+  supabase: SupabaseClient,
+  input: AdminAddCandidateFromResumeInput
+): Promise<AdminAddCandidateFromResumeResult> {
+  const jobRequisitionId = input.jobRequisitionId.trim();
+  if (!jobRequisitionId) {
+    throw new JobValidationError("jobId is required.", {}, "JOB_REQUIRED");
+  }
+
+  const {
+    extractedText,
+    resumeBytes,
+    resumeFileName,
+    resumeContentType,
+    resumeFileType,
+    parsed,
+    parsedJson,
+  } = await prepareResumeCandidate({
+    resumeFile: input.resumeFile,
+    resumeText: input.resumeText,
+    resumeTitle: input.resumeTitle,
+  });
+
   const resolvedFirstName = input.firstName?.trim() || parsed.first_name.trim();
   const resolvedLastName = input.lastName?.trim() || parsed.last_name.trim();
   const fullName = formatFullName(resolvedFirstName, resolvedLastName);
@@ -223,10 +271,6 @@ export async function adminAddCandidateFromResume(
       {},
       "RESUME_PARSE_FAILED"
     );
-  }
-
-  if (!resumeBytes) {
-    throw new JobValidationError("Resume content is missing.", {}, "RESUME_REQUIRED");
   }
 
   const uploaded = await uploadResumeBytes(

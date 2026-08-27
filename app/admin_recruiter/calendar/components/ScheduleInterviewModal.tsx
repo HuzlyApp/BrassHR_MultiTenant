@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { ChevronDownIcon, ChevronLeft, ChevronRight, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Check, ChevronDownIcon, ChevronLeft, ChevronRight, X } from "lucide-react";
 import { formatSlotLabel } from "@/lib/interviews/format";
 import { COMMON_INTERVIEW_TIMEZONES } from "@/lib/interviews/ics";
+import type { InterviewApplicationOption } from "@/app/api/admin/applicant-appointments/applications/route";
 import type {
   InterviewMeetingType,
   ScheduleInterviewInterviewer,
@@ -13,6 +14,8 @@ import type {
 type ApplicantOption = {
   id: string;
   name: string;
+  /** Email or job title that separates applicants who share a name. */
+  detail?: string;
   status: string;
 };
 
@@ -32,7 +35,12 @@ type ScheduleInterviewModalProps = {
   fixedWorkerId?: string;
   fixedApplicantName?: string;
   fixedJobTitle?: string;
+  /** Set when the caller already knows which application the interview belongs to. */
+  fixedApplicationId?: string;
   defaultTitle?: string;
+  /** Prefill when editing / rescheduling an existing interview. */
+  initialValues?: ScheduleInterviewPayload | null;
+  mode?: "create" | "reschedule";
 };
 
 const SLOT_MINUTES = 30;
@@ -62,15 +70,22 @@ function getWeekStart(date: Date): Date {
   return addDays(d, -d.getDay());
 }
 
-function buildDaySlots(day: Date): { startsAt: Date; endsAt: Date }[] {
+function buildDaySlots(
+  day: Date,
+  options?: { includePast?: boolean; keepStartsAt?: Date | null }
+): { startsAt: Date; endsAt: Date }[] {
   const slots: { startsAt: Date; endsAt: Date }[] = [];
   const base = startOfDay(day);
+  const keepMs = options?.keepStartsAt?.getTime() ?? null;
   for (let hour = DAY_START_HOUR; hour < DAY_END_HOUR; hour++) {
     for (const minute of [0, 30]) {
       const startsAt = new Date(base);
       startsAt.setHours(hour, minute, 0, 0);
       const endsAt = new Date(startsAt.getTime() + SLOT_MINUTES * 60 * 1000);
-      if (startsAt.getTime() > Date.now()) slots.push({ startsAt, endsAt });
+      const isKeep = keepMs != null && startsAt.getTime() === keepMs;
+      if (options?.includePast || isKeep || startsAt.getTime() > Date.now()) {
+        slots.push({ startsAt, endsAt });
+      }
     }
   }
   return slots;
@@ -92,9 +107,17 @@ export function ScheduleInterviewModal({
   fixedWorkerId,
   fixedApplicantName,
   fixedJobTitle,
+  fixedApplicationId,
   defaultTitle,
+  initialValues = null,
+  mode = "create",
 }: ScheduleInterviewModalProps) {
+  const isReschedule = mode === "reschedule";
   const [workerId, setWorkerId] = useState("");
+  const [applications, setApplications] = useState<InterviewApplicationOption[]>([]);
+  const [applicationsLoading, setApplicationsLoading] = useState(false);
+  const [applicationId, setApplicationId] = useState("");
+  const [jobOpen, setJobOpen] = useState(false);
   const [weekAnchor, setWeekAnchor] = useState(() => startOfDay(new Date()));
   const [selectedDay, setSelectedDay] = useState(() => startOfDay(new Date()));
   const [pendingSlot, setPendingSlot] = useState<{ startsAt: Date; endsAt: Date } | null>(null);
@@ -111,22 +134,70 @@ export function ScheduleInterviewModal({
   const [teamMembers, setTeamMembers] = useState<TeamMemberOption[]>([]);
   const [teamLoading, setTeamLoading] = useState(false);
   const [selectedInterviewerIds, setSelectedInterviewerIds] = useState<string[]>([]);
+  const [titleEdited, setTitleEdited] = useState(false);
+  /** Guards the reset below so it runs once per open, never on later field changes. */
+  const initializedRef = useRef(false);
+  /** Once the recruiter picks an applicant, never auto-select for them again. */
+  const applicantTouchedRef = useRef(false);
 
-  const resolvedWorkerId = fixedWorkerId ?? workerId;
+  const resolvedWorkerId = fixedWorkerId ?? initialValues?.workerId ?? workerId;
   const resolvedApplicantName =
     fixedApplicantName ??
     applicants.find((item) => item.id === resolvedWorkerId)?.name ??
     "Applicant";
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      initializedRef.current = false;
+      applicantTouchedRef.current = false;
+      return;
+    }
+    if (initializedRef.current) return;
+    initializedRef.current = true;
+
+    if (initialValues) {
+      const start = new Date(initialValues.startsAt);
+      const end = new Date(initialValues.endsAt);
+      const day = startOfDay(start);
+      setWeekAnchor(day);
+      setSelectedDay(day);
+      setPendingSlot(
+        Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())
+          ? null
+          : { startsAt: start, endsAt: end }
+      );
+      setWorkerId(initialValues.workerId);
+      setApplicationId(initialValues.applicationId ?? "");
+      setTitle(initialValues.title || defaultTitle || "");
+      setTitleEdited(true);
+      setMeetingType(initialValues.meetingType || "online");
+      setTimezone(
+        initialValues.timezone ||
+          (typeof Intl !== "undefined" ? Intl.DateTimeFormat().resolvedOptions().timeZone : "UTC")
+      );
+      setMeetingLink(initialValues.meetingLink ?? "");
+      setLocation(initialValues.location ?? "");
+      setNotes(initialValues.notes ?? "");
+      setCandidateNotes(initialValues.candidateNotes ?? "");
+      setSelectedInterviewerIds(
+        (initialValues.interviewers ?? [])
+          .map((item) => item.userId)
+          .filter((id): id is string => Boolean(id))
+      );
+      setApplicantOpen(false);
+      setJobOpen(false);
+      return;
+    }
+
     const today = startOfDay(new Date());
     setWeekAnchor(today);
     setSelectedDay(today);
     setPendingSlot(null);
     setApplicantOpen(false);
+    setJobOpen(false);
     setWorkerId(fixedWorkerId ?? applicants[0]?.id ?? "");
-    setTitle(defaultTitle ?? defaultInterviewTitle(resolvedApplicantName));
+    setTitle(defaultTitle ?? "");
+    setTitleEdited(Boolean(defaultTitle));
     setMeetingType("online");
     setTimezone(
       typeof Intl !== "undefined" ? Intl.DateTimeFormat().resolvedOptions().timeZone : "UTC"
@@ -136,7 +207,54 @@ export function ScheduleInterviewModal({
     setNotes("");
     setCandidateNotes("");
     setSelectedInterviewerIds([]);
-  }, [open, applicants, fixedWorkerId, defaultTitle, resolvedApplicantName]);
+  }, [open, applicants, fixedWorkerId, defaultTitle, initialValues]);
+
+  /** Applicants can load after the modal opens; only fill an untouched, empty selection. */
+  useEffect(() => {
+    if (!open || fixedWorkerId || workerId || applicantTouchedRef.current) return;
+    const firstApplicantId = applicants[0]?.id;
+    if (firstApplicantId) setWorkerId(firstApplicantId);
+  }, [open, applicants, fixedWorkerId, workerId]);
+
+  /** Load the applicant's open applications so the recruiter can pick the job to interview for. */
+  useEffect(() => {
+    if (!open || fixedApplicationId || initialValues?.applicationId) {
+      if (initialValues?.applicationId) setApplicationId(initialValues.applicationId);
+      return;
+    }
+    setApplications([]);
+    setApplicationId("");
+    if (!resolvedWorkerId) return;
+
+    let cancelled = false;
+    setApplicationsLoading(true);
+    void fetch(
+      `/api/admin/applicant-appointments/applications?workerId=${encodeURIComponent(resolvedWorkerId)}`,
+      { credentials: "include" }
+    )
+      .then(async (res) => {
+        const data = (await res.json().catch(() => ({}))) as {
+          applications?: InterviewApplicationOption[];
+        };
+        if (cancelled || !res.ok) return;
+        const list = data.applications ?? [];
+        setApplications(list);
+        setApplicationId(list.length === 1 ? list[0].id : "");
+      })
+      .finally(() => {
+        if (!cancelled) setApplicationsLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open, resolvedWorkerId, fixedApplicationId, initialValues?.applicationId]);
+
+  /** Keep the title following the chosen applicant until the recruiter types their own. */
+  useEffect(() => {
+    if (!open || titleEdited || isReschedule) return;
+    setTitle(defaultInterviewTitle(resolvedApplicantName));
+  }, [open, titleEdited, resolvedApplicantName, isReschedule]);
 
   useEffect(() => {
     if (!open) return;
@@ -148,7 +266,21 @@ export function ScheduleInterviewModal({
           members?: TeamMemberOption[];
         };
         if (!cancelled && res.ok) {
-          setTeamMembers(data.members ?? []);
+          const members = data.members ?? [];
+          setTeamMembers(members);
+          if (initialValues?.interviewers?.length) {
+            const byEmail = new Map(
+              initialValues.interviewers.map((item) => [item.email.trim().toLowerCase(), item])
+            );
+            const matchedIds = members
+              .filter((member) => byEmail.has(member.email.trim().toLowerCase()))
+              .map((member) => member.id);
+            if (matchedIds.length > 0) {
+              setSelectedInterviewerIds((current) =>
+                current.length > 0 ? current : matchedIds
+              );
+            }
+          }
         }
       })
       .finally(() => {
@@ -157,7 +289,7 @@ export function ScheduleInterviewModal({
     return () => {
       cancelled = true;
     };
-  }, [open]);
+  }, [open, initialValues]);
 
   useEffect(() => {
     if (!open) return;
@@ -177,18 +309,27 @@ export function ScheduleInterviewModal({
     return Array.from({ length: 7 }, (_, i) => addDays(start, i));
   }, [weekAnchor]);
 
-  const timeSlots = useMemo(() => buildDaySlots(selectedDay), [selectedDay]);
+  const timeSlots = useMemo(
+    () =>
+      buildDaySlots(selectedDay, {
+        includePast: isReschedule,
+        keepStartsAt: initialValues ? new Date(initialValues.startsAt) : null,
+      }),
+    [selectedDay, isReschedule, initialValues]
+  );
   const monthLabel = selectedDay.toLocaleDateString("en-US", { month: "long" });
 
   const selectedInterviewers = useMemo<ScheduleInterviewInterviewer[]>(() => {
-    return teamMembers
+    const fromTeam = teamMembers
       .filter((member) => selectedInterviewerIds.includes(member.id))
       .map((member) => ({
         userId: member.id,
         email: member.email,
         name: member.name,
       }));
-  }, [selectedInterviewerIds, teamMembers]);
+    if (fromTeam.length > 0 || !initialValues?.interviewers?.length) return fromTeam;
+    return initialValues.interviewers;
+  }, [selectedInterviewerIds, teamMembers, initialValues]);
 
   function toggleInterviewer(id: string) {
     setSelectedInterviewerIds((current) =>
@@ -196,10 +337,17 @@ export function ScheduleInterviewModal({
     );
   }
 
+  const showJobPicker = !fixedApplicationId && !initialValues?.applicationId;
+  const selectedApplication = applications.find((item) => item.id === applicationId) ?? null;
+  const jobSelectionMissing = showJobPicker && applications.length > 1 && !applicationId;
+  const canSubmit = Boolean(resolvedWorkerId) && !jobSelectionMissing && !applicationsLoading;
+
   function handleConfirmSlot() {
-    if (!pendingSlot || !resolvedWorkerId) return;
+    if (!pendingSlot || !canSubmit) return;
     onSubmit({
       workerId: resolvedWorkerId,
+      applicationId: fixedApplicationId || applicationId || initialValues?.applicationId || null,
+      jobId: selectedApplication?.jobId ?? initialValues?.jobId ?? null,
       startsAt: pendingSlot.startsAt.toISOString(),
       endsAt: pendingSlot.endsAt.toISOString(),
       timezone,
@@ -229,7 +377,7 @@ export function ScheduleInterviewModal({
       >
         <div className="flex items-center justify-between border-b border-[#ECF1F9] px-4 pb-2 pt-4 min-[500px]:px-6 min-[500px]:pt-5">
           <h2 id="schedule-interview-title" className="text-xl font-semibold text-[#1F2937] min-[500px]:text-2xl">
-            Schedule Interview
+            {isReschedule ? "Reschedule Interview" : "Schedule Interview"}
           </h2>
           <button
             type="button"
@@ -242,12 +390,14 @@ export function ScheduleInterviewModal({
         </div>
 
         <div className="overflow-y-auto px-4 py-4 min-[500px]:px-5 min-[500px]:py-5">
-          {fixedWorkerId ? (
+          {fixedWorkerId || isReschedule ? (
             <div className="mb-4 rounded-lg border border-[#ECF1F9] bg-[#F8FAFC] px-4 py-3">
               <p className="text-xs font-medium uppercase tracking-wide text-[#64748B]">Candidate</p>
               <p className="mt-1 text-sm font-semibold text-[#1F2937]">{resolvedApplicantName}</p>
-              {fixedJobTitle ? (
-                <p className="mt-1 text-sm text-[#64748B]">{fixedJobTitle}</p>
+              {fixedJobTitle || initialValues?.jobId ? (
+                <p className="mt-1 text-sm text-[#64748B]">
+                  {fixedJobTitle || "Linked application"}
+                </p>
               ) : null}
             </div>
           ) : (
@@ -260,6 +410,7 @@ export function ScheduleInterviewModal({
                   onFocus={() => setApplicantOpen(true)}
                   onBlur={() => setApplicantOpen(false)}
                   onChange={(e) => {
+                    applicantTouchedRef.current = true;
                     setWorkerId(e.target.value);
                     setApplicantOpen(false);
                   }}
@@ -268,7 +419,7 @@ export function ScheduleInterviewModal({
                   <option value="">Select applicant</option>
                   {applicants.map((a) => (
                     <option key={a.id} value={a.id}>
-                      {a.name} ({a.status})
+                      {`${a.detail ? `${a.name} · ${a.detail}` : a.name} (${a.status})`}
                     </option>
                   ))}
                 </select>
@@ -281,13 +432,66 @@ export function ScheduleInterviewModal({
             </label>
           )}
 
+          {showJobPicker ? (
+            <div className="mb-4">
+              <span className="mb-1.5 block text-sm font-semibold text-[#1F2937]">Job</span>
+              {applicationsLoading ? (
+                <p className="text-sm text-[#64748B]">Loading applied jobs…</p>
+              ) : !resolvedWorkerId ? (
+                <p className="text-sm text-[#64748B]">Select an applicant to load their applied jobs.</p>
+              ) : applications.length === 0 ? (
+                <p className="text-sm text-[#64748B]">
+                  This applicant has no open job applications. The interview will be scheduled without a job.
+                </p>
+              ) : (
+                <>
+                  <div className="relative">
+                    <select
+                      value={applicationId}
+                      onMouseDown={() => setJobOpen(true)}
+                      onFocus={() => setJobOpen(true)}
+                      onBlur={() => setJobOpen(false)}
+                      onChange={(e) => {
+                        setApplicationId(e.target.value);
+                        setJobOpen(false);
+                      }}
+                      className="h-11 w-full cursor-pointer appearance-none rounded-lg border border-[#CBD5E1] bg-white px-3 pr-11 text-sm text-[#1F2937] outline-none focus:border-[color:var(--brand-primary,#bc8b41)]"
+                    >
+                      {applications.length > 1 ? <option value="">Select job</option> : null}
+                      {applications.map((application) => (
+                        <option key={application.id} value={application.id}>
+                          {application.status
+                            ? `${application.jobTitle} (${application.status})`
+                            : application.jobTitle}
+                        </option>
+                      ))}
+                    </select>
+                    <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2" aria-hidden>
+                      <ChevronDownIcon
+                        className={`size-4 text-[#64748B] transition-transform duration-200 ${jobOpen ? "rotate-180" : ""}`}
+                      />
+                    </span>
+                  </div>
+                  {jobSelectionMissing ? (
+                    <p className="mt-1.5 text-xs text-[#B45309]">
+                      This applicant applied to {applications.length} jobs. Select the job this interview is for.
+                    </p>
+                  ) : null}
+                </>
+              )}
+            </div>
+          ) : null}
+
           <div className="mb-4 grid gap-4 min-[500px]:grid-cols-2">
             <label className="block min-[500px]:col-span-2">
               <span className="mb-1.5 block text-sm font-semibold text-[#1F2937]">Interview title</span>
               <input
                 type="text"
                 value={title}
-                onChange={(e) => setTitle(e.target.value)}
+                onChange={(e) => {
+                  setTitle(e.target.value);
+                  setTitleEdited(true);
+                }}
                 className="h-11 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm text-[#1F2937] outline-none focus:border-[color:var(--brand-primary,#bc8b41)]"
                 placeholder={defaultInterviewTitle(resolvedApplicantName)}
               />
@@ -295,35 +499,45 @@ export function ScheduleInterviewModal({
 
             <label className="block">
               <span className="mb-1.5 block text-sm font-semibold text-[#1F2937]">Interview type</span>
-              <select
-                value={meetingType}
-                onChange={(e) => setMeetingType(e.target.value as InterviewMeetingType)}
-                className="h-11 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm text-[#1F2937] outline-none focus:border-[color:var(--brand-primary,#bc8b41)]"
-              >
-                {MEETING_TYPE_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
+              <div className="relative">
+                <select
+                  value={meetingType}
+                  onChange={(e) => setMeetingType(e.target.value as InterviewMeetingType)}
+                  className="h-11 w-full cursor-pointer appearance-none rounded-lg border border-[#CBD5E1] bg-white px-3 pr-11 text-sm text-[#1F2937] outline-none focus:border-[color:var(--brand-primary,#bc8b41)]"
+                >
+                  {MEETING_TYPE_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2" aria-hidden>
+                  <ChevronDownIcon className="size-4 text-[#64748B]" />
+                </span>
+              </div>
             </label>
 
             <label className="block">
               <span className="mb-1.5 block text-sm font-semibold text-[#1F2937]">Timezone</span>
-              <select
-                value={timezone}
-                onChange={(e) => setTimezone(e.target.value)}
-                className="h-11 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm text-[#1F2937] outline-none focus:border-[color:var(--brand-primary,#bc8b41)]"
-              >
-                {!COMMON_INTERVIEW_TIMEZONES.includes(timezone as (typeof COMMON_INTERVIEW_TIMEZONES)[number]) ? (
-                  <option value={timezone}>{timezone}</option>
-                ) : null}
-                {COMMON_INTERVIEW_TIMEZONES.map((tz) => (
-                  <option key={tz} value={tz}>
-                    {tz}
-                  </option>
-                ))}
-              </select>
+              <div className="relative">
+                <select
+                  value={timezone}
+                  onChange={(e) => setTimezone(e.target.value)}
+                  className="h-11 w-full cursor-pointer appearance-none rounded-lg border border-[#CBD5E1] bg-white px-3 pr-11 text-sm text-[#1F2937] outline-none focus:border-[color:var(--brand-primary,#bc8b41)]"
+                >
+                  {!COMMON_INTERVIEW_TIMEZONES.includes(timezone as (typeof COMMON_INTERVIEW_TIMEZONES)[number]) ? (
+                    <option value={timezone}>{timezone}</option>
+                  ) : null}
+                  {COMMON_INTERVIEW_TIMEZONES.map((tz) => (
+                    <option key={tz} value={tz}>
+                      {tz}
+                    </option>
+                  ))}
+                </select>
+                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2" aria-hidden>
+                  <ChevronDownIcon className="size-4 text-[#64748B]" />
+                </span>
+              </div>
             </label>
           </div>
 
@@ -335,20 +549,38 @@ export function ScheduleInterviewModal({
               <p className="text-sm text-[#64748B]">No team members available.</p>
             ) : (
               <div className="max-h-36 space-y-2 overflow-y-auto rounded-lg border border-[#ECF1F9] p-3">
-                {teamMembers.map((member) => (
-                  <label key={member.id} className="flex cursor-pointer items-center gap-2 text-sm text-[#374151]">
-                    <input
-                      type="checkbox"
-                      checked={selectedInterviewerIds.includes(member.id)}
-                      onChange={() => toggleInterviewer(member.id)}
-                      className="h-4 w-4 rounded border-[#CBD5E1]"
-                    />
-                    <span>
-                      {member.name}
-                      <span className="text-[#64748B]"> · {member.email}</span>
-                    </span>
-                  </label>
-                ))}
+                {teamMembers.map((member) => {
+                  const checked = selectedInterviewerIds.includes(member.id);
+                  return (
+                    <label
+                      key={member.id}
+                      className="flex cursor-pointer items-center gap-2 text-sm text-[#374151]"
+                    >
+                      <span
+                        className={`relative flex h-5 w-5 shrink-0 items-center justify-center rounded-[6px] border ${
+                          checked
+                            ? "border-[color:var(--brand-secondary)] bg-[color:var(--brand-secondary)]"
+                            : "border-[#e2e8f0] bg-white"
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggleInterviewer(member.id)}
+                          className="absolute inset-0 z-10 m-0 cursor-pointer opacity-0"
+                          aria-label={`Select interviewer ${member.name}`}
+                        />
+                        {checked ? (
+                          <Check className="h-3.5 w-3.5 text-white" strokeWidth={3} aria-hidden />
+                        ) : null}
+                      </span>
+                      <span>
+                        {member.name}
+                        <span className="text-[#64748B]"> · {member.email}</span>
+                      </span>
+                    </label>
+                  );
+                })}
               </div>
             )}
           </label>
@@ -481,12 +713,18 @@ export function ScheduleInterviewModal({
                       </div>
                       <button
                         type="button"
-                        disabled={submitting || !resolvedWorkerId}
+                        disabled={submitting || !canSubmit}
                         onClick={handleConfirmSlot}
                         className="flex w-full cursor-pointer items-center justify-center rounded-lg px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60 min-[500px]:flex-1"
                         style={{ backgroundColor: "var(--brand-primary, #bc8b41)" }}
                       >
-                        {submitting ? "Scheduling…" : "Schedule interview"}
+                        {submitting
+                          ? isReschedule
+                            ? "Updating…"
+                            : "Scheduling…"
+                          : isReschedule
+                            ? "Update interview"
+                            : "Schedule interview"}
                       </button>
                     </div>
                   );

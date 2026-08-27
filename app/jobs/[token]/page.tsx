@@ -7,6 +7,7 @@ import {
   JobDescriptionHtml,
   stripJobDescriptionBenefitsSection,
 } from "@/lib/jobs/job-description-html";
+import { formatPublicJobPayRate } from "@/lib/jobs/format-public-job-pay-rate";
 import { publicJobDisplayTitle } from "@/lib/jobs/public-application-routing";
 import { getPublishedJobByToken } from "@/lib/jobs/service";
 import { resolvePublicTenant } from "@/lib/jobs/tenant";
@@ -68,14 +69,15 @@ export default async function PublicJobDetailPage({
 
   const applyUrl = `/apply?tenant=${encodeURIComponent(tenant.slug)}&job_token=${encodeURIComponent(String(job.public_job_token))}`;
   const canApply = Boolean(job.workflow_id);
+  const employmentType = job.employment_type?.trim() || "";
   const facts = [
     relationName(job.professions),
     relationName(job.specialties),
-    job.employment_type,
     job.schedule,
   ].filter(Boolean);
 
   const separateBenefits = benefitItems(job.benefits);
+  const payRate = formatPublicJobPayRate(job);
   const descriptionHtml = formatPublicDescriptionHtml(
     String(job.public_description ?? ""),
     separateBenefits.length > 0
@@ -118,7 +120,18 @@ export default async function PublicJobDetailPage({
             {publicJobDisplayTitle(job)}
           </h1>
           <p className={`mt-3 ${JOB_POSTING_METADATA_CLASS}`}>{job.location}</p>
-          <p className={`mt-2 ${JOB_POSTING_METADATA_CLASS}`}>{facts.join(" · ")}</p>
+          {facts.length ? (
+            <p className={`mt-2 ${JOB_POSTING_METADATA_CLASS}`}>{facts.join(" · ")}</p>
+          ) : null}
+          {employmentType ? (
+            <p className={`mt-2 ${JOB_POSTING_METADATA_CLASS}`}>{employmentType}</p>
+          ) : null}
+          {payRate ? (
+            <p className="mt-3 text-sm text-slate-700">
+              <span className="font-medium text-slate-500">Pay Rate :</span>{" "}
+              <span className="font-semibold text-slate-900">{payRate}</span>
+            </p>
+          ) : null}
 
           <section className="mt-8">
             <h2 className={JOB_POSTING_SECTION_HEADING_CLASS}>Job summary</h2>

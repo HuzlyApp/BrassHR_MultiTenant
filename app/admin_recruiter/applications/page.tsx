@@ -51,7 +51,6 @@ import {
 } from "@/lib/interviews/schedule-payload";
 import SuccessModal from "@/app/components/SuccessModal";
 import ErrorModal from "@/app/components/ErrorModal";
-import { validateResumeUploadFile } from "@/lib/resume/validate-resume-upload";
 import { CandidateProfileIconLink } from "@/app/admin_recruiter/candidates/CandidateProfileIconLink";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import {
@@ -93,7 +92,7 @@ import {
 } from "./ApplicationStatusUi";
 import { CandidateRowActionsMenu } from "./CandidateRowActionsMenu";
 import { MatchScoreCell } from "./MatchAnalysisPanel";
-import { ReplaceResumeConfirmModal } from "./ReplaceResumeConfirmModal";
+import UpdateResumeModal from "./UpdateResumeModal";
 import { matchCategoryRelevanceRank } from "@/lib/jobs/match-analysis/display";
 import { countUniqueMultiJobApplicants } from "@/lib/admin/multi-job-applicants";
 import { JobPublicViewLink } from "@/app/admin_recruiter/jobs/JobPublicViewLink";
@@ -487,6 +486,21 @@ function applicantPhone(row: ApplicationRow): string {
   return resolveApplicationApplicantPhone(row);
 }
 
+/** Split name for edit fields — the profile is authoritative, the worker row is the fallback. */
+function applicantNameParts(row: ApplicationRow): { firstName: string; lastName: string } {
+  const profile = one(row.applicant_profiles);
+  const worker = one(row.worker ?? null);
+  const profileFirst = String(profile.first_name ?? "").trim();
+  const profileLast = String(profile.last_name ?? "").trim();
+  if (profileFirst || profileLast) {
+    return { firstName: profileFirst, lastName: profileLast };
+  }
+  return {
+    firstName: String(worker.first_name ?? "").trim(),
+    lastName: String(worker.last_name ?? "").trim(),
+  };
+}
+
 function workflowName(row: ApplicationRow): string {
   return String(one(row.onboarding_flows).name ?? row.workflow_id);
 }
@@ -609,12 +623,7 @@ export default function JobApplicationsPage() {
   const [interviewOpen, setInterviewOpen] = useState(false);
   const [interviewSubmitting, setInterviewSubmitting] = useState(false);
   const [interviewError, setInterviewError] = useState<string | null>(null);
-  const [resumeUploadApplicationId, setResumeUploadApplicationId] = useState<string | null>(null);
-  const [resumeUploading, setResumeUploading] = useState(false);
-  const [pendingResumeFile, setPendingResumeFile] = useState<File | null>(null);
-  const [pendingResumeApplicationId, setPendingResumeApplicationId] = useState<string | null>(
-    null
-  );
+  const [updateResumeApplicationId, setUpdateResumeApplicationId] = useState<string | null>(null);
   const [resumeSuccessOpen, setResumeSuccessOpen] = useState(false);
   const [resumeErrorOpen, setResumeErrorOpen] = useState(false);
   const [resumeErrorMessage, setResumeErrorMessage] = useState("");
@@ -623,7 +632,6 @@ export default function JobApplicationsPage() {
   const [claimConfirmOpen, setClaimConfirmOpen] = useState(false);
   const [claimBusy, setClaimBusy] = useState(false);
   const [claimError, setClaimError] = useState<string | null>(null);
-  const resumeInputRef = useRef<HTMLInputElement>(null);
   const { userId: currentUserId, displayName: currentUserName } = useAdminHeaderData();
 
   useEffect(() => {
@@ -1365,119 +1373,88 @@ export default function JobApplicationsPage() {
       setResumeErrorOpen(true);
       return;
     }
-    setResumeUploadApplicationId(applicationId);
-    // Defer click so React state is committed before the picker opens.
-    window.requestAnimationFrame(() => {
-      resumeInputRef.current?.click();
-    });
+    setUpdateResumeApplicationId(applicationId);
   }
 
-  async function handleResumeFileSelected(file: File | undefined) {
-    const applicationId = resumeUploadApplicationId;
-    setResumeUploadApplicationId(null);
-    if (resumeInputRef.current) resumeInputRef.current.value = "";
-    if (!file || !applicationId) return;
+  function handleResumeUpdated(
+    applicationId: string,
+    result: { resumeUploaded: boolean; firstName: string; lastName: string }
+  ) {
+    setRows((current) =>
+      current.map((row) => {
+        if (row.id !== applicationId) return row;
+        const profile = one(row.applicant_profiles);
+        const worker = one(row.worker ?? null);
+        const renamed = {
+          ...row,
+          applicant_profiles: {
+            ...profile,
+            first_name: result.firstName,
+            last_name: result.lastName,
+          },
+          worker: { ...worker, first_name: result.firstName, last_name: result.lastName },
+        } as ApplicationRow;
 
-    const validationError = validateResumeUploadFile({
-      name: file.name,
-      type: file.type,
-      size: file.size,
-    });
-    if (validationError) {
-      setResumeErrorMessage(validationError);
-      setResumeErrorOpen(true);
-      return;
-    }
+        if (!result.resumeUploaded) return renamed;
+        return {
+          ...renamed,
+          ai_match_status: "ANALYZING",
+          ai_match_score: null,
+          ai_match_category: null,
+          ai_match_action: null,
+          ai_match_readiness: null,
+          ai_match_display_category: null,
+        };
+      })
+    );
 
-    setPendingResumeApplicationId(applicationId);
-    setPendingResumeFile(file);
-  }
-
-  async function confirmReplaceResumeFromList() {
-    const applicationId = pendingResumeApplicationId;
-    const file = pendingResumeFile;
-    if (!file || !applicationId) return;
-
-    setResumeUploading(true);
-    try {
-      const form = new FormData();
-      form.set("resume", file);
-      const response = await fetch(
-        `/api/admin/job-applications/${encodeURIComponent(applicationId)}/resume`,
-        { method: "POST", body: form }
-      );
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        throw new Error(
-          typeof payload.error === "string" ? payload.error : "Failed to upload resume"
-        );
-      }
-
-      setRows((current) =>
-        current.map((row) =>
-          row.id === applicationId
-            ? {
-                ...row,
-                ai_match_status: "ANALYZING",
-                ai_match_score: null,
-                ai_match_category: null,
-                ai_match_action: null,
-                ai_match_readiness: null,
-                ai_match_display_category: null,
-              }
-            : row
-        )
-      );
-      setPendingResumeFile(null);
-      setPendingResumeApplicationId(null);
-      const candidateLabel = applicantName(
-        rows.find((row) => row.id === applicationId) ?? ({ id: applicationId } as ApplicationRow)
-      );
+    const candidateLabel =
+      [result.firstName, result.lastName].filter(Boolean).join(" ").trim() || "Candidate";
+    if (result.resumeUploaded) {
       toast.success(`${candidateLabel}: resume updated successfully`, {
         duration: ACTION_TOAST_DURATION_MS,
       });
       setResumeSuccessOpen(true);
-
-      void (async () => {
-        try {
-          const matchResponse = await fetch(
-            `/api/admin/job-applications/${encodeURIComponent(applicationId)}/match-analysis`,
-            {
-              method: "POST",
-              credentials: "include",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({}),
-            }
-          );
-          const matchPayload = await matchResponse.json().catch(() => ({}));
-          if (!matchResponse.ok) return;
-          setRows((current) =>
-            current.map((row) =>
-              row.id === applicationId
-                ? {
-                    ...row,
-                    ai_match_status: matchPayload.status ?? "ANALYZED",
-                    ai_match_score: matchPayload.score ?? null,
-                    ai_match_category: matchPayload.category ?? null,
-                    ai_match_action: matchPayload.action ?? null,
-                    ai_match_readiness: matchPayload.readiness ?? null,
-                    ai_match_display_category: matchPayload.displayCategory ?? null,
-                  }
-                : row
-            )
-          );
-        } catch {
-          /* upload already succeeded */
-        }
-      })();
-    } catch (uploadError) {
-      setResumeErrorMessage(
-        uploadError instanceof Error ? uploadError.message : "Failed to upload resume"
-      );
-      setResumeErrorOpen(true);
-    } finally {
-      setResumeUploading(false);
+    } else {
+      toast.success(`${candidateLabel}: candidate details updated`, {
+        duration: ACTION_TOAST_DURATION_MS,
+      });
     }
+
+    if (!result.resumeUploaded) return;
+
+    void (async () => {
+      try {
+        const matchResponse = await fetch(
+          `/api/admin/job-applications/${encodeURIComponent(applicationId)}/match-analysis`,
+          {
+            method: "POST",
+            credentials: "include",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({}),
+          }
+        );
+        const matchPayload = await matchResponse.json().catch(() => ({}));
+        if (!matchResponse.ok) return;
+        setRows((current) =>
+          current.map((row) =>
+            row.id === applicationId
+              ? {
+                  ...row,
+                  ai_match_status: matchPayload.status ?? "ANALYZED",
+                  ai_match_score: matchPayload.score ?? null,
+                  ai_match_category: matchPayload.category ?? null,
+                  ai_match_action: matchPayload.action ?? null,
+                  ai_match_readiness: matchPayload.readiness ?? null,
+                  ai_match_display_category: matchPayload.displayCategory ?? null,
+                }
+              : row
+          )
+        );
+      } catch {
+        /* upload already succeeded */
+      }
+    })();
   }
 
   function beginArchiveCandidate(applicationId: string) {
@@ -2618,7 +2595,7 @@ export default function JobApplicationsPage() {
             const row = rows.find((item) => item.id === rowActionsMenu.rowId);
             return row ? isRowArchived(row, statusOptions) : false;
           })()}
-          resumeUploading={resumeUploading}
+          resumeUploading={Boolean(updateResumeApplicationId)}
           onClose={() => setRowActionsMenu(null)}
           onReanalyze={() => {
             void runMatchAnalyze(rowActionsMenu.rowId);
@@ -2747,6 +2724,27 @@ export default function JobApplicationsPage() {
         onConfirm={() => void handleConfirmDeleteCandidates()}
       />
 
+      {(() => {
+        const target = updateResumeApplicationId
+          ? rows.find((row) => row.id === updateResumeApplicationId) ?? null
+          : null;
+        if (!updateResumeApplicationId) return null;
+        const nameParts = target
+          ? applicantNameParts(target)
+          : { firstName: "", lastName: "" };
+        return (
+          <UpdateResumeModal
+            open
+            applicationId={updateResumeApplicationId}
+            candidateName={target ? applicantName(target) : ""}
+            initialFirstName={nameParts.firstName}
+            initialLastName={nameParts.lastName}
+            onClose={() => setUpdateResumeApplicationId(null)}
+            onUpdated={(result) => handleResumeUpdated(updateResumeApplicationId, result)}
+          />
+        );
+      })()}
+
       <ClaimCandidatesConfirmModal
         open={claimConfirmOpen}
         selectedCount={selectedIds.size}
@@ -2761,32 +2759,6 @@ export default function JobApplicationsPage() {
           setClaimError(null);
         }}
         onConfirm={() => void confirmClaimCandidates()}
-      />
-
-      <input
-        ref={resumeInputRef}
-        type="file"
-        accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-        className="hidden"
-        aria-hidden
-        tabIndex={-1}
-        onChange={(event) => {
-          const file = event.target.files?.[0];
-          void handleResumeFileSelected(file);
-        }}
-      />
-
-      <ReplaceResumeConfirmModal
-        open={Boolean(pendingResumeFile && pendingResumeApplicationId)}
-        fileName={pendingResumeFile?.name ?? ""}
-        busy={resumeUploading}
-        hasExistingResume
-        onCancel={() => {
-          if (resumeUploading) return;
-          setPendingResumeFile(null);
-          setPendingResumeApplicationId(null);
-        }}
-        onConfirm={() => void confirmReplaceResumeFromList()}
       />
 
       <AddCandidateModal
@@ -2816,14 +2788,6 @@ export default function JobApplicationsPage() {
         title="Upload failed"
         message={resumeErrorMessage || "Failed to upload resume. Please try again."}
       />
-
-      {resumeUploading ? (
-        <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/30 backdrop-blur-[1px]">
-          <div className="rounded-xl border border-[#E5E7EB] bg-white px-5 py-4 text-sm font-medium text-[#334155] shadow-lg">
-            Uploading resume…
-          </div>
-        </div>
-      ) : null}
 
       {(() => {
         const target = actionRow();
@@ -2874,6 +2838,7 @@ export default function JobApplicationsPage() {
               onSubmit={(payload) => void handleScheduleInterview(payload)}
               fixedWorkerId={workerId}
               fixedApplicantName={name}
+              fixedApplicationId={target.id}
             />
           </>
         );

@@ -11,12 +11,12 @@ import { buildForgotPasswordHref } from "@/lib/auth/password-reset-return";
 import { cn } from "@/lib/cn";
 import type { LoginAuthErrorPayload } from "@/lib/auth/login-api-errors";
 import type { TenantBranding } from "@/lib/tenant/tenant-branding";
-import { brandingAuthButtonStyle } from "@/lib/tenant/tenant-branding";
 
 export type ClassicLoginFormState = {
   email: string;
   password: string;
   agree: boolean;
+  rememberMe: boolean;
 };
 
 type ClassicTenantLoginProps = {
@@ -65,6 +65,7 @@ export default function ClassicTenantLogin({
 
   return (
     <OnboardingLayout
+      shellBackground="primary"
       cardClassName="overflow-hidden h-auto w-full max-w-[560px] md:block md:h-auto md:min-h-0 md:min-w-0 md:max-w-[560px] lg:grid lg:h-full lg:w-[950px] lg:min-w-[950px] lg:max-w-[950px] lg:min-h-[622px] lg:grid-cols-[560px_390px]"
       rightPanelClassName="md:hidden lg:block overflow-hidden rounded-r-2xl"
       rightPanelImageSrc={brand.loginBackgroundSrc}
@@ -155,15 +156,23 @@ export default function ClassicTenantLogin({
                 {error}
               </p>
             ) : null}
-            <div className="mt-2 flex justify-end">
-              <Link
-                href={forgotHref}
-                className="text-sm font-medium hover:underline"
-                style={{ color: "var(--brand-primary)" }}
-              >
-                Forgot Password?
-              </Link>
-            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+            <OnboardingCheckbox
+              checked={form.rememberMe}
+              onChange={(checked) => onFormChange({ rememberMe: checked })}
+              className="flex items-center gap-3"
+            >
+              <span className="text-sm font-medium text-gray-700">Keep me logged in</span>
+            </OnboardingCheckbox>
+            <Link
+              href={forgotHref}
+              className="text-sm font-medium hover:underline"
+              style={{ color: "var(--brand-primary)" }}
+            >
+              Forgot Password?
+            </Link>
           </div>
 
           <div className="pt-2">
@@ -193,7 +202,17 @@ export default function ClassicTenantLogin({
             <button
               type="submit"
               disabled={!canSubmit || submitting}
-              style={brandingAuthButtonStyle(canSubmit && !submitting)}
+              style={
+                canSubmit && !submitting
+                  ? {
+                      backgroundColor: brand.primaryHex,
+                      color: "#ffffff",
+                    }
+                  : {
+                      backgroundColor: "#dddddd",
+                      color: "#94a3b8",
+                    }
+              }
               className={cn(
                 "flex-1 rounded-lg py-3.5 font-medium transition-colors",
                 "disabled:cursor-not-allowed",

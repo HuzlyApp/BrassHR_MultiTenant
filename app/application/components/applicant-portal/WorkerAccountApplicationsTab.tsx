@@ -6,8 +6,8 @@ import BrandedFileTypeIcon from "@/app/admin_recruiter/components/BrandedFileTyp
 import { useApplicantPortal } from "./ApplicantPortalProvider";
 import {
   WORKER_SCHEDULE_CARD_CLASS,
-  WORKER_SECTION_TITLE_CLASS,
-  WORKER_SECTION_TITLE_STYLE,
+  WORKER_DOCUMENTS_PAGE_SECTION_TITLE_CLASS,
+  WORKER_DOCUMENTS_PAGE_SECTION_TITLE_STYLE,
 } from "./worker-schedule-typography";
 import {
   applicationCurrentStageMeta,
@@ -198,8 +198,11 @@ export function WorkerAccountApplicationsTab({
     <section className={`${WORKER_SCHEDULE_CARD_CLASS} w-full`}>
       <div className="flex flex-col gap-4 border-b border-[#E5E7EB] px-4 py-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h2 className={WORKER_SECTION_TITLE_CLASS} style={WORKER_SECTION_TITLE_STYLE}>
-            All Job Applications
+          <h2
+            className={WORKER_DOCUMENTS_PAGE_SECTION_TITLE_CLASS}
+            style={WORKER_DOCUMENTS_PAGE_SECTION_TITLE_STYLE}
+          >
+            All applied Job Applications
           </h2>
           <p className="mt-1 text-sm text-[#64748B]">
             This candidate for multiple jobs for different work types
@@ -264,7 +267,7 @@ export function WorkerAccountApplicationsTab({
             <thead>
               <tr className="border-b border-[#E5E7EB] text-sm font-medium text-[#64748B]">
                 <th className="px-4 py-3 font-medium">Job Title</th>
-                <th className="px-4 py-3 font-medium">Work Type</th>
+                <th className="px-4 py-3 text-center font-medium">Work Type</th>
                 <th className="px-4 py-3 font-medium">Application Date</th>
                 <th className="px-4 py-3 font-medium">Current Stage</th>
                 {/* <th className="px-4 py-3 font-medium">Status</th> */}
@@ -272,28 +275,37 @@ export function WorkerAccountApplicationsTab({
               </tr>
             </thead>
             <tbody>
-              {filtered.map((row) => {
+              {filtered.map((row, index) => {
                 const applied = formatApplicationDate(row.appliedAt);
                 const stage = applicationCurrentStageMeta(row.status);
                 const note = row.statusNote?.trim() || stage.subtitle;
                 return (
                   <tr key={row.id} className="border-b border-[#F1F5F9] last:border-b-0">
                     <td className="px-4 py-4 align-top">
-                      <p className="text-sm font-semibold leading-5 text-[color:var(--brand-primary)]">
-                        {row.jobTitle}
-                      </p>
-                      <p className="mt-0.5 text-xs leading-4 text-[#64748B]">{row.companyName}</p>
-                    </td>
-                    <td className="px-4 py-4 align-top">
-                      {row.workType ? (
-                        <span
-                          className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${workTypeBadgeClass(row.workType)}`}
-                        >
-                          {row.workType}
+                      <div className="flex min-w-0 items-start gap-2">
+                        <span className="shrink-0 text-sm font-semibold leading-5 text-[color:var(--brand-primary)]">
+                          {index + 1}.
                         </span>
-                      ) : (
-                        <span className="text-sm text-[#94A3B8]">—</span>
-                      )}
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold leading-5 text-[color:var(--brand-primary)]">
+                            {row.jobTitle}
+                          </p>
+                          <p className="mt-0.5 text-xs leading-4 text-[#64748B]">{row.companyName}</p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-4 text-center align-middle">
+                      <div className="flex justify-center">
+                        {row.workType ? (
+                          <span
+                            className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${workTypeBadgeClass(row.workType)}`}
+                          >
+                            {row.workType}
+                          </span>
+                        ) : (
+                          <span className="text-sm text-[#94A3B8]">—</span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-4 align-top">
                       <p className="text-sm font-medium leading-5 text-[#0F172A]">{applied.relative}</p>

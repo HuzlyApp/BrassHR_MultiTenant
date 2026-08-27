@@ -16,7 +16,7 @@ export function ApplicantPortalTabs({ activeTab, onChange }: Props) {
   ];
 
   return (
-    <div className={`border-b border-[#E5E7EB] ${WORKER_PORTAL_PAGE_PAD_CLASS} pb-0 pt-0`}>
+    <div className={`${WORKER_PORTAL_PAGE_PAD_CLASS} pb-0 pt-0`}>
       <div className="inline-flex gap-6">
         {tabs.map((tab) => {
           const active = activeTab === tab.id;

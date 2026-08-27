@@ -2,9 +2,9 @@
 
 import { useWorkerAccountOverview } from "./WorkerAccountContext";
 import {
+  WORKER_DOCUMENTS_PAGE_SECTION_TITLE_CLASS,
+  WORKER_DOCUMENTS_PAGE_SECTION_TITLE_STYLE,
   WORKER_SCHEDULE_CARD_CLASS,
-  WORKER_SECTION_TITLE_CLASS,
-  WORKER_SECTION_TITLE_STYLE,
 } from "./worker-schedule-typography";
 
 function ReadOnlyField({ label, value }: { label: string; value: string }) {
@@ -33,7 +33,10 @@ export function WorkerAccountPersonalView() {
   return (
     <section className={WORKER_SCHEDULE_CARD_CLASS}>
       <div className="border-b border-[#E5E7EB] px-4 py-3">
-        <h2 className={WORKER_SECTION_TITLE_CLASS} style={WORKER_SECTION_TITLE_STYLE}>
+        <h2
+          className={WORKER_DOCUMENTS_PAGE_SECTION_TITLE_CLASS}
+          style={WORKER_DOCUMENTS_PAGE_SECTION_TITLE_STYLE}
+        >
           Personal Information
         </h2>
         <p className="mt-1 text-sm text-[#64748B]">Worker contact and address details.</p>

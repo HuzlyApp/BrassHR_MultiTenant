@@ -140,6 +140,15 @@ export async function GET(req: NextRequest) {
   }
 }
 
+function shiftActiveOnDate(
+  row: { start_date: string | null; end_date: string | null },
+  isoDate: string
+): boolean {
+  if (!row.start_date) return false;
+  const end = row.end_date ?? row.start_date;
+  return row.start_date <= isoDate && isoDate <= end;
+}
+
 async function buildDashboardOverviewPayload(tenantId: string, selectedDate: string, userId: string) {
     const supabase = createServiceRoleClient();
     if (!supabase) {
@@ -154,6 +163,7 @@ async function buildDashboardOverviewPayload(tenantId: string, selectedDate: str
       notificationsRes,
       shiftsRes,
       workersRes,
+      facilityShiftsRes,
       facilitiesData,
     ] = await Promise.all([
       supabase
@@ -191,6 +201,12 @@ async function buildDashboardOverviewPayload(tenantId: string, selectedDate: str
         .in("status", ["new", "approved", "pending", "New", "Approved", "Pending"])
         .order("created_at", { ascending: false })
         .limit(6),
+      supabase
+        .from("shifts")
+        .select("id, facility_id, start_date, end_date")
+        .eq("tenant_id", tenantId)
+        .lte("start_date", selectedDate)
+        .or(`end_date.gte.${selectedDate},end_date.is.null`),
       loadFacilitiesForTenant(supabase, tenantId),
     ]);
 
@@ -199,6 +215,7 @@ async function buildDashboardOverviewPayload(tenantId: string, selectedDate: str
     if (notificationsRes.error) throw notificationsRes.error;
     if (shiftsRes.error) throw shiftsRes.error;
     if (workersRes.error) throw workersRes.error;
+    if (facilityShiftsRes.error) throw facilityShiftsRes.error;
 
     const schedules = (scheduleRes.data ?? []) as InterviewScheduleRow[];
     const workerIds = Array.from(
@@ -303,15 +320,13 @@ async function buildDashboardOverviewPayload(tenantId: string, selectedDate: str
       status: (worker.status ?? "new").toLowerCase(),
     }));
 
-    const facilityWorkers = facilitiesData.facilities
-      .filter((facility) => facility.assignedCount > 0)
-      .slice(0, 6)
-      .map((facility) => ({
-        id: facility.id,
-        name: facility.name,
-        address: facility.address ?? "—",
-        workerCount: facility.assignedCount,
-      }));
+    const facilityWorkers = await buildFacilityWorkersForDate(
+      supabase,
+      tenantId,
+      selectedDate,
+      (facilityShiftsRes.data ?? []) as ShiftRow[],
+      facilitiesData.facilities
+    );
 
     const profileName =
       [profileRes.data?.first_name, profileRes.data?.last_name].filter(Boolean).join(" ").trim() ||
@@ -341,4 +356,60 @@ async function buildDashboardOverviewPayload(tenantId: string, selectedDate: str
       onboardHires,
       facilityWorkers,
     };
+}
+
+async function buildFacilityWorkersForDate(
+  supabase: NonNullable<ReturnType<typeof createServiceRoleClient>>,
+  tenantId: string,
+  selectedDate: string,
+  shiftRows: ShiftRow[],
+  facilities: Awaited<ReturnType<typeof loadFacilitiesForTenant>>["facilities"]
+) {
+  const activeShiftRows = shiftRows.filter((row) => shiftActiveOnDate(row, selectedDate));
+  const shiftIds = activeShiftRows.map((row) => row.id);
+  if (shiftIds.length === 0) return [];
+
+  const { data: assignmentRows, error } = await supabase
+    .from("worker_shift_assignments")
+    .select("shift_id, worker_id")
+    .eq("tenant_id", tenantId)
+    .in("shift_id", shiftIds);
+  if (error) throw error;
+
+  const shiftToFacility = new Map<string, string>();
+  for (const shift of activeShiftRows) {
+    if (shift.facility_id) shiftToFacility.set(shift.id, String(shift.facility_id));
+  }
+
+  const workerCountByFacility = new Map<string, number>();
+  const seenWorkersByFacility = new Map<string, Set<string>>();
+
+  for (const assignment of assignmentRows ?? []) {
+    const facilityId = shiftToFacility.get(String(assignment.shift_id));
+    if (!facilityId) continue;
+
+    const workerKey = String(assignment.worker_id);
+    const seen = seenWorkersByFacility.get(facilityId) ?? new Set<string>();
+    if (seen.has(workerKey)) continue;
+    seen.add(workerKey);
+    seenWorkersByFacility.set(facilityId, seen);
+    workerCountByFacility.set(facilityId, (workerCountByFacility.get(facilityId) ?? 0) + 1);
+  }
+
+  const facilityById = new Map(facilities.map((facility) => [facility.id, facility]));
+
+  return Array.from(workerCountByFacility.entries())
+    .map(([facilityId, workerCount]) => {
+      const facility = facilityById.get(facilityId);
+      if (!facility) return null;
+      return {
+        id: facility.id,
+        name: facility.name,
+        address: facility.address ?? "—",
+        workerCount,
+      };
+    })
+    .filter((row): row is NonNullable<typeof row> => row != null)
+    .sort((a, b) => b.workerCount - a.workerCount || a.name.localeCompare(b.name))
+    .slice(0, 6);
 }

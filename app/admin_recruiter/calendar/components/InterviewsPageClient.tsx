@@ -5,9 +5,14 @@ import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import type { AdminInterviewItem } from "@/app/api/admin/applicant-appointments/route";
 import { formatInterviewDate, formatInterviewTimeRange } from "@/lib/interviews/format";
 import { localDateString } from "@/lib/interviews/schedule-fields";
+import {
+  InterviewDetailSidebar,
+  InterviewListActionButtons,
+} from "./InterviewDetailSidebar";
 import { InterviewSuccessModal } from "./InterviewSuccessModal";
 import { ScheduleInterviewModal } from "./ScheduleInterviewModal";
 import {
+  invitationRescheduleMessage,
   invitationSuccessMessage,
   type ScheduleInterviewPayload,
 } from "@/lib/interviews/schedule-payload";
@@ -18,6 +23,7 @@ type ViewMode = "list" | "calendar";
 type ApplicantOption = {
   id: string;
   name: string;
+  detail?: string;
   status: string;
 };
 
@@ -239,7 +245,15 @@ function EmptyState({ onSchedule }: { onSchedule: () => void }) {
   );
 }
 
-function InterviewListView({ interviews }: { interviews: AdminInterviewItem[] }) {
+function InterviewListView({
+  interviews,
+  onView,
+  onReschedule,
+}: {
+  interviews: AdminInterviewItem[];
+  onView: (interview: AdminInterviewItem) => void;
+  onReschedule: (interview: AdminInterviewItem) => void;
+}) {
   const grouped = useMemo(() => {
     const map = new Map<string, AdminInterviewItem[]>();
     interviews.forEach((item) => {
@@ -273,11 +287,22 @@ function InterviewListView({ interviews }: { interviews: AdminInterviewItem[] })
                     </div>
                     <p className="shrink-0 text-xs font-semibold text-[#1F2937]">{timeLabel}</p>
                   </div>
-                  <div className="px-4 py-3">
-                    <p className="text-sm font-semibold text-[#1F2937]">{item.title}</p>
-                    {item.description ? (
-                      <p className="mt-1 text-xs leading-relaxed text-[#64748B]">{item.description}</p>
-                    ) : null}
+                  <div className="flex items-start justify-between gap-3 px-4 py-3">
+                    <button
+                      type="button"
+                      onClick={() => onView(item)}
+                      className="min-w-0 flex-1 text-left"
+                    >
+                      <p className="text-sm font-semibold text-[#1F2937]">{item.title}</p>
+                      {item.description ? (
+                        <p className="mt-1 text-xs leading-relaxed text-[#64748B]">{item.description}</p>
+                      ) : null}
+                    </button>
+                    <InterviewListActionButtons
+                      interview={item}
+                      onView={onView}
+                      onReschedule={onReschedule}
+                    />
                   </div>
                 </div>
 
@@ -289,13 +314,24 @@ function InterviewListView({ interviews }: { interviews: AdminInterviewItem[] })
                     </div>
                   </div>
                   <div className="flex min-w-0 flex-1 items-center justify-between gap-4 px-6 py-4">
-                    <div className="min-w-0">
+                    <button
+                      type="button"
+                      onClick={() => onView(item)}
+                      className="min-w-0 flex-1 text-left"
+                    >
                       <p className="text-sm font-semibold text-[#1F2937]">{item.title}</p>
                       {item.description ? (
                         <p className="mt-1 text-xs text-[#64748B]">{item.description}</p>
                       ) : null}
+                    </button>
+                    <div className="flex shrink-0 items-center gap-3">
+                      <p className="text-xs font-semibold text-[#1F2937]">{timeLabel}</p>
+                      <InterviewListActionButtons
+                        interview={item}
+                        onView={onView}
+                        onReschedule={onReschedule}
+                      />
                     </div>
-                    <p className="shrink-0 text-xs font-semibold text-[#1F2937]">{timeLabel}</p>
                   </div>
                 </div>
               </div>
@@ -313,9 +349,11 @@ const CALENDAR_GRID_CLASS =
 function InterviewCalendarView({
   interviews,
   anchorDate,
+  onSelect,
 }: {
   interviews: AdminInterviewItem[];
   anchorDate: Date;
+  onSelect: (interview: AdminInterviewItem) => void;
 }) {
   const weekStart = getWeekStart(anchorDate);
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
@@ -402,9 +440,11 @@ function InterviewCalendarView({
                       className="relative border-r border-[#E5E7EB] bg-white p-1 last:border-r-0 min-[850px]:p-1.5"
                     >
                       {dayEvents.map((event) => (
-                        <div
+                        <button
                           key={event.id}
-                          className="mb-1 flex overflow-hidden rounded border border-[#E5E7EB] bg-[#F3F4F6]"
+                          type="button"
+                          onClick={() => onSelect(event)}
+                          className="mb-1 flex w-full cursor-pointer overflow-hidden rounded border border-[#E5E7EB] bg-[#F3F4F6] text-left transition hover:border-[color:var(--brand-primary,#bc8b41)] hover:bg-[color:color-mix(in_srgb,var(--brand-primary,#bc8b41)_8%,white)]"
                         >
                           <div className="min-w-0 flex-1 px-1.5 py-1.5 min-[850px]:px-2.5 min-[850px]:py-2">
                             <p className="truncate text-[10px] font-semibold text-[#111827] min-[850px]:text-xs">
@@ -415,7 +455,7 @@ function InterviewCalendarView({
                             </p>
                           </div>
                           <div className="w-1 shrink-0 bg-[#012352]" aria-hidden />
-                        </div>
+                        </button>
                       ))}
                     </div>
                   );
@@ -462,9 +502,15 @@ export default function InterviewsPageClient({
   const [error, setError] = useState<string | null>(null);
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [successOpen, setSuccessOpen] = useState(false);
+  const [successMessage, setSuccessMessage] = useState("You have scheduled a new interview");
+  const [invitationNotice, setInvitationNotice] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [scheduleError, setScheduleError] = useState<string | null>(null);
   const [calendarWeekAnchor, setCalendarWeekAnchor] = useState<Date | null>(null);
+  const [selectedInterview, setSelectedInterview] = useState<AdminInterviewItem | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [editingInterviewId, setEditingInterviewId] = useState<string | null>(null);
+  const [rescheduleInitial, setRescheduleInitial] = useState<ScheduleInterviewPayload | null>(null);
 
   const loadInterviews = useCallback(async (activeTab: TabId) => {
     setLoading(true);
@@ -533,16 +579,72 @@ export default function InterviewsPageClient({
     setCalendarWeekAnchor((prev) => addDays(prev ?? new Date(), deltaDays));
   }
 
+  function openInterviewDetail(interview: AdminInterviewItem) {
+    setSelectedInterview(interview);
+    setDetailOpen(true);
+  }
+
+  function closeInterviewDetail() {
+    setDetailOpen(false);
+    setSelectedInterview(null);
+  }
+
+  function interviewToSchedulePayload(interview: AdminInterviewItem): ScheduleInterviewPayload {
+    return {
+      workerId: interview.workerId,
+      applicationId: interview.applicationId,
+      jobId: interview.jobId,
+      startsAt: interview.startsAt,
+      endsAt: interview.endsAt || interview.startsAt,
+      timezone: interview.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone,
+      title: interview.title,
+      meetingType: interview.meetingType || "online",
+      meetingLink: interview.meetingLink,
+      location: interview.location,
+      notes: interview.notes,
+      candidateNotes: null,
+      interviewers: interview.interviewers.map((item) => ({
+        userId: item.userId,
+        email: item.email,
+        name: item.name,
+      })),
+    };
+  }
+
+  function openReschedule(interview: AdminInterviewItem) {
+    setSelectedInterview(interview);
+    setDetailOpen(false);
+    setEditingInterviewId(interview.id);
+    setRescheduleInitial(interviewToSchedulePayload(interview));
+    setScheduleError(null);
+    setInvitationNotice(null);
+    setScheduleOpen(true);
+  }
+
+  function openCreateSchedule() {
+    setEditingInterviewId(null);
+    setRescheduleInitial(null);
+    setScheduleError(null);
+    setInvitationNotice(null);
+    setScheduleOpen(true);
+  }
+
   async function handleSchedule(payload: ScheduleInterviewPayload) {
     setSubmitting(true);
     setScheduleError(null);
     try {
-      const res = await fetch("/api/admin/applicant-appointments", {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+      const isEdit = Boolean(editingInterviewId);
+      const res = await fetch(
+        isEdit
+          ? `/api/admin/applicant-appointments/${encodeURIComponent(editingInterviewId as string)}`
+          : "/api/admin/applicant-appointments",
+        {
+          method: isEdit ? "PATCH" : "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        }
+      );
       const data = (await res.json().catch(() => ({}))) as {
         error?: string;
         invitation?: {
@@ -552,16 +654,35 @@ export default function InterviewsPageClient({
           invitationStatus: "sent" | "partial" | "failed" | "pending";
         };
       };
-      if (!res.ok) throw new Error(data.error || "Failed to schedule interview");
+      if (!res.ok) {
+        throw new Error(data.error || (isEdit ? "Failed to reschedule interview" : "Failed to schedule interview"));
+      }
+      const invitationStatus = data.invitation?.invitationStatus;
+      const message = isEdit
+        ? invitationRescheduleMessage(data.invitation)
+        : invitationSuccessMessage(data.invitation);
       setScheduleOpen(false);
-      setSuccessOpen(true);
+      setEditingInterviewId(null);
+      setRescheduleInitial(null);
+      setScheduleError(null);
       setTab("upcoming");
       await loadInterviews("upcoming");
-      if (data.invitation?.invitationStatus === "partial" || data.invitation?.invitationStatus === "failed") {
-        setScheduleError(invitationSuccessMessage(data.invitation));
+      if (invitationStatus === "partial" || invitationStatus === "failed") {
+        setInvitationNotice(message);
+        setSuccessOpen(false);
+      } else {
+        setInvitationNotice(null);
+        setSuccessMessage(message);
+        setSuccessOpen(true);
       }
     } catch (err) {
-      setScheduleError(err instanceof Error ? err.message : "Failed to schedule interview");
+      setScheduleError(
+        err instanceof Error
+          ? err.message
+          : editingInterviewId
+            ? "Failed to reschedule interview"
+            : "Failed to schedule interview"
+      );
     } finally {
       setSubmitting(false);
     }
@@ -603,12 +724,17 @@ export default function InterviewsPageClient({
       </aside>
 
       <section className="flex min-w-0 flex-1 flex-col p-4 min-[850px]:p-5">
+        {invitationNotice ? (
+          <p role="alert" className="mb-4 rounded-lg bg-amber-50 p-4 text-sm text-amber-800">
+            {invitationNotice}
+          </p>
+        ) : null}
         {loading ? (
           <InterviewsLoadingSkeleton viewMode={viewMode} monthTitle={monthTitle} />
         ) : error ? (
           <p className="rounded-lg bg-red-50 p-4 text-sm text-red-700">{error}</p>
         ) : !hasInterviews ? (
-          <EmptyState onSchedule={() => setScheduleOpen(true)} />
+          <EmptyState onSchedule={openCreateSchedule} />
         ) : (
           <>
             <div className="mb-4 flex flex-col gap-3 min-[850px]:flex-row min-[850px]:items-center min-[850px]:justify-between">
@@ -660,9 +786,17 @@ export default function InterviewsPageClient({
               </div>
             </div>
             {viewMode === "list" ? (
-              <InterviewListView interviews={interviews} />
+              <InterviewListView
+                interviews={interviews}
+                onView={openInterviewDetail}
+                onReschedule={openReschedule}
+              />
             ) : (
-              <InterviewCalendarView interviews={interviews} anchorDate={anchorDate} />
+              <InterviewCalendarView
+                interviews={interviews}
+                anchorDate={anchorDate}
+                onSelect={openInterviewDetail}
+              />
             )}
           </>
         )}
@@ -671,7 +805,7 @@ export default function InterviewsPageClient({
           <div className="mt-5 flex justify-stretch min-[850px]:justify-end">
             <button
               type="button"
-              onClick={() => setScheduleOpen(true)}
+              onClick={openCreateSchedule}
               className="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold text-white min-[850px]:w-auto"
               style={{ backgroundColor: "var(--brand-primary, #bc8b41)" }}
             >
@@ -686,22 +820,47 @@ export default function InterviewsPageClient({
 
   const modals = (
     <>
+      <InterviewDetailSidebar
+        open={detailOpen}
+        interview={selectedInterview}
+        onClose={closeInterviewDetail}
+        onReschedule={openReschedule}
+      />
+
       <ScheduleInterviewModal
         open={scheduleOpen}
         applicants={modalApplicants}
         submitting={submitting}
         error={scheduleError}
-        fixedWorkerId={workerId}
-        fixedApplicantName={candidateName}
+        fixedWorkerId={editingInterviewId ? selectedInterview?.workerId ?? workerId : workerId}
+        fixedApplicantName={
+          editingInterviewId ? selectedInterview?.applicantName ?? candidateName : candidateName
+        }
+        fixedJobTitle={editingInterviewId ? selectedInterview?.jobTitle ?? undefined : undefined}
+        fixedApplicationId={
+          editingInterviewId ? selectedInterview?.applicationId ?? undefined : undefined
+        }
+        mode={editingInterviewId ? "reschedule" : "create"}
+        initialValues={rescheduleInitial}
+        defaultTitle={
+          editingInterviewId
+            ? selectedInterview?.title
+            : candidateName
+              ? `Interview with ${candidateName}`
+              : undefined
+        }
         onClose={() => {
           setScheduleOpen(false);
           setScheduleError(null);
+          setEditingInterviewId(null);
+          setRescheduleInitial(null);
         }}
         onSubmit={handleSchedule}
       />
 
       <InterviewSuccessModal
         open={successOpen}
+        message={successMessage}
         onClose={() => setSuccessOpen(false)}
         onGoToCalendar={() => {
           setSuccessOpen(false);

@@ -8,7 +8,8 @@ import {
   type CSSProperties,
   type DragEvent,
 } from "react";
-import { X } from "lucide-react";
+import { Loader2, X } from "lucide-react";
+import type { AdminResumeParsePreview } from "@/app/api/admin/add-candidate-from-resume/parse/route";
 import BrandedUploadIcon from "@/app/components/BrandedUploadIcon";
 import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
 import SuccessModal from "@/app/components/SuccessModal";
@@ -18,6 +19,12 @@ import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
 import { validateResumeUploadFile } from "@/lib/resume/validate-resume-upload";
 
 type ResumeTab = "files" | "paste";
+
+type ParseState = "idle" | "parsing" | "parsed" | "failed";
+
+const PARSE_FAILED_FALLBACK =
+  "Resume parsing failed. Please upload a valid resume with the candidate name and contact details.";
+const MIN_PASTED_RESUME_LENGTH = 80;
 
 type AddCandidateModalProps = {
   open: boolean;
@@ -81,6 +88,25 @@ function ResumeTabBar({
   );
 }
 
+function ParseStatusBadge({ state }: { state: ParseState }) {
+  if (state === "idle") return null;
+
+  const styles: Record<Exclude<ParseState, "idle">, { label: string; className: string }> = {
+    parsing: { label: "PARSING…", className: "border-[#CBD5E1] bg-[#F1F5F9] text-[#475569]" },
+    parsed: { label: "PARSED", className: "border-[#A7F3D0] bg-[#ECFDF5] text-[#047857]" },
+    failed: { label: "PARSE FAILED", className: "border-[#FCA5A5] bg-[#FEF2F2] text-[#B91C1C]" },
+  };
+  const { label, className } = styles[state];
+
+  return (
+    <span
+      className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold tracking-wide ${className}`}
+    >
+      {label}
+    </span>
+  );
+}
+
 export default function AddCandidateModal({
   open,
   onClose,
@@ -107,21 +133,83 @@ export default function AddCandidateModal({
   const [errorMessage, setErrorMessage] = useState("");
   const [successCandidateName, setSuccessCandidateName] = useState("");
   const [dragActive, setDragActive] = useState(false);
+  const [parseState, setParseState] = useState<ParseState>("idle");
+  const [parsePreview, setParsePreview] = useState<AdminResumeParsePreview | null>(null);
+  const [parseError, setParseError] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  /** Ignore responses from parses the recruiter has already superseded. */
+  const parseRequestRef = useRef(0);
+
+  const resetParse = useCallback(() => {
+    parseRequestRef.current += 1;
+    setParseState("idle");
+    setParsePreview(null);
+    setParseError(null);
+    setFirstName("");
+    setLastName("");
+  }, []);
 
   const resetForm = useCallback(() => {
     setActiveTab("files");
     setResumeFile(null);
-    setFirstName("");
-    setLastName("");
     setResumeTitle("");
     setResumeText("");
     setFileError(null);
     setPasteError(null);
     setDragActive(false);
+    resetParse();
     if (fileInputRef.current) fileInputRef.current.value = "";
-  }, []);
+  }, [resetParse]);
+
+  const runParse = useCallback(
+    async (source: { file?: File | null; text?: string; title?: string }) => {
+      const requestId = parseRequestRef.current + 1;
+      parseRequestRef.current = requestId;
+      setParseState("parsing");
+      setParsePreview(null);
+      setParseError(null);
+      setFirstName("");
+      setLastName("");
+
+      try {
+        const form = new FormData();
+        if (source.file) {
+          form.set("resume", source.file);
+        } else {
+          form.set("resumeText", (source.text ?? "").trim());
+          if (source.title?.trim()) form.set("resumeTitle", source.title.trim());
+        }
+
+        const response = await fetch("/api/admin/add-candidate-from-resume/parse", {
+          method: "POST",
+          credentials: "include",
+          body: form,
+        });
+        const payload = (await response.json().catch(() => ({}))) as {
+          error?: string;
+          parsed?: AdminResumeParsePreview;
+        };
+        if (parseRequestRef.current !== requestId) return;
+
+        if (!response.ok || !payload.parsed) {
+          setParseState("failed");
+          setParseError(payload.error?.trim() || PARSE_FAILED_FALLBACK);
+          return;
+        }
+
+        setParsePreview(payload.parsed);
+        setFirstName(payload.parsed.firstName ?? "");
+        setLastName(payload.parsed.lastName ?? "");
+        setParseState("parsed");
+      } catch {
+        if (parseRequestRef.current !== requestId) return;
+        setParseState("failed");
+        setParseError("Could not parse the resume. Please check your connection and try again.");
+      }
+    },
+    []
+  );
 
   useEffect(() => {
     if (!open) return;
@@ -149,9 +237,11 @@ export default function AddCandidateModal({
   }
 
   function validateAndSetFile(file: File | null) {
+    resetParse();
     if (!file) {
       setResumeFile(null);
       setFileError(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
       return;
     }
     const validationError = validateResumeUploadFile({
@@ -176,6 +266,23 @@ export default function AddCandidateModal({
     }
     setResumeFile(file);
     setFileError(null);
+    void runParse({ file });
+  }
+
+  function handleParsePastedResume() {
+    const text = resumeText.trim();
+    if (!text) {
+      setPasteError("Please paste resume text.");
+      return;
+    }
+    if (text.length < MIN_PASTED_RESUME_LENGTH) {
+      setPasteError(
+        "Resume text is too short. Please paste the full resume with work history or contact details."
+      );
+      return;
+    }
+    setPasteError(null);
+    void runParse({ text, title: resumeTitle });
   }
 
   function handleDragOver(event: DragEvent) {
@@ -220,12 +327,22 @@ export default function AddCandidateModal({
         setPasteError("Please paste resume text.");
         return;
       }
-      if (text.length < 80) {
+      if (text.length < MIN_PASTED_RESUME_LENGTH) {
         setPasteError(
           "Resume text is too short. Please paste the full resume with work history or contact details."
         );
         return;
       }
+    }
+
+    if (parseState !== "parsed") {
+      const message =
+        parseState === "parsing"
+          ? "Please wait for the resume to finish parsing."
+          : parseError || "Parse the resume before adding the candidate.";
+      if (activeTab === "files") setFileError(message);
+      else setPasteError(message);
+      return;
     }
 
     setUploading(true);
@@ -317,43 +434,13 @@ export default function AddCandidateModal({
                 </p>
               ) : null}
 
-              <div className="mb-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div>
-                  <label className={FIELD_LABEL_CLASS} htmlFor="add-candidate-first-name">
-                    First name
-                  </label>
-                  <input
-                    id="add-candidate-first-name"
-                    className={`${FIELD_INPUT_CLASS} h-10`}
-                    placeholder="First name"
-                    value={firstName}
-                    onChange={(event) => setFirstName(event.target.value)}
-                    disabled={uploading}
-                    autoComplete="given-name"
-                  />
-                </div>
-                <div>
-                  <label className={FIELD_LABEL_CLASS} htmlFor="add-candidate-last-name">
-                    Last name
-                  </label>
-                  <input
-                    id="add-candidate-last-name"
-                    className={`${FIELD_INPUT_CLASS} h-10`}
-                    placeholder="Last name"
-                    value={lastName}
-                    onChange={(event) => setLastName(event.target.value)}
-                    disabled={uploading}
-                    autoComplete="family-name"
-                  />
-                </div>
-              </div>
-
               <ResumeTabBar
                 activeTab={activeTab}
                 onChange={(tab) => {
                   setActiveTab(tab);
                   setFileError(null);
                   setPasteError(null);
+                  resetParse();
                 }}
               />
 
@@ -385,7 +472,12 @@ export default function AddCandidateModal({
                             <p className="truncate text-sm font-medium text-[#334155]">
                               {resumeFile.name}
                             </p>
-                            <p className="text-xs text-[#64748B]">{formatBytes(resumeFile.size)}</p>
+                            <div className="flex items-center gap-2">
+                              <p className="text-xs text-[#64748B]">
+                                {formatBytes(resumeFile.size)}
+                              </p>
+                              <ParseStatusBadge state={parseState} />
+                            </div>
                           </div>
                         </div>
                         <button
@@ -393,7 +485,7 @@ export default function AddCandidateModal({
                           className="rounded-md p-1 transition hover:bg-[color:var(--brand-primary)]/10"
                           aria-label="Remove uploaded resume"
                           onClick={() => validateAndSetFile(null)}
-                          disabled={uploading}
+                          disabled={uploading || parseState === "parsing"}
                         >
                           <BrandedSvgIcon
                             src="/icons/delete-icon.svg"
@@ -466,16 +558,83 @@ export default function AddCandidateModal({
                         onChange={(event) => {
                           setResumeText(event.target.value);
                           setPasteError(null);
+                          if (parseState !== "idle") resetParse();
                         }}
                         disabled={uploading}
                       />
                     </div>
+                    <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={handleParsePastedResume}
+                        disabled={uploading || parseState === "parsing" || !resumeText.trim()}
+                        className="inline-flex h-9 items-center justify-center rounded-lg border bg-white px-4 text-sm font-medium transition hover:bg-[#F8FAFC] disabled:opacity-60"
+                        style={{ borderColor: primaryColor, color: primaryColor }}
+                      >
+                        {parseState === "parsing" ? "Parsing…" : "Parse resume text"}
+                      </button>
+                      <ParseStatusBadge state={parseState} />
+                    </div>
                   </div>
                 )}
+
+                {parseState === "parsing" ? (
+                  <p className="mt-3 flex items-center gap-2 text-xs text-[#64748B]">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+                    Parsing resume to read the candidate details…
+                  </p>
+                ) : null}
+
+                {parseState === "failed" && parseError ? (
+                  <p className="mt-3 rounded-lg border border-[#FCA5A5] bg-[#FEF2F2] px-3 py-2 text-xs text-[#B91C1C]">
+                    {parseError}
+                  </p>
+                ) : null}
 
                 {fileError ? <p className="mt-2 text-xs text-[#B91C1C]">{fileError}</p> : null}
                 {pasteError ? <p className="mt-2 text-xs text-[#B91C1C]">{pasteError}</p> : null}
               </div>
+
+              {parseState === "parsed" ? (
+                <div className="mt-5 border-t border-[#E5E7EB] pt-5">
+                  <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-sm font-medium text-[#334155]">Candidate details</p>
+                    {parsePreview?.email ? (
+                      <p className="truncate text-xs text-[#64748B]">{parsePreview.email}</p>
+                    ) : null}
+                  </div>
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div>
+                      <label className={FIELD_LABEL_CLASS} htmlFor="add-candidate-first-name">
+                        First name
+                      </label>
+                      <input
+                        id="add-candidate-first-name"
+                        className={`${FIELD_INPUT_CLASS} h-10`}
+                        placeholder="First name"
+                        value={firstName}
+                        onChange={(event) => setFirstName(event.target.value)}
+                        disabled={uploading}
+                        autoComplete="given-name"
+                      />
+                    </div>
+                    <div>
+                      <label className={FIELD_LABEL_CLASS} htmlFor="add-candidate-last-name">
+                        Last name
+                      </label>
+                      <input
+                        id="add-candidate-last-name"
+                        className={`${FIELD_INPUT_CLASS} h-10`}
+                        placeholder="Last name"
+                        value={lastName}
+                        onChange={(event) => setLastName(event.target.value)}
+                        disabled={uploading}
+                        autoComplete="family-name"
+                      />
+                    </div>
+                  </div>
+                </div>
+              ) : null}
             </div>
 
             <div className="flex items-center justify-end gap-3 border-t border-[#E5E7EB] px-6 py-4">
@@ -490,8 +649,11 @@ export default function AddCandidateModal({
               <button
                 type="button"
                 onClick={() => void handleUpload()}
-                disabled={uploading}
-                className="inline-flex h-10 min-w-[100px] items-center justify-center rounded-lg px-5 text-sm font-medium text-white transition hover:opacity-95 disabled:opacity-60"
+                disabled={uploading || parseState !== "parsed"}
+                title={
+                  parseState === "parsed" ? undefined : "Upload and parse a resume first"
+                }
+                className="inline-flex h-10 min-w-[100px] items-center justify-center rounded-lg px-5 text-sm font-medium text-white transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60"
                 style={{ backgroundColor: primaryColor, borderColor: primaryColor }}
               >
                 {uploading ? "Uploading…" : "Upload"}
@@ -504,7 +666,7 @@ export default function AddCandidateModal({
       {uploading ? (
         <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/30 backdrop-blur-[1px]">
           <div className="rounded-xl border border-[#E5E7EB] bg-white px-5 py-4 text-sm font-medium text-[#334155] shadow-lg">
-            Parsing resume and adding candidate…
+            Adding candidate…
           </div>
         </div>
       ) : null}

@@ -28,6 +28,8 @@ type Props = {
   rightPanelImageAlt?: string
   rightPanelImageClassName?: string
   rightPanelOverlayClassName?: string
+  /** Page shell fill. Admin login uses solid primary; applicant onboarding keeps the brand gradient. */
+  shellBackground?: "gradient" | "primary"
 }
 
 export default function OnboardingLayout({
@@ -41,7 +43,8 @@ export default function OnboardingLayout({
   rightPanelImageSrc,
   rightPanelImageAlt,
   rightPanelImageClassName,
-  rightPanelOverlayClassName
+  rightPanelOverlayClassName,
+  shellBackground = "gradient",
 }: Props) {
   const branding = useTenantBranding()
   const panelSrc = normalizeBrandingImageSrc(
@@ -56,7 +59,10 @@ export default function OnboardingLayout({
   )
   const shellStyle: CSSProperties = {
     ...brandingToCssVars(branding),
-    background: `linear-gradient(135deg, var(--brand-gradient-from) 0%, var(--brand-gradient-to) 100%)`,
+    background:
+      shellBackground === "primary"
+        ? branding.primaryHex
+        : `linear-gradient(135deg, var(--brand-gradient-from) 0%, var(--brand-gradient-to) 100%)`,
   }
 
   return (

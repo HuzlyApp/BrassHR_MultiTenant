@@ -123,28 +123,64 @@ export function WorkerAccountHeader({
         {/* Employment details */}
         <div className="min-w-0 flex-1 border-t border-[#E5E7EB] pt-6 xl:border-x xl:border-t-0 xl:px-8 xl:pt-0">
           <dl className="space-y-4">
-            {[
-              ["Employee ID", profile.employeeId],
-              ["Hire Date", profile.hireDateLabel],
-              ["Employment Type", profile.employmentType],
-              ["Department", profile.department],
-              [
-                "Supervisor",
-                profile.supervisorName ? (
+            {/* Employee ID — hidden for now
+            <div className="flex flex-col gap-0.5 border-b border-[#F3F4F6] pb-3 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
+              <dt className="shrink-0 text-sm text-[#6B7280]">Employee ID</dt>
+              <dd className="text-sm font-medium text-[#111827] sm:text-right">{profile.employeeId}</dd>
+            </div>
+            */}
+            <div className="flex flex-col gap-0.5 border-b border-[#F3F4F6] pb-3 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
+              <dt className="shrink-0 text-sm text-[#6B7280]">Hired job name</dt>
+              <dd className="min-w-0 text-sm font-medium text-[#111827] sm:text-right">
+                {profile.hiredJobs.length === 0 ? (
+                  "—"
+                ) : (
+                  <ul className="space-y-1.5">
+                    {profile.hiredJobs.map((job, index) => {
+                      const showIndex = profile.hiredJobs.length > 1;
+                      return (
+                        <li key={job.id} className="break-words">
+                          {showIndex ? `${index + 1}. ` : ""}
+                          {job.jobTitle}
+                          {showIndex && job.isLatest ? " (latest)" : ""}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </dd>
+            </div>
+            <div className="flex flex-col gap-0.5 border-b border-[#F3F4F6] pb-3 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
+              <dt className="shrink-0 text-sm text-[#6B7280]">Department</dt>
+              <dd className="text-sm font-medium text-[#111827] sm:text-right">{profile.department}</dd>
+            </div>
+            <div className="flex flex-col gap-0.5 border-b border-[#F3F4F6] pb-3 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
+              <dt className="shrink-0 text-sm text-[#6B7280]">Hire Date</dt>
+              <dd className="text-sm font-medium text-[#111827] sm:text-right">
+                {profile.hiredJobs[0]?.hireDateLabel || profile.hireDateLabel || "—"}
+              </dd>
+            </div>
+            <div className="flex flex-col gap-0.5 border-b border-[#F3F4F6] pb-3 last:border-b-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
+              <dt className="shrink-0 text-sm text-[#6B7280]">Work type</dt>
+              <dd className="text-sm font-medium text-[#111827] sm:text-right">
+                {profile.hiredJobs[0]?.employmentType &&
+                profile.hiredJobs[0].employmentType !== "—"
+                  ? profile.hiredJobs[0].employmentType
+                  : profile.employmentType || "—"}
+              </dd>
+            </div>
+            {/* Supervisor — hidden for now
+            <div className="flex flex-col gap-0.5 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
+              <dt className="shrink-0 text-sm text-[#6B7280]">Supervisor</dt>
+              <dd className="text-sm font-medium text-[#111827] sm:text-right">
+                {profile.supervisorName ? (
                   <span className="text-[#3B82F6]">{profile.supervisorName}</span>
                 ) : (
                   "—"
-                ),
-              ],
-            ].map(([label, value]) => (
-              <div
-                key={String(label)}
-                className="flex flex-col gap-0.5 border-b border-[#F3F4F6] pb-3 last:border-b-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between sm:gap-6"
-              >
-                <dt className="shrink-0 text-sm text-[#6B7280]">{label}</dt>
-                <dd className="text-sm font-medium text-[#111827] sm:text-right">{value}</dd>
-              </div>
-            ))}
+                )}
+              </dd>
+            </div>
+            */}
           </dl>
         </div>
 

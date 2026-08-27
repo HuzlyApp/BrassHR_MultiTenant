@@ -37,7 +37,9 @@ export type PublicBoardJob = {
   employment_type: string;
   pay_rate_min?: number | null;
   pay_rate_max?: number | null;
+  pay_rate?: number | null;
   pay_rate_period?: string | null;
+  rate_unit?: string | null;
   compensation_type?: string | null;
   currency?: string | null;
   show_pay_by?: string | null;
@@ -286,18 +288,19 @@ export function jobCardSummary(description: string, jobTitle?: string): string {
 
 export function formatPublicJobPay(job: Pick<
   PublicBoardJob,
-  "pay_rate_min" | "pay_rate_max" | "pay_rate_period" | "compensation_type" | "show_pay_by"
+  "pay_rate_min" | "pay_rate_max" | "pay_rate" | "pay_rate_period" | "rate_unit" | "compensation_type" | "show_pay_by"
 >): string | null {
   const min = toFiniteNumber(job.pay_rate_min);
   const max = toFiniteNumber(job.pay_rate_max);
-  if (min == null && max == null) return null;
-  const period = formatPayPeriodLabel(job.pay_rate_period || job.compensation_type);
+  const suggested = toFiniteNumber(job.pay_rate);
+  if (min == null && max == null && suggested == null) return null;
+  const period = formatPayPeriodLabel(job.pay_rate_period || job.rate_unit || job.compensation_type);
   const showPayBy = String(job.show_pay_by ?? "").trim().toLowerCase();
   const isRange = showPayBy.includes("range") || (min != null && max != null && min !== max);
   if (isRange && min != null && max != null && min !== max) {
     return period ? `$${formatMoney(min)} – $${formatMoney(max)} ${period}` : `$${formatMoney(min)} – $${formatMoney(max)}`;
   }
-  const amount = min ?? max;
+  const amount = min ?? max ?? suggested;
   if (amount == null) return null;
   const prefix = showPayBy.includes("starting") ? "From " : "";
   return period ? `${prefix}$${formatMoney(amount)} ${period}` : `${prefix}$${formatMoney(amount)}`;

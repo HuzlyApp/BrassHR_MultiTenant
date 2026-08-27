@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useRef, useState } from "react";
-import { Eye, Upload } from "lucide-react";
+import { Eye, Upload, ChevronDown } from "lucide-react";
 import BrandedFileTypeIcon from "@/app/admin_recruiter/components/BrandedFileTypeIcon";
 import { documentStatusLabel } from "@/lib/applicant-portal/documents";
 import { useApplicantPortal } from "./ApplicantPortalProvider";
@@ -471,18 +471,24 @@ export function ApplicantDocumentsTab({ embedded = false }: { embedded?: boolean
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <label className="mb-1.5 block text-[13px] font-medium text-[#374151]">Document type</label>
-              <select
-                value={requiredDocumentId}
-                onChange={(event) => setRequiredDocumentId(event.target.value)}
-                className="h-10 w-full rounded-lg border border-[#D1D5DB] px-3 text-sm outline-none focus:border-[color:var(--brand-primary)]"
-              >
-                <option value="">Other document</option>
-                {missingRequired.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.title}
-                  </option>
-                ))}
-              </select>
+              <div className="relative">
+                <select
+                  value={requiredDocumentId}
+                  onChange={(event) => setRequiredDocumentId(event.target.value)}
+                  className="h-10 w-full cursor-pointer appearance-none rounded-lg border border-[#D1D5DB] bg-white py-2 pl-3 pr-10 text-sm text-[#334155] outline-none focus:border-[color:var(--brand-primary)]"
+                >
+                  <option value="">Other document</option>
+                  {missingRequired.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.title}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown
+                  className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#64748B]"
+                  aria-hidden
+                />
+              </div>
             </div>
 
             <div>

@@ -1,7 +1,7 @@
 "use client";
 
 import type { CSSProperties } from "react";
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
@@ -36,6 +36,12 @@ export function ApplicantPortalShell({ session, children }: Props) {
 
   useEffect(() => {
     setMobileNavOpen(false);
+  }, [pathname]);
+
+  /** Always open pages from the top so the page title and tabs stay visible. */
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
   }, [pathname]);
 
   useEffect(() => {
@@ -110,14 +116,16 @@ export function ApplicantPortalShell({ session, children }: Props) {
           data-sidebar-collapsed={sidebarCollapsed ? "true" : "false"}
           data-mobile-nav-open={mobileNavOpen ? "true" : "false"}
         >
-          <ApplicantPortalHeader
-            applicantName={session?.applicant.name ?? "Applicant"}
-            mobileNavOpen={mobileNavOpen}
-            sidebarCollapsed={sidebarCollapsed}
-            onMenuClick={openMobileNav}
-            onSidebarToggle={toggleSidebarCollapsed}
-            onOpenMessages={openMessages}
-          />
+          <Suspense fallback={null}>
+            <ApplicantPortalHeader
+              applicantName={session?.applicant.name ?? "Applicant"}
+              mobileNavOpen={mobileNavOpen}
+              sidebarCollapsed={sidebarCollapsed}
+              onMenuClick={openMobileNav}
+              onSidebarToggle={toggleSidebarCollapsed}
+              onOpenMessages={openMessages}
+            />
+          </Suspense>
           <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden bg-[#F4F4F4]">
             {children}
           </main>

@@ -8,6 +8,10 @@ export type WorkerSidebarLink = {
   disabled?: boolean;
   /** When set on schedule routes, only active for that view (?view=calendar vs attendance default). */
   scheduleView?: "calendar" | "attendance";
+  /** When set, only active for that schedule page tab (?tab=timesheets). */
+  scheduleTab?: "schedule" | "timesheets" | "notes";
+  /** When set on profile routes, only active for that account tab (?tab=personal|applications). */
+  accountTab?: "personal" | "applications";
 };
 
 export type WorkerSidebarSection = {
@@ -61,11 +65,12 @@ const MY_SHIFTS_CHILDREN: WorkerSidebarLink[] = [
 
 const MY_SCHEDULE_CHILDREN: WorkerSidebarLink[] = [
   {
-    label: "Calendar",
+    label: "Schedule",
     href: `${SCHEDULE_HOME}?view=calendar`,
     matchPrefixes: [SCHEDULE_HOME],
     matchExact: true,
     scheduleView: "calendar",
+    scheduleTab: "schedule",
   },
   {
     label: "Attendance",
@@ -75,9 +80,9 @@ const MY_SCHEDULE_CHILDREN: WorkerSidebarLink[] = [
   },
   {
     label: "Time Tracking",
-    href: "#",
-    matchPrefixes: [],
-    disabled: true,
+    href: `${SCHEDULE_HOME}?view=calendar&tab=timesheets`,
+    matchPrefixes: SCHEDULE_ACTIVE_PREFIXES,
+    scheduleTab: "timesheets",
   },
 ];
 
@@ -105,9 +110,17 @@ const ORGANIZATION_CHILDREN: WorkerSidebarLink[] = [
 const PROFILE_CHILDREN: WorkerSidebarLink[] = [
   {
     label: "Personal Information",
-    href: "/application/applicant-dashboard/profile",
+    href: "/application/applicant-dashboard/profile?tab=personal",
     matchPrefixes: ["/application/applicant-dashboard/profile"],
     matchExact: true,
+    accountTab: "personal",
+  },
+  {
+    label: "Applications",
+    href: "/application/applicant-dashboard/profile?tab=applications",
+    matchPrefixes: ["/application/applicant-dashboard/profile"],
+    matchExact: true,
+    accountTab: "applications",
   },
   {
     label: "Documents",

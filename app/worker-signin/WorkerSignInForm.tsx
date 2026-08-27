@@ -7,11 +7,18 @@ import LoginFormError, { loginInputErrorClass } from "@/app/login/LoginFormError
 import { interStyle, loginFormOptionsStackClass, loginFormStackClass, loginInputClass, loginPageStackClass, loginPasswordInputClass, loginPrimaryButtonClass } from "@/app/login/BraasLoginShell";
 import { useApplicantSignIn } from "@/lib/applicant-portal/use-applicant-sign-in";
 import { buildForgotPasswordHref } from "@/lib/auth/password-reset-return";
+import { LEGAL_ROUTES } from "@/lib/legal/routes";
 import { recruiterSignInHref } from "@/lib/auth/recruiter-sign-in";
+import {
+  clearWorkerSignInDraft,
+  readWorkerSignInDraft,
+  writeWorkerSignInDraft,
+} from "@/lib/applicant-portal/worker-signin-draft";
+import { legalReturnHref } from "@/lib/signup/tenant-signup-draft";
 import type { TenantBranding } from "@/lib/tenant/tenant-branding";
-import { brandingAuthButtonStyle } from "@/lib/tenant/tenant-branding";
+import { withTenant } from "@/lib/tenant/with-tenant";
 import type { CSSProperties, ReactNode } from "react";
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useState } from "react";
 import { Check } from "lucide-react";
 // import { FaApple } from "react-icons/fa";
 // import { FaXTwitter } from "react-icons/fa6";
@@ -22,8 +29,19 @@ const checkboxActiveClass =
 const workerFieldLabelClass =
   "mb-2 block text-[13px] font-normal leading-[18px] tracking-normal text-[#374151] sm:mb-[8px] sm:text-[14px] sm:leading-[20px]";
 
-function primaryButtonStyle(enabled: boolean): CSSProperties | undefined {
-  return brandingAuthButtonStyle(enabled);
+function primaryButtonStyle(enabled: boolean, primaryHex: string): CSSProperties {
+  if (!enabled) {
+    return {
+      backgroundColor: "#dddddd",
+      backgroundImage: "none",
+      color: "#94a3b8",
+    };
+  }
+  return {
+    backgroundColor: primaryHex,
+    backgroundImage: "none",
+    color: "#ffffff",
+  };
 }
 
 function FieldLabel({ children }: { children: string }) {
@@ -81,6 +99,7 @@ type LoginFormOptionsProps = {
   agree: boolean;
   setAgree: (value: boolean) => void;
   tenantSlug: string | null;
+  returnToHref: string;
 };
 
 function LoginFormOptions({
@@ -89,7 +108,17 @@ function LoginFormOptions({
   agree,
   setAgree,
   tenantSlug,
+  returnToHref,
 }: LoginFormOptionsProps) {
+  const applicantTermsHref = legalReturnHref(
+    withTenant(LEGAL_ROUTES.applicantTerms, tenantSlug),
+    returnToHref
+  );
+  const privacyPolicyHref = legalReturnHref(
+    withTenant(LEGAL_ROUTES.privacyPolicy, tenantSlug),
+    returnToHref
+  );
+
   return (
     <div className={loginFormOptionsStackClass}>
       <div className="flex items-center justify-between gap-3">
@@ -125,35 +154,70 @@ function LoginFormOptions({
         </Link>
       </div>
 
-      <label
-        className="flex cursor-pointer items-start gap-2 text-[13px] font-normal leading-[18px] text-[#4b5563] sm:gap-[8px] sm:text-[14px] sm:leading-[20px]"
+      <div
+        className="rounded-[8px] border border-[#e2e8f0] bg-[#f8fafc] px-[12px] py-[14px] sm:px-[14px] sm:py-[16px]"
         style={interStyle}
       >
-        <span
-          className={`relative mt-px flex h-[20px] w-[20px] shrink-0 items-center justify-center rounded-[6px] border ${
-            agree ? checkboxActiveClass : "border-[#e2e8f0] bg-white"
-          }`}
+        <label className="flex cursor-pointer items-start gap-2 text-[13px] font-normal leading-[18px] text-[#334155] sm:gap-[8px] sm:text-[14px] sm:leading-[20px]">
+          <span
+            className={`relative mt-px flex h-[20px] w-[20px] shrink-0 items-center justify-center rounded-[6px] border ${
+              agree ? checkboxActiveClass : "border-[#e2e8f0] bg-white"
+            }`}
+          >
+            <input
+              type="checkbox"
+              checked={agree}
+              onChange={(event) => setAgree(event.target.checked)}
+              className="absolute inset-0 z-10 m-0 cursor-pointer opacity-0"
+              aria-label="Agree to Applicant Terms and Privacy Policy"
+            />
+            {agree ? <Check className="h-[14px] w-[14px] text-white" strokeWidth={3} /> : null}
+          </span>
+          <span className="min-w-0 flex-1">
+            I agree to the{" "}
+            <Link
+              href={applicantTermsHref}
+              className="font-semibold underline underline-offset-2"
+              style={{ color: "var(--brand-secondary)" }}
+              onClick={(event) => event.stopPropagation()}
+            >
+              Applicant Terms
+            </Link>{" "}
+            and{" "}
+            <Link
+              href={privacyPolicyHref}
+              className="font-semibold underline underline-offset-2"
+              style={{ color: "var(--brand-secondary)" }}
+              onClick={(event) => event.stopPropagation()}
+            >
+              Privacy Policy
+            </Link>
+            .
+          </span>
+        </label>
+      </div>
+
+      {/* Fine print under the agreement box — hidden for worker sign-in
+      <p className="text-[12px] font-normal leading-[18px] text-[#64748b] sm:text-[13px] sm:leading-[19px]" style={interStyle}>
+        By creating an account you agree to the{" "}
+        <Link
+          href={applicantTermsHref}
+          className="font-medium underline underline-offset-2"
+          style={{ color: "var(--brand-secondary)" }}
         >
-          <input
-            type="checkbox"
-            checked={agree}
-            onChange={(event) => setAgree(event.target.checked)}
-            className="absolute inset-0 z-10 m-0 cursor-pointer opacity-0"
-            aria-label="Accept terms and conditions"
-          />
-          {agree ? <Check className="h-[14px] w-[14px] text-white" strokeWidth={3} /> : null}
-        </span>
-        <span>
-          I hereby confirm that I have read and agree with the{" "}
-          <a href="#" className="font-semibold text-black">
-            Terms &amp; Conditions
-          </a>{" "}
-          and{" "}
-          <a href="#" className="font-semibold text-black">
-            Privacy Policy
-          </a>
-        </span>
-      </label>
+          Applicant Terms
+        </Link>{" "}
+        and{" "}
+        <Link
+          href={privacyPolicyHref}
+          className="font-medium underline underline-offset-2"
+          style={{ color: "var(--brand-secondary)" }}
+        >
+          Privacy Policy
+        </Link>
+        . BrassHR is a product of ZipStaff Inc.
+      </p>
+      */}
     </div>
   );
 }
@@ -169,6 +233,7 @@ export default function WorkerSignInForm({ tenantSlug, brand }: Props) {
   const [rememberMe, setRememberMe] = useState(false);
   const [agree, setAgree] = useState(false);
   const [redirecting, setRedirecting] = useState(false);
+  const [draftHydrated, setDraftHydrated] = useState(false);
   const {
     email,
     setEmail,
@@ -177,6 +242,7 @@ export default function WorkerSignInForm({ tenantSlug, brand }: Props) {
     confirmPassword,
     setConfirmPassword,
     mode,
+    setMode,
     error,
     loading,
     handleLookup,
@@ -188,21 +254,58 @@ export default function WorkerSignInForm({ tenantSlug, brand }: Props) {
     completeSignIn,
   } = useApplicantSignIn(tenantSlug);
 
-  useEffect(() => {
-    try {
-      const savedEmail = localStorage.getItem("workerSignInEmail");
-      if (savedEmail) {
-        setEmail(savedEmail);
-        setRememberMe(true);
+  const returnToHref = withTenant("/worker-signin", tenantSlug);
+
+  useLayoutEffect(() => {
+    const draft = readWorkerSignInDraft(tenantSlug);
+    if (draft) {
+      setEmail(draft.email);
+      setPassword(draft.password);
+      setConfirmPassword(draft.confirmPassword);
+      setMode(draft.mode);
+      setAgree(draft.agree);
+      setRememberMe(draft.rememberMe);
+    } else {
+      try {
+        const savedEmail = localStorage.getItem("workerSignInEmail");
+        if (savedEmail) {
+          setEmail(savedEmail);
+          setRememberMe(true);
+        }
+      } catch {
+        /* ignore storage errors */
       }
-    } catch {
-      /* ignore storage errors */
     }
-  }, [setEmail]);
+    setDraftHydrated(true);
+  }, [tenantSlug, setEmail, setPassword, setConfirmPassword, setMode]);
+
+  useLayoutEffect(() => {
+    if (!draftHydrated || redirecting) return;
+    writeWorkerSignInDraft({
+      tenantSlug,
+      email,
+      password,
+      confirmPassword,
+      mode,
+      agree,
+      rememberMe,
+    });
+  }, [
+    draftHydrated,
+    redirecting,
+    tenantSlug,
+    email,
+    password,
+    confirmPassword,
+    mode,
+    agree,
+    rememberMe,
+  ]);
 
   useEffect(() => {
     if (!signInReady || redirecting) return;
     setRedirecting(true);
+    clearWorkerSignInDraft();
     completeSignIn(rememberMe);
   }, [signInReady, redirecting, rememberMe, completeSignIn]);
 
@@ -273,7 +376,7 @@ export default function WorkerSignInForm({ tenantSlug, brand }: Props) {
             type="submit"
             disabled={!canSubmitEmail || loading}
             className={loginPrimaryButtonClass}
-            style={primaryButtonStyle(canSubmitEmail && !loading)}
+            style={primaryButtonStyle(canSubmitEmail && !loading, brand.primaryHex)}
           >
             {loading ? "Checking..." : "Continue"}
           </button>
@@ -354,13 +457,14 @@ export default function WorkerSignInForm({ tenantSlug, brand }: Props) {
             agree={agree}
             setAgree={setAgree}
             tenantSlug={tenantSlug}
+            returnToHref={returnToHref}
           />
 
           <button
             type="submit"
             disabled={!canSubmitSetup || loading}
             className={loginPrimaryButtonClass}
-            style={primaryButtonStyle(canSubmitSetup && !loading)}
+            style={primaryButtonStyle(canSubmitSetup && !loading, brand.primaryHex)}
           >
             {loading ? "Saving..." : "Create password and continue"}
           </button>
@@ -425,13 +529,14 @@ export default function WorkerSignInForm({ tenantSlug, brand }: Props) {
             agree={agree}
             setAgree={setAgree}
             tenantSlug={tenantSlug}
+            returnToHref={returnToHref}
           />
 
           <button
             type="submit"
             disabled={!canSubmitPassword || loading}
             className={loginPrimaryButtonClass}
-            style={primaryButtonStyle(canSubmitPassword && !loading)}
+            style={primaryButtonStyle(canSubmitPassword && !loading, brand.primaryHex)}
           >
             {loading ? "Signing in..." : "Log In"}
           </button>

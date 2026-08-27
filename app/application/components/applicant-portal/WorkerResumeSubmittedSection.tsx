@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Check, Upload, X } from "lucide-react";
+import { Check, Eye, Upload, X } from "lucide-react";
 import BrandedFileTypeIcon from "@/app/admin_recruiter/components/BrandedFileTypeIcon";
+import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
 import { useApplicantPortal } from "./ApplicantPortalProvider";
 import { WorkerFilePicker } from "./WorkerFilePicker";
 import { WORKER_BTN_OUTLINE, WORKER_BTN_PRIMARY } from "./worker-portal-buttons";
@@ -40,6 +41,10 @@ const REUPLOAD_BTN =
   "inline-flex h-9 items-center justify-center rounded-md border border-[color:var(--brand-primary)] px-3 text-xs font-semibold text-[color:var(--brand-primary)] transition hover:bg-[color-mix(in_srgb,var(--brand-primary)_8%,white)] disabled:cursor-not-allowed disabled:opacity-50";
 const DELETE_BTN =
   "inline-flex h-9 items-center justify-center rounded-md border border-[#D1D5DB] px-3 text-xs font-semibold text-[#475569] transition hover:bg-[#F8FAFC] disabled:cursor-not-allowed disabled:opacity-50";
+const VIEW_BTN_ICON =
+  "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-[color:var(--brand-primary)] text-white transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50";
+const REUPLOAD_BTN_ICON =
+  "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-[color:var(--brand-primary)] text-[color:var(--brand-primary)] transition hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_8%,white)] disabled:cursor-not-allowed disabled:opacity-50";
 
 type WorkerResumeItem = {
   id: string;
@@ -145,6 +150,31 @@ function UploadedByCell({ resume }: { resume: WorkerResumeItem }) {
   );
 }
 
+/** Split "20 Aug 2026, 5:06 pm" so time sits on a second centered line. */
+function UploadedDateCell({
+  label,
+  isReuploaded,
+}: {
+  label: string;
+  isReuploaded?: boolean;
+}) {
+  const commaAt = label.lastIndexOf(",");
+  const datePart = commaAt >= 0 ? label.slice(0, commaAt).trim() : label;
+  const timePart = commaAt >= 0 ? label.slice(commaAt + 1).trim() : "";
+
+  return (
+    <div className="text-center" title={label}>
+      <p className="text-sm font-medium leading-5 text-[#334155]">{datePart || "—"}</p>
+      {timePart ? (
+        <p className="mt-0.5 text-sm font-medium leading-5 text-[#334155]">{timePart}</p>
+      ) : null}
+      {isReuploaded ? (
+        <p className="mt-0.5 text-[11px] font-medium text-[#94A3B8]">Updated</p>
+      ) : null}
+    </div>
+  );
+}
+
 function ResumeActions({
   busy,
   onView,
@@ -159,19 +189,64 @@ function ResumeActions({
   const inputRef = useRef<HTMLInputElement>(null);
 
   return (
-    <div className="flex flex-nowrap items-center justify-start gap-2">
-      <button type="button" disabled={busy} onClick={onView} className={VIEW_BTN}>
-        View
-      </button>
-      <button
-        type="button"
-        disabled={busy}
-        title="Replace this resume file"
-        onClick={() => inputRef.current?.click()}
-        className={REUPLOAD_BTN}
-      >
-        Reupload
-      </button>
+    <div className="inline-flex flex-nowrap items-center justify-center">
+      {/* Mobile only: icons */}
+      <div className="inline-flex flex-nowrap items-center justify-center gap-1.5 lg:hidden">
+        <button
+          type="button"
+          disabled={busy}
+          onClick={onView}
+          className={VIEW_BTN_ICON}
+          aria-label="View resume"
+          title="View"
+        >
+          <Eye className="h-4 w-4" aria-hidden />
+        </button>
+        <button
+          type="button"
+          disabled={busy}
+          title="Replace this resume file"
+          onClick={() => inputRef.current?.click()}
+          className={REUPLOAD_BTN_ICON}
+          aria-label="Reupload resume"
+        >
+          <Upload className="h-4 w-4" aria-hidden />
+        </button>
+        <button
+          type="button"
+          disabled={busy}
+          onClick={onDelete}
+          className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-red-500 text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+          aria-label="Delete resume"
+          title="Delete"
+        >
+          <BrandedSvgIcon
+            src="/icons/delete-icon.svg"
+            className="h-5 w-5"
+            color="#DC2626"
+          />
+        </button>
+      </div>
+
+      {/* Laptop / desktop only: labeled buttons */}
+      <div className="hidden flex-nowrap items-center justify-center gap-2 lg:inline-flex">
+        <button type="button" disabled={busy} onClick={onView} className={VIEW_BTN}>
+          View
+        </button>
+        <button
+          type="button"
+          disabled={busy}
+          title="Replace this resume file"
+          onClick={() => inputRef.current?.click()}
+          className={REUPLOAD_BTN}
+        >
+          Reupload
+        </button>
+        <button type="button" disabled={busy} onClick={onDelete} className={DELETE_BTN}>
+          Delete
+        </button>
+      </div>
+
       <input
         ref={inputRef}
         type="file"
@@ -185,9 +260,6 @@ function ResumeActions({
           event.target.value = "";
         }}
       />
-      <button type="button" disabled={busy} onClick={onDelete} className={DELETE_BTN}>
-        Delete
-      </button>
     </div>
   );
 }
@@ -200,52 +272,6 @@ type ResumeRowModel = {
   onReupload: (file: File) => void;
   onDelete: () => void;
 };
-
-function ResumeMobileCard(props: ResumeRowModel) {
-  const { resume, index } = props;
-  const jobTitle = resume.jobTitle || "—";
-  return (
-    <div className="space-y-3 border-b border-[#E5E7EB] px-4 py-4 last:border-b-0">
-      <ResumeFileCell resume={resume} index={index} />
-      <div className="grid grid-cols-1 gap-3 pl-10 sm:grid-cols-2">
-        <div>
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-[#94A3B8]">
-            Parse status
-          </p>
-          <div className="mt-1">
-            <ParseStatusBadge status={resume.parsingStatus} />
-          </div>
-        </div>
-        <div>
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-[#94A3B8]">
-            {resume.isReuploaded ? "Updated date" : "Uploaded date"}
-          </p>
-          <p className="mt-1 text-sm font-medium text-[#334155]">{resume.uploadedAtLabel}</p>
-        </div>
-        <div className="min-w-0">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-[#94A3B8]">Job name</p>
-          <p
-            className="mt-1 truncate text-sm font-semibold text-[color:var(--brand-secondary)]"
-            title={jobTitle}
-          >
-            {jobTitle}
-          </p>
-        </div>
-        <div>
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-[#94A3B8]">
-            Uploaded by
-          </p>
-          <div className="mt-1">
-            <UploadedByCell resume={resume} />
-          </div>
-        </div>
-      </div>
-      <div className="pl-10">
-        <ResumeActions {...props} />
-      </div>
-    </div>
-  );
-}
 
 function ResumeTableRow(props: ResumeRowModel) {
   const { resume, index } = props;
@@ -260,11 +286,8 @@ function ResumeTableRow(props: ResumeRowModel) {
           <ParseStatusBadge status={resume.parsingStatus} />
         </div>
       </td>
-      <td className={`${TABLE_CELL_CENTER_CLASS} whitespace-nowrap`}>
-        <p className="text-sm font-medium leading-5 text-[#334155]">{resume.uploadedAtLabel}</p>
-        {resume.isReuploaded ? (
-          <p className="mt-0.5 text-[11px] font-medium text-[#94A3B8]">Updated</p>
-        ) : null}
+      <td className={TABLE_CELL_CENTER_CLASS}>
+        <UploadedDateCell label={resume.uploadedAtLabel} isReuploaded={resume.isReuploaded} />
       </td>
       <td className={TABLE_CELL_CENTER_CLASS}>
         <p
@@ -277,12 +300,98 @@ function ResumeTableRow(props: ResumeRowModel) {
       <td className={TABLE_CELL_CENTER_CLASS}>
         <UploadedByCell resume={resume} />
       </td>
-      <td className={`${TABLE_CELL_CENTER_CLASS} whitespace-nowrap`}>
+      <td className={`${TABLE_CELL_CENTER_CLASS} whitespace-nowrap px-2 sm:px-3`}>
         <div className="flex justify-center">
           <ResumeActions {...props} />
         </div>
       </td>
     </tr>
+  );
+}
+
+/** Same pattern as BulkDeleteConfirmModal — Yes / No confirm for a single resume. */
+function DeleteResumeConfirmModal({
+  open,
+  resumeName,
+  busy,
+  onCancel,
+  onConfirm,
+}: {
+  open: boolean;
+  resumeName: string;
+  busy?: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  useEffect(() => {
+    if (!open) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !busy) onCancel();
+    };
+    document.addEventListener("keydown", onKeyDown);
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      document.body.style.overflow = "";
+    };
+  }, [open, busy, onCancel]);
+
+  if (!open) return null;
+
+  return (
+    <div
+      className="fixed inset-0 z-[150] flex items-center justify-center bg-black/40 px-4 py-8"
+      role="presentation"
+      onClick={() => {
+        if (!busy) onCancel();
+      }}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="delete-resume-title"
+        className="w-full max-w-md rounded-xl border border-[#E5E7EB] bg-white p-6 shadow-xl"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="flex items-start gap-3">
+          <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[color:color-mix(in_srgb,var(--brand-primary)_12%,white)]">
+            <BrandedSvgIcon
+              src="/icons/delete-icon.svg"
+              className="h-5 w-5"
+              color="var(--brand-primary)"
+            />
+          </span>
+          <div className="min-w-0 flex-1">
+            <h3 id="delete-resume-title" className="text-lg font-semibold text-[#101828]">
+              Delete resume?
+            </h3>
+            <p className="mt-2 text-sm leading-5 text-[#475569]">
+              Are you sure you want to delete{" "}
+              <span className="break-words font-semibold text-[#101828]">{resumeName}</span>?
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-6 flex justify-end gap-3">
+          <button
+            type="button"
+            disabled={busy}
+            onClick={onCancel}
+            className={WORKER_BTN_OUTLINE}
+          >
+            No
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={onConfirm}
+            className={WORKER_BTN_PRIMARY}
+          >
+            {busy ? "Deleting…" : "Yes"}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -482,6 +591,7 @@ export function WorkerResumeSubmittedSection() {
   const [error, setError] = useState<string | null>(null);
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
   const [uploadModalError, setUploadModalError] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<WorkerResumeItem | null>(null);
 
   const loadResumes = useCallback(async () => {
     const headers = await authHeaders();
@@ -575,10 +685,6 @@ export function WorkerResumeSubmittedSection() {
   }
 
   async function deleteResume(resumeId: string) {
-    const resume = resumes.find((item) => item.id === resumeId);
-    const label = resume?.originalFileName || "this resume";
-    if (!window.confirm(`Delete ${label}? This cannot be undone.`)) return;
-
     setError(null);
     setBusyResumeId(resumeId);
     try {
@@ -594,6 +700,7 @@ export function WorkerResumeSubmittedSection() {
       };
       if (!res.ok) throw new Error(payload.error || "Could not delete resume.");
       setResumes(payload.resumes ?? []);
+      setDeleteTarget(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not delete resume.");
     } finally {
@@ -612,7 +719,7 @@ export function WorkerResumeSubmittedSection() {
       busy: uploading || busyResumeId === resume.id,
       onView: () => void openResume(resume.id),
       onReupload: (file) => void uploadResume(resume.jobApplicationId ?? "", file, resume.id),
-      onDelete: () => void deleteResume(resume.id),
+      onDelete: () => setDeleteTarget(resume),
     };
   }
 
@@ -656,51 +763,44 @@ export function WorkerResumeSubmittedSection() {
             No resume uploaded yet. Select a job and upload your first resume.
           </p>
         ) : (
-          <div>
-            <div className="lg:hidden">
-              {resumes.map((resume, index) => (
-                <ResumeMobileCard key={resume.id} {...rowModelForResume(resume, index)} />
-              ))}
-            </div>
-            <div className="hidden overflow-x-auto lg:block">
-              <table className="w-full min-w-[1040px] table-fixed border-collapse">
-                <colgroup>
-                  <col className="w-[24%]" />
-                  <col className="w-[12%]" />
-                  <col className="w-[14%]" />
-                  <col className="w-[18%]" />
-                  <col className="w-[12%]" />
-                  <col className="w-[20%]" />
-                </colgroup>
-                <thead>
-                  <tr>
-                    <th scope="col" className={TABLE_HEADER_RESUME_CLASS}>
-                      Resume
-                    </th>
-                    <th scope="col" className={TABLE_HEADER_CLASS}>
-                      Parse status
-                    </th>
-                    <th scope="col" className={TABLE_HEADER_CLASS}>
-                      Uploaded date
-                    </th>
-                    <th scope="col" className={TABLE_HEADER_CLASS}>
-                      Job name
-                    </th>
-                    <th scope="col" className={TABLE_HEADER_CLASS}>
-                      Uploaded by
-                    </th>
-                    <th scope="col" className={TABLE_HEADER_CLASS}>
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {resumes.map((resume, index) => (
-                    <ResumeTableRow key={resume.id} {...rowModelForResume(resume, index)} />
-                  ))}
-                </tbody>
-              </table>
-            </div>
+          <div className="min-w-0 overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]">
+            <table className="w-full min-w-[1040px] table-fixed border-collapse">
+              <colgroup>
+                <col className="w-[22%]" />
+                <col className="w-[12%]" />
+                <col className="w-[14%]" />
+                <col className="w-[16%]" />
+                <col className="w-[12%]" />
+                <col className="w-[24%]" />
+              </colgroup>
+              <thead>
+                <tr>
+                  <th scope="col" className={TABLE_HEADER_RESUME_CLASS}>
+                    Resume
+                  </th>
+                  <th scope="col" className={TABLE_HEADER_CLASS}>
+                    Parse status
+                  </th>
+                  <th scope="col" className={TABLE_HEADER_CLASS}>
+                    Uploaded date
+                  </th>
+                  <th scope="col" className={TABLE_HEADER_CLASS}>
+                    Job name
+                  </th>
+                  <th scope="col" className={TABLE_HEADER_CLASS}>
+                    Uploaded by
+                  </th>
+                  <th scope="col" className={TABLE_HEADER_CLASS}>
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {resumes.map((resume, index) => (
+                  <ResumeTableRow key={resume.id} {...rowModelForResume(resume, index)} />
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
 
@@ -720,6 +820,18 @@ export function WorkerResumeSubmittedSection() {
           if (!uploading) setUploadModalOpen(false);
         }}
         onUpload={(jobApplicationId, file) => void uploadResume(jobApplicationId, file)}
+      />
+
+      <DeleteResumeConfirmModal
+        open={Boolean(deleteTarget)}
+        resumeName={deleteTarget?.originalFileName || "this resume"}
+        busy={busyResumeId === deleteTarget?.id}
+        onCancel={() => {
+          if (busyResumeId == null) setDeleteTarget(null);
+        }}
+        onConfirm={() => {
+          if (deleteTarget) void deleteResume(deleteTarget.id);
+        }}
       />
     </>
   );
