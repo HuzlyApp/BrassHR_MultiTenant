@@ -37,7 +37,7 @@ import {
   isPendingWorkflowPaste,
 } from "@/lib/onboarding/workflow-template-pending-paste";
 import { writeOnboardingPreview } from "@/lib/onboarding/onboarding-preview-storage";
-import { firstOnboardingStepRoute } from "@/lib/onboarding/tenant-step-navigation";
+import { buildWorkflowTestUrl } from "@/lib/onboarding/workflow-test-session";
 import { PUBLISH_SUCCESS_MESSAGE } from "@/lib/onboarding/prepare-published-step-drafts";
 import { serializeWorkflowState } from "@/lib/onboarding/workflow-builder-serialization";
 import { staffAuthHeaders, staffFetchInit } from "@/lib/staff-auth-headers";
@@ -907,25 +907,29 @@ export default function TenantOnboardingWorkflowBuilder({
     (state: WorkflowState) => {
       const publishedConfig = data?.payload.config;
       if (!publishedConfig || !tenantId) {
-        toast.error("Load tenant onboarding before previewing.");
+        toast.error("Load the workflow before testing.");
         return;
       }
       const builderDraft = serializeWorkflowState(state.nodes, state.edges);
       const previewBase = configFromWorkflowDraft(publishedConfig, builderDraft);
       if (!previewBase) {
-        toast.error("Could not build preview from the current canvas.");
+        toast.error("This workflow could not be loaded for testing.");
         return;
       }
       const config = applyApplicantConfigFilters(previewBase);
+      if (!config.steps.length) {
+        toast.error("This workflow has no applicant-visible steps to test.");
+        return;
+      }
       writeOnboardingPreview({
         tenantId,
         tenantSlug,
         config,
       });
-      const route = firstOnboardingStepRoute(config, tenantSlug);
-      const url = `${route}${route.includes("?") ? "&" : "?"}preview=draft`;
+      // Test workflow is draft/workflow-scoped — never open a live job application URL.
+      const url = buildWorkflowTestUrl(config, tenantSlug);
       window.open(url, "_blank", "noopener,noreferrer");
-      toast.success("Draft preview opened in a new tab");
+      toast.success("Test workflow opened in a new tab");
     },
     [data?.payload.config, tenantId, tenantSlug]
   );

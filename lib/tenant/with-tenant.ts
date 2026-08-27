@@ -1,5 +1,6 @@
 import { resolveClientOnboardingTenantSlug } from "@/lib/tenant/client-onboarding-slug";
 import { normalizeJobToken } from "@/lib/jobs/public-application-routing";
+import { isOnboardingDraftPreview } from "@/lib/onboarding/is-draft-preview";
 
 const APPLICATION_JOB_TOKEN_KEY = "applicationJobToken";
 
@@ -7,6 +8,8 @@ const APPLICATION_JOB_TOKEN_KEY = "applicationJobToken";
 export function currentApplicationJobToken(): string | null {
   if (typeof window === "undefined") return null;
   try {
+    // Test workflow / draft preview must never inherit a live job application token.
+    if (isOnboardingDraftPreview(window.location.search)) return null;
     const fromUrl = normalizeJobToken(new URLSearchParams(window.location.search).get("job_token"));
     if (fromUrl) return fromUrl;
     return normalizeJobToken(localStorage.getItem(APPLICATION_JOB_TOKEN_KEY));
@@ -24,9 +27,22 @@ export function withTenant(path: string, tenant?: string | null): string {
   const params = new URLSearchParams(query);
   params.set("tenant", slug);
 
-  const jobToken = currentApplicationJobToken();
-  if (jobToken && !params.get("job_token")) {
-    params.set("job_token", jobToken);
+  const inWorkflowTest =
+    params.get("preview") === "draft" ||
+    params.get("mode")?.trim().toLowerCase() === "test" ||
+    (typeof window !== "undefined" && isOnboardingDraftPreview(window.location.search));
+
+  if (inWorkflowTest) {
+    // Keep test mode sticky across step navigation; never attach live job tokens.
+    if (!params.get("preview") && !params.get("mode")) {
+      params.set("preview", "draft");
+    }
+    params.delete("job_token");
+  } else {
+    const jobToken = currentApplicationJobToken();
+    if (jobToken && !params.get("job_token")) {
+      params.set("job_token", jobToken);
+    }
   }
 
   const nextQuery = params.toString();

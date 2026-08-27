@@ -174,11 +174,13 @@ export async function GET(req: Request) {
       const baseColsOptions =
         tenantScope.mode === "scoped"
           ? ([
+              "id, user_id, first_name, last_name, job_role, email, phone, address1, city, state, zip, created_at, tenant_id, profile_photo, assigned_recruiter_user_id",
               "id, user_id, first_name, last_name, job_role, email, phone, address1, city, state, zip, created_at, tenant_id, profile_photo",
               "id, user_id, first_name, last_name, job_role, email, phone, address1, city, state, zip, created_at, tenant_id",
               "id, user_id, first_name, last_name, job_role, email, phone, address1, city, state, created_at, tenant_id",
             ] as const)
           : ([
+              "id, user_id, first_name, last_name, job_role, email, phone, address1, city, state, zip, created_at, profile_photo, assigned_recruiter_user_id",
               "id, user_id, first_name, last_name, job_role, email, phone, address1, city, state, zip, created_at, profile_photo",
               "id, user_id, first_name, last_name, job_role, email, phone, address1, city, state, zip, created_at",
               "id, user_id, first_name, last_name, job_role, email, phone, address1, city, state, created_at",

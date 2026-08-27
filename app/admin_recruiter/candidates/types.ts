@@ -14,9 +14,13 @@ export type CandidateRow = {
   address1: string
   address2: string
   status: string
+  /** Raw pipeline/employment status key used for claim eligibility. */
+  statusKey?: string | null
   createdAt: string | null
   reference: string
   dateOfBirth: string | null
   profilePhotoUrl?: string | null
   appliedJobCount?: number
+  assignedRecruiterUserId?: string | null
+  assignedRecruiterName?: string | null
 }

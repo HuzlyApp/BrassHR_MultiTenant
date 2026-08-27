@@ -64,13 +64,13 @@ export function isFirmaSigningSessionStale(
 export function staleFirmaSigningSessionMessage(reason: FirmaSigningSessionStaleReason): string {
   switch (reason) {
     case "not_found":
-      return "The previous Firma signing request is no longer available. A new signing request will be created.";
+      return "The previous signing request is no longer available. A new signing request will be created.";
     case "workspace_mismatch":
-      return "This signing session belongs to a different Firma workspace. A new signing request will be created in your organization's workspace.";
+      return "This signing session belongs to a different e-signature workspace. A new signing request will be created in your organization's workspace.";
     case "terminal_status":
-      return "The previous Firma signing request is already finished. A new signing request will be created if you need to sign again.";
+      return "The previous signing request is already finished. A new signing request will be created if you need to sign again.";
     case "draft_not_sent":
-      return "The previous Firma signing request was never sent. A new signing request will be created.";
+      return "The previous signing request was never sent. A new signing request will be created.";
     case "template_changed":
       return "The onboarding template changed since the last signing session. A new signing request will be created.";
     default:

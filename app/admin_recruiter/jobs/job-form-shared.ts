@@ -147,11 +147,12 @@ export const JOB_FORM_SELECT_CLASS = `${JOB_FORM_INPUT_CLASS} appearance-none bg
 
 export const JOB_FORM_TEXTAREA_CLASS = `${JOB_FORM_SURFACE_CLASS} min-h-[280px] w-full cursor-pointer resize-y px-3 py-3 outline-none transition focus:border-[color:var(--brand-primary)] focus:ring-2 focus:ring-[color:color-mix(in_srgb,var(--brand-primary)_12%,transparent)]`;
 
-export const JOB_FORM_LABEL_CLASS = "mb-1.5 block cursor-pointer text-sm font-normal text-[#64748B]";
+export const JOB_FORM_LABEL_CLASS =
+  "mb-1.5 block cursor-pointer text-sm font-normal leading-5 text-[#64748B]";
 
-export const JOB_FORM_SECTION_TITLE_CLASS = "text-lg font-semibold text-[#1D2739]";
+export const JOB_FORM_SECTION_TITLE_CLASS = "text-lg font-semibold leading-7 text-[#1D2739]";
 
-export const JOB_FORM_SECTION_SUBTITLE_CLASS = "mt-1 text-sm text-[#64748B]";
+export const JOB_FORM_SECTION_SUBTITLE_CLASS = "mt-1 text-sm font-normal leading-5 text-[#64748B]";
 
 export const JOB_FORM_PRIMARY_BUTTON_CLASS =
   "inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-lg px-5 text-sm font-medium text-white transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-50";

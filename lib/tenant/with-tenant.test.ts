@@ -34,4 +34,17 @@ describe("withTenant job_token preservation", () => {
       "/application/profile-information?tenant=remote&job_token=job-token-abc"
     );
   });
+
+  it("does not append job_token during draft Test workflow sessions", async () => {
+    vi.stubGlobal("window", {
+      location: { search: "?tenant=remote&preview=draft" },
+      localStorage: {
+        getItem: () => "job-token-abc",
+        setItem: () => undefined,
+      },
+    });
+    expect(withTenant("/application/profile-review", "remote")).toBe(
+      "/application/profile-review?tenant=remote&preview=draft"
+    );
+  });
 });

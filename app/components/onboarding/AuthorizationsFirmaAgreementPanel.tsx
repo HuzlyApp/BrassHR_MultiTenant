@@ -4,6 +4,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { FileText } from "lucide-react";
 import { FirmaSigningIframe } from "@/app/components/onboarding/FirmaSigningIframe";
 import {
+  E_SIGNATURE_USER_ERRORS,
+  eSignatureStatusLabel,
+  sanitizeESignatureUserMessage,
+} from "@/lib/e-signature/user-facing";
+import {
   isFirmaSigningComplete,
   normalizeFirmaSigningStatus,
   stepUsesFirmaSigning,
@@ -33,23 +38,7 @@ type Props = {
 };
 
 function mapFirmaStatusLabel(status: string): string {
-  const normalized = normalizeFirmaSigningStatus(status);
-  switch (normalized) {
-    case "completed":
-    case "signed":
-      return "Signed";
-    case "sent":
-      return "Sent";
-    case "viewed":
-      return "Viewed";
-    case "expired":
-      return "Expired";
-    case "cancelled":
-    case "voided":
-      return "Cancelled";
-    default:
-      return "Pending";
-  }
+  return eSignatureStatusLabel(status);
 }
 
 export function AuthorizationsFirmaAgreementPanel({
@@ -201,7 +190,7 @@ export function AuthorizationsFirmaAgreementPanel({
     const activeApplicantId = applicantId;
     const activeStepKey = stepKey;
     if (!hasFirmaTemplate) {
-      setError("Agreement signing is not configured. Ask your recruiter to attach a Firma template to this step.");
+      setError(E_SIGNATURE_USER_ERRORS.templateMissing);
       return;
     }
 
@@ -221,7 +210,9 @@ export function AuthorizationsFirmaAgreementPanel({
       });
       const data = (await res.json()) as FirmaSessionResponse;
       if (!res.ok) {
-        throw new Error(data.error || "Could not start Firma signing");
+        throw new Error(
+          sanitizeESignatureUserMessage(data.error, E_SIGNATURE_USER_ERRORS.sessionOpenFailed)
+        );
       }
 
       const session = data.session;
@@ -232,7 +223,7 @@ export function AuthorizationsFirmaAgreementPanel({
       if (session?.iframe_url) {
         setShowSigningModal(true);
       } else {
-        throw new Error("Firma did not return a signing link for this applicant.");
+        throw new Error(E_SIGNATURE_USER_ERRORS.sessionOpenFailed);
       }
 
       if (session?.signing_request_id) {
@@ -240,7 +231,12 @@ export function AuthorizationsFirmaAgreementPanel({
       }
       localStorage.setItem("signingStatus", normalizeFirmaSigningStatus(session?.firma_status));
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Signing setup failed");
+      setError(
+        sanitizeESignatureUserMessage(
+          err instanceof Error ? err.message : null,
+          E_SIGNATURE_USER_ERRORS.sessionOpenFailed
+        )
+      );
     } finally {
       setLoading(false);
     }
@@ -279,7 +275,7 @@ export function AuthorizationsFirmaAgreementPanel({
               <p className="truncate text-[13px] font-semibold text-slate-900 sm:text-sm">
                 Onboarding Agreement
               </p>
-              <p className="text-[11px] text-slate-500 sm:text-xs">Mandatory · Firma e-sign</p>
+              <p className="text-[11px] text-slate-500 sm:text-xs">Mandatory · E-Signature</p>
             </div>
           </div>
           <button
@@ -287,14 +283,13 @@ export function AuthorizationsFirmaAgreementPanel({
             disabled
             className="cursor-not-allowed whitespace-nowrap rounded-lg bg-gray-400 px-3 py-1.5 text-[11px] font-semibold text-white sm:rounded-xl sm:px-5 sm:py-2 sm:text-[12px]"
           >
-            Click and Sign
+            Sign Document
           </button>
         </div>
         <p className="mt-3 text-[11px] text-amber-800 sm:text-xs">
-          Signing is not configured yet. Your recruiter must attach a published Firma template to
-          Authorization / Background Check in the onboarding builder.
+          {E_SIGNATURE_USER_ERRORS.templateMissing}
         </p>
-        <p className="mt-2 text-[11px] font-medium text-slate-500 sm:text-xs">Status: Pending</p>
+        <p className="mt-2 text-[11px] font-medium text-slate-500 sm:text-xs">Status: Signature Pending</p>
       </div>
     );
   }
@@ -310,7 +305,7 @@ export function AuthorizationsFirmaAgreementPanel({
             <p className="truncate text-[13px] font-semibold text-slate-900 sm:text-sm">
               Onboarding Agreement
             </p>
-            <p className="text-[11px] text-slate-500 sm:text-xs">Mandatory · Firma e-sign</p>
+            <p className="text-[11px] text-slate-500 sm:text-xs">Mandatory · E-Signature</p>
           </div>
         </div>
 
@@ -330,7 +325,7 @@ export function AuthorizationsFirmaAgreementPanel({
                   : "bg-[color:var(--brand-primary)] hover:brightness-90"
               }`}
             >
-              {loading ? "Preparing..." : signerEmailLoading ? "Checking email…" : "Click and Sign"}
+              {loading ? "Preparing..." : signerEmailLoading ? "Checking email…" : "Sign Document"}
             </button>
           )}
         </div>

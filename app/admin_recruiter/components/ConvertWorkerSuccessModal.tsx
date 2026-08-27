@@ -110,7 +110,8 @@ export default function ConvertWorkerSuccessModal({
             Worker Successfully Converted!
           </h2>
           <p className="mt-2 text-base leading-6 text-[#4B5563]">
-            {data.candidateName} is now {activeLabel}
+            {data.candidateName} is now {activeLabel}. This person has been moved from Candidates to
+            Workforce.
           </p>
 
           <div className="mt-6 grid w-full grid-cols-1 gap-3 sm:grid-cols-2">

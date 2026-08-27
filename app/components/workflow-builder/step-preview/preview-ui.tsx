@@ -1,7 +1,7 @@
 "use client";
 
-import type { CSSProperties, ReactNode } from "react";
-import { Check } from "lucide-react";
+import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
+import { Check, Lock } from "lucide-react";
 import {
   APPLICANT_ACTION_ROW,
   APPLICANT_BTN_BACK,
@@ -16,7 +16,13 @@ import {
   hexToRgba,
 } from "@/lib/tenant/tenant-branding";
 import { formatApplicantStepperLabel } from "@/lib/onboarding/format-applicant-stepper-label";
-import type { StepPreviewModel, StepPreviewState } from "@/lib/onboarding/step-preview-model";
+import type { StepPreviewModel, StepPreviewState, StepPreviewStepperItem } from "@/lib/onboarding/step-preview-model";
+import {
+  formatPhaseProgressShort,
+  lifecyclePhaseLabel,
+  POST_HIRE_LOCKED_MESSAGE,
+  type EmploymentLifecyclePhase,
+} from "@/lib/onboarding/workflow-phase-groups";
 
 export function PreviewInert({ children }: { children: ReactNode }) {
   return (
@@ -155,12 +161,34 @@ function PreviewStepIcon({ current, completed }: { current: boolean; completed: 
 
 export function PreviewStepper({ model, previewState }: { model: StepPreviewModel; previewState: StepPreviewState }) {
   const branding = useTenantBranding();
+  const [phase, setPhase] = useState<EmploymentLifecyclePhase>(model.selectedPhase);
+
+  useEffect(() => {
+    setPhase(model.selectedPhase);
+  }, [model.step.id, model.selectedPhase]);
+
+  const phaseSteps: StepPreviewStepperItem[] =
+    phase === "post_hire" ? model.postHireSteps : model.preHireSteps;
   const currentIndex = Math.max(
     0,
-    model.stepperSteps.findIndex((step) => step.current)
+    phaseSteps.findIndex((step) => step.current)
   );
   const completedThrough =
-    previewState === "completed" || previewState === "approved" ? currentIndex + 1 : currentIndex;
+    previewState === "completed" || previewState === "approved"
+      ? (phaseSteps.some((step) => step.current) ? currentIndex + 1 : 0)
+      : phaseSteps.some((step) => step.current)
+        ? currentIndex
+        : 0;
+  const preHireComplete =
+    phase === "pre_hire" ? Math.min(completedThrough, model.preHireSteps.length) : 0;
+  const postHireComplete =
+    phase === "post_hire" ? Math.min(completedThrough, model.postHireSteps.length) : 0;
+  const progressLabel =
+    phase === "post_hire"
+      ? formatPhaseProgressShort(postHireComplete, model.postHireSteps.length, "post_hire")
+      : formatPhaseProgressShort(preHireComplete, model.preHireSteps.length, "pre_hire");
+  const header = phase === "post_hire" ? "Your Onboarding" : "Your Application";
+  const showPostHireLock = phase === "post_hire";
 
   return (
     <div
@@ -170,55 +198,100 @@ export function PreviewStepper({ model, previewState }: { model: StepPreviewMode
       <div className="mb-3 flex items-end justify-between gap-3">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
-            {model.progressLabel}
+            {phase === "post_hire" ? "Onboarding Progress" : "Application Progress"}
           </p>
-          <h1 className="text-lg font-semibold text-slate-800">{model.header}</h1>
+          <h1 className="text-lg font-semibold text-slate-800">{header}</h1>
         </div>
-        <p className="text-sm font-medium text-slate-600">
-          {Math.min(completedThrough, model.stepperSteps.length)} / {model.stepperSteps.length}
+        <p className="text-sm font-medium text-slate-600" data-testid="preview-phase-progress">
+          {progressLabel}
         </p>
       </div>
-      <div className="flex w-full overflow-x-auto">
-        {model.stepperSteps.map((step, index) => {
-          const completed = index < completedThrough;
-          const current = index === currentIndex;
+
+      <div
+        className="mb-3 grid grid-cols-2 rounded-lg border border-slate-200 bg-slate-50 p-0.5"
+        role="tablist"
+        aria-label="Workflow phase"
+      >
+        {(["pre_hire", "post_hire"] as const).map((value) => {
+          const count = value === "post_hire" ? model.postHireSteps.length : model.preHireSteps.length;
+          const selected = phase === value;
           return (
-            <div key={step.id} className="relative flex min-w-[4.5rem] flex-1 flex-col items-center">
-              {index < model.stepperSteps.length - 1 ? (
-                <div
-                  className="pointer-events-none absolute top-[13px] left-1/2 z-0 h-[2px] w-full bg-[#f1f5f9]"
-                  aria-hidden
-                >
-                  <div
-                    className="h-full bg-[color:var(--brand-primary)]"
-                    style={{ width: completed ? "100%" : "0%" }}
-                  />
-                </div>
-              ) : null}
-              <div
-                className={`relative z-10 flex h-[26px] w-[26px] items-center justify-center rounded-full text-sm font-semibold ${
-                  completed
-                    ? "bg-[color:var(--brand-primary)] text-white"
-                    : current
-                      ? "border-[3px] border-[color:var(--brand-primary)] bg-white"
-                      : "border-[3px] border-[#f1f5f9] bg-white text-[#e2e8f0]"
-                }`}
-              >
-                <PreviewStepIcon current={current} completed={completed} />
-              </div>
-              <span
-                className={`mt-2 whitespace-pre-line text-center text-[10px] leading-tight ${
-                  completed || current
-                    ? "font-medium text-[color:var(--brand-primary)]"
-                    : "text-gray-400"
-                }`}
-              >
-                {formatApplicantStepperLabel(step.title)}
-              </span>
-            </div>
+            <button
+              key={value}
+              type="button"
+              role="tab"
+              aria-selected={selected}
+              onClick={() => setPhase(value)}
+              className={`inline-flex items-center justify-center gap-1 rounded-md px-2 py-1.5 text-[11px] font-semibold ${
+                selected ? "bg-white text-slate-900 shadow-sm" : "text-slate-500"
+              }`}
+            >
+              {value === "post_hire" ? <Lock className="h-3 w-3" aria-hidden /> : null}
+              {lifecyclePhaseLabel(value)}
+              <span className="font-medium text-slate-400">({count})</span>
+            </button>
           );
         })}
       </div>
+
+      {showPostHireLock ? (
+        <p className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+          {POST_HIRE_LOCKED_MESSAGE}
+        </p>
+      ) : null}
+
+      {phaseSteps.length === 0 ? (
+        <p className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-3 py-3 text-center text-sm text-slate-600">
+          No {lifecyclePhaseLabel(phase)} steps are configured in this workflow.
+        </p>
+      ) : (
+        <div className="flex w-full flex-col gap-2">
+          {phaseSteps.map((step, index) => {
+            const completed = index < completedThrough;
+            const current = index === currentIndex && phaseSteps.some((item) => item.current);
+            return (
+              <div
+                key={step.id}
+                className={`flex items-start gap-3 rounded-xl border px-3 py-2.5 ${
+                  current
+                    ? "border-[color:var(--brand-primary)] bg-[color:var(--brand-primary)]/5"
+                    : "border-slate-200 bg-white"
+                }`}
+              >
+                <div
+                  className={`relative z-10 mt-0.5 flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-full text-sm font-semibold ${
+                    completed
+                      ? "bg-[color:var(--brand-primary)] text-white"
+                      : current
+                        ? "border-[3px] border-[color:var(--brand-primary)] bg-white"
+                        : "border-[3px] border-[#f1f5f9] bg-white text-[#e2e8f0]"
+                  }`}
+                >
+                  <PreviewStepIcon current={current} completed={completed} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span
+                      className={`text-[13px] font-semibold leading-5 ${
+                        completed || current ? "text-slate-900" : "text-slate-500"
+                      }`}
+                    >
+                      {formatApplicantStepperLabel(step.title)}
+                    </span>
+                    <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-600">
+                      {lifecyclePhaseLabel(step.phase)}
+                    </span>
+                    <span className="rounded-full bg-slate-50 px-1.5 py-0.5 text-[10px] font-medium text-slate-500">
+                      {step.required ? "Required" : "Optional"}
+                    </span>
+                  </div>
+                  <p className="mt-0.5 text-[11px] text-slate-500">{step.stepType.replaceAll("_", " ")}</p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

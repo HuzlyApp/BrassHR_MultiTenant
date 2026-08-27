@@ -53,7 +53,7 @@ export default function FirmaTemplateEditorEmbed({
             script.src = embedScriptUrl;
             script.async = true;
             script.onload = () => resolve();
-            script.onerror = () => reject(new Error("Failed to load Firma template editor"));
+            script.onerror = () => reject(new Error("Failed to load signature template editor"));
             document.body.appendChild(script);
           });
         }
@@ -75,13 +75,13 @@ export default function FirmaTemplateEditorEmbed({
             onLoad?.();
           },
           onError: (err: unknown) => {
-            const message = err instanceof Error ? err.message : "Firma editor error";
+            const message = err instanceof Error ? err.message : "Signature template editor error";
             onError?.(message);
           },
         });
         patchFirmaTemplateEditorBranding(editorRef.current);
       } catch (err) {
-        onError?.(err instanceof Error ? err.message : "Failed to initialize Firma editor");
+        onError?.(err instanceof Error ? err.message : "Failed to initialize signature template editor");
       }
     }
 

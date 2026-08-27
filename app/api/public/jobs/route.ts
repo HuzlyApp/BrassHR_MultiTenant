@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { EMPLOYMENT_TYPES } from "@/lib/jobs/types";
+import { JOB_LOCATION_TYPES } from "@/lib/jobs/public-jobs-board";
 import { listPublicJobs } from "@/lib/jobs/service";
 import { resolvePublicTenant } from "@/lib/jobs/tenant";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
@@ -24,6 +25,7 @@ export async function GET(req: NextRequest) {
     if (!tenant) return NextResponse.json({ error: "Tenant not found" }, { status: 404 });
 
     const employmentType = req.nextUrl.searchParams.get("employmentType") || undefined;
+    const locationType = req.nextUrl.searchParams.get("locationType") || undefined;
     const result = await listPublicJobs(supabase, tenant.id, {
       query: req.nextUrl.searchParams.get("q") || undefined,
       professionId: req.nextUrl.searchParams.get("professionId") || undefined,
@@ -33,6 +35,10 @@ export async function GET(req: NextRequest) {
         employmentType &&
         EMPLOYMENT_TYPES.includes(employmentType as (typeof EMPLOYMENT_TYPES)[number])
           ? employmentType
+          : undefined,
+      locationType:
+        locationType && JOB_LOCATION_TYPES.includes(locationType as (typeof JOB_LOCATION_TYPES)[number])
+          ? locationType
           : undefined,
       page: Number(req.nextUrl.searchParams.get("page") || 1),
       pageSize: Number(req.nextUrl.searchParams.get("pageSize") || 12),

@@ -4,6 +4,7 @@ import { requireStaffApiSession } from "@/lib/auth/api-session";
 import { resolveStaffTenantScope } from "@/lib/auth/staff-tenant-scope";
 import { requireApprovedApplicant } from "@/lib/applicant-portal/request";
 import { isStaffRole } from "@/lib/auth/app-role";
+import { notifySupportTicketReply } from "@/lib/notifications/create-notification";
 import {
   getTicketThread,
   insertTicketMessage,
@@ -142,6 +143,19 @@ export async function POST(req: NextRequest, context: RouteContext) {
       .from("support_tickets")
       .update({ status: "In Progress", updated_at: new Date().toISOString() })
       .eq("id", id);
+  }
+
+  try {
+    await notifySupportTicketReply(supabase, {
+      tenantId: auth.ticket.tenant_id,
+      ticketId: id,
+      subject: auth.ticket.subject,
+      senderRole: auth.senderRole,
+      senderUserId: auth.userId,
+      applicantUserId: auth.ticket.user_id,
+    });
+  } catch (notifyError) {
+    console.error("[support-tickets/:id/messages:notify]", notifyError);
   }
 
   return NextResponse.json({ message: result.message }, { status: 201 });

@@ -42,6 +42,8 @@
     "supabase/functions/**",
     "vitest.config.ts",
     "vitest.config.mts",
-    "lib/test-utils/**"
+    "lib/test-utils/**",
+    "**/*.test.ts",
+    "**/*.test.tsx"
   ]
 }

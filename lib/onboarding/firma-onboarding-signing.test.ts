@@ -127,7 +127,7 @@ describe("firma step settings", () => {
       },
     });
 
-    expect(route).toContain(APPLICATION_ROUTES.firmaSign);
+    expect(route).toContain(APPLICATION_ROUTES.eSignature);
     expect(route).not.toContain(APPLICATION_ROUTES.authorizationsDocuments);
   });
 

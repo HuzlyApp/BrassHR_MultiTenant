@@ -75,9 +75,15 @@ export function readPublishedStepLifecyclePhase(
 export function applicantMayActOnStep(params: {
   activePhase: ApplicantLifecyclePhase;
   stepPhase: Exclude<ApplicantLifecyclePhase, "completed">;
+  isHired?: boolean;
+  postHireSuspended?: boolean;
 }): boolean {
   if (params.activePhase === "completed") {
     return false;
+  }
+  if (params.stepPhase === "post_hire") {
+    if (params.isHired !== true || params.postHireSuspended) return false;
+    return params.activePhase === "post_hire";
   }
   return params.activePhase === params.stepPhase;
 }

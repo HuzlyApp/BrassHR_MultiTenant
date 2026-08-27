@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ChevronRight, Circle, ExternalLink } from "lucide-react";
 import DashboardPageLoader from "@/app/admin_recruiter/components/DashboardPageLoader";
 import {
@@ -11,6 +12,7 @@ import {
 } from "@/app/admin_recruiter/candidates/candidates-typography";
 import { TicketsSubNav } from "@/app/admin_recruiter/tickets/TicketsSubNav";
 import { SupportTicketDetailModal } from "@/app/admin_recruiter/tickets/support/SupportTicketDetailModal";
+import { StaffCreateSupportTicketModal } from "@/app/admin_recruiter/tickets/support/StaffCreateSupportTicketModal";
 import { descriptionPreview } from "@/lib/support-tickets/support-ticket-display";
 import type { SupportTicketListItem } from "@/lib/support-tickets/types";
 
@@ -64,7 +66,7 @@ function SidebarFilterButton({
     <button
       type="button"
       onClick={onClick}
-      className={`flex w-full items-center justify-between rounded-lg border px-3 py-3 text-left transition ${
+      className={`flex min-h-11 w-full items-center justify-between rounded-lg border px-3 py-3 text-left transition ${
         active
           ? "border-[#E5E7EB] bg-[#F4F4F4] text-[color:var(--brand-primary)]"
           : "border-[#E5E7EB] bg-white text-[#374151] hover:bg-[#FAFBFC]"
@@ -77,12 +79,15 @@ function SidebarFilterButton({
 }
 
 export default function SupportTicketsClient() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [tickets, setTickets] = useState<SupportTicketListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [sidebarFilter, setSidebarFilter] = useState<SidebarFilter>("open");
   const [selectedTicket, setSelectedTicket] = useState<SupportTicketListItem | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
   const [closing, setClosing] = useState(false);
   const [page, setPage] = useState(1);
 
@@ -90,16 +95,18 @@ export default function SupportTicketsClient() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/support-tickets", { cache: "no-store" });
+      const res = await fetch("/api/support-tickets", { cache: "no-store", credentials: "include" });
       const payload = (await res.json().catch(() => ({}))) as {
         tickets?: SupportTicketListItem[];
         error?: string;
       };
       if (!res.ok) throw new Error(payload.error || "Could not load support tickets.");
       setTickets(payload.tickets ?? []);
+      return payload.tickets ?? [];
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not load support tickets.");
       setTickets([]);
+      return [];
     } finally {
       setLoading(false);
     }
@@ -108,6 +115,19 @@ export default function SupportTicketsClient() {
   useEffect(() => {
     void loadTickets();
   }, [loadTickets]);
+
+  useEffect(() => {
+    const ticketId = searchParams.get("ticket")?.trim();
+    if (!ticketId || tickets.length === 0) return;
+    const match = tickets.find((ticket) => ticket.id === ticketId);
+    if (!match) return;
+    setSelectedTicket(match);
+    setDetailOpen(true);
+    const status = match.status.toLowerCase();
+    if (status === "closed") setSidebarFilter("closed");
+    else if (status === "resolved") setSidebarFilter("archived");
+    else setSidebarFilter("open");
+  }, [searchParams, tickets]);
 
   const filteredTickets = useMemo(
     () => tickets.filter((ticket) => matchesSidebarFilter(ticket, sidebarFilter)),
@@ -130,6 +150,14 @@ export default function SupportTicketsClient() {
     setDetailOpen(true);
   }
 
+  function handleCreated(ticket: SupportTicketListItem) {
+    setTickets((current) => [ticket, ...current.filter((item) => item.id !== ticket.id)]);
+    setSidebarFilter("open");
+    setSelectedTicket(ticket);
+    setDetailOpen(true);
+    setCreateOpen(false);
+  }
+
   async function handleCloseTicket() {
     if (!selectedTicket || selectedTicket.status === "Closed") return;
     setClosing(true);
@@ -137,6 +165,7 @@ export default function SupportTicketsClient() {
     try {
       const res = await fetch(`/api/support-tickets/${encodeURIComponent(selectedTicket.id)}/close`, {
         method: "PATCH",
+        credentials: "include",
       });
       const payload = (await res.json().catch(() => ({}))) as {
         ticket?: SupportTicketListItem;
@@ -157,11 +186,69 @@ export default function SupportTicketsClient() {
     }
   }
 
+  async function handleArchiveTicket() {
+    if (!selectedTicket || selectedTicket.status === "Resolved") return;
+    setClosing(true);
+    setError(null);
+    try {
+      const res = await fetch(
+        `/api/support-tickets/${encodeURIComponent(selectedTicket.id)}/archive`,
+        { method: "PATCH", credentials: "include" }
+      );
+      const payload = (await res.json().catch(() => ({}))) as {
+        ticket?: SupportTicketListItem;
+        error?: string;
+      };
+      if (!res.ok) throw new Error(payload.error || "Could not archive ticket.");
+      const updated = payload.ticket;
+      if (updated) {
+        setTickets((current) => current.map((ticket) => (ticket.id === updated.id ? updated : ticket)));
+        setSelectedTicket(updated);
+        setSidebarFilter("archived");
+      } else {
+        await loadTickets();
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not archive ticket.");
+    } finally {
+      setClosing(false);
+    }
+  }
+
+  async function handleReopenTicket() {
+    if (!selectedTicket) return;
+    setClosing(true);
+    setError(null);
+    try {
+      const res = await fetch(
+        `/api/support-tickets/${encodeURIComponent(selectedTicket.id)}/reopen`,
+        { method: "PATCH", credentials: "include" }
+      );
+      const payload = (await res.json().catch(() => ({}))) as {
+        ticket?: SupportTicketListItem;
+        error?: string;
+      };
+      if (!res.ok) throw new Error(payload.error || "Could not reopen ticket.");
+      const updated = payload.ticket;
+      if (updated) {
+        setTickets((current) => current.map((ticket) => (ticket.id === updated.id ? updated : ticket)));
+        setSelectedTicket(updated);
+        setSidebarFilter("open");
+      } else {
+        await loadTickets();
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not reopen ticket.");
+    } finally {
+      setClosing(false);
+    }
+  }
+
   const openTicketAction = (
     <button
       type="button"
-      onClick={() => setSidebarFilter("open")}
-      className="rounded-lg px-3.5 py-2.5 text-sm font-semibold text-white"
+      onClick={() => setCreateOpen(true)}
+      className="min-h-11 rounded-lg px-3.5 py-2.5 text-sm font-semibold text-white"
       style={{
         background: "linear-gradient(135deg, var(--brand-gradient-from) 0%, var(--brand-gradient-to) 100%)",
       }}
@@ -220,8 +307,22 @@ export default function SupportTicketsClient() {
                   <div className="flex min-h-[420px] flex-col items-center justify-center px-6 py-12 text-center">
                     <p className="text-base font-medium text-[#0F172A]">No tickets in this view</p>
                     <p className="mt-2 max-w-md text-sm text-[#64748B]">
-                      Applicant tickets from Messages or Help & Support appear here once submitted.
+                      Create a ticket on behalf of a worker, or wait for applicant submissions from
+                      Help & Support.
                     </p>
+                    {sidebarFilter === "open" ? (
+                      <button
+                        type="button"
+                        onClick={() => setCreateOpen(true)}
+                        className="mt-4 min-h-11 rounded-lg px-4 py-2.5 text-sm font-semibold text-white"
+                        style={{
+                          background:
+                            "linear-gradient(135deg, var(--brand-gradient-from) 0%, var(--brand-gradient-to) 100%)",
+                        }}
+                      >
+                        Open a Ticket
+                      </button>
+                    ) : null}
                   </div>
                 ) : (
                   <>
@@ -243,7 +344,9 @@ export default function SupportTicketsClient() {
                               key={ticket.id}
                               className="border-b border-[#F1F5F9] transition hover:bg-[#FAFBFC]"
                             >
-                              <td className="px-3 py-4 text-sm text-[#0F172A]">{formatCategory(ticket.category)}</td>
+                              <td className="px-3 py-4 text-sm text-[#0F172A]">
+                                {formatCategory(ticket.category)}
+                              </td>
                               <td className="px-3 py-4">
                                 <button
                                   type="button"
@@ -265,11 +368,17 @@ export default function SupportTicketsClient() {
                                 </button>
                               </td>
                               <td className="px-3 py-4">
-                                <p className="truncate text-sm text-[#0F172A]">{ticket.applicant_name ?? "Applicant"}</p>
-                                <p className="truncate text-xs text-[#64748B]">{ticket.applicant_email ?? "—"}</p>
+                                <p className="truncate text-sm text-[#0F172A]">
+                                  {ticket.applicant_name ?? "Applicant"}
+                                </p>
+                                <p className="truncate text-xs text-[#64748B]">
+                                  {ticket.applicant_email ?? "—"}
+                                </p>
                               </td>
                               <td className="px-3 py-4">
-                                <span className={`inline-flex items-center gap-1.5 text-sm ${statusTone(ticket.status)}`}>
+                                <span
+                                  className={`inline-flex items-center gap-1.5 text-sm ${statusTone(ticket.status)}`}
+                                >
                                   <Circle className="h-2.5 w-2.5 fill-current" aria-hidden />
                                   {ticket.status}
                                 </span>
@@ -278,13 +387,26 @@ export default function SupportTicketsClient() {
                                 {formatLastUpdated(ticket.updated_at ?? ticket.created_at)}
                               </td>
                               <td className="px-3 py-4 text-right">
-                                <button
-                                  type="button"
-                                  onClick={() => openTicketDetail(ticket)}
-                                  className="text-sm font-medium text-[#012352] hover:text-[color:var(--brand-primary)]"
-                                >
-                                  View
-                                </button>
+                                <div className="flex flex-wrap justify-end gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => openTicketDetail(ticket)}
+                                    className="min-h-11 text-sm font-medium text-[#012352] hover:text-[color:var(--brand-primary)]"
+                                  >
+                                    View
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      router.push(
+                                        `/admin_recruiter/messages?tab=support&ticket=${encodeURIComponent(ticket.id)}`
+                                      )
+                                    }
+                                    className="min-h-11 text-sm font-medium text-[#012352] hover:text-[color:var(--brand-primary)]"
+                                  >
+                                    Chat
+                                  </button>
+                                </div>
                               </td>
                             </tr>
                           ))}
@@ -295,14 +417,15 @@ export default function SupportTicketsClient() {
                     <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#E5E7EB] px-4 py-3 text-sm text-[#64748B]">
                       <p>
                         Showing {(safePage - 1) * PAGE_SIZE + 1}–
-                        {Math.min(safePage * PAGE_SIZE, filteredTickets.length)} of {filteredTickets.length}
+                        {Math.min(safePage * PAGE_SIZE, filteredTickets.length)} of{" "}
+                        {filteredTickets.length}
                       </p>
                       <div className="flex items-center gap-2">
                         <button
                           type="button"
                           disabled={safePage <= 1}
                           onClick={() => setPage((current) => Math.max(1, current - 1))}
-                          className="rounded-lg border border-[#E2E8F0] px-3 py-1.5 disabled:opacity-50"
+                          className="min-h-11 rounded-lg border border-[#E2E8F0] px-3 py-1.5 disabled:opacity-50"
                         >
                           Previous
                         </button>
@@ -313,7 +436,7 @@ export default function SupportTicketsClient() {
                           type="button"
                           disabled={safePage >= totalPages}
                           onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
-                          className="rounded-lg border border-[#E2E8F0] px-3 py-1.5 disabled:opacity-50"
+                          className="min-h-11 rounded-lg border border-[#E2E8F0] px-3 py-1.5 disabled:opacity-50"
                         >
                           Next
                         </button>
@@ -336,6 +459,14 @@ export default function SupportTicketsClient() {
           setSelectedTicket(null);
         }}
         onCloseTicket={() => void handleCloseTicket()}
+        onArchiveTicket={() => void handleArchiveTicket()}
+        onReopenTicket={() => void handleReopenTicket()}
+      />
+
+      <StaffCreateSupportTicketModal
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+        onSuccess={handleCreated}
       />
     </div>
   );

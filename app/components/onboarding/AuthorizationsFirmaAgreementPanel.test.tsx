@@ -71,7 +71,7 @@ describe("AuthorizationsFirmaAgreementPanel email validation", () => {
       screen.queryByText(/Enter a valid email on the first onboarding step/i)
     ).not.toBeInTheDocument();
 
-    const button = screen.getByRole("button", { name: /Click and Sign/i });
+    const button = screen.getByRole("button", { name: /Sign Document/i });
     expect(button).not.toBeDisabled();
 
     await userEvent.click(button);
@@ -115,7 +115,7 @@ describe("AuthorizationsFirmaAgreementPanel email validation", () => {
     expect(
       screen.getByText(/Enter a valid email on the first onboarding step/i)
     ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Click and Sign/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /Sign Document/i })).toBeDisabled();
   });
 
   it("accepts deliverable email from field alias normalization", () => {
@@ -132,6 +132,6 @@ describe("AuthorizationsFirmaAgreementPanel email validation", () => {
     expect(
       screen.queryByText(/Enter a valid email on the first onboarding step/i)
     ).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Click and Sign/i })).not.toBeDisabled();
+    expect(screen.getByRole("button", { name: /Sign Document/i })).not.toBeDisabled();
   });
 });

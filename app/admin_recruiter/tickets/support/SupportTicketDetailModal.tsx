@@ -38,9 +38,19 @@ type Props = {
   closing: boolean;
   onClose: () => void;
   onCloseTicket: () => void;
+  onArchiveTicket?: () => void;
+  onReopenTicket?: () => void;
 };
 
-export function SupportTicketDetailModal({ ticket, open, closing, onClose, onCloseTicket }: Props) {
+export function SupportTicketDetailModal({
+  ticket,
+  open,
+  closing,
+  onClose,
+  onCloseTicket,
+  onArchiveTicket,
+  onReopenTicket,
+}: Props) {
   const [attachments, setAttachments] = useState<SupportTicketAttachmentRow[]>([]);
   const [attachmentsLoading, setAttachmentsLoading] = useState(false);
 
@@ -164,29 +174,50 @@ export function SupportTicketDetailModal({ ticket, open, closing, onClose, onClo
             </div>
           </div>
 
-          <div className="mt-5 flex gap-4">
+          <div className="mt-5 flex flex-wrap gap-3">
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 rounded-lg border border-[#E2E8F0] px-3.5 py-2.5 text-sm font-semibold text-[#012352] hover:bg-[#F8FAFC]"
+              className="min-h-11 flex-1 rounded-lg border border-[#E2E8F0] px-3.5 py-2.5 text-sm font-semibold text-[#012352] hover:bg-[#F8FAFC]"
             >
               Cancel
             </button>
-            {ticket.status !== "Closed" ? (
+            {ticket.status === "Closed" || ticket.status === "Resolved" ? (
               <button
                 type="button"
-                onClick={onCloseTicket}
-                disabled={closing}
-                className="flex flex-1 items-center justify-center gap-2 rounded-lg px-3.5 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
-                style={{
-                  background:
-                    "linear-gradient(135deg, var(--brand-gradient-from) 0%, var(--brand-gradient-to) 100%)",
-                }}
+                onClick={onReopenTicket}
+                disabled={closing || !onReopenTicket}
+                className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg border border-[#E2E8F0] px-3.5 py-2.5 text-sm font-semibold text-[#012352] hover:bg-[#F8FAFC] disabled:opacity-60"
               >
                 {closing ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : null}
-                Close Ticket
+                Reopen
               </button>
-            ) : null}
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={onArchiveTicket}
+                  disabled={closing || !onArchiveTicket}
+                  className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg border border-[#E2E8F0] px-3.5 py-2.5 text-sm font-semibold text-[#012352] hover:bg-[#F8FAFC] disabled:opacity-60"
+                >
+                  {closing ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : null}
+                  Archive
+                </button>
+                <button
+                  type="button"
+                  onClick={onCloseTicket}
+                  disabled={closing}
+                  className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg px-3.5 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
+                  style={{
+                    background:
+                      "linear-gradient(135deg, var(--brand-gradient-from) 0%, var(--brand-gradient-to) 100%)",
+                  }}
+                >
+                  {closing ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : null}
+                  Close Ticket
+                </button>
+              </>
+            )}
           </div>
         </div>
       </div>

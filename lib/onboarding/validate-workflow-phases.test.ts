@@ -38,4 +38,10 @@ describe("validateWorkflowPhaseLayout", () => {
   it("accepts Pre-Hire then Post-Hire, treating approval as Pre-Hire", () => {
     expect(validateWorkflowPhaseLayout(draft(["pre_hire", "transition", "post_hire"]))).toEqual([]);
   });
+
+  it("rejects steps that have no explicit phase", () => {
+    const state = draft(["pre_hire"]);
+    state.nodes[0]!.settings = { ...state.nodes[0]!.settings, phase: "" as never };
+    expect(validateWorkflowPhaseLayout(state).some((error) => error.code === "MISSING_PHASE")).toBe(true);
+  });
 });

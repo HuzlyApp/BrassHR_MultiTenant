@@ -441,7 +441,7 @@ export async function POST(req: Request) {
         status: "failed",
         workspaceId: null,
         message:
-          "Tenant was created, but Firma workspace creation failed. You can retry in Account Settings.",
+          "Tenant was created, but e-signature workspace creation failed. You can retry in Account Settings.",
       };
     }
   }

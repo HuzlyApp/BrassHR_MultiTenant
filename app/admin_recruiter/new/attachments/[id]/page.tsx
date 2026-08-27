@@ -51,6 +51,8 @@ type AttachmentRequirement = {
   status?: string | null;
   step_type?: OnboardingStepType;
   step_key?: string;
+  phase?: "pre_hire" | "post_hire";
+  step_title?: string;
 };
 
 type WorkerProfileResponse = {
@@ -70,6 +72,8 @@ type AttachmentRow = {
   status: string | null;
   stepType: OnboardingStepType | null;
   stepKey: string | null;
+  phase: "pre_hire" | "post_hire";
+  stepTitle: string;
 };
 
 function attachmentRowKey(
@@ -212,6 +216,8 @@ export default function NewApplicantAttachmentsFilledPage() {
         status: row.status ?? null,
         stepType: row.step_type ?? null,
         stepKey: row.step_key ?? null,
+        phase: row.phase ?? "pre_hire",
+        stepTitle: row.step_title ?? row.title,
       };
       return {
         ...mapped,
@@ -506,6 +512,9 @@ export default function NewApplicantAttachmentsFilledPage() {
                           <div className="flex min-h-[44px] items-center justify-between gap-3 px-5 pt-3 pb-2 md:h-[44px]">
                             <div className="min-w-0 text-[16px] font-semibold leading-6 text-[#111827]">
                               {idx + 1}. {r.title}
+                              <span className="ml-2 rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-600">
+                                {r.phase === "post_hire" ? "Post-Hire" : "Pre-Hire"}
+                              </span>
                             </div>
                             <div className="flex items-center gap-3">
                               <button

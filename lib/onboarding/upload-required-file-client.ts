@@ -24,13 +24,15 @@ export async function uploadRequiredOnboardingFile(
   if (!res.ok) {
     throw new Error(json.error || "File upload failed");
   }
-  if (!json.publicUrl) {
-    throw new Error("Could not generate public URL");
+  const storedPath = json.path?.trim() || "";
+  const publicUrl = json.publicUrl?.trim() || storedPath;
+  if (!publicUrl && !storedPath) {
+    throw new Error("Could not save uploaded file");
   }
 
   return {
-    publicUrl: json.publicUrl,
-    path: json.path ?? "",
+    publicUrl,
+    path: storedPath,
     fileName: json.fileName ?? file.name,
   };
 }

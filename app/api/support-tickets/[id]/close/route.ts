@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { requireStaffApiSession } from "@/lib/auth/api-session";
 import { resolveStaffTenantScope } from "@/lib/auth/staff-tenant-scope";
 import { isStaffRole } from "@/lib/auth/app-role";
+import { notifySupportTicketClosed } from "@/lib/notifications/create-notification";
 import { closeSupportTicket, getSupportTicketById } from "@/lib/support-tickets/support-ticket-service";
 import { getSupabaseUrl } from "@/lib/supabase-env";
 
@@ -58,6 +59,18 @@ export async function PATCH(_req: Request, context: RouteContext) {
 
   if ("error" in result) {
     return NextResponse.json({ error: result.error }, { status: 500 });
+  }
+
+  try {
+    await notifySupportTicketClosed(supabase, {
+      tenantId: existing.tenant_id,
+      ticketId: id,
+      subject: existing.subject,
+      applicantUserId: existing.user_id,
+      closedByUserId: auth.userId,
+    });
+  } catch (notifyError) {
+    console.error("[support-tickets/:id/close:notify]", notifyError);
   }
 
   const ticket = await getSupportTicketById(supabase, id);

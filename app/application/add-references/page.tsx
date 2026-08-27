@@ -33,8 +33,10 @@ import {
 import AutosaveStatus from "@/app/components/AutosaveStatus"
 import {
   emptyReferenceRow,
+  getReferenceFieldError,
   getReferencesSaveError,
   isReferenceComplete,
+  sanitizeYearsKnownInput,
   type ReferenceRow,
 } from "@/lib/referencesValidation"
 
@@ -310,8 +312,11 @@ export default function ReferencesPage() {
           </p>
 
           <div className="space-y-8">
-            {refs.map((r, index) => (
-              <div key={index}>
+            {refs.map((r, index) => {
+              const yearsKnownError = getReferenceFieldError(r, "yearsKnown")
+              return (
+                <div key={index}>
+
                 <div className="mb-3 flex items-center justify-between">
                   <p className="text-[15px] font-bold text-slate-800">Reference {index + 1}</p>
                   <div className="flex items-center gap-3">
@@ -384,11 +389,14 @@ export default function ReferencesPage() {
                     <label className="mb-1 block text-[11px] text-slate-500">Years Known</label>
                     <input
                       value={r.yearsKnown ?? ""}
-                      onChange={(e) => update(index, "yearsKnown", e.target.value.replace(/[^\d.]/g, "").slice(0, 5))}
+                      onChange={(e) => update(index, "yearsKnown", sanitizeYearsKnownInput(e.target.value))}
                       inputMode="decimal"
-                      placeholder="Optional"
+                      placeholder="e.g. 5 (0–80)"
                       className="w-full rounded-lg border border-slate-200 px-3 py-2 text-[13px] text-slate-800 outline-none transition focus:border-[color:var(--brand-primary)]"
                     />
+                    {yearsKnownError ? (
+                      <p className="mt-1 text-[11px] text-rose-600">{yearsKnownError}</p>
+                    ) : null}
                   </div>
                 </div>
 
@@ -423,8 +431,9 @@ export default function ReferencesPage() {
                     className="w-full rounded-lg border border-slate-200 px-3 py-2 text-[13px] text-slate-800 outline-none transition focus:border-[color:var(--brand-primary)]"
                   />
                 </div>
-              </div>
-            ))}
+                </div>
+              )
+            })}
           </div>
 
           {refs.length < 5 && (

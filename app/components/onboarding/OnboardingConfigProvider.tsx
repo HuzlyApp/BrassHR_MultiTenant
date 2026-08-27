@@ -128,10 +128,14 @@ export default function OnboardingConfigProvider({ children }: { children: React
   /** Direct Start Application lands on add-resume without job_token — ignore stale localStorage. */
   const isDirectOnboardingEntry =
     !jobTokenFromUrl && Boolean(pathname?.includes("/application/add-resume"));
-  const resolvedJobToken = isDirectOnboardingEntry
-    ? null
-    : jobTokenFromUrl || currentApplicationJobToken();
-  const isDraftPreview = searchParams.get("preview") === "draft";
+  const isDraftPreview =
+    searchParams.get("preview") === "draft" ||
+    searchParams.get("mode")?.trim().toLowerCase() === "test";
+  /** Test workflow / draft preview is never a live job application. */
+  const resolvedJobToken =
+    isDraftPreview || isDirectOnboardingEntry
+      ? null
+      : jobTokenFromUrl || currentApplicationJobToken();
   const { sessionReady, sessionLoading } = useApplicantSession();
 
   const [config, setConfig] = useState<TenantOnboardingConfig | null>(null);

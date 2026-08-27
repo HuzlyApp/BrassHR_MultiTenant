@@ -19,7 +19,7 @@ export async function GET() {
   if (auth instanceof NextResponse) return auth;
 
   if (!canManageFirmaSettings(auth)) {
-    return NextResponse.json({ error: "Not authorized to view Firma settings" }, { status: 403 });
+    return NextResponse.json({ error: "Not authorized to view E-Signature Settings" }, { status: 403 });
   }
 
   const svc = createServiceRoleClient();
@@ -76,7 +76,7 @@ export async function PATCH(req: NextRequest) {
   if (auth instanceof NextResponse) return auth;
 
   if (!canManageFirmaSettings(auth)) {
-    return NextResponse.json({ error: "Not authorized to update Firma settings" }, { status: 403 });
+    return NextResponse.json({ error: "Not authorized to update E-Signature Settings" }, { status: 403 });
   }
 
   const svc = createServiceRoleClient();

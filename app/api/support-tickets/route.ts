@@ -10,6 +10,7 @@ import {
   listStaffSupportTickets,
 } from "@/lib/support-tickets/support-ticket-service";
 import { enrichTicketsWithMessagePreviews } from "@/lib/support-tickets/support-ticket-messages";
+import { parseSupportTicketCreateBody } from "@/lib/support-tickets/parse-create-request";
 import type { SupportTicketPriority } from "@/lib/support-tickets/types";
 import { getSupabaseUrl } from "@/lib/supabase-env";
 import { enforceRateLimit, getClientIp } from "@/lib/security/rate-limit";
@@ -71,47 +72,8 @@ export async function POST(req: NextRequest) {
   });
   if (limited) return limited;
 
-  const auth = await requireApprovedApplicant(req);
-  if (auth instanceof NextResponse) return auth;
-
-  const isFormData = req.headers.get("content-type")?.toLowerCase().includes("multipart/form-data");
-  let subject = "";
-  let description = "";
-  let category = "general";
-  let priorityRaw = "";
-  let source = "manual";
-  const files: File[] = [];
-
-  if (isFormData) {
-    const form = await req.formData();
-    subject = String(form.get("subject") ?? "").trim();
-    description = String(form.get("description") ?? form.get("inquiry") ?? "").trim();
-    category = String(form.get("category") ?? "general").trim() || "general";
-    priorityRaw = String(form.get("priority") ?? "").trim().toLowerCase();
-    source = String(form.get("source") ?? "manual").trim() || "manual";
-    for (const entry of form.getAll("file")) {
-      if (entry instanceof File && entry.size > 0) files.push(entry);
-    }
-    for (const entry of form.getAll("files")) {
-      if (entry instanceof File && entry.size > 0) files.push(entry);
-    }
-  } else {
-    const body = (await req.json().catch(() => ({}))) as {
-      subject?: string;
-      description?: string;
-      inquiry?: string;
-      category?: string;
-      priority?: string;
-      source?: string;
-    };
-    subject = body.subject?.trim() ?? "";
-    description = (body.description ?? body.inquiry ?? "").trim();
-    category = body.category?.trim() || "general";
-    priorityRaw = body.priority?.trim().toLowerCase() ?? "";
-    source = body.source?.trim() || "manual";
-  }
-
-  const priority = priorityRaw as SupportTicketPriority | undefined;
+  const parsed = await parseSupportTicketCreateBody(req);
+  const { subject, description, category, priority, source, files, applicantId } = parsed;
 
   if (!subject) {
     return NextResponse.json({ error: "Subject is required." }, { status: 400 });
@@ -119,27 +81,109 @@ export async function POST(req: NextRequest) {
   if (!description) {
     return NextResponse.json({ error: "Please describe your issue." }, { status: 400 });
   }
-  if (priorityRaw && !PRIORITIES.has(priorityRaw as SupportTicketPriority)) {
+  if (priority && !PRIORITIES.has(priority)) {
     return NextResponse.json({ error: "Invalid priority." }, { status: 400 });
   }
 
-  const result = await insertSupportTicket(auth.supabase, {
-    tenantId: auth.applicant.tenant_id,
-    userId: auth.user.id,
-    applicantId: auth.applicant.id,
+  const applicantAuth = await requireApprovedApplicant(req);
+  if (!(applicantAuth instanceof NextResponse)) {
+    const result = await insertSupportTicket(applicantAuth.supabase, {
+      tenantId: applicantAuth.applicant.tenant_id,
+      userId: applicantAuth.user.id,
+      applicantId: applicantAuth.applicant.id,
+      input: {
+        subject,
+        description,
+        category: category || "general",
+        priority,
+        source: source || "manual",
+      },
+      files,
+      notifyStaff: true,
+    });
+
+    if ("error" in result) {
+      return NextResponse.json({ error: result.error }, { status: 500 });
+    }
+
+    return NextResponse.json({ ticket: result.ticket }, { status: 201 });
+  }
+
+  const staffAuth = await requireStaffApiSession();
+  if (staffAuth instanceof NextResponse) return staffAuth;
+  if (!isStaffRole(staffAuth.role) && !staffAuth.godAdmin) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  if (!applicantId) {
+    return NextResponse.json(
+      { error: "Select a worker to create a support ticket on their behalf." },
+      { status: 400 }
+    );
+  }
+
+  const supabase = getServiceClient();
+  if (!supabase) {
+    return NextResponse.json({ error: "Supabase service role not configured" }, { status: 503 });
+  }
+
+  const scope = await resolveStaffTenantScope(staffAuth.authUser);
+  if (scope.mode !== "scoped") {
+    return NextResponse.json({ error: "Select a tenant before creating a ticket." }, { status: 400 });
+  }
+
+  const { data: worker, error: workerError } = await supabase
+    .from("worker")
+    .select("id, tenant_id, user_id, first_name, last_name, email")
+    .eq("id", applicantId)
+    .maybeSingle();
+
+  if (workerError || !worker) {
+    return NextResponse.json({ error: "Worker not found." }, { status: 404 });
+  }
+
+  if (worker.tenant_id !== scope.tenantId) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  if (!worker.user_id) {
+    return NextResponse.json(
+      { error: "This worker does not have a linked user account yet." },
+      { status: 400 }
+    );
+  }
+
+  const result = await insertSupportTicket(supabase, {
+    tenantId: worker.tenant_id,
+    userId: String(worker.user_id),
+    applicantId: String(worker.id),
     input: {
       subject,
       description,
-      category,
-      priority: priority && PRIORITIES.has(priority) ? priority : undefined,
-      source,
+      category: category || "general",
+      priority,
+      source: source || "staff_on_behalf",
     },
     files,
+    createdByStaffUserId: staffAuth.userId,
+    initialSenderRole: "staff",
+    notifyStaff: false,
+    notifyApplicant: true,
   });
 
   if ("error" in result) {
     return NextResponse.json({ error: result.error }, { status: 500 });
   }
 
-  return NextResponse.json({ ticket: result.ticket }, { status: 201 });
+  const name = `${worker.first_name ?? ""} ${worker.last_name ?? ""}`.trim() || null;
+  return NextResponse.json(
+    {
+      ticket: {
+        ...result.ticket,
+        applicant_name: name,
+        applicant_email: worker.email ?? null,
+      },
+    },
+    { status: 201 }
+  );
 }

@@ -115,7 +115,9 @@ describe("isFirmaSigningSessionStale", () => {
 
 describe("staleFirmaSigningSessionMessage", () => {
   it("returns actionable messages for each stale reason", () => {
-    expect(staleFirmaSigningSessionMessage("workspace_mismatch")).toContain("different Firma workspace");
+    expect(staleFirmaSigningSessionMessage("workspace_mismatch")).toContain(
+      "different e-signature workspace"
+    );
     expect(staleFirmaSigningSessionMessage("draft_not_sent")).toContain("never sent");
     expect(staleFirmaSigningSessionMessage("terminal_status")).toContain("already finished");
   });

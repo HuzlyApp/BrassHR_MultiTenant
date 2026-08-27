@@ -577,7 +577,7 @@ export default function NewApplicantAuthorizationFilledPage() {
 
                   <div className="border-b border-[#E5E7EB] bg-[#F9FAFB] px-5 py-3">
                     <div className="flex flex-wrap items-center gap-3 text-xs text-[#374151]">
-                      <span className="font-semibold">Firma signing status:</span>
+                      <span className="font-semibold">Signature status:</span>
                       <span className="rounded-full bg-white px-2 py-1 font-medium capitalize">
                         {requestStatus.replaceAll("_", " ")}
                       </span>

@@ -23,7 +23,7 @@ import {
 } from "@/lib/messaging/staff-conversations";
 import { useApplicantConversationsRealtime } from "@/lib/messaging/useApplicantConversationsRealtime";
 import { HeaderIconCountBadge } from "@/app/components/HeaderIconCountBadge";
-import { useAdminHeaderData, ADMIN_HEADER_DATA_QUERY_KEY } from "@/lib/admin/hooks/use-admin-header-data";
+import { useAdminHeaderData, ADMIN_HEADER_DATA_QUERY_KEY, type AdminHeaderDataPayload } from "@/lib/admin/hooks/use-admin-header-data";
 import { useStaffConversations } from "@/lib/messaging/hooks/use-staff-conversations";
 import { useMarkConversationRead } from "@/lib/messaging/hooks/use-mark-conversation-read";
 import { useQueryClient } from "@tanstack/react-query";
@@ -55,6 +55,7 @@ export function AdminRecruiterHeader({
   const {
     notifications,
     unreadNotifications,
+    displayName: headerDisplayName,
     isLoading: headerDataLoading,
     isError: headerDataError,
     error: headerDataErrorObj,
@@ -79,28 +80,73 @@ export function AdminRecruiterHeader({
   );
   const messagesAreaRef = useRef<HTMLDivElement>(null);
   const profileAreaRef = useRef<HTMLDivElement>(null);
+  const notificationsButtonRef = useRef<HTMLButtonElement>(null);
+  const [markingAllRead, setMarkingAllRead] = useState(false);
 
-  const markNotificationsRead = useCallback(async () => {
+  const markNotificationRead = useCallback(
+    async (notificationId: string) => {
+      const previous = queryClient.getQueryData<AdminHeaderDataPayload>(ADMIN_HEADER_DATA_QUERY_KEY);
+      const target = previous?.notifications.find((item) => item.id === notificationId);
+      const wasUnread = target ? !target.is_read : true;
+
+      queryClient.setQueryData<AdminHeaderDataPayload>(ADMIN_HEADER_DATA_QUERY_KEY, (current) => {
+        if (!current) return current;
+        return {
+          ...current,
+          notifications: current.notifications.map((item) =>
+            item.id === notificationId ? { ...item, is_read: true } : item
+          ),
+          unreadNotifications: wasUnread
+            ? Math.max(0, current.unreadNotifications - 1)
+            : Math.max(0, current.unreadNotifications),
+        };
+      });
+
+      try {
+        const res = await fetch("/api/admin/header-data", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "mark_notification_read", notificationId }),
+        });
+        if (!res.ok) throw new Error("mark failed");
+        await queryClient.invalidateQueries({ queryKey: ADMIN_HEADER_DATA_QUERY_KEY });
+      } catch {
+        if (previous) queryClient.setQueryData(ADMIN_HEADER_DATA_QUERY_KEY, previous);
+      }
+    },
+    [queryClient]
+  );
+
+  const markAllNotificationsRead = useCallback(async () => {
+    if (markingAllRead || unreadNotifications <= 0) return;
+    setMarkingAllRead(true);
+    const previous = queryClient.getQueryData<AdminHeaderDataPayload>(ADMIN_HEADER_DATA_QUERY_KEY);
+    queryClient.setQueryData<AdminHeaderDataPayload>(ADMIN_HEADER_DATA_QUERY_KEY, (current) => {
+      if (!current) return current;
+      return {
+        ...current,
+        notifications: current.notifications.map((item) => ({ ...item, is_read: true })),
+        unreadNotifications: 0,
+      };
+    });
+
     try {
       const res = await fetch("/api/admin/header-data", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "mark_notifications_read" }),
       });
-      if (!res.ok) return;
+      if (!res.ok) throw new Error("mark failed");
       await queryClient.invalidateQueries({ queryKey: ADMIN_HEADER_DATA_QUERY_KEY });
     } catch {
-      /* ignore */
+      if (previous) queryClient.setQueryData(ADMIN_HEADER_DATA_QUERY_KEY, previous);
+    } finally {
+      setMarkingAllRead(false);
     }
-  }, [queryClient]);
+  }, [markingAllRead, queryClient, unreadNotifications]);
 
   useEffect(() => {
-    if (!showNotifications) return;
-    void markNotificationsRead();
-  }, [showNotifications, markNotificationsRead]);
-
-  useEffect(() => {
-    if (!showMessages && !showProfileMenu) return;
+    if (!showNotifications && !showMessages && !showProfileMenu) return;
 
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as Node;
@@ -110,11 +156,33 @@ export function AdminRecruiterHeader({
       if (showProfileMenu && profileAreaRef.current && !profileAreaRef.current.contains(target)) {
         setShowProfileMenu(false);
       }
+      if (
+        showNotifications &&
+        messagesAreaRef.current &&
+        !messagesAreaRef.current.contains(target)
+      ) {
+        setShowNotifications(false);
+        notificationsButtonRef.current?.focus();
+      }
+    };
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      if (showNotifications) {
+        setShowNotifications(false);
+        notificationsButtonRef.current?.focus();
+      }
+      if (showMessages) setShowMessages(false);
+      if (showProfileMenu) setShowProfileMenu(false);
     };
 
     document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [showMessages, showProfileMenu]);
+    document.addEventListener("keydown", handleEscape);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [showMessages, showProfileMenu, showNotifications]);
 
   const handleConversationInsert = useCallback(
     (_message: ApplicantMessageListRow) => {
@@ -133,10 +201,14 @@ export function AdminRecruiterHeader({
     setTenantLogoSrc(branding.faviconUrl?.trim() || branding.logoUrl?.trim() || DEFAULT_TENANT_LOGO);
   }, [branding.faviconUrl, branding.logoUrl]);
 
-  const displayName = getAccountDisplayName(profile, user);
+  const accountName = getAccountDisplayName(profile, user);
+  const displayName = accountLoading
+    ? headerDisplayName?.trim() || null
+    : accountName;
   const displayRole = formatRoleLabel(profile?.role);
   const profilePhoto = profile?.avatar_url ?? null;
-  const headerLoading = headerDataLoading || conversationsLoading || accountLoading;
+  /** Profile label should not stay on Loading… when only notifications fail. */
+  const profileNameLoading = accountLoading && !displayName;
   const showBackButton = isCandidateDetailPage(pathname ?? "");
 
   const handleBackClick = useCallback(() => {
@@ -224,32 +296,88 @@ export function AdminRecruiterHeader({
                 ) : null}
               </button>
               <button
+                ref={notificationsButtonRef}
                 type="button"
                 onClick={() => {
                   setShowNotifications((prev) => !prev);
                   setShowMessages(false);
                   setShowProfileMenu(false);
                 }}
-                className="relative inline-flex h-8 w-8 items-center justify-center rounded-md text-[#94A3B8] transition hover:bg-slate-100"
-                aria-label={`Open notifications${unreadNotifications > 0 ? `, ${unreadNotifications} unread` : ""}`}
+                className="relative inline-flex h-11 w-11 items-center justify-center rounded-md transition hover:bg-slate-100"
+                aria-label={
+                  unreadNotifications > 0
+                    ? `Notifications, ${unreadNotifications} unread`
+                    : "Notifications"
+                }
+                aria-expanded={showNotifications}
+                title={
+                  unreadNotifications > 0
+                    ? `Notifications, ${unreadNotifications} unread`
+                    : "Notifications"
+                }
               >
-                <SidebarNavIcon iconType="Notifications" active={false} />
+                <SidebarNavIcon
+                  iconType="Notifications"
+                  active={false}
+                  colorHex={unreadNotifications > 0 ? "#EF4444" : undefined}
+                />
                 <HeaderIconCountBadge count={unreadNotifications} />
               </button>
 
               {showNotifications ? (
-                <div className="absolute right-0 top-10 z-[120] w-[320px] overflow-hidden rounded-lg border border-[#d7e4e1] bg-white shadow-xl max-[499px]:fixed max-[499px]:left-[calc(50%+28px)] max-[499px]:right-auto max-[499px]:top-[68px] max-[499px]:w-[calc(100vw-88px)] max-[499px]:max-w-[360px] max-[499px]:-translate-x-1/2">
-                  <div className="border-b border-[#E2E8F0] px-4 py-3">
+                <div
+                  role="dialog"
+                  aria-label="Notifications"
+                  className="absolute right-0 top-10 z-[120] w-[320px] overflow-hidden rounded-lg border border-[#d7e4e1] bg-white shadow-xl max-[499px]:fixed max-[499px]:left-[calc(50%+28px)] max-[499px]:right-auto max-[499px]:top-[68px] max-[499px]:w-[calc(100vw-88px)] max-[499px]:max-w-[360px] max-[499px]:-translate-x-1/2"
+                >
+                  <div className="flex items-center justify-between gap-2 border-b border-[#E2E8F0] px-4 py-3">
                     <p className="text-sm font-semibold text-[#0F172A]">Notifications</p>
+                    {unreadNotifications > 0 ? (
+                      <button
+                        type="button"
+                        onClick={() => void markAllNotificationsRead()}
+                        disabled={markingAllRead}
+                        className="text-xs font-semibold text-[#0EA5A4] hover:underline disabled:opacity-60"
+                      >
+                        Mark all as read
+                      </button>
+                    ) : null}
                   </div>
                   <div className="max-h-[320px] overflow-y-auto">
-                    {notifications.length === 0 ? (
+                    {headerDataLoading ? (
+                      <p className="px-4 py-4 text-sm text-[#64748B]">Loading notifications...</p>
+                    ) : headerDataError ? (
+                      <div className="px-4 py-4">
+                        <p className="text-sm text-red-600">
+                          {headerDataErrorObj instanceof Error
+                            ? headerDataErrorObj.message
+                            : "Could not load notifications."}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => void refetchHeaderData()}
+                          className="mt-2 text-xs font-semibold text-[#0EA5A4] hover:underline"
+                        >
+                          Retry
+                        </button>
+                      </div>
+                    ) : notifications.length === 0 ? (
                       <p className="px-4 py-4 text-sm text-[#64748B]">No notifications yet.</p>
                     ) : (
                       notifications.map((notification) => (
-                        <div
+                        <button
                           key={notification.id}
-                          className={`border-b border-[#F1F5F9] px-4 py-3 ${notification.is_read ? "opacity-70" : "bg-[#F8FAFC]"}`}
+                          type="button"
+                          onClick={() => {
+                            void markNotificationRead(notification.id);
+                            setShowNotifications(false);
+                            if (notification.link) {
+                              router.push(notification.link);
+                            }
+                          }}
+                          className={`block w-full border-b border-[#F1F5F9] px-4 py-3 text-left transition hover:bg-[#F8FAFC] ${
+                            notification.is_read ? "opacity-70" : "bg-[#F8FAFC]"
+                          }`}
                         >
                           <p className="text-sm font-semibold text-[#0F172A]">
                             {notification.title?.trim() || "Notification"}
@@ -257,7 +385,12 @@ export function AdminRecruiterHeader({
                           {notification.body ? (
                             <p className="mt-1 text-sm text-[#64748B]">{notification.body}</p>
                           ) : null}
-                        </div>
+                          {notification.sent_at ? (
+                            <p className="mt-1 text-[11px] text-[#94A3B8]">
+                              {formatMessageTime(notification.sent_at)}
+                            </p>
+                          ) : null}
+                        </button>
                       ))
                     )}
                   </div>
@@ -329,10 +462,10 @@ export function AdminRecruiterHeader({
               aria-label="Open profile menu"
               aria-expanded={showProfileMenu}
             >
-            <StaffProfileAvatar name={displayName} photoUrl={profilePhoto} size="sm" />
+            <StaffProfileAvatar name={displayName ?? "Account"} photoUrl={profilePhoto} size="sm" />
             <div className="hidden min-w-0 leading-tight text-left sm:block">
               <p className="max-w-[88px] truncate text-sm font-semibold text-[#0F172A] md:max-w-[140px]">
-                {headerLoading ? "Loading..." : displayName}
+                {profileNameLoading ? "Loading..." : displayName ?? "Account"}
               </p>
               <p className="max-w-[88px] truncate text-[11px] text-[#64748B] md:max-w-[140px]">{displayRole}</p>
             </div>

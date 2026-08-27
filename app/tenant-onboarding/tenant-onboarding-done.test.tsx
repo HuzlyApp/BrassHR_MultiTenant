@@ -19,9 +19,10 @@ describe("DoneStep Firma provisioning UI", () => {
       />
     );
 
-    expect(screen.getByText(/Firma workspace created successfully/i)).toBeInTheDocument();
+    expect(screen.getByText(/E-Signature Workspace created successfully/i)).toBeInTheDocument();
     expect(screen.getByText("3b9e2ce8-22f1-4a48-9564-80245d73a21b")).toBeInTheDocument();
     expect(screen.queryByText(/Set a Firma workspace manually/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Firma/i)).not.toBeInTheDocument();
   });
 
   it("shows retry message when provisioning failed", () => {
@@ -33,11 +34,13 @@ describe("DoneStep Firma provisioning UI", () => {
         firmaProvisioning={{
           status: "failed",
           workspaceId: null,
-          message: "Tenant ready, but Firma workspace creation failed. You can retry in Account Settings.",
+          message:
+            "Tenant ready, but e-signature workspace creation failed. You can retry in Account Settings.",
         }}
       />
     );
 
     expect(screen.getByText(/retry in Account Settings/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Firma/i)).not.toBeInTheDocument();
   });
 });

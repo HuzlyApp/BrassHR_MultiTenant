@@ -51,7 +51,7 @@ export async function loadAdminAttachmentRequirements(
     loadTenantOnboardingConfig(supabase, tenantId),
     supabase
       .from("worker_submitted_documents")
-      .select("id, required_document_id, file_url, original_file_name, status")
+      .select("id, required_document_id, file_url, original_file_name, status, uploaded_at, reviewed_at, reviewed_by, review_notes")
       .eq("worker_id", workerId),
     options?.legacyReviewRows
       ? Promise.resolve({ data: options.legacyReviewRows })
@@ -79,6 +79,10 @@ export async function loadAdminAttachmentRequirements(
     file_url?: string;
     original_file_name?: string | null;
     status?: string | null;
+    uploaded_at?: string | null;
+    reviewed_at?: string | null;
+    reviewed_by?: string | null;
+    review_notes?: string | null;
   }>;
 
   const signedEntries = await Promise.all(
@@ -106,6 +110,10 @@ export async function loadAdminAttachmentRequirements(
           original_file_name:
             row.original_file_name != null ? String(row.original_file_name) : null,
           status: String(row.status ?? "").trim() || null,
+          uploaded_at: row.uploaded_at ?? null,
+          reviewed_at: row.reviewed_at ?? null,
+          reviewed_by: row.reviewed_by ? String(row.reviewed_by) : null,
+          review_notes: row.review_notes ?? null,
         } satisfies SubmittedDocumentRecord,
       };
     })

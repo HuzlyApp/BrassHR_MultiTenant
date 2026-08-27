@@ -5,8 +5,13 @@ import {
   normalizeParsedResume,
   normalizedResumeToStoredJson,
 } from "@/lib/resumeParseQuality"
+import {
+  isDraftPreviewApplicantId,
+  isDraftPreviewResumeId,
+} from "@/lib/onboarding/is-draft-preview"
+import { getScopedApplicantId } from "@/lib/tenant/scoped-storage"
 
-export type ResumeParsePollStatus = "idle" | "processing" | "completed" | "failed" | "pending"
+export type ResumeParsePollStatus = "idle" | "processing" | "completed" | "failed" | "pending" | "skipped"
 
 export type ResumeParsePollState = {
   status: ResumeParsePollStatus
@@ -67,6 +72,14 @@ export function useResumeParsePoll(resumeId: string | null): ResumeParsePollStat
   useEffect(() => {
     if (!resumeId || typeof window === "undefined") {
       setStatus("idle")
+      setIsPolling(false)
+      return
+    }
+
+    const applicantId = getScopedApplicantId() || localStorage.getItem("applicantId")?.trim() || ""
+    if (isDraftPreviewApplicantId(applicantId) || isDraftPreviewResumeId(resumeId)) {
+      setStatus("skipped")
+      setParseError(null)
       setIsPolling(false)
       return
     }

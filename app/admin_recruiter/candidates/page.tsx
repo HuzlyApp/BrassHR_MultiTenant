@@ -27,6 +27,12 @@ import { buildCandidateKpis } from "./candidate-kpis";
 import { CandidateAiAnalysisLink } from "./CandidateAiAnalysisLink";
 import { CandidateRowActionsMenu } from "../applications/CandidateRowActionsMenu";
 import { countMultiJobApplicants } from "@/lib/admin/multi-job-applicants";
+import { isWorkerClaimEligible } from "@/lib/candidates/claim";
+import { useAdminHeaderData } from "@/lib/admin/hooks/use-admin-header-data";
+import { usePageSelection } from "../hooks/usePageSelection";
+import { CandidateBulkSelectionBar } from "../components/CandidateBulkSelectionBar";
+import { ClaimCandidatesConfirmModal } from "../components/ClaimCandidatesConfirmModal";
+import { postClaimCandidates } from "./claim-client";
 import toast from "react-hot-toast";
 
 const ACTION_TOAST_DURATION_MS = 3500;
@@ -53,6 +59,7 @@ type WorkerProfile = {
   profile_photo?: string | null;
   profile_photo_url?: string | null;
   applied_job_count?: number | null;
+  assigned_recruiter_user_id?: string | null;
 };
 
 /** Fixed `en-US` locale so SSR and browser produce identical strings (avoids hydration mismatch). */
@@ -159,10 +166,13 @@ export default function CandidatesPage() {
   );
   const [highlightMultiJob, setHighlightMultiJob] = useState(false);
   const [filterMultiJobOnly, setFilterMultiJobOnly] = useState(false);
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [claimConfirmOpen, setClaimConfirmOpen] = useState(false);
+  const [claimBusy, setClaimBusy] = useState(false);
+  const [claimError, setClaimError] = useState<string | null>(null);
+  const { userId: currentUserId, displayName: currentUserName } = useAdminHeaderData();
 
   const advancedSearchContext = useMemo(() => {
     if (!advancedSearchParams) {
@@ -264,11 +274,13 @@ export default function CandidatesPage() {
           address1: item.address1 ?? "",
           address2: item.address2 ?? "",
           status: formatCandidateStatusLabel(item.status as string | undefined),
+          statusKey: item.status ?? null,
           createdAt: item.created_at,
           reference: item.id.slice(0, 7).toUpperCase(),
           dateOfBirth: null,
           profilePhotoUrl: item.profile_photo_url ?? null,
           appliedJobCount: Number(item.applied_job_count ?? 1),
+          assignedRecruiterUserId: item.assigned_recruiter_user_id ?? null,
           });
         });
 
@@ -318,11 +330,13 @@ export default function CandidatesPage() {
         address1: item.address1 ?? "",
         address2: item.address2 ?? "",
         status: formatCandidateStatusLabel(item.status as string | undefined),
+        statusKey: item.status ?? null,
         createdAt: item.created_at,
         reference: item.id.slice(0, 7).toUpperCase(),
         dateOfBirth: null,
         profilePhotoUrl: item.profile_photo_url ?? null,
         appliedJobCount: 1,
+        assignedRecruiterUserId: item.assigned_recruiter_user_id ?? null,
         });
       });
 
@@ -424,34 +438,105 @@ export default function CandidatesPage() {
     return visibleCandidates.slice(start, start + pageSize);
   }, [visibleCandidates, page, pageSize]);
 
-  const allVisibleSelected =
-    paginated.length > 0 && paginated.every((row) => selectedIds.has(row.id));
-  const someVisibleSelected =
-    paginated.some((row) => selectedIds.has(row.id)) && !allVisibleSelected;
+  const pageSelectableRows = useMemo(
+    () =>
+      paginated.map((candidate) => {
+        const eligibility = isWorkerClaimEligible({
+          assignedRecruiterUserId: candidate.assignedRecruiterUserId,
+          status: candidate.statusKey ?? candidate.status,
+          currentUserId: currentUserId ?? "",
+        });
+        return { id: candidate.id, eligible: eligibility.eligible, reason: eligibility.reason };
+      }),
+    [paginated, currentUserId]
+  );
 
-  function toggleSelectAllVisible() {
-    setSelectedIds((current) => {
-      const next = new Set(current);
-      if (allVisibleSelected) {
-        for (const row of paginated) next.delete(row.id);
-      } else {
-        for (const row of paginated) next.add(row.id);
-      }
-      return next;
-    });
+  const eligibilityById = useMemo(() => {
+    const map = new Map<string, { eligible: boolean; reason: string | null }>();
+    for (const row of pageSelectableRows) {
+      map.set(row.id, { eligible: row.eligible, reason: row.reason });
+    }
+    return map;
+  }, [pageSelectableRows]);
+
+  const selectionClearKey = useMemo(
+    () =>
+      [
+        page,
+        pageSize,
+        query,
+        jobRoleFilter,
+        statusFilter,
+        locationFilter,
+        dateFilter,
+        filterMultiJobOnly ? "1" : "0",
+        advancedSearchContext.active ? "adv" : "std",
+      ].join("|"),
+    [
+      page,
+      pageSize,
+      query,
+      jobRoleFilter,
+      statusFilter,
+      locationFilter,
+      dateFilter,
+      filterMultiJobOnly,
+      advancedSearchContext.active,
+    ]
+  );
+
+  const selection = usePageSelection({
+    pageRows: pageSelectableRows,
+    clearKey: selectionClearKey,
+  });
+
+  function openClaimConfirm() {
+    if (selection.selectedEligibleCount === 0) {
+      toast("Select eligible unclaimed candidates first.");
+      return;
+    }
+    setClaimError(null);
+    setClaimConfirmOpen(true);
   }
 
-  function toggleSelect(id: string) {
-    setSelectedIds((current) => {
-      const next = new Set(current);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
+  async function confirmClaimCandidates() {
+    if (claimBusy || selection.selectedEligibleIds.length === 0) return;
+    setClaimBusy(true);
+    setClaimError(null);
+    try {
+      const result = await postClaimCandidates(selection.selectedEligibleIds);
+      toast.success(result.summary);
+      const claimed = new Set(result.claimed);
+      const ownerId = result.recruiter?.id ?? currentUserId;
+      const ownerName = result.recruiter?.name ?? currentUserName ?? "You";
+      if (claimed.size > 0) {
+        setCandidates((current) =>
+          current.map((row) =>
+            claimed.has(row.id)
+              ? {
+                  ...row,
+                  assignedRecruiterUserId: ownerId,
+                  assignedRecruiterName: ownerName,
+                }
+              : row
+          )
+        );
+      }
+      // Clear successful claims; keep failed/not-found for retry.
+      selection.removeIds([...result.claimed, ...result.already_claimed, ...result.ineligible]);
+      if (result.failed.length === 0 && result.not_found.length === 0) {
+        selection.clearSelection();
+        setClaimConfirmOpen(false);
+      }
+    } catch (err) {
+      setClaimError(err instanceof Error ? err.message : "Failed to claim candidates");
+    } finally {
+      setClaimBusy(false);
+    }
   }
 
   async function handleConfirmDeleteCandidates() {
-    const idsToDelete = [...selectedIds];
+    const idsToDelete = [...selection.selectedIds];
     if (deleteBusy || idsToDelete.length === 0) return;
     setDeleteBusy(true);
     setDeleteError(null);
@@ -474,11 +559,7 @@ export default function CandidatesPage() {
       setTotalFromApi((current) =>
         typeof current === "number" ? Math.max(0, current - deletedIds.size) : current
       );
-      setSelectedIds((current) => {
-        const next = new Set(current);
-        for (const id of deletedIds) next.delete(id);
-        return next;
-      });
+      selection.removeIds(deletedIds);
       setDeleteConfirmOpen(false);
       const deletedCount =
         typeof payload.count === "number" ? payload.count : deletedIds.size;
@@ -522,18 +603,10 @@ export default function CandidatesPage() {
         locationOptions={locationOptions}
         kpiCards={kpiCards}
         onAddCandidate={() => toast("Open a job posting to add a candidate.")}
-        onClaimCandidates={() => {
-          if (selectedIds.size === 0) {
-            toast("Select candidates, then claim them from this list.");
-            return;
-          }
-          toast(
-            `Claim ${selectedIds.size} candidate${selectedIds.size === 1 ? "" : "s"} from this list.`
-          );
-        }}
+        onClaimCandidates={openClaimConfirm}
         deleteButton={
           <BulkDeleteToolbarButton
-            count={selectedIds.size}
+            count={selection.selectedCount}
             disabled={deleteBusy}
             onClick={() => {
               setDeleteError(null);
@@ -602,6 +675,14 @@ export default function CandidatesPage() {
             const cols = listColumnOrder.length ? listColumnOrder : DEFAULT_CANDIDATE_COLUMNS;
             return (
               <div className="overflow-hidden rounded-md border border-[#E5E7EB]">
+                <CandidateBulkSelectionBar
+                  selectedCount={selection.selectedCount}
+                  eligibleCount={selection.selectedEligibleCount}
+                  scopeLabel={selection.selectionScopeLabel}
+                  claimBusy={claimBusy}
+                  onClaim={openClaimConfirm}
+                  onClear={selection.clearSelection}
+                />
                 <div className="overflow-auto">
                   <table className="min-w-[820px] w-full border-collapse">
                     <thead className="bg-[#F8FAFC] text-black">
@@ -609,10 +690,11 @@ export default function CandidatesPage() {
                         <th className="w-12 border-r border-[#E5E7EB] bg-[#E5E7EB] px-3 py-3 text-center">
                           <ListTableCheckbox
                             size="md"
-                            checked={allVisibleSelected}
-                            indeterminate={someVisibleSelected}
-                            onChange={toggleSelectAllVisible}
-                            aria-label="Select all candidates"
+                            checked={selection.headerChecked}
+                            indeterminate={selection.headerIndeterminate}
+                            disabled={pageSelectableRows.every((row) => !row.eligible)}
+                            onChange={selection.toggleAllEligibleOnPage}
+                            aria-label="Select all eligible candidates on this page"
                           />
                         </th>
                         {cols.map((colId) => (
@@ -631,13 +713,23 @@ export default function CandidatesPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {paginated.map((c) => (
+                      {paginated.map((c) => {
+                        const eligibility = eligibilityById.get(c.id) ?? {
+                          eligible: true,
+                          reason: null,
+                        };
+                        return (
                         <tr key={c.id} className="border-b border-[#E9EDF3] hover:bg-[#F9FBFB]">
-                          <td className="w-12 border-r border-[#EEF2F7] px-3 py-4 text-center align-middle">
+                          <td
+                            className="w-12 border-r border-[#EEF2F7] px-3 py-4 text-center align-middle"
+                            onClick={(event) => event.stopPropagation()}
+                          >
                             <ListTableCheckbox
                               size="md"
-                              checked={selectedIds.has(c.id)}
-                              onChange={() => toggleSelect(c.id)}
+                              checked={selection.selectedIds.has(c.id)}
+                              disabled={!eligibility.eligible}
+                              title={eligibility.reason ?? undefined}
+                              onChange={() => selection.toggleOne(c.id, eligibility.eligible)}
                               aria-label={`Select ${c.name || "candidate"}`}
                             />
                           </td>
@@ -681,7 +773,8 @@ export default function CandidatesPage() {
                             </div>
                           </td>
                         </tr>
-                      ))}
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -717,7 +810,7 @@ export default function CandidatesPage() {
       <BulkDeleteConfirmModal
         open={deleteConfirmOpen}
         entity="candidate"
-        count={selectedIds.size}
+        count={selection.selectedCount}
         busy={deleteBusy}
         error={deleteError}
         onCancel={() => {
@@ -795,6 +888,22 @@ export default function CandidatesPage() {
           phone={commTarget.phone}
         />
       ) : null}
+
+      <ClaimCandidatesConfirmModal
+        open={claimConfirmOpen}
+        selectedCount={selection.selectedCount}
+        eligibleCount={selection.selectedEligibleCount}
+        excludedCount={Math.max(0, selection.selectedCount - selection.selectedEligibleCount)}
+        recruiterName={currentUserName?.trim() || "You"}
+        busy={claimBusy}
+        error={claimError}
+        onCancel={() => {
+          if (claimBusy) return;
+          setClaimConfirmOpen(false);
+          setClaimError(null);
+        }}
+        onConfirm={() => void confirmClaimCandidates()}
+      />
     </>
   );
 }

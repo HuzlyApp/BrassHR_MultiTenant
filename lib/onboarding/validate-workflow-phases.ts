@@ -1,4 +1,5 @@
 import type { SerializableWorkflowState } from "@/lib/onboarding/workflow-builder-serialization";
+import { hasExplicitWorkflowPhase } from "@/lib/onboarding/workflow-phase-groups";
 import {
   lifecyclePhaseFromTemplatePhase,
   parseWorkflowTemplatePhase,
@@ -9,6 +10,7 @@ import {
 export type WorkflowPhaseValidationError = {
   code:
     | "MISSING_PRE_HIRE"
+    | "MISSING_PHASE"
     | "PHASE_ORDER"
     | "EMPTY_WORKFLOW";
   message: string;
@@ -49,6 +51,14 @@ export function validateWorkflowPhaseLayout(
   }
 
   const errors: WorkflowPhaseValidationError[] = [];
+  const missingPhase = draft.nodes.filter((node) => !hasExplicitWorkflowPhase(node.settings?.phase));
+  if (missingPhase.length) {
+    errors.push({
+      code: "MISSING_PHASE",
+      message:
+        "Every workflow step must have an explicit Pre-Hire or Post-Hire phase before publishing.",
+    });
+  }
   const preHireCount = nodes.filter((node) => node.lifecyclePhase === "pre_hire").length;
   if (preHireCount < 1) {
     errors.push({

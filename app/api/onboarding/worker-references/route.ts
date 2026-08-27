@@ -7,6 +7,8 @@ import { resolveOnboardingTenantId } from "@/lib/tenant/resolve-onboarding-tenan
 import {
   isReferenceComplete,
   MIN_COMPLETE_REFERENCES,
+  parseYearsKnown,
+  YEARS_KNOWN_ERROR,
   type ReferenceRow,
 } from "@/lib/referencesValidation"
 import { markTenantStepCompletedByType } from "@/lib/onboarding/mark-tenant-step-completed"
@@ -115,10 +117,13 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const rows = completeOnly.map((r) => {
-      const yearsRaw = String(r.yearsKnown ?? "").trim()
-      const yearsKnown = yearsRaw ? Number(yearsRaw) : null
-      return {
+    const rows = []
+    for (const r of completeOnly) {
+      const parsedYears = parseYearsKnown(r.yearsKnown)
+      if (parsedYears.error) {
+        return NextResponse.json({ error: parsedYears.error }, { status: 400 })
+      }
+      rows.push({
         tenant_id: tenantId,
         worker_id: workerId,
         reference_first_name: String(r.first ?? "").trim(),
@@ -128,11 +133,10 @@ export async function POST(req: NextRequest) {
         relationship: String(r.relationship ?? "").trim() || null,
         company: String(r.company ?? "").trim() || null,
         job_title: String(r.jobTitle ?? "").trim() || null,
-        years_known:
-          yearsKnown != null && Number.isFinite(yearsKnown) ? yearsKnown : null,
+        years_known: parsedYears.value,
         notes: String(r.notes ?? "").trim() || null,
-      }
-    })
+      })
+    }
 
     for (const row of rows) {
       if (!row.reference_first_name || !row.reference_last_name || !row.reference_email) {
@@ -147,6 +151,9 @@ export async function POST(req: NextRequest) {
     if (insErr) {
       console.error("[onboarding/worker-references] insert", insErr)
       const msg = [insErr.message, insErr.details].filter(Boolean).join(" — ")
+      if (/numeric field overflow/i.test(msg)) {
+        return NextResponse.json({ error: YEARS_KNOWN_ERROR }, { status: 400 })
+      }
       return NextResponse.json({ error: msg || "Failed to save references" }, { status: 500 })
     }
 

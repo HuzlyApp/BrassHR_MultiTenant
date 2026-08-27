@@ -324,7 +324,7 @@ export default function DocumentsPage() {
       }
 
       if (requiresFirmaSigning && !agreementSigned) {
-        setError("Please sign the authorization document in Firma before continuing.")
+        setError("Please sign the authorization document before continuing.")
         return
       }
 

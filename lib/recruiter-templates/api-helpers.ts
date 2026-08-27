@@ -4,6 +4,10 @@ import { requireStaffApiSession } from "@/lib/auth/api-session";
 import { resolveEffectiveAdminTenantId } from "@/lib/email-templates/resolve-effective-tenant";
 import { FirmaError } from "@/lib/firma/errors";
 import { FirmaWorkspaceConfigError } from "@/lib/firma/resolve-tenant-workspace";
+import {
+  E_SIGNATURE_USER_ERRORS,
+  sanitizeESignatureUserMessage,
+} from "@/lib/e-signature/user-facing";
 import { RecruiterTemplateError } from "@/lib/recruiter-templates/errors";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 
@@ -54,7 +58,7 @@ export function handleRecruiterTemplateRouteError(e: unknown): NextResponse {
   if (e instanceof RecruiterTemplateError) {
     return NextResponse.json(
       {
-        error: e.message,
+        error: sanitizeESignatureUserMessage(e.message, e.message),
         code: e.code,
         ...(e.details ? { details: e.details } : {}),
       },
@@ -65,7 +69,10 @@ export function handleRecruiterTemplateRouteError(e: unknown): NextResponse {
   if (e instanceof FirmaWorkspaceConfigError) {
     return NextResponse.json(
       {
-        error: e.message,
+        error: sanitizeESignatureUserMessage(
+          e.message,
+          E_SIGNATURE_USER_ERRORS.workspaceNotConfigured
+        ),
         code: "NOT_CONFIGURED",
       },
       { status: e.status }
@@ -75,9 +82,8 @@ export function handleRecruiterTemplateRouteError(e: unknown): NextResponse {
   if (e instanceof FirmaError) {
     return NextResponse.json(
       {
-        error: e.message,
+        error: sanitizeESignatureUserMessage(e.message, E_SIGNATURE_USER_ERRORS.serviceUnavailable),
         code: e.code,
-        ...(e.details ? { details: e.details } : {}),
       },
       { status: e.status }
     );

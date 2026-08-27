@@ -13,23 +13,15 @@ import {
   type CandidatePipelineProfilePayload,
 } from "@/lib/admin/candidate-pipeline-stepper";
 import CandidatePipelineStepper from "./CandidatePipelineStepper";
+import CandidateEmploymentJourney from "./CandidateEmploymentJourney";
+import CandidateWorkflowTags from "./CandidateWorkflowTags";
+import type { CandidateWorkflowPhaseView } from "@/lib/onboarding/candidate-workflow-phase-view";
+import {
+  candidateDetailTabs,
+  type CandidateDetailTab,
+} from "@/lib/onboarding/candidate-detail-tabs";
 
-const BASE_TABS = [
-  "Checklist",
-  "Profile",
-  "Attachments",
-  "Skill Assessments",
-  "Authorization",
-  "Activities",
-  "Facility Assignments",
-  "Agreement",
-  "History",
-] as const;
-
-const ONBOARDED_TAB = "Onboarded Applicant" as const;
-
-type BaseTabName = (typeof BASE_TABS)[number];
-type TabName = BaseTabName | typeof ONBOARDED_TAB;
+type TabName = CandidateDetailTab;
 
 type DetailedTabsProps = {
   applicantId?: string;
@@ -38,6 +30,7 @@ type DetailedTabsProps = {
   workerStatus?: string | null;
   /** Live checklist payload from the Checklist tab — keeps the stepper in sync without a second fetch. */
   checklistPayload?: CandidatePipelineChecklistPayload | null;
+  workflowView?: CandidateWorkflowPhaseView | null;
 };
 
 const ONBOARDED_CACHE_PREFIX = "brasshr-onboarded-worker:";
@@ -61,6 +54,10 @@ function tabHref(tab: TabName, applicantId?: string) {
       return `/admin_recruiter/new/checklist/${id}`;
     case "Profile":
       return `/admin_recruiter/new/profile/${id}`;
+    case "Pre-Hire":
+      return `/admin_recruiter/new/pre-hire/${id}`;
+    case "Post-Hire":
+      return `/admin_recruiter/new/post-hire/${id}`;
     case "Attachments":
       return `/admin_recruiter/new/attachments/${id}`;
     case "Skill Assessments":
@@ -85,6 +82,7 @@ export default function DetailedTabs({
   activeTab,
   workerStatus,
   checklistPayload,
+  workflowView,
 }: DetailedTabsProps) {
   const [isOnboarded, setIsOnboarded] = useState(() => {
     if (workerStatus != null) return isCandidateAlreadyConverted({ status: workerStatus });
@@ -92,6 +90,7 @@ export default function DetailedTabs({
   });
   const [profilePayload, setProfilePayload] = useState<CandidatePipelineProfilePayload | null>(null);
   const [fetchedChecklist, setFetchedChecklist] = useState<CandidatePipelineChecklistPayload | null>(null);
+  const [fetchedWorkflowView, setFetchedWorkflowView] = useState<CandidateWorkflowPhaseView | null>(null);
   const [pipelineRefreshToken, setPipelineRefreshToken] = useState(0);
   const hasLiveChecklistRef = useRef(false);
   hasLiveChecklistRef.current = checklistPayload != null;
@@ -111,6 +110,7 @@ export default function DetailedTabs({
       if (workerStatus == null) setIsOnboarded(false);
       setProfilePayload(null);
       setFetchedChecklist(null);
+      setFetchedWorkflowView(null);
       return;
     }
 
@@ -130,14 +130,23 @@ export default function DetailedTabs({
         : fetch(`/api/admin/worker-checklist?workerId=${encodeURIComponent(applicantId)}`, {
             cache: "no-store",
           }),
+      workflowView
+        ? Promise.resolve(null)
+        : fetch(`/api/admin/candidates/${encodeURIComponent(applicantId)}/workflow-phases`, {
+            cache: "no-store",
+          }),
     ])
-      .then(async ([profileRes, checklistRes]) => {
+      .then(async ([profileRes, checklistRes, phaseRes]) => {
         const profile = profileRes.ok
           ? ((await profileRes.json()) as CandidatePipelineProfilePayload)
           : {};
         const checklist = checklistRes?.ok
           ? ((await checklistRes.json()) as CandidatePipelineChecklistPayload)
           : {};
+        const phases =
+          phaseRes && "ok" in phaseRes && phaseRes.ok
+            ? ((await phaseRes.json()) as CandidateWorkflowPhaseView)
+            : null;
 
         if (cancelled) return;
 
@@ -152,18 +161,22 @@ export default function DetailedTabs({
         if (!skipChecklistFetch) {
           setFetchedChecklist(checklist);
         }
+        if (!workflowView) {
+          setFetchedWorkflowView(phases);
+        }
       })
       .catch(() => {
         if (cancelled) return;
         if (workerStatus == null) setIsOnboarded(readOnboardedCache(applicantId));
         setProfilePayload(null);
         if (!skipChecklistFetch) setFetchedChecklist(null);
+        if (!workflowView) setFetchedWorkflowView(null);
       });
 
     return () => {
       cancelled = true;
     };
-  }, [applicantId, workerStatus, pipelineRefreshToken]);
+  }, [applicantId, workerStatus, pipelineRefreshToken, workflowView]);
 
   useEffect(() => {
     if (!applicantId) return;
@@ -188,15 +201,28 @@ export default function DetailedTabs({
   }, [applicantId, checklistPayload, fetchedChecklist, profilePayload]);
 
   const showOnboardedTab =
-    activeTab === ONBOARDED_TAB ||
+    activeTab === "Onboarded Applicant" ||
     isOnboarded ||
     isCandidateAlreadyConverted({ status: workerStatus }) ||
     (workerStatus ?? "").trim().toLowerCase() === "approved";
 
+  const phaseView = workflowView ?? fetchedWorkflowView;
   const tabs = useMemo<TabName[]>(
-    () => (showOnboardedTab ? [...BASE_TABS, ONBOARDED_TAB] : [...BASE_TABS]),
-    [showOnboardedTab]
+    () =>
+      candidateDetailTabs({
+        postHireVisible: Boolean(phaseView?.postHireVisible),
+        showOnboarded: showOnboardedTab,
+      }),
+    [showOnboardedTab, phaseView?.postHireVisible]
   );
+  const currentPhaseProgress =
+    phaseView?.postHireVisible && phaseView.currentStage === "post_hire"
+      ? phaseView.postHire?.progress
+      : phaseView?.preHire.progress;
+  const currentPhaseSteps =
+    phaseView?.postHireVisible && phaseView.currentStage === "post_hire"
+      ? phaseView.postHire?.steps ?? []
+      : phaseView?.preHire.steps ?? [];
 
   return (
     <div className="mb-6 w-full min-w-0">
@@ -205,6 +231,27 @@ export default function DetailedTabs({
         applicantId={applicantId}
         className="mb-6"
       />
+      {phaseView ? (
+        <>
+          <CandidateEmploymentJourney
+            currentStage={phaseView.currentStage}
+            currentWorkflowName={phaseView.currentWorkflowName}
+            currentStepTitle={phaseView.currentStepTitle}
+            phaseProgressLabel={currentPhaseProgress?.label}
+            phaseStartedAt={phaseView.phaseStartedAt}
+            hiredAt={phaseView.hiredAt}
+            completedSteps={currentPhaseProgress?.complete}
+            pendingSteps={
+              currentPhaseProgress
+                ? currentPhaseProgress.total - currentPhaseProgress.complete
+                : undefined
+            }
+            blockedSteps={currentPhaseSteps.filter((step) => step.status === "failed").length}
+            postHireVisible={phaseView.postHireVisible}
+          />
+          <CandidateWorkflowTags tags={phaseView.tags} />
+        </>
+      ) : null}
 
       <nav className="w-full min-w-0" aria-label="Applicant sections">
         <div className="candidate-detail-tabs-scroll overflow-x-auto pb-1 md:overflow-x-auto">

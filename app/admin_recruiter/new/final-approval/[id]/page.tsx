@@ -133,7 +133,12 @@ export default function NewApplicantFinalApprovalPage() {
   useEffect(() => {
     if (!applicantId || loading || !profile) return;
     const statusNorm = (workerStatus ?? "").trim().toLowerCase();
-    if (statusNorm === "approved" || statusNorm === "converted") {
+    if (statusNorm === "converted") {
+      router.replace(`/admin_recruiter/workers/${encodeURIComponent(applicantId)}/profile`);
+      return;
+    }
+    // Legacy: approved-without-worker still opens convert/remediation UI.
+    if (statusNorm === "approved") {
       router.replace(`/admin_recruiter/new/onboard-applicant/${encodeURIComponent(applicantId)}`);
     }
   }, [applicantId, loading, profile, router, workerStatus]);

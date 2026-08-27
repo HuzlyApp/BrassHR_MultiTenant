@@ -27,6 +27,10 @@ import {
   JOB_FORM_SURFACE_CLASS,
   primaryButtonStyle,
 } from "./job-form-shared";
+import {
+  JOB_POSTING_METADATA_CLASS,
+  JOB_POSTING_PAGE_TITLE_CLASS,
+} from "./job-posting-typography";
 import { JobPublicViewLink } from "./JobPublicViewLink";
 import {
   formatJobDetailsDate,
@@ -288,11 +292,11 @@ export default function JobDetailsClient({ jobId }: Props) {
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div className="min-w-0 w-full lg:w-auto">
                 <div className="flex min-w-0 items-start gap-2">
-                  <h1 className="min-w-0 text-[20px] font-semibold leading-7 text-black">
+                  <h1 className={`min-w-0 ${JOB_POSTING_PAGE_TITLE_CLASS}`}>
                     {title}
                   </h1>
                 </div>
-                <p className="mt-1.5 text-sm text-[#374151]">
+                <p className={`mt-1.5 ${JOB_POSTING_METADATA_CLASS}`}>
                   Location: {location}
                   <span className="mx-1.5 text-[#CBD5E1]">•</span>
                   Company: {companyName}

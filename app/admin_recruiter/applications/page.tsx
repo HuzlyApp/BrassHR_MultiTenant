@@ -34,9 +34,14 @@ import { CandidateListAvatar } from "@/app/admin_recruiter/components/CandidateL
 import { ColumnsEditorModal } from "@/app/admin_recruiter/components/ColumnsEditorModal";
 import { BulkDeleteConfirmModal } from "@/app/admin_recruiter/components/BulkDeleteConfirmModal";
 import { BulkDeleteToolbarButton } from "@/app/admin_recruiter/components/BulkDeleteToolbarButton";
+import { CandidateBulkSelectionBar } from "@/app/admin_recruiter/components/CandidateBulkSelectionBar";
+import { ClaimCandidatesConfirmModal } from "@/app/admin_recruiter/components/ClaimCandidatesConfirmModal";
 import { ListPaginationControls, ListPaginationShowLabel } from "@/app/admin_recruiter/components/ListPaginationControls";
 import { ListTableCheckbox } from "@/app/admin_recruiter/components/ListTableCheckbox";
 import { MultiJobApplicantsBanner } from "@/app/admin_recruiter/components/MultiJobApplicantsBanner";
+import { postClaimApplications } from "@/app/admin_recruiter/candidates/claim-client";
+import { isApplicationClaimEligible } from "@/lib/candidates/claim";
+import { useAdminHeaderData } from "@/lib/admin/hooks/use-admin-header-data";
 import AddCallLogModal from "@/app/admin_recruiter/components/AddCallLogModal";
 import CandidateCommunicationDialog from "@/app/admin_recruiter/components/CandidateCommunicationDialog";
 import { ScheduleInterviewModal } from "@/app/admin_recruiter/calendar/components/ScheduleInterviewModal";
@@ -624,6 +629,10 @@ export default function JobApplicationsPage() {
   const [resumeErrorMessage, setResumeErrorMessage] = useState("");
   const [addCandidateOpen, setAddCandidateOpen] = useState(false);
   const [applicationsRefreshNonce, setApplicationsRefreshNonce] = useState(0);
+  const [claimConfirmOpen, setClaimConfirmOpen] = useState(false);
+  const [claimBusy, setClaimBusy] = useState(false);
+  const [claimError, setClaimError] = useState<string | null>(null);
+  const { userId: currentUserId, displayName: currentUserName } = useAdminHeaderData();
 
   useEffect(() => {
     setListColumnOrder(loadApplicationColumnOrder());
@@ -859,7 +868,12 @@ export default function JobApplicationsPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [activeTab, sortBy, locationFilter, pageSize, jobId, candidateSearchQuery, highlightMultiJobApplicants, listingStatusFilter, listingJobFilter, listingStageFilter, evaluationFilter, workflowFilter, matchScoreFilter, dateAppliedFilter]);
+  }, [activeTab, locationFilter, pageSize, jobId, candidateSearchQuery, highlightMultiJobApplicants, listingStatusFilter, listingJobFilter, listingStageFilter, evaluationFilter, workflowFilter, matchScoreFilter, dateAppliedFilter]);
+
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [page, pageSize, activeTab, locationFilter, jobId, candidateSearchQuery, highlightMultiJobApplicants, listingStatusFilter, listingJobFilter, listingStageFilter, evaluationFilter, workflowFilter, matchScoreFilter, dateAppliedFilter]);
+  // Sorting intentionally preserves selection (stable IDs) and does not reset the page.
 
   const scoreSort =
     sortBy === "matchScoreAsc" ? "low-high" : sortBy === "matchScore" ? "high-low" : "";
@@ -870,11 +884,79 @@ export default function JobApplicationsPage() {
   }
 
   function handleClaimCandidates() {
-    if (selectedIds.size === 0) {
-      toast("Select candidates, then claim them from this list.");
+    const eligibleIds = [...selectedIds].filter((id) => {
+      const row = rows.find((item) => item.id === id);
+      if (!row) return false;
+      return isApplicationClaimEligible({
+        assignedRecruiterUserId: row.assigned_recruiter_user_id,
+        status: row.status,
+        currentUserId: currentUserId ?? "",
+      }).eligible;
+    });
+    if (eligibleIds.length === 0) {
+      toast("Select eligible unclaimed candidates first.");
       return;
     }
-    toast(`Claim ${selectedIds.size} candidate${selectedIds.size === 1 ? "" : "s"} from this list.`);
+    setClaimError(null);
+    setClaimConfirmOpen(true);
+  }
+
+  async function confirmClaimCandidates() {
+    const eligibleIds = [...selectedIds].filter((id) => {
+      const row = rows.find((item) => item.id === id);
+      if (!row) return false;
+      return isApplicationClaimEligible({
+        assignedRecruiterUserId: row.assigned_recruiter_user_id,
+        status: row.status,
+        currentUserId: currentUserId ?? "",
+      }).eligible;
+    });
+    if (claimBusy || eligibleIds.length === 0) return;
+    setClaimBusy(true);
+    setClaimError(null);
+    try {
+      const result = await postClaimApplications(eligibleIds);
+      toast.success(result.summary);
+      const claimed = new Set(result.claimed);
+      const ownerId = result.recruiter?.id ?? currentUserId;
+      const ownerName = result.recruiter?.name ?? currentUserName ?? "You";
+      if (claimed.size > 0) {
+        setRows((current) =>
+          current.map((row) =>
+            claimed.has(row.id)
+              ? {
+                  ...row,
+                  assigned_recruiter_user_id: ownerId,
+                  assignedRecruiter: ownerId
+                    ? {
+                        id: ownerId,
+                        name: ownerName,
+                        profilePhotoUrl: row.assignedRecruiter?.profilePhotoUrl ?? null,
+                      }
+                    : null,
+                }
+              : row
+          )
+        );
+      }
+      setSelectedIds((current) => {
+        const next = new Set(current);
+        for (const id of [...result.claimed, ...result.already_claimed, ...result.ineligible]) {
+          next.delete(id);
+        }
+        if (result.failed.length === 0 && result.not_found.length === 0) {
+          return new Set();
+        }
+        return next;
+      });
+      if (result.failed.length === 0 && result.not_found.length === 0) {
+        setClaimConfirmOpen(false);
+      }
+    } catch (err) {
+      setClaimError(err instanceof Error ? err.message : "Failed to claim candidates");
+    } finally {
+      setClaimBusy(false);
+    }
   }
 
   const selectedJobOption = useMemo(
@@ -1127,7 +1209,47 @@ export default function JobApplicationsPage() {
     listColumnOrder.length ? listColumnOrder : DEFAULT_APPLICATION_COLUMNS
   );
   const allVisibleSelected =
-    paginatedRows.length > 0 && paginatedRows.every((row) => selectedIds.has(row.id));
+    paginatedRows.length > 0 &&
+    paginatedRows
+      .filter((row) =>
+        isApplicationClaimEligible({
+          assignedRecruiterUserId: row.assigned_recruiter_user_id,
+          status: row.status,
+          currentUserId: currentUserId ?? "",
+        }).eligible
+      )
+      .every((row) => selectedIds.has(row.id)) &&
+    paginatedRows.some((row) =>
+      isApplicationClaimEligible({
+        assignedRecruiterUserId: row.assigned_recruiter_user_id,
+        status: row.status,
+        currentUserId: currentUserId ?? "",
+      }).eligible
+    );
+
+  const someVisibleSelected = paginatedRows.some(
+    (row) =>
+      selectedIds.has(row.id) &&
+      isApplicationClaimEligible({
+        assignedRecruiterUserId: row.assigned_recruiter_user_id,
+        status: row.status,
+        currentUserId: currentUserId ?? "",
+      }).eligible
+  );
+
+  const selectedEligibleCount = useMemo(
+    () =>
+      [...selectedIds].filter((id) => {
+        const row = rows.find((item) => item.id === id);
+        if (!row) return false;
+        return isApplicationClaimEligible({
+          assignedRecruiterUserId: row.assigned_recruiter_user_id,
+          status: row.status,
+          currentUserId: currentUserId ?? "",
+        }).eligible;
+      }).length,
+    [selectedIds, rows, currentUserId]
+  );
 
   const locationOptions = useMemo(() => {
     const set = new Set<string>();
@@ -1141,16 +1263,36 @@ export default function JobApplicationsPage() {
   function toggleSelectAllVisible() {
     setSelectedIds((current) => {
       const next = new Set(current);
-      if (allVisibleSelected) {
-        for (const row of paginatedRows) next.delete(row.id);
+      const eligibleIds = paginatedRows
+        .filter((row) =>
+          isApplicationClaimEligible({
+            assignedRecruiterUserId: row.assigned_recruiter_user_id,
+            status: row.status,
+            currentUserId: currentUserId ?? "",
+          }).eligible
+        )
+        .map((row) => row.id);
+      const allSelected =
+        eligibleIds.length > 0 && eligibleIds.every((id) => next.has(id));
+      if (allSelected) {
+        for (const id of eligibleIds) next.delete(id);
       } else {
-        for (const row of paginatedRows) next.add(row.id);
+        for (const id of eligibleIds) next.add(id);
       }
       return next;
     });
   }
 
   function toggleSelect(id: string) {
+    const row = rows.find((item) => item.id === id);
+    if (row) {
+      const eligibility = isApplicationClaimEligible({
+        assignedRecruiterUserId: row.assigned_recruiter_user_id,
+        status: row.status,
+        currentUserId: currentUserId ?? "",
+      });
+      if (!eligibility.eligible) return;
+    }
     setSelectedIds((current) => {
       const next = new Set(current);
       if (next.has(id)) next.delete(id);
@@ -2227,6 +2369,21 @@ export default function JobApplicationsPage() {
           }
         />
 
+        <CandidateBulkSelectionBar
+          selectedCount={selectedIds.size}
+          eligibleCount={selectedEligibleCount}
+          scopeLabel={
+            selectedEligibleCount === 0
+              ? undefined
+              : allVisibleSelected
+                ? `All ${selectedEligibleCount} candidate${selectedEligibleCount === 1 ? "" : "s"} on this page selected`
+                : `${selectedEligibleCount} candidate${selectedEligibleCount === 1 ? "" : "s"} selected on this page`
+          }
+          claimBusy={claimBusy}
+          onClaim={handleClaimCandidates}
+          onClear={() => setSelectedIds(new Set())}
+        />
+
         {error ? (
           <div className="mx-[14px] mt-4 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
             {error}
@@ -2240,8 +2397,9 @@ export default function JobApplicationsPage() {
                 <th className="w-12 border-r border-[#E5E7EB] px-[14px] py-3">
                   <ListTableCheckbox
                     checked={allVisibleSelected}
+                    indeterminate={someVisibleSelected && !allVisibleSelected}
                     onChange={toggleSelectAllVisible}
-                    aria-label="Select all visible candidates"
+                    aria-label="Select all eligible candidates on this page"
                   />
                 </th>
                 {listColumns.map((colId) => {
@@ -2327,9 +2485,26 @@ export default function JobApplicationsPage() {
                     key={row.id}
                     className="border-b border-[#E9EDF3] align-middle hover:bg-[#FAFBFC]"
                   >
-                    <td className="border-r border-[#E5E7EB] px-[14px] py-2.5 align-middle">
+                    <td
+                      className="border-r border-[#E5E7EB] px-[14px] py-2.5 align-middle"
+                      onClick={(event) => event.stopPropagation()}
+                    >
                       <ListTableCheckbox
                         checked={selectedIds.has(row.id)}
+                        disabled={
+                          !isApplicationClaimEligible({
+                            assignedRecruiterUserId: row.assigned_recruiter_user_id,
+                            status: row.status,
+                            currentUserId: currentUserId ?? "",
+                          }).eligible
+                        }
+                        title={
+                          isApplicationClaimEligible({
+                            assignedRecruiterUserId: row.assigned_recruiter_user_id,
+                            status: row.status,
+                            currentUserId: currentUserId ?? "",
+                          }).reason ?? undefined
+                        }
                         onChange={() => toggleSelect(row.id)}
                         aria-label={`Select ${applicantName(row)}`}
                       />
@@ -2569,6 +2744,22 @@ export default function JobApplicationsPage() {
           />
         );
       })()}
+
+      <ClaimCandidatesConfirmModal
+        open={claimConfirmOpen}
+        selectedCount={selectedIds.size}
+        eligibleCount={selectedEligibleCount}
+        excludedCount={Math.max(0, selectedIds.size - selectedEligibleCount)}
+        recruiterName={currentUserName?.trim() || "You"}
+        busy={claimBusy}
+        error={claimError}
+        onCancel={() => {
+          if (claimBusy) return;
+          setClaimConfirmOpen(false);
+          setClaimError(null);
+        }}
+        onConfirm={() => void confirmClaimCandidates()}
+      />
 
       <AddCandidateModal
         open={addCandidateOpen}

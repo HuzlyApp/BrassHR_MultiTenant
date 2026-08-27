@@ -94,7 +94,7 @@ export function useWorkerDocumentReview(workerId: string | undefined, onSuccess?
     setActionError(null);
     try {
       setActionError(
-        "E-sign is sent automatically when the applicant reaches the Agreement step in onboarding (Firma.dev)."
+        "E-sign is sent automatically when the applicant reaches the Agreement step in onboarding."
       );
     } finally {
       setEsignLoading(false);

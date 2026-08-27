@@ -24,6 +24,7 @@ import { formatApiError } from "@/lib/api/format-api-error";
 import { resolveApplicationWorkflowPhase } from "@/lib/onboarding/resolve-application-workflow-phase";
 import {
   applicantMayActOnStep,
+  isPlacementAcceptedStatus,
   readStepLifecyclePhase,
 } from "@/lib/onboarding/workflow-phase";
 
@@ -167,6 +168,8 @@ export async function POST(req: NextRequest) {
       !applicantMayActOnStep({
         activePhase,
         stepPhase: readStepLifecyclePhase(stepRow),
+        isHired: isPlacementAcceptedStatus(phaseRecord?.status),
+        postHireSuspended: Boolean(phaseRecord?.postHireSuspendedAt),
       })
     ) {
       return NextResponse.json(

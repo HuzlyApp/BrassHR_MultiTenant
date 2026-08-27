@@ -12,6 +12,10 @@ import { resolveDraftPreviewFirmaSignerEmail } from "@/lib/onboarding/is-draft-p
 import { ensureWorkerOnboardingProgress } from "@/lib/onboarding/ensure-worker-progress";
 import { resolveFirmaOnboardingContext } from "@/lib/onboarding/resolve-firma-onboarding-context";
 import { resolveApplicantSigningProfile } from "@/lib/onboarding/resolve-applicant-signing-profile";
+import {
+  E_SIGNATURE_USER_ERRORS,
+  sanitizeESignatureUserMessage,
+} from "@/lib/e-signature/user-facing";
 
 export const runtime = "nodejs";
 
@@ -183,10 +187,21 @@ export async function GET(req: NextRequest) {
     });
   } catch (err: unknown) {
     if (err instanceof FirmaOnboardingSigningError) {
-      return NextResponse.json({ error: err.message, code: err.code }, { status: err.status });
+      return NextResponse.json(
+        {
+          error: sanitizeESignatureUserMessage(
+            err.message,
+            E_SIGNATURE_USER_ERRORS.statusUnavailable
+          ),
+          code: err.code,
+        },
+        { status: err.status }
+      );
     }
     console.error("[onboarding/firma-sign/status]", err);
-    const message = err instanceof Error ? err.message : "Failed to sync Firma signing status";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json(
+      { error: E_SIGNATURE_USER_ERRORS.statusUnavailable },
+      { status: 500 }
+    );
   }
 }

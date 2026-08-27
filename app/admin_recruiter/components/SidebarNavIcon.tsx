@@ -16,6 +16,8 @@ import { SIDEBAR_NAV_INACTIVE_HEX } from "@/lib/sidebar/sidebar-nav-styles";
 type SidebarNavIconProps = {
   iconType: SidebarIconType;
   active: boolean;
+  /** Optional override tint (e.g. alert red for unread notifications). */
+  colorHex?: string;
 };
 
 function SidebarIconPlaceholder() {
@@ -28,10 +30,10 @@ function SidebarIconPlaceholder() {
 }
 
 /** Sidebar menu icon — inline SVG tinted with tenant active/inactive colors. */
-export default function SidebarNavIcon({ iconType, active }: SidebarNavIconProps) {
+export default function SidebarNavIcon({ iconType, active, colorHex }: SidebarNavIconProps) {
   const branding = useTenantBranding();
   const src = getSidebarIconSrc(iconType, active);
-  const tintHex = active ? branding.primaryHex : SIDEBAR_NAV_INACTIVE_HEX;
+  const tintHex = colorHex ?? (active ? branding.primaryHex : SIDEBAR_NAV_INACTIVE_HEX);
   const [markup, setMarkup] = useState<string | null>(() =>
     getTintedSidebarIconMarkup(src, tintHex)
   );

@@ -1,6 +1,11 @@
 /** Default minimum references when step metadata.min_count is unset. */
 export const MIN_COMPLETE_REFERENCES = 1
 
+/** Matches worker_references.years_known numeric(4,1); years known, not a calendar year. */
+export const MAX_YEARS_KNOWN = 80
+export const YEARS_KNOWN_ERROR =
+  "Enter how many years you have known this person (0–80), not a calendar year."
+
 const EMAIL_RE =
   /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/
 
@@ -42,6 +47,31 @@ const REQUIRED_FIELDS: Array<keyof ReferenceRow> = [
 
 function fieldValue(r: ReferenceRow, key: keyof ReferenceRow): string {
   return String(r[key] ?? "").trim()
+}
+
+export function parseYearsKnown(
+  raw: string | null | undefined
+): { value: number | null; error: string | null } {
+  const yearsRaw = String(raw ?? "").trim()
+  if (!yearsRaw) return { value: null, error: null }
+  const n = Number(yearsRaw)
+  if (!Number.isFinite(n) || n < 0 || n > MAX_YEARS_KNOWN) {
+    return { value: null, error: YEARS_KNOWN_ERROR }
+  }
+  return { value: n, error: null }
+}
+
+/** Keep integer years to two digits so a calendar year like 2010 cannot be typed. */
+export function sanitizeYearsKnownInput(raw: string): string {
+  let next = raw.replace(/[^\d.]/g, "")
+  const dot = next.indexOf(".")
+  if (dot !== -1) {
+    next = `${next.slice(0, dot + 1)}${next.slice(dot + 1).replace(/\./g, "").slice(0, 1)}`
+  }
+  const [intPart = "", decPart] = next.split(".")
+  const intLimited = intPart.slice(0, 2)
+  if (decPart != null) return `${intLimited}.${decPart}`
+  return intLimited
 }
 
 export function isReferenceComplete(r: ReferenceRow): boolean {
@@ -86,10 +116,7 @@ export function getReferenceFieldError(
     if (digits.length < 10) return "Enter a valid phone number."
   }
   if (field === "yearsKnown") {
-    const n = Number(value)
-    if (!Number.isFinite(n) || n < 0 || n > 80) {
-      return "Enter years known as a number (0–80)."
-    }
+    return parseYearsKnown(value).error
   }
   return null
 }
@@ -100,6 +127,10 @@ export function getReferencesSaveError(
   options?: { minCount?: number }
 ): string | null {
   const minCount = options?.minCount ?? MIN_COMPLETE_REFERENCES
+  for (const r of refs) {
+    const yearsErr = getReferenceFieldError(r, "yearsKnown")
+    if (yearsErr) return yearsErr
+  }
   if (hasPartiallyFilledReference(refs)) {
     for (const r of refs) {
       for (const field of REQUIRED_FIELDS) {

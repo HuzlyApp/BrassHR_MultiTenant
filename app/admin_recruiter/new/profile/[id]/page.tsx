@@ -692,39 +692,7 @@ export default function NewApplicantProfilePage() {
 
   const handleApproveForWork = async () => {
     if (!applicantId) return;
-    setApprovingForWork(true);
-    try {
-      const res = await fetch("/api/admin/workers/status", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ workerId: applicantId, status: "approved" }),
-      });
-      const json = (await res.json().catch(() => ({}))) as {
-        error?: string;
-        approvalEmail?: {
-          sent?: boolean;
-          skipped?: boolean;
-          error?: string;
-        } | null;
-      };
-      if (!res.ok) throw new Error(json.error || "Failed to approve applicant.");
-
-      if (json.approvalEmail?.sent) {
-        toast.success("Applicant approved and approval email sent.");
-      } else if (json.approvalEmail?.skipped) {
-        toast("Applicant approved. Approval email skipped because email sending is not configured.");
-      } else if (json.approvalEmail?.error) {
-        toast(`Applicant approved, but email was not sent: ${json.approvalEmail.error}`);
-      } else {
-        toast.success("Applicant approved for work.");
-      }
-      router.push("/admin_recruiter/approved");
-      router.refresh();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to approve applicant.");
-    } finally {
-      setApprovingForWork(false);
-    }
+    router.push(`/admin_recruiter/new/final-approval/${encodeURIComponent(applicantId)}`);
   };
 
   return (
@@ -1497,7 +1465,7 @@ export default function NewApplicantProfilePage() {
                         disabled={approvingForWork || !applicantId}
                         className="inline-flex h-10 w-full items-center justify-center rounded-lg bg-[#0D9488] px-4 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60 sm:h-9 sm:w-auto"
                       >
-                        {approvingForWork ? "Approving..." : "Approved for work"}
+                        {approvingForWork ? "Opening…" : "Approve as Worker"}
                       </button>
                       <button
                         type="button"

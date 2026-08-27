@@ -15,6 +15,15 @@ import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { loadTenantBrandingBySlug } from "@/lib/tenant/load-tenant-branding-server";
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
 import { resolveRequestTenantHost } from "@/lib/tenant/resolve-tenant-context";
+import {
+  JOB_POSTING_BODY_CLASS,
+  JOB_POSTING_COMPANY_CLASS,
+  JOB_POSTING_DESCRIPTION_CSS,
+  JOB_POSTING_HELPER_CLASS,
+  JOB_POSTING_METADATA_CLASS,
+  JOB_POSTING_PAGE_TITLE_CLASS,
+  JOB_POSTING_SECTION_HEADING_CLASS,
+} from "@/app/admin_recruiter/jobs/job-posting-typography";
 
 function relationName(value: unknown): string {
   const row = Array.isArray(value) ? value[0] : value;
@@ -104,18 +113,18 @@ export default async function PublicJobDetailPage({
       </div>
       <div className="mx-auto grid max-w-5xl gap-6 px-5 py-8 sm:px-8 lg:grid-cols-[1fr_280px]">
         <article className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-          <p className="text-sm font-semibold uppercase tracking-wide text-[color:var(--brand-primary)]">
+          <p className={JOB_POSTING_COMPANY_CLASS}>
             {tenant.name}
           </p>
-          <h1 className="mt-2 text-xl font-semibold leading-snug text-slate-900 sm:text-2xl md:text-3xl">
+          <h1 className={`mt-2 ${JOB_POSTING_PAGE_TITLE_CLASS}`}>
             {publicJobDisplayTitle(job)}
           </h1>
-          <p className="mt-3 text-base font-medium text-slate-600">{job.location}</p>
+          <p className={`mt-3 ${JOB_POSTING_METADATA_CLASS}`}>{job.location}</p>
           {facts.length ? (
-            <p className="mt-2 text-sm text-slate-500">{facts.join(" · ")}</p>
+            <p className={`mt-2 ${JOB_POSTING_METADATA_CLASS}`}>{facts.join(" · ")}</p>
           ) : null}
           {employmentType ? (
-            <p className="mt-2 text-sm text-slate-500">{employmentType}</p>
+            <p className={`mt-2 ${JOB_POSTING_METADATA_CLASS}`}>{employmentType}</p>
           ) : null}
           {payRate ? (
             <p className="mt-3 text-sm text-slate-700">
@@ -125,85 +134,8 @@ export default async function PublicJobDetailPage({
           ) : null}
 
           <section className="mt-8">
-            <h2 className="text-lg font-semibold text-slate-900">Job summary</h2>
-            <style>{`
-              .public-job-description.job-description-html > :first-child {
-                margin-top: 0 !important;
-              }
-              .public-job-description.job-description-html h2,
-              .public-job-description.job-description-html h3,
-              .public-job-description.job-description-html h4 {
-                margin-top: 1.75rem;
-                margin-bottom: 0.5rem;
-                font-size: 1rem;
-                line-height: 1.5rem;
-                font-weight: 600;
-                color: #0f172a;
-              }
-              .public-job-description.job-description-html h2 strong,
-              .public-job-description.job-description-html h2 b,
-              .public-job-description.job-description-html h3 strong,
-              .public-job-description.job-description-html h3 b,
-              .public-job-description.job-description-html h4 strong,
-              .public-job-description.job-description-html h4 b {
-                font-weight: 600;
-              }
-              .public-job-description.job-description-html p,
-              .public-job-description.job-description-html ul,
-              .public-job-description.job-description-html ol {
-                margin-top: 0;
-                margin-bottom: 0;
-                color: #334155;
-                font-size: 0.9375rem;
-                line-height: 1.75rem;
-              }
-              .public-job-description.job-description-html ul {
-                list-style-type: disc;
-                list-style-position: outside;
-                padding-left: 1.25rem;
-                margin-top: 0.35rem;
-              }
-              .public-job-description.job-description-html ol {
-                list-style-type: decimal;
-                list-style-position: outside;
-                padding-left: 1.25rem;
-                margin-top: 0.35rem;
-              }
-              .public-job-description.job-description-html li {
-                display: list-item;
-                margin-top: 0.35rem;
-                margin-bottom: 0.35rem;
-                color: #334155;
-              }
-              .public-job-description.job-description-html p + h2,
-              .public-job-description.job-description-html p + h3,
-              .public-job-description.job-description-html p + h4,
-              .public-job-description.job-description-html ul + h2,
-              .public-job-description.job-description-html ul + h3,
-              .public-job-description.job-description-html ul + h4,
-              .public-job-description.job-description-html ol + h2,
-              .public-job-description.job-description-html ol + h3,
-              .public-job-description.job-description-html ol + h4 {
-                margin-top: 1.75rem;
-              }
-              .public-job-description.job-description-html p:has(> strong:only-child),
-              .public-job-description.job-description-html p:has(> b:only-child) {
-                margin-top: 1.75rem;
-                margin-bottom: 0.5rem;
-                font-size: 1rem;
-                line-height: 1.5rem;
-                font-weight: 600;
-                color: #0f172a;
-              }
-              .public-job-description.job-description-html p:has(> strong:only-child) > strong,
-              .public-job-description.job-description-html p:has(> b:only-child) > b {
-                font-weight: 600;
-              }
-              .public-job-description.job-description-html > p:has(> strong:only-child):first-child,
-              .public-job-description.job-description-html > p:has(> b:only-child):first-child {
-                margin-top: 0;
-              }
-            `}</style>
+            <h2 className={JOB_POSTING_SECTION_HEADING_CLASS}>Job summary</h2>
+            <style>{JOB_POSTING_DESCRIPTION_CSS.replaceAll(".job-posting-description", ".public-job-description")}</style>
             <JobDescriptionHtml
               html={descriptionHtml}
               className="public-job-description mt-4"
@@ -212,24 +144,24 @@ export default async function PublicJobDetailPage({
           </section>
           {job.responsibilities ? (
             <section className="mt-7">
-              <h2 className="text-lg font-semibold text-slate-900">Responsibilities</h2>
-              <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-700">
+              <h2 className={JOB_POSTING_SECTION_HEADING_CLASS}>Responsibilities</h2>
+              <p className={`mt-3 whitespace-pre-wrap ${JOB_POSTING_BODY_CLASS}`}>
                 {job.responsibilities}
               </p>
             </section>
           ) : null}
           {job.qualifications ? (
             <section className="mt-7">
-              <h2 className="text-lg font-semibold text-slate-900">Qualifications</h2>
-              <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-700">
+              <h2 className={JOB_POSTING_SECTION_HEADING_CLASS}>Qualifications</h2>
+              <p className={`mt-3 whitespace-pre-wrap ${JOB_POSTING_BODY_CLASS}`}>
                 {job.qualifications}
               </p>
             </section>
           ) : null}
           {separateBenefits.length ? (
             <section className="mt-7">
-              <h2 className="text-lg font-semibold text-slate-900">Benefits</h2>
-              <ul className="mt-3 list-outside list-disc space-y-1.5 pl-5 text-sm leading-7 text-slate-700">
+              <h2 className={JOB_POSTING_SECTION_HEADING_CLASS}>Benefits</h2>
+              <ul className={`mt-3 list-outside list-disc space-y-1.5 pl-5 ${JOB_POSTING_BODY_CLASS}`}>
                 {separateBenefits.map((benefit) => (
                   <li key={benefit}>{benefit}</li>
                 ))}
@@ -239,7 +171,7 @@ export default async function PublicJobDetailPage({
         </article>
         <aside className="h-fit rounded-xl border border-slate-200 bg-white p-5 shadow-sm lg:sticky lg:top-6">
           <h2 className="font-semibold text-slate-900">Ready to apply?</h2>
-          <p className="mt-2 text-sm leading-6 text-slate-600">
+          <p className={`mt-2 ${JOB_POSTING_HELPER_CLASS}`}>
             {canApply
               ? "Start by uploading your resume. An account is not required."
               : "This job is posted for visibility. Online applications are not open yet."}

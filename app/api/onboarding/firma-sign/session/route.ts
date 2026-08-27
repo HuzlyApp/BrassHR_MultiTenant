@@ -8,8 +8,16 @@ import {
 } from "@/lib/onboarding/firma-onboarding-signing";
 import { resolveFirmaOnboardingContext } from "@/lib/onboarding/resolve-firma-onboarding-context";
 import { resolveApplicantSigningProfile } from "@/lib/onboarding/resolve-applicant-signing-profile";
+import {
+  E_SIGNATURE_USER_ERRORS,
+  sanitizeESignatureUserMessage,
+} from "@/lib/e-signature/user-facing";
 
 export const runtime = "nodejs";
+
+function toUserFacingESignatureError(message: string | null | undefined, fallback: string): string {
+  return sanitizeESignatureUserMessage(message, fallback);
+}
 
 export async function GET(req: NextRequest) {
   try {
@@ -41,7 +49,10 @@ export async function GET(req: NextRequest) {
 
     if (!resolved.ok) {
       return NextResponse.json(
-        { error: resolved.error, code: resolved.code },
+        {
+          error: toUserFacingESignatureError(resolved.error, E_SIGNATURE_USER_ERRORS.sessionOpenFailed),
+          code: resolved.code,
+        },
         { status: resolved.status }
       );
     }
@@ -84,11 +95,19 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ session });
   } catch (err: unknown) {
     if (err instanceof FirmaOnboardingSigningError) {
-      return NextResponse.json({ error: err.message, code: err.code }, { status: err.status });
+      return NextResponse.json(
+        {
+          error: toUserFacingESignatureError(err.message, E_SIGNATURE_USER_ERRORS.sessionOpenFailed),
+          code: err.code,
+        },
+        { status: err.status }
+      );
     }
     console.error("[onboarding/firma-sign/session GET]", err);
-    const message = err instanceof Error ? err.message : "Failed to load Firma signing session";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json(
+      { error: E_SIGNATURE_USER_ERRORS.serviceUnavailable },
+      { status: 500 }
+    );
   }
 }
 

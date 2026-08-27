@@ -19,9 +19,19 @@ export function mergeOnboardingQuery(basePath: string, currentSearch: string): s
   const [path, existingQuery] = basePath.split("?");
   const merged = new URLSearchParams(existingQuery ?? "");
 
-  for (const key of ["preview", "applicationId", "tenant"]) {
+  for (const key of ["preview", "mode", "applicationId", "tenant"]) {
     const value = current.get(key);
     if (value && !merged.has(key)) merged.set(key, value);
+  }
+
+  // Test / draft preview sessions must never carry a live job application token.
+  if (
+    merged.get("preview") === "draft" ||
+    merged.get("mode")?.trim().toLowerCase() === "test" ||
+    current.get("preview") === "draft" ||
+    current.get("mode")?.trim().toLowerCase() === "test"
+  ) {
+    merged.delete("job_token");
   }
 
   const query = merged.toString();

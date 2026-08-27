@@ -75,7 +75,7 @@ function baseRouteForStep(step: TenantOnboardingStep): string {
 
   // Standalone Firma page only when the step has no library/canonical applicant route.
   if (stepUsesFirmaSigning(step) && step.step_type !== "authorizations") {
-    return APPLICATION_ROUTES.firmaSign;
+    return APPLICATION_ROUTES.eSignature;
   }
 
   if (!isDuplicateStepKey(step.step_key, step.step_type) && STEP_TYPE_ROUTES[step.step_type]) {
@@ -92,7 +92,7 @@ export function dedicatedRouteForWorkflowStep(step: TenantOnboardingStep): strin
     return WORKFLOW_STEP_APPLICANT_ROUTE[libraryId];
   }
   if (stepUsesFirmaSigning(step) && step.step_type !== "authorizations") {
-    return APPLICATION_ROUTES.firmaSign;
+    return APPLICATION_ROUTES.eSignature;
   }
   const base = baseRouteForStep(step);
   if (base.includes("/application/custom-step/")) return null;

@@ -35,6 +35,10 @@ import {
 } from "@/lib/onboarding/mark-resume-upload-step-complete"
 import { workerSignInHref } from "@/lib/auth/worker-sign-in"
 import { currentOnboardingTenantSlug } from "@/lib/tenant/with-tenant"
+import {
+  isWorkflowTestSession,
+  shouldGateResumeEntryByJobBoard,
+} from "@/lib/onboarding/workflow-test-session"
 
 const APPLICANT_SESSION_TIMEOUT_MS = 15_000
 const WORKER_ENSURE_TIMEOUT_MS = 15_000
@@ -133,24 +137,39 @@ export default function Step1Upload() {
   const [fileRequiredError, setFileRequiredError] = useState<string | null>(null)
   const [savedResumeName, setSavedResumeName] = useState("")
   const [savedResumeSizeBytes, setSavedResumeSizeBytes] = useState<number | null>(null)
-  const jobToken =
-    searchParams.get("job_token")?.trim() ||
-    (typeof window !== "undefined" ? localStorage.getItem("applicationJobToken")?.trim() : "") ||
-    ""
+  const search = searchParams.toString()
+  const isWorkflowTest = isWorkflowTestSession(search)
+  const jobToken = isWorkflowTest
+    ? ""
+    : searchParams.get("job_token")?.trim() ||
+      (typeof window !== "undefined" ? localStorage.getItem("applicationJobToken")?.trim() : "") ||
+      ""
 
   useEffect(() => {
     if (typeof window === "undefined") return
+    if (isWorkflowTest) {
+      // Test workflow must not reuse a prior live job application token.
+      localStorage.removeItem("applicationJobToken")
+      return
+    }
     if (jobToken) {
       localStorage.setItem("applicationJobToken", jobToken)
       return
     }
     // Direct Start Application (no job): clear any stale token so config stays job-free.
     localStorage.removeItem("applicationJobToken")
-  }, [jobToken])
+  }, [isWorkflowTest, jobToken, searchParams])
 
   useEffect(() => {
     if (typeof window === "undefined") return
-    if (jobToken) return
+    if (
+      !shouldGateResumeEntryByJobBoard({
+        search,
+        jobToken,
+      })
+    ) {
+      return
+    }
     const tenantSlug =
       searchParams.get("tenant")?.trim().toLowerCase() ||
       branding.slug?.trim().toLowerCase() ||
@@ -176,7 +195,7 @@ export default function Step1Upload() {
       .catch(() => {
         /* stay on page for direct onboarding */
       })
-  }, [branding.slug, jobToken, router, searchParams])
+  }, [branding.slug, jobToken, router, search, searchParams])
 
   useEffect(() => {
     if (typeof window === "undefined") return
@@ -415,8 +434,9 @@ export default function Step1Upload() {
         const fd = new FormData()
         fd.append("file", file)
         fd.append("applicantId", session.applicantId)
-        const tenantSlug =
-          new URLSearchParams(window.location.search).get("tenant")?.trim().toLowerCase() || ""
+        const uploadSearch = new URLSearchParams(window.location.search)
+        const isWorkflowTestUpload = isWorkflowTestSession(window.location.search)
+        const tenantSlug = uploadSearch.get("tenant")?.trim().toLowerCase() || ""
         if (tenantSlug) {
           fd.append("tenantSlug", tenantSlug)
         }
@@ -426,17 +446,25 @@ export default function Step1Upload() {
         if (workerResult.tenantId) {
           fd.append("tenantId", workerResult.tenantId)
         }
-        const urlJobToken =
-          new URLSearchParams(window.location.search).get("job_token")?.trim() || ""
-        const activeJobToken =
-          urlJobToken ||
-          jobToken ||
-          (typeof window !== "undefined" ? localStorage.getItem("applicationJobToken")?.trim() : "") ||
-          ""
-        if (activeJobToken) {
-          fd.append("jobToken", activeJobToken)
+        // Live job applications only — Test workflow must not attach a production job_token.
+        if (!isWorkflowTestUpload) {
+          const urlJobToken = uploadSearch.get("job_token")?.trim() || ""
+          const activeJobToken =
+            urlJobToken ||
+            jobToken ||
+            (typeof window !== "undefined" ? localStorage.getItem("applicationJobToken")?.trim() : "") ||
+            ""
+          if (activeJobToken) {
+            fd.append("jobToken", activeJobToken)
+            try {
+              localStorage.setItem("applicationJobToken", activeJobToken)
+            } catch {
+              /* ignore */
+            }
+          }
+        } else {
           try {
-            localStorage.setItem("applicationJobToken", activeJobToken)
+            localStorage.removeItem("applicationJobToken")
           } catch {
             /* ignore */
           }

@@ -44,7 +44,7 @@ export async function resolveTenantFirmaWorkspaceId(
   const effective = tenantWorkspace ?? resolveFirmaWorkspaceIdFromEnv();
   if (!effective) {
     throw new FirmaWorkspaceConfigError(
-      "Firma workspace is not configured for this organization. Set a Firma workspace ID in Account Settings (Integrations), or configure FIRMA_WORKSPACE_ID on the server."
+      "E-signature workspace is not configured for this organization. Set a workspace ID in Account Settings (Integrations), or ask your platform administrator for help."
     );
   }
   return effective;

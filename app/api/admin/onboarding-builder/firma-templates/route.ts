@@ -26,7 +26,7 @@ export async function GET() {
     return NextResponse.json({ templates: options });
   } catch (err: unknown) {
     console.error("[admin/onboarding-builder/firma-templates]", err);
-    const message = err instanceof Error ? err.message : "Failed to load Firma templates";
+    const message = err instanceof Error ? err.message : "Failed to load signature templates";
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

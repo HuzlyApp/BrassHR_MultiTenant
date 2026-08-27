@@ -4,12 +4,15 @@ import type {
   TenantOnboardingConfig,
   TenantRequiredDocument,
 } from "@/lib/onboarding/types";
+import { readStepLifecyclePhase } from "@/lib/onboarding/workflow-phase";
 
 export type AdminAttachmentRequirement = {
   id: string;
   title: string;
   step_key: string;
+  step_title?: string;
   step_type: OnboardingStepType;
+  phase: "pre_hire" | "post_hire";
   required_document_id: string | null;
   submitted_document_id: string | null;
   legacy_document_key: string | null;
@@ -17,6 +20,12 @@ export type AdminAttachmentRequirement = {
   url: string | null;
   filename: string;
   sort_order: number;
+  uploaded_at?: string | null;
+  uploaded_by?: string | null;
+  reviewed_at?: string | null;
+  reviewed_by?: string | null;
+  review_notes?: string | null;
+  is_required?: boolean;
 };
 
 export type LegacyDocumentUrls = {
@@ -34,6 +43,10 @@ export type SubmittedDocumentRecord = {
   signed_url: string | null;
   original_file_name: string | null;
   status: string | null;
+  uploaded_at?: string | null;
+  reviewed_at?: string | null;
+  reviewed_by?: string | null;
+  review_notes?: string | null;
 };
 
 export type AdminAttachmentBuildInput = {
@@ -146,12 +159,15 @@ export function buildAdminAttachmentRequirements(
   let sortOrder = 0;
 
   for (const step of enabled) {
+    const phase = readStepLifecyclePhase(step);
     if (step.step_type === "resume_upload") {
       rows.push({
         id: `step-${step.step_key}`,
         title: step.title.trim() || "Resume",
         step_key: step.step_key,
+        step_title: step.title,
         step_type: step.step_type,
+        phase,
         required_document_id: null,
         submitted_document_id: null,
         legacy_document_key: null,
@@ -159,6 +175,7 @@ export function buildAdminAttachmentRequirements(
         url: input.resumeUrl,
         filename: resumeFilename(input.resumePath, input.resumePathRaw, input.resumeUrl),
         sort_order: sortOrder++,
+        is_required: step.is_required !== false,
       });
       continue;
     }
@@ -175,7 +192,9 @@ export function buildAdminAttachmentRequirements(
           id: `step-${step.step_key}-authorization`,
           title: step.title.trim() || "Authorization Document",
           step_key: step.step_key,
+          step_title: step.title,
           step_type: step.step_type,
+          phase,
           required_document_id: null,
           submitted_document_id: null,
           legacy_document_key: "document_url",
@@ -183,6 +202,7 @@ export function buildAdminAttachmentRequirements(
           url,
           filename: fileNameFromHttpUrl(url),
           sort_order: sortOrder++,
+          is_required: step.is_required !== false,
         });
       }
       continue;
@@ -199,7 +219,9 @@ export function buildAdminAttachmentRequirements(
         id: `reqdoc-${doc.id}`,
         title: doc.title,
         step_key: step.step_key,
+        step_title: step.title,
         step_type: step.step_type,
+        phase,
         required_document_id: doc.id,
         submitted_document_id: submitted?.submitted_document_id ?? null,
         legacy_document_key: null,
@@ -207,6 +229,11 @@ export function buildAdminAttachmentRequirements(
         url,
         filename,
         sort_order: sortOrder++,
+        is_required: doc.is_required !== false,
+        uploaded_at: submitted?.uploaded_at ?? null,
+        reviewed_at: submitted?.reviewed_at ?? null,
+        reviewed_by: submitted?.reviewed_by ?? null,
+        review_notes: submitted?.review_notes ?? null,
       });
     }
   }
@@ -273,7 +300,9 @@ export function buildLegacyAttachmentRequirements(
     id: item.id,
     title: item.title,
     step_key: item.step_key,
+    step_title: item.title,
     step_type: item.step_type,
+    phase: "pre_hire" as const,
     required_document_id: null,
     submitted_document_id: null,
     legacy_document_key: item.legacy_document_key,
@@ -284,6 +313,7 @@ export function buildLegacyAttachmentRequirements(
         ? resumeFilename(input.resumePath, input.resumePathRaw, input.resumeUrl)
         : fileNameFromHttpUrl(item.url),
     sort_order: index,
+    is_required: true,
   }));
 }
 

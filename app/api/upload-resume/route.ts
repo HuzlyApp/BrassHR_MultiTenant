@@ -7,6 +7,7 @@ import { getSupabaseUrl } from "@/lib/supabase-env"
 import { syncWorkerPrimaryResumePath } from "@/lib/onboarding/sync-worker-primary-resume-path"
 import { persistWorkerResumeRecord } from "@/lib/onboarding/persist-worker-resume-record"
 import { resolveOrEnsureWorkerForApplicant, resolveWorkerByApplicantId, type WorkerContext } from "@/lib/onboarding/resolve-worker-context"
+import { isDraftPreviewApplicantId } from "@/lib/onboarding/is-draft-preview"
 import { runResumeParseJob } from "@/lib/resume/run-resume-parse-job"
 import { createTimer, logResumeTiming } from "@/lib/resume/timing"
 import { sendResumeContinuationEmail } from "@/lib/onboarding/send-resume-continuation-email"
@@ -154,6 +155,62 @@ export async function POST(req: Request) {
 
   const buffer = Buffer.from(await file.arrayBuffer())
 
+  /**
+   * Admin Test workflow / draft preview uses a synthetic applicant id.
+   * Validate + extract text, but never create production workers, applications, or resumes.
+   */
+  if (isDraftPreviewApplicantId(applicantId)) {
+    const extractionTimer = createTimer()
+    let text = ""
+    let extractionError: string | null = null
+    try {
+      text = await extractText(buffer, { name: file.name, type: file.type || "application/octet-stream" })
+    } catch (e: unknown) {
+      extractionError = e instanceof Error ? e.message : "Could not read resume"
+      if (fileType === "doc" || lowerName.endsWith(".doc")) {
+        return NextResponse.json({ error: extractionError }, { status: 400 })
+      }
+    }
+
+    const resumeId = `draft-preview-${randomUUID()}`
+    const extractionMs = extractionTimer.elapsedMs()
+    const textLength = text.trim().length
+
+    console.info("[upload-resume] workflow_test_resume_upload", {
+      stage: "resume_upload_init",
+      applicantId,
+      tenantSlug: tenantSlug || null,
+      fileType,
+      fileSizeBytes,
+      textLength,
+      extractionError: extractionError ? "extract_failed" : null,
+    })
+    logResumeTiming("upload-resume", "workflow-test-complete", {
+      totalMs: routeTimer.elapsedMs(),
+      extractionMs,
+      textLength,
+      fileType,
+      fileSizeBytes,
+      resumeId,
+      parseStatus: textLength > 0 ? "completed" : "skipped",
+    })
+
+    return NextResponse.json({
+      resumeId,
+      fileName: file.name,
+      storagePath: null,
+      parseStatus: textLength > 0 ? "completed" : "skipped",
+      bucket: null,
+      textLength,
+      extractionMs,
+      applicationId: null,
+      workflowInstanceId: null,
+      resumedApplication: false,
+      workflowTest: true,
+      draftPreview: true,
+    })
+  }
+
   const url = getSupabaseUrl()
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY
   if (!url || !key) {
@@ -192,8 +249,19 @@ export async function POST(req: Request) {
   })
 
   if (!workerCtx) {
+    console.error("[upload-resume] applicant_create failed", {
+      stage: "applicant_create",
+      applicantId,
+      tenantSlug: tenantSlug || null,
+      hasWorkerHint: Boolean(workerIdHint),
+      hasTenantHint: Boolean(tenantIdHint),
+    })
     return NextResponse.json(
-      { error: "Could not create applicant profile for resume upload. Check the tenant link and try again." },
+      {
+        error: tenantSlug
+          ? "We could not start your application. Please try again."
+          : "This application link belongs to an invalid or unavailable organization.",
+      },
       { status: 400 },
     )
   }

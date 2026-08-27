@@ -87,8 +87,11 @@ describe("workflow phase helpers", () => {
       applicantMayActOnStep({ activePhase: "pre_hire", stepPhase: "post_hire" })
     ).toBe(false);
     expect(
-      applicantMayActOnStep({ activePhase: "post_hire", stepPhase: "post_hire" })
+      applicantMayActOnStep({ activePhase: "post_hire", stepPhase: "post_hire", isHired: true })
     ).toBe(true);
+    expect(
+      applicantMayActOnStep({ activePhase: "post_hire", stepPhase: "post_hire", isHired: false })
+    ).toBe(false);
     expect(
       applicantMayActOnStep({ activePhase: "post_hire", stepPhase: "pre_hire" })
     ).toBe(false);
