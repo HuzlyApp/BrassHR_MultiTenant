@@ -7,6 +7,7 @@ import { resolveOnboardingTenantId } from "@/lib/tenant/resolve-onboarding-tenan
 import { persistWorkerRow } from "@/lib/onboarding/persist-worker-row"
 import { sendProfileSaveStatusLinkEmail } from "@/lib/onboarding/send-profile-save-status-link-email"
 import { resolveApplicantEmailAppOrigin } from "@/lib/resolve-app-origin"
+import { isDraftPreviewApplicantId } from "@/lib/onboarding/is-draft-preview"
 
 export const runtime = "nodejs"
 
@@ -16,6 +17,34 @@ export async function POST(req: NextRequest) {
     const applicantId = typeof body.applicantId === "string" ? body.applicantId.trim() : ""
     if (!applicantId) {
       return NextResponse.json({ error: "Missing applicantId" }, { status: 400 })
+    }
+
+    const step1Fields = {
+      firstName: String(body.firstName ?? ""),
+      lastName: String(body.lastName ?? ""),
+      address1: String(body.address1 ?? ""),
+      address2: String(body.address2 ?? ""),
+      city: String(body.city ?? ""),
+      state: String(body.state ?? ""),
+      zipCode: String(body.zipCode ?? ""),
+      phone: String(body.phone ?? ""),
+      email: String(body.email ?? ""),
+      jobRole: String(body.jobRole ?? ""),
+    }
+    const step1Err = validateStep1Form(step1Fields)
+    if (step1Err) {
+      return NextResponse.json(
+        { error: step1Err.message, code: "VALIDATION_ERROR", field: step1Err.code },
+        { status: 400 },
+      )
+    }
+
+    /**
+     * Test workflow / draft preview uses a synthetic applicant id that is not a UUID.
+     * Validate the form, but never persist a production worker.
+     */
+    if (isDraftPreviewApplicantId(applicantId)) {
+      return NextResponse.json({ ok: true, preview: true })
     }
 
     const url = getSupabaseUrl()
@@ -68,26 +97,6 @@ export async function POST(req: NextRequest) {
       }
     }
     const tenantId = tenantRes.tenantId
-
-    const step1Fields = {
-      firstName: String(body.firstName ?? ""),
-      lastName: String(body.lastName ?? ""),
-      address1: String(body.address1 ?? ""),
-      address2: String(body.address2 ?? ""),
-      city: String(body.city ?? ""),
-      state: String(body.state ?? ""),
-      zipCode: String(body.zipCode ?? ""),
-      phone: String(body.phone ?? ""),
-      email: String(body.email ?? ""),
-      jobRole: String(body.jobRole ?? ""),
-    }
-    const step1Err = validateStep1Form(step1Fields)
-    if (step1Err) {
-      return NextResponse.json(
-        { error: step1Err.message, code: "VALIDATION_ERROR", field: step1Err.code },
-        { status: 400 },
-      )
-    }
 
     const addressLat = Number(body.addressLat)
     const addressLng = Number(body.addressLng)

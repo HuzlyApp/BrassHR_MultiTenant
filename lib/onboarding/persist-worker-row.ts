@@ -14,6 +14,7 @@ import {
   normalizeTenantEmail,
   tenantEmailTakenResult,
 } from "@/lib/tenant/tenant-email-uniqueness"
+import { isDraftPreviewApplicantId } from "@/lib/onboarding/is-draft-preview"
 
 function isMissingColumnErr(e: unknown) {
   const err = e as { code?: string; message?: string } | null
@@ -289,6 +290,15 @@ export async function persistWorkerRow(
   supabase: SupabaseClient,
   input: PersistWorkerRowInput
 ): Promise<PersistWorkerRowResult> {
+  if (isDraftPreviewApplicantId(input.applicantId)) {
+    return {
+      ok: false,
+      error: "Draft preview cannot persist a worker",
+      code: "DRAFT_PREVIEW",
+      status: 400,
+    }
+  }
+
   const { applicantId, tenantId, fields } = input
   const emailNorm = normalizeTenantEmail(fields.email)
 

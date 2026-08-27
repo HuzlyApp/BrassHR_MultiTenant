@@ -52,3 +52,16 @@ export function stripJobTokenForWorkflowTest(path: string): string {
   const qs = params.toString();
   return qs ? `${pathname}?${qs}` : pathname;
 }
+
+/**
+ * Live applicants who open add-resume without a job_token should be sent to the
+ * public jobs board when the tenant has open positions. Test workflow / draft
+ * preview is workflow-scoped and must never take that path.
+ */
+export function shouldGateResumeEntryByJobBoard(opts: {
+  search?: string | null;
+  jobToken?: string | null;
+}): boolean {
+  if (isWorkflowTestSession(opts.search)) return false;
+  return !opts.jobToken?.trim();
+}

@@ -89,4 +89,28 @@ describe("GET /api/resume-parse-status", () => {
     expect(json.parseStatus).toBe("failed")
     expect(json.parseError).toContain("failed")
   })
+
+  it("skips DB lookup for Test workflow / draft preview", async () => {
+    const res = await GET(
+      new NextRequest(
+        "http://localhost/api/resume-parse-status?resumeId=e90b0b5e-12bb-4846-a8cb-eacd6fb63810&applicantId=draft-preview",
+      ),
+    )
+    const json = await res.json()
+    expect(res.status).toBe(200)
+    expect(json.parseStatus).toBe("skipped")
+    expect(json.draftPreview).toBe(true)
+  })
+
+  it("skips DB lookup for synthetic draft-preview resume ids", async () => {
+    const res = await GET(
+      new NextRequest(
+        "http://localhost/api/resume-parse-status?resumeId=draft-preview-e90b0b5e-12bb-4846-a8cb-eacd6fb63810",
+      ),
+    )
+    const json = await res.json()
+    expect(res.status).toBe(200)
+    expect(json.parseStatus).toBe("skipped")
+    expect(json.draftPreview).toBe(true)
+  })
 })

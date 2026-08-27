@@ -35,6 +35,12 @@ export function isDraftPreviewApplicantId(applicantId: string | null | undefined
   return applicantId?.trim() === DRAFT_PREVIEW_APPLICANT_ID;
 }
 
+/** Synthetic resume ids from Test workflow uploads (`draft-preview-<uuid>`). */
+export function isDraftPreviewResumeId(resumeId: string | null | undefined): boolean {
+  const value = resumeId?.trim() ?? "";
+  return value === DRAFT_PREVIEW_APPLICANT_ID || value.startsWith(`${DRAFT_PREVIEW_APPLICANT_ID}-`);
+}
+
 /**
  * Admin builder Test workflow / draft preview (`?preview=draft` or `?mode=test`).
  * No live applicant anonymous session or production worker is required.

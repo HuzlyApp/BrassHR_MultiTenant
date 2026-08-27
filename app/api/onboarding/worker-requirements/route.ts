@@ -12,6 +12,7 @@ import {
 import { resolveOnboardingTenantId } from "@/lib/tenant/resolve-onboarding-tenant-id"
 import { readOnboardingTenantSlugFromRequest } from "@/lib/onboarding/resolve-onboarding-worker"
 import { resolveWorkerByApplicantId } from "@/lib/onboarding/resolve-worker-context"
+import { isDraftPreviewApplicantId } from "@/lib/onboarding/is-draft-preview"
 
 export const runtime = "nodejs"
 
@@ -85,6 +86,9 @@ export async function GET(req: NextRequest) {
     if (!applicantId) {
       return NextResponse.json({ error: "Missing applicantId" }, { status: 400 })
     }
+    if (isDraftPreviewApplicantId(applicantId)) {
+      return NextResponse.json({ requirements: null, preview: true })
+    }
 
     const url = getSupabaseUrl()
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -131,6 +135,9 @@ export async function POST(req: NextRequest) {
     const applicantId = typeof body.applicantId === "string" ? body.applicantId.trim() : ""
     if (!applicantId) {
       return NextResponse.json({ error: "Missing applicantId" }, { status: 400 })
+    }
+    if (isDraftPreviewApplicantId(applicantId)) {
+      return NextResponse.json({ ok: true, preview: true })
     }
 
     const url = getSupabaseUrl()

@@ -5,6 +5,7 @@ import { resolveOnboardingTenantId } from "@/lib/tenant/resolve-onboarding-tenan
 import { persistWorkerRow } from "@/lib/onboarding/persist-worker-row"
 import { resumeToStep1Fields } from "@/lib/onboarding/resume-to-step1-fields"
 import { resolveWorkerByApplicantId } from "@/lib/onboarding/resolve-worker-context"
+import { isDraftPreviewApplicantId } from "@/lib/onboarding/is-draft-preview"
 
 export const runtime = "nodejs"
 
@@ -14,6 +15,9 @@ export async function POST(req: NextRequest) {
     const applicantId = typeof body.applicantId === "string" ? body.applicantId.trim() : ""
     if (!applicantId) {
       return NextResponse.json({ error: "Missing applicantId" }, { status: 400 })
+    }
+    if (isDraftPreviewApplicantId(applicantId)) {
+      return NextResponse.json({ ok: true, preview: true, created: false })
     }
 
     const url = getSupabaseUrl()

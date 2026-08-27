@@ -2,6 +2,7 @@ import { describe, expect, it, beforeEach, afterEach, vi } from "vitest";
 import {
   buildWorkflowTestUrl,
   isWorkflowTestSession,
+  shouldGateResumeEntryByJobBoard,
   stripJobTokenForWorkflowTest,
 } from "./workflow-test-session";
 import type { TenantOnboardingConfig } from "./types";
@@ -46,6 +47,41 @@ describe("buildWorkflowTestUrl", () => {
     expect(url).toContain("tenant=zipstaff");
     expect(url).toContain("preview=draft");
     expect(url).not.toContain("job_token");
+  });
+});
+
+describe("shouldGateResumeEntryByJobBoard", () => {
+  it("does not send Test workflow / draft preview to the jobs board", () => {
+    expect(
+      shouldGateResumeEntryByJobBoard({
+        search: "?tenant=zipstaff&preview=draft",
+        jobToken: "",
+      })
+    ).toBe(false);
+    expect(
+      shouldGateResumeEntryByJobBoard({
+        search: "tenant=zipstaff&mode=test",
+        jobToken: "",
+      })
+    ).toBe(false);
+  });
+
+  it("still gates live applicants who landed on add-resume without a job", () => {
+    expect(
+      shouldGateResumeEntryByJobBoard({
+        search: "?tenant=zipstaff",
+        jobToken: "",
+      })
+    ).toBe(true);
+  });
+
+  it("does not gate live applicants who already have a job_token", () => {
+    expect(
+      shouldGateResumeEntryByJobBoard({
+        search: "?tenant=zipstaff&job_token=abc",
+        jobToken: "abc",
+      })
+    ).toBe(false);
   });
 });
 

@@ -39,10 +39,12 @@ vi.mock("@/lib/tenant/resolve-onboarding-tenant-id", () => ({
 
 vi.mock("@/lib/resolve-app-origin", () => ({
   resolveAppOrigin: (...args: unknown[]) => resolveAppOriginMock(...args),
+  resolveApplicantEmailAppOrigin: (...args: unknown[]) => resolveAppOriginMock(...args),
 }));
 
 const validBody = {
   applicantId: "auth-user-1",
+  tenantSlug: "zipstaff",
   firstName: "Jane",
   lastName: "Doe",
   address1: "123 Main St",
@@ -127,5 +129,16 @@ describe("onboarding save-worker route", () => {
     expect(res.status).toBe(200);
     await afterCallbacks[0]();
     expect(sendProfileSaveStatusLinkEmailMock).toHaveBeenCalled();
+  });
+
+  it("accepts Test workflow / draft preview without persisting a worker", async () => {
+    const res = await saveWorker({
+      ...validBody,
+      applicantId: "draft-preview",
+    });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true, preview: true });
+    expect(persistWorkerRowMock).not.toHaveBeenCalled();
+    expect(afterCallbacks).toHaveLength(0);
   });
 });

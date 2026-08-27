@@ -4,6 +4,7 @@ import {
   DRAFT_PREVIEW_FIRMA_SIGNER_EMAIL_FALLBACK,
   getDraftPreviewFirmaSignerEmailFallback,
   isDraftPreviewApplicantId,
+  isDraftPreviewResumeId,
   isOnboardingDraftPreview,
   isUndeliverableDraftPreviewEmail,
   resolveDraftPreviewFirmaSignerEmail,
@@ -26,6 +27,14 @@ describe("isDraftPreviewApplicantId", () => {
     expect(isDraftPreviewApplicantId(DRAFT_PREVIEW_APPLICANT_ID)).toBe(true);
     expect(isDraftPreviewApplicantId("real-uuid")).toBe(false);
     expect(isDraftPreviewApplicantId(null)).toBe(false);
+  });
+});
+
+describe("isDraftPreviewResumeId", () => {
+  it("recognizes Test workflow resume ids", () => {
+    expect(isDraftPreviewResumeId("draft-preview-e90b0b5e-12bb-4846-a8cb-eacd6fb63810")).toBe(true);
+    expect(isDraftPreviewResumeId(DRAFT_PREVIEW_APPLICANT_ID)).toBe(true);
+    expect(isDraftPreviewResumeId("e90b0b5e-12bb-4846-a8cb-eacd6fb63810")).toBe(false);
   });
 });
 

@@ -66,4 +66,18 @@ describe("useResumeParsePoll", () => {
     expect(result.current.parsedResume?.email).toBe("sam@example.com")
     expect(localStorage.getItem("parsedResume")).toContain("sam@example.com")
   })
+
+  it("does not poll during Test workflow / draft preview", async () => {
+    localStorage.setItem("applicantId", "draft-preview")
+    const fetchMock = vi.mocked(fetch)
+
+    const { result } = renderHook(() => useResumeParsePoll("e90b0b5e-12bb-4846-a8cb-eacd6fb63810"))
+
+    await waitFor(() => {
+      expect(result.current.status).toBe("skipped")
+    })
+
+    expect(result.current.isPolling).toBe(false)
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
 })

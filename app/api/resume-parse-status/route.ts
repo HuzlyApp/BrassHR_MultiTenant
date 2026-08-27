@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { getSupabaseUrl } from "@/lib/supabase-env"
 import { resolveWorkerByApplicantId } from "@/lib/onboarding/resolve-worker-context"
+import {
+  isDraftPreviewApplicantId,
+  isDraftPreviewResumeId,
+} from "@/lib/onboarding/is-draft-preview"
 
 export async function GET(req: NextRequest) {
   const resumeId = req.nextUrl.searchParams.get("resumeId")?.trim() ?? ""
@@ -9,6 +13,21 @@ export async function GET(req: NextRequest) {
 
   if (!resumeId) {
     return NextResponse.json({ error: "resumeId is required" }, { status: 400 })
+  }
+
+  if (isDraftPreviewApplicantId(applicantId) || isDraftPreviewResumeId(resumeId)) {
+    return NextResponse.json({
+      resumeId,
+      parseStatus: "skipped",
+      parsedJson: null,
+      parseError: null,
+      parseStartedAt: null,
+      parseCompletedAt: null,
+      extractionMs: null,
+      aiParseMs: null,
+      textLength: null,
+      draftPreview: true,
+    })
   }
 
   const url = getSupabaseUrl()
