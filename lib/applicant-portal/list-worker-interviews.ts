@@ -18,7 +18,6 @@ export type WorkerInterviewItem = {
   meetingType: "online" | "phone" | "in_person" | null;
   meetingLink: string | null;
   location: string | null;
-  notes: string | null;
 };
 
 type InterviewScheduleRow = {
@@ -36,7 +35,6 @@ type InterviewScheduleRow = {
   meeting_type: string | null;
   meeting_link: string | null;
   location: string | null;
-  notes: string | null;
 };
 
 type JobRow = {
@@ -85,7 +83,8 @@ export async function listWorkerInterviews(
   const { data: scheduleRows, error: scheduleError } = await supabase
     .from("interview_schedules")
     .select(
-      "id, applicant_id, worker_id, application_id, job_id, title, description, scheduled_date, start_time, end_time, status, meeting_type, meeting_link, location, notes"
+      // Internal recruiter notes are stored on this row; do not select them for applicants.
+      "id, applicant_id, worker_id, application_id, job_id, title, description, scheduled_date, start_time, end_time, status, meeting_type, meeting_link, location"
     )
     .eq("tenant_id", input.tenantId)
     .or(orFilters.join(","))
@@ -161,7 +160,6 @@ export async function listWorkerInterviews(
         meetingType: normalizeMeetingType(row.meeting_type),
         meetingLink: row.meeting_link?.trim() || null,
         location: row.location?.trim() || null,
-        notes: row.notes?.trim() || null,
       } satisfies WorkerInterviewItem;
     })
     .sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime());

@@ -502,6 +502,8 @@ export default function InterviewsPageClient({
   const [error, setError] = useState<string | null>(null);
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [successOpen, setSuccessOpen] = useState(false);
+  const [successMessage, setSuccessMessage] = useState("You have scheduled a new interview");
+  const [invitationNotice, setInvitationNotice] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [scheduleError, setScheduleError] = useState<string | null>(null);
   const [calendarWeekAnchor, setCalendarWeekAnchor] = useState<Date | null>(null);
@@ -509,7 +511,6 @@ export default function InterviewsPageClient({
   const [detailOpen, setDetailOpen] = useState(false);
   const [editingInterviewId, setEditingInterviewId] = useState<string | null>(null);
   const [rescheduleInitial, setRescheduleInitial] = useState<ScheduleInterviewPayload | null>(null);
-  const [lastActionWasReschedule, setLastActionWasReschedule] = useState(false);
 
   const loadInterviews = useCallback(async (activeTab: TabId) => {
     setLoading(true);
@@ -616,6 +617,7 @@ export default function InterviewsPageClient({
     setEditingInterviewId(interview.id);
     setRescheduleInitial(interviewToSchedulePayload(interview));
     setScheduleError(null);
+    setInvitationNotice(null);
     setScheduleOpen(true);
   }
 
@@ -623,6 +625,7 @@ export default function InterviewsPageClient({
     setEditingInterviewId(null);
     setRescheduleInitial(null);
     setScheduleError(null);
+    setInvitationNotice(null);
     setScheduleOpen(true);
   }
 
@@ -654,19 +657,23 @@ export default function InterviewsPageClient({
       if (!res.ok) {
         throw new Error(data.error || (isEdit ? "Failed to reschedule interview" : "Failed to schedule interview"));
       }
-      setLastActionWasReschedule(isEdit);
+      const invitationStatus = data.invitation?.invitationStatus;
+      const message = isEdit
+        ? invitationRescheduleMessage(data.invitation)
+        : invitationSuccessMessage(data.invitation);
       setScheduleOpen(false);
       setEditingInterviewId(null);
       setRescheduleInitial(null);
-      setSuccessOpen(true);
+      setScheduleError(null);
       setTab("upcoming");
       await loadInterviews("upcoming");
-      if (data.invitation?.invitationStatus === "partial" || data.invitation?.invitationStatus === "failed") {
-        setScheduleError(
-          isEdit
-            ? invitationRescheduleMessage(data.invitation)
-            : invitationSuccessMessage(data.invitation)
-        );
+      if (invitationStatus === "partial" || invitationStatus === "failed") {
+        setInvitationNotice(message);
+        setSuccessOpen(false);
+      } else {
+        setInvitationNotice(null);
+        setSuccessMessage(message);
+        setSuccessOpen(true);
       }
     } catch (err) {
       setScheduleError(
@@ -717,6 +724,11 @@ export default function InterviewsPageClient({
       </aside>
 
       <section className="flex min-w-0 flex-1 flex-col p-4 min-[850px]:p-5">
+        {invitationNotice ? (
+          <p role="alert" className="mb-4 rounded-lg bg-amber-50 p-4 text-sm text-amber-800">
+            {invitationNotice}
+          </p>
+        ) : null}
         {loading ? (
           <InterviewsLoadingSkeleton viewMode={viewMode} monthTitle={monthTitle} />
         ) : error ? (
@@ -848,11 +860,7 @@ export default function InterviewsPageClient({
 
       <InterviewSuccessModal
         open={successOpen}
-        message={
-          lastActionWasReschedule
-            ? "Interview updated. A reschedule email was sent to the applicant."
-            : "You have scheduled a new interview"
-        }
+        message={successMessage}
         onClose={() => setSuccessOpen(false)}
         onGoToCalendar={() => {
           setSuccessOpen(false);

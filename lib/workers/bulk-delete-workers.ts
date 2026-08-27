@@ -3,9 +3,14 @@ import { parseBulkDeleteIds } from "@/lib/jobs/service";
 
 type DbClient = SupabaseClient;
 
+type BulkDeleteWorkerRow = {
+  deleted_id?: string | null;
+};
+
 /**
  * Permanently remove workers (candidates) for a tenant.
- * Linked job applications are removed first so FK RESTRICT does not block the delete.
+ * Uses a single database transaction so linked applications are not deleted
+ * unless the worker delete also succeeds.
  */
 export async function bulkDeleteWorkers(
   supabase: DbClient,
@@ -15,21 +20,16 @@ export async function bulkDeleteWorkers(
   const normalized = parseBulkDeleteIds(ids);
   if (!normalized.length) return { deletedIds: [] };
 
-  const { error: applicationsError } = await supabase
-    .from("job_applications")
-    .delete()
-    .in("worker_id", normalized)
-    .eq("tenant_id", tenantId);
-
-  if (applicationsError) throw applicationsError;
-
-  const { data, error } = await supabase
-    .from("worker")
-    .delete()
-    .in("id", normalized)
-    .eq("tenant_id", tenantId)
-    .select("id");
+  const { data, error } = await supabase.rpc("bulk_delete_workers", {
+    p_tenant_id: tenantId,
+    p_worker_ids: normalized,
+  });
 
   if (error) throw error;
-  return { deletedIds: (data ?? []).map((row) => String(row.id)) };
+
+  const deletedIds = ((data ?? []) as BulkDeleteWorkerRow[])
+    .map((row) => String(row.deleted_id ?? "").trim())
+    .filter(Boolean);
+
+  return { deletedIds };
 }

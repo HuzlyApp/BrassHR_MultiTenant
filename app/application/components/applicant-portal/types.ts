@@ -73,7 +73,6 @@ export type WorkerInterview = {
   meetingType: MeetingType | null;
   meetingLink: string | null;
   location: string | null;
-  notes: string | null;
 };
 
 export type AttendanceStatus = "clocked_in" | "clocked_out";

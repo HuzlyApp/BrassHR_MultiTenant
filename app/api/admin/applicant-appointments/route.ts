@@ -211,7 +211,7 @@ export async function GET(req: NextRequest) {
     let scheduleQuery = supabase
       .from("interview_schedules")
       .select(
-        "id, tenant_id, applicant_id, worker_id, application_id, title, description, scheduled_date, start_time, end_time, timezone, status, meeting_link, location, meeting_type, notes, created_at, updated_at"
+        "id, tenant_id, applicant_id, worker_id, application_id, job_id, title, description, scheduled_date, start_time, end_time, timezone, status, meeting_link, location, meeting_type, notes, created_at, updated_at"
       )
       .eq("tenant_id", scope.tenantId)
       .order("scheduled_date", { ascending: tab === "upcoming" })
