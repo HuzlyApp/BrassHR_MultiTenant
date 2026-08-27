@@ -1,7 +1,7 @@
 // app/admin_recruiter/candidates/page.tsx
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { EditColumnsModal } from "./EditColumnsModal";
 import {
@@ -173,6 +173,7 @@ export default function CandidatesPage() {
   const [claimBusy, setClaimBusy] = useState(false);
   const [claimError, setClaimError] = useState<string | null>(null);
   const { userId: currentUserId, displayName: currentUserName } = useAdminHeaderData();
+  const clearSelectionRef = useRef<() => void>(() => {});
 
   const advancedSearchContext = useMemo(() => {
     if (!advancedSearchParams) {
@@ -285,7 +286,7 @@ export default function CandidatesPage() {
         });
 
         setCandidates(mapped);
-        setSelectedIds(new Set());
+        clearSelectionRef.current();
         setPage(1);
         return;
       }
@@ -300,7 +301,7 @@ export default function CandidatesPage() {
       if (authError) {
         setCandidates([]);
         setTotalFromApi(0);
-        setSelectedIds(new Set());
+        clearSelectionRef.current();
         setPage(1);
         return;
       }
@@ -341,13 +342,13 @@ export default function CandidatesPage() {
       });
 
       setCandidates(mapped);
-      setSelectedIds(new Set());
+      clearSelectionRef.current();
       setPage(1);
     } catch (err) {
       console.error("Failed to fetch workers:", err);
       setCandidates([]);
       setTotalFromApi(null);
-      setSelectedIds(new Set());
+      clearSelectionRef.current();
     } finally {
       setLoading(false);
     }
@@ -489,6 +490,7 @@ export default function CandidatesPage() {
     pageRows: pageSelectableRows,
     clearKey: selectionClearKey,
   });
+  clearSelectionRef.current = selection.clearSelection;
 
   function openClaimConfirm() {
     if (selection.selectedEligibleCount === 0) {
