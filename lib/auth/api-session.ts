@@ -236,6 +236,26 @@ export async function requireStaffApiSession(): Promise<StaffApiAuthContext | Ne
       return NextResponse.json({ error: "Forbidden", detail: "Staff role required" }, { status: 403 });
     }
 
+    if (!godAdmin) {
+      const profile = await loadStaffUserProfileCached(user.id);
+      if (profile?.must_change_password) {
+        return NextResponse.json(
+          {
+            error: "Forbidden",
+            detail: "Set your password using the invitation email before using the application.",
+            code: "PASSWORD_SETUP_REQUIRED",
+          },
+          { status: 403 }
+        );
+      }
+      if (profile && profile.is_active === false) {
+        return NextResponse.json(
+          { error: "Forbidden", detail: "This account has been disabled.", code: "ACCOUNT_DISABLED" },
+          { status: 403 }
+        );
+      }
+    }
+
     logAuthDebug("requireStaffApiSession:ok", {
       userId: user.id,
       platform: getUserPlatform(user),

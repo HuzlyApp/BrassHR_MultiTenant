@@ -1,0 +1,205 @@
+import { normalizeTenantEmail } from "@/lib/tenant/tenant-email-uniqueness";
+import {
+  appRoleToConsoleRole,
+  staffRoleLabel,
+  staffStatusLabel,
+  type InviteStaffInput,
+  type StaffAccountStatus,
+  type StaffConsoleRole,
+  type StaffDirectoryRow,
+} from "@/lib/admin/staff-directory-types";
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+export function validateInviteStaffInput(input: {
+  firstName?: unknown;
+  lastName?: unknown;
+  email?: unknown;
+  role?: unknown;
+  requirePasswordChange?: unknown;
+}): InviteStaffInput | { error: string } {
+  const firstName = typeof input.firstName === "string" ? input.firstName.trim() : "";
+  const lastName = typeof input.lastName === "string" ? input.lastName.trim() : "";
+  const email = normalizeTenantEmail(typeof input.email === "string" ? input.email : "");
+  const roleRaw = typeof input.role === "string" ? input.role.trim().toLowerCase() : "recruiter";
+  const role: StaffConsoleRole = roleRaw === "admin" ? "admin" : "recruiter";
+
+  if (!firstName) return { error: "First name is required." };
+  if (firstName.length > 80) return { error: "First name is too long." };
+  if (!lastName) return { error: "Last name is required." };
+  if (lastName.length > 80) return { error: "Last name is too long." };
+  if (!email.includes("@") || !EMAIL_RE.test(email)) {
+    return { error: "Enter a valid email address." };
+  }
+  if (email.length > 254) return { error: "Email address is too long." };
+  if (roleRaw !== "admin" && roleRaw !== "recruiter" && roleRaw !== "client") {
+    return { error: "Role must be Recruiter or Admin." };
+  }
+
+  return {
+    firstName,
+    lastName,
+    email,
+    role,
+    requirePasswordChange: input.requirePasswordChange !== false,
+  };
+}
+
+export function deriveInvitationStatus(params: {
+  status: string;
+  expiresAt: string | null;
+  nowMs?: number;
+}): StaffAccountStatus {
+  const now = params.nowMs ?? Date.now();
+  if (params.status === "failed") return "failed";
+  if (params.status === "revoked") return "expired";
+  if (params.status === "accepted") return "active";
+  if (params.status === "expired") return "expired";
+  if (params.expiresAt) {
+    const expires = Date.parse(params.expiresAt);
+    if (Number.isFinite(expires) && expires <= now) return "expired";
+  }
+  return "pending";
+}
+
+export function deriveMemberStatus(params: {
+  membershipActive: boolean;
+  mustChangePassword: boolean;
+  invitationStatus: StaffAccountStatus | null;
+}): StaffAccountStatus {
+  if (!params.membershipActive) return "suspended";
+  if (params.invitationStatus === "failed") return "failed";
+  if (params.invitationStatus === "expired") return "expired";
+  if (params.mustChangePassword || params.invitationStatus === "pending") return "pending";
+  return "active";
+}
+
+export function displayName(firstName: string | null | undefined, lastName: string | null | undefined, email: string): string {
+  const full = [firstName, lastName].filter(Boolean).join(" ").trim();
+  return full || email;
+}
+
+export function toDirectoryMemberRow(params: {
+  userId: string;
+  firstName: string | null;
+  lastName: string | null;
+  email: string;
+  dbRole: string | null;
+  membershipActive: boolean;
+  mustChangePassword: boolean;
+  invitationId: string | null;
+  invitationStatus: StaffAccountStatus | null;
+  invitationDate: string | null;
+  lastLogin: string | null;
+  createdByUserId: string | null;
+  createdByName: string | null;
+  isSelf: boolean;
+  isLastAdmin: boolean;
+}): StaffDirectoryRow {
+  const role = appRoleToConsoleRole(params.dbRole) ?? "recruiter";
+  const status = deriveMemberStatus({
+    membershipActive: params.membershipActive,
+    mustChangePassword: params.mustChangePassword,
+    invitationStatus: params.invitationStatus,
+  });
+  const canMutate = !params.isSelf;
+  return {
+    id: `member:${params.userId}`,
+    kind: "member",
+    userId: params.userId,
+    invitationId: params.invitationId,
+    firstName: params.firstName ?? "",
+    lastName: params.lastName ?? "",
+    name: displayName(params.firstName, params.lastName, params.email),
+    email: params.email,
+    role,
+    roleLabel: staffRoleLabel(role),
+    status,
+    statusLabel: staffStatusLabel(status),
+    invitationDate: params.invitationDate,
+    lastLogin: params.lastLogin,
+    createdByUserId: params.createdByUserId,
+    createdByName: params.createdByName,
+    canResend: canMutate && (status === "pending" || status === "expired" || status === "failed"),
+    canChangeRole: canMutate && status !== "pending" && !(params.isLastAdmin && role === "admin"),
+    canSuspend: canMutate && status === "active",
+    canReactivate: canMutate && status === "suspended",
+    canRemove: canMutate && !(params.isLastAdmin && role === "admin"),
+  };
+}
+
+export function toDirectoryInvitationRow(params: {
+  invitationId: string;
+  firstName: string | null;
+  lastName: string | null;
+  email: string;
+  dbRole: string | null;
+  invitationStatus: StaffAccountStatus;
+  invitationDate: string | null;
+  createdByUserId: string | null;
+  createdByName: string | null;
+}): StaffDirectoryRow {
+  const role = appRoleToConsoleRole(params.dbRole) ?? "recruiter";
+  const status = params.invitationStatus;
+  return {
+    id: `invitation:${params.invitationId}`,
+    kind: "invitation",
+    userId: null,
+    invitationId: params.invitationId,
+    firstName: params.firstName ?? "",
+    lastName: params.lastName ?? "",
+    name: displayName(params.firstName, params.lastName, params.email),
+    email: params.email,
+    role,
+    roleLabel: staffRoleLabel(role),
+    status,
+    statusLabel: staffStatusLabel(status),
+    invitationDate: params.invitationDate,
+    lastLogin: null,
+    createdByUserId: params.createdByUserId,
+    createdByName: params.createdByName,
+    canResend: status === "pending" || status === "expired" || status === "failed",
+    canChangeRole: false,
+    canSuspend: false,
+    canReactivate: false,
+    canRemove: true,
+  };
+}
+
+const SENSITIVE_AUDIT_KEYS = [
+  "password",
+  "temporary_password",
+  "temp_password",
+  "token",
+  "token_hash",
+  "hashed_token",
+  "action_link",
+  "recovery_link",
+  "invitation_token",
+  "session",
+  "access_token",
+  "refresh_token",
+  "service_role",
+  "service_key",
+];
+
+export function sanitizeStaffAuditMetadata(
+  metadata: Record<string, unknown> | undefined
+): Record<string, unknown> {
+  if (!metadata) return {};
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(metadata)) {
+    const lowered = key.toLowerCase();
+    if (SENSITIVE_AUDIT_KEYS.some((blocked) => lowered.includes(blocked))) continue;
+    if (typeof value === "string" && /token|password|secret|bearer/i.test(value) && value.length > 20) {
+      continue;
+    }
+    out[key] = value;
+  }
+  return out;
+}
+
+export function invitationExpiryHours(): number {
+  const raw = Number(process.env.STAFF_INVITE_TTL_HOURS);
+  return Number.isFinite(raw) && raw > 0 ? Math.min(raw, 24 * 14) : 72;
+}

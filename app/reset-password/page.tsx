@@ -266,6 +266,7 @@ function ResetPasswordContent() {
       }
 
       await updateAuthUserPassword(supabaseBrowser, newPassword);
+      await fetch("/api/auth/password-setup-complete", { method: "POST" }).catch(() => null);
       await supabaseBrowser.auth.signOut();
       setSuccess(true);
       setTimeout(() => {

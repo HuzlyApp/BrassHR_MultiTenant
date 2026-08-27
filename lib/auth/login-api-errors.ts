@@ -11,6 +11,8 @@ export type LoginAuthErrorCode =
   | "AUTH_NOT_CONFIGURED"
   | "TENANT_ACCESS_DENIED"
   | "STAFF_ROLE_REQUIRED"
+  | "PASSWORD_SETUP_REQUIRED"
+  | "ACCOUNT_DISABLED"
   | "UNKNOWN";
 
 export const LOGIN_OTP_INVALID_MESSAGE = "Check the code and try again.";
@@ -134,6 +136,8 @@ function isLoginAuthErrorCode(value: string): value is LoginAuthErrorCode {
     "AUTH_NOT_CONFIGURED",
     "TENANT_ACCESS_DENIED",
     "STAFF_ROLE_REQUIRED",
+    "PASSWORD_SETUP_REQUIRED",
+    "ACCOUNT_DISABLED",
     "UNKNOWN",
   ].includes(value);
 }
@@ -150,6 +154,8 @@ export function titleForLoginError(code: LoginAuthErrorCode): string | null {
       return "Check your details";
     case "TENANT_ACCESS_DENIED":
     case "STAFF_ROLE_REQUIRED":
+    case "PASSWORD_SETUP_REQUIRED":
+    case "ACCOUNT_DISABLED":
       return "No access";
     case "OTP_SEND_FAILED":
     case "OTP_INVALID":

@@ -58,6 +58,8 @@ export async function POST(req: NextRequest) {
       return loginAuthErrorResponse(LOGIN_OTP_INVALID_MESSAGE, "OTP_INVALID", 401);
     }
 
+    await supabase.from("users").update({ last_login: new Date().toISOString() }).ilike("email", email);
+
     const response = NextResponse.json({ ok: true });
     response.cookies.set(loginOtpProofCookieName(), createLoginOtpProof(email), {
       httpOnly: true,
