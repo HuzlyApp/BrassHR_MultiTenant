@@ -300,6 +300,8 @@ export async function loadCandidateWorkflowPhaseView(
       displayStatus: "not_started",
       inspectable: true,
       unmatched: false,
+      assignedAt: asText(record.created_at),
+      completedAt: asText(record.completed_at),
     });
     recordsByInstance.set(instanceId, list);
   }

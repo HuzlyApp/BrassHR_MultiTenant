@@ -64,6 +64,8 @@ function view(partial: Partial<CandidateWorkflowPhaseView> = {}): CandidateWorkf
           displayStatus: "not_started",
           inspectable: true,
           unmatched: false,
+          assignedAt: null,
+          completedAt: null,
         },
       ],
       documents: [],
