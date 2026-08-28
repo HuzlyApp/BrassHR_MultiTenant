@@ -13,6 +13,7 @@ import { ChevronDown, MoreVertical } from "lucide-react";
 import toast from "react-hot-toast";
 import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
+import { sanitizeJobDescriptionHtml } from "@/lib/jobs/generate-job-description/sanitize-html";
 import {
   JobDescriptionHtml,
   ensureJobDescriptionBulletLists,
@@ -78,7 +79,7 @@ function SummaryList({ title, items }: { title: string; items: string[] }) {
   if (!items.length) return null;
   return (
     <section className="mt-8">
-      <h3 className="text-base font-semibold text-[#1D2739]">{title}</h3>
+      <h3 className="text-sm font-semibold text-[#1D2739]">{title}</h3>
       <ul className="mt-2 list-disc space-y-1.5 pl-5 text-sm leading-6 text-[#667085]">
         {items.map((item) => (
           <li key={`${title}-${item}`}>{item}</li>
@@ -259,7 +260,9 @@ export default function JobDetailsClient({ jobId }: Props) {
   const workLocation = job ? formatWorkLocationLabel(job) : "—";
   const summaryHtml = useMemo(() => {
     const raw = job?.public_description?.trim() || "";
-    return ensureJobDescriptionBulletLists(stripJobDescriptionBenefitsSection(raw));
+    return ensureJobDescriptionBulletLists(
+      stripJobDescriptionBenefitsSection(sanitizeJobDescriptionHtml(raw))
+    );
   }, [job?.public_description]);
 
   const performanceMetrics = [
@@ -531,7 +534,7 @@ export default function JobDetailsClient({ jobId }: Props) {
             </section>
 
             <section className="mt-8">
-              <h2 className="text-lg font-semibold text-[#1D2739]">Job post summary</h2>
+              <h2 className="text-sm font-semibold text-[#1D2739]">Job post summary</h2>
               <div className="mt-4 max-h-[560px] overflow-y-auto rounded-xl border border-[#E5E7EB] bg-[#FCFCFD] p-5 sm:p-6">
                 <p className="text-sm text-[#334155]">
                   <span className="font-medium text-[#1D2739]">Date posted:</span> {posted}
@@ -541,7 +544,7 @@ export default function JobDetailsClient({ jobId }: Props) {
                 </p>
 
                 <section className="mt-6">
-                  <h3 className="mb-4 text-base font-semibold text-[#1D2739]">Job Summary</h3>
+                  <h3 className="mb-4 text-sm font-semibold text-[#1D2739]">Job Summary</h3>
                   <style>{`
                     .job-summary-description.job-description-html > :first-child {
                       margin-top: 0 !important;
@@ -551,7 +554,7 @@ export default function JobDetailsClient({ jobId }: Props) {
                     .job-summary-description.job-description-html h4 {
                       margin-top: 2rem;
                       margin-bottom: 0.5rem;
-                      font-size: 1rem;
+                      font-size: 14px;
                       line-height: 1.5rem;
                       font-weight: 600;
                       color: #1D2739;
@@ -570,7 +573,7 @@ export default function JobDetailsClient({ jobId }: Props) {
                       margin-top: 0;
                       margin-bottom: 0;
                       color: #667085;
-                      font-size: 0.875rem;
+                      font-size: 14px;
                       line-height: 1.5rem;
                     }
                     .job-summary-description.job-description-html ul {
@@ -606,7 +609,7 @@ export default function JobDetailsClient({ jobId }: Props) {
                     .job-summary-description.job-description-html p:has(> b:only-child) {
                       margin-top: 2rem;
                       margin-bottom: 0.5rem;
-                      font-size: 1rem;
+                      font-size: 14px;
                       line-height: 1.5rem;
                       font-weight: 600;
                       color: #1D2739;
@@ -633,7 +636,7 @@ export default function JobDetailsClient({ jobId }: Props) {
 
                 {benefits.length ? (
                   <section className="mt-8">
-                    <h3 className="text-base font-semibold text-[#1D2739]">Benefits</h3>
+                    <h3 className="text-sm font-semibold text-[#1D2739]">Benefits</h3>
                     <p className="mt-2 text-sm leading-6 text-[#667085]">
                       {benefits.join(", ")}
                     </p>
@@ -641,7 +644,7 @@ export default function JobDetailsClient({ jobId }: Props) {
                 ) : null}
 
                 <section className="mt-8">
-                  <h3 className="text-base font-semibold text-[#1D2739]">Work Location</h3>
+                  <h3 className="text-sm font-semibold text-[#1D2739]">Work Location</h3>
                   <p className="mt-2 text-sm leading-6 text-[#667085]">{workLocation}</p>
                 </section>
               </div>

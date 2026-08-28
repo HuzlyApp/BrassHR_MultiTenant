@@ -4,7 +4,7 @@ import * as Dialog from "@radix-ui/react-dialog";
 import { X } from "lucide-react";
 import { useMemo, type CSSProperties } from "react";
 import type { JobRequisitionInput } from "@/lib/jobs/types";
-import { boldJobDescriptionSectionTitles } from "@/lib/jobs/generate-job-description/sanitize-html";
+import { boldJobDescriptionSectionTitles, sanitizeJobDescriptionHtml } from "@/lib/jobs/generate-job-description/sanitize-html";
 import {
   ensureJobDescriptionBulletLists,
   stripJobDescriptionBenefitsSection,
@@ -30,7 +30,9 @@ function formatPreviewDescriptionHtml(raw: string): string {
   const trimmed = raw.trim();
   if (!trimmed) return "";
   return ensureJobDescriptionBulletLists(
-    boldJobDescriptionSectionTitles(stripJobDescriptionBenefitsSection(trimmed))
+    boldJobDescriptionSectionTitles(
+      stripJobDescriptionBenefitsSection(sanitizeJobDescriptionHtml(trimmed))
+    )
   );
 }
 
@@ -93,10 +95,10 @@ export function JobPostPreviewModal({
               />
             </span>
             <div className="min-w-0 flex-1 pt-0.5">
-              <Dialog.Title className="text-base font-semibold text-[#1D2739] min-[700px]:text-lg">
+              <Dialog.Title className="text-sm font-semibold text-[#1D2739]">
                 Job post preview
               </Dialog.Title>
-              <Dialog.Description className="mt-0.5 text-xs leading-5 text-[#64748B] min-[700px]:text-sm">
+              <Dialog.Description className="mt-0.5 text-sm leading-5 text-[#64748B]">
                 The live post people view may look slightly different.
               </Dialog.Description>
             </div>

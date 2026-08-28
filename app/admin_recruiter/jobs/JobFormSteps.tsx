@@ -166,7 +166,7 @@ function BrandedRadio({
 
 function FieldError({ error }: { error?: string }) {
   if (!error) return null;
-  return <span className="mt-1 block text-xs text-rose-600">{error}</span>;
+  return <span className="mt-1 block text-sm text-rose-600">{error}</span>;
 }
 
 function toDateInputValue(date: Date): string {
@@ -1402,11 +1402,11 @@ export function JobFormStepCompensation({
                   </span>
                 </div>
                 {commissionEstimate ? (
-                  <p className="mt-1.5 text-xs text-[#64748B]">
+                  <p className="mt-1.5 text-sm text-[#64748B]">
                     Estimated commission from pay rate: {commissionEstimate}
                   </p>
                 ) : (
-                  <p className="mt-1.5 text-xs text-[#64748B]">
+                  <p className="mt-1.5 text-sm text-[#64748B]">
                     Enter a percentage to calculate commission from the pay rate above.
                   </p>
                 )}
@@ -2668,7 +2668,7 @@ export function JobFormWorkflowBanner({
               </div>
             ) : null}
 
-            {fieldError ? <p className="mt-2 text-xs text-rose-600">{fieldError}</p> : null}
+            {fieldError ? <p className="mt-2 text-sm text-rose-600">{fieldError}</p> : null}
           </div>
         </div>
 
@@ -2731,7 +2731,7 @@ export function JobFormFooter({
           <BrandedCheckbox
             checked={termsAccepted}
             onChange={onTermsChange}
-            className="max-w-2xl text-xs leading-5 text-[#64748B]"
+            className="max-w-2xl text-sm leading-5 text-[#64748B]"
             label={
               <>
                 By selecting Confirm, you agree that this job post reflects your requirements, and

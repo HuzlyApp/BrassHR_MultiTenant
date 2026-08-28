@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { headers } from "next/headers";
-import { boldJobDescriptionSectionTitles } from "@/lib/jobs/generate-job-description/sanitize-html";
+import { boldJobDescriptionSectionTitles, sanitizeJobDescriptionHtml } from "@/lib/jobs/generate-job-description/sanitize-html";
 import {
   ensureJobDescriptionBulletLists,
   JobDescriptionHtml,
@@ -34,8 +34,8 @@ function formatPublicDescriptionHtml(raw: string, hasSeparateBenefits: boolean):
   const trimmed = raw.trim();
   if (!trimmed) return "";
   const withoutDupBenefits = hasSeparateBenefits
-    ? stripJobDescriptionBenefitsSection(trimmed)
-    : trimmed;
+    ? stripJobDescriptionBenefitsSection(sanitizeJobDescriptionHtml(trimmed))
+    : sanitizeJobDescriptionHtml(trimmed);
   return ensureJobDescriptionBulletLists(boldJobDescriptionSectionTitles(withoutDupBenefits));
 }
 

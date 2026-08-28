@@ -150,7 +150,7 @@ export const JOB_FORM_TEXTAREA_CLASS = `${JOB_FORM_SURFACE_CLASS} min-h-[280px] 
 export const JOB_FORM_LABEL_CLASS =
   "mb-1.5 block cursor-pointer text-sm font-normal leading-5 text-[#64748B]";
 
-export const JOB_FORM_SECTION_TITLE_CLASS = "text-lg font-semibold leading-7 text-[#1D2739]";
+export const JOB_FORM_SECTION_TITLE_CLASS = "text-sm font-semibold leading-6 text-[#1D2739]";
 
 export const JOB_FORM_SECTION_SUBTITLE_CLASS = "mt-1 text-sm font-normal leading-5 text-[#64748B]";
 

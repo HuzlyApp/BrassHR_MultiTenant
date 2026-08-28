@@ -202,7 +202,7 @@ export function JobDescriptionHtml({
 
   return (
     <div
-      className={`job-description-html prose prose-sm max-w-none text-sm leading-6 text-slate-700 ${className}`}
+      className={`job-description-html max-w-none text-sm leading-6 text-slate-700 ${className}`}
       dangerouslySetInnerHTML={{ __html: content }}
     />
   );

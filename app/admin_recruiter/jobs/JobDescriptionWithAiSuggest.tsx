@@ -269,7 +269,7 @@ export function JobDescriptionWithAiSuggest({
             color="var(--brand-primary)"
           />
           <div className="min-w-0">
-            <p className="text-base font-semibold leading-6 text-[#1D2739]">
+            <p className="text-sm font-semibold leading-6 text-[#1D2739]">
               Improve your job description
             </p>
             <p className="mt-0.5 text-sm leading-5 text-[#667085]">

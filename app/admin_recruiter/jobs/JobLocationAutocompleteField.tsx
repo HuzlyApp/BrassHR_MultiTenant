@@ -119,11 +119,11 @@ export default function JobLocationAutocompleteField({
         ) : null}
       </div>
       {isLoading ? (
-        <p className="mt-1.5 text-xs text-[#64748B]">Searching locations…</p>
+        <p className="mt-1.5 text-sm text-[#64748B]">Searching locations…</p>
       ) : null}
-      {error ? <p className="mt-1.5 text-xs text-rose-600">{error}</p> : null}
+      {error ? <p className="mt-1.5 text-sm text-rose-600">{error}</p> : null}
       {!error && searchError ? (
-        <p className="mt-1.5 text-xs text-[#64748B]" role="status">
+        <p className="mt-1.5 text-sm text-[#64748B]" role="status">
           {searchError}
         </p>
       ) : null}

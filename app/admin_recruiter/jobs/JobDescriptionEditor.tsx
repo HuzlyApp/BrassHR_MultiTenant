@@ -1,8 +1,9 @@
 "use client";
 
 import { Bold, HelpCircle, Italic, List, Trash2 } from "lucide-react";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ClipboardEvent } from "react";
 import { createPortal } from "react-dom";
+import { sanitizeJobDescriptionHtml } from "@/lib/jobs/generate-job-description/sanitize-html";
 
 type Props = {
   value: string;
@@ -138,7 +139,7 @@ export function JobDescriptionEditor({ value, onChange, error }: Props) {
     const nextHtml = !value
       ? ""
       : looksLikeHtml(value)
-        ? value
+        ? sanitizeJobDescriptionHtml(value)
         : plainTextToHtml(value);
 
     // Keep caret stable while typing; only sync when value changed externally.
@@ -160,6 +161,18 @@ export function JobDescriptionEditor({ value, onChange, error }: Props) {
     lastEmittedRef.current = next;
     setIsEmpty(!next);
     onChange(next);
+  }
+
+  function handlePaste(event: ClipboardEvent<HTMLDivElement>) {
+    event.preventDefault();
+    const html = event.clipboardData.getData("text/html");
+    const text = event.clipboardData.getData("text/plain");
+    const inserted = html.trim()
+      ? sanitizeJobDescriptionHtml(html)
+      : plainTextToHtml(text);
+    if (!inserted) return;
+    document.execCommand("insertHTML", false, inserted);
+    emitChange();
   }
 
   function runCommand(command: string, commandValue?: string) {
@@ -248,11 +261,12 @@ export function JobDescriptionEditor({ value, onChange, error }: Props) {
             suppressContentEditableWarning
             className="job-description-editor relative min-h-[320px] cursor-pointer px-3 py-3 text-sm leading-6 text-[#334155] outline-none"
             onInput={emitChange}
+            onPaste={handlePaste}
             onBlur={emitChange}
           />
         </div>
       </div>
-      {error ? <span className="mt-1 block text-xs text-rose-600">{error}</span> : null}
+      {error ? <span className="mt-1 block text-sm text-rose-600">{error}</span> : null}
       <style>{`
         .job-description-editor ul,
         .job-description-html ul {
@@ -305,7 +319,7 @@ export function JobDescriptionHtml({
 
   return (
     <div
-      className={`job-description-html prose prose-sm max-w-none text-sm leading-6 text-[#334155] ${className}`}
+      className={`job-description-html max-w-none text-sm leading-6 text-[#334155] ${className}`}
       dangerouslySetInnerHTML={{ __html: content }}
     />
   );

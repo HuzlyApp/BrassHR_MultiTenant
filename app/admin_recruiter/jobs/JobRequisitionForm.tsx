@@ -5,12 +5,6 @@ import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
-import {
-  CANDIDATES_PAGE_SUBTITLE_CLASS,
-  CANDIDATES_PAGE_SUBTITLE_STYLE,
-  CANDIDATES_PAGE_TITLE_CLASS,
-  CANDIDATES_PAGE_TITLE_STYLE,
-} from "@/app/admin_recruiter/candidates/candidates-typography";
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
 import type { JobRequisitionInput, PlacementType, SourceType } from "@/lib/jobs/types";
 import type { JobScreeningQuestionInput } from "@/lib/jobs/screening-questions";
@@ -48,6 +42,10 @@ import {
   type JobFormStep,
   type JobFormUiState,
 } from "./job-form-shared";
+import {
+  JOB_POSTING_HELPER_CLASS,
+  JOB_POSTING_PAGE_TITLE_CLASS,
+} from "./job-posting-typography";
 import { ArrowRight } from "lucide-react";
 
 const initialJob: JobRequisitionInput = {
@@ -625,7 +623,7 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
         <div className={JOB_FORM_CENTER_COLUMN_CLASS}>
           <div className="mb-5 flex flex-col gap-2 min-[700px]:mb-6 min-[700px]:gap-1">
             <div className="flex items-start justify-between gap-3 min-[700px]:gap-4">
-              <h1 className={`min-w-0 flex-1 ${CANDIDATES_PAGE_TITLE_CLASS}`} style={CANDIDATES_PAGE_TITLE_STYLE}>
+              <h1 className={`min-w-0 flex-1 ${JOB_POSTING_PAGE_TITLE_CLASS}`}>
                 {pageTitle}
               </h1>
               <Link
@@ -645,8 +643,7 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
             </div>
             {pageSubtitle ? (
               <p
-                className={`w-full max-w-none ${CANDIDATES_PAGE_SUBTITLE_CLASS}`}
-                style={CANDIDATES_PAGE_SUBTITLE_STYLE}
+                className={`w-full max-w-none ${JOB_POSTING_HELPER_CLASS}`}
               >
                 {pageSubtitle}
               </p>

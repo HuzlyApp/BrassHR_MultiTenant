@@ -3,7 +3,7 @@
 import * as Dialog from "@radix-ui/react-dialog";
 import { X } from "lucide-react";
 import { useMemo, type CSSProperties } from "react";
-import { boldJobDescriptionSectionTitles } from "@/lib/jobs/generate-job-description/sanitize-html";
+import { boldJobDescriptionSectionTitles, sanitizeJobDescriptionHtml } from "@/lib/jobs/generate-job-description/sanitize-html";
 import {
   ensureJobDescriptionBulletLists,
   stripJobDescriptionBenefitsSection,
@@ -24,7 +24,9 @@ function formatViewDescriptionHtml(raw: string): string {
   const trimmed = raw.trim();
   if (!trimmed) return "";
   return ensureJobDescriptionBulletLists(
-    boldJobDescriptionSectionTitles(stripJobDescriptionBenefitsSection(trimmed))
+    boldJobDescriptionSectionTitles(
+      stripJobDescriptionBenefitsSection(sanitizeJobDescriptionHtml(trimmed))
+    )
   );
 }
 
@@ -53,10 +55,10 @@ export function JobDescriptionViewModal({ open, onOpenChange, html, brandVars }:
               />
             </span>
             <div className="min-w-0 flex-1 pt-0.5">
-              <Dialog.Title className="text-base font-semibold text-[#1D2739] min-[700px]:text-lg">
+              <Dialog.Title className="text-sm font-semibold text-[#1D2739]">
                 Job Description
               </Dialog.Title>
-              <Dialog.Description className="mt-0.5 text-xs leading-5 text-[#64748B] min-[700px]:text-sm">
+              <Dialog.Description className="mt-0.5 text-sm leading-5 text-[#64748B]">
                 Full description for this job post.
               </Dialog.Description>
             </div>
@@ -81,7 +83,7 @@ export function JobDescriptionViewModal({ open, onOpenChange, html, brandVars }:
                   .job-description-view.job-description-html h4 {
                     margin-top: 1.5rem;
                     margin-bottom: 0.5rem;
-                    font-size: 0.875rem;
+                    font-size: 14px;
                     line-height: 1.5rem;
                     font-weight: 600;
                     color: #1D2739;
@@ -100,7 +102,7 @@ export function JobDescriptionViewModal({ open, onOpenChange, html, brandVars }:
                     margin-top: 0;
                     margin-bottom: 0;
                     color: #667085;
-                    font-size: 0.875rem;
+                    font-size: 14px;
                     line-height: 1.5rem;
                   }
                   .job-description-view.job-description-html ul {
@@ -136,7 +138,7 @@ export function JobDescriptionViewModal({ open, onOpenChange, html, brandVars }:
                   .job-description-view.job-description-html p:has(> b:only-child) {
                     margin-top: 1.5rem;
                     margin-bottom: 0.5rem;
-                    font-size: 0.875rem;
+                    font-size: 14px;
                     line-height: 1.5rem;
                     font-weight: 600;
                     color: #1D2739;

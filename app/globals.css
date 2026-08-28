@@ -298,6 +298,31 @@ a[href] {
   gap: 12px;
 }
 
+/* Job descriptions: one 14px size — pasted headings/inline styles cannot enlarge text */
+.job-description-editor,
+.job-description-editor *,
+.job-description-html,
+.job-description-html * {
+  font-size: 14px !important;
+  line-height: 1.5rem !important;
+  font-family: inherit !important;
+}
+
+.job-description-editor h1,
+.job-description-editor h2,
+.job-description-editor h3,
+.job-description-editor h4,
+.job-description-editor h5,
+.job-description-editor h6,
+.job-description-html h1,
+.job-description-html h2,
+.job-description-html h3,
+.job-description-html h4,
+.job-description-html h5,
+.job-description-html h6 {
+  font-weight: 600;
+}
+
 /* Tenant typography — inherit brand fonts/colors within branded surfaces */
 .tenant-branded-surface {
   font-family: var(--brand-font-body);
@@ -312,6 +337,12 @@ a[href] {
 .tenant-branded-surface h6 {
   font-family: var(--brand-font-heading);
   color: var(--brand-heading);
+}
+
+.tenant-branded-surface .job-description-editor :is(h1, h2, h3, h4, h5, h6),
+.tenant-branded-surface .job-description-html :is(h1, h2, h3, h4, h5, h6) {
+  font-family: inherit;
+  color: inherit;
 }
 
 .tenant-branded-surface .admin-recruiter-shell,

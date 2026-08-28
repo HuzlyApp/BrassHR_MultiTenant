@@ -4,9 +4,6 @@
  */
 
 const ALLOWED_TAGS = new Set([
-  "h2",
-  "h3",
-  "h4",
   "p",
   "ul",
   "ol",
@@ -18,14 +15,18 @@ const ALLOWED_TAGS = new Set([
   "br",
 ]);
 
+const HEADING_AS_PARAGRAPH = new Set(["h1", "h2", "h3", "h4", "h5", "h6"]);
+
 function decodeBasicEntities(value: string): string {
   return value
+    .replace(/&amp;nbsp;/gi, " ")
     .replace(/&nbsp;/gi, " ")
     .replace(/&amp;/gi, "&")
     .replace(/&lt;/gi, "<")
     .replace(/&gt;/gi, ">")
     .replace(/&quot;/gi, '"')
-    .replace(/&#39;/gi, "'");
+    .replace(/&#39;/gi, "'")
+    .replace(/&nbsp;/gi, " ");
 }
 
 function escapeText(value: string): string {
@@ -60,10 +61,14 @@ export function sanitizeJobDescriptionHtml(raw: string): string {
       continue;
     }
 
-    if (!tagName || !ALLOWED_TAGS.has(tagName)) continue;
-
     const full = match[0];
     const isClosing = full.startsWith("</");
+    if (tagName && HEADING_AS_PARAGRAPH.has(tagName)) {
+      parts.push(isClosing ? "</p>" : "<p>");
+      continue;
+    }
+    if (!tagName || !ALLOWED_TAGS.has(tagName)) continue;
+
     if (tagName === "br") {
       parts.push("<br>");
       continue;

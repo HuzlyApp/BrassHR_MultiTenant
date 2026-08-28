@@ -54,7 +54,7 @@ function BrandedRadio({
 
 function FieldError({ error }: { error?: string }) {
   if (!error) return null;
-  return <span className="mt-1 block text-xs text-rose-600">{error}</span>;
+  return <span className="mt-1 block text-sm text-rose-600">{error}</span>;
 }
 
 type JobFormStepSetupProps = {
@@ -136,7 +136,7 @@ export function JobFormStepSetup({
       ) : null}
 
       <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
-        <h2 className="text-base font-semibold text-[#1E293B]">New job or existing job?</h2>
+        <h2 className="text-sm font-semibold text-[#1E293B]">New job or existing job?</h2>
         <ExistingJobPickerPanel
           jobs={jobs}
           loading={jobsLoading}
@@ -146,7 +146,7 @@ export function JobFormStepSetup({
           onSourceTypeFilterChange={handleSourceTypeFilterChange}
           placementTypeFilter={mspSourcedByClient === true ? mspPlacementType : null}
         />
-        <p className="text-xs text-[#64748B]">
+        <p className="text-sm text-[#64748B]">
           Optional — select an existing job to pre-fill details as a reference for this new posting.
         </p>
       </div>
