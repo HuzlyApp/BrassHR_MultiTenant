@@ -3,6 +3,7 @@ import {
   deriveInvitationStatus,
   deriveMemberStatus,
   sanitizeStaffAuditMetadata,
+  staffInviteNeedsPasswordSetup,
   toDirectoryMemberRow,
   validateInviteStaffInput,
 } from "@/lib/admin/staff-directory-status";
@@ -83,6 +84,28 @@ describe("staff directory status", () => {
     expect(row.status).toBe("pending");
     expect(row.statusLabel).toBe("Invitation Pending");
     expect(row.roleLabel).toBe("Recruiter");
+    expect(row.canResend).toBe(true);
+  });
+
+  it("lets admins resend when an accepted invitee never signed in", () => {
+    const row = toDirectoryMemberRow({
+      userId: "user-2",
+      firstName: "Carl",
+      lastName: "Elipan",
+      email: "carl@example.com",
+      dbRole: "client",
+      membershipActive: true,
+      mustChangePassword: false,
+      invitationId: "inv-2",
+      invitationStatus: "active",
+      invitationDate: "2026-08-28T00:00:00.000Z",
+      lastLogin: null,
+      createdByUserId: "admin-1",
+      createdByName: "Owner",
+      isSelf: false,
+      isLastAdmin: false,
+    });
+    expect(row.canResend).toBe(true);
   });
 });
 
@@ -97,6 +120,58 @@ describe("staff audit sanitization", () => {
       notes: "invited",
     });
     expect(sanitized).toEqual({ email: "ada@example.com", role: "recruiter", notes: "invited" });
+  });
+});
+
+describe("staff invite password setup", () => {
+  it("sends a set-password link when the invitee has never signed in", () => {
+    expect(
+      staffInviteNeedsPasswordSetup({
+        existingUserId: "user-1",
+        existingProfile: { must_change_password: false, last_login: null },
+        requirePasswordChange: false,
+      })
+    ).toBe(true);
+  });
+
+  it("sends a set-password link for brand-new accounts", () => {
+    expect(
+      staffInviteNeedsPasswordSetup({
+        existingUserId: null,
+        existingProfile: null,
+        requirePasswordChange: true,
+      })
+    ).toBe(true);
+  });
+
+  it("keeps existing accounts on sign-in only when they already have a working password", () => {
+    expect(
+      staffInviteNeedsPasswordSetup({
+        existingUserId: "user-1",
+        existingProfile: { must_change_password: false, last_login: "2026-08-01T00:00:00.000Z" },
+        requirePasswordChange: false,
+      })
+    ).toBe(false);
+  });
+
+  it("sends a set-password link when the existing account still must change password", () => {
+    expect(
+      staffInviteNeedsPasswordSetup({
+        existingUserId: "user-1",
+        existingProfile: { must_change_password: true, last_login: "2026-08-01T00:00:00.000Z" },
+        requirePasswordChange: false,
+      })
+    ).toBe(true);
+  });
+
+  it("honors require-password-setup for accounts that can already sign in", () => {
+    expect(
+      staffInviteNeedsPasswordSetup({
+        existingUserId: "user-1",
+        existingProfile: { must_change_password: false, last_login: "2026-08-01T00:00:00.000Z" },
+        requirePasswordChange: true,
+      })
+    ).toBe(true);
   });
 });
 

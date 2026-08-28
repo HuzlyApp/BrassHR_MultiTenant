@@ -11,6 +11,25 @@ import {
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+/**
+ * Invites must send a set-password link unless the person already has a working login
+ * and the admin explicitly skipped password setup. Having a users row is not enough:
+ * earlier invites created auth users with an unusable password and no last_login.
+ */
+export function staffInviteNeedsPasswordSetup(params: {
+  existingUserId: string | null;
+  existingProfile: {
+    must_change_password?: boolean | null;
+    last_login?: string | null;
+  } | null;
+  requirePasswordChange?: boolean;
+}): boolean {
+  if (!params.existingUserId) return true;
+  if (params.existingProfile?.must_change_password === true) return true;
+  if (!params.existingProfile?.last_login) return true;
+  return params.requirePasswordChange === true;
+}
+
 export function validateInviteStaffInput(input: {
   firstName?: unknown;
   lastName?: unknown;
@@ -120,7 +139,12 @@ export function toDirectoryMemberRow(params: {
     lastLogin: params.lastLogin,
     createdByUserId: params.createdByUserId,
     createdByName: params.createdByName,
-    canResend: canMutate && (status === "pending" || status === "expired" || status === "failed"),
+    canResend:
+      canMutate &&
+      (status === "pending" ||
+        status === "expired" ||
+        status === "failed" ||
+        (!params.lastLogin && Boolean(params.invitationId))),
     canChangeRole: canMutate && status !== "pending" && !(params.isLastAdmin && role === "admin"),
     canSuspend: canMutate && status === "active",
     canReactivate: canMutate && status === "suspended",

@@ -8,6 +8,7 @@ import {
   deriveInvitationStatus,
   invitationExpiryHours,
   sanitizeStaffAuditMetadata,
+  staffInviteNeedsPasswordSetup,
   toDirectoryInvitationRow,
   toDirectoryMemberRow,
   validateInviteStaffInput,
@@ -283,7 +284,7 @@ export async function listStaffDirectory(
       "id, tenant_id, email, first_name, last_name, role, invited_by, invited_user_id, status, expires_at, sent_at, accepted_at, created_at"
     )
     .eq("tenant_id", params.tenantId)
-    .in("status", ["pending", "failed", "expired"])
+    .in("status", ["pending", "failed", "expired", "accepted"])
     .order("created_at", { ascending: false });
   if (inviteError) throw new StaffDirectoryError(inviteError.message, "INTERNAL", 500);
   const invitations = (inviteData ?? []) as InvitationRow[];
@@ -346,6 +347,7 @@ export async function listStaffDirectory(
 
   for (const invite of invitations) {
     if (invite.invited_user_id && memberIds.has(invite.invited_user_id)) continue;
+    if (invite.status === "accepted") continue;
     const email = normalizeTenantEmail(invite.email);
     if (rows.some((row) => row.email === email && row.kind === "member")) continue;
     rows.push(
@@ -554,7 +556,12 @@ export async function inviteStaff(
     parsed.email
   );
 
-  const existingAccount = Boolean(existingUserId && existingProfile?.tenant_id);
+  const hasHomeTenant = Boolean(existingUserId && existingProfile?.tenant_id);
+  const needsPasswordSetup = staffInviteNeedsPasswordSetup({
+    existingUserId,
+    existingProfile,
+    requirePasswordChange: parsed.requirePasswordChange,
+  });
   let userId = existingUserId;
   let createdAuthUser = false;
   let provisioned = false;
@@ -589,7 +596,7 @@ export async function inviteStaff(
       }
       userId = created.user.id;
       createdAuthUser = true;
-    } else if (!existingAccount) {
+    } else if (!hasHomeTenant) {
       await supabase.auth.admin.updateUserById(userId, {
         email_confirm: true,
         app_metadata: {
@@ -612,15 +619,18 @@ export async function inviteStaff(
       userId,
       dbRole,
       createdBy: params.actor.userId,
-      isHomeTenant: !existingAccount,
+      isHomeTenant: !hasHomeTenant,
       firstName: parsed.firstName,
       lastName: parsed.lastName,
       email: parsed.email,
-      mustChangePassword: !existingAccount && parsed.requirePasswordChange,
+      mustChangePassword: needsPasswordSetup,
     });
+    if (needsPasswordSetup && hasHomeTenant) {
+      await supabase.from("users").update({ must_change_password: true }).eq("id", userId);
+    }
     provisioned = true;
 
-    if (existingAccount) {
+    if (!needsPasswordSetup) {
       const invitation = await insertInvitation({
         supabase,
         tenantId: params.tenantId,
@@ -781,8 +791,23 @@ export async function resendStaffInvitation(
   if (error) throw new StaffDirectoryError(error.message, "INTERNAL", 500);
   const invitation = data as InvitationRow | null;
   if (!invitation) throw new StaffDirectoryError("Invitation not found.", "NOT_FOUND", 404);
-  if (invitation.status === "accepted" || invitation.status === "revoked") {
+  if (invitation.status === "revoked") {
     throw new StaffDirectoryError("This invitation can no longer be resent.", "CONFLICT", 409);
+  }
+  if (invitation.status === "accepted") {
+    let allowResend = false;
+    if (invitation.invited_user_id) {
+      const { data: profile } = await supabase
+        .from("users")
+        .select("last_login, must_change_password")
+        .eq("id", invitation.invited_user_id)
+        .maybeSingle();
+      const row = profile as { last_login?: string | null; must_change_password?: boolean | null } | null;
+      allowResend = !row?.last_login || row?.must_change_password === true;
+    }
+    if (!allowResend) {
+      throw new StaffDirectoryError("This invitation can no longer be resent.", "CONFLICT", 409);
+    }
   }
 
   const tenant = await loadTenant(supabase, params.tenantId);
