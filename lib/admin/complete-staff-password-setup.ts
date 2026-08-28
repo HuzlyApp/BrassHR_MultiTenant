@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { writeActivityLog } from "@/lib/audit/activity-log";
 import { sanitizeStaffAuditMetadata } from "@/lib/admin/staff-directory-status";
 import { invalidateUserCache } from "@/lib/cache";
+import { normalizeTenantEmail } from "@/lib/tenant/tenant-email-uniqueness";
 
 /**
  * After a successful password update, clear first-login gates and accept pending invites.
@@ -9,9 +10,10 @@ import { invalidateUserCache } from "@/lib/cache";
  */
 export async function completeStaffPasswordSetup(
   supabase: SupabaseClient,
-  params: { userId: string; request?: Request }
+  params: { userId: string; email?: string | null; request?: Request }
 ): Promise<void> {
   const now = new Date().toISOString();
+  const email = params.email ? normalizeTenantEmail(params.email) : null;
 
   const { data: profile } = await supabase
     .from("users")
@@ -30,19 +32,45 @@ export async function completeStaffPasswordSetup(
     await supabase.from("users").update({ must_change_password: false }).eq("id", params.userId);
   }
 
-  const { data: pending } = await supabase
+  let pendingQuery = supabase
     .from("staff_invitations")
-    .select("id, tenant_id")
-    .eq("invited_user_id", params.userId)
-    .eq("status", "pending");
+    .select("id, tenant_id, email, invited_user_id")
+    .eq("status", "pending")
+    .eq("invited_user_id", params.userId);
 
-  const invitations = (pending ?? []) as Array<{ id: string; tenant_id: string }>;
+  const { data: pendingByUser } = await pendingQuery;
+  let invitations = (pendingByUser ?? []) as Array<{
+    id: string;
+    tenant_id: string;
+    email?: string | null;
+    invited_user_id?: string | null;
+  }>;
+
+  if (email) {
+    const { data: pendingByEmail } = await supabase
+      .from("staff_invitations")
+      .select("id, tenant_id, email, invited_user_id")
+      .eq("status", "pending")
+      .ilike("email", email);
+    const extra = (pendingByEmail ?? []) as typeof invitations;
+    const seen = new Set(invitations.map((item) => item.id));
+    for (const item of extra) {
+      if (!seen.has(item.id)) invitations.push(item);
+    }
+  }
+
   if (invitations.length > 0) {
+    const ids = invitations.map((item) => item.id);
     await supabase
       .from("staff_invitations")
-      .update({ status: "accepted", accepted_at: now, last_error_code: null, updated_at: now })
-      .eq("invited_user_id", params.userId)
-      .eq("status", "pending");
+      .update({
+        status: "accepted",
+        accepted_at: now,
+        last_error_code: null,
+        updated_at: now,
+        invited_user_id: params.userId,
+      })
+      .in("id", ids);
   }
 
   await invalidateUserCache("users", params.userId);

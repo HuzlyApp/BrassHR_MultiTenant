@@ -1,7 +1,8 @@
 import { cookies } from "next/headers";
 import type { User } from "@supabase/supabase-js";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { tenantIdFromUser } from "@/lib/auth/staff-tenant-scope";
+import { sameTenantId, tenantIdFromUser } from "@/lib/auth/staff-tenant-scope";
+import { isStaffRole, parseAppRole } from "@/lib/auth/app-role";
 import { loadStaffUserProfileCached } from "@/lib/auth/staff-user-profile";
 import { readValidatedViewAsTenantId } from "@/lib/godadmin/view-as-tenant";
 import { ONBOARDING_TENANT_SLUG_COOKIE } from "@/lib/tenant/constants";
@@ -31,12 +32,38 @@ export async function resolveEffectiveAdminTenantId(
     return null;
   }
 
+  const jar = await cookies();
+  const onboardingSlug = jar.get(ONBOARDING_TENANT_SLUG_COOKIE)?.value?.trim().toLowerCase();
   const fromJwt = tenantIdFromUser(params.authUser);
-  if (fromJwt) return fromJwt;
-
   const profile = await loadStaffUserProfileCached(params.userId);
-  if (profile?.tenant_id && UUID_RE.test(profile.tenant_id)) {
-    return profile.tenant_id.toLowerCase();
+  const profileTenantId =
+    profile?.tenant_id && UUID_RE.test(profile.tenant_id) ? profile.tenant_id.toLowerCase() : null;
+
+  if (onboardingSlug && onboardingSlug.length >= 2) {
+    const fromSlug = await resolveTenantIdBySlug(supabase, onboardingSlug);
+    if (fromSlug) {
+      if (sameTenantId(fromJwt, fromSlug) || sameTenantId(profileTenantId, fromSlug)) {
+        return fromSlug.toLowerCase();
+      }
+      const { data } = await supabase
+        .from("user_roles")
+        .select("tenant_id, role, is_active")
+        .eq("user_id", params.userId);
+      const member = (data ?? []).some(
+        (row: { tenant_id?: string | null; role?: string | null; is_active?: boolean | null }) => {
+          const parsed = parseAppRole(row.role);
+          return (
+            sameTenantId(row.tenant_id, fromSlug) &&
+            row.is_active !== false &&
+            parsed != null &&
+            isStaffRole(parsed)
+          );
+        }
+      );
+      if (member) return fromSlug.toLowerCase();
+    }
   }
-  return null;
+
+  if (fromJwt) return fromJwt;
+  return profileTenantId;
 }

@@ -17,7 +17,11 @@ export async function POST(req: NextRequest) {
   if (!supabase) return NextResponse.json({ error: "Supabase not configured" }, { status: 503 });
 
   try {
-    await completeStaffPasswordSetup(supabase, { userId: auth.userId, request: req });
+    await completeStaffPasswordSetup(supabase, {
+      userId: auth.userId,
+      email: auth.email,
+      request: req,
+    });
     return NextResponse.json({ ok: true });
   } catch (error) {
     console.error("[auth/password-setup-complete]", error);

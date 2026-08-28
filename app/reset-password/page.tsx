@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useId, useMemo, useState, type FormEvent } from "react";
+import { Suspense, useEffect, useId, useMemo, useRef, useState, type FormEvent } from "react";
 import RedirectionProgressModal from "@/app/components/RedirectionProgressModal";
 import { PasswordVisibilityToggle } from "@/app/components/PasswordVisibilityToggle";
 import { loginInputErrorClass } from "@/app/login/LoginFormError";
@@ -25,6 +25,11 @@ import {
   buildForgotPasswordHref,
   buildPostResetSignInHref,
 } from "@/lib/auth/password-reset-return";
+import {
+  authSessionIsPasswordRecovery,
+  planPasswordRecoverySession,
+  readPasswordRecoveryLinkParams,
+} from "@/lib/auth/password-recovery-session";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 
 const BRAAS_BUTTON_GRADIENT = "linear-gradient(90deg, #BC8B41 0%, #E9B771 100%)";
@@ -154,6 +159,8 @@ function ResetPasswordContent() {
   const [success, setSuccess] = useState(false);
   const [sessionReady, setSessionReady] = useState(false);
   const [recoveryReady, setRecoveryReady] = useState(false);
+  const [recoveryAccountEmail, setRecoveryAccountEmail] = useState<string | null>(null);
+  const consumedLinkRef = useRef(false);
 
   useEffect(() => {
     let alive = true;
@@ -173,14 +180,42 @@ function ResetPasswordContent() {
         const {
           data: { session: existing },
         } = await supabaseBrowser.auth.getSession();
-        if (existing) {
+        const link = readPasswordRecoveryLinkParams(searchParams);
+        const plan = planPasswordRecoverySession({
+          hasExistingSession: Boolean(existing),
+          sessionIsRecovery: authSessionIsPasswordRecovery(existing),
+          link,
+        });
+
+        if (plan === "reuse-recovery-session") {
+          if (alive) {
+            setRecoveryAccountEmail(existing?.user.email ?? null);
+            setRecoveryReady(true);
+          }
+          return;
+        }
+
+        if (plan === "reject") {
+          if (alive) {
+            setFormError(
+              "This reset link is invalid or has expired. Request a new one from the sign-in page."
+            );
+          }
+          return;
+        }
+
+        if (consumedLinkRef.current) {
           if (alive) setRecoveryReady(true);
           return;
         }
 
-        const tokenHash = searchParams.get("token_hash")?.trim();
-        const type = searchParams.get("type")?.trim() || "recovery";
-        const code = searchParams.get("code")?.trim();
+        if (existing) {
+          await supabaseBrowser.auth.signOut();
+        }
+
+        const tokenHash = link.tokenHash;
+        const type = link.type || "recovery";
+        const code = link.code;
 
         if (tokenHash && type === "recovery") {
           const { error } = await supabaseBrowser.auth.verifyOtp({
@@ -195,7 +230,12 @@ function ResetPasswordContent() {
             }
             return;
           }
+          consumedLinkRef.current = true;
+          const {
+            data: { user },
+          } = await supabaseBrowser.auth.getUser();
           if (alive) {
+            setRecoveryAccountEmail(user?.email ?? null);
             setRecoveryReady(true);
             const next = new URL(window.location.href);
             next.searchParams.delete("token_hash");
@@ -215,7 +255,14 @@ function ResetPasswordContent() {
             }
             return;
           }
-          if (alive) setRecoveryReady(true);
+          consumedLinkRef.current = true;
+          const {
+            data: { user },
+          } = await supabaseBrowser.auth.getUser();
+          if (alive) {
+            setRecoveryAccountEmail(user?.email ?? null);
+            setRecoveryReady(true);
+          }
           return;
         }
 
@@ -287,6 +334,13 @@ function ResetPasswordContent() {
         <h1 className={titleClassName}>Set a new password</h1>
         <p className="mt-2 text-[14px] font-normal leading-5 text-[#64748b] sm:mt-2.5 sm:text-[16px] sm:leading-6">
           Choose a strong password for your account.
+          {recoveryAccountEmail ? (
+            <>
+              {" "}
+              This updates <span className="font-medium text-[#0f172a]">{recoveryAccountEmail}</span>
+              .
+            </>
+          ) : null}
         </p>
 
         <form onSubmit={handleSubmit} className="mt-6 space-y-5 sm:mt-8 sm:space-y-6" noValidate>

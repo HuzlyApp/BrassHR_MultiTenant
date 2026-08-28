@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { writeActivityLog } from "@/lib/audit/activity-log";
+import { parseAppRole } from "@/lib/auth/app-role";
 import { NEXUS_PLATFORM } from "@/lib/auth/platform-shared";
 import { findAuthUserIdByEmail } from "@/lib/auth/find-auth-user-by-email";
 import { invalidateUserCache } from "@/lib/cache";
@@ -218,6 +219,42 @@ async function audit(
       ...(params.metadata ?? {}),
     }),
     request: params.request,
+  });
+}
+
+async function mergeStaffInviteAppMetadata(params: {
+  supabase: SupabaseClient;
+  userId: string;
+  tenantId: string;
+  dbRole: "client" | "admin";
+  firstName: string;
+  lastName: string;
+  keepHomeTenant: boolean;
+  homeTenantId?: string | null;
+}): Promise<void> {
+  const { data } = await params.supabase.auth.admin.getUserById(params.userId);
+  const current = (data.user?.app_metadata ?? {}) as Record<string, unknown>;
+  const currentRole = typeof current.role === "string" ? current.role : null;
+  const keepAdminRole = parseAppRole(currentRole) === "admin";
+  const homeTenantId =
+    params.keepHomeTenant && params.homeTenantId ? params.homeTenantId : params.tenantId;
+  await params.supabase.auth.admin.updateUserById(params.userId, {
+    email_confirm: true,
+    app_metadata: {
+      ...current,
+      platform: NEXUS_PLATFORM,
+      role: keepAdminRole ? currentRole : params.dbRole,
+      tenant_id: homeTenantId,
+      signup_completed: true,
+      tenant_onboarding_completed: true,
+    },
+    user_metadata: {
+      ...(typeof data.user?.user_metadata === "object" && data.user.user_metadata
+        ? data.user.user_metadata
+        : {}),
+      first_name: params.firstName,
+      last_name: params.lastName,
+    },
   });
 }
 
@@ -596,20 +633,16 @@ export async function inviteStaff(
       }
       userId = created.user.id;
       createdAuthUser = true;
-    } else if (!hasHomeTenant) {
-      await supabase.auth.admin.updateUserById(userId, {
-        email_confirm: true,
-        app_metadata: {
-          platform: NEXUS_PLATFORM,
-          role: dbRole,
-          tenant_id: params.tenantId,
-          signup_completed: true,
-          tenant_onboarding_completed: true,
-        },
-        user_metadata: {
-          first_name: parsed.firstName,
-          last_name: parsed.lastName,
-        },
+    } else {
+      await mergeStaffInviteAppMetadata({
+        supabase,
+        userId,
+        tenantId: params.tenantId,
+        dbRole,
+        firstName: parsed.firstName,
+        lastName: parsed.lastName,
+        keepHomeTenant: hasHomeTenant,
+        homeTenantId: existingProfile?.tenant_id,
       });
     }
 
@@ -937,8 +970,15 @@ export async function updateStaffMembership(
       );
     if (user?.tenant_id === params.tenantId) {
       await supabase.from("users").update({ role: dbRole }).eq("id", params.userId);
+      const { data: authUser } = await supabase.auth.admin.getUserById(params.userId);
+      const current = (authUser.user?.app_metadata ?? {}) as Record<string, unknown>;
       await supabase.auth.admin.updateUserById(params.userId, {
-        app_metadata: { role: dbRole, tenant_id: params.tenantId, platform: NEXUS_PLATFORM },
+        app_metadata: {
+          ...current,
+          role: dbRole,
+          tenant_id: params.tenantId,
+          platform: NEXUS_PLATFORM,
+        },
       });
     }
     await audit({

@@ -1,10 +1,23 @@
 import type { User } from "@supabase/supabase-js";
+import { cookies } from "next/headers";
+import { isStaffRole, parseAppRole } from "@/lib/auth/app-role";
 import { isGodAdminUser } from "@/lib/auth/god-admin";
 import { loadStaffUserProfileCached } from "@/lib/auth/staff-user-profile";
 import { readValidatedViewAsTenantId } from "@/lib/godadmin/view-as-tenant";
+import { createServiceRoleClient } from "@/lib/supabase/service-role";
+import { ONBOARDING_TENANT_SLUG_COOKIE } from "@/lib/tenant/constants";
+import { resolveTenantIdBySlug } from "@/lib/tenant/resolve-tenant-id-by-slug";
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+export function sameTenantId(
+  left: string | null | undefined,
+  right: string | null | undefined
+): boolean {
+  if (!left || !right) return false;
+  return left.trim().toLowerCase() === right.trim().toLowerCase();
+}
 
 export type StaffTenantScope =
   /** One tenant UUID (JWT / profile / view-as cookie). */
@@ -35,6 +48,45 @@ async function tenantIdFromProfilesTable(userId: string): Promise<string | null>
   return UUID_RE.test(s) ? s : null;
 }
 
+async function tenantIdFromHostCookieIfMember(params: {
+  userId: string;
+  jwtTenantId: string | null;
+  profileTenantId: string | null;
+}): Promise<string | null> {
+  try {
+    const jar = await cookies();
+    const slug = jar.get(ONBOARDING_TENANT_SLUG_COOKIE)?.value?.trim().toLowerCase();
+    if (!slug || slug.length < 2) return null;
+    const sb = createServiceRoleClient();
+    if (!sb) return null;
+    const tenantId = await resolveTenantIdBySlug(sb, slug);
+    if (!tenantId) return null;
+    if (
+      sameTenantId(params.jwtTenantId, tenantId) ||
+      sameTenantId(params.profileTenantId, tenantId)
+    ) {
+      return tenantId.toLowerCase();
+    }
+    const { data, error } = await sb
+      .from("user_roles")
+      .select("tenant_id, role, is_active")
+      .eq("user_id", params.userId);
+    if (error) return null;
+    const member = (data ?? []).some((row: { tenant_id?: string | null; role?: string | null; is_active?: boolean | null }) => {
+      const parsed = parseAppRole(row.role);
+      return (
+        sameTenantId(row.tenant_id, tenantId) &&
+        row.is_active !== false &&
+        parsed != null &&
+        isStaffRole(parsed)
+      );
+    });
+    return member ? tenantId.toLowerCase() : null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Resolved tenant scope for list APIs (workers, geo search, …).
  * - Normal staff users: narrowed via JWT `tenant_id`, then `public.users.tenant_id` when missing from JWT.
@@ -61,8 +113,13 @@ export async function resolveStaffTenantScope(authUser: User): Promise<StaffTena
   }
 
   const fromJwt = tenantIdFromUser(authUser);
-  if (fromJwt) return { mode: "scoped", tenantId: fromJwt };
-
   const fromDb = await tenantIdFromProfilesTable(authUser.id);
+  const fromHost = await tenantIdFromHostCookieIfMember({
+    userId: authUser.id,
+    jwtTenantId: fromJwt,
+    profileTenantId: fromDb,
+  });
+  if (fromHost) return { mode: "scoped", tenantId: fromHost };
+  if (fromJwt) return { mode: "scoped", tenantId: fromJwt };
   return fromDb ? { mode: "scoped", tenantId: fromDb } : { mode: "all" };
 }
