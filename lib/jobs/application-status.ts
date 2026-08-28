@@ -19,14 +19,14 @@ export type ApplicationStatusTab =
 
 export const APPLICATION_STATUS_TABS: Array<{ id: ApplicationStatusTab; label: string }> = [
   { id: "all", label: "All" },
-  { id: "new", label: "New" },
-  { id: "reviewing", label: "Reviewing" },
-  { id: "interviewing", label: "Interviewing" },
-  { id: "rejected", label: "Rejected" },
-  { id: "hired", label: "Hired" },
-  { id: "shortlisted", label: "Shortlisted" },
-  { id: "undecided", label: "Undecided" },
-  { id: "archived", label: "Archived" },
+  { id: "new", label: "New / Not Contacted" },
+  { id: "reviewing", label: "Screening Complete" },
+  { id: "interviewing", label: "Interview Complete" },
+  { id: "rejected", label: "Not a Fit" },
+  { id: "hired", label: "Selected by Client" },
+  { id: "shortlisted", label: "Qualified – Ready for Interview" },
+  { id: "undecided", label: "Fit for Future Roles" },
+  { id: "archived", label: "Position Closed" },
 ];
 
 /** Dropdown options for candidate detail status (excludes All). */
