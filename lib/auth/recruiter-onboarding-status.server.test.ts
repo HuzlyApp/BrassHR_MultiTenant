@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { staffHasTenantMembership } from "@/lib/auth/recruiter-onboarding-status.server";
+import {
+  homeStaffTenantId,
+  staffHasTenantMembership,
+} from "@/lib/auth/recruiter-onboarding-status.server";
 
 const TENANT_A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const TENANT_B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
@@ -45,6 +48,16 @@ describe("staffHasTenantMembership", () => {
     ).toBe(false);
   });
 
+  it("allows access when no tenant id was resolved for a requested slug", () => {
+    expect(
+      staffHasTenantMembership({
+        requestedTenantId: null,
+        profileTenantId: TENANT_A,
+        roleRows: [{ tenant_id: TENANT_A, role: "admin", is_active: true }],
+      })
+    ).toBe(true);
+  });
+
   it("ignores suspended memberships", () => {
     expect(
       staffHasTenantMembership({
@@ -53,5 +66,28 @@ describe("staffHasTenantMembership", () => {
         roleRows: [{ tenant_id: TENANT_A, role: "client", is_active: false }],
       })
     ).toBe(false);
+  });
+});
+
+describe("homeStaffTenantId", () => {
+  it("uses the profile home tenant for an invited admin", () => {
+    expect(
+      homeStaffTenantId({
+        profileTenantId: TENANT_A,
+        profileRole: "admin",
+        profileActive: true,
+        roleRows: [{ tenant_id: TENANT_A, role: "admin", is_active: true }],
+      })
+    ).toBe(TENANT_A);
+  });
+
+  it("falls back to an active user_roles membership", () => {
+    expect(
+      homeStaffTenantId({
+        profileTenantId: null,
+        profileRole: null,
+        roleRows: [{ tenant_id: TENANT_B, role: "client", is_active: true }],
+      })
+    ).toBe(TENANT_B);
   });
 });

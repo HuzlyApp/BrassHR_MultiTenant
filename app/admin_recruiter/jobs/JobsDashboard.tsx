@@ -38,6 +38,7 @@ const JOBS_LISTING_HREF = "/admin_recruiter/jobs?view=all";
 const JOBS_NEW_HREF = "/admin_recruiter/jobs/new";
 const JOBS_OPEN_HREF = `${JOBS_LISTING_HREF}&tab=open`;
 const APPLICATIONS_HREF = "/admin_recruiter/applications";
+const CANDIDATES_HREF = "/admin_recruiter/candidates";
 
 const JOBS_VIEW_ALL_BUTTON_CLASS =
   "inline-flex h-8 shrink-0 items-center justify-center rounded-lg border border-[color:var(--brand-secondary)] bg-white px-3 font-[Inter,sans-serif] text-xs font-semibold leading-4 text-[color:var(--brand-secondary)] no-underline transition hover:bg-[color:color-mix(in_srgb,var(--brand-secondary)_6%,white)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--brand-secondary)_30%,transparent)]";
@@ -91,6 +92,7 @@ type JobsDashboardProps = {
   loading: boolean;
   tenantSlug: string | null;
   hotJobIds: Set<string>;
+  totalCandidateCount?: number | null;
   onAddCandidate: (job: JobListRow) => void;
   onDelete: (jobId: string) => void;
   onArchive: (jobId: string) => void;
@@ -145,11 +147,12 @@ function isActiveJob(job: JobListRow): boolean {
   );
 }
 
-function buildSummaryCards(jobs: JobListRow[]): KpiCard[] {
+function buildSummaryCards(jobs: JobListRow[], totalCandidateCount?: number | null): KpiCard[] {
   const visible = jobs.filter(
     (job) => normalizeJobRequisitionStatus(String(job.status ?? "")) !== "archived"
   );
-  const totalCandidates = sumMetric(visible, applicantCount);
+  const totalCandidates =
+    typeof totalCandidateCount === "number" ? totalCandidateCount : sumMetric(visible, applicantCount);
   const strongMatches = sumMetric(visible, strongMatchCount);
   const onboarded = sumMetric(visible, hiredApplicantCount);
 
@@ -163,7 +166,7 @@ function buildSummaryCards(jobs: JobListRow[]): KpiCard[] {
     {
       label: "Total Candidates",
       value: totalCandidates,
-      href: APPLICATIONS_HREF,
+      href: CANDIDATES_HREF,
       icon: {
         src: `${JOBS_ICONS}/kpi-formkit-people.svg`,
         bg: "#ECE5FF",
@@ -214,6 +217,7 @@ export function JobsDashboard({
   loading,
   tenantSlug,
   hotJobIds,
+  totalCandidateCount = null,
   onAddCandidate,
   onDelete,
   onArchive,
@@ -222,7 +226,10 @@ export function JobsDashboard({
   const [query, setQuery] = useState("");
   const [visibleCount, setVisibleCount] = useState(WORKSPACE_PAGE_SIZE);
   const [statusCards, setStatusCards] = useState<KpiCard[] | null>(null);
-  const summaryCards = useMemo(() => buildSummaryCards(jobs), [jobs]);
+  const summaryCards = useMemo(
+    () => buildSummaryCards(jobs, totalCandidateCount),
+    [jobs, totalCandidateCount]
+  );
 
   useEffect(() => {
     let cancelled = false;

@@ -43,7 +43,7 @@ export async function GET(req: NextRequest) {
     await closeExpiredPublishedJobs(supabase, tenantId, auth.userId);
 
     const status = req.nextUrl.searchParams.get("status") || undefined;
-    const [jobs, tenantResult] = await Promise.all([
+    const [jobs, tenantResult, workerCountResult] = await Promise.all([
       listInternalJobs(supabase, tenantId, {
         status:
           status === "draft" ||
@@ -57,12 +57,19 @@ export async function GET(req: NextRequest) {
         createdBy: req.nextUrl.searchParams.get("createdBy") || undefined,
       }),
       supabase.from("tenants").select("slug, subdomain").eq("id", tenantId).maybeSingle(),
+      supabase.from("worker").select("id", { count: "exact", head: true }).eq("tenant_id", tenantId),
     ]);
     if (tenantResult.error) throw tenantResult.error;
+    if (workerCountResult.error) throw workerCountResult.error;
     const tenantSlug = String(tenantResult.data?.slug ?? tenantResult.data?.subdomain ?? "")
       .trim()
       .toLowerCase();
-    return NextResponse.json({ jobs, tenantId, tenantSlug: tenantSlug || null });
+    return NextResponse.json({
+      jobs,
+      tenantId,
+      tenantSlug: tenantSlug || null,
+      totalCandidateCount: workerCountResult.count ?? 0,
+    });
   } catch (error) {
     return NextResponse.json(
       { error: formatApiError(error, "Failed to load jobs") },

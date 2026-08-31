@@ -401,7 +401,10 @@ function LoginPageContent() {
       return false;
     }
 
-    const tenantSlug = searchParams.get("tenant")?.trim().toLowerCase();
+    const tenantSlug =
+      searchParams.get("tenant")?.trim().toLowerCase() ||
+      getClientTenantHostLabel()?.trim().toLowerCase() ||
+      "";
     if (tenantSlug && tenantSlug.length >= 2) {
       persistOnboardingSlugCookie(tenantSlug);
       if (godAdmin) {
@@ -451,6 +454,9 @@ function LoginPageContent() {
             message =
               "This account does not have admin access. Use a recruiter or admin account.";
             code = "STAFF_ROLE_REQUIRED";
+          } else if (detail.includes("set your password") || detail.includes("invitation email")) {
+            message = "Set your password using the invitation email before signing in.";
+            code = "PASSWORD_SETUP_REQUIRED";
           } else {
             message = "This account does not have access to the selected tenant.";
             code = "TENANT_ACCESS_DENIED";
@@ -475,6 +481,9 @@ function LoginPageContent() {
     }
 
     const onboardingStatus = (await statusRes.json()) as RecruiterOnboardingStatusResponse;
+    if (onboardingStatus.tenantSubdomain) {
+      persistOnboardingSlugCookie(onboardingStatus.tenantSubdomain);
+    }
     console.info("[login] recruiter redirect", {
       userId: onboardingStatus.userId,
       role: onboardingStatus.role,
@@ -497,7 +506,10 @@ function LoginPageContent() {
   };
 
   const sendLoginOtp = async (login: PendingLogin) => {
-    const tenantSlug = searchParams.get("tenant")?.trim().toLowerCase() || "";
+    const tenantSlug =
+      searchParams.get("tenant")?.trim().toLowerCase() ||
+      getClientTenantHostLabel()?.trim().toLowerCase() ||
+      "";
     const res = await fetch("/api/auth/login-otp/send", {
       method: "POST",
       headers: { "Content-Type": "application/json" },

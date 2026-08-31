@@ -776,6 +776,7 @@ export default function AdminRecruiterJobsPage() {
   const showListing = searchParams.get("view") === "all";
 
   const [jobs, setJobs] = useState<JobListRow[]>([]);
+  const [totalCandidateCount, setTotalCandidateCount] = useState<number | null>(null);
   const [tenantSlug, setTenantSlug] = useState<string | null>(null);
   const [jobTab, setJobTab] = useState<JobTab>(() => parseJobTab(searchParams.get("tab")));
   const [loading, setLoading] = useState(true);
@@ -860,6 +861,9 @@ export default function AdminRecruiterJobsPage() {
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "Failed to load jobs");
       setJobs(payload.jobs ?? []);
+      setTotalCandidateCount(
+        typeof payload.totalCandidateCount === "number" ? payload.totalCandidateCount : null
+      );
       setTenantSlug(
         typeof payload.tenantSlug === "string" && payload.tenantSlug.trim()
           ? payload.tenantSlug.trim().toLowerCase()
@@ -1373,6 +1377,7 @@ export default function AdminRecruiterJobsPage() {
           jobs={jobs}
           loading={loading}
           tenantSlug={tenantSlug}
+          totalCandidateCount={totalCandidateCount}
           hotJobIds={starredIds}
           onAddCandidate={(job) => {
             setAddCandidateJob({ id: job.id, title: jobListDisplayTitle(job) });

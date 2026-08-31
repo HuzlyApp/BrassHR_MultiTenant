@@ -6,7 +6,7 @@ import { fetchTenantVanityLabel } from "@/lib/auth/recruiter-dashboard-redirect"
 import { sameTenantId } from "@/lib/auth/staff-tenant-scope";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { normalizeTenantEmail } from "@/lib/tenant/tenant-email-uniqueness";
-import { resolveTenantIdBySlug } from "@/lib/tenant/resolve-tenant-id-by-slug";
+import { resolveTenantIdBySlugUncached } from "@/lib/tenant/resolve-tenant-id-by-slug";
 
 type UserOnboardingRow = {
   id: string;
@@ -63,6 +63,26 @@ export function staffHasTenantMembership(params: {
   );
 }
 
+/** Home tenant for staff who land on the wrong host or an unknown ?tenant= slug. */
+export function homeStaffTenantId(params: {
+  profileTenantId: string | null;
+  profileRole?: string | null;
+  profileActive?: boolean | null;
+  roleRows: Array<{ tenant_id?: string | null; role?: string | null; is_active?: boolean | null }>;
+}): string | null {
+  if (
+    params.profileTenantId &&
+    params.profileActive !== false &&
+    isActiveStaffRole(params.profileRole)
+  ) {
+    return params.profileTenantId;
+  }
+  const row = params.roleRows.find(
+    (item) => item.tenant_id && item.is_active !== false && isActiveStaffRole(item.role)
+  );
+  return row?.tenant_id ? String(row.tenant_id) : null;
+}
+
 export async function resolveRecruiterOnboardingStatus(
   user: User,
   options?: { tenantSlug?: string | null }
@@ -73,7 +93,7 @@ export async function resolveRecruiterOnboardingStatus(
   }
 
   const tenantSlug = options?.tenantSlug?.trim().toLowerCase() || null;
-  const requestedTenantId = tenantSlug ? await resolveTenantIdBySlug(sb, tenantSlug) : null;
+  let requestedTenantId = tenantSlug ? await resolveTenantIdBySlugUncached(sb, tenantSlug) : null;
 
   const { data: profile, error: profileError } = await sb
     .from("users")
@@ -100,20 +120,14 @@ export async function resolveRecruiterOnboardingStatus(
   let roles = (roleRows ?? []) as UserRoleRow[];
   const godAdmin = isGodAdminUser(user) || row?.god_admin === true;
   const profileTenantId = row?.tenant_id ? String(row.tenant_id) : null;
-  const requestedTenantResolved = !tenantSlug || Boolean(requestedTenantId);
-
-  let validTenantAccess = Boolean(
-    requestedTenantResolved &&
-      (godAdmin ||
-        staffHasTenantMembership({
-          requestedTenantId,
-          profileTenantId,
-          roleRows: roles,
-        }))
-  );
+  let memberOfRequested = staffHasTenantMembership({
+    requestedTenantId,
+    profileTenantId,
+    roleRows: roles,
+  });
 
   const authEmail = typeof user.email === "string" ? normalizeTenantEmail(user.email) : "";
-  if (!validTenantAccess && !godAdmin && requestedTenantId && authEmail.includes("@")) {
+  if (!memberOfRequested && !godAdmin && requestedTenantId && authEmail.includes("@")) {
     const { data: emailProfiles, error: emailError } = await sb
       .from("users")
       .select("id, tenant_id, role, is_active")
@@ -130,7 +144,7 @@ export async function resolveRecruiterOnboardingStatus(
       if (emailRoleError) throw emailRoleError;
       const extraRoles = (emailRoles ?? []) as UserRoleRow[];
       roles = [...roles, ...extraRoles];
-      validTenantAccess = emailRows.some(
+      memberOfRequested = emailRows.some(
         (item) =>
           item.is_active !== false &&
           sameTenantId(item.tenant_id, requestedTenantId) &&
@@ -144,17 +158,57 @@ export async function resolveRecruiterOnboardingStatus(
     }
   }
 
-  const roleForRequestedTenant = requestedTenantId
-    ? roles.find(
-        (r) => sameTenantId(r.tenant_id, requestedTenantId) && r.is_active !== false
-      )
-    : null;
+  const homeTenantId = homeStaffTenantId({
+    profileTenantId,
+    profileRole: row?.role ?? null,
+    profileActive: row?.is_active,
+    roleRows: roles,
+  });
+
+  if (tenantSlug && !memberOfRequested) {
+    const candidateIds = [
+      ...new Set(
+        [profileTenantId, homeTenantId, ...roles.map((item) => item.tenant_id)]
+          .filter((id): id is string => Boolean(id))
+          .map((id) => String(id))
+      ),
+    ];
+    if (candidateIds.length > 0) {
+      const { data: ownedTenants, error: ownedError } = await sb
+        .from("tenants")
+        .select("id, slug, subdomain")
+        .in("id", candidateIds)
+        .eq("is_active", true);
+      if (ownedError) throw ownedError;
+      const slugMatch = (ownedTenants ?? []).find((tenant) => {
+        const slug = String(tenant.slug ?? "").trim().toLowerCase();
+        const subdomain = String(tenant.subdomain ?? "").trim().toLowerCase();
+        return slug === tenantSlug || subdomain === tenantSlug;
+      });
+      if (slugMatch?.id) {
+        requestedTenantId = String(slugMatch.id);
+        memberOfRequested = true;
+      }
+    }
+  }
+
+  const validTenantAccess = Boolean(
+    godAdmin || !tenantSlug || memberOfRequested || homeTenantId
+  );
+
+  const roleForRequestedTenant =
+    requestedTenantId && memberOfRequested
+      ? roles.find(
+          (r) => sameTenantId(r.tenant_id, requestedTenantId) && r.is_active !== false
+        )
+      : null;
   const fallbackRole = roles.find((r) => r.tenant_id)?.role ?? row?.role ?? null;
 
-  const activeTenantId =
-    requestedTenantId && validTenantAccess
+  const activeTenantId = godAdmin
+    ? requestedTenantId ?? homeTenantId ?? profileTenantId
+    : requestedTenantId && memberOfRequested
       ? requestedTenantId
-      : profileTenantId ?? roles.find((r) => r.tenant_id)?.tenant_id ?? null;
+      : homeTenantId ?? profileTenantId ?? roles.find((r) => r.tenant_id)?.tenant_id ?? null;
 
   const tenantOnboardingCompleted =
     Boolean(row?.tenant_onboarding_completed_at) ||

@@ -512,7 +512,16 @@ async function upsertMembership(params: {
       },
       { onConflict: "id" }
     );
-    if (userError) throw new StaffDirectoryError(userError.message, "INTERNAL", 500);
+    if (userError) {
+      if (userError.code === "23505") {
+        throw new StaffDirectoryError(
+          "This person already has a login for this organization.",
+          "DUPLICATE_MEMBERSHIP",
+          409
+        );
+      }
+      throw new StaffDirectoryError(userError.message, "INTERNAL", 500);
+    }
   }
 
   const { error: roleError } = await params.supabase.from("user_roles").upsert(
@@ -525,7 +534,16 @@ async function upsertMembership(params: {
     },
     { onConflict: "user_id,tenant_id" }
   );
-  if (roleError) throw new StaffDirectoryError(roleError.message, "INTERNAL", 500);
+  if (roleError) {
+    if (roleError.code === "23505") {
+      throw new StaffDirectoryError(
+        "This person already has a login for this organization.",
+        "DUPLICATE_MEMBERSHIP",
+        409
+      );
+    }
+    throw new StaffDirectoryError(roleError.message, "INTERNAL", 500);
+  }
 }
 
 async function insertInvitation(params: {
@@ -565,6 +583,13 @@ async function insertInvitation(params: {
     )
     .single();
   if (error || !data) {
+    if (error?.code === "23505") {
+      throw new StaffDirectoryError(
+        "An invitation is already pending for this email. Resend it instead.",
+        "CONFLICT",
+        409
+      );
+    }
     throw new StaffDirectoryError(error?.message ?? "Could not record invitation.", "INTERNAL", 500);
   }
   return data as InvitationRow;
