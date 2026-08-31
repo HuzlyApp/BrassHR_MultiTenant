@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { Check } from "lucide-react";
-import { Suspense, useEffect, useMemo, useState, type FormEvent } from "react";
+import { Suspense, useEffect, useLayoutEffect, useMemo, useState, type FormEvent } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 // import { FaApple } from "react-icons/fa";
 // import { FaXTwitter } from "react-icons/fa6";
@@ -54,7 +54,13 @@ import {
   type TenantBranding,
 } from "@/lib/tenant/tenant-branding";
 import { supabaseBrowser } from "@/lib/supabase-browser";
+import {
+  clearAdminLoginDraft,
+  readAdminLoginDraft,
+  writeAdminLoginDraft,
+} from "@/lib/auth/admin-login-draft";
 import { LEGAL_ROUTES } from "@/lib/legal/routes";
+import { legalReturnHref } from "@/lib/signup/tenant-signup-draft";
 import { withTenant } from "@/lib/tenant/with-tenant";
 
 const checkboxActiveClass =
@@ -150,6 +156,7 @@ function LoginPageContent() {
     rememberMe: false,
     agree: false,
   });
+  const [draftHydrated, setDraftHydrated] = useState(false);
 
   useEffect(() => {
     if (!serverBranding) return;
@@ -256,13 +263,15 @@ function LoginPageContent() {
       document.body.style.backgroundColor = "";
     }
 
-    try {
-      const savedEmail = readHostnameScopedItem("braasLoginEmail");
-      if (savedEmail) {
-        setForm((prev) => ({ ...prev, email: savedEmail, rememberMe: true }));
+    if (useBraasUi) {
+      try {
+        const savedEmail = readHostnameScopedItem("braasLoginEmail");
+        if (savedEmail) {
+          setForm((prev) => ({ ...prev, email: savedEmail, rememberMe: true }));
+        }
+      } catch {
+        /* ignore storage errors */
       }
-    } catch {
-      /* ignore storage errors */
     }
 
     return () => {
@@ -270,6 +279,59 @@ function LoginPageContent() {
       document.body.style.backgroundColor = previousBodyBg;
     };
   }, [useBraasUi, brand?.primaryHex]);
+
+  useLayoutEffect(() => {
+    if (useBraasUi) {
+      setDraftHydrated(true);
+      return;
+    }
+
+    const tenantSlug =
+      searchParams.get("tenant")?.trim().toLowerCase() || brand?.slug || null;
+    const draft = readAdminLoginDraft(tenantSlug);
+    if (draft) {
+      setForm({
+        email: draft.email,
+        password: draft.password,
+        agree: draft.agree,
+        rememberMe: draft.rememberMe,
+      });
+    } else {
+      try {
+        const savedEmail = readHostnameScopedItem("braasLoginEmail");
+        if (savedEmail) {
+          setForm((prev) => ({ ...prev, email: savedEmail, rememberMe: true }));
+        }
+      } catch {
+        /* ignore storage errors */
+      }
+    }
+    setDraftHydrated(true);
+  }, [useBraasUi, searchParams, brand?.slug]);
+
+  useLayoutEffect(() => {
+    if (useBraasUi || !draftHydrated || showRedirecting) return;
+
+    const tenantSlug =
+      searchParams.get("tenant")?.trim().toLowerCase() || brand?.slug || null;
+    writeAdminLoginDraft({
+      tenantSlug,
+      email: form.email,
+      password: form.password,
+      agree: form.agree,
+      rememberMe: form.rememberMe,
+    });
+  }, [
+    useBraasUi,
+    draftHydrated,
+    showRedirecting,
+    searchParams,
+    brand?.slug,
+    form.email,
+    form.password,
+    form.agree,
+    form.rememberMe,
+  ]);
 
   useEffect(() => {
     if (typeof window !== "undefined" && window.location.hash.includes("error=")) {
@@ -315,6 +377,7 @@ function LoginPageContent() {
     } catch {
       /* ignore storage errors */
     }
+    clearAdminLoginDraft();
 
     const { data: userData } = await supabaseBrowser.auth.getUser();
     const godAdmin =
@@ -634,6 +697,14 @@ function LoginPageContent() {
   }
 
   if (!useBraasUi) {
+    const tenantSlug =
+      searchParams.get("tenant")?.trim().toLowerCase() || brand.slug || null;
+    const adminReturnHref = withTenant("/admin", tenantSlug);
+    const tenantTermsHref = legalReturnHref(
+      withTenant(LEGAL_ROUTES.tenantTerms, tenantSlug),
+      adminReturnHref
+    );
+
     return (
       <TenantBrandingProvider branding={brand}>
         {showRedirecting ? <RedirectionProgressModal /> : null}
@@ -657,6 +728,7 @@ function LoginPageContent() {
           onTogglePassword={() => setShowPassword((current) => !current)}
           onSubmit={handleClassicSubmit}
           forgotReturnTo="/admin"
+          termsHref={tenantTermsHref}
         />
       </TenantBrandingProvider>
     );

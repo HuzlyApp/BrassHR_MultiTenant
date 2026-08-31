@@ -32,6 +32,7 @@ const ICON = {
   mail: "Mail",
   chat: "Chat",
   schedule: "Schedule",
+  shifts: "Shifts",
   tickets: "Tickets",
   finance: "Finance",
   taskboard: "Taskboard",
@@ -150,8 +151,8 @@ export const WORKER_SIDEBAR_SECTIONS: WorkerSidebarSection[] = [
   {
     label: "My Shifts",
     href: "#",
-    iconType: ICON.tickets,
-    matchPrefixes: [],
+    iconType: ICON.shifts,
+    matchPrefixes: ["/application/applicant-dashboard/applications"],
     disabled: true,
     children: MY_SHIFTS_CHILDREN,
   },

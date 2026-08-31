@@ -372,10 +372,12 @@ export default function SummaryPage() {
     try {
       const jobApplicationId =
         localStorage.getItem("jobApplicationId")?.trim() || undefined
+      const jobToken =
+        localStorage.getItem("applicationJobToken")?.trim() || undefined
       const res = await fetch("/api/onboarding/submit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ applicantId, tenantSlug, jobApplicationId }),
+        body: JSON.stringify({ applicantId, tenantSlug, jobApplicationId, jobToken }),
       })
       const json = (await res.json().catch(() => ({}))) as { error?: string }
       if (!res.ok) {

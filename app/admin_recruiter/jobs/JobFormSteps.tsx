@@ -2703,6 +2703,8 @@ export function JobFormFooter({
   onSaveDraft,
   onPublish,
   onTermsChange,
+  termsHref,
+  privacyHref,
 }: {
   step: JobFormStep;
   saving: boolean;
@@ -2716,6 +2718,8 @@ export function JobFormFooter({
   onSaveDraft: () => void;
   onPublish: () => void;
   onTermsChange: (accepted: boolean) => void;
+  termsHref?: string;
+  privacyHref?: string;
 }) {
   const isReview = step === "review";
   const isCompensation = step === "compensation";
@@ -2736,9 +2740,30 @@ export function JobFormFooter({
               <>
                 By selecting Confirm, you agree that this job post reflects your requirements, and
                 agree it will be posted and applications will be processed following applicable{" "}
-                <span className="font-medium text-[color:var(--brand-primary)]">Terms</span>,{" "}
+                {termsHref ? (
+                  <Link
+                    href={termsHref}
+                    className="font-medium text-[color:var(--brand-primary)] underline"
+                    onClick={(event) => event.stopPropagation()}
+                  >
+                    Terms
+                  </Link>
+                ) : (
+                  <span className="font-medium text-[color:var(--brand-primary)]">Terms</span>
+                )}
+                ,{" "}
                 <span className="font-medium text-[color:var(--brand-primary)]">Cookie</span>, and{" "}
-                <span className="font-medium text-[color:var(--brand-primary)]">Privacy</span>{" "}
+                {privacyHref ? (
+                  <Link
+                    href={privacyHref}
+                    className="font-medium text-[color:var(--brand-primary)] underline"
+                    onClick={(event) => event.stopPropagation()}
+                  >
+                    Privacy
+                  </Link>
+                ) : (
+                  <span className="font-medium text-[color:var(--brand-primary)]">Privacy</span>
+                )}{" "}
                 Policies.
               </>
             }

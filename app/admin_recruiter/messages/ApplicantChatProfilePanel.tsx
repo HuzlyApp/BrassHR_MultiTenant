@@ -5,6 +5,7 @@ import Image from "next/image";
 import { useEffect, useState } from "react";
 import { Mail, MapPin, Phone } from "lucide-react";
 import CandidateDetailLoader from "@/app/admin_recruiter/components/CandidateDetailLoader";
+import { candidateApplicantProfileHref } from "@/app/admin_recruiter/candidates/candidate-links";
 import { nameInitials } from "@/app/admin_recruiter/messages/chat-ui";
 
 type WorkerProfile = {
@@ -178,7 +179,7 @@ export default function ApplicantChatProfilePanel({
 
       <div className="border-t border-[#E8EDF2] px-5 py-5">
         <Link
-          href={`/admin_recruiter/workers/${workerId}/profile`}
+          href={candidateApplicantProfileHref(workerId, { from: "messages" })}
           className="flex h-11 w-full items-center justify-center rounded-[6px] text-sm font-semibold text-white transition hover:brightness-95"
           style={{ backgroundColor: "var(--brand-primary)" }}
         >

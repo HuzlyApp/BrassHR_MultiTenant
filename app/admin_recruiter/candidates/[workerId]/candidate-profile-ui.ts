@@ -438,7 +438,17 @@ export function profileAiAnalysisHref(input: {
   return candidateAiAnalysisHref(input.workerId);
 }
 
-export function profileCandidatesBackHref(input: { from?: string | null; jobId?: string | null }) {
+export function profileCandidatesBackHref(input: {
+  from?: string | null;
+  jobId?: string | null;
+  workerId?: string | null;
+}) {
+  if (input.from === "messages") {
+    const workerId = input.workerId?.trim();
+    return workerId
+      ? `/admin_recruiter/messages/${encodeURIComponent(workerId)}`
+      : "/admin_recruiter/messages";
+  }
   if (input.from === "applications") {
     const jobId = input.jobId?.trim();
     return jobId

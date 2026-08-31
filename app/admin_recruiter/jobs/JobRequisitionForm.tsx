@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import BrandedSvgIcon from "@/app/components/BrandedSvgIcon";
 import { useTenantBranding } from "@/app/components/tenant/TenantBrandingContext";
@@ -47,6 +47,13 @@ import {
   JOB_POSTING_PAGE_TITLE_CLASS,
 } from "./job-posting-typography";
 import { ArrowRight } from "lucide-react";
+import { LEGAL_ROUTES } from "@/lib/legal/routes";
+import {
+  clearJobRequisitionFormDraft,
+  readJobRequisitionFormDraft,
+  writeJobRequisitionFormDraft,
+} from "@/lib/jobs/job-requisition-form-draft";
+import { legalReturnHref } from "@/lib/signup/tenant-signup-draft";
 
 const initialJob: JobRequisitionInput = {
   sourceType: "" as SourceType,
@@ -95,6 +102,66 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
   const [confirmRoutingChange, setConfirmRoutingChange] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [screeningQuestions, setScreeningQuestions] = useState<JobScreeningQuestionInput[]>([]);
+  const [draftHydrated, setDraftHydrated] = useState(false);
+  const skipJobLoadRef = useRef(false);
+
+  const returnTo = jobId
+    ? `/admin_recruiter/jobs/${encodeURIComponent(jobId)}/edit`
+    : "/admin_recruiter/jobs/new";
+  const tenantTermsHref = legalReturnHref(LEGAL_ROUTES.tenantTerms, returnTo);
+  const privacyPolicyHref = legalReturnHref(LEGAL_ROUTES.privacyPolicy, returnTo);
+
+  useLayoutEffect(() => {
+    const draft = readJobRequisitionFormDraft(jobId ?? null);
+    if (draft) {
+      skipJobLoadRef.current = Boolean(jobId);
+      setStep(draft.step);
+      setJob(draft.job);
+      setUi(draft.ui);
+      setMspSourcedByClient(draft.mspSourcedByClient);
+      setMspPlacementType(draft.mspPlacementType);
+      setReferenceJobId(draft.referenceJobId);
+      setAssignmentMode(draft.assignmentMode);
+      setOverrideWorkflowId(draft.overrideWorkflowId);
+      setTermsAccepted(draft.termsAccepted);
+      setScreeningQuestions(draft.screeningQuestions);
+      setConfirmRoutingChange(draft.confirmRoutingChange);
+    }
+    setDraftHydrated(true);
+  }, [jobId]);
+
+  useLayoutEffect(() => {
+    if (!draftHydrated || saving) return;
+    writeJobRequisitionFormDraft({
+      jobId: jobId ?? null,
+      step,
+      job,
+      ui,
+      mspSourcedByClient,
+      mspPlacementType,
+      referenceJobId,
+      assignmentMode,
+      overrideWorkflowId,
+      termsAccepted,
+      screeningQuestions,
+      confirmRoutingChange,
+    });
+  }, [
+    draftHydrated,
+    saving,
+    jobId,
+    step,
+    job,
+    ui,
+    mspSourcedByClient,
+    mspPlacementType,
+    referenceJobId,
+    assignmentMode,
+    overrideWorkflowId,
+    termsAccepted,
+    screeningQuestions,
+    confirmRoutingChange,
+  ]);
 
   useEffect(() => {
     void fetch("/api/admin/job-options", { cache: "no-store" })
@@ -121,6 +188,10 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
 
   useEffect(() => {
     if (!jobId) return;
+    if (skipJobLoadRef.current) {
+      skipJobLoadRef.current = false;
+      return;
+    }
     void fetch(`/api/admin/jobs/${encodeURIComponent(jobId)}`, { cache: "no-store" })
       .then(async (response) => {
         const payload = await response.json();
@@ -442,6 +513,7 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
         setFieldErrors(payload.fieldErrors ?? {});
         throw new Error(payload.error || "Failed to save job");
       }
+      clearJobRequisitionFormDraft();
       router.push("/admin_recruiter/jobs");
       router.refresh();
     } catch (error) {
@@ -864,6 +936,8 @@ export default function JobRequisitionForm({ jobId }: { jobId?: string }) {
               onSaveDraft={() => void save(originalStatus === "published" ? "publish" : "save_draft")}
               onPublish={() => void save("publish")}
               onTermsChange={setTermsAccepted}
+              termsHref={tenantTermsHref}
+              privacyHref={privacyPolicyHref}
             />
           )}
 

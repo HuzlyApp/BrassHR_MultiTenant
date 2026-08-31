@@ -11,6 +11,7 @@ const ALL_SIDEBAR_ICON_TYPES: SidebarIconType[] = [
   "Mail",
   "Chat",
   "Schedule",
+  "Shifts",
   "Tickets",
   "Reports",
   "Finance",

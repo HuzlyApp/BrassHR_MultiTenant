@@ -473,12 +473,16 @@ export function CandidateProfileClient({ workerId }: { workerId: string }) {
   const [openingResumeId, setOpeningResumeId] = useState<string | null>(null);
   const loadedWorkerIdRef = useRef<string | null>(null);
 
-  const backHref = profileCandidatesBackHref({ from, jobId });
+  const backHref = profileCandidatesBackHref({ from, jobId, workerId });
   const fromJobCandidates = from === "applications";
   const profileBreadcrumb = fromJobCandidates ? (
     <JobsBreadcrumb page="applicant" jobCandidatesHref={jobCandidatesHrefForJob(jobId)} />
   ) : (
-    <CandidatesBreadcrumb currentLabel="Applicant" backHref={backHref} />
+    <CandidatesBreadcrumb
+      currentLabel="Applicant"
+      backHref={backHref}
+      backLabel={from === "messages" ? "Messages" : "Candidates"}
+    />
   );
 
   const load = useCallback(async () => {
