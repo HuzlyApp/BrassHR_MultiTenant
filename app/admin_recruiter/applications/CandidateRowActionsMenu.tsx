@@ -17,6 +17,7 @@ export type CandidateRowActionsHandlers = {
   onMessage: () => void;
   onCall: () => void;
   onSetupInterview: () => void;
+  onViewStatusHistory: () => void;
   onDeleteCandidate: () => void;
   onMarkAsHired: () => void;
 };
@@ -56,6 +57,7 @@ export function CandidateRowActionsMenu({
   onMessage,
   onCall,
   onSetupInterview,
+  onViewStatusHistory,
   onDeleteCandidate,
   onMarkAsHired,
 }: CandidateRowActionsMenuProps) {
@@ -248,6 +250,14 @@ export function CandidateRowActionsMenu({
             className={menuItemClassName()}
           >
             Set up interview
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => runAndClose(onViewStatusHistory)}
+            className={menuItemClassName()}
+          >
+            Status history
           </button>
           <button
             type="button"

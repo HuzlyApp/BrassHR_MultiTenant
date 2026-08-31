@@ -34,6 +34,7 @@ import { CandidateBulkSelectionBar } from "../components/CandidateBulkSelectionB
 import { ClaimCandidatesConfirmModal } from "../components/ClaimCandidatesConfirmModal";
 import { postClaimCandidates } from "./claim-client";
 import {
+  CANDIDATES_LIST_FETCH_LIMIT,
   resolveCandidatesListTotal,
   withWorkersListFetchLimit,
 } from "@/lib/workers/candidates-list-fetch";
@@ -296,15 +297,40 @@ export default function CandidatesPage() {
         return;
       }
 
-      const res = await fetch(withWorkersListFetchLimit("/api/workers?includePhotoUrls=1"), {
-        cache: "no-store",
-      });
-      const data = await res.json();
+      const pageSize = CANDIDATES_LIST_FETCH_LIMIT;
+      const allRows: WorkerProfile[] = [];
+      let offset = 0;
+      let total = Number.POSITIVE_INFINITY;
+      let firstStatus = 0;
+      let firstData: Record<string, unknown> = {};
+
+      while (offset < total && offset < 20_000) {
+        const res = await fetch(
+          withWorkersListFetchLimit(`/api/workers?includePhotoUrls=1&offset=${offset}`),
+          { cache: "no-store" }
+        );
+        const data = await res.json();
+        if (offset === 0) {
+          firstStatus = res.status;
+          firstData = data;
+        }
+        if (!res.ok) break;
+        const pageRows: WorkerProfile[] = Array.isArray(data?.workers)
+          ? data.workers
+          : Array.isArray(data)
+            ? data
+            : [];
+        if (typeof data?.total === "number") total = data.total;
+        allRows.push(...pageRows);
+        if (pageRows.length < pageSize) break;
+        offset += pageSize;
+      }
+
       const authError =
-        res.status === 401 ||
-        res.status === 403 ||
-        String(data?.error ?? "").toLowerCase() === "unauthorized" ||
-        String(data?.detail ?? "").toLowerCase().includes("staff role required");
+        firstStatus === 401 ||
+        firstStatus === 403 ||
+        String(firstData?.error ?? "").toLowerCase() === "unauthorized" ||
+        String(firstData?.detail ?? "").toLowerCase().includes("staff role required");
       if (authError) {
         setCandidates([]);
         setTotalFromApi(0);
@@ -312,14 +338,14 @@ export default function CandidatesPage() {
         setPage(1);
         return;
       }
-      if (!res.ok) throw new Error(data?.error || "Failed to fetch workers");
+      if (firstStatus && firstStatus >= 400) {
+        throw new Error(
+          typeof firstData?.error === "string" ? firstData.error : "Failed to fetch workers"
+        );
+      }
 
-      const rows: WorkerProfile[] = Array.isArray(data?.workers)
-        ? data.workers
-        : Array.isArray(data)
-          ? data
-          : [];
-      setTotalFromApi(typeof data?.total === "number" ? data.total : rows.length);
+      const rows = allRows;
+      setTotalFromApi(Number.isFinite(total) ? total : rows.length);
 
       const mapped: CandidateRow[] = rows.map((item) => {
         const { email, phone } = resolveCandidateContact(item);
@@ -895,6 +921,7 @@ export default function CandidatesPage() {
             toast("No phone number on file for this candidate.");
           }}
           onSetupInterview={() => toast("Set up interview from the candidate application.")}
+          onViewStatusHistory={() => toast("Status history is available from the candidate application.")}
           onDeleteCandidate={() => toast("Delete candidate from the candidate application.")}
           onMarkAsHired={() => toast("Mark as hired from the candidate application.")}
         />

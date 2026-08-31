@@ -73,8 +73,7 @@ type StatusKpiRow = {
 };
 
 function statusCardHref(status: StatusKpiRow): string {
-  const tab = status.systemKey || status.id;
-  return `${APPLICATIONS_HREF}?tab=${encodeURIComponent(tab)}`;
+  return `${APPLICATIONS_HREF}?tab=${encodeURIComponent(status.id)}`;
 }
 
 function statusCardIcon(status: StatusKpiRow, index: number): KpiIcon {
@@ -177,7 +176,7 @@ function buildSummaryCards(jobs: JobListRow[], totalCandidateCount?: number | nu
     {
       label: "Strong Matches",
       value: strongMatches,
-      href: JOBS_LISTING_HREF,
+      href: `${APPLICATIONS_HREF}?matchScore=90_plus`,
       icon: { src: `${JOBS_ICONS}/kpi-star-badge.svg`, bg: "#CFFFDE", leafWidth: 27.2, leafHeight: 27.37 },
     },
     {

@@ -7,7 +7,7 @@ import { resolveStaffTenantId } from "@/lib/jobs/tenant";
 import { JOB_APPLICATION_APPLICANT_EMBED } from "@/lib/jobs/application-applicant-display";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { loadStaffUsersByIds } from "@/lib/account/resolve-staff-users";
-import { WORKER_RESUMES_BUCKET } from "@/lib/supabase-storage-buckets";
+import { isUuid } from "@/lib/validation/uuid";
 
 export const runtime = "nodejs";
 
@@ -47,47 +47,90 @@ export async function GET(req: NextRequest) {
 
     const jobId = req.nextUrl.searchParams.get("jobId")?.trim();
     const workerId = req.nextUrl.searchParams.get("workerId")?.trim();
+    const rawStatusId = req.nextUrl.searchParams.get("statusId")?.trim();
+    const statusId = rawStatusId && isUuid(rawStatusId) ? rawStatusId : "";
+    const matchScore = req.nextUrl.searchParams.get("matchScore")?.trim();
 
     const sortBy = req.nextUrl.searchParams.get("sortBy")?.trim();
     const ascending = req.nextUrl.searchParams.get("sortDir") === "asc";
+    const PAGE_SIZE = 1000;
 
-    let query = supabase
-      .from("job_applications")
-      .select(
-        `id, status, status_id, workflow_phase, post_hire_activated_at, created_at, submitted_at, updated_at, job_requisition_id, workflow_id, applicant_workflow_instance_id, worker_id, assigned_recruiter_user_id, ai_match_status, ai_match_score, ai_match_category, ai_match_action, ai_match_readiness, ai_match_display_category, ai_analyzed_at, ai_analysis_error, ai_analysis_progress, application_statuses(id, name, system_key, color), job_requisitions(public_title, profession_id, employment_type, location, facility, facility_name, professions(name)), onboarding_flows(name), ${JOB_APPLICATION_APPLICANT_EMBED}`
-      )
-      .eq("tenant_id", tenantId);
+    const applicationSelect = `id, status, status_id, workflow_phase, post_hire_activated_at, created_at, submitted_at, updated_at, job_requisition_id, workflow_id, applicant_workflow_instance_id, worker_id, assigned_recruiter_user_id, ai_match_status, ai_match_score, ai_match_category, ai_match_action, ai_match_readiness, ai_match_display_category, ai_analyzed_at, ai_analysis_error, ai_analysis_progress, application_statuses(id, name, system_key, color), job_requisitions(public_title, profession_id, employment_type, location, facility, facility_name, professions(name)), onboarding_flows(name), ${JOB_APPLICATION_APPLICANT_EMBED}`;
 
-    if (jobId) {
-      query = query
-        .eq("job_requisition_id", jobId)
-        .not("status", "in", '("rejected","withdrawn")');
-    } else if (workerId) {
-      query = query.eq("worker_id", workerId).not("status", "in", '("rejected","withdrawn")');
+    function buildListQuery() {
+      let query = supabase
+        .from("job_applications")
+        .select(applicationSelect)
+        .eq("tenant_id", tenantId);
+
+      if (jobId) {
+        query = query
+          .eq("job_requisition_id", jobId)
+          .not("status", "in", '("rejected","withdrawn")');
+      } else if (workerId) {
+        query = query.eq("worker_id", workerId).not("status", "in", '("rejected","withdrawn")');
+      }
+
+      if (statusId) {
+        query = query.eq("status_id", statusId);
+      }
+
+      if (matchScore === "90_plus") {
+        query = query.gte("ai_match_score", 90);
+      }
+
+      if (sortBy === "ai_match_score") {
+        query = query.order("ai_match_score", {
+          ascending,
+          nullsFirst: false,
+        });
+      } else {
+        query = query.order("created_at", { ascending: false });
+      }
+
+      const status = req.nextUrl.searchParams.get("status");
+      const workflowId = req.nextUrl.searchParams.get("workflowId");
+      const from = req.nextUrl.searchParams.get("from");
+      const to = req.nextUrl.searchParams.get("to");
+      if (status) query = query.eq("status", status);
+      if (workflowId) query = query.eq("workflow_id", workflowId);
+      if (from) query = query.gte("created_at", from);
+      if (to) query = query.lte("created_at", to);
+      return query;
     }
 
-    if (sortBy === "ai_match_score") {
-      query = query.order("ai_match_score", {
-        ascending,
-        nullsFirst: false,
-      });
-    } else {
-      query = query.order("created_at", { ascending: false });
+    const pages: Array<Record<string, unknown>> = [];
+    let pageFrom = 0;
+    while (pageFrom < 20_000) {
+      const { data, error } = await buildListQuery().range(pageFrom, pageFrom + PAGE_SIZE - 1);
+      if (error) throw error;
+      const chunk = data ?? [];
+      pages.push(...chunk);
+      if (chunk.length < PAGE_SIZE) break;
+      pageFrom += PAGE_SIZE;
     }
 
-    const status = req.nextUrl.searchParams.get("status");
-    const workflowId = req.nextUrl.searchParams.get("workflowId");
-    const from = req.nextUrl.searchParams.get("from");
-    const to = req.nextUrl.searchParams.get("to");
-    if (status) query = query.eq("status", status);
-    if (workflowId) query = query.eq("workflow_id", workflowId);
-    if (from) query = query.gte("created_at", from);
-    if (to) query = query.lte("created_at", to);
-
-    const { data, error } = await query;
-    if (error) throw error;
-
-    let applications = data ?? [];
+    let applications: Array<{
+      id: string;
+      worker_id?: string | null;
+      assigned_recruiter_user_id?: string | null;
+      application_statuses?: unknown;
+      job_requisitions?:
+        | { profession_id?: string; employment_type?: string }
+        | Array<{ profession_id?: string; employment_type?: string }>
+        | null;
+      [key: string]: unknown;
+    }> = pages as Array<{
+      id: string;
+      worker_id?: string | null;
+      assigned_recruiter_user_id?: string | null;
+      application_statuses?: unknown;
+      job_requisitions?:
+        | { profession_id?: string; employment_type?: string }
+        | Array<{ profession_id?: string; employment_type?: string }>
+        | null;
+      [key: string]: unknown;
+    }>;
     const professionId = req.nextUrl.searchParams.get("professionId");
     const employmentType = req.nextUrl.searchParams.get("employmentType");
     if (professionId || employmentType) {

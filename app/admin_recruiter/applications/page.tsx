@@ -68,10 +68,15 @@ import {
   applicationCurrentStageMeta,
   applicationStatusDotClassName,
   applicationStatusLabel,
-  isArchivedApplicationStatus,
   normalizeApplicationStatus,
   type ApplicationPipelineStatus,
 } from "@/lib/jobs/application-status";
+import {
+  applicationRowStatusId,
+  isApplicationRowArchived,
+  matchesApplicationStatusTab,
+} from "@/lib/jobs/application-status-tab";
+import { isUuid } from "@/lib/validation/uuid";
 import toast from "react-hot-toast";
 import { brandingToCssVars } from "@/lib/tenant/tenant-branding";
 import {
@@ -342,8 +347,7 @@ function oneStatusJoin(
 }
 
 function rowStatusId(row: ApplicationRow): string | null {
-  const joined = oneStatusJoin(row.application_statuses);
-  return row.status_id?.trim() || joined?.id?.trim() || null;
+  return applicationRowStatusId(row);
 }
 
 function rowStatusName(row: ApplicationRow, options: ApplicationStatusOption[]): string {
@@ -365,11 +369,7 @@ function rowStatusDotColor(row: ApplicationRow, options: ApplicationStatusOption
 }
 
 function isRowArchived(row: ApplicationRow, options: ApplicationStatusOption[]): boolean {
-  const joined = oneStatusJoin(row.application_statuses);
-  if (joined?.system_key === "archived") return true;
-  const option = options.find((item) => item.id === rowStatusId(row));
-  if (option?.systemKey === "archived") return true;
-  return isArchivedApplicationStatus(row.status);
+  return isApplicationRowArchived(row, options);
 }
 
 function matchesTab(
@@ -377,21 +377,7 @@ function matchesTab(
   tab: ApplicationTab,
   options: ApplicationStatusOption[]
 ): boolean {
-  const archived = isRowArchived(row, options);
-  if (tab === "all") return !archived;
-
-  const statusId = rowStatusId(row);
-  if (statusId && statusId === tab) return true;
-
-  const option = options.find((item) => item.id === tab);
-  if (option?.systemKey === "archived") return archived;
-  if (archived) return false;
-
-  if (option?.systemKey) {
-    return normalizeApplicationStatus(row.status) === option.systemKey;
-  }
-  // Legacy URL tab keys (new/reviewing/…)
-  return normalizeApplicationStatus(row.status) === tab;
+  return matchesApplicationStatusTab(row, tab, options);
 }
 
 function formatTimeAgo(iso: string): string {
@@ -577,7 +563,9 @@ export default function JobApplicationsPage() {
   const [listingStageFilter, setListingStageFilter] = useState("");
   const [evaluationFilter, setEvaluationFilter] = useState("");
   const [workflowFilter, setWorkflowFilter] = useState("");
-  const [matchScoreFilter, setMatchScoreFilter] = useState("");
+  const [matchScoreFilter, setMatchScoreFilter] = useState(
+    () => searchParams.get("matchScore")?.trim() || ""
+  );
   const [dateAppliedFilter, setDateAppliedFilter] = useState("");
   const [highlightMultiJobApplicants, setHighlightMultiJobApplicants] = useState(false);
   const [rowActionsMenu, setRowActionsMenu] = useState<{
@@ -680,6 +668,11 @@ export default function JobApplicationsPage() {
     const byKey = statusOptions.find((option) => option.systemKey === tabParam);
     setActiveTab(byKey?.id ?? tabParam);
   }, [searchParams, statusOptions]);
+
+  useEffect(() => {
+    const next = searchParams.get("matchScore")?.trim() || "";
+    setMatchScoreFilter((current) => (current === next ? current : next));
+  }, [searchParams]);
 
   useEffect(() => {
     void (async () => {
@@ -796,8 +789,22 @@ export default function JobApplicationsPage() {
     let cancelled = false;
     async function run() {
       const requestJobId = jobId;
+      const tabParam = searchParams.get("tab")?.trim() || "all";
+      let statusId = "";
+      if (tabParam !== "all") {
+        if (isUuid(tabParam)) {
+          statusId = tabParam;
+        } else {
+          const byKey = statusOptions.find((option) => option.systemKey === tabParam);
+          if (!byKey && statusOptions.length === 0) return;
+          statusId = byKey?.id ?? "";
+        }
+      }
+      const matchScore = searchParams.get("matchScore")?.trim() || "";
       const params = new URLSearchParams();
       if (requestJobId) params.set("jobId", requestJobId);
+      if (statusId) params.set("statusId", statusId);
+      if (matchScore) params.set("matchScore", matchScore);
       setLoading(true);
       try {
         const response = await fetch(`/api/admin/job-applications?${params}`, { cache: "no-store" });
@@ -823,7 +830,7 @@ export default function JobApplicationsPage() {
     return () => {
       cancelled = true;
     };
-  }, [jobId, applicationsRefreshNonce]);
+  }, [jobId, applicationsRefreshNonce, searchParams, statusOptions]);
 
   function openAddCandidateModal() {
     if (!jobId) {
@@ -2636,6 +2643,11 @@ export default function JobApplicationsPage() {
             setActionTargetRowId(row.id);
             setInterviewError(null);
             setInterviewOpen(true);
+          }}
+          onViewStatusHistory={() => {
+            const row = rows.find((item) => item.id === rowActionsMenu.rowId);
+            if (!row) return;
+            void openStatusHistory(row);
           }}
           onDeleteCandidate={() => beginDeleteCandidate(rowActionsMenu.rowId)}
           onMarkAsHired={() =>

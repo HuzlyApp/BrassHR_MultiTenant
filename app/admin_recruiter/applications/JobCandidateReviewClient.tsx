@@ -245,6 +245,7 @@ export default function JobCandidateReviewClient() {
   const [statusChangeNote, setStatusChangeNote] = useState("");
   const [statusHistory, setStatusHistory] = useState<StatusHistoryItem[]>([]);
   const [statusHistoryLoading, setStatusHistoryLoading] = useState(false);
+  const [statusHistoryError, setStatusHistoryError] = useState<string | null>(null);
   const [workspaceTab, setWorkspaceTab] = useState<"resume" | "activity" | "application">("resume");
   const [workerApplications, setWorkerApplications] = useState<CandidateProfileApplication[]>([]);
   const [workerApplicationsLoading, setWorkerApplicationsLoading] = useState(false);
@@ -864,6 +865,7 @@ export default function JobCandidateReviewClient() {
 
   const loadStatusHistory = useCallback(async (appId: string) => {
     setStatusHistoryLoading(true);
+    setStatusHistoryError(null);
     try {
       const response = await fetch(
         `/api/admin/job-applications/${encodeURIComponent(appId)}/status-history`,
@@ -872,8 +874,11 @@ export default function JobCandidateReviewClient() {
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "Failed to load status history");
       setStatusHistory((payload.history ?? []) as StatusHistoryItem[]);
-    } catch {
+    } catch (loadError) {
       setStatusHistory([]);
+      setStatusHistoryError(
+        loadError instanceof Error ? loadError.message : "Failed to load status history"
+      );
     } finally {
       setStatusHistoryLoading(false);
     }
@@ -1823,6 +1828,8 @@ export default function JobCandidateReviewClient() {
               <h3 className="text-sm font-semibold text-[#0F172A]">Status History</h3>
               {statusHistoryLoading ? (
                 <p className="mt-2 text-xs text-[#94A3B8]">Loading history…</p>
+              ) : statusHistoryError ? (
+                <p className="mt-2 text-xs text-[#B91C1C]">{statusHistoryError}</p>
               ) : statusHistory.length > 0 ? (
                 <div className="mt-2 space-y-3">
                   {statusHistory.map((entry) => (
