@@ -141,10 +141,11 @@ export function toDirectoryMemberRow(params: {
     createdByName: params.createdByName,
     canResend:
       canMutate &&
+      Boolean(params.invitationId) &&
       (status === "pending" ||
         status === "expired" ||
         status === "failed" ||
-        (!params.lastLogin && Boolean(params.invitationId))),
+        !params.lastLogin),
     canChangeRole: canMutate && status !== "pending" && !(params.isLastAdmin && role === "admin"),
     canSuspend: canMutate && status === "active",
     canReactivate: canMutate && status === "suspended",

@@ -89,6 +89,8 @@ export default function AdminConsolePanel() {
   const [role, setRole] = useState<StaffConsoleRole>("recruiter");
   const [requirePasswordChange, setRequirePasswordChange] = useState(true);
   const [formError, setFormError] = useState<string | null>(null);
+  const [resendingId, setResendingId] = useState<string | null>(null);
+  const [inviteConflict, setInviteConflict] = useState<StaffDirectoryRow | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -123,12 +125,14 @@ export default function AdminConsolePanel() {
     setRole("recruiter");
     setRequirePasswordChange(true);
     setFormError(null);
+    setInviteConflict(null);
   }, []);
 
   async function submitInvite(event: FormEvent) {
     event.preventDefault();
     if (submitting) return;
     setFormError(null);
+    setInviteConflict(null);
     setSubmitting(true);
     try {
       const response = await fetch("/api/admin/users", {
@@ -143,9 +147,16 @@ export default function AdminConsolePanel() {
           origin: window.location.origin,
         }),
       });
-      const payload = (await response.json()) as { error?: string; user?: StaffDirectoryRow };
+      const payload = (await response.json()) as { error?: string; code?: string; user?: StaffDirectoryRow };
       if (!response.ok) {
         setFormError(payload.error || "Could not send invitation.");
+        if (payload.code === "CONFLICT") {
+          const normalized = email.trim().toLowerCase();
+          const match = users.find(
+            (row) => row.canResend && row.invitationId && row.email.toLowerCase() === normalized
+          );
+          setInviteConflict(match ?? null);
+        }
         return;
       }
       toast.success(
@@ -163,7 +174,7 @@ export default function AdminConsolePanel() {
     }
   }
 
-  async function runAction(path: string, init: RequestInit, success: string) {
+  async function runAction(path: string, init: RequestInit, success: string, options?: { closeInvite?: boolean }) {
     setSubmitting(true);
     try {
       const response = await fetch(path, {
@@ -174,13 +185,36 @@ export default function AdminConsolePanel() {
       if (!response.ok) throw new Error(payload.error || "Request failed");
       toast.success(success);
       setMenuId(null);
+      if (options?.closeInvite) {
+        setInviteOpen(false);
+        resetInviteForm();
+      }
       await load();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Request failed");
     } finally {
       setSubmitting(false);
+      setResendingId(null);
       setConfirm(null);
     }
+  }
+
+  function canResendInvitation(row: StaffDirectoryRow): boolean {
+    return row.canResend && Boolean(row.invitationId);
+  }
+
+  function resendInvitation(row: StaffDirectoryRow) {
+    if (!row.invitationId || submitting) return;
+    setResendingId(row.invitationId);
+    void runAction(
+      `/api/admin/users/invitations/${row.invitationId}`,
+      {
+        method: "POST",
+        body: JSON.stringify({ origin: window.location.origin }),
+      },
+      "Invitation resent.",
+      { closeInvite: true }
+    );
   }
 
   const empty = !loading && users.length === 0;
@@ -257,9 +291,21 @@ export default function AdminConsolePanel() {
                   <td className="py-3 pr-3 text-[#334155]">{row.email}</td>
                   <td className="py-3 pr-3 text-[#334155]">{row.roleLabel}</td>
                   <td className="py-3 pr-3">
-                    <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_STYLES[row.status]}`}>
-                      {row.statusLabel}
-                    </span>
+                    <div className="flex flex-col items-start gap-1">
+                      <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_STYLES[row.status]}`}>
+                        {row.statusLabel}
+                      </span>
+                      {canResendInvitation(row) ? (
+                        <button
+                          type="button"
+                          disabled={submitting}
+                          onClick={() => resendInvitation(row)}
+                          className="text-xs font-medium text-[#012352] hover:underline disabled:opacity-60"
+                        >
+                          {resendingId === row.invitationId ? "Resending…" : "Resend invitation"}
+                        </button>
+                      ) : null}
+                    </div>
                   </td>
                   <td className="py-3 pr-3 text-[#64748B]">{formatDate(row.invitationDate)}</td>
                   <td className="py-3 pr-3 text-[#64748B]">{formatDate(row.lastLogin)}</td>
@@ -275,22 +321,14 @@ export default function AdminConsolePanel() {
                     </button>
                     {menuId === row.id ? (
                       <div className="absolute right-0 z-20 mt-1 w-48 rounded-lg border border-[#E2E8F0] bg-white py-1 text-left shadow-lg">
-                        {row.canResend ? (
+                        {canResendInvitation(row) ? (
                           <button
                             type="button"
-                            className="block w-full px-3 py-2 text-sm text-[#0F172A] hover:bg-[#F8FAFC]"
-                            onClick={() =>
-                              void runAction(
-                                `/api/admin/users/invitations/${row.invitationId}`,
-                                {
-                                  method: "POST",
-                                  body: JSON.stringify({ origin: window.location.origin }),
-                                },
-                                "Invitation resent."
-                              )
-                            }
+                            disabled={submitting}
+                            className="block w-full px-3 py-2 text-sm text-[#0F172A] hover:bg-[#F8FAFC] disabled:opacity-60"
+                            onClick={() => resendInvitation(row)}
                           >
-                            Resend invitation
+                            {resendingId === row.invitationId ? "Resending…" : "Resend invitation"}
                           </button>
                         ) : null}
                         {row.canChangeRole ? (
@@ -399,7 +437,8 @@ export default function AdminConsolePanel() {
           </table>
           {pendingCount > 0 ? (
             <p className="mt-3 text-xs text-[#64748B]">
-              Pending accounts stay pending until the recruiter sets a password from the invitation email.
+              Pending accounts stay pending until the admin or recruiter sets a password from the invitation
+              email. Use Resend invitation if they did not receive it.
             </p>
           ) : null}
         </div>
@@ -441,7 +480,10 @@ export default function AdminConsolePanel() {
                 required
                 type="email"
                 value={email}
-                onChange={(event) => setEmail(event.target.value)}
+                onChange={(event) => {
+                  setEmail(event.target.value);
+                  setInviteConflict(null);
+                }}
                 className="h-10 w-full rounded-lg border border-[#CBD5E1] px-3 text-sm outline-none focus:border-[#012352]"
               />
             </label>
@@ -473,6 +515,16 @@ export default function AdminConsolePanel() {
               <span>Require password setup before first login (recommended). They activate with a one-time email link.</span>
             </label>
             {formError ? <p className="mt-3 text-sm text-[#B91C1C]">{formError}</p> : null}
+            {inviteConflict ? (
+              <button
+                type="button"
+                disabled={submitting}
+                onClick={() => resendInvitation(inviteConflict)}
+                className="mt-2 text-sm font-medium text-[#012352] hover:underline disabled:opacity-60"
+              >
+                {resendingId === inviteConflict.invitationId ? "Resending…" : "Resend invitation"}
+              </button>
+            ) : null}
             <div className="mt-5 flex justify-end gap-2">
               <button
                 type="button"

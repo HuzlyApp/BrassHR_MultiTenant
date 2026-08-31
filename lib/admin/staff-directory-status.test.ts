@@ -4,6 +4,7 @@ import {
   deriveMemberStatus,
   sanitizeStaffAuditMetadata,
   staffInviteNeedsPasswordSetup,
+  toDirectoryInvitationRow,
   toDirectoryMemberRow,
   validateInviteStaffInput,
 } from "@/lib/admin/staff-directory-status";
@@ -85,6 +86,57 @@ describe("staff directory status", () => {
     expect(row.statusLabel).toBe("Invitation Pending");
     expect(row.roleLabel).toBe("Recruiter");
     expect(row.canResend).toBe(true);
+  });
+
+  it("does not offer resend when there is no invitation to resend", () => {
+    const row = toDirectoryMemberRow({
+      userId: "user-3",
+      firstName: "Pat",
+      lastName: "Lee",
+      email: "pat@example.com",
+      dbRole: "admin",
+      membershipActive: true,
+      mustChangePassword: true,
+      invitationId: null,
+      invitationStatus: "pending",
+      invitationDate: null,
+      lastLogin: null,
+      createdByUserId: "admin-1",
+      createdByName: "Owner",
+      isSelf: false,
+      isLastAdmin: false,
+    });
+    expect(row.status).toBe("pending");
+    expect(row.canResend).toBe(false);
+  });
+
+  it("lets admins resend pending admin and recruiter invitations", () => {
+    const recruiter = toDirectoryInvitationRow({
+      invitationId: "inv-recruiter",
+      firstName: "Ada",
+      lastName: "Lovelace",
+      email: "ada@example.com",
+      dbRole: "client",
+      invitationStatus: "pending",
+      invitationDate: "2026-08-28T00:00:00.000Z",
+      createdByUserId: "admin-1",
+      createdByName: "Owner",
+    });
+    const admin = toDirectoryInvitationRow({
+      invitationId: "inv-admin",
+      firstName: "Grace",
+      lastName: "Hopper",
+      email: "grace@example.com",
+      dbRole: "admin",
+      invitationStatus: "expired",
+      invitationDate: "2026-08-28T00:00:00.000Z",
+      createdByUserId: "admin-1",
+      createdByName: "Owner",
+    });
+    expect(recruiter.canResend).toBe(true);
+    expect(recruiter.roleLabel).toBe("Recruiter");
+    expect(admin.canResend).toBe(true);
+    expect(admin.roleLabel).toBe("Admin");
   });
 
   it("lets admins resend when an accepted invitee never signed in", () => {
